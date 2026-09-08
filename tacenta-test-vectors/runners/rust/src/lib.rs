@@ -1,0 +1,479 @@
+//! Rust conformance runner. Loads the shared, language-agnostic test-vector
+//! files and drives tacenta-core against them, so the same vectors that check
+//! every language runner check this one. Vector format: schema/vector.schema.json.
+
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::Path;
+
+use serde::Deserialize;
+
+use tacenta_core::ratchet;
+
+/// One vector file (one algorithm), matching schema/vector.schema.json.
+#[derive(Deserialize)]
+pub struct VectorFile {
+    pub schema_version: u32,
+    pub algorithm: String,
+    pub source: String,
+    pub vectors: Vec<Vector>,
+}
+
+#[derive(Deserialize)]
+pub struct Vector {
+    pub id: String,
+    #[serde(default)]
+    pub comment: String,
+    #[serde(default = "valid")]
+    pub result: String,
+    pub inputs: BTreeMap<String, String>,
+    #[serde(default)]
+    pub output: String,
+}
+
+fn valid() -> String {
+    "valid".to_string()
+}
+
+/// Load every `*.json` vector file in `dir`.
+pub fn load_dir(dir: &Path) -> Result<Vec<VectorFile>, String> {
+    let mut files = Vec::new();
+    let entries = fs::read_dir(dir).map_err(|e| format!("read {}: {e}", dir.display()))?;
+    for entry in entries {
+        let path = entry.map_err(|e| e.to_string())?.path();
+        if path.extension().and_then(|e| e.to_str()) == Some("json") {
+            let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            let file: VectorFile =
+                serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+            files.push(file);
+        }
+    }
+    Ok(files)
+}
+
+/// Check every vector in a file, returning the number checked.
+pub fn check_file(file: &VectorFile) -> Result<usize, String> {
+    if file.schema_version != 1 {
+        return Err(format!(
+            "unsupported schema_version {}",
+            file.schema_version
+        ));
+    }
+    for v in &file.vectors {
+        check_vector(&file.algorithm, v)
+            .map_err(|e| format!("{} [{}]: {e}", file.algorithm, v.id))?;
+    }
+    Ok(file.vectors.len())
+}
+
+/// A single field element, two bytes big-endian.
+fn bv16(bytes: &[u8]) -> Result<u16, String> {
+    if bytes.len() != 2 {
+        return Err(format!("expected 2 bytes, got {}", bytes.len()));
+    }
+    Ok(u16::from_be_bytes([bytes[0], bytes[1]]))
+}
+
+/// A run of field elements, two bytes each.
+fn bv16s(bytes: &[u8]) -> Result<Vec<u16>, String> {
+    if !bytes.len().is_multiple_of(2) {
+        return Err(format!("expected an even length, got {}", bytes.len()));
+    }
+    let (pairs, _rest) = bytes.as_chunks::<2>();
+    Ok(pairs.iter().map(|&c| u16::from_be_bytes(c)).collect())
+}
+
+/// A counter, eight bytes big-endian, as both models encode them.
+fn be64(bytes: &[u8]) -> Result<u64, String> {
+    let a: [u8; 8] = bytes
+        .try_into()
+        .map_err(|_| format!("expected 8 bytes, got {}", bytes.len()))?;
+    Ok(u64::from_be_bytes(a))
+}
+
+fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
+    use tacenta_core::primitives::{dh, kdf, sign};
+    use tacenta_core::sessions;
+
+    match algorithm {
+        "message-encoding" => {
+            use tacenta_core::serialization;
+            let header = composite_from(v)?;
+            eq(
+                &serialization::encode_message(&header, &input(v, "ciphertext")?),
+                &bytes(&v.output)?,
+            )
+        }
+        "initial-message-encoding" => {
+            use tacenta_core::serialization;
+            eq(
+                &serialization::encode_initial(
+                    &input(v, "identity")?,
+                    &input(v, "ephemeral")?,
+                    &input(v, "kem_ciphertext")?,
+                    be32(&input(v, "signed_prekey_id")?)?,
+                    be32(&input(v, "one_time_prekey_id")?)?,
+                    be32(&input(v, "kem_prekey_id")?)?,
+                    &input(v, "ratchet_message")?,
+                ),
+                &bytes(&v.output)?,
+            )
+        }
+        "pqxdh-sk" => {
+            let dh1 = array32(&input(v, "dh1")?)?;
+            let dh2 = array32(&input(v, "dh2")?)?;
+            let dh3 = array32(&input(v, "dh3")?)?;
+            let ss = array32(&input(v, "ss")?)?;
+            // dh4 is present exactly when the bundle carried a one-time curve prekey.
+            let dh4 = match v.inputs.get("dh4") {
+                Some(_) => Some(array32(&input(v, "dh4")?)?),
+                None => None,
+            };
+            eq(
+                &sessions::shared_secret(&dh1, &dh2, &dh3, dh4.as_ref(), &ss),
+                &bytes(&v.output)?,
+            )
+        }
+        "hkdf-sha256" => {
+            let expected = bytes(&v.output)?;
+            let mut out = vec![0u8; expected.len()];
+            kdf::hkdf_sha256_into(
+                &input(v, "salt")?,
+                &input(v, "ikm")?,
+                &input(v, "info")?,
+                &mut out,
+            );
+            eq(&out, &expected)
+        }
+        "hmac-sha256" => eq(
+            &kdf::hmac_sha256(&input(v, "key")?, &input(v, "data")?),
+            &bytes(&v.output)?,
+        ),
+        "x25519" => {
+            let secret = array32(&input(v, "private")?)?;
+            let peer = dh::PublicKeyBytes::from_bytes(array32(&input(v, "peer_public")?)?);
+            // `agree` refuses a low-order peer key rather than returning the
+            // all-zero secret it would otherwise produce. No RFC 7748 vector
+            // exercises that, but a vector file could, and "the primitive
+            // refused" is a distinct outcome from "the bytes differed".
+            match dh::PrivateKey::from_bytes(secret).agree(&peer) {
+                Some(shared) => eq(&shared, &bytes(&v.output)?),
+                None => Err("agreement refused: the peer key is low-order".to_owned()),
+            }
+        }
+        "ed25519" => {
+            let pair = sign::SigningKeyPair::from_bytes(array32(&input(v, "secret")?)?);
+            let message = input(v, "message")?;
+            let sig = pair.sign(&message);
+            eq(&sig, &bytes(&v.output)?)?;
+            pair.verifying_key()
+                .verify(&message, &sig)
+                .map_err(|_| "the signature does not verify".to_string())
+        }
+        // The post-quantum derivations. These crates were transcribed from the
+        // models by hand, and these are what pin the transcription: a label, a
+        // counter encoding, or a salt and keying material the wrong way round
+        // all show up here and nowhere else.
+        "gf65536-mul" => {
+            let a = bv16(&input(v, "a")?)?;
+            let b = bv16(&input(v, "b")?)?;
+            eq(
+                &tacenta_erasure::gf::mul(a, b).to_be_bytes(),
+                &bytes(&v.output)?,
+            )
+        }
+        "gf65536-inv" => {
+            let a = bv16(&input(v, "a")?)?;
+            eq(
+                &tacenta_erasure::gf::inv(a).to_be_bytes(),
+                &bytes(&v.output)?,
+            )
+        }
+        "polynomial-interp" => {
+            let nodes = bv16s(&input(v, "nodes")?)?;
+            let values = bv16s(&input(v, "values")?)?;
+            let x = bv16(&input(v, "x")?)?;
+            eq(
+                &tacenta_erasure::interpolate(&nodes, &values, x).to_be_bytes(),
+                &bytes(&v.output)?,
+            )
+        }
+        "spqr-kdf-ck" => {
+            let ck = array32(&input(v, "ck")?)?;
+            let n = be64(&input(v, "n")?)?;
+            let (next, mk) = tacenta_spqr::kdf_ck(&ck, n);
+            eq(
+                &[next.as_slice(), mk.as_slice()].concat(),
+                &bytes(&v.output)?,
+            )
+        }
+        "braid-kdf-ok" => {
+            let ss = input(v, "ss")?;
+            let epoch = be64(&input(v, "epoch")?)?;
+            eq(&tacenta_braid::kdf_ok(&ss, epoch), &bytes(&v.output)?)
+        }
+        "braid-auth-update" => {
+            let root = array32(&input(v, "root")?)?;
+            let key = array32(&input(v, "key")?)?;
+            let epoch = be64(&input(v, "epoch")?)?;
+            let mut auth = tacenta_braid::Auth::from_root(root);
+            auth.update(epoch, &key);
+            let (r, m) = auth.keys();
+            eq(&[r.as_slice(), m.as_slice()].concat(), &bytes(&v.output)?)
+        }
+        "triple-combine" => {
+            let a = array32(&input(v, "mk_ec")?)?;
+            let b = array32(&input(v, "mk_pq")?)?;
+            eq(&tacenta_triple::combine(&a, &b), &bytes(&v.output)?)
+        }
+        "triple-split" => {
+            let sk = input(v, "sk")?;
+            let (ec, pq) = tacenta_triple::split_secret(&sk);
+            eq(&[ec.as_slice(), pq.as_slice()].concat(), &bytes(&v.output)?)
+        }
+        "composite-header" => {
+            use tacenta_core::serialization::composite as c;
+            let h = composite_from(v)?;
+            let encoded = c::encode_composite(&h);
+            eq(&encoded, &bytes(&v.output)?)?;
+            // And the decoder agrees with the encoder, which is the model's
+            // round-trip theorem checked on the implementation.
+            let (back, rest) = c::decode_composite(&encoded).map_err(|e| format!("{e:?}"))?;
+            if back != h || !rest.is_empty() {
+                return Err("round trip disagreed".to_string());
+            }
+            Ok(())
+        }
+        other => Err(format!("no runner for algorithm {other}")),
+    }
+}
+
+/// Build a composite header from a vector's inputs.
+///
+/// Shared by `composite-header` and `message-encoding`, because a message now
+/// carries a composite header and two copies of this would drift.
+fn composite_from(v: &Vector) -> Result<tacenta_core::serialization::composite::Composite, String> {
+    use tacenta_core::serialization::composite as c;
+    let present = input(v, "chunk_present")?;
+    let idx = input(v, "chunk_index")?;
+    let data = input(v, "chunk_data")?;
+    let ag_chunk = if present == [0x01] {
+        Some(c::Codeword {
+            index: u16::from_be_bytes(idx.as_slice().try_into().map_err(|_| "chunk_index")?),
+            data: data.as_slice().try_into().map_err(|_| "chunk_data")?,
+        })
+    } else {
+        None
+    };
+    let ty = input(v, "ag_type")?;
+    let ag_type = match ty.first() {
+        Some(0x00) => c::AgreementType::None,
+        Some(0x01) => c::AgreementType::Hdr,
+        Some(0x02) => c::AgreementType::Ek,
+        Some(0x03) => c::AgreementType::EkCt1Ack,
+        Some(0x04) => c::AgreementType::Ct1,
+        Some(0x05) => c::AgreementType::Ct2,
+        _ => return Err("unknown agreement type".to_string()),
+    };
+    Ok(c::Composite {
+        dh: array32(&input(v, "dh")?)?,
+        pn: be32(&input(v, "pn")?)?,
+        n: be32(&input(v, "n")?)?,
+        pq_epoch: be64(&input(v, "pq_epoch")?)?,
+        pq_n: be64(&input(v, "pq_n")?)?,
+        ag_epoch: be64(&input(v, "ag_epoch")?)?,
+        ag_type,
+        ag_chunk,
+    })
+}
+
+fn input(v: &Vector, key: &str) -> Result<Vec<u8>, String> {
+    let s = v.inputs.get(key).ok_or(format!("missing input {key}"))?;
+    hex::decode(s).map_err(|e| format!("bad hex for {key}: {e}"))
+}
+
+fn bytes(hex_str: &str) -> Result<Vec<u8>, String> {
+    hex::decode(hex_str).map_err(|e| format!("bad hex output: {e}"))
+}
+
+fn array32(bytes: &[u8]) -> Result<[u8; 32], String> {
+    bytes
+        .try_into()
+        .map_err(|_| "expected 32 bytes".to_string())
+}
+
+fn be32(bytes: &[u8]) -> Result<u32, String> {
+    let arr: [u8; 4] = bytes
+        .try_into()
+        .map_err(|_| "expected 4 bytes".to_string())?;
+    Ok(u32::from_be_bytes(arr))
+}
+
+fn eq(got: &[u8], expected: &[u8]) -> Result<(), String> {
+    if got == expected {
+        Ok(())
+    } else {
+        Err(format!(
+            "mismatch: got {}, expected {}",
+            hex::encode(got),
+            hex::encode(expected)
+        ))
+    }
+}
+
+// Double Ratchet protocol vectors. Format: schema/ratchet-vector.schema.json.
+// Each vector is a scripted exchange; the runner replays it against
+// tacenta-core's ratchet and checks each recorded message key.
+
+/// One ratchet vector file, matching schema/ratchet-vector.schema.json.
+#[derive(Deserialize)]
+pub struct RatchetFile {
+    pub schema_version: u32,
+    pub algorithm: String,
+    pub source: String,
+    pub vectors: Vec<RatchetVector>,
+}
+
+#[derive(Deserialize)]
+pub struct RatchetVector {
+    pub id: String,
+    #[serde(default)]
+    pub comment: String,
+    pub init: RatchetInit,
+    pub steps: Vec<RatchetStep>,
+}
+
+#[derive(Deserialize)]
+pub struct RatchetInit {
+    pub sk: String,
+    pub alice_pub: String,
+    pub bob_pub: String,
+    pub dh_ab: String,
+}
+
+#[derive(Deserialize)]
+pub struct RatchetStep {
+    pub actor: String,
+    pub op: String,
+    #[serde(default = "ok_expect")]
+    pub expect: String,
+    #[serde(default)]
+    pub mk: String,
+    #[serde(default)]
+    pub header: Option<HeaderJson>,
+    #[serde(default)]
+    pub dh_recv: String,
+    #[serde(default)]
+    pub dh_send: String,
+    #[serde(default)]
+    pub new_pub: String,
+}
+
+#[derive(Deserialize)]
+pub struct HeaderJson {
+    pub dh: String,
+    pub pn: u32,
+    pub n: u32,
+}
+
+/// Load every `*.json` ratchet vector file in `dir`.
+pub fn load_ratchet_dir(dir: &Path) -> Result<Vec<RatchetFile>, String> {
+    let mut files = Vec::new();
+    let entries = fs::read_dir(dir).map_err(|e| format!("read {}: {e}", dir.display()))?;
+    for entry in entries {
+        let path = entry.map_err(|e| e.to_string())?.path();
+        if path.extension().and_then(|e| e.to_str()) == Some("json") {
+            let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            let file: RatchetFile =
+                serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+            files.push(file);
+        }
+    }
+    Ok(files)
+}
+
+/// Replay every vector in a file, returning the number of steps checked.
+pub fn check_ratchet_file(file: &RatchetFile) -> Result<usize, String> {
+    if file.schema_version != 1 {
+        return Err(format!(
+            "unsupported schema_version {}",
+            file.schema_version
+        ));
+    }
+    if file.algorithm != "double-ratchet" {
+        return Err(format!("unexpected algorithm {}", file.algorithm));
+    }
+    let mut checked = 0;
+    for v in &file.vectors {
+        run_ratchet_vector(v).map_err(|e| format!("[{}] {e}", v.id))?;
+        checked += v.steps.len();
+    }
+    Ok(checked)
+}
+
+fn run_ratchet_vector(v: &RatchetVector) -> Result<(), String> {
+    let sk = array32(&bytes(&v.init.sk)?)?;
+    let alice_pub = array32(&bytes(&v.init.alice_pub)?)?;
+    let bob_pub = array32(&bytes(&v.init.bob_pub)?)?;
+    let dh_ab = array32(&bytes(&v.init.dh_ab)?)?;
+
+    // The vectors are generated by the model under its own label set; a runner
+    // choosing a different one would derive different keys and fail, which is
+    // why this is pinned rather than defaulted.
+    let mut alice =
+        ratchet::init_sender(&sk, alice_pub, bob_pub, &dh_ab, ratchet::LabelSet::Tacenta);
+    let mut bob = ratchet::init_receiver(&sk, bob_pub, ratchet::LabelSet::Tacenta);
+
+    for (i, step) in v.steps.iter().enumerate() {
+        let state = match step.actor.as_str() {
+            "alice" => &mut alice,
+            "bob" => &mut bob,
+            other => return Err(format!("step {i}: unknown actor {other}")),
+        };
+        let result: Result<ratchet::Key, ratchet::RatchetError> = match step.op.as_str() {
+            "send" => ratchet::send(state).map(|(_header, mk)| mk),
+            "receive" => {
+                let hj = step
+                    .header
+                    .as_ref()
+                    .ok_or_else(|| format!("step {i}: receive without a header"))?;
+                let header = ratchet::Header {
+                    dh: array32(&bytes(&hj.dh)?)?,
+                    pn: hj.pn,
+                    n: hj.n,
+                };
+                let dh_recv = array32(&bytes(&step.dh_recv)?)?;
+                let dh_send = array32(&bytes(&step.dh_send)?)?;
+                let new_pub = array32(&bytes(&step.new_pub)?)?;
+                ratchet::receive(state, &header, &dh_recv, &dh_send, new_pub)
+            }
+            other => return Err(format!("step {i}: unknown op {other}")),
+        };
+
+        if step.expect == "reject" {
+            if result.is_ok() {
+                return Err(format!(
+                    "step {i} ({} {}): expected rejection, but it succeeded",
+                    step.actor, step.op
+                ));
+            }
+        } else {
+            let got = result.map_err(|e| format!("step {i} {}: {e:?}", step.op))?;
+            let expected = array32(&bytes(&step.mk)?)?;
+            if got != expected {
+                return Err(format!(
+                    "step {i} ({} {}): message key mismatch: got {}, expected {}",
+                    step.actor,
+                    step.op,
+                    hex::encode(got),
+                    hex::encode(expected)
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn ok_expect() -> String {
+    "ok".to_string()
+}

@@ -1,0 +1,85 @@
+[package]
+name = "tacenta-core-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+rust-version = "1.87"
+
+# Its own workspace on purpose. `cargo fuzz` builds with a nightly toolchain and
+# `-Z sanitizer=address`, which the rest of tacenta-core neither needs nor
+# should inherit; keeping this crate out of the parent workspace means a plain
+# `cargo build` at the root never tries to build it.
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1", features = ["derive"] }
+rand = "0.8"
+rand_core = "0.6"
+
+[dependencies.tacenta-core]
+path = ".."
+
+[dependencies.tacenta-protobuf]
+path = "../protobuf"
+
+[dependencies.tacenta-ratchet]
+path = "../ratchet"
+
+[dependencies.tacenta-spqr]
+path = "../spqr"
+
+[dependencies.tacenta-braid]
+path = "../braid"
+
+[dependencies.tacenta-triple]
+path = "../triple"
+
+[dependencies.tacenta-erasure]
+path = "../erasure"
+
+# Debug assertions on: an overflow that wraps in release is exactly what this
+# suite exists to find, so the release profile keeps the checks a default
+# release profile drops.
+[profile.release]
+debug = true
+debug-assertions = true
+overflow-checks = true
+
+[[bin]]
+name = "wire_decoders"
+path = "fuzz_targets/wire_decoders.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "protobuf_bodies"
+path = "fuzz_targets/protobuf_bodies.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "persisted_state"
+path = "fuzz_targets/persisted_state.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "session_receive"
+path = "fuzz_targets/session_receive.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "braid_receive"
+path = "fuzz_targets/braid_receive.rs"
+test = false
+doc = false
+bench = false

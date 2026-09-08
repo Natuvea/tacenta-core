@@ -1,0 +1,22 @@
+[package]
+name = "tacenta-braid"
+license = "Apache-2.0"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.87"
+description = "The ML-KEM Braid state machine: a sparse continuous key agreement over an unreliable channel."
+publish = false
+
+# Every dependency is a leaf: the codec is ours and has none of its own, and the
+# two cryptographic ones are trusted boundaries in their own crates precisely so
+# a translation of this state machine sees opaque declarations rather than their
+# internals. See kdf/Cargo.toml for the history behind that arrangement.
+[dependencies]
+tacenta-erasure = { path = "../erasure" }
+tacenta-kdf = { path = "../kdf" }
+tacenta-kem = { path = "../kem" }
+zeroize = { version = "1", features = ["derive"] }
+rand_core = "0.6"
+
+[dev-dependencies]
+rand = "0.8"

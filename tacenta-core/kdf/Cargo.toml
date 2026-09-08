@@ -1,0 +1,22 @@
+[package]
+name = "tacenta-kdf"
+license = "Apache-2.0"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.87"
+description = "HKDF-SHA256 and HMAC-SHA256: the trusted key-derivation boundary, deliberately outside the verified zone."
+publish = false
+
+# Its own crate so the translation treats it as opaque. These are trusted
+# primitives (LIMITATIONS.md), not code we verify, and translating them drags
+# RustCrypto's trait hierarchy (FixedOutputCore, typenum block sizes) into the
+# generated Lean, where it does not elaborate. Keeping it external means the
+# ratchet's calls become opaque declarations, which is what a trusted boundary
+# should look like in the proof.
+[dependencies]
+hkdf = "0.12"
+hmac = "0.12"
+sha2 = "0.10"
+
+[dev-dependencies]
+hex = "0.4"

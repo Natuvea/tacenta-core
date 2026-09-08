@@ -1,0 +1,627 @@
+import Translation.TacentaSpqr
+import Translation.T1
+
+/-!
+# T1 for the sparse post-quantum ratchet: totality on what a peer sends
+
+This crate is on the session's send and receive path, so these proofs cover
+what a peer can drive.
+
+## Why it matters here specifically
+
+`receive` is driven by a header an attacker writes. It looks up chains by epoch,
+walks a skipped-key store, and derives forward through a chain by a count the
+message chooses. Each of those is a loop over attacker-influenced data, and a
+panic in any of them is a remote denial of service.
+-/
+
+open Aeneas Aeneas.Std Result
+
+namespace Tacenta.SpqrT1
+
+open tacenta_spqr
+
+/-- `Vec::remove` returns, **for this crate's copy of it**.
+
+`T1.lean` states the same assumption and it does not apply here. Each
+translation unit declares its own opaque `alloc.vec.Vec.remove`, so
+`tacenta_ratchet`'s and `tacenta_spqr`'s are *different constants* and an
+assumption discharged for one says nothing about the other.
+
+That is worth naming, because it is invisible until a proof fails and it
+multiplies the trusted base: one modelling gap in Aeneas becomes one
+assumption per translated crate that touches it, and a reader counting
+assumptions by name rather than by constant will undercount.
+
+`[Inhabited T]` is what makes this satisfiable: without it the statement would
+be refutable at `T := Empty`, and `try_skipped_no_panic` and
+`receive_no_panic` below provable from `False` (see `T1.lean`'s twin and
+`Translation/Satisfiability.lean`). -/
+def VecRemoveTotal : Prop :=
+  ∀ {T : Type} [Inhabited T] (A : Type) (v : alloc.vec.Vec T) (i : Usize),
+    ∃ r, alloc.vec.Vec.remove A v i = ok r ∧ r.2.val = v.val.eraseIdx i.val
+
+/-- Aeneas does not derive this for its generated structures; `VecRemoveTotal`
+above and `SpqrT3.lean`'s `VecRemoveAgrees` both ask for it. -/
+instance : Inhabited Skipped := ⟨{ epoch := default, n := default, key := default }⟩
+
+/-- Wiping a chain key returns.
+
+A third assumption, and a third *constant*: `T1.lean` has `ZeroizingTotal` for
+the ratchet's zeroize and it is not this one. Aeneas does not model the
+`Zeroize` blanket implementation, so each translated crate that wipes a buffer
+assumes its own copy returns. That is the same counting trap named above.
+
+Assuming it **returns** says nothing about whether it *wipes*, which is a
+property of the external crate and is listed separately in `LIMITATIONS.md`
+under secret deletion. -/
+def ZeroizeTotal : Prop :=
+  ∀ {Z : Type} {N : Usize} (inst : zeroize.Zeroize Z) (a : Array Z N),
+    ∃ r, Array.Insts.ZeroizeZeroize.zeroize inst a = ok r
+
+/-- `Vec::retain` returns, never grows the vector, and never invents an
+element `retain` didn't already hold.
+
+The **fifth** constant, arriving exactly where the trace said it would. Aeneas
+does not model `retain`, so this crate assumes its own copy returns. The length
+clause is not decoration: `set_chains` pushes after retaining, and without
+knowing the retain did not grow the vector there is nothing to bound the push
+against. The membership clause is not decoration either: `receive`'s own
+per-chain counter bound needs to survive `advance`'s call to this, and the
+only way a survivor's counter is still bounded is if `retain` drew it from the
+input rather than fabricating it -- a much weaker claim than exposing the
+predicate itself, which stays this file's business, not this assumption's. -/
+def VecRetainTotal : Prop :=
+  ∀ {T F : Type} (A : Type) (inst : core.ops.function.FnMut F T Bool)
+    (v : alloc.vec.Vec T) (f : F),
+    ∃ r, alloc.vec.Vec.retain A inst v f = ok r ∧ r.length ≤ v.length ∧
+      ∀ x ∈ r.val, x ∈ v.val
+
+/-- The root-key derivation returns. A sixth, for the same reason as
+`KdfCkTotal`: translated, but bottoming out in this crate's opaque
+`hkdf_sha256`. -/
+def KdfRkTotal : Prop :=
+  ∀ (rk : Array U8 32#usize) (k : Array U8 32#usize),
+    ∃ r, kdf_rk rk k = ok r
+
+/-- Cloning an `Option` returns exactly what it started with, given that
+    cloning the inner value does too.
+
+    A **sixth** constant. Scalars and fixed-size arrays clone as the identity
+    already, registered in Aeneas's own library and picked up by `step*`
+    automatically; `Option::clone` is not one of those and reaches this crate's
+    translation as a bare axiom with no attached fact at all. -/
+def OptionCloneTotal : Prop :=
+  ∀ {T : Type} (inst : core.clone.Clone T) (o : Option T),
+    (∀ x, o = some x → inst.clone x ⦃ fun y => y = x ⦄) →
+    core.option.Option.Insts.CoreCloneClone.clone inst o ⦃ fun o' => o' = o ⦄
+
+/-- Cloning a chain returns exactly that chain. Free: a byte array and a `U64`
+    both clone as the identity, and `step*` already knows it. -/
+@[step]
+theorem chain_clone_spec (ch : Chain) :
+    Chain.Insts.CoreCloneClone.clone ch ⦃ fun ch' => ch' = ch ⦄ := by
+  unfold Chain.Insts.CoreCloneClone.clone
+  step with core.array.CloneArray.clone_spec core.clone.CloneU8 ch.ck
+    (fun x _ => by simp [core.clone.CloneU8, liftFun1])
+  simp [lift, ← a_post]
+
+/-- Cloning a pair of chain slots returns exactly that pair, given the `Option`
+    assumption above and the chain fact just proved. -/
+theorem chains_clone_spec (hopt : OptionCloneTotal) (cs : Chains) :
+    Chains.Insts.CoreCloneClone.clone cs ⦃ fun cs' => cs' = cs ⦄ := by
+  unfold Chains.Insts.CoreCloneClone.clone
+  step with hopt Chain.Insts.CoreCloneClone cs.send
+    (fun x _ => chain_clone_spec x)
+  step with hopt Chain.Insts.CoreCloneClone cs.receive
+    (fun x _ => chain_clone_spec x)
+  step* <;> simp_all
+
+/-- The chain-key derivation returns.
+
+`kdf_ck` is translated, but it bottoms out in `tacenta_kdf.hkdf_sha256`, which
+this crate's translation carries as an axiom because the key derivation is a
+trusted boundary by design. So its totality is assumed here, named, and listed
+in `LIMITATIONS.md` beside `HmacTotal` and `HkdfTotal` rather than left implicit
+in a proof. -/
+def KdfCkTotal : Prop :=
+  ∀ (ck : Array U8 32#usize) (n : U64), ∃ r, kdf_ck ck n = ok r
+
+/-- Finding an epoch's chains cannot fail.
+
+The bound is rechecked every turn, so the index is in range however the vector
+got its length. The measure is how far the index still has to climb, which is
+the same shape as every other scan in this repository. -/
+-- Strengthened past bare panic-freedom: a successful find names a real entry
+-- of the table, not merely a value that happens to match, since `receive`'s
+-- own per-chain counter bound needs to reach the chain this returns.
+theorem find_chains_loop_no_panic (st : State) (e : U64) (i : Usize) :
+    State.find_chains_loop st e i ⦃ fun r => ∀ cs, r = some cs → (e, cs) ∈ st.chains.val ⦄ := by
+  unfold State.find_chains_loop
+  apply loop.spec_decr_nat
+    (measure := fun p => st.chains.length - p.val)
+    (inv := fun _ => True)
+  · rintro i1 _
+    unfold State.find_chains_loop.body
+    simp only []
+    split <;> [skip; simp]
+    step*
+    all_goals (try simp_all)
+    all_goals (try scalar_tac)
+    all_goals (try (intro cs hcs; injection hcs with hcs; subst hcs; simp_all [List.mem_iff_getElem]; scalar_tac))
+  · trivial
+
+@[step]
+theorem find_chains_no_panic (st : State) (e : U64) :
+    State.find_chains st e ⦃ fun r => ∀ cs, r = some cs → (e, cs) ∈ st.chains.val ⦄ :=
+  find_chains_loop_no_panic st e 0#usize
+
+-- Strengthened past bare panic-freedom: `receive` needs to know this loop
+-- leaves `.chains` untouched and can only shrink `.skipped`, since its own
+-- room preconditions are stated in terms of the *original* state, not this
+-- loop's.
+theorem try_skipped_loop_no_panic (hrm : VecRemoveTotal)
+    (st : State) (e n : U64) (i : Usize) :
+    State.try_skipped_loop st e n i
+      ⦃ fun r => r.2.2.2.1 = st.chains ∧ r.2.2.2.2.1.length ≤ st.skipped.length ⦄ := by
+  unfold State.try_skipped_loop
+  apply loop.spec_decr_nat
+    (measure := fun p => st.skipped.length - p.val)
+    (inv := fun _ => True)
+  · rintro i1 -
+    simp only [State.try_skipped_loop.body]
+    split
+    · -- Inside the store. The index is in range by the test just taken, the
+      -- removal is total by assumption, and the advance cannot overflow because
+      -- the index is below a vector's length.
+      obtain ⟨⟨removed, v'⟩, hrm', herase⟩ := hrm Global st.skipped i1
+      step*
+      repeat' (split <;> (try step*))
+      all_goals (try simp_all [hrm', herase, List.length_eraseIdx])
+      all_goals (try scalar_tac)
+    · simp
+  · trivial
+
+@[step]
+theorem try_skipped_no_panic (hrm : VecRemoveTotal) (st : State) (e n : U64) :
+    State.try_skipped st e n
+      ⦃ fun r => r.2.chains = st.chains ∧ r.2.skipped.length ≤ st.skipped.length ⦄ := by
+  unfold State.try_skipped
+  step with try_skipped_loop_no_panic hrm <;> simp_all
+
+theorem skip_message_keys_loop_no_panic (hkdf : KdfCkTotal) (hz : ZeroizeTotal)
+    (e upto : U64) (ck : Array U8 32#usize)
+    (derived : alloc.vec.Vec Skipped) (num : U64)
+    (h : derived.length + (upto.val - num.val) ≤ MAX_SKIPPED_STORE.val) :
+    -- The walk pushes exactly one key per step it takes, so what comes out is
+    -- what went in plus the count walked. Stated as the postcondition because
+    -- the caller needs it: the later `Vec::append` of these keys onto the
+    -- retained store is only total when the two lengths fit together, and this
+    -- bound (with the source's `count ≤ MAX_SKIP` check) is what discharges
+    -- that guard from `hskiproom`.
+    State.skip_message_keys_loop e upto ck derived num
+      ⦃ fun r => r.2.length ≤ derived.length + (upto.val - num.val) ⦄ := by
+  unfold State.skip_message_keys_loop
+  apply loop.spec_decr_nat
+    (measure := fun p => upto.val - p.2.2.val)
+    -- The conserved quantity: keys derived so far plus keys still to walk never
+    -- exceeds what the caller started with. `h` bounds that start by
+    -- `MAX_SKIPPED_STORE`, which is what keeps each push total.
+    (inv := fun p => p.2.1.length + (upto.val - p.2.2.val)
+      ≤ derived.length + (upto.val - num.val))
+  · rintro ⟨ckA, derivedA, numA⟩ hinv
+    simp only [State.skip_message_keys_loop.body]
+    split
+    · -- A turn of the walk. The counter cannot overflow because it is below
+      -- `upto`; the derivation returns by assumption; and the push is total
+      -- because the invariant plus `h` keep the store inside
+      -- `MAX_SKIPPED_STORE`, which is what the source checks before entering
+      -- this loop at all.
+      step
+      obtain ⟨⟨next, mk⟩, hk⟩ := hkdf ckA num1
+      obtain ⟨_, hzr⟩ := hz (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) ckA
+      simp only [hk, hzr]
+      step*
+      all_goals (try simp_all [MAX_SKIPPED_STORE])
+      all_goals (try scalar_tac)
+    · -- The walk is over: `num` has reached `upto`, the remaining count is
+      -- zero, and the invariant is exactly the postcondition.
+      (try simp_all)
+      all_goals (try scalar_tac)
+  · exact le_refl _
+
+/-- Replacing an epoch's chains cannot fail, **given room for one more**.
+
+`retain` drops this epoch's entry if it is present and keeps the rest, so it
+cannot grow the vector -- but it cannot be relied on to shrink it either, because
+the epoch may be absent. So the push needs a caller with room, and
+`chains.length < Usize.max` is that stated rather than assumed.
+
+The source keeps the vector far below this in practice: `EPOCHS_KEPT` bounds how
+many epochs survive `clear_old_epochs`. That is a bound on *which* epochs are
+held, not a length fact the translation can see, so it does not discharge this. -/
+theorem set_chains_no_panic (hret : VecRetainTotal) (st : State) (e : U64)
+    (c : Chains) (hroom : st.chains.length < Usize.max) :
+    -- `.skipped` is untouched here (only `.chains` is retained and pushed
+    -- to), and `receive`'s room arithmetic for that field runs straight
+    -- through this call, so the equality is worth stating, not just derived.
+    -- The membership clause names what the retain-then-push actually does to
+    -- the table's contents, not just its length: every survivor was already
+    -- there, and the one addition is exactly the pair this call was given.
+    State.set_chains st e c
+      ⦃ fun r => r.chains.length ≤ st.chains.length + 1 ∧ r.skipped = st.skipped ∧
+          ∀ x ∈ r.chains.val, x ∈ st.chains.val ∨ x = (e, c) ⦄ := by
+  unfold State.set_chains
+  obtain ⟨v, hv, hlen, hsub⟩ := hret Global
+    State.set_chains.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool
+    st.chains e
+  simp only [hv]
+  step*
+  all_goals (try simp_all [List.mem_append, List.mem_singleton])
+  all_goals (try (intro a b hab; rcases hab with hab | ⟨rfl, rfl⟩ <;>
+      [exact Or.inl (hsub a b hab); exact Or.inr ⟨rfl, rfl⟩]))
+  all_goals (try scalar_tac)
+
+/-- Ageing out old epochs cannot fail.
+
+Two retains and a record update, and **no push**, so unlike `set_chains` this
+needs no room condition. It is where `EPOCHS_KEPT` is actually applied: both the
+chain table and the skipped-key store drop anything more than that many epochs
+behind. -/
+theorem clear_old_epochs_no_panic (hret : VecRetainTotal) (st : State)
+    (current : U64) :
+    -- The membership clause is the same shape as `set_chains`'s, minus the
+    -- push: a plain retain only ever removes.
+    State.clear_old_epochs st current
+      ⦃ fun r => r.chains.length ≤ st.chains.length ∧ r.skipped.length ≤ st.skipped.length ∧
+          ∀ x ∈ r.chains.val, x ∈ st.chains.val ⦄ := by
+  unfold State.clear_old_epochs
+  obtain ⟨v, hv, hvlen, hvsub⟩ := hret Global
+    State.clear_old_epochs.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool
+    st.chains current
+  obtain ⟨w, hw, hwlen, hwsub⟩ := hret Global
+    State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool
+    st.skipped current
+  simp only [hv, hw]
+  step* <;> simp_all
+
+theorem advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
+    (hz : ZeroizeTotal) (st : State) (out : Output)
+    (hroom : st.chains.length < Usize.max)
+    (hepoch : st.epoch.val < U64.max) :
+    -- `.skipped` is carried through too, not just `.chains`: `clear_old_epochs`
+    -- ages both stores out together, and `receive` downstream needs to know
+    -- `maybe_advance` alone cannot grow the skipped-key store, only shrink it.
+    -- The membership clause: every surviving entry was already in the table
+    -- (a retain, then a retain again, neither one able to fabricate a chain),
+    -- and the one entry that can be new is this call's own, freshly opened
+    -- at counter zero on both sides -- named so a caller can derive a
+    -- per-chain counter bound without re-deriving it from `set_chains`'s and
+    -- `clear_old_epochs`'s own separate membership facts each time.
+    State.advance st out
+      ⦃ fun r => r.2.chains.length ≤ st.chains.length + 1 ∧ r.2.skipped.length ≤ st.skipped.length ∧
+          ∀ x ∈ r.2.chains.val, x ∈ st.chains.val ∨
+            (x.1 = out.key_epoch ∧ x.2.send.map Chain.n = some 0#u64 ∧
+              x.2.receive.map Chain.n = some 0#u64) ⦄ := by
+  unfold State.advance
+  obtain ⟨⟨rk', k1', k2'⟩, hrkr⟩ := hrk st.rk out.key
+  obtain ⟨_, hzr⟩ := hz (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) st.rk
+  -- The room precondition is not passed as an argument: a term for it handed
+  -- to `set_chains_no_panic` directly does not unify, because the theorem's
+  -- `st` unifies against a record-update literal here, and the precondition's
+  -- type then has an unreduced projection through it.
+  -- Leaving it off lets `step with` turn it into an ordinary leftover goal,
+  -- which `simp_all` can close using `hroom` already in context.
+  match st.direction with
+  | .A2b =>
+    simp only [hrkr, hzr]
+    step*
+    all_goals (try (step with set_chains_no_panic hret))
+    all_goals (try simp_all)
+    all_goals (try (step with clear_old_epochs_no_panic hret))
+    all_goals (try step*)
+    all_goals (try simp_all)
+    all_goals (try constructor)
+    all_goals (try scalar_tac)
+    all_goals (try (intro a b hab; rcases self1_post3 a b (self2_post3 a b hab) with h1 | ⟨h1a, h1b⟩ <;>
+      first
+        | exact Or.inl h1
+        | (subst h1b; exact Or.inr ⟨h1a, ⟨_, rfl, rfl⟩, ⟨_, rfl, rfl⟩⟩)))
+  | .B2a =>
+    simp only [hrkr, hzr]
+    step*
+    all_goals (try (step with set_chains_no_panic hret))
+    all_goals (try simp_all)
+    all_goals (try (step with clear_old_epochs_no_panic hret))
+    all_goals (try step*)
+    all_goals (try simp_all)
+    all_goals (try constructor)
+    all_goals (try scalar_tac)
+    all_goals (try (intro a b hab; rcases self1_post3 a b (self2_post3 a b hab) with h1 | ⟨h1a, h1b⟩ <;>
+      first
+        | exact Or.inl h1
+        | (subst h1b; exact Or.inr ⟨h1a, ⟨_, rfl, rfl⟩, ⟨_, rfl, rfl⟩⟩)))
+
+theorem maybe_advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
+    (hz : ZeroizeTotal) (st : State) (out : Option Output)
+    (hroom : st.chains.length < Usize.max)
+    (hepoch : st.epoch.val < U64.max) :
+    State.maybe_advance st out
+      ⦃ fun r => r.2.chains.length ≤ st.chains.length + 1 ∧ r.2.skipped.length ≤ st.skipped.length ∧
+          ∀ x ∈ r.2.chains.val, x ∈ st.chains.val ∨
+            (∃ o, out = some o ∧ x.1 = o.key_epoch ∧
+              x.2.send.map Chain.n = some 0#u64 ∧ x.2.receive.map Chain.n = some 0#u64) ⦄ := by
+  unfold State.maybe_advance
+  match out with
+  | none => simp
+  | some o =>
+    refine Std.WP.spec_mono (advance_no_panic hret hrk hz st o hroom hepoch) ?_
+    intro r hr
+    obtain ⟨h1, h2, h3⟩ := hr
+    refine ⟨h1, h2, fun x hx => ?_⟩
+    rcases h3 x hx with h4 | h4
+    · exact Or.inl h4
+    · exact Or.inr ⟨o, rfl, h4⟩
+
+theorem send_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
+    (hz : ZeroizeTotal) (hkdf : KdfCkTotal) (hopt : OptionCloneTotal)
+    (st : State) (sending_epoch : U64) (out : Option Output)
+    -- One turn of `advance` may add one epoch's chains before this function's
+    -- own `set_chains` runs, so the room this needs is one more than `advance`
+    -- alone: the margin `maybe_advance_no_panic` supplies has to survive both.
+    (hroom : st.chains.length + 1 < Usize.max)
+    (hepoch : st.epoch.val < U64.max)
+    (hcounter : ∀ p ∈ st.chains.val, ∀ ch : Chain,
+      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n.val < U64.max) :
+    State.send st sending_epoch out ⦃ fun _ => True ⦄ := by
+  unfold State.send
+  step with maybe_advance_no_panic hret hrk hz st out (by scalar_tac) hepoch
+  all_goals (try step*)
+  all_goals (try (step with chains_clone_spec hopt))
+  all_goals (try step*)
+  all_goals (try (obtain ⟨⟨next, mk⟩, hk⟩ := hkdf ch1.ck n; simp only [hk]))
+  all_goals (try (step with hopt Chain.Insts.CoreCloneClone cs1.receive (fun x _ => chain_clone_spec x)))
+  all_goals (try step*)
+  all_goals (try (step with set_chains_no_panic hret))
+  all_goals (try simp_all)
+  all_goals (try scalar_tac)
+  all_goals (try (
+    rcases r_post3 sending_epoch cs o_post with hp | ⟨o', ho', ha, hsendfresh, hrecvfresh⟩
+    · exact hcounter sending_epoch cs hp ch (Or.inl ‹cs.send = some ch›)
+    · obtain ⟨ch', hch'eq, hch'n⟩ := hsendfresh
+      rw [‹cs.send = some ch›] at hch'eq
+      injection hch'eq with hch'eq
+      subst hch'eq
+      simp_all
+      scalar_tac))
+
+/-- `Vec::append` returns, with the length of the concatenation.
+
+A **seventh** constant. Aeneas does not model it either, and the source only
+ever uses the first component of the pair it returns -- Rust's `&mut self,
+&mut other` signature reborrowed as a return value -- so only that component's
+length is stated.
+
+**Guarded, not unconditional.** Aeneas's `Vec α` is `{ l // l.length ≤ Usize.max }`,
+so for two vectors that are each at the maximum length no result exists at all:
+an unguarded `∀ v w, ∃ r, …` is refutable in Lean, and every theorem taking it
+(`skip_message_keys_no_panic`, `receive_no_panic`) would be provable from
+`False`. The hypothesis carries the precondition the real `Vec::append` is
+total under -- the combined length fits -- exactly as Aeneas guards its own
+`extend_from_slice`. Callers discharge it from `hskiproom`. -/
+def VecAppendTotal : Prop :=
+  ∀ {T : Type} (A : Type) (v w : alloc.vec.Vec T),
+    v.length + w.length ≤ Usize.max →
+    ∃ r, alloc.vec.Vec.append A v w = ok r ∧ r.1.length = v.length + w.length
+
+theorem skip_message_keys_no_panic (hret : VecRetainTotal) (happ : VecAppendTotal)
+    (hkdf : KdfCkTotal) (hz : ZeroizeTotal) (hopt : OptionCloneTotal)
+    (st : State) (e upto : U64)
+    -- The count this loop walks is bounded by `MAX_SKIP` before the loop is
+    -- reached at all (checked in the source), so what remains is that adding
+    -- it to however many keys are already stored cannot overflow the index
+    -- type itself -- a fact about the store's size, not about the count.
+    (hskiproom : st.skipped.length + MAX_SKIP.val ≤ Usize.max)
+    -- The final `set_chains` call touches `.chains`, untouched by anything
+    -- else in this function, so it needs `.chains`'s own room precondition,
+    -- not a fact this function's own arithmetic could ever derive.
+    (hchainsroom : st.chains.length < Usize.max)
+    -- Only needed for the membership clause below: the one fresh entry this
+    -- call can write carries `upto` on its receiving side, and every real
+    -- caller's `upto` is already short of the type's own top value.
+    (hupto : upto.val < U64.max) :
+    -- Strengthened past bare panic-freedom the same way `advance` was:
+    -- `receive` calls this and then touches `.chains` itself afterwards, so
+    -- it needs this call's own growth bound, not just that it returns. The
+    -- membership clause mirrors `advance`'s own: every survivor was already
+    -- there, and the one entry that can be new carries `upto`, not zero, on
+    -- the receiving side, and whatever the found entry's sending side already
+    -- held.
+    State.skip_message_keys st e upto ⦃ fun r => r.2.chains.length ≤ st.chains.length + 1 ∧
+      (r.2.chains = st.chains ∨
+        ∀ x ∈ r.2.chains.val, x ∈ st.chains.val ∨
+          (∃ cs : Chains, (e, cs) ∈ st.chains.val ∧ ∃ ck',
+            x = (e, { send := cs.send, receive := some { ck := ck', n := upto } }))) ⦄ := by
+  unfold State.skip_message_keys
+  step with find_chains_no_panic st e
+  all_goals (try step*)
+  all_goals (try (step with chains_clone_spec hopt))
+  all_goals (try step*)
+  all_goals (try (step with chain_clone_spec))
+  all_goals (try step*)
+  all_goals (try simp_all [UScalar.cast_val_eq])
+  all_goals (try scalar_tac)
+  all_goals (try (rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac))
+  all_goals (try (step with skip_message_keys_loop_no_panic hkdf hz e upto ch.ck (alloc.vec.Vec.with_capacity Skipped (UScalar.cast UScalarTy.Usize count)) ch.n (by simp only [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new, alloc.vec.Vec.length]; rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac)))
+  all_goals (try (obtain ⟨v, hv, hvlen⟩ := hret Global State.skip_message_keys.closure.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool st.skipped (e, ch.n, upto); simp only [hv]))
+  all_goals (try step*)
+  -- The guard on `append`: the retained store is no longer than the store it
+  -- came from (`hvlen`), the derived keys number at most the count walked (the
+  -- loop's postcondition), that count is at most `MAX_SKIP` (the source's own
+  -- check, in context from the branch), and `hskiproom` says the store plus
+  -- `MAX_SKIP` fits -- so the two lengths fit together.
+  all_goals (try (obtain ⟨r, hr, hrlen⟩ := happ Global v derived1 (by
+      -- `hvlen` is the retain's conjunction; only its length half is wanted.
+      -- `ck_post` bounds the derived keys by the empty starting vector's
+      -- length plus the count walked: name that length as `0` so the
+      -- arithmetic can see through the `with_capacity` atom.
+      obtain ⟨hvlen', -⟩ := hvlen
+      have hcap : (alloc.vec.Vec.with_capacity Skipped (UScalar.cast UScalarTy.Usize count)).length = 0 := by
+        simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new, alloc.vec.Vec.length]
+      (try simp only [alloc.vec.Vec.length] at *)
+      scalar_tac); simp only [hr]))
+  all_goals (try (obtain ⟨v1, w⟩ := r))
+  all_goals (try step*)
+  all_goals (try (step with hopt Chain.Insts.CoreCloneClone cs.send (fun x _ => chain_clone_spec x)))
+  all_goals (try step*)
+  all_goals (try (step with set_chains_no_panic hret))
+  all_goals (try simp_all)
+  all_goals (try scalar_tac)
+  all_goals (try (right; intro a b hab; rcases self1_post3 a b hab with h | ⟨ha, hb⟩ <;>
+    first
+      | exact Or.inl h
+      | exact Or.inr ⟨cs, o_post, ha, ck, hb⟩))
+
+/-- The peer-facing entry point: a header an attacker chooses drives the epoch
+lookup, the skipped-key walk, and the forward-derivation count, so panic-freedom
+here is what stands between a malformed message and a remote denial of service.
+
+Two `?`-propagations (`maybe_advance`'s and `skip_message_keys`'s) sit in the
+middle of this function. Both unfold the same way `send`'s did: `step with
+<the callee's own theorem>` followed by `step*` walks straight through
+`CoreOpsTry.branch` and the `ControlFlow` match without any extra lemma, since
+that conversion is a total structural match on `Result`, not a fallible
+operation.
+
+Two set_chains calls can land on this one path -- one inside
+`skip_message_keys`, one at the end of `receive` itself -- so the room bound
+carried in is stated with `+ 2`, not `+ 1`, room for both. -/
+theorem receive_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal) (hz : ZeroizeTotal)
+    (hkdf : KdfCkTotal) (hopt : OptionCloneTotal) (hrm : VecRemoveTotal)
+    (happ : VecAppendTotal) (st : State) (receiving_epoch n : U64) (out : Option Output)
+    (hroom : st.chains.length + 2 < Usize.max)
+    (hepoch : st.epoch.val < U64.max)
+    (hskiproom : st.skipped.length + MAX_SKIP.val ≤ Usize.max)
+    (hcounter : ∀ p ∈ st.chains.val, ∀ ch : Chain,
+      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n.val < U64.max) :
+    State.receive st receiving_epoch out n ⦃ fun _ => True ⦄ := by
+  unfold State.receive
+  have hupto1 : (core.num.U64.saturating_sub n 1#u64).val < U64.max := by
+    unfold core.num.U64.saturating_sub UScalar.saturating_sub UScalar.val
+    simp only [BitVec.toNat_ofNat]
+    have h1 : (1#u64 : U64).bv.toNat = 1 := by native_decide
+    rw [h1]
+    simp only [Nat.zero_max]
+    have h2 : n.bv.toNat < 2 ^ UScalarTy.U64.numBits := n.bv.isLt
+    rw [Nat.mod_eq_of_lt (by omega)]
+    scalar_tac
+  step with maybe_advance_no_panic hret hrk hz st out (by scalar_tac) hepoch
+  all_goals (try step*)
+  all_goals (try (step with try_skipped_no_panic hrm))
+  all_goals (try step*)
+  all_goals (try (simp only [lift]))
+  all_goals (try (step with skip_message_keys_no_panic hret happ hkdf hz hopt))
+  all_goals (try exact hupto1)
+  all_goals (try step*)
+  all_goals (try (step with chains_clone_spec hopt))
+  all_goals (try step*)
+  all_goals (try (step with chain_clone_spec))
+  all_goals (try step*)
+  all_goals (try (obtain ⟨⟨next, mk⟩, hk⟩ := hkdf ch1.ck n; simp only [hk]))
+  all_goals (try (step with hopt Chain.Insts.CoreCloneClone cs1.send (fun x _ => chain_clone_spec x)))
+  all_goals (try step*)
+  all_goals (try (step with set_chains_no_panic hret))
+  all_goals (try simp_all)
+  all_goals (try scalar_tac)
+  all_goals (try (
+    have hfrom1 : (receiving_epoch, cs) ∈ self1.chains.val → ↑ch.n < U64.max := by
+      intro h1
+      rcases r_post3 receiving_epoch cs h1 with h2 | ⟨o', ho', ha2, hsf, hrf⟩
+      · exact hcounter receiving_epoch cs h2 ch (Or.inr ‹cs.receive = some ch›)
+      · obtain ⟨ch', hch'eq, hch'n⟩ := hrf
+        rw [‹cs.receive = some ch›] at hch'eq
+        injection hch'eq with hch'eq
+        subst hch'eq
+        simp_all
+        scalar_tac
+    rcases i_post2 with heq | hmem
+    · rw [heq] at o1_post
+      exact hfrom1 o1_post
+    · rcases hmem receiving_epoch cs o1_post with h1 | ⟨cs', hcs'mem, ha, x', hb⟩
+      · exact hfrom1 h1
+      · have hch'eq := ‹cs.receive = some ch›
+        simp only [hb, Option.some.injEq] at hch'eq
+        rw [← hch'eq]
+        exact hupto1))
+
+/-! ## Where this stands
+
+**Proved:** everything in this crate's public surface -- the three loops
+(`find_chains`, `try_skipped`, `skip_message_keys`), `set_chains`,
+`clear_old_epochs`, `advance`, `maybe_advance`, `send`, and `receive`. Panic
+freedom for a peer-facing `tacenta-spqr` is a machine-checked fact.
+
+`advance`'s own shape: `kdf_rk`'s triple return needs destructuring inside
+the `obtain`, not left anonymous, or the continuation's pure
+`let (rk, k1, k2) := ...` does not reduce -- the wire codec's branch-join
+trap again. The direction enum needs tactic-mode `match`, as `WireType` does.
+And the room precondition for `set_chains_no_panic` is not supplied as an
+argument at the `step with` call site, because `st` there unifies against a
+record-update literal and the precondition's type carries an unreduced
+projection through it; leaving the precondition off and letting it become an
+ordinary leftover goal, closed by `simp_all` using `hroom` already in
+context, is what works.
+
+`send`'s room arithmetic: its own `set_chains` call runs *after*
+`maybe_advance`, which can itself grow `.chains` by one, so `send`'s stated
+room precondition carries a `+ 1` that `advance`'s does not.
+
+`receive` composes two `?`-propagations (`maybe_advance`'s and
+`skip_message_keys`'s). Both unfold the same way: `step with <the callee's own
+theorem>` followed by `step*` walks straight through `CoreOpsTry.branch` and
+the `ControlFlow` match with no extra lemma, because that conversion is a
+total structural match on `Result`, not a fallible operation. What `receive`
+needs of its callees is `.skipped` growth tracked through *every* call on the
+path, not just `.chains`: `clear_old_epochs` (inside `advance`) and
+`try_skipped` both touch `.skipped`, and their theorems say so;
+`set_chains_no_panic` states the dual, that it does *not* touch `.skipped`.
+The postconditions of `clear_old_epochs_no_panic`, `advance_no_panic`,
+`maybe_advance_no_panic`, `try_skipped_no_panic`, `try_skipped_loop_no_panic`,
+`set_chains_no_panic` and `skip_message_keys_no_panic` carry these facts for
+the same reason `send`'s room bound is carried: a caller three calls
+downstream needs a fact only a callee can state.
+
+**`hcounter`, on `send_no_panic`/`receive_no_panic`, is scoped to
+`st.chains.val`.** Quantified over every value the type can hold instead
+(`∀ ch : Chain, ∀ cs : Chains, cs.send = some ch → ch.n.val < U64.max`) it
+would be unsatisfiable, since a `Chain` with `n = U64.max` is a value of the
+type, and neither theorem could then be invoked -- a defect about whether the
+hypothesis is satisfiable, not about whether the proof compiles, which a
+green build cannot flag. Scoping it to the real state's own table needs
+`VecRetainTotal` to carry a membership clause (`retain` cannot fabricate an
+element, only drop one) and `find_chains_no_panic`/`set_chains_no_panic`/
+`clear_old_epochs_no_panic`/`advance_no_panic`/`maybe_advance_no_panic`/
+`skip_message_keys_no_panic` each to carry that fact one call further, so
+the overflow obligation inside `send`/`receive`'s own proofs can reach the
+chain it is about. See `LIMITATIONS.md`.
+
+## Seven assumptions, seven constants, and the counting trap
+
+This file assumes `VecRemoveTotal`, `KdfCkTotal`, `ZeroizeTotal`,
+`VecRetainTotal`, `KdfRkTotal`, `OptionCloneTotal`, and `VecAppendTotal`. The
+first three have namesakes in `T1.lean` and **none of the seven is the same
+proposition as its namesake.**
+
+Each translation unit declares its own opaque constants, so
+`tacenta_ratchet.alloc.vec.Vec.remove` and `tacenta_spqr`'s are different
+constants, and an assumption discharged for one says nothing about the other.
+Reusing the ratchet's assumption here leaves an unsolved goal that looks
+exactly like a stepping problem; printing the goal and comparing fully
+qualified names is what shows why.
+
+**So count the trusted base by constant, not by name.** One modelling gap in
+Aeneas becomes one assumption per translated crate that touches it, and a list
+naming `VecRemoveTotal` once while two crates assume it understates what is
+trusted. -/
+
+end Tacenta.SpqrT1

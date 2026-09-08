@@ -1,0 +1,19 @@
+[package]
+name = "tacenta-triple"
+license = "Apache-2.0"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.87"
+description = "The Triple Ratchet: the Double Ratchet and the sparse post-quantum ratchet combined, so that breaking either alone yields nothing."
+publish = false
+
+# Three leaves and nothing else. The composition adds no primitive of its own:
+# it asks each ratchet for a message key and derives one key from the pair.
+[dependencies]
+tacenta-ratchet = { path = "../ratchet" }
+tacenta-spqr = { path = "../spqr" }
+tacenta-kdf = { path = "../kdf" }
+zeroize = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+hex = "0.4"

@@ -1,0 +1,21 @@
+[package]
+name = "tacenta-ratchet"
+license = "Apache-2.0"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.87"
+description = "The Double Ratchet state machine: the verified zone, isolated as a leaf crate for Charon/Aeneas translation."
+publish = false
+
+# The verified zone, deliberately alone in its own crate. T1 (panic-freedom)
+# translates *this* crate, so nothing outside the ratchet's key schedule can
+# drag constructs Aeneas does not model into the translation (LIMITATIONS.md).
+# Dependencies are the trusted primitive boundary only, and stay opaque to the
+# translation.
+[dependencies]
+# Opaque to the translation: the trusted key-derivation boundary.
+tacenta-kdf = { path = "../kdf" }
+zeroize = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+hex = "0.4"

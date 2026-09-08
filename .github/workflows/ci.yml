@@ -1,0 +1,85 @@
+# Public CI for the open tacenta-core repository.
+#
+# The subset a public contributor can run on GitHub-hosted runners without
+# secrets: the Rust crates (format, lint, tests), the Lean model and proof
+# builds, and the committed translation with its T1/T3 proofs, scanned for
+# `sorry` by `tacenta-proofs/scripts/no-sorry.sh`. Regenerating the translation
+# from the Rust (pinned Charon/Aeneas), the fuzzing, and the timing
+# measurements run outside this repository. The Lean builds need the pinned toolchain the
+# lean-toolchain files name.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tacenta-core
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - run: cargo test --locked --workspace
+
+  proofs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install elan (Lean toolchain)
+        run: |
+          curl -sSfL https://elan.lean-lang.org/elan-init.sh | sh -s -- -y
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      # A fast build signal. The `sorry` scan over these two packages is
+      # `scripts/no-sorry.sh`, which the translation job below runs (it needs
+      # the translation's Mathlib cache first).
+      - name: The model builds
+        run: (cd tacenta-model && lake build)
+      - name: The proofs build
+        run: (cd tacenta-proofs && lake build)
+
+  # The committed Rust-to-Lean translation and the T1/T3 proofs over it, plus
+  # the model and model-layer proofs, all built and scanned for incomplete
+  # declarations by `tacenta-proofs/scripts/no-sorry.sh` (which also asserts
+  # every translation module was elaborated and that no axiom, `partial def`,
+  # `unsafe`, `implemented_by` or `extern` entered hand-written Lean). This is
+  # the heavy build: Aeneas's Lean library brings Mathlib, fetched prebuilt
+  # from Mathlib's cache. It runs here so a public reader has the
+  # translation's theorems checked in public rather than on the private
+  # workflow's word. What this does NOT do is regenerate the translation from
+  # the Rust:
+  # that needs the pinned Charon and Aeneas binaries and runs outside this repository;
+  # `tacenta-proofs/CLAIMS.md` states the release and its digest.
+  translation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install elan (Lean toolchain)
+        run: |
+          curl -sSfL https://elan.lean-lang.org/elan-init.sh | sh -s -- -y
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Fetch the Mathlib cache
+        working-directory: tacenta-proofs/translation
+        run: lake exe cache get
+      - name: The translation, proofs and model build with no incomplete declaration
+        shell: bash
+        run: bash tacenta-proofs/scripts/no-sorry.sh
+
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: bash tooling/check-workflows.sh
+      - run: bash tooling/check-proof-hygiene.sh
+      - run: python3 tooling/check_authentication_boundary.py
+      # Note the assurance boundary: this checks the attestation manifest
+      # against the source hashes. It does NOT re-derive the Rust->Lean
+      # (Charon/Aeneas) translation, which runs on dedicated runners;
+      # the `translation` job above checks the *committed* translation's
+      # proofs. A green attest check confirms the manifest matches the tree,
+      # not that the translation was regenerated on this run.
+      - name: Claims and attestations cover what ships
+        run: python3 tacenta-proofs/scripts/attest.py --check

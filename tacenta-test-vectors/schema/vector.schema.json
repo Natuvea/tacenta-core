@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tacenta.dev/test-vectors/vector.schema.json",
+  "title": "Tacenta test-vector file",
+  "description": "A set of known-answer or conformance vectors for one algorithm or protocol component. Primitive vectors come from public standards; protocol vectors are generated from the Lean model. Byte strings are lowercase hex.",
+  "type": "object",
+  "required": ["schema_version", "algorithm", "source", "vectors"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "algorithm": {
+      "type": "string",
+      "description": "The primitive or protocol component under test, e.g. hkdf-sha256 or double-ratchet."
+    },
+    "source": {
+      "type": "string",
+      "description": "Where the answers come from: a standards reference for primitive vectors, or the model revision that generated protocol vectors."
+    },
+    "vectors": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "inputs"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable identifier, unique within the file."
+          },
+          "comment": {
+            "type": "string"
+          },
+          "result": {
+            "enum": ["valid", "invalid"],
+            "default": "valid",
+            "description": "Whether the operation is expected to succeed. Invalid vectors carry no output and must be rejected."
+          },
+          "inputs": {
+            "type": "object",
+            "description": "Named inputs, each a lowercase hex string.",
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^[0-9a-f]*$"
+            }
+          },
+          "output": {
+            "type": "string",
+            "pattern": "^[0-9a-f]*$",
+            "description": "Expected output for a valid vector, lowercase hex."
+          }
+        }
+      }
+    }
+  }
+}

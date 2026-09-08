@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "algorithm": "double-ratchet",
+  "source": "hand-authored: the MAX_SKIP rejection rule (ratchet.md, Skipped keys). Not a model-byte oracle; a spec rejection.",
+  "vectors": [
+    {
+      "id": "reject-too-many-skipped",
+      "comment": "a header demanding more than MAX_SKIP (1000) skips on a chain is rejected rather than allowed to exhaust memory",
+      "init": {
+        "sk": "0101010101010101010101010101010101010101010101010101010101010101",
+        "alice_pub": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+        "bob_pub": "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+        "dh_ab": "abababababababababababababababababababababababababababababababab"
+      },
+      "steps": [
+        {
+          "actor": "bob",
+          "op": "receive",
+          "expect": "reject",
+          "header": {
+            "dh": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+            "pn": 0,
+            "n": 1005
+          },
+          "dh_recv": "abababababababababababababababababababababababababababababababab",
+          "dh_send": "0000000000000000000000000000000000000000000000000000000000000000",
+          "new_pub": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+        }
+      ]
+    }
+  ]
+}

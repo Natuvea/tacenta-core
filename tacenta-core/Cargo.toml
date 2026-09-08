@@ -1,0 +1,75 @@
+[workspace]
+members = ["ratchet", "session", "kdf", "erasure", "kem", "braid", "spqr", "triple", "protobuf"]
+
+# Overflow checks stay on in release builds, for every crate in the workspace.
+# A length computation that wraps in release is exactly the class of bug this
+# library's stated concern is about, and a library with that concern should
+# not ship the mode that lets it wrap. The fuzz profile turns the same checks
+# on. The cost is a branch per arithmetic operation, which this code does not
+# notice. The fuzz crate has its own workspace and sets the same.
+[profile.release]
+overflow-checks = true
+
+# Dependencies optimised even in dev builds; our own crates stay unoptimised
+# with their debug assertions. libcrux's ML-KEM and the dalek curve arithmetic
+# are two orders of magnitude slower unoptimised, and the session-level tests
+# that drive thousands of messages (`tests/store_eviction.rs`) took over a
+# minute each on them. The verified-zone crates are workspace members and are
+# not covered by this glob.
+[profile.dev.package."*"]
+opt-level = 2
+
+[package]
+name = "tacenta-core"
+license = "Apache-2.0"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.87"
+description = "Independent, verification-first implementation of selected Signal Protocol specifications."
+publish = false
+
+# Vetted, permissively licensed primitive implementations. These are the trusted
+# boundary: the protocol logic built on them is what we specify and verify, and
+# standard cryptography is not reimplemented here.
+[dependencies]
+# The verified zone (the Double Ratchet and its key derivation), isolated as a
+# leaf crate so the T1 translation covers it alone. See ratchet/src/lib.rs.
+tacenta-ratchet = { path = "ratchet" }
+tacenta-session = { path = "session" }
+tacenta-kdf = { path = "kdf" }
+# The bounded wire-format reader, a verified zone in its own right.
+tacenta-protobuf = { path = "protobuf" }
+# The trusted post-quantum boundary, a leaf crate for the same reason.
+tacenta-kem = { path = "kem" }
+# The post-quantum stack: the agreement, the ratchet over it, and the
+# composition that makes both of them safe to use together.
+tacenta-erasure = { path = "erasure" }
+tacenta-braid = { path = "braid" }
+tacenta-spqr = { path = "spqr" }
+tacenta-triple = { path = "triple" }
+x25519-dalek = { version = "2", features = ["static_secrets", "zeroize"] }
+ed25519-dalek = { version = "2", features = ["zeroize", "rand_core"] }
+curve25519-dalek = { version = "4", features = ["zeroize"] }
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc"] }
+hkdf = "0.12"
+hmac = "0.12"
+sha2 = "0.10"
+zeroize = { version = "1", features = ["derive"] }
+rand_core = "0.6"
+# Constant-time selection for XEdDSA's key-pair derivation, so that it does
+# not branch on a secret bit. Already in the dependency graph through the
+# dalek crates; named here so the trait is in scope.
+subtle = { version = "2", default-features = false }
+# "incremental" is Encaps1/Encaps2, which the ML-KEM Braid needs and nothing
+# else does yet. "std" is deliberately absent: it implies libcrux's "rand"
+# feature, whose incremental module does not compile against rand 0.10. See
+# ../tacenta-proofs/upstream/libcrux-incremental-rand/. Re-adding "std" breaks
+# the build, and the error names rand rather than std, so it is worth the
+# comment.
+libcrux-ml-kem = { version = "0.0.10", default-features = false, features = ["mlkem1024", "alloc", "incremental"] }
+
+[dev-dependencies]
+rand = "0.8"
+hex = "0.4"
+proptest = "1"

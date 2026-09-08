@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tacenta.dev/schema/ratchet-vector.schema.json",
+  "title": "Tacenta Double Ratchet protocol vectors, version 1",
+  "description": "A scenario-driven vector file for the Double Ratchet. Each vector is a scripted exchange: an initial state and a sequence of send and receive steps, each recording the message key the model produced. A runner replays the script against an implementation and checks each message key. Diffie-Hellman outputs are supplied as bytes, since the curve is a trusted-boundary primitive.",
+  "type": "object",
+  "required": ["schema_version", "algorithm", "source", "vectors"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "algorithm": { "const": "double-ratchet" },
+    "source": { "type": "string" },
+    "vectors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "init", "steps"],
+        "properties": {
+          "id": { "type": "string" },
+          "comment": { "type": "string" },
+          "init": {
+            "type": "object",
+            "required": ["sk", "alice_pub", "bob_pub", "dh_ab"],
+            "description": "Alice is the party that sends first (init_sender); Bob receives first (init_receiver). sk is the shared root key from session establishment; dh_ab is DH(alice_initial, bob_pub).",
+            "properties": {
+              "sk": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+              "alice_pub": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+              "bob_pub": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+              "dh_ab": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["actor", "op"],
+              "properties": {
+                "actor": { "enum": ["alice", "bob"] },
+                "op": { "enum": ["send", "receive"] },
+                "expect": {
+                  "enum": ["ok", "reject"],
+                  "description": "Whether the step succeeds (default) or must be rejected. A reject step carries no mk."
+                },
+                "mk": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "description": "Present on ok steps: the expected message key the step produces."
+                },
+                "header": {
+                  "type": "object",
+                  "description": "Present on receive steps: the header the sender produced.",
+                  "required": ["dh", "pn", "n"],
+                  "properties": {
+                    "dh": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+                    "pn": { "type": "integer", "minimum": 0 },
+                    "n": { "type": "integer", "minimum": 0 }
+                  }
+                },
+                "dh_recv": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "description": "Present on receive steps: DH(DHs.priv, header.dh), used only when the step takes a DH ratchet step."
+                },
+                "dh_send": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "description": "Present on receive steps: DH(new_dhs.priv, header.dh)."
+                },
+                "new_pub": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "description": "Present on receive steps: the fresh ratchet public key adopted on a DH ratchet step."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

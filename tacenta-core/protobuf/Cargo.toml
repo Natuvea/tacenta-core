@@ -1,0 +1,13 @@
+[package]
+name = "tacenta-protobuf"
+license = "Apache-2.0"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.87"
+description = "A bounded, profile-specific protobuf codec: the verified zone for wire parsing, isolated as a leaf crate for Charon/Aeneas translation."
+publish = false
+
+# **No dependencies, on purpose.** This crate parses bytes an attacker chose, so
+# it is the one place in the engine where a dependency is a parser the proofs do
+# not cover. It uses no generated types, no schema at runtime, and no reflection.
+[dependencies]

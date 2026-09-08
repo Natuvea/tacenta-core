@@ -1,0 +1,19 @@
+[package]
+name = "tacenta-session"
+license = "Apache-2.0"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.87"
+description = "The PQXDH derivation: the verified zone for session establishment, isolated as a leaf crate for Charon/Aeneas translation."
+publish = false
+
+# The same arrangement as tacenta-ratchet, and for the same reason. What lives
+# here is the byte-level derivation PQXDH itself contributes: assembling the
+# keying material, deriving the shared secret from it, and the encodings that
+# bind the identities. The Diffie-Hellman agreements, the KEM, and the signature
+# check stay outside, so they reach the translation as axioms rather than
+# dragging their trait hierarchies into it (LIMITATIONS.md).
+[dependencies]
+# Opaque to the translation: the trusted key-derivation boundary.
+tacenta-kdf = { path = "../kdf" }
+zeroize = { version = "1", features = ["derive"] }

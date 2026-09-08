@@ -1,0 +1,358 @@
+//! The model in `Model.SparseRatchet` is the oracle for all of this. These
+//! check the things a model check cannot reach cheaply: the bounds under
+//! pressure, the retirement of old epochs, and that a stored key is spent when
+//! it is used.
+
+use super::*;
+
+fn sk() -> Vec<u8> {
+    vec![0x01u8; 32]
+}
+
+fn out(epoch: u64, byte: u8) -> Output {
+    Output::new(epoch, [byte; 32])
+}
+
+#[test]
+fn in_order_the_sender_and_receiver_derive_the_same_key() {
+    let mut a = State::init_alice(&sk());
+    let mut b = State::init_bob(&sk());
+    let (n, mk_send) = a.send(0, None).unwrap();
+    let mk_recv = b.receive(0, None, n).unwrap();
+    assert_eq!(mk_send, mk_recv);
+}
+
+#[test]
+fn the_two_sides_assign_the_chain_keys_oppositely() {
+    // If both used the same one, every derivation would still agree and the
+    // session would be broken in the other direction with nothing to show it.
+    // Two parties on the same side must not agree.
+    let mut a1 = State::init_alice(&sk());
+    let mut a2 = State::init_alice(&sk());
+    let (n, mk_send) = a1.send(0, None).unwrap();
+    let mk_recv = a2.receive(0, None, n).unwrap();
+    assert_ne!(mk_send, mk_recv);
+}
+
+#[test]
+fn a_whole_chain_in_order() {
+    let mut a = State::init_alice(&sk());
+    let mut b = State::init_bob(&sk());
+    let mut i = 0;
+    while i < 50 {
+        let (n, mk) = a.send(0, None).unwrap();
+        assert_eq!(n, i + 1);
+        assert_eq!(b.receive(0, None, n).unwrap(), mk);
+        i += 1;
+    }
+    assert_eq!(b.skipped_len(), 0);
+}
+
+#[test]
+fn an_epoch_secret_opens_new_chains_on_both_sides() {
+    let mut a = State::init_alice(&sk());
+    let mut b = State::init_bob(&sk());
+    let o = out(1, 0xAA);
+    let (n, mk) = a.send(1, Some(&o)).unwrap();
+    assert_eq!(a.epoch(), 1);
+    assert_eq!(b.receive(1, Some(&o), n).unwrap(), mk);
+    assert_eq!(b.epoch(), 1);
+}
+
+#[test]
+fn an_epoch_out_of_order_is_rejected() {
+    let mut a = State::init_alice(&sk());
+    // The current epoch is 0, so only 1 follows it.
+    assert_eq!(a.send(2, Some(&out(2, 1))), Err(SpqrError::EpochOutOfOrder));
+    assert_eq!(a.send(0, Some(&out(0, 1))), Err(SpqrError::EpochOutOfOrder));
+    // And the state is unchanged by a rejection.
+    assert_eq!(a.epoch(), 0);
+    assert!(a.send(0, None).is_ok());
+}
+
+#[test]
+fn out_of_order_delivery_is_recovered_from_the_store() {
+    let mut a = State::init_alice(&sk());
+    let mut b = State::init_bob(&sk());
+    let mut sent = Vec::new();
+    let mut i = 0;
+    while i < 10 {
+        sent.push(a.send(0, None).unwrap());
+        i += 1;
+    }
+    // Deliver the tenth first: nine keys get stored.
+    let (n10, mk10) = sent[9];
+    assert_eq!(b.receive(0, None, n10).unwrap(), mk10);
+    assert_eq!(b.skipped_len(), 9);
+    // Then the rest, in reverse, each spending its stored key.
+    let mut j = 9;
+    while j > 0 {
+        j -= 1;
+        let (n, mk) = sent[j];
+        assert_eq!(b.receive(0, None, n).unwrap(), mk);
+    }
+    assert_eq!(b.skipped_len(), 0);
+}
+
+#[test]
+fn a_stored_key_is_spent_when_it_is_used() {
+    let mut a = State::init_alice(&sk());
+    let mut b = State::init_bob(&sk());
+    let (n1, _) = a.send(0, None).unwrap();
+    let (n2, mk2) = a.send(0, None).unwrap();
+    assert_eq!(b.receive(0, None, n2).unwrap(), mk2);
+    assert_eq!(b.skipped_len(), 1);
+    assert!(b.receive(0, None, n1).is_ok());
+    assert_eq!(b.skipped_len(), 0);
+    // A replay finds nothing stored, and the chain has moved past it.
+    assert_eq!(b.receive(0, None, n1), Err(SpqrError::OutOfOrder));
+}
+
+#[test]
+fn a_message_numbered_zero_is_rejected_rather_than_wrapping() {
+    // The model subtracts on Nat, where zero minus one is zero. Rust would
+    // wrap to u64::MAX and ask to skip eighteen quintillion keys, which the
+    // skip bound would then reject with the wrong reason. Saturating gives the
+    // model's behaviour, and the request is refused as an ordering failure.
+    let mut b = State::init_bob(&sk());
+    assert_eq!(b.receive(0, None, 0), Err(SpqrError::OutOfOrder));
+    assert_eq!(b.skipped_len(), 0);
+}
+
+#[test]
+fn skipping_beyond_the_bound_is_refused() {
+    let mut b = State::init_bob(&sk());
+    assert_eq!(
+        b.receive(0, None, MAX_SKIP + 2),
+        Err(SpqrError::TooManySkipped)
+    );
+    // Exactly at the bound is allowed.
+    assert!(b.receive(0, None, MAX_SKIP + 1).is_ok());
+}
+
+#[test]
+fn the_store_bound_stops_repeated_skipping_on_one_chain() {
+    // The per-chain bound limits how far a single request may skip, not how
+    // much a chain may accumulate. A peer can jump MAX_SKIP forward, then do it
+    // again, and again. Without a total bound the store grows without limit on
+    // one chain in one epoch, from a peer who never has to send anything real.
+    //
+    // This is the attack the divergence exists for, and it is sharper than
+    // the cross-epoch growth the divergence also bounds.
+    let mut b = State::init_bob(&sk());
+    b.receive(0, None, MAX_SKIP + 1).unwrap();
+    assert_eq!(b.skipped_len(), MAX_SKIP as usize);
+    b.receive(0, None, 2 * (MAX_SKIP + 1)).unwrap();
+    assert_eq!(b.skipped_len(), 2 * MAX_SKIP as usize);
+    assert_eq!(
+        b.receive(0, None, 3 * (MAX_SKIP + 1)),
+        Err(SpqrError::SkippedStoreFull)
+    );
+    assert!(b.skipped_len() <= MAX_SKIPPED_STORE);
+}
+
+#[test]
+fn retirement_keeps_the_cross_epoch_total_below_the_bound() {
+    // Skipping the maximum in every epoch does not accumulate, because
+    // retirement drops everything older than EPOCHS_KEPT. So the total stays at
+    // or under MAX_SKIP * EPOCHS_KEPT, which is exactly MAX_SKIPPED_STORE.
+    //
+    // Worth pinning: it says the two bounds are consistent rather than
+    // accidentally in tension, and it says which one is doing the work in which
+    // situation.
+    let mut b = State::init_bob(&sk());
+    let mut epoch = 0u64;
+    let mut i = 0;
+    while i < 10 {
+        epoch += 1;
+        let o = out(epoch, epoch as u8);
+        b.receive(epoch, Some(&o), MAX_SKIP + 1).unwrap();
+        assert!(
+            b.skipped_len() <= MAX_SKIP as usize * EPOCHS_KEPT as usize,
+            "epoch {epoch} held {}",
+            b.skipped_len()
+        );
+        i += 1;
+    }
+    assert_eq!(MAX_SKIPPED_STORE, MAX_SKIP as usize * EPOCHS_KEPT as usize);
+}
+
+#[test]
+fn old_epochs_are_retired() {
+    let mut b = State::init_bob(&sk());
+    // Skip some keys in epoch 1 so there is something to retire.
+    let o1 = out(1, 1);
+    b.receive(1, Some(&o1), 5).unwrap();
+    assert_eq!(b.skipped_len(), 4);
+
+    // Two more epochs, and epoch 1 falls outside EPOCHS_KEPT.
+    let o2 = out(2, 2);
+    let o3 = out(3, 3);
+    b.receive(2, Some(&o2), 1).unwrap();
+    assert_eq!(b.skipped_len(), 4);
+    b.receive(3, Some(&o3), 1).unwrap();
+    assert_eq!(b.skipped_len(), 0, "epoch 1's stored keys outlived it");
+
+    // And its chains are gone with them, so a late message for it is refused
+    // rather than decrypted.
+    assert_eq!(b.receive(1, None, 6), Err(SpqrError::NoChain));
+}
+
+#[test]
+fn a_retired_epoch_cannot_be_sent_on() {
+    let mut a = State::init_alice(&sk());
+    let o1 = out(1, 1);
+    let o2 = out(2, 2);
+    a.send(1, Some(&o1)).unwrap();
+    a.send(2, Some(&o2)).unwrap();
+    assert!(
+        a.send(1, None).is_ok(),
+        "epoch 1 is still within the window"
+    );
+    let o3 = out(3, 3);
+    a.send(3, Some(&o3)).unwrap();
+    assert_eq!(a.send(1, None), Err(SpqrError::NoChain));
+}
+
+#[test]
+fn a_full_conversation_across_several_epochs() {
+    let mut a = State::init_alice(&sk());
+    let mut b = State::init_bob(&sk());
+    let mut epoch = 0u64;
+    let mut round = 0;
+    while round < 12 {
+        // Every third round the agreement lands a new secret, which is what
+        // "sparse" means: chains carry many messages between epochs.
+        let advance = round % 3 == 0 && round > 0;
+        let o = if advance {
+            epoch += 1;
+            Some(out(epoch, epoch as u8))
+        } else {
+            None
+        };
+        let (n, mk) = a.send(epoch, o.as_ref()).unwrap();
+        assert_eq!(b.receive(epoch, o.as_ref(), n).unwrap(), mk);
+
+        // And back the other way on the same epoch's other chain.
+        let (n, mk) = b.send(epoch, None).unwrap();
+        assert_eq!(a.receive(epoch, None, n).unwrap(), mk);
+        round += 1;
+    }
+    assert_eq!(a.epoch(), epoch);
+    assert_eq!(b.epoch(), epoch);
+    assert!(epoch >= 3);
+}
+
+#[test]
+fn a_secret_for_the_wrong_epoch_does_not_disturb_the_state() {
+    let mut a = State::init_alice(&sk());
+    let (n1, mk1) = a.send(0, None).unwrap();
+    assert_eq!(a.send(5, Some(&out(5, 9))), Err(SpqrError::EpochOutOfOrder));
+    // The sending chain did not move: the next message is still number two.
+    let (n2, _) = a.send(0, None).unwrap();
+    assert_eq!(n1, 1);
+    assert_eq!(n2, 2);
+    let mut b = State::init_bob(&sk());
+    assert_eq!(b.receive(0, None, 1).unwrap(), mk1);
+}
+
+/// A state with populated chains and skipped stores across several epochs
+/// round-trips byte for byte and field for field, and keeps working
+/// afterward.
+#[test]
+fn to_bytes_from_bytes_round_trips_a_populated_state() {
+    let mut a = State::init_alice(&sk());
+    let mut b = State::init_bob(&sk());
+    let o1 = out(1, 1);
+    // A whole chain, an epoch advance, and an out-of-order delivery so both
+    // the chains vector and the skipped store are non-trivial.
+    a.send(0, None).unwrap();
+    let (n1, _) = a.send(1, Some(&o1)).unwrap();
+    let (n2, _) = a.send(1, None).unwrap();
+    b.receive(1, Some(&o1), n2).unwrap();
+    assert_eq!(b.skipped_len(), 1, "n1's key is still in the store");
+
+    let bytes = b.to_bytes();
+    let restored = State::from_bytes(&bytes).unwrap();
+    assert_eq!(b, restored);
+
+    // The restored state keeps working: n1 is still recoverable from it, and
+    // it agrees with a fresh receive on the un-restored original.
+    let mut restored = restored;
+    let mk1_restored = restored.receive(1, None, n1).unwrap();
+    let mut b2 = b;
+    let mk1_direct = b2.receive(1, None, n1).unwrap();
+    assert_eq!(mk1_restored, mk1_direct);
+}
+
+/// A freshly initialised state has one chains entry, an empty skipped store,
+/// and no optional chain retired yet -- the other end of the shape
+/// `to_bytes` encodes.
+#[test]
+fn to_bytes_from_bytes_round_trips_a_fresh_state() {
+    let fresh = State::init_alice(&sk());
+    let bytes = fresh.to_bytes();
+    let restored = State::from_bytes(&bytes).unwrap();
+    assert_eq!(fresh, restored);
+}
+
+#[test]
+fn from_bytes_rejects_a_foreign_version() {
+    let fresh = State::init_alice(&sk());
+    let mut bytes = fresh.to_bytes().to_vec();
+    bytes[0] = 0xff;
+    assert_eq!(
+        State::from_bytes(&bytes),
+        Err(SpqrDecodeError::UnknownVersion)
+    );
+}
+
+#[test]
+fn from_bytes_rejects_a_truncated_buffer() {
+    let fresh = State::init_alice(&sk());
+    let bytes = fresh.to_bytes();
+    assert_eq!(
+        State::from_bytes(&bytes[..bytes.len() - 1]),
+        Err(SpqrDecodeError::TooShort)
+    );
+}
+
+#[test]
+fn from_bytes_rejects_a_bad_chain_presence_byte() {
+    let fresh = State::init_alice(&sk());
+    let mut bytes = fresh.to_bytes().to_vec();
+    // version(1) + rk(32) + epoch(8) + direction(1) + chains_count(4) + epoch
+    // key(8) lands on the send chain's presence byte.
+    bytes[1 + 32 + 8 + 1 + 4 + 8] = 0x02;
+    assert_eq!(State::from_bytes(&bytes), Err(SpqrDecodeError::Malformed));
+}
+
+#[test]
+fn from_bytes_rejects_trailing_bytes() {
+    let fresh = State::init_alice(&sk());
+    let mut bytes = fresh.to_bytes().to_vec();
+    bytes.push(0x00);
+    assert_eq!(State::from_bytes(&bytes), Err(SpqrDecodeError::Malformed));
+}
+
+/// An absent chain's forty bytes must be zero. Marking a present chain absent
+/// leaves its key and counter in the padding; decoding that as "absent" and
+/// re-encoding it as zeros would be two spellings of one state, which the
+/// persisted-state fuzz target's re-encode oracle checks for.
+#[test]
+fn from_bytes_rejects_nonzero_padding_in_an_absent_chain() {
+    let fresh = State::init_alice(&sk());
+    let mut bytes = fresh.to_bytes().to_vec();
+    let presence = 1 + 32 + 8 + 1 + 4 + 8;
+    assert_eq!(bytes[presence], 0x01, "the fresh send chain is present");
+    bytes[presence] = 0x00;
+    assert_eq!(State::from_bytes(&bytes), Err(SpqrDecodeError::Malformed));
+
+    // With the padding zeroed as well, the absent spelling is canonical and
+    // decodes.
+    for b in &mut bytes[presence + 1..presence + 1 + 32 + 8] {
+        *b = 0;
+    }
+    let restored = State::from_bytes(&bytes).unwrap();
+    assert_eq!(restored.to_bytes().as_slice(), bytes.as_slice());
+}

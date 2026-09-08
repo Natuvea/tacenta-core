@@ -1,0 +1,9 @@
+[package]
+name = "mk-field-collision"
+version = "0.0.0"
+edition = "2021"
+# Upstream reproducer, never published, as `SECURITY.md` states for every
+# crate here.
+publish = false
+
+[dependencies]

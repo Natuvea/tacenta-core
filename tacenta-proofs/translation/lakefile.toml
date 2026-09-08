@@ -1,0 +1,46 @@
+name = "tacenta-translation"
+defaultTargets = ["Translation"]
+
+# The T1 (panic-freedom) environment, deliberately a separate lake package from
+# the T2 proofs next door. Aeneas's Lean library depends on Mathlib, which is a
+# large build; keeping it here means the functional-property proofs in
+# `Proofs/` stay fast and Mathlib-free, and only the translation work pays for
+# it.
+#
+# The `rev` must match the Aeneas release that produced the generated Lean (the
+# binaries in $AENEAS_TOOLS): the library and the translator are versioned
+# together. Regenerate with `scripts/run-aeneas.sh` after changing it.
+#
+# Pinned by commit, not by the release tag. A tag is movable, and this package
+# is what every T1 and T3 theorem is checked against; the tag
+# `nightly-2026.07.22-b1214ca` is movable. The transitive pins (Mathlib, Batteries, Aesop)
+# live in `lake-manifest.json` next to this file, which is committed for the
+# same reason and which `lake build` honours. Do not run `lake update` in CI.
+#
+# Mathlib is fetched prebuilt with `lake exe cache get` before `lake build`;
+# compiling it from source is not the intended path.
+[[require]]
+name = "aeneas"
+git = "https://github.com/AeneasVerif/aeneas"
+rev = "b1214ca0a024e8121f41fe2b2ed15e26af02373b" # tag nightly-2026.07.22-b1214ca
+subDir = "backends/lean"
+
+# The model, required here so the T3 refinement proofs can state the two sides
+# of the relation in one place. It is Mathlib-free and on the same toolchain, so
+# it costs this package nothing beyond what Aeneas already pulls in.
+[[require]]
+name = "tacenta-model"
+path = "../../tacenta-model"
+
+# Build EVERY module under Translation/, not only what the root
+# `Translation.lean` happens to import. Without this glob, `lake build` (and so
+# CI and `no-sorry.sh`, which reads the build log) would
+# elaborate only the root's imports and skip SpqrT3, BraidT3, TripleT1,
+# TripleT3 and TacentaTriple. The
+# root cannot simply import them because `TacentaTriple` and `TacentaRatchet`
+# both define `instDiscriminantRatchetErrorIsize`; a glob builds each module on
+# its own, which is all coverage needs. `scripts/check-translation-coverage.sh`
+# then asserts every `Translation/*.lean` produced an olean.
+[[lean_lib]]
+name = "Translation"
+globs = ["Translation.*"]

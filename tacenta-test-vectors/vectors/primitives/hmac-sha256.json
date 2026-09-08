@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "algorithm": "hmac-sha256",
+  "source": "RFC 4231, section 4",
+  "vectors": [
+    {
+      "id": "rfc4231-tc2",
+      "comment": "Key shorter than the block size (the ASCII 'Jefe').",
+      "inputs": {
+        "key": "4a656665",
+        "data": "7768617420646f2079612077616e7420666f72206e6f7468696e673f"
+      },
+      "output": "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
+    },
+    {
+      "id": "rfc4231-tc1",
+      "comment": "20-byte key, 8-byte data.",
+      "inputs": {
+        "key": "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+        "data": "4869205468657265"
+      },
+      "output": "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
+    }
+  ]
+}

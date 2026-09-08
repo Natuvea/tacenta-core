@@ -1,0 +1,28 @@
+[package]
+name = "tacenta-kem"
+license = "Apache-2.0"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.87"
+description = "ML-KEM-1024's incremental interface: the trusted post-quantum boundary, deliberately outside the verified zone."
+publish = false
+
+# Its own crate for the same reason tacenta-kdf is: the translation must treat
+# it as opaque. libcrux is a trusted primitive (LIMITATIONS.md), not code we
+# verify, and translating it would drag its const-generic and platform
+# multiplexing machinery into the generated Lean. Keeping it external makes the
+# Braid's calls opaque declarations, which is what a trusted boundary should
+# look like in a proof.
+[dependencies]
+# "incremental" is Encaps1/Encaps2, which the ML-KEM Braid needs and nothing
+# else does. "std" is deliberately absent: it implies libcrux's "rand" feature,
+# whose incremental module does not compile against rand 0.10. See
+# ../../tacenta-proofs/upstream/libcrux-incremental-rand/. Re-adding "std"
+# breaks the build, and the error names rand rather than std, so it is worth
+# the comment.
+libcrux-ml-kem = { version = "0.0.10", default-features = false, features = ["mlkem1024", "alloc", "incremental"] }
+zeroize = { version = "1", features = ["derive"] }
+rand_core = "0.6"
+
+[dev-dependencies]
+rand = "0.8"

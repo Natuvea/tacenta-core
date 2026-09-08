@@ -1,0 +1,255 @@
+# Key deletion
+
+This page gathers, in one place, every secret the protocol requires a party to
+delete and the moment it becomes deletable. It is our own description, written
+from the published specifications named in Sources, and it is the reference the
+Lean model and the Rust implementation are both written against.
+
+The requirements are scattered across the source documents because each is
+stated where the key is used. Collected, they are what forward secrecy actually
+rests on: the protocol's guarantee is that a device compromised at one moment
+does not expose messages from before it, and that guarantee is only as good as
+the deletions below.
+
+**Three key schedules run, not one.** Alongside the classical Double Ratchet a
+session runs the sparse post-quantum ratchet
+([sparse-pq-ratchet.md](sparse-pq-ratchet.md)) and the ML-KEM Braid
+([mlkem-braid.md](mlkem-braid.md)) beneath it, each with its own secrets and
+its own deletion points. They are covered below in their own right rather than
+left to be inferred from the classical case.
+
+## What must be deleted, and when
+
+### During a session
+
+| Secret | Deletable once |
+| --- | --- |
+| A message key | the message it protects is encrypted or decrypted |
+| A chain key | the next chain key is derived from it |
+| A root key | the next root key is derived from it |
+| A ratchet private key | a Diffie-Hellman step has produced a new one |
+| A skipped message key | its message arrives, or the store's policy expires it |
+
+Each message is encrypted under a key used once, which is the point of the
+symmetric-key ratchet: the key can go as soon as it has done its work. The old
+chain key goes with it, because the new chain key has already been derived.
+
+### During a session, the other two ratchets
+
+| Secret | Deletable once |
+| --- | --- |
+| A sparse-ratchet chain key | the next chain key is derived from it |
+| A sparse-ratchet root key | the next root key is derived from it |
+| A sparse-ratchet skipped key | its message arrives, or its epoch is retired |
+| A Braid decapsulation key | the encapsulation it was sampled for completes |
+| The Braid's authenticator keys | the authenticator is updated for the next epoch |
+| A Braid agreement output | the ratchet above has consumed it |
+
+The shapes match the classical ratchet's, with one structural difference worth
+naming: the sparse ratchet retires whole *epochs* rather than expiring
+individual keys on a counter, so its skipped store empties in blocks. The
+`EPOCHS_KEPT` bound is the policy choice there, in the same sense the classical
+expiry interval is one.
+
+### Establishing a session
+
+The initiator, after deriving the shared secret `SK`, deletes its ephemeral
+private key, the Diffie-Hellman outputs, and the KEM shared secret `SS`. Only
+`SK` survives into the ratchet.
+
+The responder, after deriving `SK`, deletes the Diffie-Hellman outputs and `SS`.
+Then:
+
+- if the initial message fails to decrypt, it aborts and deletes `SK`, leaving
+  no session behind;
+- if it decrypts, it deletes the private half of every one-time prekey the
+  message named, curve and KEM alike.
+
+That last deletion is what makes a one-time prekey one-time. Without it the key
+is a standing prekey with a misleading name, and an attacker who later
+compromises the device recovers the secret for a session recorded long before.
+
+### Prekeys at rest
+
+- One-time prekey private keys are deleted as they are used, above.
+- After the signed prekey is rotated, the previous private key may be kept
+  briefly, to handle messages already in flight that named it, and must then be
+  deleted.
+- The server deletes one-time prekeys as it hands them out, so that each is
+  offered once. It prefers one-time KEM prekeys and falls back to the last-resort
+  key only when they are exhausted. The server is outside this implementation,
+  but a client that assumes otherwise will hold keys it should not.
+
+### Skipped message keys
+
+Storing keys for messages that have not arrived carries two risks the source
+document names: a malicious sender can induce a recipient to store many of them,
+consuming storage; and the messages may have been recorded by an attacker who
+later compromises the recipient and recovers the stored keys.
+
+The first is met by a bound on how many are stored. The second is met by
+deleting them after an interval, triggered by a timer or by counting events.
+
+## What this implementation does
+
+- Keys are **superseded** at every point the first table requires: a message key
+  is derived and returned rather than retained, a chain key is overwritten by
+  its successor, and a root key by its successor. The state never holds a key
+  the protocol says is spent.
+- Long-lived private keys are zeroed when dropped, by the underlying curve and
+  signing crates. So are the buffers that concentrate secrets during a
+  derivation: the expansion buffers inside the key derivations, and the
+  concatenation the handshake feeds to the KDF.
+- The skipped store is bounded twice over, per chain and in total, and it is a
+  map: storing a key for a pair already held replaces it rather than
+  accumulating, so a superseded key cannot linger unreachable behind a newer
+  one.
+- A one-time prekey, curve or KEM, is removed from the store when a message
+  names it, which is its deletion.
+- **The ratchet state erases itself when dropped.** `State` and the stored
+  skipped keys carry an erasing destructor, so the root key, both chain keys,
+  and every stored message key are wiped when the state goes out of scope, not
+  merely superseded.
+
+  The ratchet is the formally verified zone and an erasing destructor is a
+  `Drop` implementation, but the translation ignores `Drop` entirely: the
+  generated Lean is byte for byte identical with and without it.
+
+  That is the thing to carry away. **The erasure is outside what the proofs
+  see.** T1 and T3 say nothing about it, and would say exactly the same thing
+  if the destructor were absent. A static check in the ratchet's tests fails
+  the build if the derive is removed, which is the only guard there is; it is
+  a much weaker instrument than the proofs standing next to it, and it should
+  not be mistaken for them.
+- **The sparse ratchet erases what it holds.** Its root key is wiped by an
+  explicit destructor, and its chain keys, skipped keys, and agreement outputs
+  each carry an erasing destructor of their own, so dropping the state wipes
+  all of them.
+- **The Braid erases every secret it holds**, by a different route worth
+  naming, because looking for the usual one and not finding it is misleading.
+  Neither `Braid` nor its state enum carries a destructor and neither derives
+  an erasing one -- the erasure is in the *field types* instead. `Auth` derives
+  it; `IncrementalKeyPair` is a boxed `Zeroizing` array, so the wipe reaches
+  through the `Box`; `EncapsState` is a `Zeroizing` vector. The remaining
+  fields of every state are the encapsulation key, the ciphertext halves, and
+  the erasure coders carrying them, which are public wire material and are not
+  secrets to erase.
+- **Session establishment erases too.** `Identity`'s thirty-two byte secret
+  and `PrekeyStore`'s signed-prekey secret and one-time curve secrets are wiped
+  on drop -- the store by a hand-written destructor, since the erasure crate
+  has no `Zeroize` for tuples and both one-time collections are vectors of
+  them. `kem::KeyPair` holds its pair as an erasing byte buffer rather than in
+  libcrux's own type, which does not implement erasure.
+- **The handshake's Diffie-Hellman outputs and the KEM shared secret are
+  erased.** All four agreement outputs and the encapsulated secret are held in
+  erasing wrappers for the life of the derivation and wiped when it returns,
+  at both the encapsulating and the decapsulating side.
+- **Skipped keys are expired, by counting received messages.** A stored key is
+  deleted once it has outlived a fixed number of them. Nothing in the ratchet
+  can read a clock, so the source document's "a timer, or by counting events"
+  resolves to counting: the state carries the count, each stored key carries the
+  count at which it was stored, and every accepted receive ages the store and
+  drops what has expired. The boundary is pinned on both sides, in the model and
+  in the core, so a change to one that is not made to the other fails a test.
+
+  Two things travel with it. The interval is a **policy choice**, not something
+  the specification fixes: too small and a legitimate message delayed behind
+  many others cannot be decrypted, too large and keys stay recoverable longer
+  than they need to. And a peer who can drive receives can age a store out
+  deliberately, causing a genuine delayed message to be lost. That peer can
+  already fill the store, and the alternative is keys that never expire, so this
+  is the better of two exposures rather than the removal of one.
+- **One-time prekeys are replenished, and identifiers never repeat.**
+  `PrekeyStore::replenish` adds fresh one-time keys of both kinds, and
+  `one_time_remaining` is what a caller polls to decide when. Without
+  replenishment a party has exactly as many first contacts with one-time
+  forward secrecy as `create_prekeys` gave it, and every peer after that falls
+  back to the last-resort KEM key with no one-time curve prekey -- sound but
+  weaker.
+
+  Identifiers are numbered per store, from one, so refilling by building a
+  second store and combining it would produce duplicates. Both lookups take the
+  *first* match, so a duplicate would mean removing one entry exposes another
+  under the same identifier, and a replayed initial message naming it would be
+  served twice -- precisely what a one-time prekey exists to prevent.
+  `replenish` continues from the store's `next_id` rather than building
+  anything, which makes the collision impossible rather than merely avoided,
+  and a test pins that the identifiers a store hands out never repeat across a
+  replenishment.
+- **A replayed last-resort handshake is refused, within a bound.** A one-time
+  KEM prekey defends itself by being deleted on use, so replaying a message that
+  names one fails. The last-resort key is reusable by design and has no such
+  defence of its own: without a record, a captured initial message naming it
+  could be replayed without limit, each replay opening a fresh duplicate
+  session. Nothing leaks -- the attacker cannot speak on those sessions -- but
+  unbounded session creation from one captured packet is a denial of service,
+  and each session is 14 KB at rest.
+
+  The store therefore remembers a fingerprint of each last-resort handshake it
+  has accepted, over exactly the fields that determine `SK`, and refuses a
+  repeat. **The record is bounded** at 1024 entries, oldest evicted first,
+  because an unbounded one is the same denial of service in different clothes.
+  Past that many *distinct* last-resort handshakes, a replay of the oldest
+  would be accepted again. Replenishment is what keeps the last-resort path
+  rare enough for the bound to be generous; the record is the backstop for
+  when it is not. The fingerprints persist with the store, so a restart does
+  not reopen the window.
+
+## What this implementation does not do yet
+
+Stated plainly, because a deletion requirement that is documented but not
+implemented is worse than one that is neither.
+
+- **Copies inside libcrux's own types are not erased by this crate.**
+  `libcrux-ml-kem` does not implement erasure, so where its API takes
+  or returns its own types there is a copy nothing wipes. Our wrappers keep key
+  material in erasing buffers and hand libcrux a reconstructed value per call,
+  so the window is one call rather than the life of a store; it is not zero, and
+  closing it needs a change upstream.
+
+- **Persisting a session writes secrets to storage, deliberately.**
+  `Session::export` ([session-persistence.md](session-persistence.md)) produces
+  plaintext bytes carrying every key above. That is a deliberate exception to
+  this page's guarantee: the erasure claims here are about memory, and
+  at-rest protection of the exported blob -- disk encryption, or an encryption
+  layer in the caller's own storage -- is the caller's stated responsibility.
+
+- **Erasure covers values, not their copies.** A value that has been moved,
+  cloned, or spilled by the optimiser is erased where the destructor can see it
+  and not where it cannot. Erasing destructors reduce the window in which a key
+  is readable; they do not close it, and no in-language mechanism does.
+
+- **A rotated signed prekey's private half is never deleted**, because prekey
+  rotation is not implemented. When it is, the brief retention above and its end
+  must come with it.
+- **Erasure is in-memory only.** Secrets are zeroed when dropped, which defeats
+  an attacker who reads process memory afterwards. It says nothing about data
+  recovered from storage media, which the source document places outside its own
+  scope, and which no amount of zeroing in this process addresses. Any claim
+  about deletion must be bounded that way.
+
+  `Session::export`/`import` (session-persistence.md) is a deliberate,
+  explicit exception to this boundary, not a quiet expansion of it: a caller
+  that persists the exported bytes is choosing to hold session secrets on
+  storage media, and protecting that copy at rest -- disk encryption, or an
+  encryption layer in the caller's own storage code -- is that caller's job.
+  The export format itself provides no encryption of its own.
+
+## Sources
+
+- Signal's published Double Ratchet specification (Trevor Perrin, editor;
+  Moxie Marlinspike; Rolfe Schmidt), **revision 4, 2025-11-04**. Its security
+  considerations give secure deletion, the deletion of skipped message keys with
+  the two risks and their mitigations, and the deletion of old KDF chain state;
+  the ratchet sections give the points at which message and chain keys become
+  deletable.
+- Signal's published PQXDH specification (Ehren Kret and Rolfe Schmidt),
+  **revision 3, 2023-05-24, last updated 2024-01-23**. It gives the initiator's
+  and responder's deletions on deriving the shared secret, including the KEM
+  shared secret, the responder's deletion of used one-time prekey private keys,
+  the retention and eventual deletion of a rotated signed prekey, and the
+  server's handling of one-time keys including the last-resort fallback.
+- Signal's published X3DH specification (Moxie Marlinspike; Trevor Perrin,
+  editor), **revision 1, 2016-11-04**, for the same deletions in the
+  pre-quantum handshake, and for aborting and deleting the shared secret when
+  the initial ciphertext fails to decrypt.

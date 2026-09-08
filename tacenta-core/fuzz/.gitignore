@@ -1,0 +1,12 @@
+# Build output. Large, and reproducible from the sources beside it.
+target/
+
+# Findings are deliberately NOT ignored. An artifact is a finding until someone
+# shows it is not, and one that only ever existed on the machine that found it
+# is one nobody else can reproduce. The nightly workflow uploads them and fails
+# the job; if one is ever committed, that is a bug report in the repository,
+# which is where it belongs.
+#
+# The corpus is not ignored either, for the reason the nightly fuzz workflow gives: it is the
+# accumulated set of inputs that reached distinct branches, and a fuzzer that
+# starts from nothing each night never gets past the shallow ones.

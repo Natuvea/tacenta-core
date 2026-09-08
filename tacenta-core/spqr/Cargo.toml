@@ -1,0 +1,20 @@
+[package]
+name = "tacenta-spqr"
+license = "Apache-2.0"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.87"
+description = "The Sparse Post-Quantum Ratchet: a key schedule over epochs a sparse continuous key agreement supplies."
+publish = false
+
+# The verified zone, alone in its own crate for the same reason the Double
+# Ratchet is: T1 translates this and nothing else, so orchestration cannot drag
+# constructs Aeneas does not model into the translation. The agreement beneath
+# it is not a dependency at all: its outputs arrive as values, exactly as
+# Diffie-Hellman outputs do for the ratchet.
+[dependencies]
+tacenta-kdf = { path = "../kdf" }
+zeroize = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+hex = "0.4"

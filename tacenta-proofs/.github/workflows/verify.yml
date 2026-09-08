@@ -1,0 +1,33 @@
+# Reproducible verification CI for tacenta-proofs *as its own repository*.
+#
+# GitHub ignores a nested `.github/` directory, so this does nothing while the
+# component lives inside tacenta-core; the root verify workflow is the live
+# gate. It becomes live the day tacenta-proofs is lifted into its own
+# repository, which is why it is kept correct rather than left as a scaffold:
+# every action here is pinned by digest, as the root workflows are, the Lean
+# toolchain is installed before `verify.sh` runs, and
+# `tooling/check-workflows.sh` scans nested workflow directories too.
+#
+# Only the light gate (model and model-layer proofs) can run on a GitHub-hosted
+# runner; the translation needs the pinned Aeneas release, which is
+# linux-x86_64 and runs on a dedicated runner. When this repository is split out, port the
+# heavy gate from that workflow deliberately rather than by copying.
+name: verify
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install the pinned Lean toolchain
+        run: |
+          set -euo pipefail
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain "$(cat lean-toolchain)"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - run: ./scripts/verify.sh

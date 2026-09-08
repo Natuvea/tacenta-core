@@ -1,0 +1,18 @@
+[package]
+name = "tacenta-erasure"
+license = "Apache-2.0"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.87"
+description = "Reed-Solomon erasure coding over GF(2^16): the verified zone, isolated as a leaf crate for Charon/Aeneas translation."
+publish = false
+
+# A leaf crate for the same reason the ratchet is one: T1 (panic-freedom)
+# translates it alone, and a decoder that consumes attacker-supplied codewords is
+# exactly the kind of code that claim is worth having about. It has no
+# dependencies at all, which is unusual here and is the point: this is
+# arithmetic and indexing, nothing else.
+[dependencies]
+
+[dev-dependencies]
+proptest = "1"

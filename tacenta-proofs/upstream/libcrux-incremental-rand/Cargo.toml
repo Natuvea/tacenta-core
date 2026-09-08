@@ -1,0 +1,11 @@
+# Reproducer for ISSUE.md. This crate is *expected not to compile*.
+# Standalone on purpose: it must not join any workspace, because its whole
+# content is a build failure.
+[package]
+name = "libcrux-incremental-rand"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+libcrux-ml-kem = { version = "0.0.10", default-features = false, features = ["mlkem1024", "std", "incremental"] }
