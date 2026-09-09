@@ -81,9 +81,10 @@ proptest! {
 
     /// A mutation of a canonical store that is still accepted re-encodes to
     /// exactly the bytes it was decoded from -- the canonicality property, now
-    /// exercised on near-valid input (CR-28). Guarded to current-version (v3)
-    /// acceptances: a mutation that relabels the store v1 or v2 is legitimately
-    /// upgraded on re-encode, which is not a canonicality violation.
+    /// exercised on near-valid input (CR-28). Guarded to current-version (v4)
+    /// acceptances: a mutation that relabels the store v1, v2 or v3 is
+    /// legitimately upgraded on re-encode, which is not a canonicality
+    /// violation.
     #[test]
     fn prekey_store_accepted_mutations_reencode_identically(
         at in any::<usize>(),
@@ -92,7 +93,7 @@ proptest! {
         let mut bytes = canonical_prekey_store().to_vec();
         let i = at % bytes.len();
         bytes[i] ^= 1 << bit;
-        if bytes[0] == 0x03 {
+        if bytes[0] == 0x04 {
             if let Ok(store) = PrekeyStore::from_bytes(&bytes) {
                 let reencoded = store.to_bytes();
                 prop_assert_eq!(reencoded.as_slice(), bytes.as_slice());

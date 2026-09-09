@@ -164,14 +164,25 @@ impl Identity {
     }
 }
 
-/// How many spent last-resort handshakes a store remembers.
+/// How many spent last-resort handshakes a store remembers, across the
+/// current last-resort KEM key and the one a rotation retired.
 ///
-/// 1024 fingerprints is 32 KB, which is small beside a single 14 KB session
-/// and generous beside the number of peers that should ever reach the
+/// 1024 tagged fingerprints is 36 KB, which is small beside a single 14 KB
+/// session and generous beside the number of peers that should ever reach the
 /// last-resort path at all -- they only do so once one-time KEM prekeys are
 /// exhausted. Chosen to be comfortably larger than any realistic burst rather
-/// than tuned; the note on `PrekeyStore::last_resort_seen` says what is given
-/// up by having a bound at all.
+/// than tuned.
+///
+/// A full record costs availability, not correctness: a new last-resort
+/// handshake against a full record is refused with
+/// `Error::LastResortRecordFull` instead of evicting an older entry, because
+/// eviction is what let anyone holding the public bundle forget a victim's
+/// fingerprint on demand (the note on `PrekeyStore::last_resort_seen` says
+/// how). The cost falls on the last-resort path only; a handshake that names
+/// a one-time KEM prekey never consults the record. The operator's two levers
+/// are keeping one-time KEM prekeys stocked (`replenish`), which keeps peers
+/// off this path, and rotating the last-resort key (`rotate_kem`), which frees
+/// a key's entries once the rotation after it wipes that key.
 const MAX_LAST_RESORT_SEEN: usize = 1024;
 
 /// A domain-separated fingerprint of the handshake half of an initial message.
@@ -249,8 +260,10 @@ pub struct PrekeyStore {
     /// first rotation; replaced, and the older secret wiped, by the next.
     previous_signed_prekey: Option<([u8; 32], u32, [u8; 64])>,
     /// The last-resort KEM prekey before the last `rotate_kem`, kept on the
-    /// same terms. The last-resort fingerprints below are not rotated with
-    /// it: a replay against the previous key is still a replay.
+    /// same terms. The replay record below follows it: entries recorded under
+    /// this key stay while it can still decrypt, since a replay against the
+    /// retired key is still a replay, and are dropped when the next rotation
+    /// wipes it.
     previous_kem: Option<(kem::KeyPair, u32, [u8; 64])>,
     /// The next identifier to hand out, so that anything adding keys to this
     /// store continues the sequence rather than restarting it.
@@ -271,34 +284,69 @@ pub struct PrekeyStore {
     /// so the requirement is visible to whoever writes it rather than
     /// rediscovered.
     next_id: u32,
-    /// Fingerprints of last-resort handshakes this store has already accepted,
-    /// newest last, capped at `MAX_LAST_RESORT_SEEN`.
+    /// The last-resort handshakes this store has already accepted: for each,
+    /// the identifier of the last-resort KEM key it was made against and the
+    /// fingerprint of the handshake, newest last, at most
+    /// `MAX_LAST_RESORT_SEEN` in all.
     ///
     /// **What this is for.** A one-time KEM prekey defends itself: it is
     /// deleted on use, so replaying an initial message that names one fails
     /// with `UnknownPrekeyId`. The last-resort key is reusable by design and
-    /// has no such defence, so without this field a captured initial message
-    /// could be replayed without limit, each replay opening a *fresh duplicate
-    /// session*. No content leaks -- the attacker learns nothing and the
-    /// session is one they cannot speak on -- but unbounded session creation
-    /// from one captured packet is a denial of service, and the sessions are
-    /// 14 KB each on disk.
+    /// has no such defence. Without this record a captured initial message
+    /// naming it -- with no one-time curve prekey either, which is the steady
+    /// state of a store whose one-time pools are exhausted -- would be
+    /// accepted again on every delivery, and each acceptance hands the
+    /// application the initiator's first plaintext a second time, as the
+    /// opening message of what looks like a fresh session. That is duplicate
+    /// delivery, not merely a denial of service: the same message is received
+    /// twice, under two sessions, and nothing marks the second as a repeat.
+    /// The attacker learns nothing and cannot speak on either session; the
+    /// harm is to the application's record of what was said, and how often.
     ///
     /// The specification is aware that the handshake replays: without a
     /// one-time *curve* prekey Bob derives the same `SK` in different runs,
     /// which is why the ratchet must randomise before he replies
     /// (session-establishment.md, "Replay, and why the ratchet must follow").
-    /// That reasoning is about key reuse. It says nothing about how many
-    /// sessions the replay may create, which is what this bounds.
+    /// That reasoning is about key reuse. It says nothing about the replay
+    /// being accepted at all, which is what this refuses.
     ///
-    /// **The bound is a real limit, not a formality.** Past
-    /// `MAX_LAST_RESORT_SEEN` distinct last-resort handshakes the oldest
-    /// fingerprint is evicted and a replay of *that* one would be accepted
-    /// again. The alternative is an unbounded set, which is the same denial of
-    /// service wearing different clothes. Keeping one-time KEM prekeys stocked
-    /// (`replenish`) is what keeps the last-resort path rare enough for the
-    /// bound to be generous; this field is the backstop for when it is not.
-    last_resort_seen: Vec<[u8; 32]>,
+    /// **Why the bound is per key lifetime, and why it fails closed.** This
+    /// was once a window of the last `MAX_LAST_RESORT_SEEN` fingerprints,
+    /// oldest evicted first. A window is a count an unauthenticated peer can
+    /// drive: anyone holding the public bundle can complete a last-resort
+    /// handshake under a fresh identity in about a millisecond and a half, so
+    /// a thousand of them evicted a chosen victim's fingerprint in about two
+    /// seconds, after which the captured message replayed. Now the record
+    /// holds entries only for keys that can still decrypt -- the current
+    /// last-resort key and, after a rotation, the retired one -- each tagged
+    /// with the key it was made against, and a key's entries are dropped when
+    /// `rotate_kem` wipes that key, because a message naming a wiped key fails
+    /// with `UnknownPrekeyId` before the record is consulted. What the bound
+    /// measures is therefore how many distinct last-resort handshakes those
+    /// keys have accepted over their lifetime, which rotation resets, not how
+    /// many arrived recently.
+    ///
+    /// When the record is full, a last-resort handshake whose fingerprint is
+    /// not in it is refused with `Error::LastResortRecordFull` before anything
+    /// is decrypted or changed. Nothing is evicted, ever: an entry leaves the
+    /// record only when its key is wiped. A fingerprint already in the record
+    /// is refused as `ReplayedLastResort` whether or not the record is full.
+    /// The refusal is the honest cost of a bound: a store that ran out of
+    /// one-time KEM prekeys and then accepted 1024 last-resort first contacts
+    /// stops accepting more until a rotation wipes the key they were made
+    /// under, and every other path is untouched. Keeping one-time KEM prekeys
+    /// stocked (`replenish`) is what keeps the last-resort path rare enough
+    /// for the bound never to be reached; this record is the backstop for
+    /// when it is not.
+    ///
+    /// The fingerprint alone decides whether a handshake is a repeat: it
+    /// covers the KEM prekey identifier, so two entries with one fingerprint
+    /// would be one handshake. The tag is for pruning. That is also why a
+    /// store upgraded from a format that did not tag its entries can tag them
+    /// all with the current key's identifier and still refuse every replay it
+    /// refused before: the tag only decides when an entry is dropped, and an
+    /// entry dropped a rotation late is harmless.
+    last_resort_seen: Vec<(u32, [u8; 32])>,
 }
 
 /// Erased on drop, by hand rather than by derive.
@@ -507,8 +555,18 @@ impl PrekeyStore {
     /// Replace the last-resort KEM prekey the same way, for the same reason,
     /// and with more at stake: it is reusable by design, so it is the one
     /// prekey whose compromise reaches every last-resort handshake made under
-    /// it. The fingerprints of spent last-resort handshakes are kept across
-    /// the rotation; a replay against the retired key is still a replay.
+    /// it.
+    ///
+    /// The replay record follows the keys. Entries recorded under the key
+    /// being retired stay, since a message naming it still decrypts for one
+    /// more rotation and a replay against it is still a replay. Entries
+    /// recorded under the key this rotation *wipes* -- the one the previous
+    /// rotation retired -- are dropped here, because a message naming a wiped
+    /// key fails with `UnknownPrekeyId` before the record is consulted, so
+    /// they can refuse nothing and would only crowd out live entries. This is
+    /// also what frees a full record: the bound on `last_resort_seen` counts
+    /// entries for keys that can still decrypt, and the rotation after the
+    /// one that retires a key is what releases that key's share of it.
     pub fn rotate_kem<R: RngCore + CryptoRng>(&mut self, identity: &Identity, rng: &mut R) {
         let Some(next) = self.next_id.checked_add(1) else {
             return;
@@ -518,8 +576,17 @@ impl PrekeyStore {
         self.next_id = next;
         let sig = identity.sign(&encode_kem(&pair.public_key()), rng);
         let retired = core::mem::replace(&mut self.kem, pair);
-        // `kem::KeyPair` erases itself, so the older previous needs no help.
-        self.previous_kem = Some((retired, self.kem_id, self.kem_sig));
+        // `kem::KeyPair` erases itself when dropped, so the pair `replace`
+        // hands back -- the one retired two rotations ago -- needs no help to
+        // be wiped; it is dropped at the end of this statement. Its identifier
+        // is what the record is pruned by, and identifiers are never reused
+        // within a store (`next_id`), so nothing live shares it.
+        if let Some((_, wiped_id, _)) =
+            self.previous_kem
+                .replace((retired, self.kem_id, self.kem_sig))
+        {
+            self.last_resort_seen.retain(|(id, _)| *id != wiped_id);
+        }
         self.kem_id = id;
         self.kem_sig = sig;
     }
@@ -718,7 +785,7 @@ impl PrekeyStore {
                 .sum::<usize>()
             + 4
             + 4
-            + self.last_resort_seen.len() * 32
+            + self.last_resort_seen.len() * (4 + 32)
             + 1
             + self
                 .previous_signed_prekey
@@ -754,8 +821,11 @@ impl PrekeyStore {
 
         out.extend_from_slice(&self.next_id.to_be_bytes());
 
+        // v4: each entry is the identifier of the last-resort KEM key the
+        // handshake was made against, then the handshake's fingerprint.
         out.extend_from_slice(&(self.last_resort_seen.len() as u32).to_be_bytes());
-        for fp in &self.last_resort_seen {
+        for (id, fp) in &self.last_resort_seen {
+            out.extend_from_slice(&id.to_be_bytes());
             out.extend_from_slice(fp);
         }
 
@@ -794,6 +864,7 @@ impl PrekeyStore {
         }
         let version = bytes[0];
         if version != PREKEY_STORE_VERSION
+            && version != PREKEY_STORE_VERSION_V3
             && version != PREKEY_STORE_VERSION_V2
             && version != PREKEY_STORE_VERSION_V1
         {
@@ -916,25 +987,47 @@ impl PrekeyStore {
             };
             pos += 4;
             // Refuse a count the encoder could never have written, before
-            // trusting it to size anything.
+            // trusting it to size anything. The record never exceeds the
+            // bound in memory -- a handshake that would take it past is
+            // refused rather than recorded -- so a larger count is corruption.
             if seen_count as usize > MAX_LAST_RESORT_SEEN {
                 return Err(PrekeyStoreDecodeError::Malformed);
             }
+            // A v4 entry carries the identifier of the last-resort KEM key it
+            // was recorded under; a v2 or v3 entry is a bare fingerprint. The
+            // untagged ones are tagged with the *current* key's identifier,
+            // which is the conservative reading: the fingerprint alone decides
+            // whether a handshake is a repeat (it covers the identifier), so
+            // every replay the older store refused is still refused, and the
+            // only effect of a wrong tag is that an entry made under the
+            // retired key is dropped one rotation later than it need be.
+            let tagged = version == PREKEY_STORE_VERSION;
+            let entry_len = if tagged { 4 + 32 } else { 32 };
+            last_resort_seen.reserve_exact(seen_count as usize);
             for _ in 0..seen_count {
-                if bytes.len() < pos + 32 {
+                if bytes.len() < pos + entry_len {
                     return Err(PrekeyStoreDecodeError::TooShort);
                 }
+                let id = if tagged {
+                    let Some(id) = read_prekey_u32(bytes, pos) else {
+                        return Err(PrekeyStoreDecodeError::TooShort);
+                    };
+                    pos += 4;
+                    id
+                } else {
+                    kem_id
+                };
                 let mut fp = [0u8; 32];
                 fp.copy_from_slice(&bytes[pos..pos + 32]);
                 pos += 32;
-                last_resort_seen.push(fp);
+                last_resort_seen.push((id, fp));
             }
         }
 
         // A v1 or v2 store predates rotation and has retired nothing.
         let mut previous_signed_prekey = None;
         let mut previous_kem = None;
-        if version == PREKEY_STORE_VERSION {
+        if version == PREKEY_STORE_VERSION || version == PREKEY_STORE_VERSION_V3 {
             if bytes.len() < pos + 1 {
                 return Err(PrekeyStoreDecodeError::TooShort);
             }
@@ -993,6 +1086,29 @@ impl PrekeyStore {
             return Err(PrekeyStoreDecodeError::Malformed);
         }
 
+        // The record's two invariants, which the field-by-field reads above
+        // cannot see. Every entry is tagged with a key that can still decrypt
+        // -- the current last-resort key or the one the last rotation retired
+        // -- because `rotate_kem` drops a key's entries when it wipes the key
+        // and the encoder never writes anything else; an entry under any
+        // other identifier is corruption, or a record that outlived its keys,
+        // and neither is accepted. And no fingerprint appears twice, because
+        // `establish_responder` refuses the second arrival of one before it
+        // could be recorded, so a duplicate could only have been written by
+        // something other than `to_bytes`. The tag check holds trivially for
+        // the untagged formats, whose entries were all tagged with the current
+        // key above; the duplicate check applies to them on the same terms.
+        let previous_kem_id = previous_kem.as_ref().map(|(_, id, _)| *id);
+        let mut distinct = std::collections::HashSet::with_capacity(last_resort_seen.len());
+        for (id, fp) in &last_resort_seen {
+            if *id != kem_id && Some(*id) != previous_kem_id {
+                return Err(PrekeyStoreDecodeError::Malformed);
+            }
+            if !distinct.insert(*fp) {
+                return Err(PrekeyStoreDecodeError::Malformed);
+            }
+        }
+
         let store = PrekeyStore {
             last_resort_seen,
             identity_public: dh::PublicKeyBytes::from_bytes(identity_public),
@@ -1012,11 +1128,12 @@ impl PrekeyStore {
         // Canonicality backstop for the current version, the same one
         // `Session::import` applies (CR-18): if the decoded store does not
         // re-encode to the exact bytes it came from, they were not produced by
-        // `to_bytes` and are refused. Skipped for v1 and v2, which legitimately
-        // re-encode to v3 (they gain the fields the newer format added), so a
-        // re-encode comparison there would reject every honest upgrade.
+        // `to_bytes` and are refused. Skipped for v1 through v3, which
+        // legitimately re-encode to v4 (they gain the fields the newer format
+        // added, and the record its tags), so a re-encode comparison there
+        // would reject every honest upgrade.
         //
-        // For v3 as the decoder above stands, this is unreachable by
+        // For v4 as the decoder above stands, this is unreachable by
         // construction: every field is fixed-width or length-prefixed and
         // re-encoded exactly as read, the presence bytes admit only 0x00 and
         // 0x01, and trailing bytes are refused, so any byte string that decodes
@@ -1036,14 +1153,20 @@ impl PrekeyStore {
 /// This module's own persistence-format version for `PrekeyStore::to_bytes`/
 /// `from_bytes`, separate from any on-the-wire message version.
 ///
-/// The version `to_bytes` writes. `from_bytes` also accepts the two earlier
-/// formats so an older store still restores: `PREKEY_STORE_VERSION_V2`, which
-/// lacks the retired-prekey fields (it reads back with nothing retired), and
-/// `PREKEY_STORE_VERSION_V1`, which additionally lacks the last-resort
-/// fingerprints (it reads back with none remembered). Both are the honest
-/// answer for a store written before those fields existed.
-const PREKEY_STORE_VERSION: u8 = 0x03;
-/// The format before prekey rotation: v2 without the
+/// The version `to_bytes` writes. `from_bytes` also accepts the three earlier
+/// formats so an older store still restores: `PREKEY_STORE_VERSION_V3`, whose
+/// last-resort record entries are bare fingerprints with no key identifier
+/// (they read back tagged with the current last-resort key; `from_bytes` says
+/// why that is safe); `PREKEY_STORE_VERSION_V2`, which additionally lacks the
+/// retired-prekey fields (it reads back with nothing retired); and
+/// `PREKEY_STORE_VERSION_V1`, which additionally lacks the last-resort record
+/// (it reads back with none remembered). Each is the honest answer for a
+/// store written before those fields existed.
+const PREKEY_STORE_VERSION: u8 = 0x04;
+/// The format before the replay record was tagged by key: each entry is a
+/// bare fingerprint, and the record was a window evicted oldest-first.
+const PREKEY_STORE_VERSION_V3: u8 = 0x03;
+/// The format before prekey rotation: v3 without the
 /// two retired-prekey fields. Reads back with nothing retired.
 const PREKEY_STORE_VERSION_V2: u8 = 0x02;
 /// The format before last-resort replay marking.
@@ -1061,10 +1184,10 @@ pub enum PrekeyStoreDecodeError {
     /// The bytes decoded, and re-encoding the result did not reproduce them.
     ///
     /// The same backstop `Session::import` carries (CR-18): a current-version
-    /// (v3) store whose bytes are not the encoding of what they decode to was
+    /// (v4) store whose bytes are not the encoding of what they decode to was
     /// not produced by `to_bytes`, and is refused rather than accepted under a
-    /// second spelling. Only checked for v3; v1 and v2 legitimately re-encode
-    /// to the current version and so are exempt.
+    /// second spelling. Only checked for v4; v1 through v3 legitimately
+    /// re-encode to the current version and so are exempt.
     NonCanonical,
 }
 
@@ -1122,6 +1245,21 @@ pub enum Error {
     /// message names the reusable last-resort KEM key, and its fingerprint
     /// matches one already spent. See `last_resort_seen`.
     ReplayedLastResort,
+    /// A last-resort handshake this store has not seen arrived while its
+    /// replay record is full, and was refused rather than recorded.
+    ///
+    /// The record holds at most `MAX_LAST_RESORT_SEEN` entries across the
+    /// current last-resort KEM key and the one a rotation retired, and it
+    /// never evicts: eviction was what let anyone holding the public bundle
+    /// forget a victim's fingerprint by completing enough handshakes of their
+    /// own. So the handshake that would overflow it is refused before
+    /// anything is decrypted or changed, and the store is exactly as it was.
+    /// Only the last-resort path is affected; an initial message naming a
+    /// one-time KEM prekey never consults the record. Recovery is the
+    /// operator's: `replenish` one-time KEM prekeys so that first contacts
+    /// stop landing here, and `rotate_kem`, which frees a key's entries once
+    /// the rotation after it wipes that key. See `last_resort_seen`.
+    LastResortRecordFull,
     /// The post-quantum key agreement (the Braid) reached its terminal failure
     /// state, so no further post-quantum epoch can be agreed on this session.
     ///
@@ -1388,7 +1526,9 @@ pub fn establish_initiator_for<R: RngCore + CryptoRng>(
 /// message named are deleted and, on the last-resort path, its fingerprint is
 /// recorded. A storage layer must persist the returned session and then the
 /// store, in that order and ideally atomically; `Session::export` spells out
-/// what a crash between the two costs.
+/// what a crash between the two costs. On any refusal the store is untouched,
+/// including the two refusals that precede decryption on the last-resort path
+/// (`ReplayedLastResort` and `LastResortRecordFull`).
 pub fn establish_responder<R: RngCore + CryptoRng>(
     our_identity: &Identity,
     our_prekeys: &mut PrekeyStore,
@@ -1444,11 +1584,30 @@ pub fn establish_responder<R: RngCore + CryptoRng>(
         .map(|(pair, _, _)| pair);
     let last_resort = decoded.kem_prekey_id == our_prekeys.kem_id || previous_kem.is_some();
     let fingerprint = last_resort.then(|| last_resort_fingerprint(&decoded));
-    if fingerprint
-        .as_ref()
-        .is_some_and(|fp| our_prekeys.last_resort_seen.contains(fp))
-    {
-        return Err(Error::ReplayedLastResort);
+    if let Some(fp) = &fingerprint {
+        // The fingerprint alone identifies the handshake -- it covers the KEM
+        // prekey identifier -- so the tag on each entry plays no part here; it
+        // exists for `rotate_kem` to prune by. Matching on the fingerprint
+        // alone is also what lets a store upgraded from an untagged format
+        // keep refusing everything it refused before.
+        if our_prekeys
+            .last_resort_seen
+            .iter()
+            .any(|(_, seen)| seen == fp)
+        {
+            return Err(Error::ReplayedLastResort);
+        }
+        // Fail closed on a full record. Recording this handshake at the end
+        // would take the record past its bound, and the record never evicts:
+        // evicting oldest-first let anyone with the public bundle push a
+        // victim's fingerprint out with a thousand cheap handshakes of their
+        // own and then replay the victim's message (the field's note says
+        // more). Refused here, before decapsulation, so the store is untouched
+        // and no plaintext is produced for a message that could not be
+        // remembered.
+        if our_prekeys.last_resort_seen.len() >= MAX_LAST_RESORT_SEEN {
+            return Err(Error::LastResortRecordFull);
+        }
     }
 
     let kem_one_time = if last_resort {
@@ -1524,13 +1683,18 @@ pub fn establish_responder<R: RngCore + CryptoRng>(
     if decoded.one_time_prekey_id != ABSENT_ID {
         our_prekeys.take_one_time(decoded.one_time_prekey_id);
     }
-    // A last-resort handshake cannot be deleted, so it is remembered instead.
-    // Oldest evicted first: see the bound's note on the field.
+    // A last-resort handshake cannot be deleted, so it is remembered instead,
+    // tagged with the key it was made against so that `rotate_kem` can drop
+    // it when that key is wiped. Room for it was checked before decryption;
+    // nothing is evicted to make it.
     if let Some(fp) = fingerprint {
-        if our_prekeys.last_resort_seen.len() >= MAX_LAST_RESORT_SEEN {
-            our_prekeys.last_resort_seen.remove(0);
-        }
-        our_prekeys.last_resort_seen.push(fp);
+        debug_assert!(
+            our_prekeys.last_resort_seen.len() < MAX_LAST_RESORT_SEEN,
+            "the record-full refusal must run before anything is recorded"
+        );
+        our_prekeys
+            .last_resort_seen
+            .push((decoded.kem_prekey_id, fp));
     }
     Ok((session, plaintext))
 }
@@ -2195,6 +2359,17 @@ mod tests {
             Err(Error::ReplayedLastResort)
         ));
 
+        // The entry is tagged with the key it was made against, and survives
+        // the first rotation because that key still decrypts.
+        assert_eq!(
+            store
+                .last_resort_seen
+                .iter()
+                .map(|(id, _)| *id)
+                .collect::<Vec<_>>(),
+            vec![before.kem_prekey_id]
+        );
+
         store.rotate_kem(&bob, &mut rng);
         let mut s2 = establish_initiator(&alice, &before, &mut rng).unwrap();
         let m2 = s2.encrypt(b"gone", &mut rng).unwrap();
@@ -2202,6 +2377,10 @@ mod tests {
             establish_responder(&bob, &mut store, &m2, &mut rng),
             Err(Error::UnknownPrekeyId)
         ));
+        // The second rotation wiped that key, and its entry went with it: a
+        // message naming a wiped key fails before the record is consulted, so
+        // the entry could refuse nothing.
+        assert!(store.last_resort_seen.is_empty());
     }
 
     /// The retired prekeys survive persistence, and a v2 store -- the format
@@ -2237,7 +2416,8 @@ mod tests {
         );
         assert_eq!(restored.to_bytes(), bytes);
 
-        // Truncating the v3 tail and relabelling as v2 is exactly a v2 store.
+        // Truncating the retired-prekey tail and relabelling as v2 is exactly
+        // a v2 store: with no record entries there are no tags to strip.
         let fresh = bob.create_prekeys(2, &mut rng);
         let mut v2 = fresh.to_bytes().to_vec();
         assert_eq!(&v2[v2.len() - 2..], &[0x00, 0x00]);

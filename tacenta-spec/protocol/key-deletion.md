@@ -191,24 +191,45 @@ deleting them after an interval, triggered by a timer or by counting events.
   anything, which makes the collision impossible rather than merely avoided,
   and a test pins that the identifiers a store hands out never repeat across a
   replenishment.
-- **A replayed last-resort handshake is refused, within a bound.** A one-time
-  KEM prekey defends itself by being deleted on use, so replaying a message that
-  names one fails. The last-resort key is reusable by design and has no such
-  defence of its own: without a record, a captured initial message naming it
-  could be replayed without limit, each replay opening a fresh duplicate
-  session. Nothing leaks -- the attacker cannot speak on those sessions -- but
-  unbounded session creation from one captured packet is a denial of service,
-  and each session is 14 KB at rest.
+- **A replayed last-resort handshake is refused, and the record that refuses
+  it never evicts.** A one-time KEM prekey defends itself by being deleted on
+  use, so replaying a message that names one fails. The last-resort key is
+  reusable by design and has no such defence of its own: without a record, a
+  captured initial message naming it -- with no one-time curve prekey either,
+  which is the steady state of a store whose one-time pools are exhausted --
+  would be accepted again on every delivery, and each acceptance hands the
+  application the initiator's first plaintext a second time, as the opening
+  message of what looks like a fresh session. That is duplicate delivery, not
+  only a denial of service: the attacker learns nothing and cannot speak on
+  either session, but the same message is received twice and nothing marks
+  the second as a repeat.
 
   The store therefore remembers a fingerprint of each last-resort handshake it
-  has accepted, over exactly the fields that determine `SK`, and refuses a
-  repeat. **The record is bounded** at 1024 entries, oldest evicted first,
-  because an unbounded one is the same denial of service in different clothes.
-  Past that many *distinct* last-resort handshakes, a replay of the oldest
-  would be accepted again. Replenishment is what keeps the last-resort path
-  rare enough for the bound to be generous; the record is the backstop for
-  when it is not. The fingerprints persist with the store, so a restart does
-  not reopen the window.
+  has accepted, over exactly the fields that determine `SK`, tagged with the
+  identifier of the last-resort KEM key the handshake was made against, and
+  refuses a repeat (`ReplayedLastResort`). **The record is bounded per key
+  lifetime, and it fails closed.** It holds at most `MAX_LAST_RESORT_SEEN`
+  entries across the current key and the one the last rotation retired, and
+  it never evicts: a last-resort handshake it has not seen, arriving while it
+  is full, is refused (`LastResortRecordFull`) before anything is decrypted or
+  changed, and the store is left exactly as it was. It was once a window,
+  oldest evicted first, and a window is a count an unauthenticated peer can
+  drive: anyone holding the public bundle can complete a last-resort handshake
+  under a fresh identity in about a millisecond and a half, so 1024 of them
+  evicted a chosen victim's fingerprint in about two seconds, after which the
+  captured message replayed. What the bound measures now is how many distinct
+  last-resort handshakes a key has accepted over its lifetime, not how many
+  arrived recently. A key's entries leave the record when the key is wiped,
+  which is the rotation after the one that retires it; until then a replay
+  against the retired key is still a replay.
+
+  The cost of a full record falls on the last-resort path only; a handshake
+  naming a one-time KEM prekey never consults it. The operator has two levers:
+  replenishment, which keeps first contacts off this path and is the one to
+  reach for first, and rotating the last-resort KEM key, which releases the
+  key's share of the record once the next rotation wipes it. The record
+  persists with the store, tags included, so a restart neither reopens the
+  window nor loses the pruning.
 - **Signed prekeys rotate, and the retired one is kept for exactly one
   rotation.** `PrekeyStore::rotate_signed_prekey` generates a fresh curve
   prekey, signs it under the identity, and gives it the next identifier; the
@@ -227,9 +248,12 @@ deleting them after an interval, triggered by a timer or by counting events.
   more at stake, since that key is reusable by design and its compromise
   reaches every last-resort handshake made under it. The retired KEM pair
   erases itself when the next rotation drops it. The last-resort replay
-  record above is *not* rotated with the key: a handshake against the
-  retired key is a last-resort handshake still, fingerprinted and refused on
-  the same terms as one against the current key.
+  record above follows the key: entries made under the retired key stay
+  while it can still decrypt, since a handshake against it is a last-resort
+  handshake still and a replay of one is refused on the same terms as
+  against the current key, and they are dropped when the next rotation wipes
+  it, at which point a message naming it fails on the identifier before the
+  record is consulted.
 
   Three consequences are the caller's to manage. A bundle a peer fetched
   before the rotation names the retired identifier and still establishes,

@@ -8,11 +8,13 @@
 //!   the initiator agrees with, a key in an unauthenticated initial message the
 //!   responder agrees with, and the ratchet public in a received header -- and
 //!   the refusal leaves the state it was handed unchanged.
-//! - **The last-resort replay bound is a real limit**: past
-//!   `MAX_LAST_RESORT_SEEN` distinct handshakes the oldest fingerprint is
-//!   evicted and its replay is accepted again, while a fingerprint still inside
-//!   the window is refused; and `from_bytes` refuses a stored count above the
-//!   bound.
+//! - **The last-resort replay bound fails closed**: once the record holds
+//!   `MAX_LAST_RESORT_SEEN` entries a last-resort handshake it has not seen is
+//!   refused and nothing is evicted, so every fingerprint already in it is
+//!   still refused as a replay (the eviction the record once did was what let
+//!   an attacker with the public bundle replay a victim's captured message);
+//!   and `from_bytes` refuses a stored count above the bound. How the record
+//!   follows its key through rotation and persistence is `replay_record.rs`.
 //!
 //! The AEAD padding-versus-tag indistinguishability the same finding asks for
 //! is a unit test in `src/primitives/aead.rs`, where the HMAC internals needed
@@ -193,11 +195,21 @@ fn decrypt_refuses_a_low_order_ratchet_header_and_changes_nothing() {
 
 // --------------------------------------------------------- last-resort bound
 
-/// The 1024-fingerprint bound is a real limit (CR-28). Past it the oldest
-/// fingerprint is evicted, so the very first handshake can be replayed again,
-/// while a handshake still inside the window is refused.
+/// The 1024-entry bound fails closed (CR-28; external review, 2026-09). The
+/// record never evicts: once full, a last-resort handshake it has not seen is
+/// refused with `LastResortRecordFull` and the store is untouched, while every
+/// fingerprint already in it is still refused as a replay.
+///
+/// This is the attacker's scenario. A victim's last-resort handshake is
+/// delivered once; then fresh identities holding nothing but the public bundle
+/// complete last-resort handshakes until the record is full; then the victim's
+/// captured message is tried again. Under the old oldest-first window the
+/// handshake that filled the record evicted the victim's fingerprint, and the
+/// replay delivered the victim's first plaintext to the application a second
+/// time as a new session. Now the handshake that would overflow the record is
+/// the one refused, and the victim's replay stays refused.
 #[test]
-fn the_last_resort_replay_bound_evicts_the_oldest() {
+fn a_full_last_resort_record_refuses_new_handshakes_and_still_refuses_replays() {
     const BOUND: usize = 1024;
     let mut r = rng(4);
     let bob = Identity::generate(&mut r);
@@ -205,39 +217,66 @@ fn the_last_resort_replay_bound_evicts_the_oldest() {
     // last-resort key and is fingerprinted.
     let mut store = bob.create_prekeys(0, &mut r);
     let bundle = store.publish_multi_use();
-    let alice = Identity::generate(&mut r);
 
-    let mut first = None;
-    let mut inside_window = None;
-    for i in 1..=BOUND + 1 {
-        let mut a = establish_initiator(&alice, &bundle, &mut r).unwrap();
-        let m = a.encrypt(b"first contact", &mut r).unwrap();
+    // The victim's handshake, delivered once and its bytes kept.
+    let victim = Identity::generate(&mut r);
+    let mut v = establish_initiator(&victim, &bundle, &mut r).unwrap();
+    let captured = v.encrypt(b"the victim's first message", &mut r).unwrap();
+    let (_, first) = establish_responder(&bob, &mut store, &captured, &mut r).unwrap();
+    assert_eq!(first, b"the victim's first message");
+
+    // Fresh identities, each needing only the public bundle. The victim's
+    // entry counts, so BOUND - 1 of these fill the record exactly.
+    let attacker_handshake = |r: &mut rand::rngs::StdRng| {
+        let attacker = Identity::generate(r);
+        let mut a = establish_initiator(&attacker, &bundle, r).unwrap();
+        a.encrypt(b"fresh identity", r).unwrap()
+    };
+    for i in 1..BOUND {
+        let m = attacker_handshake(&mut r);
         establish_responder(&bob, &mut store, &m, &mut r)
-            .unwrap_or_else(|e| panic!("handshake {i} was refused: {e:?}"));
-        if i == 1 {
-            first = Some(m);
-        } else if i == BOUND {
-            // The 1024th recorded, so still remembered after the 1025th arrives.
-            inside_window = Some(m);
-        }
+            .unwrap_or_else(|e| panic!("attacker handshake {i} was refused: {e:?}"));
     }
+    let full = store.to_bytes();
 
-    // A fingerprint still inside the window is refused as a replay.
+    // The handshake that would exceed the bound is refused, and refused before
+    // anything changes: the store's bytes are identical afterwards, so nothing
+    // was evicted and nothing was recorded.
+    let overflow = attacker_handshake(&mut r);
     assert!(
         matches!(
-            establish_responder(&bob, &mut store, &inside_window.unwrap(), &mut r),
-            Err(LifecycleError::ReplayedLastResort)
+            establish_responder(&bob, &mut store, &overflow, &mut r),
+            Err(LifecycleError::LastResortRecordFull)
         ),
-        "a handshake inside the window must be refused as a replay"
+        "the handshake that would overflow the record must be refused as such"
+    );
+    assert_eq!(
+        store.to_bytes().as_slice(),
+        full.as_slice(),
+        "a refused handshake must leave the store untouched"
     );
 
-    // The very first fingerprint was evicted when the 1025th was recorded, so
-    // its replay is accepted again -- the bound is a real limit, not a
-    // permanent record.
+    // The victim's replay is still a replay, and still changes nothing.
     assert!(
-        establish_responder(&bob, &mut store, &first.unwrap(), &mut r).is_ok(),
-        "the evicted first handshake must be accepted again"
+        matches!(
+            establish_responder(&bob, &mut store, &captured, &mut r),
+            Err(LifecycleError::ReplayedLastResort)
+        ),
+        "the victim's fingerprint must still be in the record"
     );
+    assert_eq!(store.to_bytes().as_slice(), full.as_slice());
+
+    // The cost is confined to the last-resort path. A bundle carrying a
+    // one-time KEM prekey -- the operator's first lever -- never consults the
+    // record, so a first contact through one succeeds against the full store.
+    store.replenish(&bob, 1, &mut r);
+    let one_time = store.publish();
+    let peer = Identity::generate(&mut r);
+    let mut p = establish_initiator(&peer, &one_time, &mut r).unwrap();
+    let m = p.encrypt(b"through a one-time prekey", &mut r).unwrap();
+    let (_, pt) = establish_responder(&bob, &mut store, &m, &mut r)
+        .expect("a full record must not affect the one-time path");
+    assert_eq!(pt, b"through a one-time prekey");
 }
 
 /// `from_bytes` refuses a stored last-resort count larger than the bound before

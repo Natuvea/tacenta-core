@@ -12,8 +12,12 @@ is SemVer against the specified protocol (not the implementation).
   rotation is not scheduled by the crate. The "not implemented" note for
   rotation is removed, since it is.
 - `protocol/session-persistence.md`: the prekey store's persisted layout
-  (version `0x03`), and the rule that `0x02` (before rotation) and `0x01`
-  (before the replay record) are still read.
+  (version `0x04`, whose replay-record entries carry the identifier of the
+  last-resort KEM key they were made against), and the rule that `0x03`
+  (untagged entries, read back tagged with the current key), `0x02` (before
+  rotation) and `0x01` (before the replay record) are still read; two
+  malformed-store rules for the record, an entry whose identifier names no
+  live key and a repeated fingerprint.
 - `protocol/message-format.md`: the prekey bundle's wire encoding (type
   `0x03`), which the page named but did not lay out.
 - `CONSTANTS.md`: rows for `MAX_SKIPPED_AGE`, `EPOCHS_KEPT`'s value,
@@ -22,6 +26,20 @@ is SemVer against the specified protocol (not the implementation).
   now states what is written and what is read.
 
 ### Changed
+- `protocol/key-deletion.md` and `protocol/session-establishment.md`: the
+  last-resort replay record no longer evicts. It is bounded per key lifetime
+  -- entries are tagged with the last-resort KEM key they were made against
+  and dropped when a rotation wipes that key -- and fails closed: a new
+  last-resort handshake against a full record is refused with
+  `LastResortRecordFull` and nothing changes, so an unauthenticated peer
+  can no longer push a victim's fingerprint out with cheap handshakes of
+  its own and replay the captured message. Both pages now say what a
+  replay delivered, the initiator's first plaintext a second time as a
+  fresh session, rather than calling it a denial of service, and name the
+  operator's levers: replenishment and rotation.
+- `CONSTANTS.md`: `PREKEY_STORE_VERSION` is `0x04` written and `0x03`,
+  `0x02`, `0x01` read; `MAX_LAST_RESORT_SEEN` is described as the
+  fail-closed, per-key-lifetime bound it now is.
 - `protocol/key-deletion.md`: a one-time prekey is deleted once the initial
   message that names it has authenticated, not when the message names it,
   which is what the implementation does and the stronger behaviour. The

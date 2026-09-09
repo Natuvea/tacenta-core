@@ -53,7 +53,7 @@ a peer's constant does not belong in them.
 
 | Constant | Value | Tier | Provenance |
 |---|---|---|---|
-| XEdDSA signature sign bit | top bit of `signature[63]` | nominated | External interoperability profile, determined by black-box observation of a pinned build (ADR-0003); an intentional difference from XEdDSA Revision 1. |
+| XEdDSA signature sign bit | top bit of `signature[63]` | nominated | External interoperability profile, determined by black-box observation of a pinned build (ADR-0003); one of the intentional differences from XEdDSA Revision 1, the one that widens the accepted set; `verify` also narrows it through `verify_strict` (see `xeddsa.rs`). |
 | Signed-prekey signature input | the *tagged* key form (33-byte `EncodeEC`, 1,569-byte `EncodeKEM`) | nominated | External interoperability profile, determined by black-box observation of a pinned build (ADR-0003). |
 
 ## Storage formats
@@ -66,7 +66,7 @@ disk is emitted.
 | Constant | Value | Tier | Provenance |
 |---|---|---|---|
 | `STATE_VERSION` (ratchet, spqr, braid, triple) | `0x01` each | ours | Four independent version namespaces, one per crate's own format. Free choices. |
-| `PREKEY_STORE_VERSION` | `0x03` written; `0x02` and `0x01` accepted on read | ours | The prekey store's own format, at the session layer (`sessions/lifecycle.rs`). v3 added the retired prekeys a rotation keeps; v2 added the last-resort replay record; v1 is the original. A v1 or v2 store reads back with nothing remembered and nothing retired, which is what it recorded (session-persistence.md, Prekey store). |
+| `PREKEY_STORE_VERSION` | `0x04` written; `0x03`, `0x02` and `0x01` accepted on read | ours | The prekey store's own format, at the session layer (`sessions/lifecycle.rs`). v4 tags each last-resort replay-record entry with the KEM key it was made against; v3 added the retired prekeys a rotation keeps; v2 added the replay record; v1 is the original. A v3 store's untagged entries read back tagged with the current key; a v1 or v2 store reads back with nothing remembered and nothing retired, which is what it recorded (session-persistence.md, Prekey store). |
 | `SESSION_VERSION` | `0x01` | ours | `Session::export`'s format, same file. |
 | `Braid` `state_tag` | 0-11 | ours | The stable numbering `Braid::state_tag` already reported before persistence existed: eleven live states in declaration order, then `Failed` at 11. Free choice, and deliberately not an abstraction leak -- the tag is all a caller sees. |
 | Presence tag | `0x00` absent / `0x01` present | ours | Used for every optional fixed-width field. Free choice; the fixed width is the canonicity argument, not the tag value. |
@@ -95,7 +95,7 @@ output path can be written.
 | `MAX_SKIPPED_STORE` | 2000 | ours | Same, in both ratchets. The total bound is this implementation's addition to the sparse ratchet (conformance manifest). |
 | `MAX_SKIPPED_AGE` | 1000 | ours | How many received messages a stored skipped key may outlive before the classical ratchet deletes it (`ratchet/src/lib.rs`; key-deletion.md). The specification asks for an interval and fixes none. |
 | `EPOCHS_KEPT` | 2 | ours | How many epochs of chains and skipped keys the sparse ratchet keeps before retiring the rest (`spqr/src/lib.rs`). The specification's main-text approach, with a number of our choosing. |
-| `MAX_LAST_RESORT_SEEN` | 1024 | ours | How many spent last-resort handshake fingerprints a prekey store remembers, oldest evicted first (`sessions/lifecycle.rs`; key-deletion.md). The specification has no such record. |
+| `MAX_LAST_RESORT_SEEN` | 1024 | ours | How many spent last-resort handshake fingerprints a prekey store remembers across the current last-resort KEM key and the one the last rotation retired. Never evicted: a new last-resort handshake against a full record is refused with `LastResortRecordFull`, and a key's entries leave the record when a rotation wipes the key (`sessions/lifecycle.rs`; key-deletion.md). The specification has no such record. |
 | `MAX_MESSAGE_LEN`, `MAX_FIELD_NUMBER`, `MAX_FIELDS`, `MAX_VARINT_BYTES` | see `tacenta-core/protobuf` | ours | Profile limits we chose. `MAX_FIELD_NUMBER` must cover the external profile's field 8, which it does. |
 
 ## Three protocol identifiers

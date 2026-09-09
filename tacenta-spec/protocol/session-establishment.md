@@ -185,21 +185,27 @@ anything under it. The Double Ratchet does exactly this: Bob's first
 Diffie-Hellman ratchet step folds fresh material into the root key. Using `SK`
 directly to encrypt Bob's replies would risk catastrophic key reuse.
 
-That reasoning is about **key reuse**, and it says nothing about how many
-sessions the replay may create. The two are separate: a one-time KEM prekey is
+That reasoning is about **key reuse**, and it says nothing about whether the
+replay is accepted at all. The two are separate: a one-time KEM prekey is
 deleted on use and so refuses its own replay, but the last-resort key is
 reusable by design, and without a further defence a captured initial message
-naming it would open a fresh duplicate session on every delivery. Unbounded
-session creation from one packet is a denial of service even where nothing
-leaks.
+naming it -- with no one-time curve prekey, which is the steady state once
+Bob's one-time pools are exhausted -- would be accepted on every delivery, each
+time handing Bob's application Alice's first plaintext again as the opening
+message of an apparently fresh session. Nothing leaks, but the message is
+delivered twice.
 
-Bob therefore keeps a **bounded record of last-resort handshakes he has already
+Bob therefore keeps a **record of last-resort handshakes he has already
 accepted** -- a fingerprint over `IKA`, `EKA`, `CT` and the two prekey
-identifiers, which is exactly what determines `SK` -- and refuses a repeat. The
-bound is a real limit: past 1024 distinct last-resort handshakes the oldest is
-forgotten and could be replayed again. This is hardening beyond what the
-published specification asks for, not a claim about it; `key-deletion.md`
-states what is given up by having a bound at all.
+identifiers, which is exactly what determines `SK`, tagged with the last-resort
+KEM key the handshake was made against -- and refuses a repeat. The record is
+bounded at 1024 entries across the current key and the one the last rotation
+retired, and it fails closed rather than evicting: a new last-resort handshake
+against a full record is refused (`LastResortRecordFull`) and nothing changes,
+so nobody can push a victim's fingerprint out by completing handshakes of their
+own. A key's entries are dropped when a rotation wipes the key. This is
+hardening beyond what the published specification asks for, not a claim about
+it; `key-deletion.md` states what a full record costs and what resets it.
 
 ## Byte-level conventions
 

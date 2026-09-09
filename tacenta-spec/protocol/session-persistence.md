@@ -171,7 +171,8 @@ prekey_store = version(1)
 
 one_time        = id(4) || secret(32)
 kem_one_time    = id(4) || len(4) || kem_pair || sig(64)
-seen            = fingerprint(32)
+seen            = kem_id(4) || fingerprint(32)              -- v4
+                = fingerprint(32)                           -- v2 and v3
 previous_signed = secret(32) || id(4) || sig(64)      -- only when present
 previous_kem    = len(4) || kem_pair || id(4) || sig(64)   -- only when present
 ```
@@ -180,35 +181,53 @@ previous_kem    = len(4) || kem_pair || id(4) || sig(64)   -- only when present
 wherever it appears, as the Braid format treats it. `next_id` is the
 identifier the next key added to the store will take, so that replenishment
 continues the sequence rather than restarting it (key-deletion.md). `seen`
-is the record of spent last-resort handshakes, oldest first, and a count
-larger than the bound the store enforces (`MAX_LAST_RESORT_SEEN`,
-CONSTANTS.md) is refused as malformed before it sizes anything. The two
-`previous_*` fields are the signed prekey and the last-resort KEM prekey the
-most recent rotation retired, each behind a presence byte and, like the
-session's `pending_initial`, followed by nothing at all when absent.
+is the record of spent last-resort handshakes, oldest first; from v4 each
+entry carries the identifier of the last-resort KEM key the handshake was
+made against, which is `kem_id` or the identifier inside `previous_kem`,
+and which is what lets a rotation drop a wiped key's entries
+(key-deletion.md). A count larger than the bound the store enforces
+(`MAX_LAST_RESORT_SEEN`, CONSTANTS.md) is refused as malformed before it
+sizes anything. The two `previous_*` fields are the signed prekey and the
+last-resort KEM prekey the most recent rotation retired, each behind a
+presence byte and, like the session's `pending_initial`, followed by
+nothing at all when absent.
 
-**Three versions are read; one is written.** The writer always emits `0x03`.
-The reader also accepts `0x02`, the format before rotation, which ends after
-`seen` and reads back with nothing retired; and `0x01`, the format before the
-replay record, which ends after `next_id` and reads back with no fingerprints
-remembered. Both are the honest answer, since those stores recorded neither.
-A store written by this version and read by an earlier one fails on the
-version byte, which is the intended direction of incompatibility.
+**Four versions are read; one is written.** The writer always emits `0x04`.
+The reader also accepts `0x03`, the format before the record was tagged by
+key, whose entries are bare fingerprints and read back tagged with the
+current `kem_id`. That is the conservative reading: the fingerprint alone
+decides whether a handshake is a repeat, since it covers the identifier, so
+every replay the older store refused is still refused, and the only effect
+of a wrong tag is that an entry made under the retired key is dropped one
+rotation later than it need be. The reader further accepts `0x02`, the
+format before rotation, which ends after `seen` and reads back with nothing
+retired; and `0x01`, the format before the replay record, which ends after
+`next_id` and reads back with no fingerprints remembered. Each is the honest
+answer, since those stores recorded no more. A store written by this version
+and read by an earlier one fails on the version byte, which is the intended
+direction of incompatibility.
 
-Two refusals are specific to this format. A presence byte is `0x00` or
+Four refusals are specific to this format. A presence byte is `0x00` or
 `0x01` and nothing else: a `previous_signed_present` or
 `previous_kem_present` carrying any other value is malformed, not
-"present". And a v3 store must re-encode to the identical bytes: having
+"present". Every `seen` entry's identifier must be `kem_id` or the
+identifier inside `previous_kem`: the store drops a key's entries when a
+rotation wipes the key and the writer never emits anything else, so any
+other identifier is malformed. No fingerprint may appear twice in `seen`:
+the responder refuses a repeat before it could be recorded, so a duplicate
+was written by something other than `to_bytes` and is malformed; this rule
+reaches the untagged formats too, where the identifier rule holds
+trivially. And a v4 store must re-encode to the identical bytes: having
 decoded the input, the reader runs `to_bytes` over what it read and refuses
 the input if the result differs. That is the canonicality backstop, the
 same one `Session::import` applies to the session format: it refuses any
 second spelling of a value that the field-by-field checks did not
 enumerate, at the cost of one encode, and it is what makes the "canonical"
 principle above a property of the decoder rather than a promise about the
-writer. It applies only to the version the writer emits. A v1 or v2 store
-re-encodes to v3, gaining the fields the newer format added, so comparing
-there would refuse every honest upgrade, and those two versions are read
-on the field-by-field checks alone.
+writer. It applies only to the version the writer emits. A v1, v2 or v3
+store re-encodes to v4, gaining the fields the newer format added and the
+tags on its record, so comparing there would refuse every honest upgrade,
+and those three versions are read on the field-by-field checks alone.
 
 ## Rejection
 
