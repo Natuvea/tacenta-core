@@ -157,7 +157,7 @@ def SK_INFO : Slice Std.U8 :=
 @[global_simps, irreducible] def ENCODE_EC_LEN : Std.Usize := 33#usize
 
 /-- [tacenta_session::km]:
-    Source: 'session/src/lib.rs', lines 81:0-92:1
+    Source: 'session/src/lib.rs', lines 81:0-97:1
     Visibility: public -/
 def km
   (dh1 : Array Std.U8 32#usize) (dh2 : Array Std.U8 32#usize)
@@ -165,56 +165,60 @@ def km
   (ss : Array Std.U8 32#usize) :
   Result (alloc.vec.Vec Std.U8)
   := do
+  let i ← 5#usize * 32#usize
+  let out := alloc.vec.Vec.with_capacity Std.U8 i
   let s ← lift (Array.to_slice dh1)
-  let out ←
-    alloc.vec.Vec.extend_from_slice core.clone.CloneU8 (alloc.vec.Vec.new
-      Std.U8) s
+  let out1 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out s
   let s1 ← lift (Array.to_slice dh2)
-  let out1 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out s1
+  let out2 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 s1
   let s2 ← lift (Array.to_slice dh3)
-  let out2 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 s2
-  let out3 ←
+  let out3 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s2
+  let out4 ←
     match dh4 with
-    | none => ok out2
+    | none => ok out3
     | some d4 =>
       do
       let s3 ← lift (Array.to_slice d4)
-      alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s3
+      alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s3
   let s3 ← lift (Array.to_slice ss)
-  alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s3
+  alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out4 s3
 
 /-- [tacenta_session::kdf_sk]:
-    Source: 'session/src/lib.rs', lines 99:0-104:1
+    Source: 'session/src/lib.rs', lines 104:0-116:1
     Visibility: public -/
 def kdf_sk (km_bytes : Slice Std.U8) : Result (Array Std.U8 32#usize) := do
+  let s ← lift (Array.to_slice F_PREFIX)
+  let i := Slice.len s
+  let i1 := Slice.len km_bytes
+  let i2 ← lift (core.num.Usize.saturating_add i i1)
+  let v := alloc.vec.Vec.with_capacity Std.U8 i2
   let ikm ←
     zeroize.Zeroizing.new (alloc.vec.Vec.Insts.ZeroizeZeroize
-      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
-      (alloc.vec.Vec.new Std.U8)
-  let (v, deref_mut_back) ←
+      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) v
+  let (v1, deref_mut_back) ←
     zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut
       (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
       U8.Insts.ZeroizeDefaultIsZeroes)) ikm
-  let s ← lift (Array.to_slice F_PREFIX)
-  let v1 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 v s
-  let ikm1 := deref_mut_back v1
-  let (v2, deref_mut_back1) ←
+  let s1 ← lift (Array.to_slice F_PREFIX)
+  let v2 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 v1 s1
+  let ikm1 := deref_mut_back v2
+  let (v3, deref_mut_back1) ←
     zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut
       (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
       U8.Insts.ZeroizeDefaultIsZeroes)) ikm1
-  let v3 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 v2 km_bytes
+  let v4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 v3 km_bytes
   let a := Array.repeat 32#usize 0#u8
-  let s1 ← lift (Array.to_slice a)
-  let ikm2 := deref_mut_back1 v3
-  let v4 ←
+  let s2 ← lift (Array.to_slice a)
+  let ikm2 := deref_mut_back1 v4
+  let v5 ←
     zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
       (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
       U8.Insts.ZeroizeDefaultIsZeroes)) ikm2
-  let s2 := alloc.vec.Vec.deref v4
-  tacenta_kdf.hkdf_sha256 32#usize s1 s2 SK_INFO
+  let s3 := alloc.vec.Vec.deref v5
+  tacenta_kdf.hkdf_sha256 32#usize s2 s3 SK_INFO
 
 /-- [tacenta_session::shared_secret]:
-    Source: 'session/src/lib.rs', lines 111:0-116:1
+    Source: 'session/src/lib.rs', lines 123:0-128:1
     Visibility: public -/
 def shared_secret
   (dh1 : Array Std.U8 32#usize) (dh2 : Array Std.U8 32#usize)
@@ -234,19 +238,22 @@ def shared_secret
   kdf_sk s
 
 /-- [tacenta_session::associated_data]:
-    Source: 'session/src/lib.rs', lines 127:0-132:1
+    Source: 'session/src/lib.rs', lines 139:0-146:1
     Visibility: public -/
 def associated_data
   (encoded_ik_a : Slice Std.U8) (encoded_ik_b : Slice Std.U8) :
   Result (alloc.vec.Vec Std.U8)
   := do
-  let ad ←
-    alloc.vec.Vec.extend_from_slice core.clone.CloneU8 (alloc.vec.Vec.new
-      Std.U8) encoded_ik_a
-  alloc.vec.Vec.extend_from_slice core.clone.CloneU8 ad encoded_ik_b
+  let i := Slice.len encoded_ik_a
+  let i1 := Slice.len encoded_ik_b
+  let i2 ← lift (core.num.Usize.saturating_add i i1)
+  let ad := alloc.vec.Vec.with_capacity Std.U8 i2
+  let ad1 ←
+    alloc.vec.Vec.extend_from_slice core.clone.CloneU8 ad encoded_ik_a
+  alloc.vec.Vec.extend_from_slice core.clone.CloneU8 ad1 encoded_ik_b
 
 /-- [tacenta_session::associated_data_with_kem]:
-    Source: 'session/src/lib.rs', lines 136:0-144:1
+    Source: 'session/src/lib.rs', lines 150:0-158:1
     Visibility: public -/
 def associated_data_with_kem
   (encoded_ik_a : Slice Std.U8) (encoded_ik_b : Slice Std.U8)
@@ -257,7 +264,7 @@ def associated_data_with_kem
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 ad encoded_pq_pk
 
 /-- [tacenta_session::encode_ec]:
-    Source: 'session/src/lib.rs', lines 147:0-152:1
+    Source: 'session/src/lib.rs', lines 161:0-166:1
     Visibility: public -/
 def encode_ec
   (pk : Array Std.U8 32#usize) : Result (alloc.vec.Vec Std.U8) := do
@@ -267,7 +274,7 @@ def encode_ec
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out s
 
 /-- [tacenta_session::encode_kem]:
-    Source: 'session/src/lib.rs', lines 155:0-160:1
+    Source: 'session/src/lib.rs', lines 169:0-174:1
     Visibility: public -/
 def encode_kem (pk : Slice Std.U8) : Result (alloc.vec.Vec Std.U8) := do
   let out ←
@@ -275,7 +282,7 @@ def encode_kem (pk : Slice Std.U8) : Result (alloc.vec.Vec Std.U8) := do
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out pk
 
 /-- [tacenta_session::decode_ec]: loop body 0:
-    Source: 'session/src/lib.rs', lines 171:8-174:9
+    Source: 'session/src/lib.rs', lines 185:8-188:9
     Visibility: public -/
 @[rust_loop_body]
 def decode_ec_loop.body
@@ -292,7 +299,7 @@ def decode_ec_loop.body
   else ok (done k)
 
 /-- [tacenta_session::decode_ec]: loop 0:
-    Source: 'session/src/lib.rs', lines 171:8-174:9
+    Source: 'session/src/lib.rs', lines 185:8-188:9
     Visibility: public -/
 @[rust_loop]
 def decode_ec_loop
@@ -304,7 +311,7 @@ def decode_ec_loop
     (k, i)
 
 /-- [tacenta_session::decode_ec]:
-    Source: 'session/src/lib.rs', lines 164:0-179:1
+    Source: 'session/src/lib.rs', lines 178:0-193:1
     Visibility: public -/
 def decode_ec
   (bytes : Slice Std.U8) : Result (Option (Array Std.U8 32#usize)) := do

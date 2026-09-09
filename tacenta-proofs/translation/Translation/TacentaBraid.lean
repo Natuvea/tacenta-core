@@ -17,6 +17,13 @@ noncomputable section
 
 namespace tacenta_braid
 
+/-- [core::ops::range::RangeFull]
+    Source: '/rustc/library/core/src/ops/range.rs', lines 44:0-44:20
+    Name pattern: [core::ops::range::RangeFull]
+    Visibility: public -/
+@[reducible, rust_type "core::ops::range::RangeFull"]
+def core.ops.range.RangeFull := Unit
+
 /-- [core::option::{impl core::fmt::Debug for core::option::Option<T>}::fmt]:
     Source: '/rustc/library/core/src/option.rs', lines 591:15-591:20
     Name pattern: [core::option::{core::fmt::Debug<core::option::Option<@T>>}::fmt]
@@ -55,6 +62,104 @@ axiom core.option.Option.Insts.CoreCloneClone.clone
 axiom core.option.Option.Insts.CoreCmpPartialEqOption.eq
   {T : Type} (cmpPartialEqInst : core.cmp.PartialEq T T) :
   Option T → Option T → Result Bool
+
+/-- Trait implementation: [core::slice::index::private_slice_index::{impl core::slice::index::private_slice_index::Sealed for core::ops::range::RangeFull}]
+    Source: '/rustc/library/core/src/slice/index.rs', lines 120:4-120:34
+    Name pattern: [core::slice::index::private_slice_index::Sealed<core::ops::range::RangeFull>] -/
+@[reducible, rust_trait_impl
+  "core::slice::index::private_slice_index::Sealed<core::ops::range::RangeFull>"]
+def core.ops.range.RangeFull.Insts.CoreSliceIndexPrivate_slice_indexSealed :
+  core.slice.index.private_slice_index.Sealed core.ops.range.RangeFull := {
+}
+
+/-- [core::slice::index::{impl core::slice::index::SliceIndex<[T], [T]> for core::ops::range::RangeFull}::index_mut]:
+    Source: '/rustc/library/core/src/slice/index.rs', lines 660:4-660:51
+    Name pattern: [core::slice::index::{core::slice::index::SliceIndex<core::ops::range::RangeFull, [@T], [@T]>}::index_mut]
+    Visibility: public -/
+@[rust_fun
+  "core::slice::index::{core::slice::index::SliceIndex<core::ops::range::RangeFull, [@T], [@T]>}::index_mut"]
+axiom
+  core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut
+  {T : Type} :
+  core.ops.range.RangeFull → Slice T → Result ((Slice T) × (Slice T →
+    Slice T))
+
+/-- [core::slice::index::{impl core::slice::index::SliceIndex<[T], [T]> for core::ops::range::RangeFull}::index]:
+    Source: '/rustc/library/core/src/slice/index.rs', lines 655:4-655:39
+    Name pattern: [core::slice::index::{core::slice::index::SliceIndex<core::ops::range::RangeFull, [@T], [@T]>}::index]
+    Visibility: public -/
+@[rust_fun
+  "core::slice::index::{core::slice::index::SliceIndex<core::ops::range::RangeFull, [@T], [@T]>}::index"]
+axiom core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index
+  {T : Type} : core.ops.range.RangeFull → Slice T → Result (Slice T)
+
+/-- [core::slice::index::{impl core::slice::index::SliceIndex<[T], [T]> for core::ops::range::RangeFull}::get_unchecked_mut]:
+    Source: '/rustc/library/core/src/slice/index.rs', lines 650:4-650:66
+    Name pattern: [core::slice::index::{core::slice::index::SliceIndex<core::ops::range::RangeFull, [@T], [@T]>}::get_unchecked_mut]
+    Visibility: public -/
+@[rust_fun
+  "core::slice::index::{core::slice::index::SliceIndex<core::ops::range::RangeFull, [@T], [@T]>}::get_unchecked_mut"]
+axiom
+  core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut
+  {T : Type} :
+  core.ops.range.RangeFull → MutRawPtr (Slice T) → Result (MutRawPtr (Slice
+    T))
+
+/-- [core::slice::index::{impl core::slice::index::SliceIndex<[T], [T]> for core::ops::range::RangeFull}::get_unchecked]:
+    Source: '/rustc/library/core/src/slice/index.rs', lines 645:4-645:66
+    Name pattern: [core::slice::index::{core::slice::index::SliceIndex<core::ops::range::RangeFull, [@T], [@T]>}::get_unchecked]
+    Visibility: public -/
+@[rust_fun
+  "core::slice::index::{core::slice::index::SliceIndex<core::ops::range::RangeFull, [@T], [@T]>}::get_unchecked"]
+axiom
+  core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked
+  {T : Type} :
+  core.ops.range.RangeFull → ConstRawPtr (Slice T) → Result (ConstRawPtr
+    (Slice T))
+
+/-- [core::slice::index::{impl core::slice::index::SliceIndex<[T], [T]> for core::ops::range::RangeFull}::get_mut]:
+    Source: '/rustc/library/core/src/slice/index.rs', lines 640:4-640:57
+    Name pattern: [core::slice::index::{core::slice::index::SliceIndex<core::ops::range::RangeFull, [@T], [@T]>}::get_mut]
+    Visibility: public -/
+@[rust_fun
+  "core::slice::index::{core::slice::index::SliceIndex<core::ops::range::RangeFull, [@T], [@T]>}::get_mut"]
+axiom core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut
+  {T : Type} :
+  core.ops.range.RangeFull → Slice T → Result ((Option (Slice T)) ×
+    (Option (Slice T) → Slice T))
+
+/-- [core::slice::index::{impl core::slice::index::SliceIndex<[T], [T]> for core::ops::range::RangeFull}::get]:
+    Source: '/rustc/library/core/src/slice/index.rs', lines 635:4-635:45
+    Name pattern: [core::slice::index::{core::slice::index::SliceIndex<core::ops::range::RangeFull, [@T], [@T]>}::get]
+    Visibility: public -/
+@[rust_fun
+  "core::slice::index::{core::slice::index::SliceIndex<core::ops::range::RangeFull, [@T], [@T]>}::get"]
+axiom core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get
+  {T : Type} :
+  core.ops.range.RangeFull → Slice T → Result (Option (Slice T))
+
+/-- Trait implementation: [core::slice::index::{impl core::slice::index::SliceIndex<[T], [T]> for core::ops::range::RangeFull}]
+    Source: '/rustc/library/core/src/slice/index.rs', lines 631:0-631:55
+    Name pattern: [core::slice::index::SliceIndex<core::ops::range::RangeFull, [@T], [@T]>] -/
+@[reducible, rust_trait_impl
+  "core::slice::index::SliceIndex<core::ops::range::RangeFull, [@T], [@T]>"]
+def core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice (T :
+  Type) : core.slice.index.SliceIndex core.ops.range.RangeFull (Slice T) (Slice
+  T) := {
+  sealedInst :=
+    core.ops.range.RangeFull.Insts.CoreSliceIndexPrivate_slice_indexSealed
+  get := core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get
+  get_mut :=
+    core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut
+  get_unchecked :=
+    core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked
+  get_unchecked_mut :=
+    core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut
+  index :=
+    core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index
+  index_mut :=
+    core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut
+}
 
 /-- [rand_core#1::error::Error]
     Source: '/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/error.rs', lines 21:0-21:16
@@ -136,15 +241,22 @@ def tacenta_erasure.Chunk.Insts.CoreFmtDebug : core.fmt.Debug
   fmt := tacenta_erasure.Chunk.Insts.CoreFmtDebug.fmt
 }
 
+/-- [tacenta_erasure::chunk_count]:
+    Source: 'erasure/src/lib.rs', lines 157:0-157:40
+    Name pattern: [tacenta_erasure::chunk_count]
+    Visibility: public -/
+@[rust_fun "tacenta_erasure::chunk_count"]
+axiom tacenta_erasure.chunk_count : Std.Usize → Result Std.Usize
+
 /-- [tacenta_erasure::Encoder]
-    Source: 'erasure/src/lib.rs', lines 283:0-283:18
+    Source: 'erasure/src/lib.rs', lines 286:0-286:18
     Name pattern: [tacenta_erasure::Encoder]
     Visibility: public -/
 @[rust_type "tacenta_erasure::Encoder"]
 axiom tacenta_erasure.Encoder : Type
 
 /-- [tacenta_erasure::{impl core::clone::Clone for tacenta_erasure::Encoder}::clone]:
-    Source: 'erasure/src/lib.rs', lines 282:9-282:14
+    Source: 'erasure/src/lib.rs', lines 285:9-285:14
     Name pattern: [tacenta_erasure::{core::clone::Clone<tacenta_erasure::Encoder>}::clone]
     Visibility: public -/
 @[rust_fun
@@ -153,15 +265,23 @@ axiom tacenta_erasure.Encoder.Insts.CoreCloneClone.clone
   : tacenta_erasure.Encoder → Result tacenta_erasure.Encoder
 
 /-- [tacenta_erasure::{tacenta_erasure::Encoder}::new]:
-    Source: 'erasure/src/lib.rs', lines 292:4-292:41
+    Source: 'erasure/src/lib.rs', lines 303:4-303:41
     Name pattern: [tacenta_erasure::{tacenta_erasure::Encoder}::new]
     Visibility: public -/
 @[rust_fun "tacenta_erasure::{tacenta_erasure::Encoder}::new"]
 axiom tacenta_erasure.Encoder.new
   : Slice Std.U8 → Result tacenta_erasure.Encoder
 
+/-- [tacenta_erasure::{tacenta_erasure::Encoder}::needed]:
+    Source: 'erasure/src/lib.rs', lines 331:4-331:33
+    Name pattern: [tacenta_erasure::{tacenta_erasure::Encoder}::needed]
+    Visibility: public -/
+@[rust_fun "tacenta_erasure::{tacenta_erasure::Encoder}::needed"]
+axiom tacenta_erasure.Encoder.needed
+  : tacenta_erasure.Encoder → Result Std.Usize
+
 /-- [tacenta_erasure::{tacenta_erasure::Encoder}::next_chunk]:
-    Source: 'erasure/src/lib.rs', lines 328:4-328:49
+    Source: 'erasure/src/lib.rs', lines 342:4-342:49
     Name pattern: [tacenta_erasure::{tacenta_erasure::Encoder}::next_chunk]
     Visibility: public -/
 @[rust_fun "tacenta_erasure::{tacenta_erasure::Encoder}::next_chunk"]
@@ -171,7 +291,7 @@ axiom tacenta_erasure.Encoder.next_chunk
     tacenta_erasure.Encoder)
 
 /-- [tacenta_erasure::{tacenta_erasure::Encoder}::to_bytes]:
-    Source: 'erasure/src/lib.rs', lines 380:4-380:37
+    Source: 'erasure/src/lib.rs', lines 394:4-394:37
     Name pattern: [tacenta_erasure::{tacenta_erasure::Encoder}::to_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_erasure::{tacenta_erasure::Encoder}::to_bytes"]
@@ -179,7 +299,7 @@ axiom tacenta_erasure.Encoder.to_bytes
   : tacenta_erasure.Encoder → Result (alloc.vec.Vec Std.U8)
 
 /-- [tacenta_erasure::{tacenta_erasure::Encoder}::from_bytes]:
-    Source: 'erasure/src/lib.rs', lines 394:4-394:54
+    Source: 'erasure/src/lib.rs', lines 408:4-408:54
     Name pattern: [tacenta_erasure::{tacenta_erasure::Encoder}::from_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_erasure::{tacenta_erasure::Encoder}::from_bytes"]
@@ -187,14 +307,14 @@ axiom tacenta_erasure.Encoder.from_bytes
   : Slice Std.U8 → Result (Option tacenta_erasure.Encoder)
 
 /-- [tacenta_erasure::Decoder]
-    Source: 'erasure/src/lib.rs', lines 460:0-460:18
+    Source: 'erasure/src/lib.rs', lines 493:0-493:18
     Name pattern: [tacenta_erasure::Decoder]
     Visibility: public -/
 @[rust_type "tacenta_erasure::Decoder"]
 axiom tacenta_erasure.Decoder : Type
 
 /-- [tacenta_erasure::{impl core::clone::Clone for tacenta_erasure::Decoder}::clone]:
-    Source: 'erasure/src/lib.rs', lines 459:9-459:14
+    Source: 'erasure/src/lib.rs', lines 492:9-492:14
     Name pattern: [tacenta_erasure::{core::clone::Clone<tacenta_erasure::Decoder>}::clone]
     Visibility: public -/
 @[rust_fun
@@ -203,7 +323,7 @@ axiom tacenta_erasure.Decoder.Insts.CoreCloneClone.clone
   : tacenta_erasure.Decoder → Result tacenta_erasure.Decoder
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::new]:
-    Source: 'erasure/src/lib.rs', lines 469:4-469:38
+    Source: 'erasure/src/lib.rs', lines 502:4-502:38
     Name pattern: [tacenta_erasure::{tacenta_erasure::Decoder}::new]
     Visibility: public -/
 @[rust_fun "tacenta_erasure::{tacenta_erasure::Decoder}::new"]
@@ -211,7 +331,7 @@ axiom tacenta_erasure.Decoder.new
   : Std.Usize → Result tacenta_erasure.Decoder
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::add_chunk]:
-    Source: 'erasure/src/lib.rs', lines 483:4-483:53
+    Source: 'erasure/src/lib.rs', lines 516:4-516:53
     Name pattern: [tacenta_erasure::{tacenta_erasure::Decoder}::add_chunk]
     Visibility: public -/
 @[rust_fun "tacenta_erasure::{tacenta_erasure::Decoder}::add_chunk"]
@@ -220,8 +340,16 @@ axiom tacenta_erasure.Decoder.add_chunk
   tacenta_erasure.Decoder → tacenta_erasure.Chunk → Result (Bool ×
     tacenta_erasure.Decoder)
 
+/-- [tacenta_erasure::{tacenta_erasure::Decoder}::size]:
+    Source: 'erasure/src/lib.rs', lines 546:4-546:31
+    Name pattern: [tacenta_erasure::{tacenta_erasure::Decoder}::size]
+    Visibility: public -/
+@[rust_fun "tacenta_erasure::{tacenta_erasure::Decoder}::size"]
+axiom tacenta_erasure.Decoder.size
+  : tacenta_erasure.Decoder → Result Std.Usize
+
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::message]:
-    Source: 'erasure/src/lib.rs', lines 511:4-511:44
+    Source: 'erasure/src/lib.rs', lines 551:4-551:44
     Name pattern: [tacenta_erasure::{tacenta_erasure::Decoder}::message]
     Visibility: public -/
 @[rust_fun "tacenta_erasure::{tacenta_erasure::Decoder}::message"]
@@ -229,7 +357,7 @@ axiom tacenta_erasure.Decoder.message
   : tacenta_erasure.Decoder → Result (Option (alloc.vec.Vec Std.U8))
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::to_bytes]:
-    Source: 'erasure/src/lib.rs', lines 580:4-580:37
+    Source: 'erasure/src/lib.rs', lines 620:4-620:37
     Name pattern: [tacenta_erasure::{tacenta_erasure::Decoder}::to_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_erasure::{tacenta_erasure::Decoder}::to_bytes"]
@@ -237,7 +365,7 @@ axiom tacenta_erasure.Decoder.to_bytes
   : tacenta_erasure.Decoder → Result (alloc.vec.Vec Std.U8)
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::from_bytes]:
-    Source: 'erasure/src/lib.rs', lines 596:4-596:54
+    Source: 'erasure/src/lib.rs', lines 636:4-636:54
     Name pattern: [tacenta_erasure::{tacenta_erasure::Decoder}::from_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_erasure::{tacenta_erasure::Decoder}::from_bytes"]
@@ -324,7 +452,7 @@ axiom tacenta_kem.IncrementalKeyPair.generate
     tacenta_kem.KemError) × R)
 
 /-- [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::header]:
-    Source: 'kem/src/lib.rs', lines 100:4-100:35
+    Source: 'kem/src/lib.rs', lines 104:4-104:35
     Name pattern: [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::header]
     Visibility: public -/
 @[rust_fun "tacenta_kem::{tacenta_kem::IncrementalKeyPair}::header"]
@@ -332,7 +460,7 @@ axiom tacenta_kem.IncrementalKeyPair.header
   : tacenta_kem.IncrementalKeyPair → Result (alloc.vec.Vec Std.U8)
 
 /-- [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::ek_vector]:
-    Source: 'kem/src/lib.rs', lines 105:4-105:38
+    Source: 'kem/src/lib.rs', lines 109:4-109:38
     Name pattern: [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::ek_vector]
     Visibility: public -/
 @[rust_fun "tacenta_kem::{tacenta_kem::IncrementalKeyPair}::ek_vector"]
@@ -340,7 +468,7 @@ axiom tacenta_kem.IncrementalKeyPair.ek_vector
   : tacenta_kem.IncrementalKeyPair → Result (alloc.vec.Vec Std.U8)
 
 /-- [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::decapsulate]:
-    Source: 'kem/src/lib.rs', lines 110:4-110:98
+    Source: 'kem/src/lib.rs', lines 114:4-114:98
     Name pattern: [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::decapsulate]
     Visibility: public -/
 @[rust_fun "tacenta_kem::{tacenta_kem::IncrementalKeyPair}::decapsulate"]
@@ -357,7 +485,7 @@ axiom tacenta_kem.IncrementalKeyPair.decapsulate
 axiom zeroize.Zeroizing (Z : Type) : Type
 
 /-- [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::to_bytes]:
-    Source: 'kem/src/lib.rs', lines 135:4-135:48
+    Source: 'kem/src/lib.rs', lines 139:4-139:48
     Name pattern: [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::to_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_kem::{tacenta_kem::IncrementalKeyPair}::to_bytes"]
@@ -367,7 +495,7 @@ axiom tacenta_kem.IncrementalKeyPair.to_bytes
     Std.U8))
 
 /-- [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::from_bytes]:
-    Source: 'kem/src/lib.rs', lines 140:4-140:75
+    Source: 'kem/src/lib.rs', lines 144:4-144:75
     Name pattern: [tacenta_kem::{tacenta_kem::IncrementalKeyPair}::from_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_kem::{tacenta_kem::IncrementalKeyPair}::from_bytes"]
@@ -377,14 +505,14 @@ axiom tacenta_kem.IncrementalKeyPair.from_bytes
     tacenta_kem.KemError)
 
 /-- [tacenta_kem::EncapsState]
-    Source: 'kem/src/lib.rs', lines 158:0-158:22
+    Source: 'kem/src/lib.rs', lines 162:0-162:22
     Name pattern: [tacenta_kem::EncapsState]
     Visibility: public -/
 @[rust_type "tacenta_kem::EncapsState"]
 axiom tacenta_kem.EncapsState : Type
 
 /-- [tacenta_kem::{impl core::clone::Clone for tacenta_kem::EncapsState}::clone]:
-    Source: 'kem/src/lib.rs', lines 157:9-157:14
+    Source: 'kem/src/lib.rs', lines 161:9-161:14
     Name pattern: [tacenta_kem::{core::clone::Clone<tacenta_kem::EncapsState>}::clone]
     Visibility: public -/
 @[rust_fun
@@ -393,7 +521,7 @@ axiom tacenta_kem.EncapsState.Insts.CoreCloneClone.clone
   : tacenta_kem.EncapsState → Result tacenta_kem.EncapsState
 
 /-- [tacenta_kem::{tacenta_kem::EncapsState}::to_bytes]:
-    Source: 'kem/src/lib.rs', lines 164:4-164:48
+    Source: 'kem/src/lib.rs', lines 168:4-168:48
     Name pattern: [tacenta_kem::{tacenta_kem::EncapsState}::to_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_kem::{tacenta_kem::EncapsState}::to_bytes"]
@@ -402,7 +530,7 @@ axiom tacenta_kem.EncapsState.to_bytes
   tacenta_kem.EncapsState → Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))
 
 /-- [tacenta_kem::{tacenta_kem::EncapsState}::from_bytes]:
-    Source: 'kem/src/lib.rs', lines 169:4-169:68
+    Source: 'kem/src/lib.rs', lines 173:4-173:68
     Name pattern: [tacenta_kem::{tacenta_kem::EncapsState}::from_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_kem::{tacenta_kem::EncapsState}::from_bytes"]
@@ -412,7 +540,7 @@ axiom tacenta_kem.EncapsState.from_bytes
     tacenta_kem.KemError)
 
 /-- [tacenta_kem::encapsulate1]:
-    Source: 'kem/src/lib.rs', lines 183:0-186:70
+    Source: 'kem/src/lib.rs', lines 187:0-190:70
     Name pattern: [tacenta_kem::encapsulate1]
     Visibility: public -/
 @[rust_fun "tacenta_kem::encapsulate1"]
@@ -424,7 +552,7 @@ axiom tacenta_kem.encapsulate1
     × R)
 
 /-- [tacenta_kem::encapsulate2]:
-    Source: 'kem/src/lib.rs', lines 212:0-212:87
+    Source: 'kem/src/lib.rs', lines 218:0-218:87
     Name pattern: [tacenta_kem::encapsulate2]
     Visibility: public -/
 @[rust_fun "tacenta_kem::encapsulate2"]
@@ -434,7 +562,7 @@ axiom tacenta_kem.encapsulate2
     (alloc.vec.Vec Std.U8) tacenta_kem.KemError)
 
 /-- [tacenta_kem::validate_ek]:
-    Source: 'kem/src/lib.rs', lines 227:0-227:59
+    Source: 'kem/src/lib.rs', lines 233:0-233:59
     Name pattern: [tacenta_kem::validate_ek]
     Visibility: public -/
 @[rust_fun "tacenta_kem::validate_ek"]
@@ -556,12 +684,12 @@ axiom zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop
   {T : Type} (ZeroizeInst : zeroize.Zeroize T) : T → Result T
 
 /-- [tacenta_braid::MAC_LEN]
-    Source: 'braid/src/lib.rs', lines 57:0-57:30
+    Source: 'braid/src/lib.rs', lines 58:0-58:30
     Visibility: public -/
 @[global_simps, irreducible] def MAC_LEN : Std.Usize := 32#usize
 
 /-- [tacenta_braid::PROTOCOL_INFO]
-    Source: 'braid/src/lib.rs', lines 63:0-63:58 -/
+    Source: 'braid/src/lib.rs', lines 64:0-64:58 -/
 @[global_simps, irreducible]
 def PROTOCOL_INFO : Slice Std.U8 :=
   Array.to_slice
@@ -572,7 +700,7 @@ def PROTOCOL_INFO : Slice Std.U8 :=
       ])
 
 /-- [tacenta_braid::AUTH_UPDATE]
-    Source: 'braid/src/lib.rs', lines 65:0-65:52 -/
+    Source: 'braid/src/lib.rs', lines 66:0-66:52 -/
 @[global_simps, irreducible]
 def AUTH_UPDATE : Slice Std.U8 :=
   Array.to_slice
@@ -583,7 +711,7 @@ def AUTH_UPDATE : Slice Std.U8 :=
       ])
 
 /-- [tacenta_braid::SCKA_KEY]
-    Source: 'braid/src/lib.rs', lines 66:0-66:37 -/
+    Source: 'braid/src/lib.rs', lines 67:0-67:37 -/
 @[global_simps, irreducible]
 def SCKA_KEY : Slice Std.U8 :=
   Array.to_slice
@@ -592,7 +720,7 @@ def SCKA_KEY : Slice Std.U8 :=
       ])
 
 /-- [tacenta_braid::EK_HEADER]
-    Source: 'braid/src/lib.rs', lines 67:0-67:38 -/
+    Source: 'braid/src/lib.rs', lines 68:0-68:38 -/
 @[global_simps, irreducible]
 def EK_HEADER : Slice Std.U8 :=
   Array.to_slice
@@ -601,7 +729,7 @@ def EK_HEADER : Slice Std.U8 :=
       ])
 
 /-- [tacenta_braid::CIPHERTEXT]
-    Source: 'braid/src/lib.rs', lines 68:0-68:41 -/
+    Source: 'braid/src/lib.rs', lines 69:0-69:41 -/
 @[global_simps, irreducible]
 def CIPHERTEXT : Slice Std.U8 :=
   Array.to_slice
@@ -611,14 +739,14 @@ def CIPHERTEXT : Slice Std.U8 :=
       ])
 
 /-- [tacenta_braid::Output]
-    Source: 'braid/src/lib.rs', lines 72:0-76:1
+    Source: 'braid/src/lib.rs', lines 73:0-77:1
     Visibility: public -/
 structure Output where
   key_epoch : Std.U64
   key : Array Std.U8 32#usize
 
 /-- [tacenta_braid::{impl core::clone::Clone for tacenta_braid::Output}::clone]:
-    Source: 'braid/src/lib.rs', lines 71:9-71:14
+    Source: 'braid/src/lib.rs', lines 72:9-72:14
     Visibility: public -/
 def Output.Insts.CoreCloneClone.clone (self : Output) : Result Output := do
   let i ← lift (core.clone.impls.CloneU64.clone self.key_epoch)
@@ -626,14 +754,14 @@ def Output.Insts.CoreCloneClone.clone (self : Output) : Result Output := do
   ok { key_epoch := i, key := a }
 
 /-- Trait implementation: [tacenta_braid::{impl core::clone::Clone for tacenta_braid::Output}]
-    Source: 'braid/src/lib.rs', lines 71:9-71:14 -/
+    Source: 'braid/src/lib.rs', lines 72:9-72:14 -/
 @[reducible]
 def Output.Insts.CoreCloneClone : core.clone.Clone Output := {
   clone := Output.Insts.CoreCloneClone.clone
 }
 
 /-- [tacenta_braid::{impl zeroize::Zeroize for tacenta_braid::Output}::zeroize]:
-    Source: 'braid/src/lib.rs', lines 71:16-71:23
+    Source: 'braid/src/lib.rs', lines 72:16-72:23
     Visibility: public -/
 def Output.Insts.ZeroizeZeroize.zeroize (self : Output) : Result Output := do
   let key ←
@@ -642,14 +770,14 @@ def Output.Insts.ZeroizeZeroize.zeroize (self : Output) : Result Output := do
   ok { self with key }
 
 /-- Trait implementation: [tacenta_braid::{impl zeroize::Zeroize for tacenta_braid::Output}]
-    Source: 'braid/src/lib.rs', lines 71:16-71:23 -/
+    Source: 'braid/src/lib.rs', lines 72:16-72:23 -/
 @[reducible]
 def Output.Insts.ZeroizeZeroize : zeroize.Zeroize Output := {
   zeroize := Output.Insts.ZeroizeZeroize.zeroize
 }
 
 /-- [tacenta_braid::{impl core::ops::drop::Drop for tacenta_braid::Output}::drop]:
-    Source: 'braid/src/lib.rs', lines 71:25-71:38
+    Source: 'braid/src/lib.rs', lines 72:25-72:38
     Visibility: public -/
 def Output.Insts.CoreOpsDropDrop.drop (self : Output) : Result Output := do
   let key ←
@@ -659,20 +787,20 @@ def Output.Insts.CoreOpsDropDrop.drop (self : Output) : Result Output := do
   ok { self with key }
 
 /-- Trait implementation: [tacenta_braid::{impl core::ops::drop::Drop for tacenta_braid::Output}]
-    Source: 'braid/src/lib.rs', lines 71:25-71:38 -/
+    Source: 'braid/src/lib.rs', lines 72:25-72:38 -/
 @[reducible]
 def Output.Insts.CoreOpsDropDrop : core.ops.drop.Drop Output := {
   drop := Output.Insts.CoreOpsDropDrop.drop
 }
 
 /-- Trait implementation: [tacenta_braid::{impl zeroize::ZeroizeOnDrop for tacenta_braid::Output}]
-    Source: 'braid/src/lib.rs', lines 71:25-71:38 -/
+    Source: 'braid/src/lib.rs', lines 72:25-72:38 -/
 @[reducible]
 def Output.Insts.ZeroizeZeroizeOnDrop : zeroize.ZeroizeOnDrop Output := {
 }
 
 /-- [tacenta_braid::MsgType]
-    Source: 'braid/src/lib.rs', lines 95:0-108:1
+    Source: 'braid/src/lib.rs', lines 96:0-109:1
     Visibility: public -/
 @[discriminant isize]
 inductive MsgType where
@@ -684,34 +812,34 @@ inductive MsgType where
 | Ct2 : MsgType
 
 /-- [tacenta_braid::{impl core::clone::Clone for tacenta_braid::MsgType}::clone]:
-    Source: 'braid/src/lib.rs', lines 94:9-94:14
+    Source: 'braid/src/lib.rs', lines 95:9-95:14
     Visibility: public -/
 def MsgType.Insts.CoreCloneClone.clone (self : MsgType) : Result MsgType := do
   ok self
 
 /-- Trait implementation: [tacenta_braid::{impl core::clone::Clone for tacenta_braid::MsgType}]
-    Source: 'braid/src/lib.rs', lines 94:9-94:14 -/
+    Source: 'braid/src/lib.rs', lines 95:9-95:14 -/
 @[reducible]
 def MsgType.Insts.CoreCloneClone : core.clone.Clone MsgType := {
   clone := MsgType.Insts.CoreCloneClone.clone
 }
 
 /-- Trait implementation: [tacenta_braid::{impl core::marker::Copy for tacenta_braid::MsgType}]
-    Source: 'braid/src/lib.rs', lines 94:16-94:20 -/
+    Source: 'braid/src/lib.rs', lines 95:16-95:20 -/
 @[reducible]
 def MsgType.Insts.CoreMarkerCopy : core.marker.Copy MsgType := {
   cloneInst := MsgType.Insts.CoreCloneClone
 }
 
 /-- Trait implementation: [tacenta_braid::{impl core::marker::StructuralPartialEq for tacenta_braid::MsgType}]
-    Source: 'braid/src/lib.rs', lines 94:22-94:31 -/
+    Source: 'braid/src/lib.rs', lines 95:22-95:31 -/
 @[reducible]
 def MsgType.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq MsgType := {
 }
 
 /-- [tacenta_braid::{impl core::cmp::PartialEq<tacenta_braid::MsgType> for tacenta_braid::MsgType}::eq]:
-    Source: 'braid/src/lib.rs', lines 94:22-94:31
+    Source: 'braid/src/lib.rs', lines 95:22-95:31
     Visibility: public -/
 def MsgType.Insts.CoreCmpPartialEqMsgType.eq
   (self : MsgType) (other : MsgType) : Result Bool := do
@@ -720,7 +848,7 @@ def MsgType.Insts.CoreCmpPartialEqMsgType.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tacenta_braid::{impl core::cmp::PartialEq<tacenta_braid::MsgType> for tacenta_braid::MsgType}]
-    Source: 'braid/src/lib.rs', lines 94:22-94:31 -/
+    Source: 'braid/src/lib.rs', lines 95:22-95:31 -/
 @[reducible]
 def MsgType.Insts.CoreCmpPartialEqMsgType : core.cmp.PartialEq MsgType MsgType
   := {
@@ -728,14 +856,14 @@ def MsgType.Insts.CoreCmpPartialEqMsgType : core.cmp.PartialEq MsgType MsgType
 }
 
 /-- [tacenta_braid::{impl core::cmp::Eq for tacenta_braid::MsgType}::assert_fields_are_eq]:
-    Source: 'braid/src/lib.rs', lines 94:33-94:35
+    Source: 'braid/src/lib.rs', lines 95:33-95:35
     Visibility: public -/
 def MsgType.Insts.CoreCmpEq.assert_fields_are_eq
   (self : MsgType) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_braid::{impl core::cmp::Eq for tacenta_braid::MsgType}]
-    Source: 'braid/src/lib.rs', lines 94:33-94:35 -/
+    Source: 'braid/src/lib.rs', lines 95:33-95:35 -/
 @[reducible]
 def MsgType.Insts.CoreCmpEq : core.cmp.Eq MsgType := {
   partialEqInst := MsgType.Insts.CoreCmpPartialEqMsgType
@@ -743,7 +871,7 @@ def MsgType.Insts.CoreCmpEq : core.cmp.Eq MsgType := {
 }
 
 /-- [tacenta_braid::{impl core::fmt::Debug for tacenta_braid::MsgType}::fmt]:
-    Source: 'braid/src/lib.rs', lines 94:37-94:42
+    Source: 'braid/src/lib.rs', lines 95:37-95:42
     Visibility: public -/
 def MsgType.Insts.CoreFmtDebug.fmt
   (self : MsgType) (f : core.fmt.Formatter) :
@@ -758,14 +886,14 @@ def MsgType.Insts.CoreFmtDebug.fmt
   | MsgType.Ct2 => core.fmt.Formatter.write_str f (toStr "Ct2")
 
 /-- Trait implementation: [tacenta_braid::{impl core::fmt::Debug for tacenta_braid::MsgType}]
-    Source: 'braid/src/lib.rs', lines 94:37-94:42 -/
+    Source: 'braid/src/lib.rs', lines 95:37-95:42 -/
 @[reducible]
 def MsgType.Insts.CoreFmtDebug : core.fmt.Debug MsgType := {
   fmt := MsgType.Insts.CoreFmtDebug.fmt
 }
 
 /-- [tacenta_braid::Msg]
-    Source: 'braid/src/lib.rs', lines 121:0-125:1
+    Source: 'braid/src/lib.rs', lines 122:0-126:1
     Visibility: public -/
 structure Msg where
   epoch : Std.U64
@@ -773,34 +901,34 @@ structure Msg where
   data : Option tacenta_erasure.Chunk
 
 /-- [tacenta_braid::{impl core::clone::Clone for tacenta_braid::Msg}::clone]:
-    Source: 'braid/src/lib.rs', lines 120:9-120:14
+    Source: 'braid/src/lib.rs', lines 121:9-121:14
     Visibility: public -/
 def Msg.Insts.CoreCloneClone.clone (self : Msg) : Result Msg := do
   ok self
 
 /-- Trait implementation: [tacenta_braid::{impl core::clone::Clone for tacenta_braid::Msg}]
-    Source: 'braid/src/lib.rs', lines 120:9-120:14 -/
+    Source: 'braid/src/lib.rs', lines 121:9-121:14 -/
 @[reducible]
 def Msg.Insts.CoreCloneClone : core.clone.Clone Msg := {
   clone := Msg.Insts.CoreCloneClone.clone
 }
 
 /-- Trait implementation: [tacenta_braid::{impl core::marker::Copy for tacenta_braid::Msg}]
-    Source: 'braid/src/lib.rs', lines 120:16-120:20 -/
+    Source: 'braid/src/lib.rs', lines 121:16-121:20 -/
 @[reducible]
 def Msg.Insts.CoreMarkerCopy : core.marker.Copy Msg := {
   cloneInst := Msg.Insts.CoreCloneClone
 }
 
 /-- Trait implementation: [tacenta_braid::{impl core::marker::StructuralPartialEq for tacenta_braid::Msg}]
-    Source: 'braid/src/lib.rs', lines 120:22-120:31 -/
+    Source: 'braid/src/lib.rs', lines 121:22-121:31 -/
 @[reducible]
 def Msg.Insts.CoreMarkerStructuralPartialEq : core.marker.StructuralPartialEq
   Msg := {
 }
 
 /-- [tacenta_braid::{impl core::cmp::PartialEq<tacenta_braid::Msg> for tacenta_braid::Msg}::eq]:
-    Source: 'braid/src/lib.rs', lines 120:22-120:31
+    Source: 'braid/src/lib.rs', lines 121:22-121:31
     Visibility: public -/
 def Msg.Insts.CoreCmpPartialEqMsg.eq
   (self : Msg) (other : Msg) : Result Bool := do
@@ -815,20 +943,20 @@ def Msg.Insts.CoreCmpPartialEqMsg.eq
   else ok false
 
 /-- Trait implementation: [tacenta_braid::{impl core::cmp::PartialEq<tacenta_braid::Msg> for tacenta_braid::Msg}]
-    Source: 'braid/src/lib.rs', lines 120:22-120:31 -/
+    Source: 'braid/src/lib.rs', lines 121:22-121:31 -/
 @[reducible]
 def Msg.Insts.CoreCmpPartialEqMsg : core.cmp.PartialEq Msg Msg := {
   eq := Msg.Insts.CoreCmpPartialEqMsg.eq
 }
 
 /-- [tacenta_braid::{impl core::cmp::Eq for tacenta_braid::Msg}::assert_fields_are_eq]:
-    Source: 'braid/src/lib.rs', lines 120:33-120:35
+    Source: 'braid/src/lib.rs', lines 121:33-121:35
     Visibility: public -/
 def Msg.Insts.CoreCmpEq.assert_fields_are_eq (self : Msg) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_braid::{impl core::cmp::Eq for tacenta_braid::Msg}]
-    Source: 'braid/src/lib.rs', lines 120:33-120:35 -/
+    Source: 'braid/src/lib.rs', lines 121:33-121:35 -/
 @[reducible]
 def Msg.Insts.CoreCmpEq : core.cmp.Eq Msg := {
   partialEqInst := Msg.Insts.CoreCmpPartialEqMsg
@@ -836,7 +964,7 @@ def Msg.Insts.CoreCmpEq : core.cmp.Eq Msg := {
 }
 
 /-- [tacenta_braid::{impl core::fmt::Debug for tacenta_braid::Msg}::fmt]:
-    Source: 'braid/src/lib.rs', lines 120:37-120:42
+    Source: 'braid/src/lib.rs', lines 121:37-121:42
     Visibility: public -/
 def Msg.Insts.CoreFmtDebug.fmt
   (self : Msg) (f : core.fmt.Formatter) :
@@ -851,19 +979,19 @@ def Msg.Insts.CoreFmtDebug.fmt
     dyn (toStr "ty") dyn1 (toStr "data") dyn2
 
 /-- Trait implementation: [tacenta_braid::{impl core::fmt::Debug for tacenta_braid::Msg}]
-    Source: 'braid/src/lib.rs', lines 120:37-120:42 -/
+    Source: 'braid/src/lib.rs', lines 121:37-121:42 -/
 @[reducible]
 def Msg.Insts.CoreFmtDebug : core.fmt.Debug Msg := {
   fmt := Msg.Insts.CoreFmtDebug.fmt
 }
 
 /-- [tacenta_braid::{tacenta_braid::Msg}::empty]:
-    Source: 'braid/src/lib.rs', lines 128:4-134:5 -/
+    Source: 'braid/src/lib.rs', lines 129:4-135:5 -/
 def Msg.empty (epoch : Std.U64) : Result Msg := do
   ok { epoch, ty := MsgType.None, data := none }
 
 /-- [tacenta_braid::{tacenta_braid::Msg}::with]:
-    Source: 'braid/src/lib.rs', lines 136:4-148:5 -/
+    Source: 'braid/src/lib.rs', lines 137:4-149:5 -/
 def Msg.with
   (epoch : Std.U64) (ty : MsgType) (chunk : Option tacenta_erasure.Chunk) :
   Result Msg
@@ -873,14 +1001,14 @@ def Msg.with
   | some _ => ok { epoch, ty, data := chunk }
 
 /-- [tacenta_braid::Auth]
-    Source: 'braid/src/lib.rs', lines 154:0-157:1
+    Source: 'braid/src/lib.rs', lines 155:0-158:1
     Visibility: public -/
 structure Auth where
   root_key : Array Std.U8 32#usize
   mac_key : Array Std.U8 32#usize
 
 /-- [tacenta_braid::{impl core::clone::Clone for tacenta_braid::Auth}::clone]:
-    Source: 'braid/src/lib.rs', lines 153:9-153:14
+    Source: 'braid/src/lib.rs', lines 154:9-154:14
     Visibility: public -/
 def Auth.Insts.CoreCloneClone.clone (self : Auth) : Result Auth := do
   let a ← core.array.CloneArray.clone core.clone.CloneU8 self.root_key
@@ -888,14 +1016,14 @@ def Auth.Insts.CoreCloneClone.clone (self : Auth) : Result Auth := do
   ok { root_key := a, mac_key := a1 }
 
 /-- Trait implementation: [tacenta_braid::{impl core::clone::Clone for tacenta_braid::Auth}]
-    Source: 'braid/src/lib.rs', lines 153:9-153:14 -/
+    Source: 'braid/src/lib.rs', lines 154:9-154:14 -/
 @[reducible]
 def Auth.Insts.CoreCloneClone : core.clone.Clone Auth := {
   clone := Auth.Insts.CoreCloneClone.clone
 }
 
 /-- [tacenta_braid::{impl zeroize::Zeroize for tacenta_braid::Auth}::zeroize]:
-    Source: 'braid/src/lib.rs', lines 153:16-153:23
+    Source: 'braid/src/lib.rs', lines 154:16-154:23
     Visibility: public -/
 def Auth.Insts.ZeroizeZeroize.zeroize (self : Auth) : Result Auth := do
   let root_key ←
@@ -907,14 +1035,14 @@ def Auth.Insts.ZeroizeZeroize.zeroize (self : Auth) : Result Auth := do
   ok { root_key, mac_key }
 
 /-- Trait implementation: [tacenta_braid::{impl zeroize::Zeroize for tacenta_braid::Auth}]
-    Source: 'braid/src/lib.rs', lines 153:16-153:23 -/
+    Source: 'braid/src/lib.rs', lines 154:16-154:23 -/
 @[reducible]
 def Auth.Insts.ZeroizeZeroize : zeroize.Zeroize Auth := {
   zeroize := Auth.Insts.ZeroizeZeroize.zeroize
 }
 
 /-- [tacenta_braid::{impl core::ops::drop::Drop for tacenta_braid::Auth}::drop]:
-    Source: 'braid/src/lib.rs', lines 153:25-153:38
+    Source: 'braid/src/lib.rs', lines 154:25-154:38
     Visibility: public -/
 def Auth.Insts.CoreOpsDropDrop.drop (self : Auth) : Result Auth := do
   let root_key ←
@@ -928,20 +1056,20 @@ def Auth.Insts.CoreOpsDropDrop.drop (self : Auth) : Result Auth := do
   ok { root_key, mac_key }
 
 /-- Trait implementation: [tacenta_braid::{impl core::ops::drop::Drop for tacenta_braid::Auth}]
-    Source: 'braid/src/lib.rs', lines 153:25-153:38 -/
+    Source: 'braid/src/lib.rs', lines 154:25-154:38 -/
 @[reducible]
 def Auth.Insts.CoreOpsDropDrop : core.ops.drop.Drop Auth := {
   drop := Auth.Insts.CoreOpsDropDrop.drop
 }
 
 /-- Trait implementation: [tacenta_braid::{impl zeroize::ZeroizeOnDrop for tacenta_braid::Auth}]
-    Source: 'braid/src/lib.rs', lines 153:25-153:38 -/
+    Source: 'braid/src/lib.rs', lines 154:25-154:38 -/
 @[reducible]
 def Auth.Insts.ZeroizeZeroizeOnDrop : zeroize.ZeroizeOnDrop Auth := {
 }
 
 /-- [tacenta_braid::info]:
-    Source: 'braid/src/lib.rs', lines 161:0-167:1 -/
+    Source: 'braid/src/lib.rs', lines 162:0-168:1 -/
 def info
   (label : Slice Std.U8) (epoch : Std.U64) :
   Result (alloc.vec.Vec Std.U8)
@@ -958,49 +1086,39 @@ def info
   let s ← lift (Array.to_slice a)
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s
 
-/-- [tacenta_braid::{tacenta_braid::Auth}::from_root]:
-    Source: 'braid/src/lib.rs', lines 174:4-179:5
-    Visibility: public -/
-def Auth.from_root (root_key : Array Std.U8 32#usize) : Result Auth := do
-  let a := Array.repeat 32#usize 0#u8
-  ok { root_key, mac_key := a }
-
-/-- [tacenta_braid::{tacenta_braid::Auth}::keys]:
-    Source: 'braid/src/lib.rs', lines 183:4-185:5
-    Visibility: public -/
-def Auth.keys
-  (self : Auth) :
-  Result ((Array Std.U8 32#usize) × (Array Std.U8 32#usize))
-  := do
-  ok (self.root_key, self.mac_key)
-
 /-- [tacenta_braid::{tacenta_braid::Auth}::update]:
-    Source: 'braid/src/lib.rs', lines 199:4-204:5
+    Source: 'braid/src/lib.rs', lines 205:4-215:5
     Visibility: public -/
 def Auth.update
   (self : Auth) (epoch : Std.U64) (key : Slice Std.U8) : Result Auth := do
   let s ← lift (Array.to_slice self.root_key)
   let v ← info AUTH_UPDATE epoch
   let s1 := alloc.vec.Vec.deref v
-  let out ← tacenta_kdf.hkdf_sha256 64#usize s key s1
+  let a ← tacenta_kdf.hkdf_sha256 64#usize s key s1
+  let out ←
+    zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 64#usize
+      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) a
   let (s2, to_slice_mut_back) ← lift (Array.to_slice_mut self.root_key)
+  let a1 ←
+    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref (Array.Insts.ZeroizeZeroize
+      64#usize (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) out
   let s3 ←
     core.array.Array.index (core.ops.index.IndexSlice
-      (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8)) out
+      (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8)) a1
       { «end» := 32#usize }
   let s4 ← core.slice.Slice.copy_from_slice core.marker.CopyU8 s2 s3
   let (s5, to_slice_mut_back1) ← lift (Array.to_slice_mut self.mac_key)
   let s6 ←
     core.array.Array.index (core.ops.index.IndexSlice
-      (core.slice.index.SliceIndexRangeFromUsizeSlice Std.U8)) out
+      (core.slice.index.SliceIndexRangeFromUsizeSlice Std.U8)) a1
       { start := 32#usize }
   let s7 ← core.slice.Slice.copy_from_slice core.marker.CopyU8 s5 s6
-  let a := to_slice_mut_back s4
-  let a1 := to_slice_mut_back1 s7
-  ok { root_key := a, mac_key := a1 }
+  let a2 := to_slice_mut_back s4
+  let a3 := to_slice_mut_back1 s7
+  ok { root_key := a2, mac_key := a3 }
 
 /-- [tacenta_braid::{tacenta_braid::Auth}::init]:
-    Source: 'braid/src/lib.rs', lines 188:4-195:5
+    Source: 'braid/src/lib.rs', lines 194:4-201:5
     Visibility: public -/
 def Auth.init (epoch : Std.U64) (secret : Slice Std.U8) : Result Auth := do
   let a := Array.repeat 32#usize 0#u8
@@ -1008,7 +1126,7 @@ def Auth.init (epoch : Std.U64) (secret : Slice Std.U8) : Result Auth := do
   Auth.update { root_key := a, mac_key := a1 } epoch secret
 
 /-- [tacenta_braid::{tacenta_braid::Auth}::mac_hdr]:
-    Source: 'braid/src/lib.rs', lines 206:4-210:5 -/
+    Source: 'braid/src/lib.rs', lines 217:4-221:5 -/
 def Auth.mac_hdr
   (self : Auth) (epoch : Std.U64) (hdr : Slice Std.U8) :
   Result (Array Std.U8 32#usize)
@@ -1020,7 +1138,7 @@ def Auth.mac_hdr
   tacenta_kdf.hmac_sha256 s s1
 
 /-- [tacenta_braid::{tacenta_braid::Auth}::mac_ct]:
-    Source: 'braid/src/lib.rs', lines 212:4-217:5 -/
+    Source: 'braid/src/lib.rs', lines 223:4-228:5 -/
 def Auth.mac_ct
   (self : Auth) (epoch : Std.U64) (ct1 : Slice Std.U8) (ct2 : Slice Std.U8) :
   Result (Array Std.U8 32#usize)
@@ -1033,7 +1151,7 @@ def Auth.mac_ct
   tacenta_kdf.hmac_sha256 s s1
 
 /-- [tacenta_braid::kdf_ok]:
-    Source: 'braid/src/lib.rs', lines 225:0-227:1
+    Source: 'braid/src/lib.rs', lines 236:0-238:1
     Visibility: public -/
 def kdf_ok
   (shared_secret : Slice Std.U8) (epoch : Std.U64) :
@@ -1046,7 +1164,7 @@ def kdf_ok
   tacenta_kdf.hkdf_sha256 32#usize s shared_secret s1
 
 /-- [tacenta_braid::mac_eq]: loop body 0:
-    Source: 'braid/src/lib.rs', lines 240:4-243:5 -/
+    Source: 'braid/src/lib.rs', lines 251:4-254:5 -/
 @[rust_loop_body]
 def mac_eq_loop.body
   (a : Slice Std.U8) (b : Slice Std.U8) (diff : Std.U8) (i : Std.Usize) :
@@ -1064,7 +1182,7 @@ def mac_eq_loop.body
   else ok (done diff)
 
 /-- [tacenta_braid::mac_eq]: loop 0:
-    Source: 'braid/src/lib.rs', lines 240:4-243:5 -/
+    Source: 'braid/src/lib.rs', lines 251:4-254:5 -/
 @[rust_loop]
 def mac_eq_loop
   (a : Slice Std.U8) (b : Slice Std.U8) (diff : Std.U8) (i : Std.Usize) :
@@ -1075,7 +1193,7 @@ def mac_eq_loop
     (diff, i)
 
 /-- [tacenta_braid::mac_eq]:
-    Source: 'braid/src/lib.rs', lines 234:0-245:1 -/
+    Source: 'braid/src/lib.rs', lines 245:0-256:1 -/
 def mac_eq (a : Slice Std.U8) (b : Slice Std.U8) : Result Bool := do
   let i := Slice.len a
   let i1 := Slice.len b
@@ -1085,7 +1203,7 @@ def mac_eq (a : Slice Std.U8) (b : Slice Std.U8) : Result Bool := do
        ok (diff = 0#u8)
 
 /-- [tacenta_braid::State]
-    Source: 'braid/src/lib.rs', lines 253:0-327:1 -/
+    Source: 'braid/src/lib.rs', lines 265:0-339:1 -/
 @[discriminant isize]
 inductive State where
 | KeysUnsampled : Std.U64 → Auth → State
@@ -1152,7 +1270,7 @@ inductive State where
 | Failed : State
 
 /-- [tacenta_braid::{impl core::clone::Clone for tacenta_braid::State}::clone]:
-    Source: 'braid/src/lib.rs', lines 252:9-252:14
+    Source: 'braid/src/lib.rs', lines 264:9-264:14
     Visibility: public -/
 def State.Insts.CoreCloneClone.clone (self : State) : Result State := do
   match self with
@@ -1238,14 +1356,14 @@ def State.Insts.CoreCloneClone.clone (self : State) : Result State := do
   | State.Failed => ok State.Failed
 
 /-- Trait implementation: [tacenta_braid::{impl core::clone::Clone for tacenta_braid::State}]
-    Source: 'braid/src/lib.rs', lines 252:9-252:14 -/
+    Source: 'braid/src/lib.rs', lines 264:9-264:14 -/
 @[reducible]
 def State.Insts.CoreCloneClone : core.clone.Clone State := {
   clone := State.Insts.CoreCloneClone.clone
 }
 
 /-- [tacenta_braid::{tacenta_braid::State}::epoch]:
-    Source: 'braid/src/lib.rs', lines 330:4-345:5 -/
+    Source: 'braid/src/lib.rs', lines 342:4-357:5 -/
 def State.epoch (self : State) : Result Std.U64 := do
   match self with
   | State.KeysUnsampled epoch _ => ok epoch
@@ -1262,41 +1380,41 @@ def State.epoch (self : State) : Result Std.U64 := do
   | State.Failed => ok 0#u64
 
 /-- [tacenta_braid::Braid]
-    Source: 'braid/src/lib.rs', lines 384:0-386:1
+    Source: 'braid/src/lib.rs', lines 396:0-398:1
     Visibility: public -/
 structure Braid where
   state : State
 
 /-- [tacenta_braid::{impl core::clone::Clone for tacenta_braid::Braid}::clone]:
-    Source: 'braid/src/lib.rs', lines 383:9-383:14
+    Source: 'braid/src/lib.rs', lines 395:9-395:14
     Visibility: public -/
 def Braid.Insts.CoreCloneClone.clone (self : Braid) : Result Braid := do
   let s ← State.Insts.CoreCloneClone.clone self.state
   ok { state := s }
 
 /-- Trait implementation: [tacenta_braid::{impl core::clone::Clone for tacenta_braid::Braid}]
-    Source: 'braid/src/lib.rs', lines 383:9-383:14 -/
+    Source: 'braid/src/lib.rs', lines 395:9-395:14 -/
 @[reducible]
 def Braid.Insts.CoreCloneClone : core.clone.Clone Braid := {
   clone := Braid.Insts.CoreCloneClone.clone
 }
 
 /-- [tacenta_braid::hdr_decoder]:
-    Source: 'braid/src/lib.rs', lines 388:0-390:1 -/
+    Source: 'braid/src/lib.rs', lines 400:0-402:1 -/
 def hdr_decoder : Result tacenta_erasure.Decoder := do
   let i ← tacenta_kem.HEADER_LEN
   let i1 ← i + MAC_LEN
   tacenta_erasure.Decoder.new i1
 
 /-- [tacenta_braid::{tacenta_braid::Braid}::initiator]:
-    Source: 'braid/src/lib.rs', lines 394:4-401:5
+    Source: 'braid/src/lib.rs', lines 406:4-413:5
     Visibility: public -/
 def Braid.initiator (secret : Slice Std.U8) : Result Braid := do
   let a ← Auth.init 1#u64 secret
   ok { state := (State.KeysUnsampled 1#u64 a) }
 
 /-- [tacenta_braid::{tacenta_braid::Braid}::responder]:
-    Source: 'braid/src/lib.rs', lines 404:4-412:5
+    Source: 'braid/src/lib.rs', lines 416:4-424:5
     Visibility: public -/
 def Braid.responder (secret : Slice Std.U8) : Result Braid := do
   let a ← Auth.init 1#u64 secret
@@ -1304,13 +1422,13 @@ def Braid.responder (secret : Slice Std.U8) : Result Braid := do
   ok { state := (State.NoHeaderReceived 1#u64 a d) }
 
 /-- [tacenta_braid::{tacenta_braid::Braid}::epoch]:
-    Source: 'braid/src/lib.rs', lines 415:4-417:5
+    Source: 'braid/src/lib.rs', lines 427:4-429:5
     Visibility: public -/
 def Braid.epoch (self : Braid) : Result Std.U64 := do
   State.epoch self.state
 
 /-- [tacenta_braid::{tacenta_braid::Braid}::failed]:
-    Source: 'braid/src/lib.rs', lines 420:4-422:5
+    Source: 'braid/src/lib.rs', lines 432:4-434:5
     Visibility: public -/
 def Braid.failed (self : Braid) : Result Bool := do
   match self.state with
@@ -1328,7 +1446,7 @@ def Braid.failed (self : Braid) : Result Bool := do
   | State.Failed => ok true
 
 /-- [tacenta_braid::{tacenta_braid::Braid}::state_tag]:
-    Source: 'braid/src/lib.rs', lines 431:4-446:5
+    Source: 'braid/src/lib.rs', lines 443:4-458:5
     Visibility: public -/
 def Braid.state_tag (self : Braid) : Result Std.U8 := do
   match self.state with
@@ -1346,18 +1464,18 @@ def Braid.state_tag (self : Braid) : Result Std.U8 := do
   | State.Failed => ok 11#u8
 
 /-- [tacenta_braid::{tacenta_braid::Braid}::reported]:
-    Source: 'braid/src/lib.rs', lines 455:4-457:5 -/
+    Source: 'braid/src/lib.rs', lines 467:4-469:5 -/
 def Braid.reported (self : Braid) : Result Std.U64 := do
   let i ← State.epoch self.state
   ok (core.num.U64.saturating_sub i 1#u64)
 
 /-- [tacenta_braid::state_back]:
-    Source: 'braid/src/lib.rs', lines 1127:0-1129:1 -/
+    Source: 'braid/src/lib.rs', lines 1178:0-1180:1 -/
 def state_back (state : State) : Result State := do
   ok state
 
 /-- [tacenta_braid::{tacenta_braid::Braid}::step_send]:
-    Source: 'braid/src/lib.rs', lines 484:4-683:5 -/
+    Source: 'braid/src/lib.rs', lines 501:4-706:5 -/
 def Braid.step_send
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
   (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) (self : Braid)
@@ -1414,15 +1532,28 @@ def Braid.step_send
     | core.result.Result.Ok t =>
       let (encaps, ct1, raw1) := t
       let s1 ← lift (Array.to_slice raw1)
-      let key ← kdf_ok s1 epoch
-      let s2 ← lift (Array.to_slice key)
+      let a ← kdf_ok s1 epoch
+      let key ←
+        zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) a
+      let _ ←
+        Array.Insts.ZeroizeZeroize.zeroize (zeroize.Zeroize.Blanket
+          U8.Insts.ZeroizeDefaultIsZeroes) raw1
+      let a1 ←
+        zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+          (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+          U8.Insts.ZeroizeDefaultIsZeroes)) key
+      let s2 ←
+        core.array.Array.index (core.ops.index.IndexSlice
+          (core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice
+          Std.U8)) a1 ()
       let auth1 ← Auth.update auth epoch s2
       let s3 := alloc.vec.Vec.deref ct1
       let ct1_enc ← tacenta_erasure.Encoder.new s3
       let (chunk, ct1_enc1) ← tacenta_erasure.Encoder.next_chunk ct1_enc
       let m ← Msg.with epoch MsgType.Ct1 chunk
-      ok ((m, some { key_epoch := epoch, key }, State.Ct1Sampled epoch auth1
-        header encaps ct1 ct1_enc1 ek_dec), rng1)
+      ok ((m, some { key_epoch := epoch, key := a1 }, State.Ct1Sampled epoch
+        auth1 header encaps ct1 ct1_enc1 ek_dec), rng1)
     | core.result.Result.Err _ =>
       let m ← Msg.empty epoch
       ok ((m, none, State.Failed), rng1)
@@ -1448,7 +1579,7 @@ def Braid.step_send
                     ok ((m, none, State.Failed), rng)
 
 /-- [tacenta_braid::{tacenta_braid::Braid}::send]:
-    Source: 'braid/src/lib.rs', lines 478:4-482:5
+    Source: 'braid/src/lib.rs', lines 495:4-499:5
     Visibility: public -/
 def Braid.send
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -1463,7 +1594,7 @@ def Braid.send
   ok ((msg, i, out, { state := next }), rng1)
 
 /-- [tacenta_braid::finish_encaps]:
-    Source: 'braid/src/lib.rs', lines 1103:0-1122:1 -/
+    Source: 'braid/src/lib.rs', lines 1154:0-1173:1 -/
 def finish_encaps
   (epoch : Std.U64) (auth : Auth) (encaps : tacenta_kem.EncapsState)
   (ct1 : Slice Std.U8) (ek_vector : Slice Std.U8) :
@@ -1482,7 +1613,7 @@ def finish_encaps
   | core.result.Result.Err _ => ok State.Failed
 
 /-- [tacenta_braid::{tacenta_braid::Braid}::step_receive]:
-    Source: 'braid/src/lib.rs', lines 734:4-1098:5 -/
+    Source: 'braid/src/lib.rs', lines 761:4-1149:5 -/
 def Braid.step_receive
   (self : Braid) (state : State) (msg : Msg) :
   Result ((Option Output) × State)
@@ -1561,28 +1692,46 @@ def Braid.step_receive
             if i != i2
             then ok (none, State.Failed)
             else
-              let s := alloc.vec.Vec.deref framed
-              let (ct2, mac) ← core.slice.Slice.split_at s i1
-              let s1 := alloc.vec.Vec.deref ct1
-              let r ← tacenta_kem.IncrementalKeyPair.decapsulate kp s1 ct2
-              match r with
-              | core.result.Result.Ok ss =>
-                let s2 ← lift (Array.to_slice ss)
-                let key ← kdf_ok s2 epoch1
-                let s3 ← lift (Array.to_slice key)
-                let auth1 ← Auth.update auth epoch1 s3
-                let s4 := alloc.vec.Vec.deref ct1
-                let a ← Auth.mac_ct auth1 epoch1 s4 ct2
-                let s5 ← lift (Array.to_slice a)
-                let b1 ← mac_eq s5 mac
-                if b1
-                then
-                  let i3 ← epoch1 + 1#u64
-                  let d ← hdr_decoder
-                  ok (some { key_epoch := epoch1, key }, State.NoHeaderReceived
-                    i3 auth1 d)
-                else ok (none, State.Failed)
-              | core.result.Result.Err _ => ok (none, State.Failed)
+              let o1 ← lift (U64.checked_add epoch1 1#u64)
+              match o1 with
+              | none => ok (none, State.Failed)
+              | some next_epoch =>
+                let s := alloc.vec.Vec.deref framed
+                let (ct2, mac) ← core.slice.Slice.split_at s i1
+                let s1 := alloc.vec.Vec.deref ct1
+                let r ← tacenta_kem.IncrementalKeyPair.decapsulate kp s1 ct2
+                match r with
+                | core.result.Result.Ok ss =>
+                  let s2 ← lift (Array.to_slice ss)
+                  let a ← kdf_ok s2 epoch1
+                  let key ←
+                    zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
+                      (zeroize.Zeroize.Blanket
+                      U8.Insts.ZeroizeDefaultIsZeroes)) a
+                  let _ ←
+                    Array.Insts.ZeroizeZeroize.zeroize (zeroize.Zeroize.Blanket
+                      U8.Insts.ZeroizeDefaultIsZeroes) ss
+                  let a1 ←
+                    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                      (Array.Insts.ZeroizeZeroize 32#usize
+                      (zeroize.Zeroize.Blanket
+                      U8.Insts.ZeroizeDefaultIsZeroes)) key
+                  let s3 ←
+                    core.array.Array.index (core.ops.index.IndexSlice
+                      (core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice
+                      Std.U8)) a1 ()
+                  let auth1 ← Auth.update auth epoch1 s3
+                  let s4 := alloc.vec.Vec.deref ct1
+                  let a2 ← Auth.mac_ct auth1 epoch1 s4 ct2
+                  let s5 ← lift (Array.to_slice a2)
+                  let b1 ← mac_eq s5 mac
+                  if b1
+                  then
+                    let d ← hdr_decoder
+                    ok (some { key_epoch := epoch1, key := a1 },
+                      State.NoHeaderReceived next_epoch auth1 d)
+                  else ok (none, State.Failed)
+                | core.result.Result.Err _ => ok (none, State.Failed)
       else ok (none, state)
     else ok (none, state)
   | State.NoHeaderReceived epoch1 auth hdr_dec =>
@@ -1708,14 +1857,17 @@ def Braid.step_receive
       else ok (none, state)
     else ok (none, state)
   | State.Ct2Sampled epoch1 auth _ =>
-    let i ← epoch1 + 1#u64
-    if msg.epoch = i
-    then ok (none, State.KeysUnsampled i auth)
-    else ok (none, state)
+    let o ← lift (U64.checked_add epoch1 1#u64)
+    match o with
+    | none => ok (none, State.Failed)
+    | some next_epoch =>
+      if msg.epoch = next_epoch
+      then ok (none, State.KeysUnsampled next_epoch auth)
+      else ok (none, state)
   | State.Failed => ok (none, State.Failed)
 
 /-- [tacenta_braid::{tacenta_braid::Braid}::receive]:
-    Source: 'braid/src/lib.rs', lines 714:4-723:5
+    Source: 'braid/src/lib.rs', lines 741:4-750:5
     Visibility: public -/
 def Braid.receive
   (self : Braid) (msg : Msg) :
@@ -1734,23 +1886,23 @@ def Braid.receive
     ok (o.key_epoch, o1, { state := next })
 
 /-- [tacenta_braid::{tacenta_braid::Braid}::commit]:
-    Source: 'braid/src/lib.rs', lines 730:4-732:5
+    Source: 'braid/src/lib.rs', lines 757:4-759:5
     Visibility: public -/
 def Braid.commit (self : Braid) (next : Braid) : Result Braid := do
   ok next
 
 /-- [tacenta_braid::CHUNK_SIZE]
-    Source: 'braid/src/lib.rs', lines 1133:0-1133:42
+    Source: 'braid/src/lib.rs', lines 1184:0-1184:42
     Visibility: public -/
 @[global_simps, irreducible]
 def CHUNK_SIZE : Result Std.Usize := tacenta_erasure.CHUNK_BYTES
 
 /-- [tacenta_braid::STATE_VERSION]
-    Source: 'braid/src/lib.rs', lines 1139:0-1139:31 -/
+    Source: 'braid/src/lib.rs', lines 1190:0-1190:31 -/
 @[global_simps, irreducible] def STATE_VERSION : Std.U8 := 1#u8
 
 /-- [tacenta_braid::BraidDecodeError]
-    Source: 'braid/src/lib.rs', lines 1151:0-1155:1
+    Source: 'braid/src/lib.rs', lines 1202:0-1206:1
     Visibility: public -/
 @[discriminant isize]
 inductive BraidDecodeError where
@@ -1759,14 +1911,14 @@ inductive BraidDecodeError where
 | Malformed : BraidDecodeError
 
 /-- [tacenta_braid::{impl core::clone::Clone for tacenta_braid::BraidDecodeError}::clone]:
-    Source: 'braid/src/lib.rs', lines 1150:9-1150:14
+    Source: 'braid/src/lib.rs', lines 1201:9-1201:14
     Visibility: public -/
 def BraidDecodeError.Insts.CoreCloneClone.clone
   (self : BraidDecodeError) : Result BraidDecodeError := do
   ok self
 
 /-- Trait implementation: [tacenta_braid::{impl core::clone::Clone for tacenta_braid::BraidDecodeError}]
-    Source: 'braid/src/lib.rs', lines 1150:9-1150:14 -/
+    Source: 'braid/src/lib.rs', lines 1201:9-1201:14 -/
 @[reducible]
 def BraidDecodeError.Insts.CoreCloneClone : core.clone.Clone BraidDecodeError
   := {
@@ -1774,7 +1926,7 @@ def BraidDecodeError.Insts.CoreCloneClone : core.clone.Clone BraidDecodeError
 }
 
 /-- Trait implementation: [tacenta_braid::{impl core::marker::Copy for tacenta_braid::BraidDecodeError}]
-    Source: 'braid/src/lib.rs', lines 1150:16-1150:20 -/
+    Source: 'braid/src/lib.rs', lines 1201:16-1201:20 -/
 @[reducible]
 def BraidDecodeError.Insts.CoreMarkerCopy : core.marker.Copy BraidDecodeError
   := {
@@ -1782,14 +1934,14 @@ def BraidDecodeError.Insts.CoreMarkerCopy : core.marker.Copy BraidDecodeError
 }
 
 /-- Trait implementation: [tacenta_braid::{impl core::marker::StructuralPartialEq for tacenta_braid::BraidDecodeError}]
-    Source: 'braid/src/lib.rs', lines 1150:22-1150:31 -/
+    Source: 'braid/src/lib.rs', lines 1201:22-1201:31 -/
 @[reducible]
 def BraidDecodeError.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq BraidDecodeError := {
 }
 
 /-- [tacenta_braid::{impl core::cmp::PartialEq<tacenta_braid::BraidDecodeError> for tacenta_braid::BraidDecodeError}::eq]:
-    Source: 'braid/src/lib.rs', lines 1150:22-1150:31
+    Source: 'braid/src/lib.rs', lines 1201:22-1201:31
     Visibility: public -/
 def BraidDecodeError.Insts.CoreCmpPartialEqBraidDecodeError.eq
   (self : BraidDecodeError) (other : BraidDecodeError) : Result Bool := do
@@ -1798,7 +1950,7 @@ def BraidDecodeError.Insts.CoreCmpPartialEqBraidDecodeError.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tacenta_braid::{impl core::cmp::PartialEq<tacenta_braid::BraidDecodeError> for tacenta_braid::BraidDecodeError}]
-    Source: 'braid/src/lib.rs', lines 1150:22-1150:31 -/
+    Source: 'braid/src/lib.rs', lines 1201:22-1201:31 -/
 @[reducible]
 def BraidDecodeError.Insts.CoreCmpPartialEqBraidDecodeError :
   core.cmp.PartialEq BraidDecodeError BraidDecodeError := {
@@ -1806,14 +1958,14 @@ def BraidDecodeError.Insts.CoreCmpPartialEqBraidDecodeError :
 }
 
 /-- [tacenta_braid::{impl core::cmp::Eq for tacenta_braid::BraidDecodeError}::assert_fields_are_eq]:
-    Source: 'braid/src/lib.rs', lines 1150:33-1150:35
+    Source: 'braid/src/lib.rs', lines 1201:33-1201:35
     Visibility: public -/
 def BraidDecodeError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : BraidDecodeError) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_braid::{impl core::cmp::Eq for tacenta_braid::BraidDecodeError}]
-    Source: 'braid/src/lib.rs', lines 1150:33-1150:35 -/
+    Source: 'braid/src/lib.rs', lines 1201:33-1201:35 -/
 @[reducible]
 def BraidDecodeError.Insts.CoreCmpEq : core.cmp.Eq BraidDecodeError := {
   partialEqInst := BraidDecodeError.Insts.CoreCmpPartialEqBraidDecodeError
@@ -1821,7 +1973,7 @@ def BraidDecodeError.Insts.CoreCmpEq : core.cmp.Eq BraidDecodeError := {
 }
 
 /-- [tacenta_braid::{impl core::fmt::Debug for tacenta_braid::BraidDecodeError}::fmt]:
-    Source: 'braid/src/lib.rs', lines 1150:37-1150:42
+    Source: 'braid/src/lib.rs', lines 1201:37-1201:42
     Visibility: public -/
 def BraidDecodeError.Insts.CoreFmtDebug.fmt
   (self : BraidDecodeError) (f : core.fmt.Formatter) :
@@ -1836,14 +1988,14 @@ def BraidDecodeError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "Malformed")
 
 /-- Trait implementation: [tacenta_braid::{impl core::fmt::Debug for tacenta_braid::BraidDecodeError}]
-    Source: 'braid/src/lib.rs', lines 1150:37-1150:42 -/
+    Source: 'braid/src/lib.rs', lines 1201:37-1201:42 -/
 @[reducible]
 def BraidDecodeError.Insts.CoreFmtDebug : core.fmt.Debug BraidDecodeError := {
   fmt := BraidDecodeError.Insts.CoreFmtDebug.fmt
 }
 
 /-- [tacenta_braid::{tacenta_braid::Auth}::to_bytes]:
-    Source: 'braid/src/lib.rs', lines 1158:4-1163:5 -/
+    Source: 'braid/src/lib.rs', lines 1209:4-1214:5 -/
 def Auth.to_bytes (self : Auth) : Result (Array Std.U8 64#usize) := do
   let out := Array.repeat 64#usize 0#u8
   let (s, index_mut_back) ←
@@ -1862,7 +2014,7 @@ def Auth.to_bytes (self : Auth) : Result (Array Std.U8 64#usize) := do
   ok (index_mut_back1 s5)
 
 /-- [tacenta_braid::{tacenta_braid::Auth}::from_bytes]:
-    Source: 'braid/src/lib.rs', lines 1165:4-1171:5 -/
+    Source: 'braid/src/lib.rs', lines 1216:4-1222:5 -/
 def Auth.from_bytes (bytes : Array Std.U8 64#usize) : Result Auth := do
   let root_key := Array.repeat 32#usize 0#u8
   let mac_key := Array.repeat 32#usize 0#u8
@@ -1883,7 +2035,7 @@ def Auth.from_bytes (bytes : Array Std.U8 64#usize) : Result Auth := do
   ok { root_key := root_key1, mac_key := mac_key1 }
 
 /-- [tacenta_braid::push_len_prefixed]:
-    Source: 'braid/src/lib.rs', lines 1179:0-1182:1 -/
+    Source: 'braid/src/lib.rs', lines 1230:0-1233:1 -/
 def push_len_prefixed
   (out : alloc.vec.Vec Std.U8) (bytes : Slice Std.U8) :
   Result (alloc.vec.Vec Std.U8)
@@ -1896,7 +2048,7 @@ def push_len_prefixed
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 bytes
 
 /-- [tacenta_braid::take_len_prefixed]:
-    Source: 'braid/src/lib.rs', lines 1187:0-1211:1 -/
+    Source: 'braid/src/lib.rs', lines 1238:0-1262:1 -/
 def take_len_prefixed
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option ((Slice Std.U8) × Std.Usize))
@@ -1934,7 +2086,7 @@ def take_len_prefixed
           ok (some (s4, e))
 
 /-- [tacenta_braid::read_u64]:
-    Source: 'braid/src/lib.rs', lines 1213:0-1220:1 -/
+    Source: 'braid/src/lib.rs', lines 1264:0-1271:1 -/
 def read_u64
   (bytes : Slice Std.U8) (pos : Std.Usize) : Result (Option Std.U64) := do
   let i := Slice.len bytes
@@ -1952,8 +2104,19 @@ def read_u64
     let i2 ← lift (core.num.U64.from_be_bytes b1)
     ok (some i2)
 
+/-- [tacenta_braid::read_epoch]:
+    Source: 'braid/src/lib.rs', lines 1281:0-1289:1 -/
+def read_epoch
+  (bytes : Slice Std.U8) (pos : Std.Usize) : Result (Option Std.U64) := do
+  let o ← read_u64 bytes pos
+  match o with
+  | none => ok none
+  | some e => if e = core.num.U64.MAX
+              then ok none
+              else ok o
+
 /-- [tacenta_braid::read_auth]:
-    Source: 'braid/src/lib.rs', lines 1222:0-1229:1 -/
+    Source: 'braid/src/lib.rs', lines 1291:0-1298:1 -/
 def read_auth
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option (Auth × Std.Usize))
@@ -1974,7 +2137,7 @@ def read_auth
     ok (some (a2, i1))
 
 /-- [tacenta_braid::{tacenta_braid::Braid}::to_bytes]:
-    Source: 'braid/src/lib.rs', lines 1239:4-1381:5
+    Source: 'braid/src/lib.rs', lines 1308:4-1450:5
     Visibility: public -/
 def Braid.to_bytes
   (self : Braid) : Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8)) := do
@@ -2178,15 +2341,30 @@ def Braid.to_bytes
   zeroize.Zeroizing.new (alloc.vec.Vec.Insts.ZeroizeZeroize
     (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) out2
 
+/-- [tacenta_braid::decoder_sized]:
+    Source: 'braid/src/lib.rs', lines 1483:0-1485:1 -/
+def decoder_sized
+  (dec : tacenta_erasure.Decoder) (len : Std.Usize) : Result Bool := do
+  let i ← tacenta_erasure.Decoder.size dec
+  ok (i = len)
+
+/-- [tacenta_braid::encoder_sized]:
+    Source: 'braid/src/lib.rs', lines 1479:0-1481:1 -/
+def encoder_sized
+  (enc : tacenta_erasure.Encoder) (len : Std.Usize) : Result Bool := do
+  let i ← tacenta_erasure.Encoder.needed enc
+  let i1 ← tacenta_erasure.chunk_count len
+  ok (i = i1)
+
 /-- [tacenta_braid::decode_state]:
-    Source: 'braid/src/lib.rs', lines 1404:0-1737:1 -/
+    Source: 'braid/src/lib.rs', lines 1495:0-1868:1 -/
 def decode_state
   (tag : Std.U8) (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option (State × Std.Usize))
   := do
   match tag with
   | 0#uscalar =>
-    let o ← read_u64 bytes pos
+    let o ← read_epoch bytes pos
     match o with
     | none => ok none
     | some epoch =>
@@ -2198,7 +2376,7 @@ def decode_state
         let (auth, pos1) := p
         ok (some (State.KeysUnsampled epoch auth, pos1))
   | 1#uscalar =>
-    let o ← read_u64 bytes pos
+    let o ← read_epoch bytes pos
     match o with
     | none => ok none
     | some epoch =>
@@ -2225,10 +2403,15 @@ def decode_state
               match o4 with
               | none => ok none
               | some hdr_enc =>
-                ok (some (State.KeysSampled epoch auth kp hdr_enc, pos3))
+                let i1 ← tacenta_kem.HEADER_LEN
+                let i2 ← i1 + MAC_LEN
+                let b ← encoder_sized hdr_enc i2
+                if b
+                then ok (some (State.KeysSampled epoch auth kp hdr_enc, pos3))
+                else ok none
           | core.result.Result.Err _ => ok none
   | 2#uscalar =>
-    let o ← read_u64 bytes pos
+    let o ← read_epoch bytes pos
     match o with
     | none => ok none
     | some epoch =>
@@ -2264,11 +2447,21 @@ def decode_state
                   match o6 with
                   | none => ok none
                   | some ek_enc =>
-                    ok (some (State.HeaderSent epoch auth kp ct1_dec ek_enc,
-                      pos4))
+                    let i1 ← tacenta_kem.CT1_LEN
+                    let b ← decoder_sized ct1_dec i1
+                    if b
+                    then
+                      let i2 ← tacenta_kem.EK_VECTOR_LEN
+                      let b1 ← encoder_sized ek_enc i2
+                      if b1
+                      then
+                        ok (some (State.HeaderSent epoch auth kp ct1_dec
+                          ek_enc, pos4))
+                      else ok none
+                    else ok none
           | core.result.Result.Err _ => ok none
   | 3#uscalar =>
-    let o ← read_u64 bytes pos
+    let o ← read_epoch bytes pos
     match o with
     | none => ok none
     | some epoch =>
@@ -2300,11 +2493,22 @@ def decode_state
                 match o5 with
                 | none => ok none
                 | some ek_enc =>
-                  let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 ct1
-                  ok (some (State.Ct1Received epoch auth kp v ek_enc, pos4))
+                  let i1 := Slice.len ct1
+                  let i2 ← tacenta_kem.CT1_LEN
+                  if i1 != i2
+                  then ok none
+                  else
+                    let i3 ← tacenta_kem.EK_VECTOR_LEN
+                    let b ← encoder_sized ek_enc i3
+                    if b
+                    then
+                      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 ct1
+                      ok (some (State.Ct1Received epoch auth kp v ek_enc,
+                        pos4))
+                    else ok none
           | core.result.Result.Err _ => ok none
   | 4#uscalar =>
-    let o ← read_u64 bytes pos
+    let o ← read_epoch bytes pos
     match o with
     | none => ok none
     | some epoch =>
@@ -2336,12 +2540,23 @@ def decode_state
                 match o5 with
                 | none => ok none
                 | some ct2_dec =>
-                  let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 ct1
-                  ok (some (State.EkSentCt1Received epoch auth kp v ct2_dec,
-                    pos4))
+                  let i1 := Slice.len ct1
+                  let i2 ← tacenta_kem.CT1_LEN
+                  if i1 != i2
+                  then ok none
+                  else
+                    let i3 ← tacenta_kem.CT2_LEN
+                    let i4 ← i3 + MAC_LEN
+                    let b ← decoder_sized ct2_dec i4
+                    if b
+                    then
+                      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 ct1
+                      ok (some (State.EkSentCt1Received epoch auth kp v
+                        ct2_dec, pos4))
+                    else ok none
           | core.result.Result.Err _ => ok none
   | 5#uscalar =>
-    let o ← read_u64 bytes pos
+    let o ← read_epoch bytes pos
     match o with
     | none => ok none
     | some epoch =>
@@ -2360,9 +2575,14 @@ def decode_state
           match o3 with
           | none => ok none
           | some hdr_dec =>
-            ok (some (State.NoHeaderReceived epoch auth hdr_dec, pos2))
+            let i1 ← tacenta_kem.HEADER_LEN
+            let i2 ← i1 + MAC_LEN
+            let b ← decoder_sized hdr_dec i2
+            if b
+            then ok (some (State.NoHeaderReceived epoch auth hdr_dec, pos2))
+            else ok none
   | 6#uscalar =>
-    let o ← read_u64 bytes pos
+    let o ← read_epoch bytes pos
     match o with
     | none => ok none
     | some epoch =>
@@ -2386,10 +2606,20 @@ def decode_state
             match o4 with
             | none => ok none
             | some ek_dec =>
-              let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 header
-              ok (some (State.HeaderReceived epoch auth v ek_dec, pos3))
+              let i1 := Slice.len header
+              let i2 ← tacenta_kem.HEADER_LEN
+              if i1 != i2
+              then ok none
+              else
+                let i3 ← tacenta_kem.EK_VECTOR_LEN
+                let b ← decoder_sized ek_dec i3
+                if b
+                then
+                  let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 header
+                  ok (some (State.HeaderReceived epoch auth v ek_dec, pos3))
+                else ok none
   | 7#uscalar =>
-    let o ← read_u64 bytes pos
+    let o ← read_epoch bytes pos
     match o with
     | none => ok none
     | some epoch =>
@@ -2436,15 +2666,36 @@ def decode_state
                       match o8 with
                       | none => ok none
                       | some ek_dec =>
-                        let v ←
-                          alloc.slice.Slice.to_vec core.clone.CloneU8 header
-                        let v1 ←
-                          alloc.slice.Slice.to_vec core.clone.CloneU8 ct1
-                        ok (some (State.Ct1Sampled epoch auth v encaps v1
-                          ct1_enc ek_dec, pos6))
+                        let i1 := Slice.len header
+                        let i2 ← tacenta_kem.HEADER_LEN
+                        if i1 != i2
+                        then ok none
+                        else
+                          let i3 := Slice.len ct1
+                          let i4 ← tacenta_kem.CT1_LEN
+                          if i3 != i4
+                          then ok none
+                          else
+                            let b ← encoder_sized ct1_enc i4
+                            if b
+                            then
+                              let i5 ← tacenta_kem.EK_VECTOR_LEN
+                              let b1 ← decoder_sized ek_dec i5
+                              if b1
+                              then
+                                let v ←
+                                  alloc.slice.Slice.to_vec core.clone.CloneU8
+                                    header
+                                let v1 ←
+                                  alloc.slice.Slice.to_vec core.clone.CloneU8
+                                    ct1
+                                ok (some (State.Ct1Sampled epoch auth v encaps
+                                  v1 ct1_enc ek_dec, pos6))
+                              else ok none
+                            else ok none
             | core.result.Result.Err _ => ok none
   | 8#uscalar =>
-    let o ← read_u64 bytes pos
+    let o ← read_epoch bytes pos
     match o with
     | none => ok none
     | some epoch =>
@@ -2481,14 +2732,30 @@ def decode_state
                   match o6 with
                   | none => ok none
                   | some ct1_enc =>
-                    let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 ct1
-                    let v1 ←
-                      alloc.slice.Slice.to_vec core.clone.CloneU8 ek_vector
-                    ok (some (State.EkReceivedCt1Sampled epoch auth encaps v v1
-                      ct1_enc, pos5))
+                    let i1 := Slice.len ct1
+                    let i2 ← tacenta_kem.CT1_LEN
+                    if i1 != i2
+                    then ok none
+                    else
+                      let i3 := Slice.len ek_vector
+                      let i4 ← tacenta_kem.EK_VECTOR_LEN
+                      if i3 != i4
+                      then ok none
+                      else
+                        let b ← encoder_sized ct1_enc i2
+                        if b
+                        then
+                          let v ←
+                            alloc.slice.Slice.to_vec core.clone.CloneU8 ct1
+                          let v1 ←
+                            alloc.slice.Slice.to_vec core.clone.CloneU8
+                              ek_vector
+                          ok (some (State.EkReceivedCt1Sampled epoch auth
+                            encaps v v1 ct1_enc, pos5))
+                        else ok none
           | core.result.Result.Err _ => ok none
   | 9#uscalar =>
-    let o ← read_u64 bytes pos
+    let o ← read_epoch bytes pos
     match o with
     | none => ok none
     | some epoch =>
@@ -2525,14 +2792,30 @@ def decode_state
                   match o6 with
                   | none => ok none
                   | some ek_dec =>
-                    let v ←
-                      alloc.slice.Slice.to_vec core.clone.CloneU8 header
-                    let v1 ← alloc.slice.Slice.to_vec core.clone.CloneU8 ct1
-                    ok (some (State.Ct1Acknowledged epoch auth v encaps v1
-                      ek_dec, pos5))
+                    let i1 := Slice.len header
+                    let i2 ← tacenta_kem.HEADER_LEN
+                    if i1 != i2
+                    then ok none
+                    else
+                      let i3 := Slice.len ct1
+                      let i4 ← tacenta_kem.CT1_LEN
+                      if i3 != i4
+                      then ok none
+                      else
+                        let i5 ← tacenta_kem.EK_VECTOR_LEN
+                        let b ← decoder_sized ek_dec i5
+                        if b
+                        then
+                          let v ←
+                            alloc.slice.Slice.to_vec core.clone.CloneU8 header
+                          let v1 ←
+                            alloc.slice.Slice.to_vec core.clone.CloneU8 ct1
+                          ok (some (State.Ct1Acknowledged epoch auth v encaps
+                            v1 ek_dec, pos5))
+                        else ok none
             | core.result.Result.Err _ => ok none
   | 10#uscalar =>
-    let o ← read_u64 bytes pos
+    let o ← read_epoch bytes pos
     match o with
     | none => ok none
     | some epoch =>
@@ -2551,12 +2834,17 @@ def decode_state
           match o3 with
           | none => ok none
           | some ct2_enc =>
-            ok (some (State.Ct2Sampled epoch auth ct2_enc, pos2))
+            let i1 ← tacenta_kem.CT2_LEN
+            let i2 ← i1 + MAC_LEN
+            let b ← encoder_sized ct2_enc i2
+            if b
+            then ok (some (State.Ct2Sampled epoch auth ct2_enc, pos2))
+            else ok none
   | 11#uscalar => ok (some (State.Failed, pos))
   | _ => ok none
 
 /-- [tacenta_braid::{tacenta_braid::Braid}::from_bytes]:
-    Source: 'braid/src/lib.rs', lines 1384:4-1398:5
+    Source: 'braid/src/lib.rs', lines 1453:4-1467:5
     Visibility: public -/
 def Braid.from_bytes
   (bytes : Slice Std.U8) :
