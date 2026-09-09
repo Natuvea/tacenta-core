@@ -197,15 +197,39 @@ pub fn sign<R: RngCore + CryptoRng>(secret: &[u8; 32], message: &[u8], rng: &mut
 /// The external interoperability profile carries the Edwards sign in
 /// `signature[63]` (`tacenta-spec/CONSTANTS.md`, ADR-0002).
 ///
-/// **This departs from XEdDSA Revision 1 by design.** The specification's
-/// `xeddsa_verify` forces the Edwards sign bit to 0 and rejects any `s` with
-/// its top three bits set (`s ≥ 2^253`); it never carries a sign in the
-/// signature. Reading the sign from `signature[63]` follows the external
-/// interoperability profile (`tacenta-spec/CONSTANTS.md`, ADR-0002), so that
-/// signatures from either sign of identity verify. A
-/// verifier that follows the specification literally would refuse exactly
-/// those signatures. `calculate_key_pair` and `sign` follow the specification
-/// line for line; this is the one place `verify` does not.
+/// **The accepted set differs from XEdDSA Revision 1's in both directions,
+/// by design.** The specification's `xeddsa_verify` forces the Edwards sign
+/// bit to 0, rejects `s ≥ 2^253` (the top three bits set), evaluates the
+/// group equation for whatever `R` and `A` decode, and never carries a sign
+/// in the signature. This verifier:
+///
+/// - is **wider on the sign bit**: it reads the Edwards sign from
+///   `signature[63]`, following the external interoperability profile
+///   (`tacenta-spec/CONSTANTS.md`, ADR-0002), so signatures from either
+///   sign of identity verify where a literal Revision 1 verifier refuses
+///   half of them;
+/// - is **narrower on `s`**: `verify_strict` decodes `s` with
+///   `Scalar::from_canonical_bytes`, so it requires `s < l` rather than
+///   `s < 2^253`. For almost every message Revision 1 also accepts the
+///   second signature `(R, s + l)`; this verifier refuses it;
+/// - is **narrower on small-order points**: `verify_strict` refuses a
+///   small-order `R` or `A` outright, where Revision 1 evaluates the
+///   equation and accepts when it holds. Under Revision 1 the identity
+///   `u = 0` (the Edwards point of order 2) verifies `R = I`, `s = 0` for
+///   half of all messages; here it is refused;
+/// - agrees on **non-canonical encodings and on the equation**: `u ≥ p` is
+///   refused by the check above exactly as the specification's first line
+///   refuses it, a non-canonical `R` fails both because each compares the
+///   recomputed `R`'s canonical bytes with the bytes given, and neither
+///   multiplies by the cofactor.
+///
+/// Everything this signer produces lies in both sets: `s` is reduced below
+/// `l` by scalar arithmetic, `A = aB` for a clamped `a` is never a
+/// small-order point since a clamped scalar is never `0 (mod l)`, and `R`
+/// is small-order only if the nonce hashes to `0 (mod l)`, which is
+/// negligible. `calculate_key_pair` and `sign` follow the specification
+/// line for line; `verify` follows it on the equation and departs from it
+/// on the three points above.
 pub fn verify(
     public: &PublicKeyBytes,
     message: &[u8],

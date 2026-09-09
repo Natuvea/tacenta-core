@@ -55,12 +55,25 @@ this section says in one place what is not proved.
   boundary agreements.** `step_send_refines`, `Braid.send_refines`,
   `step_receive_refines` and `Braid.receive_refines` take a live encoder
   (fewer than 65,536 codewords emitted) and an unspliced chunk stream
-  (`HonestChunk`), and the erasure and KEM agreements they rest on are
-  bounded to what a real erasure code and KEM can satisfy. The section below
+  (`HonestChunk`), and the erasure agreement they rest on is bounded to what
+  a real erasure code can satisfy; the KEM agreement is not yet, as the next
+  bullet says. The section below
   records every hypothesis; `Translation/Satisfiability.lean` refutes the
   unbounded shapes so they cannot be restated, and
   `Translation/ErasureWitness.lean` proves the erasure hypotheses have a
   model (a Reed-Solomon code over `GF(2^256)`, built from Mathlib).
+- **The KEM agreement currently admits only a derandomised KEM.** The
+  encapsulation clause of `BraidT3.lean`'s `KemAgreesFor` asks the real
+  `encapsulate1` to return, for every RNG state, the single ciphertext and
+  shared secret the model's randomness-free `Kem.encaps1` computes from the
+  header. ML-KEM encapsulation draws fresh randomness, so no `K` makes that
+  clause true of the real operation, and the only implementation known to
+  satisfy it is `Translation/KemWitness.lean`'s `toyKem`. The four Braid
+  refinement theorems therefore describe a Braid over a derandomised KEM
+  until the clause is restated with the randomness bound existentially per
+  RNG state, as the key-generation clause already is. `LIMITATIONS.md`'s KEM
+  entry (under the Braid's erasure and KEM hypotheses) has the full account
+  and the planned fix.
 - **A verified zone is not a verified library.** The zone is the ratchet and
   what it calls; orchestration, storage and lifecycle sit outside it.
 - **The verified wire parser has no caller.** `tacenta-protobuf` carries T1
@@ -820,7 +833,10 @@ What a reader has to grant:
   model's own `toyKem`, satisfies all of them at once
   (`kem_hypotheses_satisfiable`), and each concrete hypothesis is the shape
   at the real operations by `Iff.rfl`. Same caveat: consistency, not
-  correctness of the real ML-KEM wrapper, which stays assumed.
+  correctness of the real ML-KEM wrapper, which stays assumed. For the
+  encapsulation clause the caveat is sharper: `toyKem` satisfies it because
+  its `encaps1` draws no randomness, and a real KEM cannot (`LIMITATIONS.md`,
+  the KEM entry).
 
 - `step_send_refines`, `Braid.send_refines`: the eleven-state machine's
   sending half, and its entry point, compute what `Model.Braid.send` says --
@@ -878,7 +894,10 @@ What a reader has to grant:
   `IncrementalKeyPair`/`EncapsState` operations equal -- rather than one axiom
   per KEM operation, since the model's own `Kem` record is itself
   uninterpreted functions with no separate reference computation to equate a
-  per-op axiom against.
+  per-op axiom against. One clause of it is too strong for any real KEM: the
+  encapsulation clause fixes one `(ct1, ss)` per header across every RNG
+  state, which only a derandomised KEM satisfies; `LIMITATIONS.md`'s KEM
+  entry states the consequence and the planned restatement.
 - **The erasure boundary, `ErasureAgrees`:** one freestanding relational
   invariant over `tacenta_erasure`'s `Encoder`/`Decoder`, in the same trust
   category as the ratchet's `HmacAgrees`/`HkdfAgrees` -- an assumed agreement

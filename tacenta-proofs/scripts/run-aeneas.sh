@@ -119,12 +119,23 @@ translate spqr tacenta-spqr tacenta_spqr.llbc TacentaSpqr
 translate braid tacenta-braid tacenta_braid.llbc TacentaBraid
 
 # The composition, `tacenta-triple`, depends on both `tacenta-ratchet` and
-# `tacenta-spqr`. Charon re-emits `tacenta-ratchet`'s instances into this
-# crate's translation, and against the pinned toolchain above both files
-# import cleanly together and a full `lake build` of the whole translation
-# package passes: each crate's declarations are namespaced under its own name
-# (`tacenta_ratchet.RatchetError` inside `namespace tacenta_ratchet`, this
-# crate's own copy inside `namespace tacenta_triple`), so nothing collides.
+# `tacenta-spqr`. Charon translates it as a self-contained unit, so the two
+# inner crates' `State` types come out as bare opaque axioms here and their
+# error enums are re-emitted as this crate's own copies
+# (`tacenta_ratchet.RatchetError` inside `namespace tacenta_triple`, beside
+# the real one inside `namespace tacenta_ratchet`). The namespaced names do
+# not collide; the anonymous instances Aeneas's `@[discriminant isize]`
+# generates for those enums do, since they are named from the short type
+# name alone and land outside either crate's namespace
+# (`instDiscriminantRatchetErrorIsize`, `instDiscriminantSpqrErrorIsize`):
+# importing `Translation.TacentaTriple`
+# together with `Translation.TacentaRatchet` or `Translation.TacentaSpqr`
+# fails on them. `lake build` passes over the whole package only because
+# lakefile.toml builds every module under Translation/ on its own (the note
+# on its `globs` line) and nothing imports both sides; `TripleT1.lean` and
+# `TripleT3.lean` cannot cite the inner crates' theorems for the same
+# reason, which `TripleT3.lean`'s header records. Do not add a root import
+# of this module.
 translate triple tacenta-triple tacenta_triple.llbc TacentaTriple
 
 echo "run-aeneas: next, record what was just generated:"

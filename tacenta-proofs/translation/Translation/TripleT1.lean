@@ -335,16 +335,33 @@ theorem State.commit_no_panic (self next : State) : State.commit self next ⦃ f
 
 /-! ## What this covers, and what it still does not
 
-**Proved:** every function `tacenta-triple` exposes -- `split_secret`,
-`combine`, `State`'s clone and small accessors (`sending_public`,
+**Proved:** `split_secret`, `combine`, `Header`'s and `TripleError`'s
+clone and equality, `State`'s clone and small accessors (`sending_public`,
 `send_count`, `receive_count`, `epoch`), `State.init_sender`,
-`State.init_receiver`, and, the actual point of this file,
-`State.send`, `State.receive` and `State.commit`. No precondition beyond
-totality is needed anywhere: unlike `T1.lean`'s ratchet or `SpqrT1.lean`'s
-sparse ratchet, this crate carries no room, counter, or length bound of its
-own to state, because it never touches a vector, a chain, or a counter
-directly -- it only calls into the two ratchets that do, through their public
-calling surface, and matches on whether each call succeeded.
+`State.init_receiver`, and, the actual point of this file, `State.send`,
+`State.receive` and `State.commit`. No precondition beyond totality is
+needed for any of them: unlike `T1.lean`'s ratchet or `SpqrT1.lean`'s sparse
+ratchet, this crate carries no room, counter, or length bound of its own to
+state, because it never touches a vector, a chain, or a counter directly --
+it only calls into the two ratchets that do, through their public calling
+surface, and matches on whether each call succeeded.
+
+**Not proved, so not every function the crate exposes.** Five public
+functions have no theorem here: `State.classical_skipped_len`,
+`State.evict_oldest_classical`, `State.evict_oldest_post_quantum`,
+`State.to_bytes` and `State.from_bytes`. The session calls all five -- the
+first three from the eviction loop in
+`tacenta-core/src/sessions/lifecycle.rs`, the last two when it persists and
+restores a session. Each wraps an inner-ratchet operation that is opaque
+here and that none of the constants above assumes total (`skipped_len`,
+`evict_oldest`, `to_bytes` and `from_bytes` on `tacenta_ratchet.State`, and
+`evict_oldest`, `to_bytes` and `from_bytes` on `tacenta_spqr.State`), and
+`from_bytes` also parses its own length-prefixed framing. A theorem for each
+would need seven more totality assumptions of the same shape, one per opaque
+inner call, plus the `zeroize` wrapper at the `Vec` width `to_bytes` returns,
+and for `from_bytes` a proof over the framing. Until then what this file
+covers is the send, receive and commit path, the two constructors, the
+clones, the equalities and the accessors.
 
 **This is the crate the session's send and receive path actually runs
 through.** `T1.lean`'s `receive_no_panic` and
