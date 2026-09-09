@@ -104,12 +104,15 @@ this section says in one place what is not proved.
   `KemCloneAgrees` and `ErasureCloneAgrees` in `BraidT3.lean` are hypotheses of
   `Braid.receive_refines` and `State.clone_refines`, in the same trust category
   as `ErasureAgrees`. `Braid.receive_refines` also
-  takes `BraidHmacAgrees`, `BraidHkdfAgrees`, eleven `Tacenta.BraidT1.*Total`
+  takes `BraidHmacAgrees`, `BraidHkdfAgrees`, fourteen `Tacenta.BraidT1.*`
   constants (`Encapsulate2Total`, `DecoderAddChunkTotal`, `DecoderMessageTotal`,
   `Ct1LenTotal`, `Ct2LenTotal`, `HeaderLenTotal`, `EncoderCloneTotal`,
   `DecoderCloneTotal`, `KeyPairCloneTotal`, `EncapsStateCloneTotal`,
-  `OptionCloneTotal`), and two preconditions, `State.ct1_bounded self.state` and
-  `epoch < U64.max`, that the T1 section names. The theorem's signature is the
+  `OptionCloneTotal`, and since CR-15 `ZeroizingArrayRoundTrip`,
+  `ArrayZeroizeTotal` and `RangeFullIndexTotal`), and two preconditions:
+  `State.ct1_bounded self.state`, which the T1 section names, and
+  `epoch < U64.max`, which the T1 theorems no longer need (CR-03) and the T3
+  section says why the refinement still does. The theorem's signature is the
   authoritative list.
 
 The honest one-line summary: **the protocol core is proved to refine a model
@@ -164,13 +167,14 @@ operation carries it to the model's operation.
   and the fresh ratchet key as bytes, returns the key `Model.Ratchet.receive`
   returns and a state still related, across the skipped-key hit, the
   same-chain path and the Diffie-Hellman ratchet path. Under `HmacAgrees`,
-  `HkdfAgrees`, `ZeroizingRoundTrips` and `VecRemoveTotal`, the `hone`
+  `HkdfAgrees`, `ZeroizingRoundTrips`, `VecRemoveTotal` and
+  `DerivedKeysModel` (the T1 section says what it is), the `hone`
   at-most-one hypothesis named in "what is not proved", a store-size
   precondition (`hs`) and room in the expiry clock (`hroom`); it says nothing
   about the failure branches. Pinned base: the kernel's three axioms and
-  eight opaque externals (`hkdf_sha256`, `hmac_sha256`, four declarations of
-  the `zeroize` wrapper, the array `Zeroize` instance and `Vec::remove`), and
-  no `native_decide`.
+  eleven opaque externals (`hkdf_sha256`, `hmac_sha256`, five declarations of
+  the `zeroize` wrapper including `deref_mut`, the array, pair and `Vec`
+  `Zeroize` instances, and `Vec::remove`), and no `native_decide`.
 - `message_keys_refines`: the expansion of a message key into the AEAD key,
   the MAC key and the IV computes what `Model.State.messageKeys` says -- the
   zero salt, the `mkInfo` label and the 32/32/16 split -- for every key. This
@@ -187,7 +191,7 @@ operation carries it to the model's operation.
   byte for byte, by `rfl` rather than `native_decide`.
 - `skip_message_keys_refines`: the skip step -- the purge scan, the forward
   derivation and the store insertion -- refines `Model.State.skipMessageKeys`
-  on success, under `HmacAgrees` and `VecRemoveTotal`.
+  on success, under `HmacAgrees`, `VecRemoveTotal` and `DerivedKeysModel`.
 - `try_skipped_refines`: the skipped-key lookup returns the key the model's
   lookup returns and leaves the store the model leaves, and on a miss the
   model misses too, under `VecRemoveTotal` and `hone`.
@@ -326,6 +330,14 @@ Location: `tacenta-proofs/translation/Translation/T1.lean` and
   `ChainExhausted` refusal at the `u32` counter's limit is a returned error,
   not a failure. Pinned with the other two.
 - `receive_no_panic`: the translated Double Ratchet receive cannot panic.
+  Since CR-15 the forward derivation returns its keys in a `Zeroizing`
+  wrapper and the store loop reads them back by index, so this and the
+  `skip_message_keys`/`derive_chain` lemmas beneath it take
+  `DerivedKeysModel`, a class in the shape of the session zone's
+  `ZeroizingModel`: the wrapper is a transparent container whose `new`,
+  `deref` and `deref_mut` return what was put in (`LIMITATIONS.md` says why
+  totality alone is not enough). Its pinned base gained the wrapper's
+  `deref_mut` and the two `Zeroize` instances the wrapper reaches.
   **This is the classical half only.** Since the triple-ratchet integration the session's receive
   path runs through `tacenta-triple`, which composes this with `tacenta-spqr`
   and `tacenta-braid`. `tacenta-triple` is translated and proved, and its own
@@ -414,13 +426,17 @@ Location: `tacenta-proofs/translation/Translation/BraidT1.lean`.
   and its entry point cannot panic. This is the one an attacker's header,
   chunk data, and claimed lengths drive directly, so this is what stands
   between a malformed message and a remote denial of service, for this leaf
-  crate. Two real preconditions travel with these two: `State.ct1_bounded`, a
+  crate. One real precondition travels with these two: `State.ct1_bounded`, a
   concrete size cap on the KEM ciphertext carried across the encapsulation
   exchange (an invariant `step_send` maintains but this file does not prove,
   since that would be a T3 claim about the whole state machine rather than a
-  T1 one about a single function), and an epoch counter below `2^64`, the
-  same shape of bound the classical ratchet and the sparse ratchet each
-  needed above. **Nothing below closes the `ct1_bounded` gap**, and it is worth
+  T1 one about a single function). The epoch bound they used to carry as well
+  (`hepoch`, an epoch counter below `2^64`, the same shape of bound the
+  classical ratchet and the sparse ratchet each need above) is no longer a
+  hypothesis of either theorem: the two transitions that advance the epoch
+  now use `checked_add` and answer `Failed` at the ceiling (CR-03), an
+  outcome the theorems prove as a value rather than assume away.
+  **Nothing below closes the `ct1_bounded` gap**, and it is worth
   being exact about why, since the obvious candidate does not apply:
   `tacenta-triple` is proved (T1 and T3, both further down this file), but it
   composes `tacenta-spqr` and `tacenta-ratchet`, not `tacenta-braid`. The Braid
@@ -434,10 +450,15 @@ Location: `tacenta-proofs/translation/Translation/BraidT1.lean`.
   `mac_ct_no_panic`/`init_no_panic`, `kdf_ok_no_panic`, `State.clone_no_panic`,
   `Braid.clone_no_panic`, `Output.clone_no_panic`), are proved along the way,
   since `step_send`/`step_receive` call all of them.
-- Twenty-three opaque-operation assumptions back these theorems, over the
-  erasure coder, the KEM, the two KDF calls, and this crate's own copy of
-  `Option::clone` -- none shared with `SpqrT1.lean`'s seven or `T1.lean`'s
-  copies of the same kinds of operation. Several carry a concrete size cap
+- Twenty-six opaque-operation assumptions back these theorems, over the
+  erasure coder, the KEM, the two KDF calls, this crate's own copy of
+  `Option::clone`, and, since CR-15, the `zeroize` crate's three touches
+  (`ZeroizingArrayRoundTrip`, the wrapper's constructor and projection as one
+  round trip at every width; `ArrayZeroizeTotal`, the in-place wipe of the
+  raw KEM secret; `RangeFullIndexTotal`, the `key[..]` index the Aeneas
+  library does not model) -- none shared with `SpqrT1.lean`'s or `T1.lean`'s
+  copies of the same kinds of operation, and each of the three with a model
+  in `Translation/Satisfiability.lean`. Several carry a concrete size cap
   (`≤ 4096`) rather than headroom below `Usize.max`, because `finish_encaps`
   sums two independently-capped values at one call site, and two facts each
   "under `Usize.max`" do not compose the way two concrete caps do. See
@@ -482,17 +503,22 @@ This file is the only one that says anything about the composition itself.
   `State.init_receiver_no_panic`, and `State`'s clone and small accessors,
   are proved along the way, since `State.send`/`State.receive` call some of
   them and a session has to start somewhere.
-- Nineteen opaque-operation assumptions back these theorems, every one a
-  totality claim about `tacenta_ratchet.State` or `tacenta_spqr.State`
+- Twenty opaque-operation assumptions back these theorems, seventeen of them
+  totality claims about `tacenta_ratchet.State` or `tacenta_spqr.State`
   treated as opaque -- this crate only sees the public calling surface that
   `T1.lean` and `SpqrT1.lean` prove total, under their preconditions, against
-  the real definitions, so none of these nineteen is the same proposition as
+  the real definitions, so none of these seventeen is the same proposition as
   either
   file's own theorems even where a name echoes one (`RatchetSendTotal` here
   assumes totality of a call across a crate boundary; `send_no_panic` in
   `T1.lean` proves it from the translated body). This crate's own copies of
-  the KDF and `Zeroize` axioms round out the count, the same per-crate
-  counting rule `SpqrT1.lean` describes.
+  the KDF, `Zeroize` and `Zeroizing`-wrapper axioms (`HkdfSha256Total`,
+  `ZeroizeTotal`, `ZeroizingTotal`) round out the count, the same per-crate
+  counting rule `SpqrT1.lean` describes. `ZeroizingTotal` is new with CR-15:
+  `split_secret` now wipes its sixty-four-byte expansion on the way out, and
+  the wrapper's constructor and projection are opaque to the translation, so
+  `split_secret_no_panic` and the two initialisers that call it take it, in
+  `T1.lean`'s shape and at that one width.
 - **This is the proof that says anything about the composed path.**
   `tacenta-core/src/sessions`, the product code that calls `tacenta-triple`,
   is not translated or proved in its own right, so the claim stops at the
@@ -565,13 +591,20 @@ against a symbolic attacker") says exactly how little that covers.
   `SpqrT3.lean`'s own theorems hold of the real code, which they do, proved
   elsewhere; this file cannot make Lean say so directly, so it says the same
   content again as a fresh, independently-stated hypothesis.
-- **The KDF boundary, `TripleHkdfAgrees`:** one assumption, the only opaque
-  primitive this crate calls that is genuinely its own (inside the
-  translated, non-opaque `split_secret`/`combine`), stated the same way
+- **The KDF boundary, `TripleHkdfAgrees`, and the wrapper,
+  `ZeroizingRoundTrips`:** two assumptions, the only opaque primitives this
+  crate calls that are genuinely its own (inside the translated, non-opaque
+  `split_secret`/`combine`). `TripleHkdfAgrees` is stated the same way
   `SpqrHkdfAgrees`/`HkdfAgrees` are for the other two crates.
+  `ZeroizingRoundTrips` is this crate's copy of `T3.lean`'s hypothesis of the
+  same name, at sixty-four bytes and in the same two-conjunct shape (so it
+  subsumes `TripleT1.lean`'s `ZeroizingTotal`, `ZeroizingRoundTrips.total`),
+  needed since CR-15 wrapped `split_secret`'s expansion in `Zeroizing`:
+  refinement needs the value to survive the wrapper, not just the return.
 - `split_secret_refines`, `combine_refines`: proved outright against
   `Model.TripleRatchet.splitSecret`/`combine`, translated Rust bottoming out
-  only in the assumed KDF boundary.
+  only in the assumed KDF boundary and, for `split_secret`, the wrapper
+  round trip.
 - **Axiom base:** beyond `propext`, `Classical.choice`, `Quot.sound`, and the
   per-crate opaque-operation axioms named above, `send_refines` and
   `receive_refines` each also rest on one `native_decide` reflection axiom,
@@ -788,7 +821,21 @@ What a reader has to grant:
   states and every one of the message-type, epoch, and MAC-outcome branches
   each can take. This is the crate's largest theorem, and the one closest to
   an attacker's own input: every branch it proves is a shape
-  of message a remote peer chooses.
+  of message a remote peer chooses. Both keep the precondition `hepoch`
+  (`State.epoch_val _ < U64.max`) that `BraidT1.lean`'s
+  `step_receive_no_panic`/`receive_no_panic` dropped with CR-03, and for a
+  reason that is the model's rather than the code's: `Model.Braid` counts
+  epochs in `Nat`, so at the ceiling the real code's `checked_add` answers
+  `Failed` where the model's `epoch + 1` keeps counting. The refinement holds
+  below the ceiling and says nothing at it; `from_bytes` refuses `u64::MAX`,
+  so no state the crate can construct is there.
+- **Carried over from T1, new with CR-15:** `ZeroizingArrayRoundTrip`,
+  `ArrayZeroizeTotal` and `RangeFullIndexTotal`, `BraidT1.lean`'s own copies
+  of the `zeroize` wrapper's round trip, the in-place wipe, and the
+  `RangeFull` index, are hypotheses of every theorem that reaches
+  `Auth.update` or transitions 5 and 7, `step_send_refines` through
+  `Braid.receive_refines`. `Translation/Satisfiability.lean` exhibits a
+  model of each.
 
   **`Braid.receive_refines` matches `Model.Braid.receive`'s next-state epoch
   (`(...).2.2.epoch - 1`), not the model's own leading `Nat`.** The model
@@ -905,7 +952,13 @@ Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
 - **Carried over from T1 unchanged:** `Tacenta.SpqrT1.ZeroizeTotal` and
   `Tacenta.SpqrT1.OptionCloneTotal`, since neither the buffer wipe nor the
   direction clone is ever read back from, only required to complete.
-- **Six assumptions in this file, four new constants and two reused
+- **Zeroizing round trips:** `ZeroizingRoundTrips96` and
+  `ZeroizingRoundTrips64`, one per width the sparse ratchet's key derivation
+  wraps (CR-15 put `kdf_init`, `kdf_rk` and `kdf_ck`'s outputs in
+  `Zeroizing`, and the translation sees the wrapper's `new` and `deref` as
+  opaque). Each says wrapping then dereferencing returns the array that went
+  in. `Translation/Satisfiability.lean` exhibits a model of each.
+- **Eight assumptions in this file, six new constants and two reused
   outright**, none the same proposition as any other file's assumption of a
   similar shape -- the same per-crate counting rule `SpqrT1.lean` and
   `BraidT1.lean` describe. See `SpqrT3.lean`'s own closing section for the

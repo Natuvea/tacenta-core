@@ -94,6 +94,47 @@ corollary. -/
 theorem TripleHkdfAgrees.total (h : TripleHkdfAgrees) : Tacenta.TripleT1.HkdfSha256Total :=
   fun N a b c => by obtain ⟨r, hr, _⟩ := h N a b c; exact ⟨r, hr⟩
 
+/-! ## The `zeroize` wrapper round-trips, at the one width this crate wraps at
+
+`split_secret` wraps its sixty-four-byte expansion in `Zeroizing` before
+copying the two ratchets' secrets out of it (CR-15). `TripleT1.lean` needed
+only that neither the wrapper's constructor nor its projection can fail
+(`ZeroizingTotal`). Refinement needs the value to survive the wrapper, as
+`T3.lean`'s `ZeroizingRoundTrips` does for the classical ratchet's root-key
+step at the same width: without it nothing connects the expansion's output to
+the halves copied out of it. It is true of the crate for the same reason: a
+newtype constructor and its projection. Same two-conjunct shape as
+`T3.lean`'s, and for **this crate's constants**, which are not the ratchet's
+(`SpqrT1.lean`'s counting trap). -/
+def ZeroizingRoundTrips : Prop :=
+  ∀ inst : zeroize.Zeroize (Array Std.U8 64#usize),
+    (∀ z, ∃ w, zeroize.Zeroizing.new inst z = ok w ∧
+       zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst w = ok z) ∧
+    (∀ w, ∃ z, zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst w = ok z)
+
+/-- The round trip subsumes what T1 assumed, so a caller holding it does not
+carry both; the second conjunct is what makes that so, exactly as in
+`T3.lean`. -/
+theorem ZeroizingRoundTrips.total (h : ZeroizingRoundTrips) :
+    Tacenta.TripleT1.ZeroizingTotal := by
+  intro inst
+  exact ⟨fun z => let ⟨w, hw, _⟩ := (h inst).1 z; ⟨w, hw⟩, (h inst).2⟩
+
+-- `TripleT1.lean` registered a stepping rule for the wrapper's projection
+-- whose postcondition is only that it returned. Here that is too weak, as in
+-- `T3.lean`: it would introduce the unwrapped value with nothing tying it to
+-- what was wrapped. Removing it locally makes the tactic stop at the
+-- projection so the round trip the wrapper's rule hands back can be applied
+-- by hand.
+attribute [-step] Tacenta.TripleT1.zeroizing_deref_step
+
+@[step]
+theorem zeroizing_new_step (hz : ZeroizingRoundTrips)
+    (inst : zeroize.Zeroize (Array Std.U8 64#usize)) (z : Array Std.U8 64#usize) :
+    zeroize.Zeroizing.new inst z ⦃ fun w =>
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst w = ok z ⦄ := by
+  obtain ⟨w, hw, hd⟩ := (hz inst).1 z; simp [hw, hd]
+
 /-! ## The labels agree -/
 
 theorem split_info_agrees : sliceOf SPLIT_INFO = Model.TripleRatchet.splitInfo := by
@@ -110,10 +151,12 @@ theorem combine_info_len : (COMBINE_INFO : Slice Std.U8).length = 36 := by
 
 /-! ## `split_secret`/`combine` refine the model's -/
 
-theorem split_secret_refines (h : TripleHkdfAgrees) (sk : Slice Std.U8) :
+theorem split_secret_refines (h : TripleHkdfAgrees) (hz : ZeroizingRoundTrips) (sk : Slice Std.U8) :
     split_secret sk ⦃ fun r =>
       (keyOf r.1, keyOf r.2) = Model.TripleRatchet.splitSecret (sliceOf sk) ⦄ := by
   unfold split_secret
+  step*
+  simp only [out_post]
   step*
   all_goals (try (simp_all only []; scalar_tac))
   all_goals (try (

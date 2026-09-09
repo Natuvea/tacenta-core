@@ -3,11 +3,14 @@ import Translation.T3
 import Translation.BraidT3
 
 /-!
-# Satisfiability of the `Vec`-family boundary hypotheses
+# Satisfiability of the `Vec`-family and `zeroize`-wrapper boundary hypotheses
 
 Every `Vec` operation Aeneas does not model reaches the translation as an
-axiom, and the T1/T3 files assume what they need about it as a named `Prop`
-(`VecAppendTotal`, `VecRemoveAgrees`, ...). A hypothesis of that kind carries
+axiom, as do the `zeroize` wrapper's constructor and projection, and the
+T1/T3 files assume what they need about them as a named `Prop`
+(`VecAppendTotal`, `VecRemoveAgrees`, `ZeroizingRoundTrips96`,
+`ZeroizingArrayRoundTrip`, ...), or as a class (`T1.DerivedKeysModel`). A
+hypothesis of that kind carries
 a risk the rest of the proof cannot see: if it is **refutable** -- if no
 function at all could satisfy it -- then every theorem taking it is provable
 from `False`, and the kernel will happily check it.
@@ -260,6 +263,229 @@ theorem retain_total_satisfiable : ∃ f : RetainFn, RetainTotal f := by
       by simp [retainWitness, h], List.length_filter_le _ _,
       fun _ hx => List.mem_of_mem_filter hx⟩
   · exact ⟨v, by simp [retainWitness, h], le_refl _, fun _ hx => hx⟩
+
+/-! ## The `zeroize` wrapper
+
+`SpqrT3.lean`'s `ZeroizingRoundTrips96`/`ZeroizingRoundTrips64` speak about
+two axioms at once -- the wrapper's constructor and its projection -- and about
+an opaque wrapper *type*, so the shape is stated over an arbitrary wrapper `W`
+and an arbitrary pair of functions at the two axioms' types, with the width
+left free so one witness covers both hypotheses. The witness is the transparent
+wrapper: `W Z := Z`, and both functions the identity. That is also why no
+over-strong shape is refuted here: a round trip has no natural stronger form
+the identity wrapper would not still satisfy. -/
+
+/-- The type of `tacenta_spqr.zeroize.Zeroizing.new`, at a wrapper `W`. -/
+abbrev ZeroizingNewFn (W : Type → Type) :=
+  {Z : Type} → tacenta_spqr.zeroize.Zeroize Z → Z → Result (W Z)
+
+/-- The type of `tacenta_spqr.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref`,
+at a wrapper `W`. -/
+abbrev ZeroizingDerefFn (W : Type → Type) :=
+  {Z : Type} → tacenta_spqr.zeroize.Zeroize Z → W Z → Result Z
+
+/-- The shape of `SpqrT3.ZeroizingRoundTrips96` and `ZeroizingRoundTrips64`,
+at a width `N`. -/
+def ZeroizingRoundTrips (N : Usize) {W : Type → Type}
+    (new : ZeroizingNewFn W) (deref : ZeroizingDerefFn W) : Prop :=
+  ∀ inst : tacenta_spqr.zeroize.Zeroize (Array Std.U8 N),
+    ∀ z, ∃ w, new inst z = ok w ∧ deref inst w = ok z
+
+theorem ZeroizingRoundTrips96_is :
+    Tacenta.SpqrT3.ZeroizingRoundTrips96 ↔
+      ZeroizingRoundTrips 96#usize (W := tacenta_spqr.zeroize.Zeroizing)
+        @tacenta_spqr.zeroize.Zeroizing.new
+        @tacenta_spqr.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref :=
+  Iff.rfl
+
+theorem ZeroizingRoundTrips64_is :
+    Tacenta.SpqrT3.ZeroizingRoundTrips64 ↔
+      ZeroizingRoundTrips 64#usize (W := tacenta_spqr.zeroize.Zeroizing)
+        @tacenta_spqr.zeroize.Zeroizing.new
+        @tacenta_spqr.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref :=
+  Iff.rfl
+
+/-- The transparent wrapper: wrapping is the identity. -/
+def zeroizingNewWitness : ZeroizingNewFn (fun Z => Z) := fun {_Z} _inst z => ok z
+
+/-- The transparent wrapper: reading back is the identity. -/
+def zeroizingDerefWitness : ZeroizingDerefFn (fun Z => Z) := fun {_Z} _inst w => ok w
+
+theorem zeroizing_round_trips_satisfiable (N : Usize) :
+    ∃ (W : Type → Type) (new : ZeroizingNewFn W) (deref : ZeroizingDerefFn W),
+      ZeroizingRoundTrips N new deref :=
+  ⟨fun Z => Z, @zeroizingNewWitness, @zeroizingDerefWitness, fun _ z => ⟨z, rfl, rfl⟩⟩
+
+/-! ## The Braid's `zeroize` touches: the wrapper, the wipe, and the full-range index
+
+`BraidT1.lean`'s `ZeroizingArrayRoundTrip`, `ArrayZeroizeTotal` and
+`RangeFullIndexTotal` are that crate's own copies of three axioms the
+translation could not see into: the `zeroize` wrapper's constructor and
+projection (the round trip above, but at every width at once rather than at
+two fixed ones), the in-place wipe of a fixed-size array, and the `RangeFull`
+slice index the Aeneas library does not model. Each has the transparent
+model: the identity wrapper again, a wipe that hands its array back (the
+hypothesis says nothing about the value, since the source discards what the
+wipe leaves behind), and the index that returns the slice it was given. No
+over-strong shape is refuted here for the same reason as above: none of the
+three has a natural stronger form the transparent model would not still
+satisfy. -/
+
+section BraidZeroize
+
+/-- The type of `tacenta_braid.zeroize.Zeroizing.new`, at a wrapper `W`. -/
+abbrev BraidZeroizingNewFn (W : Type → Type) :=
+  {Z : Type} → tacenta_braid.zeroize.Zeroize Z → Z → Result (W Z)
+
+/-- The type of `tacenta_braid.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref`,
+at a wrapper `W`. -/
+abbrev BraidZeroizingDerefFn (W : Type → Type) :=
+  {Z : Type} → tacenta_braid.zeroize.Zeroize Z → W Z → Result Z
+
+/-- The shape of `BraidT1.ZeroizingArrayRoundTrip`: the round trip at every
+width. -/
+def ZeroizingArrayRoundTrip {W : Type → Type}
+    (new : BraidZeroizingNewFn W) (deref : BraidZeroizingDerefFn W) : Prop :=
+  ∀ (N : Usize) (inst : tacenta_braid.zeroize.Zeroize (Array Std.U8 N)) (a : Array Std.U8 N),
+    ∃ z, new inst a = ok z ∧ deref inst z = ok a
+
+theorem ZeroizingArrayRoundTrip_is :
+    Tacenta.BraidT1.ZeroizingArrayRoundTrip ↔
+      ZeroizingArrayRoundTrip (W := tacenta_braid.zeroize.Zeroizing)
+        @tacenta_braid.zeroize.Zeroizing.new
+        @tacenta_braid.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref :=
+  Iff.rfl
+
+/-- The transparent wrapper, at the Braid's copy of the `Zeroize` trait. -/
+def braidZeroizingNewWitness : BraidZeroizingNewFn (fun Z => Z) := fun {_Z} _inst z => ok z
+
+def braidZeroizingDerefWitness : BraidZeroizingDerefFn (fun Z => Z) := fun {_Z} _inst w => ok w
+
+theorem zeroizing_array_round_trip_satisfiable :
+    ∃ (W : Type → Type) (new : BraidZeroizingNewFn W) (deref : BraidZeroizingDerefFn W),
+      ZeroizingArrayRoundTrip new deref :=
+  ⟨fun Z => Z, @braidZeroizingNewWitness, @braidZeroizingDerefWitness,
+    fun _ _ a => ⟨a, rfl, rfl⟩⟩
+
+/-- The type of `tacenta_braid.Array.Insts.ZeroizeZeroize.zeroize`. -/
+abbrev ArrayZeroizeFn :=
+  {Z : Type} → {N : Usize} → tacenta_braid.zeroize.Zeroize Z → Array Z N → Result (Array Z N)
+
+/-- The shape of `BraidT1.ArrayZeroizeTotal`. -/
+def ArrayZeroizeTotal (f : ArrayZeroizeFn) : Prop :=
+  ∀ (N : Usize) (inst : tacenta_braid.zeroize.Zeroize Std.U8) (a : Array Std.U8 N),
+    ∃ r, f (N := N) inst a = ok r
+
+theorem ArrayZeroizeTotal_is :
+    Tacenta.BraidT1.ArrayZeroizeTotal ↔
+      ArrayZeroizeTotal @tacenta_braid.Array.Insts.ZeroizeZeroize.zeroize :=
+  Iff.rfl
+
+/-- A wipe that returns its input: the hypothesis asks only that the wipe
+return, and says nothing about what it leaves behind. -/
+def arrayZeroizeWitness : ArrayZeroizeFn := fun {_Z} {_N} _inst a => ok a
+
+theorem array_zeroize_total_satisfiable : ∃ f : ArrayZeroizeFn, ArrayZeroizeTotal f :=
+  ⟨@arrayZeroizeWitness, fun _ _ a => ⟨a, rfl⟩⟩
+
+/-- The type of the Braid's `RangeFull` slice index. -/
+abbrev RangeFullIndexFn :=
+  {T : Type} → tacenta_braid.core.ops.range.RangeFull → Slice T → Result (Slice T)
+
+/-- The shape of `BraidT1.RangeFullIndexTotal`. -/
+def RangeFullIndexTotal (f : RangeFullIndexFn) : Prop :=
+  ∀ (s : Slice Std.U8), f () s = ok s
+
+theorem RangeFullIndexTotal_is :
+    Tacenta.BraidT1.RangeFullIndexTotal ↔
+      RangeFullIndexTotal
+        @tacenta_braid.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index :=
+  Iff.rfl
+
+/-- `s[..]` is `s`. -/
+def rangeFullIndexWitness : RangeFullIndexFn := fun {_T} _r s => ok s
+
+theorem range_full_index_total_satisfiable : ∃ f : RangeFullIndexFn, RangeFullIndexTotal f :=
+  ⟨@rangeFullIndexWitness, fun _ => rfl⟩
+
+end BraidZeroize
+
+/-! ## The classical ratchet's derived-keys wrapper, `T1.DerivedKeysModel`
+
+`T1.lean`'s `DerivedKeysModel` is a class rather than a `Prop`: it carries
+the contents function the store loop reads a length back out of, together
+with the three equations relating the wrapper's constructor, projection and
+mutable projection to it (`CLAIMS.md`'s T1 entry says why totality alone was
+not enough). The risk is the same -- an instance nobody could build makes
+every theorem taking one vacuous -- so the shape is stated over an arbitrary
+wrapper `W`, an arbitrary contents function, and an arbitrary triple of
+functions at the three axioms' types. The class holds data, so `Iff.rfl` on
+the class itself is not available; `DerivedKeysModel_is` is the corresponding
+equivalence, that an instance exists exactly when some contents function
+satisfies the shape at the axioms. The transparent wrapper satisfies it:
+`W Z := Z`, contents the identity, `new` and `deref` the identity, and
+`deref_mut` returning the value together with the identity as the way to put
+one back. -/
+
+section DerivedKeys
+
+/-- The one type the classical ratchet wraps its derived keys at. -/
+abbrev DerivedKeys := alloc.vec.Vec (Std.U32 × Array Std.U8 32#usize)
+
+/-- The types of `tacenta_ratchet.zeroize.Zeroizing.new`, its `deref`, and its
+`deref_mut`, at a wrapper `W`. -/
+abbrev RatchetZeroizingNewFn (W : Type → Type) :=
+  {Z : Type} → tacenta_ratchet.zeroize.Zeroize Z → Z → Result (W Z)
+
+abbrev RatchetZeroizingDerefFn (W : Type → Type) :=
+  {Z : Type} → tacenta_ratchet.zeroize.Zeroize Z → W Z → Result Z
+
+abbrev RatchetZeroizingDerefMutFn (W : Type → Type) :=
+  {Z : Type} → tacenta_ratchet.zeroize.Zeroize Z → W Z → Result (Z × (Z → W Z))
+
+/-- The shape of `T1.DerivedKeysModel`'s three equations, at a contents
+function. -/
+def DerivedKeysShape {W : Type → Type} (contents : W DerivedKeys → DerivedKeys)
+    (new : RatchetZeroizingNewFn W) (deref : RatchetZeroizingDerefFn W)
+    (deref_mut : RatchetZeroizingDerefMutFn W) : Prop :=
+  (∀ (inst : tacenta_ratchet.zeroize.Zeroize DerivedKeys) (v : DerivedKeys),
+    new inst v ⦃ fun z => contents z = v ⦄) ∧
+  (∀ (inst : tacenta_ratchet.zeroize.Zeroize DerivedKeys) (z : W DerivedKeys),
+    deref inst z ⦃ fun v => v = contents z ⦄) ∧
+  (∀ (inst : tacenta_ratchet.zeroize.Zeroize DerivedKeys) (z : W DerivedKeys),
+    deref_mut inst z ⦃ fun p => p.1 = contents z ∧ ∀ v', contents (p.2 v') = v' ⦄)
+
+theorem DerivedKeysModel_is :
+    Nonempty Tacenta.T1.DerivedKeysModel ↔
+      ∃ contents, DerivedKeysShape (W := tacenta_ratchet.zeroize.Zeroizing) contents
+        @tacenta_ratchet.zeroize.Zeroizing.new
+        @tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        @tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut :=
+  ⟨fun ⟨m⟩ => ⟨m.contents, m.new, m.deref, m.deref_mut⟩,
+   fun ⟨c, hn, hd, hm⟩ => ⟨⟨c, hn, hd, hm⟩⟩⟩
+
+/-- The transparent wrapper, at the ratchet's copy of the `Zeroize` trait. -/
+def ratchetZeroizingNewWitness : RatchetZeroizingNewFn (fun Z => Z) :=
+  fun {_Z} _inst z => ok z
+
+def ratchetZeroizingDerefWitness : RatchetZeroizingDerefFn (fun Z => Z) :=
+  fun {_Z} _inst w => ok w
+
+def ratchetZeroizingDerefMutWitness : RatchetZeroizingDerefMutFn (fun Z => Z) :=
+  fun {_Z} _inst w => ok (w, id)
+
+theorem derived_keys_model_satisfiable :
+    ∃ (W : Type → Type) (contents : W DerivedKeys → DerivedKeys)
+      (new : RatchetZeroizingNewFn W) (deref : RatchetZeroizingDerefFn W)
+      (deref_mut : RatchetZeroizingDerefMutFn W),
+      DerivedKeysShape contents new deref deref_mut :=
+  ⟨fun Z => Z, id, @ratchetZeroizingNewWitness, @ratchetZeroizingDerefWitness,
+    @ratchetZeroizingDerefMutWitness,
+    fun _ _ => by simp [ratchetZeroizingNewWitness],
+    fun _ _ => by simp [ratchetZeroizingDerefWitness],
+    fun _ _ => by simp [ratchetZeroizingDerefMutWitness]⟩
+
+end DerivedKeys
 
 /-! ## The Braid's T3 boundary: over-strong shapes, and why they are not used
 

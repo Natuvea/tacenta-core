@@ -757,8 +757,8 @@ theorem info_refines (label : Slice Std.U8) (labelBytes : Bytes)
   all_goals (try simp_all)
   all_goals (try (simp only [vecOf, r_post, List.map_append, List.map_map, e1, e2, e3]))
 
-theorem Auth.update_refines (hkdf : BraidHkdfAgrees) (self : Auth) (epoch : Std.U64)
-    (key : Slice Std.U8) :
+theorem Auth.update_refines (hkdf : BraidHkdfAgrees) (hz : Tacenta.BraidT1.ZeroizingArrayRoundTrip)
+    (self : Auth) (epoch : Std.U64) (key : Slice Std.U8) :
     Auth.update self epoch key ⦃ fun r =>
       AuthOf r = Model.Braid.Auth.update (AuthOf self) epoch.val (sliceOf key) ⦄ := by
   have hau : (AUTH_UPDATE : Slice Std.U8).length = 21 := by
@@ -766,8 +766,13 @@ theorem Auth.update_refines (hkdf : BraidHkdfAgrees) (self : Auth) (epoch : Std.
   unfold Auth.update
   step*
   step with info_refines AUTH_UPDATE Model.Braid.authUpdateLabel authUpdate_agrees epoch (by simp [hau]; scalar_tac)
-  obtain ⟨out, hout, houtval⟩ := hkdf 64#usize s key v.deref
-  simp only [hout]
+  obtain ⟨okm, hokm, hokmval⟩ := hkdf 64#usize s key v.deref
+  simp only [hokm]
+  -- The 64-byte output passes through the `Zeroizing` wrapper and straight
+  -- back out (`ZeroizingArrayRoundTrip`) before the two key slots are copied.
+  step with Tacenta.BraidT1.zeroizing_new_spec hz
+  step*
+  step with Tacenta.BraidT1.zeroizing_deref_spec ‹_›
   step*
   simp_all [AuthOf, Model.Braid.Auth.update, vecOf, keyOf, sliceOf, alloc.vec.Vec.deref]
 
@@ -820,11 +825,12 @@ theorem kdf_ok_refines (hkdf : BraidHkdfAgrees) (shared_secret : Slice Std.U8)
 /-- `Auth.update` only ever reads `self.root_key` (`Model.Braid.Auth.update`
 does the same, ignoring `a.macKey`), so the all-zero `mac_key` this starts
 with need not match the model's all-zero `[]` for `Auth.init` to refine. -/
-theorem Auth.init_refines (hkdf : BraidHkdfAgrees) (epoch : Std.U64) (secret : Slice Std.U8) :
+theorem Auth.init_refines (hkdf : BraidHkdfAgrees) (hz : Tacenta.BraidT1.ZeroizingArrayRoundTrip)
+    (epoch : Std.U64) (secret : Slice Std.U8) :
     Auth.init epoch secret ⦃ fun r =>
       AuthOf r = Model.Braid.Auth.init epoch.val (sliceOf secret) ⦄ := by
   unfold Auth.init Model.Braid.Auth.init
-  step with Auth.update_refines hkdf ⟨Array.repeat 32#usize 0#u8, Array.repeat 32#usize 0#u8⟩ epoch secret
+  step with Auth.update_refines hkdf hz ⟨Array.repeat 32#usize 0#u8, Array.repeat 32#usize 0#u8⟩ epoch secret
   simp_all [AuthOf, keyOf, Array.repeat, Model.Braid.Auth.update, u8, List.replicate]
 
 theorem State.epoch_refines (K : Model.Braid.Kem) (self : State) (model : Model.Braid.BraidState)
@@ -1159,6 +1165,8 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     (hmac : BraidHmacAgrees) (hkdf : BraidHkdfAgrees)
     (hhdr : Tacenta.BraidT1.KeyPairHeaderTotal) (hekv : Tacenta.BraidT1.KeyPairEkVectorTotal)
     (hct1len : Tacenta.BraidT1.Ct1LenTotal) (hct2len : Tacenta.BraidT1.Ct2LenTotal)
+    (hz : Tacenta.BraidT1.ZeroizingArrayRoundTrip) (hzz : Tacenta.BraidT1.ArrayZeroizeTotal)
+    (hrf : Tacenta.BraidT1.RangeFullIndexTotal)
     {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (self : Braid) (state : State) (rng : R)
     {model : Model.Braid.BraidState} (hrel : StateRefines K state model)
@@ -1329,11 +1337,18 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
       simp only [sliceOf, Array.to_slice, keyOf] at s1_post ⊢
       rw [s1_post]
     step with kdf_ok_refines hkdf s1 (keyOf ssraw) hs1eq epoch
-    step*
-    have hs2eq : sliceOf s2 = keyOf key := by
+    -- The epoch key is wrapped, the raw secret wiped, and the key read back
+    -- through `key[..]`: three opaque calls, each by assumption the identity
+    -- on the value (or, for the wipe, discarded).
+    step with Tacenta.BraidT1.zeroizing_new_spec hz
+    step with Tacenta.BraidT1.array_zeroize_spec hzz
+    step with Tacenta.BraidT1.zeroizing_deref_spec ‹_›
+    step with Tacenta.BraidT1.index_full_spec hrf
+    have hs2eq : sliceOf s2 = keyOf a := by
+      rw [a1_post] at s2_post
       simp only [sliceOf, Array.to_slice, keyOf] at s2_post ⊢
       rw [s2_post]
-    step with Auth.update_refines hkdf auth epoch s2
+    step with Auth.update_refines hkdf hz auth epoch s2
     obtain ⟨ct1_enc0, hct1_enc_eq, hct1_enc_sim⟩ := hea.1 ct1raw.deref
     simp only [hct1_enc_eq]
     have hencR : EncoderRefines ct1_enc0 (Model.Braid.encode (sliceOf ct1raw.deref)) :=
@@ -1346,8 +1361,8 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     simp only [hnc_eq]
     unfold Msg.with
     step*
-    have hkeyeq0 : keyOf key = Model.Braid.kdfOk (keyOf ssraw) epoch.val := key_post
-    have hkeyeq : keyOf key = Model.Braid.kdfOk ((K.encaps1 ekSeedM hekM).2.2) epoch.val := by
+    have hkeyeq0 : keyOf a = Model.Braid.kdfOk (keyOf ssraw) epoch.val := a_post
+    have hkeyeq : keyOf a = Model.Braid.kdfOk ((K.encaps1 ekSeedM hekM).2.2) epoch.val := by
       rw [← hsseq] at hkeyeq0; exact hkeyeq0
     have hauth1eq0 : AuthOf auth1 =
         Model.Braid.Auth.update (AuthOf auth) epoch.val (Model.Braid.kdfOk (keyOf ssraw) epoch.val) := by
@@ -1369,7 +1384,7 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     refine ⟨0, ?_, ?_, ?_⟩
     · intro modelMsg hm; rw [hmsg_ex] at hm; injection hm with hm; subst hm
       exact ⟨he, trivial, hidx0, hstep0.2.1⟩
-    · refine ⟨he, ?_⟩; rw [← he]; exact hkeyeq
+    · refine ⟨he, ?_⟩; rw [a1_post, ← he]; exact hkeyeq
     · refine ⟨he, ?_, hhdreq, hlen32, hhek32, hencaps2, hct1eq.symm,
         (EncoderRefines.step hencR hlt hnc_eq).2.2, hdecr, heksize⟩
       rw [← he]; exact hauth1eq
@@ -1471,6 +1486,8 @@ theorem Braid.send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     (hkcl : KemCloneAgrees) (hecl : ErasureCloneAgrees)
     (henc : Tacenta.BraidT1.EncoderCloneTotal) (hdec : Tacenta.BraidT1.DecoderCloneTotal)
     (hkp : Tacenta.BraidT1.KeyPairCloneTotal) (hes : Tacenta.BraidT1.EncapsStateCloneTotal)
+    (hz : Tacenta.BraidT1.ZeroizingArrayRoundTrip) (hzz : Tacenta.BraidT1.ArrayZeroizeTotal)
+    (hrf : Tacenta.BraidT1.RangeFullIndexTotal)
     {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (self : Braid) (rng : R)
     {model : Model.Braid.BraidState} (hrel : StateRefines K self.state model)
@@ -1483,7 +1500,7 @@ theorem Braid.send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
         StateRefines K next.state (Model.Braid.send K rand model).2.2.2 ⦄ := by
   unfold Braid.send
   step with State.clone_refines hkcl hecl henc hdec hkp hes hrel
-  step with step_send_refines hka hea hmac hkdf hhdr hekv hct1len hct2len rc crc self s rng s_post hlive
+  step with step_send_refines hka hea hmac hkdf hhdr hekv hct1len hct2len hz hzz hrf rc crc self s rng s_post hlive
   obtain ⟨rand, hmsg, hout, hnext⟩ := ‹_›
   step with Braid.reported_refines K { state := next } (Model.Braid.send K rand model).2.2.2 hnext
   exact ⟨rand, hmsg, i_post, hout, hnext⟩
@@ -1576,6 +1593,8 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     (hdmsg : Tacenta.BraidT1.DecoderMessageTotal)
     (hct1lenB : Tacenta.BraidT1.Ct1LenTotal) (hct2lenB : Tacenta.BraidT1.Ct2LenTotal)
     (hheaderlenB : Tacenta.BraidT1.HeaderLenTotal)
+    (hz : Tacenta.BraidT1.ZeroizingArrayRoundTrip) (hzz : Tacenta.BraidT1.ArrayZeroizeTotal)
+    (hrf : Tacenta.BraidT1.RangeFullIndexTotal)
     (self : Braid) (state : State) (msg : tacenta_braid.Msg)
     (hct1b : Tacenta.BraidT1.State.ct1_bounded state)
     (hepoch : (Tacenta.BraidT1.State.epoch_val state).val < Std.U64.max)
@@ -1858,7 +1877,16 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     unfold Braid.step_receive
     unfold State.epoch
     simp only [bind_tc_ok]
-    step with Std.U64.add_spec (by scalar_tac : epoch1.val + (1#u64).val ≤ Std.U64.max)
+    -- Transition 13 advances the epoch with `checked_add`. Below the ceiling
+    -- (`hepoch`) it is `some`, and the model's `epoch + 1` is its value; at the
+    -- ceiling the real code answers `Failed` where the model's `Nat` keeps
+    -- counting, which is why the refinement keeps `hepoch`.
+    have hcs := Std.U64.checked_add_bv_spec epoch1 1#u64
+    rcases hchk : Std.U64.checked_add epoch1 1#u64 with _ | i
+    · rw [hchk] at hcs; simp at hcs; scalar_tac
+    rw [hchk] at hcs
+    obtain ⟨-, i_post, -⟩ := hcs
+    simp only [lift, bind_tc_ok]
     have h1 := hmsg.1
     by_cases hep : msg.epoch = i
     · have hepM : modelMsg.epoch = epoch' + 1 := by
@@ -2442,7 +2470,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
             rw [hlv] at hlv2; injection hlv2 with hlv2; subst hlv2
             simp only [hlv]
             step*
-            · simp only [global_simps]; scalar_tac
+            · simp only [MAC_LEN]; scalar_tac
             · rename_i hcond
               exfalso
               have hi2eq : i2.val = K.ct2Size + Model.Braid.macSize := by
@@ -2451,11 +2479,24 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 simp [global_simps]
               simp only [bne_iff_ne, ne_eq] at hcond
               exact hcond (by scalar_tac)
+            · -- Transition 5's `checked_add` came back `none`: unreachable below
+              -- the ceiling `hepoch` keeps the state under.
+              rename_i ho1
+              exfalso
+              rw [ho1] at o1_post
+              simp only [Tacenta.BraidT1.State.epoch_val] at hepoch
+              simp at o1_post
+              scalar_tac
             · simp only [alloc.vec.Vec.deref, Slice.length]
               have hi2eq : i2.val = K.ct2Size + Model.Braid.macSize := by
                 rw [i2_post, ← hlveq, ← macLen_agrees]
               scalar_tac
-            · have hct1slice : sliceOf ct1.deref = ct1M := by
+            · rename_i ho1
+              have hne : next_epoch.val = epoch1.val + 1 := by
+                have h := o1_post
+                rw [ho1] at h
+                exact h.2.1
+              have hct1slice : sliceOf ct1.deref = ct1M := by
                 simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hct1 ⊢; exact hct1
               have hframedslice : sliceOf framedRaw.deref = framedM := by
                 simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hframedEq ⊢; exact hframedEq
@@ -2480,11 +2521,17 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 simp only [sliceOf, Array.to_slice, keyOf] at s2_post ⊢
                 rw [s2_post]
               step with kdf_ok_refines hkdf s2 (keyOf raw) hs2 epoch1
-              step*
-              have hs3 : sliceOf s3 = keyOf key := by
+              -- Wrap the epoch key, wipe the raw secret, read the key back
+              -- through `key[..]`: the same three assumptions transition 7 uses.
+              step with Tacenta.BraidT1.zeroizing_new_spec hz
+              step with Tacenta.BraidT1.array_zeroize_spec hzz
+              step with Tacenta.BraidT1.zeroizing_deref_spec ‹_›
+              step with Tacenta.BraidT1.index_full_spec hrf
+              have hs3 : sliceOf s3 = keyOf a := by
+                rw [a1_post] at s3_post
                 simp only [sliceOf, Array.to_slice, keyOf] at s3_post ⊢
                 rw [s3_post]
-              step with Auth.update_refines hkdf auth epoch1 s3
+              step with Auth.update_refines hkdf hz auth epoch1 s3
               step with Auth.mac_ct_refines hmac auth1 epoch1 ct1.deref ct2 ct1M
                 (framedM.take K.ct2Size) hct1slice hct2slice (by
                   have hct1bound : ct1.length ≤ 4096 := by
@@ -2493,18 +2540,18 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                   simp only [alloc.vec.Vec.deref]
                   scalar_tac)
               step
-              have hs5 : sliceOf s5 = keyOf a := by
+              have hs5 : sliceOf s5 = keyOf a2 := by
                 simp only [sliceOf, Array.to_slice, keyOf] at s5_post ⊢
                 rw [s5_post]
               step with mac_eq_agrees s5 mac
-              have hkeyeq : keyOf key = Model.Braid.kdfOk
+              have hkeyeq : keyOf a = Model.Braid.kdfOk
                   (K.decaps dk ct1M (framedM.take K.ct2Size)) epoch1.val := by
-                rw [key_post, hrawval, hct1slice, hct2slice]
+                rw [a_post, hrawval, hct1slice, hct2slice]
               have hauth1eq : AuthOf auth1 = Model.Braid.Auth.update auth' epoch1.val
                   (Model.Braid.kdfOk (K.decaps dk ct1M (framedM.take K.ct2Size)) epoch1.val) := by
                 rw [auth1_post, hs3, hkeyeq, ha]
-              have haeq : keyOf a = Model.Braid.Auth.macCt (AuthOf auth1) epoch1.val
-                  (ct1M ++ framedM.take K.ct2Size) := a_post
+              have haeq : keyOf a2 = Model.Braid.Auth.macCt (AuthOf auth1) epoch1.val
+                  (ct1M ++ framedM.take K.ct2Size) := a2_post
               by_cases hb1 : b1 = true
               · rw [if_pos hb1]
                 have hmaceq : Model.Braid.Auth.macCt (AuthOf auth1) epoch1.val
@@ -2513,8 +2560,6 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                   have := b1_post.mp hb1
                   rw [hs5, hmacslice] at this
                   exact this
-                step*
-                · simp only [Tacenta.BraidT1.State.epoch_val] at hepoch; scalar_tac
                 step with hdr_decoder_refines hea hheaderlen
                 have hdsize2 : (Model.Braid.Decoder.new
                     (Model.Braid.headerSize + Model.Braid.macSize)).size
@@ -2525,8 +2570,8 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 · split
                   · refine ⟨⟨?_, ?_⟩, ?_, ?_, ?_, ?_⟩
                     · exact he
-                    · rw [hkeyeq, he]
-                    · rw [i3_post, he]
+                    · rw [a1_post, hkeyeq, he]
+                    · rw [hne, he]
                     · rw [hauth1eq, he]
                     · exact d_post
                     · exact hdsize2
@@ -2841,6 +2886,8 @@ theorem Braid.receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     (henc : Tacenta.BraidT1.EncoderCloneTotal) (hdec : Tacenta.BraidT1.DecoderCloneTotal)
     (hkp : Tacenta.BraidT1.KeyPairCloneTotal) (hes : Tacenta.BraidT1.EncapsStateCloneTotal)
     (hopt : Tacenta.BraidT1.OptionCloneTotal)
+    (hz : Tacenta.BraidT1.ZeroizingArrayRoundTrip) (hzz : Tacenta.BraidT1.ArrayZeroizeTotal)
+    (hrf : Tacenta.BraidT1.RangeFullIndexTotal)
     (self : Braid) (msg : tacenta_braid.Msg)
     (hct1b : Tacenta.BraidT1.State.ct1_bounded self.state)
     (hepoch : (Tacenta.BraidT1.State.epoch_val self.state).val < Std.U64.max)
@@ -2855,7 +2902,7 @@ theorem Braid.receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
   step with State.clone_refines hkcl hecl henc hdec hkp hes hrel
   obtain ⟨hepocheq, hct1bimp⟩ := State.clone_bounds_refines hrel s_post
   step with step_receive_refines hka hea hmac hkdf hlens hvalek hencaps2len hdadd hdmsg
-    hct1lenB hct2lenB hheaderlenB self s msg (hct1bimp hct1b) (by rw [hepocheq]; exact hepoch)
+    hct1lenB hct2lenB hheaderlenB hz hzz hrf self s msg (hct1bimp hct1b) (by rw [hepocheq]; exact hepoch)
     s_post hmsg hhonest
   obtain ⟨hout, hnext⟩ := ‹_›
   rcases hom : out with _ | o

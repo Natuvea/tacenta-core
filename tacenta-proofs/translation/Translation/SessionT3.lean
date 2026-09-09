@@ -105,6 +105,9 @@ theorem kdf_sk_refines (h : HkdfAgrees) [Tacenta.SessionT1.ZeroizingModel]
     kdf_sk km_bytes ⦃ fun r =>
       keyOf r = Model.SessionEstablishment.kdf (sliceOf km_bytes) ⦄ := by
   unfold kdf_sk
+  -- The capacity is a saturating sum the code never reads back, and the
+  -- buffer it sizes is empty to the library, as in T1's proof.
+  simp only [lift, alloc.vec.Vec.with_capacity]
   have hpre := fPrefix_agrees
   have hinfo := skInfo_agrees
   step*

@@ -187,6 +187,72 @@ def OptionCloneTotal : Prop :=
     (∀ x, o = some x → inst.clone x ⦃ fun y => y = x ⦄) →
     core.option.Option.Insts.CoreCloneClone.clone inst o ⦃ fun o' => o' = o ⦄
 
+/-- The `zeroize` crate's touches, braid's own copies (the ratchet's and the
+session's `Zeroizing` are distinct constants again, per the counting rule).
+Wrapping a fixed-size byte array in `Zeroizing` and reading it straight back
+through `Deref` returns the array: the wrapper changes what happens on drop,
+not the value. Stated as one round trip rather than two bare totalities
+because the two calls only ever appear together in this crate (`Auth.update`'s
+64-byte HKDF output, and the 32-byte epoch key in transitions 5 and 7), and
+the refinement needs the value, not just the return. -/
+def ZeroizingArrayRoundTrip : Prop :=
+  ∀ (N : Usize) (inst : zeroize.Zeroize (Array U8 N)) (a : Array U8 N),
+    ∃ z, zeroize.Zeroizing.new inst a = ok z ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst z = ok a
+
+/-- Wiping a fixed-size byte array in place -- the raw KEM secret, once the
+epoch key has been derived from it -- returns. The source discards what it
+leaves behind, so nothing about the value is assumed. -/
+def ArrayZeroizeTotal : Prop :=
+  ∀ (N : Usize) (inst : zeroize.Zeroize U8) (a : Array U8 N),
+    ∃ r, Array.Insts.ZeroizeZeroize.zeroize (N := N) inst a = ok r
+
+/-- Indexing a slice by the full range `..` returns the slice. The Aeneas
+library models the bounded range shapes but not `RangeFull`, so the
+translation declares this crate's copy of that index as an axiom; the value
+is what `key[..]` means. -/
+def RangeFullIndexTotal : Prop :=
+  ∀ (s : Slice U8),
+    core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index () s = ok s
+
+/-- The three assumptions above, at the instances the translation actually
+passes, in the shape the stepping tactic consumes. Wrapping carries the
+read-back as its postcondition, so the `deref` a few lines later is a
+rewrite rather than a second call to the assumption. -/
+theorem zeroizing_new_spec (hz : ZeroizingArrayRoundTrip) {N : Usize} (a : Array U8 N) :
+    zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize N
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) a ⦃ fun z =>
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref (Array.Insts.ZeroizeZeroize N
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) z = ok a ⦄ := by
+  obtain ⟨z, hz1, hz2⟩ := hz N (Array.Insts.ZeroizeZeroize N
+    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) a
+  rw [hz1]
+  simp [hz2]
+
+/-- Reading the wrapper back, from the fact the wrap left behind. -/
+theorem zeroizing_deref_spec {N : Usize} {z : zeroize.Zeroizing (Array U8 N)} {a : Array U8 N}
+    (h : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref (Array.Insts.ZeroizeZeroize N
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) z = ok a) :
+    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref (Array.Insts.ZeroizeZeroize N
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) z ⦃ fun r => r = a ⦄ := by
+  rw [h]; simp
+
+theorem array_zeroize_spec (hzz : ArrayZeroizeTotal) {N : Usize} (a : Array U8 N) :
+    Array.Insts.ZeroizeZeroize.zeroize (N := N)
+      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) a ⦃ fun _ => True ⦄ := by
+  obtain ⟨r, hr⟩ := hzz N (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) a
+  rw [hr]; simp
+
+theorem index_full_spec (hrf : RangeFullIndexTotal) {N : Usize} (a : Array U8 N) :
+    core.array.Array.index (core.ops.index.IndexSlice
+      (core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice U8)) a ()
+      ⦃ fun s => s = Array.to_slice a ⦄ := by
+  have h : core.array.Array.index (core.ops.index.IndexSlice
+      (core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice U8)) a ()
+      = ok (Array.to_slice a) := hrf (Array.to_slice a)
+  rw [h]
+  simp
+
 /-- Concatenating the fixed protocol prefix, a label, and an epoch's eight
 big-endian bytes cannot overflow a vector's length for any label this crate
 actually passes (all four named labels are under 32 bytes), stated with
@@ -208,17 +274,22 @@ theorem info_no_panic (label : Slice U8) (epoch : U64)
   all_goals (try scalar_tac)
 
 /-- Ratcheting the authenticator's two 32-byte keys forward from an epoch's
-shared secret. The HKDF call is total by assumption; everything else is
-fixed-size array/slice bookkeeping the Aeneas library already has specs for. -/
-theorem Auth.update_no_panic (hkdf : HkdfSha256Total) (self : Auth) (epoch : U64)
-    (key : Slice U8) :
+shared secret. The HKDF call is total by assumption, and so is the
+`Zeroizing` wrapper its 64-byte output now passes through on the way to the
+two key slots; everything else is fixed-size array/slice bookkeeping the
+Aeneas library already has specs for. -/
+theorem Auth.update_no_panic (hkdf : HkdfSha256Total) (hz : ZeroizingArrayRoundTrip)
+    (self : Auth) (epoch : U64) (key : Slice U8) :
     Auth.update self epoch key ⦃ fun _ => True ⦄ := by
   have hau : (AUTH_UPDATE : Slice U8).length = 21 := by
     simp only [global_simps, Array.length_to_slice]; scalar_tac
   unfold Auth.update
   step*
   all_goals (try (step with info_no_panic AUTH_UPDATE epoch (by simp [hau]; scalar_tac)))
-  all_goals (try (obtain ⟨out, hout⟩ := hkdf 64#usize s key v.deref; simp only [hout]))
+  all_goals (try (obtain ⟨okm, hokm⟩ := hkdf 64#usize s key v.deref; simp only [hokm]))
+  all_goals (try (step with zeroizing_new_spec hz))
+  all_goals (try step*)
+  all_goals (try (step with zeroizing_deref_spec ‹_›))
   all_goals (try step*)
 
 /-- Computing a header's authenticator: the length precondition gives the
@@ -263,21 +334,13 @@ theorem kdf_ok_no_panic (hkdf : HkdfSha256Total) (shared_secret : Slice U8) (epo
   all_goals (try (obtain ⟨out, hout⟩ := hkdf 32#usize s shared_secret v.deref; simp only [hout]))
   all_goals (try step*)
 
-/-- The all-zero starting authenticator, and reading its two keys back out:
-neither can fail. -/
-theorem Auth.from_root_no_panic (root_key : Array U8 32#usize) :
-    Auth.from_root root_key ⦃ fun _ => True ⦄ := by
-  unfold Auth.from_root; simp
-
-theorem Auth.keys_no_panic (self : Auth) : Auth.keys self ⦃ fun _ => True ⦄ := by
-  unfold Auth.keys; simp
-
 /-- `init` is `update` from an all-zero starting authenticator, so it inherits
 `update`'s totality outright. -/
-theorem Auth.init_no_panic (hkdf : HkdfSha256Total) (epoch : U64) (secret : Slice U8) :
+theorem Auth.init_no_panic (hkdf : HkdfSha256Total) (hz : ZeroizingArrayRoundTrip)
+    (epoch : U64) (secret : Slice U8) :
     Auth.init epoch secret ⦃ fun _ => True ⦄ := by
   unfold Auth.init
-  exact Auth.update_no_panic hkdf _ epoch secret
+  exact Auth.update_no_panic hkdf hz _ epoch secret
 
 /-- Cloning the authenticator: two fixed 32-byte array clones, both the
 identity for `u8`, both already specified in the Aeneas library. -/
@@ -388,16 +451,17 @@ theorem hdr_decoder_no_panic (hdec : DecoderNewTotal) (hhl : HeaderLenTotal) :
   all_goals (try (obtain ⟨r, hr⟩ := hdec i1; simp only [hr]))
   all_goals (try simp)
 
-theorem Braid.initiator_no_panic (hkdf : HkdfSha256Total) (secret : Slice U8) :
+theorem Braid.initiator_no_panic (hkdf : HkdfSha256Total) (hz : ZeroizingArrayRoundTrip)
+    (secret : Slice U8) :
     Braid.initiator secret ⦃ fun _ => True ⦄ := by
   unfold Braid.initiator
-  step with Auth.init_no_panic hkdf 1#u64 secret
+  step with Auth.init_no_panic hkdf hz 1#u64 secret
 
-theorem Braid.responder_no_panic (hkdf : HkdfSha256Total) (hdec : DecoderNewTotal)
-    (hhl : HeaderLenTotal) (secret : Slice U8) :
+theorem Braid.responder_no_panic (hkdf : HkdfSha256Total) (hz : ZeroizingArrayRoundTrip)
+    (hdec : DecoderNewTotal) (hhl : HeaderLenTotal) (secret : Slice U8) :
     Braid.responder secret ⦃ fun _ => True ⦄ := by
   unfold Braid.responder
-  step with Auth.init_no_panic hkdf 1#u64 secret
+  step with Auth.init_no_panic hkdf hz 1#u64 secret
   step with hdr_decoder_no_panic hdec hhl
 
 theorem Braid.epoch_no_panic (self : Braid) : Braid.epoch self ⦃ fun _ => True ⦄ := by
@@ -442,7 +506,8 @@ theorem Braid.step_send_no_panic {R : Type} (rc : rand_core_1.RngCore R)
     (crc : rand_core_1.CryptoRng R) (hgen : KeyPairGenerateTotal)
     (hhdr : KeyPairHeaderTotal) (hmac : HmacSha256Total) (henew : EncoderNewTotal)
     (henext : EncoderNextChunkTotal) (hkdf : HkdfSha256Total)
-    (hencaps1 : Encapsulate1Total) (self : Braid) (state : State) (rng : R) :
+    (hencaps1 : Encapsulate1Total) (hz : ZeroizingArrayRoundTrip) (hzz : ArrayZeroizeTotal)
+    (hrf : RangeFullIndexTotal) (self : Braid) (state : State) (rng : R) :
     Braid.step_send rc crc self state rng ⦃ fun _ => True ⦄ := by
   unfold Braid.step_send
   rcases state with
@@ -496,8 +561,11 @@ theorem Braid.step_send_no_panic {R : Type} (rc : rand_core_1.RngCore R)
     rcases rval with ⟨encaps, ct1, raw1⟩ | e
     all_goals (try step*)
     all_goals (try (step with kdf_ok_no_panic hkdf))
-    all_goals (try step*)
-    all_goals (try (step with Auth.update_no_panic hkdf))
+    all_goals (try (step with zeroizing_new_spec hz))
+    all_goals (try (step with array_zeroize_spec hzz))
+    all_goals (try (step with zeroizing_deref_spec ‹_›))
+    all_goals (try (step with index_full_spec hrf))
+    all_goals (try (step with Auth.update_no_panic hkdf hz))
     all_goals (try (obtain ⟨henc_r, hhenc⟩ := henew ct1.deref; simp only [hhenc]))
     all_goals (try step*)
     all_goals (try (obtain ⟨⟨chunk, ct1_enc1⟩, hchunk⟩ := henext henc_r; simp only [hchunk]))
@@ -533,11 +601,12 @@ theorem Braid.send_no_panic {R : Type} (rc : rand_core_1.RngCore R)
     (hkp : KeyPairCloneTotal) (hes : EncapsStateCloneTotal) (hgen : KeyPairGenerateTotal)
     (hhdr : KeyPairHeaderTotal) (hmac : HmacSha256Total) (henew : EncoderNewTotal)
     (henext : EncoderNextChunkTotal) (hkdf : HkdfSha256Total) (hencaps1 : Encapsulate1Total)
+    (hz : ZeroizingArrayRoundTrip) (hzz : ArrayZeroizeTotal) (hrf : RangeFullIndexTotal)
     (self : Braid) (rng : R) :
     Braid.send rc crc self rng ⦃ fun _ => True ⦄ := by
   unfold Braid.send
   step with State.clone_no_panic henc hdec hkp hes
-  all_goals (try (step with Braid.step_send_no_panic rc crc hgen hhdr hmac henew henext hkdf hencaps1))
+  all_goals (try (step with Braid.step_send_no_panic rc crc hgen hhdr hmac henew henext hkdf hencaps1 hz hzz hrf))
   all_goals (try (step with Braid.reported_no_panic))
 
 /-- Finishing an encapsulation: sample the second ciphertext, MAC it together
@@ -570,8 +639,8 @@ theorem Braid.step_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAd
     (hhdrlen : HeaderLenTotal) (hekveclen : EkVectorLenTotal) (hekvec : KeyPairEkVectorTotal)
     (henew : EncoderNewTotal) (hdecap : KeyPairDecapsulateTotal) (hkdf : HkdfSha256Total)
     (hmac : HmacSha256Total) (hvalek : ValidateEkTotal) (hencaps2 : Encapsulate2Total)
-    (self : Braid) (state : State) (msg : Msg) (hct1b : State.ct1_bounded state)
-    (hepoch : (State.epoch_val state).val < U64.max) :
+    (hz : ZeroizingArrayRoundTrip) (hzz : ArrayZeroizeTotal) (hrf : RangeFullIndexTotal)
+    (self : Braid) (state : State) (msg : Msg) (hct1b : State.ct1_bounded state) :
     Braid.step_receive self state msg ⦃ fun _ => True ⦄ := by
   unfold Braid.step_receive
   rcases state with
@@ -615,7 +684,6 @@ theorem Braid.step_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAd
     all_goals (try step*)
   case EkSentCt1Received =>
     simp only [State.ct1_bounded] at hct1b
-    simp only [State.epoch_val] at hepoch
     simp only [State.epoch, MsgType.Insts.CoreCmpPartialEqMsgType.eq]
     step*
     all_goals (try (obtain ⟨⟨b, ct2_dec1⟩, hr⟩ := hdadd ct2_dec ‹_›; simp only [hr]))
@@ -631,8 +699,11 @@ theorem Braid.step_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAd
     all_goals (try (rcases r2 with ss | e))
     all_goals (try step*)
     all_goals (try (step with kdf_ok_no_panic hkdf))
-    all_goals (try step*)
-    all_goals (try (step with Auth.update_no_panic hkdf))
+    all_goals (try (step with zeroizing_new_spec hz))
+    all_goals (try (step with array_zeroize_spec hzz))
+    all_goals (try (step with zeroizing_deref_spec ‹_›))
+    all_goals (try (step with index_full_spec hrf))
+    all_goals (try (step with Auth.update_no_panic hkdf hz))
     all_goals (try (step with Auth.mac_ct_no_panic hmac auth1 epoch1 ct1.deref ct2 (by simp only [alloc.vec.Vec.deref, Slice.length]; scalar_tac)))
     all_goals (try step*)
     all_goals (try (step with hdr_decoder_no_panic hdnew hhdrlen))
@@ -685,7 +756,6 @@ theorem Braid.step_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAd
     all_goals (try step*)
     all_goals (try (step with finish_encaps_no_panic hencaps2 hmac henew epoch1 auth encaps ct1.deref ek_vector.deref (by simp only [alloc.vec.Vec.deref, Slice.length]; scalar_tac)))
   case Ct2Sampled =>
-    simp only [State.epoch_val] at hepoch
     simp only [State.epoch]
     step*
   case Failed =>
@@ -710,13 +780,13 @@ theorem Braid.receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAddChun
     (henew : EncoderNewTotal) (hdecap : KeyPairDecapsulateTotal) (hkdf : HkdfSha256Total)
     (hmac : HmacSha256Total) (hvalek : ValidateEkTotal) (hencaps2 : Encapsulate2Total)
     (henc : EncoderCloneTotal) (hdec : DecoderCloneTotal) (hkp : KeyPairCloneTotal)
-    (hes : EncapsStateCloneTotal) (hopt : OptionCloneTotal) (self : Braid) (msg : Msg)
-    (hct1b : State.ct1_bounded self.state)
-    (hepoch : (State.epoch_val self.state).val < U64.max) :
+    (hes : EncapsStateCloneTotal) (hopt : OptionCloneTotal)
+    (hz : ZeroizingArrayRoundTrip) (hzz : ArrayZeroizeTotal) (hrf : RangeFullIndexTotal)
+    (self : Braid) (msg : Msg) (hct1b : State.ct1_bounded self.state) :
     Braid.receive self msg ⦃ fun _ => True ⦄ := by
   unfold Braid.receive
   step with State.clone_no_panic henc hdec hkp hes
-  all_goals (try (step with Braid.step_receive_no_panic hdnew hdadd hdmsg hct1len hct2len hhdrlen hekveclen hekvec henew hdecap hkdf hmac hvalek hencaps2 self ‹_› msg (by simp_all) (by simp_all)))
+  all_goals (try (step with Braid.step_receive_no_panic hdnew hdadd hdmsg hct1len hct2len hhdrlen hekveclen hekvec henew hdecap hkdf hmac hvalek hencaps2 hz hzz hrf self ‹_› msg (by simp_all)))
   all_goals (try step*)
   all_goals (try (step with Braid.reported_no_panic))
   all_goals (try (step with hopt Output.Insts.CoreCloneClone (some o) (fun x _ => Output.clone_no_panic x)))
@@ -724,7 +794,7 @@ theorem Braid.receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAddChun
 /-! ## What this covers, and what it does not
 
 **Proved:** the crate's one loop (`mac_eq`), every helper the state machine
-calls (`info`, `Auth.update`/`mac_hdr`/`mac_ct`/`init`/`from_root`/`keys`,
+calls (`info`, `Auth.update`/`mac_hdr`/`mac_ct`/`init`,
 `kdf_ok`, `finish_encaps`), the state machine's own bookkeeping (`State`'s and
 `Braid`'s clone, `epoch`, `failed`, `state_tag`, `reported`, `state_back`,
 `hdr_decoder`, `initiator`, `responder`), and now the two functions that were
@@ -734,32 +804,40 @@ and `commit`. `step_receive` is the one an attacker's header, chunk data, and
 claimed lengths drive directly, so this is what stands between a malformed
 message and a remote denial of service, for this leaf crate.
 
-Two real preconditions travel with `step_receive` and `receive`, not
-formalities: `State.ct1_bounded`, a size cap on the KEM ciphertext carried
+One real precondition travels with `step_receive` and `receive`, not a
+formality: `State.ct1_bounded`, a size cap on the KEM ciphertext carried
 across the encapsulation exchange that `step_send` maintains but this file
 does not prove (that would be a T3 claim about the whole state machine, not a
-T1 one about a single function), and `State.epoch_val _ < U64.max`, the same
-shape of counter bound the classical ratchet and the sparse ratchet each
-needed for their own epoch or message counters.
+T1 one about a single function). The epoch bound this file used to carry as
+well (`State.epoch_val _ < U64.max`, the same shape of counter bound the
+classical ratchet and the sparse ratchet each need) is gone: the two
+transitions that advance the epoch (5 and 13) now use `checked_add`, and at
+the ceiling they answer `Failed` instead of overflowing, an outcome this file
+proves as a value rather than assumes away.
 
-## Twenty-two assumptions, not one or four
+## Twenty-six assumptions, not one or four
 
 Every opaque operation this crate calls out to -- the erasure coder, the KEM,
-the two KDF calls, and `Option::clone` -- gets its own totality assumption,
-per this project's established counting rule: one axiom per crate that
-touches an unmodelled operation, not one per name. That comes to
-twenty-two named constants in this file. Several carry a concrete size cap (`≤
-4096`) rather than mere headroom below `Usize.max`, because more than one
-capped value gets summed at a single call site (`finish_encaps` sums a
-ciphertext against another opaque bound before appending a MAC), and two
-facts each individually "under `Usize.max`" do not compose the way two
-concrete small caps do -- the same lesson `SessionT1.lean`'s appends and
-`SpqrT1.lean`'s counting trap describe from their own crates.
+the two KDF calls, `Option::clone`, and the `zeroize` crate's wrapper, wipe
+and full-range index -- gets its own totality assumption, per this project's
+established counting rule: one axiom per crate that touches an unmodelled
+operation, not one per name. That comes to twenty-six named constants in
+this file. Several carry a concrete size cap (`≤ 4096`) rather than mere
+headroom below `Usize.max`, because more than one capped value gets summed at
+a single call site (`finish_encaps` sums a ciphertext against another opaque
+bound before appending a MAC), and two facts each individually "under
+`Usize.max`" do not compose the way two concrete small caps do -- the same
+lesson `SessionT1.lean`'s appends and `SpqrT1.lean`'s counting trap describe
+from their own crates.
 
-This crate also declares its own `Array.Insts.ZeroizeZeroize.zeroize` axiom,
-distinct again from the ratchet's and the sparse ratchet's. Nothing proved
-here needs it: no explicit `drop` call appears in `step_send`, `step_receive`,
-or anything they call, so the zeroize-on-drop path never becomes a proof
-obligation this file has to discharge. -/
+The three `zeroize` assumptions are new with the epoch key's `Zeroizing`
+wrapper: `Auth.update` now passes its 64-byte HKDF output through the wrapper
+on the way to the two key slots, and transitions 5 and 7 wrap the 32-byte
+epoch key the same way, wipe the raw KEM secret in place once the key is
+derived, and read the key back through `key[..]`, a `RangeFull` index the
+Aeneas library does not model. Each is a distinct constant from the ratchet's
+and the session's copies. The crate's `zeroize_or_on_drop` axiom is still not
+needed by anything proved here: no explicit `drop` call appears in
+`step_send`, `step_receive`, or anything they call. -/
 
 end Tacenta.BraidT1

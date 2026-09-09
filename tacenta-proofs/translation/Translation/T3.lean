@@ -40,6 +40,10 @@ namespace Tacenta.T3
 
 open tacenta_ratchet
 
+-- The `zeroize` model at the derived-keys vector is T1's; only the name is
+-- brought in, so every other T1 assumption stays spelled out where it is used.
+open Tacenta.T1 (DerivedKeysModel)
+
 /-! ## Carrying bytes across
 
 Aeneas's `U8` is a bounded scalar and the model's byte is Lean's `UInt8`. Every
@@ -478,25 +482,29 @@ def predOf (start_n : Std.U32) (it : core.ops.range.Range Std.U32)
     (it.end.val - it.start.val)
   (r.1, keysOf ks ++ r.2)
 
-theorem derive_chain_loop_refines (h : HmacAgrees) (start_n : Std.U32)
+theorem derive_chain_loop_refines (h : HmacAgrees) [DerivedKeysModel]
+    (start_n : Std.U32)
     (target : Model.State.Key × List (Nat × Model.State.Key))
     (B : Nat) (hB : B ≤ Usize.max)
     (iter : core.ops.range.Range Std.U32) (cur : Array Std.U8 32#usize)
-    (keys : alloc.vec.Vec (Std.U32 × Array Std.U8 32#usize))
-    (hb : keys.val.length + (iter.end.val - iter.start.val) ≤ B)
-    (hinv : predOf start_n iter cur keys = target) :
+    (keys : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × Array Std.U8 32#usize)))
+    (hb : (DerivedKeysModel.contents keys).val.length
+          + (iter.end.val - iter.start.val) ≤ B)
+    (hinv : predOf start_n iter cur (DerivedKeysModel.contents keys) = target) :
     derive_chain_loop iter start_n cur keys ⦃ fun r =>
       match r with
       | core.result.Result.Ok p =>
-        (keyOf p.1, keysOf p.2) = target ∧ p.2.val.length ≤ B
+        (keyOf p.1, keysOf (DerivedKeysModel.contents p.2)) = target
+        ∧ (DerivedKeysModel.contents p.2).val.length ≤ B
       | core.result.Result.Err _ => True ⦄ := by
   unfold derive_chain_loop
   apply loop.spec_decr_nat
     (measure := fun x => (Prod.fst x).end.val - (Prod.fst x).start.val)
     (inv := fun x =>
-      predOf start_n (Prod.fst x) (Prod.fst (Prod.snd x)) (Prod.snd (Prod.snd x))
+      predOf start_n (Prod.fst x) (Prod.fst (Prod.snd x))
+          (DerivedKeysModel.contents (Prod.snd (Prod.snd x)))
           = target
-      ∧ (Prod.snd (Prod.snd x)).val.length
+      ∧ (DerivedKeysModel.contents (Prod.snd (Prod.snd x))).val.length
           + ((Prod.fst x).end.val - (Prod.fst x).start.val) ≤ B)
   · rintro ⟨it, c, ks⟩ ⟨hinv2, hlen⟩
     simp only at hinv2 hlen
@@ -532,20 +540,21 @@ form is false of some `u32` and every caller would have to prove it away. The
 strictness the vector push actually needs comes from there being an iteration
 left to do, which the loop knows and a caller should not have to. -/
 @[step]
-theorem derive_chain_refines (h : HmacAgrees) (ck : Array Std.U8 32#usize)
-    (start_n count : Std.U32) :
+theorem derive_chain_refines (h : HmacAgrees) [DerivedKeysModel]
+    (ck : Array Std.U8 32#usize) (start_n count : Std.U32) :
     derive_chain ck start_n count ⦃ fun r =>
       match r with
       | core.result.Result.Ok p =>
-        (keyOf p.1, keysOf p.2)
+        (keyOf p.1, keysOf (DerivedKeysModel.contents p.2))
           = Model.State.deriveChain (keyOf ck) start_n.val count.val
-        ∧ p.2.val.length ≤ count.val
+        ∧ (DerivedKeysModel.contents p.2).val.length ≤ count.val
       | core.result.Result.Err _ => True ⦄ := by
   unfold derive_chain
+  step
   refine derive_chain_loop_refines h start_n _ count.val (by scalar_tac)
     _ ck _ ?_ ?_
-  · simp
-  · simp [predOf, keysOf]
+  · simp_all
+  · simp_all [predOf, keysOf]
 
 /-! ## Storing skipped keys refines the model's
 
@@ -562,36 +571,64 @@ def storedOf (dhr : Array Std.U8 32#usize) (now : Std.U32)
 which is what lets it serve as a stepping rule: a free target would have to be
 guessed. The length bound stays a hypothesis, because the sum of two vector
 lengths is not bounded in general; the caller discharges it from its own store
-guard. -/
+guard. The loop reads the wrapper by index, so what it appends is the part of
+the wrapper's contents from the cursor on. -/
 @[step]
-theorem skip_message_keys_loop_refines (dhr : Array Std.U8 32#usize)
-    (iter : alloc.vec.into_iter.IntoIter (Std.U32 × Array Std.U8 32#usize))
-    (v : alloc.vec.Vec SkippedKey) (now : Std.U32)
-    (hb : v.val.length + iter.val.length ≤ Usize.max) :
-    skip_message_keys_loop iter dhr v now ⦃ fun r =>
+theorem skip_message_keys_loop_refines [DerivedKeysModel]
+    (dhr : Array Std.U8 32#usize) (v : alloc.vec.Vec SkippedKey) (now : Std.U32)
+    (keys : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × Array Std.U8 32#usize)))
+    (i : Usize)
+    (hb : v.val.length + ((DerivedKeysModel.contents keys).val.length - i.val)
+          ≤ Usize.max) :
+    skip_message_keys_loop dhr v now keys i ⦃ fun r =>
       r.val.map skippedOf
-        = v.val.map skippedOf ++ iter.val.map (storedOf dhr now) ⦄ := by
-  set target := v.val.map skippedOf ++ iter.val.map (storedOf dhr now) with htarget
-  have hinv : v.val.map skippedOf ++ iter.val.map (storedOf dhr now) = target := rfl
+        = v.val.map skippedOf
+          ++ ((DerivedKeysModel.contents keys).val.drop i.val).map (storedOf dhr now) ⦄ := by
+  set target := v.val.map skippedOf
+    ++ ((DerivedKeysModel.contents keys).val.drop i.val).map (storedOf dhr now)
+    with htarget
+  have hinv : v.val.map skippedOf
+    ++ ((DerivedKeysModel.contents keys).val.drop i.val).map (storedOf dhr now)
+    = target := rfl
   unfold skip_message_keys_loop
   apply loop.spec_decr_nat
-    (measure := fun x => (Prod.fst x).val.length)
+    (measure := fun x =>
+      (DerivedKeysModel.contents keys).val.length - (Prod.snd x).val)
     (inv := fun x =>
-      (Prod.snd x).val.map skippedOf
-          ++ (Prod.fst x).val.map (storedOf dhr now) = target
-      ∧ (Prod.snd x).val.length + (Prod.fst x).val.length ≤ Usize.max)
-  · rintro ⟨it, vv⟩ ⟨hinv2, hlen⟩
+      (Prod.fst x).val.map skippedOf
+          ++ ((DerivedKeysModel.contents keys).val.drop (Prod.snd x).val).map
+               (storedOf dhr now) = target
+      ∧ (Prod.fst x).val.length
+          + ((DerivedKeysModel.contents keys).val.length - (Prod.snd x).val)
+          ≤ Usize.max)
+  · rintro ⟨vv, j⟩ ⟨hinv2, hlen⟩
     simp only at hinv2 hlen
-    obtain ⟨l, hl⟩ := it
-    simp only [skip_message_keys_loop.body,
-      alloc.vec.into_iter.IteratorIntoIter.next]
-    cases l with
-    | nil => simp_all
-    | cons p rest =>
-      obtain ⟨n, mk⟩ := p
+    simp only [skip_message_keys_loop.body]
+    have hfits := (DerivedKeysModel.contents keys).property
+    by_cases hlt : j.val < (DerivedKeysModel.contents keys).val.length
+    · -- One more key: it moves from the head of what is left to read onto
+      -- the end of the store, and the answer does not change.
+      rw [List.drop_eq_getElem_cons hlt] at hinv2
       step*
-      all_goals simp_all [skippedOf, storedOf]
-      all_goals omega
+      subst v1_post
+      -- The two reads at the cursor are the two halves of the same entry.
+      have h1 := congrArg Prod.fst i3_post
+      have h2 := congrArg Prod.snd __post
+      simp only at h1 h2
+      refine ⟨?_, ?_, ?_⟩
+      · -- Done by hand rather than by `simp_all`, which folds the exposed head
+        -- back into the drop and loses the entry it was exposed for.
+        rw [v2_post, i4_post, ← hinv2]
+        simp only [List.map_append, List.map_cons, List.map_nil, List.append_assoc,
+          List.singleton_append, skippedOf, storedOf, h1, h2]
+      · simp only [v2_post, List.length_append, List.length_singleton, i4_post]
+        omega
+      · rw [i4_post]
+        omega
+    · -- Nothing left to read, so the invariant is already the answer.
+      have hge : (DerivedKeysModel.contents keys).val.length ≤ j.val := by omega
+      rw [List.drop_eq_nil_of_le hge] at hinv2
+      step* <;> simp_all [alloc.vec.Vec.len]
   · exact ⟨hinv, hb⟩
 
 /-! ## The skip step refines the model's
@@ -931,7 +968,7 @@ theorem age_store_refines (hrm : Tacenta.T1.VecRemoveTotal)
   · simpa [Model.State.ageStore] using hnow
 
 theorem skip_message_keys_refines (h : HmacAgrees)
-    (hrm : Tacenta.T1.VecRemoveTotal) (s : State)
+    (hrm : Tacenta.T1.VecRemoveTotal) [DerivedKeysModel] (s : State)
     (m : Model.State.State) (hR : StateR s m) (upto : Std.U32)
     (hs : s.skipped.val.length + U32.max ≤ Usize.max) :
     skip_message_keys s upto ⦃ fun r =>
@@ -961,7 +998,6 @@ theorem skip_message_keys_refines (h : HmacAgrees)
         simp only [hle, hgtN, if_false, lift]
         step*
         obtain ⟨ck2, keys⟩ := v
-        simp only [alloc.vec.IntoIteratorVec.into_iter]
         have hrOk : r = core.result.Result.Ok (ck2, keys) := by assumption
         rw [hrOk] at r_post
         obtain ⟨rp, rlen⟩ := r_post
@@ -996,10 +1032,11 @@ theorem skip_message_keys_refines (h : HmacAgrees)
           have rkeys := congrArg Prod.snd rp
           simp only at rck rkeys
           -- The store the loop built, restated as the list the model appends.
-          have hstored : List.map (storedOf dhr s.events) keys.val
+          have hstored : List.map (storedOf dhr s.events)
+                ((DerivedKeysModel.contents keys).val.drop 0)
               = List.map (fun x => (keyOf dhr, x.1, m.events, x.2))
                   (Model.State.deriveChain (keyOf ck) m.nr (upto.val - m.nr)).2 := by
-            rw [← rkeys]
+            rw [List.drop_zero, ← rkeys]
             simp [keysOf, List.map_map, storedOf, pairOf, hev]
           -- What the purge left, restated at the model's counter.
           have hkept : List.map skippedOf v1.val
@@ -1252,7 +1289,7 @@ attribute [-step] Tacenta.T1.age_store_spec
 message number, then take the chain-key step. Factoring it out is what keeps
 that proof from being written three times. -/
 theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.T1.VecRemoveTotal)
-    (st : State) (mst : Model.State.State) (hR : StateR st mst) (n : Std.U32)
+    [DerivedKeysModel] (st : State) (mst : Model.State.State) (hR : StateR st mst) (n : Std.U32)
     (hs : st.skipped.val.length + U32.max ≤ Usize.max)
     (hroom : st.events.val < U32.max) :
     (do
@@ -1349,7 +1386,7 @@ attribute [-step] Tacenta.T1.skip_message_keys_bound Tacenta.T1.dh_ratchet_spec
 
 theorem receive_refines (h : HmacAgrees) (hk : HkdfAgrees)
     (hz : ZeroizingRoundTrips) (hrm : Tacenta.T1.VecRemoveTotal)
-    (s : State) (m : Model.State.State) (hR : StateR s m)
+    [DerivedKeysModel] (s : State) (m : Model.State.State) (hR : StateR s m)
     (hdr : Header) (mh : Model.State.Header) (hH : HeaderR hdr mh)
     (dh_out_recv dh_out_send new_dhs_pub : Array Std.U8 32#usize)
     (hone : (m.skipped.filter (matchesHeader mh)).length ≤ 1)
@@ -1560,9 +1597,11 @@ opaque by the same choice that made T1 tractable, and an axiom cannot be shown
 to agree with anything, so `HmacAgrees` and `HkdfAgrees` are assumptions. If the
 Rust HMAC and the model's disagreed, every theorem here would still hold and the
 implementation would still be wrong. The model-generated byte vectors are what
-covers that, outside Lean. `ZeroizingRoundTrips` and `VecRemoveTotal` are the
-other two, the first for an external crate and the second for an operation
-Aeneas does not model.
+covers that, outside Lean. `ZeroizingRoundTrips`, T1's `DerivedKeysModel` and
+`VecRemoveTotal` are the other three, the first two for an external crate --
+the wrapper at the root-key step's width, and the wrapper the derived keys
+travel in between the chain derivation and the store -- and the third for an
+operation Aeneas does not model.
 
 And the **finite-width boundary shows through** wherever the Rust counts in
 `u32` and the model in `Nat`. Sending can report `ChainExhausted` where the
@@ -1611,9 +1650,12 @@ info: 'Tacenta.T3.receive_refines' depends on axioms: [propext,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.remove,
  zeroize.Zeroize.Blanket.zeroize,
- zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref]
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
 -/
 #guard_msgs in
 #print axioms Tacenta.T3.receive_refines

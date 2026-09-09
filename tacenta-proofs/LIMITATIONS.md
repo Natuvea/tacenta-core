@@ -176,10 +176,12 @@ Four things are not erased, and they are the honest remainder:
   contents to a larger allocation and hands the smaller one back un-wiped;
   `Zeroizing` reaches only the allocation alive at the end. The classical
   ratchet's `to_bytes`, `Session::export` and `PrekeyStore::to_bytes` size
-  their buffer exactly before the first write, so they never grow. The sparse
-  ratchet's and the Braid's `to_bytes` grow by pushing: those crates are
-  translated, a source change there is a translation change, and it waits for
-  the next re-translation window. Every `Vec` inside libcrux is libcrux's.
+  their buffer exactly before the first write, so they never grow, and so do
+  the handshake's `km`, `kdf_sk` and `associated_data` in `tacenta-session`
+  (CR-15). The sparse ratchet's and the Braid's `to_bytes` still grow by
+  pushing: those crates are translated, a source change there is a
+  translation change, and it waits for a re-translation window. Every `Vec`
+  inside libcrux is libcrux's.
 
 **None of it is proved.** Charon and Aeneas ignore `Drop` entirely, so the
 generated Lean is byte for byte identical with and without every destructor
@@ -471,11 +473,15 @@ everything built out of translated code around it -- `find_chains`,
 does: how far `advance` can shrink the skipped-key store,
 how a chain-vector length bound survives `set_chains`/`skip_message_keys`,
 and a left-peeling split for the forward-derivation walk `skip_message_keys`
-performs. Six assumptions back it: `SpqrHkdfAgrees` (one level below
+performs. Eight assumptions back it: `SpqrHkdfAgrees` (one level below
 `SpqrT1.lean`'s `KdfRkTotal`/`KdfCkTotal`, subsuming both), `VecRetainAgrees`
 and `VecRemoveAgrees` (each strictly stronger than its `SpqrT1.lean`
 namesake), `VecAppendAgrees` (genuinely new, since nothing in T1 needed to
-know what `skip_message_keys`'s concatenation actually produced), and
+know what `skip_message_keys`'s concatenation actually produced),
+`ZeroizingRoundTrips96` and `ZeroizingRoundTrips64` (the key derivation's
+outputs are wrapped in `Zeroizing` since CR-15, and the wrapper's `new` and
+`deref` are opaque to the translation, so each width needs the round trip
+stated; `Satisfiability.lean` exhibits a model of each), and
 `Tacenta.SpqrT1.ZeroizeTotal`/`OptionCloneTotal` carried over unchanged. See
 `SpqrT3.lean`'s own closing section and `CLAIMS.md`'s spqr T3 entry for the
 full account.
@@ -581,12 +587,15 @@ calls are proved panic-free, alongside the constant-time authenticator
 comparison that is this crate's only loop. `step_receive` is the one an
 attacker's header, chunk data and claimed lengths drive directly, so this is
 what stands between a malformed message and a remote denial of service for
-this leaf crate. Two real preconditions travel with it: a concrete size cap on
+this leaf crate. One real precondition travels with it: a concrete size cap on
 the KEM ciphertext carried across the encapsulation exchange (an invariant
 `step_send` maintains but this file does not prove, since that would be a T3
 claim about the whole state machine rather than a T1 one about a single
-function), and an epoch counter below `2^64`, the same shape of bound the
-classical ratchet and the sparse ratchet each needed for their own counters.
+function). The epoch counter below `2^64` it used to need as well, the same
+shape of bound the classical ratchet and the sparse ratchet each need for
+their own counters, is no longer a hypothesis: the two transitions that
+advance the epoch use `checked_add` and answer `Failed` at the ceiling
+(CR-03), which the theorems prove as a value.
 
 **`tacenta-braid` also has T3**: `step_send`/`send` and `step_receive`/
 `receive` compute what `Model.Braid.send`/`Model.Braid.receive` say, across
@@ -703,10 +712,14 @@ concatenates the derived keys onto the retained store. **Seven assumptions in
 that one file, none of them the same proposition as its namesake elsewhere.**
 
 **So both `tacenta-spqr` and `tacenta-braid` are fully covered by T1.**
-`tacenta-braid` alone assumes twenty-three named constants over twenty-three
+`tacenta-braid` alone assumes twenty-six named constants over twenty-six
 distinct opaque operations -- the erasure coder, the KEM, the two KDF calls,
-and `Option::clone` -- each a per-crate axiom Aeneas could not model, none
-shared with any other crate's copy of the same operation. Several carry a
+`Option::clone`, and since CR-15 the `zeroize` crate's wrapper round trip,
+its in-place wipe of a fixed-size array and the `RangeFull` slice index
+(`ZeroizingArrayRoundTrip`, `ArrayZeroizeTotal`, `RangeFullIndexTotal`,
+each with a model in `Satisfiability.lean`) -- each a per-crate axiom Aeneas
+could not model, none shared with any other crate's copy of the same
+operation. Several carry a
 concrete size cap rather than mere headroom below `Usize.max`, because more
 than one capped value gets summed at a single call site and two facts each
 individually "under `Usize.max`" do not compose the way two concrete small
@@ -729,11 +742,13 @@ composition is what ships since the triple-ratchet integration -- this is that c
 own proof. No precondition beyond totality is stated anywhere in it: this
 crate never touches a vector, a chain, or a counter directly, only the two
 ratchets that do, through their public calling surface, so it carries no room
-or counter bound of its own to state. Nineteen opaque-operation assumptions
-back it, every one a totality claim about `tacenta_ratchet.State` or
-`tacenta_spqr.State` treated as opaque.
+or counter bound of its own to state. Twenty opaque-operation assumptions
+back it, seventeen of them totality claims about `tacenta_ratchet.State` or
+`tacenta_spqr.State` treated as opaque, the other three this crate's own
+copies of the KDF, `Zeroize` and `Zeroizing`-wrapper axioms (the last new
+with CR-15, since `split_secret` now wipes its expansion on the way out).
 
-**And that is the gap.** Those nineteen are stated *unconditionally* -- "for
+**And that is the gap.** Those seventeen are stated *unconditionally* -- "for
 every state, `receive` returns" -- while the theorems in `T1.lean` and
 `SpqrT1.lean` that are supposed to discharge them carry preconditions (`hs`;
 `hroom`, `hepoch`, `hskiproom`, `hcounter`). The Triple T1 result therefore
@@ -1084,11 +1099,14 @@ that assembly possible.
     would overstate them.
 
     First, **what the proofs rest on.** Nothing about our own code is assumed.
-    Three boundaries are, each a named hypothesis: `HmacTotal` and `HkdfTotal`
+    Four boundaries are, each a named hypothesis: `HmacTotal` and `HkdfTotal`
     for the key-derivation primitives, which are opaque by design; `ZeroizingTotal`
     for the external `zeroize` crate, whose wrapper and projection cannot fail;
-    and `VecRemoveTotal`, which is a gap in what Aeneas models rather than a
-    choice, discussed below. The `zeroize` boundary is the reminder that every
+    `DerivedKeysModel`, the same crate's wrapper around the vector of derived
+    keys (CR-15), which has to be a transparent container rather than merely
+    total because the store loop reads a length back out of it, exactly as
+    the session zone's `ZeroizingModel` does; and `VecRemoveTotal`, which is
+    a gap in what Aeneas models rather than a choice, discussed below. The `zeroize` boundary is the reminder that every
     external crate on a proven path becomes an assumption whether or not
     anyone intended it.
 
@@ -1235,13 +1253,23 @@ ones are listed here so nobody mistakes "not yet" for "not known":
   their buffer by pushing (see "Secret deletion is partial").
 - `tacenta_braid`'s `mac_eq` is a hand-written comparison loop (see
   "Constant-time behaviour is assumed, not proven").
-- `tacenta_braid::Auth::keys` is a public accessor returning the root and MAC
-  keys, used only by tests; it should be `#[cfg(test)]`.
-- The Braid computes `epoch + 1` unchecked in two places, so a persisted
-  state carrying `u64::MAX` panics on the next receive under
-  `overflow-checks = true`; the sparse ratchet uses `checked_add` for the
-  same shape. Reachable only through `from_bytes` on a hostile blob, which is
-  already outside the T1 theorems' preconditions.
+
+Two entries this list used to carry closed with the CR-03/CR-22 re-translation:
+
+- `tacenta_braid::Auth::keys` and `Auth::from_root` are compiled only under
+  `cfg(any(test, feature = "conformance"))` (CR-22), so a shipping build
+  cannot plant or read a root key. They are no longer translated, and
+  `BraidT1.lean` no longer carries `Auth.keys_no_panic`/`Auth.from_root_no_panic`.
+- The Braid's two `epoch + 1` sites are now checked (CR-03): `checked_add`,
+  answering `Failed` at `u64::MAX`, and `from_bytes` refuses a stored epoch
+  of `u64::MAX` outright. `BraidT1.lean`'s `step_receive_no_panic`/
+  `receive_no_panic` dropped their `hepoch` precondition as a result -- the
+  ceiling is an outcome the theorems prove rather than a bound they assume.
+  `BraidT3.lean`'s `step_receive_refines`/`Braid.receive_refines` keep it,
+  because `Model.Braid` counts epochs in `Nat` and its `epoch + 1` keeps
+  counting where the real code fails closed; the refinement holds below the
+  ceiling and says nothing at it, and no state the crate can construct is
+  there.
 
 ## Scope
 

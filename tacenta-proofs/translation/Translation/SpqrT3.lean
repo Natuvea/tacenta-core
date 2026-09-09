@@ -13,19 +13,20 @@ merely that it returns.
 
 Unlike the ML-KEM Braid, this crate carries no key-encapsulation boundary and no
 erasure-coding boundary: `Output` arrives as a value from whichever crate
-produced it, and this crate does nothing with it but fold it in. The only
-opaque call this file assumes anything *about the value of* is `hkdf_sha256`,
-inside the translated (non-opaque) `kdf_init`, `kdf_rk`, and `kdf_ck`, so
-there is one KDF assumption below rather than a family of them, and every
-`_refines` theorem for translated code is proved outright against it, not
-assumed.
+produced it, and this crate does nothing with it but fold it in. The opaque
+calls this file assumes anything *about the value of* are `hkdf_sha256` and
+the `zeroize` wrapper its expansion goes through, both inside the translated
+(non-opaque) `kdf_init`, `kdf_rk`, and `kdf_ck`, so there is one KDF
+assumption below and one wrapper round trip per width rather than a family of
+them, and every `_refines` theorem for translated code is proved outright
+against those, not assumed.
 
 That is not the whole trusted base, and this file does not pretend it is:
 `Vec::retain`, `Vec::remove`, `Vec::append`, `Zeroize`, and `Option::clone`
 are each their own opaque call too, carried over as assumptions from
 `SpqrT1.lean` (three of them strengthened past bare totality, one genuinely
 new) rather than reproved here. See the closing section for the full count
-and why it is six, not one. -/
+and why it is eight, not one. -/
 
 open Aeneas Aeneas.Std Result
 
@@ -62,6 +63,48 @@ theorem hkdf_step (h : SpqrHkdfAgrees) (N : Usize) (salt ikm info : Slice Std.U8
       keyOf r = Model.Kdf.hkdf (sliceOf salt) (sliceOf ikm) (sliceOf info) N.val ⦄ := by
   obtain ⟨r, hr, hv⟩ := h N salt ikm info; simp [hr, hv]
 
+/-! ## The `zeroize` wrapper round-trips, at the two widths this crate wraps at
+
+`kdf_init` and `kdf_rk` wrap their ninety-six-byte expansion in `Zeroizing`
+before splitting it, and `kdf_ck` its sixty-four-byte one. Wrapper and
+projection are both opaque, so, as in `T3.lean`, refinement needs the value to
+survive the wrapper: without that nothing connects the expansion's output to
+the pieces copied out of it. It is true of the crate for the same reason:
+a newtype constructor and its projection.
+
+Stated at each width separately, as `T3.lean` does at sixty-four and eighty,
+so that neither hypothesis is wider than its use -- and for **this crate's
+constants**, which are not the ratchet's (`SpqrT1.lean`'s counting trap).
+`SpqrT1.lean` needs neither: its `KdfRkTotal`/`KdfCkTotal` are stated at the
+translated wrapping functions, above the wrapper, so there is no
+wrapper-only totality clause here for the round trip to subsume, and the
+second conjunct `T3.lean`'s carries for that purpose is left off. -/
+def ZeroizingRoundTrips96 : Prop :=
+  ∀ inst : zeroize.Zeroize (Array Std.U8 96#usize),
+    ∀ z, ∃ w, zeroize.Zeroizing.new inst z = ok w ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst w = ok z
+
+def ZeroizingRoundTrips64 : Prop :=
+  ∀ inst : zeroize.Zeroize (Array Std.U8 64#usize),
+    ∀ z, ∃ w, zeroize.Zeroizing.new inst z = ok w ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst w = ok z
+
+-- No stepping rule is registered for the projection: with none, `step*` stops
+-- at it, and the round trip the wrapper's rule hands back is applied by hand.
+@[step]
+theorem zeroizing_new_step96 (hz : ZeroizingRoundTrips96)
+    (inst : zeroize.Zeroize (Array Std.U8 96#usize)) (z : Array Std.U8 96#usize) :
+    zeroize.Zeroizing.new inst z ⦃ fun w =>
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst w = ok z ⦄ := by
+  obtain ⟨w, hw, hd⟩ := hz inst z; simp [hw, hd]
+
+@[step]
+theorem zeroizing_new_step64 (hz : ZeroizingRoundTrips64)
+    (inst : zeroize.Zeroize (Array Std.U8 64#usize)) (z : Array Std.U8 64#usize) :
+    zeroize.Zeroizing.new inst z ⦃ fun w =>
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst w = ok z ⦄ := by
+  obtain ⟨w, hw, hd⟩ := hz inst z; simp [hw, hd]
+
 /-! ## The labels agree
 
 The four wire-sensitive byte strings are struck once here, byte for byte,
@@ -70,7 +113,7 @@ rather than left to `simp` to rediscover at every call site. -/
 theorem protocol_info_agrees : sliceOf PROTOCOL_INFO = Model.SparseRatchet.protocolInfo := by
   native_decide
 
-theorem chain_start_agrees : sliceOf CHAIN_START = Model.SparseRatchet.chainStart := by
+theorem chain_start_agrees : sliceOf CHAIN_START_LABEL = Model.SparseRatchet.chainStart := by
   native_decide
 
 theorem root_label_agrees : sliceOf ROOT_LABEL = Model.SparseRatchet.rootLabel := by
@@ -82,7 +125,7 @@ theorem chain_label_agrees : sliceOf CHAIN_LABEL = Model.SparseRatchet.chainLabe
 theorem protocol_info_len : (PROTOCOL_INFO : Slice Std.U8).length = 12 := by
   simp only [global_simps, Array.length_to_slice]; scalar_tac
 
-theorem chain_start_len : (CHAIN_START : Slice Std.U8).length = 11 := by
+theorem chain_start_len : (CHAIN_START_LABEL : Slice Std.U8).length = 11 := by
   simp only [global_simps, Array.length_to_slice]; scalar_tac
 
 theorem root_label_len : (ROOT_LABEL : Slice Std.U8).length = 4 := by
@@ -189,18 +232,21 @@ theorem be64_agrees (n : Std.U64) :
     have h256 : (256 : Nat) = 2 ^ 8 := by norm_num
     rw [h256, ← pow_mul]
 
-theorem kdf_init_refines (h : SpqrHkdfAgrees) (sk : Slice Std.U8) :
+theorem kdf_init_refines (h : SpqrHkdfAgrees) (hz : ZeroizingRoundTrips96) (sk : Slice Std.U8) :
     tacenta_spqr.kdf_init sk ⦃ fun r =>
       (keyOf r.1, keyOf r.2.1, keyOf r.2.2) = Model.SparseRatchet.kdfInit (sliceOf sk) ⦄ := by
-  have hcs : List.map u8 (↑CHAIN_START : List Std.U8) = Model.SparseRatchet.chainStart :=
+  have hcs : List.map u8 (↑CHAIN_START_LABEL : List Std.U8) = Model.SparseRatchet.chainStart :=
     chain_start_agrees
   unfold tacenta_spqr.kdf_init tacenta_spqr.split3
   step*
   all_goals (try (simp only [chain_start_len]; scalar_tac))
+  all_goals (try simp only [out_post])
+  all_goals (try step*)
   all_goals (try simp_all [Model.SparseRatchet.kdfInit, Model.SparseRatchet.split3,
     keyOf, sliceOf, u8, vec_deref_coe, Array.repeat, List.slice, List.map_take, List.map_drop])
 
-theorem kdf_rk_refines (h : SpqrHkdfAgrees) (rk k : Array Std.U8 32#usize) :
+theorem kdf_rk_refines (h : SpqrHkdfAgrees) (hz : ZeroizingRoundTrips96)
+    (rk k : Array Std.U8 32#usize) :
     tacenta_spqr.kdf_rk rk k ⦃ fun r =>
       (keyOf r.1, keyOf r.2.1, keyOf r.2.2) = Model.SparseRatchet.kdfRk (keyOf rk) (keyOf k) ⦄ := by
   have hrl : List.map u8 (↑ROOT_LABEL : List Std.U8) = Model.SparseRatchet.rootLabel :=
@@ -208,10 +254,13 @@ theorem kdf_rk_refines (h : SpqrHkdfAgrees) (rk k : Array Std.U8 32#usize) :
   unfold tacenta_spqr.kdf_rk tacenta_spqr.split3
   step*
   all_goals (try (simp only [root_label_len]; scalar_tac))
+  all_goals (try simp only [out_post])
+  all_goals (try step*)
   all_goals (try simp_all [Model.SparseRatchet.kdfRk, Model.SparseRatchet.split3,
     keyOf, sliceOf, vec_deref_coe, List.slice, List.map_take, List.map_drop])
 
-theorem kdf_ck_refines (h : SpqrHkdfAgrees) (ck : Array Std.U8 32#usize) (n : Std.U64) :
+theorem kdf_ck_refines (h : SpqrHkdfAgrees) (hz : ZeroizingRoundTrips64)
+    (ck : Array Std.U8 32#usize) (n : Std.U64) :
     tacenta_spqr.kdf_ck ck n ⦃ fun r =>
       (keyOf r.1, keyOf r.2) = Model.SparseRatchet.kdfCk (keyOf ck) n.val ⦄ := by
   have hbe := be64_agrees n
@@ -220,18 +269,23 @@ theorem kdf_ck_refines (h : SpqrHkdfAgrees) (ck : Array Std.U8 32#usize) (n : St
   unfold tacenta_spqr.kdf_ck tacenta_spqr.be64
   step*
   all_goals (try (simp only [chain_label_len]; scalar_tac))
+  all_goals (try simp only [out_post])
+  all_goals (try step*)
   all_goals (try simp_all [Model.SparseRatchet.kdfCk, keyOf, sliceOf, vec_deref_coe, Array.to_slice, List.slice, List.map_take, List.map_drop])
 
-/-- Agreement subsumes the totality `SpqrT1.lean` assumed for these two, so a
-caller holding this need not carry that hypothesis as well. -/
-theorem SpqrHkdfAgrees.kdfRkTotal (h : SpqrHkdfAgrees) : Tacenta.SpqrT1.KdfRkTotal := by
+/-- Agreement, with the wrapper's round trip at the width each derivation
+wraps at, subsumes the totality `SpqrT1.lean` assumed for these two, so a
+caller holding these need not carry that hypothesis as well. -/
+theorem SpqrHkdfAgrees.kdfRkTotal (h : SpqrHkdfAgrees) (hz : ZeroizingRoundTrips96) :
+    Tacenta.SpqrT1.KdfRkTotal := by
   intro rk k
-  obtain ⟨r, hr, _⟩ := Std.WP.spec_imp_exists (kdf_rk_refines h rk k)
+  obtain ⟨r, hr, _⟩ := Std.WP.spec_imp_exists (kdf_rk_refines h hz rk k)
   exact ⟨r, hr⟩
 
-theorem SpqrHkdfAgrees.kdfCkTotal (h : SpqrHkdfAgrees) : Tacenta.SpqrT1.KdfCkTotal := by
+theorem SpqrHkdfAgrees.kdfCkTotal (h : SpqrHkdfAgrees) (hz : ZeroizingRoundTrips64) :
+    Tacenta.SpqrT1.KdfCkTotal := by
   intro ck n
-  obtain ⟨r, hr, _⟩ := Std.WP.spec_imp_exists (kdf_ck_refines h ck n)
+  obtain ⟨r, hr, _⟩ := Std.WP.spec_imp_exists (kdf_ck_refines h hz ck n)
   exact ⟨r, hr⟩
 
 /-! ## The state relation
@@ -805,7 +859,8 @@ theorem clear_old_epochs_refines (hret : VecRetainAgrees)
 /-- A translated agreement output as the model's. -/
 def outputOf (o : Output) : Model.SparseRatchet.Output := ⟨o.key_epoch.val, keyOf o.key⟩
 
-theorem advance_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
+theorem advance_refines (hkr : SpqrHkdfAgrees) (hz96 : ZeroizingRoundTrips96)
+    (hret : VecRetainAgrees)
     (hz : Tacenta.SpqrT1.ZeroizeTotal)
     {s : State} {m : Model.SparseRatchet.State} (hrel : StateRefines s m)
     (out : Output)
@@ -857,7 +912,7 @@ theorem advance_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
       rw [← hrel.epoch, heq]
       exact hi
     simp only [Model.SparseRatchet.advance, outputOf, if_pos hcond]
-    step with kdf_rk_refines hkr s.rk out.key
+    step with kdf_rk_refines hkr hz96 s.rk out.key
     have hrk : keyOf rk = (Model.SparseRatchet.kdfRk m.rk (keyOf out.key)).1 := by
       rw [← hrel.rk]; exact congrArg Prod.fst rk_post
     have hk1 : keyOf k1 = (Model.SparseRatchet.kdfRk m.rk (keyOf out.key)).2.1 := by
@@ -952,7 +1007,8 @@ theorem advance_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
       rename_i self2_post
       simpa [chainsOf, chainOf, hk1, hk2, hmdir'] using self2_post
 
-theorem maybe_advance_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
+theorem maybe_advance_refines (hkr : SpqrHkdfAgrees) (hz96 : ZeroizingRoundTrips96)
+    (hret : VecRetainAgrees)
     (hz : Tacenta.SpqrT1.ZeroizeTotal)
     {s : State} {m : Model.SparseRatchet.State} (hrel : StateRefines s m)
     (out : Option Output)
@@ -974,7 +1030,7 @@ theorem maybe_advance_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
   | none => simp [hrel]
   | some o =>
     simp only []
-    refine Std.WP.spec_mono (advance_refines hkr hret hz hrel o hepoch hroom hcb hsb (hnewb o rfl)) ?_
+    refine Std.WP.spec_mono (advance_refines hkr hz96 hret hz hrel o hepoch hroom hcb hsb (hnewb o rfl)) ?_
     intro r hr
     rcases hcase : Model.SparseRatchet.advance m (outputOf o) with _ | m' <;>
       simp only [hcase] at hr ⊢
@@ -983,7 +1039,8 @@ theorem maybe_advance_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
 
 /-! ## `send` refines the model's -/
 
-theorem send_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
+theorem send_refines (hkr : SpqrHkdfAgrees)
+    (hz96 : ZeroizingRoundTrips96) (hz64 : ZeroizingRoundTrips64) (hret : VecRetainAgrees)
     (hz : Tacenta.SpqrT1.ZeroizeTotal) (hopt : Tacenta.SpqrT1.OptionCloneTotal)
     {s : State} {m : Model.SparseRatchet.State} (hrel : StateRefines s m)
     (sending_epoch : Std.U64) (out : Option Output)
@@ -1003,7 +1060,7 @@ theorem send_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
       ∧ (∀ e, r.1 = core.result.Result.Err e →
           Model.SparseRatchet.send m sending_epoch.val (out.map outputOf) = none) ⦄ := by
   unfold State.send
-  step with maybe_advance_refines hkr hret hz hrel out hepoch hroom hcb hsb hnewb
+  step with maybe_advance_refines hkr hz96 hret hz hrel out hepoch hroom hcb hsb hnewb
   have hbridge : (match out with | none => some m | some o => Model.SparseRatchet.advance m (outputOf o))
       = (match Option.map outputOf out with | none => some m | some o => Model.SparseRatchet.advance m o) := by
     cases out <;> rfl
@@ -1100,7 +1157,7 @@ theorem send_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
           rw [hadd] at hspec
           exact hspec.2.1
         step*
-        step with kdf_ck_refines hkr r.ck n
+        step with kdf_ck_refines hkr hz64 r.ck n
         have hckeq : keyOf r.ck = (chainOf ch).ck := by simp [chainOf, ← r_post]
         step with hopt Chain.Insts.CoreCloneClone cs1.receive
           (fun x _ => Tacenta.SpqrT1.chain_clone_spec x)
@@ -1317,7 +1374,8 @@ theorem deriveInto_split_snd (ck0 : Model.State.Key) (start a b : Nat) :
 key once via `kdf_ck` and stores the message key passed, exactly the recursive
 structure `deriveInto` itself has (confirmed one step at a time via
 `deriveInto_split` at `b = 1`). -/
-theorem skip_message_keys_loop_refines (hkr : SpqrHkdfAgrees) (hz : Tacenta.SpqrT1.ZeroizeTotal)
+theorem skip_message_keys_loop_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundTrips64)
+    (hz : Tacenta.SpqrT1.ZeroizeTotal)
     (e upto : Std.U64) (ck0 : Array Std.U8 32#usize) (derived0 : alloc.vec.Vec Skipped)
     (num0 : Std.U64) (hnum : num0.val ≤ upto.val) (hderived0 : derived0.val = [])
     (hroom : upto.val - num0.val < Usize.max) :
@@ -1348,7 +1406,7 @@ theorem skip_message_keys_loop_refines (hkr : SpqrHkdfAgrees) (hz : Tacenta.Spqr
       -- message key passed.
       obtain ⟨_, hzr⟩ := hz (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) ckA
       simp only [hzr]
-      step with kdf_ck_refines hkr ckA num1
+      step with kdf_ck_refines hkr hz64 ckA num1
       have hroom' : derivedA.val.length < Usize.max := by omega
       step with alloc.vec.Vec.push_spec derivedA
         ({ epoch := e, n := num1, key := mk } : Skipped) hroom'
@@ -1403,7 +1461,8 @@ theorem max_skip_val : MAX_SKIP.val = 1000 := by native_decide
 steps the receiving chain forward to `upto`, storing every key passed, and
 fails exactly where the model does (no chain, chain retired, too many skipped,
 or the store full). -/
-theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
+theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundTrips64)
+    (hret : VecRetainAgrees)
     (happ : VecAppendAgrees) (hz : Tacenta.SpqrT1.ZeroizeTotal)
     (hopt : Tacenta.SpqrT1.OptionCloneTotal)
     {s : State} {m : Model.SparseRatchet.State} (hrel : StateRefines s m) (e upto : Std.U64)
@@ -1497,7 +1556,7 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees
         simp only [hnotA, hnotB, hnotC]
         have hloomprep : (alloc.vec.Vec.with_capacity Skipped i3).val = [] := by
           simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
-        step with skip_message_keys_loop_refines hkr hz e upto ch1.ck
+        step with skip_message_keys_loop_refines hkr hz64 hz e upto ch1.ck
           (alloc.vec.Vec.with_capacity Skipped i3) ch1.n
           (by scalar_tac) hloomprep (by have := max_skip_val; scalar_tac)
         obtain ⟨v, hv, hveq⟩ := hret Global
@@ -1584,7 +1643,8 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees
 skip, and the receiving chain's own step. Factored out on its own so
 `receive_refines` below can call it once rather than duplicating it across
 `out`'s two cases. -/
-theorem receive_refines_continuation (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
+theorem receive_refines_continuation (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundTrips64)
+    (hret : VecRetainAgrees)
     (happ : VecAppendAgrees) (hrm : VecRemoveAgrees) (hz : Tacenta.SpqrT1.ZeroizeTotal)
     (hopt : Tacenta.SpqrT1.OptionCloneTotal)
     {self1 : State} {m1 : Model.SparseRatchet.State} (hrel1 : StateRefines self1 m1)
@@ -1677,7 +1737,7 @@ theorem receive_refines_continuation (hkr : SpqrHkdfAgrees) (hret : VecRetainAgr
       simp only [Nat.zero_max]
       have h2 : n.bv.toNat < 2 ^ UScalarTy.U64.numBits := n.bv.isLt
       rw [Nat.mod_eq_of_lt (by omega)]
-    step with skip_message_keys_refines hkr hret happ hz hopt hself2 receiving_epoch
+    step with skip_message_keys_refines hkr hz64 hret happ hz hopt hself2 receiving_epoch
       (core.num.U64.saturating_sub n 1#u64)
       (by scalar_tac) (by scalar_tac)
     step
@@ -1745,7 +1805,7 @@ theorem receive_refines_continuation (hkr : SpqrHkdfAgrees) (hret : VecRetainAgr
           · have hnv : (chainOf ch).n = ch.n.val := rfl
             have hne : n.val = ch.n.val + 1 := by scalar_tac
             simp only [hnv, hne]
-            step with kdf_ck_refines hkr ch1.ck n
+            step with kdf_ck_refines hkr hz64 ch1.ck n
             rw [ch1_post, hne] at next_post
             step with hopt Chain.Insts.CoreCloneClone cs.send
               (fun x _ => Tacenta.SpqrT1.chain_clone_spec x)
@@ -1774,7 +1834,8 @@ set_option maxHeartbeats 1000000 in
 `maybe_advance`, a stored-key check, a forward skip, and the receiving chain's
 own step, in that order -- the same order the model's own `receive` composes
 its four pieces. -/
-theorem receive_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
+theorem receive_refines (hkr : SpqrHkdfAgrees)
+    (hz96 : ZeroizingRoundTrips96) (hz64 : ZeroizingRoundTrips64) (hret : VecRetainAgrees)
     (happ : VecAppendAgrees) (hrm : VecRemoveAgrees) (hz : Tacenta.SpqrT1.ZeroizeTotal)
     (hopt : Tacenta.SpqrT1.OptionCloneTotal)
     {s : State} {m : Model.SparseRatchet.State} (hrel : StateRefines s m)
@@ -1795,7 +1856,7 @@ theorem receive_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
       | some (m', k) => ∃ key, r.1 = core.result.Result.Ok key ∧ keyOf key = k ∧
           StateRefines r.2 m' ⦄ := by
   unfold State.receive Model.SparseRatchet.receive
-  step with maybe_advance_refines hkr hret hz hrel out hepoch (by scalar_tac) hcb hsb hnewb
+  step with maybe_advance_refines hkr hz96 hret hz hrel out hepoch (by scalar_tac) hcb hsb hnewb
   step
   rcases hout : out with _ | o
   · simp only [hout, Option.map_none] at r_post ⊢
@@ -1809,7 +1870,7 @@ theorem receive_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
     have hchainlen2 := congrArg List.length hrel.chains
     simp only [List.length_map] at hchainlen1 hchainlen2
     have hskiproom1 : self1.skipped.val.length + MAX_SKIP.val ≤ Usize.max := by scalar_tac
-    exact receive_refines_continuation hkr hret happ hrm hz hopt hrel1 receiving_epoch n
+    exact receive_refines_continuation hkr hz64 hret happ hrm hz hopt hrel1 receiving_epoch n
       (by scalar_tac) hskiproom1 hone (chainCounterBounded_of_real hrel hcounter)
   · simp only [hout, Option.map_some] at r_post ⊢
     rcases hadv : (Model.SparseRatchet.advance m (outputOf o)) with _ | m1
@@ -1840,7 +1901,7 @@ theorem receive_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
         exact le_trans (List.filter_filter_length_le m.skipped
           (fun x => decide ((outputOf o).keyEpoch < x.1 + Model.SparseRatchet.epochsKept))
           (fun x => x.1 == receiving_epoch.val && x.2.1 == n.val)) hone
-      exact receive_refines_continuation hkr hret happ hrm hz hopt hrel1 receiving_epoch n
+      exact receive_refines_continuation hkr hz64 hret happ hrm hz hopt hrel1 receiving_epoch n
         (by scalar_tac) hskiproom1 hone1
         (advance_chain_counter_bounded m (outputOf o) m1 hadv (chainCounterBounded_of_real hrel hcounter))
 
@@ -1863,11 +1924,13 @@ and its two projections, `advance_chains_len_le`/`advance_skipped_len_le`/
 and the generic `List.filter_filter_length_le`. None claims more than the
 specific bound its call site needed.
 
-**Six assumptions back this file, four of them new constants and two reused
+**Eight assumptions back this file, six of them new constants and two reused
 outright from `SpqrT1.lean`.** `SpqrHkdfAgrees` states agreement one level
 below `SpqrT1.lean`'s totality-only `KdfRkTotal`/`KdfCkTotal`, at the opaque
-`hkdf_sha256` call itself, and subsumes both -- so this file states the KDF
-boundary once rather than twice. `VecRetainAgrees` and `VecRemoveAgrees`
+`hkdf_sha256` call itself, and with `ZeroizingRoundTrips96`/
+`ZeroizingRoundTrips64` -- the `zeroize` wrapper each expansion now passes
+through on its way to being split -- subsumes both, so this file states the
+KDF boundary once rather than twice. `VecRetainAgrees` and `VecRemoveAgrees`
 likewise state what `retain`/`remove` return, not only that they return, and
 are each strictly stronger than their `SpqrT1.lean` namesake, so neither
 totality hypothesis is separately assumed here. `VecAppendAgrees` is genuinely
@@ -1879,9 +1942,11 @@ claim -- the buffer wipe and the direction clone are never read back from,
 only required to complete.
 
 As with `SpqrT1.lean` and `BraidT3.lean`, count by constant, not by name:
-none of these six is the same proposition as any other file's assumption of
+none of these eight is the same proposition as any other file's assumption of
 a similar shape, including `T1.lean`'s or `BraidT1.lean`'s own copies of
-`Vec::retain`/`Vec::remove`/`Vec::append`, `Zeroize`, or a KDF call.
+`Vec::retain`/`Vec::remove`/`Vec::append`, `Zeroize`, a KDF call, or
+`T3.lean`'s `ZeroizingRoundTrips`/`ZeroizingRoundTrips80` at the ratchet's own
+wrapper constants.
 
 **`hcounter`, on `send_refines`/`receive_refines`, is scoped to
 `s.chains.val`**, matching `hcb`/`hsb`'s own style. Quantified over every
