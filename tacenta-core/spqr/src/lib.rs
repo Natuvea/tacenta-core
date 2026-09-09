@@ -368,6 +368,33 @@ impl State {
         self.skipped.len()
     }
 
+    /// How many message keys the receiving chain of `epoch` has produced --
+    /// the number of the last message it accepted or skipped past -- or
+    /// `None` when the state holds no receiving chain for that epoch, either
+    /// because it was never opened or because it has been retired.
+    ///
+    /// The counterpart of `tacenta_ratchet::State::receive_count`, which needs
+    /// no epoch because the classical ratchet has one receiving chain at a
+    /// time. With `skipped_len` this is what a caller needs to size an
+    /// eviction: a message numbered `n` on this epoch skips
+    /// `n - 1 - receive_count` keys, and the store refuses when the keys it
+    /// holds plus that figure would pass `MAX_SKIPPED_STORE`, so the room to
+    /// make is that excess (see `evict_oldest`).
+    ///
+    /// An index loop through `find_chains`, like every other lookup here, and
+    /// two `let ... else` rather than an `Option` combinator: a closure is
+    /// outside the subset this crate translates in, as the module's note on
+    /// `?` says of the other shorthand.
+    pub fn receive_count(&self, epoch: u64) -> Option<u64> {
+        let Some(cs) = self.find_chains(epoch) else {
+            return None;
+        };
+        let Some(ch) = &cs.receive else {
+            return None;
+        };
+        Some(ch.n)
+    }
+
     /// Which side of the session this state is on. For the Triple Ratchet,
     /// whose invariant checks it against the classical half's role.
     pub fn direction(&self) -> Direction {
@@ -891,7 +918,8 @@ impl State {
     /// after a restart. As with the ratchet's export, at-rest protection of
     /// the persisted bytes is that caller's job, not this format's.
     pub fn to_bytes(&self) -> Zeroizing<Vec<u8>> {
-        let mut out = Vec::new();
+        let len = self.encoded_len();
+        let mut out = Vec::with_capacity(len);
         out.push(STATE_VERSION);
         out.extend_from_slice(&self.rk);
         out.extend_from_slice(&self.epoch.to_be_bytes());
@@ -914,7 +942,26 @@ impl State {
             out.extend_from_slice(&s.key);
             j += 1;
         }
+        // The buffer is the length `encoded_len` said it would be, so it was
+        // never grown: a `Vec` that grows moves the chain and message keys it
+        // holds into a larger allocation and hands the smaller one back to
+        // the allocator unwiped, where the `Zeroizing` wrapper below no
+        // longer reaches them. The assertion is what keeps the formula and
+        // the writes from drifting apart.
+        debug_assert_eq!(out.len(), len);
         Zeroizing::new(out)
+    }
+
+    /// Exactly how many bytes `to_bytes` writes: the fixed prefix through the
+    /// chains count, one entry per epoch of chains, the skipped count, and
+    /// one entry per skipped key. Every entry is a fixed width -- an absent
+    /// chain still occupies its own -- so this is exact rather than an upper
+    /// bound, and `from_bytes` reads the buffer back with the same
+    /// arithmetic.
+    fn encoded_len(&self) -> usize {
+        // `FIXED_PREFIX` ends at the chains count; the skipped count is the
+        // separate four bytes between the two runs of entries.
+        FIXED_PREFIX + self.chains.len() * CHAINS_LEN + 4 + self.skipped.len() * SKIPPED_LEN
     }
 
     /// Decode a state persisted by `to_bytes`. Canonical: trailing bytes past

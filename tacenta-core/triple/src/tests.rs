@@ -654,3 +654,69 @@ fn write_triple_receive_seeds() {
     std::fs::write(&path, &seed1).unwrap();
     println!("wrote {} ({} bytes)", path.display(), seed1.len());
 }
+
+/// `to_bytes` sizes its buffer from the two halves it has already encoded, so
+/// the composed buffer never grows and never hands an allocation holding both
+/// halves' key material back to the allocator unwiped. The length is the
+/// version byte and each half behind its own four-byte length.
+#[test]
+fn to_bytes_writes_exactly_the_length_the_two_halves_imply() {
+    let mut b = bob();
+    let (h1, _) = alice().send(0, None).unwrap();
+    receive_and_commit(&mut b, &h1, &DH_AB, &DH_B2A, B2_PUB, None).unwrap();
+
+    let bytes = b.to_bytes();
+    assert_eq!(
+        bytes.len(),
+        1 + 4 + b.classical.to_bytes().len() + 4 + b.post_quantum.to_bytes().len()
+    );
+}
+
+/// The post-quantum accessors report what that half holds, across sends,
+/// receives, skips and epoch advances -- the figures a caller needs to size an
+/// eviction from the shortfall a header implies, as
+/// `classical_skipped_len` and `receive_count` do for the other half.
+#[test]
+fn the_post_quantum_accessors_report_what_that_half_holds() {
+    let mut a = alice();
+    let mut b = bob();
+
+    // Epoch zero is open at zero, and nothing else is open at all.
+    assert_eq!(b.post_quantum_skipped_len(), 0);
+    assert_eq!(b.post_quantum_receive_count(0), Some(0));
+    assert_eq!(b.post_quantum_receive_count(1), None);
+
+    // Sending moves no receiving chain.
+    let (h1, _) = a.send(0, None).unwrap();
+    assert_eq!(a.post_quantum_receive_count(0), Some(0));
+
+    // Receiving moves it, one message at a time, and skips nothing.
+    receive_and_commit(&mut b, &h1, &DH_AB, &DH_B2A, B2_PUB, None).unwrap();
+    assert_eq!(b.post_quantum_receive_count(0), Some(1));
+    assert_eq!(b.post_quantum_skipped_len(), 0);
+
+    // An out-of-order delivery carries the chain past what it skipped, and
+    // both halves hold the keys it passed.
+    let (_h2, _) = a.send(0, None).unwrap();
+    let (h3, _) = a.send(0, None).unwrap();
+    receive_and_commit(&mut b, &h3, &DH_AB, &DH_B2A, B2_PUB, None).unwrap();
+    assert_eq!(b.post_quantum_receive_count(0), Some(3));
+    assert_eq!(b.post_quantum_skipped_len(), 1, "h2's key is held");
+    assert_eq!(b.classical_skipped_len(), 1);
+
+    // A new epoch opens its own chains at zero, and the previous epoch's
+    // count is still readable while its chains are kept.
+    let o1 = out(1, 0xAA);
+    let (h4, _) = a.send(1, Some(&o1)).unwrap();
+    receive_and_commit(&mut b, &h4, &DH_AB, &DH_B2A, B2_PUB, Some(&o1)).unwrap();
+    assert_eq!(b.epoch(), 1);
+    assert_eq!(b.post_quantum_receive_count(1), Some(1));
+    assert_eq!(b.post_quantum_receive_count(0), Some(3));
+
+    // Advancing past the retention window retires epoch zero, count and all.
+    let o2 = out(2, 0xBB);
+    let (h5, _) = a.send(2, Some(&o2)).unwrap();
+    receive_and_commit(&mut b, &h5, &DH_AB, &DH_B2A, B2_PUB, Some(&o2)).unwrap();
+    assert_eq!(b.post_quantum_receive_count(2), Some(1));
+    assert_eq!(b.post_quantum_receive_count(0), None);
+}

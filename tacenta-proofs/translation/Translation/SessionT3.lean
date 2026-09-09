@@ -91,13 +91,13 @@ theorem hkdf_agrees_step (h : HkdfAgrees) (salt ikm info : Slice Std.U8) :
 /-- A translated zero byte is the model's zero byte. Needed because the salt
 reaches the goal as a literal of translated bytes on one side and a `replicate`
 on the other; with this the two normalise to the same list. -/
-theorem u8_zero : u8 0#u8 = 0 := by first | rfl | decide | native_decide
+theorem u8_zero : u8 0#u8 = 0 := by rfl
 
 /-- The all-zero salt is the model's, which is a fact about two independently
 written constants rather than an arrangement. -/
 theorem zeroSalt_agrees :
     List.map u8 (Array.repeat 32#usize (0#u8)).val = List.replicate 32 0 := by
-  first | rfl | decide | native_decide
+  rfl
 
 theorem kdf_sk_refines (h : HkdfAgrees) [Tacenta.SessionT1.ZeroizingModel]
     (km_bytes : Slice Std.U8)
@@ -249,16 +249,12 @@ theorem decode_ec_after_encode_ec (pk : Array Std.U8 32#usize) :
     -- The right-hand index steps past the tag byte; reduce it to the array's
     -- own index, then both sides are plain elements.
     have hcons : (ENCODE_EC_CURVE25519 :: pk.val)[n + 1]! = pk.val[n]! := by
-      first
-        | rfl
-        | simp [getElem!_def]
-        | simp [List.getElem!_eq_getElem?_getD]
+      rfl
     rw [hcons] at hn
     first
       | rwa [getElem!_pos _ _ h1, getElem!_pos _ _ h2] at hn
       | (simp only [getElem!_pos, h1, h2] at hn
          exact hn)
-      | (simpa [getElem!_pos, h1, h2, List.getElem?_eq_getElem] using hn)
   simp only [keyOf, this]
 
 /-! ## The boundary, checked rather than asserted

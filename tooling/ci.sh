@@ -53,6 +53,24 @@ python3 tooling/check_authentication_boundary.py
 echo "== Proof hygiene: no generated names in hand-written proofs =="
 bash tooling/check-proof-hygiene.sh
 
+# `TripleT3.lean` cannot cite the two inner ratchets' refinement theorems --
+# Charon translates each crate separately -- so it restates their hypotheses
+# and conclusions by hand in `RatchetAgreesFor`/`SpqrAgreesFor`. Those are
+# `def ... : Prop`, never an application of the leaf theorem, so Lean has
+# nothing to compare and the agreement has drifted twice, both times a counter
+# bound tightening at the leaf while the bundle kept the older, weaker one.
+# This is the comparison the build cannot make. It needs no Lean toolchain,
+# which is why it runs here and in the `checks` job rather than beside the
+# translation build.
+echo "== Bundle clauses still say what their leaf theorems say =="
+python3 tooling/check-bundle-drift.py
+# And the checker is held to its own cases -- a matching pair, a drifted
+# bound, a dropped hypothesis, a deleted clause, an unmarked clause, a marker
+# naming a leaf theorem the leaf file no longer declares, and one it cannot
+# analyse -- so a substitution loosened by mistake fails this gate rather than
+# the next reader.
+bash tooling/tests/run-check-bundle-drift-cases.sh
+
 # Derivation labels are protocol constants, and a codebase that cannot enumerate
 # its own is one nobody can review. `tacenta-core/LABELS.md` is the freeze;
 # this makes it binding rather than aspirational, and enforces prefix-freedom

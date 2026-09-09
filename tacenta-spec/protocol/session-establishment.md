@@ -201,14 +201,26 @@ identifiers, the fields that vary per handshake among those that determine
 `SK` (the signed prekey identifier also determines `SK`, but is bound by `SK`
 itself and omitted), tagged with the last-resort KEM key the handshake was
 made against -- and refuses a repeat. The record is
-bounded at 1024 entries across the current key and the one the last rotation
-retired, and it fails closed rather than evicting: a new last-resort handshake
-against a full record is refused (`LastResortRecordFull`) and nothing changes,
-so nobody can push a victim's fingerprint out by completing handshakes of their
-own. A key's entries are dropped when a rotation wipes the key. This is
-hardening beyond what the published specification asks for, not a claim about
-it; `key-deletion.md` states what a full record costs, why rotation alone is
-not a reset against a peer who is filling the record deliberately, and which
+bounded at 1024 entries **per key**: the current last-resort key and the one
+the last rotation retired each have a budget of their own, so the record holds
+at most two of them. It fails closed rather than evicting: a new last-resort
+handshake naming a key whose budget is spent is refused
+(`LastResortRecordFull`) and nothing changes, so nobody can push a victim's
+fingerprint out by completing handshakes of their own. A key's entries are
+dropped when a rotation wipes the key.
+
+Because each key is counted separately, **one rotation is enough to relieve a
+spent budget**: the key `rotate_kem` opens starts empty and is the key every
+bundle handed out afterwards names, so the next handshake to arrive is counted
+against a clean budget, while the retired key keeps its entries and goes on
+refusing their replays for as long as it can still decrypt. The relief is
+brief against a peer who is filling the record deliberately -- they fetch the
+new bundle too, and can spend a fresh budget in a fraction of a second -- so
+the
+durable defences remain a directory that rate-limits bundle fetches and
+one-time KEM prekeys kept stocked. This is hardening beyond what the published
+specification asks for, not a claim about it; `key-deletion.md` states what a
+spent budget costs, why rotation buys a window rather than a reset, and which
 accessor reports the room left.
 
 ## Byte-level conventions

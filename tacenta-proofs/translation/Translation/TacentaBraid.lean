@@ -306,8 +306,16 @@ axiom tacenta_erasure.Encoder.next_chunk
 axiom tacenta_erasure.Encoder.to_bytes
   : tacenta_erasure.Encoder → Result (alloc.vec.Vec Std.U8)
 
+/-- [tacenta_erasure::{tacenta_erasure::Encoder}::encoded_len]:
+    Source: 'erasure/src/lib.rs', lines 442:4-442:38
+    Name pattern: [tacenta_erasure::{tacenta_erasure::Encoder}::encoded_len]
+    Visibility: public -/
+@[rust_fun "tacenta_erasure::{tacenta_erasure::Encoder}::encoded_len"]
+axiom tacenta_erasure.Encoder.encoded_len
+  : tacenta_erasure.Encoder → Result Std.Usize
+
 /-- [tacenta_erasure::{tacenta_erasure::Encoder}::from_bytes]:
-    Source: 'erasure/src/lib.rs', lines 431:4-431:54
+    Source: 'erasure/src/lib.rs', lines 447:4-447:54
     Name pattern: [tacenta_erasure::{tacenta_erasure::Encoder}::from_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_erasure::{tacenta_erasure::Encoder}::from_bytes"]
@@ -315,14 +323,14 @@ axiom tacenta_erasure.Encoder.from_bytes
   : Slice Std.U8 → Result (Option tacenta_erasure.Encoder)
 
 /-- [tacenta_erasure::Decoder]
-    Source: 'erasure/src/lib.rs', lines 508:0-508:18
+    Source: 'erasure/src/lib.rs', lines 524:0-524:18
     Name pattern: [tacenta_erasure::Decoder]
     Visibility: public -/
 @[rust_type "tacenta_erasure::Decoder"]
 axiom tacenta_erasure.Decoder : Type
 
 /-- [tacenta_erasure::{impl core::clone::Clone for tacenta_erasure::Decoder}::clone]:
-    Source: 'erasure/src/lib.rs', lines 507:9-507:14
+    Source: 'erasure/src/lib.rs', lines 523:9-523:14
     Name pattern: [tacenta_erasure::{core::clone::Clone<tacenta_erasure::Decoder>}::clone]
     Visibility: public -/
 @[rust_fun
@@ -331,7 +339,7 @@ axiom tacenta_erasure.Decoder.Insts.CoreCloneClone.clone
   : tacenta_erasure.Decoder → Result tacenta_erasure.Decoder
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::new]:
-    Source: 'erasure/src/lib.rs', lines 517:4-517:38
+    Source: 'erasure/src/lib.rs', lines 533:4-533:38
     Name pattern: [tacenta_erasure::{tacenta_erasure::Decoder}::new]
     Visibility: public -/
 @[rust_fun "tacenta_erasure::{tacenta_erasure::Decoder}::new"]
@@ -339,7 +347,7 @@ axiom tacenta_erasure.Decoder.new
   : Std.Usize → Result tacenta_erasure.Decoder
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::add_chunk]:
-    Source: 'erasure/src/lib.rs', lines 531:4-531:53
+    Source: 'erasure/src/lib.rs', lines 547:4-547:53
     Name pattern: [tacenta_erasure::{tacenta_erasure::Decoder}::add_chunk]
     Visibility: public -/
 @[rust_fun "tacenta_erasure::{tacenta_erasure::Decoder}::add_chunk"]
@@ -349,7 +357,7 @@ axiom tacenta_erasure.Decoder.add_chunk
     tacenta_erasure.Decoder)
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::size]:
-    Source: 'erasure/src/lib.rs', lines 561:4-561:31
+    Source: 'erasure/src/lib.rs', lines 577:4-577:31
     Name pattern: [tacenta_erasure::{tacenta_erasure::Decoder}::size]
     Visibility: public -/
 @[rust_fun "tacenta_erasure::{tacenta_erasure::Decoder}::size"]
@@ -357,7 +365,7 @@ axiom tacenta_erasure.Decoder.size
   : tacenta_erasure.Decoder → Result Std.Usize
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::invariant]:
-    Source: 'erasure/src/lib.rs', lines 586:4-586:35
+    Source: 'erasure/src/lib.rs', lines 602:4-602:35
     Name pattern: [tacenta_erasure::{tacenta_erasure::Decoder}::invariant]
     Visibility: public -/
 @[rust_fun "tacenta_erasure::{tacenta_erasure::Decoder}::invariant"]
@@ -365,7 +373,7 @@ axiom tacenta_erasure.Decoder.invariant
   : tacenta_erasure.Decoder → Result Bool
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::message]:
-    Source: 'erasure/src/lib.rs', lines 609:4-609:44
+    Source: 'erasure/src/lib.rs', lines 625:4-625:44
     Name pattern: [tacenta_erasure::{tacenta_erasure::Decoder}::message]
     Visibility: public -/
 @[rust_fun "tacenta_erasure::{tacenta_erasure::Decoder}::message"]
@@ -373,15 +381,23 @@ axiom tacenta_erasure.Decoder.message
   : tacenta_erasure.Decoder → Result (Option (alloc.vec.Vec Std.U8))
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::to_bytes]:
-    Source: 'erasure/src/lib.rs', lines 678:4-678:37
+    Source: 'erasure/src/lib.rs', lines 694:4-694:37
     Name pattern: [tacenta_erasure::{tacenta_erasure::Decoder}::to_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_erasure::{tacenta_erasure::Decoder}::to_bytes"]
 axiom tacenta_erasure.Decoder.to_bytes
   : tacenta_erasure.Decoder → Result (alloc.vec.Vec Std.U8)
 
+/-- [tacenta_erasure::{tacenta_erasure::Decoder}::encoded_len]:
+    Source: 'erasure/src/lib.rs', lines 719:4-719:38
+    Name pattern: [tacenta_erasure::{tacenta_erasure::Decoder}::encoded_len]
+    Visibility: public -/
+@[rust_fun "tacenta_erasure::{tacenta_erasure::Decoder}::encoded_len"]
+axiom tacenta_erasure.Decoder.encoded_len
+  : tacenta_erasure.Decoder → Result Std.Usize
+
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::from_bytes]:
-    Source: 'erasure/src/lib.rs', lines 694:4-694:54
+    Source: 'erasure/src/lib.rs', lines 724:4-724:54
     Name pattern: [tacenta_erasure::{tacenta_erasure::Decoder}::from_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_erasure::{tacenta_erasure::Decoder}::from_bytes"]
@@ -1531,14 +1547,14 @@ def Braid.is_initiator (self : Braid) : Result (Option Bool) := do
   | State.Failed => ok none
 
 /-- [tacenta_braid::decoder_sized]:
-    Source: 'braid/src/lib.rs', lines 1692:0-1694:1 -/
+    Source: 'braid/src/lib.rs', lines 1823:0-1825:1 -/
 def decoder_sized
   (dec : tacenta_erasure.Decoder) (len : Std.Usize) : Result Bool := do
   let i ← tacenta_erasure.Decoder.size dec
   ok (i = len)
 
 /-- [tacenta_braid::encoder_sized]:
-    Source: 'braid/src/lib.rs', lines 1688:0-1690:1 -/
+    Source: 'braid/src/lib.rs', lines 1819:0-1821:1 -/
 def encoder_sized
   (enc : tacenta_erasure.Encoder) (len : Std.Usize) : Result Bool := do
   let i ← tacenta_erasure.Encoder.needed enc
@@ -2291,8 +2307,23 @@ def Auth.from_bytes (bytes : Array Std.U8 64#usize) : Result Auth := do
   let mac_key1 := to_slice_mut_back1 s5
   ok { root_key := root_key1, mac_key := mac_key1 }
 
+/-- [tacenta_braid::HEAD_LEN]
+    Source: 'braid/src/lib.rs', lines 1431:0-1431:30 -/
+@[global_simps, irreducible]
+def HEAD_LEN : Result Std.Usize := 1#usize + 1#usize
+
+/-- [tacenta_braid::EPOCH_AND_AUTH_LEN]
+    Source: 'braid/src/lib.rs', lines 1432:0-1432:41 -/
+@[global_simps, irreducible]
+def EPOCH_AND_AUTH_LEN : Result Std.Usize := 8#usize + 64#usize
+
+/-- [tacenta_braid::len_prefixed_len]:
+    Source: 'braid/src/lib.rs', lines 1436:0-1438:1 -/
+def len_prefixed_len (len : Std.Usize) : Result Std.Usize := do
+  4#usize + len
+
 /-- [tacenta_braid::push_len_prefixed]:
-    Source: 'braid/src/lib.rs', lines 1433:0-1436:1 -/
+    Source: 'braid/src/lib.rs', lines 1445:0-1448:1 -/
 def push_len_prefixed
   (out : alloc.vec.Vec Std.U8) (bytes : Slice Std.U8) :
   Result (alloc.vec.Vec Std.U8)
@@ -2305,7 +2336,7 @@ def push_len_prefixed
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 bytes
 
 /-- [tacenta_braid::take_len_prefixed]:
-    Source: 'braid/src/lib.rs', lines 1441:0-1465:1 -/
+    Source: 'braid/src/lib.rs', lines 1453:0-1477:1 -/
 def take_len_prefixed
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option ((Slice Std.U8) × Std.Usize))
@@ -2343,7 +2374,7 @@ def take_len_prefixed
           ok (some (s4, e))
 
 /-- [tacenta_braid::read_u64]:
-    Source: 'braid/src/lib.rs', lines 1467:0-1474:1 -/
+    Source: 'braid/src/lib.rs', lines 1479:0-1486:1 -/
 def read_u64
   (bytes : Slice Std.U8) (pos : Std.Usize) : Result (Option Std.U64) := do
   let i := Slice.len bytes
@@ -2362,7 +2393,7 @@ def read_u64
     ok (some i2)
 
 /-- [tacenta_braid::read_epoch]:
-    Source: 'braid/src/lib.rs', lines 1487:0-1495:1 -/
+    Source: 'braid/src/lib.rs', lines 1499:0-1507:1 -/
 def read_epoch
   (bytes : Slice Std.U8) (pos : Std.Usize) : Result (Option Std.U64) := do
   let o ← read_u64 bytes pos
@@ -2373,7 +2404,7 @@ def read_epoch
               else ok o
 
 /-- [tacenta_braid::read_auth]:
-    Source: 'braid/src/lib.rs', lines 1497:0-1504:1 -/
+    Source: 'braid/src/lib.rs', lines 1509:0-1516:1 -/
 def read_auth
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option (Auth × Std.Usize))
@@ -2393,213 +2424,386 @@ def read_auth
     let a2 ← Auth.from_bytes a1
     ok (some (a2, i1))
 
+/-- [tacenta_braid::{tacenta_braid::Braid}::encoded_len]:
+    Source: 'braid/src/lib.rs', lines 1690:4-1787:5 -/
+def Braid.encoded_len (self : Braid) : Result Std.Usize := do
+  match self.state with
+  | State.KeysUnsampled _ _ =>
+    let i ← HEAD_LEN
+    let i1 ← EPOCH_AND_AUTH_LEN
+    i + i1
+  | State.KeysSampled _ _ kp hdr_enc =>
+    let i ← HEAD_LEN
+    let i1 ← EPOCH_AND_AUTH_LEN
+    let i2 ← i + i1
+    let z ← tacenta_kem.IncrementalKeyPair.to_bytes kp
+    let v ←
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
+        U8.Insts.ZeroizeDefaultIsZeroes)) z
+    let i3 := alloc.vec.Vec.len v
+    let i4 ← len_prefixed_len i3
+    let i5 ← i2 + i4
+    let i6 ← tacenta_erasure.Encoder.encoded_len hdr_enc
+    let i7 ← len_prefixed_len i6
+    i5 + i7
+  | State.HeaderSent _ _ kp ct1_dec ek_enc =>
+    let i ← HEAD_LEN
+    let i1 ← EPOCH_AND_AUTH_LEN
+    let i2 ← i + i1
+    let z ← tacenta_kem.IncrementalKeyPair.to_bytes kp
+    let v ←
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
+        U8.Insts.ZeroizeDefaultIsZeroes)) z
+    let i3 := alloc.vec.Vec.len v
+    let i4 ← len_prefixed_len i3
+    let i5 ← i2 + i4
+    let i6 ← tacenta_erasure.Decoder.encoded_len ct1_dec
+    let i7 ← len_prefixed_len i6
+    let i8 ← i5 + i7
+    let i9 ← tacenta_erasure.Encoder.encoded_len ek_enc
+    let i10 ← len_prefixed_len i9
+    i8 + i10
+  | State.Ct1Received _ _ kp ct1 ek_enc =>
+    let i ← HEAD_LEN
+    let i1 ← EPOCH_AND_AUTH_LEN
+    let i2 ← i + i1
+    let z ← tacenta_kem.IncrementalKeyPair.to_bytes kp
+    let v ←
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
+        U8.Insts.ZeroizeDefaultIsZeroes)) z
+    let i3 := alloc.vec.Vec.len v
+    let i4 ← len_prefixed_len i3
+    let i5 ← i2 + i4
+    let i6 := alloc.vec.Vec.len ct1
+    let i7 ← len_prefixed_len i6
+    let i8 ← i5 + i7
+    let i9 ← tacenta_erasure.Encoder.encoded_len ek_enc
+    let i10 ← len_prefixed_len i9
+    i8 + i10
+  | State.EkSentCt1Received _ _ kp ct1 ct2_dec =>
+    let i ← HEAD_LEN
+    let i1 ← EPOCH_AND_AUTH_LEN
+    let i2 ← i + i1
+    let z ← tacenta_kem.IncrementalKeyPair.to_bytes kp
+    let v ←
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
+        U8.Insts.ZeroizeDefaultIsZeroes)) z
+    let i3 := alloc.vec.Vec.len v
+    let i4 ← len_prefixed_len i3
+    let i5 ← i2 + i4
+    let i6 := alloc.vec.Vec.len ct1
+    let i7 ← len_prefixed_len i6
+    let i8 ← i5 + i7
+    let i9 ← tacenta_erasure.Decoder.encoded_len ct2_dec
+    let i10 ← len_prefixed_len i9
+    i8 + i10
+  | State.NoHeaderReceived _ _ hdr_dec =>
+    let i ← HEAD_LEN
+    let i1 ← EPOCH_AND_AUTH_LEN
+    let i2 ← i + i1
+    let i3 ← tacenta_erasure.Decoder.encoded_len hdr_dec
+    let i4 ← len_prefixed_len i3
+    i2 + i4
+  | State.HeaderReceived _ _ header ek_dec =>
+    let i ← HEAD_LEN
+    let i1 ← EPOCH_AND_AUTH_LEN
+    let i2 ← i + i1
+    let i3 := alloc.vec.Vec.len header
+    let i4 ← len_prefixed_len i3
+    let i5 ← i2 + i4
+    let i6 ← tacenta_erasure.Decoder.encoded_len ek_dec
+    let i7 ← len_prefixed_len i6
+    i5 + i7
+  | State.Ct1Sampled _ _ header encaps ct1 ct1_enc ek_dec =>
+    let i ← HEAD_LEN
+    let i1 ← EPOCH_AND_AUTH_LEN
+    let i2 ← i + i1
+    let i3 := alloc.vec.Vec.len header
+    let i4 ← len_prefixed_len i3
+    let i5 ← i2 + i4
+    let z ← tacenta_kem.EncapsState.to_bytes encaps
+    let v ←
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
+        U8.Insts.ZeroizeDefaultIsZeroes)) z
+    let i6 := alloc.vec.Vec.len v
+    let i7 ← len_prefixed_len i6
+    let i8 ← i5 + i7
+    let i9 := alloc.vec.Vec.len ct1
+    let i10 ← len_prefixed_len i9
+    let i11 ← i8 + i10
+    let i12 ← tacenta_erasure.Encoder.encoded_len ct1_enc
+    let i13 ← len_prefixed_len i12
+    let i14 ← i11 + i13
+    let i15 ← tacenta_erasure.Decoder.encoded_len ek_dec
+    let i16 ← len_prefixed_len i15
+    i14 + i16
+  | State.EkReceivedCt1Sampled _ _ encaps ct1 ek_vector ct1_enc =>
+    let i ← HEAD_LEN
+    let i1 ← EPOCH_AND_AUTH_LEN
+    let i2 ← i + i1
+    let z ← tacenta_kem.EncapsState.to_bytes encaps
+    let v ←
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
+        U8.Insts.ZeroizeDefaultIsZeroes)) z
+    let i3 := alloc.vec.Vec.len v
+    let i4 ← len_prefixed_len i3
+    let i5 ← i2 + i4
+    let i6 := alloc.vec.Vec.len ct1
+    let i7 ← len_prefixed_len i6
+    let i8 ← i5 + i7
+    let i9 := alloc.vec.Vec.len ek_vector
+    let i10 ← len_prefixed_len i9
+    let i11 ← i8 + i10
+    let i12 ← tacenta_erasure.Encoder.encoded_len ct1_enc
+    let i13 ← len_prefixed_len i12
+    i11 + i13
+  | State.Ct1Acknowledged _ _ header encaps ct1 ek_dec =>
+    let i ← HEAD_LEN
+    let i1 ← EPOCH_AND_AUTH_LEN
+    let i2 ← i + i1
+    let i3 := alloc.vec.Vec.len header
+    let i4 ← len_prefixed_len i3
+    let i5 ← i2 + i4
+    let z ← tacenta_kem.EncapsState.to_bytes encaps
+    let v ←
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
+        U8.Insts.ZeroizeDefaultIsZeroes)) z
+    let i6 := alloc.vec.Vec.len v
+    let i7 ← len_prefixed_len i6
+    let i8 ← i5 + i7
+    let i9 := alloc.vec.Vec.len ct1
+    let i10 ← len_prefixed_len i9
+    let i11 ← i8 + i10
+    let i12 ← tacenta_erasure.Decoder.encoded_len ek_dec
+    let i13 ← len_prefixed_len i12
+    i11 + i13
+  | State.Ct2Sampled _ _ ct2_enc =>
+    let i ← HEAD_LEN
+    let i1 ← EPOCH_AND_AUTH_LEN
+    let i2 ← i + i1
+    let i3 ← tacenta_erasure.Encoder.encoded_len ct2_enc
+    let i4 ← len_prefixed_len i3
+    i2 + i4
+  | State.Failed => HEAD_LEN
+
 /-- [tacenta_braid::{tacenta_braid::Braid}::to_bytes]:
-    Source: 'braid/src/lib.rs', lines 1514:4-1656:5
+    Source: 'braid/src/lib.rs', lines 1526:4-1677:5
     Visibility: public -/
 def Braid.to_bytes
   (self : Braid) : Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8)) := do
-  let out ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U8) STATE_VERSION
+  let len ← Braid.encoded_len self
+  let out := alloc.vec.Vec.with_capacity Std.U8 len
+  let out1 ← alloc.vec.Vec.push out STATE_VERSION
   let i ← Braid.state_tag self
-  let out1 ← alloc.vec.Vec.push out i
-  let out2 ←
+  let out2 ← alloc.vec.Vec.push out1 i
+  let out3 ←
     match self.state with
     | State.KeysUnsampled epoch auth =>
       do
       let a ← lift (core.num.U64.to_be_bytes epoch)
       let s ← lift (Array.to_slice a)
-      let out3 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 s
+      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s
       let a1 ← Auth.to_bytes auth
       let s1 ← lift (Array.to_slice a1)
-      alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s1
+      alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out4 s1
     | State.KeysSampled epoch auth kp hdr_enc =>
       do
       let a ← lift (core.num.U64.to_be_bytes epoch)
       let s ← lift (Array.to_slice a)
-      let out3 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 s
+      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s
       let a1 ← Auth.to_bytes auth
       let s1 ← lift (Array.to_slice a1)
-      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s1
+      let out5 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out4 s1
       let z ← tacenta_kem.IncrementalKeyPair.to_bytes kp
       let v ←
         zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
           (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
           U8.Insts.ZeroizeDefaultIsZeroes)) z
       let s2 := alloc.vec.Vec.deref v
-      let out5 ← push_len_prefixed out4 s2
+      let out6 ← push_len_prefixed out5 s2
       let v1 ← tacenta_erasure.Encoder.to_bytes hdr_enc
       let s3 := alloc.vec.Vec.deref v1
-      push_len_prefixed out5 s3
+      push_len_prefixed out6 s3
     | State.HeaderSent epoch auth kp ct1_dec ek_enc =>
       do
       let a ← lift (core.num.U64.to_be_bytes epoch)
       let s ← lift (Array.to_slice a)
-      let out3 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 s
+      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s
       let a1 ← Auth.to_bytes auth
       let s1 ← lift (Array.to_slice a1)
-      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s1
+      let out5 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out4 s1
       let z ← tacenta_kem.IncrementalKeyPair.to_bytes kp
       let v ←
         zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
           (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
           U8.Insts.ZeroizeDefaultIsZeroes)) z
       let s2 := alloc.vec.Vec.deref v
-      let out5 ← push_len_prefixed out4 s2
+      let out6 ← push_len_prefixed out5 s2
       let v1 ← tacenta_erasure.Decoder.to_bytes ct1_dec
       let s3 := alloc.vec.Vec.deref v1
-      let out6 ← push_len_prefixed out5 s3
+      let out7 ← push_len_prefixed out6 s3
       let v2 ← tacenta_erasure.Encoder.to_bytes ek_enc
       let s4 := alloc.vec.Vec.deref v2
-      push_len_prefixed out6 s4
+      push_len_prefixed out7 s4
     | State.Ct1Received epoch auth kp ct1 ek_enc =>
       do
       let a ← lift (core.num.U64.to_be_bytes epoch)
       let s ← lift (Array.to_slice a)
-      let out3 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 s
+      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s
       let a1 ← Auth.to_bytes auth
       let s1 ← lift (Array.to_slice a1)
-      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s1
+      let out5 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out4 s1
       let z ← tacenta_kem.IncrementalKeyPair.to_bytes kp
       let v ←
         zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
           (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
           U8.Insts.ZeroizeDefaultIsZeroes)) z
       let s2 := alloc.vec.Vec.deref v
-      let out5 ← push_len_prefixed out4 s2
+      let out6 ← push_len_prefixed out5 s2
       let s3 := alloc.vec.Vec.deref ct1
-      let out6 ← push_len_prefixed out5 s3
+      let out7 ← push_len_prefixed out6 s3
       let v1 ← tacenta_erasure.Encoder.to_bytes ek_enc
       let s4 := alloc.vec.Vec.deref v1
-      push_len_prefixed out6 s4
+      push_len_prefixed out7 s4
     | State.EkSentCt1Received epoch auth kp ct1 ct2_dec =>
       do
       let a ← lift (core.num.U64.to_be_bytes epoch)
       let s ← lift (Array.to_slice a)
-      let out3 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 s
+      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s
       let a1 ← Auth.to_bytes auth
       let s1 ← lift (Array.to_slice a1)
-      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s1
+      let out5 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out4 s1
       let z ← tacenta_kem.IncrementalKeyPair.to_bytes kp
       let v ←
         zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
           (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
           U8.Insts.ZeroizeDefaultIsZeroes)) z
       let s2 := alloc.vec.Vec.deref v
-      let out5 ← push_len_prefixed out4 s2
+      let out6 ← push_len_prefixed out5 s2
       let s3 := alloc.vec.Vec.deref ct1
-      let out6 ← push_len_prefixed out5 s3
+      let out7 ← push_len_prefixed out6 s3
       let v1 ← tacenta_erasure.Decoder.to_bytes ct2_dec
       let s4 := alloc.vec.Vec.deref v1
-      push_len_prefixed out6 s4
+      push_len_prefixed out7 s4
     | State.NoHeaderReceived epoch auth hdr_dec =>
       do
       let a ← lift (core.num.U64.to_be_bytes epoch)
       let s ← lift (Array.to_slice a)
-      let out3 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 s
+      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s
       let a1 ← Auth.to_bytes auth
       let s1 ← lift (Array.to_slice a1)
-      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s1
+      let out5 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out4 s1
       let v ← tacenta_erasure.Decoder.to_bytes hdr_dec
       let s2 := alloc.vec.Vec.deref v
-      push_len_prefixed out4 s2
+      push_len_prefixed out5 s2
     | State.HeaderReceived epoch auth header ek_dec =>
       do
       let a ← lift (core.num.U64.to_be_bytes epoch)
       let s ← lift (Array.to_slice a)
-      let out3 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 s
+      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s
       let a1 ← Auth.to_bytes auth
       let s1 ← lift (Array.to_slice a1)
-      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s1
+      let out5 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out4 s1
       let s2 := alloc.vec.Vec.deref header
-      let out5 ← push_len_prefixed out4 s2
+      let out6 ← push_len_prefixed out5 s2
       let v ← tacenta_erasure.Decoder.to_bytes ek_dec
       let s3 := alloc.vec.Vec.deref v
-      push_len_prefixed out5 s3
+      push_len_prefixed out6 s3
     | State.Ct1Sampled epoch auth header encaps ct1 ct1_enc ek_dec =>
       do
       let a ← lift (core.num.U64.to_be_bytes epoch)
       let s ← lift (Array.to_slice a)
-      let out3 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 s
+      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s
       let a1 ← Auth.to_bytes auth
       let s1 ← lift (Array.to_slice a1)
-      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s1
+      let out5 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out4 s1
       let s2 := alloc.vec.Vec.deref header
-      let out5 ← push_len_prefixed out4 s2
+      let out6 ← push_len_prefixed out5 s2
       let z ← tacenta_kem.EncapsState.to_bytes encaps
       let v ←
         zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
           (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
           U8.Insts.ZeroizeDefaultIsZeroes)) z
       let s3 := alloc.vec.Vec.deref v
-      let out6 ← push_len_prefixed out5 s3
+      let out7 ← push_len_prefixed out6 s3
       let s4 := alloc.vec.Vec.deref ct1
-      let out7 ← push_len_prefixed out6 s4
+      let out8 ← push_len_prefixed out7 s4
       let v1 ← tacenta_erasure.Encoder.to_bytes ct1_enc
       let s5 := alloc.vec.Vec.deref v1
-      let out8 ← push_len_prefixed out7 s5
+      let out9 ← push_len_prefixed out8 s5
       let v2 ← tacenta_erasure.Decoder.to_bytes ek_dec
       let s6 := alloc.vec.Vec.deref v2
-      push_len_prefixed out8 s6
+      push_len_prefixed out9 s6
     | State.EkReceivedCt1Sampled epoch auth encaps ct1 ek_vector ct1_enc =>
       do
       let a ← lift (core.num.U64.to_be_bytes epoch)
       let s ← lift (Array.to_slice a)
-      let out3 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 s
+      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s
       let a1 ← Auth.to_bytes auth
       let s1 ← lift (Array.to_slice a1)
-      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s1
+      let out5 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out4 s1
       let z ← tacenta_kem.EncapsState.to_bytes encaps
       let v ←
         zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
           (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
           U8.Insts.ZeroizeDefaultIsZeroes)) z
       let s2 := alloc.vec.Vec.deref v
-      let out5 ← push_len_prefixed out4 s2
+      let out6 ← push_len_prefixed out5 s2
       let s3 := alloc.vec.Vec.deref ct1
-      let out6 ← push_len_prefixed out5 s3
+      let out7 ← push_len_prefixed out6 s3
       let s4 := alloc.vec.Vec.deref ek_vector
-      let out7 ← push_len_prefixed out6 s4
+      let out8 ← push_len_prefixed out7 s4
       let v1 ← tacenta_erasure.Encoder.to_bytes ct1_enc
       let s5 := alloc.vec.Vec.deref v1
-      push_len_prefixed out7 s5
+      push_len_prefixed out8 s5
     | State.Ct1Acknowledged epoch auth header encaps ct1 ek_dec =>
       do
       let a ← lift (core.num.U64.to_be_bytes epoch)
       let s ← lift (Array.to_slice a)
-      let out3 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 s
+      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s
       let a1 ← Auth.to_bytes auth
       let s1 ← lift (Array.to_slice a1)
-      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s1
+      let out5 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out4 s1
       let s2 := alloc.vec.Vec.deref header
-      let out5 ← push_len_prefixed out4 s2
+      let out6 ← push_len_prefixed out5 s2
       let z ← tacenta_kem.EncapsState.to_bytes encaps
       let v ←
         zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
           (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
           U8.Insts.ZeroizeDefaultIsZeroes)) z
       let s3 := alloc.vec.Vec.deref v
-      let out6 ← push_len_prefixed out5 s3
+      let out7 ← push_len_prefixed out6 s3
       let s4 := alloc.vec.Vec.deref ct1
-      let out7 ← push_len_prefixed out6 s4
+      let out8 ← push_len_prefixed out7 s4
       let v1 ← tacenta_erasure.Decoder.to_bytes ek_dec
       let s5 := alloc.vec.Vec.deref v1
-      push_len_prefixed out7 s5
+      push_len_prefixed out8 s5
     | State.Ct2Sampled epoch auth ct2_enc =>
       do
       let a ← lift (core.num.U64.to_be_bytes epoch)
       let s ← lift (Array.to_slice a)
-      let out3 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 s
+      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s
       let a1 ← Auth.to_bytes auth
       let s1 ← lift (Array.to_slice a1)
-      let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s1
+      let out5 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out4 s1
       let v ← tacenta_erasure.Encoder.to_bytes ct2_enc
       let s2 := alloc.vec.Vec.deref v
-      push_len_prefixed out4 s2
-    | State.Failed => ok out1
+      push_len_prefixed out5 s2
+    | State.Failed => ok out2
+  let left_val := alloc.vec.Vec.len out3
+  massert (left_val = len)
   zeroize.Zeroizing.new (alloc.vec.Vec.Insts.ZeroizeZeroize
-    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) out2
+    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) out3
 
 /-- [tacenta_braid::decode_state]:
-    Source: 'braid/src/lib.rs', lines 1705:0-2038:1 -/
+    Source: 'braid/src/lib.rs', lines 1836:0-2169:1 -/
 def decode_state
   (tag : Std.U8) (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option (State × Std.Usize))
@@ -2976,7 +3180,7 @@ def decode_state
   | _ => ok none
 
 /-- [tacenta_braid::{tacenta_braid::Braid}::from_bytes]:
-    Source: 'braid/src/lib.rs', lines 1659:4-1681:5
+    Source: 'braid/src/lib.rs', lines 1790:4-1812:5
     Visibility: public -/
 def Braid.from_bytes
   (bytes : Slice Std.U8) :

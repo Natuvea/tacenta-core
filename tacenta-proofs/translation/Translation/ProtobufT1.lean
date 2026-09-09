@@ -76,9 +76,7 @@ theorem varint_loop_no_panic
 @[step]
 theorem varint_no_panic (r : Reader) : Reader.varint r ⦃ fun _ => True ⦄ := by
   unfold Reader.varint
-  step* <;> first
-    | exact varint_loop_no_panic _ _ _ _ (by scalar_tac)
-    | simp
+  step*
 
 /-- Interpreting a tag cannot fail: pure arithmetic on a value already read.
 
@@ -189,21 +187,20 @@ loop is entered only in the state its invariant describes. -/
 theorem length_delimited_no_panic (r : Reader) :
     Reader.length_delimited r ⦃ fun _ => True ⦄ := by
   unfold Reader.length_delimited
-  step* <;> first
-    | (step with length_delimited_loop_no_panic <;> first | scalar_tac | simp_all)
-    | scalar_tac
-    | simp_all
+  step*
+  step with length_delimited_loop_no_panic
+  scalar_tac
 
 /-- And `slice_of`. -/
 @[step]
 theorem slice_of_no_panic (raw : Raw) (bytes : Slice U8) :
     Raw.slice_of raw bytes ⦃ fun _ => True ⦄ := by
   unfold Raw.slice_of
-  step* <;> first
-    | exact slice_of_loop_no_panic _ _ _ _ (by scalar_tac) (by scalar_tac)
-        (by simp; scalar_tac)
-    | scalar_tac
-    | simp_all
+  -- `step*` applies the copy loop's lemma and discharges all of its side
+  -- conditions but one: that the end offset is within the slice, which is the
+  -- bound the caller checked and which needs `Slice.len` read as a length.
+  step*
+  simp_all
 
 /-! ## The field set
 
@@ -245,9 +242,7 @@ allocator too. The limit is declared in the source and read here. -/
 theorem admit_no_panic (fs : FieldSet) (field : U32) :
     FieldSet.admit fs field ⦃ fun _ => True ⦄ := by
   unfold FieldSet.admit
-  step* <;> first
-    | scalar_tac
-    | simp_all
+  step*
 
 /-! ## The message parse
 
@@ -293,10 +288,9 @@ message or a refusal, and never a failure. -/
 theorem parse_ratchet_body_no_panic (bytes : alloc.vec.Vec U8) :
     parse_ratchet_body bytes ⦃ fun _ => True ⦄ := by
   unfold parse_ratchet_body
-  step* <;> first
-    | (step with parse_ratchet_body_loop_no_panic <;> first | scalar_tac | simp_all)
-    | scalar_tac
-    | simp_all
+  step*
+  step with parse_ratchet_body_loop_no_panic
+  first | scalar_tac | simp_all
   repeat' (split <;> (try step*))
 
 /-! ## The prekey envelope
@@ -330,10 +324,9 @@ theorem parse_prekey_body_loop_no_panic (st : EnvelopeParse) (turns : Usize)
 theorem parse_prekey_body_no_panic (bytes : alloc.vec.Vec U8) :
     parse_prekey_body bytes ⦃ fun _ => True ⦄ := by
   unfold parse_prekey_body
-  step* <;> first
-    | (step with parse_prekey_body_loop_no_panic <;> first | scalar_tac | (try simp_all))
-    | scalar_tac
-    | (try simp_all)
+  step*
+  step with parse_prekey_body_loop_no_panic
+  first | scalar_tac | (try simp_all)
   repeat' (split <;> (try step*))
 
 /-! ## Emitting
@@ -351,13 +344,13 @@ would refuse to read back. -/
 theorem push_bounded_no_panic (bytes : alloc.vec.Vec U8) (b : U8) :
     push_bounded bytes b ⦃ fun _ => True ⦄ := by
   unfold push_bounded
-  step* <;> first | scalar_tac | simp_all
+  step*
 
 @[step]
 theorem varint_step_no_panic (st : VarintOut) : varint_step st ⦃ fun _ => True ⦄ := by
   unfold varint_step
   step*
-  repeat' (first | (split <;> (try step*)) | (try step*))
+  repeat' (split <;> (try step*))
 
 theorem encode_varint_loop_no_panic (st : VarintOut) (turns : Usize)
     (h : turns.val ≤ MAX_VARINT_BYTES.val) :
@@ -376,10 +369,7 @@ theorem encode_varint_loop_no_panic (st : VarintOut) (turns : Usize)
 theorem encode_varint_no_panic (bytes : alloc.vec.Vec U8) (value : U32) :
     encode_varint bytes value ⦃ fun _ => True ⦄ := by
   unfold encode_varint
-  step* <;> first
-    | (step with encode_varint_loop_no_panic <;> first | scalar_tac | (try simp_all))
-    | scalar_tac
-    | (try simp_all)
+  step with encode_varint_loop_no_panic
   repeat' (split <;> (try step*))
 
 @[step]
@@ -418,11 +408,9 @@ theorem encode_length_delimited_loop_no_panic
 theorem encode_length_delimited_no_panic (bytes : alloc.vec.Vec U8) (value : Slice U8) :
     encode_length_delimited bytes value ⦃ fun _ => True ⦄ := by
   unfold encode_length_delimited
-  step* <;> first
-    | (step with encode_length_delimited_loop_no_panic <;>
-        first | scalar_tac | (try simp_all))
-    | scalar_tac
-    | (try simp_all)
+  step*
+  step with encode_length_delimited_loop_no_panic
+  first | scalar_tac | (try simp_all)
   repeat' (split <;> (try step*))
 
 @[step]

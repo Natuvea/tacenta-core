@@ -415,7 +415,8 @@ impl Encoder {
     /// useful from -- so no `Zeroizing` here; the Braid's own `to_bytes`
     /// wraps the whole composed buffer once, at the top.
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut out = Vec::new();
+        let len = self.encoded_len();
+        let mut out = Vec::with_capacity(len);
         out.extend_from_slice(&self.next.to_be_bytes());
         out.push(if self.exhausted { 0x01 } else { 0x00 });
         out.extend_from_slice(&(self.chunks.len() as u32).to_be_bytes());
@@ -424,7 +425,22 @@ impl Encoder {
             out.extend_from_slice(&self.chunks[i]);
             i += 1;
         }
+        // The buffer is sized once, ahead of the first write, so it never
+        // grows and never hands a half-written copy of itself back to the
+        // allocator. The assertion is what keeps the formula and the writes
+        // from drifting apart when either changes.
+        debug_assert_eq!(out.len(), len);
         out
+    }
+
+    /// Exactly how many bytes `to_bytes` writes: `next`, the exhausted flag
+    /// and the chunk count, then every chunk at full width. The same
+    /// arithmetic `from_bytes` reads back.
+    ///
+    /// Public because the Braid embeds this stream in its own persisted
+    /// state and sizes that buffer before writing any of it.
+    pub fn encoded_len(&self) -> usize {
+        2 + 1 + 4 + self.chunks.len() * CHUNK_BYTES
     }
 
     /// Reconstruct a stream from bytes produced by `to_bytes`.
@@ -676,7 +692,8 @@ impl Decoder {
     /// platform's `usize`, so a state persisted on one width restores
     /// correctly on the other.
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut out = Vec::new();
+        let len = self.encoded_len();
+        let mut out = Vec::with_capacity(len);
         out.extend_from_slice(&(self.size as u64).to_be_bytes());
         out.extend_from_slice(&(self.needed as u64).to_be_bytes());
         out.extend_from_slice(&(self.have.len() as u32).to_be_bytes());
@@ -687,7 +704,20 @@ impl Decoder {
             out.extend_from_slice(&c.data);
             i += 1;
         }
+        // Sized once, ahead of the first write, for the reason
+        // `Encoder::to_bytes` gives; the assertion holds the formula to what
+        // the writes actually produce.
+        debug_assert_eq!(out.len(), len);
         out
+    }
+
+    /// Exactly how many bytes `to_bytes` writes: `size`, `needed` and the
+    /// count of codewords held, then each codeword as its index and its
+    /// chunk. The same arithmetic `from_bytes` reads back.
+    ///
+    /// Public for the reason `Encoder::encoded_len` is.
+    pub fn encoded_len(&self) -> usize {
+        8 + 8 + 4 + self.have.len() * (2 + CHUNK_BYTES)
     }
 
     /// Reconstruct a decoder from bytes produced by `to_bytes`.
@@ -1073,6 +1103,12 @@ mod tests {
         }
 
         let bytes = enc.to_bytes();
+        // Sized before the first write and not grown into: the length is
+        // exactly what the chunk count implies, which is also what the
+        // `debug_assert_eq!` in `to_bytes` checks and what the Braid adds up
+        // when it sizes the buffer this stream is embedded in.
+        assert_eq!(bytes.len(), 2 + 1 + 4 + enc.needed() * CHUNK_BYTES);
+        assert_eq!(bytes.len(), enc.encoded_len());
         let mut restored = Encoder::from_bytes(&bytes).unwrap();
         assert_eq!(enc, restored);
 
@@ -1103,6 +1139,10 @@ mod tests {
         }
 
         let bytes = dec.to_bytes();
+        // Exactly what the codewords held imply, as `Encoder::to_bytes`
+        // above.
+        assert_eq!(bytes.len(), 8 + 8 + 4 + dec.received() * (2 + CHUNK_BYTES));
+        assert_eq!(bytes.len(), dec.encoded_len());
         let mut restored = Decoder::from_bytes(&bytes).unwrap();
         assert_eq!(dec, restored);
 

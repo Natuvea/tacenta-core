@@ -1081,3 +1081,45 @@ fn write_braid_receive_seeds() {
         role += 1;
     }
 }
+
+/// `to_bytes` sizes its buffer from `encoded_len` before its first write, so
+/// it never grows and never hands an allocation holding the authenticator's
+/// keys -- or, in five of these states, the whole decapsulation key -- back to
+/// the allocator unwiped.
+///
+/// What holds the formula to what is actually written is the
+/// `debug_assert_eq!` at the end of `to_bytes`, and what makes that a check of
+/// every arm is that some test reaches every state:
+/// `from_bytes_refuses_a_field_of_the_wrong_length` above collects one
+/// encoding per live tag and fails if the negotiation misses one, and
+/// `to_bytes_from_bytes_round_trips_the_failed_state` covers the twelfth.
+/// This one pins the three states whose length is fixed outright, where the
+/// arithmetic can be written out rather than read back off the encoder.
+#[test]
+fn to_bytes_writes_exactly_the_length_the_state_implies() {
+    // Version, tag, epoch, authenticator, and nothing else: nothing has been
+    // sampled yet.
+    let fresh = Braid::initiator(b"a preshared secret from the handshake");
+    assert_eq!(fresh.state_tag(), 0);
+    assert_eq!(fresh.to_bytes().len(), 1 + 1 + 8 + 64);
+
+    // The same, plus a header decoder holding no codewords yet: four bytes of
+    // length ahead of its `size`, `needed` and empty count.
+    let waiting = Braid::responder(b"a preshared secret from the handshake");
+    assert_eq!(waiting.state_tag(), 5);
+    assert_eq!(waiting.to_bytes().len(), 1 + 1 + 8 + 64 + 4 + (8 + 8 + 4));
+
+    // The failed state carries neither epoch nor authenticator.
+    let mut r = rng(41);
+    let mut a = Braid::initiator(b"secret");
+    let mut b = Braid::responder(b"a different secret");
+    let mut i = 0;
+    while i < 20 && !b.failed() {
+        let (m, _, _, next) = a.send(&mut r);
+        a = next;
+        Pair::receive_and_commit(&mut b, &m);
+        i += 1;
+    }
+    assert!(b.failed());
+    assert_eq!(b.to_bytes().len(), 1 + 1);
+}

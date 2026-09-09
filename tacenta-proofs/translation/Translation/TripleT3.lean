@@ -261,23 +261,31 @@ The `clone` and accessor clauses restate no leaf theorem -- no file proves
 them -- while the two initialisers restate
 `T3.init_sender_refines`/`init_receiver_refines`. -/
 def RatchetAgreesFor (α : tacenta_ratchet.State → Model.State.State) : Prop :=
+  -- mirrors: nothing -- no leaf theorem proves the derived `clone`
   (∀ s, ∃ r, tacenta_ratchet.State.Insts.CoreCloneClone.clone s = ok r ∧ α r = α s) ∧
+  -- mirrors: nothing -- no leaf theorem proves this accessor
   (∀ s, ∃ r, tacenta_ratchet.State.sending_public s = ok r ∧ keyOf r = (α s).dhsPub) ∧
+  -- mirrors: nothing -- no leaf theorem proves this accessor
   (∀ s, ∃ r, tacenta_ratchet.State.send_count s = ok r ∧ r.val = (α s).ns) ∧
+  -- mirrors: nothing -- no leaf theorem proves this accessor
   (∀ s, ∃ r, tacenta_ratchet.State.receive_count s = ok r ∧ r.val = (α s).nr) ∧
+  -- mirrors: Tacenta.T3.init_sender_refines in T3.lean
   (∀ (ec our_pub peer_pub dh_out : Array Std.U8 32#usize) (labels : tacenta_ratchet.LabelSet),
     ∃ r, tacenta_ratchet.init_sender ec our_pub peer_pub dh_out labels = ok r ∧
       α r = Model.Ratchet.initSender (keyOf ec) (keyOf our_pub) (keyOf peer_pub) (keyOf dh_out)
         (ratchetLabelsOf labels)) ∧
+  -- mirrors: Tacenta.T3.init_receiver_refines in T3.lean
   (∀ (ec our_pub : Array Std.U8 32#usize) (labels : tacenta_ratchet.LabelSet),
     ∃ r, tacenta_ratchet.init_receiver ec our_pub labels = ok r ∧
       α r = Model.Ratchet.initReceiver (keyOf ec) (keyOf our_pub) (ratchetLabelsOf labels)) ∧
+  -- mirrors: Tacenta.T3.send_refines in T3.lean
   (∀ s, ∃ r, tacenta_ratchet.send s = ok r ∧
     (∀ hdr mk, r.1 = core.result.Result.Ok (hdr, mk) →
       ∃ m' mh, Model.Ratchet.send (α s) = some (m', mh, keyOf mk) ∧
         α r.2 = m' ∧ RatchetHeaderR hdr mh) ∧
     (r.1 = core.result.Result.Err tacenta_ratchet.RatchetError.NoSendingChain →
       Model.Ratchet.send (α s) = none)) ∧
+  -- mirrors: Tacenta.T3.receive_refines in T3.lean
   (∀ (s : tacenta_ratchet.State) (hdr : tacenta_ratchet.Header) (mh : Model.State.Header),
     RatchetHeaderR hdr mh →
     ∀ (dh_out_recv dh_out_send new_dhs_pub : Array Std.U8 32#usize),
@@ -314,12 +322,17 @@ file header.
 `clone`, `epoch`, `init_alice` and `init_bob` restate no leaf theorem -- no
 file proves them. -/
 def SpqrAgreesFor (β : tacenta_spqr.State → Model.SparseRatchet.State) : Prop :=
+  -- mirrors: nothing -- no leaf theorem proves the derived `clone`
   (∀ s, ∃ r, tacenta_spqr.State.Insts.CoreCloneClone.clone s = ok r ∧ β r = β s) ∧
+  -- mirrors: nothing -- no leaf theorem proves this accessor
   (∀ s, ∃ r, tacenta_spqr.State.epoch s = ok r ∧ r.val = (β s).epoch) ∧
+  -- mirrors: nothing -- no leaf theorem proves this initialiser
   (∀ sk : Slice Std.U8, ∃ r, tacenta_spqr.State.init_alice sk = ok r ∧
     β r = Model.SparseRatchet.initAlice (sliceOf sk)) ∧
+  -- mirrors: nothing -- no leaf theorem proves this initialiser
   (∀ sk : Slice Std.U8, ∃ r, tacenta_spqr.State.init_bob sk = ok r ∧
     β r = Model.SparseRatchet.initBob (sliceOf sk)) ∧
+  -- mirrors: Tacenta.SpqrT3.send_refines in SpqrT3.lean
   (∀ (s : tacenta_spqr.State) (e : Std.U64) (out : Option tacenta_spqr.Output),
     (β s).epoch + 1 < Std.U64.max →
     (β s).chains.length + 1 < Usize.max →
@@ -335,6 +348,7 @@ def SpqrAgreesFor (β : tacenta_spqr.State → Model.SparseRatchet.State) : Prop
             = some (m', n.val, keyOf mk) ∧ β r.2 = m') ∧
       (∀ err, r.1 = core.result.Result.Err err →
         Model.SparseRatchet.send (β s) e.val (out.map spqrOutputOf) = none)) ∧
+  -- mirrors: Tacenta.SpqrT3.receive_refines in SpqrT3.lean
   (∀ (s : tacenta_spqr.State) (receiving_epoch : Std.U64) (out : Option tacenta_spqr.Output)
       (n : Std.U64),
     (β s).epoch + 1 < Std.U64.max →

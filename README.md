@@ -95,9 +95,10 @@ step can be reproduced elsewhere.
 One command runs the gate: `bash tooling/ci.sh`. The public CI
 (`.github/workflows/ci.yml`) runs the same steps on every push and pull
 request, split into jobs so a failure names its cause. The gate is: the
-workflow, proof-hygiene, label, vector-schema and authentication-boundary
-checks under `tooling/` (with the workflow checker held to its own case
-files under `tooling/tests/`); the Lean model build and the model-layer proofs with
+workflow, proof-hygiene, label, vector-schema, authentication-boundary and
+bundle-drift checks under `tooling/` (with the workflow and bundle-drift
+checkers each held to their own case files under `tooling/tests/`); the Lean
+model build and the model-layer proofs with
 their `sorry` scan; the attestation check; the committed vectors regenerated
 from the model and compared; the Rust crates (format, lint, tests,
 property-based decoder tests) with a dependency advisory audit, a compile

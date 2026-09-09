@@ -235,6 +235,13 @@ jobs:
       - run: bash tooling/check-workflows.sh
       - run: bash tooling/tests/run-check-workflows-cases.sh
       - run: bash tooling/check-proof-hygiene.sh
+      # `TripleT3.lean`'s two assumption bundles restate the inner ratchets'
+      # refinement theorems by hand, because Charon's per-crate translation
+      # makes citing them impossible. Nothing in the Lean build compares the
+      # two, and they have drifted twice. This does the comparison, and needs
+      # no Lean toolchain, so it belongs in this job.
+      - run: python3 tooling/check-bundle-drift.py
+      - run: bash tooling/tests/run-check-bundle-drift-cases.sh
       - run: bash tooling/check-labels.sh
       - run: python3 tooling/check_authentication_boundary.py
       - run: python3 tooling/check-vectors.py

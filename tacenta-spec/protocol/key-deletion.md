@@ -211,35 +211,45 @@ deleting them after an interval, triggered by a timer or by counting events.
   last-resort KEM key the handshake was made against, and refuses a repeat
   (`ReplayedLastResort`). **The record is bounded per key
   lifetime, and it fails closed.** It holds at most `MAX_LAST_RESORT_SEEN`
-  entries across the current key and the one the last rotation retired, and
-  it never evicts: a last-resort handshake it has not seen, arriving while it
-  is full, is refused (`LastResortRecordFull`) before anything is decrypted or
-  changed, and the store is left exactly as it was. It was once a window,
-  oldest evicted first, and a window is a count an unauthenticated peer can
-  drive: anyone holding the public bundle can complete a last-resort handshake
-  under a fresh identity in about a millisecond and a half, so 1024 of them
-  evicted a chosen victim's fingerprint in about two seconds, after which the
-  captured message replayed. What the bound measures now is how many distinct
-  last-resort handshakes a key has accepted over its lifetime, not how many
-  arrived recently. A key's entries leave the record when the key is wiped,
-  which is the rotation after the one that retires it; until then a replay
-  against the retired key is still a replay.
+  entries *for each* last-resort KEM key that can still decrypt -- the current
+  key and the one the last rotation retired, so at most two full budgets in
+  all -- and it never evicts: a last-resort handshake it has not seen,
+  arriving while the key it names has spent that key's budget, is refused
+  (`LastResortRecordFull`) before anything is decrypted or changed, and the
+  store is left exactly as it was. It was once a window, oldest evicted first,
+  and a window is a count an unauthenticated peer can drive: anyone holding
+  the public bundle can complete a last-resort handshake under a fresh
+  identity in well under a millisecond on a current laptop, so 1024 of them
+  evicted a chosen
+  victim's fingerprint in about two seconds, after which the captured message
+  replayed. What the bound measures now is how many distinct last-resort
+  handshakes one key has accepted over its lifetime, not how many arrived
+  recently. A key's entries leave the record when the key is wiped, which is
+  the rotation after the one that retires it; until then a replay against the
+  retired key is still a replay, counted against that key's own budget.
 
-  The cost of a full record falls on the last-resort path only; a handshake
-  naming a one-time KEM prekey never consults it. The operator has two levers,
-  and only one of them holds against a peer who is filling the record on
-  purpose. Rotating the last-resort KEM key releases the key's share of the
-  record once the following rotation wipes it, but the retired key still
-  decrypts until then and its public bundle is already in that peer's hands,
-  so at about a millisecond and a half per handshake the record is full again
-  in about a second; rotation opens a window, it does not close one.
+  The cost of a spent budget falls on the last-resort path only; a handshake
+  naming a one-time KEM prekey never consults the record. The operator has two
+  levers, and only one of them holds against a peer who is filling the record
+  on purpose. Rotating the last-resort KEM key relieves it on that rotation,
+  not the one after: because the budget is each key's own, the key the
+  rotation opens starts empty, and every bundle handed out from then on names
+  it, so the next handshake to arrive is counted against a clean budget while
+  the retired key keeps its entries and keeps refusing their replays. The
+  relief is real but brief against a peer who is filling the record on
+  purpose: the new bundle is the one they fetch too, and at about a
+  cost the fresh budget is spent again in a fraction of a second, so rotation
+  opens a window rather than closing one. No benchmark in the tree pins those
+  figures; what matters is the order of magnitude, which is that the work is
+  cheap for whoever is doing it.
   Replenishment keeps first contacts off this path altogether, and a
   directory that rate-limits bundle fetches bounds how fast anyone can fill
   the record; those two are the durable defence. `PrekeyStore::
-  last_resort_record_remaining` reports the room left, so an operator can see
-  the record filling rather than learn of it from a refused handshake. The
-  record persists with the store, tags included, so a restart neither reopens
-  the window nor loses the pruning.
+  last_resort_record_remaining` reports the room left under the current key --
+  the key every bundle now names, so the one whose budget the next arrival
+  spends -- and so lets an operator see the record filling rather than learn
+  of it from a refused handshake. The record persists with the store, tags
+  included, so a restart neither reopens the window nor loses the pruning.
 - **Signed prekeys rotate, and the retired one is kept for exactly one
   rotation.** `PrekeyStore::rotate_signed_prekey` generates a fresh curve
   prekey, signs it under the identity, and gives it the next identifier; the

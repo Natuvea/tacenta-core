@@ -314,24 +314,33 @@ fn from_bytes_refuses_a_repeated_fingerprint() {
     ));
 }
 
-/// A count above the bound is refused whatever the version claims, before
-/// the count sizes anything.
+/// A count no encoder of that version could have written is refused before it
+/// sizes anything, and the two versions differ in how large that is.
+///
+/// The bound is 1024 entries *per live last-resort key*. A v4 entry carries
+/// its own key's identifier and two keys can still decrypt, so a v4 file may
+/// legitimately hold two budgets and only a count above 2048 is impossible on
+/// its face. A v2 or v3 entry is a bare fingerprint that reads back under the
+/// current key alone, so every entry in such a file lands in one budget and a
+/// count above 1024 is already impossible. The per-key bound itself, which no
+/// count can express, is checked by `invariant` once the tags are known
+/// (`agreement_and_bounds.rs`).
 #[test]
-fn from_bytes_refuses_a_count_above_the_bound_in_v4_and_v3() {
+fn from_bytes_refuses_a_count_no_encoder_could_have_written() {
     let mut r = rng(8);
     let bob = Identity::generate(&mut r);
     let store = bob.create_prekeys(0, &mut r);
-    for version in [V4, V3] {
+    for (version, count) in [(V4, 2049u32), (V3, 1025u32)] {
         let mut bytes = store.to_bytes().to_vec();
         bytes[0] = version;
         let count_at = seen_count_offset(&bytes);
-        bytes[count_at..count_at + 4].copy_from_slice(&1025u32.to_be_bytes());
+        bytes[count_at..count_at + 4].copy_from_slice(&count.to_be_bytes());
         assert!(
             matches!(
                 PrekeyStore::from_bytes(&bytes),
                 Err(PrekeyStoreDecodeError::Malformed)
             ),
-            "version {version:#04x} must refuse a count above the bound"
+            "version {version:#04x} must refuse a count of {count}"
         );
     }
 }
@@ -520,10 +529,15 @@ fn from_bytes_refuses_a_one_time_kem_identifier_shared_with_a_last_resort_key() 
 
 // --------------------------------------------------------------- occupancy
 
-/// `last_resort_record_remaining` counts down as last-resort handshakes are
-/// accepted, holds through a refusal and through the rotation that retires a
-/// key, climbs back when the rotation after it wipes the key, and survives
-/// persistence.
+/// `last_resort_record_remaining` reports the room left under the **current**
+/// last-resort key: it counts down as handshakes against that key are
+/// accepted, holds through a refusal, returns to the full budget on the
+/// rotation that opens a new key, and survives persistence.
+///
+/// The retired key's entries are outside this number by construction. They
+/// stay in the record -- `to_bytes`'s length is what shows that, since the
+/// count reports only the current key -- and they leave when the next rotation
+/// wipes the key, without the number moving.
 #[test]
 fn the_record_reports_its_remaining_room() {
     let mut r = rng(13);
@@ -538,6 +552,7 @@ fn the_record_reports_its_remaining_room() {
     let captured = last_resort_initial(&first_bundle, b"first", &mut r);
     establish_responder(&bob, &mut store, &captured, &mut r).unwrap();
     assert_eq!(store.last_resort_record_remaining(), full - 1);
+    let one_entry = store.to_bytes().len();
 
     // A refused replay records nothing.
     assert!(matches!(
@@ -546,18 +561,110 @@ fn the_record_reports_its_remaining_room() {
     ));
     assert_eq!(store.last_resort_record_remaining(), full - 1);
 
-    // The rotation that retires the key keeps its entry; a handshake against
-    // the new key adds one.
+    // The rotation that retires the key opens a new one with a budget of its
+    // own, so the count goes back to full at once -- the lever the constant's
+    // note advertises, on the first rotation rather than the second.
     store.rotate_kem(&bob, &mut r);
-    assert_eq!(store.last_resort_record_remaining(), full - 1);
+    assert_eq!(store.last_resort_record_remaining(), full);
+    // The retired key's entry is still there: the encoding is a rotation's
+    // worth of retired prekey longer, and one 36-byte record entry longer than
+    // it would be had the entry gone.
+    let after_rotation = store.to_bytes().len();
+    assert!(
+        after_rotation > one_entry,
+        "the retired key's entry must still be in the record"
+    );
+
+    // A handshake against the new key is counted against the new budget only.
     let second = last_resort_initial(&store.publish_multi_use(), b"second", &mut r);
     establish_responder(&bob, &mut store, &second, &mut r).unwrap();
-    assert_eq!(store.last_resort_record_remaining(), full - 2);
-
-    // The rotation after it wipes the first key and frees its entry only.
-    store.rotate_kem(&bob, &mut r);
     assert_eq!(store.last_resort_record_remaining(), full - 1);
+    assert_eq!(store.to_bytes().len(), after_rotation + ENTRY);
+
+    // The rotation after it wipes the first key and drops its entry, which the
+    // encoding shows and this count -- the current key's -- does not: the
+    // second handshake's entry is now under the retired key, so the key this
+    // rotation opened reads full.
+    store.rotate_kem(&bob, &mut r);
+    assert_eq!(store.last_resort_record_remaining(), full);
+    assert_eq!(store.to_bytes().len(), after_rotation);
 
     let restored = PrekeyStore::from_bytes(&store.to_bytes()).unwrap();
-    assert_eq!(restored.last_resort_record_remaining(), full - 1);
+    assert_eq!(restored.last_resort_record_remaining(), full);
+}
+
+/// `last_resort_record_remaining_for` reports the same room by identifier,
+/// which is what makes the retired key's occupancy visible at all. The number
+/// an operator polls reads full straight after a rotation while the record
+/// still holds everything spent against the key that rotation retired, and
+/// this is what shows the other half.
+///
+/// An identifier that is neither live key gets `None` rather than a full
+/// budget: a key this store never issued has no budget, and one a rotation has
+/// wiped has none either, since a message naming it fails with
+/// `UnknownPrekeyId` before the record is consulted.
+#[test]
+fn each_live_key_reports_its_own_room_by_identifier() {
+    let mut r = rng(14);
+    let bob = Identity::generate(&mut r);
+    let mut store = bob.create_prekeys(0, &mut r);
+    // `MAX_LAST_RESORT_SEEN`, which is private, as above.
+    let full = 1024;
+
+    let first_id = store.publish_multi_use().kem_prekey_id;
+    assert_eq!(store.last_resort_record_remaining_for(first_id), Some(full));
+    // Identifiers are handed out in sequence from one, so nothing near this
+    // has been issued.
+    assert_eq!(
+        store.last_resort_record_remaining_for(first_id + 1000),
+        None
+    );
+
+    let captured = last_resort_initial(&store.publish_multi_use(), b"first", &mut r);
+    establish_responder(&bob, &mut store, &captured, &mut r).unwrap();
+    assert_eq!(
+        store.last_resort_record_remaining_for(first_id),
+        Some(full - 1)
+    );
+
+    // The rotation retires the first key and opens a second. The figure an
+    // operator polls reads full; the retired key's still shows the handshake
+    // spent against it, and that entry is still in the record.
+    store.rotate_kem(&bob, &mut r);
+    let second_id = store.publish_multi_use().kem_prekey_id;
+    assert_ne!(second_id, first_id);
+    assert_eq!(store.last_resort_record_remaining(), full);
+    assert_eq!(
+        store.last_resort_record_remaining_for(second_id),
+        Some(full)
+    );
+    assert_eq!(
+        store.last_resort_record_remaining_for(first_id),
+        Some(full - 1),
+        "the retired key's budget must still show what was spent against it"
+    );
+
+    // The rotation after it wipes the first key. A wiped key has no budget
+    // rather than a fresh one.
+    store.rotate_kem(&bob, &mut r);
+    let third_id = store.publish_multi_use().kem_prekey_id;
+    assert_eq!(store.last_resort_record_remaining_for(first_id), None);
+    assert_eq!(
+        store.last_resort_record_remaining_for(second_id),
+        Some(full)
+    );
+    assert_eq!(store.last_resort_record_remaining_for(third_id), Some(full));
+
+    // And both live figures survive persistence, since the record is written
+    // with the tags they read.
+    let restored = PrekeyStore::from_bytes(&store.to_bytes()).unwrap();
+    assert_eq!(
+        restored.last_resort_record_remaining_for(third_id),
+        Some(full)
+    );
+    assert_eq!(
+        restored.last_resort_record_remaining_for(second_id),
+        Some(full)
+    );
+    assert_eq!(restored.last_resort_record_remaining_for(first_id), None);
 }

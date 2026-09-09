@@ -39,6 +39,38 @@ is SemVer against the specified protocol (not the implementation).
   now states what is written and what is read.
 
 ### Changed
+- `protocol/key-deletion.md`, `protocol/session-establishment.md`,
+  `protocol/session-persistence.md` and `CONSTANTS.md`: the last-resort
+  replay record no longer evicts, and `MAX_LAST_RESORT_SEEN` bounds it **per
+  live last-resort KEM key** rather than across the record as a whole. Every
+  entry is tagged with the last-resort KEM key its handshake was made
+  against and is dropped when a rotation wipes that key, and the record
+  fails closed: a last-resort handshake whose fingerprint is not already
+  recorded is refused with `LastResortRecordFull`, with nothing decrypted
+  and nothing changed, once **the key it names** has spent that key's own
+  budget of 1024. So an unauthenticated peer can no longer push a victim's
+  fingerprint out of the record with cheap handshakes of its own and replay
+  the captured message, and it can no longer spend one key's budget to have
+  handshakes against the other refused: the current key and the one the last
+  rotation retired each have a budget of 1024, so the record's worst case is
+  two budgets. Counting per key is also what makes rotation the lever the
+  pages already described it as: the key `rotate_kem` opens starts empty and
+  is the key every bundle handed out afterwards names, so one rotation
+  relieves a spent budget, where a single shared bound freed nothing until
+  the following rotation wiped the retired key.
+  `last_resort_record_remaining` reports the room left under the current
+  key, the one whose budget the next arrival spends. key-deletion.md and
+  session-establishment.md also now say what a replay delivered, the
+  initiator's first plaintext a second time as a fresh session, rather than
+  calling it a denial of service, and name the operator's levers:
+  replenishment and rotation. The pages keep the honest limit -- against a
+  peer filling the record deliberately the relief lasts a fraction of a second,
+  because they fetch the new bundle too, so the durable defences remain a
+  directory that rate-limits bundle fetches and one-time KEM prekeys kept
+  stocked. The persisted format is unchanged at `0x04`, which already tags
+  every entry with its key; session-persistence.md states the reader's two
+  checks, a per-version ceiling on the stored count and the per-key bound as
+  a semantic rule over what was read. External review, 2026-09.
 - `protocol/session-persistence.md`: the "Validated, not only parsed"
   principle now says what being *inductive* costs the operations, rather
   than only asserting that the predicates are. Three counters reserve their
@@ -61,17 +93,6 @@ is SemVer against the specified protocol (not the implementation).
   entry under an unknown key, a repeated fingerprint) move from the
   format's own refusals into its semantic rules, beside the identifier
   rules, which the page had not stated.
-- `protocol/key-deletion.md` and `protocol/session-establishment.md`: the
-  last-resort replay record no longer evicts. It is bounded per key lifetime
-  -- entries are tagged with the last-resort KEM key they were made against
-  and dropped when a rotation wipes that key -- and fails closed: a new
-  last-resort handshake against a full record is refused with
-  `LastResortRecordFull` and nothing changes, so an unauthenticated peer
-  can no longer push a victim's fingerprint out with cheap handshakes of
-  its own and replay the captured message. Both pages now say what a
-  replay delivered, the initiator's first plaintext a second time as a
-  fresh session, rather than calling it a denial of service, and name the
-  operator's levers: replenishment and rotation.
 - `CONSTANTS.md`: `PREKEY_STORE_VERSION` is `0x04` written and `0x03`,
   `0x02`, `0x01` read; `MAX_LAST_RESORT_SEEN` is described as the
   fail-closed, per-key-lifetime bound it now is.
