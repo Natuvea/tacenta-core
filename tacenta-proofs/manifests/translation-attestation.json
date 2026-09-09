@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "_note": "Written only by `tacenta-proofs/scripts/attest.py --refresh-translation`, immediately after `scripts/run-aeneas.sh` on the pinned toolchain, and compared against by every other mode. A green `attest.py --check` establishes that each generated Translation/Tacenta*.lean is a module run-aeneas.sh produces, is byte for byte the file recorded here, declares exactly the axioms recorded here (as text; no-sorry.sh compares the same record with what the axiom audit saw in the built environment), and that the Rust verified zone it was generated from, and the workspace inputs that shape every zone's extraction (Cargo.toml and its profiles, Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed to when this was written, as recorded by whoever ran the toolchain. It does not establish that the toolchain was run, or run honestly: that is checked by regenerating with run-aeneas.sh and diffing, which REPRODUCING.md describes.",
-  "generated_at_commit": "1463cb27432f6a82893cbeea0d2b290871083114",
+  "generated_at_commit": "8275e604cdffe553337f210c91d3a05044291acc",
   "aeneas": {
     "release": "nightly-2026.07.22-b1214ca",
     "commit": "b1214ca0a024e8121f41fe2b2ed15e26af02373b"
@@ -71,7 +71,7 @@
       ],
       "zone": "tacenta-core/braid",
       "zone_sha256": "9424f9ae84dd203a49bad8a38aded36c5f37ebc4c6fe47de6112604268fd643b",
-      "workspace_sha256": "f106337baa6b1f3b1bf6edff16b16b35b0a73e25ea3a464bd2711debd4ce5ae4"
+      "workspace_sha256": "3e40b749dd5e98f45b661ccb8bf4e1cfb8fd410dcb0988acfa9622218b36d654"
     },
     "tacenta-proofs/translation/Translation/TacentaErasure.lean": {
       "module": "TacentaErasure",
@@ -82,7 +82,7 @@
       ],
       "zone": "tacenta-core/erasure",
       "zone_sha256": "16079c26659e181a3f3775e2480f0930d885816e0e1cbd63a30e606963fa33c9",
-      "workspace_sha256": "f106337baa6b1f3b1bf6edff16b16b35b0a73e25ea3a464bd2711debd4ce5ae4"
+      "workspace_sha256": "3e40b749dd5e98f45b661ccb8bf4e1cfb8fd410dcb0988acfa9622218b36d654"
     },
     "tacenta-proofs/translation/Translation/TacentaProtobuf.lean": {
       "module": "TacentaProtobuf",
@@ -90,7 +90,7 @@
       "axioms": [],
       "zone": "tacenta-core/protobuf",
       "zone_sha256": "839815a4a8324a10cf295f83be2f32c212a7451308470a436ade4daf75606ee9",
-      "workspace_sha256": "f106337baa6b1f3b1bf6edff16b16b35b0a73e25ea3a464bd2711debd4ce5ae4"
+      "workspace_sha256": "3e40b749dd5e98f45b661ccb8bf4e1cfb8fd410dcb0988acfa9622218b36d654"
     },
     "tacenta-proofs/translation/Translation/TacentaRatchet.lean": {
       "module": "TacentaRatchet",
@@ -114,7 +114,7 @@
       ],
       "zone": "tacenta-core/ratchet",
       "zone_sha256": "642b4982123b6f85107114d018960233810dc07f360199e238d376a4cb7174cc",
-      "workspace_sha256": "f106337baa6b1f3b1bf6edff16b16b35b0a73e25ea3a464bd2711debd4ce5ae4"
+      "workspace_sha256": "3e40b749dd5e98f45b661ccb8bf4e1cfb8fd410dcb0988acfa9622218b36d654"
     },
     "tacenta-proofs/translation/Translation/TacentaSession.lean": {
       "module": "TacentaSession",
@@ -130,7 +130,7 @@
       ],
       "zone": "tacenta-core/session",
       "zone_sha256": "afda348304a4756d2b3c60c269a4bc6445debf6f2a8d2bcff71986a1c5d22139",
-      "workspace_sha256": "f106337baa6b1f3b1bf6edff16b16b35b0a73e25ea3a464bd2711debd4ce5ae4"
+      "workspace_sha256": "3e40b749dd5e98f45b661ccb8bf4e1cfb8fd410dcb0988acfa9622218b36d654"
     },
     "tacenta-proofs/translation/Translation/TacentaSpqr.lean": {
       "module": "TacentaSpqr",
@@ -154,7 +154,7 @@
       ],
       "zone": "tacenta-core/spqr",
       "zone_sha256": "7cf75913e7cced51d0149aa1e0ba8babe072e4fcb7a10a3934559d8c5f24e0ef",
-      "workspace_sha256": "f106337baa6b1f3b1bf6edff16b16b35b0a73e25ea3a464bd2711debd4ce5ae4"
+      "workspace_sha256": "3e40b749dd5e98f45b661ccb8bf4e1cfb8fd410dcb0988acfa9622218b36d654"
     },
     "tacenta-proofs/translation/Translation/TacentaTriple.lean": {
       "module": "TacentaTriple",
@@ -199,7 +199,7 @@
       ],
       "zone": "tacenta-core/triple",
       "zone_sha256": "60d81eecde499686a2cc765fce9a4632dc5702a260afc9890d4d612878ba8a81",
-      "workspace_sha256": "f106337baa6b1f3b1bf6edff16b16b35b0a73e25ea3a464bd2711debd4ce5ae4"
+      "workspace_sha256": "3e40b749dd5e98f45b661ccb8bf4e1cfb8fd410dcb0988acfa9622218b36d654"
     }
   }
 }

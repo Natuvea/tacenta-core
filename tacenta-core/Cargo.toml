@@ -10,6 +10,19 @@ members = ["ratchet", "session", "kdf", "erasure", "kem", "braid", "spqr", "trip
 [profile.release]
 overflow-checks = true
 
+# One dependency compiled without them: `subtle` builds the mask for every
+# constant-time selection as `-(choice as i8)`, and the checked negation
+# turns that into a compare-and-branch into a panic block -- a branch that
+# cannot be taken (a `Choice` is 0 or 1, and only 128 would overflow) and so
+# leaks nothing, but a conditional branch inside the one function
+# `tooling/check-constant-time-asm.sh` reads for XEdDSA's key derivation
+# (`calculate_key_pair`'s `conditional_negate`). The gate refuses every
+# conditional branch there, on purpose, so the check is lifted from the crate
+# whose arithmetic is masks by design rather than allow-listed in the gate.
+# Nothing else in `subtle` does arithmetic that could wrap on a secret.
+[profile.release.package.subtle]
+overflow-checks = false
+
 # Dependencies optimised even in dev builds; our own crates stay unoptimised
 # with their debug assertions. libcrux's ML-KEM and the dalek curve arithmetic
 # are two orders of magnitude slower unoptimised, and the session-level tests
@@ -73,3 +86,8 @@ libcrux-ml-kem = { version = "0.0.10", default-features = false, features = ["ml
 rand = "0.8"
 hex = "0.4"
 proptest = "1"
+# Reads the XEdDSA vectors file so the Revision 1 transcription in
+# primitives/xeddsa.rs can be run over every vector as an oracle for the
+# file's "Revision 1 accepts" comments. Already in the lockfile through the
+# conformance runner's graph; a test-only dependency here.
+serde_json = "1"

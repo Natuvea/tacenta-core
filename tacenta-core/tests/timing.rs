@@ -58,7 +58,9 @@
 //! the narrative.
 
 use rand::SeedableRng;
+use std::cell::RefCell;
 use std::time::Instant;
+use tacenta_braid::Braid;
 use tacenta_core::primitives::aead;
 use tacenta_core::sessions::{self, Session, establish_initiator, establish_responder};
 
@@ -240,6 +242,64 @@ fn quantile(xs: &[f64], q: f64) -> f64 {
 /// sub-floor difference stays visible to a human.
 const EFFECT_FLOOR_NS: f64 = 5.0;
 
+/// The floor for the microsecond-scale paths -- the Braid's header MAC and the
+/// full session rejection -- as a fraction of the faster class's median, and
+/// a second, separately documented floor rather than a loosening of the first.
+///
+/// `EFFECT_FLOOR_NS` was derived for a ~200 ns operation whose two classes
+/// differ by the timer's quantization and nothing else. A 3 µs path is not
+/// that: it allocates (the candidate state, the reassembled header), walks
+/// kilobytes of state, and runs an HMAC, and the fast head of such a path
+/// drifts between two interleaved classes by tens of nanoseconds from
+/// allocator and cache state alone. On Apple Silicon the timer's own quantum
+/// is 41.67 ns (a 24 MHz timebase), so two medians of an identical operation
+/// can sit one quantum apart. A 5 ns gate on such a path fails on a quiet
+/// machine for reasons that are not leaks, which is the gate everyone learns
+/// to re-run.
+///
+/// So these paths are gated at 2 % of their own cost, or `EFFECT_FLOOR_NS`
+/// if that is larger: 60 ns on the ~3 µs Braid header path, and about 2.5 µs
+/// on the ~127 µs session path (measured on an M5 Pro: 3000 vs 3000 ns, both
+/// medians on the same quantum, and 127,250 vs 127,292 ns, one quantum
+/// apart). The honest statement of what each floor resolves is this, and
+/// the two are not the same. The Braid floor, ~60 ns, resolves a rejection
+/// path that does *different work* by class at the scale of one primitive:
+/// an HMAC-SHA256 skipped on one side (hundreds of nanoseconds), an early
+/// return before the comparison, the reassembled header not built. The
+/// session floor, ~2.5 µs, does not: an HMAC or an HKDF derivation skipped
+/// inside `Session::decrypt` is a sub-microsecond change on a ~127 µs path
+/// (the whole AEAD rejection it contains is about a microsecond) and sits
+/// under the floor. What that floor resolves is an omitted *agreement-scale*
+/// step -- a Diffie-Hellman, a KEM operation, a clone of the session state
+/// -- each tens of microseconds, and nothing finer. Neither floor resolves a
+/// ~10 ns byte-at-a-time short-circuit inside the comparison itself, which
+/// is below what a wall-clock median can see at either scale. The
+/// short-circuit question is answered where it can be: the ~200 ns tag test
+/// above for the AEAD, and `tooling/check-constant-time-asm.sh` for
+/// `mac_eq`, which reads the compiled comparison and fails on a conditional
+/// branch. The measured gap is printed either way, so a sub-floor
+/// difference stays visible to a human.
+const EFFECT_FLOOR_FRACTION: f64 = 0.02;
+
+/// Which floor a measurement is gated on. See the two constants.
+#[derive(Clone, Copy)]
+enum Floor {
+    /// `EFFECT_FLOOR_NS`: for operations of a few hundred nanoseconds.
+    Absolute,
+    /// The larger of `EFFECT_FLOOR_NS` and `EFFECT_FLOOR_FRACTION` of the
+    /// faster class's median: for microsecond-scale paths.
+    Relative,
+}
+
+impl Floor {
+    fn nanoseconds(self, med_a: f64, med_b: f64) -> f64 {
+        match self {
+            Floor::Absolute => EFFECT_FLOOR_NS,
+            Floor::Relative => EFFECT_FLOOR_NS.max(EFFECT_FLOOR_FRACTION * med_a.min(med_b)),
+        }
+    }
+}
+
 /// Measure, in one interleaved window, both the secret-dependent signal and a
 /// same-input null -- and return (|signal t|, |null t|).
 ///
@@ -328,7 +388,14 @@ fn signal_and_null(a: &[u8], b: &[u8], n: usize, reject: &impl Fn(&[u8])) -> (f6
 /// by <= 1 ns (measured) and does not. A test that `#[ignore]`d itself would
 /// reach the same conclusion; this one stays a gate, on the quantity that
 /// actually matters.
-fn run_leak_test(label: &str, a: &[u8], b: &[u8], reject: &impl Fn(&[u8]), leak_hint: &str) {
+fn run_leak_test(
+    label: &str,
+    a: &[u8],
+    b: &[u8],
+    reject: &impl Fn(&[u8]),
+    leak_hint: &str,
+    floor: Floor,
+) {
     // Make the CPU itself data-independent where it is not by default (Apple
     // Silicon), so the experiment measures the software and not the core.
     request_data_independent_timing();
@@ -359,24 +426,25 @@ fn run_leak_test(label: &str, a: &[u8], b: &[u8], reject: &impl Fn(&[u8]), leak_
     let med_a = median(&meds_a);
     let med_b = median(&meds_b);
     let effect = (med_a - med_b).abs();
+    let floor_ns = floor.nanoseconds(med_a, med_b);
 
     // The t-statistics are diagnostics, printed but not gated on: at this
     // operation size they report a huge |t| for a 1 ns quantization gap, and the
     // same-input null bounces with stray ticks even on an isolated core. The gate
-    // decides on the effect size (see EFFECT_FLOOR_NS).
+    // decides on the effect size (see EFFECT_FLOOR_NS and EFFECT_FLOOR_FRACTION).
     println!(
         "{label}: |t| signal = {signal_t:.2}, same-input null = {noise_t:.2}  (diagnostic only)"
     );
     println!(
-        "{label}: class medians = {med_a:.1} ns vs {med_b:.1} ns  =>  effect size = {effect:.2} ns  (leak floor {EFFECT_FLOOR_NS} ns)"
+        "{label}: class medians = {med_a:.1} ns vs {med_b:.1} ns  =>  effect size = {effect:.2} ns  (leak floor {floor_ns:.1} ns)"
     );
 
     assert!(
-        effect < EFFECT_FLOOR_NS,
+        effect < floor_ns,
         "{label}: distinguishable by timing. The two classes' median rejection times differ by \
-         {effect:.2} ns, at or above the {EFFECT_FLOOR_NS} ns leak floor (|t| = {signal_t:.2}). \
-         A constant-time path differs by <= 1 ns here, so a systematic gap this size is a real, \
-         usable leak, not the timer's quantization. {leak_hint}"
+         {effect:.2} ns, at or above the {floor_ns:.1} ns leak floor (|t| = {signal_t:.2}). \
+         A constant-time path differs by less than that here, so a systematic gap this size is \
+         a real, usable leak, not the timer's quantization. {leak_hint}"
     );
 }
 
@@ -437,6 +505,7 @@ fn the_tag_comparison_does_not_leak_how_much_of_the_tag_was_right() {
         "A short-circuiting comparison would let an attacker recover the tag one \
          byte at a time; check that `Mac::verify_slice` is still what does the \
          comparison in primitives/aead.rs.",
+        Floor::Absolute,
     );
 }
 
@@ -484,6 +553,163 @@ fn a_forged_ciphertext_rejects_in_time_independent_of_its_contents() {
         "Rejection time depends on ciphertext contents, which means this codebase \
          branched on or compared secret-derived bytes somewhere on the failure \
          path; check what the ratchet and AEAD touch before the MAC verifies.",
+        Floor::Absolute,
+    );
+}
+
+/// The Braid's header MAC comparison does not depend on how many leading
+/// bytes were correct.
+///
+/// `mac_eq` in `tacenta-braid` is a hand-written loop rather than a library
+/// call, because every dependency that crate has is a translation boundary
+/// (`LIMITATIONS.md`, "The Braid's MAC comparison is a hand-written loop").
+/// This is the measurement that goes with the inspection: a responder that
+/// has received two of the three chunks of the header (`HEADER_LEN + MAC_LEN`
+/// is 96 bytes, three systematic chunks of 32; the third chunk is the MAC
+/// itself) is timed receiving the third with the MAC wrong at byte 0 against
+/// wrong at byte 31. Both reassemble the header, both recompute the MAC, both
+/// fail; if the two are distinguishable the comparison stopped early.
+///
+/// `Braid::receive` is pure -- it hands back a candidate state and leaves the
+/// receiver untouched -- so one responder serves every sample. The path is
+/// about 3 µs (a state clone, the erasure decoder's reassembly, an HMAC),
+/// which is why it is gated on the relative floor; what that resolves and
+/// does not is stated at `EFFECT_FLOOR_FRACTION`.
+#[test]
+#[ignore = "timing-sensitive; run with --ignored"]
+fn the_braid_header_mac_does_not_leak_how_much_of_the_mac_was_right() {
+    print_stamp(&format!(
+        "{LEAK_ROUNDS} rounds × {LEAK_SAMPLES} samples per class"
+    ));
+    let mut r = rng(11);
+    let secret = [0x77u8; 32];
+    let initiator = Braid::initiator(&secret);
+    let responder = Braid::responder(&secret);
+
+    // The initiator streams its header as three systematic chunks; the
+    // responder takes the first two, and the third is what gets timed.
+    let (chunk0, _, _, initiator) = initiator.send(&mut r);
+    let (chunk1, _, _, initiator) = initiator.send(&mut r);
+    let (chunk2, _, _, _) = initiator.send(&mut r);
+    let (_, _, responder) = responder.receive(&chunk0);
+    let (_, _, responder) = responder.receive(&chunk1);
+    let mac_chunk = chunk2.data.expect("the third header chunk carries data");
+    assert_eq!(
+        mac_chunk.index, 2,
+        "the third chunk is systematic chunk 2, the MAC"
+    );
+
+    // Sanity: the untouched chunk completes the header (the responder moves
+    // on), and each forgery fails it (the responder is Failed).
+    let deliver = |bytes: &[u8]| {
+        let mut msg = chunk2;
+        msg.data.as_mut().expect("data").data.copy_from_slice(bytes);
+        responder.receive(&msg).2
+    };
+    assert_ne!(
+        deliver(&mac_chunk.data).state_tag(),
+        responder.state_tag(),
+        "the genuine third chunk must complete the header"
+    );
+    let mut early = mac_chunk.data;
+    early[0] ^= 0xff;
+    let mut late = mac_chunk.data;
+    late[31] ^= 0xff;
+    assert!(
+        deliver(&early).failed(),
+        "a MAC wrong at byte 0 must fail the header"
+    );
+    assert!(
+        deliver(&late).failed(),
+        "a MAC wrong at byte 31 must fail the header"
+    );
+
+    let reject = |bytes: &[u8]| {
+        let _ = std::hint::black_box(deliver(bytes));
+    };
+    run_leak_test(
+        "braid header mac",
+        &early,
+        &late,
+        &reject,
+        "The header MAC's rejection time depends on where the MAC stops matching. \
+         `mac_eq` in braid/src/lib.rs must accumulate every byte; check that it still \
+         does, and that nothing on the header path returns before it runs.",
+        Floor::Relative,
+    );
+}
+
+/// The full session rejection path does not depend on how many leading bytes
+/// of the tag were correct.
+///
+/// The AEAD tag test above measures `aead::decrypt` alone. This is the same
+/// question asked of everything a peer can actually time: `Session::decrypt`
+/// on a ratchet message, through header decoding, the agreement's receive,
+/// the ratchet step on a copy of the state, the message-key derivation and the
+/// tag check, with the tag wrong at byte 0 against wrong at byte 31. A failed
+/// decrypt discards every provisional change (`decrypt_ratchet`'s comment on
+/// candidate state), so one receiver serves every sample and each sample sees
+/// the same state.
+///
+/// Several microseconds of work, gated on the relative floor: what that
+/// resolves is a path that does different work by class, which is the
+/// composition claim `LIMITATIONS.md` makes ("branches on and compares only
+/// public data"); the comparison itself is the AEAD test's question.
+#[test]
+#[ignore = "timing-sensitive; run with --ignored"]
+fn the_session_rejection_path_does_not_leak_how_much_of_the_tag_was_right() {
+    print_stamp(&format!(
+        "{LEAK_ROUNDS} rounds × {LEAK_SAMPLES} samples per class"
+    ));
+    let mut r = rng(13);
+    let (mut alice, bob) = establish(&mut r);
+    let genuine = alice
+        .encrypt(b"a message whose tag is about to be wrong", &mut r)
+        .expect("encrypt");
+    let tag_at = genuine.len() - 32;
+
+    let mut early = genuine.clone();
+    early[tag_at] ^= 0xff;
+    let mut late = genuine.clone();
+    late[tag_at + 31] ^= 0xff;
+
+    let bob = RefCell::new(bob);
+    let r = RefCell::new(r);
+    let reject = |bytes: &[u8]| {
+        let outcome = bob.borrow_mut().decrypt(bytes, &mut *r.borrow_mut());
+        let _ = std::hint::black_box(outcome);
+    };
+
+    // Sanity: both forgeries are refused, and refused without moving the
+    // receiver -- the genuine message still decrypts afterwards, so every
+    // timed sample ran against the same state.
+    assert!(
+        bob.borrow_mut()
+            .decrypt(&early, &mut *r.borrow_mut())
+            .is_err()
+    );
+    assert!(
+        bob.borrow_mut()
+            .decrypt(&late, &mut *r.borrow_mut())
+            .is_err()
+    );
+
+    run_leak_test(
+        "session rejection",
+        &early,
+        &late,
+        &reject,
+        "Rejection time depends on where the tag stops matching, somewhere on the \
+         path from Session::decrypt to aead::decrypt; check what runs after the \
+         tag check fails, and that the AEAD still compares with Mac::verify_slice.",
+        Floor::Relative,
+    );
+
+    assert!(
+        bob.borrow_mut()
+            .decrypt(&genuine, &mut *r.borrow_mut())
+            .is_ok(),
+        "the genuine message must still decrypt after every forgery was refused"
     );
 }
 

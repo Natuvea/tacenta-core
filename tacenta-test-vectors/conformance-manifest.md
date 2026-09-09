@@ -291,15 +291,18 @@ thing in every row.
 | HKDF-SHA256 | RFC 5869 | `vectors/primitives/hkdf-sha256.json` | tacenta-core |
 | X25519 | RFC 7748 | `vectors/primitives/x25519.json` | tacenta-core |
 | Ed25519 | RFC 8032 | `vectors/primitives/ed25519.json` | `ed25519-dalek`, the trusted-boundary crate `xeddsa::verify` calls; tacenta-core exposes no Ed25519 API of its own, so the runner checks the crate directly at the version its lockfile pins |
-| XEdDSA | project-generated | `vectors/primitives/xeddsa.json` | tacenta-core, signing under a fixed nonce and verifying the result |
+| XEdDSA | project-generated | `vectors/primitives/xeddsa.json` | tacenta-core: three signing vectors, signed under a fixed nonce and verified; thirteen verify-only vectors at the edges of the accepted set (`s + l`, `s >= 2^253`, the sign bit, small-order `A` and `R`, non-canonical `R` and `u`, `u = p - 1`), each refused or accepted as its `result` says, with a per-vector comment stating whether XEdDSA Revision 1's `xeddsa_verify` accepts the same input, held to a transcription of that pseudocode by a test in `primitives/xeddsa.rs`, which in turn holds the transcription to ed25519-dalek's non-strict `verify` on every vector where both are defined, the four small-order-`A` vectors among them |
 
 **XEdDSA has no published known-answer vectors**: the specification carries
-none. The file is this implementation's own output for a fixed key, nonce and
-message, recorded so that a change to the nonce derivation, the scalar
-negation, or the sign-bit handling shows up as a diff. It is a pin, not a
-validation against an authority, and the row says so. The independent check
-is that every signature verifies under `ed25519-dalek`'s strict verifier, a
-separate implementation of the underlying scheme.
+none. The signing vectors are this implementation's own output for a fixed
+key, nonce and message, recorded so that a change to the nonce derivation,
+the scalar negation, or the sign-bit handling shows up as a diff. They are a
+pin, not a validation against an authority, and the row says so. The
+independent check is that every signature verifies under `ed25519-dalek`'s
+strict verifier, a separate implementation of the underlying scheme. The
+verify-only vectors pin the other thing a reader needs to know about a
+verifier with no authority to check against: exactly where its accepted set
+ends, and on which side of each edge Revision 1 stands.
 
 ## Not yet covered
 

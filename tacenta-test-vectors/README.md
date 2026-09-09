@@ -70,13 +70,27 @@ when the generator succeeds. An empty diff means the committed vectors are
 current. Two things are not regenerated. The primitive vectors are
 standards' known answers, plus the XEdDSA file, which is project-generated
 by tacenta-core (`primitives/xeddsa.rs`) rather than by the model: its first
-vector is the pin the crate's own test carries; the other two (the same key
+vector is the pin the crate's own test carries; the next two (the same key
 under a different nonce, and a different key over an empty message) are
 this implementation's output. The runner re-signs each with its recorded
 nonce and compares, then verifies the result through ed25519-dalek's strict
 verify, which is the check against an independent implementation; the
-file's `source` field states the same. And the malformed-input file is
-hand-authored, as above.
+file's `source` field states the same. The remaining thirteen are
+verify-only (`public`, `message`, `signature`, and a `result`): they pin the
+edges of the accepted set, where `verify` differs from XEdDSA Revision 1 by
+design -- narrower on `s` (`s < l`, not `s < 2^253`) and on small-order `R`
+or `A`, wider on the sign bit the interoperability profile carries in
+`signature[63]`, and in agreement on non-canonical encodings. Each such
+comment opens with `Revision 1 accepts:` or `Revision 1 rejects:`, and a
+test in tacenta-core runs a transcription of the specification's own
+`xeddsa_verify` over the file so that column is checked, not asserted. The
+transcription is in turn held to a second oracle it shares no code with,
+ed25519-dalek's non-strict `verify` (the same equation without the cofactor,
+no small-order refusal), on every vector where that oracle is defined
+(`u < p`, an Edwards image, `s < l`), which includes the four small-order-`A`
+vectors: those are the inputs on which a transcription that negates the
+scalar rather than the point gives the wrong verdict, and the second oracle
+is what catches it. And the malformed-input file is hand-authored, as above.
 
 ## Status
 
