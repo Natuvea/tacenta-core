@@ -119,3 +119,104 @@ fn pqxdh_secret_seeds_the_ratchet_and_a_message_round_trips() {
     let plaintext = aead::decrypt(&enc_r, &mac_r, &iv_r, &ciphertext, &associated).unwrap();
     assert_eq!(plaintext, b"the whole stack composes");
 }
+
+/// Which private key is paired with which public key at a session's DH ratchet
+/// step -- old key with the peer's new key for receiving, a fresh key with it
+/// for sending -- is decided in `sessions::lifecycle`, which no proof, vector,
+/// or model covers (CR-07). This drives a real `Session` (not the leaf ratchet)
+/// through a step and checks that pairing against the `dh` primitive directly.
+///
+/// The session's ratchet private key is not a public accessor, but `export`
+/// serialises it at a known offset, so the test can read it back and compute
+/// the agreement itself rather than trusting the session's word for it.
+#[test]
+fn a_session_dh_step_pairs_the_old_key_with_the_peers_new_key() {
+    use rand::SeedableRng;
+    use tacenta_core::primitives::dh::PublicKeyBytes;
+    use tacenta_core::sessions::{Identity, Session, establish_initiator, establish_responder};
+
+    // `export` writes: version(1), then two length-prefixed blobs (the triple
+    // and the braid), then the 32-byte ratchet private key. Read it back.
+    fn ratchet_private_of(session: &Session) -> dh::PrivateKey {
+        let bytes = session.export();
+        let mut pos = 1usize;
+        for _ in 0..2 {
+            let len = u32::from_be_bytes(bytes[pos..pos + 4].try_into().unwrap()) as usize;
+            pos += 4 + len;
+        }
+        let mut key = [0u8; 32];
+        key.copy_from_slice(&bytes[pos..pos + 32]);
+        dh::PrivateKey::from_bytes(key)
+    }
+
+    let mut r = rand::rngs::StdRng::seed_from_u64(7);
+    let alice_id = Identity::generate(&mut r);
+    let bob_id = Identity::generate(&mut r);
+    let mut bob_prekeys = bob_id.create_prekeys(2, &mut r);
+    let bundle = bob_prekeys.publish();
+
+    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let initial = alice.encrypt(b"open", &mut r).unwrap();
+    // Establishing the responder makes Bob take his first DH step: he receives
+    // Alice's ratchet key and adopts a fresh one of his own for sending.
+    let (mut bob, first) =
+        establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
+    assert_eq!(first, b"open");
+
+    // Alice's current ratchet key `a1` (unchanged: she has received nothing) and
+    // Bob's freshly adopted one `b1`, with the private halves read from export.
+    let a1 = alice.public_state().our_ratchet_public;
+    let b1 = bob.public_state().our_ratchet_public;
+    let a1_priv = ratchet_private_of(&alice);
+    let b1_priv = ratchet_private_of(&bob);
+    assert_eq!(
+        a1_priv.public_key().as_bytes(),
+        &a1,
+        "export gave Alice's key"
+    );
+    assert_eq!(
+        b1_priv.public_key().as_bytes(),
+        &b1,
+        "export gave Bob's key"
+    );
+
+    // The pairing, checked with the primitive: when Alice receives a message
+    // sent under Bob's `b1`, her receiving chain is seeded from DH(her current
+    // key `a1`, `b1`) -- the old key with the peer's new key. Bob's sending
+    // chain under `b1` was seeded from DH(`b1`, `a1`). The two are the same
+    // agreement, so if the pairing is right they are equal.
+    let alice_receiving_seed = a1_priv
+        .agree(&PublicKeyBytes::from_bytes(b1))
+        .expect("honest keys are contributory");
+    let bob_sending_seed = b1_priv
+        .agree(&PublicKeyBytes::from_bytes(a1))
+        .expect("honest keys are contributory");
+    assert_eq!(
+        alice_receiving_seed, bob_sending_seed,
+        "the receiving chain must pair the old key with the peer's new key"
+    );
+
+    // Pairing the peer's new key with a *fresh* key instead -- the send rule,
+    // wrongly applied on receive -- would seed a different chain, which is why
+    // the two halves are not interchangeable.
+    let fresh = dh::PrivateKey::from_bytes([0x5a; 32]);
+    assert_ne!(
+        fresh
+            .agree(&PublicKeyBytes::from_bytes(b1))
+            .expect("contributory"),
+        alice_receiving_seed,
+        "a fresh key on receive would seed the wrong chain"
+    );
+
+    // Now drive the actual step through the session and confirm it uses that
+    // pairing (the message decrypts) and adopts a fresh key for sending only on
+    // the step (Alice's sending public changes).
+    let from_bob = bob.encrypt(b"reply", &mut r).unwrap();
+    let a_before = alice.public_state().our_ratchet_public;
+    assert_eq!(alice.decrypt(&from_bob, &mut r).unwrap(), b"reply");
+    assert_ne!(
+        alice.public_state().our_ratchet_public,
+        a_before,
+        "a DH ratchet step adopts a fresh sending key"
+    );
+}

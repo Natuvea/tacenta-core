@@ -61,7 +61,11 @@ pub fn message_type(bytes: &[u8]) -> Option<MessageType> {
 
 /// Why a decode failed. Distinct from an authentication failure, and no more
 /// informative than "not acceptable".
+///
+/// `#[non_exhaustive]`: pre-1.0, so new decode-failure reasons are not a
+/// breaking change and a consumer must carry a wildcard arm (CR-27).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[non_exhaustive]
 pub enum DecodeError {
     /// The version byte is not one this implementation accepts.
     UnknownVersion,

@@ -67,7 +67,8 @@ impl Identity {
     ///
     /// A transport that authenticates a device by challenge needs this: the
     /// server issues a challenge and the client proves possession of the
-    /// identity by signing it. Verified with [`verify_under_identity`].
+    /// identity by signing it. Verified with
+    /// [`verify_under_identity`](super::verify_under_identity).
     ///
     /// Distinct from the private `sign`, which signs prekeys as part of the
     /// handshake, and distinct *cryptographically* rather than only by name:
@@ -302,16 +303,20 @@ pub struct PrekeyStore {
 
 /// Erased on drop, by hand rather than by derive.
 ///
-/// The derive cannot reach the two collections: `zeroize` implements `Zeroize`
-/// for `Vec<Z> where Z: Zeroize` but not for tuples, and both one-time
-/// collections are vectors of tuples. Writing the destructor out covers them,
-/// and it is the same answer `tacenta_spqr::State` already gives for the same
-/// reason one crate over.
+/// A `#[derive(Zeroize)]` over the whole struct will not compile: several
+/// fields are not `Zeroize` at all -- the identity's *public* key, and the
+/// `kem::KeyPair`s, which erase themselves through their own `Drop` rather than
+/// through `Zeroize`. (`zeroize` 1.9 does implement `Zeroize` for tuples, so
+/// the two one-time vectors of tuples are not the obstacle; the un-`Zeroize`
+/// field types are.) Writing the destructor out lets it wipe exactly the secret
+/// fields and leave the rest, which is the same answer `tacenta_spqr::State`
+/// gives one crate over.
 ///
-/// The KEM key pairs are not touched here and do not need to be: `kem::KeyPair`
-/// erases itself, so dropping the vectors that hold them wipes them. The
-/// identifiers, the identity's *public* key, and the signatures are public and
-/// are left alone.
+/// So this wipes only what is secret and not already self-wiping: the signed
+/// prekey secret, the retired signed prekey secret, and the one-time curve
+/// secrets. The KEM key pairs are left to their own erasure -- dropping the
+/// vectors that hold them wipes them -- and the identifiers, the identity's
+/// public key, and the signatures are public and left alone.
 impl Drop for PrekeyStore {
     fn drop(&mut self) {
         self.signed_prekey_secret.zeroize();
@@ -413,6 +418,13 @@ impl PrekeyStore {
         // exact trap `next_id`'s own note describes. Unreachable in any real
         // store, so it is refused quietly rather than panicked on: a store
         // that has issued four billion identifiers stops issuing them.
+        //
+        // Reserved before the loop so the vector never grows mid-push: a `Vec`
+        // that outgrows its allocation moves the 32-byte one-time secrets to a
+        // larger block and hands the smaller back to the allocator un-wiped,
+        // which the hand-written `Drop` cannot reach (CR-15). The same reason
+        // `to_bytes` sizes its buffer up front.
+        self.one_time.reserve_exact(count);
         for _ in 0..count {
             let Some(next) = self.next_id.checked_add(1) else {
                 return;
@@ -421,6 +433,7 @@ impl PrekeyStore {
             self.next_id = next;
             self.one_time.push((id, random_secret(rng)));
         }
+        self.kem_one_time.reserve_exact(count);
         for _ in 0..count {
             let Some(next) = self.next_id.checked_add(1) else {
                 return;
@@ -596,14 +609,21 @@ impl PrekeyStore {
     /// The secret is zeroized *in place* before the entry is removed, and
     /// nothing is returned: handing the bare array back to a caller that
     /// discards it would make "deleted" mean "dropped unwiped".
-    /// The vacated slot at the end of the vector afterwards holds a
-    /// copy of whichever live entry `swap_remove` moved, which is the same
-    /// exposure as the live entry itself and is wiped with it on drop.
+    ///
+    /// Removed by zeroize, swap-with-last, then `pop`, rather than by
+    /// `swap_remove` (CR-15). `swap_remove` moves the last entry into slot `i`
+    /// and truncates, which leaves the moved entry's *original* tail slot
+    /// holding a live copy of its secret beyond `len` -- outside the reach of
+    /// `Drop`'s `iter_mut`. Swapping first and popping the now-dead tail slot
+    /// means the byte range that leaves the vector holds only the zeros written
+    /// into the removed entry.
     fn take_one_time(&mut self, id: u32) -> bool {
         match self.one_time.iter().position(|(k, _)| *k == id) {
             Some(i) => {
                 self.one_time[i].1.zeroize();
-                self.one_time.swap_remove(i);
+                let last = self.one_time.len() - 1;
+                self.one_time.swap(i, last);
+                self.one_time.pop();
                 true
             }
             None => false,
@@ -643,9 +663,18 @@ impl PrekeyStore {
     /// Remove and return the one-time KEM prekey with this identifier. Removing
     /// it is the deletion the specification requires: a one-time key is used
     /// once and its private half must not outlive that use.
+    ///
+    /// Swap-with-last then `pop`, the same shape as `take_one_time` (CR-15).
+    /// Unlike the curve secrets, a `kem::KeyPair` holds its secret behind a
+    /// `Zeroizing<Vec<u8>>`, so the entry moved by the swap leaves only a
+    /// moved-from pointer in the dead tail slot, not a copy of the key bytes;
+    /// the returned pair carries the sole live copy and erases it when the
+    /// caller drops it. Written the same way so the two removals read alike.
     fn take_one_time_kem(&mut self, id: u32) -> Option<kem::KeyPair> {
         let i = self.kem_one_time.iter().position(|(k, _, _)| *k == id)?;
-        let (_, pair, _) = self.kem_one_time.swap_remove(i);
+        let last = self.kem_one_time.len() - 1;
+        self.kem_one_time.swap(i, last);
+        let (_, pair, _) = self.kem_one_time.pop()?;
         Some(pair)
     }
 
@@ -802,7 +831,13 @@ impl PrekeyStore {
             return Err(PrekeyStoreDecodeError::TooShort);
         };
         pos += 4;
-        let mut one_time = Vec::new();
+        // Sized up front so the vector never grows as the loop pushes and never
+        // strands an outgrown block of one-time secrets un-wiped (CR-15). The
+        // count is untrusted, so the capacity is clamped to what the remaining
+        // bytes could actually hold -- each entry is exactly 36 bytes on the
+        // wire -- rather than trusting the header to size an allocation.
+        let one_time_capacity = (one_time_count as usize).min(bytes.len().saturating_sub(pos) / 36);
+        let mut one_time = Vec::with_capacity(one_time_capacity);
         for _ in 0..one_time_count {
             if bytes.len() < pos + 36 {
                 return Err(PrekeyStoreDecodeError::TooShort);
@@ -840,7 +875,13 @@ impl PrekeyStore {
             return Err(PrekeyStoreDecodeError::TooShort);
         };
         pos += 4;
-        let mut kem_one_time = Vec::new();
+        // Sized up front like the curve vector above (CR-15). A KEM one-time
+        // entry is at least 72 bytes on the wire (id, a length prefix, a
+        // signature), so the untrusted count is clamped to what the remaining
+        // bytes could hold rather than trusted to size the allocation.
+        let kem_one_time_capacity =
+            (kem_one_time_count as usize).min(bytes.len().saturating_sub(pos) / 72);
+        let mut kem_one_time = Vec::with_capacity(kem_one_time_capacity);
         for _ in 0..kem_one_time_count {
             let Some(id) = read_prekey_u32(bytes, pos) else {
                 return Err(PrekeyStoreDecodeError::TooShort);
@@ -952,7 +993,7 @@ impl PrekeyStore {
             return Err(PrekeyStoreDecodeError::Malformed);
         }
 
-        Ok(PrekeyStore {
+        let store = PrekeyStore {
             last_resort_seen,
             identity_public: dh::PublicKeyBytes::from_bytes(identity_public),
             signed_prekey_secret,
@@ -966,16 +1007,31 @@ impl PrekeyStore {
             previous_signed_prekey,
             previous_kem,
             next_id,
-        })
+        };
+
+        // Canonicality backstop for the current version, the same one
+        // `Session::import` applies (CR-18): if the decoded store does not
+        // re-encode to the exact bytes it came from, they were not produced by
+        // `to_bytes` and are refused. Skipped for v1 and v2, which legitimately
+        // re-encode to v3 (they gain the fields the newer format added), so a
+        // re-encode comparison there would reject every honest upgrade.
+        if version == PREKEY_STORE_VERSION && store.to_bytes().as_slice() != bytes {
+            return Err(PrekeyStoreDecodeError::NonCanonical);
+        }
+
+        Ok(store)
     }
 }
 
 /// This module's own persistence-format version for `PrekeyStore::to_bytes`/
 /// `from_bytes`, separate from any on-the-wire message version.
-/// The version `to_bytes` writes. `from_bytes` also accepts
-/// `PREKEY_STORE_VERSION_V1`, which is the same format without the
-/// last-resort fingerprints; such a store reads back with none remembered,
-/// which is the honest answer -- it never recorded any.
+///
+/// The version `to_bytes` writes. `from_bytes` also accepts the two earlier
+/// formats so an older store still restores: `PREKEY_STORE_VERSION_V2`, which
+/// lacks the retired-prekey fields (it reads back with nothing retired), and
+/// `PREKEY_STORE_VERSION_V1`, which additionally lacks the last-resort
+/// fingerprints (it reads back with none remembered). Both are the honest
+/// answer for a store written before those fields existed.
 const PREKEY_STORE_VERSION: u8 = 0x03;
 /// The format before prekey rotation: v2 without the
 /// two retired-prekey fields. Reads back with nothing retired.
@@ -987,10 +1043,19 @@ const PREKEY_STORE_VERSION_V1: u8 = 0x01;
 /// `SessionDecodeError`, the threat model is corruption and version skew,
 /// not a hostile peer.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[non_exhaustive]
 pub enum PrekeyStoreDecodeError {
     UnknownVersion,
     TooShort,
     Malformed,
+    /// The bytes decoded, and re-encoding the result did not reproduce them.
+    ///
+    /// The same backstop `Session::import` carries (CR-18): a current-version
+    /// (v3) store whose bytes are not the encoding of what they decode to was
+    /// not produced by `to_bytes`, and is refused rather than accepted under a
+    /// second spelling. Only checked for v3; v1 and v2 legitimately re-encode
+    /// to the current version and so are exempt.
+    NonCanonical,
 }
 
 fn read_prekey_u32(bytes: &[u8], pos: usize) -> Option<u32> {
@@ -1003,7 +1068,12 @@ fn read_prekey_u32(bytes: &[u8], pos: usize) -> Option<u32> {
 }
 
 /// What can go wrong establishing or advancing a session.
+///
+/// `#[non_exhaustive]` because this crate is pre-1.0 and the receive and
+/// establish paths are still gaining refusals (CR-27): a consumer must have a
+/// wildcard arm, so that adding a variant is not a breaking change.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[non_exhaustive]
 pub enum Error {
     /// The composition refused: either ratchet may be the reason, and the
     /// variant carries which.
@@ -1016,12 +1086,21 @@ pub enum Error {
     Decode(DecodeError),
     /// A curve public key on the wire was not a recognised encoding.
     BadEncoding,
+    /// A bundle's one-time prekey and its identifier disagree on presence: one
+    /// is present and the other absent. A directory that serves such a bundle
+    /// would make the two sides derive different shared secrets, so it is
+    /// refused here rather than left to surface as an opaque AEAD failure that
+    /// looks like a network fault (CR-17).
+    InconsistentBundle,
+    /// The bundle's identity key is not the one the caller expected. Pinning is
+    /// an argument of [`establish_initiator_for`], so a substituted bundle from
+    /// the directory is refused during establishment rather than by a
+    /// `peer_identity()` comparison the caller must remember to make (CR-27).
+    UnexpectedIdentity,
     /// An identifier named a prekey the store does not hold.
     UnknownPrekeyId,
     /// The AEAD did not authenticate.
     Aead,
-    /// The ratchet rejected the step.
-    Ratchet(ratchet::RatchetError),
     /// An initial message arrived on an established session and is not a repeat
     /// of the one that established it. Opening a session is
     /// `establish_responder`'s job, and doing it here would discard this one.
@@ -1187,12 +1266,53 @@ fn identity_ad(initiator: &dh::PublicKeyBytes, responder: &dh::PublicKeyBytes) -
 
 /// Establish a session as the initiator, from the peer's published bundle. The
 /// session is returned pending: the first `encrypt` produces the initial message.
+///
+/// **This trusts whatever identity the bundle carries.** A directory that
+/// substitutes a bundle yields a session to that directory unless the caller
+/// compares [`Session::peer_identity`] afterwards. When the caller already
+/// knows which identity it means to reach -- the usual case, a contact whose
+/// key it has pinned -- prefer [`establish_initiator_for`], which folds that
+/// comparison into establishment so it cannot be forgotten (CR-27).
 pub fn establish_initiator<R: RngCore + CryptoRng>(
     our_identity: &Identity,
     their_bundle: &PublishedBundle,
     rng: &mut R,
 ) -> Result<Session, Error> {
+    // No identity to pin against, so pin against the one the bundle carries:
+    // this is exactly the trusting behaviour above, expressed as a delegation
+    // rather than duplicated.
+    let expected = their_bundle.bundle.identity_key;
+    establish_initiator_for(our_identity, their_bundle, &expected, rng)
+}
+
+/// Establish a session as the initiator against a **known** peer identity.
+///
+/// Identical to [`establish_initiator`] except that the bundle's identity key
+/// must equal `expected_identity`; a mismatch is [`Error::UnexpectedIdentity`]
+/// and no session is created. This is the pinning most callers want: the
+/// comparison a substituted bundle would otherwise slip past becomes a
+/// precondition of establishment rather than a follow-up the caller must
+/// remember (CR-27).
+pub fn establish_initiator_for<R: RngCore + CryptoRng>(
+    our_identity: &Identity,
+    their_bundle: &PublishedBundle,
+    expected_identity: &dh::PublicKeyBytes,
+    rng: &mut R,
+) -> Result<Session, Error> {
     let bundle = &their_bundle.bundle;
+    // Pin the identity before any work: a substituted bundle is refused here,
+    // not discovered later through `peer_identity()`.
+    if bundle.identity_key != *expected_identity {
+        return Err(Error::UnexpectedIdentity);
+    }
+    // The one-time prekey and its identifier must agree on presence. A
+    // directory serving one without the other makes the two sides fold a
+    // different fourth agreement, so they derive different shared secrets and
+    // the handshake wedges silently; refused here as a malformed bundle rather
+    // than left to look like a network fault (CR-17).
+    if bundle.one_time_prekey.is_some() != (their_bundle.one_time_prekey_id != ABSENT_ID) {
+        return Err(Error::InconsistentBundle);
+    }
     // PQXDH §3.3 verifies the bundle's signatures before anything else, and
     // so does this, rather than spending a KEM encapsulation against a prekey
     // nobody has vouched for. `initiator_shared_secret` still verifies for its
@@ -1212,9 +1332,14 @@ pub fn establish_initiator<R: RngCore + CryptoRng>(
 
     let ratchet_private = dh::PrivateKey::from_bytes(random_secret(rng));
     let peer_signed_prekey = bundle.signed_prekey;
-    let dh_out = ratchet_private
-        .agree(&peer_signed_prekey)
-        .ok_or(Error::Handshake(SessionError::NonContributoryAgreement))?;
+    // Wiped on the way out: this is the `KDF_RK` input the specifications
+    // require deleting once the next root key is derived (CR-08, key-deletion.md),
+    // held like every other Diffie-Hellman output in this layer.
+    let dh_out = Zeroizing::new(
+        ratchet_private
+            .agree(&peer_signed_prekey)
+            .ok_or(Error::Handshake(SessionError::NonContributoryAgreement))?,
+    );
     // §7.1: the handshake secret is expanded into one secret per ratchet, which
     // `init_sender` does internally, and the agreement's authenticator is
     // initialised from the PQXDH output itself.
@@ -1399,6 +1524,13 @@ pub fn establish_responder<R: RngCore + CryptoRng>(
 }
 
 impl Session {
+    /// Whether the post-quantum key agreement has reached its terminal failure
+    /// state. Once true, `encrypt` and `decrypt` return
+    /// [`Error::AgreementFailed`]; the session must be re-established.
+    pub fn agreement_failed(&self) -> bool {
+        self.braid.failed()
+    }
+
     /// Encrypt a message.
     ///
     /// An initiator prepends the initial (prekey) message to **every** message
@@ -1407,13 +1539,6 @@ impl Session {
     /// peer with no session and every later message undecryptable. The
     /// conformance suite exercises this by asking a responder to read a third
     /// message first.
-    /// Whether the post-quantum key agreement has reached its terminal failure
-    /// state. Once true, `encrypt` and `decrypt` return
-    /// [`Error::AgreementFailed`]; the session must be re-established.
-    pub fn agreement_failed(&self) -> bool {
-        self.braid.failed()
-    }
-
     pub fn encrypt<R: RngCore + CryptoRng>(
         &mut self,
         plaintext: &[u8],
@@ -1561,9 +1686,14 @@ impl Session {
         // low-order value here would hand the sender both agreements.
         let peer = dh::PublicKeyBytes::from_bytes(composite.dh);
         let nc = Error::Handshake(SessionError::NonContributoryAgreement);
-        let dh_out_recv = self.ratchet_private.agree(&peer).ok_or(nc)?;
+        // Wiped on the way out: `dh_out_recv` seeds the new receiving chain and
+        // `dh_out_send` the new sending chain, and both are `KDF_RK` inputs the
+        // specifications require deleting once the next root key is derived
+        // (CR-08, key-deletion.md). `dh_out_send` is computed on every receive
+        // whether or not a step happens, so it is wrapped unconditionally.
+        let dh_out_recv = Zeroizing::new(self.ratchet_private.agree(&peer).ok_or(nc)?);
         let candidate_key = dh::PrivateKey::from_bytes(random_secret(rng));
-        let dh_out_send = candidate_key.agree(&peer).ok_or(nc)?;
+        let dh_out_send = Zeroizing::new(candidate_key.agree(&peer).ok_or(nc)?);
 
         let before = self.triple.sending_public();
         let header = triple_header_of(&composite);
@@ -1584,12 +1714,34 @@ impl Session {
         // below and only after the tag verifies, so a forged header still
         // evicts nothing: the copy it drove is dropped with it.
         //
-        // Evictions grow geometrically within one store, so a message that
-        // needs many slots costs a handful of attempts rather than one per
-        // slot, and the batch starts again at one when the *other* store
-        // reports full: the classical half runs first inside `receive`, so a
-        // batch inflated by its rounds must not be spent on the post-quantum
-        // store, whose need is unrelated.
+        // The first eviction aims at the shortfall the header implies rather
+        // than climbing 1, 2, 4, ... up to it (CR-19). When the classical store
+        // is full it holds `MAX_SKIPPED_STORE` keys, so the room a message needs
+        // is the number of keys it will skip on the current chain, which is its
+        // header number minus the current receive count -- known before the
+        // first attempt. Starting there means a forged full-store header no
+        // longer buys a run of eviction-and-retry rounds, each cloning the
+        // 2000-entry store and deriving up to `MAX_SKIP` keys, before it is
+        // refused. It is only ever an *under*-estimate (a step also skips the
+        // previous chain, whose length is not in the header), and the geometric
+        // growth below covers the rest, so it never evicts a key the message did
+        // not displace.
+        //
+        // The post-quantum half has no receive-count accessor, and its header
+        // number is an absolute per-epoch index, not a shortfall, so there is no
+        // safe figure to start from; it keeps the geometric ramp from one. The
+        // batch is reset when the *other* store reports full, because the
+        // classical half runs first inside `receive` and a batch sized for its
+        // need must not be spent on the post-quantum store, whose need is
+        // unrelated.
+        let shortfall = |half: FullStore| -> usize {
+            match half {
+                FullStore::Classical => (composite.n as usize)
+                    .saturating_sub(self.triple.receive_count() as usize)
+                    .clamp(1, crate::ratchet::MAX_SKIPPED_STORE),
+                FullStore::PostQuantum => 1,
+            }
+        };
         let receive = |state: &tacenta_triple::State| {
             state.receive(
                 &header,
@@ -1606,7 +1758,7 @@ impl Session {
                     return Err(Error::Triple(first));
                 };
                 let mut work = self.triple.clone();
-                let mut batch: usize = 1;
+                let mut batch: usize = shortfall(half);
                 let mut pending = first;
                 loop {
                     let evicted = match half {
@@ -1618,8 +1770,9 @@ impl Session {
                     }
                     // Bounded: the stores hold at most `MAX_SKIPPED_STORE`
                     // keys each, so this doubles a dozen times at most before
-                    // an eviction returns zero.
-                    batch *= 2;
+                    // an eviction returns zero. Saturating so it cannot
+                    // overflow when the initial batch is already large.
+                    batch = batch.saturating_mul(2);
                     match receive(&work) {
                         Ok(v) => break v,
                         Err(e) => {
@@ -1628,7 +1781,7 @@ impl Session {
                             };
                             if next != half {
                                 half = next;
-                                batch = 1;
+                                batch = shortfall(next);
                             }
                             pending = e;
                         }
@@ -1668,6 +1821,7 @@ const SESSION_VERSION: u8 = 0x01;
 /// Named apart from this module's own `DecodeError` (a wire-message decode
 /// failure) so the two are never confused for one another.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[non_exhaustive]
 pub enum SessionDecodeError {
     UnknownVersion,
     TooShort,
@@ -2121,9 +2275,10 @@ mod tests {
     /// gives: freed memory is not something a test can inspect soundly, and
     /// what this pins is that the property cannot be dropped without the build
     /// failing. Both hold it by a route a derive would not give them --
-    /// `PrekeyStore` by a hand-written destructor, since `zeroize` has no
-    /// `Zeroize` for tuples and both one-time collections are vectors of them --
-    /// so there is nothing in the type declarations for a reader to notice.
+    /// `PrekeyStore` by a hand-written destructor, because a whole-struct derive
+    /// will not compile over its un-`Zeroize` fields (the public key and the
+    /// self-erasing `kem::KeyPair`s) -- so there is nothing in the type
+    /// declarations for a reader to notice.
     #[test]
     fn the_identity_and_the_prekey_store_erase_when_dropped() {
         fn assert_erases<T: zeroize::ZeroizeOnDrop>() {}

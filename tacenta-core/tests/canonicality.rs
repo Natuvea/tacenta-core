@@ -26,7 +26,10 @@ use tacenta_core::serialization::{
     WireBundle, decode_bundle, decode_initial, decode_message, encode_bundle, encode_initial,
     encode_message,
 };
-use tacenta_core::sessions::{decode_ec, decode_kem, encode_ec, encode_kem};
+use tacenta_core::sessions::{
+    Identity, PrekeyStore, Session, decode_ec, decode_kem, encode_ec, encode_kem,
+    establish_initiator, establish_responder,
+};
 
 /// Every decoder covered here. The registry test below fails if the source
 /// grows one that is not on this list.
@@ -38,6 +41,14 @@ const COVERED: &[&str] = &[
     "decode_bundle",
     "decode_initial",
 ];
+
+/// The persisted-state decoders -- the `from_bytes`/`import` pair that restores
+/// state a storage layer wrote, as opposed to the wire `decode_*` above. These
+/// carry their own canonicality check inside the decoder (a re-encode and
+/// compare), so the sweep here is the same mutation oracle applied from the
+/// outside. The registry test below fails if `lifecycle.rs` grows a public
+/// `from_bytes` or `import` that is not on this list (CR-18).
+const PERSISTED_COVERED: &[&str] = &["PrekeyStore::from_bytes", "Session::import"];
 
 /// Mutate each sampled byte, and for anything still accepted, require that
 /// re-encoding reproduces the input exactly.
@@ -249,5 +260,116 @@ fn every_decoder_is_covered() {
     assert!(
         stale.is_empty(),
         "COVERED lists decoders that no longer exist: {stale:?}"
+    );
+}
+
+fn seeded_rng(seed: u64) -> rand::rngs::StdRng {
+    use rand::SeedableRng;
+    rand::rngs::StdRng::seed_from_u64(seed)
+}
+
+/// The bytes `PrekeyStore::to_bytes` produces for a store with a little history,
+/// so the v3 fields (retired prekeys, a last-resort fingerprint) are present.
+fn canonical_prekey_store() -> Vec<u8> {
+    let mut r = seeded_rng(1);
+    let id = Identity::generate(&mut r);
+    let mut store = id.create_prekeys(3, &mut r);
+    store.rotate_signed_prekey(&id, &mut r);
+    store.rotate_kem(&id, &mut r);
+    store.to_bytes().to_vec()
+}
+
+/// The bytes `Session::export` produces for an established, slightly advanced
+/// session.
+fn canonical_session() -> Vec<u8> {
+    let mut r = seeded_rng(2);
+    let alice_id = Identity::generate(&mut r);
+    let bob_id = Identity::generate(&mut r);
+    let mut bob_prekeys = bob_id.create_prekeys(4, &mut r);
+    let bundle = bob_prekeys.publish();
+    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let initial = alice.encrypt(b"hello", &mut r).unwrap();
+    let (mut bob, _) = establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
+    let reply = bob.encrypt(b"hi", &mut r).unwrap();
+    alice.decrypt(&reply, &mut r).unwrap();
+    alice.export().to_vec()
+}
+
+#[test]
+fn prekey_store_from_bytes_is_canonical() {
+    let canonical = canonical_prekey_store();
+    assert_canonical("PrekeyStore::from_bytes", &canonical, |b| {
+        PrekeyStore::from_bytes(b)
+            .ok()
+            .map(|s| s.to_bytes().to_vec())
+    });
+}
+
+#[test]
+fn session_import_is_canonical() {
+    let canonical = canonical_session();
+    assert_canonical("Session::import", &canonical, |b| {
+        Session::import(b).ok().map(|s| s.export().to_vec())
+    });
+}
+
+/// No persisted decoder escapes the sweep either.
+///
+/// The wire `decode_*` sweep above cannot see these: they are `from_bytes` and
+/// `import`, not `decode_*`, and they live in `lifecycle.rs`. This is the same
+/// guard for that file: a new public `from_bytes` or `import` there must be
+/// listed in `PERSISTED_COVERED` and given a canonicality test (CR-18).
+#[test]
+fn every_persisted_decoder_is_covered() {
+    use std::fs;
+    use std::path::PathBuf;
+
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let text = fs::read_to_string(root.join("src/sessions/lifecycle.rs")).expect("source");
+
+    // The type each `impl` block is for, tracked so a bare `from_bytes` is
+    // reported as `Type::from_bytes` rather than by name alone.
+    let mut current_type: Option<String> = None;
+    let mut found: Vec<String> = Vec::new();
+    for line in text.lines() {
+        let t = line.trim_start();
+        if let Some(rest) = t.strip_prefix("impl ") {
+            // `impl PrekeyStore {` / `impl Session {`; ignore trait impls,
+            // which are not where the public decoders live.
+            let name = rest
+                .split(|c: char| c.is_whitespace() || c == '{')
+                .next()
+                .unwrap_or("");
+            if !name.is_empty() && !rest.contains(" for ") {
+                current_type = Some(name.to_string());
+            }
+        }
+        for verb in ["from_bytes", "import"] {
+            if t.starts_with(&format!("pub fn {verb}")) {
+                let ty = current_type.clone().unwrap_or_default();
+                found.push(format!("{ty}::{verb}"));
+            }
+        }
+    }
+    found.sort();
+    found.dedup();
+
+    let missing: Vec<&String> = found
+        .iter()
+        .filter(|n| !PERSISTED_COVERED.contains(&n.as_str()))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "these persisted decoders have no canonicality test: {missing:?}. \
+         Add them to this file and to PERSISTED_COVERED."
+    );
+
+    let stale: Vec<&&str> = PERSISTED_COVERED
+        .iter()
+        .filter(|n| !found.contains(&n.to_string()))
+        .collect();
+    assert!(
+        stale.is_empty(),
+        "PERSISTED_COVERED lists decoders that no longer exist: {stale:?}"
     );
 }

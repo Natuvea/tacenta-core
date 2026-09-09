@@ -11,5 +11,4 @@ pub mod dh;
 pub mod kdf;
 pub mod kem;
 pub mod kem_incremental;
-pub mod sign;
 pub mod xeddsa;

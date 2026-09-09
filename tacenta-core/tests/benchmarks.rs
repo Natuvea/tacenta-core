@@ -205,3 +205,74 @@ fn operational_costs() {
 
     println!();
 }
+
+/// What a forged header aimed at a **full** skipped-key store costs the
+/// receiver (CR-19).
+///
+/// `Triple::receive` reports `SkippedStoreFull` before it checks the tag, so a
+/// forged far-future header on a full store drives the eviction-and-retry loop
+/// -- cloning the 2000-entry store and deriving up to `MAX_SKIP` keys per
+/// attempt -- and commits nothing, so it can be repeated. This row is the cost
+/// of one such attempt, next to the ordinary forged-message cost in
+/// `tests/timing.rs`, which measures against an *empty* store. It is a sizing
+/// number, not a pass/fail gate, and is `#[ignore]` like the row set above.
+#[test]
+#[ignore = "measurement, not a pass/fail gate; run with --ignored --release"]
+fn forged_header_against_a_full_store() {
+    use tacenta_core::ratchet::{MAX_SKIP, MAX_SKIPPED_STORE};
+
+    let mut r = rng(41);
+
+    let alice_id = sessions::Identity::generate(&mut r);
+    let bob_id = sessions::Identity::generate(&mut r);
+    let mut bob_prekeys = bob_id.create_prekeys(4, &mut r);
+    let bundle = bob_prekeys.publish();
+    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let initial = alice.encrypt(b"hello", &mut r).unwrap();
+    let (mut bob, _) = establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
+
+    // One round: Alice sends MAX_SKIP + 1 on a fresh chain, Bob reads only the
+    // last (storing MAX_SKIP keys), then Bob replies so the next round starts a
+    // new chain. Two rounds fill the store to exactly its cap.
+    let round = |alice: &mut Session, bob: &mut Session, r: &mut rand::rngs::StdRng| {
+        for i in 0..MAX_SKIP {
+            let _ = alice.encrypt(format!("m{i}").as_bytes(), r).unwrap();
+        }
+        let last = alice.encrypt(b"last", r).unwrap();
+        bob.decrypt(&last, r).unwrap();
+        let reply = bob.encrypt(b"ack", r).unwrap();
+        alice.decrypt(&reply, r).unwrap();
+    };
+    round(&mut alice, &mut bob, &mut r);
+    round(&mut alice, &mut bob, &mut r);
+    assert_eq!(
+        2 * MAX_SKIP as usize,
+        MAX_SKIPPED_STORE,
+        "store filled to cap"
+    );
+
+    // A genuine third-round message that needs another MAX_SKIP slots, torn so
+    // its tag fails: this is the forged far-future header against the full
+    // store.
+    for i in 0..MAX_SKIP {
+        let _ = alice.encrypt(format!("t{i}").as_bytes(), &mut r).unwrap();
+    }
+    let mut forged = alice.encrypt(b"forge", &mut r).unwrap();
+    let last = forged.len() - 1;
+    forged[last] ^= 0x01;
+
+    // Fresh receiver per sample from the full-store snapshot, via export/import
+    // -- `Session` is deliberately not `Clone` -- so every attempt sees the
+    // full store rather than one an earlier attempt already drained.
+    let snapshot = bob.export();
+    row(
+        "forged header against a full store",
+        bench(20, || {
+            let mut fresh = Session::import(&snapshot).unwrap();
+            let outcome = fresh.decrypt(&forged, &mut rng(9));
+            assert!(outcome.is_err(), "the forged header must be rejected");
+        }),
+    );
+
+    println!();
+}

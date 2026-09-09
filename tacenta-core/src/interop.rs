@@ -12,8 +12,8 @@
 //! not attempt to obtain them (`tacenta-spec/CONSTANTS.md`). Every constant
 //! this engine emits or accepts is tier "fact" or "ours" there.
 //!
-//! [`ExternalKdfProfile`] has one field per such input and **no
-//! constructor**: not a private one guarded by a runtime check, none at all,
+//! [`ExternalKdfProfile`](crate::interop::ExternalKdfProfile) has one field per
+//! such input and **no constructor**: not a private one guarded by a runtime check, none at all,
 //! anywhere in this crate. A function that produced an external
 //! implementation's message-layer bytes would take an `ExternalKdfProfile` by
 //! value, so no such function can be written, let alone called: code that

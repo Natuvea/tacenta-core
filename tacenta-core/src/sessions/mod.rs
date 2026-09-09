@@ -17,8 +17,9 @@ use zeroize::Zeroizing;
 
 mod lifecycle;
 pub use lifecycle::{
-    Error as LifecycleError, Identity, PrekeyStore, PublicState, PublishedBundle, Session,
-    SessionDecodeError, establish_initiator, establish_responder,
+    Error as LifecycleError, Identity, PrekeyStore, PrekeyStoreDecodeError, PublicState,
+    PublishedBundle, Session, SessionDecodeError, establish_initiator, establish_initiator_for,
+    establish_responder,
 };
 
 /// The derivation itself lives in the `tacenta-session` leaf crate, which is
@@ -119,8 +120,11 @@ pub(crate) fn application_signing_input(message: &[u8]) -> Vec<u8> {
 }
 
 /// A prekey bundle as fetched from the server. The KEM prekey is carried as
-/// opaque bytes: which KEM key it is (a one-time key or the last-resort key) does
-/// not change the derivation, and the KEM itself is not wired yet.
+/// opaque bytes: which KEM key it is (a one-time key or the last-resort key)
+/// does not change the derivation, and this type stays agnostic to the KEM's
+/// own encoding. The KEM is wired -- `establish_initiator` encapsulates against
+/// this prekey and folds the secret into the handshake -- so the bytes are what
+/// `primitives::kem` produced, read back only by that module.
 pub struct PreKeyBundle {
     pub identity_key: dh::PublicKeyBytes,
     pub signed_prekey: dh::PublicKeyBytes,
@@ -131,7 +135,11 @@ pub struct PreKeyBundle {
 }
 
 /// Failures establishing a session.
+///
+/// `#[non_exhaustive]`: pre-1.0, and the agreement checks can still gain
+/// refusals, so a consumer must carry a wildcard arm (CR-27).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[non_exhaustive]
 pub enum SessionError {
     /// The signature over the signed curve prekey did not verify.
     BadSignedPrekeySignature,

@@ -22,7 +22,7 @@
 //!
 //! ## What it costs
 //!
-//! [`COMPOSITE_LEN`] bytes of header on every message, against the Double
+//! [`COMPOSITE_LEN`](crate::serialization::composite::COMPOSITE_LEN) bytes of header on every message, against the Double
 //! Ratchet's forty-one. The specification says the composition costs bandwidth
 //! and that the sparse agreement exists to keep it affordable; this is the
 //! number.

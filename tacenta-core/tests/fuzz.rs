@@ -29,6 +29,94 @@ use tacenta_core::serialization::{
     concat_ad, decode_initial, decode_message, encode_message, message_type,
 };
 
+use std::sync::OnceLock;
+use tacenta_core::sessions::{
+    Identity, PrekeyStore, Session, establish_initiator, establish_responder,
+};
+
+/// A canonical persisted `PrekeyStore`, built once. Property cases mutate a copy
+/// rather than rebuild it, which would pay for ML-KEM key generation each time.
+fn canonical_prekey_store() -> &'static [u8] {
+    static BYTES: OnceLock<Vec<u8>> = OnceLock::new();
+    BYTES.get_or_init(|| {
+        use rand::SeedableRng;
+        let mut r = rand::rngs::StdRng::seed_from_u64(101);
+        let id = Identity::generate(&mut r);
+        let mut store = id.create_prekeys(3, &mut r);
+        store.rotate_signed_prekey(&id, &mut r);
+        store.rotate_kem(&id, &mut r);
+        store.to_bytes().to_vec()
+    })
+}
+
+/// A canonical persisted `Session`, built once, mid-conversation.
+fn canonical_session() -> &'static [u8] {
+    static BYTES: OnceLock<Vec<u8>> = OnceLock::new();
+    BYTES.get_or_init(|| {
+        use rand::SeedableRng;
+        let mut r = rand::rngs::StdRng::seed_from_u64(202);
+        let alice_id = Identity::generate(&mut r);
+        let bob_id = Identity::generate(&mut r);
+        let mut bob_prekeys = bob_id.create_prekeys(4, &mut r);
+        let bundle = bob_prekeys.publish();
+        let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+        let initial = alice.encrypt(b"hi", &mut r).unwrap();
+        let (mut bob, _) =
+            establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
+        let reply = bob.encrypt(b"ack", &mut r).unwrap();
+        alice.decrypt(&reply, &mut r).unwrap();
+        alice.export().to_vec()
+    })
+}
+
+proptest! {
+    /// Neither persisted-state decoder panics on arbitrary bytes; it returns Ok
+    /// or Err (CR-28). The runtime complement to the nightly cargo-fuzz smoke,
+    /// under `cargo test`.
+    #[test]
+    fn persisted_decoders_never_panic(bytes in prop::collection::vec(any::<u8>(), 0..8192)) {
+        let _ = PrekeyStore::from_bytes(&bytes);
+        let _ = Session::import(&bytes);
+    }
+
+    /// A mutation of a canonical store that is still accepted re-encodes to
+    /// exactly the bytes it was decoded from -- the canonicality property, now
+    /// exercised on near-valid input (CR-28). Guarded to current-version (v3)
+    /// acceptances: a mutation that relabels the store v1 or v2 is legitimately
+    /// upgraded on re-encode, which is not a canonicality violation.
+    #[test]
+    fn prekey_store_accepted_mutations_reencode_identically(
+        at in any::<usize>(),
+        bit in 0u8..8,
+    ) {
+        let mut bytes = canonical_prekey_store().to_vec();
+        let i = at % bytes.len();
+        bytes[i] ^= 1 << bit;
+        if bytes[0] == 0x03 {
+            if let Ok(store) = PrekeyStore::from_bytes(&bytes) {
+                let reencoded = store.to_bytes();
+                prop_assert_eq!(reencoded.as_slice(), bytes.as_slice());
+            }
+        }
+    }
+
+    /// The same for `Session::import`, whose only version is v1, so every
+    /// accepted input re-encodes identically (CR-28).
+    #[test]
+    fn session_accepted_mutations_reencode_identically(
+        at in any::<usize>(),
+        bit in 0u8..8,
+    ) {
+        let mut bytes = canonical_session().to_vec();
+        let i = at % bytes.len();
+        bytes[i] ^= 1 << bit;
+        if let Ok(session) = Session::import(&bytes) {
+            let reencoded = session.export();
+            prop_assert_eq!(reencoded.as_slice(), bytes.as_slice());
+        }
+    }
+}
+
 proptest! {
     /// No arbitrary byte string makes a decoder panic. It returns Ok or Err.
     #[test]

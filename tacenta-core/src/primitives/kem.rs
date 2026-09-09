@@ -74,9 +74,15 @@ impl KeyPair {
 
     /// Reconstruct a key pair from bytes produced by `to_bytes`.
     ///
-    /// The halves are checked for length and then parsed by libcrux, so bytes
-    /// of the right size but the wrong shape are rejected here rather than at
-    /// the first decapsulation.
+    /// Both halves are length-checked. The public half is then checked for shape
+    /// too: `try_into` only verifies length -- libcrux's `TryFrom` is a length
+    /// check, not a parse -- so the FIPS 203 encapsulation-key check is run over
+    /// it explicitly with `validate_public_key`, the same check `encapsulate`
+    /// makes on a bundle's KEM prekey (CR-18). A public half of the right size
+    /// but the wrong shape is refused here rather than reasoned about at the
+    /// first encapsulation against this pair. The private half is length-only:
+    /// libcrux exposes no shape check for it, and it never leaves this party, so
+    /// the threat model is corruption rather than a hostile chooser.
     pub fn from_bytes(bytes: &[u8]) -> Result<KeyPair, KemError> {
         let sk_len = mlkem1024::MlKem1024PrivateKey::len();
         let pk_len = mlkem1024::MlKem1024PublicKey::len();
@@ -85,7 +91,10 @@ impl KeyPair {
         }
         let (sk_bytes, pk_bytes) = bytes.split_at(sk_len);
         let _: mlkem1024::MlKem1024PrivateKey = sk_bytes.try_into().map_err(|_| KemError)?;
-        let _: mlkem1024::MlKem1024PublicKey = pk_bytes.try_into().map_err(|_| KemError)?;
+        let pk: mlkem1024::MlKem1024PublicKey = pk_bytes.try_into().map_err(|_| KemError)?;
+        if !mlkem1024::validate_public_key(&pk) {
+            return Err(KemError);
+        }
         Ok(KeyPair(Zeroizing::new(bytes.to_vec())))
     }
 }

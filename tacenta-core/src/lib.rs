@@ -4,6 +4,16 @@
 //! The implementation follows ../tacenta-spec and ../tacenta-model. This public
 //! tree contains no libsignal source or compiled objects. Cryptography only,
 //! with no product coupling.
+//!
+//! # Randomness
+//!
+//! Every public function that draws randomness is generic over `R: RngCore +
+//! CryptoRng`, and those are the **`rand_core` 0.6** traits (CR-27). The dalek
+//! and libcrux dependencies fix that version, so a caller on a newer `rand`
+//! (0.8's re-export is 0.6; 0.9 and 1.0 moved the traits) passes an adapter
+//! rather than its own generator directly. This is stated because the bound is
+//! part of the public signature and a version mismatch surfaces as an opaque
+//! trait-bound error at the call site rather than here.
 
 // No `unsafe` in this library crate, enforced by the attribute rather than
 // observed; every library crate in the workspace carries it. The one `unsafe`

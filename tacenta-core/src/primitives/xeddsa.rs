@@ -127,8 +127,9 @@ pub fn sign<R: RngCore + CryptoRng>(secret: &[u8; 32], message: &[u8], rng: &mut
     // signing scalar `a` are the private key's companions, and the nonce `r`
     // is the private key outright -- `s = r + h*a`, so whoever learns `r`
     // learns `a`. The session layer wraps every Diffie-Hellman output the same
-    // way. The stack copies dalek and the hash make internally are outside
-    // reach, which is the accepted boundary.
+    // way, both in the PQXDH helpers and at each ratchet step (sessions/mod.rs,
+    // sessions/lifecycle.rs). The stack copies dalek and the hash make
+    // internally are outside reach, which is the accepted boundary.
     //
     // Within reach, and kept small: the secrets are passed to the hash by
     // reference rather than deref-copied, `a` is born wrapped instead of
@@ -352,6 +353,15 @@ mod tests {
         // The scalar-multiplication route (signing) and the Montgomery-to-
         // Edwards route (verifying) must land on the same Edwards public key,
         // for many keys.
+        //
+        // The keys are also chosen to exercise *both* branches of
+        // `calculate_key_pair`'s sign normalisation (CR-28): the raw derived
+        // point's sign bit is 0 for some and 1 for others, and the scalar is
+        // negated only in the latter. A loop that happened to hit only one
+        // branch would leave the negation path untested while still passing, so
+        // the two are counted and both are required to occur.
+        let mut saw_sign_zero = false;
+        let mut saw_sign_one = false;
         for i in 0..32u8 {
             let secret = [i.wrapping_mul(17).wrapping_add(3); 32];
             let (public_from_scalar, _) = calculate_key_pair(&secret);
@@ -362,7 +372,21 @@ mod tests {
                 .compress()
                 .to_bytes();
             assert_eq!(public_from_scalar, public_from_montgomery);
+
+            // The sign bit of the *un-normalised* point, which is the bit
+            // `calculate_key_pair` reads to decide whether to negate.
+            let raw = EdwardsPoint::mul_base(&Scalar::from_bytes_mod_order(clamp_integer(secret)))
+                .compress()
+                .to_bytes();
+            match raw[31] >> 7 {
+                0 => saw_sign_zero = true,
+                _ => saw_sign_one = true,
+            }
         }
+        assert!(
+            saw_sign_zero && saw_sign_one,
+            "the key set must exercise both the negated and un-negated sign branches"
+        );
     }
 
     #[test]
