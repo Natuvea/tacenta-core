@@ -21,18 +21,24 @@
 # The invariants, each stated here because the message that fires names it:
 #
 # 1. Every third-party action is pinned by a 40-character commit digest, with
-#    the tag in a trailing comment. A tag is movable.
+#    the tag in a trailing comment. A tag is movable. The same rule covers a
+#    job-level `uses:`, which calls a reusable workflow by ref, and a
+#    container step (`uses: docker://`), which is pinned by the image's
+#    `@sha256:` digest rather than its tag.
 # 2. Every workflow declares a top-level `permissions:` block, so the token a
 #    job holds is what the file says and not the repository default.
 # 3. Every `actions/checkout` step sets `persist-credentials: false`, so the
 #    token is not left in `.git/config` for a later step to read.
-# 4. No `run:` script pipes `curl` or `wget` output into a shell. Downloading
-#    to a file, checking its sha256 against a digest the workflow pins, and
-#    then running it is fine, and is the pattern the elan install uses; what
-#    is refused is executing whatever a URL serves today, unread. The rule is
-#    textual: a line (after joining backslash continuations) in which `curl`
-#    or `wget` is followed by a pipe into `sh`, `bash` or `zsh`, with or
-#    without `sudo`.
+# 4. No `run:` script pipes `curl` or `wget` output into an interpreter.
+#    Downloading to a file, checking its sha256 against a digest the workflow
+#    pins, and then running it is fine, and is the pattern the elan install
+#    uses; what is refused is executing whatever a URL serves today, unread.
+#    The rule is textual: a line (after joining backslash continuations, and
+#    joining a line that ends in a pipe with the one after it) in which `curl`
+#    or `wget` is followed by a pipe into `sh`, `bash`, `zsh`, `python`,
+#    `perl`, `ruby` or `node`, with or without `sudo` or `env`; or a process
+#    substitution `<(curl ...)`, which is the same download handed to
+#    whatever reads it as a file (`bash <(curl ...)`).
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -75,16 +81,47 @@ if not files:
     print("check-workflows: no workflow files found")
     sys.exit(0)
 
-# Rule 4's shape. Backslash-newline continuations are joined first so that a
-# pipe placed at the start of the next line is still seen on the same line.
+# Rule 4's shape. `sha256sum` is not matched by `sh\b`, which is what lets
+# the download-then-check pattern through.
+INTERPRETER = r"(sh|bash|zsh|dash|ksh|python[0-9.]*|perl|ruby|node)"
 PIPE_TO_SHELL = re.compile(
-    r"\b(curl|wget)\b[^|\n]*\|\s*(sudo\s+(-\S+\s+)*)?(sh|bash|zsh)\b"
+    r"\b(curl|wget)\b[^|\n]*\|\s*(sudo\s+(-\S+\s+)*)?(env\s+(\S+=\S+\s+)*)?"
+    + INTERPRETER + r"\b"
 )
+SUBST_DOWNLOAD = re.compile(r"<\(\s*(sudo\s+(-\S+\s+)*)?(curl|wget)\b")
+
+def pipeline_lines(script):
+    """The script's lines with two joins applied first, so that a pipeline
+    split across lines is still seen as one: a backslash-newline continuation,
+    and a line that ends in a pipe, whose command is the next line (`curl ... |`
+    then `sh -s -- -y`)."""
+    lines = []
+    for line in script.replace("\\\n", " ").splitlines():
+        if lines and lines[-1].rstrip().endswith("|"):
+            lines[-1] = lines[-1].rstrip() + " " + line.lstrip()
+        else:
+            lines.append(line)
+    return lines
 
 def complain(msg):
     global bad
     print("check-workflows: " + msg, file=sys.stderr)
     bad = 1
+
+def check_pin(f, name, what, uses):
+    """Rule 1 for one `uses:` value: a step's action, a job's reusable
+    workflow, or a container image."""
+    if uses.startswith("./"):
+        return  # a path in this repository, at the commit already checked out
+    if uses.startswith("docker://"):
+        if not re.search(r"@sha256:[0-9a-f]{64}$", uses):
+            complain("%s job '%s' %s '%s' -- pin a container image by its "
+                     "`@sha256:` digest, not by tag" % (f, name, what, uses))
+        return
+    ref = uses.rsplit("@", 1)[1] if "@" in uses else ""
+    if not re.fullmatch(r"[0-9a-f]{40}", ref):
+        complain("%s job '%s' %s '%s' -- pin by 40-char commit digest, with "
+                 "the tag in a trailing comment" % (f, name, what, uses))
 
 for f in files:
     try:
@@ -122,6 +159,12 @@ for f in files:
         if "runs-on" not in job and "uses" not in job:
             complain("%s job '%s' has neither runs-on nor uses" % (f, name))
 
+        # Rule 1 at the job level. A reusable workflow is called by ref, and
+        # that ref is as movable as an action's tag; it runs with this
+        # workflow's token.
+        if isinstance(job.get("uses"), str):
+            check_pin(f, name, "calls reusable workflow", job["uses"])
+
         for step in job.get("steps") or []:
             if not isinstance(step, dict):
                 continue
@@ -133,12 +176,8 @@ for f in files:
             # check keeps every workflow at the same standard, rather than
             # some pinned and some not.
             uses = step.get("uses")
-            if isinstance(uses, str) and "@" in uses:
-                ref = uses.rsplit("@", 1)[1]
-                if not re.fullmatch(r"[0-9a-f]{40}", ref):
-                    complain("%s job '%s' uses '%s' -- pin by 40-char commit "
-                             "digest, with the tag in a trailing comment"
-                             % (f, name, uses))
+            if isinstance(uses, str):
+                check_pin(f, name, "uses", uses)
 
                 # Rule 3. The checkout action writes the job token into the
                 # checked-out repository's git config unless told not to.
@@ -152,13 +191,12 @@ for f in files:
             # Rule 4.
             run = step.get("run")
             if isinstance(run, str):
-                joined = run.replace("\\\n", " ")
-                for line in joined.splitlines():
-                    if PIPE_TO_SHELL.search(line):
-                        complain("%s job '%s' pipes a download into a shell: "
-                                 "%s -- download to a file, check its sha256 "
-                                 "against a pinned digest, then run it"
-                                 % (f, name, line.strip()))
+                for line in pipeline_lines(run):
+                    if PIPE_TO_SHELL.search(line) or SUBST_DOWNLOAD.search(line):
+                        complain("%s job '%s' pipes a download into an "
+                                 "interpreter: %s -- download to a file, check "
+                                 "its sha256 against a pinned digest, then run "
+                                 "it" % (f, name, line.strip()))
 
 print("check-workflows: %d workflow file(s) parse" % len(files))
 sys.exit(bad)

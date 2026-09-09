@@ -29,8 +29,11 @@ specifications. See the clean-room boundary recorded in the decision records.
 ## Building and checking
 
 The README's "Building and checking" section lists the prerequisites and the
-one command, `bash tooling/ci.sh`, that runs every gate the public CI runs.
-Run it before opening a pull request; the CI runs the same steps and a
+one command, `bash tooling/ci.sh`, that runs the gate. Run it before opening
+a pull request. The public CI runs the same steps, split into jobs, and the
+README states the two ways they differ: the steps the workflow always runs
+that the script skips when their tooling is absent (it prints a line for
+each), and the two the script runs that the workflow does not. Any other
 difference between the two is a bug in one of them.
 
 A pre-push hook is provided that runs the cheap part of that gate, the

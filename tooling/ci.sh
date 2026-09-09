@@ -6,15 +6,25 @@
 # The public workflow, `.github/workflows/ci.yml`, runs these same steps on
 # every push and pull request, split into jobs so a failure names its cause;
 # this script is the one-command form for a developer's machine. The two are
-# meant to agree, and a step added here belongs there too. The three steps
-# below that skip when their tooling is absent (the interoperability harness,
-# the fuzz smoke run, and the 32-bit check when the target is not installed)
-# are the ones the workflow does not install; the README's "Building and
-# checking" section says what runs outside this repository and why.
+# meant to agree, and a step added here belongs there too, with one stated
+# asymmetry in each direction.
+#
+# Steps the workflow always runs and this script skips, printing a line that
+# says so, when the tooling is absent from the machine: the advisory audit
+# (`cargo-audit`), the MSRV compile check (a 1.87 toolchain), the 32-bit
+# compile check (the armv7 target), and the translation build with its
+# `sorry` scan (`no-sorry.sh`, which needs the translation's Mathlib cache
+# and is the heavy one). The first three fail rather than skip when
+# `GITHUB_ACTIONS` is set, so a runner cannot report green on a check it did
+# not run. Steps this script runs and the workflow does not: the
+# interoperability harness, which is not in this public tree and skips here,
+# and the fuzz smoke run, which needs `cargo-fuzz` and a nightly toolchain.
+# The README's "Building and checking" section lists the same four and two,
+# and says what runs outside this repository altogether and why.
 #
 # The runner must provide: elan with Lean v4.31.0 (lake on PATH) and a Rust
-# stable toolchain (cargo, clippy, rustfmt). The Aeneas T1 build is heavier and
-# is deliberately not part of this every-push gate.
+# stable toolchain (cargo, clippy, rustfmt). Everything else is optional, and
+# the step that needs it says so when it skips.
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
@@ -101,6 +111,24 @@ do
   )
 done
 
+# The minimum supported Rust version still compiles the workspace: the
+# `rust-version` every manifest names, and the version the workflow's `msrv`
+# job installs. A check, not a test run (the tests ran on stable above); it
+# exists so a use of newer syntax or a newer standard-library feature is
+# caught before it reaches a consumer holding the version the manifests
+# promise. Skips locally when the toolchain is absent and fails in CI, the
+# rule the advisory audit below follows.
+msrv=1.87
+echo "== Rust: the workspace compiles on the minimum supported version ($msrv) =="
+if rustup toolchain list 2>/dev/null | grep -q "^${msrv//./\\.}"; then
+  (cd tacenta-core && cargo "+$msrv" check --locked --workspace --all-targets)
+elif [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+  echo "ci: no $msrv toolchain on the runner; install it with 'rustup toolchain install $msrv'" >&2
+  exit 1
+else
+  echo "ci: no $msrv toolchain, skipping the MSRV check (rustup toolchain install $msrv)"
+fi
+
 # Known advisories against the dependency graph. Fails on a vulnerability;
 # warnings (unmaintained, yanked) are printed and do not fail, because those
 # present today sit in transitive build-time dependencies and are not fixable
@@ -174,9 +202,28 @@ fi
 
 echo "== Rust: the 32-bit target still compiles =="
 if rustup target list --installed 2>/dev/null | grep -q '^armv7-linux-androideabi$'; then
-  (cd tacenta-core && cargo check --locked -p tacenta-core --target armv7-linux-androideabi)
+  (cd tacenta-core && cargo check --locked --workspace --target armv7-linux-androideabi)
+elif [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+  echo "ci: armv7-linux-androideabi is not installed on the runner; install it with 'rustup target add armv7-linux-androideabi'" >&2
+  exit 1
 else
-  echo "ci: armv7-linux-androideabi not installed, skipping the 32-bit check"
+  echo "ci: armv7-linux-androideabi not installed, skipping the 32-bit check (rustup target add armv7-linux-androideabi)"
+fi
+
+# The heavy build, last so that everything cheaper has already reported: the
+# committed Rust-to-Lean translation with its T1/T3 proofs, and the model and
+# its property theorems again, each built and scanned for incomplete
+# declarations by `no-sorry.sh`. Aeneas's Lean library brings Mathlib, which
+# `lake exe cache get` fetches prebuilt; without it `lake build` would
+# compile Mathlib from source, which is hours, so the step skips when the
+# translation's Mathlib package is absent and says how to fetch it. The
+# workflow's `translation` job fetches it and always runs this.
+echo "== Lean: the translation and its proofs use no sorry (needs the Mathlib cache) =="
+if [ -d tacenta-proofs/translation/.lake/packages/mathlib ]; then
+  bash tacenta-proofs/scripts/no-sorry.sh
+else
+  echo "ci: the translation's Mathlib package is absent, skipping no-sorry.sh"
+  echo "ci: fetch it with '(cd tacenta-proofs/translation && lake exe cache get)'"
 fi
 
 echo "ci: all checks green"

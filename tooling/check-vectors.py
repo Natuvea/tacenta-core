@@ -24,9 +24,19 @@ subset of JSON Schema the two schemas use (`type`, `required`, `properties`,
 keyword added to a schema without support here fails loudly rather than
 being silently ignored.
 
-Beyond the schema: vector `id`s are unique within a file, and `output` is
-present exactly when `result` is `valid` (the schema states that rule in prose;
-this enforces it).
+Beyond the schema, three rules the schemas state in prose and this enforces:
+vector `id`s are unique within a file; in a known-answer file `output` is
+present exactly when `result` is `valid`; and in a scenario file an ok step
+carries `mk` while a reject step carries neither `mk` nor `message_keys`
+(the runner would fail an ok step without `mk`, and a reject step's key is
+never checked, so one that carries it is claiming a check that does not
+happen). And one rule the schemas cannot state: every file's `algorithm` is
+one the Rust runner dispatches on, read from the match arms of
+`runners/rust/src/lib.rs`, so that a file no runner opens cannot sit under
+`vectors/` looking covered.
+
+`const` and `enum` compare by type as well as value, because Python's
+`True == 1`: a `schema_version` of `true` is not version 1.
 """
 
 import glob
@@ -38,6 +48,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VECTORS = os.path.join(ROOT, "tacenta-test-vectors", "vectors")
 SCHEMAS = os.path.join(ROOT, "tacenta-test-vectors", "schema")
+RUNNER = os.path.join(ROOT, "tacenta-test-vectors", "runners", "rust", "src", "lib.rs")
 
 # The keywords the validator below understands. Anything else in a schema is
 # an error, on the principle that an unimplemented constraint is not a
@@ -68,6 +79,13 @@ def type_ok(value, name):
     return isinstance(value, TYPES[name])
 
 
+def same(value, literal):
+    """JSON equality: the same type and the same value. Python's `==` says
+    `True == 1` and `1 == 1.0`, and neither is what a schema's `const: 1`
+    means."""
+    return type(value) is type(literal) and value == literal
+
+
 def validate(value, schema, path, errors):
     """Append a message to `errors` for every constraint `value` breaks."""
     unknown = set(schema) - KNOWN
@@ -76,10 +94,10 @@ def validate(value, schema, path, errors):
                       "implement: %s" % (path, ", ".join(sorted(unknown))))
         return
 
-    if "const" in schema and value != schema["const"]:
+    if "const" in schema and not same(value, schema["const"]):
         errors.append("%s: expected %r, got %r" % (path, schema["const"], value))
         return
-    if "enum" in schema and value not in schema["enum"]:
+    if "enum" in schema and not any(same(value, e) for e in schema["enum"]):
         errors.append("%s: %r is not one of %r" % (path, value, schema["enum"]))
         return
 
@@ -129,11 +147,49 @@ def load(path):
         return json.load(fh)
 
 
+def runner_algorithms():
+    """The `algorithm` values the Rust runner dispatches on: the string arms
+    of `check_vector`'s match (up to its catch-all), plus the one algorithm
+    the scenario runner accepts. Read from the source rather than listed
+    here, so a runner arm added or renamed moves this check with it; a source
+    this cannot find the arms in is reported, not treated as empty."""
+    with open(RUNNER) as fh:
+        src = fh.read()
+    body = src[src.index("fn check_vector("):]
+    body = body[body.index("match algorithm {"):]
+    body = body[:body.index("other =>")]
+    names = set(re.findall(r'^\s*"([a-z0-9-]+)"\s*=>', body, re.M))
+    names |= set(re.findall(r'file\.algorithm != "([a-z0-9-]+)"', src))
+    return names
+
+
+def check_steps(rel, i, v, problems):
+    """A scenario vector's step rule: mk on ok steps, nothing on reject."""
+    for j, step in enumerate(v.get("steps") or []):
+        if not isinstance(step, dict):
+            continue
+        where = "%s.vectors[%d].steps[%d] (%s)" % (rel, i, j, v.get("id"))
+        if step.get("expect") == "reject":
+            for key in ("mk", "message_keys"):
+                if key in step:
+                    problems.append("%s: a reject step carries no `%s`"
+                                    % (where, key))
+        elif "mk" not in step:
+            problems.append("%s: an ok step needs an `mk`" % where)
+
+
 def main():
     vector_schema = load(os.path.join(SCHEMAS, "vector.schema.json"))
     ratchet_schema = load(os.path.join(SCHEMAS, "ratchet-vector.schema.json"))
 
     problems = []
+
+    try:
+        known = runner_algorithms()
+    except (OSError, ValueError) as e:
+        known = None
+        problems.append("cannot read the runner's algorithm arms from %s: %s"
+                        % (os.path.relpath(RUNNER, ROOT), e))
 
     # The two schemas name themselves under one base, so a reader who
     # resolves one `$id` can resolve the other.
@@ -161,6 +217,12 @@ def main():
         validate(doc, schema, rel, errors)
         problems.extend(errors)
 
+        algorithm = doc.get("algorithm") if isinstance(doc, dict) else None
+        if known is not None and isinstance(algorithm, str) \
+                and algorithm not in known:
+            problems.append("%s: algorithm %r has no arm in the Rust runner "
+                            "(known: %s)" % (rel, algorithm, ", ".join(sorted(known))))
+
         vectors = doc.get("vectors") if isinstance(doc, dict) else None
         if not isinstance(vectors, list):
             continue
@@ -172,7 +234,9 @@ def main():
             if vid in seen:
                 problems.append("%s: vector id %r is not unique in the file" % (rel, vid))
             seen.add(vid)
-            if not scenario:
+            if scenario:
+                check_steps(rel, i, v, problems)
+            else:
                 valid = v.get("result", "valid") == "valid"
                 if valid and "output" not in v:
                     problems.append("%s.vectors[%d] (%s): a valid vector needs an "

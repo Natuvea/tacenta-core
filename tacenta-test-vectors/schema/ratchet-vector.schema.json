@@ -5,21 +5,25 @@
   "description": "A scenario-driven vector file for the Double Ratchet. Each vector is a scripted exchange: an initial state and a sequence of send and receive steps, each recording the message key the model produced and, on model-generated steps, its expansion into the AEAD key, the MAC key and the IV. A runner replays the script against an implementation and checks each message key and each expansion. Diffie-Hellman outputs are supplied as bytes, since the curve is a trusted-boundary primitive.",
   "type": "object",
   "required": ["schema_version", "algorithm", "source", "vectors"],
+  "additionalProperties": false,
   "properties": {
     "schema_version": { "const": 1 },
     "algorithm": { "const": "double-ratchet" },
     "source": { "type": "string" },
     "vectors": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "type": "object",
         "required": ["id", "init", "steps"],
+        "additionalProperties": false,
         "properties": {
           "id": { "type": "string" },
           "comment": { "type": "string" },
           "init": {
             "type": "object",
             "required": ["sk", "alice_pub", "bob_pub", "dh_ab"],
+            "additionalProperties": false,
             "description": "Alice is the party that sends first (init_sender); Bob receives first (init_receiver). sk is the shared root key from session establishment; dh_ab is DH(alice_initial, bob_pub).",
             "properties": {
               "sk": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
@@ -33,12 +37,13 @@
             "items": {
               "type": "object",
               "required": ["actor", "op"],
+              "additionalProperties": false,
               "properties": {
                 "actor": { "enum": ["alice", "bob"] },
                 "op": { "enum": ["send", "receive"] },
                 "expect": {
                   "enum": ["ok", "reject"],
-                  "description": "Whether the step succeeds (default) or must be rejected. A reject step carries no mk."
+                  "description": "Whether the step succeeds (default) or must be rejected. An ok step carries mk; a reject step carries neither mk nor message_keys (tooling/check-vectors.py enforces both)."
                 },
                 "mk": {
                   "type": "string",
@@ -49,6 +54,7 @@
                   "type": "object",
                   "description": "Present on model-generated ok steps: the expansion of mk into the AEAD key, the MAC key and the IV (ratchet.md, message keys; HKDF over the message-key label with a zero salt, 80 bytes split 32/32/16). A runner that has mk checks these against the implementation's expansion, so the label, the salt and the split order are pinned by bytes. Optional, so hand-authored vectors need not carry it.",
                   "required": ["enc", "mac", "iv"],
+                  "additionalProperties": false,
                   "properties": {
                     "enc": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
                     "mac": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
@@ -59,6 +65,7 @@
                   "type": "object",
                   "description": "Present on receive steps: the header the sender produced.",
                   "required": ["dh", "pn", "n"],
+                  "additionalProperties": false,
                   "properties": {
                     "dh": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
                     "pn": { "type": "integer", "minimum": 0 },

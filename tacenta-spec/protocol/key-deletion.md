@@ -231,14 +231,23 @@ deleting them after an interval, triggered by a timer or by counting events.
   retired key is a last-resort handshake still, fingerprinted and refused on
   the same terms as one against the current key.
 
-  Two consequences are the caller's to manage. A bundle a peer fetched before
-  the rotation names the retired identifier and still establishes, but only
-  until the rotation after that, so a directory holding dispensed bundles
-  must be restocked after every rotation and rotation must not run twice
-  inside one directory refresh. And the one-time secrets those stranded
-  bundles named stay in the store unconsumed, harmless but idle. The
-  `rotate_signed_prekey` documentation in `tacenta-core` carries both
-  warnings with their reasoning.
+  Three consequences are the caller's to manage. A bundle a peer fetched
+  before the rotation names the retired identifier and still establishes,
+  but only until the rotation after that, so a directory holding dispensed
+  bundles must be restocked after every rotation and rotation must not run
+  twice inside one directory refresh. The one-time secrets those stranded
+  bundles named stay in the store unconsumed, harmless but idle. And the
+  identifier space has an end: both rotations take their identifier from
+  the store's counter, the one `replenish` draws from, and once that counter
+  stands at `u32::MAX` each of `rotate_signed_prekey` and `rotate_kem`
+  returns without rotating, silently, the same quiet refusal `replenish`
+  makes at the end of the space. Every key the store ever issued spent one
+  identifier, so reaching that point is not a practical concern; but a
+  caller that must know a rotation happened should observe it
+  (`PrekeyStore::next_id` advanced, or the published bundle's signed-prekey
+  identifier changed) rather than assume it from the call having returned.
+  The `rotate_signed_prekey` documentation in `tacenta-core` carries the
+  first two warnings with their reasoning and names the third.
 
 ## What this implementation does not do yet
 

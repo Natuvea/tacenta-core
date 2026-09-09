@@ -1,13 +1,18 @@
 # Public CI for the open tacenta-core repository.
 #
 # This runs the steps of `tooling/ci.sh`, split into jobs so a failure names
-# its cause, plus the committed translation with its T1/T3 proofs, scanned for
-# `sorry` by `tacenta-proofs/scripts/no-sorry.sh`. Everything here runs on a
-# GitHub-hosted runner without secrets. What does not run here, and why, is
-# stated in the root README under "Building and checking": regenerating the
+# its cause. Everything here runs on a GitHub-hosted runner without secrets.
+# Four of the script's steps are optional on a developer's machine and
+# unconditional here, because this workflow installs what they need: the
+# advisory audit, the MSRV check, the 32-bit check, and the committed
+# translation built with its T1/T3 proofs and scanned for `sorry` by
+# `tacenta-proofs/scripts/no-sorry.sh` (the `translation` job, the heavy
+# one). Two of the script's steps do not run here at all: the
+# interoperability harness, which is not in this tree, and the fuzz smoke
+# run. What runs outside this repository altogether, and why, is stated in
+# the root README under "Building and checking": regenerating the
 # translation from the Rust (pinned Charon/Aeneas), the coverage-guided
-# fuzzing, and the timing measurements. `ci.sh` skips those three when the
-# tooling is absent, and this workflow does not install it.
+# fuzzing, and the timing measurements.
 #
 # Every third-party action is pinned by commit digest, with the tag in a
 # trailing comment; `tooling/check-workflows.sh` enforces that, along with the
@@ -56,7 +61,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0 # master, 2026-09-03
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
         with:
           toolchain: stable
           components: clippy, rustfmt
@@ -82,7 +87,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0 # master, 2026-09-03
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
         with:
           toolchain: ${{ env.MSRV }}
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -103,7 +108,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0 # master, 2026-09-03
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
         with:
           toolchain: stable
           targets: armv7-linux-androideabi
@@ -124,7 +129,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0 # master, 2026-09-03
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
         with:
           toolchain: stable
           components: clippy, rustfmt
@@ -145,7 +150,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0 # master, 2026-09-03
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
         with:
           toolchain: stable
       - run: cargo install --locked cargo-audit
@@ -211,6 +216,12 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      # `check-workflows.sh` parses the workflow files with PyYAML. The runner
+      # image happens to carry it today; installing it names the dependency
+      # rather than relying on that, and the script fails on the runner
+      # (rather than skipping) if the import still does not resolve.
+      - name: PyYAML for the workflow check
+        run: python3 -m pip install --user pyyaml
       - run: bash tooling/check-workflows.sh
       - run: bash tooling/check-proof-hygiene.sh
       - run: bash tooling/check-labels.sh

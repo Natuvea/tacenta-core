@@ -54,15 +54,17 @@ inputs; libsignal's source code is not an input to this project.
 |---|---|---|
 | KDF_CK (chain step) | Derivations | ratchet vectors, `deriveChain` proofs |
 | KDF_RK (root step) | Derivations | ratchet vectors (bidirectional) |
-| Message-key expansion | Derivations | core AEAD round-trip test |
+| Message-key expansion | Derivations | every step of the model-generated ratchet vectors (`message_keys`: enc, mac, iv, checked by the runner against the implementation's expansion), core AEAD round-trip test |
 | Symmetric-key ratchet | The symmetric-key ratchet | in-order vector |
-| Diffie-Hellman ratchet | The Diffie-Hellman ratchet | bidirectional vector |
+| Diffie-Hellman ratchet | The Diffie-Hellman ratchet | bidirectional and peer-revisits-ratchet-key vectors |
 | Skipped keys, MAX_SKIP | Skipped keys | out-of-order vector, `skipMessageKeys_growth`, reject vector |
 | Skipped store bound, MAX_SKIPPED_STORE | Skipped keys | `skipMessageKeys_store_bounded`, core store-bound test |
 | Session initialisation | Sending and receiving | all vectors (init_sender / init_receiver) |
 
 Vectors: `vectors/ratchet/double-ratchet.json` (`in-order-3`,
-`out-of-order-skip`, `bidirectional`) and
+`out-of-order-skip`, `bidirectional`, and `peer-revisits-ratchet-key`, in
+which a peer returns to a ratchet key it had left and numbers a fresh chain
+from zero under a key already in the store) and
 `vectors/malformed-input/ratchet-reject.json`
 (`reject-too-many-skipped`, a header demanding more than `MAX_SKIP` skips,
 which the receiver must reject). Runner: `runners/rust/tests/ratchet.rs`.

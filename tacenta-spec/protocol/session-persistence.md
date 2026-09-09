@@ -195,6 +195,21 @@ remembered. Both are the honest answer, since those stores recorded neither.
 A store written by this version and read by an earlier one fails on the
 version byte, which is the intended direction of incompatibility.
 
+Two refusals are specific to this format. A presence byte is `0x00` or
+`0x01` and nothing else: a `previous_signed_present` or
+`previous_kem_present` carrying any other value is malformed, not
+"present". And a v3 store must re-encode to the identical bytes: having
+decoded the input, the reader runs `to_bytes` over what it read and refuses
+the input if the result differs. That is the canonicality backstop, the
+same one `Session::import` applies to the session format: it refuses any
+second spelling of a value that the field-by-field checks did not
+enumerate, at the cost of one encode, and it is what makes the "canonical"
+principle above a property of the decoder rather than a promise about the
+writer. It applies only to the version the writer emits. A v1 or v2 store
+re-encodes to v3, gaining the fields the newer format added, so comparing
+there would refuse every honest upgrade, and those two versions are read
+on the field-by-field checks alone.
+
 ## Rejection
 
 A decoder rejects, the same way message-format.md's does: an unrecognised

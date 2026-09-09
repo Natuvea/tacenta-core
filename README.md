@@ -92,23 +92,40 @@ step can be reproduced elsewhere.
 
 ## Building and checking
 
-One command runs every gate: `bash tooling/ci.sh`. The public CI
-(`.github/workflows/ci.yml`) runs the same steps, split into jobs, on every
-push and pull request, so a green run there and a green run here mean the
-same thing. The gate is: the workflow, proof-hygiene, label, vector-schema and
-authentication-boundary checks under `tooling/`; the Lean model build and the
-model-layer proofs with their `sorry` scan; the attestation check; the
-committed vectors regenerated from the model and compared; and the Rust
-crates (format, lint, tests, property-based decoder tests) with a dependency
-advisory audit and a 32-bit compile check.
+One command runs the gate: `bash tooling/ci.sh`. The public CI
+(`.github/workflows/ci.yml`) runs the same steps on every push and pull
+request, split into jobs so a failure names its cause. The gate is: the
+workflow, proof-hygiene, label, vector-schema and authentication-boundary
+checks under `tooling/`; the Lean model build and the model-layer proofs with
+their `sorry` scan; the attestation check; the committed vectors regenerated
+from the model and compared; the Rust crates (format, lint, tests,
+property-based decoder tests) with a dependency advisory audit, a compile
+check on the minimum supported Rust version, and a 32-bit compile check; and
+the committed Rust-to-Lean translation with its T1/T3 proofs, built and
+scanned for `sorry`.
+
+The two do not run exactly the same set, and the difference is stated
+rather than papered over. Four of those steps need tooling the workflow
+installs and a developer's machine may not have; the workflow always runs
+them, and the script skips each one it cannot run and prints a line saying
+so: the advisory audit (`cargo-audit`), the MSRV check (a 1.87 toolchain),
+the 32-bit check (the armv7 target), and the translation build (the
+translation's Mathlib cache, which is the heavy one). In the other direction
+the script runs two steps the workflow does not: the interoperability
+harness, which is not in this public tree and skips here, and the fuzz smoke
+run, which needs `cargo-fuzz` and a nightly toolchain. So a green local run
+is the gate above less the steps it printed a skip line for, and a run with
+nothing skipped means the same thing here as a green workflow.
 
 | Prerequisite | Version | Used by |
 | --- | --- | --- |
-| Rust toolchain (`cargo`, `clippy`, `rustfmt`) | stable; 1.87 is the minimum every crate names | the Rust crates and the vector runner |
+| Rust toolchain (`cargo`, `clippy`, `rustfmt`) | stable | the Rust crates and the vector runner |
+| `rustup toolchain install 1.87` | 1.87, the `rust-version` every crate names | the MSRV compile check; skipped locally when absent, failed in CI |
 | `cargo-audit` (`cargo install --locked cargo-audit`) | any current release | the advisory audit; skipped locally when absent, failed in CI |
-| `rustup target add armv7-linux-androideabi` | matching the toolchain | the 32-bit compile check; skipped locally when absent |
+| `rustup target add armv7-linux-androideabi` | matching the toolchain | the 32-bit compile check; skipped locally when absent, failed in CI |
 | Lean, through elan | the version `tacenta-model/lean-toolchain` and `tacenta-proofs/lean-toolchain` name (v4.31.0) | the model, the proofs, and vector regeneration |
-| `python3` with PyYAML | 3.8 or later | the `tooling/` checks |
+| the translation's Mathlib cache (`cd tacenta-proofs/translation && lake exe cache get`) | the commit `tacenta-proofs/translation/lake-manifest.json` pins | the translation build and its `sorry` scan; skipped when absent |
+| `python3` with PyYAML (`pip install pyyaml`) | 3.8 or later | the `tooling/` checks; PyYAML is for the workflow check, which skips locally without it and fails in CI |
 | `git` | any | the vector-currency diff |
 
 Individual pieces can be run on their own: `cargo test --locked --workspace`
