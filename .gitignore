@@ -14,10 +14,12 @@ tacenta-proofs/Generated/aeneas-output/*.lean
 
 # The generated translations (Translation/Tacenta*.lean) are *tracked*, not
 # ignored, one rule for all of them. They are committed so a reviewer can read
-# what the proofs are about without installing Charon and Aeneas; the private
-# verification workflow regenerates them from the Rust and fails on a
-# difference. Regenerate with tacenta-proofs/scripts/run-aeneas.sh after
-# changing a verified zone.
+# what the proofs are about without installing Charon and Aeneas, and so the
+# public `translation` CI job can check the proofs over them. Regenerating
+# them from the Rust needs the pinned Charon and Aeneas release and runs
+# outside this repository (README, "Building and checking"); regenerate
+# locally with tacenta-proofs/scripts/run-aeneas.sh after changing a verified
+# zone.
 tacenta-proofs/translation/.lake/
 # `tacenta-proofs/translation/lake-manifest.json` is *tracked*. It is the pin:
 # the record of which Aeneas, Mathlib, Batteries and Aesop commits the T1/T3

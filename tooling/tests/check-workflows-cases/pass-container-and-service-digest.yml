@@ -1,0 +1,18 @@
+# note: Job container (mapping form) and a service, both pinned by digest.
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/octo/img@sha256:abababababababababababababababababababababababababababababababab
+    services:
+      db:
+        image: postgres@sha256:abababababababababababababababababababababababababababababababab
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: true

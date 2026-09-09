@@ -101,10 +101,16 @@ translate() {
 translate ratchet tacenta-ratchet tacenta_ratchet.llbc TacentaRatchet
 translate session tacenta-session tacenta_session.llbc TacentaSession
 translate erasure tacenta-erasure tacenta_erasure.llbc TacentaErasure
-# The wire parser. The verified-core design's first branch puts it inside the verified
-# core, so refinement begins at received bytes rather than after a trusted
-# parser. If this stops translating, that decision reopens rather than the crate
-# quietly moving out.
+# The bounded wire-format reader. The verified-core design's first branch puts
+# it inside the verified core so that refinement *can* begin at received bytes
+# rather than after a trusted parser -- but it does not yet. Today
+# `tacenta-protobuf` has no caller outside its own crate and the fuzz target:
+# the bytes a peer actually sends are parsed by `decode_message`,
+# `decode_composite` and `decode_initial` in the root crate's `serialization`
+# module, which this script deliberately does not translate. So what the
+# protobuf proofs establish is a verified reader that the live path does not
+# use; CLAIMS.md and LIMITATIONS.md say the same. If this stops translating,
+# that decision reopens rather than the crate quietly moving out.
 translate protobuf tacenta-protobuf tacenta_protobuf.llbc TacentaProtobuf
 
 # The post-quantum stack, on the shipping path since the triple-ratchet
@@ -113,12 +119,29 @@ translate spqr tacenta-spqr tacenta_spqr.llbc TacentaSpqr
 translate braid tacenta-braid tacenta_braid.llbc TacentaBraid
 
 # The composition, `tacenta-triple`, depends on both `tacenta-ratchet` and
-# `tacenta-spqr`. Charon re-emits `tacenta-ratchet`'s instances into this
-# crate's translation, and against the pinned toolchain above both files
-# import cleanly together and a full `lake build` of the whole translation
-# package passes: each crate's declarations are namespaced under its own name
-# (`tacenta_ratchet.RatchetError` inside `namespace tacenta_ratchet`, this
-# crate's own copy inside `namespace tacenta_triple`), so nothing collides.
+# `tacenta-spqr`. Charon translates it as a self-contained unit, so the two
+# inner crates' `State` types come out as bare opaque axioms here and their
+# error enums are re-emitted as this crate's own copies
+# (`tacenta_ratchet.RatchetError` inside `namespace tacenta_triple`, beside
+# the real one inside `namespace tacenta_ratchet`). The namespaced names do
+# not collide; the anonymous instances Aeneas's `@[discriminant isize]`
+# generates for those enums do, since they are named from the short type
+# name alone and land outside either crate's namespace
+# (`instDiscriminantRatchetErrorIsize`, `instDiscriminantSpqrErrorIsize`):
+# importing `Translation.TacentaTriple`
+# together with `Translation.TacentaRatchet` or `Translation.TacentaSpqr`
+# fails on them. `lake build` passes over the whole package only because
+# lakefile.toml builds every module under Translation/ on its own (the note
+# on its `globs` line) and nothing imports both sides; `TripleT1.lean` and
+# `TripleT3.lean` cannot cite the inner crates' theorems for the same
+# reason, which `TripleT3.lean`'s header records. Do not add a root import
+# of this module.
 translate triple tacenta-triple tacenta_triple.llbc TacentaTriple
 
-echo "run-aeneas: next, in tacenta-proofs/translation: lake exe cache get && lake build"
+echo "run-aeneas: next, record what was just generated:"
+echo "run-aeneas:   python3 tacenta-proofs/scripts/attest.py --refresh-translation"
+echo "run-aeneas: which rewrites manifests/translation-attestation.json (per-file"
+echo "run-aeneas: SHA-256, axiom names, and the hash of the Rust each file came"
+echo "run-aeneas: from). Run it now and at no other time: attest.py --check holds"
+echo "run-aeneas: the tree to that record. Then, in tacenta-proofs/translation:"
+echo "run-aeneas:   lake exe cache get && lake build"

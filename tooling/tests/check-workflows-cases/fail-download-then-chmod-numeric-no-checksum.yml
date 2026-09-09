@@ -1,0 +1,13 @@
+# expect: downloaded then executed without a checksum
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: curl -fsSLo tool https://example.invalid/tool && chmod 755 tool && ./tool

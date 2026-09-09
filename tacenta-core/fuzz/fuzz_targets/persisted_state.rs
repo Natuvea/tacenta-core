@@ -64,11 +64,13 @@ fuzz_target!(|data: &[u8]| {
     // The session layer, which composes everything above plus the identity and
     // pending-handshake fields.
     //
-    // The prekey store still reads its previous format (version 0x01, no
-    // trailing fingerprint count) and always writes the current one, on
-    // purpose, so byte-identical re-encoding is the rule only for a current
-    // store. For an older one the oracle is idempotence: what it writes back
-    // must itself read and re-emit unchanged.
+    // The prekey store still reads its earlier formats (versions 0x01
+    // through 0x03: no replay record; then an untagged record without the
+    // retired prekeys; then the same with them) and always writes the
+    // current one, on purpose, so
+    // byte-identical re-encoding is the rule only for a current store. For an
+    // older one the oracle is idempotence: what it writes back must itself
+    // read and re-emit unchanged.
     if let Ok(p) = PrekeyStore::from_bytes(data) {
         let re = p.to_bytes();
         if data.first() == re.first() {

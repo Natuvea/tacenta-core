@@ -1,6 +1,7 @@
 [package]
 name = "tacenta-core-fuzz"
 version = "0.0.0"
+license = "Apache-2.0"
 publish = false
 edition = "2024"
 rust-version = "1.87"
@@ -80,6 +81,13 @@ bench = false
 [[bin]]
 name = "braid_receive"
 path = "fuzz_targets/braid_receive.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "triple_receive"
+path = "fuzz_targets/triple_receive.rs"
 test = false
 doc = false
 bench = false

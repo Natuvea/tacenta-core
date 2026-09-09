@@ -143,9 +143,10 @@ theorem km_spec_none (dh1 dh2 dh3 ss : Array U8 32#usize) :
   have l2 := array32_length dh2
   have l3 := array32_length dh3
   have ls := array32_length ss
-  -- Two appends: the prefix onto an empty buffer, which is a fixed size, and
-  -- the keying material onto that, which is the caller's bound.
-  step* <;> simp_all <;> exact small_le_usize_max (by omega)
+  -- The buffer is sized once and starts empty: `with_capacity` is `Vec.new`
+  -- to the library, which is what lets each append's bound be computed.
+  step* <;> simp_all [alloc.vec.Vec.with_capacity] <;>
+    exact small_le_usize_max (by omega)
 
 @[step]
 theorem km_spec_some (dh1 dh2 dh3 d4 ss : Array U8 32#usize) :
@@ -157,7 +158,8 @@ theorem km_spec_some (dh1 dh2 dh3 d4 ss : Array U8 32#usize) :
   have l3 := array32_length dh3
   have l4 := array32_length d4
   have ls := array32_length ss
-  step* <;> simp_all <;> exact small_le_usize_max (by omega)
+  step* <;> simp_all [alloc.vec.Vec.with_capacity] <;>
+    exact small_le_usize_max (by omega)
 
 /-! ## The identity binding and the encodings
 
@@ -176,7 +178,10 @@ theorem associated_data_spec (a b : Slice U8)
     (h : a.val.length + b.val.length ≤ Usize.max) :
     associated_data a b ⦃ fun r => r.val = a.val ++ b.val ⦄ := by
   unfold associated_data
-  step* <;> simp_all
+  -- The capacity is a saturating sum the code never reads back; the buffer it
+  -- sizes is empty to the library, so only the caller's bound is left.
+  simp only [lift, alloc.vec.Vec.with_capacity]
+  step*
 
 @[step]
 theorem associated_data_with_kem_spec (a b c : Slice U8)
@@ -184,21 +189,21 @@ theorem associated_data_with_kem_spec (a b c : Slice U8)
     associated_data_with_kem a b c ⦃ fun r => r.val = a.val ++ b.val ++ c.val ⦄ := by
   unfold associated_data_with_kem
   have hab : a.val.length + b.val.length ≤ Usize.max := by omega
-  step* <;> simp_all
+  step*
 
 @[step]
 theorem encode_ec_spec (pk : Array U8 32#usize) :
     encode_ec pk ⦃ fun r => r.val = ENCODE_EC_CURVE25519 :: pk.val ⦄ := by
   unfold encode_ec
   have lp := array32_length pk
-  step* <;> simp_all <;> exact small_le_usize_max (by omega)
+  step* <;> simp_all
 
 @[step]
 theorem encode_kem_spec (pk : Slice U8)
     (h : pk.val.length + 1 ≤ Usize.max) :
     encode_kem pk ⦃ fun r => r.val = ENCODE_KEM_ML_KEM_1024 :: pk.val ⦄ := by
   unfold encode_kem
-  step* <;> simp_all
+  step*
 
 /-! ## Reading an encoding back
 
@@ -248,7 +253,7 @@ theorem decode_ec_loop_spec (bytes : Slice U8) (k : Array U8 32#usize) (i : Usiz
         rw [if_pos hlt, List.getElem?_eq_getElem (by omega)]
     · -- The cursor has reached the end, so the invariant already covers every
       -- index the postcondition asks about.
-      step* <;> simp_all
+      step*
   · exact ⟨hi, hpre⟩
 
 /-- The loop as the wrapper calls it, at a cursor of zero. A canonical
@@ -276,9 +281,9 @@ theorem decode_ec_spec (bytes : Slice U8) :
       simp only [Slice.len, ENCODE_EC_LEN] at hl
       scalar_tac
     simp only [hl, if_pos]
-    step* <;> simp_all
-  · simp only [hl, if_neg, if_false]
-    step* <;> simp_all
+    step*
+  · simp only [hl, if_false]
+    step*
 
 /-! ## The derivation
 
@@ -334,9 +339,12 @@ theorem kdf_sk_no_panic (hk : HkdfTotal) [ZeroizingModel]
     NoPanic (kdf_sk km_bytes) := by
   show kdf_sk km_bytes ⦃ fun _ => True ⦄
   unfold kdf_sk
+  -- The capacity is a saturating sum the code never reads back, and the
+  -- buffer it sizes is empty to the library.
+  simp only [lift, alloc.vec.Vec.with_capacity]
   step*
   all_goals simp_all
-  all_goals first | omega | exact small_le_usize_max (by omega)
+  all_goals omega
 
 /-- `kdf_sk` as a stepping rule, so `shared_secret` can walk through it. -/
 @[step]

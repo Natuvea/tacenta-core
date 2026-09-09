@@ -33,8 +33,11 @@
 //! to the session.
 
 #![forbid(unsafe_code)]
-// The `?` operator desugars through `Try` into Lean that will not typecheck, so
-// the verified zone does not use it. See tacenta-proofs/upstream/README.md.
+// `?` appears here only on a `Result` whose error type is this function's own,
+// the one shape known to translate; the remaining early returns are spelled as
+// `match`, and the lint that asks to rewrite those as `?` stays off because
+// what it asks for is not uniformly known to translate. See tacenta-ratchet's
+// module doc ("The `?` operator") for what is and is not known.
 #![allow(clippy::question_mark)]
 
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
@@ -63,8 +66,15 @@ pub const EPOCHS_KEPT: u64 = 2;
 
 /// `PROTOCOL_INFO` and the three suffixes. Wire-sensitive, recorded in the
 /// conformance manifest rather than settled here.
+///
+/// The suffixes are appended to `PROTOCOL_INFO` with no separator, unlike the
+/// Braid's, which carry a leading `:`; both spellings are frozen in
+/// `LABELS.md`. `CHAIN_LABEL` is a strict prefix of `CHAIN_START_LABEL`, and
+/// the specification's initialisation suffix is named to end in `LABEL` so
+/// `tooling/check-labels.sh` sees the pair and registers it rather than
+/// missing it by naming (CR-32).
 const PROTOCOL_INFO: &[u8] = b"Tacenta SPQR";
-const CHAIN_START: &[u8] = b"Chain Start";
+const CHAIN_START_LABEL: &[u8] = b"Chain Start";
 const ROOT_LABEL: &[u8] = b"Root";
 const CHAIN_LABEL: &[u8] = b"Chain";
 
@@ -138,7 +148,8 @@ pub enum SpqrError {
 /// No `Debug` on this or the other secret-bearing types here, so no derived
 /// impl can print chain, message or root keys. Counters-only impls
 /// exist under `cfg(test)` below for the crate's own assertions.
-#[derive(Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 struct Chain {
     ck: Key,
     #[zeroize(skip)]
@@ -147,14 +158,16 @@ struct Chain {
 
 /// A chain is `None` when retired, which the specification distinguishes from a
 /// chain that has produced no keys.
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 struct Chains {
     send: Option<Chain>,
     receive: Option<Chain>,
 }
 
 /// A message key held for a message that has not arrived.
-#[derive(Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 struct Skipped {
     #[zeroize(skip)]
     epoch: u64,
@@ -206,7 +219,12 @@ impl core::fmt::Debug for Skipped {
 /// subset. Both are maps in the sense that matters, one entry per key, and that
 /// is a property maintained by the operations rather than a shape assumed by
 /// the type.
-#[derive(Clone, PartialEq)]
+///
+/// Equality only under `cfg(test)`. The derived comparison is byte-wise over
+/// the root, chain and message keys and not constant-time; the tests need it
+/// for round-trip assertions and nothing shipping compares states (CR-22).
+#[derive(Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct State {
     rk: Key,
     epoch: u64,
@@ -260,13 +278,19 @@ fn info(suffix: &[u8]) -> Vec<u8> {
 /// `KDF_SCKA_INIT`: from the session's shared secret, a root key and both chain
 /// keys at once.
 fn kdf_init(sk: &[u8]) -> (Key, Key, Key) {
-    let out: [u8; 96] = tacenta_kdf::hkdf_sha256(&[0u8; 32], sk, &info(CHAIN_START));
+    // Wiped on the way out, as the Double Ratchet's derivations are: the 96
+    // bytes hold all three keys (CR-15).
+    let out = Zeroizing::new(tacenta_kdf::hkdf_sha256::<96>(
+        &[0u8; 32],
+        sk,
+        &info(CHAIN_START_LABEL),
+    ));
     split3(&out)
 }
 
 /// `KDF_SCKA_RK`: fold an agreement secret into the root key.
 fn kdf_rk(rk: &Key, k: &Key) -> (Key, Key, Key) {
-    let out: [u8; 96] = tacenta_kdf::hkdf_sha256(rk, k, &info(ROOT_LABEL));
+    let out = Zeroizing::new(tacenta_kdf::hkdf_sha256::<96>(rk, k, &info(ROOT_LABEL)));
     split3(&out)
 }
 
@@ -281,7 +305,11 @@ fn kdf_rk(rk: &Key, k: &Key) -> (Key, Key, Key) {
 /// specified derivation, and the vectors generated from `Model.SparseRatchet`
 /// have to be able to reach it.
 pub fn kdf_ck(ck: &Key, n: u64) -> (Key, Key) {
-    let out: [u8; 64] = tacenta_kdf::hkdf_sha256(ck, &be64(n), &info(CHAIN_LABEL));
+    let out = Zeroizing::new(tacenta_kdf::hkdf_sha256::<64>(
+        ck,
+        &be64(n),
+        &info(CHAIN_LABEL),
+    ));
     let mut next = [0u8; 32];
     let mut mk = [0u8; 32];
     next.copy_from_slice(&out[0..32]);
@@ -347,6 +375,10 @@ impl State {
     /// store would otherwise be permanent. The session layer evicts on its
     /// working copy and commits only after the message authenticates, so a
     /// forged header still cannot remove a genuine key.
+    ///
+    /// `#[must_use]`: a caller that ignores the count cannot tell an eviction
+    /// from an empty store, and retries against the latter loop (CR-20).
+    #[must_use]
     pub fn evict_oldest(&mut self, count: usize) -> usize {
         let mut evicted = 0;
         while evicted < count && !self.skipped.is_empty() {
@@ -524,6 +556,13 @@ impl State {
     /// A stored key is tried first; only if there is none does the chain
     /// advance, and advancing stores every key it passes so an out-of-order
     /// message can still be read later.
+    ///
+    /// **On `Err` the state may already have moved.** The agreement's secret
+    /// is folded in before the message number is examined, so a header that
+    /// is then refused leaves the epoch advanced. The Triple Ratchet and the
+    /// session run this on a copy and adopt it only on success; a caller
+    /// driving this crate directly must do the same and treat a state that
+    /// returned `Err` as spent (CR-20).
     pub fn receive(
         &mut self,
         receiving_epoch: u64,
@@ -774,7 +813,9 @@ impl State {
         // four billion entries against a buffer holding none. Nothing
         // previously accepted is rejected -- the `pos != bytes.len()` check at
         // the end already required each count to account for the buffer
-        // exactly. See `tacenta-erasure`, where a fuzzer found this first.
+        // exactly. See `tacenta-erasure`, where a fuzzer found this first;
+        // its coders bound their counts against the buffer the same way and,
+        // since CR-14, against the field's node count as well.
         if chains_count > bytes.len() / CHAINS_LEN {
             return Err(SpqrDecodeError::Malformed);
         }
@@ -794,6 +835,27 @@ impl State {
             }
         }
         if !chains_ok {
+            return Err(SpqrDecodeError::Malformed);
+        }
+        // **One entry per epoch, as `set_chains` maintains.** `find_chains`
+        // answers with the first match and `set_chains`'s `retain` removes
+        // every match, so a store holding two entries for one epoch would
+        // have the two disagree about which chains are live. An index loop
+        // over a count already bounded by the buffer, with a flag rather than
+        // a return from inside it (CR-21).
+        let mut distinct = true;
+        let mut i = 0;
+        while i < chains.len() {
+            let mut j = i + 1;
+            while j < chains.len() {
+                if chains[i].0 == chains[j].0 {
+                    distinct = false;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+        if !distinct {
             return Err(SpqrDecodeError::Malformed);
         }
 

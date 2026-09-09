@@ -117,6 +117,33 @@ def ZeroizeTotal : Prop :=
     ∃ r, Array.Insts.ZeroizeZeroize.zeroize
       (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) a = ok r
 
+/-- The `zeroize` wrapper itself, this crate's own copy of `T1.lean`'s
+`ZeroizingTotal`: `split_secret` now passes its sixty-four-byte expansion
+through `Zeroizing` on the way to the two ratchets' secrets (CR-15), and the
+wrapper's constructor and projection are both opaque here, as they are in
+every crate that touches the external `zeroize` crate. In the crate they are
+a newtype constructor and its projection, neither of which can fail. Stated
+at the one width this crate wraps at, so the assumption is no wider than the
+use, and a distinct constant from the ratchet's and the sparse ratchet's
+copies, per the counting rule below. -/
+def ZeroizingTotal : Prop :=
+  ∀ inst : zeroize.Zeroize (Array U8 64#usize),
+    (∀ z, ∃ r, zeroize.Zeroizing.new inst z = ok r) ∧
+    (∀ z, ∃ r, zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst z = ok r)
+
+@[step]
+theorem zeroizing_new_step (hz : ZeroizingTotal)
+    (inst : zeroize.Zeroize (Array U8 64#usize)) (z : Array U8 64#usize) :
+    zeroize.Zeroizing.new inst z ⦃ fun _ => True ⦄ := by
+  obtain ⟨r, hr⟩ := (hz inst).1 z; simp [hr]
+
+@[step]
+theorem zeroizing_deref_step (hz : ZeroizingTotal)
+    (inst : zeroize.Zeroize (Array U8 64#usize))
+    (z : zeroize.Zeroizing (Array U8 64#usize)) :
+    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst z ⦃ fun _ => True ⦄ := by
+  obtain ⟨r, hr⟩ := (hz inst).2 z; simp [hr]
+
 /-! ## This crate's own types: `Header`, `TripleError` -/
 
 theorem Header.clone_no_panic (self : Header) :
@@ -161,13 +188,13 @@ theorem TripleError.eq_no_panic (hrateq : RatchetErrorEqTotal) (hspqreq : SpqrEr
 
 /-! ## The two module-level functions: `split_secret`, `combine` -/
 
-theorem split_secret_no_panic (hkdf : HkdfSha256Total) (sk : Slice U8) :
+theorem split_secret_no_panic (hkdf : HkdfSha256Total) (hzw : ZeroizingTotal) (sk : Slice U8) :
     split_secret sk ⦃ fun _ => True ⦄ := by
   unfold split_secret
   step*
   all_goals (try (obtain ⟨r, hr⟩ := hkdf 64#usize ‹_› sk SPLIT_INFO; simp only [hr]))
   all_goals (try step*)
-  all_goals (try simp_all)
+  all_goals (try simp_all [Slice.length])
 
 theorem combine_no_panic (hkdf : HkdfSha256Total) (mk_classical mk_pq : Array U8 32#usize) :
     combine mk_classical mk_pq ⦃ fun _ => True ⦄ := by
@@ -220,13 +247,12 @@ theorem State.epoch_no_panic (h : SpqrEpochTotal) (self : State) :
 
 /-! ## `State.init_sender`, `State.init_receiver` -/
 
-theorem State.init_sender_no_panic (hss : HkdfSha256Total) (hris : RatchetInitSenderTotal)
-    (hsia : SpqrInitAliceTotal) (hz : ZeroizeTotal) (sk : Slice U8)
+theorem State.init_sender_no_panic (hss : HkdfSha256Total) (hzw : ZeroizingTotal)
+    (hris : RatchetInitSenderTotal) (hsia : SpqrInitAliceTotal) (hz : ZeroizeTotal) (sk : Slice U8)
     (our_pub peer_pub dh_out : Array U8 32#usize) (labels : tacenta_ratchet.LabelSet) :
     State.init_sender sk our_pub peer_pub dh_out labels ⦃ fun _ => True ⦄ := by
   unfold State.init_sender
-  step with split_secret_no_panic hss sk
-  all_goals (try step*)
+  step with split_secret_no_panic hss hzw sk
   all_goals (try (obtain ⟨s, hs⟩ := hris ec our_pub peer_pub dh_out labels; simp only [hs]))
   all_goals (try step*)
   all_goals (try (obtain ⟨s2, hs2⟩ := hsia s1; simp only [hs2]))
@@ -235,15 +261,14 @@ theorem State.init_sender_no_panic (hss : HkdfSha256Total) (hris : RatchetInitSe
   all_goals (try step*)
   all_goals (try (obtain ⟨r1, hr1⟩ := hz pq; simp only [hr1]))
   all_goals (try step*)
-  all_goals (try simp_all)
 
-theorem State.init_receiver_no_panic (hss : HkdfSha256Total) (hrir : RatchetInitReceiverTotal)
-    (hsib : SpqrInitBobTotal) (hz : ZeroizeTotal) (sk : Slice U8) (our_pub : Array U8 32#usize)
+theorem State.init_receiver_no_panic (hss : HkdfSha256Total) (hzw : ZeroizingTotal)
+    (hrir : RatchetInitReceiverTotal) (hsib : SpqrInitBobTotal) (hz : ZeroizeTotal) (sk : Slice U8)
+    (our_pub : Array U8 32#usize)
     (labels : tacenta_ratchet.LabelSet) :
     State.init_receiver sk our_pub labels ⦃ fun _ => True ⦄ := by
   unfold State.init_receiver
-  step with split_secret_no_panic hss sk
-  all_goals (try step*)
+  step with split_secret_no_panic hss hzw sk
   all_goals (try (obtain ⟨s, hs⟩ := hrir ec our_pub labels; simp only [hs]))
   all_goals (try step*)
   all_goals (try (obtain ⟨s2, hs2⟩ := hsib s1; simp only [hs2]))
@@ -252,7 +277,6 @@ theorem State.init_receiver_no_panic (hss : HkdfSha256Total) (hrir : RatchetInit
   all_goals (try step*)
   all_goals (try (obtain ⟨r1, hr1⟩ := hz pq; simp only [hr1]))
   all_goals (try step*)
-  all_goals (try simp_all)
 
 /-! ## `State.send`, `State.receive`, `State.commit`
 
@@ -268,7 +292,6 @@ theorem State.send_no_panic (hrc : RatchetStateCloneTotal) (hsc : SpqrStateClone
     State.send self sending_epoch output ⦃ fun _ => True ⦄ := by
   unfold State.send
   step with State.clone_no_panic hrc hsc
-  all_goals (try step*)
   all_goals (try (obtain ⟨r, hr⟩ := hrs candidate.classical; simp only [hr]))
   all_goals (try step*)
   all_goals (try (rcases r with v | e))
@@ -280,12 +303,10 @@ theorem State.send_no_panic (hrc : RatchetStateCloneTotal) (hsc : SpqrStateClone
   all_goals (try step*)
   all_goals (try (obtain ⟨pq_n, mk_pq⟩ := v1))
   all_goals (try (step with combine_no_panic hkdf))
-  all_goals (try step*)
   all_goals (try (obtain ⟨r2, hr2⟩ := hz mk_ec; simp only [hr2]))
   all_goals (try step*)
   all_goals (try (obtain ⟨r3, hr3⟩ := hz mk_pq; simp only [hr3]))
   all_goals (try step*)
-  all_goals (try simp_all)
 
 theorem State.receive_no_panic (hrc : RatchetStateCloneTotal) (hsc : SpqrStateCloneTotal)
     (hrr : RatchetReceiveTotal) (hsr : SpqrReceiveTotal) (hkdf : HkdfSha256Total) (hz : ZeroizeTotal)
@@ -295,7 +316,6 @@ theorem State.receive_no_panic (hrc : RatchetStateCloneTotal) (hsc : SpqrStateCl
     State.receive self header dh_out_recv dh_out_send new_dhs_pub output ⦃ fun _ => True ⦄ := by
   unfold State.receive
   step with State.clone_no_panic hrc hsc
-  all_goals (try step*)
   all_goals (try (obtain ⟨r, hr⟩ := hrr candidate.classical header.dr dh_out_recv dh_out_send new_dhs_pub; simp only [hr]))
   all_goals (try step*)
   all_goals (try (rcases r with v | e))
@@ -305,28 +325,43 @@ theorem State.receive_no_panic (hrc : RatchetStateCloneTotal) (hsc : SpqrStateCl
   all_goals (try (rcases r1 with v1 | e1))
   all_goals (try step*)
   all_goals (try (step with combine_no_panic hkdf))
-  all_goals (try step*)
   all_goals (try (obtain ⟨r2, hr2⟩ := hz v; simp only [hr2]))
   all_goals (try step*)
   all_goals (try (obtain ⟨r3, hr3⟩ := hz v1; simp only [hr3]))
   all_goals (try step*)
-  all_goals (try simp_all)
 
 theorem State.commit_no_panic (self next : State) : State.commit self next ⦃ fun _ => True ⦄ := by
   unfold State.commit; simp
 
 /-! ## What this covers, and what it still does not
 
-**Proved:** every function `tacenta-triple` exposes -- `split_secret`,
-`combine`, `State`'s clone and small accessors (`sending_public`,
+**Proved:** `split_secret`, `combine`, `Header`'s and `TripleError`'s
+clone and equality, `State`'s clone and small accessors (`sending_public`,
 `send_count`, `receive_count`, `epoch`), `State.init_sender`,
-`State.init_receiver`, and, the actual point of this file,
-`State.send`, `State.receive` and `State.commit`. No precondition beyond
-totality is needed anywhere: unlike `T1.lean`'s ratchet or `SpqrT1.lean`'s
-sparse ratchet, this crate carries no room, counter, or length bound of its
-own to state, because it never touches a vector, a chain, or a counter
-directly -- it only calls into the two ratchets that do, through their public
-calling surface, and matches on whether each call succeeded.
+`State.init_receiver`, and, the actual point of this file, `State.send`,
+`State.receive` and `State.commit`. No precondition beyond totality is
+needed for any of them: unlike `T1.lean`'s ratchet or `SpqrT1.lean`'s sparse
+ratchet, this crate carries no room, counter, or length bound of its own to
+state, because it never touches a vector, a chain, or a counter directly --
+it only calls into the two ratchets that do, through their public calling
+surface, and matches on whether each call succeeded.
+
+**Not proved, so not every function the crate exposes.** Five public
+functions have no theorem here: `State.classical_skipped_len`,
+`State.evict_oldest_classical`, `State.evict_oldest_post_quantum`,
+`State.to_bytes` and `State.from_bytes`. The session calls all five -- the
+first three from the eviction loop in
+`tacenta-core/src/sessions/lifecycle.rs`, the last two when it persists and
+restores a session. Each wraps an inner-ratchet operation that is opaque
+here and that none of the constants above assumes total (`skipped_len`,
+`evict_oldest`, `to_bytes` and `from_bytes` on `tacenta_ratchet.State`, and
+`evict_oldest`, `to_bytes` and `from_bytes` on `tacenta_spqr.State`), and
+`from_bytes` also parses its own length-prefixed framing. A theorem for each
+would need seven more totality assumptions of the same shape, one per opaque
+inner call, plus the `zeroize` wrapper at the `Vec` width `to_bytes` returns,
+and for `from_bytes` a proof over the framing. Until then what this file
+covers is the send, receive and commit path, the two constructors, the
+clones, the equalities and the accessors.
 
 **This is the crate the session's send and receive path actually runs
 through.** `T1.lean`'s `receive_no_panic` and
@@ -335,9 +370,9 @@ insufficient on their own: neither says anything about what happens when the
 two are composed, and the composition is what ships. This file is that
 composition's own proof, not a restatement of the other two.
 
-## Nineteen assumptions, all about a calling surface rather than a definition
+## Twenty assumptions, all about a calling surface rather than a definition
 
-Seventeen of the nineteen constants above are totality assumptions about
+Seventeen of the twenty constants above are totality assumptions about
 `tacenta_ratchet.State` or `tacenta_spqr.State` treated as **opaque** -- this
 crate never sees their real definitions, only the public functions `T1.lean`
 and `SpqrT1.lean` already proved total against those real definitions. That
@@ -347,11 +382,13 @@ API, and it is why none of these seventeen constants is the same proposition
 as any theorem in `T1.lean` or `SpqrT1.lean` even where the names echo each
 other (`RatchetSendTotal` here is not `send_no_panic` there -- one assumes
 totality of a call across a crate boundary, the other proves it from the
-translated body). `HkdfSha256Total` and `ZeroizeTotal` round out the count of
-nineteen, this crate's own copies of the same two axioms every other translated
-crate that touches a KDF or a zeroize call has had to declare separately, per the
-counting trap `SpqrT1.lean` describes: one axiom per crate that touches an
-unmodelled operation, not one per name.
+translated body). `HkdfSha256Total`, `ZeroizeTotal` and `ZeroizingTotal`
+round out the count of twenty, this crate's own copies of the same three
+axioms every other translated crate that touches a KDF, a zeroize call or the
+`zeroize` wrapper has had to declare separately, per the counting trap
+`SpqrT1.lean` describes: one axiom per crate that touches an unmodelled
+operation, not one per name. The last is new with `split_secret` wiping its
+sixty-four-byte expansion on the way out (CR-15).
 
 ## What is still open
 

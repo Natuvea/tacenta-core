@@ -23,6 +23,9 @@ theorem discharges); see
 `../tacenta-proofs/CLAIMS.md` for the ledger and `../tacenta-proofs/LIMITATIONS.md`
 for what is not covered.
 
-Not built: group messaging and sender keys (milestone M4), signed-prekey
-rotation, and a storage layer, each recorded where it matters rather than only
-here.
+Not built: group messaging and sender keys (not yet scheduled), and a storage
+layer, each recorded where it matters rather than only here. Signed-prekey
+and last-resort KEM prekey rotation are built (`PrekeyStore::rotate_signed_prekey`,
+`rotate_kem`), but nothing here schedules them: when to rotate is the
+caller's decision, and `../tacenta-spec/protocol/key-deletion.md` says what
+the caller must do around one.

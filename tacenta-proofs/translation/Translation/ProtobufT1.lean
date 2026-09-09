@@ -49,7 +49,7 @@ which is a fact about a caller rather than about this function. -/
 @[step]
 theorem byte_no_panic (r : Reader) : Reader.byte r ⦃ fun _ => True ⦄ := by
   unfold Reader.byte
-  step* <;> simp_all <;> scalar_tac
+  step*
 
 /-- The bounded varint loop cannot fail, from any starting counter within the
 bound.
@@ -70,9 +70,6 @@ theorem varint_loop_no_panic
     simp only []
     split <;> [skip; simp]
     step*
-    repeat' (split <;> step*)
-    all_goals simp_all
-    all_goals scalar_tac
   · exact h
 
 /-- And therefore `varint` itself, which enters the loop at zero. -/
@@ -93,13 +90,13 @@ ran out of content. -/
 @[step]
 theorem decode_tag_no_panic (raw : U32) : decode_tag raw ⦃ fun _ => True ⦄ := by
   unfold decode_tag
-  step* <;> simp
+  step*
 
 /-- And `tag` itself: a varint, then the interpretation, each already proved. -/
 @[step]
 theorem tag_no_panic (r : Reader) : Reader.tag r ⦃ fun _ => True ⦄ := by
   unfold Reader.tag
-  step* <;> simp
+  step*
 
 /-! ## The functions that allocate
 
@@ -114,7 +111,7 @@ stated as an invariant rather than assumed. -/
 theorem new_no_panic (bytes : alloc.vec.Vec U8) :
     Reader.new bytes ⦃ fun _ => True ⦄ := by
   unfold Reader.new
-  step* <;> simp
+  step*
 
 /-- How much is left.
 
@@ -134,7 +131,7 @@ have the same answer: zero. -/
 theorem remaining_spec (r : Reader) :
     Reader.remaining r ⦃ fun n => n.val = r.bytes.length - r.at.val ⦄ := by
   unfold Reader.remaining
-  step* <;> simp_all <;> scalar_tac
+  step*
 
 /-- The copy loop of `slice_of` cannot fail.
 
@@ -217,7 +214,7 @@ declared limits that anything enforces. -/
 @[step]
 theorem fieldset_new_no_panic : FieldSet.new ⦃ fun _ => True ⦄ := by
   unfold FieldSet.new
-  step* <;> simp
+  step*
 
 /-- The scan cannot fail: the bound is rechecked every turn, so the index is
 never out of range however the vector got its length. -/
@@ -232,8 +229,6 @@ theorem contains_loop_no_panic (fs : FieldSet) (field : U32) (i : Usize) :
     simp only []
     split <;> [skip; simp]
     step*
-    all_goals (try simp_all)
-    all_goals scalar_tac
   · trivial
 
 @[step]
@@ -271,8 +266,6 @@ theorem one_field_no_panic (st : Parse) : one_field st ⦃ fun _ => True ⦄ := 
   unfold one_field
   step*
   repeat' (split <;> (try step*))
-  all_goals (try simp_all)
-  all_goals (try scalar_tac)
 
 /-- The parse loop cannot fail.
 
@@ -292,9 +285,6 @@ theorem parse_ratchet_body_loop_no_panic (st : Parse) (turns : Usize)
     unfold parse_ratchet_body_loop.body
     simp only []
     step*
-    repeat' (split <;> (try step*))
-    all_goals (try simp_all)
-    all_goals (try scalar_tac)
   · exact h
 
 /-- And the whole parse: every byte string within the outer limit yields a
@@ -308,8 +298,6 @@ theorem parse_ratchet_body_no_panic (bytes : alloc.vec.Vec U8) :
     | scalar_tac
     | simp_all
   repeat' (split <;> (try step*))
-  all_goals (try simp_all)
-  all_goals (try scalar_tac)
 
 /-! ## The prekey envelope
 
@@ -324,8 +312,6 @@ theorem one_envelope_field_no_panic (st : EnvelopeParse) :
   unfold one_envelope_field
   step*
   repeat' (split <;> (try step*))
-  all_goals (try simp_all)
-  all_goals (try scalar_tac)
 
 theorem parse_prekey_body_loop_no_panic (st : EnvelopeParse) (turns : Usize)
     (h : turns.val ≤ MAX_FIELDS.val) :
@@ -338,9 +324,6 @@ theorem parse_prekey_body_loop_no_panic (st : EnvelopeParse) (turns : Usize)
     unfold parse_prekey_body_loop.body
     simp only []
     step*
-    repeat' (split <;> (try step*))
-    all_goals (try simp_all)
-    all_goals (try scalar_tac)
   · exact h
 
 @[step]
@@ -352,8 +335,6 @@ theorem parse_prekey_body_no_panic (bytes : alloc.vec.Vec U8) :
     | scalar_tac
     | (try simp_all)
   repeat' (split <;> (try step*))
-  all_goals (try simp_all)
-  all_goals (try scalar_tac)
 
 /-! ## Emitting
 
@@ -377,8 +358,6 @@ theorem varint_step_no_panic (st : VarintOut) : varint_step st ⦃ fun _ => True
   unfold varint_step
   step*
   repeat' (first | (split <;> (try step*)) | (try step*))
-  all_goals (try simp_all)
-  all_goals (try scalar_tac)
 
 theorem encode_varint_loop_no_panic (st : VarintOut) (turns : Usize)
     (h : turns.val ≤ MAX_VARINT_BYTES.val) :
@@ -391,9 +370,6 @@ theorem encode_varint_loop_no_panic (st : VarintOut) (turns : Usize)
     unfold encode_varint_loop.body
     simp only []
     step*
-    repeat' (split <;> (try step*))
-    all_goals (try simp_all)
-    all_goals (try scalar_tac)
   · exact h
 
 @[step]
@@ -405,31 +381,24 @@ theorem encode_varint_no_panic (bytes : alloc.vec.Vec U8) (value : U32) :
     | scalar_tac
     | (try simp_all)
   repeat' (split <;> (try step*))
-  all_goals (try simp_all)
 
 @[step]
 theorem wire_code_no_panic (wire : WireType) : wire_code wire ⦃ fun _ => True ⦄ := by
   match wire with
-  | .Varint => unfold wire_code; step* <;> (try simp_all)
-  | .LengthDelimited => unfold wire_code; step* <;> (try simp_all)
+  | .Varint => unfold wire_code; step*
+  | .LengthDelimited => unfold wire_code; step*
 
 @[step]
 theorem encode_tag_no_panic (bytes : alloc.vec.Vec U8) (field : U32) (wire : WireType) :
     encode_tag bytes field wire ⦃ fun _ => True ⦄ := by
   unfold encode_tag
   step*
-  repeat' (split <;> (try step*))
-  all_goals (try simp_all)
-  all_goals (try scalar_tac)
 
 @[step]
 theorem copy_step_no_panic (st : CopyOut) (value : Slice U8) :
     copy_step st value ⦃ fun _ => True ⦄ := by
   unfold copy_step
   step*
-  repeat' (split <;> (try step*))
-  all_goals (try simp_all)
-  all_goals (try scalar_tac)
 
 theorem encode_length_delimited_loop_no_panic
     (value : Slice U8) (st : CopyOut) (turns : Usize)
@@ -443,9 +412,6 @@ theorem encode_length_delimited_loop_no_panic
     unfold encode_length_delimited_loop.body
     simp only []
     step*
-    repeat' (split <;> (try step*))
-    all_goals (try simp_all)
-    all_goals (try scalar_tac)
   · exact h
 
 @[step]
@@ -458,16 +424,12 @@ theorem encode_length_delimited_no_panic (bytes : alloc.vec.Vec U8) (value : Sli
     | scalar_tac
     | (try simp_all)
   repeat' (split <;> (try step*))
-  all_goals (try simp_all)
 
 @[step]
 theorem encode_ratchet_body_no_panic (body : RatchetBody) :
     encode_ratchet_body body ⦃ fun _ => True ⦄ := by
   unfold encode_ratchet_body
   step*
-  repeat' (split <;> (try step*))
-  all_goals (try simp_all)
-  all_goals (try scalar_tac)
 
 /-! ## What this tier does and does not establish
 
@@ -530,5 +492,25 @@ this repository, and its shape does not vary: **the arithmetic is never the
 difficulty, the form is.** The crate translates with **no axioms at all**,
 and `tag_refines` rests on nothing beyond `propext`, `Classical.choice` and
 `Quot.sound`. -/
+
+
+/-! ## The axiom audit, enforced rather than asserted
+
+Both message parsers and the ratchet-body encoder, pinned to Lean's three
+standard axioms and nothing else. This crate translates with no opaque
+primitive of its own, so a theorem here that started resting on anything
+further would mean the crate had grown a boundary, and the build says so. -/
+
+/-- info: 'Tacenta.ProtobufT1.parse_ratchet_body_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Tacenta.ProtobufT1.parse_ratchet_body_no_panic
+
+/-- info: 'Tacenta.ProtobufT1.parse_prekey_body_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Tacenta.ProtobufT1.parse_prekey_body_no_panic
+
+/-- info: 'Tacenta.ProtobufT1.encode_ratchet_body_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Tacenta.ProtobufT1.encode_ratchet_body_no_panic
 
 end Tacenta.ProtobufT1

@@ -356,3 +356,33 @@ fn from_bytes_rejects_nonzero_padding_in_an_absent_chain() {
     let restored = State::from_bytes(&bytes).unwrap();
     assert_eq!(restored.to_bytes().as_slice(), bytes.as_slice());
 }
+
+/// Two `chains` entries for one epoch are refused (CR-21). `find_chains`
+/// would answer with the first and `set_chains` would remove both, so the
+/// state is one no honest run produces and the two would disagree about
+/// which chains are live.
+#[test]
+fn from_bytes_rejects_a_duplicated_epoch_entry() {
+    let a = State::init_alice(&sk());
+    let bytes = a.to_bytes();
+    // version, rk, epoch, direction, then the four-byte chains count and one
+    // entry; the skipped count follows.
+    let count_at = 1 + 32 + 8 + 1;
+    let entry_at = count_at + 4;
+    let entry_len = 8 + (1 + 32 + 8) * 2;
+    let mut dirty = Vec::new();
+    dirty.extend_from_slice(&bytes[..count_at]);
+    dirty.extend_from_slice(&2u32.to_be_bytes());
+    dirty.extend_from_slice(&bytes[entry_at..entry_at + entry_len]);
+    dirty.extend_from_slice(&bytes[entry_at..entry_at + entry_len]);
+    dirty.extend_from_slice(&bytes[entry_at + entry_len..]);
+    assert!(matches!(
+        State::from_bytes(&dirty),
+        Err(SpqrDecodeError::Malformed)
+    ));
+    // A second entry under a different epoch is a state an honest run can
+    // hold, and restores.
+    let mut other = dirty.clone();
+    other[entry_at + entry_len..entry_at + entry_len + 8].copy_from_slice(&1u64.to_be_bytes());
+    assert!(State::from_bytes(&other).is_ok());
+}

@@ -59,7 +59,7 @@ theorem u8_injective {x y : Std.U8} (h : u8 x = u8 y) : x = y := by
   have hx : x.val < 256 := by scalar_tac
   have hy : y.val < 256 := by scalar_tac
   have := congrArg UInt8.toNat h
-  simp [UInt8.toNat_ofNat] at this
+  simp at this
   scalar_tac
 
 /-! ## The KDF boundary: braid's own copy of `HmacAgrees`/`HkdfAgrees`
@@ -97,23 +97,23 @@ between the two sides changes every MAC and every epoch key. -/
 
 theorem protocolInfo_agrees :
     sliceOf PROTOCOL_INFO = Model.Braid.protocolInfo := by
-  simp [sliceOf, PROTOCOL_INFO, Model.Braid.protocolInfo, u8]; rfl
+  simp [sliceOf, PROTOCOL_INFO, Model.Braid.protocolInfo]; rfl
 
 theorem authUpdate_agrees :
     sliceOf AUTH_UPDATE = Model.Braid.authUpdateLabel := by
-  simp [sliceOf, AUTH_UPDATE, Model.Braid.authUpdateLabel, u8]; rfl
+  simp [sliceOf, AUTH_UPDATE, Model.Braid.authUpdateLabel]; rfl
 
 theorem sckaKey_agrees :
     sliceOf SCKA_KEY = Model.Braid.sckaKeyLabel := by
-  simp [sliceOf, SCKA_KEY, Model.Braid.sckaKeyLabel, u8]; rfl
+  simp [sliceOf, SCKA_KEY, Model.Braid.sckaKeyLabel]; rfl
 
 theorem ekHeader_agrees :
     sliceOf EK_HEADER = Model.Braid.ekHeaderLabel := by
-  simp [sliceOf, EK_HEADER, Model.Braid.ekHeaderLabel, u8]; rfl
+  simp [sliceOf, EK_HEADER, Model.Braid.ekHeaderLabel]; rfl
 
 theorem ciphertext_agrees :
     sliceOf CIPHERTEXT = Model.Braid.ciphertextLabel := by
-  simp [sliceOf, CIPHERTEXT, Model.Braid.ciphertextLabel, u8]; rfl
+  simp [sliceOf, CIPHERTEXT, Model.Braid.ciphertextLabel]; rfl
 
 theorem macLen_agrees : MAC_LEN.val = Model.Braid.macSize := by
   simp [MAC_LEN, Model.Braid.macSize]
@@ -227,13 +227,26 @@ def KemAgrees : Prop := ∃ K, KemAgreesFor K
 /-- `tacenta_kem::validate_ek` checks a received `ekVector` against the
 `ekSeed`/`hek` split of a stored header, the receive-side counterpart to
 `KemAgreesFor`'s `hashEk` clause. It's opaque like everything else at this
-boundary, so its *result* (not just that it returns) has to be assumed: the
-real check accepts iff the model's `hashEk` recomputation matches the stored
-`hek`, which is exactly the guard `Model.Braid.receive`'s `ct1Sampled`/
-`ct1Acknowledged` branches use (`K.hashEk ekSeed ekVector != hek`). -/
+boundary, so its *result* (not just that it returns) has to be assumed: on a
+header of the real layout (a 32-byte seed followed by a 32-byte hash) and a
+vector of the real size, the real check accepts iff the model's `hashEk`
+recomputation matches the stored `hek`, which is exactly the guard
+`Model.Braid.receive`'s `ct1Sampled`/`ct1Acknowledged` branches use
+(`K.hashEk ekSeed ekVector != hek`).
+
+The three length premises are the guards the crate applies before it hashes
+anything: libcrux's `validate_pk_bytes` returns `Err` (so `validate_ek`
+returns `false`) on a header or vector of the wrong length. Stated for every
+`hek` and `ekVector`, the clause would demand `true` of `validate_ek header
+[]` whenever `hek = K.hashEk ekSeed []`, where the crate answers `false`, and
+no `K` would satisfy it. The lengths are available at every use:
+`StateRefines` carries `ekSeedM.length = 32`, `hekM.length = 32` and
+`ekDecM.size = K.ekSize` for the header-holding states, and the decoded
+vector's length is `Model.Braid.Decoder.message_length`. -/
 def ValidateEkAgrees (K : Model.Braid.Kem) : Prop :=
   ∀ (header ekVector : Slice Std.U8) (ekSeed hek : Bytes),
-    ekSeed.length = 32 → sliceOf header = ekSeed ++ hek →
+    ekSeed.length = 32 → hek.length = 32 → ekVector.length = K.ekSize →
+    sliceOf header = ekSeed ++ hek →
     ∃ r, tacenta_kem.validate_ek header ekVector = ok r ∧
       (r = true ↔ K.hashEk ekSeed (sliceOf ekVector) = hek)
 
@@ -406,7 +419,7 @@ theorem epochBytes_agrees (epoch : Std.U64) :
     simp only [sliceOf, Array.to_slice, List.getElem_map, Model.Braid.epochBytes,
       List.getElem_range]
     have hib8 : i < epoch.bv.toBEBytes.length := by simp [BitVec.toBEBytes_length]; omega
-    simp only [u8, core.num.U64.to_be_bytes, List.getElem_map, getElem!_pos, hib8]
+    simp only [u8, core.num.U64.to_be_bytes, List.getElem_map]
     rw [← getElem!_pos _ i hib8, beByte_eq epoch.bv i hi]
     apply UInt8.toNat.inj
     simp only [UInt8.toNat_ofNat', UScalar.val, setWidth8_toNat,
@@ -718,19 +731,19 @@ theorem deref_length (v : alloc.vec.Vec Std.U8) : v.deref.length = (vecOf v).len
 /-! ## `info`, `Auth`, and `kdf_ok` refine their model counterparts -/
 
 theorem protocolInfo_length : Model.Braid.protocolInfo.length = 25 := by
-  simp [← protocolInfo_agrees, sliceOf, global_simps, Array.length_to_slice]
+  simp [← protocolInfo_agrees, sliceOf, global_simps]
 
 theorem authUpdateLabel_length : Model.Braid.authUpdateLabel.length = 21 := by
-  simp [← authUpdate_agrees, sliceOf, global_simps, Array.length_to_slice]
+  simp [← authUpdate_agrees, sliceOf, global_simps]
 
 theorem ekHeaderLabel_length : Model.Braid.ekHeaderLabel.length = 9 := by
-  simp [← ekHeader_agrees, sliceOf, global_simps, Array.length_to_slice]
+  simp [← ekHeader_agrees, sliceOf, global_simps]
 
 theorem ciphertextLabel_length : Model.Braid.ciphertextLabel.length = 11 := by
-  simp [← ciphertext_agrees, sliceOf, global_simps, Array.length_to_slice]
+  simp [← ciphertext_agrees, sliceOf, global_simps]
 
 theorem sckaKeyLabel_length : Model.Braid.sckaKeyLabel.length = 9 := by
-  simp [← sckaKey_agrees, sliceOf, global_simps, Array.length_to_slice]
+  simp [← sckaKey_agrees, sliceOf, global_simps]
 
 theorem epochBytes_length (epoch : Nat) : (Model.Braid.epochBytes epoch).length = 8 := by
   simp [Model.Braid.epochBytes]
@@ -754,13 +767,11 @@ theorem info_refines (label : Slice Std.U8) (labelBytes : Bytes)
     have := hlabel; simpa [sliceOf] using this
   unfold info
   step*
-  all_goals (try step*)
-  all_goals (try simp_all [hcap])
-  all_goals (try scalar_tac)
+  all_goals (try simp_all)
   all_goals (try (simp only [vecOf, r_post, List.map_append, List.map_map, e1, e2, e3]))
 
-theorem Auth.update_refines (hkdf : BraidHkdfAgrees) (self : Auth) (epoch : Std.U64)
-    (key : Slice Std.U8) :
+theorem Auth.update_refines (hkdf : BraidHkdfAgrees) (hz : Tacenta.BraidT1.ZeroizingArrayRoundTrip)
+    (self : Auth) (epoch : Std.U64) (key : Slice Std.U8) :
     Auth.update self epoch key ⦃ fun r =>
       AuthOf r = Model.Braid.Auth.update (AuthOf self) epoch.val (sliceOf key) ⦄ := by
   have hau : (AUTH_UPDATE : Slice Std.U8).length = 21 := by
@@ -768,11 +779,15 @@ theorem Auth.update_refines (hkdf : BraidHkdfAgrees) (self : Auth) (epoch : Std.
   unfold Auth.update
   step*
   step with info_refines AUTH_UPDATE Model.Braid.authUpdateLabel authUpdate_agrees epoch (by simp [hau]; scalar_tac)
-  obtain ⟨out, hout, houtval⟩ := hkdf 64#usize s key v.deref
-  simp only [hout]
+  obtain ⟨okm, hokm, hokmval⟩ := hkdf 64#usize s key v.deref
+  simp only [hokm]
+  -- The 64-byte output passes through the `Zeroizing` wrapper and straight
+  -- back out (`ZeroizingArrayRoundTrip`) before the two key slots are copied.
+  step with Tacenta.BraidT1.zeroizing_new_spec hz
   step*
-  simp_all [AuthOf, Model.Braid.Auth.update, vecOf, keyOf, sliceOf, u8,
-    alloc.vec.Vec.deref]
+  step with Tacenta.BraidT1.zeroizing_deref_spec ‹_›
+  step*
+  simp_all [AuthOf, Model.Braid.Auth.update, vecOf, keyOf, sliceOf, alloc.vec.Vec.deref]
 
 theorem Auth.mac_hdr_refines (hmac : BraidHmacAgrees) (self : Auth) (epoch : Std.U64)
     (hdr : Slice Std.U8) (hdrBytes : Bytes) (hhdr : sliceOf hdr = hdrBytes)
@@ -788,7 +803,7 @@ theorem Auth.mac_hdr_refines (hmac : BraidHmacAgrees) (self : Auth) (epoch : Std
   all_goals (try (have hdl := congrArg List.length data_post; simp [vecOf, List.length_map, protocolInfo_length, ekHeaderLabel_length, epochBytes_length] at hdl; scalar_tac))
   all_goals (try (obtain ⟨out, hout, houtval⟩ := hmac s data1.deref; simp only [hout]))
   all_goals (try step*)
-  all_goals (try simp_all [AuthOf, Model.Braid.Auth.macHdr, vecOf, keyOf, sliceOf, u8, alloc.vec.Vec.deref])
+  all_goals (try simp_all [AuthOf, Model.Braid.Auth.macHdr, vecOf, keyOf, sliceOf, alloc.vec.Vec.deref])
 
 theorem Auth.mac_ct_refines (hmac : BraidHmacAgrees) (self : Auth) (epoch : Std.U64)
     (ct1 ct2 : Slice Std.U8) (ct1Bytes ct2Bytes : Bytes) (hct1 : sliceOf ct1 = ct1Bytes)
@@ -802,11 +817,10 @@ theorem Auth.mac_ct_refines (hmac : BraidHmacAgrees) (self : Auth) (epoch : Std.
   step with info_refines CIPHERTEXT Model.Braid.ciphertextLabel ciphertext_agrees epoch (by simp [hct]; scalar_tac)
   all_goals (try step*)
   all_goals (try (have hdl := congrArg List.length data_post; simp [vecOf, List.length_map, protocolInfo_length, ciphertextLabel_length, epochBytes_length] at hdl; scalar_tac))
-  all_goals (try step*)
   all_goals (try (have hd := congrArg List.length data_post; have hd1 := congrArg List.length data1_post; simp [vecOf, List.length_map, protocolInfo_length, ciphertextLabel_length, epochBytes_length] at hd hd1; scalar_tac))
   all_goals (try (obtain ⟨out, hout, houtval⟩ := hmac s data2.deref; simp only [hout]))
   all_goals (try step*)
-  all_goals (try simp_all [AuthOf, Model.Braid.Auth.macCt, vecOf, keyOf, sliceOf, u8, alloc.vec.Vec.deref])
+  all_goals (try simp_all [AuthOf, Model.Braid.Auth.macCt, vecOf, keyOf, sliceOf, alloc.vec.Vec.deref])
 
 theorem kdf_ok_refines (hkdf : BraidHkdfAgrees) (shared_secret : Slice Std.U8)
     (ssBytes : Bytes) (hss : sliceOf shared_secret = ssBytes) (epoch : Std.U64) :
@@ -817,8 +831,6 @@ theorem kdf_ok_refines (hkdf : BraidHkdfAgrees) (shared_secret : Slice Std.U8)
   unfold kdf_ok
   step*
   step with info_refines SCKA_KEY Model.Braid.sckaKeyLabel sckaKey_agrees epoch (by simp [hsk]; scalar_tac)
-  all_goals (try step*)
-  all_goals (try scalar_tac)
   all_goals (try (obtain ⟨out, hout, houtval⟩ := hkdf 32#usize s shared_secret v.deref; simp only [hout]))
   all_goals (try step*)
   all_goals (try simp_all [Model.Braid.kdfOk, vecOf, keyOf, sliceOf, u8, alloc.vec.Vec.deref])
@@ -826,11 +838,12 @@ theorem kdf_ok_refines (hkdf : BraidHkdfAgrees) (shared_secret : Slice Std.U8)
 /-- `Auth.update` only ever reads `self.root_key` (`Model.Braid.Auth.update`
 does the same, ignoring `a.macKey`), so the all-zero `mac_key` this starts
 with need not match the model's all-zero `[]` for `Auth.init` to refine. -/
-theorem Auth.init_refines (hkdf : BraidHkdfAgrees) (epoch : Std.U64) (secret : Slice Std.U8) :
+theorem Auth.init_refines (hkdf : BraidHkdfAgrees) (hz : Tacenta.BraidT1.ZeroizingArrayRoundTrip)
+    (epoch : Std.U64) (secret : Slice Std.U8) :
     Auth.init epoch secret ⦃ fun r =>
       AuthOf r = Model.Braid.Auth.init epoch.val (sliceOf secret) ⦄ := by
   unfold Auth.init Model.Braid.Auth.init
-  step with Auth.update_refines hkdf ⟨Array.repeat 32#usize 0#u8, Array.repeat 32#usize 0#u8⟩ epoch secret
+  step with Auth.update_refines hkdf hz ⟨Array.repeat 32#usize 0#u8, Array.repeat 32#usize 0#u8⟩ epoch secret
   simp_all [AuthOf, keyOf, Array.repeat, Model.Braid.Auth.update, u8, List.replicate]
 
 theorem State.epoch_refines (K : Model.Braid.Kem) (self : State) (model : Model.Braid.BraidState)
@@ -1165,6 +1178,8 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     (hmac : BraidHmacAgrees) (hkdf : BraidHkdfAgrees)
     (hhdr : Tacenta.BraidT1.KeyPairHeaderTotal) (hekv : Tacenta.BraidT1.KeyPairEkVectorTotal)
     (hct1len : Tacenta.BraidT1.Ct1LenTotal) (hct2len : Tacenta.BraidT1.Ct2LenTotal)
+    (hz : Tacenta.BraidT1.ZeroizingArrayRoundTrip) (hzz : Tacenta.BraidT1.ArrayZeroizeTotal)
+    (hrf : Tacenta.BraidT1.RangeFullIndexTotal)
     {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (self : Braid) (state : State) (rng : R)
     {model : Model.Braid.BraidState} (hrel : StateRefines K state model)
@@ -1335,11 +1350,18 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
       simp only [sliceOf, Array.to_slice, keyOf] at s1_post ⊢
       rw [s1_post]
     step with kdf_ok_refines hkdf s1 (keyOf ssraw) hs1eq epoch
-    step*
-    have hs2eq : sliceOf s2 = keyOf key := by
+    -- The epoch key is wrapped, the raw secret wiped, and the key read back
+    -- through `key[..]`: three opaque calls, each by assumption the identity
+    -- on the value (or, for the wipe, discarded).
+    step with Tacenta.BraidT1.zeroizing_new_spec hz
+    step with Tacenta.BraidT1.array_zeroize_spec hzz
+    step with Tacenta.BraidT1.zeroizing_deref_spec ‹_›
+    step with Tacenta.BraidT1.index_full_spec hrf
+    have hs2eq : sliceOf s2 = keyOf a := by
+      rw [a1_post] at s2_post
       simp only [sliceOf, Array.to_slice, keyOf] at s2_post ⊢
       rw [s2_post]
-    step with Auth.update_refines hkdf auth epoch s2
+    step with Auth.update_refines hkdf hz auth epoch s2
     obtain ⟨ct1_enc0, hct1_enc_eq, hct1_enc_sim⟩ := hea.1 ct1raw.deref
     simp only [hct1_enc_eq]
     have hencR : EncoderRefines ct1_enc0 (Model.Braid.encode (sliceOf ct1raw.deref)) :=
@@ -1352,8 +1374,8 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     simp only [hnc_eq]
     unfold Msg.with
     step*
-    have hkeyeq0 : keyOf key = Model.Braid.kdfOk (keyOf ssraw) epoch.val := key_post
-    have hkeyeq : keyOf key = Model.Braid.kdfOk ((K.encaps1 ekSeedM hekM).2.2) epoch.val := by
+    have hkeyeq0 : keyOf a = Model.Braid.kdfOk (keyOf ssraw) epoch.val := a_post
+    have hkeyeq : keyOf a = Model.Braid.kdfOk ((K.encaps1 ekSeedM hekM).2.2) epoch.val := by
       rw [← hsseq] at hkeyeq0; exact hkeyeq0
     have hauth1eq0 : AuthOf auth1 =
         Model.Braid.Auth.update (AuthOf auth) epoch.val (Model.Braid.kdfOk (keyOf ssraw) epoch.val) := by
@@ -1375,7 +1397,7 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     refine ⟨0, ?_, ?_, ?_⟩
     · intro modelMsg hm; rw [hmsg_ex] at hm; injection hm with hm; subst hm
       exact ⟨he, trivial, hidx0, hstep0.2.1⟩
-    · refine ⟨he, ?_⟩; rw [← he]; exact hkeyeq
+    · refine ⟨he, ?_⟩; rw [a1_post, ← he]; exact hkeyeq
     · refine ⟨he, ?_, hhdreq, hlen32, hhek32, hencaps2, hct1eq.symm,
         (EncoderRefines.step hencR hlt hnc_eq).2.2, hdecr, heksize⟩
       rw [← he]; exact hauth1eq
@@ -1477,6 +1499,8 @@ theorem Braid.send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     (hkcl : KemCloneAgrees) (hecl : ErasureCloneAgrees)
     (henc : Tacenta.BraidT1.EncoderCloneTotal) (hdec : Tacenta.BraidT1.DecoderCloneTotal)
     (hkp : Tacenta.BraidT1.KeyPairCloneTotal) (hes : Tacenta.BraidT1.EncapsStateCloneTotal)
+    (hz : Tacenta.BraidT1.ZeroizingArrayRoundTrip) (hzz : Tacenta.BraidT1.ArrayZeroizeTotal)
+    (hrf : Tacenta.BraidT1.RangeFullIndexTotal)
     {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (self : Braid) (rng : R)
     {model : Model.Braid.BraidState} (hrel : StateRefines K self.state model)
@@ -1489,7 +1513,7 @@ theorem Braid.send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
         StateRefines K next.state (Model.Braid.send K rand model).2.2.2 ⦄ := by
   unfold Braid.send
   step with State.clone_refines hkcl hecl henc hdec hkp hes hrel
-  step with step_send_refines hka hea hmac hkdf hhdr hekv hct1len hct2len rc crc self s rng s_post hlive
+  step with step_send_refines hka hea hmac hkdf hhdr hekv hct1len hct2len hz hzz hrf rc crc self s rng s_post hlive
   obtain ⟨rand, hmsg, hout, hnext⟩ := ‹_›
   step with Braid.reported_refines K { state := next } (Model.Braid.send K rand model).2.2.2 hnext
   exact ⟨rand, hmsg, i_post, hout, hnext⟩
@@ -1535,7 +1559,7 @@ theorem finish_encaps_refines (hmac : BraidHmacAgrees) (hea : ErasureAgrees)
     have hs1 : sliceOf s1 = keyOf r := by
       simp only [sliceOf, Array.to_slice, keyOf] at s1_post ⊢
       rw [s1_post]
-    simp only [vecOf, alloc.vec.Vec.deref] at c1_post hs1 ⊢
+    simp only [vecOf] at c1_post hs1 ⊢
     rw [c1_post, List.map_append]
     congr 1
   have hs2 : sliceOf c1.deref =
@@ -1582,6 +1606,8 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     (hdmsg : Tacenta.BraidT1.DecoderMessageTotal)
     (hct1lenB : Tacenta.BraidT1.Ct1LenTotal) (hct2lenB : Tacenta.BraidT1.Ct2LenTotal)
     (hheaderlenB : Tacenta.BraidT1.HeaderLenTotal)
+    (hz : Tacenta.BraidT1.ZeroizingArrayRoundTrip) (hzz : Tacenta.BraidT1.ArrayZeroizeTotal)
+    (hrf : Tacenta.BraidT1.RangeFullIndexTotal)
     (self : Braid) (state : State) (msg : tacenta_braid.Msg)
     (hct1b : Tacenta.BraidT1.State.ct1_bounded state)
     (hepoch : (Tacenta.BraidT1.State.epoch_val state).val < Std.U64.max)
@@ -1680,14 +1706,14 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
       · have htyM : ¬ modelMsg.type = Model.Braid.MsgType.ct1 := fun h => hty (b_post.mpr h)
         rw [if_neg hty]
         unfold Model.Braid.receive
-        simp only [hepM, htyM]
+        simp only [hepM]
         split
         · exfalso; simp_all
         · exact ⟨trivial, he, ha, hfkp, henc⟩
     · have hepM : ¬ modelMsg.epoch = epoch' := fun h => hep (hepiff.mpr h)
       rw [if_neg hep]
       unfold Model.Braid.receive
-      simp only [hepM]
+      simp only
       split
       · exfalso; simp_all
       · exact ⟨trivial, he, ha, hfkp, henc⟩
@@ -1741,14 +1767,14 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
           rcases hom : omsg with _ | ct1raw
           · have hMnone : (ct1DecM.addChunk mc).message = none := by
               rw [hom] at hmsgeq; simpa using hmsgeq.symm
-            simp only [hom, bind_tc_ok]
+            simp only [bind_tc_ok]
             unfold Model.Braid.receive
             simp only [hepM, htyM, hdm]
             split
             · simp only [hMnone]
               exact ⟨trivial, he, ha, hkpr, hct1decr,
                 by rw [Model.Braid.Decoder.addChunk_size]; exact hct1size, hencr⟩
-            · rename_i hcond; exact absurd (by simp [hepM, htyM]) hcond
+            · rename_i hcond; exact absurd (by simp) hcond
           · obtain ⟨ct1M, hMsome⟩ : ∃ ct1M, (ct1DecM.addChunk mc).message = some ct1M := by
               rw [hom] at hmsgeq
               rcases hy : (ct1DecM.addChunk mc).message with _ | ct1M
@@ -1756,7 +1782,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
               · exact ⟨ct1M, rfl⟩
             have hct1eq : vecOf ct1raw = ct1M := by
               rw [hom, hMsome] at hmsgeq; simpa using hmsgeq
-            simp only [hom, bind_tc_ok]
+            simp only [bind_tc_ok]
             unfold Model.Braid.receive
             simp only [hepM, htyM, hdm]
             split
@@ -1764,18 +1790,18 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
               exact ⟨trivial, he, ha, hkpr, hct1eq,
                 by rw [Model.Braid.Decoder.message_length _ _ hMsome,
                   Model.Braid.Decoder.addChunk_size]; exact hct1size, hencr⟩
-            · rename_i hcond; exact absurd (by simp [hepM, htyM]) hcond
+            · rename_i hcond; exact absurd (by simp) hcond
       · have htyM : ¬ modelMsg.type = Model.Braid.MsgType.ct1 := fun h => hty (b_post.mpr h)
         rw [if_neg hty]
         unfold Model.Braid.receive
-        simp only [hepM, htyM]
+        simp only [hepM]
         split
-        · rename_i hcond; exact absurd hcond (by simp [hepM, htyM])
+        · rename_i hcond; exact absurd hcond (by simp [htyM])
         · exact ⟨trivial, he, ha, hkpr, hdcr, hct1size, hencr⟩
     · have hepM : ¬ modelMsg.epoch = epoch' := fun h => hep (hepiff.mpr h)
       rw [if_neg hep]
       unfold Model.Braid.receive
-      simp only [hepM]
+      simp only
       split
       · rename_i hcond; exact absurd hcond (by simp [hepM])
       · exact ⟨trivial, he, ha, hkpr, hdcr, hct1size, hencr⟩
@@ -1841,18 +1867,18 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
           simp only [hepM, htyM, hdm]
           split
           · exact ⟨trivial, he, ha, hkpr, hct1, hct1len, hct2decr, hct2decsize⟩
-          · rename_i hcond; exact absurd hcond (by simp [hepM, htyM])
+          · rename_i hcond; exact absurd hcond (by simp)
       · have htyM : ¬ modelMsg.type = Model.Braid.MsgType.ct2 := fun h => hty (b_post.mpr h)
         rw [if_neg hty]
         unfold Model.Braid.receive
-        simp only [hepM, htyM]
+        simp only [hepM]
         split
-        · rename_i hcond; exact absurd hcond (by simp [hepM, htyM])
+        · rename_i hcond; exact absurd hcond (by simp [htyM])
         · exact ⟨trivial, he, ha, hkpr, hct1, hct1len, hencr⟩
     · have hepM : ¬ modelMsg.epoch = epoch' := fun h => hep (hepiff.mpr h)
       rw [if_neg hep]
       unfold Model.Braid.receive
-      simp only [hepM]
+      simp only
       split
       · rename_i hcond; exact absurd hcond (by simp [hepM])
       · exact ⟨trivial, he, ha, hkpr, hct1, hct1len, hencr⟩
@@ -1864,7 +1890,16 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     unfold Braid.step_receive
     unfold State.epoch
     simp only [bind_tc_ok]
-    step with Std.U64.add_spec (by scalar_tac : epoch1.val + (1#u64).val ≤ Std.U64.max)
+    -- Transition 13 advances the epoch with `checked_add`. Below the ceiling
+    -- (`hepoch`) it is `some`, and the model's `epoch + 1` is its value; at the
+    -- ceiling the real code answers `Failed` where the model's `Nat` keeps
+    -- counting, which is why the refinement keeps `hepoch`.
+    have hcs := Std.U64.checked_add_bv_spec epoch1 1#u64
+    rcases hchk : Std.U64.checked_add epoch1 1#u64 with _ | i
+    · rw [hchk] at hcs; simp at hcs; scalar_tac
+    rw [hchk] at hcs
+    obtain ⟨-, i_post, -⟩ := hcs
+    simp only [lift, bind_tc_ok]
     have h1 := hmsg.1
     by_cases hep : msg.epoch = i
     · have hepM : modelMsg.epoch = epoch' + 1 := by
@@ -1882,7 +1917,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
         scalar_tac
       rw [if_neg hep]
       unfold Model.Braid.receive
-      simp only [hepM]
+      simp only
       split
       · rename_i hcond; exact absurd hcond (by simp [hepM])
       · exact ⟨trivial, he, ha, hencr⟩
@@ -1912,7 +1947,6 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
       by_cases hty : b = true
       · have htyM : modelMsg.type = Model.Braid.MsgType.ekCt1Ack := b_post.mp hty
         rw [if_pos hty]
-        step*
         have hct1slice : sliceOf ct1.deref = ct1M := by
           simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hct1 ⊢; exact hct1
         have hekvL : ekVector.deref.length = K.ekSize := by
@@ -1942,19 +1976,19 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
             simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hekVector ⊢; exact hekVector
           rw [he, hekVectorSlice] at s2_post
           exact ⟨trivial, s2_post⟩
-        · rename_i hcond; exact absurd hcond (by simp [hepM, htyM])
+        · rename_i hcond; exact absurd hcond (by simp)
       · have htyM : ¬ modelMsg.type = Model.Braid.MsgType.ekCt1Ack :=
           fun h => hty (b_post.mpr h)
         rw [if_neg hty]
         unfold Model.Braid.receive
-        simp only [hepM, htyM]
+        simp only [hepM]
         split
-        · rename_i hcond; exact absurd hcond (by simp [hepM, htyM])
+        · rename_i hcond; exact absurd hcond (by simp [htyM])
         · exact ⟨trivial, he, ha, hencaps, hct1, hekVector, hekvlen, hencr⟩
     · have hepM : ¬ modelMsg.epoch = epoch' := fun h => hep (hepiff.mpr h)
       rw [if_neg hep]
       unfold Model.Braid.receive
-      simp only [hepM]
+      simp only
       split
       · rename_i hcond; exact absurd hcond (by simp [hepM])
       · exact ⟨trivial, he, ha, hencaps, hct1, hekVector, hekvlen, hencr⟩
@@ -1993,7 +2027,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
           simp only [hepM, htyM, hdm]
           split
           · exact ⟨trivial, he, ha, hhdr, hlen32, hhek32, hencapsr, hct1, hencr, hdecr, heksize⟩
-          · rename_i hcond; exact absurd hcond (by simp [hepM, htyM])
+          · rename_i hcond; exact absurd hcond (by simp)
         · rename_i hdm2
           obtain ⟨mc, hdm, hidx, hcw⟩ : ∃ mc, modelMsg.data = some mc ∧ c.index.val = mc.index ∧ CodewordOf mc.source c := by
             have hdd := hmsg.2.2
@@ -2020,7 +2054,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
           rcases hom : omsg with _ | ekVecRaw
           · have hMnone : (ekDecM.addChunk mc).message = none := by
               rw [hom] at hmsgeq; simpa using hmsgeq.symm
-            simp only [hom, bind_tc_ok, hackedFalse, Bool.false_eq_true, if_false]
+            simp only [bind_tc_ok, hackedFalse, Bool.false_eq_true, if_false]
             unfold Model.Braid.receive
             simp only [hepM, htyM, hdm, hMnone]
             split
@@ -2028,7 +2062,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 by rw [Model.Braid.Decoder.addChunk_size]; exact heksize⟩
             · rename_i hcond
               first
-                | exact absurd hcond (by simp [hepM, htyM])
+                | exact absurd hcond (by simp)
                 | exact absurd (by simp [hepM, htyM]) hcond
           · obtain ⟨ekVectorM, hMsome⟩ :
                 ∃ ekVectorM, (ekDecM.addChunk mc).message = some ekVectorM := by
@@ -2040,8 +2074,12 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
               rw [hom, hMsome] at hmsgeq; simpa using hmsgeq
             have hekVecSlice : sliceOf ekVecRaw.deref = ekVectorM := by
               simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hekVecEq ⊢; exact hekVecEq
-            simp only [hom, bind_tc_ok]
-            obtain ⟨rb, hrb, hrbiff⟩ := hvalek header.deref ekVecRaw.deref ekSeedM hekM hlen32 hhdrslice
+            simp only [bind_tc_ok]
+            have hekvL : ekVecRaw.deref.length = K.ekSize := by
+              rw [deref_length, hekVecEq, Model.Braid.Decoder.message_length _ _ hMsome,
+                Model.Braid.Decoder.addChunk_size]; exact heksize
+            obtain ⟨rb, hrb, hrbiff⟩ :=
+              hvalek header.deref ekVecRaw.deref ekSeedM hekM hlen32 hhek32 hekvL hhdrslice
             simp only [hrb, bind_tc_ok]
             by_cases hrbval : rb = true
             · simp only [if_pos hrbval, hackedFalse, Bool.false_eq_true, if_false]
@@ -2060,7 +2098,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                       Model.Braid.Decoder.addChunk_size]; exact heksize, hencr⟩
               · rename_i hcond
                 first
-                  | exact absurd hcond (by simp [hepM, htyM])
+                  | exact absurd hcond (by simp)
                   | exact absurd (by simp [hepM, htyM]) hcond
             · rw [if_neg hrbval]
               have hhashNeq : K.hashEk ekSeedM ekVectorM ≠ hekM := by
@@ -2076,7 +2114,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                     | exact absurd (by simp [hhashNeq]) hcond
               · rename_i hcond
                 first
-                  | exact absurd hcond (by simp [hepM, htyM])
+                  | exact absurd hcond (by simp)
                   | exact absurd (by simp [hepM, htyM]) hcond
       · have htyM : ¬ modelMsg.type = Model.Braid.MsgType.ek := fun h => hb1 (relevant_post.mpr h)
         rw [if_neg hb1]
@@ -2097,7 +2135,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
             · exact ⟨trivial, he, ha, hhdr, hlen32, hhek32, hencapsr, hct1, hencr, hdecr, heksize⟩
             · rename_i hcond
               first
-                | exact absurd hcond (by simp [hepM, htyM2])
+                | exact absurd hcond (by simp)
                 | exact absurd (by simp [hepM, htyM2]) hcond
           · rename_i hdm2
             obtain ⟨mc, hdm, hidx, hcw⟩ : ∃ mc, modelMsg.data = some mc ∧ c.index.val = mc.index ∧ CodewordOf mc.source c := by
@@ -2122,7 +2160,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
             rcases hom : omsg with _ | ekVecRaw
             · have hMnone : (ekDecM.addChunk mc).message = none := by
                 rw [hom] at hmsgeq; simpa using hmsgeq.symm
-              simp only [hom, bind_tc_ok, hackedTrue, if_true]
+              simp only [bind_tc_ok, hackedTrue, if_true]
               unfold Model.Braid.receive
               simp only [hepM, htyM2, hdm, hMnone]
               split
@@ -2130,7 +2168,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 by rw [Model.Braid.Decoder.addChunk_size]; exact heksize⟩
               · rename_i hcond
                 first
-                  | exact absurd hcond (by simp [hepM, htyM2])
+                  | exact absurd hcond (by simp)
                   | exact absurd (by simp [hepM, htyM2]) hcond
             · obtain ⟨ekVectorM, hMsome⟩ :
                   ∃ ekVectorM, (ekDecM.addChunk mc).message = some ekVectorM := by
@@ -2142,9 +2180,12 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 rw [hom, hMsome] at hmsgeq; simpa using hmsgeq
               have hekVecSlice : sliceOf ekVecRaw.deref = ekVectorM := by
                 simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hekVecEq ⊢; exact hekVecEq
-              simp only [hom, bind_tc_ok]
+              simp only [bind_tc_ok]
+              have hekvL : ekVecRaw.deref.length = K.ekSize := by
+                rw [deref_length, hekVecEq, Model.Braid.Decoder.message_length _ _ hMsome,
+                  Model.Braid.Decoder.addChunk_size]; exact heksize
               obtain ⟨rb, hrb, hrbiff⟩ :=
-                hvalek header.deref ekVecRaw.deref ekSeedM hekM hlen32 hhdrslice
+                hvalek header.deref ekVecRaw.deref ekSeedM hekM hlen32 hhek32 hekvL hhdrslice
               simp only [hrb, bind_tc_ok]
               by_cases hrbval : rb = true
               · simp only [if_pos hrbval, hackedTrue, if_true]
@@ -2152,9 +2193,6 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                   rw [← hekVecSlice]; exact hrbiff.mp hrbval
                 have hct1slice : sliceOf ct1.deref = ct1M := by
                   simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hct1 ⊢; exact hct1
-                have hekvL : ekVecRaw.deref.length = K.ekSize := by
-                  rw [deref_length, hekVecEq, Model.Braid.Decoder.message_length _ _ hMsome,
-                    Model.Braid.Decoder.addChunk_size]; exact heksize
                 have hlen : ct1.length +
                     (K.encaps2 encapsSecretM ekSeedM (sliceOf ekVecRaw.deref)).length + 96
                     ≤ Usize.max := by
@@ -2184,7 +2222,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                     exact ⟨trivial, s4_post⟩
                 · rename_i hcond
                   first
-                    | exact absurd hcond (by simp [hepM, htyM2])
+                    | exact absurd hcond (by simp)
                     | exact absurd (by simp [hepM, htyM2]) hcond
               · rw [if_neg hrbval]
                 have hhashNeq : K.hashEk ekSeedM ekVectorM ≠ hekM := by
@@ -2200,7 +2238,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                       | exact absurd (by simp [hhashNeq]) hcond
                 · rename_i hcond
                   first
-                    | exact absurd hcond (by simp [hepM, htyM2])
+                    | exact absurd hcond (by simp)
                     | exact absurd (by simp [hepM, htyM2]) hcond
         · have htyM2 : ¬ modelMsg.type = Model.Braid.MsgType.ekCt1Ack :=
             fun h => hb2 (relevant_post.mpr h)
@@ -2217,7 +2255,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
       rw [if_neg hep]
       simp only [bind_tc_ok, Bool.false_eq_true, if_false]
       unfold Model.Braid.receive
-      simp only [hepM]
+      simp only
       split
       · exfalso; simp_all
       · exact ⟨trivial, he, ha, hhdr, hlen32, hhek32, hencapsr, hct1, hencr, hdecr, heksize⟩
@@ -2255,7 +2293,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
           simp only [hepM, htyM, hdm]
           split
           · exact ⟨trivial, he, ha, hhdr, hlen32, hhek32, hencapsr, hct1, hdecr, heksize⟩
-          · rename_i hcond; exact absurd hcond (by simp [hepM, htyM])
+          · rename_i hcond; exact absurd hcond (by simp)
         · rename_i hdm2
           obtain ⟨mc, hdm, hidx, hcw⟩ : ∃ mc, modelMsg.data = some mc ∧ c.index.val = mc.index ∧ CodewordOf mc.source c := by
             have hdd := hmsg.2.2
@@ -2277,13 +2315,13 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
           rcases hom : omsg with _ | ekVecRaw
           · have hMnone : (ekDecM.addChunk mc).message = none := by
               rw [hom] at hmsgeq; simpa using hmsgeq.symm
-            simp only [hom, bind_tc_ok]
+            simp only [bind_tc_ok]
             unfold Model.Braid.receive
             simp only [hepM, htyM, hdm, hMnone]
             split
             · exact ⟨trivial, he, ha, hhdr, hlen32, hhek32, hencapsr, hct1, hekdecr,
                 by rw [Model.Braid.Decoder.addChunk_size]; exact heksize⟩
-            · rename_i hcond; exact absurd hcond (by simp [hepM, htyM])
+            · rename_i hcond; exact absurd hcond (by simp)
           · obtain ⟨ekVectorM, hMsome⟩ :
                 ∃ ekVectorM, (ekDecM.addChunk mc).message = some ekVectorM := by
               rw [hom] at hmsgeq
@@ -2294,8 +2332,12 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
               rw [hom, hMsome] at hmsgeq; simpa using hmsgeq
             have hekVecSlice : sliceOf ekVecRaw.deref = ekVectorM := by
               simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hekVecEq ⊢; exact hekVecEq
-            simp only [hom, bind_tc_ok]
-            obtain ⟨rb, hrb, hrbiff⟩ := hvalek header.deref ekVecRaw.deref ekSeedM hekM hlen32 hhdrslice
+            simp only [bind_tc_ok]
+            have hekvL : ekVecRaw.deref.length = K.ekSize := by
+              rw [deref_length, hekVecEq, Model.Braid.Decoder.message_length _ _ hMsome,
+                Model.Braid.Decoder.addChunk_size]; exact heksize
+            obtain ⟨rb, hrb, hrbiff⟩ :=
+              hvalek header.deref ekVecRaw.deref ekSeedM hekM hlen32 hhek32 hekvL hhdrslice
             simp only [hrb, bind_tc_ok]
             by_cases hrbval : rb = true
             · simp only [if_pos hrbval]
@@ -2303,9 +2345,6 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 rw [← hekVecSlice]; exact hrbiff.mp hrbval
               have hct1slice : sliceOf ct1.deref = ct1M := by
                 simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hct1 ⊢; exact hct1
-              have hekvL : ekVecRaw.deref.length = K.ekSize := by
-                rw [deref_length, hekVecEq, Model.Braid.Decoder.message_length _ _ hMsome,
-                  Model.Braid.Decoder.addChunk_size]; exact heksize
               have hlen : ct1.length +
                   (K.encaps2 encapsSecretM ekSeedM (sliceOf ekVecRaw.deref)).length + 96
                   ≤ Usize.max := by
@@ -2335,7 +2374,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                   exact ⟨trivial, s4_post⟩
               · rename_i hcond
                 first
-                  | exact absurd hcond (by simp [hepM, htyM])
+                  | exact absurd hcond (by simp)
                   | exact absurd (by simp [hepM, htyM]) hcond
             · rw [if_neg hrbval]
               have hhashNeq : K.hashEk ekSeedM ekVectorM ≠ hekM := by
@@ -2351,19 +2390,19 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                     | exact absurd (by simp [hhashNeq]) hcond
               · rename_i hcond
                 first
-                  | exact absurd hcond (by simp [hepM, htyM])
+                  | exact absurd hcond (by simp)
                   | exact absurd (by simp [hepM, htyM]) hcond
       · have htyM : ¬ modelMsg.type = Model.Braid.MsgType.ekCt1Ack := fun h => hty (b_post.mpr h)
         rw [if_neg hty]
         unfold Model.Braid.receive
-        simp only [hepM, htyM]
+        simp only [hepM]
         split
         · exfalso; simp_all
         · exact ⟨trivial, he, ha, hhdr, hlen32, hhek32, hencapsr, hct1, hdecr, heksize⟩
     · have hepM : ¬ modelMsg.epoch = epoch' := fun h => hep (hepiff.mpr h)
       rw [if_neg hep]
       unfold Model.Braid.receive
-      simp only [hepM]
+      simp only
       split
       · exfalso; simp_all
       · exact ⟨trivial, he, ha, hhdr, hlen32, hhek32, hencapsr, hct1, hdecr, heksize⟩
@@ -2398,7 +2437,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
           simp only [hepM, htyM, hdm]
           split
           · exact ⟨trivial, he, ha, hkpr, hct1, hct1len, hdecr, hdsize⟩
-          · rename_i hcond; exact absurd hcond (by simp [hepM, htyM])
+          · rename_i hcond; exact absurd hcond (by simp)
         · rename_i hdm2
           obtain ⟨mc, hdm, hidx, hcw⟩ : ∃ mc, modelMsg.data = some mc ∧ c.index.val = mc.index ∧ CodewordOf mc.source c := by
             have hdd := hmsg.2.2
@@ -2422,12 +2461,12 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
           rcases hom : omsg with _ | framedRaw
           · have hMnone : (ct2DecM.addChunk mc).message = none := by
               rw [hom] at hmsgeq; simpa using hmsgeq.symm
-            simp only [hom, bind_tc_ok]
+            simp only [bind_tc_ok]
             unfold Model.Braid.receive
             simp only [hepM, htyM, hdm, hMnone]
             split
             · exact ⟨trivial, he, ha, hkpr, hct1, hct1len, hct2decr, haddSize⟩
-            · rename_i hcond; exact absurd hcond (by simp [hepM, htyM])
+            · rename_i hcond; exact absurd hcond (by simp)
           · obtain ⟨framedM, hMsome⟩ :
                 ∃ framedM, (ct2DecM.addChunk mc).message = some framedM := by
               rw [hom] at hmsgeq
@@ -2443,13 +2482,13 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 have := congrArg List.length hframedEq
                 simpa [vecOf] using this
               rw [hl, hframedLen]
-            simp only [hom, bind_tc_ok]
+            simp only [bind_tc_ok]
             obtain ⟨lv, hlv, hlveq⟩ := hct2len
             obtain ⟨lv2, hlv2, hlv2bound⟩ := hct2lenB
             rw [hlv] at hlv2; injection hlv2 with hlv2; subst hlv2
             simp only [hlv]
             step*
-            · simp only [global_simps]; scalar_tac
+            · simp only [MAC_LEN]; scalar_tac
             · rename_i hcond
               exfalso
               have hi2eq : i2.val = K.ct2Size + Model.Braid.macSize := by
@@ -2458,11 +2497,24 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 simp [global_simps]
               simp only [bne_iff_ne, ne_eq] at hcond
               exact hcond (by scalar_tac)
+            · -- Transition 5's `checked_add` came back `none`: unreachable below
+              -- the ceiling `hepoch` keeps the state under.
+              rename_i ho1
+              exfalso
+              rw [ho1] at o1_post
+              simp only [Tacenta.BraidT1.State.epoch_val] at hepoch
+              simp at o1_post
+              scalar_tac
             · simp only [alloc.vec.Vec.deref, Slice.length]
               have hi2eq : i2.val = K.ct2Size + Model.Braid.macSize := by
                 rw [i2_post, ← hlveq, ← macLen_agrees]
               scalar_tac
-            · have hct1slice : sliceOf ct1.deref = ct1M := by
+            · rename_i ho1
+              have hne : next_epoch.val = epoch1.val + 1 := by
+                have h := o1_post
+                rw [ho1] at h
+                exact h.2.1
+              have hct1slice : sliceOf ct1.deref = ct1M := by
                 simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hct1 ⊢; exact hct1
               have hframedslice : sliceOf framedRaw.deref = framedM := by
                 simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hframedEq ⊢; exact hframedEq
@@ -2487,11 +2539,17 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 simp only [sliceOf, Array.to_slice, keyOf] at s2_post ⊢
                 rw [s2_post]
               step with kdf_ok_refines hkdf s2 (keyOf raw) hs2 epoch1
-              step*
-              have hs3 : sliceOf s3 = keyOf key := by
+              -- Wrap the epoch key, wipe the raw secret, read the key back
+              -- through `key[..]`: the same three assumptions transition 7 uses.
+              step with Tacenta.BraidT1.zeroizing_new_spec hz
+              step with Tacenta.BraidT1.array_zeroize_spec hzz
+              step with Tacenta.BraidT1.zeroizing_deref_spec ‹_›
+              step with Tacenta.BraidT1.index_full_spec hrf
+              have hs3 : sliceOf s3 = keyOf a := by
+                rw [a1_post] at s3_post
                 simp only [sliceOf, Array.to_slice, keyOf] at s3_post ⊢
                 rw [s3_post]
-              step with Auth.update_refines hkdf auth epoch1 s3
+              step with Auth.update_refines hkdf hz auth epoch1 s3
               step with Auth.mac_ct_refines hmac auth1 epoch1 ct1.deref ct2 ct1M
                 (framedM.take K.ct2Size) hct1slice hct2slice (by
                   have hct1bound : ct1.length ≤ 4096 := by
@@ -2500,18 +2558,18 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                   simp only [alloc.vec.Vec.deref]
                   scalar_tac)
               step
-              have hs5 : sliceOf s5 = keyOf a := by
+              have hs5 : sliceOf s5 = keyOf a2 := by
                 simp only [sliceOf, Array.to_slice, keyOf] at s5_post ⊢
                 rw [s5_post]
               step with mac_eq_agrees s5 mac
-              have hkeyeq : keyOf key = Model.Braid.kdfOk
+              have hkeyeq : keyOf a = Model.Braid.kdfOk
                   (K.decaps dk ct1M (framedM.take K.ct2Size)) epoch1.val := by
-                rw [key_post, hrawval, hct1slice, hct2slice]
+                rw [a_post, hrawval, hct1slice, hct2slice]
               have hauth1eq : AuthOf auth1 = Model.Braid.Auth.update auth' epoch1.val
                   (Model.Braid.kdfOk (K.decaps dk ct1M (framedM.take K.ct2Size)) epoch1.val) := by
                 rw [auth1_post, hs3, hkeyeq, ha]
-              have haeq : keyOf a = Model.Braid.Auth.macCt (AuthOf auth1) epoch1.val
-                  (ct1M ++ framedM.take K.ct2Size) := a_post
+              have haeq : keyOf a2 = Model.Braid.Auth.macCt (AuthOf auth1) epoch1.val
+                  (ct1M ++ framedM.take K.ct2Size) := a2_post
               by_cases hb1 : b1 = true
               · rw [if_pos hb1]
                 have hmaceq : Model.Braid.Auth.macCt (AuthOf auth1) epoch1.val
@@ -2520,26 +2578,24 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                   have := b1_post.mp hb1
                   rw [hs5, hmacslice] at this
                   exact this
-                step*
-                · simp only [Tacenta.BraidT1.State.epoch_val] at hepoch; scalar_tac
                 step with hdr_decoder_refines hea hheaderlen
                 have hdsize2 : (Model.Braid.Decoder.new
                     (Model.Braid.headerSize + Model.Braid.macSize)).size
                     = Model.Braid.headerSize + Model.Braid.macSize := rfl
                 unfold Model.Braid.receive
-                simp only [hepM, htyM, hdm, hMsome, hauth1eq, hmaceq]
+                simp only [hepM, htyM, hdm, hMsome]
                 split
                 · split
                   · refine ⟨⟨?_, ?_⟩, ?_, ?_, ?_, ?_⟩
                     · exact he
-                    · rw [hkeyeq, he]
-                    · rw [i3_post, he]
+                    · rw [a1_post, hkeyeq, he]
+                    · rw [hne, he]
                     · rw [hauth1eq, he]
                     · exact d_post
                     · exact hdsize2
                   · rename_i hcond
                     exact absurd hcond (by rw [← he, ← hauth1eq]; simp [hmaceq])
-                · rename_i hcond; exact absurd hcond (by simp [hepM, htyM])
+                · rename_i hcond; exact absurd hcond (by simp)
               · rw [if_neg hb1]
                 have hmacneq : Model.Braid.Auth.macCt (AuthOf auth1) epoch1.val
                     (ct1M ++ framedM.take K.ct2Size) ≠ framedM.drop K.ct2Size := by
@@ -2550,24 +2606,24 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                   rw [hs5, hmacslice]
                   exact heqv
                 unfold Model.Braid.receive
-                simp only [hepM, htyM, hdm, hMsome, hauth1eq, hmacneq]
+                simp only [hepM, htyM, hdm, hMsome]
                 split
                 · split
                   · rename_i hcond
                     exact absurd hcond (by rw [← he, ← hauth1eq]; simp [hmacneq])
                   · trivial
-                · rename_i hcond; exact absurd hcond (by simp [hepM, htyM])
+                · rename_i hcond; exact absurd hcond (by simp)
       · have htyM : ¬ modelMsg.type = Model.Braid.MsgType.ct2 := fun h => hty (b_post.mpr h)
         rw [if_neg hty]
         unfold Model.Braid.receive
-        simp only [hepM, htyM]
+        simp only [hepM]
         split
         · exfalso; simp_all
         · exact ⟨trivial, he, ha, hkpr, hct1, hct1len, hdecr, hdsize⟩
     · have hepM : ¬ modelMsg.epoch = epoch' := fun h => hep (hepiff.mpr h)
       rw [if_neg hep]
       unfold Model.Braid.receive
-      simp only [hepM]
+      simp only
       split
       · exfalso; simp_all
       · exact ⟨trivial, he, ha, hkpr, hct1, hct1len, hdecr, hdsize⟩
@@ -2602,7 +2658,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
           simp only [hepM, htyM, hdm]
           split
           · exact ⟨trivial, he, ha, hdecr, hdsize⟩
-          · rename_i hcond; exact absurd hcond (by simp [hepM, htyM])
+          · rename_i hcond; exact absurd hcond (by simp)
         · rename_i hdm2
           obtain ⟨mc, hdm, hidx, hcw⟩ : ∃ mc, modelMsg.data = some mc ∧ c.index.val = mc.index ∧ CodewordOf mc.source c := by
             have hdd := hmsg.2.2
@@ -2626,12 +2682,12 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
           rcases hom : omsg with _ | framedRaw
           · have hMnone : (hdrDecM.addChunk mc).message = none := by
               rw [hom] at hmsgeq; simpa using hmsgeq.symm
-            simp only [hom, bind_tc_ok]
+            simp only [bind_tc_ok]
             unfold Model.Braid.receive
             simp only [hepM, htyM, hdm, hMnone]
             split
             · exact ⟨trivial, he, ha, hhdrdecr, haddSize⟩
-            · rename_i hcond; exact absurd hcond (by simp [hepM, htyM])
+            · rename_i hcond; exact absurd hcond (by simp)
           · obtain ⟨framedM, hMsome⟩ :
                 ∃ framedM, (hdrDecM.addChunk mc).message = some framedM := by
               rw [hom] at hmsgeq
@@ -2647,7 +2703,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 have := congrArg List.length hframedEq
                 simpa [vecOf] using this
               rw [hl, hframedLen]
-            simp only [hom, bind_tc_ok]
+            simp only [bind_tc_ok]
             obtain ⟨hv, hhv, hhveq⟩ := hheaderlen
             obtain ⟨hv2, hhv2, hhv2bound⟩ := hheaderlenB
             rw [hhv] at hhv2; injection hhv2 with hhv2; subst hhv2
@@ -2713,10 +2769,10 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                         Model.Braid.headerSize, Model.Braid.macSize]
                       omega
                     · rw [← hekveq]; exact hnewdsim
-                    · simp [Model.Braid.Decoder.new, hekveq]
+                    · simp [Model.Braid.Decoder.new]
                   · rename_i hcond
                     exact absurd hcond (by rw [← he]; simp [hmaceq])
-                · rename_i hcond; exact absurd hcond (by simp [hepM, htyM])
+                · rename_i hcond; exact absurd hcond (by simp)
               · rename_i hb1
                 have hmacneq : Model.Braid.Auth.macHdr auth' epoch1.val
                     (framedM.take Model.Braid.headerSize) ≠ framedM.drop Model.Braid.headerSize := by
@@ -2731,18 +2787,18 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                   · rename_i hcond
                     exact absurd hcond (by rw [← he]; simp [hmacneq])
                   · trivial
-                · rename_i hcond; exact absurd hcond (by simp [hepM, htyM])
+                · rename_i hcond; exact absurd hcond (by simp)
       · have htyM : ¬ modelMsg.type = Model.Braid.MsgType.hdr := fun h => hty (b_post.mpr h)
         rw [if_neg hty]
         unfold Model.Braid.receive
-        simp only [hepM, htyM]
+        simp only [hepM]
         split
         · exfalso; simp_all
         · exact ⟨trivial, he, ha, hdecr, hdsize⟩
     · have hepM : ¬ modelMsg.epoch = epoch' := fun h => hep (hepiff.mpr h)
       rw [if_neg hep]
       unfold Model.Braid.receive
-      simp only [hepM]
+      simp only
       split
       · exfalso; simp_all
       · exact ⟨trivial, he, ha, hdecr, hdsize⟩
@@ -2848,6 +2904,8 @@ theorem Braid.receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     (henc : Tacenta.BraidT1.EncoderCloneTotal) (hdec : Tacenta.BraidT1.DecoderCloneTotal)
     (hkp : Tacenta.BraidT1.KeyPairCloneTotal) (hes : Tacenta.BraidT1.EncapsStateCloneTotal)
     (hopt : Tacenta.BraidT1.OptionCloneTotal)
+    (hz : Tacenta.BraidT1.ZeroizingArrayRoundTrip) (hzz : Tacenta.BraidT1.ArrayZeroizeTotal)
+    (hrf : Tacenta.BraidT1.RangeFullIndexTotal)
     (self : Braid) (msg : tacenta_braid.Msg)
     (hct1b : Tacenta.BraidT1.State.ct1_bounded self.state)
     (hepoch : (Tacenta.BraidT1.State.epoch_val self.state).val < Std.U64.max)
@@ -2862,7 +2920,7 @@ theorem Braid.receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
   step with State.clone_refines hkcl hecl henc hdec hkp hes hrel
   obtain ⟨hepocheq, hct1bimp⟩ := State.clone_bounds_refines hrel s_post
   step with step_receive_refines hka hea hmac hkdf hlens hvalek hencaps2len hdadd hdmsg
-    hct1lenB hct2lenB hheaderlenB self s msg (hct1bimp hct1b) (by rw [hepocheq]; exact hepoch)
+    hct1lenB hct2lenB hheaderlenB hz hzz hrf self s msg (hct1bimp hct1b) (by rw [hepocheq]; exact hepoch)
     s_post hmsg hhonest
   obtain ⟨hout, hnext⟩ := ‹_›
   rcases hom : out with _ | o

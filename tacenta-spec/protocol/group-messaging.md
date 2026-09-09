@@ -1,8 +1,8 @@
 # Group messaging (sender keys)
 
 In scope. Tacenta uses group messaging, so sender keys are part of the
-implementation. This page is a placeholder for the M4
-slice and will be written spec-first before the model and core.
+implementation. This page is a placeholder for work that is not yet
+scheduled, and will be written spec-first before the model and core.
 
 The mechanism, in outline: each member holds a sender key for the group (a chain
 key that ratchets forward per message, plus a signing key so recipients can

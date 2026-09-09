@@ -1,0 +1,9 @@
+# expect: has neither runs-on nor uses
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    steps:
+      - run: true

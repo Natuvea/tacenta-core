@@ -42,6 +42,68 @@ def ZeroizingTotal : Prop :=
     (∀ z, ∃ r, zeroize.Zeroizing.new inst z = ok r) ∧
     (∀ z, ∃ r, zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst z = ok r)
 
+/-- The same crate at the one other type the ratchet wraps: the vector of
+derived keys that `derive_chain` builds and `skip_message_keys` reads back by
+index. Totality is not enough here. The derivation writes through the wrapper
+once per key and the store loop reads it once per key, and the `Vec::push`
+inside each needs the vector's length, which a statement that only said each
+call returned could not carry from one access to the next. So it is stated as
+a *model*, the way `SessionT1.ZeroizingModel` is: an assumed contents function
+together with the equations relating the three operations to it. In the crate
+they are a newtype constructor, its projection and its mutable projection,
+none of which can fail or alter what is held.
+
+An external crate, and not our code. -/
+class DerivedKeysModel where
+  /-- What a wrapper holds. -/
+  contents : zeroize.Zeroizing (alloc.vec.Vec (U32 × Array U8 32#usize))
+    → alloc.vec.Vec (U32 × Array U8 32#usize)
+  /-- Wrapping stores what it is given. -/
+  new : ∀ (inst : zeroize.Zeroize (alloc.vec.Vec (U32 × Array U8 32#usize)))
+      (v : alloc.vec.Vec (U32 × Array U8 32#usize)),
+    zeroize.Zeroizing.new inst v ⦃ fun z => contents z = v ⦄
+  /-- Reading returns the contents. -/
+  deref : ∀ (inst : zeroize.Zeroize (alloc.vec.Vec (U32 × Array U8 32#usize)))
+      (z : zeroize.Zeroizing (alloc.vec.Vec (U32 × Array U8 32#usize))),
+    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst z ⦃ fun v => v = contents z ⦄
+  /-- Reading mutably returns the contents and a way to replace them. -/
+  deref_mut : ∀ (inst : zeroize.Zeroize (alloc.vec.Vec (U32 × Array U8 32#usize)))
+      (z : zeroize.Zeroizing (alloc.vec.Vec (U32 × Array U8 32#usize))),
+    zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut inst z ⦃ fun p =>
+      p.1 = contents z ∧ ∀ v', contents (p.2 v') = v' ⦄
+
+-- The model's three equations as stepping rules, so the loops below walk
+-- through the wrapper the way they walk through any other call. Registered
+-- here rather than with the other rules further down because the derivation
+-- and store loops are proved before those.
+section DerivedKeys
+variable [DerivedKeysModel]
+
+@[step]
+theorem derived_keys_new_step
+    (inst : zeroize.Zeroize (alloc.vec.Vec (U32 × Array U8 32#usize)))
+    (v : alloc.vec.Vec (U32 × Array U8 32#usize)) :
+    zeroize.Zeroizing.new inst v ⦃ fun z => DerivedKeysModel.contents z = v ⦄ :=
+  DerivedKeysModel.new inst v
+
+@[step]
+theorem derived_keys_deref_step
+    (inst : zeroize.Zeroize (alloc.vec.Vec (U32 × Array U8 32#usize)))
+    (z : zeroize.Zeroizing (alloc.vec.Vec (U32 × Array U8 32#usize))) :
+    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst z
+      ⦃ fun v => v = DerivedKeysModel.contents z ⦄ := DerivedKeysModel.deref inst z
+
+@[step]
+theorem derived_keys_deref_mut_step
+    (inst : zeroize.Zeroize (alloc.vec.Vec (U32 × Array U8 32#usize)))
+    (z : zeroize.Zeroizing (alloc.vec.Vec (U32 × Array U8 32#usize))) :
+    zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut inst z ⦃ fun p =>
+      p.1 = DerivedKeysModel.contents z
+        ∧ ∀ v', DerivedKeysModel.contents (p.2 v') = v' ⦄ :=
+  DerivedKeysModel.deref_mut inst z
+
+end DerivedKeys
+
 -- The generated code passes Aeneas's auto-named length proofs to `Array.make`.
 -- Naming them here is what lets the hypothesis be instantiated at exactly the
 -- arguments the body uses. They are not stable across regeneration, which is
@@ -84,53 +146,56 @@ abbrev NoPanic {α : Type} (e : Result α) : Prop := e ⦃ fun _ => True ⦄
 theorem noPanic_iff {α : Type} (e : Result α) : NoPanic e ↔ ∃ r, e = ok r := by
   cases e <;> simp [NoPanic]
 
-/-- The skipped-key loop cannot fail. Its only fallible step is the `Vec.push`
-that stores each derived key, which fails only past `Usize.max`; the iterator
-step is total. The invariant is that the keys already stored plus the ones still
-to come stay within that bound, which the loop preserves by construction because
-each turn moves exactly one element from the iterator into the store. The
-measure is the number of elements left. -/
+/-- The skipped-key loop cannot fail. It walks the derived keys by index, so
+its fallible steps are the two reads at the cursor, guarded by the length check
+that precedes them, the `Vec.push` that stores each key, which fails only past
+`Usize.max`, and the cursor's increment, which stays below a length. The
+invariant is that the keys already stored plus the ones still to be read stay
+within the bound; each turn moves exactly one key from the wrapper into the
+store. The measure is the number of keys left to read. -/
 @[step]
-theorem skip_message_keys_loop_no_panic
-    (dhr : Array U8 32#usize)
-    (iter : alloc.vec.into_iter.IntoIter (U32 × Array U8 32#usize))
-    (v : alloc.vec.Vec SkippedKey) (now : U32)
-    (h : v.val.length + iter.val.length ≤ Usize.max) :
-    skip_message_keys_loop iter dhr v now ⦃ fun _ => True ⦄ := by
+theorem skip_message_keys_loop_no_panic [DerivedKeysModel]
+    (dhr : Array U8 32#usize) (v : alloc.vec.Vec SkippedKey) (now : U32)
+    (keys : zeroize.Zeroizing (alloc.vec.Vec (U32 × Array U8 32#usize)))
+    (i : Usize)
+    (h : v.val.length + ((DerivedKeysModel.contents keys).val.length - i.val)
+          ≤ Usize.max) :
+    skip_message_keys_loop dhr v now keys i ⦃ fun _ => True ⦄ := by
   unfold skip_message_keys_loop
   apply loop.spec_decr_nat
-    (measure := fun x => (Prod.fst x).val.length)
-    (inv := fun x => (Prod.snd x).val.length + (Prod.fst x).val.length ≤ Usize.max)
-  · rintro ⟨it, w⟩ hinv
-    unfold skip_message_keys_loop.body alloc.vec.into_iter.IteratorIntoIter.next
-    obtain ⟨l, hl⟩ := it
-    cases l with
-    | nil => simp
-    | cons hd tl =>
-      obtain ⟨n, mk⟩ := hd
-      simp only [List.length_cons] at hinv
-      have hw : (↑w : List SkippedKey).length < Usize.max := by omega
-      simp only []
-      step*; simp_all; omega
+    (measure := fun x =>
+      (DerivedKeysModel.contents keys).val.length - (Prod.snd x).val)
+    (inv := fun x => (Prod.fst x).val.length
+      + ((DerivedKeysModel.contents keys).val.length - (Prod.snd x).val) ≤ Usize.max)
+  · rintro ⟨w, j⟩ hinv
+    simp only at hinv
+    simp only [skip_message_keys_loop.body]
+    -- The cursor's increment needs the wrapper's vector to be a vector: its
+    -- length is within `Usize.max`, so a cursor below it has room to move.
+    have hfits := (DerivedKeysModel.contents keys).property
+    by_cases hlt : j.val < (DerivedKeysModel.contents keys).val.length <;>
+      step* <;> simp_all [alloc.vec.Vec.len] <;> omega
   · exact h
 
 /-- The chain-derivation loop cannot fail. Its fallible steps are the chain-key
-step (which needs the trusted HMAC) and the `Vec.push` that collects each
-derived key; the message number is a `checked_add` reporting `ChainExhausted`,
-so it is a result rather than a panic. The invariant is that the keys already
-collected plus the iterations still to come stay within `Usize.max`, and the
-measure is the number of iterations left in the range. -/
-theorem derive_chain_loop_no_panic (h : HmacTotal)
+step (which needs the trusted HMAC), the write through the wrapper, and the
+`Vec.push` that collects each derived key; the message number is a
+`checked_add` reporting `ChainExhausted`, so it is a result rather than a panic.
+The invariant is that the keys already collected plus the iterations still to
+come stay within `Usize.max`, and the measure is the number of iterations left
+in the range. -/
+theorem derive_chain_loop_no_panic (h : HmacTotal) [DerivedKeysModel]
     (iter : core.ops.range.Range U32) (start_n : U32)
     (cur : Array U8 32#usize)
-    (keys : alloc.vec.Vec (U32 × Array U8 32#usize))
-    (hb : keys.val.length + (iter.end.val - iter.start.val) ≤ Usize.max) :
+    (keys : zeroize.Zeroizing (alloc.vec.Vec (U32 × Array U8 32#usize)))
+    (hb : (DerivedKeysModel.contents keys).val.length
+          + (iter.end.val - iter.start.val) ≤ Usize.max) :
     NoPanic (derive_chain_loop iter start_n cur keys) := by
   unfold NoPanic derive_chain_loop
   apply loop.spec_decr_nat
     (measure := fun x => (Prod.fst x).end.val - (Prod.fst x).start.val)
     (inv := fun x =>
-      (Prod.snd (Prod.snd x)).val.length
+      (DerivedKeysModel.contents (Prod.snd (Prod.snd x))).val.length
         + ((Prod.fst x).end.val - (Prod.fst x).start.val) ≤ Usize.max)
   · rintro ⟨it, c, ks⟩ hinv
     simp only at hinv
@@ -233,14 +298,17 @@ theorem try_skipped_loop_no_panic (hrm : VecRemoveTotal)
   · trivial
 
 /-- `derive_chain` is the loop with its initial state, so it inherits the loop's
-proof directly. -/
+proof directly once the wrapper is known to hold the empty vector it was
+built from. -/
 @[step]
-theorem derive_chain_no_panic (h : HmacTotal) (ck : Array U8 32#usize)
-    (start_n count : U32) :
+theorem derive_chain_no_panic (h : HmacTotal) [DerivedKeysModel]
+    (ck : Array U8 32#usize) (start_n count : U32) :
     derive_chain ck start_n count ⦃ fun _ => True ⦄ := by
   unfold derive_chain
+  simp only [lift, alloc.vec.Vec.with_capacity]
+  step
   refine derive_chain_loop_no_panic h _ start_n ck _ ?_
-  simp
+  simp_all
   scalar_tac
 
 /-- The chain loop, with the postcondition strengthened from "did not panic" to
@@ -248,20 +316,22 @@ the number of keys it produced. Panic-freedom alone does not compose: a caller
 that then feeds those keys into another bounded structure has to know how many
 there are. The bound `N` is threaded rather than fixed at `Usize.max`, because
 the caller's bound is the tighter one. -/
-theorem derive_chain_loop_length (h : HmacTotal) (N : Nat) (hN : N ≤ Usize.max)
+theorem derive_chain_loop_length (h : HmacTotal) [DerivedKeysModel]
+    (N : Nat) (hN : N ≤ Usize.max)
     (iter : core.ops.range.Range U32) (start_n : U32)
     (cur : Array U8 32#usize)
-    (keys : alloc.vec.Vec (U32 × Array U8 32#usize))
-    (hb : keys.val.length + (iter.end.val - iter.start.val) ≤ N) :
+    (keys : zeroize.Zeroizing (alloc.vec.Vec (U32 × Array U8 32#usize)))
+    (hb : (DerivedKeysModel.contents keys).val.length
+          + (iter.end.val - iter.start.val) ≤ N) :
     derive_chain_loop iter start_n cur keys ⦃ fun r =>
       match r with
-      | core.result.Result.Ok p => p.2.val.length ≤ N
+      | core.result.Result.Ok p => (DerivedKeysModel.contents p.2).val.length ≤ N
       | core.result.Result.Err _ => True ⦄ := by
   unfold derive_chain_loop
   apply loop.spec_decr_nat
     (measure := fun x => (Prod.fst x).end.val - (Prod.fst x).start.val)
     (inv := fun x =>
-      (Prod.snd (Prod.snd x)).val.length
+      (DerivedKeysModel.contents (Prod.snd (Prod.snd x))).val.length
         + ((Prod.fst x).end.val - (Prod.fst x).start.val) ≤ N)
   · rintro ⟨it, c, ks⟩ hinv
     simp only at hinv
@@ -271,27 +341,30 @@ theorem derive_chain_loop_length (h : HmacTotal) (N : Nat) (hN : N ≤ Usize.max
   · exact hb
 
 /-- The same, lifted to the whole function, with the bound still free. -/
-theorem derive_chain_length (h : HmacTotal) (N : Nat) (hN : N ≤ Usize.max)
+theorem derive_chain_length (h : HmacTotal) [DerivedKeysModel]
+    (N : Nat) (hN : N ≤ Usize.max)
     (ck : Array U8 32#usize) (start_n count : U32) (hc : count.val ≤ N) :
     derive_chain ck start_n count ⦃ fun r =>
       match r with
-      | core.result.Result.Ok p => p.2.val.length ≤ N
+      | core.result.Result.Ok p => (DerivedKeysModel.contents p.2).val.length ≤ N
       | core.result.Result.Err _ => True ⦄ := by
   unfold derive_chain
+  simp only [lift, alloc.vec.Vec.with_capacity]
+  step
   refine derive_chain_loop_length h N hN _ start_n ck _ ?_
-  simp
-  scalar_tac
+  simp_all
 
 /-- The bound specialised to the count, which is the form a caller actually
 needs and the form the stepping tactic can apply without guessing: leaving `N`
 free let unification pick it from whatever hypothesis was in scope, which gave a
 bound too weak to be useful. -/
 @[step]
-theorem derive_chain_length_count (h : HmacTotal) (ck : Array U8 32#usize)
-    (start_n count : U32) :
+theorem derive_chain_length_count (h : HmacTotal) [DerivedKeysModel]
+    (ck : Array U8 32#usize) (start_n count : U32) :
     derive_chain ck start_n count ⦃ fun r =>
       match r with
-      | core.result.Result.Ok p => p.2.val.length ≤ count.val
+      | core.result.Result.Ok p =>
+        (DerivedKeysModel.contents p.2).val.length ≤ count.val
       | core.result.Result.Err _ => True ⦄ :=
   derive_chain_length h count.val (by scalar_tac) ck start_n count (by omega)
 
@@ -350,14 +423,13 @@ The two stepping phases are deliberately sequenced rather than nested: the
 second does not fire inside `all_goals`, and the pair the derivation returns has
 to be destructured between them or a `let` residue blocks the goal. -/
 theorem skip_message_keys_no_panic (h : HmacTotal) (hrm : VecRemoveTotal)
-    (state : State) (upto : U32)
+    [DerivedKeysModel] (state : State) (upto : U32)
     (hs : state.skipped.val.length + U32.max ≤ Usize.max) :
     NoPanic (skip_message_keys state upto) := by
   unfold NoPanic skip_message_keys
   simp only [lift]
   step*
   obtain ⟨ck2, keys⟩ := v
-  simp only [alloc.vec.IntoIteratorVec.into_iter]
   step*
 
 /-- The scan's wrapper only repackages the tuple the loop returns, so it
@@ -382,40 +454,42 @@ theorem array_ne_total {N : Usize} (a b : Array U8 N) :
 /-- The store loop, with the bound carried so a caller learns how large the
 store ends up rather than only that the loop did not fail. Same shape as the
 chain loop's length lemma. -/
-theorem skip_message_keys_loop_bound (B : Nat) (hB : B ≤ Usize.max)
-    (dhr : Array U8 32#usize)
-    (iter : alloc.vec.into_iter.IntoIter (U32 × Array U8 32#usize))
-    (v : alloc.vec.Vec SkippedKey) (now : U32)
-    (h : v.val.length + iter.val.length ≤ B) :
-    skip_message_keys_loop iter dhr v now ⦃ fun r => r.val.length ≤ B ⦄ := by
+theorem skip_message_keys_loop_bound [DerivedKeysModel] (B : Nat) (hB : B ≤ Usize.max)
+    (dhr : Array U8 32#usize) (v : alloc.vec.Vec SkippedKey) (now : U32)
+    (keys : zeroize.Zeroizing (alloc.vec.Vec (U32 × Array U8 32#usize)))
+    (i : Usize)
+    (h : v.val.length + ((DerivedKeysModel.contents keys).val.length - i.val) ≤ B) :
+    skip_message_keys_loop dhr v now keys i ⦃ fun r => r.val.length ≤ B ⦄ := by
   unfold skip_message_keys_loop
   apply loop.spec_decr_nat
-    (measure := fun x => (Prod.fst x).val.length)
-    (inv := fun x => (Prod.snd x).val.length + (Prod.fst x).val.length ≤ B)
-  · rintro ⟨it, w⟩ hinv
-    unfold skip_message_keys_loop.body alloc.vec.into_iter.IteratorIntoIter.next
-    obtain ⟨l, hl⟩ := it
-    cases l with
-    | nil => simp_all
-    | cons hd tl =>
-      obtain ⟨n, mk⟩ := hd
-      simp only [List.length_cons] at hinv
-      have hw : (↑w : List SkippedKey).length < Usize.max := by omega
-      simp only []
-      step*; simp_all; omega
+    (measure := fun x =>
+      (DerivedKeysModel.contents keys).val.length - (Prod.snd x).val)
+    (inv := fun x => (Prod.fst x).val.length
+      + ((DerivedKeysModel.contents keys).val.length - (Prod.snd x).val) ≤ B)
+  · rintro ⟨w, j⟩ hinv
+    simp only at hinv
+    simp only [skip_message_keys_loop.body]
+    -- The cursor's increment needs the wrapper's vector to be a vector: its
+    -- length is within `Usize.max`, so a cursor below it has room to move.
+    have hfits := (DerivedKeysModel.contents keys).property
+    by_cases hlt : j.val < (DerivedKeysModel.contents keys).val.length <;>
+      step* <;> simp_all [alloc.vec.Vec.len] <;> omega
   · exact h
 
 /-- The store bound in its canonical form: at most what went in. Stated this way
 so the stepping tactic can apply it without choosing a bound, the same reason
 `derive_chain_length_count` exists. -/
 @[step]
-theorem skip_message_keys_loop_grows (dhr : Array U8 32#usize)
-    (iter : alloc.vec.into_iter.IntoIter (U32 × Array U8 32#usize))
-    (v : alloc.vec.Vec SkippedKey) (now : U32)
-    (h : v.val.length + iter.val.length ≤ Usize.max) :
-    skip_message_keys_loop iter dhr v now ⦃ fun r =>
-      r.val.length ≤ v.val.length + iter.val.length ⦄ :=
-  skip_message_keys_loop_bound _ h dhr iter v now (le_refl _)
+theorem skip_message_keys_loop_grows [DerivedKeysModel]
+    (dhr : Array U8 32#usize) (v : alloc.vec.Vec SkippedKey) (now : U32)
+    (keys : zeroize.Zeroizing (alloc.vec.Vec (U32 × Array U8 32#usize)))
+    (i : Usize)
+    (h : v.val.length + ((DerivedKeysModel.contents keys).val.length - i.val)
+          ≤ Usize.max) :
+    skip_message_keys_loop dhr v now keys i ⦃ fun r =>
+      r.val.length ≤ v.val.length
+        + ((DerivedKeysModel.contents keys).val.length - i.val) ⦄ :=
+  skip_message_keys_loop_bound _ h dhr v now keys i (le_refl _)
 
 /-- Skipping forward leaves the store no larger than it was or than the limit
 the code enforces, whichever is bigger. This is what a second call needs in
@@ -423,7 +497,7 @@ order to re-establish its own precondition, which is why panic-freedom alone was
 not enough to compose. -/
 @[step]
 theorem skip_message_keys_bound (h : HmacTotal) (hrm : VecRemoveTotal)
-    (state : State) (upto : U32)
+    [DerivedKeysModel] (state : State) (upto : U32)
     (hs : state.skipped.val.length + U32.max ≤ Usize.max) :
     skip_message_keys state upto ⦃ fun p =>
       p.2.skipped.val.length ≤ max state.skipped.val.length MAX_SKIPPED_STORE.val ⦄ := by
@@ -431,7 +505,6 @@ theorem skip_message_keys_bound (h : HmacTotal) (hrm : VecRemoveTotal)
   simp only [lift]
   step*
   all_goals (try obtain ⟨ck2, keys⟩ := v)
-  all_goals (try simp only [alloc.vec.IntoIteratorVec.into_iter])
   all_goals (step* <;> simp_all [alloc.vec.Vec.len, MAX_SKIPPED_STORE] <;> omega)
 
 /-- The scan never grows the store: it either removes the matching key or leaves
@@ -550,16 +623,16 @@ theorem age_store_spec (hrm : VecRemoveTotal) (state : State) :
   simp only [lift]
   have hl := age_store_loop_bound hrm state.skipped.val.length state.skipped
     (core.num.U32.saturating_add state.events 1#u32) 0#usize (le_refl _)
-  step* <;> simp_all
+  step*
 
 theorem receive_no_panic (h : HmacTotal) (hk : HkdfTotal) (hz : ZeroizingTotal)
-    (hrm : VecRemoveTotal) (state : State) (header : Header)
+    (hrm : VecRemoveTotal) [DerivedKeysModel] (state : State) (header : Header)
     (dh_out_recv dh_out_send new_dhs_pub : Array U8 32#usize)
     (hs : max state.skipped.val.length MAX_SKIPPED_STORE.val + U32.max ≤ Usize.max) :
     NoPanic (receive state header dh_out_recv dh_out_send new_dhs_pub) := by
   unfold NoPanic receive
   step*
-  rcases hd : state1.dhr_pub with _ | dhr <;> (try simp only [hd]) <;> step*
+  rcases hd : state1.dhr_pub with _ | dhr <;> (try simp only) <;> step*
   all_goals (simp_all [MAX_SKIPPED_STORE]; omega)
 
 /-
@@ -576,8 +649,11 @@ each named as an assumption rather than left implicit:
 * `HmacTotal` and `HkdfTotal`, the key-derivation primitives, deliberately
   opaque so the ratchet's control flow can be reasoned about without dragging in
   the whole of SHA-256;
-* `ZeroizingTotal`, the external `zeroize` crate, whose wrapper and projection
-  cannot fail; and
+* `ZeroizingTotal` and `DerivedKeysModel`, the external `zeroize` crate: the
+  first says its wrapper and projection cannot fail at the root-key step's
+  width, the second that at the derived-keys vector the wrapper holds what was
+  put in it, since the two loops that build and read that vector need its
+  length and not only a value; and
 * `VecRemoveTotal`: Aeneas does not model `Vec::remove`, so it reaches the
   translation as an opaque function and this hypothesis states its totality.
   `Vec::remove` panics only on an out-of-bounds index, which the scan's own
@@ -614,9 +690,12 @@ info: 'Tacenta.T1.receive_no_panic' depends on axioms: [propext,
  zeroize.Zeroizing,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
+ Pair.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.remove,
  zeroize.Zeroize.Blanket.zeroize,
- zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref]
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
 -/
 #guard_msgs in
 #print axioms Tacenta.T1.receive_no_panic

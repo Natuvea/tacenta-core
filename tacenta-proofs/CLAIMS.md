@@ -42,33 +42,74 @@ this section says in one place what is not proved.
   everything composed from them in `TripleT1.lean`/`TripleT3.lean` take these
   hypotheses, so `Translation/Satisfiability.lean` exhibits a model of each
   and a refutation of each unguarded shape, and the build fails if any of
-  them becomes refutable. A satisfiable hypothesis is still only a
-  hypothesis: the `Remove` forms remain stronger than Rust for an
+  them becomes refutable. The same file witnesses every `zeroize`-wrapper
+  hypothesis the sparse ratchet, the Braid and the classical ratchet take
+  (`ZeroizingRoundTrips96`/`64`, `ZeroizingArrayRoundTrip`, `T3.lean`'s
+  `ZeroizingRoundTrips` and `ZeroizingRoundTrips80`, `T1.DerivedKeysModel`),
+  and `Translation/SatisfiabilityTriple.lean` the Triple Ratchet's two
+  (`TripleT1.ZeroizingTotal`, `TripleT3.ZeroizingRoundTrips`), which cannot
+  share an environment with the rest. A satisfiable hypothesis is still only
+  a hypothesis: the `Remove` forms remain stronger than Rust for an
   out-of-range index (`LIMITATIONS.md`).
 - **The ML-KEM Braid's T3 theorems carry two preconditions beyond the
   boundary agreements.** `step_send_refines`, `Braid.send_refines`,
   `step_receive_refines` and `Braid.receive_refines` take a live encoder
   (fewer than 65,536 codewords emitted) and an unspliced chunk stream
-  (`HonestChunk`), and the erasure and KEM agreements they rest on are
-  bounded to what a real erasure code and KEM can satisfy. The section below
+  (`HonestChunk`), and the erasure agreement they rest on is bounded to what
+  a real erasure code can satisfy; the KEM agreement is not yet, as the next
+  bullet says. The section below
   records every hypothesis; `Translation/Satisfiability.lean` refutes the
   unbounded shapes so they cannot be restated, and
   `Translation/ErasureWitness.lean` proves the erasure hypotheses have a
   model (a Reed-Solomon code over `GF(2^256)`, built from Mathlib).
+- **The KEM agreement currently admits only a derandomised KEM.** The
+  encapsulation clause of `BraidT3.lean`'s `KemAgreesFor` asks the real
+  `encapsulate1` to return, for every RNG state, the single ciphertext and
+  shared secret the model's randomness-free `Kem.encaps1` computes from the
+  header. ML-KEM encapsulation draws fresh randomness, so no `K` makes that
+  clause true of the real operation, and the only implementation known to
+  satisfy it is `Translation/KemWitness.lean`'s `toyKem`. The four Braid
+  refinement theorems therefore describe a Braid over a derandomised KEM
+  until the clause is restated with the randomness bound existentially per
+  RNG state, as the key-generation clause already is. `LIMITATIONS.md`'s KEM
+  entry (under the Braid's erasure and KEM hypotheses) has the full account
+  and the planned fix.
 - **A verified zone is not a verified library.** The zone is the ratchet and
   what it calls; orchestration, storage and lifecycle sit outside it.
+- **The verified wire parser has no caller.** `tacenta-protobuf` carries T1
+  and T3 below, and nothing on the live path calls it: outside its own
+  directory it is referenced only by a fuzz target. The bytes a peer actually
+  sends are parsed by `decode_message`, `decode_composite` and
+  `decode_initial` in the root crate's `serialization` module, which are
+  outside the translated surface and have no theorem. A reader who sees T1
+  and T3 for a wire parser and concludes that received bytes are parsed by
+  proved code would be wrong today; the proofs are what such a claim would
+  need on the parsing side, not the claim.
+- **Which private key is agreed with which public key at a Diffie-Hellman
+  ratchet step is decided outside every proof and every vector.** The
+  specification's rule -- the old key pair for the receiving chain, the fresh
+  one for the sending chain -- is applied in `tacenta-core/src/sessions`,
+  which is neither translated nor modelled. `Model.Ratchet.receive`, the
+  refinement theorem and the ratchet vectors all take the two agreement
+  outputs as opaque bytes, so a swap in the orchestration would pass every
+  proof, every vector and `attest`. By inspection the code pairs them
+  correctly; a session-level test that drives `Session` against a model
+  scenario is being added so that this is checked by running rather than by
+  reading.
 - **Translated is not proved.** Every verified-zone crate carries
   persistence codecs and a few accessors that the translation contains and
   no T1 or T3 theorem names: `from_bytes`, `to_bytes`
   and their helpers (`take_len_prefixed`, `decode_state`, `read_auth`,
   `read_key`, `read_u32`, `read_u64`, `decode_skipped_entry`,
-  `decode_chain`, `decode_chains_entry`), `message_keys`, `init`,
+  `decode_chain`, `decode_chains_entry`), `init`,
   `init_alice`, `init_bob`, `Output::new`, `Encoder::new`, `Decoder::new`,
   `needed`, `received`, `encode_prekey_body`, the small accessors, and the
   `evict_oldest` calls. (The erasure crate's `weights`, `coefficients` and
   `evaluate` *are* proved:
   `ErasureT1.lean` carries a totality theorem for each and the two entry
-  points that call them are re-stepped.) Any sentence below that says "every
+  points that call them are re-stepped; and the classical ratchet's
+  `message_keys`, the last derivation before the cipher, *is* proved, by
+  `message_keys_refines` in `Translation/T3.lean`.) Any sentence below that says "every
   function" or "complete" for a crate is about the protocol functions, not
   these; the codecs in particular parse bytes from storage and are the next
   T1 target. `LIMITATIONS.md` says the same where each crate is discussed.
@@ -82,12 +123,15 @@ this section says in one place what is not proved.
   `KemCloneAgrees` and `ErasureCloneAgrees` in `BraidT3.lean` are hypotheses of
   `Braid.receive_refines` and `State.clone_refines`, in the same trust category
   as `ErasureAgrees`. `Braid.receive_refines` also
-  takes `BraidHmacAgrees`, `BraidHkdfAgrees`, eleven `Tacenta.BraidT1.*Total`
+  takes `BraidHmacAgrees`, `BraidHkdfAgrees`, fourteen `Tacenta.BraidT1.*`
   constants (`Encapsulate2Total`, `DecoderAddChunkTotal`, `DecoderMessageTotal`,
   `Ct1LenTotal`, `Ct2LenTotal`, `HeaderLenTotal`, `EncoderCloneTotal`,
   `DecoderCloneTotal`, `KeyPairCloneTotal`, `EncapsStateCloneTotal`,
-  `OptionCloneTotal`), and two preconditions, `State.ct1_bounded self.state` and
-  `epoch < U64.max`, that the T1 section names. The theorem's signature is the
+  `OptionCloneTotal`, and since CR-15 `ZeroizingArrayRoundTrip`,
+  `ArrayZeroizeTotal` and `RangeFullIndexTotal`), and two preconditions:
+  `State.ct1_bounded self.state`, which the T1 section names, and
+  `epoch < U64.max`, which the T1 theorems no longer need (CR-03) and the T3
+  section says why the refinement still does. The theorem's signature is the
   authoritative list.
 
 The honest one-line summary: **the protocol core is proved to refine a model
@@ -97,9 +141,10 @@ above.
 
 ## Proved (tier T2, functional properties of the model)
 
-Location: `Proofs/RatchetCorrectness.lean`. Kernel-checked; the theorems rest
-only on `propext` and `Quot.sound` (confirmed with `#print axioms`), not on
-`native_decide`'s compiler trust.
+Location: `Proofs/RatchetCorrectness.lean`. Kernel-checked; each of the five
+theorems rests only on `propext` and `Quot.sound`, pinned under `#guard_msgs`
+in `Proofs/TrustedBase.lean`, so the build fails if one starts resting on
+`native_decide`'s compiler trust or on anything else.
 
 - `deriveChain_length`: deriving a chain of `c` steps stores exactly `c` message
   keys. The memory-bound invariant behind `MAX_SKIP`.
@@ -116,6 +161,69 @@ only on `propext` and `Quot.sound` (confirmed with `#print axioms`), not on
   memory-safety invariant: a per-chain bound alone does not bound the store,
   because every Diffie-Hellman ratchet step starts a fresh chain, so a peer that
   repeatedly ratchets and skips would otherwise grow it without limit.
+
+## Proved (tier T3, the classical Double Ratchet refines the model)
+
+Location: `Translation/T3.lean`, against `Model.Ratchet` and `Model.State` in
+`tacenta-model`. This is the central refinement of the project, and until
+this section existed it had no ledger entry and no pin, so nothing in it was
+checked by `attest.py`; it is now, and the three headline theorems are
+pinned under `#guard_msgs` at the end of the file.
+
+Every theorem takes a state relation `StateR s m` (the translated state
+refines the model state field by field, with the fixed-width arrays, `u32`
+counters and `Vec` of records absorbed there) and says the translated
+operation carries it to the model's operation.
+
+- `send_refines`: a successful `send` returns a header and a message key that
+  `Model.Ratchet.send` also returns, with the new state still related, and
+  the `NoSendingChain` refusal is exactly the model's `none`. The `u32`
+  counter wrapping (`ChainExhausted`) has no model counterpart and is left
+  out of the correspondence deliberately. **Modulo `HmacAgrees`**; pinned
+  base `propext`, `Classical.choice`, `Quot.sound` and the opaque
+  `tacenta_kdf.hmac_sha256`.
+- `receive_refines`: a successful `receive`, given the two agreement outputs
+  and the fresh ratchet key as bytes, returns the key `Model.Ratchet.receive`
+  returns and a state still related, across the skipped-key hit, the
+  same-chain path and the Diffie-Hellman ratchet path. Under `HmacAgrees`,
+  `HkdfAgrees`, `ZeroizingRoundTrips`, `VecRemoveTotal` and
+  `DerivedKeysModel` (the T1 section says what it is), the `hone`
+  at-most-one hypothesis named in "what is not proved", a store-size
+  precondition (`hs`) and room in the expiry clock (`hroom`); it says nothing
+  about the failure branches. Pinned base: the kernel's three axioms and
+  eleven opaque externals (`hkdf_sha256`, `hmac_sha256`, five declarations of
+  the `zeroize` wrapper including `deref_mut`, the array, pair and `Vec`
+  `Zeroize` instances, and `Vec::remove`), and no `native_decide`.
+- `message_keys_refines`: the expansion of a message key into the AEAD key,
+  the MAC key and the IV computes what `Model.State.messageKeys` says -- the
+  zero salt, the `mkInfo` label and the 32/32/16 split -- for every key. This
+  is the last derivation before the cipher, and the one a label or
+  split-order error would change every ciphertext key through while every
+  other theorem stayed true. Under `HkdfAgrees` and `ZeroizingRoundTrips80`,
+  the wrapper round trip at the eighty-byte width this one call uses, stated
+  separately so that no other theorem's hypothesis widened
+  (`Translation/Satisfiability.lean` exhibits a model of it and of the
+  sixty-four-byte `ZeroizingRoundTrips`). Pinned; the ratchet vectors record
+  the same three values on every step.
+- `kdf_ck_refines`, `kdf_rk_refines`: the chain-key and root-key steps
+  compute `Model.State.kdfCk`/`kdfRk`, the first modulo `HmacAgrees` and the
+  second modulo `HkdfAgrees` and `ZeroizingRoundTrips`. `rk_info_agrees` and
+  `mk_info_agrees` are where the two sides' copies of the labels are checked
+  byte for byte, by `rfl` rather than `native_decide`.
+- `skip_message_keys_refines`: the skip step -- the purge scan, the forward
+  derivation and the store insertion -- refines `Model.State.skipMessageKeys`
+  on success, under `HmacAgrees`, `VecRemoveTotal` and `DerivedKeysModel`.
+- `try_skipped_refines`: the skipped-key lookup returns the key the model's
+  lookup returns and leaves the store the model leaves, and on a miss the
+  model misses too, under `VecRemoveTotal` and `hone`.
+- `dh_ratchet_refines`, `derive_chain_refines`, `age_store_refines`,
+  `purge_chain_range_refines`, `init_sender_refines`, `init_receiver_refines`:
+  the remaining operations the model defines, proved along the way since
+  `receive` composes them.
+
+What this section does not cover is what `T3.lean`'s own closing note lists:
+the persistence codecs and accessors under "translated is not proved", and
+the finite-width cases where `u32` and `Nat` part company.
 
 ## Proved (tier T2, PQXDH's input keying material)
 
@@ -135,7 +243,8 @@ Location: `Proofs/SessionEstablishment.lean`.
   fails without it, and the width is pinned in the core by a test and stated in
   session-establishment.md. The safety lives in the encoder, not in the
   concatenation.
-- `sharedSecret_length`, `hkdf_length`, `hash_length`: the derivation returns
+- `sharedSecret_length`, `hkdf_length` (in `tacenta-model/Model/Kdf.lean`),
+  `hash_length` (in `tacenta-model/Model/Sha256.lean`): the derivation returns
   exactly thirty-two bytes, and SHA-256 exactly thirty-two, for every input,
   not only at the handful of lengths the known-answer vectors use.
 
@@ -238,7 +347,18 @@ Location: `tacenta-proofs/translation/Translation/T1.lean` and
 
 - `kdf_ck_no_panic`: the chain-key step `kdf_ck` cannot panic. Its axiom base is
   pinned in `T1.lean` alongside `send_no_panic` and `receive_no_panic`.
+- `send_no_panic`: sending on the classical ratchet cannot panic; the
+  `ChainExhausted` refusal at the `u32` counter's limit is a returned error,
+  not a failure. Pinned with the other two.
 - `receive_no_panic`: the translated Double Ratchet receive cannot panic.
+  Since CR-15 the forward derivation returns its keys in a `Zeroizing`
+  wrapper and the store loop reads them back by index, so this and the
+  `skip_message_keys`/`derive_chain` lemmas beneath it take
+  `DerivedKeysModel`, a class in the shape of the session zone's
+  `ZeroizingModel`: the wrapper is a transparent container whose `new`,
+  `deref` and `deref_mut` return what was put in (`LIMITATIONS.md` says why
+  totality alone is not enough). Its pinned base gained the wrapper's
+  `deref_mut` and the two `Zeroize` instances the wrapper reaches.
   **This is the classical half only.** Since the triple-ratchet integration the session's receive
   path runs through `tacenta-triple`, which composes this with `tacenta-spqr`
   and `tacenta-braid`. `tacenta-triple` is translated and proved, and its own
@@ -249,6 +369,43 @@ Location: `tacenta-proofs/translation/Translation/T1.lean` and
   panic, and needs no precondition, because the keying material is at most five
   fixed components so the bound it asks for is discharged from the value rather
   than passed to a caller.
+
+## Proved (tier T1, the erasure coder's entry points cannot fail)
+
+Location: `Translation/ErasureT1.lean`.
+
+- `next_chunk_no_panic`: the encoder's entry point cannot panic, for every
+  encoder state, and it needs no hypothesis at all. Pinned to `propext`,
+  `Classical.choice` and `Quot.sound` alone: this crate has no opaque
+  primitive of its own.
+- `message_no_panic`: the decoder's entry point -- the one that consumes
+  codewords an attacker supplies, with every index and length computed from
+  what they sent -- cannot panic, given only that `Vec::truncate` returns
+  (`TruncateTotal`, the one library call the translation does not see
+  through). Pinned to the three kernel axioms plus that one external.
+- `add_chunk_no_panic`, `has_message_no_panic`, `interpolate_no_panic`,
+  `weights_no_panic`, `coefficients_no_panic`, `evaluate_no_panic`,
+  `mul_no_panic`: the decoder's other public call, the field, and the
+  barycentric helpers the two entry points step through.
+
+`Encoder::new`, `Decoder::new`, `needed`, `received` and the codecs have no
+theorem, as "translated is not proved" says, and `LIMITATIONS.md` records
+what T3 does and does not reach in this crate.
+
+## Proved (tier T1, the wire parser cannot fail)
+
+Location: `Translation/ProtobufT1.lean`.
+
+- `parse_ratchet_body_no_panic`, `parse_prekey_body_no_panic`: both message
+  profiles drive every byte string within the declared limit to an `Ok` or
+  an `Err` and never to a failure. Pinned to `propext`, `Classical.choice`
+  and `Quot.sound` alone: the crate translates with no axiom at all.
+- `encode_ratchet_body_no_panic`: the ratchet-body encoder likewise
+  (`encode_prekey_body` has no theorem). Same pinned base.
+
+**This parser has no caller on the live path**; see "what is not proved"
+above. What these theorems establish is that a verified reader exists, not
+that received bytes go through it.
 
 ## Proved (tier T1, the sparse post-quantum ratchet's entry points cannot fail)
 
@@ -290,13 +447,17 @@ Location: `tacenta-proofs/translation/Translation/BraidT1.lean`.
   and its entry point cannot panic. This is the one an attacker's header,
   chunk data, and claimed lengths drive directly, so this is what stands
   between a malformed message and a remote denial of service, for this leaf
-  crate. Two real preconditions travel with these two: `State.ct1_bounded`, a
+  crate. One real precondition travels with these two: `State.ct1_bounded`, a
   concrete size cap on the KEM ciphertext carried across the encapsulation
   exchange (an invariant `step_send` maintains but this file does not prove,
   since that would be a T3 claim about the whole state machine rather than a
-  T1 one about a single function), and an epoch counter below `2^64`, the
-  same shape of bound the classical ratchet and the sparse ratchet each
-  needed above. **Nothing below closes the `ct1_bounded` gap**, and it is worth
+  T1 one about a single function). The epoch bound they used to carry as well
+  (`hepoch`, an epoch counter below `2^64`, the same shape of bound the
+  classical ratchet and the sparse ratchet each need above) is no longer a
+  hypothesis of either theorem: the two transitions that advance the epoch
+  now use `checked_add` and answer `Failed` at the ceiling (CR-03), an
+  outcome the theorems prove as a value rather than assume away.
+  **Nothing below closes the `ct1_bounded` gap**, and it is worth
   being exact about why, since the obvious candidate does not apply:
   `tacenta-triple` is proved (T1 and T3, both further down this file), but it
   composes `tacenta-spqr` and `tacenta-ratchet`, not `tacenta-braid`. The Braid
@@ -310,10 +471,15 @@ Location: `tacenta-proofs/translation/Translation/BraidT1.lean`.
   `mac_ct_no_panic`/`init_no_panic`, `kdf_ok_no_panic`, `State.clone_no_panic`,
   `Braid.clone_no_panic`, `Output.clone_no_panic`), are proved along the way,
   since `step_send`/`step_receive` call all of them.
-- Twenty-three opaque-operation assumptions back these theorems, over the
-  erasure coder, the KEM, the two KDF calls, and this crate's own copy of
-  `Option::clone` -- none shared with `SpqrT1.lean`'s seven or `T1.lean`'s
-  copies of the same kinds of operation. Several carry a concrete size cap
+- Twenty-six opaque-operation assumptions back these theorems, over the
+  erasure coder, the KEM, the two KDF calls, this crate's own copy of
+  `Option::clone`, and, since CR-15, the `zeroize` crate's three touches
+  (`ZeroizingArrayRoundTrip`, the wrapper's constructor and projection as one
+  round trip at every width; `ArrayZeroizeTotal`, the in-place wipe of the
+  raw KEM secret; `RangeFullIndexTotal`, the `key[..]` index the Aeneas
+  library does not model) -- none shared with `SpqrT1.lean`'s or `T1.lean`'s
+  copies of the same kinds of operation, and each of the three with a model
+  in `Translation/Satisfiability.lean`. Several carry a concrete size cap
   (`≤ 4096`) rather than headroom below `Usize.max`, because `finish_encaps`
   sums two independently-capped values at one call site, and two facts each
   "under `Usize.max`" do not compose the way two concrete caps do. See
@@ -358,17 +524,24 @@ This file is the only one that says anything about the composition itself.
   `State.init_receiver_no_panic`, and `State`'s clone and small accessors,
   are proved along the way, since `State.send`/`State.receive` call some of
   them and a session has to start somewhere.
-- Nineteen opaque-operation assumptions back these theorems, every one a
-  totality claim about `tacenta_ratchet.State` or `tacenta_spqr.State`
+- Twenty opaque-operation assumptions back these theorems, seventeen of them
+  totality claims about `tacenta_ratchet.State` or `tacenta_spqr.State`
   treated as opaque -- this crate only sees the public calling surface that
   `T1.lean` and `SpqrT1.lean` prove total, under their preconditions, against
-  the real definitions, so none of these nineteen is the same proposition as
+  the real definitions, so none of these seventeen is the same proposition as
   either
   file's own theorems even where a name echoes one (`RatchetSendTotal` here
   assumes totality of a call across a crate boundary; `send_no_panic` in
   `T1.lean` proves it from the translated body). This crate's own copies of
-  the KDF and `Zeroize` axioms round out the count, the same per-crate
-  counting rule `SpqrT1.lean` describes.
+  the KDF, `Zeroize` and `Zeroizing`-wrapper axioms (`HkdfSha256Total`,
+  `ZeroizeTotal`, `ZeroizingTotal`) round out the count, the same per-crate
+  counting rule `SpqrT1.lean` describes
+  (`Translation/SatisfiabilityTriple.lean` exhibits a model of
+  `ZeroizingTotal`). `ZeroizingTotal` is new with CR-15:
+  `split_secret` now wipes its sixty-four-byte expansion on the way out, and
+  the wrapper's constructor and projection are opaque to the translation, so
+  `split_secret_no_panic` and the two initialisers that call it take it, in
+  `T1.lean`'s shape and at that one width.
 - **This is the proof that says anything about the composed path.**
   `tacenta-core/src/sessions`, the product code that calls `tacenta-triple`,
   is not translated or proved in its own right, so the claim stops at the
@@ -378,8 +551,25 @@ This file is the only one that says anything about the composition itself.
 
 Location: `tacenta-proofs/translation/Translation/TripleT3.lean`, against
 `Model.Triple` in `tacenta-model/Model/Triple.lean` (the composed state
-machine; `Model.TripleRatchet.lean` carries only `splitSecret`/`combine` --
-see `LIMITATIONS.md` for what each file covers).
+machine; `tacenta-model/Model/TripleRatchet.lean` carries only
+`splitSecret`/`combine` -- see `LIMITATIONS.md` for what each file covers).
+
+**`Model.Triple` is transcribed from the crate it refines.** Its header says
+it is written from `tacenta-spec/protocol/triple-ratchet.md` *and* from
+`tacenta-core/triple/src/lib.rs`, because the clone-candidate-commit shape
+(neither ratchet's step applied without the other's) is an implementation
+decision the specification page does not carry. So the theorems below check
+the translated crate against a model read off the same crate, which is less
+independence than the other tiers have. What they establish is that the
+composition does what its own small, spec-derived description says, and that
+nothing is weaker than the leaf theorems (the agreement bundles carry the
+leaf preconditions verbatim); what they do not bring is a second,
+independently written account of the composition.
+`tacenta-model/docs/mapping-to-spec.md` records the same. The four security
+properties in `tacenta-model/Properties/` are deliberately absent from this
+ledger: they are kernel-only theorems over a symbolic algebra whose attacker
+holds a single term, and `LIMITATIONS.md` ("Forward secrecy is proved,
+against a symbolic attacker") says exactly how little that covers.
 
 - `send_refines`, `receive_refines`: the composed `send`/`receive` compute
   what `Model.Triple.send`/`receive` say, given the two inner ratchets agree
@@ -424,18 +614,28 @@ see `LIMITATIONS.md` for what each file covers).
   `SpqrT3.lean`'s own theorems hold of the real code, which they do, proved
   elsewhere; this file cannot make Lean say so directly, so it says the same
   content again as a fresh, independently-stated hypothesis.
-- **The KDF boundary, `TripleHkdfAgrees`:** one assumption, the only opaque
-  primitive this crate calls that is genuinely its own (inside the
-  translated, non-opaque `split_secret`/`combine`), stated the same way
+- **The KDF boundary, `TripleHkdfAgrees`, and the wrapper,
+  `ZeroizingRoundTrips`:** two assumptions, the only opaque primitives this
+  crate calls that are genuinely its own (inside the translated, non-opaque
+  `split_secret`/`combine`). `TripleHkdfAgrees` is stated the same way
   `SpqrHkdfAgrees`/`HkdfAgrees` are for the other two crates.
+  `ZeroizingRoundTrips` is this crate's copy of `T3.lean`'s hypothesis of the
+  same name, at sixty-four bytes and in the same two-conjunct shape (so it
+  subsumes `TripleT1.lean`'s `ZeroizingTotal`, `ZeroizingRoundTrips.total`),
+  needed since CR-15 wrapped `split_secret`'s expansion in `Zeroizing`:
+  refinement needs the value to survive the wrapper, not just the return.
+  `Translation/SatisfiabilityTriple.lean` exhibits a model of it.
 - `split_secret_refines`, `combine_refines`: proved outright against
   `Model.TripleRatchet.splitSecret`/`combine`, translated Rust bottoming out
-  only in the assumed KDF boundary.
+  only in the assumed KDF boundary and, for `split_secret`, the wrapper
+  round trip.
 - **Axiom base:** beyond `propext`, `Classical.choice`, `Quot.sound`, and the
-  per-crate opaque-operation axioms named above, `send_refines` also rests on
-  one `native_decide` reflection axiom from `combine_info_agrees`'s
-  label/constant-equality check -- read off `#print axioms` by hand rather
-  than pinned under `#guard_msgs`. `SpqrT3.lean`'s
+  per-crate opaque-operation axioms named above, `send_refines` and
+  `receive_refines` each also rest on one `native_decide` reflection axiom,
+  from `combine_info_agrees`'s label/constant-equality check (both call
+  `combine`) -- read off `#print axioms` by hand rather than pinned under
+  `#guard_msgs`, as is the base of nineteen opaque `tacenta_triple.*`
+  declarations each carries. `SpqrT3.lean`'s
   `send_refines`/`receive_refines` carry the analogous label-agreement
   `native_decide` axioms for the same reason; see that section below.
 
@@ -475,10 +675,12 @@ Location: `tacenta-proofs/translation/Translation/SessionT3.lean`,
   `MAX_FIELDS` is read and `ProtoError::Duplicate` is constructed, so both
   bounds exist as checked behaviour and not only as source text.
 
-  This is `byte`, `varint`, `decode_tag`, `tag`, `length_delimited`, `admit`
-  and `one_field`. The last is the ratchet profile's per-field step, proved
-  against `Model.Protobuf.oneField`, including that a refused field leaves the
-  code and the model refusing together.
+  This is `byte`, `varint`, `decode_tag`, `tag`, `length_delimited` and
+  `admit`.
+
+- `one_field_refines`: the ratchet profile's per-field step, proved against
+  `Model.Protobuf.oneField`, including that a refused field leaves the code
+  and the model refusing together.
 
 - `parse_ratchet_body_loop_refines`, `parse_ratchet_body_refines`: the whole
   ratchet message. `parse_ratchet_body` computes what
@@ -501,20 +703,24 @@ Location: `tacenta-proofs/translation/Translation/SessionT3.lean`,
 
   No boundary assumption anywhere in either message's proof, unlike every
   other T3 effort in this project -- the crate has no opaque primitive of its
-  own to assume agreement at. **Three of the theorems are pinned** with
-  `#print axioms` under `#guard_msgs` (`tag_refines`,
-  `length_delimited_refines`, `admit_refines`) and rest on nothing beyond
-  `propext`, `Classical.choice`, `Quot.sound`. The five message-level
-  theorems are *not* pinned. They are expected to share that axiom base, and
-  adding the pins is the way to make that a fact.
+  own to assume agreement at. **All nine are pinned** with `#print axioms`
+  under `#guard_msgs` (`tag_refines`, `length_delimited_refines`,
+  `admit_refines`, `one_field_refines`, `parse_ratchet_body_loop_refines`,
+  `parse_ratchet_body_refines`, `oneEnvelopeField_refines`,
+  `parse_prekey_body_loop_refines`, `parse_prekey_body_refines`) and rest on
+  nothing beyond `propext`, `Classical.choice`, `Quot.sound`, so the sentence
+  before this one is a build fact rather than an expectation.
 
   **Not the same as an end-to-end claim from wire bytes to a ratchet
   decision.** `tacenta-protobuf` is still called only by its own crate and by
   interoperability tests that are not part of this public tree; nothing
   in the live `Session`
   send/receive path calls into it yet, which still uses the older fixed-width
-  `tacenta_core::serialization` format. These proofs are what such a claim
-  would need on the parsing side, not the claim itself.
+  `tacenta_core::serialization` format: `decode_message`, `decode_composite`
+  and `decode_initial` in the root crate are the decoders a peer's bytes
+  actually reach, they are outside the translated surface, and they have no
+  theorem. These proofs are what such a claim would need on the parsing
+  side, not the claim itself.
 
   **Still not proved.** Canonical emission and raw-byte fidelity -- items 6
   and 7 of the verified-core contract.
@@ -587,10 +793,16 @@ What a reader has to grant:
   `decapsulate` is assumed to succeed only on a
   `ct1Size`/`ct2Size` pair, `encapsulate1` only on a 64-byte header,
   `encapsulate2` only on an `ekSize` vector, exactly where
-  `tacenta_kem` returns `KemError` otherwise. `StateRefines` carries the
-  decoder sizes and decoded lengths that discharge the guards. Stated for
-  every slice, the agreements would claim success where the crate returns an
-  error -- not refutable, but stronger than the crate.
+  `tacenta_kem` returns `KemError` otherwise, and `validate_ek` is assumed
+  to answer the hash comparison only on a 32-byte seed, a 32-byte hash and
+  an `ekSize` vector, where libcrux's `validate_pk_bytes` returns `Err`
+  (and `validate_ek` `false`) otherwise, before hashing. `StateRefines`
+  carries the decoder sizes and decoded lengths that discharge the guards.
+  Stated for every slice, the agreements would claim success where the
+  crate returns an error -- not refutable, but stronger than the crate; for
+  `ValidateEkAgrees`, which demands a definite answer rather than success,
+  the unguarded statement was false of the real `validate_ek` for every
+  `K` (`LIMITATIONS.md`).
 - **The model's `Decoder.message` returns the empty message for a decoder
   sized for zero bytes**, as the real decoder does; returning `none` there
   would make `ErasureAgrees` false of the crate at size zero (unreachable in
@@ -627,7 +839,10 @@ What a reader has to grant:
   model's own `toyKem`, satisfies all of them at once
   (`kem_hypotheses_satisfiable`), and each concrete hypothesis is the shape
   at the real operations by `Iff.rfl`. Same caveat: consistency, not
-  correctness of the real ML-KEM wrapper, which stays assumed.
+  correctness of the real ML-KEM wrapper, which stays assumed. For the
+  encapsulation clause the caveat is sharper: `toyKem` satisfies it because
+  its `encaps1` draws no randomness, and a real KEM cannot (`LIMITATIONS.md`,
+  the KEM entry).
 
 - `step_send_refines`, `Braid.send_refines`: the eleven-state machine's
   sending half, and its entry point, compute what `Model.Braid.send` says --
@@ -639,7 +854,23 @@ What a reader has to grant:
   states and every one of the message-type, epoch, and MAC-outcome branches
   each can take. This is the crate's largest theorem, and the one closest to
   an attacker's own input: every branch it proves is a shape
-  of message a remote peer chooses.
+  of message a remote peer chooses. Both keep the precondition `hepoch`
+  (`State.epoch_val _ < U64.max`) that `BraidT1.lean`'s
+  `step_receive_no_panic`/`receive_no_panic` dropped with CR-03, and for a
+  reason that is the model's rather than the code's: `Model.Braid` counts
+  epochs in `Nat`, so at the ceiling the real code's `checked_add` answers
+  `Failed` where the model's `epoch + 1` keeps counting. The refinement holds
+  below the ceiling and says nothing at it; `from_bytes` refuses `u64::MAX`,
+  so no state `from_bytes` admits is there, and none is reachable in
+  practice (`checked_add` at `u64::MAX - 1` does yield `u64::MAX`, so the
+  ceiling is constructible only by 2^64 - 1 transitions).
+- **Carried over from T1, new with CR-15:** `ZeroizingArrayRoundTrip`,
+  `ArrayZeroizeTotal` and `RangeFullIndexTotal`, `BraidT1.lean`'s own copies
+  of the `zeroize` wrapper's round trip, the in-place wipe, and the
+  `RangeFull` index, are hypotheses of every theorem that reaches
+  `Auth.update` or transitions 5 and 7, `step_send_refines` through
+  `Braid.receive_refines`. `Translation/Satisfiability.lean` exhibits a
+  model of each.
 
   **`Braid.receive_refines` matches `Model.Braid.receive`'s next-state epoch
   (`(...).2.2.epoch - 1`), not the model's own leading `Nat`.** The model
@@ -669,7 +900,10 @@ What a reader has to grant:
   `IncrementalKeyPair`/`EncapsState` operations equal -- rather than one axiom
   per KEM operation, since the model's own `Kem` record is itself
   uninterpreted functions with no separate reference computation to equate a
-  per-op axiom against.
+  per-op axiom against. One clause of it is too strong for any real KEM: the
+  encapsulation clause fixes one `(ct1, ss)` per header across every RNG
+  state, which only a derandomised KEM satisfies; `LIMITATIONS.md`'s KEM
+  entry states the consequence and the planned restatement.
 - **The erasure boundary, `ErasureAgrees`:** one freestanding relational
   invariant over `tacenta_erasure`'s `Encoder`/`Decoder`, in the same trust
   category as the ratchet's `HmacAgrees`/`HkdfAgrees` -- an assumed agreement
@@ -743,16 +977,26 @@ Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
   `TripleT3.lean`'s `SpqrAgreesFor` and so into its
   `send_refines`/`receive_refines`.
 - **Axiom base:** beyond `propext`, `Classical.choice`, `Quot.sound`, and the
-  per-crate opaque-operation axioms, `send_refines`/`receive_refines` also
-  rest on several `native_decide` reflection axioms, one per label/constant
-  agreement helper (`chain_label_agrees`, `protocol_info_agrees`,
-  `root_label_agrees`, `max_skip_agrees`, `max_skipped_store_agrees`) --
-  read off `#print axioms` by hand; this file's theorems are not yet pinned
-  under `#guard_msgs`.
+  per-crate opaque-operation axioms, `send_refines` rests on three
+  `native_decide` reflection axioms, one per label agreement helper
+  (`chain_label_agrees`, `protocol_info_agrees`, `root_label_agrees`), and
+  `receive_refines` on seven: those three, the bound helpers
+  `max_skip_agrees`, `max_skipped_store_agrees` and `max_skip_val`, and one
+  step inside `receive_refines_continuation` (that `(1 : U64)` has value
+  one). `LIMITATIONS.md`'s count of `native_decide` uses in this file is one
+  higher because it includes `chain_start_agrees`, which neither entry point
+  depends on. Read off `#print axioms` by hand; this file's theorems are not
+  yet pinned under `#guard_msgs`.
 - **Carried over from T1 unchanged:** `Tacenta.SpqrT1.ZeroizeTotal` and
   `Tacenta.SpqrT1.OptionCloneTotal`, since neither the buffer wipe nor the
   direction clone is ever read back from, only required to complete.
-- **Six assumptions in this file, four new constants and two reused
+- **Zeroizing round trips:** `ZeroizingRoundTrips96` and
+  `ZeroizingRoundTrips64`, one per width the sparse ratchet's key derivation
+  wraps (CR-15 put `kdf_init`, `kdf_rk` and `kdf_ck`'s outputs in
+  `Zeroizing`, and the translation sees the wrapper's `new` and `deref` as
+  opaque). Each says wrapping then dereferencing returns the array that went
+  in. `Translation/Satisfiability.lean` exhibits a model of each.
+- **Eight assumptions in this file, six new constants and two reused
   outright**, none the same proposition as any other file's assumption of a
   similar shape -- the same per-crate counting rule `SpqrT1.lean` and
   `BraidT1.lean` describe. See `SpqrT3.lean`'s own closing section for the
@@ -788,7 +1032,9 @@ kernel proof.
 - Ratchet self-consistency: in-order, out-of-order, and bidirectional agreement,
   in tacenta-model `Model.Ratchet`.
 - Model-to-core conformance: the ratchet vectors generated from the model,
-  replayed against tacenta-core by the Rust runner in tacenta-test-vectors.
+  replayed against tacenta-core by the Rust runner in tacenta-test-vectors,
+  including on every step the expansion of the message key into the AEAD
+  key, the MAC key and the IV.
 
 ## Reproduce
 
@@ -799,13 +1045,45 @@ public `translation` CI job and the verification workflow both run:
 it builds the translation package, and that build covers every module under
 `translation/Translation/` whether or not the root imports it
 (`scripts/check-translation-coverage.sh` asserts each produced an `.olean`),
-including `Translation/Satisfiability.lean`, which fails if any `Vec`-family
-boundary hypothesis becomes refutable, and `Translation/ErasureWitness.lean`
-and `Translation/KemWitness.lean`, which fail if the Braid's erasure or KEM
-hypotheses lose their model.
+including `Translation/Satisfiability.lean` and
+`Translation/SatisfiabilityTriple.lean`, which fail if any `Vec`-family or
+`zeroize`-wrapper boundary hypothesis becomes refutable,
+`Translation/ErasureWitness.lean` and `Translation/KemWitness.lean`, which
+fail if the Braid's erasure or KEM hypotheses lose their model, and
+`Translation/AxiomAudit.lean` and `AxiomAuditTriple.lean`, which walk the
+elaborated environment and fail if any hand-written declaration is an
+axiom, opaque, unsafe or partial, carries `implemented_by`/`extern`, or is
+named into the compiler's `_native`/`_unsafe_rec` namespace outside the
+exact shape the compiler produces -- the `native_decide`/`bv_decide` axioms
+are accepted only as `<decl>._native.<tactic>.ax_*`, off a declaration in
+the same module, stating that a compiled Boolean evaluation returned `true`
+(`tacenta-model/Model/AxiomAudit.lean`; the proofs and model packages run
+the same audit). The audit also prints every axiom the generated
+`Translation.Tacenta*` modules hold in the built environment, and
+`no-sorry.sh` fails if that list differs from the per-file sets
+`manifests/translation-attestation.json` records, so the record is held to
+what the text elaborated to and not only to the text.
+`scripts/check-lean-constructs.sh`, the textual second line, strips
+comments and strings and refuses those keywords wherever they sit on a
+line, in every hand-written module including the package roots and
+`Vectors.lean`, and refuses a lakefile that sets any Lean option. It also
+refuses every elaboration-time construct (`run_cmd`, `#eval`, `elab`,
+`macro`, `syntax`, `initialize`, `addDecl`, any reference to the `Lean`
+namespace) outside `Model/AxiomAudit.lean`'s own implementation and the
+four `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
+exact line content: the audit accepts the compiler-trust axioms by shape
+and cannot tell a planted one, added by such code with its name assembled
+from string literals, from a real one, so the absence of such code is what
+excludes it (`LIMITATIONS.md`, "Trusted, not verified").
+`scripts/check-audit-reach.sh` fails if any first-party module, generated
+ones included, is outside the four audit modules' import closure, since
+the audit walks only what its invoking module imports.
+`no-sorry.sh` then replays every first-party module through the kernel
+with `leanchecker`, which is the check against a declaration added with
+kernel checking turned off.
 
-The translation itself is regenerated only by the verification workflow, using the pinned
-Aeneas release
+The translation itself is regenerated only by the private verification
+workflow, using the pinned Aeneas release
 `nightly-2026.07.22-b1214ca` (commit `b1214ca0a024e8121f41fe2b2ed15e26af02373b`),
 whose linux-x86_64 archive `aeneas-linux-x86_64.tar.gz` has SHA-256
 `bc26c30daf92679b57c264c630710096bd9d4428e28795fe0638afdb0c2df65f`; that
@@ -814,3 +1092,30 @@ workflow checks that digest before extracting, and fails if the committed
 is stated here so that a reader reproducing the translation elsewhere can
 check they hold the same binaries, not merely the same tag. The release ships
 for linux-x86_64 only.
+
+What the public tree can check about the translation is recorded in
+`manifests/translation-attestation.json`, written only by
+`scripts/attest.py --refresh-translation` immediately after a
+`run-aeneas.sh` run: for each generated `Translation/Tacenta*.lean`, its
+SHA-256, the `axiom` names it declares, the SHA-256 of the Rust crate it
+was generated from, and the SHA-256 of the workspace inputs that shape what
+Charon extracts from every crate (the workspace `Cargo.toml` and its
+profiles, `Cargo.lock`, `.cargo/`, and the `kdf` and `kem` crates whose
+signatures are the opaque externals), with the Aeneas pin. A green
+`scripts/attest.py --check` (`scripts/check-generated-files.sh` runs the
+translation half of it on its own) establishes exactly this: that every
+file named `Translation/Tacenta*.lean` is a module `run-aeneas.sh`
+produces, is byte for byte the file recorded at the last generation,
+declares exactly the axioms recorded then (the `axiom` keyword read from
+the comment-stripped text wherever it sits, compared as a set, so a removed
+axiom fails as an added one does), and that the Rust it stands for and the
+workspace inputs hash to what they hashed to when it was translated -- as
+recorded by whoever ran the toolchain, which `--refresh-translation`
+refuses to do for a file the script does not produce. It does not establish
+that the toolchain was run on those bytes, or run honestly;
+only regenerating with the pinned release and diffing does, which the
+private workflow does on every push and which any linux-x86_64 reader can
+do by hand (`REPRODUCING.md`). `attest.py --check` also checks the ledger
+itself by name: every theorem a claim bullet names must exist, fully
+qualified, in the file its section's `Location:` line names, every
+`Location:` path must exist, and every pinned theorem must be claimed.

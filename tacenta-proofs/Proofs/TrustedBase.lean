@@ -48,6 +48,7 @@ import Model.Polynomial
 import Model.Braid
 import Model.SparseRatchet
 import Model.TripleRatchet
+import Proofs.RatchetCorrectness
 import Proofs.Serialization
 
 namespace Proofs.TrustedBase
@@ -78,6 +79,41 @@ info: 'Model.Braid.send_reports' depends on axioms: [propext, Quot.sound]
 -/
 #guard_msgs in
 #print axioms Model.Braid.send_reports
+
+/- The classical Double Ratchet's functional properties: the chain-derivation
+   length and contents, and the two bounds on the skipped-key store. `CLAIMS.md`
+   says these rest on `propext` and `Quot.sound` alone; these pins are what make
+   that a build fact rather than a sentence. -/
+
+/--
+info: 'Proofs.RatchetCorrectness.deriveChain_length' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.RatchetCorrectness.deriveChain_length
+
+/--
+info: 'Proofs.RatchetCorrectness.deriveChain_fst' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.RatchetCorrectness.deriveChain_fst
+
+/--
+info: 'Proofs.RatchetCorrectness.deriveChain_get' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.RatchetCorrectness.deriveChain_get
+
+/--
+info: 'Proofs.RatchetCorrectness.skipMessageKeys_growth' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.RatchetCorrectness.skipMessageKeys_growth
+
+/--
+info: 'Proofs.RatchetCorrectness.skipMessageKeys_store_bounded' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.RatchetCorrectness.skipMessageKeys_store_bounded
 
 /- The Triple Ratchet's separation is not a proof obligation, and it is worth
    recording why rather than leaving the absence unexplained.

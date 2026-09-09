@@ -35,11 +35,11 @@
 //! of two inputs to one.
 //!
 //! That independence does not make partial failure harmless; why not, and how
-//! it is prevented, is covered at [`send`] and [`receive`].
+//! it is prevented, is covered at [`State::send`] and [`State::receive`].
 
 #![forbid(unsafe_code)]
-// The `?` operator desugars through `Try` into Lean that will not typecheck, so
-// the verified zone does not use it. See tacenta-proofs/upstream/README.md.
+// No `?`: `let`-`else` and `match` instead, for the reason recorded once in
+// tacenta-ratchet's module doc ("The `?` operator"). The lint asks for `?`.
 #![allow(clippy::question_mark)]
 
 use zeroize::{Zeroize, Zeroizing};
@@ -111,7 +111,8 @@ pub enum TripleError {
 /// same secret would make the hybrid claim false at initialisation, whatever it
 /// looked like afterwards.
 pub fn split_secret(sk: &[u8]) -> (Key, Key) {
-    let out: [u8; 64] = tacenta_kdf::hkdf_sha256(&[0u8; 32], sk, SPLIT_INFO);
+    // Wiped on the way out: the 64 bytes hold both ratchets' secrets (CR-15).
+    let out = Zeroizing::new(tacenta_kdf::hkdf_sha256::<64>(&[0u8; 32], sk, SPLIT_INFO));
     let mut ec = [0u8; 32];
     let mut pq = [0u8; 32];
     ec.copy_from_slice(&out[0..32]);
@@ -140,7 +141,12 @@ pub fn combine(mk_classical: &Key, mk_pq: &Key) -> Key {
 /// No `Debug`: both halves hold key material, and the leaf crates
 /// withhold `Debug` from their states for the same reason. Tests that need
 /// to print one compare the halves' counters through the accessors.
-#[derive(Clone, PartialEq)]
+///
+/// No equality either. Both halves compare only under their own crates'
+/// `cfg(test)`, which a dependent's tests do not see, and a derived
+/// comparison here would be byte-wise over key material and not
+/// constant-time; the round-trip tests compare encodings instead (CR-22).
+#[derive(Clone)]
 pub struct State {
     classical: tacenta_ratchet::State,
     post_quantum: tacenta_spqr::State,
@@ -211,15 +217,27 @@ impl State {
         self.classical.receive_count()
     }
 
+    /// Skipped message keys the classical ratchet holds, for the caller
+    /// sizing an eviction (see `evict_oldest_classical`): the store refuses
+    /// when this plus the keys a message skips would pass the cap, so the
+    /// room to make is that excess, not the skip count (CR-19).
+    pub fn classical_skipped_len(&self) -> usize {
+        self.classical.skipped_len()
+    }
+
     /// Make room in the classical ratchet's skipped-key store by deleting up
     /// to `count` of its oldest keys; returns how many were deleted. See
     /// `tacenta_ratchet::State::evict_oldest` for why this exists and why it
     /// must only be called on a copy that is committed after authentication.
+    /// `#[must_use]` for the reason given there: zero means the store was
+    /// empty, and a caller that does not look will retry forever.
+    #[must_use]
     pub fn evict_oldest_classical(&mut self, count: usize) -> usize {
         self.classical.evict_oldest(count)
     }
 
     /// The post-quantum counterpart of `evict_oldest_classical`.
+    #[must_use]
     pub fn evict_oldest_post_quantum(&mut self, count: usize) -> usize {
         self.post_quantum.evict_oldest(count)
     }

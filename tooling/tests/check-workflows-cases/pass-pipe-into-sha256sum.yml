@@ -1,0 +1,13 @@
+# note: A pipe after a download whose sink is the checksum tool, not a shell.
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: curl -fsSLo f https://example.invalid/f && sha256sum f | tee sum.txt

@@ -9,7 +9,10 @@ symmetric stand-in (`mockDh`), so the scenario is internally consistent
 (`DH(a, b) = DH(b, a)`). It is not X25519; the real-curve values are recorded in
 `tacenta-spec/CONSTANTS.md`. The
 message keys the vectors record are the model's, and the runner checks the core
-reproduces them exactly, which is the ratchet's key schedule.
+reproduces them exactly, which is the ratchet's key schedule. Each step also
+records the message-key expansion (`messageKeys`: AEAD key, MAC key, IV), the
+last derivation before the cipher, so that its label, salt and split order are
+pinned by bytes and not only by the refinement theorem.
 -/
 import Model.Ratchet
 import Model.Sha256
@@ -61,9 +64,21 @@ def bPub4 : Key := fill 0x4b
 def dhAB : Key := mockDh aPub bPub
 def dhSendB : Key := mockDh bPub2 aPub
 
-/-- JSON for one send step (the runner drives the actor's send and checks `mk`). -/
+/-- The message-key expansion for a step: the AEAD key, the MAC key and the IV
+    that `messageKeys` derives from `mk`. Recorded on every step so that the
+    label (`mkInfo`), the zero salt and the split order are pinned by bytes.
+    The ratchet-level key alone does not pin them: an error in any of the
+    three changes every ciphertext key while every `mk` stays right. -/
+def messageKeysJson (mk : Key) : String :=
+  let (enc, mac, iv) := messageKeys mk .tacenta
+  "\"message_keys\": { \"enc\": \"" ++ toHex enc ++ "\", \"mac\": \"" ++ toHex mac ++
+  "\", \"iv\": \"" ++ toHex iv ++ "\" }"
+
+/-- JSON for one send step (the runner drives the actor's send and checks `mk`
+    and its expansion). -/
 def sendStep (actor : String) (mk : Key) : String :=
-  "{ \"actor\": \"" ++ actor ++ "\", \"op\": \"send\", \"mk\": \"" ++ toHex mk ++ "\" }"
+  "{ \"actor\": \"" ++ actor ++ "\", \"op\": \"send\", \"mk\": \"" ++ toHex mk ++ "\", " ++
+  messageKeysJson mk ++ " }"
 
 /-- JSON for one receive step. -/
 def recvStep (actor : String) (h : Header) (dhR dhS np mk : Key) : String :=
@@ -71,7 +86,8 @@ def recvStep (actor : String) (h : Header) (dhR dhS np mk : Key) : String :=
   "\"header\": { \"dh\": \"" ++ toHex h.dh ++ "\", \"pn\": " ++ toString h.pn ++
   ", \"n\": " ++ toString h.n ++ " }, " ++
   "\"dh_recv\": \"" ++ toHex dhR ++ "\", \"dh_send\": \"" ++ toHex dhS ++
-  "\", \"new_pub\": \"" ++ toHex np ++ "\", \"mk\": \"" ++ toHex mk ++ "\" }"
+  "\", \"new_pub\": \"" ++ toHex np ++ "\", \"mk\": \"" ++ toHex mk ++ "\", " ++
+  messageKeysJson mk ++ " }"
 
 /-- Assemble a vector object from an id, a comment, and its steps. -/
 def vector (id comment : String) (steps : List String) : String :=

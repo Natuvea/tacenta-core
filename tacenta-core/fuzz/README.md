@@ -1,6 +1,6 @@
 # Coverage-guided fuzzing
 
-Five libFuzzer targets over every decoder and state machine that reads bytes
+Six libFuzzer targets over every decoder and state machine that reads bytes
 somebody else chose.
 
 ## The targets
@@ -10,13 +10,17 @@ somebody else chose.
 | `wire_decoders` | `message_type`, `decode_message`, `decode_initial`, `decode_bundle`, `decode_composite` |
 | `protobuf_bodies` | `parse_prekey_body`, `parse_ratchet_body`, `decode_tag` |
 | `persisted_state` | `from_bytes` on the ratchet, sparse ratchet, Braid, triple, and both erasure coders, plus `PrekeyStore::from_bytes` and `Session::import` |
-| `session_receive` | `establish_responder` on an unauthenticated message, and `Session::decrypt` on an established session |
-| `braid_receive` | the Braid's eleven live states, driven by a sequence of `Msg` values |
+| `session_receive` | `establish_responder` on an unauthenticated message, and `Session::decrypt` on both sides of an established session |
+| `braid_receive` | `Braid::receive` and `commit` from either role, driven by a sequence of `Msg` values; every candidate that did not fail is adopted and the target sends after each message, so a transcript carries the machine through all eleven live states, though a fuzzed message is only ever *received* in the nine a send leaves behind -- the two it never meets, `KeysUnsampled` and `HeaderReceived`, are the two whose receive arm does nothing. The corpus is seeded with an honest transcript parked in each state (`write_braid_receive_seeds` in `braid/src/tests.rs`) |
+| `triple_receive` | `tacenta_triple::State::receive` and `commit` from either side, driven by a sequence of composite headers and agreement outputs (`write_triple_receive_seeds` in `triple/src/tests.rs`) |
 
-The first three take bytes. The last two drive state machines, which is the
+The first three take bytes. The last three drive state machines, which is the
 harder question: not whether parsing a message
 panics, but whether a *sequence* of parsed-but-hostile messages walks a state
-machine somewhere it cannot handle.
+machine somewhere it cannot handle. Those three adopt whatever the machine
+accepts: the property is that no accepted sequence panics, and a target that
+never committed would fuzz only its starting state, which is what
+`braid_receive` did before CR-10.
 
 ## What this is not
 
@@ -40,9 +44,18 @@ cargo fuzz run wire_decoders
 ```
 
 Needs nightly Rust and `cargo install cargo-fuzz`. Each target keeps its corpus
-in `corpus/<target>/`, which is committed: it is the accumulated set of inputs
-that reached distinct branches, and starting each run from it rather than from
-nothing is most of what makes a short run worth anything.
+in `corpus/<target>/`, which is committed: 2,726 files holding 1,401,534 bytes of
+content in all, about 1.4 MB or 1.3 MiB (`du` reports nearer 11 MB, which is
+block usage across that many small files).
+It is the accumulated set of inputs that reached distinct branches, plus the
+seeds the ignored tests named above write, and starting each run from it
+rather than from nothing is most of what makes a short run worth anything: a
+minute's run from an empty corpus reaches almost nothing a state machine
+guards with a MAC, and a canonical persisted session or a MAC-valid Braid
+header is not something mutation finds. The size is the price of that, paid
+once, in files git stores compressed. Regenerate the seeds when a target's
+layout or a persisted format changes; the rest is whatever the nightly run
+merged back.
 
 Findings land in `artifacts/<target>/` as `crash-*`, `slow-unit-*`, or `oom-*`.
 Reproduce one with:

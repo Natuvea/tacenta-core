@@ -105,6 +105,9 @@ theorem kdf_sk_refines (h : HkdfAgrees) [Tacenta.SessionT1.ZeroizingModel]
     kdf_sk km_bytes ⦃ fun r =>
       keyOf r = Model.SessionEstablishment.kdf (sliceOf km_bytes) ⦄ := by
   unfold kdf_sk
+  -- The capacity is a saturating sum the code never reads back, and the
+  -- buffer it sizes is empty to the library, as in T1's proof.
+  simp only [lift, alloc.vec.Vec.with_capacity]
   have hpre := fPrefix_agrees
   have hinfo := skInfo_agrees
   step*
@@ -116,7 +119,7 @@ theorem kdf_sk_refines (h : HkdfAgrees) [Tacenta.SessionT1.ZeroizingModel]
     | omega
     | exact Tacenta.SessionT1.small_le_usize_max (by omega)
     | simp_all [Model.SessionEstablishment.kdf, sliceOf, keyOf,
-        alloc.vec.Vec.deref, List.map_append, zeroSalt_agrees, u8_zero]
+        alloc.vec.Vec.deref, List.map_append, u8_zero]
 
 -- T1's rule for `kdf_sk` says only that it returned, which is all panic-freedom
 -- needed and too little here: it would walk past the call and lose what was
@@ -153,8 +156,7 @@ theorem shared_secret_refines_none (h : HkdfAgrees)
   all_goals first
     | exact Tacenta.SessionT1.small_le_usize_max (by omega)
     | simp_all [Model.SessionEstablishment.sharedSecret,
-        Model.SessionEstablishment.km, sliceOf, keyOf, alloc.vec.Vec.deref,
-        List.map_append]
+        Model.SessionEstablishment.km, sliceOf, keyOf, List.map_append]
 
 theorem shared_secret_refines_some (h : HkdfAgrees)
     [Tacenta.SessionT1.ZeroizingModel]
@@ -173,8 +175,7 @@ theorem shared_secret_refines_some (h : HkdfAgrees)
   all_goals first
     | exact Tacenta.SessionT1.small_le_usize_max (by omega)
     | simp_all [Model.SessionEstablishment.sharedSecret,
-        Model.SessionEstablishment.km, sliceOf, keyOf, alloc.vec.Vec.deref,
-        List.map_append]
+        Model.SessionEstablishment.km, sliceOf, keyOf, List.map_append]
 
 /-! ## The identity binding and the encodings refine the model's
 

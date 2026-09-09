@@ -1,0 +1,8 @@
+# note: A reusable workflow called by commit digest.
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  r:
+    uses: octo/repo/.github/workflows/w.yml@0123456789abcdef0123456789abcdef01234567

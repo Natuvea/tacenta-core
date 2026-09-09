@@ -20,3 +20,10 @@ rand_core = "0.6"
 
 [dev-dependencies]
 rand = "0.8"
+
+[features]
+# `Auth::from_root` and `Auth::keys` plant and read the authenticator's root
+# and MAC keys. The conformance runner needs them to check the model's
+# vectors; nothing shipping does, so they are compiled only for this crate's
+# tests and for a consumer that asks (CR-22).
+conformance = []

@@ -15,7 +15,7 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$here/tacenta-core"
 
-# Seconds per target. Five targets, so the whole step is about a minute. Long
+# Seconds per target. Six targets today, so the whole step is about a minute. Long
 # enough to replay every corpus entry and take a few thousand fresh runs;
 # short enough that nobody starts wondering whether to skip it.
 seconds="${FUZZ_SMOKE_SECONDS:-10}"
@@ -35,7 +35,13 @@ if [ -z "$toolchain" ]; then
 fi
 echo "fuzz-smoke: using $toolchain"
 
-for target in wire_decoders protobuf_bodies persisted_state session_receive braid_receive; do
+# Every file under fuzz_targets/ is a target: enumerated rather than listed,
+# so a target added to the crate cannot be left out of the smoke run by
+# forgetting to name it here (the triple_receive target was, for one commit).
+count=0
+for target_file in fuzz/fuzz_targets/*.rs; do
+  target="$(basename "$target_file" .rs)"
+  count=$((count + 1))
   echo "-- fuzz: $target --"
   # A persisted session holding an ML-KEM key pair exports to about 14 KB,
   # and the persisted-state target restores one and drives it, so that target
@@ -62,4 +68,4 @@ if [ -n "$found" ]; then
   exit 1
 fi
 
-echo "fuzz-smoke: five targets clean"
+echo "fuzz-smoke: $count targets clean"

@@ -1,21 +1,43 @@
 #!/usr/bin/env bash
-# The single verification gate for tacenta-core; the project's CI runs
-# it on every push. One source of truth for
+# The single verification gate for tacenta-core. One source of truth for
 # "does it pass": the Lean proofs, the model-vector currency check, and the Rust
 # crates (fmt, clippy, tests), including the property-based decoder tests.
 #
+# The public workflow, `.github/workflows/ci.yml`, runs these same steps on
+# every push and pull request, split into jobs so a failure names its cause;
+# this script is the one-command form for a developer's machine. The two are
+# meant to agree, and a step added here belongs there too, with one stated
+# asymmetry in each direction.
+#
+# Steps the workflow always runs and this script skips, printing a line that
+# says so, when the tooling is absent from the machine: the advisory audit
+# (`cargo-audit`), the MSRV compile check (a 1.87 toolchain), the 32-bit
+# compile check (the armv7 target), and the translation build with its
+# `sorry` scan (`no-sorry.sh`, which needs the translation's Mathlib cache
+# and is the heavy one). The first three fail rather than skip when
+# `GITHUB_ACTIONS` is set, so a runner cannot report green on a check it did
+# not run. Steps this script runs and the workflow does not: the
+# interoperability harness, which is not in this public tree and skips here,
+# and the fuzz smoke run, which needs `cargo-fuzz` and a nightly toolchain.
+# The README's "Building and checking" section lists the same four and two,
+# and says what runs outside this repository altogether and why.
+#
 # The runner must provide: elan with Lean v4.31.0 (lake on PATH) and a Rust
-# stable toolchain (cargo, clippy, rustfmt). The Aeneas T1 build is heavier and
-# is deliberately not part of this every-push gate.
+# stable toolchain (cargo, clippy, rustfmt). Everything else is optional, and
+# the step that needs it says so when it skips.
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
 # Cross-file only: a workflow cannot check its own parseability, because a file
-# that does not parse runs nothing. This catches the *other* workflow breaking,
-# and the pre-push hook catches both before they leave the machine.
+# that does not parse runs nothing. In CI this catches the *other* workflow
+# files breaking; the pre-push hook in `.githooks/`, once enabled as
+# CONTRIBUTING.md describes, catches all of them before they leave the machine.
 echo "== Workflows parse =="
 bash tooling/check-workflows.sh
+# And the checker is held to its own cases, passing and refused, so a rule
+# loosened by mistake fails this gate rather than the next reader.
+bash tooling/tests/run-check-workflows-cases.sh
 
 # The property: nothing durable moves on a message before its authenticator
 # verifies. This does not detect a violation directly; it detects the shape
@@ -35,6 +57,11 @@ bash tooling/check-proof-hygiene.sh
 # for anything new -- the property distinctness does not give you.
 echo "== Derivation labels are registered =="
 bash tooling/check-labels.sh
+
+# The runners parse vectors with serde, which ignores what it does not know;
+# the schemas are stricter, and this is what makes them binding.
+echo "== Vector files validate against their schemas =="
+python3 tooling/check-vectors.py
 
 echo "== Lean: build the model =="
 
@@ -87,12 +114,29 @@ do
   )
 done
 
+# The minimum supported Rust version still compiles the workspace: the
+# `rust-version` every manifest names, and the version the workflow's `msrv`
+# job installs. A check, not a test run (the tests ran on stable above); it
+# exists so a use of newer syntax or a newer standard-library feature is
+# caught before it reaches a consumer holding the version the manifests
+# promise. Skips locally when the toolchain is absent and fails in CI, the
+# rule the advisory audit below follows.
+msrv=1.87
+echo "== Rust: the workspace compiles on the minimum supported version ($msrv) =="
+if rustup toolchain list 2>/dev/null | grep -q "^${msrv//./\\.}"; then
+  (cd tacenta-core && cargo "+$msrv" check --locked --workspace --all-targets)
+elif [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+  echo "ci: no $msrv toolchain on the runner; install it with 'rustup toolchain install $msrv'" >&2
+  exit 1
+else
+  echo "ci: no $msrv toolchain, skipping the MSRV check (rustup toolchain install $msrv)"
+fi
+
 # Known advisories against the dependency graph. Fails on a vulnerability;
 # warnings (unmaintained, yanked) are printed and do not fail, because those
 # present today sit in transitive build-time dependencies and are not fixable
-# here. Skips locally
-# when the tool is absent and fails in CI, the rule every other gate in this
-# file follows.
+# here. Skips locally when the tool is absent and fails in CI, the rule the
+# MSRV and 32-bit checks follow.
 echo "== Rust: dependency advisories (cargo audit) =="
 if command -v cargo-audit >/dev/null 2>&1; then
   (cd tacenta-core && cargo audit)
@@ -160,9 +204,32 @@ fi
 
 echo "== Rust: the 32-bit target still compiles =="
 if rustup target list --installed 2>/dev/null | grep -q '^armv7-linux-androideabi$'; then
-  (cd tacenta-core && cargo check --locked -p tacenta-core --target armv7-linux-androideabi)
+  (cd tacenta-core && cargo check --locked --workspace --target armv7-linux-androideabi)
+elif [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+  echo "ci: armv7-linux-androideabi is not installed on the runner; install it with 'rustup target add armv7-linux-androideabi'" >&2
+  exit 1
 else
-  echo "ci: armv7-linux-androideabi not installed, skipping the 32-bit check"
+  echo "ci: armv7-linux-androideabi not installed, skipping the 32-bit check (rustup target add armv7-linux-androideabi)"
+fi
+
+# The heavy build, last so that everything cheaper has already reported: the
+# committed Rust-to-Lean translation with its T1/T3 proofs, and the model and
+# its property theorems again, each built and scanned for incomplete
+# declarations by `no-sorry.sh`. Aeneas's Lean library brings Mathlib, which
+# `lake exe cache get` fetches prebuilt; without it `lake build` would
+# compile Mathlib from source, which is hours, so the step skips when the
+# translation's Mathlib cache has not been fetched and says how to fetch it.
+# The test is for a built artefact (`Mathlib.olean`), not the package
+# directory: `lake` creates the directory on its first attempt, so it exists
+# after an aborted build too, and a run that then tried `no-sorry.sh` would
+# start the hours-long compile the skip is there to avoid. The workflow's
+# `translation` job fetches the cache and always runs this.
+echo "== Lean: the translation and its proofs use no sorry (needs the Mathlib cache) =="
+if [ -f tacenta-proofs/translation/.lake/packages/mathlib/.lake/build/lib/lean/Mathlib.olean ]; then
+  bash tacenta-proofs/scripts/no-sorry.sh
+else
+  echo "ci: the translation's Mathlib cache is not fetched, skipping no-sorry.sh"
+  echo "ci: fetch it with '(cd tacenta-proofs/translation && lake exe cache get)'"
 fi
 
 echo "ci: all checks green"

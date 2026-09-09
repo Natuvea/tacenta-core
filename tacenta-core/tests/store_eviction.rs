@@ -94,6 +94,62 @@ fn a_full_store_makes_room_and_the_conversation_continues() {
     assert_eq!(alice.decrypt(&m, &mut r).unwrap(), b"and back");
 }
 
+/// The first eviction is sized to the shortfall, which is the keys held plus
+/// the keys the message skips on its chain, less the cap -- not the skip
+/// count on its own. The store refuses well before it holds the cap: 1500
+/// keys and a message 599 ahead is 99 over, and 99 is what must go from the
+/// classical store. Sizing by the skip count would take 599, five hundred
+/// keys the message never displaced (CR-19).
+#[test]
+fn the_first_eviction_is_sized_to_the_shortfall_not_the_skip_count() {
+    let mut r = rng(33);
+    let (mut alice, mut bob) = establish(&mut r);
+
+    // A thousand keys from the first chain.
+    let first = round(&mut alice, &mut bob, &mut r, "one");
+
+    // Five hundred more from the second: Alice sends 501, Bob receives only
+    // the last, so his receive count on this chain is 501 and the store holds
+    // 1500.
+    let mut second = Vec::new();
+    for i in 0..=500u32 {
+        second.push(
+            alice
+                .encrypt(format!("two {i}").as_bytes(), &mut r)
+                .unwrap(),
+        );
+    }
+    assert_eq!(bob.decrypt(&second[500], &mut r).unwrap(), b"two 500");
+
+    // Message 1100 on the same chain skips 599 keys. 1500 + 599 passes the
+    // 2000-key cap by 99, so the store refuses, and 99 is the room to make.
+    let mut later = Vec::new();
+    for i in 501..=1100u32 {
+        later.push(
+            alice
+                .encrypt(format!("two {i}").as_bytes(), &mut r)
+                .unwrap(),
+        );
+    }
+    assert_eq!(bob.decrypt(&later[599], &mut r).unwrap(), b"two 1100");
+
+    // Oldest first, and 99 of them from the classical store. The post-quantum
+    // half holds the same skipped keys, has no shortfall figure of its own,
+    // and climbs 1, 2, 4, ... for the same excess, so it takes 127 however
+    // the classical half is sized; a message needs both halves, so nothing
+    // before "one 127" decrypts either way, and its absence pins nothing.
+    // What pins the shortfall is that "one 127" decrypts at all: sized by the
+    // skip count, the classical half would have taken 599, and nothing before
+    // "one 599" would.
+    assert_eq!(bob.decrypt(&first[127], &mut r).unwrap(), b"one 127");
+    assert_eq!(
+        bob.decrypt(&first[MAX_SKIP as usize - 1], &mut r).unwrap(),
+        b"one 999"
+    );
+    assert_eq!(bob.decrypt(&second[0], &mut r).unwrap(), b"two 0");
+    assert_eq!(bob.decrypt(&later[0], &mut r).unwrap(), b"two 501");
+}
+
 #[test]
 fn a_forgery_against_a_full_store_evicts_nothing() {
     let mut r = rng(32);

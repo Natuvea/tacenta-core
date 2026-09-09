@@ -96,7 +96,8 @@ def KemAgreesFor (K : Model.Braid.Kem) : Prop :=
 
 def ValidateEkAgrees (K : Model.Braid.Kem) : Prop :=
   ∀ (header ekVector : Slice Std.U8) (ekSeed hek : Bytes),
-    ekSeed.length = 32 → sliceOf header = ekSeed ++ hek →
+    ekSeed.length = 32 → hek.length = 32 → ekVector.length = K.ekSize →
+    sliceOf header = ekSeed ++ hek →
     ∃ r, A.validateEk header ekVector = ok r ∧
       (r = true ↔ K.hashEk ekSeed (sliceOf ekVector) = hek)
 
@@ -273,7 +274,7 @@ theorem api_agreesFor : KemAgreesFor api Model.Braid.toyKem := by
       rw [vecOf_vecOfBytes]; rfl
 
 theorem api_validateEk : ValidateEkAgrees api Model.Braid.toyKem := by
-  intro header ekVector ekSeed hek hlen hsplit
+  intro header ekVector ekSeed hek hlen _ _ hsplit
   refine ⟨_, rfl, ?_⟩
   rw [decide_eq_true_iff, hsplit, List.take_left' hlen, List.drop_left' hlen]
 
@@ -300,13 +301,13 @@ theorem api_totals : Totals api := by
   · intro R rc crc s rng
     refine ⟨_, rfl, ?_⟩
     intro es ct1 raw h
-    simp only [api, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
+    simp only [core.result.Result.Ok.injEq, Prod.mk.injEq] at h
     obtain ⟨-, rfl, -⟩ := h
     rw [length_vecOfBytes]; simp
   · intro es s
     refine ⟨_, rfl, ?_⟩
     intro c h
-    simp only [api, core.result.Result.Ok.injEq] at h
+    simp only [core.result.Result.Ok.injEq] at h
     subst h
     rw [length_vecOfBytes]; simp
 

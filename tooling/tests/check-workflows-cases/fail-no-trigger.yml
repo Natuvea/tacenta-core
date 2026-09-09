@@ -1,0 +1,9 @@
+# expect: has no trigger
+name: t
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - run: true

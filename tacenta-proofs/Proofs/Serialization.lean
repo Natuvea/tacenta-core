@@ -89,43 +89,41 @@ theorem decodeBundle_encodeBundle (b : Bundle)
   simp only [encodeBundle, decodeBundle, bne_self_eq_false, Bool.or_self,
     Bool.false_eq_true, if_false, List.append_assoc]
   rw [take?_append 32 b.identityKey _ hid]
-  simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind]
+  simp only [Option.bind_eq_bind, Option.bind]
   rw [take?_append 32 b.signedPrekey _ hsp]
-  simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind]
+  simp only
   rw [take?_append 64 b.signedPrekeySig _ hss]
-  simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind]
+  simp only
   rw [readBe32_be32]
-  simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind]
+  simp only
   have hround : (UInt32.ofNat b.kemPrekey.length).toNat = b.kemPrekey.length := by
     first
       | omega
       | simp [Nat.mod_eq_of_lt hkem]
       | (rw [UInt32.toNat_ofNat]; exact Nat.mod_eq_of_lt hkem)
   rw [hround, take?_append b.kemPrekey.length b.kemPrekey _ rfl]
-  simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind]
+  simp only
   rw [take?_append 64 b.kemPrekeySig _ hks]
-  simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind]
+  simp only
   -- The layout is fixed-width, so both shapes read the same two fields and only
   -- the presence byte's value decides what they mean.
   cases hone : b.oneTimePrekey with
   | none =>
-    simp only [hone, encodeOptionalKey, List.cons_append]
+    simp only [encodeOptionalKey, List.cons_append]
     rw [take?_one_cons]
-    simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind]
+    simp only
     rw [take?_append 32 (List.replicate 32 0) _ (by simp)]
     -- The presence byte is checked before the identifiers are read, so reduce
     -- that decision before stepping past them.
-    simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind,
-      beq_self_eq_true, if_true, readBe32_be32, readBe32_be32_nil]
+    simp only [beq_self_eq_true, if_true, readBe32_be32, readBe32_be32_nil]
     simp [← hone]
   | some k =>
     have hk : k.length = 32 := hot k (by simp [hone])
-    simp only [hone, encodeOptionalKey, List.cons_append]
+    simp only [encodeOptionalKey, List.cons_append]
     rw [take?_one_cons]
-    simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind]
+    simp only
     rw [take?_append 32 k _ hk]
-    simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind,
-      beq_self_eq_true, if_true, readBe32_be32, readBe32_be32_nil]
+    simp only [beq_self_eq_true, if_true, readBe32_be32, readBe32_be32_nil]
     simp [← hone]
 
 /-! ## The composite header round-trips
@@ -155,30 +153,29 @@ theorem decode_encode_composite (h : Composite)
   simp only [encode, decode, List.cons_append, List.append_assoc, List.nil_append,
     bne_self_eq_false, Bool.false_eq_true, if_false]
   rw [take?_append 32 dh _ hdh]
-  simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind]
+  simp only [Option.bind_eq_bind, Option.bind]
   rw [readBe32_be32]
-  simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind]
+  simp only
   rw [readBe32_be32]
-  simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind]
+  simp only
   rw [readBe64_be64]
-  simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind]
+  simp only
   rw [readBe64_be64]
-  simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind]
+  simp only
   rw [readBe64_be64]
-  simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind,
-    decode_encode_agreementType]
+  simp only
   cases agC with
   | none =>
     simp only [encodeChunk, List.cons_append, List.append_assoc]
     rw [readBe16_be16]
-    simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind]
+    simp only
     rw [take?_append chunkBytes (List.replicate chunkBytes 0) _ (by simp)]
     simp [decode_encode_agreementType]
   | some c =>
     have hc : c.data.length = chunkBytes := hchunk c rfl
     simp only [encodeChunk, List.cons_append, List.append_assoc]
     rw [readBe16_be16]
-    simp only [bind_assoc, pure_bind, Option.bind_eq_bind, Option.bind]
+    simp only
     rw [take?_append chunkBytes c.data _ hc]
     simp [decode_encode_agreementType]
 

@@ -1,27 +1,43 @@
-//! Two canonicality properties of `from_bytes`, pinned by executable tests
+//! Two decoder-level properties of `from_bytes`, pinned by executable tests
 //! rather than by a paragraph.
 //!
 //! Both are about `from_bytes` accepting a byte string that `to_bytes` could
-//! never have produced.
+//! never have produced, and what happens next. They are tests of the decoder
+//! alone: `Session::import`, the trust boundary above it, re-encodes and
+//! compares, which refuses a non-canonical spelling, and adds no check of its
+//! own beyond that. An earlier version of this file said the import enforced
+//! a counter bound and kept both tests ignored on that basis; it did not, and
+//! they are not (CR-28).
 //!
-//! **They are `#[ignore]` because the decoder is not where the properties are
-//! enforced.** `Session::import` is the trust boundary: it re-encodes and
-//! compares, so a non-canonical spelling is refused before it becomes live
-//! state. This decoder sits inside the verified zone, where a change re-runs
-//! Charon and Aeneas and reopens the T1 and T3 theorems. The padding check is
-//! enforced here as well; the counter check is not.
+//! **Padding is canonical, and the decoder enforces it.** An absent optional
+//! key is a `0x00` tag and 32 zero bytes, and `read_optional_key` refuses
+//! anything else behind the tag. The first test pins that.
 //!
-//! What these two tests document is the decoder-level form of each property:
-//! what `from_bytes` accepts on its own, as distinct from what
-//! `Session::import` accepts. A caller that decodes with this crate directly
-//! rather than through `Session::import` gets the decoder-level behaviour.
+//! **Counters are not bounded at decode, and need not be.** `from_bytes`
+//! takes `ns`, `nr` and `pn` from the buffer as they are. The T1 theorems for
+//! the operations carry no precondition on them: every increment is
+//! `checked_add` and reports `ChainExhausted` rather than wrapping, so a
+//! state restored one step from the ceiling decodes, and then refuses. The
+//! second test pins that shape -- decode, then refuse, never panic -- since
+//! it is the reason no decoder-level bound is required.
 //!
-//! Run them deliberately with:  cargo test -p tacenta-ratchet -- --ignored
+//! A caller that decodes with this crate directly rather than through
+//! `Session::import` gets exactly this behaviour and no more.
 
-use tacenta_ratchet::{LabelSet, State, init_receiver};
+use tacenta_ratchet::{LabelSet, RatchetError, State, init_receiver, init_sender, send};
 
 fn a_receiver() -> State {
     init_receiver(&[7u8; 32], [9u8; 32], LabelSet::Tacenta)
+}
+
+fn a_sender() -> State {
+    init_sender(
+        &[7u8; 32],
+        [8u8; 32],
+        [9u8; 32],
+        &[6u8; 32],
+        LabelSet::Tacenta,
+    )
 }
 
 /// **Absent-field padding must be canonical.**
@@ -32,7 +48,6 @@ fn a_receiver() -> State {
 /// value, in a format whose own comment says "a canonical encoding is
 /// provable".
 #[test]
-#[ignore = "the property is enforced at Session::import; this is the decoder-level form"]
 fn absent_key_padding_must_be_rejected() {
     let clean = a_receiver().to_bytes().to_vec();
 
@@ -51,25 +66,28 @@ fn absent_key_padding_must_be_rejected() {
     );
 }
 
-/// **Import accepts counters the totality proofs assume cannot occur.**
+/// **A saturated counter decodes, and the next step refuses.**
 ///
-/// T1 for the ratchet carries the precondition that the message counters stay
-/// below their width. `from_bytes` sets them from the buffer with no check, so
-/// an imported state can start one increment from wrapping -- which is a
-/// precondition of the proof being established by an input rather than held.
+/// `from_bytes` sets the counters from the buffer with no check, so an
+/// imported state can start one increment from wrapping. That is safe only
+/// because the increment is checked: the send on such a state must report
+/// `ChainExhausted`, not wrap to zero and re-derive a key already used, and
+/// not panic. This pins the property the absence of a decode-time bound
+/// rests on.
 #[test]
-#[ignore = "the property is enforced at Session::import; this is the decoder-level form"]
-fn saturated_counters_must_be_rejected_on_import() {
-    let clean = a_receiver().to_bytes().to_vec();
+fn a_saturated_counter_decodes_and_then_refuses() {
+    let clean = a_sender().to_bytes().to_vec();
 
-    // ns, nr, pn are three 4-byte counters after version + dhs_pub + dhr_pub
-    // + rk + cks + ckr.
+    // ns is the first of three 4-byte counters after version + dhs_pub +
+    // dhr_pub + rk + cks + ckr.
     let ns = 1 + 32 + 33 + 32 + 33 + 33;
     let mut dirty = clean.clone();
     dirty[ns..ns + 4].copy_from_slice(&u32::MAX.to_be_bytes());
 
+    let mut state = State::from_bytes(&dirty).expect("the counter is not bounded at decode");
+    assert_eq!(state.send_count(), u32::MAX);
     assert!(
-        State::from_bytes(&dirty).is_err(),
-        "a saturated send counter must not decode"
+        matches!(send(&mut state), Err(RatchetError::ChainExhausted)),
+        "a saturated send counter must refuse rather than wrap"
     );
 }

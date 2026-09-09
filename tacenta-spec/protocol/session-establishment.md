@@ -67,9 +67,14 @@ not recognise the leading byte fails.
   producing ciphertext `CT`. `PQKEM-DEC(PK, CT)` recovers `SS` with the private
   key.
 
-The KDF's `info` is not the bare application string: it is the application
-`info`, the curve, the hash, and the KEM joined by underscores, so a secret
-derived under one parameter set can never collide with another.
+The KDF's `info` is the `info` parameter from the table above, used
+verbatim: `Tacenta_CURVE25519_SHA-256_ML-KEM-1024` (`SK_INFO` in the session
+crate, registered in `tacenta-core/LABELS.md`). The specification recommends
+the string name the application, the curve, the hash, and the KEM, which is
+how ours is composed, so a secret derived under one parameter set cannot
+collide with one derived under another; but the composition happened when the
+constant was chosen, and the code passes the fixed string rather than
+assembling it.
 
 ## Keys
 
@@ -180,21 +185,31 @@ anything under it. The Double Ratchet does exactly this: Bob's first
 Diffie-Hellman ratchet step folds fresh material into the root key. Using `SK`
 directly to encrypt Bob's replies would risk catastrophic key reuse.
 
-That reasoning is about **key reuse**, and it says nothing about how many
-sessions the replay may create. The two are separate: a one-time KEM prekey is
+That reasoning is about **key reuse**, and it says nothing about whether the
+replay is accepted at all. The two are separate: a one-time KEM prekey is
 deleted on use and so refuses its own replay, but the last-resort key is
 reusable by design, and without a further defence a captured initial message
-naming it would open a fresh duplicate session on every delivery. Unbounded
-session creation from one packet is a denial of service even where nothing
-leaks.
+naming it -- with no one-time curve prekey, which is the steady state once
+Bob's one-time pools are exhausted -- would be accepted on every delivery, each
+time handing Bob's application Alice's first plaintext again as the opening
+message of an apparently fresh session. Nothing leaks, but the message is
+delivered twice.
 
-Bob therefore keeps a **bounded record of last-resort handshakes he has already
+Bob therefore keeps a **record of last-resort handshakes he has already
 accepted** -- a fingerprint over `IKA`, `EKA`, `CT` and the two prekey
-identifiers, which is exactly what determines `SK` -- and refuses a repeat. The
-bound is a real limit: past 1024 distinct last-resort handshakes the oldest is
-forgotten and could be replayed again. This is hardening beyond what the
-published specification asks for, not a claim about it; `key-deletion.md`
-states what is given up by having a bound at all.
+identifiers, the fields that vary per handshake among those that determine
+`SK` (the signed prekey identifier also determines `SK`, but is bound by `SK`
+itself and omitted), tagged with the last-resort KEM key the handshake was
+made against -- and refuses a repeat. The record is
+bounded at 1024 entries across the current key and the one the last rotation
+retired, and it fails closed rather than evicting: a new last-resort handshake
+against a full record is refused (`LastResortRecordFull`) and nothing changes,
+so nobody can push a victim's fingerprint out by completing handshakes of their
+own. A key's entries are dropped when a rotation wipes the key. This is
+hardening beyond what the published specification asks for, not a claim about
+it; `key-deletion.md` states what a full record costs, why rotation alone is
+not a reset against a peer who is filling the record deliberately, and which
+accessor reports the room left.
 
 ## Byte-level conventions
 
@@ -220,8 +235,11 @@ Mutual authentication comes from `DH1` and `DH2` and rests on the discrete log
 problem, not on the KEM. Forward secrecy comes from `DH3`, `DH4`, and `SS`, and
 from deleting ephemeral and one-time private keys once used. Resistance to
 harvest-now-decrypt-later comes from `SS`. Deniability is retained: neither party
-gets a publishable proof of the conversation. These are stated with their
-assumptions on the security-properties pages.
+gets a publishable proof of the conversation. The security-properties pages
+that would state these with their assumptions are scaffolds apart from
+post-compromise security; until they are written, `tacenta-proofs/CLAIMS.md`
+records what is established about session establishment and
+`tacenta-proofs/LIMITATIONS.md` what is not.
 
 ## Sources
 

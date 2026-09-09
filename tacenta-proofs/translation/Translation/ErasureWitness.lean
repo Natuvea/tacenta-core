@@ -354,7 +354,7 @@ noncomputable def codeword (l : List Std.U8) (i : ℕ) : Data32 :=
 def idx (i : ℕ) : Std.U16 := ⟨BitVec.ofNat 16 i⟩
 
 theorem idx_val (i : ℕ) (h : i < 65536) : (idx i).val = i := by
-  simp only [idx, UScalar.val, BitVec.toNat_ofNat]
+  simp only [idx, UScalar.val]
   exact Nat.mod_eq_of_lt (by simpa using h)
 
 noncomputable def mkChunk (l : List Std.U8) (i : ℕ) : tacenta_erasure.Chunk :=

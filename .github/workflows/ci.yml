@@ -1,19 +1,57 @@
 # Public CI for the open tacenta-core repository.
 #
-# The subset a public contributor can run on GitHub-hosted runners without
-# secrets: the Rust crates (format, lint, tests), the Lean model and proof
-# builds, and the committed translation with its T1/T3 proofs, scanned for
-# `sorry` by `tacenta-proofs/scripts/no-sorry.sh`. Regenerating the translation
-# from the Rust (pinned Charon/Aeneas), the fuzzing, and the timing
-# measurements run outside this repository. The Lean builds need the pinned toolchain the
-# lean-toolchain files name.
+# This runs the steps of `tooling/ci.sh`, split into jobs so a failure names
+# its cause. Everything here runs on a GitHub-hosted runner without secrets.
+# Four of the script's steps are optional on a developer's machine and
+# unconditional here, because this workflow installs what they need: the
+# advisory audit, the MSRV check, the 32-bit check, and the committed
+# translation built with its T1/T3 proofs and scanned for `sorry` by
+# `tacenta-proofs/scripts/no-sorry.sh` (the `translation` job, the heavy
+# one). Two of the script's steps do not run here at all: the
+# interoperability harness, which is not in this tree, and the fuzz smoke
+# run. What runs outside this repository altogether, and why, is stated in
+# the root README under "Building and checking": regenerating the
+# translation from the Rust (pinned Charon/Aeneas), the coverage-guided
+# fuzzing, and the timing measurements.
+#
+# Every third-party action is pinned by commit digest, with the tag in a
+# trailing comment; `tooling/check-workflows.sh` enforces that, along with the
+# `permissions` block, `persist-credentials: false` on every checkout, and the
+# rule that nothing is piped from the network into a shell. The Lean toolchain
+# is installed from a fixed elan release whose archive digest is checked
+# before it runs (`tooling/install-elan.sh`); the pin is the release tag and
+# the sha256 together.
 name: ci
 on:
   push:
     branches: [main]
   pull_request:
 
+# Read-only by default. No job here writes to the repository, and a workflow
+# that runs on pull requests should not hold a token that could.
+permissions:
+  contents: read
+
+# One run per ref at a time. A pull request that is pushed to again cancels
+# the run for its previous head; a push to main is never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # The elan release the Lean jobs install, and the sha256 of its
+  # x86_64-unknown-linux-gnu archive as published at
+  # https://github.com/leanprover/elan/releases/tag/v4.2.4. Bumping the
+  # release means recomputing the digest; a mismatch fails the job.
+  ELAN_VERSION: v4.2.4
+  ELAN_SHA256: 42b94d4244e8353142c456ec0e4ca6528fd898a6c604d4059f494e706e431f63
+  # The Rust version `tooling/ci.sh` and the crates' `rust-version` fields
+  # name. The `msrv` job checks the workspace still compiles on it.
+  MSRV: "1.87"
+
 jobs:
+  # The Rust crates on stable: format, lint, tests, with the property-based
+  # decoder tests at the case count `tooling/ci.sh` sets.
   rust:
     runs-on: ubuntu-latest
     defaults:
@@ -21,25 +59,127 @@ jobs:
         working-directory: tacenta-core
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: tacenta-core
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - run: cargo test --locked --workspace
+        env:
+          PROPTEST_CASES: 2048
+
+  # The minimum supported Rust version still compiles the workspace. A check,
+  # not a test run: the tests run on stable above, and this exists so a use of
+  # a newer standard-library feature is caught before it reaches a consumer
+  # holding the version the manifests promise.
+  msrv:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tacenta-core
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: ${{ env.MSRV }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: tacenta-core
+      - run: cargo check --locked --workspace --all-targets
+
+  # The decoders cast attacker-controlled lengths to `usize`, which is a
+  # different width on a phone; the overflow guards are written for 32 bits
+  # and this keeps that target compiling. A compile check, not a run: see the
+  # note in `tooling/ci.sh`.
+  armv7:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tacenta-core
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: stable
+          targets: armv7-linux-androideabi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: tacenta-core
+      - run: cargo check --locked --workspace --target armv7-linux-androideabi
+
+  # The Rust conformance runner: the committed vectors under
+  # `tacenta-test-vectors/vectors` against tacenta-core. Whether those vectors
+  # are current with the model is the `proofs` job's question, below.
+  vectors:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tacenta-test-vectors/runners/rust
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: tacenta-test-vectors/runners/rust
       - run: cargo fmt --check
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - run: cargo test --locked --workspace
 
+  # Known advisories against tacenta-core's dependency graph. Fails on a
+  # vulnerability; warnings (unmaintained, yanked) are printed and do not
+  # fail, as in `tooling/ci.sh`. `cargo-audit` is built from crates.io with
+  # `--locked`, so what runs is the release named here and its own lockfile.
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: stable
+      - run: cargo install --locked cargo-audit
+      - run: cargo audit
+        working-directory: tacenta-core
+
+  # The Lean model and the model-layer proofs, and the vectors' currency.
+  # `lake build` in tacenta-model compiles the model, the properties, and
+  # `genvectors` (all default targets); `verify.sh` builds the proofs and
+  # refuses `sorry`; then the vectors are regenerated from the model and must
+  # match what is committed. The `sorry` scan over the translation package is
+  # `scripts/no-sorry.sh`, which the `translation` job runs (it needs the
+  # translation's Mathlib cache first).
   proofs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Install elan (Lean toolchain)
-        run: |
-          curl -sSfL https://elan.lean-lang.org/elan-init.sh | sh -s -- -y
-          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
-      # A fast build signal. The `sorry` scan over these two packages is
-      # `scripts/no-sorry.sh`, which the translation job below runs (it needs
-      # the translation's Mathlib cache first).
-      - name: The model builds
+        with:
+          persist-credentials: false
+      - name: Install the pinned elan release
+        run: bash tooling/install-elan.sh
+      - name: The model builds, including the vector generator
         run: (cd tacenta-model && lake build)
-      - name: The proofs build
-        run: (cd tacenta-proofs && lake build)
+      - name: The proofs build and use no sorry
+        run: bash tacenta-proofs/scripts/verify.sh
+      - name: The committed vectors are current with the model
+        run: |
+          bash tacenta-test-vectors/regenerate-vectors.sh
+          git diff --exit-code -- tacenta-test-vectors/vectors
 
   # The committed Rust-to-Lean translation and the T1/T3 proofs over it, plus
   # the model and model-layer proofs, all built and scanned for incomplete
@@ -50,17 +190,17 @@ jobs:
   # from Mathlib's cache. It runs here so a public reader has the
   # translation's theorems checked in public rather than on the private
   # workflow's word. What this does NOT do is regenerate the translation from
-  # the Rust:
-  # that needs the pinned Charon and Aeneas binaries and runs outside this repository;
-  # `tacenta-proofs/CLAIMS.md` states the release and its digest.
+  # the Rust: that needs the pinned Charon and Aeneas binaries and runs
+  # outside this repository; `tacenta-proofs/CLAIMS.md` states the release
+  # and its digest.
   translation:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Install elan (Lean toolchain)
-        run: |
-          curl -sSfL https://elan.lean-lang.org/elan-init.sh | sh -s -- -y
-          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+        with:
+          persist-credentials: false
+      - name: Install the pinned elan release
+        run: bash tooling/install-elan.sh
       - name: Fetch the Mathlib cache
         working-directory: tacenta-proofs/translation
         run: lake exe cache get
@@ -68,13 +208,26 @@ jobs:
         shell: bash
         run: bash tacenta-proofs/scripts/no-sorry.sh
 
+  # The repository's own consistency checks: the ones `tooling/ci.sh` runs
+  # before building anything, plus the attestation gate.
   checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      # `check-workflows.sh` parses the workflow files with PyYAML. The runner
+      # image happens to carry it today; installing it names the dependency
+      # rather than relying on that, and the script fails on the runner
+      # (rather than skipping) if the import still does not resolve.
+      - name: PyYAML for the workflow check
+        run: python3 -m pip install --user pyyaml
       - run: bash tooling/check-workflows.sh
+      - run: bash tooling/tests/run-check-workflows-cases.sh
       - run: bash tooling/check-proof-hygiene.sh
+      - run: bash tooling/check-labels.sh
       - run: python3 tooling/check_authentication_boundary.py
+      - run: python3 tooling/check-vectors.py
       # Note the assurance boundary: this checks the attestation manifest
       # against the source hashes. It does NOT re-derive the Rust->Lean
       # (Charon/Aeneas) translation, which runs on dedicated runners;

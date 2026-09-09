@@ -39,3 +39,9 @@ and are not recorded here.
   sign-verify round trips, and that XEdDSA signatures verify as standard Ed25519
   signatures under the converted public key.
 - ADR-0001's dual-key registration flow is dropped.
+- Verification goes through ed25519-dalek's `verify_strict`, so the accepted
+  set is strictly narrower than Revision 1's on `s` (`s < l`, not
+  `s < 2^253`) and on small-order `R` or `A` (refused outright rather than
+  checked against the equation), while the sign-bit convention in
+  CONSTANTS.md widens it in the other direction; every signature this
+  implementation produces is in both sets (`xeddsa.rs`).

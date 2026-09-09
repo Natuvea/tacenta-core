@@ -39,7 +39,17 @@ row whose first cell is `` `path::name` `` registers a function, never a
 backticked name in prose; `#[cfg(test)]` exempts a function only as the
 attribute directly on the item, never as nearby text; and verbs are matched
 anywhere in a name, so a function such as the braid's `step_receive` is
-discovered along with the `receive` that wraps it.
+discovered along with the `receive` that wraps it. Discovery reads each file
+through a view with its strings, character literals, and comments blanked, so
+a brace inside a test's string cannot hide the code below a test module, and
+it refuses rather than guesses when a file's braces do not balance in that
+view or a block never closes. A `const fn`, `unsafe fn`, `async fn`, or
+`extern "C" fn` is discovered like any other, and a declaration is discovered
+wherever a statement can begin -- at the start of a line, or after a `{`,
+`;`, or `}` earlier on the same line -- rather than at the start of a line
+only. The exemptions for names that carry a verb without consuming anything
+(`receive_count`, the `read_*` byte helpers, `init_receiver`) are exact names,
+not prefixes, so a new `init_from_bytes` would be discovered.
 
 ## Why a registry rather than a rule
 
@@ -61,6 +71,17 @@ that matters most here, `Session::decrypt_ratchet`, is private; and it matches
 verbs anywhere in the name, because `establish_responder` starts with none of
 the obvious ones.
 
+Discovery is **by name**, which the checker's own header states rather than
+leaves implied. A function is looked at when its name contains one of the verbs
+`receive`, `decrypt`, `accept`, `process`, `commit`, `establish`, `handle`,
+`ingest`, `verify`, `import`, `from_bytes`, `open`, `read`, or `parse`. Two of
+the pure PQXDH helpers -- `initiator_shared_secret` and
+`responder_shared_secret` -- carry none of those verbs yet consume
+attacker-supplied bundle material, so the checker names them explicitly rather
+than by pattern. This is a heuristic on names, not an analysis of bodies: what
+the gate can enforce is that a name that looks like a consuming path is written
+down with the shape its signature has, and the argument for each is in its row.
+
 ## The distinction that matters
 
 **Deriving is not committing.** A receive path must derive a key to check an
@@ -78,20 +99,56 @@ than discouraged.
 
 | function | returns |
 |---|---|
-| `tacenta-core/triple/src/lib.rs::receive` | `(State, Key)`, adopted by `commit` |
-| `tacenta-core/triple/src/lib.rs::commit` | the adopting half |
-| `tacenta-core/braid/src/lib.rs::receive` | `(u64, Option<Output>, Braid)`, adopted by `commit` |
-| `tacenta-core/braid/src/lib.rs::step_receive` | the receive logic proper: `&self`, takes the current `State` by value and returns the next one; `receive` wraps it and hands back the candidate `Braid`. Registered separately because the gate matches verbs anywhere in a name. |
-| `tacenta-core/braid/src/lib.rs::commit` | the adopting half |
+| `tacenta-core/triple/src/lib.rs::State::receive` | `(State, Key)`, adopted by `commit` |
+| `tacenta-core/triple/src/lib.rs::State::commit` | the adopting half |
+| `tacenta-core/braid/src/lib.rs::Braid::receive` | `(u64, Option<Output>, Braid)`, adopted by `commit` |
+| `tacenta-core/braid/src/lib.rs::Braid::step_receive` | the receive logic proper: `&self`, takes the current `State` by value and returns the next one; `receive` wraps it and hands back the candidate `Braid`. Registered separately because the gate matches verbs anywhere in a name. |
+| `tacenta-core/braid/src/lib.rs::Braid::commit` | the adopting half |
 
 ### Orchestration, transactional by construction
 
 | function | how |
 |---|---|
-| `tacenta-core/src/sessions/lifecycle.rs::decrypt_ratchet` | clones the ratchet, verifies the tag, then assigns. Private, and the function this registry exists for: it is the one that touches the most state on the receive path. |
-| `tacenta-core/src/sessions/lifecycle.rs::decrypt` | the public wrapper; does no state change of its own beyond clearing `pending_initial` after a successful decrypt |
-| `tacenta-core/src/sessions/lifecycle.rs::establish_responder` | reads prekeys, authenticates, then deletes. The one consuming function here whose name does not start with a consuming verb. |
+| `tacenta-core/src/sessions/lifecycle.rs::Session::decrypt_ratchet` | takes `&self` candidates from `Triple::receive` and `Braid::receive`, verifies the tag, then assigns; it clones the whole ratchet itself only on the eviction-and-retry path for a full skipped-key store (CR-11). Private, and the function this registry exists for: it touches the most state on the receive path. |
+| `tacenta-core/src/sessions/lifecycle.rs::Session::decrypt` | the public wrapper; does no state change of its own beyond clearing `pending_initial` after a successful decrypt |
+| `tacenta-core/src/sessions/lifecycle.rs::establish_responder` | reads prekeys and, on the last-resort path, the replay record -- refusing a repeated fingerprint (`ReplayedLastResort`) or a full record (`LastResortRecordFull`) before decryption, and writing nothing on either refusal -- then authenticates, then deletes and records. The one consuming function here whose name does not start with a consuming verb. |
 | `tacenta-core/src/sessions/lifecycle.rs::establish_initiator` | consumes a peer's published bundle, which an attacker supplies through the directory. Verifies both prekey signatures before deriving, and holds no local state that a failure could consume: a refusal leaves this party exactly as it was. |
+| `tacenta-core/src/sessions/lifecycle.rs::establish_initiator_for` | the same, against a caller-known identity: refuses the bundle unless its identity key is the expected one (CR-27), then does everything `establish_initiator` does. `establish_initiator` delegates to it. |
+
+### Orchestration, pure: they consume bundle material but hold no state
+
+These verify or derive from attacker-supplied bundle material and return a
+value; there is no session state for a failure to advance, so the transaction
+is trivial. Registered because they consume unauthenticated input, which is
+what the boundary is about, even though there is nothing for them to corrupt.
+
+| function | how |
+|---|---|
+| `tacenta-core/src/sessions/mod.rs::verify_bundle` | verifies both prekey signatures under the bundle's identity key; returns `Result`, mutates nothing. |
+| `tacenta-core/src/sessions/mod.rs::verify_under_identity` | verifies a caller-supplied signature under a published identity key; pure. |
+| `tacenta-core/src/sessions/mod.rs::initiator_shared_secret` | verifies the bundle, then folds the Diffie-Hellman and encapsulated secrets into `SK`; returns the key, holds no state. Named to the gate explicitly because it carries no consuming verb. |
+| `tacenta-core/src/sessions/mod.rs::responder_shared_secret` | the responder's side of the same derivation, over keys that arrive in an unauthenticated initial message; pure. Named explicitly for the same reason. |
+
+### Orchestration, persisted-state decoders
+
+Restore state a storage layer wrote. Their threat model is corruption and
+version skew rather than a hostile peer, but they take untrusted bytes and are
+on the path from bytes to a key, so they are registered. Each is length-checked
+throughout and commits nothing but the value it returns; the two top-level ones
+(`PrekeyStore::from_bytes`, `Session::import`) additionally re-encode and
+compare, refusing a non-canonical spelling (CR-18).
+
+| function | how |
+|---|---|
+| `tacenta-core/src/sessions/lifecycle.rs::PrekeyStore::from_bytes` | decodes a persisted prekey store; v3 re-encode-and-compare backstop. |
+| `tacenta-core/src/sessions/lifecycle.rs::PendingInitial::from_bytes` | private sub-decoder for the pending-initial field of a `Session`; reached only through `Session::import`. |
+| `tacenta-core/src/sessions/lifecycle.rs::Session::import` | decodes a persisted session; re-encodes and compares before returning. |
+| `tacenta-core/src/sessions/lifecycle.rs::Session::import_unchecked` | the nested decode `import` wraps; private, and only `import` calls it, so the canonicality check is never bypassed. |
+| `tacenta-core/ratchet/src/lib.rs::State::from_bytes` | decodes the classical ratchet state; length- and bound-checked. |
+| `tacenta-core/spqr/src/lib.rs::State::from_bytes` | decodes the sparse post-quantum ratchet state. |
+| `tacenta-core/triple/src/lib.rs::State::from_bytes` | decodes the composite of both ratchets. |
+| `tacenta-core/braid/src/lib.rs::Braid::from_bytes` | decodes the agreement state, tag and all. |
+| `tacenta-core/braid/src/lib.rs::Auth::from_bytes` | private sub-decoder for the fixed-width authenticator; reached only through `Braid::from_bytes`. |
 
 ### Mutating, and safe only because of a caller
 
@@ -104,7 +161,7 @@ anyone.
 | function | who guarantees the transaction |
 |---|---|
 | `tacenta-core/ratchet/src/lib.rs::receive` | `triple::receive` clones `State` first; `decrypt_ratchet` clones its own |
-| `tacenta-core/spqr/src/lib.rs::receive` | `triple::receive` clones the whole composite first |
+| `tacenta-core/spqr/src/lib.rs::State::receive` | `triple::receive` clones the whole composite first |
 
 **Neither is defended by its own type.** Making them `&self`-and-commit would
 close that at the cost of a second candidate allocation per message on a path

@@ -55,7 +55,7 @@ theorem clmul_loop_no_panic (b : U16) (x : U32) (acc : U32) (i : U32)
     simp only []
     split <;> [skip; simp]
     step*
-    split <;> step* <;> simp_all <;> scalar_tac
+    split <;> step*
   · exact h
 
 @[step]
@@ -84,7 +84,7 @@ theorem reduce_loop_no_panic (v : U32) (i : U32) (h : i.val ≤ 31) :
     simp only []
     split <;> [skip; simp]
     step*
-    split <;> step* <;> simp_all [gf.REDUCER] <;> scalar_tac
+    split <;> step*
   · exact h
 
 @[step]
@@ -101,7 +101,7 @@ is a product, and there are `k^2` of them per lane. -/
 @[step]
 theorem mul_no_panic (a b : U16) : gf.mul a b ⦃ fun _ => True ⦄ := by
   unfold gf.mul
-  step* <;> trivial
+  step*
 
 /-- Exponentiation cannot fail.
 
@@ -135,7 +135,7 @@ mean anything, and that is a correctness question rather than a panic one. -/
 @[step]
 theorem inv_no_panic (a : U16) : gf.inv a ⦃ fun _ => True ⦄ := by
   unfold gf.inv
-  step* <;> trivial
+  step*
 
 /-! ## Chunk arithmetic
 
@@ -175,7 +175,7 @@ be discharged rather than assumed. -/
 theorem lane_no_panic (data : Array U8 32#usize) (j : Usize) (h : j.val < 16) :
     lane data j ⦃ fun _ => True ⦄ := by
   unfold lane
-  step* <;> simp_all <;> scalar_tac
+  step*
 
 /-! ## Interpolation
 
@@ -201,7 +201,7 @@ theorem interpolate_inner_no_panic (nodes : Slice U16) (x : U16) (n i : Usize)
     simp only []
     split <;> [skip; simp]
     step*
-    split <;> step* <;> simp_all <;> scalar_tac
+    split <;> step*
   · trivial
 
 /-- The accumulation loop cannot fail. Same bound, and the read from `vals` is a
@@ -271,7 +271,7 @@ theorem weights_inner_no_panic (nodes : Slice U16) (n i : Usize) (xi denom : U16
     simp only []
     split <;> [skip; simp]
     step*
-    split <;> step* <;> simp_all <;> scalar_tac
+    split <;> step*
   · trivial
 
 /-- The weight loop cannot fail. One push per node, so the invariant is that the
@@ -317,7 +317,7 @@ theorem coefficients_inner_no_panic (nodes : Slice U16) (x : U16) (n i : Usize)
     simp only []
     split <;> [skip; simp]
     step*
-    split <;> step* <;> simp_all <;> scalar_tac
+    split <;> step*
   · trivial
 
 /-- The coefficient loop cannot fail. The read from `weights` is guarded by its
@@ -405,8 +405,8 @@ theorem add_chunk_loop_no_panic (v : alloc.vec.Vec Chunk) (chunk : Chunk)
     unfold Decoder.add_chunk_loop.body
     simp only []
     split
-    · step* <;> simp_all <;> scalar_tac
-    · step* <;> simp_all <;> scalar_tac
+    · step*
+    · step*
   · trivial
 
 /-- **Taking a codeword off the wire cannot fail.**
@@ -748,9 +748,7 @@ theorem message_targets_no_panic (k : Usize) (v : alloc.vec.Vec Chunk)
       have hroom1 : o1.val.length + 32 ≤ Usize.max := by omega
       step*
       all_goals
-        (try simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new,
-          List.length_append, Array.to_slice, alloc.vec.Vec.length,
-          Slice.length])
+        (try simp_all [Array.to_slice])
       all_goals omega
     · simp
   · exact hstart
@@ -793,10 +791,6 @@ theorem message_no_panic (htr : TruncateTotal) (self : Decoder)
     simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
   unfold NoPanic Decoder.message
   step*
-  all_goals (try exact message_nodes_no_panic _ _ _ _ hcap)
-  all_goals (try exact weights_no_panic _)
-  all_goals (try exact message_targets_no_panic _ _ _ _ _ _ hroom hout)
-  all_goals (try trivial)
   all_goals
     (rename_i out1 _
      obtain ⟨r, hr⟩ := htr out1 self.size
@@ -823,3 +817,19 @@ proves what would otherwise have to be assumed. Worth remembering: an
 opaque-looking trait method is not necessarily opaque, and assuming one that is
 not weakens every theorem downstream of it for nothing. -/
 
+/-! ## The axiom audit, enforced rather than asserted
+
+The two entry points an attacker's codewords drive, pinned. `next_chunk` rests
+on Lean's three standard axioms and nothing else: the crate has no opaque
+primitive of its own. `message` adds the one library call the translation does
+not see through, `Vec::truncate`, which arrives as an axiom and is the
+`TruncateTotal` hypothesis the theorem carries. A change that made either rest
+on anything further fails here. -/
+
+/-- info: 'Tacenta.ErasureT1.next_chunk_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Tacenta.ErasureT1.next_chunk_no_panic
+
+/-- info: 'Tacenta.ErasureT1.message_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound, alloc.vec.Vec.truncate] -/
+#guard_msgs in
+#print axioms Tacenta.ErasureT1.message_no_panic

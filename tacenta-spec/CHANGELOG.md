@@ -6,6 +6,77 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `protocol/key-deletion.md`: signed-prekey and last-resort KEM prekey
+  rotation, with the retired key kept for exactly one rotation and then
+  wiped; what the caller must do around a rotation; and the statement that
+  rotation is not scheduled by the crate. The "not implemented" note for
+  rotation is removed, since it is.
+- `protocol/session-persistence.md`: the prekey store's persisted layout
+  (version `0x04`, whose replay-record entries carry the identifier of the
+  last-resort KEM key they were made against), and the rule that `0x03`
+  (untagged entries, read back tagged with the current key), `0x02` (before
+  rotation) and `0x01` (before the replay record) are still read; two
+  malformed-store rules for the record, an entry whose identifier names no
+  live key and a repeated fingerprint.
+- `protocol/message-format.md`: the prekey bundle's wire encoding (type
+  `0x03`), which the page named but did not lay out.
+- `CONSTANTS.md`: rows for `MAX_SKIPPED_AGE`, `EPOCHS_KEPT`'s value,
+  `MAX_LAST_RESORT_SEEN`, the sparse ratchet's `PROTOCOL_INFO`, and the
+  classical ratchet's two derivation labels; the prekey-store version row
+  now states what is written and what is read.
+
+### Changed
+- `protocol/key-deletion.md` and `protocol/session-establishment.md`: the
+  last-resort replay record no longer evicts. It is bounded per key lifetime
+  -- entries are tagged with the last-resort KEM key they were made against
+  and dropped when a rotation wipes that key -- and fails closed: a new
+  last-resort handshake against a full record is refused with
+  `LastResortRecordFull` and nothing changes, so an unauthenticated peer
+  can no longer push a victim's fingerprint out with cheap handshakes of
+  its own and replay the captured message. Both pages now say what a
+  replay delivered, the initiator's first plaintext a second time as a
+  fresh session, rather than calling it a denial of service, and name the
+  operator's levers: replenishment and rotation.
+- `CONSTANTS.md`: `PREKEY_STORE_VERSION` is `0x04` written and `0x03`,
+  `0x02`, `0x01` read; `MAX_LAST_RESORT_SEEN` is described as the
+  fail-closed, per-key-lifetime bound it now is.
+- `protocol/key-deletion.md`: a one-time prekey is deleted once the initial
+  message that names it has authenticated, not when the message names it,
+  which is what the implementation does and the stronger behaviour. The
+  handshake concatenation's wipe is qualified: the buffer's intermediate
+  allocations are not wiped until the session crate is re-translated.
+- `protocol/session-establishment.md`: the Notation section's description of
+  the KDF `info` now matches the Parameters table: the fixed string is passed
+  verbatim rather than assembled.
+- Citations of scaffold security-property pages in `ratchet.md`,
+  `session-establishment.md` and `post-compromise-security.md` now point at
+  `tacenta-proofs/CLAIMS.md`, as this directory's README says to; ADR-0001
+  notes that the pages it cites are scaffolds.
+
+### Backfilled
+Entries this log omitted when the pages landed, recorded here so the log is
+complete rather than restarted:
+
+- `protocol/ratchet.md`: the classical Double Ratchet, written from the
+  published specification revision 4, Section 3, with the header-encryption
+  variant excluded. Its skipped-key store is bounded per chain (`MAX_SKIP`)
+  and in total (`MAX_SKIPPED_STORE`), and stored keys expire after a fixed
+  number of received messages (`MAX_SKIPPED_AGE`); key-deletion.md records
+  the expiry as counting events rather than a timer.
+- `protocol/session-establishment.md`: PQXDH, written from the published
+  specification revision 3 with X3DH revision 1 for the Diffie-Hellman
+  computations it extends. Plain X3DH is excluded.
+- `protocol/message-format.md`: the version-and-type framing, the composite
+  header, `CONCAT` with a length-prefixed associated data, the initial
+  message, and the absent-identifier sentinel. All ours.
+- `protocol/key-deletion.md`: every deletion the two specifications require,
+  gathered in one place, with what the implementation does and does not do.
+- The sparse ratchet's store is bounded in total as well as per chain, an
+  addition to the specification, recorded in the conformance manifest.
+- A last-resort handshake is fingerprinted and a repeat refused, within a
+  bound (`MAX_LAST_RESORT_SEEN`); the prekey store's persisted format went
+  to `0x02` to carry the record, and to `0x03` to carry the prekeys a
+  rotation retires.
 - `protocol/sparse-pq-ratchet.md`: the Sparse Post-Quantum Ratchet, written from
   the published Double Ratchet specification revision 4, Section 5. Specified
   generically over a sparse continuous key agreement, which is treated as a

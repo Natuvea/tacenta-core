@@ -99,13 +99,27 @@ deleting them after an interval, triggered by a timer or by counting events.
 - Long-lived private keys are zeroed when dropped, by the underlying curve and
   signing crates. So are the buffers that concentrate secrets during a
   derivation: the expansion buffers inside the key derivations, and the
-  concatenation the handshake feeds to the KDF.
+  concatenation the handshake feeds to the KDF. The last of those has a
+  qualification: the concatenation is built by appending to a growing buffer,
+  and only the allocation alive at the end is wiped. The smaller blocks the
+  buffer moved through as it grew are handed back to the allocator as they
+  were, which is the "copies the allocator makes" case
+  `tacenta-proofs/LIMITATIONS.md` describes. The session crate is a
+  translated zone, so sizing that buffer up front is a change to the
+  generated Lean and waits for the next re-translation window.
 - The skipped store is bounded twice over, per chain and in total, and it is a
   map: storing a key for a pair already held replaces it rather than
   accumulating, so a superseded key cannot linger unreachable behind a newer
   one.
-- A one-time prekey, curve or KEM, is removed from the store when a message
-  names it, which is its deletion.
+- A one-time prekey, curve or KEM, is removed from the store once the initial
+  message that names it has authenticated, and not before. Naming a prekey is
+  free to anyone who fetched the bundle, so a store that deleted on the way in
+  could be drained by messages nobody could have written, rejecting legitimate
+  initial messages already in flight and forcing every later peer onto the
+  reusable last-resort key. So the responder reads the private halves it
+  needs, derives `SK`, decrypts the initial ciphertext, and deletes only if
+  that succeeded; a message that fails to authenticate leaves the store as it
+  found it. The curve secret is zeroed in place before its slot is released.
 - **The ratchet state erases itself when dropped.** `State` and the stored
   skipped keys carry an erasing destructor, so the root key, both chain keys,
   and every stored message key are wiped when the state goes out of scope, not
@@ -135,11 +149,12 @@ deleting them after an interval, triggered by a timer or by counting events.
   the erasure coders carrying them, which are public wire material and are not
   secrets to erase.
 - **Session establishment erases too.** `Identity`'s thirty-two byte secret
-  and `PrekeyStore`'s signed-prekey secret and one-time curve secrets are wiped
-  on drop -- the store by a hand-written destructor, since the erasure crate
-  has no `Zeroize` for tuples and both one-time collections are vectors of
-  them. `kem::KeyPair` holds its pair as an erasing byte buffer rather than in
-  libcrux's own type, which does not implement erasure.
+  and `PrekeyStore`'s signed-prekey secret, retired signed-prekey secret, and
+  one-time curve secrets are wiped on drop -- the store by a hand-written
+  destructor, because the KEM key pairs it also holds erase themselves on
+  drop rather than implementing the trait a derived destructor would need
+  from every field. `kem::KeyPair` holds its pair as an erasing byte buffer
+  rather than in libcrux's own type, which does not implement erasure.
 - **The handshake's Diffie-Hellman outputs and the KEM shared secret are
   erased.** All four agreement outputs and the encapsulated secret are held in
   erasing wrappers for the life of the derivation and wiped when it returns,
@@ -176,24 +191,97 @@ deleting them after an interval, triggered by a timer or by counting events.
   anything, which makes the collision impossible rather than merely avoided,
   and a test pins that the identifiers a store hands out never repeat across a
   replenishment.
-- **A replayed last-resort handshake is refused, within a bound.** A one-time
-  KEM prekey defends itself by being deleted on use, so replaying a message that
-  names one fails. The last-resort key is reusable by design and has no such
-  defence of its own: without a record, a captured initial message naming it
-  could be replayed without limit, each replay opening a fresh duplicate
-  session. Nothing leaks -- the attacker cannot speak on those sessions -- but
-  unbounded session creation from one captured packet is a denial of service,
-  and each session is 14 KB at rest.
+- **A replayed last-resort handshake is refused, and the record that refuses
+  it never evicts.** A one-time KEM prekey defends itself by being deleted on
+  use, so replaying a message that names one fails. The last-resort key is
+  reusable by design and has no such defence of its own: without a record, a
+  captured initial message naming it -- with no one-time curve prekey either,
+  which is the steady state of a store whose one-time pools are exhausted --
+  would be accepted again on every delivery, and each acceptance hands the
+  application the initiator's first plaintext a second time, as the opening
+  message of what looks like a fresh session. That is duplicate delivery, not
+  only a denial of service: the attacker learns nothing and cannot speak on
+  either session, but the same message is received twice and nothing marks
+  the second as a repeat.
 
   The store therefore remembers a fingerprint of each last-resort handshake it
-  has accepted, over exactly the fields that determine `SK`, and refuses a
-  repeat. **The record is bounded** at 1024 entries, oldest evicted first,
-  because an unbounded one is the same denial of service in different clothes.
-  Past that many *distinct* last-resort handshakes, a replay of the oldest
-  would be accepted again. Replenishment is what keeps the last-resort path
-  rare enough for the bound to be generous; the record is the backstop for
-  when it is not. The fingerprints persist with the store, so a restart does
-  not reopen the window.
+  has accepted, over the fields that vary per handshake among those that
+  determine `SK` (the signed prekey identifier, which also determines `SK`,
+  is bound by `SK` itself and omitted), tagged with the identifier of the
+  last-resort KEM key the handshake was made against, and refuses a repeat
+  (`ReplayedLastResort`). **The record is bounded per key
+  lifetime, and it fails closed.** It holds at most `MAX_LAST_RESORT_SEEN`
+  entries across the current key and the one the last rotation retired, and
+  it never evicts: a last-resort handshake it has not seen, arriving while it
+  is full, is refused (`LastResortRecordFull`) before anything is decrypted or
+  changed, and the store is left exactly as it was. It was once a window,
+  oldest evicted first, and a window is a count an unauthenticated peer can
+  drive: anyone holding the public bundle can complete a last-resort handshake
+  under a fresh identity in about a millisecond and a half, so 1024 of them
+  evicted a chosen victim's fingerprint in about two seconds, after which the
+  captured message replayed. What the bound measures now is how many distinct
+  last-resort handshakes a key has accepted over its lifetime, not how many
+  arrived recently. A key's entries leave the record when the key is wiped,
+  which is the rotation after the one that retires it; until then a replay
+  against the retired key is still a replay.
+
+  The cost of a full record falls on the last-resort path only; a handshake
+  naming a one-time KEM prekey never consults it. The operator has two levers,
+  and only one of them holds against a peer who is filling the record on
+  purpose. Rotating the last-resort KEM key releases the key's share of the
+  record once the following rotation wipes it, but the retired key still
+  decrypts until then and its public bundle is already in that peer's hands,
+  so at about a millisecond and a half per handshake the record is full again
+  in about a second; rotation opens a window, it does not close one.
+  Replenishment keeps first contacts off this path altogether, and a
+  directory that rate-limits bundle fetches bounds how fast anyone can fill
+  the record; those two are the durable defence. `PrekeyStore::
+  last_resort_record_remaining` reports the room left, so an operator can see
+  the record filling rather than learn of it from a refused handshake. The
+  record persists with the store, tags included, so a restart neither reopens
+  the window nor loses the pruning.
+- **Signed prekeys rotate, and the retired one is kept for exactly one
+  rotation.** `PrekeyStore::rotate_signed_prekey` generates a fresh curve
+  prekey, signs it under the identity, and gives it the next identifier; the
+  key it replaces becomes the store's *previous* signed prekey, with its
+  identifier and signature, and is honoured by `establish_responder` for an
+  initial message that still names it. That is the brief retention the
+  first section allows for, and its end is the next rotation: when a second
+  rotation moves another key into the previous slot, the one already there
+  is zeroed and dropped. So the rotation cadence is the grace period, and
+  the retention is bounded by construction rather than by a timer. Both
+  the current and the previous secret are wiped when the store is dropped,
+  and both persist with the store (session-persistence.md, Prekey store),
+  so a restart neither loses the grace period nor extends it.
+
+  `rotate_kem` does the same for the signed last-resort KEM prekey, with
+  more at stake, since that key is reusable by design and its compromise
+  reaches every last-resort handshake made under it. The retired KEM pair
+  erases itself when the next rotation drops it. The last-resort replay
+  record above follows the key: entries made under the retired key stay
+  while it can still decrypt, since a handshake against it is a last-resort
+  handshake still and a replay of one is refused on the same terms as
+  against the current key, and they are dropped when the next rotation wipes
+  it, at which point a message naming it fails on the identifier before the
+  record is consulted.
+
+  Three consequences are the caller's to manage. A bundle a peer fetched
+  before the rotation names the retired identifier and still establishes,
+  but only until the rotation after that, so a directory holding dispensed
+  bundles must be restocked after every rotation and rotation must not run
+  twice inside one directory refresh. The one-time secrets those stranded
+  bundles named stay in the store unconsumed, harmless but idle. And the
+  identifier space has an end: both rotations take their identifier from
+  the store's counter, the one `replenish` draws from, and once that counter
+  stands at `u32::MAX` each of `rotate_signed_prekey` and `rotate_kem`
+  returns without rotating, silently, the same quiet refusal `replenish`
+  makes at the end of the space. Every key the store ever issued spent one
+  identifier, so reaching that point is not a practical concern; but a
+  caller that must know a rotation happened should observe it
+  (`PrekeyStore::next_id` advanced, or the published bundle's signed-prekey
+  identifier changed) rather than assume it from the call having returned.
+  The `rotate_signed_prekey` documentation in `tacenta-core` carries the
+  first two warnings with their reasoning and names the third.
 
 ## What this implementation does not do yet
 
@@ -219,9 +307,13 @@ implemented is worse than one that is neither.
   and not where it cannot. Erasing destructors reduce the window in which a key
   is readable; they do not close it, and no in-language mechanism does.
 
-- **A rotated signed prekey's private half is never deleted**, because prekey
-  rotation is not implemented. When it is, the brief retention above and its end
-  must come with it.
+- **Rotation is not scheduled by this crate.** `rotate_signed_prekey` and
+  `rotate_kem` exist and bound the retired key's life to one rotation, but
+  nothing here decides when a rotation happens: there is no clock and no
+  policy, and a caller that never rotates keeps one signed prekey for the
+  life of the store. The published specification's "periodically" is the
+  caller's obligation, and the retention bound above only means anything if
+  the caller meets it.
 - **Erasure is in-memory only.** Secrets are zeroed when dropped, which defeats
   an attacker who reads process memory afterwards. It says nothing about data
   recovered from storage media, which the source document places outside its own

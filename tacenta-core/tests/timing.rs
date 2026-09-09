@@ -62,6 +62,50 @@ use std::time::Instant;
 use tacenta_core::primitives::aead;
 use tacenta_core::sessions::{self, Session, establish_initiator, establish_responder};
 
+// ------------------------------------------------------------------ the stamp
+
+/// Rounds per leak test, and samples per class per round.
+///
+/// Module-level rather than local to `run_leak_test` so the stamp can report
+/// the plan the numbers came from.
+const LEAK_ROUNDS: usize = 11;
+const LEAK_SAMPLES: usize = 4000;
+
+/// Print where a run came from, so its numbers can be pasted into
+/// `LIMITATIONS.md` with their provenance: the commit, the date, the `rustc`
+/// version, the command line, and the sample plan. Every field degrades to
+/// `unknown` rather than failing, since a stamp is not a gate. The fields the
+/// nightly job adds (CPU model and fixed frequency, the isolated core, a run
+/// id) are the machine's to know, not the test's.
+fn print_stamp(plan: &str) {
+    fn run(cmd: &str, args: &[&str]) -> String {
+        std::process::Command::new(cmd)
+            .args(args)
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "unknown".to_string())
+    }
+    let commit = run("git", &["rev-parse", "HEAD"]);
+    let date = match run("date", &["-u", "+%Y-%m-%dT%H:%M:%SZ"]).as_str() {
+        "unknown" => std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|t| format!("unix:{}", t.as_secs()))
+            .unwrap_or_else(|_| "unknown".to_string()),
+        d => d.to_string(),
+    };
+    let rustc = run("rustc", &["-V"]);
+    let command = std::env::args().collect::<Vec<_>>().join(" ");
+    println!("stamp: commit   {commit}");
+    println!("stamp: date     {date}");
+    println!("stamp: rustc    {rustc}");
+    println!("stamp: command  {command}");
+    println!("stamp: plan     {plan}");
+}
+
 // ---------------------------------------------------------------- statistics
 
 /// Welch's t-statistic between two samples (unequal variance).
@@ -285,9 +329,6 @@ fn signal_and_null(a: &[u8], b: &[u8], n: usize, reject: &impl Fn(&[u8])) -> (f6
 /// reach the same conclusion; this one stays a gate, on the quantity that
 /// actually matters.
 fn run_leak_test(label: &str, a: &[u8], b: &[u8], reject: &impl Fn(&[u8]), leak_hint: &str) {
-    const ROUNDS: usize = 11;
-    const N: usize = 4000;
-
     // Make the CPU itself data-independent where it is not by default (Apple
     // Silicon), so the experiment measures the software and not the core.
     request_data_independent_timing();
@@ -299,14 +340,14 @@ fn run_leak_test(label: &str, a: &[u8], b: &[u8], reject: &impl Fn(&[u8]), leak_
         reject(b);
     }
 
-    let mut signal = Vec::with_capacity(ROUNDS);
-    let mut noise = Vec::with_capacity(ROUNDS);
-    let mut meds_a = Vec::with_capacity(ROUNDS);
-    let mut meds_b = Vec::with_capacity(ROUNDS);
-    for _ in 0..ROUNDS {
+    let mut signal = Vec::with_capacity(LEAK_ROUNDS);
+    let mut noise = Vec::with_capacity(LEAK_ROUNDS);
+    let mut meds_a = Vec::with_capacity(LEAK_ROUNDS);
+    let mut meds_b = Vec::with_capacity(LEAK_ROUNDS);
+    for _ in 0..LEAK_ROUNDS {
         // Both come from the same interleaved window, so contention inflates the
         // null alongside the signal instead of the signal alone.
-        let (s, n, ma, mb) = signal_and_null(a, b, N, reject);
+        let (s, n, ma, mb) = signal_and_null(a, b, LEAK_SAMPLES, reject);
         signal.push(s);
         noise.push(n);
         meds_a.push(ma);
@@ -356,6 +397,9 @@ fn run_leak_test(label: &str, a: &[u8], b: &[u8], reject: &impl Fn(&[u8]), leak_
 #[test]
 #[ignore = "timing-sensitive; run with --ignored"]
 fn the_tag_comparison_does_not_leak_how_much_of_the_tag_was_right() {
+    print_stamp(&format!(
+        "{LEAK_ROUNDS} rounds × {LEAK_SAMPLES} samples per class"
+    ));
     let enc_key = [0x11u8; 32];
     let mac_key = [0x22u8; 32];
     let iv = [0x33u8; 16];
@@ -406,6 +450,9 @@ fn the_tag_comparison_does_not_leak_how_much_of_the_tag_was_right() {
 #[test]
 #[ignore = "timing-sensitive; run with --ignored"]
 fn a_forged_ciphertext_rejects_in_time_independent_of_its_contents() {
+    print_stamp(&format!(
+        "{LEAK_ROUNDS} rounds × {LEAK_SAMPLES} samples per class"
+    ));
     let enc_key = [0x44u8; 32];
     let mac_key = [0x55u8; 32];
     let iv = [0x66u8; 16];
@@ -507,6 +554,7 @@ fn the_skip_bound_caps_what_one_forged_message_can_cost() {
     }
 
     const N: usize = 30;
+    print_stamp(&format!("{N} samples per gap, three gaps"));
     let baseline = cost_at_gap(0, N);
     let worst = cost_at_gap(900, N); // inside MAX_SKIP = 1000
     let refused = cost_at_gap(1200, N); // beyond it

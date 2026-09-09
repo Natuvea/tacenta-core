@@ -48,7 +48,9 @@ interoperating with anyone.
   loses the peer's first message for good; session first leaves a consumed
   one-time prekey reusable). `Session::export`'s documentation in
   `tacenta-core` carries the same three rules with the reasoning, and is the
-  place to change them.
+  place to change them. A fourth follows from rotation: persist the store
+  after `rotate_signed_prekey` or `rotate_kem` and before republishing, or a
+  restart forgets the rotation while the directory serves the new key.
 
 ## Ratchet state
 
@@ -144,6 +146,88 @@ enforces that invariant at the type level. `pending_initial` and
 `established_ephemeral` are each a presence byte followed by a
 length-prefixed field when present, and nothing (not even the length
 prefix) when absent.
+
+## Prekey store
+
+`PrekeyStore::to_bytes`/`from_bytes` persist a party's own prekeys between
+restarts: the private halves of the signed and one-time prekeys, the
+identifiers a bundle names them by, the signatures a bundle carries, and two
+records that exist only to survive a restart, the last-resort replay
+fingerprints and the prekeys a rotation retired. The identity's own secret is
+not here; `Identity` is separate and is persisted by the caller on its own
+terms.
+
+```
+prekey_store = version(1)
+            || identity_public(32)
+            || signed_prekey_secret(32) || signed_prekey_id(4) || signed_prekey_sig(64)
+            || one_time_count(4) || one_time[one_time_count]
+            || len(4) || kem_pair || kem_id(4) || kem_sig(64)
+            || kem_one_time_count(4) || kem_one_time[kem_one_time_count]
+            || next_id(4)
+            || seen_count(4) || seen[seen_count]                          -- v2 and later
+            || previous_signed_present(1) || previous_signed              -- v3
+            || previous_kem_present(1) || previous_kem                    -- v3
+
+one_time        = id(4) || secret(32)
+kem_one_time    = id(4) || len(4) || kem_pair || sig(64)
+seen            = kem_id(4) || fingerprint(32)              -- v4
+                = fingerprint(32)                           -- v2 and v3
+previous_signed = secret(32) || id(4) || sig(64)      -- only when present
+previous_kem    = len(4) || kem_pair || id(4) || sig(64)   -- only when present
+```
+
+`kem_pair` is `kem::KeyPair`'s own encoding, opaque here and length-prefixed
+wherever it appears, as the Braid format treats it. `next_id` is the
+identifier the next key added to the store will take, so that replenishment
+continues the sequence rather than restarting it (key-deletion.md). `seen`
+is the record of spent last-resort handshakes, oldest first; from v4 each
+entry carries the identifier of the last-resort KEM key the handshake was
+made against, which is `kem_id` or the identifier inside `previous_kem`,
+and which is what lets a rotation drop a wiped key's entries
+(key-deletion.md). A count larger than the bound the store enforces
+(`MAX_LAST_RESORT_SEEN`, CONSTANTS.md) is refused as malformed before it
+sizes anything. The two `previous_*` fields are the signed prekey and the
+last-resort KEM prekey the most recent rotation retired, each behind a
+presence byte and, like the session's `pending_initial`, followed by
+nothing at all when absent.
+
+**Four versions are read; one is written.** The writer always emits `0x04`.
+The reader also accepts `0x03`, the format before the record was tagged by
+key, whose entries are bare fingerprints and read back tagged with the
+current `kem_id`. That is the conservative reading: the fingerprint alone
+decides whether a handshake is a repeat, since it covers the identifier, so
+every replay the older store refused is still refused, and the only effect
+of a wrong tag is that an entry made under the retired key is dropped one
+rotation later than it need be. The reader further accepts `0x02`, the
+format before rotation, which ends after `seen` and reads back with nothing
+retired; and `0x01`, the format before the replay record, which ends after
+`next_id` and reads back with no fingerprints remembered. Each is the honest
+answer, since those stores recorded no more. A store written by this version
+and read by an earlier one fails on the version byte, which is the intended
+direction of incompatibility.
+
+Four refusals are specific to this format. A presence byte is `0x00` or
+`0x01` and nothing else: a `previous_signed_present` or
+`previous_kem_present` carrying any other value is malformed, not
+"present". Every `seen` entry's identifier must be `kem_id` or the
+identifier inside `previous_kem`: the store drops a key's entries when a
+rotation wipes the key and the writer never emits anything else, so any
+other identifier is malformed. No fingerprint may appear twice in `seen`:
+the responder refuses a repeat before it could be recorded, so a duplicate
+was written by something other than `to_bytes` and is malformed; this rule
+reaches the untagged formats too, where the identifier rule holds
+trivially. And a v4 store must re-encode to the identical bytes: having
+decoded the input, the reader runs `to_bytes` over what it read and refuses
+the input if the result differs. That is the canonicality backstop, the
+same one `Session::import` applies to the session format: it refuses any
+second spelling of a value that the field-by-field checks did not
+enumerate, at the cost of one encode, and it is what makes the "canonical"
+principle above a property of the decoder rather than a promise about the
+writer. It applies only to the version the writer emits. A v1, v2 or v3
+store re-encodes to v4, gaining the fields the newer format added and the
+tags on its record, so comparing there would refuse every honest upgrade,
+and those three versions are read on the field-by-field checks alone.
 
 ## Rejection
 

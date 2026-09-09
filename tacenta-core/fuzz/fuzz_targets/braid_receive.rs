@@ -17,18 +17,37 @@
 //! The agreement is set up honestly first, from a fixed preshared secret, and
 //! the fuzzer drives one side. That is the real attacker's position: they
 //! cannot choose the victim's starting state, only what arrives next.
+//!
+//! **Every candidate that did not fail is committed.** The property under
+//! test is that no sequence of well-formed messages, honest or hostile, walks
+//! the machine anywhere it panics; a target that never adopted a candidate
+//! would stay in its starting state and fuzz two of the eleven (CR-10). A
+//! forged message advancing the machine is not a finding here -- the Braid
+//! authenticates its values, not its chunks, and a wrong value ends in
+//! `Failed` -- so a candidate is refused only when it failed, which keeps the
+//! send side live for the next message.
+//!
+//! **Which side is driven comes from the first byte.** The initiator and the
+//! responder start in different states and the roles swap each epoch, so
+//! either start reaches all eleven given the right transcript; both are
+//! fuzzed so the corpus does not have to reach the far side of an epoch
+//! first. The corpus is seeded with honest transcripts parked in each state
+//! for each role, written by `write_braid_receive_seeds` in
+//! `braid/src/tests.rs`, which mirrors this loop and this layout; libFuzzer
+//! cannot discover a MAC-valid header by mutation.
 
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
 use rand::SeedableRng;
-use tacenta_braid::{Braid, Msg, MsgType, CHUNK_SIZE};
+use tacenta_braid::{Braid, CHUNK_SIZE, Msg, MsgType};
 use tacenta_erasure::Chunk;
 
-/// One message per 43 input bytes: 8 epoch, 1 type, 1 presence, 2 index, 32
-/// chunk. Reading a fixed stride rather than a length prefix keeps the mapping
-/// from input to message stable, which is what lets libFuzzer minimise a crash
-/// to something a human can read.
+/// After the role byte, one message per 43 input bytes: 8 epoch, 1 type, 1
+/// presence, 2 index, 32 chunk. Reading a fixed stride rather than a length
+/// prefix keeps the mapping from input to message stable, which is what lets
+/// libFuzzer minimise a crash to something a human can read. The seed writer
+/// in `braid/src/tests.rs` emits exactly this layout.
 const STRIDE: usize = 8 + 1 + 1 + 2 + CHUNK_SIZE;
 
 fn message_at(bytes: &[u8]) -> Msg {
@@ -68,20 +87,29 @@ fuzz_target!(|data: &[u8]| {
     // crash to a reproducible case.
     let mut rng = rand::rngs::StdRng::seed_from_u64(0);
     let secret = [0x2au8; 32];
-    let mut braid = Braid::initiator(&secret);
+    let Some(role) = data.first() else {
+        return;
+    };
+    let mut braid = if role & 1 == 0 {
+        Braid::initiator(&secret)
+    } else {
+        Braid::responder(&secret)
+    };
 
-    let mut pos = 0usize;
+    let mut pos = 1usize;
     while pos + STRIDE <= data.len() {
         let msg = message_at(&data[pos..pos + STRIDE]);
         pos += STRIDE;
 
-        // `receive` returns a candidate and commits nothing. For fuzzer-chosen
-        // messages the candidate is essentially never one a genuine peer would
-        // have produced, so it is deliberately dropped: a forged message must
-        // be able to advance nothing, and adopting it here would test the
-        // opposite of the property.
+        // `receive` returns a candidate and commits nothing; here the
+        // candidate is adopted unless the message ended the session, so the
+        // sequence can carry the machine through every state. A failed
+        // candidate is left uncommitted so that sending stays possible and
+        // the next message meets a live state rather than the terminal one.
         let (_epoch, _out, candidate) = braid.receive(&msg);
-        let _ = candidate.failed();
+        if !candidate.failed() {
+            braid.commit(candidate);
+        }
 
         // Sending must stay possible from whatever state a rejected message
         // left behind. A forged message that wedges the send side is a denial

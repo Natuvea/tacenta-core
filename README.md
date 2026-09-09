@@ -79,14 +79,79 @@ session path, and sessions and prekey stores serialize.
 ## Verify it yourself
 
 The point of a verification-first library is that you do not have to take its
-word for it. `tacenta-proofs/CLAIMS.md` states each claim; `tacenta-proofs/REPRODUCING.md`
-is how to rebuild the proofs and check the committed vectors against the model.
-The model and the model-layer proofs reproduce on any machine, and the
-committed Rust-to-Lean translation with its T1/T3 proofs builds in the public
-`translation` CI job. Only regenerating that translation from the Rust needs
-the pinned Charon/Aeneas toolchain, which runs in a separate workflow; the
+word for it. `tacenta-proofs/CLAIMS.md` states each claim;
+`tacenta-proofs/REPRODUCING.md` is how to rebuild the proofs, and
+`tacenta-test-vectors/README.md` ("Regenerating the protocol vectors") is how
+to check the committed vectors against the model. The model and the
+model-layer proofs reproduce on any machine, and the committed Rust-to-Lean
+translation with its T1/T3 proofs builds in the public `translation` CI job.
+Only regenerating that translation from the Rust needs the pinned
+Charon/Aeneas toolchain, which runs outside this repository (see below); the
 release and archive digest are stated in `tacenta-proofs/CLAIMS.md` so that
 step can be reproduced elsewhere.
+
+## Building and checking
+
+One command runs the gate: `bash tooling/ci.sh`. The public CI
+(`.github/workflows/ci.yml`) runs the same steps on every push and pull
+request, split into jobs so a failure names its cause. The gate is: the
+workflow, proof-hygiene, label, vector-schema and authentication-boundary
+checks under `tooling/` (with the workflow checker held to its own case
+files under `tooling/tests/`); the Lean model build and the model-layer proofs with
+their `sorry` scan; the attestation check; the committed vectors regenerated
+from the model and compared; the Rust crates (format, lint, tests,
+property-based decoder tests) with a dependency advisory audit, a compile
+check on the minimum supported Rust version, and a 32-bit compile check; and
+the committed Rust-to-Lean translation with its T1/T3 proofs, built and
+scanned for `sorry`.
+
+The two do not run exactly the same set, and the difference is stated
+rather than papered over. Four of those steps need tooling the workflow
+installs and a developer's machine may not have; the workflow always runs
+them, and the script skips each one it cannot run and prints a line saying
+so: the advisory audit (`cargo-audit`), the MSRV check (a 1.87 toolchain),
+the 32-bit check (the armv7 target), and the translation build (the
+translation's Mathlib cache, which is the heavy one). In the other direction
+the script runs two steps the workflow does not: the interoperability
+harness, which is not in this public tree and skips here, and the fuzz smoke
+run, which needs `cargo-fuzz` and a nightly toolchain. So a green local run
+is the gate above less the steps it printed a skip line for, and a run with
+nothing skipped means the same thing here as a green workflow.
+
+| Prerequisite | Version | Used by |
+| --- | --- | --- |
+| Rust toolchain (`cargo`, `clippy`, `rustfmt`) | stable | the Rust crates and the vector runner |
+| `rustup toolchain install 1.87` | 1.87, the `rust-version` every crate names | the MSRV compile check; skipped locally when absent, failed in CI |
+| `cargo-audit` (`cargo install --locked cargo-audit`) | any current release | the advisory audit; skipped locally when absent, failed in CI |
+| `rustup target add armv7-linux-androideabi` | matching the toolchain | the 32-bit compile check; skipped locally when absent, failed in CI |
+| Lean, through elan | the version `tacenta-model/lean-toolchain` and `tacenta-proofs/lean-toolchain` name (v4.31.0) | the model, the proofs, and vector regeneration |
+| the translation's Mathlib cache (`cd tacenta-proofs/translation && lake exe cache get`) | the commit `tacenta-proofs/translation/lake-manifest.json` pins | the translation build and its `sorry` scan; skipped when the cache has not been fetched (the test is for a built `Mathlib.olean`, not the package directory) |
+| `python3` with PyYAML (`pip install pyyaml`) | 3.8 or later | the `tooling/` checks; PyYAML is for the workflow check, which skips locally without it and fails in CI |
+| `git` | any | the vector-currency diff |
+
+Individual pieces can be run on their own: `cargo test --locked --workspace`
+in `tacenta-core`; `cargo test --locked` in
+`tacenta-test-vectors/runners/rust`; `lake build` in `tacenta-model`;
+`scripts/verify.sh` in `tacenta-proofs`. CONTRIBUTING.md has the pre-push
+hook that runs the cheapest of the checks before a push leaves the machine.
+
+Three things run outside this repository, and the gate says so rather than
+pretending to run them. **Regenerating the Rust-to-Lean translation** needs
+the pinned Charon and Aeneas release, which is a linux-x86_64 binary that
+runs on a dedicated runner; the committed translation is what the public
+`translation` job checks, and `tacenta-proofs/CLAIMS.md` records the release
+and its digest so the regeneration can be reproduced elsewhere.
+**Coverage-guided fuzzing** needs `cargo-fuzz` and a nightly toolchain and
+runs for hours, so the search is a nightly job on private infrastructure;
+`tooling/fuzz-smoke.sh` replays the committed corpus when the tooling is
+present, and `tacenta-core/fuzz/README.md` describes the targets. **Timing
+measurements** need a dedicated machine, since a job co-scheduled with other
+load on a shared hosted runner cannot tell a leak from noise;
+`tacenta-core/tests/timing.rs` carries the tests, run by hand or by a nightly
+job outside this repository, and `tacenta-proofs/LIMITATIONS.md` states what
+is and is not established about constant-time behaviour. None of the three
+changes what the public gate proves; each is named here so that a reader
+knows what a green badge does not include.
 
 ## Provenance
 

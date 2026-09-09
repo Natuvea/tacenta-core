@@ -14,6 +14,13 @@
 //!
 //! Both parties are set up honestly, then the fuzzer supplies the message. The
 //! attacker cannot choose the victim's keys, only what arrives.
+//!
+//! The established-session path runs the same bytes against *both* sides,
+//! after one genuine message in each direction, so the initiator's and the
+//! responder's receive paths are each past their opening state (the
+//! responder's was previously never reached, CR-10). A random message cannot
+//! pass the AEAD, so nothing commits here by design; what this asks is that
+//! neither side panics on the way to refusing.
 
 #![no_main]
 
@@ -36,16 +43,27 @@ fuzz_target!(|data: &[u8]| {
     // a crash would show.
     let _ = establish_responder(&bob, &mut bob_prekeys, data, &mut rng);
 
-    // Path two: a message arriving on a session that is already established.
-    // Alice opens one against Bob's real bundle so the ratchet state is
-    // genuine, and then the fuzzer's bytes arrive instead of Bob's reply.
+    // Path two: a message arriving on a session that is already established,
+    // on either side. Alice opens one against Bob's real bundle so the ratchet
+    // state is genuine, Bob establishes from her first message, each sends
+    // once more so both are past their opening state with an actual chain to
+    // fail against, and then the fuzzer's bytes arrive at both instead of the
+    // next genuine message.
     let alice = Identity::generate(&mut rng);
     let bundle = bob_prekeys.publish();
-    if let Ok(mut session) = establish_initiator(&alice, &bundle, &mut rng) {
-        // One real send first, so the session is past its opening state and the
-        // receive path has an actual chain to fail against rather than an empty
-        // one. Reaching the interesting branches needs a session that has run.
-        let _ = session.encrypt(b"fuzz", &mut rng);
-        let _ = session.decrypt(data, &mut rng);
+    if let Ok(mut alice_session) = establish_initiator(&alice, &bundle, &mut rng) {
+        let Ok(initial) = alice_session.encrypt(b"fuzz", &mut rng) else {
+            return;
+        };
+        let Ok((mut bob_session, _)) =
+            establish_responder(&bob, &mut bob_prekeys, &initial, &mut rng)
+        else {
+            return;
+        };
+        if let Ok(reply) = bob_session.encrypt(b"reply", &mut rng) {
+            let _ = alice_session.decrypt(&reply, &mut rng);
+        }
+        let _ = alice_session.decrypt(data, &mut rng);
+        let _ = bob_session.decrypt(data, &mut rng);
     }
 });

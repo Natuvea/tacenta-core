@@ -108,7 +108,6 @@ theorem byte_refines (r : Reader) :
       | core.result.Result.Err _ => remaining r = [] ⦄ := by
   unfold Reader.byte
   step*
-  repeat' split
   all_goals simp_all [remaining]
   all_goals rw [List.drop_eq_getElem_cons (by simp; scalar_tac)]
   all_goals simp
@@ -386,7 +385,6 @@ theorem admit_refines (fs : FieldSet) (field : U32) :
   step with contains_refines as ⟨b, hb⟩
   step*
   all_goals simp_all [fieldsOf, Model.Protobuf.maxFields, MAX_FIELDS]
-  all_goals scalar_tac
 
 /-! ## The message parse
 
@@ -442,7 +440,6 @@ theorem one_field_refines (st : Parse) :
     Model.Protobuf.fieldCiphertext, Model.Protobuf.fieldPq,
     FIELD_RATCHET_KEY, FIELD_COUNTER, FIELD_PREVIOUS_COUNTER,
     FIELD_CIPHERTEXT, FIELD_PQ, wireOf])
-  all_goals (try scalar_tac)
 
 /-! ## The whole message
 
@@ -562,8 +559,8 @@ theorem parse_ratchet_body_loop_refines (st : Parse) (turns : Usize)
       rw [hturnsAeq] at hflag heq
       exact ⟨hflag, heq⟩
   · refine ⟨le_refl _, h, ?_, ?_⟩
-    · simp [Nat.sub_self, Model.Protobuf.parseFrom]
-    · simp [Nat.sub_self, Model.Protobuf.parseFrom]
+    · simp [Model.Protobuf.parseFrom]
+    · simp [Model.Protobuf.parseFrom]
 
 /-- The whole ratchet message: `parse_ratchet_body` computes what
 `Model.Protobuf.parseRatchetBody` says, on both the accepted message and every
@@ -632,7 +629,7 @@ theorem parse_ratchet_body_refines (bytes : alloc.vec.Vec Std.U8) :
           rw [← hEq, hEmptyIff]
           simp only [decide_eq_true_eq]
           scalar_tac
-        simp only [hEmpty, Bool.not_true, if_neg, not_false_iff]
+        simp only [hEmpty, Bool.not_true]
         have hQmaxNotRefused : (Model.Protobuf.parseFrom Model.Protobuf.maxFields
             (Model.Protobuf.initial (bytes.val.map byteOf))).refused = false :=
           r_post1.symm.trans hnotRefused2
@@ -689,7 +686,7 @@ theorem parse_ratchet_body_refines (bytes : alloc.vec.Vec Std.U8) :
                   have hb4_true : Model.Protobuf.seen (Model.Protobuf.parseFrom Model.Protobuf.maxFields
                       (Model.Protobuf.initial (bytes.val.map byteOf))).seen Model.Protobuf.fieldPq = true :=
                     b4_post.symm.trans hb4
-                  simp only [hb4_true, Bool.and_true, Bool.not_true, if_neg, not_false_iff]
+                  simp only [hb4_true, Bool.not_true]
                   refine congrArg some ?_
                   simp [← hEq, stateOf]
                 · rename_i hb4
@@ -727,7 +724,7 @@ theorem parse_ratchet_body_refines (bytes : alloc.vec.Vec Std.U8) :
         simp only [stateOf, hc]
         rfl
       rw [r_post1.symm.trans hrefused]
-      simp [hc]
+      simp
 
 /-! ## The prekey envelope, the other half of item 5
 
@@ -781,7 +778,6 @@ theorem oneEnvelopeField_refines (st : EnvelopeParse) :
     Model.Protobuf.fieldPqPrekeyId, Model.Protobuf.fieldKem,
     FIELD_PREKEY_ID, FIELD_BASE_KEY, FIELD_IDENTITY_KEY, FIELD_MESSAGE,
     FIELD_REGISTRATION_ID, FIELD_SIGNED_PREKEY_ID, FIELD_PQ_PREKEY_ID, FIELD_KEM, wireOf])
-  all_goals (try scalar_tac)
 
 /-- The envelope loop, against `Model.Protobuf.envelopeParseFrom`. Identical
 proof shape to `parse_ratchet_body_loop_refines`: state the invariant against
@@ -882,8 +878,8 @@ theorem parse_prekey_body_loop_refines (st : EnvelopeParse) (turns : Usize)
       rw [hturnsAeq] at hflag heq
       exact ⟨hflag, heq⟩
   · refine ⟨le_refl _, h, ?_, ?_⟩
-    · simp [Nat.sub_self, Model.Protobuf.envelopeParseFrom]
-    · simp [Nat.sub_self, Model.Protobuf.envelopeParseFrom]
+    · simp [Model.Protobuf.envelopeParseFrom]
+    · simp [Model.Protobuf.envelopeParseFrom]
 
 /-- The whole prekey envelope: `parse_prekey_body` computes what
 `Model.Protobuf.parsePrekeyBody` says, on both the accepted message and every
@@ -955,7 +951,7 @@ theorem parse_prekey_body_refines (bytes : alloc.vec.Vec Std.U8) :
           rw [← hEq, hEmptyIff]
           simp only [decide_eq_true_eq]
           scalar_tac
-        simp only [hEmpty, Bool.not_true, if_neg, not_false_iff]
+        simp only [hEmpty, Bool.not_true]
         have hQmaxNotRefused : (Model.Protobuf.envelopeParseFrom Model.Protobuf.maxFields
             (Model.Protobuf.initialEnvelope (bytes.val.map byteOf))).refused = false :=
           r_post1.symm.trans hnotRefused2
@@ -1032,7 +1028,7 @@ theorem parse_prekey_body_refines (bytes : alloc.vec.Vec Std.U8) :
                       have hb6_true : Model.Protobuf.seen (Model.Protobuf.envelopeParseFrom Model.Protobuf.maxFields
                           (Model.Protobuf.initialEnvelope (bytes.val.map byteOf))).seen
                           Model.Protobuf.fieldKem = true := b6_post.symm.trans hb6
-                      simp only [hb6_true, Bool.and_true, Bool.not_true, if_neg, not_false_iff]
+                      simp only [hb6_true, Bool.not_true]
                       refine congrArg some ?_
                       simp [← hEq, envelopeStateOf]
                     · rename_i hb6
@@ -1089,7 +1085,7 @@ theorem parse_prekey_body_refines (bytes : alloc.vec.Vec Std.U8) :
         simp only [envelopeStateOf, hc]
         rfl
       rw [r_post1.symm.trans hrefused]
-      simp [hc]
+      simp
 
 /-! ## What this rests on
 
@@ -1152,5 +1148,35 @@ T1 would not ask about either: a decoder that returns the wrong field never
 panics doing it. Nor would the thirteen worked examples in the model or the
 five tests in the crate, unless one had a case in the range where the two
 descriptions part. That is the argument for item 3 stated concretely. -/
+
+
+/-! The message-level theorems, pinned the same way: the per-field step, the
+loop and the whole message, for both message types. Each rests on the three
+standard axioms alone, which is what "no boundary assumption anywhere in
+either message's proof" means as a build fact rather than a sentence. -/
+
+/-- info: 'Tacenta.ProtobufT3.one_field_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Tacenta.ProtobufT3.one_field_refines
+
+/-- info: 'Tacenta.ProtobufT3.parse_ratchet_body_loop_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Tacenta.ProtobufT3.parse_ratchet_body_loop_refines
+
+/-- info: 'Tacenta.ProtobufT3.parse_ratchet_body_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Tacenta.ProtobufT3.parse_ratchet_body_refines
+
+/-- info: 'Tacenta.ProtobufT3.oneEnvelopeField_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Tacenta.ProtobufT3.oneEnvelopeField_refines
+
+/-- info: 'Tacenta.ProtobufT3.parse_prekey_body_loop_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Tacenta.ProtobufT3.parse_prekey_body_loop_refines
+
+/-- info: 'Tacenta.ProtobufT3.parse_prekey_body_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Tacenta.ProtobufT3.parse_prekey_body_refines
 
 end Tacenta.ProtobufT3

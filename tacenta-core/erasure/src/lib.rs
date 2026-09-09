@@ -38,8 +38,8 @@
 //! than as the evidence for the claim itself.
 
 #![forbid(unsafe_code)]
-// The `?` operator desugars through `Try` into Lean that will not typecheck, so
-// the verified zone does not use it. See tacenta-proofs/upstream/README.md.
+// No `?`: `let`-`else` and `match` instead, for the reason recorded once in
+// tacenta-ratchet's module doc ("The `?` operator"). The lint asks for `?`.
 #![allow(clippy::question_mark)]
 
 /// The field, mirroring `Model.Gf65536` operation for operation.
@@ -151,7 +151,10 @@ pub struct Chunk {
 }
 
 /// How many chunks a message of this length occupies.
-fn chunk_count(size: usize) -> usize {
+///
+/// Public so the Braid can check that a coder restored from persistence is
+/// sized for the value its state says it carries (CR-14, CR-21).
+pub fn chunk_count(size: usize) -> usize {
     size.div_ceil(CHUNK_BYTES)
 }
 
@@ -289,8 +292,27 @@ pub struct Encoder {
 impl Encoder {
     /// Start a stream. The message is padded with zeros to a chunk boundary; its
     /// true length travels separately, and the decoder is told it up front.
+    ///
+    /// A message longer than the field can carry -- `MAX_CODEWORDS` chunks,
+    /// two megabytes -- is truncated to that many chunks rather than refused.
+    /// The cap keeps `next_chunk`'s node index, `s as u16`, from wrapping
+    /// and colliding nodes, which would make every parity codeword silently
+    /// wrong; it is not reachable through this workspace, whose largest value
+    /// is 48 chunks, and an infallible `new` keeps the Braid's send path the
+    /// shape its refinement proof is written against (CR-14).
+    ///
+    /// The cap is a stall at the far end, not a silent loss: the decoder is
+    /// told the message's true length, and a length past `MAX_CODEWORDS`
+    /// chunks names more codewords than this stream will ever issue, so that
+    /// decoder never completes. At the cap the systematic prefix alone spends
+    /// every node in the field, so no parity codeword is issued either, and a
+    /// receiver that missed one chunk of a capped stream is short for good.
+    /// Both are the honest outcome for a message the field cannot carry.
     pub fn new(message: &[u8]) -> Encoder {
-        let k = chunk_count(message.len());
+        let mut k = chunk_count(message.len());
+        if k > MAX_CODEWORDS {
+            k = MAX_CODEWORDS;
+        }
         let mut chunks = Vec::with_capacity(k);
         let mut t = 0;
         while t < k {
@@ -432,6 +454,25 @@ impl Encoder {
         if count > bytes.len() / CHUNK_BYTES {
             return None;
         }
+        // **The same bound `Decoder::from_bytes` places on `needed`.** `new`
+        // caps a stream at `MAX_CODEWORDS` chunks, so a count above it is one
+        // no honest run produced; and it is the count that sizes `weights`,
+        // which is quadratic in it, so a stored stream declaring tens of
+        // thousands of chunks would turn the first non-systematic send into
+        // minutes of field arithmetic. Bounding it here keeps the two coders'
+        // restore paths consistent (CR-14).
+        if count > MAX_CODEWORDS {
+            return None;
+        }
+        // `next` is the index of the next codeword and runs past `count` as
+        // soon as the systematic prefix has been issued, so it carries no
+        // bound of its own. What it does carry is the exhaustion invariant:
+        // `next_chunk` sets `exhausted` only at the last index and leaves
+        // `next` there, so an exhausted stream at any other index is a second
+        // spelling of no reachable state.
+        if exhausted && next != u16::MAX {
+            return None;
+        }
         let mut chunks = Vec::new();
         let mut ok = true;
         for _ in 0..count {
@@ -505,6 +546,13 @@ impl Decoder {
 
     pub fn needed(&self) -> usize {
         self.needed
+    }
+
+    /// The length of the message this decoder was told to expect. The Braid
+    /// checks it against the length its state implies when it restores a
+    /// decoder from persistence (CR-21).
+    pub fn size(&self) -> usize {
+        self.size
     }
 
     /// The message, once enough codewords have arrived.
@@ -704,6 +752,76 @@ mod decode_bounds_tests {
         let mut widest_decoder = vec![0u8; 20];
         widest_decoder[16..20].copy_from_slice(&u32::MAX.to_be_bytes());
         assert!(Decoder::from_bytes(&widest_decoder).is_none());
+    }
+
+    /// A stored encoder declaring one chunk more than the field has nodes is
+    /// refused, even when the buffer really holds that many chunks. Two
+    /// megabytes of input, once; it is the cheapest form of the restore that
+    /// CR-14 describes hanging the first send.
+    #[test]
+    fn an_encoder_with_more_chunks_than_the_field_has_nodes_is_refused() {
+        let count = MAX_CODEWORDS + 1;
+        let mut bytes = vec![0u8; 7 + count * CHUNK_BYTES];
+        bytes[3..7].copy_from_slice(&(count as u32).to_be_bytes());
+        assert!(Encoder::from_bytes(&bytes).is_none());
+
+        // One fewer is the largest stream `new` can build, and it restores.
+        let count = MAX_CODEWORDS;
+        let mut bytes = vec![0u8; 7 + count * CHUNK_BYTES];
+        bytes[3..7].copy_from_slice(&(count as u32).to_be_bytes());
+        assert!(Encoder::from_bytes(&bytes).is_some());
+    }
+
+    /// `exhausted` is set only when the last index has been issued, and
+    /// `next` stays there; a stream claiming exhaustion elsewhere is refused.
+    #[test]
+    fn an_exhausted_encoder_not_at_the_last_index_is_refused() {
+        let msg = vec![1u8; 40];
+        let enc = Encoder::new(&msg);
+        let mut bytes = enc.to_bytes();
+        bytes[2] = 0x01;
+        assert!(Encoder::from_bytes(&bytes).is_none());
+        bytes[0..2].copy_from_slice(&u16::MAX.to_be_bytes());
+        assert!(Encoder::from_bytes(&bytes).is_some());
+    }
+
+    /// `new` caps a stream at the field's node count rather than letting the
+    /// node index wrap. At the cap the systematic prefix alone spends every
+    /// node: the stream issues exactly `MAX_CODEWORDS` codewords, in order,
+    /// the last of them carrying the last chunk kept, and then reports
+    /// exhaustion with no parity codeword ever issued. The chunks past the
+    /// cap never appear.
+    #[test]
+    fn new_caps_a_message_at_the_field_size() {
+        let mut msg = vec![0x5au8; (MAX_CODEWORDS + 3) * CHUNK_BYTES];
+        // Mark the last chunk kept and the first one dropped, so the test can
+        // tell which of them the last codeword carries.
+        msg[(MAX_CODEWORDS - 1) * CHUNK_BYTES] = 0x01;
+        msg[MAX_CODEWORDS * CHUNK_BYTES] = 0x02;
+        let mut enc = Encoder::new(&msg);
+        assert_eq!(enc.needed(), MAX_CODEWORDS);
+
+        let mut issued = 0usize;
+        let mut last = None;
+        while let Some(chunk) = enc.next_chunk() {
+            assert_eq!(
+                chunk.index as usize, issued,
+                "codewords are issued in order"
+            );
+            issued += 1;
+            last = Some(chunk);
+        }
+        assert_eq!(
+            issued, MAX_CODEWORDS,
+            "one codeword per node, and no parity"
+        );
+        let last = last.unwrap();
+        assert_eq!(last.index, u16::MAX);
+        assert_eq!(
+            last.data[0], 0x01,
+            "the last codeword is the last chunk kept"
+        );
+        assert!(enc.next_chunk().is_none(), "exhaustion holds");
     }
 }
 

@@ -42,7 +42,7 @@ the AEAD's associated data at the implementation layer, so the model represents
 
 ## Not yet modelled
 
-**Sender keys and multi-device**, both milestone M4. There is no sender-keys
+**Sender keys and multi-device**, neither yet scheduled. There is no sender-keys
 model file; `Model/MultiDevice.lean` is a five-line scaffold. Their spec pages
 state their in-scope surface.
 

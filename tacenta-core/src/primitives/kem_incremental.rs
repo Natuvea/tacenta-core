@@ -1,7 +1,7 @@
 //! kem_incremental: ML-KEM-1024's incremental interface.
 //!
 //! The implementation is [`tacenta_kem`], a leaf crate, for the reason
-//! [`super::super::kdf`]'s is: the ML-KEM Braid is built on this interface, and
+//! [`super::kdf`]'s is: the ML-KEM Braid is built on this interface, and
 //! a translation of the Braid must see the primitive as an opaque declaration
 //! rather than as libcrux's const-generic internals.
 //!

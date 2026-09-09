@@ -54,15 +54,17 @@ inputs; libsignal's source code is not an input to this project.
 |---|---|---|
 | KDF_CK (chain step) | Derivations | ratchet vectors, `deriveChain` proofs |
 | KDF_RK (root step) | Derivations | ratchet vectors (bidirectional) |
-| Message-key expansion | Derivations | core AEAD round-trip test |
+| Message-key expansion | Derivations | every step of the model-generated ratchet vectors (`message_keys`: enc, mac, iv, checked by the runner against the implementation's expansion), core AEAD round-trip test |
 | Symmetric-key ratchet | The symmetric-key ratchet | in-order vector |
-| Diffie-Hellman ratchet | The Diffie-Hellman ratchet | bidirectional vector |
+| Diffie-Hellman ratchet | The Diffie-Hellman ratchet | bidirectional and peer-revisits-ratchet-key vectors |
 | Skipped keys, MAX_SKIP | Skipped keys | out-of-order vector, `skipMessageKeys_growth`, reject vector |
 | Skipped store bound, MAX_SKIPPED_STORE | Skipped keys | `skipMessageKeys_store_bounded`, core store-bound test |
 | Session initialisation | Sending and receiving | all vectors (init_sender / init_receiver) |
 
 Vectors: `vectors/ratchet/double-ratchet.json` (`in-order-3`,
-`out-of-order-skip`, `bidirectional`) and
+`out-of-order-skip`, `bidirectional`, and `peer-revisits-ratchet-key`, in
+which a peer returns to a ratchet key it had left and numbers a fresh chain
+from zero under a key already in the store) and
 `vectors/malformed-input/ratchet-reject.json`
 (`reject-too-many-skipped`, a header demanding more than `MAX_SKIP` skips,
 which the receiver must reject). Runner: `runners/rust/tests/ratchet.rs`.
@@ -84,10 +86,12 @@ which the receiver must reject). Runner: `runners/rust/tests/ratchet.rs`.
 
   Written up in `tacenta-spec/protocol/sparse-pq-ratchet.md` and
   `triple-ratchet.md`. `tacenta-spqr`, `tacenta-triple` and `tacenta-braid`
-  are modelled, covered by vectors, and integrated into `Session`, which
-  drives the classical ratchet, the sparse ratchet, and the Braid as one
-  transaction on every encrypt and decrypt. The post-quantum section below
-  sets out the state per component.
+  are modelled, their derivations pinned by vectors, their state machines
+  established by proof rather than by vectors, and all three integrated into
+  `Session`, which drives the classical ratchet, the sparse ratchet, and the
+  Braid as one transaction on every encrypt and decrypt. The post-quantum
+  section below sets out the state per component and draws that line
+  precisely.
 
 ### Determined elsewhere
 
@@ -203,11 +207,22 @@ provenance in `tacenta-spec/CONSTANTS.md` rather than chosen here.
 
 Runner: `runners/rust/tests/session_establishment.rs`.
 
+### Also covered, outside this directory
+
+The initial-message encoding and the prekey-bundle encoding are specified in
+`tacenta-spec/protocol/message-format.md` (Initial message; Prekey bundle);
+the former has vectors under the Message format section below, the latter a
+core round-trip test. Key identifiers, one-time-key consumption after
+authentication, replenishment, the last-resort replay record, and signed and
+KEM prekey rotation are specified in `key-deletion.md` and covered by core
+tests; the prekey store's persisted layout is in `session-persistence.md`
+(Prekey store).
+
 ### Not yet covered
 
-Key identifiers, one-time-key selection and depletion on the server side, and
-the initial-message encoding are still to come, as is the deletion discipline
-for used private keys.
+One-time-key selection and depletion on the *server* side, which is outside
+this implementation; the client's expectations of the server are stated in
+`key-deletion.md`, Prekeys at rest.
 
 ### Excluded
 
@@ -230,7 +245,8 @@ for used private keys.
 | Ratchet message encoding | `vectors/serialization/message-encoding.json`, and `decode_encode` (round-trip proof) |
 | Header encoding | same |
 | `CONCAT(ad, header)` uniqueness | core and model tests: two splits of the same bytes differ |
-| Initial (prekey) message encoding | core round-trip test |
+| Initial (prekey) message encoding | `vectors/serialization/initial-message.json`, generated from the model, and a core round-trip test |
+| Prekey bundle encoding (message-format.md, Prekey bundle) | core round-trip and rejection tests; no vectors, since the model does not encode bundles |
 | Rejection of unknown version, truncation, and length overrun | core tests |
 
 Runner: `runners/rust/tests/serialization.rs`.
@@ -247,9 +263,12 @@ is not claimed, and this is recorded rather than implied.
 ## Interoperability with libsignal
 
 Scope is the bundle layer: prekey-bundle exchange and the session establishment
-it enables. Any result is obtained against a pinned official libsignal release
-through the neutral harness (ADR-0004) and claimed by version and covered
-surface; see "Not yet covered" below for the current state of execution.
+it enables. Our side of that layer is specified in
+`tacenta-spec/protocol/message-format.md` (Prekey bundle) and
+`session-establishment.md`. Any result is obtained against a pinned official
+libsignal release through the neutral harness (ADR-0004) and claimed by
+version and covered surface; see "Not yet covered" below for the current
+state of execution.
 Message-layer interoperability is out of reach under the clean-room boundary and
 is not claimed.
 
@@ -260,25 +279,38 @@ version detail rather than anything about this implementation.
 
 ## Primitives
 
-RFC and NIST known-answer vectors, checked against tacenta-core by
-`runners/rust/tests/primitives.rs` and against the model at build time.
+RFC and NIST known-answer vectors, checked by `runners/rust/tests/primitives.rs`
+and, for the hash and its derivations, against the model at build time. Each
+row says what the vectors are checked against, because it is not the same
+thing in every row.
 
-| Primitive | Source | Vectors |
-|---|---|---|
-| SHA-256 | NIST FIPS 180-4 examples | model build-time checks |
-| HMAC-SHA256 | RFC 4231 | `vectors/primitives/hmac-sha256.json` |
-| HKDF-SHA256 | RFC 5869 | `vectors/primitives/hkdf-sha256.json` |
-| X25519 | RFC 7748 | `vectors/primitives/x25519.json` |
-| Ed25519 | RFC 8032 | `vectors/primitives/ed25519.json` |
+| Primitive | Source | Vectors | Checked against |
+|---|---|---|---|
+| SHA-256 | NIST FIPS 180-4 examples | model build-time checks | the model's own SHA-256 |
+| HMAC-SHA256 | RFC 4231 | `vectors/primitives/hmac-sha256.json` | tacenta-core |
+| HKDF-SHA256 | RFC 5869 | `vectors/primitives/hkdf-sha256.json` | tacenta-core |
+| X25519 | RFC 7748 | `vectors/primitives/x25519.json` | tacenta-core |
+| Ed25519 | RFC 8032 | `vectors/primitives/ed25519.json` | `ed25519-dalek`, the trusted-boundary crate `xeddsa::verify` calls; tacenta-core exposes no Ed25519 API of its own, so the runner checks the crate directly at the version its lockfile pins |
+| XEdDSA | project-generated | `vectors/primitives/xeddsa.json` | tacenta-core, signing under a fixed nonce and verifying the result |
+
+**XEdDSA has no published known-answer vectors**: the specification carries
+none. The file is this implementation's own output for a fixed key, nonce and
+message, recorded so that a change to the nonce derivation, the scalar
+negation, or the sign-bit handling shows up as a diff. It is a pin, not a
+validation against an authority, and the row says so. The independent check
+is that every signature verifies under `ed25519-dalek`'s strict verifier, a
+separate implementation of the underlying scheme.
 
 ## Not yet covered
 
-Sender keys and multi-device are later milestones and have no vectors. Session
-establishment is partly covered: see
-the PQXDH section above for what the vectors reach and what they do not.
-Malformed-input handling is covered for the ratchet's skip bound;
-broader malformed-input cases (bad decryption, truncated headers) come with the
-message-format work. Interoperability against a libsignal-based peer is bundle-layer scope: the
+Sender keys and multi-device are not yet scheduled and have no vectors. Session
+establishment: see the PQXDH section above for what the vectors reach and what
+core tests cover instead. Malformed-input handling is covered by vectors for
+the ratchet's skip bound; the broader cases (bad decryption, truncated
+headers, length overruns, the bundle's presence rule) are covered by core
+tests and by the fuzz targets rather than by files in this directory.
+Interoperability against a libsignal-based peer is bundle-layer scope: the
 harness contract is defined (the neutral adapter API, the black-box boundary,
-and claim-by-version discipline), with execution gated on session establishment
-in tacenta-core and a pinned libsignal build.
+and claim-by-version discipline) and session establishment is implemented;
+what remains is a run against a pinned libsignal build, and the harness and
+its adapters are not part of this public tree.

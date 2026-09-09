@@ -27,3 +27,9 @@ attestation hashes are current; it does not read LIMITATIONS.md and it does
 not compare theorem *statements* to the prose, which is a reviewer's job
 (REPRODUCING.md says what a green `attest` does and does not establish).
 [REPRODUCING.md](REPRODUCING.md) is the toolchain and the steps.
+
+## Trademarks and non-affiliation
+
+tacenta-core and Tacenta are not affiliated with, endorsed by, or sponsored by
+Signal Messenger LLC or the Signal Foundation. "Signal" and "libsignal" are used
+only to name the published protocols and the third-party software they refer to.

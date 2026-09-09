@@ -103,7 +103,7 @@ theorem chain_clone_spec (ch : Chain) :
     Chain.Insts.CoreCloneClone.clone ch ⦃ fun ch' => ch' = ch ⦄ := by
   unfold Chain.Insts.CoreCloneClone.clone
   step with core.array.CloneArray.clone_spec core.clone.CloneU8 ch.ck
-    (fun x _ => by simp [core.clone.CloneU8, liftFun1])
+    (fun x _ => by simp [liftFun1])
   simp [lift, ← a_post]
 
 /-- Cloning a pair of chain slots returns exactly that pair, given the `Option`
@@ -147,7 +147,6 @@ theorem find_chains_loop_no_panic (st : State) (e : U64) (i : Usize) :
     split <;> [skip; simp]
     step*
     all_goals (try simp_all)
-    all_goals (try scalar_tac)
     all_goals (try (intro cs hcs; injection hcs with hcs; subst hcs; simp_all [List.mem_iff_getElem]; scalar_tac))
   · trivial
 
@@ -176,8 +175,7 @@ theorem try_skipped_loop_no_panic (hrm : VecRemoveTotal)
       -- the index is below a vector's length.
       obtain ⟨⟨removed, v'⟩, hrm', herase⟩ := hrm Global st.skipped i1
       step*
-      repeat' (split <;> (try step*))
-      all_goals (try simp_all [hrm', herase, List.length_eraseIdx])
+      all_goals (try simp_all [List.length_eraseIdx])
       all_goals (try scalar_tac)
     · simp
   · trivial
@@ -227,7 +225,6 @@ theorem skip_message_keys_loop_no_panic (hkdf : KdfCkTotal) (hz : ZeroizeTotal)
     · -- The walk is over: `num` has reached `upto`, the remaining count is
       -- zero, and the invariant is exactly the postcondition.
       (try simp_all)
-      all_goals (try scalar_tac)
   · exact le_refl _
 
 /-- Replacing an epoch's chains cannot fail, **given room for one more**.
@@ -257,10 +254,9 @@ theorem set_chains_no_panic (hret : VecRetainTotal) (st : State) (e : U64)
     st.chains e
   simp only [hv]
   step*
-  all_goals (try simp_all [List.mem_append, List.mem_singleton])
+  all_goals (try simp_all [List.mem_append])
   all_goals (try (intro a b hab; rcases hab with hab | ⟨rfl, rfl⟩ <;>
       [exact Or.inl (hsub a b hab); exact Or.inr ⟨rfl, rfl⟩]))
-  all_goals (try scalar_tac)
 
 /-- Ageing out old epochs cannot fail.
 
@@ -283,7 +279,7 @@ theorem clear_old_epochs_no_panic (hret : VecRetainTotal) (st : State)
     State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool
     st.skipped current
   simp only [hv, hw]
-  step* <;> simp_all
+  step*
 
 theorem advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
     (hz : ZeroizeTotal) (st : State) (out : Output)
@@ -319,7 +315,6 @@ theorem advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
     all_goals (try (step with set_chains_no_panic hret))
     all_goals (try simp_all)
     all_goals (try (step with clear_old_epochs_no_panic hret))
-    all_goals (try step*)
     all_goals (try simp_all)
     all_goals (try constructor)
     all_goals (try scalar_tac)
@@ -333,7 +328,6 @@ theorem advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
     all_goals (try (step with set_chains_no_panic hret))
     all_goals (try simp_all)
     all_goals (try (step with clear_old_epochs_no_panic hret))
-    all_goals (try step*)
     all_goals (try simp_all)
     all_goals (try constructor)
     all_goals (try scalar_tac)
@@ -381,10 +375,7 @@ theorem send_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
   all_goals (try step*)
   all_goals (try (obtain ⟨⟨next, mk⟩, hk⟩ := hkdf ch1.ck n; simp only [hk]))
   all_goals (try (step with hopt Chain.Insts.CoreCloneClone cs1.receive (fun x _ => chain_clone_spec x)))
-  all_goals (try step*)
   all_goals (try (step with set_chains_no_panic hret))
-  all_goals (try simp_all)
-  all_goals (try scalar_tac)
   all_goals (try (
     rcases r_post3 sending_epoch cs o_post with hp | ⟨o', ho', ha, hsendfresh, hrecvfresh⟩
     · exact hcounter sending_epoch cs hp ch (Or.inl ‹cs.send = some ch›)
@@ -447,10 +438,7 @@ theorem skip_message_keys_no_panic (hret : VecRetainTotal) (happ : VecAppendTota
   all_goals (try step*)
   all_goals (try (step with chains_clone_spec hopt))
   all_goals (try step*)
-  all_goals (try (step with chain_clone_spec))
-  all_goals (try step*)
   all_goals (try simp_all [UScalar.cast_val_eq])
-  all_goals (try scalar_tac)
   all_goals (try (rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac))
   all_goals (try (step with skip_message_keys_loop_no_panic hkdf hz e upto ch.ck (alloc.vec.Vec.with_capacity Skipped (UScalar.cast UScalarTy.Usize count)) ch.n (by simp only [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new, alloc.vec.Vec.length]; rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac)))
   all_goals (try (obtain ⟨v, hv, hvlen⟩ := hret Global State.skip_message_keys.closure.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool st.skipped (e, ch.n, upto); simp only [hv]))
@@ -473,10 +461,8 @@ theorem skip_message_keys_no_panic (hret : VecRetainTotal) (happ : VecAppendTota
   all_goals (try (obtain ⟨v1, w⟩ := r))
   all_goals (try step*)
   all_goals (try (step with hopt Chain.Insts.CoreCloneClone cs.send (fun x _ => chain_clone_spec x)))
-  all_goals (try step*)
   all_goals (try (step with set_chains_no_panic hret))
   all_goals (try simp_all)
-  all_goals (try scalar_tac)
   all_goals (try (right; intro a b hab; rcases self1_post3 a b hab with h | ⟨ha, hb⟩ <;>
     first
       | exact Or.inl h
@@ -517,22 +503,14 @@ theorem receive_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal) (hz : Zeroiz
     scalar_tac
   step with maybe_advance_no_panic hret hrk hz st out (by scalar_tac) hepoch
   all_goals (try step*)
-  all_goals (try (step with try_skipped_no_panic hrm))
-  all_goals (try step*)
   all_goals (try (simp only [lift]))
   all_goals (try (step with skip_message_keys_no_panic hret happ hkdf hz hopt))
-  all_goals (try exact hupto1)
   all_goals (try step*)
   all_goals (try (step with chains_clone_spec hopt))
   all_goals (try step*)
-  all_goals (try (step with chain_clone_spec))
-  all_goals (try step*)
   all_goals (try (obtain ⟨⟨next, mk⟩, hk⟩ := hkdf ch1.ck n; simp only [hk]))
   all_goals (try (step with hopt Chain.Insts.CoreCloneClone cs1.send (fun x _ => chain_clone_spec x)))
-  all_goals (try step*)
   all_goals (try (step with set_chains_no_panic hret))
-  all_goals (try simp_all)
-  all_goals (try scalar_tac)
   all_goals (try (
     have hfrom1 : (receiving_epoch, cs) ∈ self1.chains.val → ↑ch.n < U64.max := by
       intro h1

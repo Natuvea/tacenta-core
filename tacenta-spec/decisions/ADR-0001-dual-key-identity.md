@@ -22,7 +22,9 @@ Prekey signatures are ordinary Ed25519 signatures under the identity's signing
 key. This deviates from the specifications' single-key design; the deviation is
 carried in tacenta-spec's identities-and-devices and key-registration pages and
 in the conformance manifest, so no compatibility with the single-key wire
-format is implied.
+format is implied. (Those two pages are scaffolds, and this decision was
+superseded before they were written; the single-key design that replaced it
+is specified on session-establishment.md and in ADR-0002.)
 
 ## Consequences
 

@@ -311,7 +311,10 @@ fn to_bytes_from_bytes_round_trips_a_populated_state() {
 
     let bytes = b.to_bytes();
     let restored = State::from_bytes(&bytes).unwrap();
-    assert_eq!(b, restored);
+    // Encodings rather than states: `State` has no equality, since a derived
+    // one would compare key material byte-wise (CR-22). Each half's own tests
+    // compare the restored structure field by field.
+    assert_eq!(restored.to_bytes().as_slice(), bytes.as_slice());
 
     // The restored state keeps working: h1 and h0 are still recoverable, and
     // agree with what receiving them on the un-restored original would give.
@@ -330,7 +333,7 @@ fn to_bytes_from_bytes_round_trips_a_fresh_state() {
     let fresh = alice();
     let bytes = fresh.to_bytes();
     let restored = State::from_bytes(&bytes).unwrap();
-    assert_eq!(fresh, restored);
+    assert_eq!(restored.to_bytes().as_slice(), bytes.as_slice());
 }
 
 #[test]
@@ -363,4 +366,126 @@ fn from_bytes_rejects_trailing_bytes() {
         State::from_bytes(&bytes),
         Err(TripleDecodeError::Malformed)
     ));
+}
+
+/// The two verified-zone copies of `take_len_prefixed` must not drift.
+///
+/// `LABELS.md` explains why there is no shared crate for the leaf zones:
+/// each is translated alone, so a construct one cannot express never reaches
+/// another. The cost is that this helper exists here and in `tacenta-braid`
+/// (and a third time, written with `?`, in the root crate's session
+/// persistence, which is outside every leaf and not checked here). Neither
+/// copy is public, so this compares the two function bodies as source,
+/// comment lines stripped, and pins this crate's copy on a small corpus so
+/// its behaviour is fixed as well as its text (CR-35).
+#[test]
+fn take_len_prefixed_agrees_with_the_braid_copy() {
+    fn body(source: &str) -> String {
+        let start = source
+            .find("fn take_len_prefixed(")
+            .expect("the helper is present");
+        let rest = &source[start..];
+        let end = rest.find("\n}\n").expect("the helper ends") + 3;
+        let mut out = String::new();
+        for line in rest[..end].lines() {
+            let t = line.trim();
+            if t.starts_with("//") || t.is_empty() {
+                continue;
+            }
+            out.push_str(t);
+            out.push('\n');
+        }
+        out
+    }
+    let here = body(include_str!("lib.rs"));
+    let braid = body(include_str!("../../braid/src/lib.rs"));
+    assert_eq!(here, braid, "the two take_len_prefixed copies have drifted");
+
+    // The behavioural pin, on the copy this crate can call.
+    let buf: &[u8] = &[0, 0, 0, 2, 0xaa, 0xbb, 0, 0, 0, 0, 0, 0, 0, 1, 0xcc];
+    assert_eq!(take_len_prefixed(buf, 0), Some((&buf[4..6], 6)));
+    assert_eq!(take_len_prefixed(buf, 6), Some((&buf[10..10], 10)));
+    assert_eq!(take_len_prefixed(buf, 10), Some((&buf[14..15], 15)));
+    assert_eq!(take_len_prefixed(buf, 15), None, "no prefix left");
+    assert_eq!(take_len_prefixed(buf, 12), None, "a length past the end");
+    assert_eq!(take_len_prefixed(buf, 14), None, "a prefix cut short");
+    assert_eq!(
+        take_len_prefixed(buf, usize::MAX - 2),
+        None,
+        "a position that would wrap"
+    );
+    let huge: &[u8] = &[0xff, 0xff, 0xff, 0xff];
+    assert_eq!(take_len_prefixed(huge, 0), None, "a length that would wrap");
+}
+
+/// Seeds for the `triple_receive` fuzz target: a few honest headers from
+/// each side, in the target's stride layout, so the corpus starts from
+/// messages the ratchets accept rather than from noise (CR-10).
+///
+/// Ignored by default because it writes into the corpus; run it deliberately
+/// when the target's layout changes:
+///
+/// ```sh
+/// cargo test -p tacenta-triple -- --ignored write_triple_receive_seeds
+/// ```
+#[test]
+#[ignore]
+fn write_triple_receive_seeds() {
+    // The target's layout: a role byte, then per message 32 dh, 4 pn, 4 n,
+    // 8 epoch, 8 pq_n, 1 output presence, 8 output epoch, 32 output key.
+    // Kept in step with the target by hand; its doc comment names this test.
+    fn encode(h: &Header, o: Option<&Output>, out: &mut Vec<u8>) {
+        out.extend_from_slice(&h.dr.dh);
+        out.extend_from_slice(&h.dr.pn.to_be_bytes());
+        out.extend_from_slice(&h.dr.n.to_be_bytes());
+        out.extend_from_slice(&h.epoch.to_be_bytes());
+        out.extend_from_slice(&h.pq_n.to_be_bytes());
+        match o {
+            Some(o) => {
+                out.push(1);
+                out.extend_from_slice(&o.key_epoch.to_be_bytes());
+                out.extend_from_slice(&o.key);
+            }
+            None => {
+                out.push(0);
+                out.extend_from_slice(&[0u8; 8 + 32]);
+            }
+        }
+    }
+    let dir =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../fuzz/corpus/triple_receive");
+    std::fs::create_dir_all(&dir).unwrap();
+
+    // Role 0 drives Bob, who has received Alice's first message; the seed is
+    // Alice's next few, with an agreement secret on the third. Role 1 drives
+    // Alice after her first send; the seed is Bob's replies.
+    let mut a = alice();
+    let mut b = bob();
+    let (h, _) = a.send(0, None).unwrap();
+    receive_and_commit(&mut b, &h, &DH_AB, &DH_B2A, B2_PUB, None).unwrap();
+
+    let mut seed0 = vec![0u8];
+    let o = out(1, 0x33);
+    let mut i = 0;
+    while i < 4 {
+        let output = if i == 2 { Some(&o) } else { None };
+        let epoch = if i >= 2 { 1 } else { 0 };
+        let (h, _) = a.send(epoch, output).unwrap();
+        encode(&h, output, &mut seed0);
+        i += 1;
+    }
+    let path = dir.join("seed-responder-honest.bin");
+    std::fs::write(&path, &seed0).unwrap();
+    println!("wrote {} ({} bytes)", path.display(), seed0.len());
+
+    let mut seed1 = vec![1u8];
+    let mut i = 0;
+    while i < 3 {
+        let (h, _) = b.send(0, None).unwrap();
+        encode(&h, None, &mut seed1);
+        i += 1;
+    }
+    let path = dir.join("seed-initiator-honest.bin");
+    std::fs::write(&path, &seed1).unwrap();
+    println!("wrote {} ({} bytes)", path.display(), seed1.len());
 }
