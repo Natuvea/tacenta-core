@@ -51,8 +51,9 @@ implementation's source.
   HMAC-SHA256 key, and a 16-byte IV, which the AEAD (see message-format) then
   uses.
 
-The primitives themselves are specified in the security-properties pages and
-implemented at the trusted boundary; this page composes them.
+The primitives themselves are implemented at the trusted boundary and named
+in the proofs' trusted base (`tacenta-proofs/CLAIMS.md`); this page composes
+them.
 
 ## The symmetric-key ratchet
 
@@ -149,9 +150,11 @@ What this page describes is what runs -- it is not *all* of what runs.
 
 Forward secrecy comes from discarding each message key and each superseded chain
 key. Post-compromise security comes from the Diffie-Hellman ratchet reseeding
-the root key from fresh agreements. These are stated precisely, with their
-assumptions and limits, on the forward-secrecy and post-compromise-security
-pages, and are the properties the proofs target.
+the root key from fresh agreements. Post-compromise security is stated with its
+assumptions and limits on the post-compromise-security page; the
+forward-secrecy page is still a scaffold, and until it is written
+`tacenta-proofs/CLAIMS.md` is the record of what is established about either
+property and `key-deletion.md` of the deletions forward secrecy rests on.
 
 ## Sources
 

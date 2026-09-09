@@ -67,9 +67,14 @@ not recognise the leading byte fails.
   producing ciphertext `CT`. `PQKEM-DEC(PK, CT)` recovers `SS` with the private
   key.
 
-The KDF's `info` is not the bare application string: it is the application
-`info`, the curve, the hash, and the KEM joined by underscores, so a secret
-derived under one parameter set can never collide with another.
+The KDF's `info` is the `info` parameter from the table above, used
+verbatim: `Tacenta_CURVE25519_SHA-256_ML-KEM-1024` (`SK_INFO` in the session
+crate, registered in `tacenta-core/LABELS.md`). The specification recommends
+the string name the application, the curve, the hash, and the KEM, which is
+how ours is composed, so a secret derived under one parameter set cannot
+collide with one derived under another; but the composition happened when the
+constant was chosen, and the code passes the fixed string rather than
+assembling it.
 
 ## Keys
 
@@ -220,8 +225,11 @@ Mutual authentication comes from `DH1` and `DH2` and rests on the discrete log
 problem, not on the KEM. Forward secrecy comes from `DH3`, `DH4`, and `SS`, and
 from deleting ephemeral and one-time private keys once used. Resistance to
 harvest-now-decrypt-later comes from `SS`. Deniability is retained: neither party
-gets a publishable proof of the conversation. These are stated with their
-assumptions on the security-properties pages.
+gets a publishable proof of the conversation. The security-properties pages
+that would state these with their assumptions are scaffolds apart from
+post-compromise security; until they are written, `tacenta-proofs/CLAIMS.md`
+records what is established about session establishment and
+`tacenta-proofs/LIMITATIONS.md` what is not.
 
 ## Sources
 

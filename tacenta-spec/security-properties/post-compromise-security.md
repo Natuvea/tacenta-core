@@ -68,5 +68,7 @@ own page, and none of the above covers it.
   for the Diffie-Hellman ratchet and its recovery properties, and for the
   observation that a compromised chain runs forward unaided. Archived and pinned
   in the conformance manifest.
-- The forward-secrecy page, which is the same mechanism read in the other
-  direction.
+- Forward secrecy is the same mechanism read in the other direction. Its page
+  in this directory is still a scaffold; `tacenta-proofs/CLAIMS.md` records
+  what is established about it, and `protocol/key-deletion.md` the deletions
+  it rests on.

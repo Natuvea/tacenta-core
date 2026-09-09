@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
-# The single verification gate for tacenta-core; the project's CI runs
-# it on every push. One source of truth for
+# The single verification gate for tacenta-core. One source of truth for
 # "does it pass": the Lean proofs, the model-vector currency check, and the Rust
 # crates (fmt, clippy, tests), including the property-based decoder tests.
+#
+# The public workflow, `.github/workflows/ci.yml`, runs these same steps on
+# every push and pull request, split into jobs so a failure names its cause;
+# this script is the one-command form for a developer's machine. The two are
+# meant to agree, and a step added here belongs there too. The three steps
+# below that skip when their tooling is absent (the interoperability harness,
+# the fuzz smoke run, and the 32-bit check when the target is not installed)
+# are the ones the workflow does not install; the README's "Building and
+# checking" section says what runs outside this repository and why.
 #
 # The runner must provide: elan with Lean v4.31.0 (lake on PATH) and a Rust
 # stable toolchain (cargo, clippy, rustfmt). The Aeneas T1 build is heavier and
@@ -12,8 +20,9 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
 # Cross-file only: a workflow cannot check its own parseability, because a file
-# that does not parse runs nothing. This catches the *other* workflow breaking,
-# and the pre-push hook catches both before they leave the machine.
+# that does not parse runs nothing. In CI this catches the *other* workflow
+# files breaking; the pre-push hook in `.githooks/`, once enabled as
+# CONTRIBUTING.md describes, catches all of them before they leave the machine.
 echo "== Workflows parse =="
 bash tooling/check-workflows.sh
 
@@ -35,6 +44,11 @@ bash tooling/check-proof-hygiene.sh
 # for anything new -- the property distinctness does not give you.
 echo "== Derivation labels are registered =="
 bash tooling/check-labels.sh
+
+# The runners parse vectors with serde, which ignores what it does not know;
+# the schemas are stricter, and this is what makes them binding.
+echo "== Vector files validate against their schemas =="
+python3 tooling/check-vectors.py
 
 echo "== Lean: build the model =="
 

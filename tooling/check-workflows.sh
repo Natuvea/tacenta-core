@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Reject a workflow file that GitHub cannot parse.
+# Reject a workflow file that GitHub cannot parse, or that breaks one of the
+# invariants every workflow in this tree is held to.
 #
 # A trailing colon in an unquoted YAML scalar is a mapping indicator, so a
 # `run:` step that ends in a test filter such as `crypto::` stops the file
@@ -7,13 +8,31 @@
 # its workflow fails in zero seconds, and neither the run list nor the commit
 # status distinguishes that from a real break.
 #
-# The check cannot live inside the workflow it protects: if the file does not
-# parse, nothing in it runs, including this. So it belongs in the pre-push hook,
-# where it fails on the machine that wrote the change.
+# The parse check cannot live only inside the workflow it protects: if the
+# file does not parse, nothing in it runs, including this. So the `checks` job
+# runs it for every *other* workflow, and the pre-push hook in `.githooks/`
+# (CONTRIBUTING.md says how to enable it) runs it for all of them on the
+# machine that wrote the change.
 #
 # Scope is deliberately narrow. This is a parse check and a few invariants, not
 # a schema validator. `actionlint` does the fuller job and is worth adding when
 # it can be pinned by digest; parsing is the failure this guards against.
+#
+# The invariants, each stated here because the message that fires names it:
+#
+# 1. Every third-party action is pinned by a 40-character commit digest, with
+#    the tag in a trailing comment. A tag is movable.
+# 2. Every workflow declares a top-level `permissions:` block, so the token a
+#    job holds is what the file says and not the repository default.
+# 3. Every `actions/checkout` step sets `persist-credentials: false`, so the
+#    token is not left in `.git/config` for a later step to read.
+# 4. No `run:` script pipes `curl` or `wget` output into a shell. Downloading
+#    to a file, checking its sha256 against a digest the workflow pins, and
+#    then running it is fine, and is the pattern the elan install uses; what
+#    is refused is executing whatever a URL serves today, unread. The rule is
+#    textual: a line (after joining backslash continuations) in which `curl`
+#    or `wget` is followed by a pipe into `sh`, `bash` or `zsh`, with or
+#    without `sudo`.
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -56,60 +75,90 @@ if not files:
     print("check-workflows: no workflow files found")
     sys.exit(0)
 
+# Rule 4's shape. Backslash-newline continuations are joined first so that a
+# pipe placed at the start of the next line is still seen on the same line.
+PIPE_TO_SHELL = re.compile(
+    r"\b(curl|wget)\b[^|\n]*\|\s*(sudo\s+(-\S+\s+)*)?(sh|bash|zsh)\b"
+)
+
+def complain(msg):
+    global bad
+    print("check-workflows: " + msg, file=sys.stderr)
+    bad = 1
+
 for f in files:
     try:
         doc = yaml.safe_load(open(f))
     except yaml.YAMLError as e:
-        print("check-workflows: %s does not parse as YAML" % f, file=sys.stderr)
+        complain("%s does not parse as YAML" % f)
         print("  %s" % str(e).replace("\n", "\n  "), file=sys.stderr)
-        bad = 1
         continue
 
     if not isinstance(doc, dict):
-        print("check-workflows: %s is not a mapping" % f, file=sys.stderr)
-        bad = 1
+        complain("%s is not a mapping" % f)
         continue
 
     # `on:` is the YAML 1.1 boolean True once parsed, which is a trap worth
     # naming rather than rediscovering.
     if True not in doc and "on" not in doc:
-        print("check-workflows: %s has no trigger (`on:`)" % f, file=sys.stderr)
-        bad = 1
+        complain("%s has no trigger (`on:`)" % f)
+
+    # Rule 2. A mapping or the string forms GitHub accepts (`read-all`,
+    # `write-all`); anything else, or nothing, fails.
+    perms = doc.get("permissions")
+    if not isinstance(perms, (dict, str)) or perms == {}:
+        complain("%s has no top-level `permissions:` block -- declare the "
+                 "token scope the jobs hold (usually `contents: read`)" % f)
 
     jobs = doc.get("jobs")
     if not isinstance(jobs, dict) or not jobs:
-        print("check-workflows: %s defines no jobs" % f, file=sys.stderr)
-        bad = 1
+        complain("%s defines no jobs" % f)
         continue
 
     for name, job in jobs.items():
         if not isinstance(job, dict):
-            print("check-workflows: %s job '%s' is not a mapping" % (f, name), file=sys.stderr)
-            bad = 1
+            complain("%s job '%s' is not a mapping" % (f, name))
             continue
         if "runs-on" not in job and "uses" not in job:
-            print("check-workflows: %s job '%s' has neither runs-on nor uses"
-                  % (f, name), file=sys.stderr)
-            bad = 1
+            complain("%s job '%s' has neither runs-on nor uses" % (f, name))
 
-        # Third-party actions must be pinned by commit digest, not by tag.
-        # A tag is movable: whoever controls the action repository can change
-        # what `@v4` means after review and before the next run, and a
-        # workflow runs with credentials. A machine check
-        # keeps every workflow at the same standard, rather than some pinned
-        # and some not.
         for step in job.get("steps") or []:
             if not isinstance(step, dict):
                 continue
+
+            # Rule 1. Third-party actions must be pinned by commit digest,
+            # not by tag. A tag is movable: whoever controls the action
+            # repository can change what `@v4` means after review and before
+            # the next run, and a workflow runs with credentials. A machine
+            # check keeps every workflow at the same standard, rather than
+            # some pinned and some not.
             uses = step.get("uses")
-            if not isinstance(uses, str) or "@" not in uses:
-                continue
-            ref = uses.rsplit("@", 1)[1]
-            if not re.fullmatch(r"[0-9a-f]{40}", ref):
-                print("check-workflows: %s job '%s' uses '%s' -- pin by 40-char "
-                      "commit digest, with the tag in a trailing comment"
-                      % (f, name, uses), file=sys.stderr)
-                bad = 1
+            if isinstance(uses, str) and "@" in uses:
+                ref = uses.rsplit("@", 1)[1]
+                if not re.fullmatch(r"[0-9a-f]{40}", ref):
+                    complain("%s job '%s' uses '%s' -- pin by 40-char commit "
+                             "digest, with the tag in a trailing comment"
+                             % (f, name, uses))
+
+                # Rule 3. The checkout action writes the job token into the
+                # checked-out repository's git config unless told not to.
+                if uses.startswith("actions/checkout@"):
+                    with_ = step.get("with") or {}
+                    if not isinstance(with_, dict) \
+                            or with_.get("persist-credentials") is not False:
+                        complain("%s job '%s' checks out without "
+                                 "`persist-credentials: false`" % (f, name))
+
+            # Rule 4.
+            run = step.get("run")
+            if isinstance(run, str):
+                joined = run.replace("\\\n", " ")
+                for line in joined.splitlines():
+                    if PIPE_TO_SHELL.search(line):
+                        complain("%s job '%s' pipes a download into a shell: "
+                                 "%s -- download to a file, check its sha256 "
+                                 "against a pinned digest, then run it"
+                                 % (f, name, line.strip()))
 
 print("check-workflows: %d workflow file(s) parse" % len(files))
 sys.exit(bad)

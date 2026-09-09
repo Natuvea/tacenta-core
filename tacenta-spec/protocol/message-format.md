@@ -1,8 +1,8 @@
 # Message format
 
-This page specifies the bytes that go on the wire: how a ratchet message and an
-initial (prekey) message are encoded, and how a header is bound into the AEAD's
-associated data. The ratchet and session-establishment pages describe what the
+This page specifies the bytes that go on the wire: how a ratchet message, an
+initial (prekey) message, and a published prekey bundle are encoded, and how a
+header is bound into the AEAD's associated data. The ratchet and session-establishment pages describe what the
 fields mean; this page fixes how they are written down.
 
 Unlike the derivations, almost nothing here is fixed by a published
@@ -159,6 +159,44 @@ keys.
 no one-time curve prekey. The recipient must treat that as "no one-time prekey
 was used" rather than as an identifier to look up.
 
+## Prekey bundle
+
+What a party publishes and a sender fetches before opening a session: public
+key material and the identifiers the sender echoes back in the initial
+message. Nothing in it is secret, so the encoding needs no protection beyond
+being unambiguous, and it is unambiguous the same way the messages above are.
+
+```
+bundle    = version || type=0x03
+          || identity_key (32) || signed_prekey (32) || signed_prekey_signature (64)
+          || kem_prekey_len (4, big-endian) || kem_prekey
+          || kem_prekey_signature (64)
+          || one_time_prekey_present (1) || one_time_prekey (32)
+          || signed_prekey_id (4, big-endian)
+          || one_time_prekey_id (4, big-endian)
+          || kem_prekey_id (4, big-endian)
+```
+
+The curve keys are raw 32-byte values here, not `EncodeEC` forms: the framing
+already says what the object is, and the position of each key says which it
+is. The signatures are over the *tagged* forms, `EncodeEC(signed_prekey)` and
+`EncodeKEM(kem_prekey)`, as session-establishment.md specifies, so a verifier
+re-tags the key it reads before checking. `kem_prekey` is the KEM's own
+encapsulation key, 1,568 bytes for ML-KEM-1024, and is the one variable-length
+field; it is length-prefixed rather than assumed so a bundle produced under
+one parameter set fails to decode under another instead of being read as a
+shorter key followed by rubbish. A bundle is 1,811 bytes with that KEM.
+
+The one-time curve prekey is the one optional field, and it is encoded the
+way the ratchet message encodes its optional codeword: a presence byte, then
+the full 32-byte width regardless. When the presence byte is `0x00` the 32
+bytes must be zero and a decoder refuses anything else, so that one bundle
+has one spelling; a presence byte other than `0x00` or `0x01` is refused too.
+`one_time_prekey_id` is the absent identifier when the key is absent, and a
+bundle in which the two disagree about presence is refused by the initiator
+before any agreement is computed. Trailing bytes are rejected: a bundle is a
+whole object, not a prefix of a stream.
+
 ## Key identifiers
 
 An identifier names one of a party's prekeys on their own device. It is a 4-byte
@@ -179,7 +217,7 @@ findings change a table rather than a format:
 | Value | Ours | Determined by |
 |---|---|---|
 | Message version byte | `0x01` | our choice, tier `ours` |
-| Message type bytes | `0x01` ratchet, `0x02` initial | our choice, tier `ours` |
+| Message type bytes | `0x01` ratchet, `0x02` initial, `0x03` bundle | our choice, tier `ours` |
 | `EncodeEC` curve byte | see session-establishment.md | black-box research, tier `nominated` |
 | `EncodeKEM` KEM byte | see session-establishment.md | black-box research, tier `nominated` |
 | Field order and widths | as above | our choice |

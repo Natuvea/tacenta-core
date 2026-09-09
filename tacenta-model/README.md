@@ -7,7 +7,12 @@ the implementation is shown to refine. The model is also the vector oracle: it
 computes the protocol key schedule to exact bytes, so protocol-level test vectors
 are generated from it rather than from the implementation checking itself.
 
-Build with `lake build`. The derivations are anchored to standard known-answer
+Build with `lake build`, on the Lean toolchain `lean-toolchain` names
+(installed through elan). That builds the model, the properties, and the
+vector generator `genvectors`, so a change that breaks the generator fails
+here rather than at the next regeneration;
+`../tacenta-test-vectors/regenerate-vectors.sh` runs the generator and says
+which files it writes. The derivations are anchored to standard known-answer
 values (NIST for SHA-256, RFC 4231 for HMAC, RFC 5869 for HKDF) checked at build
 time, and the ratchet carries build-time self-consistency checks.
 
@@ -28,4 +33,10 @@ theory beneath it (`Model/Braid.lean`, `Model/Gf65536.lean`,
 
 Two are still scaffolds and are named rather than left to be discovered:
 `Model/MultiDevice.lean` is five lines, and there is no sender-keys model at all.
-Both are milestone M4.
+Neither is yet scheduled.
+
+## Trademarks and non-affiliation
+
+tacenta-core and Tacenta are not affiliated with, endorsed by, or sponsored by
+Signal Messenger LLC or the Signal Foundation. "Signal" and "libsignal" are used
+only to name the published protocols and the third-party software they refer to.

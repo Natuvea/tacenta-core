@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Pre-push hook: refuse to push a workflow file that GitHub cannot parse or
+# that breaks one of the pins `tooling/check-workflows.sh` enforces.
+#
+# Enable it once per clone with
+#
+#   git config core.hooksPath .githooks
+#
+# as CONTRIBUTING.md says. It is not enabled by cloning: git does not run
+# hooks from a repository's own tree unless told to, which is the right
+# default for a hook that runs code.
+#
+# Why this runs here and not only in CI: a workflow that does not parse runs
+# nothing, including the job that would have reported it, so the failure
+# looks like a zero-second run rather than a message. The check has to run
+# somewhere other than inside the file it protects, and the machine that
+# wrote the change is the earliest such place. The full gate is
+# `tooling/ci.sh`; this hook is deliberately only the cheap part of it.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+bash tooling/check-workflows.sh

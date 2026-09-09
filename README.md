@@ -79,14 +79,61 @@ session path, and sessions and prekey stores serialize.
 ## Verify it yourself
 
 The point of a verification-first library is that you do not have to take its
-word for it. `tacenta-proofs/CLAIMS.md` states each claim; `tacenta-proofs/REPRODUCING.md`
-is how to rebuild the proofs and check the committed vectors against the model.
-The model and the model-layer proofs reproduce on any machine, and the
-committed Rust-to-Lean translation with its T1/T3 proofs builds in the public
-`translation` CI job. Only regenerating that translation from the Rust needs
-the pinned Charon/Aeneas toolchain, which runs in a separate workflow; the
+word for it. `tacenta-proofs/CLAIMS.md` states each claim;
+`tacenta-proofs/REPRODUCING.md` is how to rebuild the proofs, and
+`tacenta-test-vectors/README.md` ("Regenerating the protocol vectors") is how
+to check the committed vectors against the model. The model and the
+model-layer proofs reproduce on any machine, and the committed Rust-to-Lean
+translation with its T1/T3 proofs builds in the public `translation` CI job.
+Only regenerating that translation from the Rust needs the pinned
+Charon/Aeneas toolchain, which runs outside this repository (see below); the
 release and archive digest are stated in `tacenta-proofs/CLAIMS.md` so that
 step can be reproduced elsewhere.
+
+## Building and checking
+
+One command runs every gate: `bash tooling/ci.sh`. The public CI
+(`.github/workflows/ci.yml`) runs the same steps, split into jobs, on every
+push and pull request, so a green run there and a green run here mean the
+same thing. The gate is: the workflow, proof-hygiene, label, vector-schema and
+authentication-boundary checks under `tooling/`; the Lean model build and the
+model-layer proofs with their `sorry` scan; the attestation check; the
+committed vectors regenerated from the model and compared; and the Rust
+crates (format, lint, tests, property-based decoder tests) with a dependency
+advisory audit and a 32-bit compile check.
+
+| Prerequisite | Version | Used by |
+| --- | --- | --- |
+| Rust toolchain (`cargo`, `clippy`, `rustfmt`) | stable; 1.87 is the minimum every crate names | the Rust crates and the vector runner |
+| `cargo-audit` (`cargo install --locked cargo-audit`) | any current release | the advisory audit; skipped locally when absent, failed in CI |
+| `rustup target add armv7-linux-androideabi` | matching the toolchain | the 32-bit compile check; skipped locally when absent |
+| Lean, through elan | the version `tacenta-model/lean-toolchain` and `tacenta-proofs/lean-toolchain` name (v4.31.0) | the model, the proofs, and vector regeneration |
+| `python3` with PyYAML | 3.8 or later | the `tooling/` checks |
+| `git` | any | the vector-currency diff |
+
+Individual pieces can be run on their own: `cargo test --locked --workspace`
+in `tacenta-core`; `cargo test --locked` in
+`tacenta-test-vectors/runners/rust`; `lake build` in `tacenta-model`;
+`scripts/verify.sh` in `tacenta-proofs`. CONTRIBUTING.md has the pre-push
+hook that runs the cheapest of the checks before a push leaves the machine.
+
+Three things run outside this repository, and the gate says so rather than
+pretending to run them. **Regenerating the Rust-to-Lean translation** needs
+the pinned Charon and Aeneas release, which is a linux-x86_64 binary that
+runs on a dedicated runner; the committed translation is what the public
+`translation` job checks, and `tacenta-proofs/CLAIMS.md` records the release
+and its digest so the regeneration can be reproduced elsewhere.
+**Coverage-guided fuzzing** needs `cargo-fuzz` and a nightly toolchain and
+runs for hours, so the search is a nightly job on private infrastructure;
+`tooling/fuzz-smoke.sh` replays the committed corpus when the tooling is
+present, and `tacenta-core/fuzz/README.md` describes the targets. **Timing
+measurements** need a dedicated machine, since a job co-scheduled with other
+load on a shared hosted runner cannot tell a leak from noise;
+`tacenta-core/tests/timing.rs` carries the tests, run by hand or by a nightly
+job outside this repository, and `tacenta-proofs/LIMITATIONS.md` states what
+is and is not established about constant-time behaviour. None of the three
+changes what the public gate proves; each is named here so that a reader
+knows what a green badge does not include.
 
 ## Provenance
 

@@ -48,7 +48,9 @@ interoperating with anyone.
   loses the peer's first message for good; session first leaves a consumed
   one-time prekey reusable). `Session::export`'s documentation in
   `tacenta-core` carries the same three rules with the reasoning, and is the
-  place to change them.
+  place to change them. A fourth follows from rotation: persist the store
+  after `rotate_signed_prekey` or `rotate_kem` and before republishing, or a
+  restart forgets the rotation while the directory serves the new key.
 
 ## Ratchet state
 
@@ -144,6 +146,54 @@ enforces that invariant at the type level. `pending_initial` and
 `established_ephemeral` are each a presence byte followed by a
 length-prefixed field when present, and nothing (not even the length
 prefix) when absent.
+
+## Prekey store
+
+`PrekeyStore::to_bytes`/`from_bytes` persist a party's own prekeys between
+restarts: the private halves of the signed and one-time prekeys, the
+identifiers a bundle names them by, the signatures a bundle carries, and two
+records that exist only to survive a restart, the last-resort replay
+fingerprints and the prekeys a rotation retired. The identity's own secret is
+not here; `Identity` is separate and is persisted by the caller on its own
+terms.
+
+```
+prekey_store = version(1)
+            || identity_public(32)
+            || signed_prekey_secret(32) || signed_prekey_id(4) || signed_prekey_sig(64)
+            || one_time_count(4) || one_time[one_time_count]
+            || len(4) || kem_pair || kem_id(4) || kem_sig(64)
+            || kem_one_time_count(4) || kem_one_time[kem_one_time_count]
+            || next_id(4)
+            || seen_count(4) || seen[seen_count]                          -- v2 and later
+            || previous_signed_present(1) || previous_signed              -- v3
+            || previous_kem_present(1) || previous_kem                    -- v3
+
+one_time        = id(4) || secret(32)
+kem_one_time    = id(4) || len(4) || kem_pair || sig(64)
+seen            = fingerprint(32)
+previous_signed = secret(32) || id(4) || sig(64)      -- only when present
+previous_kem    = len(4) || kem_pair || id(4) || sig(64)   -- only when present
+```
+
+`kem_pair` is `kem::KeyPair`'s own encoding, opaque here and length-prefixed
+wherever it appears, as the Braid format treats it. `next_id` is the
+identifier the next key added to the store will take, so that replenishment
+continues the sequence rather than restarting it (key-deletion.md). `seen`
+is the record of spent last-resort handshakes, oldest first, and a count
+larger than the bound the store enforces (`MAX_LAST_RESORT_SEEN`,
+CONSTANTS.md) is refused as malformed before it sizes anything. The two
+`previous_*` fields are the signed prekey and the last-resort KEM prekey the
+most recent rotation retired, each behind a presence byte and, like the
+session's `pending_initial`, followed by nothing at all when absent.
+
+**Three versions are read; one is written.** The writer always emits `0x03`.
+The reader also accepts `0x02`, the format before rotation, which ends after
+`seen` and reads back with nothing retired; and `0x01`, the format before the
+replay record, which ends after `next_id` and reads back with no fingerprints
+remembered. Both are the honest answer, since those stores recorded neither.
+A store written by this version and read by an earlier one fails on the
+version byte, which is the intended direction of incompatibility.
 
 ## Rejection
 
