@@ -96,7 +96,8 @@ One command runs the gate: `bash tooling/ci.sh`. The public CI
 (`.github/workflows/ci.yml`) runs the same steps on every push and pull
 request, split into jobs so a failure names its cause. The gate is: the
 workflow, proof-hygiene, label, vector-schema and authentication-boundary
-checks under `tooling/`; the Lean model build and the model-layer proofs with
+checks under `tooling/` (with the workflow checker held to its own case
+files under `tooling/tests/`); the Lean model build and the model-layer proofs with
 their `sorry` scan; the attestation check; the committed vectors regenerated
 from the model and compared; the Rust crates (format, lint, tests,
 property-based decoder tests) with a dependency advisory audit, a compile
@@ -124,7 +125,7 @@ nothing skipped means the same thing here as a green workflow.
 | `cargo-audit` (`cargo install --locked cargo-audit`) | any current release | the advisory audit; skipped locally when absent, failed in CI |
 | `rustup target add armv7-linux-androideabi` | matching the toolchain | the 32-bit compile check; skipped locally when absent, failed in CI |
 | Lean, through elan | the version `tacenta-model/lean-toolchain` and `tacenta-proofs/lean-toolchain` name (v4.31.0) | the model, the proofs, and vector regeneration |
-| the translation's Mathlib cache (`cd tacenta-proofs/translation && lake exe cache get`) | the commit `tacenta-proofs/translation/lake-manifest.json` pins | the translation build and its `sorry` scan; skipped when absent |
+| the translation's Mathlib cache (`cd tacenta-proofs/translation && lake exe cache get`) | the commit `tacenta-proofs/translation/lake-manifest.json` pins | the translation build and its `sorry` scan; skipped when the cache has not been fetched (the test is for a built `Mathlib.olean`, not the package directory) |
 | `python3` with PyYAML (`pip install pyyaml`) | 3.8 or later | the `tooling/` checks; PyYAML is for the workflow check, which skips locally without it and fails in CI |
 | `git` | any | the vector-currency diff |
 

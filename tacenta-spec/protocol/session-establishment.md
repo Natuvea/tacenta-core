@@ -197,15 +197,19 @@ delivered twice.
 
 Bob therefore keeps a **record of last-resort handshakes he has already
 accepted** -- a fingerprint over `IKA`, `EKA`, `CT` and the two prekey
-identifiers, which is exactly what determines `SK`, tagged with the last-resort
-KEM key the handshake was made against -- and refuses a repeat. The record is
+identifiers, the fields that vary per handshake among those that determine
+`SK` (the signed prekey identifier also determines `SK`, but is bound by `SK`
+itself and omitted), tagged with the last-resort KEM key the handshake was
+made against -- and refuses a repeat. The record is
 bounded at 1024 entries across the current key and the one the last rotation
 retired, and it fails closed rather than evicting: a new last-resort handshake
 against a full record is refused (`LastResortRecordFull`) and nothing changes,
 so nobody can push a victim's fingerprint out by completing handshakes of their
 own. A key's entries are dropped when a rotation wipes the key. This is
 hardening beyond what the published specification asks for, not a claim about
-it; `key-deletion.md` states what a full record costs and what resets it.
+it; `key-deletion.md` states what a full record costs, why rotation alone is
+not a reset against a peer who is filling the record deliberately, and which
+accessor reports the room left.
 
 ## Byte-level conventions
 

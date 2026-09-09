@@ -1,0 +1,14 @@
+# note: A script that runs an interpreter on a path but downloads nothing is not rule 6's shape.
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: python3 -m pip install --user pyyaml
+      - run: bash tooling/install-elan.sh

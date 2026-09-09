@@ -1,0 +1,8 @@
+# note: A reusable workflow at a path in this repository.
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  r:
+    uses: ./.github/workflows/w.yml

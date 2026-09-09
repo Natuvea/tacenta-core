@@ -24,13 +24,17 @@ subset of JSON Schema the two schemas use (`type`, `required`, `properties`,
 keyword added to a schema without support here fails loudly rather than
 being silently ignored.
 
-Beyond the schema, three rules the schemas state in prose and this enforces:
+Beyond the schema, four rules the schemas state in prose and this enforces:
 vector `id`s are unique within a file; in a known-answer file `output` is
-present exactly when `result` is `valid`; and in a scenario file an ok step
+present exactly when `result` is `valid`; in a scenario file an ok step
 carries `mk` while a reject step carries neither `mk` nor `message_keys`
 (the runner would fail an ok step without `mk`, and a reject step's key is
 never checked, so one that carries it is claiming a check that does not
-happen). And one rule the schemas cannot state: every file's `algorithm` is
+happen); and in a scenario file a receive step carries all four of `header`,
+`dh_recv`, `dh_send` and `new_pub` while a send step carries none of them
+(the runner fails a receive step without them, and never reads them on a
+send step, so a send step that carries them is describing a receive that
+does not happen). And one rule the schemas cannot state: every file's `algorithm` is
 one the Rust runner dispatches on, read from the match arms of
 `runners/rust/src/lib.rs`, so that a file no runner opens cannot sit under
 `vectors/` looking covered.
@@ -163,8 +167,12 @@ def runner_algorithms():
     return names
 
 
+RECEIVE_FIELDS = ("header", "dh_recv", "dh_send", "new_pub")
+
+
 def check_steps(rel, i, v, problems):
-    """A scenario vector's step rule: mk on ok steps, nothing on reject."""
+    """A scenario vector's step rules: mk on ok steps and nothing on reject;
+    the header and the three DH inputs on receive steps and not on send."""
     for j, step in enumerate(v.get("steps") or []):
         if not isinstance(step, dict):
             continue
@@ -176,6 +184,16 @@ def check_steps(rel, i, v, problems):
                                     % (where, key))
         elif "mk" not in step:
             problems.append("%s: an ok step needs an `mk`" % where)
+        if step.get("op") == "receive":
+            for key in RECEIVE_FIELDS:
+                if key not in step:
+                    problems.append("%s: a receive step needs a `%s`"
+                                    % (where, key))
+        elif step.get("op") == "send":
+            for key in RECEIVE_FIELDS:
+                if key in step:
+                    problems.append("%s: a send step carries no `%s`"
+                                    % (where, key))
 
 
 def main():

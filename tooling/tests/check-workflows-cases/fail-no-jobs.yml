@@ -1,0 +1,5 @@
+# expect: defines no jobs
+name: t
+on: push
+permissions:
+  contents: read

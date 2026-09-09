@@ -223,6 +223,7 @@ jobs:
       - name: PyYAML for the workflow check
         run: python3 -m pip install --user pyyaml
       - run: bash tooling/check-workflows.sh
+      - run: bash tooling/tests/run-check-workflows-cases.sh
       - run: bash tooling/check-proof-hygiene.sh
       - run: bash tooling/check-labels.sh
       - run: python3 tooling/check_authentication_boundary.py

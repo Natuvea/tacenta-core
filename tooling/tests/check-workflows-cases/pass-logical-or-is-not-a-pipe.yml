@@ -1,0 +1,15 @@
+# note: `||` is a fallback, not a pipe; a checksum is still present.
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: |
+          curl -fsSLo f https://example.invalid/f || wget -O f https://example.invalid/f
+          sha256sum -c f.sha256

@@ -1,0 +1,14 @@
+# expect: pin a container image by its
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: true

@@ -205,9 +205,11 @@ deleting them after an interval, triggered by a timer or by counting events.
   the second as a repeat.
 
   The store therefore remembers a fingerprint of each last-resort handshake it
-  has accepted, over exactly the fields that determine `SK`, tagged with the
-  identifier of the last-resort KEM key the handshake was made against, and
-  refuses a repeat (`ReplayedLastResort`). **The record is bounded per key
+  has accepted, over the fields that vary per handshake among those that
+  determine `SK` (the signed prekey identifier, which also determines `SK`,
+  is bound by `SK` itself and omitted), tagged with the identifier of the
+  last-resort KEM key the handshake was made against, and refuses a repeat
+  (`ReplayedLastResort`). **The record is bounded per key
   lifetime, and it fails closed.** It holds at most `MAX_LAST_RESORT_SEEN`
   entries across the current key and the one the last rotation retired, and
   it never evicts: a last-resort handshake it has not seen, arriving while it
@@ -224,12 +226,20 @@ deleting them after an interval, triggered by a timer or by counting events.
   against the retired key is still a replay.
 
   The cost of a full record falls on the last-resort path only; a handshake
-  naming a one-time KEM prekey never consults it. The operator has two levers:
-  replenishment, which keeps first contacts off this path and is the one to
-  reach for first, and rotating the last-resort KEM key, which releases the
-  key's share of the record once the next rotation wipes it. The record
-  persists with the store, tags included, so a restart neither reopens the
-  window nor loses the pruning.
+  naming a one-time KEM prekey never consults it. The operator has two levers,
+  and only one of them holds against a peer who is filling the record on
+  purpose. Rotating the last-resort KEM key releases the key's share of the
+  record once the following rotation wipes it, but the retired key still
+  decrypts until then and its public bundle is already in that peer's hands,
+  so at about a millisecond and a half per handshake the record is full again
+  in about a second; rotation opens a window, it does not close one.
+  Replenishment keeps first contacts off this path altogether, and a
+  directory that rate-limits bundle fetches bounds how fast anyone can fill
+  the record; those two are the durable defence. `PrekeyStore::
+  last_resort_record_remaining` reports the room left, so an operator can see
+  the record filling rather than learn of it from a refused handshake. The
+  record persists with the store, tags included, so a restart neither reopens
+  the window nor loses the pruning.
 - **Signed prekeys rotate, and the retired one is kept for exactly one
   rotation.** `PrekeyStore::rotate_signed_prekey` generates a fresh curve
   prekey, signs it under the identity, and gives it the next identifier; the

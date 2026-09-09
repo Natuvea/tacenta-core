@@ -1,0 +1,17 @@
+# note: Download, `shasum -a 256` check, then chmod and run: rule 6 sees the checksum.
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: |
+          wget -q -O tool https://example.invalid/tool
+          echo "${TOOL_SHA256}  tool" | shasum -a 256 -c -
+          chmod +x tool
+          ./tool --version

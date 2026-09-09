@@ -35,6 +35,9 @@ cd "$root"
 # CONTRIBUTING.md describes, catches all of them before they leave the machine.
 echo "== Workflows parse =="
 bash tooling/check-workflows.sh
+# And the checker is held to its own cases, passing and refused, so a rule
+# loosened by mistake fails this gate rather than the next reader.
+bash tooling/tests/run-check-workflows-cases.sh
 
 # The property: nothing durable moves on a message before its authenticator
 # verifies. This does not detect a violation directly; it detects the shape
@@ -132,9 +135,8 @@ fi
 # Known advisories against the dependency graph. Fails on a vulnerability;
 # warnings (unmaintained, yanked) are printed and do not fail, because those
 # present today sit in transitive build-time dependencies and are not fixable
-# here. Skips locally
-# when the tool is absent and fails in CI, the rule every other gate in this
-# file follows.
+# here. Skips locally when the tool is absent and fails in CI, the rule the
+# MSRV and 32-bit checks follow.
 echo "== Rust: dependency advisories (cargo audit) =="
 if command -v cargo-audit >/dev/null 2>&1; then
   (cd tacenta-core && cargo audit)
@@ -216,13 +218,17 @@ fi
 # declarations by `no-sorry.sh`. Aeneas's Lean library brings Mathlib, which
 # `lake exe cache get` fetches prebuilt; without it `lake build` would
 # compile Mathlib from source, which is hours, so the step skips when the
-# translation's Mathlib package is absent and says how to fetch it. The
-# workflow's `translation` job fetches it and always runs this.
+# translation's Mathlib cache has not been fetched and says how to fetch it.
+# The test is for a built artefact (`Mathlib.olean`), not the package
+# directory: `lake` creates the directory on its first attempt, so it exists
+# after an aborted build too, and a run that then tried `no-sorry.sh` would
+# start the hours-long compile the skip is there to avoid. The workflow's
+# `translation` job fetches the cache and always runs this.
 echo "== Lean: the translation and its proofs use no sorry (needs the Mathlib cache) =="
-if [ -d tacenta-proofs/translation/.lake/packages/mathlib ]; then
+if [ -f tacenta-proofs/translation/.lake/packages/mathlib/.lake/build/lib/lean/Mathlib.olean ]; then
   bash tacenta-proofs/scripts/no-sorry.sh
 else
-  echo "ci: the translation's Mathlib package is absent, skipping no-sorry.sh"
+  echo "ci: the translation's Mathlib cache is not fetched, skipping no-sorry.sh"
   echo "ci: fetch it with '(cd tacenta-proofs/translation && lake exe cache get)'"
 fi
 

@@ -1,0 +1,8 @@
+# expect: pin by 40-char commit digest
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  r:
+    uses: octo/repo/.github/workflows/w.yml@v1
