@@ -27,7 +27,7 @@ axiom tacenta_kdf.hkdf_sha256
   Slice Std.U8 → Slice Std.U8 → Slice Std.U8 → Result (Array Std.U8 N)
 
 /-- [tacenta_ratchet::LabelSet]
-    Source: 'ratchet/src/lib.rs', lines 58:0-58:17
+    Source: 'ratchet/src/lib.rs', lines 57:0-57:17
     Name pattern: [tacenta_ratchet::LabelSet]
     Visibility: public -/
 @[discriminant isize, rust_type "tacenta_ratchet::LabelSet"]
@@ -35,7 +35,7 @@ inductive tacenta_ratchet.LabelSet where
 | Tacenta : tacenta_ratchet.LabelSet
 
 /-- [tacenta_ratchet::Header]
-    Source: 'ratchet/src/lib.rs', lines 95:0-95:17
+    Source: 'ratchet/src/lib.rs', lines 94:0-94:17
     Name pattern: [tacenta_ratchet::Header]
     Visibility: public -/
 @[rust_type "tacenta_ratchet::Header"]
@@ -45,7 +45,7 @@ structure tacenta_ratchet.Header where
   n : Std.U32
 
 /-- [tacenta_ratchet::{impl core::cmp::PartialEq<tacenta_ratchet::Header> for tacenta_ratchet::Header}::eq]:
-    Source: 'ratchet/src/lib.rs', lines 94:22-94:31
+    Source: 'ratchet/src/lib.rs', lines 93:22-93:31
     Name pattern: [tacenta_ratchet::{core::cmp::PartialEq<tacenta_ratchet::Header, tacenta_ratchet::Header>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -54,7 +54,7 @@ axiom tacenta_ratchet.Header.Insts.CoreCmpPartialEqHeader.eq
   : tacenta_ratchet.Header → tacenta_ratchet.Header → Result Bool
 
 /-- [tacenta_ratchet::{impl core::fmt::Debug for tacenta_ratchet::Header}::fmt]:
-    Source: 'ratchet/src/lib.rs', lines 94:37-94:42
+    Source: 'ratchet/src/lib.rs', lines 93:37-93:42
     Name pattern: [tacenta_ratchet::{core::fmt::Debug<tacenta_ratchet::Header>}::fmt]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::{core::fmt::Debug<tacenta_ratchet::Header>}::fmt"]
@@ -64,7 +64,7 @@ axiom tacenta_ratchet.Header.Insts.CoreFmtDebug.fmt
     Unit core.fmt.Error) × core.fmt.Formatter)
 
 /-- Trait implementation: [tacenta_ratchet::{impl core::fmt::Debug for tacenta_ratchet::Header}]
-    Source: 'ratchet/src/lib.rs', lines 94:37-94:42
+    Source: 'ratchet/src/lib.rs', lines 93:37-93:42
     Name pattern: [core::fmt::Debug<tacenta_ratchet::Header>] -/
 @[reducible, rust_trait_impl "core::fmt::Debug<tacenta_ratchet::Header>"]
 def tacenta_ratchet.Header.Insts.CoreFmtDebug : core.fmt.Debug
@@ -202,7 +202,7 @@ inductive tacenta_ratchet.RatchetDecodeError where
 axiom zeroize.Zeroizing (Z : Type) : Type
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::to_bytes]:
-    Source: 'ratchet/src/lib.rs', lines 431:4-431:48
+    Source: 'ratchet/src/lib.rs', lines 429:4-429:48
     Name pattern: [tacenta_ratchet::{tacenta_ratchet::State}::to_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::{tacenta_ratchet::State}::to_bytes"]
@@ -210,7 +210,7 @@ axiom tacenta_ratchet.State.to_bytes
   : tacenta_ratchet.State → Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::from_bytes]:
-    Source: 'ratchet/src/lib.rs', lines 456:4-456:72
+    Source: 'ratchet/src/lib.rs', lines 454:4-454:72
     Name pattern: [tacenta_ratchet::{tacenta_ratchet::State}::from_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::{tacenta_ratchet::State}::from_bytes"]
@@ -220,7 +220,7 @@ axiom tacenta_ratchet.State.from_bytes
     tacenta_ratchet.RatchetDecodeError)
 
 /-- [tacenta_ratchet::init_sender]:
-    Source: 'ratchet/src/lib.rs', lines 652:0-652:98
+    Source: 'ratchet/src/lib.rs', lines 649:0-649:98
     Name pattern: [tacenta_ratchet::init_sender]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::init_sender"]
@@ -231,7 +231,7 @@ axiom tacenta_ratchet.init_sender
     tacenta_ratchet.State
 
 /-- [tacenta_ratchet::init_receiver]:
-    Source: 'ratchet/src/lib.rs', lines 672:0-672:71
+    Source: 'ratchet/src/lib.rs', lines 669:0-669:71
     Name pattern: [tacenta_ratchet::init_receiver]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::init_receiver"]
@@ -241,7 +241,7 @@ axiom tacenta_ratchet.init_receiver
     → Result tacenta_ratchet.State
 
 /-- [tacenta_ratchet::send]:
-    Source: 'ratchet/src/lib.rs', lines 690:0-690:69
+    Source: 'ratchet/src/lib.rs', lines 687:0-687:69
     Name pattern: [tacenta_ratchet::send]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::send"]
@@ -252,7 +252,7 @@ axiom tacenta_ratchet.send
     tacenta_ratchet.State)
 
 /-- [tacenta_ratchet::receive]:
-    Source: 'ratchet/src/lib.rs', lines 827:0-833:30
+    Source: 'ratchet/src/lib.rs', lines 824:0-830:30
     Name pattern: [tacenta_ratchet::receive]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::receive"]

@@ -142,22 +142,22 @@ def SK_INFO : Slice Std.U8 :=
       ])
 
 /-- [tacenta_session::ENCODE_EC_CURVE25519]
-    Source: 'session/src/lib.rs', lines 61:0-61:42
+    Source: 'session/src/lib.rs', lines 52:0-52:42
     Visibility: public -/
 @[global_simps, irreducible] def ENCODE_EC_CURVE25519 : Std.U8 := 5#u8
 
 /-- [tacenta_session::ENCODE_KEM_ML_KEM_1024]
-    Source: 'session/src/lib.rs', lines 74:0-74:44
+    Source: 'session/src/lib.rs', lines 64:0-64:44
     Visibility: public -/
 @[global_simps, irreducible] def ENCODE_KEM_ML_KEM_1024 : Std.U8 := 8#u8
 
 /-- [tacenta_session::ENCODE_EC_LEN]
-    Source: 'session/src/lib.rs', lines 81:0-81:36
+    Source: 'session/src/lib.rs', lines 71:0-71:36
     Visibility: public -/
 @[global_simps, irreducible] def ENCODE_EC_LEN : Std.Usize := 33#usize
 
 /-- [tacenta_session::km]:
-    Source: 'session/src/lib.rs', lines 91:0-102:1
+    Source: 'session/src/lib.rs', lines 81:0-92:1
     Visibility: public -/
 def km
   (dh1 : Array Std.U8 32#usize) (dh2 : Array Std.U8 32#usize)
@@ -184,7 +184,7 @@ def km
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s3
 
 /-- [tacenta_session::kdf_sk]:
-    Source: 'session/src/lib.rs', lines 109:0-114:1
+    Source: 'session/src/lib.rs', lines 99:0-104:1
     Visibility: public -/
 def kdf_sk (km_bytes : Slice Std.U8) : Result (Array Std.U8 32#usize) := do
   let ikm ←
@@ -214,7 +214,7 @@ def kdf_sk (km_bytes : Slice Std.U8) : Result (Array Std.U8 32#usize) := do
   tacenta_kdf.hkdf_sha256 32#usize s1 s2 SK_INFO
 
 /-- [tacenta_session::shared_secret]:
-    Source: 'session/src/lib.rs', lines 121:0-126:1
+    Source: 'session/src/lib.rs', lines 111:0-116:1
     Visibility: public -/
 def shared_secret
   (dh1 : Array Std.U8 32#usize) (dh2 : Array Std.U8 32#usize)
@@ -234,7 +234,7 @@ def shared_secret
   kdf_sk s
 
 /-- [tacenta_session::associated_data]:
-    Source: 'session/src/lib.rs', lines 137:0-142:1
+    Source: 'session/src/lib.rs', lines 127:0-132:1
     Visibility: public -/
 def associated_data
   (encoded_ik_a : Slice Std.U8) (encoded_ik_b : Slice Std.U8) :
@@ -246,7 +246,7 @@ def associated_data
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 ad encoded_ik_b
 
 /-- [tacenta_session::associated_data_with_kem]:
-    Source: 'session/src/lib.rs', lines 146:0-154:1
+    Source: 'session/src/lib.rs', lines 136:0-144:1
     Visibility: public -/
 def associated_data_with_kem
   (encoded_ik_a : Slice Std.U8) (encoded_ik_b : Slice Std.U8)
@@ -257,7 +257,7 @@ def associated_data_with_kem
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 ad encoded_pq_pk
 
 /-- [tacenta_session::encode_ec]:
-    Source: 'session/src/lib.rs', lines 157:0-162:1
+    Source: 'session/src/lib.rs', lines 147:0-152:1
     Visibility: public -/
 def encode_ec
   (pk : Array Std.U8 32#usize) : Result (alloc.vec.Vec Std.U8) := do
@@ -267,7 +267,7 @@ def encode_ec
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out s
 
 /-- [tacenta_session::encode_kem]:
-    Source: 'session/src/lib.rs', lines 165:0-170:1
+    Source: 'session/src/lib.rs', lines 155:0-160:1
     Visibility: public -/
 def encode_kem (pk : Slice Std.U8) : Result (alloc.vec.Vec Std.U8) := do
   let out ←
@@ -275,7 +275,7 @@ def encode_kem (pk : Slice Std.U8) : Result (alloc.vec.Vec Std.U8) := do
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out pk
 
 /-- [tacenta_session::decode_ec]: loop body 0:
-    Source: 'session/src/lib.rs', lines 181:8-184:9
+    Source: 'session/src/lib.rs', lines 171:8-174:9
     Visibility: public -/
 @[rust_loop_body]
 def decode_ec_loop.body
@@ -292,7 +292,7 @@ def decode_ec_loop.body
   else ok (done k)
 
 /-- [tacenta_session::decode_ec]: loop 0:
-    Source: 'session/src/lib.rs', lines 181:8-184:9
+    Source: 'session/src/lib.rs', lines 171:8-174:9
     Visibility: public -/
 @[rust_loop]
 def decode_ec_loop
@@ -304,7 +304,7 @@ def decode_ec_loop
     (k, i)
 
 /-- [tacenta_session::decode_ec]:
-    Source: 'session/src/lib.rs', lines 174:0-189:1
+    Source: 'session/src/lib.rs', lines 164:0-179:1
     Visibility: public -/
 def decode_ec
   (bytes : Slice Std.U8) : Result (Option (Array Std.U8 32#usize)) := do

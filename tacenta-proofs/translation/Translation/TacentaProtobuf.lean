@@ -327,7 +327,7 @@ def Reader.byte
     | some next => ok (core.result.Result.Ok b, { self with «at» := next })
 
 /-- [tacenta_protobuf::{tacenta_protobuf::Reader}::varint]: loop body 0:
-    Source: 'protobuf/src/lib.rs', lines 1:0-206:5
+    Source: 'protobuf/src/lib.rs', lines 1:0-202:5
     Visibility: public -/
 @[rust_loop_body]
 def Reader.varint_loop.body
@@ -376,7 +376,7 @@ def Reader.varint_loop.body
   else ok (done (core.result.Result.Err ProtoError.BadVarint, self))
 
 /-- [tacenta_protobuf::{tacenta_protobuf::Reader}::varint]: loop 0:
-    Source: 'protobuf/src/lib.rs', lines 1:0-206:5
+    Source: 'protobuf/src/lib.rs', lines 1:0-202:5
     Visibility: public -/
 @[rust_loop]
 def Reader.varint_loop
@@ -389,7 +389,7 @@ def Reader.varint_loop
     (self, value, factor, taken)
 
 /-- [tacenta_protobuf::{tacenta_protobuf::Reader}::varint]:
-    Source: 'protobuf/src/lib.rs', lines 156:4-206:5
+    Source: 'protobuf/src/lib.rs', lines 152:4-202:5
     Visibility: public -/
 @[reducible]
 def Reader.varint
@@ -399,7 +399,7 @@ def Reader.varint
   Reader.varint_loop self 0#u32 1#u32 0#usize
 
 /-- [tacenta_protobuf::decode_tag]:
-    Source: 'protobuf/src/lib.rs', lines 335:0-358:1
+    Source: 'protobuf/src/lib.rs', lines 331:0-354:1
     Visibility: public -/
 def decode_tag
   (raw1 : Std.U32) : Result (core.result.Result Tag ProtoError) := do
@@ -421,7 +421,7 @@ def decode_tag
         else ok (core.result.Result.Err ProtoError.NotInProfile)
 
 /-- [tacenta_protobuf::{tacenta_protobuf::Reader}::tag]:
-    Source: 'protobuf/src/lib.rs', lines 215:4-218:5
+    Source: 'protobuf/src/lib.rs', lines 211:4-214:5
     Visibility: public -/
 def Reader.tag
   (self : Reader) :
@@ -440,7 +440,7 @@ def Reader.tag
     ok (r1, self1)
 
 /-- [tacenta_protobuf::{tacenta_protobuf::Reader}::length_delimited]: loop body 0:
-    Source: 'protobuf/src/lib.rs', lines 247:8-250:9
+    Source: 'protobuf/src/lib.rs', lines 243:8-246:9
     Visibility: public -/
 @[rust_loop_body]
 def Reader.length_delimited_loop.body
@@ -459,7 +459,7 @@ def Reader.length_delimited_loop.body
   else ok (done out)
 
 /-- [tacenta_protobuf::{tacenta_protobuf::Reader}::length_delimited]: loop 0:
-    Source: 'protobuf/src/lib.rs', lines 247:8-250:9
+    Source: 'protobuf/src/lib.rs', lines 243:8-246:9
     Visibility: public -/
 @[rust_loop]
 def Reader.length_delimited_loop
@@ -472,7 +472,7 @@ def Reader.length_delimited_loop
     (out, i)
 
 /-- [tacenta_protobuf::{tacenta_protobuf::Reader}::length_delimited]:
-    Source: 'protobuf/src/lib.rs', lines 226:4-253:5
+    Source: 'protobuf/src/lib.rs', lines 222:4-249:5
     Visibility: public -/
 def Reader.length_delimited
   (self : Reader) :
@@ -502,32 +502,32 @@ def Reader.length_delimited
     ok (r1, self1)
 
 /-- [tacenta_protobuf::FieldSet]
-    Source: 'protobuf/src/lib.rs', lines 268:0-270:1
+    Source: 'protobuf/src/lib.rs', lines 264:0-266:1
     Visibility: public -/
 structure FieldSet where
   seen : alloc.vec.Vec Std.U32
 
 /-- [tacenta_protobuf::{tacenta_protobuf::FieldSet}::new]:
-    Source: 'protobuf/src/lib.rs', lines 280:4-282:5
+    Source: 'protobuf/src/lib.rs', lines 276:4-278:5
     Visibility: public -/
 def FieldSet.new : Result FieldSet := do
   ok { seen := (alloc.vec.Vec.new Std.U32) }
 
 /-- [tacenta_protobuf::{impl core::default::Default for tacenta_protobuf::FieldSet}::default]:
-    Source: 'protobuf/src/lib.rs', lines 273:4-275:5
+    Source: 'protobuf/src/lib.rs', lines 269:4-271:5
     Visibility: public -/
 def FieldSet.Insts.CoreDefaultDefault.default : Result FieldSet := do
   FieldSet.new
 
 /-- Trait implementation: [tacenta_protobuf::{impl core::default::Default for tacenta_protobuf::FieldSet}]
-    Source: 'protobuf/src/lib.rs', lines 272:0-276:1 -/
+    Source: 'protobuf/src/lib.rs', lines 268:0-272:1 -/
 @[reducible]
 def FieldSet.Insts.CoreDefaultDefault : core.default.Default FieldSet := {
   default := FieldSet.Insts.CoreDefaultDefault.default
 }
 
 /-- [tacenta_protobuf::{tacenta_protobuf::FieldSet}::contains]: loop body 0:
-    Source: 'protobuf/src/lib.rs', lines 291:8-298:5
+    Source: 'protobuf/src/lib.rs', lines 287:8-294:5
     Visibility: public -/
 @[rust_loop_body]
 def FieldSet.contains_loop.body
@@ -547,7 +547,7 @@ def FieldSet.contains_loop.body
   else ok (done false)
 
 /-- [tacenta_protobuf::{tacenta_protobuf::FieldSet}::contains]: loop 0:
-    Source: 'protobuf/src/lib.rs', lines 291:8-298:5
+    Source: 'protobuf/src/lib.rs', lines 287:8-294:5
     Visibility: public -/
 @[rust_loop]
 def FieldSet.contains_loop
@@ -557,14 +557,14 @@ def FieldSet.contains_loop
     i
 
 /-- [tacenta_protobuf::{tacenta_protobuf::FieldSet}::contains]:
-    Source: 'protobuf/src/lib.rs', lines 289:4-298:5
+    Source: 'protobuf/src/lib.rs', lines 285:4-294:5
     Visibility: public -/
 @[reducible]
 def FieldSet.contains (self : FieldSet) (field : Std.U32) : Result Bool := do
   FieldSet.contains_loop self field 0#usize
 
 /-- [tacenta_protobuf::{tacenta_protobuf::FieldSet}::admit]:
-    Source: 'protobuf/src/lib.rs', lines 315:4-324:5
+    Source: 'protobuf/src/lib.rs', lines 311:4-320:5
     Visibility: public -/
 def FieldSet.admit
   (self : FieldSet) (field : Std.U32) :
@@ -581,7 +581,7 @@ def FieldSet.admit
          ok (none, { seen := v })
 
 /-- [tacenta_protobuf::PrekeyBody]
-    Source: 'protobuf/src/lib.rs', lines 372:0-384:1
+    Source: 'protobuf/src/lib.rs', lines 369:0-381:1
     Visibility: public -/
 structure PrekeyBody where
   prekey_id : Option Std.U32
@@ -594,47 +594,47 @@ structure PrekeyBody where
   kem : alloc.vec.Vec Std.U8
 
 /-- [tacenta_protobuf::FIELD_PREKEY_ID]
-    Source: 'protobuf/src/lib.rs', lines 386:0-386:35
+    Source: 'protobuf/src/lib.rs', lines 383:0-383:35
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_PREKEY_ID : Std.U32 := 1#u32
 
 /-- [tacenta_protobuf::FIELD_BASE_KEY]
-    Source: 'protobuf/src/lib.rs', lines 387:0-387:34
+    Source: 'protobuf/src/lib.rs', lines 384:0-384:34
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_BASE_KEY : Std.U32 := 2#u32
 
 /-- [tacenta_protobuf::FIELD_IDENTITY_KEY]
-    Source: 'protobuf/src/lib.rs', lines 388:0-388:38
+    Source: 'protobuf/src/lib.rs', lines 385:0-385:38
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_IDENTITY_KEY : Std.U32 := 3#u32
 
 /-- [tacenta_protobuf::FIELD_MESSAGE]
-    Source: 'protobuf/src/lib.rs', lines 389:0-389:33
+    Source: 'protobuf/src/lib.rs', lines 386:0-386:33
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_MESSAGE : Std.U32 := 4#u32
 
 /-- [tacenta_protobuf::FIELD_REGISTRATION_ID]
-    Source: 'protobuf/src/lib.rs', lines 390:0-390:41
+    Source: 'protobuf/src/lib.rs', lines 387:0-387:41
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_REGISTRATION_ID : Std.U32 := 5#u32
 
 /-- [tacenta_protobuf::FIELD_SIGNED_PREKEY_ID]
-    Source: 'protobuf/src/lib.rs', lines 391:0-391:42
+    Source: 'protobuf/src/lib.rs', lines 388:0-388:42
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_SIGNED_PREKEY_ID : Std.U32 := 6#u32
 
 /-- [tacenta_protobuf::FIELD_PQ_PREKEY_ID]
-    Source: 'protobuf/src/lib.rs', lines 392:0-392:38
+    Source: 'protobuf/src/lib.rs', lines 389:0-389:38
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_PQ_PREKEY_ID : Std.U32 := 7#u32
 
 /-- [tacenta_protobuf::FIELD_KEM]
-    Source: 'protobuf/src/lib.rs', lines 393:0-393:29
+    Source: 'protobuf/src/lib.rs', lines 390:0-390:29
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_KEM : Std.U32 := 8#u32
 
 /-- [tacenta_protobuf::EnvelopeParse]
-    Source: 'protobuf/src/lib.rs', lines 396:0-401:1
+    Source: 'protobuf/src/lib.rs', lines 393:0-398:1
     Visibility: public -/
 structure EnvelopeParse where
   reader : Reader
@@ -643,7 +643,7 @@ structure EnvelopeParse where
   error : Option ProtoError
 
 /-- [tacenta_protobuf::one_envelope_field]:
-    Source: 'protobuf/src/lib.rs', lines 404:0-500:1
+    Source: 'protobuf/src/lib.rs', lines 401:0-497:1
     Visibility: public -/
 def one_envelope_field (st : EnvelopeParse) : Result EnvelopeParse := do
   let (r, r1) ← Reader.tag st.reader
@@ -920,7 +920,7 @@ def one_envelope_field (st : EnvelopeParse) : Result EnvelopeParse := do
   | core.result.Result.Err e => ok { st with reader := r1, error := (some e) }
 
 /-- [tacenta_protobuf::parse_prekey_body]: loop body 0:
-    Source: 'protobuf/src/lib.rs', lines 1:0-529:5
+    Source: 'protobuf/src/lib.rs', lines 1:0-526:5
     Visibility: public -/
 @[rust_loop_body]
 def parse_prekey_body_loop.body
@@ -943,7 +943,7 @@ def parse_prekey_body_loop.body
   else ok (done st)
 
 /-- [tacenta_protobuf::parse_prekey_body]: loop 0:
-    Source: 'protobuf/src/lib.rs', lines 1:0-529:5
+    Source: 'protobuf/src/lib.rs', lines 1:0-526:5
     Visibility: public -/
 @[rust_loop]
 def parse_prekey_body_loop
@@ -953,7 +953,7 @@ def parse_prekey_body_loop
     (st, turns)
 
 /-- [tacenta_protobuf::parse_prekey_body]:
-    Source: 'protobuf/src/lib.rs', lines 503:0-553:1
+    Source: 'protobuf/src/lib.rs', lines 500:0-550:1
     Visibility: public -/
 def parse_prekey_body
   (bytes : alloc.vec.Vec Std.U8) :
@@ -1019,7 +1019,7 @@ def parse_prekey_body
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [tacenta_protobuf::VarintOut]
-    Source: 'protobuf/src/lib.rs', lines 561:0-566:1
+    Source: 'protobuf/src/lib.rs', lines 558:0-563:1
     Visibility: public -/
 structure VarintOut where
   bytes : alloc.vec.Vec Std.U8
@@ -1028,7 +1028,7 @@ structure VarintOut where
   error : Option ProtoError
 
 /-- [tacenta_protobuf::push_bounded]:
-    Source: 'protobuf/src/lib.rs', lines 575:0-581:1
+    Source: 'protobuf/src/lib.rs', lines 572:0-578:1
     Visibility: public -/
 def push_bounded
   (bytes : alloc.vec.Vec Std.U8) (b : Std.U8) :
@@ -1042,7 +1042,7 @@ def push_bounded
     ok (core.result.Result.Ok bytes1)
 
 /-- [tacenta_protobuf::varint_step]:
-    Source: 'protobuf/src/lib.rs', lines 584:0-606:1
+    Source: 'protobuf/src/lib.rs', lines 581:0-603:1
     Visibility: public -/
 def varint_step (st : VarintOut) : Result VarintOut := do
   let i ← st.value % 128#u32
@@ -1061,7 +1061,7 @@ def varint_step (st : VarintOut) : Result VarintOut := do
     ok { st with bytes := (alloc.vec.Vec.new Std.U8), error := (some e) }
 
 /-- [tacenta_protobuf::encode_varint]: loop body 0:
-    Source: 'protobuf/src/lib.rs', lines 1:0-625:5
+    Source: 'protobuf/src/lib.rs', lines 1:0-622:5
     Visibility: public -/
 @[rust_loop_body]
 def encode_varint_loop.body
@@ -1083,7 +1083,7 @@ def encode_varint_loop.body
   else ok (done st)
 
 /-- [tacenta_protobuf::encode_varint]: loop 0:
-    Source: 'protobuf/src/lib.rs', lines 1:0-625:5
+    Source: 'protobuf/src/lib.rs', lines 1:0-622:5
     Visibility: public -/
 @[rust_loop]
 def encode_varint_loop
@@ -1093,7 +1093,7 @@ def encode_varint_loop
     (st, turns)
 
 /-- [tacenta_protobuf::encode_varint]:
-    Source: 'protobuf/src/lib.rs', lines 614:0-630:1
+    Source: 'protobuf/src/lib.rs', lines 611:0-627:1
     Visibility: public -/
 def encode_varint
   (bytes : alloc.vec.Vec Std.U8) (value : Std.U32) :
@@ -1106,7 +1106,7 @@ def encode_varint
   | some e => ok (core.result.Result.Err e)
 
 /-- [tacenta_protobuf::wire_code]:
-    Source: 'protobuf/src/lib.rs', lines 639:0-645:1
+    Source: 'protobuf/src/lib.rs', lines 636:0-642:1
     Visibility: public -/
 def wire_code (wire : WireType) : Result Std.U32 := do
   let b ←
@@ -1118,7 +1118,7 @@ def wire_code (wire : WireType) : Result Std.U32 := do
   else ok 2#u32
 
 /-- [tacenta_protobuf::encode_tag]:
-    Source: 'protobuf/src/lib.rs', lines 648:0-657:1
+    Source: 'protobuf/src/lib.rs', lines 645:0-654:1
     Visibility: public -/
 def encode_tag
   (bytes : alloc.vec.Vec Std.U8) (field : Std.U32) (wire : WireType) :
@@ -1135,7 +1135,7 @@ def encode_tag
     | some raw1 => encode_varint bytes raw1
 
 /-- [tacenta_protobuf::CopyOut]
-    Source: 'protobuf/src/lib.rs', lines 660:0-664:1
+    Source: 'protobuf/src/lib.rs', lines 657:0-661:1
     Visibility: public -/
 structure CopyOut where
   bytes : alloc.vec.Vec Std.U8
@@ -1143,7 +1143,7 @@ structure CopyOut where
   error : Option ProtoError
 
 /-- [tacenta_protobuf::copy_step]:
-    Source: 'protobuf/src/lib.rs', lines 667:0-683:1
+    Source: 'protobuf/src/lib.rs', lines 664:0-680:1
     Visibility: public -/
 def copy_step (st : CopyOut) (value : Slice Std.U8) : Result CopyOut := do
   let i := Slice.len value
@@ -1160,7 +1160,7 @@ def copy_step (st : CopyOut) (value : Slice Std.U8) : Result CopyOut := do
       ok { st with bytes := (alloc.vec.Vec.new Std.U8), error := (some e) }
 
 /-- [tacenta_protobuf::encode_length_delimited]: loop body 0:
-    Source: 'protobuf/src/lib.rs', lines 1:0-703:5
+    Source: 'protobuf/src/lib.rs', lines 1:0-700:5
     Visibility: public -/
 @[rust_loop_body]
 def encode_length_delimited_loop.body
@@ -1183,7 +1183,7 @@ def encode_length_delimited_loop.body
   else ok (done st)
 
 /-- [tacenta_protobuf::encode_length_delimited]: loop 0:
-    Source: 'protobuf/src/lib.rs', lines 1:0-703:5
+    Source: 'protobuf/src/lib.rs', lines 1:0-700:5
     Visibility: public -/
 @[rust_loop]
 def encode_length_delimited_loop
@@ -1195,7 +1195,7 @@ def encode_length_delimited_loop
     (st, turns)
 
 /-- [tacenta_protobuf::encode_length_delimited]:
-    Source: 'protobuf/src/lib.rs', lines 686:0-708:1
+    Source: 'protobuf/src/lib.rs', lines 683:0-705:1
     Visibility: public -/
 def encode_length_delimited
   (bytes : alloc.vec.Vec Std.U8) (value : Slice Std.U8) :
@@ -1219,32 +1219,32 @@ def encode_length_delimited
     | core.result.Result.Err _ => ok r
 
 /-- [tacenta_protobuf::FIELD_PQ]
-    Source: 'protobuf/src/lib.rs', lines 902:0-902:28
+    Source: 'protobuf/src/lib.rs', lines 901:0-901:28
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_PQ : Std.U32 := 5#u32
 
 /-- [tacenta_protobuf::FIELD_CIPHERTEXT]
-    Source: 'protobuf/src/lib.rs', lines 901:0-901:36
+    Source: 'protobuf/src/lib.rs', lines 900:0-900:36
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_CIPHERTEXT : Std.U32 := 4#u32
 
 /-- [tacenta_protobuf::FIELD_PREVIOUS_COUNTER]
-    Source: 'protobuf/src/lib.rs', lines 900:0-900:42
+    Source: 'protobuf/src/lib.rs', lines 899:0-899:42
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_PREVIOUS_COUNTER : Std.U32 := 3#u32
 
 /-- [tacenta_protobuf::FIELD_COUNTER]
-    Source: 'protobuf/src/lib.rs', lines 899:0-899:33
+    Source: 'protobuf/src/lib.rs', lines 898:0-898:33
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_COUNTER : Std.U32 := 2#u32
 
 /-- [tacenta_protobuf::FIELD_RATCHET_KEY]
-    Source: 'protobuf/src/lib.rs', lines 898:0-898:37
+    Source: 'protobuf/src/lib.rs', lines 897:0-897:37
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_RATCHET_KEY : Std.U32 := 1#u32
 
 /-- [tacenta_protobuf::RatchetBody]
-    Source: 'protobuf/src/lib.rs', lines 889:0-895:1
+    Source: 'protobuf/src/lib.rs', lines 887:0-893:1
     Visibility: public -/
 structure RatchetBody where
   ratchet_key : alloc.vec.Vec Std.U8
@@ -1254,7 +1254,7 @@ structure RatchetBody where
   pq : alloc.vec.Vec Std.U8
 
 /-- [tacenta_protobuf::encode_ratchet_body]:
-    Source: 'protobuf/src/lib.rs', lines 728:0-767:1
+    Source: 'protobuf/src/lib.rs', lines 725:0-764:1
     Visibility: public -/
 def encode_ratchet_body
   (body : RatchetBody) :
@@ -1305,7 +1305,7 @@ def encode_ratchet_body
   | core.result.Result.Err _ => ok r
 
 /-- [tacenta_protobuf::encode_prekey_body]:
-    Source: 'protobuf/src/lib.rs', lines 776:0-846:1
+    Source: 'protobuf/src/lib.rs', lines 774:0-844:1
     Visibility: public -/
 def encode_prekey_body
   (body : PrekeyBody) :
@@ -1450,14 +1450,14 @@ def encode_prekey_body
     | core.result.Result.Err _ => ok r
 
 /-- [tacenta_protobuf::Raw]
-    Source: 'protobuf/src/lib.rs', lines 855:0-858:1
+    Source: 'protobuf/src/lib.rs', lines 853:0-856:1
     Visibility: public -/
 structure Raw where
   start : Std.Usize
   «end» : Std.Usize
 
 /-- [tacenta_protobuf::{tacenta_protobuf::Raw}::slice_of]: loop body 0:
-    Source: 'protobuf/src/lib.rs', lines 869:8-872:9
+    Source: 'protobuf/src/lib.rs', lines 867:8-870:9
     Visibility: public -/
 @[rust_loop_body]
 def Raw.slice_of_loop.body
@@ -1475,7 +1475,7 @@ def Raw.slice_of_loop.body
   else ok (done out)
 
 /-- [tacenta_protobuf::{tacenta_protobuf::Raw}::slice_of]: loop 0:
-    Source: 'protobuf/src/lib.rs', lines 869:8-872:9
+    Source: 'protobuf/src/lib.rs', lines 867:8-870:9
     Visibility: public -/
 @[rust_loop]
 def Raw.slice_of_loop
@@ -1488,7 +1488,7 @@ def Raw.slice_of_loop
     (out, i1)
 
 /-- [tacenta_protobuf::{tacenta_protobuf::Raw}::slice_of]:
-    Source: 'protobuf/src/lib.rs', lines 863:4-874:5
+    Source: 'protobuf/src/lib.rs', lines 861:4-872:5
     Visibility: public -/
 def Raw.slice_of
   (self : Raw) (bytes : Slice Std.U8) :
@@ -1507,7 +1507,7 @@ def Raw.slice_of
       ok (core.result.Result.Ok out)
 
 /-- [tacenta_protobuf::Parse]
-    Source: 'protobuf/src/lib.rs', lines 911:0-920:1
+    Source: 'protobuf/src/lib.rs', lines 910:0-919:1
     Visibility: public -/
 structure Parse where
   reader : Reader
@@ -1520,7 +1520,7 @@ structure Parse where
   error : Option ProtoError
 
 /-- [tacenta_protobuf::one_field]:
-    Source: 'protobuf/src/lib.rs', lines 928:0-995:1
+    Source: 'protobuf/src/lib.rs', lines 927:0-994:1
     Visibility: public -/
 def one_field (st : Parse) : Result Parse := do
   let (r, r1) ← Reader.tag st.reader
@@ -1661,7 +1661,7 @@ def one_field (st : Parse) : Result Parse := do
   | core.result.Result.Err e => ok { st with reader := r1, error := (some e) }
 
 /-- [tacenta_protobuf::parse_ratchet_body]: loop body 0:
-    Source: 'protobuf/src/lib.rs', lines 1:0-1028:5
+    Source: 'protobuf/src/lib.rs', lines 1:0-1027:5
     Visibility: public -/
 @[rust_loop_body]
 def parse_ratchet_body_loop.body
@@ -1684,7 +1684,7 @@ def parse_ratchet_body_loop.body
   else ok (done st)
 
 /-- [tacenta_protobuf::parse_ratchet_body]: loop 0:
-    Source: 'protobuf/src/lib.rs', lines 1:0-1028:5
+    Source: 'protobuf/src/lib.rs', lines 1:0-1027:5
     Visibility: public -/
 @[rust_loop]
 def parse_ratchet_body_loop
@@ -1694,7 +1694,7 @@ def parse_ratchet_body_loop
     (st, turns)
 
 /-- [tacenta_protobuf::parse_ratchet_body]:
-    Source: 'protobuf/src/lib.rs', lines 1007:0-1059:1
+    Source: 'protobuf/src/lib.rs', lines 1006:0-1059:1
     Visibility: public -/
 def parse_ratchet_body
   (bytes : alloc.vec.Vec Std.U8) :
