@@ -530,6 +530,117 @@ fn from_bytes_refuses_an_epoch_at_the_ceiling() {
     assert!(Braid::from_bytes(&bytes).is_ok());
 }
 
+/// A persisted epoch of zero is refused as malformed. Both constructors
+/// start at one and nothing counts down, so no run produced it; and the
+/// epoch a caller reads is the negotiated one less one, so a restored
+/// epoch-zero Braid would report an epoch of zero as "known to both
+/// parties" and label the first completed epoch wrongly. Checked for
+/// every state that carries an epoch: `Failed` carries none.
+#[test]
+fn from_bytes_refuses_epoch_zero() {
+    let mut r = rng(32);
+    let mut p = Pair::new(b"a preshared secret from the handshake");
+    let mut samples: Vec<Option<Zeroizing<Vec<u8>>>> = vec![None; 11];
+    let mut i = 0usize;
+    while i < 1500 {
+        let (m, _, _, next) = p.a.send(&mut r);
+        p.a = next;
+        Pair::receive_and_commit(&mut p.b, &m);
+        let (m, _, _, next) = p.b.send(&mut r);
+        p.b = next;
+        if i.is_multiple_of(3) {
+            Pair::receive_and_commit(&mut p.a, &m);
+        }
+        let ta = p.a.state_tag() as usize;
+        if ta < 11 && samples[ta].is_none() {
+            samples[ta] = Some(p.a.to_bytes());
+        }
+        let tb = p.b.state_tag() as usize;
+        if tb < 11 && samples[tb].is_none() {
+            samples[tb] = Some(p.b.to_bytes());
+        }
+        i += 1;
+    }
+    let mut tag = 0;
+    while tag < 11 {
+        let mut bytes = samples[tag]
+            .clone()
+            .unwrap_or_else(|| panic!("the negotiation never reached tag {tag}"))
+            .to_vec();
+        assert!(
+            Braid::from_bytes(&bytes).is_ok(),
+            "tag {tag} sample does not restore"
+        );
+        // Version, tag, then the eight epoch bytes.
+        bytes[2..10].copy_from_slice(&0u64.to_be_bytes());
+        assert!(
+            matches!(Braid::from_bytes(&bytes), Err(BraidDecodeError::Malformed)),
+            "tag {tag} at epoch zero was restored"
+        );
+        tag += 1;
+    }
+    let failed = Braid::from_bytes(&[STATE_VERSION, 11]).unwrap();
+    assert!(failed.failed() && failed.invariant());
+}
+
+/// The `ct1` clause of `invariant` is stated as an exact length; the bound
+/// `BraidT1`'s `State.ct1_bounded` asks for follows from it only while the
+/// exact length is within that bound.
+#[test]
+fn ct1_is_within_the_bound_the_proof_states() {
+    const {
+        assert!(CT1_LEN <= 4096);
+    }
+}
+
+/// `invariant` holds after every send and every committed receive of a
+/// lossy negotiation and survives a round trip through persistence at every
+/// step, on both sides, so what `from_bytes` checks is an inductive
+/// invariant of the transitions and not only a shape of the encoding. The
+/// same schedule as `from_bytes_refuses_a_field_of_the_wrong_length`, so
+/// every live state is visited. `is_initiator` stays what each party was
+/// built as, through every swap of sides.
+#[test]
+fn the_invariant_holds_after_every_step_and_round_trip() {
+    let mut r = rng(33);
+    let mut p = Pair::new(b"a preshared secret from the handshake");
+    let mut seen = [false; 11];
+    let mut i = 0usize;
+    while i < 1500 {
+        let (m, _, _, next) = p.a.send(&mut r);
+        assert!(next.invariant(), "initiator after send {i}");
+        p.a = next;
+        let (_, _, next) = p.b.receive(&m);
+        assert!(next.invariant(), "responder after receive {i}");
+        p.b.commit(next);
+        let (m, _, _, next) = p.b.send(&mut r);
+        assert!(next.invariant(), "responder after send {i}");
+        p.b = next;
+        if i.is_multiple_of(3) {
+            let (_, _, next) = p.a.receive(&m);
+            assert!(next.invariant(), "initiator after receive {i}");
+            p.a.commit(next);
+        }
+        assert_eq!(p.a.is_initiator(), Some(true), "step {i}");
+        assert_eq!(p.b.is_initiator(), Some(false), "step {i}");
+        p.a = Braid::from_bytes(&p.a.to_bytes()).unwrap();
+        p.b = Braid::from_bytes(&p.b.to_bytes()).unwrap();
+        assert!(
+            p.a.invariant() && p.b.invariant(),
+            "after the round trip at {i}"
+        );
+        seen[p.a.state_tag() as usize] = true;
+        seen[p.b.state_tag() as usize] = true;
+        i += 1;
+    }
+    assert!(!p.a.failed() && !p.b.failed());
+    assert!(p.a.epoch() >= 3, "only epoch {} reached", p.a.epoch());
+    assert!(
+        seen.iter().all(|s| *s),
+        "not every live state was visited: {seen:?}"
+    );
+}
+
 /// The two states that increment the epoch fail closed at the ceiling
 /// instead of panicking. The states are built directly, since `from_bytes`
 /// now refuses to construct them: this pins the arithmetic itself, so that

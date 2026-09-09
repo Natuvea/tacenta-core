@@ -340,6 +340,21 @@ impl Encoder {
         self.chunks.len()
     }
 
+    /// What `new` and `next_chunk` maintain, stated once so `from_bytes` can
+    /// check it last and a test can check it after every step. The stream
+    /// holds at most `MAX_CODEWORDS` chunks: `new` caps it there and nothing
+    /// adds one afterwards, and it is the count that sizes `weights`,
+    /// quadratic in it, so a stored stream declaring tens of thousands of
+    /// chunks would turn the first non-systematic send into minutes of field
+    /// arithmetic (CR-14). And `next_chunk` sets `exhausted` only at the last
+    /// index and leaves `next` there, so an exhausted stream at any other
+    /// index is a second spelling of no reachable state. `next` itself
+    /// carries no bound: it runs past the chunk count as soon as the
+    /// systematic prefix has been issued.
+    pub fn invariant(&self) -> bool {
+        self.chunks.len() <= MAX_CODEWORDS && (!self.exhausted || self.next == u16::MAX)
+    }
+
     /// The next codeword, or `None` once the field's nodes are used up.
     ///
     /// Exhaustion is unreachable in practice: the largest value the Braid sends
@@ -454,25 +469,6 @@ impl Encoder {
         if count > bytes.len() / CHUNK_BYTES {
             return None;
         }
-        // **The same bound `Decoder::from_bytes` places on `needed`.** `new`
-        // caps a stream at `MAX_CODEWORDS` chunks, so a count above it is one
-        // no honest run produced; and it is the count that sizes `weights`,
-        // which is quadratic in it, so a stored stream declaring tens of
-        // thousands of chunks would turn the first non-systematic send into
-        // minutes of field arithmetic. Bounding it here keeps the two coders'
-        // restore paths consistent (CR-14).
-        if count > MAX_CODEWORDS {
-            return None;
-        }
-        // `next` is the index of the next codeword and runs past `count` as
-        // soon as the systematic prefix has been issued, so it carries no
-        // bound of its own. What it does carry is the exhaustion invariant:
-        // `next_chunk` sets `exhausted` only at the last index and leaves
-        // `next` there, so an exhausted stream at any other index is a second
-        // spelling of no reachable state.
-        if exhausted && next != u16::MAX {
-            return None;
-        }
         let mut chunks = Vec::new();
         let mut ok = true;
         for _ in 0..count {
@@ -488,11 +484,22 @@ impl Encoder {
         if !ok || pos != bytes.len() {
             return None;
         }
-        Some(Encoder {
+        // **The restored stream must satisfy what `new` and `next_chunk`
+        // maintain**, which is `invariant` in full: the chunk cap `new`
+        // imposes, which `Decoder::from_bytes` places on `needed` the same
+        // way so the two restore paths stay consistent (CR-14), and
+        // exhaustion only at the last index. Checked last, as one predicate,
+        // so what the decoder accepts and what the operations keep are the
+        // same statement.
+        let enc = Encoder {
             chunks,
             next,
             exhausted,
-        })
+        };
+        if !enc.invariant() {
+            return None;
+        }
+        Some(enc)
     }
 }
 
@@ -553,6 +560,38 @@ impl Decoder {
     /// decoder from persistence (CR-21).
     pub fn size(&self) -> usize {
         self.size
+    }
+
+    /// What `new` and `add_chunk` maintain, stated once so `from_bytes` can
+    /// check it last and a test can check it after every step. `needed` is
+    /// `chunk_count(size)` by construction and at most `MAX_CODEWORDS`, which
+    /// bounds `size` by two megabytes and with it what `message()`'s
+    /// reservation can cost; `have` never exceeds `needed` and never holds an
+    /// index twice, which is the distinct-nodes hypothesis interpolation
+    /// needs (`inv(0) = 0` in the field, so a duplicate node would not panic
+    /// there; it would reconstruct the wrong bytes without any signal, which
+    /// is worse).
+    ///
+    /// The index pass uses a table of every possible `u16`, which fits on
+    /// the stack and keeps this linear rather than quadratic in a count a
+    /// stored file chooses. A flag rather than a return inside the loop,
+    /// which Aeneas does not translate; the loop runs to the end either way.
+    pub fn invariant(&self) -> bool {
+        let mut seen = [false; MAX_CODEWORDS];
+        let mut distinct = true;
+        let mut i = 0;
+        while i < self.have.len() {
+            let idx = self.have[i].index as usize;
+            if seen[idx] {
+                distinct = false;
+            }
+            seen[idx] = true;
+            i += 1;
+        }
+        self.needed == chunk_count(self.size)
+            && self.needed <= MAX_CODEWORDS
+            && self.have.len() <= self.needed
+            && distinct
     }
 
     /// The message, once enough codewords have arrived.
@@ -685,42 +724,20 @@ impl Decoder {
 
         // **The restored fields must satisfy what `new` and `add_chunk`
         // maintain, or the decoder that comes back is one no honest run could
-        // have produced.** `needed` is `chunk_count(size)` by construction;
-        // `have` never exceeds `needed` and never holds an index twice.
-        // Without these checks a stored decoder with `needed = 0` and a huge
-        // `size` would decode, re-encode to itself so the session's
-        // canonicality check passed, and on the next chunk of its type
-        // `has_message()` would be vacuously true and `message()` would ask
-        // `Vec::with_capacity` for the huge size -- a panic (capacity
-        // overflow) or an abort (allocation failure), on every restart, from
-        // one flipped bit in a session file. Bounding `needed` by
-        // `MAX_CODEWORDS` bounds `size` by two megabytes, which is what
-        // `message()`'s reservation then costs at most.
-        if needed != chunk_count(size) || needed > MAX_CODEWORDS || have.len() > needed {
+        // have produced**, which is `invariant` in full. Without it a stored
+        // decoder with `needed = 0` and a huge `size` would decode, re-encode
+        // to itself so the session's canonicality check passed, and on the
+        // next chunk of its type `has_message()` would be vacuously true and
+        // `message()` would ask `Vec::with_capacity` for the huge size -- a
+        // panic (capacity overflow) or an abort (allocation failure), on
+        // every restart, from one flipped bit in a session file. Checked
+        // last, as one predicate, so what the decoder accepts and what the
+        // operations keep are the same statement.
+        let dec = Decoder { size, needed, have };
+        if !dec.invariant() {
             return None;
         }
-        // Distinct indices, in one pass: an index is a `u16`, so a table of
-        // every possible value fits on the stack and keeps this linear rather
-        // than quadratic in a count an attacker chooses. `inv(0) = 0` in the
-        // field, so a duplicate node would not panic in `interpolate`; it would
-        // reconstruct the wrong bytes without any signal, which is worse.
-        // A flag rather than a return inside the loop, which Aeneas does not
-        // translate; the loop runs to the end either way.
-        let mut seen = [false; MAX_CODEWORDS];
-        let mut distinct = true;
-        let mut i = 0;
-        while i < have.len() {
-            let idx = have[i].index as usize;
-            if seen[idx] {
-                distinct = false;
-            }
-            seen[idx] = true;
-            i += 1;
-        }
-        if !distinct {
-            return None;
-        }
-        Some(Decoder { size, needed, have })
+        Some(dec)
     }
 }
 
@@ -783,6 +800,106 @@ mod decode_bounds_tests {
         assert!(Encoder::from_bytes(&bytes).is_none());
         bytes[0..2].copy_from_slice(&u16::MAX.to_be_bytes());
         assert!(Encoder::from_bytes(&bytes).is_some());
+    }
+
+    /// Each clause of `Decoder::invariant`, violated one at a time in an
+    /// otherwise exact encoding, is refused: `needed` off from
+    /// `chunk_count(size)`, `needed` past the field's node count, more
+    /// codewords held than needed, and one index held twice.
+    #[test]
+    fn a_decoder_that_breaks_its_own_invariant_is_refused() {
+        let msg = vec![7u8; 100];
+        let mut enc = Encoder::new(&msg);
+        let mut dec = Decoder::new(msg.len());
+        dec.add_chunk(enc.next_chunk().unwrap());
+        let bytes = dec.to_bytes();
+        assert!(Decoder::from_bytes(&bytes).is_some());
+
+        // `needed` is the second `u64`; `size` the first.
+        let mut wrong_needed = bytes.clone();
+        wrong_needed[8..16].copy_from_slice(&(dec.needed() as u64 + 1).to_be_bytes());
+        assert!(Decoder::from_bytes(&wrong_needed).is_none());
+
+        // A size and count that agree with each other but not with the field.
+        let mut too_many = Decoder::new((MAX_CODEWORDS + 1) * CHUNK_BYTES).to_bytes();
+        assert!(Decoder::from_bytes(&too_many).is_none());
+        too_many[0..8].copy_from_slice(&((MAX_CODEWORDS * CHUNK_BYTES) as u64).to_be_bytes());
+        too_many[8..16].copy_from_slice(&(MAX_CODEWORDS as u64).to_be_bytes());
+        assert!(Decoder::from_bytes(&too_many).is_some());
+
+        // A full decoder plus one: the count is the `u32` after the sizes,
+        // and the extra codeword carries an index no other holds.
+        let mut full = Decoder::new(msg.len());
+        while !full.has_message() {
+            full.add_chunk(enc.next_chunk().unwrap());
+        }
+        let mut over = full.to_bytes();
+        over[16..20].copy_from_slice(&(full.received() as u32 + 1).to_be_bytes());
+        over.extend_from_slice(&u16::MAX.to_be_bytes());
+        over.extend_from_slice(&[0u8; CHUNK_BYTES]);
+        assert!(Decoder::from_bytes(&over).is_none());
+
+        // Two codewords at one index, in a decoder with room for both.
+        let mut twice = bytes.clone();
+        twice[16..20].copy_from_slice(&2u32.to_be_bytes());
+        twice.extend_from_slice(&bytes[20..]);
+        assert!(Decoder::from_bytes(&twice).is_none());
+        // At distinct indices the same two codewords restore.
+        let at = 20 + 2 + CHUNK_BYTES;
+        twice[at..at + 2].copy_from_slice(&9u16.to_be_bytes());
+        assert!(Decoder::from_bytes(&twice).is_some());
+    }
+
+    /// Both coders' invariants hold after every step of a lossy stream and
+    /// survive a round trip through their persistence at every step, so what
+    /// `from_bytes` checks is an inductive invariant of the operations and
+    /// not only a shape of the encoding.
+    #[test]
+    fn the_invariants_hold_after_every_step_and_round_trip() {
+        let mut state: u64 = 0x2545_f491_4f6c_dd1d;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let mut round = 0;
+        while round < 6 {
+            let len = 1 + (next() % 1600) as usize;
+            let mut msg = vec![0u8; len];
+            let mut b = 0;
+            while b < len {
+                msg[b] = next() as u8;
+                b += 1;
+            }
+            let mut enc = Encoder::new(&msg);
+            let mut dec = Decoder::new(len);
+            assert!(enc.invariant() && dec.invariant());
+            let mut steps = 0;
+            while !dec.has_message() && steps < 400 {
+                let chunk = enc.next_chunk().unwrap();
+                assert!(enc.invariant(), "encoder after codeword {steps}");
+                // Two in five lost, and one in five offered twice.
+                let r = next() % 5;
+                if r >= 2 {
+                    dec.add_chunk(chunk);
+                    assert!(dec.invariant(), "decoder after codeword {steps}");
+                }
+                if r == 4 {
+                    dec.add_chunk(chunk);
+                    assert!(dec.invariant(), "decoder after a replay at {steps}");
+                }
+                enc = Encoder::from_bytes(&enc.to_bytes()).unwrap();
+                dec = Decoder::from_bytes(&dec.to_bytes()).unwrap();
+                assert!(
+                    enc.invariant() && dec.invariant(),
+                    "after the round trip at {steps}"
+                );
+                steps += 1;
+            }
+            assert_eq!(dec.message().unwrap(), msg, "round {round}");
+            round += 1;
+        }
     }
 
     /// `new` caps a stream at the field's node count rather than letting the

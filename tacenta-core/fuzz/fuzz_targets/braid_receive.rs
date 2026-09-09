@@ -110,11 +110,17 @@ fuzz_target!(|data: &[u8]| {
         if !candidate.failed() {
             braid.commit(candidate);
         }
+        // Every state a transition produces satisfies what the constructors
+        // established (`Braid::invariant`); `from_bytes` refuses on the same
+        // predicate, so a transition that broke it would leave a state the
+        // next restart refuses.
+        assert!(braid.invariant(), "receive broke the Braid invariant");
 
         // Sending must stay possible from whatever state a rejected message
         // left behind. A forged message that wedges the send side is a denial
         // of service even though it decrypts nothing.
         let (_msg, _epoch, _out, next) = braid.send(&mut rng);
         braid = next;
+        assert!(braid.invariant(), "send broke the Braid invariant");
     }
 });

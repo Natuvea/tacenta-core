@@ -45,7 +45,7 @@
 use zeroize::{Zeroize, Zeroizing};
 
 pub use tacenta_ratchet::{Header as DrHeader, Key, LabelSet, RatchetError};
-pub use tacenta_spqr::{Output, SpqrError};
+pub use tacenta_spqr::{Direction, Output, SpqrError};
 
 /// `PROTOCOL_INFO` for the combination and the split. Wire-sensitive, recorded
 /// in the conformance manifest rather than settled here.
@@ -245,6 +245,50 @@ impl State {
     /// The latest agreement epoch folded into the post-quantum half.
     pub fn epoch(&self) -> u64 {
         self.post_quantum.epoch()
+    }
+
+    /// Which side of the session the post-quantum half is on, for a caller
+    /// above checking it against its own record of the role and the
+    /// agreement's. Delegated, like the counters, rather than exposing the
+    /// half.
+    pub fn direction(&self) -> Direction {
+        self.post_quantum.direction()
+    }
+
+    /// Which role the classical half was initialised in, while its shape
+    /// still shows it; see `tacenta_ratchet::State::started_as_sender`.
+    pub fn started_as_sender(&self) -> Option<bool> {
+        self.classical.started_as_sender()
+    }
+
+    /// What the constructors and every operation maintain, stated once so
+    /// `from_bytes` can check it last and the tests and fuzz targets can
+    /// check it after every step (CR-21): both halves' own invariants, and
+    /// that the halves agree on the role. `init_sender` pairs the classical
+    /// sender with the side that sends on the first derived chain
+    /// (`Direction::A2b`) and `init_receiver` pairs the classical receiver
+    /// with the other, and neither half can change its role afterwards. The
+    /// classical half shows its role only until its first Diffie-Hellman
+    /// step (`started_as_sender`), so the agreement is checked while it can
+    /// be and holds trivially after. What this refuses is two halves from
+    /// different sessions, or one half's bytes swapped for the other role's,
+    /// which each half's own decoder accepts.
+    pub fn invariant(&self) -> bool {
+        let sends_first = match self.post_quantum.direction() {
+            Direction::A2b => true,
+            Direction::B2a => false,
+        };
+        let roles_agree = match self.classical.started_as_sender() {
+            None => true,
+            Some(sender) => {
+                if sender {
+                    sends_first
+                } else {
+                    !sends_first
+                }
+            }
+        };
+        self.classical.invariant() && self.post_quantum.invariant() && roles_agree
     }
 
     /// Produce a header and the key that encrypts this message.
@@ -473,10 +517,19 @@ impl State {
         if pos != bytes.len() {
             return Err(TripleDecodeError::Malformed);
         }
-        Ok(State {
+        // Each half's decoder has checked its own invariant; what is left is
+        // the one clause only the composition can state, that the halves
+        // agree on the role. Checked last, as the one predicate `invariant`
+        // is, so what the decoder accepts and what the operations keep are
+        // the same statement (CR-21).
+        let state = State {
             classical,
             post_quantum,
-        })
+        };
+        if !state.invariant() {
+            return Err(TripleDecodeError::Malformed);
+        }
+        Ok(state)
     }
 }
 

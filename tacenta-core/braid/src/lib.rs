@@ -467,6 +467,160 @@ impl Braid {
         self.state.name()
     }
 
+    /// Which party this is: `Some(true)` for the one `initiator` built,
+    /// `Some(false)` for `responder`'s, and `None` once the session has
+    /// failed. Not stored. The variant says which side of the current epoch
+    /// this party is on -- the five states that send a header or the six
+    /// that wait for one -- and the sides swap each epoch (transitions (5)
+    /// and (13)), so the party that started as initiator is on the
+    /// header-sending side in every odd epoch and on the other in every even
+    /// one. For a caller above checking that its own record of the role
+    /// agrees with the agreement's.
+    pub fn is_initiator(&self) -> Option<bool> {
+        let sends_header = match self.state {
+            State::KeysUnsampled { .. }
+            | State::KeysSampled { .. }
+            | State::HeaderSent { .. }
+            | State::Ct1Received { .. }
+            | State::EkSentCt1Received { .. } => true,
+            State::NoHeaderReceived { .. }
+            | State::HeaderReceived { .. }
+            | State::Ct1Sampled { .. }
+            | State::EkReceivedCt1Sampled { .. }
+            | State::Ct1Acknowledged { .. }
+            | State::Ct2Sampled { .. } => false,
+            State::Failed => return None,
+        };
+        let odd = self.state.epoch() % 2 == 1;
+        if sends_header { Some(odd) } else { Some(!odd) }
+    }
+
+    /// What the constructors and every transition maintain, stated once so
+    /// `from_bytes` can check it last and the tests and fuzz targets can
+    /// check it after every step (CR-21).
+    ///
+    /// The epoch is at least one: `initiator` and `responder` start there
+    /// and the two transitions that move it add one. `Failed` carries no
+    /// epoch and nothing else, and is a state every honest run can reach, so
+    /// it holds trivially. Every variable-length field has the length its
+    /// state implies -- `header` is `HEADER_LEN`, `ct1` is `CT1_LEN`,
+    /// `ek_vector` is `EK_VECTOR_LEN` -- and every coder is sized for the
+    /// value it streams and satisfies its own crate's invariant. A state
+    /// failing any of these is one no honest run produced: restoring it
+    /// would not panic, since the KEM wrappers length-check, but the next
+    /// chunk of its type would end in `Failed` and a forced re-establishment
+    /// where `Malformed` was the honest answer, and an oversized encoder
+    /// makes the first non-systematic send pay for a quadratic weight
+    /// computation over a count the file chose (CR-14, CR-21).
+    ///
+    /// The `ct1` clause is the one `BraidT1`'s `State.ct1_bounded` carries
+    /// into `step_receive`, stated exactly rather than as its bound:
+    /// `CT1_LEN` is 1408, within the 4096 it asks for.
+    ///
+    /// Not constrained: the epoch at `u64::MAX`. `from_bytes` refuses it
+    /// (`read_epoch`, CR-03), but an epoch one below the ceiling steps to it
+    /// honestly, so it is a policy of the decoder rather than a fact every
+    /// transition keeps.
+    pub fn invariant(&self) -> bool {
+        match &self.state {
+            State::KeysUnsampled { epoch, .. } => *epoch >= 1,
+            State::KeysSampled { epoch, hdr_enc, .. } => {
+                *epoch >= 1 && hdr_enc.invariant() && encoder_sized(hdr_enc, HEADER_LEN + MAC_LEN)
+            }
+            State::HeaderSent {
+                epoch,
+                ct1_dec,
+                ek_enc,
+                ..
+            } => {
+                *epoch >= 1
+                    && ct1_dec.invariant()
+                    && decoder_sized(ct1_dec, CT1_LEN)
+                    && ek_enc.invariant()
+                    && encoder_sized(ek_enc, EK_VECTOR_LEN)
+            }
+            State::Ct1Received {
+                epoch, ct1, ek_enc, ..
+            } => {
+                *epoch >= 1
+                    && ct1.len() == CT1_LEN
+                    && ek_enc.invariant()
+                    && encoder_sized(ek_enc, EK_VECTOR_LEN)
+            }
+            State::EkSentCt1Received {
+                epoch,
+                ct1,
+                ct2_dec,
+                ..
+            } => {
+                *epoch >= 1
+                    && ct1.len() == CT1_LEN
+                    && ct2_dec.invariant()
+                    && decoder_sized(ct2_dec, CT2_LEN + MAC_LEN)
+            }
+            State::NoHeaderReceived { epoch, hdr_dec, .. } => {
+                *epoch >= 1 && hdr_dec.invariant() && decoder_sized(hdr_dec, HEADER_LEN + MAC_LEN)
+            }
+            State::HeaderReceived {
+                epoch,
+                header,
+                ek_dec,
+                ..
+            } => {
+                *epoch >= 1
+                    && header.len() == HEADER_LEN
+                    && ek_dec.invariant()
+                    && decoder_sized(ek_dec, EK_VECTOR_LEN)
+            }
+            State::Ct1Sampled {
+                epoch,
+                header,
+                ct1,
+                ct1_enc,
+                ek_dec,
+                ..
+            } => {
+                *epoch >= 1
+                    && header.len() == HEADER_LEN
+                    && ct1.len() == CT1_LEN
+                    && ct1_enc.invariant()
+                    && encoder_sized(ct1_enc, CT1_LEN)
+                    && ek_dec.invariant()
+                    && decoder_sized(ek_dec, EK_VECTOR_LEN)
+            }
+            State::EkReceivedCt1Sampled {
+                epoch,
+                ct1,
+                ek_vector,
+                ct1_enc,
+                ..
+            } => {
+                *epoch >= 1
+                    && ct1.len() == CT1_LEN
+                    && ek_vector.len() == EK_VECTOR_LEN
+                    && ct1_enc.invariant()
+                    && encoder_sized(ct1_enc, CT1_LEN)
+            }
+            State::Ct1Acknowledged {
+                epoch,
+                header,
+                ct1,
+                ek_dec,
+                ..
+            } => {
+                *epoch >= 1
+                    && header.len() == HEADER_LEN
+                    && ct1.len() == CT1_LEN
+                    && ek_dec.invariant()
+                    && decoder_sized(ek_dec, EK_VECTOR_LEN)
+            }
+            State::Ct2Sampled { epoch, ct2_enc, .. } => {
+                *epoch >= 1 && ct2_enc.invariant() && encoder_sized(ct2_enc, CT2_LEN + MAC_LEN)
+            }
+            State::Failed => true,
+        }
+    }
+
     /// The epoch both parties are known to hold, read after any transition.
     fn reported(&self) -> u64 {
         self.state.epoch().saturating_sub(1)
@@ -1467,19 +1621,22 @@ impl Braid {
             Some(_) => return Err(BraidDecodeError::Malformed),
             None => return Err(BraidDecodeError::Malformed),
         };
-        Ok(Braid { state })
+        // Framed and parsed is not the same as reachable: the lengths and
+        // coder sizes every state implies are `invariant`'s, checked last
+        // as one predicate so what the decoder accepts and what the
+        // transitions keep are the same statement (CR-21).
+        let braid = Braid { state };
+        if !braid.invariant() {
+            return Err(BraidDecodeError::Malformed);
+        }
+        Ok(braid)
     }
 }
 
-/// Whether a restored encoder is sized for a value of `len` bytes, and a
-/// restored decoder is expecting exactly `len` bytes. Every coder a state
-/// carries is built for one fixed length, so a coder of any other size is one
-/// no honest run produced: restoring it would not panic, since the KEM
-/// wrappers length-check, but the next chunk of its type would end in
-/// `Failed` and a forced re-establishment where `Malformed` was the honest
-/// answer, and an oversized encoder makes the first non-systematic send pay
-/// for a quadratic weight computation over a count the file chose (CR-14,
-/// CR-21).
+/// Whether an encoder is sized for a value of `len` bytes, and a decoder is
+/// expecting exactly `len` bytes. Every coder a state carries is built for
+/// one fixed length, so a coder of any other size is one no honest run
+/// produced; `Braid::invariant` says what admitting one would cost.
 fn encoder_sized(enc: &Encoder, len: usize) -> bool {
     enc.needed() == chunk_count(len)
 }
@@ -1492,10 +1649,11 @@ fn decoder_sized(dec: &Decoder, len: usize) -> bool {
 /// returning it and the position just past its last field. A plain function
 /// with early returns throughout: nothing here loops.
 ///
-/// Beyond framing, every variable-length field is held to the length its
-/// state implies -- `header` to `HEADER_LEN`, `ct1` to `CT1_LEN`, `ek_vector`
-/// to `EK_VECTOR_LEN` -- and every coder to the value it streams, so that what
-/// comes back is a state some honest run could have been in (CR-21).
+/// Framing only. Whether every variable-length field has the length its
+/// state implies and every coder is sized for the value it streams is
+/// `Braid::invariant`'s question, which `from_bytes` asks once this returns,
+/// so that what comes back is a state some honest run could have been in
+/// (CR-21).
 fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
     match tag {
         0 => {
@@ -1526,9 +1684,6 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(hdr_enc) = Encoder::from_bytes(hdr_enc_bytes) else {
                 return None;
             };
-            if !encoder_sized(&hdr_enc, HEADER_LEN + MAC_LEN) {
-                return None;
-            }
             Some((
                 State::KeysSampled {
                     epoch,
@@ -1564,9 +1719,6 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(ek_enc) = Encoder::from_bytes(ek_enc_bytes) else {
                 return None;
             };
-            if !decoder_sized(&ct1_dec, CT1_LEN) || !encoder_sized(&ek_enc, EK_VECTOR_LEN) {
-                return None;
-            }
             Some((
                 State::HeaderSent {
                     epoch,
@@ -1600,9 +1752,6 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(ek_enc) = Encoder::from_bytes(ek_enc_bytes) else {
                 return None;
             };
-            if ct1.len() != CT1_LEN || !encoder_sized(&ek_enc, EK_VECTOR_LEN) {
-                return None;
-            }
             Some((
                 State::Ct1Received {
                     epoch,
@@ -1636,9 +1785,6 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(ct2_dec) = Decoder::from_bytes(ct2_dec_bytes) else {
                 return None;
             };
-            if ct1.len() != CT1_LEN || !decoder_sized(&ct2_dec, CT2_LEN + MAC_LEN) {
-                return None;
-            }
             Some((
                 State::EkSentCt1Received {
                     epoch,
@@ -1663,9 +1809,6 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(hdr_dec) = Decoder::from_bytes(hdr_dec_bytes) else {
                 return None;
             };
-            if !decoder_sized(&hdr_dec, HEADER_LEN + MAC_LEN) {
-                return None;
-            }
             Some((
                 State::NoHeaderReceived {
                     epoch,
@@ -1691,9 +1834,6 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(ek_dec) = Decoder::from_bytes(ek_dec_bytes) else {
                 return None;
             };
-            if header.len() != HEADER_LEN || !decoder_sized(&ek_dec, EK_VECTOR_LEN) {
-                return None;
-            }
             Some((
                 State::HeaderReceived {
                     epoch,
@@ -1735,13 +1875,6 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(ek_dec) = Decoder::from_bytes(ek_dec_bytes) else {
                 return None;
             };
-            if header.len() != HEADER_LEN
-                || ct1.len() != CT1_LEN
-                || !encoder_sized(&ct1_enc, CT1_LEN)
-                || !decoder_sized(&ek_dec, EK_VECTOR_LEN)
-            {
-                return None;
-            }
             Some((
                 State::Ct1Sampled {
                     epoch,
@@ -1780,12 +1913,6 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(ct1_enc) = Encoder::from_bytes(ct1_enc_bytes) else {
                 return None;
             };
-            if ct1.len() != CT1_LEN
-                || ek_vector.len() != EK_VECTOR_LEN
-                || !encoder_sized(&ct1_enc, CT1_LEN)
-            {
-                return None;
-            }
             Some((
                 State::EkReceivedCt1Sampled {
                     epoch,
@@ -1823,12 +1950,6 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(ek_dec) = Decoder::from_bytes(ek_dec_bytes) else {
                 return None;
             };
-            if header.len() != HEADER_LEN
-                || ct1.len() != CT1_LEN
-                || !decoder_sized(&ek_dec, EK_VECTOR_LEN)
-            {
-                return None;
-            }
             Some((
                 State::Ct1Acknowledged {
                     epoch,
@@ -1854,9 +1975,6 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(ct2_enc) = Encoder::from_bytes(ct2_enc_bytes) else {
                 return None;
             };
-            if !encoder_sized(&ct2_enc, CT2_LEN + MAC_LEN) {
-                return None;
-            }
             Some((
                 State::Ct2Sampled {
                     epoch,

@@ -283,6 +283,85 @@ impl State {
     pub fn receive_count(&self) -> u32 {
         self.nr
     }
+
+    /// Which role this state was initialised in, while the state still shows
+    /// it: `Some(true)` for `init_sender`'s shape (a sending chain and no
+    /// receiving one), `Some(false)` for `init_receiver`'s (neither), and
+    /// `None` once a Diffie-Hellman step has opened both, after which the two
+    /// roles have the same shape and the question has no answer here.
+    /// Derived rather than stored, which is sound because only `dh_ratchet`
+    /// opens a receiving chain. For the Triple Ratchet, whose invariant
+    /// checks it against the post-quantum half's `Direction`.
+    pub fn started_as_sender(&self) -> Option<bool> {
+        match (self.cks, self.ckr) {
+            (Some(_), None) => Some(true),
+            (None, None) => Some(false),
+            _ => None,
+        }
+    }
+
+    /// What the constructors and every operation maintain, stated once so
+    /// `from_bytes` can check it last and the tests and fuzz targets can
+    /// check it after every step (CR-21). Read it as what the proofs need of
+    /// an imported state:
+    ///
+    /// - the store holds at most `MAX_SKIPPED_STORE` keys, which
+    ///   `skip_message_keys` refuses to exceed and T1's `receive_no_panic`
+    ///   takes as `hs`;
+    /// - the store is a map on `(dh, n)`: `purge_chain_range` clears a range
+    ///   before it is re-derived, and both lookups answer with the first
+    ///   match, so a second entry for one pair would be unreachable and would
+    ///   hold a slot against the bound while a genuine message at that number
+    ///   was answered with the wrong key. T3's `hone`, and `StoreIsMap` in
+    ///   `Proofs.StateInvariants`;
+    /// - every `stored_at` is at most `events`, since it is a reading of a
+    ///   clock that only grows, so an entry from the future is one no run
+    ///   produced;
+    /// - `events` is below `u32::MAX`. T3's `hroom`: the refinement of
+    ///   `receive` is stated below the point where the core's clock saturates
+    ///   and the model's does not (LIMITATIONS.md). An honest run reaches
+    ///   saturation only after 2^32 accepted receives, so refusing a saturated
+    ///   clock at import is a **policy**, not a consistency check, and the
+    ///   refusal is the choice made: it keeps every importable state inside
+    ///   what the refinement covers, where past saturation `age_store` is in
+    ///   the lenient direction the refinement says nothing about (see there);
+    /// - the chains are present in the order the operations open them.
+    ///   `init_sender` opens the sending chain, and only `dh_ratchet` opens a
+    ///   receiving one, setting the peer key and both chains at once; so a
+    ///   receiving chain implies a sending chain and a peer key.
+    ///
+    /// Not constrained: `ns`, `nr` and `pn`. A saturated counter is a state
+    /// an honest run reaches, and `send` and `receive` refuse it with
+    /// `ChainExhausted` rather than wrap (`tests/audit_import.rs`).
+    ///
+    /// Index loops with a flag, the shape the translation models; the pair
+    /// loop is quadratic in a count already bounded by the first clause.
+    pub fn invariant(&self) -> bool {
+        let mut store_ok = true;
+        let mut i = 0;
+        while i < self.skipped.len() {
+            if self.skipped[i].stored_at > self.events {
+                store_ok = false;
+            }
+            let mut j = i + 1;
+            while j < self.skipped.len() {
+                if self.skipped[i].dh == self.skipped[j].dh
+                    && self.skipped[i].n == self.skipped[j].n
+                {
+                    store_ok = false;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+        // `matches!` is the same `match` after expansion, which is what the
+        // translation sees; the Braid's `failed` uses it the same way.
+        let chains_ok = match self.ckr {
+            None => true,
+            Some(_) => matches!((self.cks, self.dhr_pub), (Some(_), Some(_))),
+        };
+        self.skipped.len() <= MAX_SKIPPED_STORE && self.events < u32::MAX && store_ok && chains_ok
+    }
 }
 
 /// This crate's own persistence-format version (`State::to_bytes`/
@@ -523,13 +602,8 @@ impl State {
         // bytes.len()` check below already requires the count to account for
         // the buffer exactly. See `tacenta-erasure`, whose coders bound their
         // counts the same way, and then again by what an honest run can hold,
-        // as the next check here does.
+        // as `invariant` does here after the loop.
         if skipped_count > bytes.len() / SkippedKey::ENCODED_LEN {
-            return Err(RatchetDecodeError::Malformed);
-        }
-        // And against the store's own bound, which `skip_message_keys`
-        // maintains and which a buffer alone does not imply (CR-21).
-        if skipped_count > MAX_SKIPPED_STORE {
             return Err(RatchetDecodeError::Malformed);
         }
 
@@ -554,35 +628,13 @@ impl State {
             return Err(RatchetDecodeError::Malformed);
         }
 
-        // **The store must be one the operations could have built.** They
-        // keep it a map on `(dh, n)` -- `purge_chain_range` clears a range
-        // before it is re-derived -- and both lookups answer with the first
-        // match, so a second entry for one pair would be unreachable and
-        // would hold a slot against the bound while a genuine message at that
-        // number was answered with the wrong key. And `stored_at` is a
-        // reading of `events`, which only grows, so an entry from the future
-        // is one no run produced. Index loops over a count already bounded
-        // above, with a flag rather than a return from inside (CR-21).
-        let mut consistent = true;
-        let mut i = 0;
-        while i < skipped.len() {
-            if skipped[i].stored_at > events {
-                consistent = false;
-            }
-            let mut j = i + 1;
-            while j < skipped.len() {
-                if skipped[i].dh == skipped[j].dh && skipped[i].n == skipped[j].n {
-                    consistent = false;
-                }
-                j += 1;
-            }
-            i += 1;
-        }
-        if !consistent {
-            return Err(RatchetDecodeError::Malformed);
-        }
-
-        Ok(State {
+        // **The state must be one the operations could have built**, which
+        // is `invariant` in full: the store's bound, the map on `(dh, n)`,
+        // no entry ahead of the clock, the clock below saturation, and the
+        // chains present in the order the operations open them. Checked
+        // last, as one predicate, so what the decoder accepts and what the
+        // operations keep are the same statement (CR-21).
+        let state = State {
             dhs_pub,
             dhr_pub,
             rk,
@@ -594,7 +646,11 @@ impl State {
             skipped,
             events,
             labels,
-        })
+        };
+        if !state.invariant() {
+            return Err(RatchetDecodeError::Malformed);
+        }
+        Ok(state)
     }
 }
 
@@ -857,7 +913,9 @@ fn purge_chain_range(skipped: &mut Vec<SkippedKey>, dhr: Key, from: u32, upto: u
 /// never expired by age; it leaves only on use or through the bound on the
 /// store. That is the lenient direction, and the refinement against the model
 /// excludes that case, as it does everywhere the core counts in `u32` and the
-/// model in the naturals.
+/// model in the naturals. `from_bytes` refuses a saturated clock, so a
+/// restored state always starts inside what the refinement covers
+/// (`State::invariant`).
 fn age_store(state: &mut State) {
     let now = state.events.saturating_add(1);
     state.events = now;
@@ -1260,8 +1318,8 @@ mod tests {
         ));
     }
 
-    /// A count past `MAX_SKIPPED_STORE` is refused before the loop, even with
-    /// a buffer large enough to hold it (CR-21).
+    /// A count past `MAX_SKIPPED_STORE` is refused, even with a buffer large
+    /// enough to hold it (CR-21).
     #[test]
     fn from_bytes_rejects_a_store_past_its_bound() {
         let b = init_receiver(&[1u8; 32], [3u8; 32], LabelSet::Tacenta);
@@ -1275,6 +1333,203 @@ mod tests {
             State::from_bytes(&dirty),
             Err(RatchetDecodeError::Malformed)
         ));
+    }
+
+    /// A saturated store clock is refused at import (`State::invariant`):
+    /// the refinement of `receive` is stated below `u32::MAX`, and an honest
+    /// run needs 2^32 accepted receives to get there. One below it decodes.
+    #[test]
+    fn from_bytes_refuses_a_saturated_clock() {
+        let fresh = init_receiver(&SK, B_PUB, LabelSet::Tacenta);
+        let mut bytes = fresh.to_bytes().to_vec();
+        // Version, dhs_pub, three optional keys and rk, then ns, nr, pn, and
+        // the clock.
+        let at = 1 + 32 + 33 + 32 + 33 + 33 + 4 + 4 + 4;
+        bytes[at..at + 4].copy_from_slice(&u32::MAX.to_be_bytes());
+        assert_eq!(
+            State::from_bytes(&bytes),
+            Err(RatchetDecodeError::Malformed)
+        );
+        bytes[at..at + 4].copy_from_slice(&(u32::MAX - 1).to_be_bytes());
+        let restored = State::from_bytes(&bytes).unwrap();
+        assert_eq!(restored.events, u32::MAX - 1);
+        assert!(restored.invariant());
+    }
+
+    /// A receiving chain without a sending chain, or without the peer's key,
+    /// is a shape no constructor or step produces: only `dh_ratchet` opens a
+    /// receiving chain, and it sets all three together (`State::invariant`).
+    #[test]
+    fn from_bytes_refuses_a_receiving_chain_without_its_companions() {
+        let mut a = init_sender(&SK, A_PUB, B_PUB, &DH_AB, LabelSet::Tacenta);
+        let mut b = init_receiver(&SK, B_PUB, LabelSet::Tacenta);
+        let (h0, _) = send(&mut a).unwrap();
+        receive(&mut b, &h0, &DH_AB, &DH_B2A, B2_PUB).unwrap();
+        let clean = b.to_bytes().to_vec();
+        assert!(State::from_bytes(&clean).is_ok());
+
+        // The three optional keys' presence bytes: dhr_pub after the version
+        // and dhs_pub, cks after rk, ckr after cks. Marking one absent means
+        // zeroing its thirty-two bytes too, or the padding check answers
+        // first.
+        let dhr_at = 1 + 32;
+        let cks_at = dhr_at + 33 + 32;
+        let ckr_at = cks_at + 33;
+        assert_eq!(clean[dhr_at], 0x01);
+        assert_eq!(clean[cks_at], 0x01);
+        assert_eq!(clean[ckr_at], 0x01);
+
+        let mut no_cks = clean.clone();
+        for byte in &mut no_cks[cks_at..cks_at + 33] {
+            *byte = 0;
+        }
+        assert_eq!(
+            State::from_bytes(&no_cks),
+            Err(RatchetDecodeError::Malformed)
+        );
+
+        let mut no_dhr = clean.clone();
+        for byte in &mut no_dhr[dhr_at..dhr_at + 33] {
+            *byte = 0;
+        }
+        assert_eq!(
+            State::from_bytes(&no_dhr),
+            Err(RatchetDecodeError::Malformed)
+        );
+
+        // With the receiving chain absent as well, both are shapes a
+        // constructor produces, and restore.
+        for byte in &mut no_cks[ckr_at..ckr_at + 33] {
+            *byte = 0;
+        }
+        assert_eq!(
+            State::from_bytes(&no_cks).unwrap().started_as_sender(),
+            Some(false)
+        );
+        for byte in &mut no_dhr[ckr_at..ckr_at + 33] {
+            *byte = 0;
+        }
+        assert_eq!(
+            State::from_bytes(&no_dhr).unwrap().started_as_sender(),
+            Some(true)
+        );
+    }
+
+    /// `invariant` holds after every send and receive of a conversation with
+    /// out-of-order delivery, losses, skipped keys spent rounds later, and
+    /// Diffie-Hellman steps in both directions, and survives a round trip
+    /// through persistence at every step, so what `from_bytes` checks is an
+    /// inductive invariant of the operations and not only a shape of the
+    /// encoding. The message keys still agree, so the states driven are ones
+    /// a working session holds.
+    #[test]
+    fn the_invariant_holds_after_every_step_and_round_trip() {
+        let mut seed: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        let key = |v: u64| {
+            let mut k = [0u8; 32];
+            k[..8].copy_from_slice(&v.to_be_bytes());
+            k[8] = 1;
+            k
+        };
+        let mut a = init_sender(&SK, A_PUB, B_PUB, &DH_AB, LabelSet::Tacenta);
+        let mut b = init_receiver(&SK, B_PUB, LabelSet::Tacenta);
+        assert!(a.invariant() && b.invariant());
+        assert_eq!(a.started_as_sender(), Some(true));
+        assert_eq!(b.started_as_sender(), Some(false));
+        // The DH output the current sending chain was derived under, which
+        // the next receiver's step must fold in as `dh_out_recv`; the output
+        // it folds in as `dh_out_send` becomes the next one. Stand-ins, the
+        // same on both sides, as the model's scenarios have them.
+        let mut pending = DH_AB;
+        // Messages dropped in a round whose keys the receiver stored, to be
+        // delivered to it later; one backlog per party.
+        let mut backlog_a: Vec<(Header, Key)> = Vec::new();
+        let mut backlog_b: Vec<(Header, Key)> = Vec::new();
+        let mut delivered = 0;
+        let mut found_later = 0;
+        let mut round = 0;
+        while round < 60 {
+            // The roles alternate, so every round's first delivery takes a DH
+            // step on the receiver.
+            let (sender, receiver, backlog_s, backlog_r) = if round % 2 == 0 {
+                (&mut a, &mut b, &mut backlog_a, &mut backlog_b)
+            } else {
+                (&mut b, &mut a, &mut backlog_b, &mut backlog_a)
+            };
+            // First, spend some of the keys this party stored earlier.
+            while !backlog_s.is_empty() && next() % 3 != 0 {
+                let (h, mk) = backlog_s.remove(0);
+                let got = receive(sender, &h, &pending, &pending, key(0)).unwrap();
+                assert_eq!(got, mk, "a stored key in round {round}");
+                assert!(sender.invariant(), "after a stored key in round {round}");
+                found_later += 1;
+            }
+            let dh_out = key(next());
+            let fresh_pub = key(next());
+            let count = 1 + (next() % 12) as usize;
+            let mut sent = Vec::new();
+            let mut i = 0;
+            while i < count {
+                let (h, mk) = send(sender).unwrap();
+                assert!(sender.invariant(), "sender after send {i} of round {round}");
+                sent.push((h, mk));
+                i += 1;
+            }
+            // Deliver in a scrambled order, dropping some; the first is always
+            // delivered so the DH step happens under `pending`.
+            let mut highest = 0;
+            let mut dropped = Vec::new();
+            let mut i = 0;
+            while i < count {
+                let pick = (next() as usize) % sent.len();
+                let (h, mk) = sent.remove(pick);
+                if i == 0 || next() % 4 != 0 {
+                    let got = receive(receiver, &h, &pending, &dh_out, fresh_pub).unwrap();
+                    assert_eq!(got, mk, "message {i} of round {round}");
+                    assert!(
+                        receiver.invariant(),
+                        "receiver after receive {i} of round {round}"
+                    );
+                    if h.n > highest {
+                        highest = h.n;
+                    }
+                    delivered += 1;
+                } else {
+                    dropped.push((h, mk));
+                }
+                i += 1;
+            }
+            // A dropped message below the highest delivered has its key in
+            // the receiver's store; the rest are gone.
+            let mut i = 0;
+            while i < dropped.len() {
+                if dropped[i].0.n < highest {
+                    backlog_r.push(dropped[i]);
+                }
+                i += 1;
+            }
+            pending = dh_out;
+            *sender = State::from_bytes(&sender.to_bytes()).unwrap();
+            *receiver = State::from_bytes(&receiver.to_bytes()).unwrap();
+            assert!(
+                sender.invariant() && receiver.invariant(),
+                "after the round trip of round {round}"
+            );
+            round += 1;
+        }
+        assert!(delivered >= 200, "only {delivered} messages delivered");
+        assert!(
+            found_later >= 10,
+            "only {found_later} stored keys were spent"
+        );
+        assert_eq!(a.started_as_sender(), None);
+        assert_eq!(b.started_as_sender(), None);
     }
 
     #[test]

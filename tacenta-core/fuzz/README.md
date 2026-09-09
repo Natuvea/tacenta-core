@@ -9,10 +9,10 @@ somebody else chose.
 | --- | --- |
 | `wire_decoders` | `message_type`, `decode_message`, `decode_initial`, `decode_bundle`, `decode_composite` |
 | `protobuf_bodies` | `parse_prekey_body`, `parse_ratchet_body`, `decode_tag` |
-| `persisted_state` | `from_bytes` on the ratchet, sparse ratchet, Braid, triple, and both erasure coders, plus `PrekeyStore::from_bytes` and `Session::import` |
-| `session_receive` | `establish_responder` on an unauthenticated message, and `Session::decrypt` on both sides of an established session |
-| `braid_receive` | `Braid::receive` and `commit` from either role, driven by a sequence of `Msg` values; every candidate that did not fail is adopted and the target sends after each message, so a transcript carries the machine through all eleven live states, though a fuzzed message is only ever *received* in the nine a send leaves behind -- the two it never meets, `KeysUnsampled` and `HeaderReceived`, are the two whose receive arm does nothing. The corpus is seeded with an honest transcript parked in each state (`write_braid_receive_seeds` in `braid/src/tests.rs`) |
-| `triple_receive` | `tacenta_triple::State::receive` and `commit` from either side, driven by a sequence of composite headers and agreement outputs (`write_triple_receive_seeds` in `triple/src/tests.rs`) |
+| `persisted_state` | `from_bytes` on the ratchet, sparse ratchet, Braid, triple, and both erasure coders, plus `PrekeyStore::from_bytes` and `Session::import`; every accepted session and store is asserted to satisfy its `invariant`, and the restored session again after the message and the send it is driven through |
+| `session_receive` | `establish_responder` on an unauthenticated message, and `Session::decrypt` on both sides of an established session; both sessions and the store are asserted to satisfy their `invariant` after every establishment, send and receive, accepted or refused |
+| `braid_receive` | `Braid::receive` and `commit` from either role, driven by a sequence of `Msg` values; every candidate that did not fail is adopted, the target sends after each message, and `Braid::invariant` is asserted after every receive and send; so a transcript carries the machine through all eleven live states, though a fuzzed message is only ever *received* in the nine a send leaves behind -- the two it never meets, `KeysUnsampled` and `HeaderReceived`, are the two whose receive arm does nothing. The corpus is seeded with an honest transcript parked in each state (`write_braid_receive_seeds` in `braid/src/tests.rs`) |
+| `triple_receive` | `tacenta_triple::State::receive` and `commit` from either side, driven by a sequence of composite headers and agreement outputs (`write_triple_receive_seeds` in `triple/src/tests.rs`); `State::invariant` is asserted after every receive and send |
 
 The first three take bytes. The last three drive state machines, which is the
 harder question: not whether parsing a message
@@ -21,6 +21,27 @@ machine somewhere it cannot handle. Those three adopt whatever the machine
 accepts: the property is that no accepted sequence panics, and a target that
 never committed would fuzz only its starting state, which is what
 `braid_receive` did before CR-10.
+
+## The invariant as an oracle
+
+Panic-freedom is the property the targets were written for, and a decoder
+target has no other oracle: it cannot know what the bytes meant. Since the
+import-time validation from the 2026-09 external review, the session and the
+prekey store each carry an `invariant()` -- the relations between fields no
+field-by-field decode sees, such as the ratchet private key matching the
+advertised public key, or the sparse ratchet's epoch standing in the right
+relation to the Braid's -- and their decoders refuse on it last. The targets
+that hold one of those types assert the predicate after every accepted decode
+**and after every step they drive**: a refused message changes nothing and
+preserves it trivially, and an accepted one has to preserve it or the next
+import would refuse a state an honest run produced. That is the inductive
+reading, and it is the one that makes the predicate worth having: the decoder
+establishes it, the operations preserve it, and this is where a step that
+did not would show. The leaf crates' predicates are held the same way:
+`persisted_state` asserts the ratchet's, the sparse ratchet's, the Triple
+Ratchet's, the Braid's and both erasure coders' after each accepted decode,
+`braid_receive` asserts the Braid's after every receive and send, and
+`triple_receive` the Triple Ratchet's.
 
 ## What this is not
 

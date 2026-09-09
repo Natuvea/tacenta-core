@@ -34,6 +34,19 @@ interoperating with anyone.
 - **No new abstraction leak.** The Braid's eleven live internal states are
   not named or exposed by this format: it can only be exported and imported
   whole, the same restriction callers already have on a live `Braid`.
+- **Validated, not only parsed.** A decoder that reads every field
+  correctly can still hand back a state no constructor builds: a ratchet
+  private key beside a public key that is not its own, an epoch pair the
+  sparse ratchet cannot follow, an identifier namespace with a collision in
+  it. Each such state re-encodes to the bytes it came from, so the canonical
+  principle above does not see it, and none fails at import -- each fails on
+  some later message, the first two for good. So each type carries an
+  `invariant`, the relations between its fields that its constructors
+  establish and its operations preserve, and its decoder calls it last and
+  refuses on it. The rules are listed per format below, under "Semantic
+  rules". They are checked as an inductive invariant: the tests and the fuzz
+  targets in `tacenta-core` assert the predicate after every operation, not
+  only at import.
 - **At-rest protection is out of scope.** This format is plaintext once
   decoded; it authenticates nothing against a hostile reader of the storage
   medium, only against corruption. See key-deletion.md's note on what
@@ -147,6 +160,61 @@ enforces that invariant at the type level. `pending_initial` and
 length-prefixed field when present, and nothing (not even the length
 prefix) when absent.
 
+### Semantic rules
+
+Having decoded and re-encoded (the canonicality check, below), the reader
+refuses the session as *inconsistent* -- `SessionDecodeError::Inconsistent`
+in `tacenta-core`, a variant distinct from malformed and from non-canonical
+-- unless every one of the following holds. Each is a relation between
+fields that no field-by-field read sees, and each, accepted, fails later
+rather than here.
+
+- **The ratchet private key is the private half of the advertised public
+  key**: `ratchet_private`'s public key equals the classical ratchet's
+  `dhs_pub`. Otherwise the peer's next Diffie-Hellman step agrees against a
+  key this side does not hold, and every message after it fails, for good.
+- **The sparse ratchet's epoch follows the Braid's.** With the Braid
+  negotiating epoch `e` (its `epoch` field; `mlkem-braid.md`), the sparse
+  ratchet's `epoch` is `e` when the Braid is in `Ct1Sampled`,
+  `EkReceivedCt1Sampled`, `Ct1Acknowledged` or `Ct2Sampled` (state tags 7
+  to 10, the states past the point where the header-receiving side folds
+  the epoch's secret) and `e - 1` in every other live state (tags 0 to 6).
+  Both sides pass through both, since the roles swap each epoch, and the
+  session commits both halves together, so there is no persistence point
+  between. A failed Braid (tag 11) is exempt: the failure is terminal and
+  persists as such. Outside the relation the sparse ratchet refuses the next
+  agreement output on every message and the session never recovers.
+- **The associated data is the two identities in the role's orientation**:
+  `identity_ad = EncodeEC(initiator) || EncodeEC(responder)`, with the
+  role read from `established_ephemeral`, which every responder carries for
+  its whole life and no initiator ever has. (`pending_initial` would not do:
+  an initiator drops it once the peer answers.) Wrong orientation is an
+  AEAD failure on every message in both directions.
+- **The halves agree on the role.** The Braid's role is read from its
+  public state -- the initiator sends the first epoch's header and the roles
+  swap each epoch, so at epoch `e` the session's initiator is the
+  header-sending side (tags 0 to 4) exactly when `e` is odd -- and must
+  match the session's; so must the sparse ratchet's `direction`, `A2b` for
+  the initiator. The classical ratchet shows its role only until its first
+  Diffie-Hellman step, and the Triple Ratchet's own invariant checks it
+  against the sparse ratchet's while it can.
+- **An unanswered initiator is not also a responder**: `pending_initial`
+  present implies `established_ephemeral` absent.
+- **The optional fields have their shape**: `pending_initial`'s
+  `kem_ciphertext` is exactly one ML-KEM-1024 ciphertext long (CONSTANTS.md),
+  and `established_ephemeral` is an `EncodeEC` value, 33 bytes with the curve
+  byte first. Neither is checked where it is used: `encode_initial`
+  length-prefixes whatever it is given, and a repeated initial message is
+  matched against `established_ephemeral` byte for byte.
+- **Each half satisfies its own crate's invariant**: the Triple Ratchet's,
+  which covers both ratchets, and the Braid's. Their decoders refuse on
+  these already, so at import this is a second reading.
+
+The same predicate holds after every operation: `tacenta-core`'s tests
+drive an honest pair through some fifty Braid epochs, restarting one side
+or the other every few messages, and assert it after every message and
+every round trip.
+
 ## Prekey store
 
 `PrekeyStore::to_bytes`/`from_bytes` persist a party's own prekeys between
@@ -207,17 +275,10 @@ answer, since those stores recorded no more. A store written by this version
 and read by an earlier one fails on the version byte, which is the intended
 direction of incompatibility.
 
-Four refusals are specific to this format. A presence byte is `0x00` or
-`0x01` and nothing else: a `previous_signed_present` or
+Two refusals are specific to this format's framing. A presence byte is
+`0x00` or `0x01` and nothing else: a `previous_signed_present` or
 `previous_kem_present` carrying any other value is malformed, not
-"present". Every `seen` entry's identifier must be `kem_id` or the
-identifier inside `previous_kem`: the store drops a key's entries when a
-rotation wipes the key and the writer never emits anything else, so any
-other identifier is malformed. No fingerprint may appear twice in `seen`:
-the responder refuses a repeat before it could be recorded, so a duplicate
-was written by something other than `to_bytes` and is malformed; this rule
-reaches the untagged formats too, where the identifier rule holds
-trivially. And a v4 store must re-encode to the identical bytes: having
+"present". And a v4 store must re-encode to the identical bytes: having
 decoded the input, the reader runs `to_bytes` over what it read and refuses
 the input if the result differs. That is the canonicality backstop, the
 same one `Session::import` applies to the session format: it refuses any
@@ -227,16 +288,56 @@ principle above a property of the decoder rather than a promise about the
 writer. It applies only to the version the writer emits. A v1, v2 or v3
 store re-encodes to v4, gaining the fields the newer format added and the
 tags on its record, so comparing there would refuse every honest upgrade,
-and those three versions are read on the field-by-field checks alone.
+and those three versions are read on the semantic rules alone.
+
+### Semantic rules
+
+Last, over the decoded store, the reader refuses as malformed any store for
+which `PrekeyStore::invariant` is false. The rules are the identifier
+namespace and the record's shape, which `create_prekeys` establishes, every
+operation preserves, and no field-by-field read sees; they apply to all four
+versions, the untagged ones having had their entries tagged with the current
+key first.
+
+- **Every identifier is below `next_id`.** `next_id` only climbs and is what
+  every identifier was handed out from; one at or past it is corruption or a
+  counter wound back, and the next key handed out would collide with a live
+  one. A corrupted `next_id` accepted here would poison every future bundle
+  and persist canonically.
+- **No identifier is zero**, the absent-identifier sentinel
+  (message-format.md). `create_prekeys` numbers from one; a one-time prekey
+  under zero could never be named by an initial message, which reads zero
+  as "none".
+- **Every identifier is distinct**: `signed_prekey_id`, `kem_id`, the
+  identifiers inside `previous_signed` and `previous_kem`, and each one-time
+  entry's of either kind, pairwise. The store finds keys by their first
+  match, so a repeated one-time identifier serves a one-time prekey twice
+  (key-deletion.md); a retired identifier equal to the live one has the next
+  rotation drop the live key's record entries; a one-time KEM identifier
+  equal to a last-resort one is looked up on the last-resort path and never
+  consumed. One counter numbers them all, so distinctness across every kind
+  is what the constructor establishes.
+- **The record holds at most `MAX_LAST_RESORT_SEEN` entries** (CONSTANTS.md),
+  **each tagged with `kem_id` or the identifier inside `previous_kem`, and
+  no fingerprint twice.** The responder refuses the handshake that would
+  overflow the record, and the repeat of one already in it, before either
+  could be recorded; a rotation drops a key's entries when it wipes the key;
+  so the writer never emits anything else. (The count is also refused before
+  it sizes anything, as noted above; the rule here is over what was read.)
 
 ## Rejection
 
 A decoder rejects, the same way message-format.md's does: an unrecognised
 version, a buffer too short for its fixed fields or a declared length that
 overruns the input, and trailing bytes after a value that should have
-ended. Each of the formats above carries its own error type, distinguishing
-"wrong version" from "short or malformed" where a caller might act on the
-difference (refuse to start vs. treat as corrupt) -- but none of them
+ended; and, having read every field, a state its type's `invariant` is
+false of (the semantic rules above; the leaf formats' own predicates are
+each crate's to state). Each of the formats above carries its own error
+type, distinguishing "wrong version" from "short or malformed" where a
+caller might act on the difference (refuse to start vs. treat as corrupt),
+and the session distinguishes "inconsistent" from both, since a stored
+session that is well-formed and canonical but cannot go on is the one case
+a storage layer could plausibly have written itself -- but none of them
 promises more than that the bytes were unacceptable, the same restraint
 message-format.md's rejection section takes for a different reason: there,
 because revealing more helps an attacker; here, because there is no finer

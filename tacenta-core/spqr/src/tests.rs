@@ -357,32 +357,270 @@ fn from_bytes_rejects_nonzero_padding_in_an_absent_chain() {
     assert_eq!(restored.to_bytes().as_slice(), bytes.as_slice());
 }
 
+/// The layout `to_bytes` writes: version, rk, epoch and direction, then the
+/// chains count and entries, then the skipped count and entries.
+const EPOCH_AT: usize = 1 + 32;
+const CHAINS_COUNT_AT: usize = 1 + 32 + 8 + 1;
+const CHAINS_AT: usize = CHAINS_COUNT_AT + 4;
+const CHAINS_ENTRY_LEN: usize = 8 + (1 + 32 + 8) * 2;
+const SKIPPED_ENTRY_LEN: usize = 8 + 8 + 32;
+
+/// A state one epoch in, so its chains vector holds two entries (epochs
+/// zero and one) and every window clause has room to be violated.
+fn advanced_once() -> State {
+    let mut a = State::init_alice(&sk());
+    a.send(1, Some(&out(1, 1))).unwrap();
+    assert_eq!(a.epoch(), 1);
+    a
+}
+
 /// Two `chains` entries for one epoch are refused (CR-21). `find_chains`
 /// would answer with the first and `set_chains` would remove both, so the
 /// state is one no honest run produces and the two would disagree about
 /// which chains are live.
 #[test]
 fn from_bytes_rejects_a_duplicated_epoch_entry() {
-    let a = State::init_alice(&sk());
+    let a = advanced_once();
     let bytes = a.to_bytes();
-    // version, rk, epoch, direction, then the four-byte chains count and one
-    // entry; the skipped count follows.
-    let count_at = 1 + 32 + 8 + 1;
-    let entry_at = count_at + 4;
-    let entry_len = 8 + (1 + 32 + 8) * 2;
-    let mut dirty = Vec::new();
-    dirty.extend_from_slice(&bytes[..count_at]);
-    dirty.extend_from_slice(&2u32.to_be_bytes());
-    dirty.extend_from_slice(&bytes[entry_at..entry_at + entry_len]);
-    dirty.extend_from_slice(&bytes[entry_at..entry_at + entry_len]);
-    dirty.extend_from_slice(&bytes[entry_at + entry_len..]);
+    assert!(State::from_bytes(&bytes).is_ok());
+    // Two entries, epochs zero and one; relabel the second as zero.
+    let second = CHAINS_AT + CHAINS_ENTRY_LEN;
+    let mut dirty = bytes.to_vec();
+    dirty[second..second + 8].copy_from_slice(&0u64.to_be_bytes());
     assert!(matches!(
         State::from_bytes(&dirty),
         Err(SpqrDecodeError::Malformed)
     ));
-    // A second entry under a different epoch is a state an honest run can
-    // hold, and restores.
-    let mut other = dirty.clone();
-    other[entry_at + entry_len..entry_at + entry_len + 8].copy_from_slice(&1u64.to_be_bytes());
-    assert!(State::from_bytes(&other).is_ok());
+}
+
+/// A chains entry the window does not cover is refused (`State::invariant`):
+/// one for an epoch past the current, which `advance` never opens, and one
+/// too old, which `clear_old_epochs` would have retired.
+#[test]
+fn from_bytes_rejects_a_chains_entry_outside_the_window() {
+    let fresh = State::init_alice(&sk());
+    let mut ahead = fresh.to_bytes().to_vec();
+    ahead[CHAINS_AT..CHAINS_AT + 8].copy_from_slice(&1u64.to_be_bytes());
+    assert!(matches!(
+        State::from_bytes(&ahead),
+        Err(SpqrDecodeError::Malformed)
+    ));
+
+    // At epoch two the window holds epochs one and two; relabel the older
+    // entry as zero, which the advance to two retired.
+    let mut a = advanced_once();
+    a.send(2, Some(&out(2, 2))).unwrap();
+    let bytes = a.to_bytes();
+    assert!(State::from_bytes(&bytes).is_ok());
+    let count = u32::from_be_bytes(bytes[CHAINS_COUNT_AT..CHAINS_AT].try_into().unwrap());
+    assert_eq!(count, 2, "epochs one and two are kept");
+    let mut stale = bytes.to_vec();
+    let mut i = 0;
+    while i < 2 {
+        let at = CHAINS_AT + i * CHAINS_ENTRY_LEN;
+        if stale[at..at + 8] == 1u64.to_be_bytes() {
+            stale[at..at + 8].copy_from_slice(&0u64.to_be_bytes());
+        }
+        i += 1;
+    }
+    assert!(matches!(
+        State::from_bytes(&stale),
+        Err(SpqrDecodeError::Malformed)
+    ));
+}
+
+/// A state whose current epoch has no chains entry is refused
+/// (`State::invariant`): `init` and `advance` both open the current epoch's
+/// chains, and nothing retires them while the epoch is current.
+#[test]
+fn from_bytes_rejects_a_current_epoch_without_chains() {
+    let fresh = State::init_alice(&sk());
+    let mut bytes = fresh.to_bytes().to_vec();
+    // Epoch one, with only epoch zero's chains: inside the window, but the
+    // current epoch has nothing to send or receive on.
+    bytes[EPOCH_AT..EPOCH_AT + 8].copy_from_slice(&1u64.to_be_bytes());
+    assert!(matches!(
+        State::from_bytes(&bytes),
+        Err(SpqrDecodeError::Malformed)
+    ));
+}
+
+/// A store past `MAX_SKIPPED_STORE` is refused (`State::invariant`), even
+/// with a buffer large enough to hold it; at the bound it restores.
+#[test]
+fn from_bytes_rejects_a_store_past_its_bound() {
+    let fresh = State::init_alice(&sk());
+    let bytes = fresh.to_bytes();
+    let skipped_count_at = CHAINS_AT + CHAINS_ENTRY_LEN;
+    let with = |count: usize| {
+        let mut dirty = Vec::new();
+        dirty.extend_from_slice(&bytes[..skipped_count_at]);
+        dirty.extend_from_slice(&(count as u32).to_be_bytes());
+        let mut n = 0u64;
+        while (n as usize) < count {
+            // Every key under epoch zero, distinct by number.
+            dirty.extend_from_slice(&0u64.to_be_bytes());
+            dirty.extend_from_slice(&(n + 1).to_be_bytes());
+            dirty.extend_from_slice(&[0u8; 32]);
+            n += 1;
+        }
+        dirty
+    };
+    assert!(matches!(
+        State::from_bytes(&with(MAX_SKIPPED_STORE + 1)),
+        Err(SpqrDecodeError::Malformed)
+    ));
+    let restored = State::from_bytes(&with(MAX_SKIPPED_STORE)).unwrap();
+    assert_eq!(restored.skipped_len(), MAX_SKIPPED_STORE);
+    assert!(restored.invariant());
+}
+
+/// A stored key repeated under one `(epoch, n)` is refused, and so is one
+/// under an epoch with no chains entry (`State::invariant`): the first is
+/// unreachable by `try_skipped`, the second is one `clear_old_epochs` would
+/// have retired with its chains.
+#[test]
+fn from_bytes_rejects_a_stored_key_the_operations_could_not_have_left() {
+    let mut a = State::init_alice(&sk());
+    let mut b = State::init_bob(&sk());
+    a.send(0, None).unwrap();
+    let (n2, _) = a.send(0, None).unwrap();
+    b.receive(0, None, n2).unwrap();
+    assert_eq!(b.skipped_len(), 1);
+    let bytes = b.to_bytes();
+    let skipped_count_at = CHAINS_AT + CHAINS_ENTRY_LEN;
+    let entry_at = skipped_count_at + 4;
+
+    let mut twice = Vec::new();
+    twice.extend_from_slice(&bytes[..skipped_count_at]);
+    twice.extend_from_slice(&2u32.to_be_bytes());
+    twice.extend_from_slice(&bytes[entry_at..]);
+    twice.extend_from_slice(&bytes[entry_at..]);
+    assert!(matches!(
+        State::from_bytes(&twice),
+        Err(SpqrDecodeError::Malformed)
+    ));
+    // The same two entries with distinct numbers restore.
+    let second_n = entry_at + SKIPPED_ENTRY_LEN + 8;
+    twice[second_n..second_n + 8].copy_from_slice(&7u64.to_be_bytes());
+    assert!(State::from_bytes(&twice).is_ok());
+
+    let mut retired = bytes.to_vec();
+    retired[entry_at..entry_at + 8].copy_from_slice(&5u64.to_be_bytes());
+    assert!(matches!(
+        State::from_bytes(&retired),
+        Err(SpqrDecodeError::Malformed)
+    ));
+}
+
+/// `invariant` holds after every send and receive of a conversation with
+/// out-of-order delivery, losses, stored keys spent later and several epoch
+/// advances, and survives a round trip through persistence at every step,
+/// so what `from_bytes` checks is an inductive invariant of the operations
+/// and not only a shape of the encoding. The message keys still agree, so
+/// the states driven are ones a working session holds.
+#[test]
+fn the_invariant_holds_after_every_step_and_round_trip() {
+    let mut seed: u64 = 0x2545_f491_4f6c_dd1d;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed
+    };
+    let mut a = State::init_alice(&sk());
+    let mut b = State::init_bob(&sk());
+    assert!(a.invariant() && b.invariant());
+    assert_eq!(a.direction(), Direction::A2b);
+    assert_eq!(b.direction(), Direction::B2a);
+    // Keys dropped on the way to each party, to be delivered later.
+    let mut backlog_a: Vec<(u64, u64, Key)> = Vec::new();
+    let mut backlog_b: Vec<(u64, u64, Key)> = Vec::new();
+    let mut epoch = 0u64;
+    let mut delivered = 0;
+    let mut found_later = 0;
+    let mut round = 0;
+    while round < 60 {
+        let (sender, receiver, backlog_s, backlog_r) = if round % 2 == 0 {
+            (&mut a, &mut b, &mut backlog_a, &mut backlog_b)
+        } else {
+            (&mut b, &mut a, &mut backlog_b, &mut backlog_a)
+        };
+        // Spend some stored keys first, while their epoch is still kept.
+        while !backlog_s.is_empty() && next() % 3 != 0 {
+            let (e, n, mk) = backlog_s.remove(0);
+            if e + EPOCHS_KEPT > sender.epoch() {
+                assert_eq!(
+                    sender.receive(e, None, n).unwrap(),
+                    mk,
+                    "a stored key in round {round}"
+                );
+                assert!(sender.invariant(), "after a stored key in round {round}");
+                found_later += 1;
+            }
+        }
+        // Every third round the agreement yields the next epoch's secret,
+        // folded in on the first message of the round by both sides.
+        let mut secret = None;
+        if round % 3 == 2 {
+            epoch += 1;
+            secret = Some(out(epoch, epoch as u8));
+        }
+        let count = 1 + (next() % 12) as usize;
+        let mut sent = Vec::new();
+        let mut i = 0;
+        while i < count {
+            let o = if i == 0 { secret.as_ref() } else { None };
+            let (n, mk) = sender.send(epoch, o).unwrap();
+            assert!(sender.invariant(), "sender after send {i} of round {round}");
+            sent.push((n, mk));
+            i += 1;
+        }
+        let mut highest = 0;
+        let mut dropped = Vec::new();
+        let mut i = 0;
+        while i < count {
+            let pick = (next() as usize) % sent.len();
+            let (n, mk) = sent.remove(pick);
+            if i == 0 || next() % 4 != 0 {
+                let o = if i == 0 { secret.as_ref() } else { None };
+                assert_eq!(
+                    receiver.receive(epoch, o, n).unwrap(),
+                    mk,
+                    "message {i} of round {round}"
+                );
+                assert!(
+                    receiver.invariant(),
+                    "receiver after receive {i} of round {round}"
+                );
+                if n > highest {
+                    highest = n;
+                }
+                delivered += 1;
+            } else {
+                dropped.push((n, mk));
+            }
+            i += 1;
+        }
+        let mut i = 0;
+        while i < dropped.len() {
+            if dropped[i].0 < highest {
+                backlog_r.push((epoch, dropped[i].0, dropped[i].1));
+            }
+            i += 1;
+        }
+        *sender = State::from_bytes(&sender.to_bytes()).unwrap();
+        *receiver = State::from_bytes(&receiver.to_bytes()).unwrap();
+        assert!(
+            sender.invariant() && receiver.invariant(),
+            "after the round trip of round {round}"
+        );
+        round += 1;
+    }
+    assert!(epoch >= 15, "only {epoch} epochs");
+    assert!(delivered >= 200, "only {delivered} messages delivered");
+    assert!(
+        found_later >= 10,
+        "only {found_later} stored keys were spent"
+    );
 }

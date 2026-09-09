@@ -94,5 +94,9 @@ fuzz_target!(|data: &[u8]| {
         // The send side must stay usable from whatever a refused header left
         // behind; a sequence that wedges it is a denial of service.
         let _ = state.send(state.epoch(), None);
+        // Once `tacenta_triple::State` exposes an `invariant`, assert it here
+        // after the commit and after the send, as `braid_receive` does for
+        // the Braid: the two ratchets' own predicates are then checked as
+        // inductive invariants through the composition that drives them.
     }
 });

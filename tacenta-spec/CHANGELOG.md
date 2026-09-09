@@ -6,6 +6,19 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `protocol/session-persistence.md`: a "Validated, not only parsed"
+  principle and, per format, the semantic rules the reader refuses on after
+  the field-by-field read: for the session, the ratchet private key matching
+  the classical ratchet's advertised public key, the sparse ratchet's epoch
+  standing in the stated relation to the Braid's (equal in Braid tags 7 to
+  10, one behind in tags 0 to 6, exempt when failed), the associated data in
+  the role's orientation, the Braid's role agreeing with the session's, an
+  unanswered initiator not also being a responder, the two optional fields
+  having their shape, and each half satisfying its own crate's invariant,
+  refused as *inconsistent*; for the prekey store, the identifier namespace
+  (every identifier below `next_id`, none zero, all pairwise distinct across
+  every kind) and the record's shape, refused as malformed. The Rejection
+  section names the new category. External review, 2026-09.
 - `protocol/key-deletion.md`: signed-prekey and last-resort KEM prekey
   rotation, with the retired key kept for exactly one rotation and then
   wiped; what the caller must do around a rotation; and the statement that
@@ -26,6 +39,13 @@ is SemVer against the specified protocol (not the implementation).
   now states what is written and what is read.
 
 ### Changed
+- `protocol/key-deletion.md`: the persistence passage says what the reader
+  checks an export for (the semantic rules in session-persistence.md) and
+  that the check is against corruption, not against a reader of the medium.
+- `protocol/session-persistence.md`: the prekey store's record rules (an
+  entry under an unknown key, a repeated fingerprint) move from the
+  format's own refusals into its semantic rules, beside the identifier
+  rules, which the page had not stated.
 - `protocol/key-deletion.md` and `protocol/session-establishment.md`: the
   last-resort replay record no longer evicts. It is bounded per key lifetime
   -- entries are tagged with the last-resort KEM key they were made against

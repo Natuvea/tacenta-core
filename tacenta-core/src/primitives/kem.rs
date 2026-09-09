@@ -80,9 +80,27 @@ impl KeyPair {
     /// it explicitly with `validate_public_key`, the same check `encapsulate`
     /// makes on a bundle's KEM prekey (CR-18). A public half of the right size
     /// but the wrong shape is refused here rather than reasoned about at the
-    /// first encapsulation against this pair. The private half is length-only:
-    /// libcrux exposes no shape check for it, and it never leaves this party, so
-    /// the threat model is corruption rather than a hostile chooser.
+    /// first encapsulation against this pair.
+    ///
+    /// The private half is checked to *belong* to the public half. An ML-KEM
+    /// decapsulation key carries the encapsulation key and its hash inside it
+    /// (FIPS 203, `dk = dk_PKE || ek || H(ek) || z`), so the two halves can
+    /// disagree in a way no length check sees: a private half from one
+    /// generation beside a public half from another has the right size, a
+    /// valid public half, and decapsulates every ciphertext sent to that
+    /// public half to the wrong secret. Implicit rejection means nothing says
+    /// so at decapsulation; the mismatch surfaces as an AEAD failure on the
+    /// peer's first message, which is the same thing a network fault looks
+    /// like, and a prekey store holding such a pair serves it to every peer
+    /// who fetches it. Two checks close that. The embedded `ek` must be the
+    /// public half byte for byte, which is what binds the halves, and
+    /// libcrux's `validate_private_key_only` must accept the private half,
+    /// which is the FIPS 203 section 7.3 hash check (`H(ek)` recomputed over
+    /// the embedded key and compared) and says the private half is at least
+    /// one key generation could have written. The threat model is still
+    /// corruption rather than a hostile chooser -- the private half never
+    /// leaves this party -- but a corrupted pair that decapsulates wrongly is
+    /// worse than one that fails to decode, and the check costs one hash.
     pub fn from_bytes(bytes: &[u8]) -> Result<KeyPair, KemError> {
         let sk_len = mlkem1024::MlKem1024PrivateKey::len();
         let pk_len = mlkem1024::MlKem1024PublicKey::len();
@@ -90,13 +108,31 @@ impl KeyPair {
             return Err(KemError);
         }
         let (sk_bytes, pk_bytes) = bytes.split_at(sk_len);
-        let _: mlkem1024::MlKem1024PrivateKey = sk_bytes.try_into().map_err(|_| KemError)?;
+        let sk: mlkem1024::MlKem1024PrivateKey = sk_bytes.try_into().map_err(|_| KemError)?;
         let pk: mlkem1024::MlKem1024PublicKey = pk_bytes.try_into().map_err(|_| KemError)?;
         if !mlkem1024::validate_public_key(&pk) {
             return Err(KemError);
         }
+        if !mlkem1024::portable::validate_private_key_only(&sk) {
+            return Err(KemError);
+        }
+        if embedded_public_key(sk_bytes) != pk_bytes {
+            return Err(KemError);
+        }
         Ok(KeyPair(Zeroizing::new(bytes.to_vec())))
     }
+}
+
+/// The encapsulation key an ML-KEM-1024 decapsulation key carries inside it.
+///
+/// FIPS 203 lays a decapsulation key out as `dk_PKE || ek || H(ek) || z`, with
+/// `H(ek)` and `z` 32 bytes each, so `ek` sits after the first `len(dk) -
+/// len(ek) - 64` bytes. Located from the two public lengths rather than from a
+/// literal offset, so a parameter-set change moves it with them.
+fn embedded_public_key(sk_bytes: &[u8]) -> &[u8] {
+    let pk_len = mlkem1024::MlKem1024PublicKey::len();
+    let start = sk_bytes.len() - pk_len - 64;
+    &sk_bytes[start..start + pk_len]
 }
 
 /// The length of an ML-KEM-1024 public key.
@@ -234,6 +270,47 @@ mod tests {
     #[test]
     fn from_bytes_rejects_a_wrong_length_key_pair() {
         assert!(matches!(KeyPair::from_bytes(b"too short"), Err(KemError)));
+    }
+
+    /// A private half from one generation beside a public half from another
+    /// is refused, not restored.
+    ///
+    /// Before the check, such a pair decoded: right length, valid public
+    /// half. It then decapsulated every ciphertext sent to its public half to
+    /// the wrong secret -- implicit rejection, so silently -- and a prekey
+    /// store holding it served it to every peer, each of whose first messages
+    /// then failed to authenticate in a way indistinguishable from a network
+    /// fault. The halves are checked against each other so that a pair
+    /// which decodes is one that decapsulates.
+    #[test]
+    fn from_bytes_rejects_halves_from_different_generations() {
+        let mut r = rng(7);
+        let a = KeyPair::generate(&mut r);
+        let b = KeyPair::generate(&mut r);
+        let sk_len = mlkem1024::MlKem1024PrivateKey::len();
+        let mut mixed = a.to_bytes().to_vec();
+        mixed[sk_len..].copy_from_slice(&b.to_bytes()[sk_len..]);
+        assert!(matches!(KeyPair::from_bytes(&mixed), Err(KemError)));
+
+        // The pair is what would have gone wrong: with the check bypassed,
+        // a secret encapsulated to the public half does not come back.
+        let (ct, sent) = encapsulate(&b.public_key(), &mut r).unwrap();
+        let unchecked = KeyPair(Zeroizing::new(mixed));
+        assert_ne!(decapsulate(&unchecked, &ct).unwrap(), sent);
+    }
+
+    /// The private half's own consistency is checked too: a decapsulation key
+    /// whose embedded `H(ek)` does not hash its embedded `ek` is refused, even
+    /// when the embedded `ek` still matches the public half.
+    #[test]
+    fn from_bytes_rejects_a_private_half_with_a_wrong_embedded_hash() {
+        let mut r = rng(8);
+        let kp = KeyPair::generate(&mut r);
+        let sk_len = mlkem1024::MlKem1024PrivateKey::len();
+        let mut bytes = kp.to_bytes().to_vec();
+        // `H(ek)` is the 32 bytes before the final 32-byte `z`.
+        bytes[sk_len - 64] ^= 0x01;
+        assert!(matches!(KeyPair::from_bytes(&bytes), Err(KemError)));
     }
 
     #[test]

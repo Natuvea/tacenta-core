@@ -362,6 +362,93 @@ impl State {
         self.skipped.len()
     }
 
+    /// Which side of the session this state is on. For the Triple Ratchet,
+    /// whose invariant checks it against the classical half's role.
+    pub fn direction(&self) -> Direction {
+        self.direction
+    }
+
+    /// What `init` and every operation maintain, stated once so `from_bytes`
+    /// can check it last and the tests and fuzz targets can check it after
+    /// every step (CR-21). The clauses, and what each discharges:
+    ///
+    /// - the store holds at most `MAX_SKIPPED_STORE` keys, which
+    ///   `skip_message_keys` refuses to exceed;
+    /// - the store is a map on `(epoch, n)`: `skip_message_keys` retains
+    ///   nothing in the range it re-derives and `try_skipped` answers with the
+    ///   first match, so a second entry for one pair would be unreachable and
+    ///   would hold a slot against the bound. `SpqrT3`'s `hone`;
+    /// - one `chains` entry per epoch, as `set_chains` maintains: `find_chains`
+    ///   answers with the first match and `set_chains`'s `retain` removes every
+    ///   match, so two entries for one epoch would disagree about which chains
+    ///   are live;
+    /// - every chains epoch is at most the current one, and inside the window
+    ///   `clear_old_epochs` keeps, `current < e + EPOCHS_KEPT` with the sum
+    ///   saturating as it does there. Chains open only under `advance`'s new
+    ///   epoch, and every advance retires what the window no longer covers;
+    /// - the current epoch has a chains entry: `init` opens epoch zero's and
+    ///   `advance` opens the new epoch's before retiring, which keeps it;
+    /// - every skipped key's epoch has a chains entry: a key is stored only
+    ///   under an epoch whose chains were found, and `clear_old_epochs` retires
+    ///   chains and keys together under one predicate.
+    ///
+    /// Not constrained: the epoch and the chain counters at the `u64` ceiling.
+    /// Both are honestly reachable in principle, and every increment is
+    /// `checked_add` and refuses with `ChainExhausted` (the exhaustion tests
+    /// below), so `SpqrT3`'s `hepoch`, `hcounter`, `hcb` and `hsb` stay
+    /// hypotheses of the refinement rather than facts of an imported state.
+    ///
+    /// Index loops with flags, the shape the translation models; the pair
+    /// loops are quadratic in counts the first clause and the window bound.
+    pub fn invariant(&self) -> bool {
+        let mut chains_ok = true;
+        let mut current_present = false;
+        let mut i = 0;
+        while i < self.chains.len() {
+            let e = self.chains[i].0;
+            if e == self.epoch {
+                current_present = true;
+            }
+            if e > self.epoch || self.epoch >= e.saturating_add(EPOCHS_KEPT) {
+                chains_ok = false;
+            }
+            let mut j = i + 1;
+            while j < self.chains.len() {
+                if self.chains[j].0 == e {
+                    chains_ok = false;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+        let mut skipped_ok = true;
+        let mut i = 0;
+        while i < self.skipped.len() {
+            let mut present = false;
+            let mut k = 0;
+            while k < self.chains.len() {
+                if self.chains[k].0 == self.skipped[i].epoch {
+                    present = true;
+                }
+                k += 1;
+            }
+            if !present {
+                skipped_ok = false;
+            }
+            let mut j = i + 1;
+            while j < self.skipped.len() {
+                if self.skipped[i].epoch == self.skipped[j].epoch
+                    && self.skipped[i].n == self.skipped[j].n
+                {
+                    skipped_ok = false;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+        self.skipped.len() <= MAX_SKIPPED_STORE && chains_ok && current_present && skipped_ok
+    }
+
     /// Delete up to `count` of the oldest stored skipped keys and return how
     /// many were deleted; zero means the store was already empty. Oldest is
     /// oldest *stored*: entries are appended in derivation order and only
@@ -837,27 +924,6 @@ impl State {
         if !chains_ok {
             return Err(SpqrDecodeError::Malformed);
         }
-        // **One entry per epoch, as `set_chains` maintains.** `find_chains`
-        // answers with the first match and `set_chains`'s `retain` removes
-        // every match, so a store holding two entries for one epoch would
-        // have the two disagree about which chains are live. An index loop
-        // over a count already bounded by the buffer, with a flag rather than
-        // a return from inside it (CR-21).
-        let mut distinct = true;
-        let mut i = 0;
-        while i < chains.len() {
-            let mut j = i + 1;
-            while j < chains.len() {
-                if chains[i].0 == chains[j].0 {
-                    distinct = false;
-                }
-                j += 1;
-            }
-            i += 1;
-        }
-        if !distinct {
-            return Err(SpqrDecodeError::Malformed);
-        }
 
         if bytes.len() < pos + 4 {
             return Err(SpqrDecodeError::TooShort);
@@ -890,13 +956,23 @@ impl State {
             return Err(SpqrDecodeError::Malformed);
         }
 
-        Ok(State {
+        // **The state must be one the operations could have built**, which
+        // is `invariant` in full: the store's bound and its map, one chains
+        // entry per epoch, every epoch inside the window with the current
+        // one present, and every stored key under a live epoch. Checked
+        // last, as one predicate, so what the decoder accepts and what the
+        // operations keep are the same statement (CR-21).
+        let state = State {
             rk,
             epoch,
             chains,
             skipped,
             direction,
-        })
+        };
+        if !state.invariant() {
+            return Err(SpqrDecodeError::Malformed);
+        }
+        Ok(state)
     }
 }
 
