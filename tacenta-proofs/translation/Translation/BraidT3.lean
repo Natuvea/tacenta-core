@@ -227,13 +227,26 @@ def KemAgrees : Prop := ∃ K, KemAgreesFor K
 /-- `tacenta_kem::validate_ek` checks a received `ekVector` against the
 `ekSeed`/`hek` split of a stored header, the receive-side counterpart to
 `KemAgreesFor`'s `hashEk` clause. It's opaque like everything else at this
-boundary, so its *result* (not just that it returns) has to be assumed: the
-real check accepts iff the model's `hashEk` recomputation matches the stored
-`hek`, which is exactly the guard `Model.Braid.receive`'s `ct1Sampled`/
-`ct1Acknowledged` branches use (`K.hashEk ekSeed ekVector != hek`). -/
+boundary, so its *result* (not just that it returns) has to be assumed: on a
+header of the real layout (a 32-byte seed followed by a 32-byte hash) and a
+vector of the real size, the real check accepts iff the model's `hashEk`
+recomputation matches the stored `hek`, which is exactly the guard
+`Model.Braid.receive`'s `ct1Sampled`/`ct1Acknowledged` branches use
+(`K.hashEk ekSeed ekVector != hek`).
+
+The three length premises are the guards the crate applies before it hashes
+anything: libcrux's `validate_pk_bytes` returns `Err` (so `validate_ek`
+returns `false`) on a header or vector of the wrong length. Stated for every
+`hek` and `ekVector`, the clause would demand `true` of `validate_ek header
+[]` whenever `hek = K.hashEk ekSeed []`, where the crate answers `false`, and
+no `K` would satisfy it. The lengths are available at every use:
+`StateRefines` carries `ekSeedM.length = 32`, `hekM.length = 32` and
+`ekDecM.size = K.ekSize` for the header-holding states, and the decoded
+vector's length is `Model.Braid.Decoder.message_length`. -/
 def ValidateEkAgrees (K : Model.Braid.Kem) : Prop :=
   ∀ (header ekVector : Slice Std.U8) (ekSeed hek : Bytes),
-    ekSeed.length = 32 → sliceOf header = ekSeed ++ hek →
+    ekSeed.length = 32 → hek.length = 32 → ekVector.length = K.ekSize →
+    sliceOf header = ekSeed ++ hek →
     ∃ r, tacenta_kem.validate_ek header ekVector = ok r ∧
       (r = true ↔ K.hashEk ekSeed (sliceOf ekVector) = hek)
 
@@ -2062,7 +2075,11 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
             have hekVecSlice : sliceOf ekVecRaw.deref = ekVectorM := by
               simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hekVecEq ⊢; exact hekVecEq
             simp only [bind_tc_ok]
-            obtain ⟨rb, hrb, hrbiff⟩ := hvalek header.deref ekVecRaw.deref ekSeedM hekM hlen32 hhdrslice
+            have hekvL : ekVecRaw.deref.length = K.ekSize := by
+              rw [deref_length, hekVecEq, Model.Braid.Decoder.message_length _ _ hMsome,
+                Model.Braid.Decoder.addChunk_size]; exact heksize
+            obtain ⟨rb, hrb, hrbiff⟩ :=
+              hvalek header.deref ekVecRaw.deref ekSeedM hekM hlen32 hhek32 hekvL hhdrslice
             simp only [hrb, bind_tc_ok]
             by_cases hrbval : rb = true
             · simp only [if_pos hrbval, hackedFalse, Bool.false_eq_true, if_false]
@@ -2164,8 +2181,11 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
               have hekVecSlice : sliceOf ekVecRaw.deref = ekVectorM := by
                 simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hekVecEq ⊢; exact hekVecEq
               simp only [bind_tc_ok]
+              have hekvL : ekVecRaw.deref.length = K.ekSize := by
+                rw [deref_length, hekVecEq, Model.Braid.Decoder.message_length _ _ hMsome,
+                  Model.Braid.Decoder.addChunk_size]; exact heksize
               obtain ⟨rb, hrb, hrbiff⟩ :=
-                hvalek header.deref ekVecRaw.deref ekSeedM hekM hlen32 hhdrslice
+                hvalek header.deref ekVecRaw.deref ekSeedM hekM hlen32 hhek32 hekvL hhdrslice
               simp only [hrb, bind_tc_ok]
               by_cases hrbval : rb = true
               · simp only [if_pos hrbval, hackedTrue, if_true]
@@ -2173,9 +2193,6 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                   rw [← hekVecSlice]; exact hrbiff.mp hrbval
                 have hct1slice : sliceOf ct1.deref = ct1M := by
                   simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hct1 ⊢; exact hct1
-                have hekvL : ekVecRaw.deref.length = K.ekSize := by
-                  rw [deref_length, hekVecEq, Model.Braid.Decoder.message_length _ _ hMsome,
-                    Model.Braid.Decoder.addChunk_size]; exact heksize
                 have hlen : ct1.length +
                     (K.encaps2 encapsSecretM ekSeedM (sliceOf ekVecRaw.deref)).length + 96
                     ≤ Usize.max := by
@@ -2316,7 +2333,11 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
             have hekVecSlice : sliceOf ekVecRaw.deref = ekVectorM := by
               simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hekVecEq ⊢; exact hekVecEq
             simp only [bind_tc_ok]
-            obtain ⟨rb, hrb, hrbiff⟩ := hvalek header.deref ekVecRaw.deref ekSeedM hekM hlen32 hhdrslice
+            have hekvL : ekVecRaw.deref.length = K.ekSize := by
+              rw [deref_length, hekVecEq, Model.Braid.Decoder.message_length _ _ hMsome,
+                Model.Braid.Decoder.addChunk_size]; exact heksize
+            obtain ⟨rb, hrb, hrbiff⟩ :=
+              hvalek header.deref ekVecRaw.deref ekSeedM hekM hlen32 hhek32 hekvL hhdrslice
             simp only [hrb, bind_tc_ok]
             by_cases hrbval : rb = true
             · simp only [if_pos hrbval]
@@ -2324,9 +2345,6 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 rw [← hekVecSlice]; exact hrbiff.mp hrbval
               have hct1slice : sliceOf ct1.deref = ct1M := by
                 simp only [sliceOf, alloc.vec.Vec.deref, vecOf] at hct1 ⊢; exact hct1
-              have hekvL : ekVecRaw.deref.length = K.ekSize := by
-                rw [deref_length, hekVecEq, Model.Braid.Decoder.message_length _ _ hMsome,
-                  Model.Braid.Decoder.addChunk_size]; exact heksize
               have hlen : ct1.length +
                   (K.encaps2 encapsSecretM ekSeedM (sliceOf ekVecRaw.deref)).length + 96
                   ≤ Usize.max := by

@@ -793,10 +793,16 @@ What a reader has to grant:
   `decapsulate` is assumed to succeed only on a
   `ct1Size`/`ct2Size` pair, `encapsulate1` only on a 64-byte header,
   `encapsulate2` only on an `ekSize` vector, exactly where
-  `tacenta_kem` returns `KemError` otherwise. `StateRefines` carries the
-  decoder sizes and decoded lengths that discharge the guards. Stated for
-  every slice, the agreements would claim success where the crate returns an
-  error -- not refutable, but stronger than the crate.
+  `tacenta_kem` returns `KemError` otherwise, and `validate_ek` is assumed
+  to answer the hash comparison only on a 32-byte seed, a 32-byte hash and
+  an `ekSize` vector, where libcrux's `validate_pk_bytes` returns `Err`
+  (and `validate_ek` `false`) otherwise, before hashing. `StateRefines`
+  carries the decoder sizes and decoded lengths that discharge the guards.
+  Stated for every slice, the agreements would claim success where the
+  crate returns an error -- not refutable, but stronger than the crate; for
+  `ValidateEkAgrees`, which demands a definite answer rather than success,
+  the unguarded statement was false of the real `validate_ek` for every
+  `K` (`LIMITATIONS.md`).
 - **The model's `Decoder.message` returns the empty message for a decoder
   sized for zero bytes**, as the real decoder does; returning `none` there
   would make `ErasureAgrees` false of the crate at size zero (unreachable in
@@ -1060,7 +1066,18 @@ what the text elaborated to and not only to the text.
 `scripts/check-lean-constructs.sh`, the textual second line, strips
 comments and strings and refuses those keywords wherever they sit on a
 line, in every hand-written module including the package roots and
-`Vectors.lean`, and refuses a lakefile that sets any Lean option.
+`Vectors.lean`, and refuses a lakefile that sets any Lean option. It also
+refuses every elaboration-time construct (`run_cmd`, `#eval`, `elab`,
+`macro`, `syntax`, `initialize`, `addDecl`, any reference to the `Lean`
+namespace) outside `Model/AxiomAudit.lean`'s own implementation and the
+four `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
+exact line content: the audit accepts the compiler-trust axioms by shape
+and cannot tell a planted one, added by such code with its name assembled
+from string literals, from a real one, so the absence of such code is what
+excludes it (`LIMITATIONS.md`, "Trusted, not verified").
+`scripts/check-audit-reach.sh` fails if any first-party module, generated
+ones included, is outside the four audit modules' import closure, since
+the audit walks only what its invoking module imports.
 `no-sorry.sh` then replays every first-party module through the kernel
 with `leanchecker`, which is the check against a declaration added with
 kernel checking turned off.

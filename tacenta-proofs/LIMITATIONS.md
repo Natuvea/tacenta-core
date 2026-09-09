@@ -87,9 +87,13 @@ U32.max) = true` for a string literal. No pinned theorem depends on one -- a
 pin that did as compiler-trusted rather than kernel-only. They are not
 opaque externals and are not in `manifests/translation-attestation.json`;
 the axiom audit accepts them under the same shape rule as the hand-written
-`native_decide` uses (name, statement, and a parent in the same module) and
-prints them apart from the externals, as `audit-native:` lines in the
-translation build log, so the count is visible rather than folded in.
+`native_decide` uses (name, statement, a parent in the same module, and
+that parent's own value applying the axiom -- here through the `_proof_n`
+auxiliary the elaborator splits out of a `fmt` body) and prints them apart
+from the externals, as `audit-native:` lines in the translation build log,
+so the count is visible rather than folded in. That shape is one
+elaboration-time code could plant, and the audit could not tell a planted
+one from these; "Trusted, not verified" below says what excludes it.
 
 ## Trusted, not verified
 
@@ -114,6 +118,35 @@ translation build log, so the count is visible rather than folded in.
   and `no-sorry.sh` replays every first-party module through the kernel with
   `leanchecker`, which is the check that actually settles it. `leanchecker`
   is Lean's own kernel rerun over the oleans, not an independent checker.
+- The axiom audit's two allowances are recognised by shape, and the shape
+  can be planted. `Model.AxiomAudit` accepts a `<t>._native.<tactic>.ax_*`
+  axiom that states a compiled Boolean evaluation returned `true` and is
+  applied by `<t>`'s own proof term, because that is what `native_decide`
+  and `bv_decide` produce; and a partial, self-calling `<f>._unsafe_rec`
+  beside a safe, recursive `<f>` of the same type, because that is what the
+  compiler produces. Code that runs at elaboration time -- a `run_cmd`, a
+  `#eval`, an `elab`, a `macro`, an `initialize` -- can call `addDecl` and
+  produce exactly that: an axiom `<t>._native.native_decide.ax_1_1 : decide
+  False = true` with its name assembled from string literals, and a theorem
+  applying it, after which `(1 : Nat) = 2`; or `addAndCompile` a
+  `<f>._unsafe_rec` with a different body beside a recursive `<f>`, after
+  which `native_decide` proves things of `<f>` that are false of it.
+  `leanchecker` accepts both, since an axiom is a kernel-valid declaration.
+  **The audit cannot distinguish a planted compiler-trust axiom or
+  auxiliary from a real one on shape alone.** What excludes them is the
+  textual rule in `scripts/check-lean-constructs.sh` that hand-written
+  first-party Lean contains no elaboration-time code at all -- no
+  `run_cmd`, `#eval`, `elab`, `macro`, `syntax`, `initialize`, `addDecl`,
+  and no reference to the `Lean` namespace, which is where every such API
+  lives -- outside `Model/AxiomAudit.lean`'s own implementation and the
+  four `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
+  exact line content so that a fifth invocation anywhere fails; and
+  `scripts/check-audit-reach.sh`, which fails if any first-party module is
+  outside the four audit modules' import closure, so that no module holds
+  such a declaration unwalked. The grep is what it is: a construct the
+  stripper mishandles, or a route to the environment that names none of
+  those tokens, would be a hole in this rule and not something the audit
+  would catch.
 - The Mathlib build artifacts the T1/T3 build loads are trusted. `lake exe cache
   get` fetches prebuilt `.olean` files for the pinned Mathlib commit from
   Mathlib's cache over HTTPS with no signature, and Lean loads an olean without
@@ -310,8 +343,9 @@ from it. This holds here by delegation and discipline, not by proof.
   built from the Edwards sign bit (`conditional_negate`, a constant-time
   selection rather than a branch); that bit is one bit of the private key.
   Whether the compiled code keeps it branch-free is not a question
-  `tests/timing.rs` can settle: the harness does not time the primitives,
-  and one conditional negation inside a full scalar multiplication is not an
+  `tests/timing.rs` can settle: the harness does not time XEdDSA (it times
+  `aead::decrypt`'s rejection path and the tag comparison inside it), and
+  one conditional negation inside a full scalar multiplication is not an
   effect its median-gap gate is built to resolve. It is instead a target for
   the planned disassembly check, which is to read the generated code for
   `calculate_key_pair` (and `mac_eq`) and fail on any data-dependent
@@ -335,7 +369,9 @@ from it. This holds here by delegation and discipline, not by proof.
   stamp: no commit, date, hardware or run identifier was recorded with them,
   so a reader cannot tell which build produced them or how old they are.
   `tests/timing.rs` now prints a provenance header at the start of every run
-  (commit, date, `rustc` version, the command line, rounds × samples), and
+  (commit, date, `rustc` version, the command line, rounds × samples) to the
+  test's captured output, where it is visible with `--nocapture` (the
+  invocation the file's own usage line gives) and not otherwise, and
   the nightly job is to add the fields only the machine knows -- CPU model
   and its fixed frequency, the isolated core, a run id -- after which the
   numbers here are replaced by a stamped run:
@@ -718,8 +754,11 @@ need size laws on `K` (`hashEk` output 32 bytes, `keyGen` seed 32 bytes,
 `encaps1`'s `ct1` of `ct1Size`, and so on) that the model does not state --
 an open item, not a falsity. And the KEM agreements are guarded by the
 lengths the real crate checks (`decapsulate` on `ct1Size`/`ct2Size`,
-`encapsulate1` on the 64-byte header, `encapsulate2` on `ekSize`); stated
-for every slice they would claim success where the crate returns an error.
+`encapsulate1` on the 64-byte header, `encapsulate2` on `ekSize`, and
+`validate_ek` on a 32-byte seed, a 32-byte hash and an `ekSize` vector);
+stated for every slice they would claim success where the crate returns an
+error, which is what `ValidateEkAgrees` did until its length premises were
+added (below).
 
 **One clause of `KemAgreesFor` admits no real KEM, and the four Braid
 refinement theorems inherit that today.** Its encapsulation clause (the
@@ -747,11 +786,22 @@ applied by no proof in `BraidT3.lean`, and it is false of the real type:
 `IncrementalKeyPair::from_bytes` checks only the length of its input, so a
 pair it builds from arbitrary bytes need satisfy nothing of the kind. It
 should be deleted rather than kept as an unused hypothesis. And
-`ValidateEkAgrees` states that `validate_ek` accepts exactly when the
-model's `hashEk` recomputation matches the stored hash, while libcrux's
-`validate_pk_bytes` also performs a domain check on the vector after the
-hash comparison; as stated the agreement holds only for a `hashEk` that
-folds that check into its result, which the documented hash does not.
+`ValidateEkAgrees`, taken by `step_receive_refines` and
+`Braid.receive_refines`, states that `validate_ek` accepts exactly when the
+model's `hashEk` recomputation matches the stored hash, for a 32-byte seed,
+a 32-byte hash and a vector of `ekSize` bytes. The three length premises
+are what the crate checks first: libcrux's `validate_pk_bytes` returns
+`Err`, so `validate_ek` returns `false`, on a header or vector of the wrong
+length before it hashes anything. Without them -- as the hypothesis stood
+before this revision, for a `hek` and `ekVector` of any length -- it was
+false of the real `validate_ek` for every `K`, not, as this ledger said,
+satisfiable by a suitable `hashEk`: with `ekVector := []` and `hek :=
+K.hashEk ekSeed []` the clause demanded `true` where the crate answers
+`false`. With the lengths fixed, what remains is the domain check:
+`validate_pk_bytes` also checks the vector's coefficients after the hash
+comparison, so the agreement holds of the real operation only for a
+`hashEk` that folds that check into its result, which the documented hash
+does not.
 
 Two more sit beside it in `BraidT3.lean`: `KemCloneAgrees` and
 `ErasureCloneAgrees` (a clone of an opaque KEM or erasure value behaves as,
@@ -845,12 +895,14 @@ the seventeen correspond to no leaf theorem at all. Six do:
 `SpqrReceiveTotal` echo the two leaf files' `send_no_panic` and
 `receive_no_panic`, and `RatchetInitSenderTotal` and
 `RatchetInitReceiverTotal` echo `T3.lean`'s `init_sender_refines` and
-`init_receiver_refines`. The other eleven have nothing to point at. Seven of
+`init_receiver_refines`. The other eleven have nothing to point at. Six of
 them are one-line bodies in the leaf translations -- the `sending_public`,
 `send_count`, `receive_count` and `epoch` projections, and the derived
-`PartialEq` instances on `Header`, `RatchetError` and `SpqrError` -- and four
-are real if small obligations: both `State` clones, `init_alice` and
-`init_bob`. The Triple T1 result therefore rests on assumptions stronger
+`PartialEq` instances on `RatchetError` and `SpqrError` -- and five are
+real if small obligations: `Header`'s derived `PartialEq`
+(`Header.Insts.CoreCmpPartialEqHeader.eq` in `TacentaRatchet.lean`, a
+nested conditional on `pn` and `n` that ends in the array equality on
+`dh`), both `State` clones, `init_alice` and `init_bob`. The Triple T1 result therefore rests on assumptions stronger
 than anything proved, several of them about operations no leaf file has a
 theorem for, and unprovable as stated in the Aeneas model. `TripleT3.lean`
 carries the leaf preconditions verbatim and is not affected by the first

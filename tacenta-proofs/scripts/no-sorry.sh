@@ -87,6 +87,15 @@ check ../tacenta-model '(^|[^/[:alnum:]])(Model|Properties)/' "the model and its
 # runner is not this package.
 bash scripts/check-lean-constructs.sh || fail=1
 
+# The audit above walks only what its invoking module imports, and each
+# package's audit module carries a hand-maintained import list. A first-party
+# module missing from every list is built, scanned and replayed, and never
+# audited. This asks Lean for each module's imports and fails if any
+# first-party module (the generated `Tacenta*.lean` included, since the
+# `audit-axiom:` comparison above sees only the generated modules the audit
+# reached) is outside the four audit modules' import closure.
+bash scripts/check-audit-reach.sh || fail=1
+
 # Replay every first-party module through the kernel from its olean.
 #
 # `lake build` checks a declaration with the kernel when it adds it, unless

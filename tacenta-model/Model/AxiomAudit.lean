@@ -28,7 +28,7 @@ manifest is checked against the environment and not only against the text.
 The compiler-trust axioms a generated module carries are not opaque externals
 and are printed apart, as `audit-native:` lines.
 
-Two allowances, deliberate and narrow, and each held to the exact shape the
+Two allowances, deliberate and narrow, and each held to the shape the
 compiler produces rather than to a name:
 
 - The compiler-trust axioms `native_decide` (and its spelling `decide
@@ -41,10 +41,14 @@ compiler produces rather than to a name:
   theorem or definition declared in the same module (a definition, because
   the tactic can discharge a proof obligation inside a term: Aeneas's `toStr`
   takes its length bound `by decide +native`, so every generated `Debug`
-  `fmt` body carries some), and its statement has the matching shape. An
-  `axiom Evil._native.ax : False` has the component and none of the rest,
-  and is refused; so is one with the right name and the wrong statement, or
-  hung off a declaration in another module. Those axioms are visible to
+  `fmt` body carries some), its statement has the matching shape, and the
+  `<decl>`'s own value applies it -- directly, as a theorem proved `by
+  native_decide` does, or through one of the `<decl>._proof_n` auxiliaries
+  the elaborator splits out of a definition, as the generated `fmt` bodies
+  do. An `axiom Evil._native.ax : False` has the component and none of the
+  rest, and is refused; so is one with the right name and the wrong
+  statement, one hung off a declaration in another module, or one that
+  nothing under its parent's name applies. Those axioms are visible to
   `#print axioms`, are pinned where they are load-bearing, and are recorded
   in `LIMITATIONS.md`; a declaration-level audit that refused them would
   refuse the field proofs.
@@ -55,21 +59,48 @@ compiler produces rather than to a name:
   `implemented_by` in disguise, and `native_decide` will evaluate it instead
   of `bar`. It is neither partial nor unsafe, so a flag-based rule does not
   see it. The audit accepts the name only in the one shape the compiler
-  produces, and refuses it in every other.
+  produces -- a partial-safety definition that calls itself, beside a safe,
+  recursive `<f>` of the same type in the same module -- and refuses it in
+  every other.
 
-What this cannot see: a declaration added under `set_option
+What the shape cannot settle: the shape is what the compiler produces, and
+elaboration-time code produces it just as well. A `run_cmd` (or `#eval`, an
+`elab`, a `macro`, an `initialize`) that calls `addDecl` can add an axiom
+named `<t>._native.native_decide.ax_1_1` of type `decide False = true` and a
+theorem whose proof term applies it, with the name assembled from string
+literals so that no `axiom` token and no `_native` token appears in the
+source; `addAndCompile` can add a partial `<f>._unsafe_rec` with a different
+body beside a recursive `<f>`, after which `native_decide` proves things of
+`<f>` that are false of it. Both satisfy every check in this module, and
+`leanchecker` accepts both, since an axiom is a kernel-valid declaration.
+**This audit cannot distinguish a planted compiler-trust axiom or auxiliary
+from a real one on shape alone.** What excludes them is textual:
+`scripts/check-lean-constructs.sh` refuses every elaboration-time construct
+in hand-written first-party Lean -- `run_cmd`, `#eval`, `elab`, `macro`,
+`syntax`, `initialize`, `addDecl` and its kin, and any reference to the
+`Lean` namespace at all -- outside this module's own implementation and the
+four `run_cmd Model.AxiomAudit.run` lines, which it allow-lists by file path
+and exact line content; and `scripts/check-audit-reach.sh` fails if any
+first-party module is outside the four audit modules' import closure, so no
+module escapes the walk. The division of labour: this module recognises the
+declaration kinds a grep cannot, and the grep refuses the code that could
+forge what this module accepts.
+
+What this cannot see either: a declaration added under `set_option
 debug.skipKernelTC true` is an ordinary theorem in the environment, checked by
 the elaborator and not by the kernel. The defence against that is
 `leanchecker`, which replays a module's declarations through the kernel from
-its olean; `REPRODUCING.md` says how to run it. The grep script is kept as a
-textual second line and now refuses that option by name.
+its olean; `REPRODUCING.md` says how to run it. The grep script refuses that
+option by name, and every other `debug.*` option with it.
 
 This module lives in the model package because both the proofs package and
 the translation package depend on it, so one definition serves all three.
 Each package carries a small module that imports what it builds and calls
 `Model.AxiomAudit.run`; a module outside its package's build glob would be an
 audit nothing runs, which `scripts/check-translation-coverage.sh` guards
-against for the translation package.
+against for the translation package, and a module outside every audit's
+imports would be a module nothing walks, which `check-audit-reach.sh` guards
+against for all three.
 -/
 
 namespace Model.AxiomAudit
@@ -115,12 +146,44 @@ def isBoolEvalTrue (heads : List Name) (ty : Expr) : Bool :=
     | _ => false
   | _ => false
 
+/-- Does the value of `root`, or of an auxiliary the elaborator split out of
+it, mention `target`? A theorem proved `by native_decide` applies its axiom
+in its own proof term; a definition that discharged an obligation `by decide
++native` applies it in a `<root>._proof_n` theorem the elaborator abstracted
+out, and `<root>`'s value applies that. The walk starts at `root` and follows
+only constants declared under `root`'s name in module `m` (`_proof_n`,
+`match_n`, and the like), so it is bounded by the declaration's own
+auxiliaries; the fuel is a guard, not a limit anything reaches. -/
+def mentionsVia (env : Environment) (m root target : Name) : Bool :=
+  go [root] {} 256
+where
+  go : List Name → NameSet → Nat → Bool
+    | [], _, _ => false
+    | _, _, 0 => false
+    | c :: rest, seen, fuel + 1 =>
+      if seen.contains c then go rest seen fuel
+      else
+        -- `allowOpaque`: on this toolchain `value?` withholds a theorem's
+        -- proof term without it, and a theorem is the usual parent.
+        match (env.find? c).bind (·.value? (allowOpaque := true)) with
+        | none => go rest (seen.insert c) fuel
+        | some v =>
+          let used := v.getUsedConstants
+          if used.contains target then true
+          else
+            let next := used.toList.filter fun u =>
+              root.isPrefixOf u && u != root && moduleOf env u == m && !seen.contains u
+            go (next ++ rest) (seen.insert c) fuel
+
 /-- The compiler-trust axioms `native_decide`, `decide +native` and `bv_decide`
-generate, held to their exact shape: named `<decl>._native.<tactic>.ax_<n>`,
-hanging off a theorem or definition declared in the same module, and stating
-that a compiled Boolean evaluation returned `true`. They are the one axiom
-shape a hand-written module may declare, because `#print axioms` reports them
-and the pins hold them. -/
+generate, held to their shape: named `<decl>._native.<tactic>.ax_<n>`,
+hanging off a theorem or definition declared in the same module, stating
+that a compiled Boolean evaluation returned `true`, and applied by that
+declaration's own value (see `mentionsVia`). They are the one axiom shape a
+hand-written module may declare, because `#print axioms` reports them and
+the pins hold them. The shape is what the tactic produces, and what
+elaboration-time code could produce too; see the module docstring for what
+excludes that. -/
 def compilerTrust (env : Environment) (m : Name) (n : Name) (c : ConstantInfo) : Bool :=
   match n, c with
   | .str (.str (.str decl "_native") tactic) ax, .axiomInfo _ =>
@@ -128,7 +191,8 @@ def compilerTrust (env : Environment) (m : Name) (n : Name) (c : ConstantInfo) :
     (match env.find? decl with
       | some (.thmInfo _) | some (.defnInfo _) => moduleOf env decl == m
       | _ => false) &&
-    isBoolEvalTrue (compilerTrustHeads tactic) c.type
+    isBoolEvalTrue (compilerTrustHeads tactic) c.type &&
+    mentionsVia env m decl n
   | _, _ => false
 
 /-- The generated translation: `Translation.Tacenta<Crate>`. Its axioms are the
@@ -145,6 +209,19 @@ def isGenerated (m : Name) : Bool :=
 def isFirstParty (prefixes : Array Name) (m : Name) : Bool :=
   prefixes.any fun p => p.isPrefixOf m
 
+/-- The recursion a `<f>._unsafe_rec`'s parent must show in its value.
+Structural recursion elaborates through the inductive type's `brecOn` (or
+`binductionOn`, for a `Prop`-valued one); well-founded recursion through
+`WellFounded.fix`, packed behind a `<f>._unary` companion when `<f>` takes
+more than one argument. A non-recursive `<f>` has none of these, and the
+compiler makes no auxiliary for it. -/
+def recursiveValue (f : Name) (v : Expr) : Bool :=
+  v.getUsedConstants.any fun u =>
+    u == ``WellFounded.fix || u == ``WellFounded.fixF || u == f ++ `_unary ||
+    (match u with
+      | .str _ "brecOn" | .str _ "binductionOn" => true
+      | _ => false)
+
 /-- Lean compiles every recursive definition, structural or well-founded,
 through an auxiliary `<f>._unsafe_rec` it marks `partial`; the kernel-checked
 `<f>` is what the proofs reason about, and the auxiliary is the compiler's
@@ -156,18 +233,25 @@ The exemption is by shape, not by name, because the name is load-bearing for
 the code generator: it compiles a call to `<f>` as a call to `<f>._unsafe_rec`
 whenever that constant exists, so a hand-written `def bar._unsafe_rec` with a
 different body is what `native_decide` evaluates in place of `bar`. What the
-compiler produces, and nothing a user can write, is a *definition* whose safety
-is `partial` (a user's `partial def` becomes an opaque; a user's `def` is safe;
-a user's `unsafe def` is unsafe), not unsafe, with the same type as a plain,
-safe definition `<f>` declared in the same module. -/
+compiler produces is a *definition* whose safety is `partial` (a user's
+`partial def` becomes an opaque; a user's `def` is safe; a user's `unsafe
+def` is unsafe), not unsafe, whose body calls itself (it is `<f>`'s body with
+the recursive calls redirected), with the same type and universe parameters
+as a plain, safe definition `<f>` declared in the same module whose own value
+is recursive (`recursiveValue`). A `def barC := 0` with a planted
+`barC._unsafe_rec := 1` beside it fails the last two: `barC` recurses on
+nothing, and the auxiliary calls nothing. The shape is still one that
+`addAndCompile` at elaboration time can produce beside a genuinely recursive
+`<f>`; the module docstring says what excludes that. -/
 def compilerAuxiliary (env : Environment) (m : Name) (n : Name) (c : ConstantInfo) : Bool :=
   match n, c with
   | .str f "_unsafe_rec", .defnInfo d =>
     d.safety == .partial &&
+    d.value.getUsedConstants.contains n &&
     (match env.find? f with
       | some (.defnInfo p) =>
         p.safety == .safe && moduleOf env f == m && p.type == c.type &&
-        p.levelParams == d.levelParams
+        p.levelParams == d.levelParams && recursiveValue f p.value
       | _ => false)
   | _, _ => false
 
