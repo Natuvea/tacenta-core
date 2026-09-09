@@ -165,24 +165,45 @@ one from these; "Trusted, not verified" below says what excludes it.
 - Diffie-Hellman agreement and the AEAD are boundary primitives in the model: it
   consumes DH outputs as bytes and stops at the AEAD material. The model's
   vectors therefore assert the key schedule, not ciphertext bytes.
-- **Several boundary hypotheses are stronger than the Rust they stand for.**
-  Each opaque operation the translation cannot see is assumed total, and some
-  of them are not total in Rust: `HkdfTotal` and `SpqrHkdfAgrees` assume
-  `hkdf_sha256` returns for *every* output length, where the crate `expect`s
-  the RFC 5869 bound `N ≤ 8160` (every call site asks for 32, 64 or 96;
-  `KdfCkTotal` and `KdfRkTotal` are about the crate's own fixed-length
-  wrappers and are total in Rust, so they do not belong in this list); the
-  two `VecRemoveTotal`s
-  and `VecRemoveAgrees`
-  assume `Vec::remove` returns at every index, where Rust panics out of
-  range (every call site checks the index first); the erasure crate's
-  `usize::div_ceil` is assumed total including at a zero divisor (its only
-  divisor is the constant `CHUNK_BYTES`); and the RNG's `fill_bytes` is
-  assumed to return (a failing RNG panics). Each hypothesis is sound *as
-  used*, because the call sites stay inside the region where Rust agrees,
-  and none of that is stated in the hypothesis itself; a reader checking a
-  theorem against the code has to check the call sites too. Restating them
-  with the Rust precondition is open work.
+- **The boundary hypotheses about opaque operations are stated under the
+  Rust operation's own precondition, where it has one.** An opaque operation
+  the translation cannot see is described by a named hypothesis, and each of
+  those that used to claim more than the Rust operation delivers now carries
+  the condition under which the Rust returns, discharged in the proof at
+  every use rather than argued from the call sites in prose. The HKDF
+  hypotheses -- `HkdfTotal` and `HkdfAgrees` (`T1.lean`/`T3.lean`),
+  `SessionT1.HkdfTotal`, the Braid's and the Triple's `HkdfSha256Total`,
+  `BraidHkdfAgrees`, `SpqrHkdfAgrees` and `TripleHkdfAgrees` -- carry
+  `N.val ≤ 8160`, RFC 5869's `255 · HashLen`, which is the bound the crate's
+  `expect` enforces; every call site asks for 32, 64, 80 or 96 bytes and the
+  premise closes from the literal (`KdfCkTotal` and `KdfRkTotal` are about
+  the sparse ratchet's own fixed-length wrappers, total in Rust, and were
+  never in this list). The two `VecRemoveTotal`s and `VecRemoveAgrees`
+  carry `i.val < v.val.length`, the one condition under which `Vec::remove`
+  returns rather than panics; every call site sits under exactly that loop
+  guard, from which the proof discharges the premise, and the guard also
+  removed the `[Inhabited T]` bound the unguarded statements needed for
+  consistency (`Translation/Satisfiability.lean` now models each with the
+  real operation's own behaviour, and keeps the refutation of the unguarded
+  shape). `DivCeilTotal` carries `b.val ≠ 0`, its one divisor being the
+  constant `CHUNK_BYTES`. `KeyPairGenerateTotal`, `Encapsulate1Total` and
+  the two randomness-drawing clauses of `KemAgreesFor` carry
+  `BraidT1.RngTotal rc`, that the caller's `fill_bytes` returns, which the
+  real `generate`/`encapsulate1` need since they fill their randomness from
+  it; `step_send_no_panic`, `send_no_panic`, `step_send_refines` and
+  `Braid.send_refines` take it for the RNG they are handed. What remains
+  stronger than the Rust is listed where it belongs: `TripleT1.lean`'s
+  seventeen unconditional cross-crate totals (under the Triple Ratchet,
+  below); `BraidT1.lean`'s five totals over the erasure coder
+  (`EncoderNewTotal`, `EncoderNextChunkTotal`, `DecoderNewTotal`,
+  `DecoderAddChunkTotal`, `DecoderMessageTotal`), which are the same
+  shape, since the erasure crate's own theorems about `next_chunk`,
+  `add_chunk` and `message` carry `Usize.max` headroom preconditions the
+  Braid cannot state through the opaque types (the Rust documents the
+  constructible-but-unreachable overflow at `Decoder::new(usize::MAX)`);
+  the domain check `ValidateEkAgrees` does not see (under the Braid's KEM
+  hypotheses, below); and `Kem.Correct`'s idealisation of ML-KEM's
+  decapsulation-failure probability to zero (same section).
 
 ## Secret deletion is partial
 
@@ -633,10 +654,11 @@ stated; `Satisfiability.lean` exhibits a model of each), and
 full account.
 
 **The `hcounter` precondition is scoped to the input state's own chains
-table.** `send_no_panic`/`receive_no_panic` (`SpqrT1.lean`) and
-`send_refines`/`receive_refines` (`SpqrT3.lean`) each carry an `hcounter`
-hypothesis saying "the chain this call is about to step forward has not yet
-sent 2^64 messages." It is stated over the real input state's own chains
+table.** `send_refines`/`receive_refines` (`SpqrT3.lean`) each carry an
+`hcounter` hypothesis saying "the chain this call is about to step forward
+has not yet sent 2^64 messages", and an `hepoch` saying the epoch is below
+`u64::MAX`; `SpqrT1.lean`'s `send_no_panic`/`receive_no_panic` carry
+neither any more (below). It is stated over the real input state's own chains
 table, the same shape `hcb`/`hsb` use, and not as `∀ ch : Chain, ∀ cs :
 Chains, cs.send = some ch → ch.n.val < Std.U64.max`, quantified over *every*
 value the `Chain`/`Chains` types can hold: a `Chain` with `n = Std.U64.max`
@@ -650,13 +672,27 @@ which is why the scoping is worth stating here and why
 
 That scoping needs a `ChainCounterBounded` model-level invariant and two
 preservation lemmas in `SpqrT3.lean` (`advance`/`skipMessageKeys` only ever
-carry an existing counter through or open a fresh one at zero), and the
-real-level counterpart in `SpqrT1.lean` -- `VecRetainTotal` carries a
-membership clause (`retain` cannot fabricate an element, only drop one), and
-`find_chains_no_panic`/`set_chains_no_panic`/`clear_old_epochs_no_panic`/
-`advance_no_panic`/`maybe_advance_no_panic`/`skip_message_keys_no_panic`
-each carry that membership fact one call further. The precondition is one
-every real caller satisfies.
+carry an existing counter through or open a fresh one at zero). The
+precondition is one every real caller satisfies.
+
+**`SpqrT1.lean`'s `advance_no_panic`, `maybe_advance_no_panic`,
+`send_no_panic` and `receive_no_panic` carry no `hepoch` and no
+`hcounter`.** Every increment of the epoch (`advance`) and of a chain's
+message counter (`send`, `receive`) is a `checked_add` in the source, whose
+`None` arm is a returned `ChainExhausted` with the state untouched, and the
+four proofs walk that arm as a value rather than assume it away -- the same
+move `BraidT1.lean` made for the Braid's epoch with CR-03. The membership
+clauses that `VecRetainTotal`, `find_chains_no_panic`,
+`set_chains_no_panic`, `clear_old_epochs_no_panic`, `advance_no_panic`,
+`maybe_advance_no_panic` and `skip_message_keys_no_panic` carry were
+introduced so the earlier `hcounter` could reach the chain it was about;
+they stay, being true of the code and what a caller reasoning about the
+table's contents needs. `SpqrT3.lean` keeps both bounds for the model's
+reason rather than the code's: `Model.SparseRatchet` counts in `Nat`, so at
+the ceiling the real code's `ChainExhausted` has nothing to refine against,
+exactly as `BraidT3.lean` keeps its `hepoch` where `BraidT1.lean` dropped
+it. `TripleT3.lean`'s `SpqrAgreesFor` mirrors `SpqrT3.lean`'s
+preconditions and so keeps them too.
 
 **`tacenta-triple` has T3, against a composed model of its own.**
 `Model.TripleRatchet.lean` carries `splitSecret`/`combine`, the two
@@ -818,32 +854,45 @@ stated for every slice they would claim success where the crate returns an
 error, which is what `ValidateEkAgrees` did until its length premises were
 added (below).
 
-**One clause of `KemAgreesFor` admits no real KEM, and the four Braid
-refinement theorems inherit that today.** Its encapsulation clause (the
-`encapsulate1` conjunct in `BraidT3.lean`) demands, for every RNG state,
-that the real `tacenta_kem::encapsulate1` return the one `(ct1, ss)` pair
-the model's `K.encaps1 ekSeed hek` gives for the header -- and
-`Model.Braid.Kem.encaps1` takes no randomness, so that pair is a function of
-the header alone. Real ML-KEM encapsulation draws 32 random bytes and
-returns a different pair under a different RNG state, so no `K` makes the
-clause true of the real operation; the only implementation known to satisfy
-it is the derandomised `toyKem` of `Translation/KemWitness.lean`, whose
-`encaps1` is a function of the seed alone. `step_send_refines`,
-`Braid.send_refines`, `step_receive_refines` and `Braid.receive_refines`
-therefore describe a Braid over a derandomised KEM, not over ML-KEM. The
-key-generation clause of the same definition already has the right shape --
-it binds the model's randomness existentially per RNG state (`∃ kp rng'
-rand`) -- and the fix is to do the same for encapsulation: give
-`Model.Braid.Kem.encaps1` and `Model.Braid.receive` a randomness argument,
-quantify `Kem.Correct` over it, and bind it existentially per RNG in the
-clause. That changes the statement of every Braid refinement theorem and is
-planned, not done. Two smaller things sit beside it. The definition's `∀ kp`
-clause -- that *every* `IncrementalKeyPair` decodes as some `dk`, `ekSeed`
-and `ekVector` whose header is `ekSeed ++ hashEk ekSeed ekVector` -- is
-applied by no proof in `BraidT3.lean`, and it is false of the real type:
-`IncrementalKeyPair::from_bytes` checks only the length of its input, so a
-pair it builds from arbitrary bytes need satisfy nothing of the kind. It
-should be deleted rather than kept as an unused hypothesis. And
+**`KemAgreesFor`'s encapsulation clause binds the model's randomness
+existentially per RNG state, as its key-generation clause does; an earlier
+revision's did not, and admitted no real KEM.** Real ML-KEM encapsulation
+draws 32 random bytes and returns a different `(ct1, ss)` pair under a
+different RNG state. `Model.Braid.Kem.encaps1` now takes that randomness
+(`encaps1 : Nat → Bytes → Bytes → …`), `Kem.Correct` quantifies over both
+parties' randomness, `Model.Braid.send K rand` passes its `rand` to
+transition (7)'s encapsulation as it already did to transition (1)'s key
+generation, and the clause reads `∃ es ct1raw ssraw rng' rand', encapsulate1
+… = ok (…, rng') ∧ … (K.encaps1 rand' ekSeed hek) …`: for each RNG state,
+*some* model randomness makes the model's answer the real one, which is
+all a proof that does not control the RNG can say, and is what the
+key-generation clause (`∃ kp rng' rand`) always said. `step_send_refines`
+and `Braid.send_refines` choose that `rand'` as the `rand` their conclusion
+binds. `Model.Braid.receive` needed no randomness argument: no receive
+transition encapsulates (transitions 9, 11 and 12 finish an encapsulation
+with `encaps2`, which is deterministic given the encapsulation state), so
+`step_receive_refines` and `Braid.receive_refines` changed statement only
+through `KemAgreesFor` itself. Until this revision the clause fixed one pair
+per header for every RNG state, a function of the header alone; the only
+implementation that satisfied it was the derandomised `toyKem` of
+`Translation/KemWitness.lean`, and the four Braid refinement theorems
+described a Braid over a derandomised KEM. `toyKem.encaps1` still ignores
+its randomness, which is now a legitimate model of the clause (a KEM that
+draws no randomness satisfies "some randomness makes the model agree" with
+any value), and the witness picks `0`. What the two randomness-drawing
+clauses assume beyond agreement is `BraidT1.RngTotal rc`: that the caller's
+`fill_bytes` returns, which the real `generate`/`encapsulate1` need. One
+idealisation remains: `Kem.Correct` asks that decapsulation recover the
+secret for *every* pair of randomness values, and ML-KEM-1024 is only
+δ-correct, with a decapsulation-failure probability FIPS 203 bounds at
+2^-174. So the real KEM satisfies `KemAgreesFor` up to that probability,
+which the model rounds to zero; the randomness-shape gap is closed, and
+this is what is left. The
+definition's former `∀ kp` clause -- that *every* `IncrementalKeyPair`
+decodes as some `dk`, `ekSeed` and `ekVector` whose header is `ekSeed ++
+hashEk ekSeed ekVector` -- was applied by no proof in `BraidT3.lean` and is
+false of the real type (`IncrementalKeyPair::from_bytes` checks only the
+length of its input), and has been deleted. What remains is
 `ValidateEkAgrees`, taken by `step_receive_refines` and
 `Braid.receive_refines`, states that `validate_ek` accepts exactly when the
 model's `hashEk` recomputation matches the stored hash, for a 32-byte seed,
@@ -947,7 +996,7 @@ with CR-15, since `split_secret` now wipes its expansion on the way out).
 **And that is the gap, in two parts.** First, those seventeen are stated
 *unconditionally* -- "for every state, `receive` returns" -- while the leaf
 theorems that correspond to them carry preconditions (`hs` in `T1.lean`;
-`hroom`, `hepoch`, `hskiproom`, `hcounter` in `SpqrT1.lean`). Second, most of
+`hroom` and `hskiproom` in `SpqrT1.lean`). Second, most of
 the seventeen correspond to no leaf theorem at all. Six do:
 `RatchetSendTotal`, `RatchetReceiveTotal`, `SpqrSendTotal` and
 `SpqrReceiveTotal` echo the two leaf files' `send_no_panic` and
@@ -1047,9 +1096,11 @@ carry no theorem, as CLAIMS.md's "Translated is not proved" lists.
   Two assumptions in the file, and the axiom lists say which theorems carry
   them. `usize::div_ceil` and `Vec::truncate` are both functions the translation
   does not model, so they arrive as axioms and nothing can be said about them,
-  including that they return. Both are the toolchain not seeing through a core
-  library function rather than a primitive we chose to trust, and neither guards
-  a secret.
+  including that they return. `DivCeilTotal` is stated under `b.val ≠ 0`,
+  the one input on which `usize::div_ceil` panics being a zero divisor, and
+  its one use divides by the constant `CHUNK_BYTES`. Both are the toolchain
+  not seeing through a core library function rather than a primitive we
+  chose to trust, and neither guards a secret.
 
   A third looks like a boundary and is not. `Vec::extend_from_slice` clones
   through a `Clone` instance, which for a byte is concrete and reducible, so it
@@ -1355,22 +1406,23 @@ that assembly possible.
 - **A trusted boundary that is not a deliberate one.**
   `Vec::remove` reaches the generated Lean as an axiom, because Aeneas does not
   model it, so the skipped-key scan's proofs carry `VecRemoveTotal` as a stated
-  hypothesis, which also asserts that removing an element does not lengthen
-  the vector. Rust's `Vec::remove` panics only on an out-of-bounds index, which
-  the scan's own length check rules out, and it plainly shortens the vector.
-  **The hypothesis as stated does not carry that bound** -- it is `∀ i`, so it
-  is not true of Rust for an out-of-range index; it is sound *as used*,
-  because every call site checks `i < len` first, and tightening it to
-  `i.val < v.length →` is open work. It carries an `[Inhabited T]` bound so
-  that it is consistent: quantified over every element type, at `T := Empty`
-  it would ask for an element of an empty type, imply `False`, and make the
-  ratchet's `receive_refines` provable for nothing.
-  `Translation/Satisfiability.lean` holds a model of it and a refutation of
-  the unbounded shape, so the build fails if the bound is dropped.
-  It is still
-  worth removing: unlike the HMAC, this is a standard-library operation rather
-  than a chosen primitive, and the verified zone should not rest on something
-  the translation cannot see into. Removing the dependency in the Rust would be
+  hypothesis: at an in-range index (`i.val < v.val.length →`) the operation
+  returns, and the vector it hands back is the input with that index erased.
+  That is what Rust's `Vec::remove` does; out of range it panics, and the
+  hypothesis says nothing there, so it is a fact the real operation
+  satisfies for every quantified input rather than a totality stronger than
+  the crate. Every call site sits under the scan's own `i < len` check, and
+  the proofs discharge the premise from that branch. The guard is also what
+  keeps the statement consistent without the `[Inhabited T]` bound it used
+  to carry: quantified over every index, at `T := Empty` it would ask for an
+  element of an empty type, imply `False`, and make the ratchet's
+  `receive_refines` provable for nothing. `Translation/Satisfiability.lean`
+  holds a model of it -- the real operation's own behaviour, the element in
+  range and a panic otherwise -- and a refutation of the unguarded shape, so
+  the build fails if the guard is dropped. It is still worth removing: unlike
+  the HMAC, this is a standard-library operation rather than a chosen
+  primitive, and the verified zone should not rest on something the
+  translation cannot see into. Removing the dependency in the Rust would be
   the same move as making `derive_chain`'s arithmetic total.
 
 - **The skipped-key store is a map, and storing replaces rather than
@@ -1390,16 +1442,16 @@ that assembly possible.
   T3's refinement of the skip step has to relate both sides through that
   scan; `Translation/T3.lean` records what that needs.
 
-- **`VecRemoveTotal` states three things, and wants a fourth.** It states
-  totality, that removal does not lengthen the vector, and that removing an
-  index in range shortens the vector by exactly one, which the purge scan
-  needs because it removes without advancing its index
-  and so has nothing else to make its measure decrease. The honest end point is
-  to state the operation's semantics outright, that removal returns the element
-  and the list with that index erased; the length facts would then be derived
-  rather than assumed piecemeal, and T3's purge refinement needs it anyway. This
-  is the recurring shape of the whole exercise: T1 needed only that an
-  unmodelled operation returns, and refinement needs to know what it returned.
+- **`VecRemoveTotal` states the operation's value, and the length fact is
+  derived.** Under the index guard it states that removal returns the list
+  with that index erased; that a removal in range shortens the vector by
+  exactly one -- which the purge scan needs, because it removes without
+  advancing its index and so has nothing else to make its measure decrease --
+  is `VecRemoveTotal.lengths`, proved from the value rather than assumed
+  beside it. The sparse ratchet's `VecRemoveAgrees` names the removed element
+  as well, since its refinement reads it. This is the recurring shape of the
+  whole exercise: T1 needed only that an unmodelled operation returns, and
+  refinement needs to know what it returned.
 
 - **The label set is a parameter of the verified zone.** The KDF `info`
   labels are a choice rather than a computation, so they are a `LabelSet`
@@ -1486,7 +1538,12 @@ Two entries this list used to carry closed with the CR-03/CR-22 re-translation:
   ceiling and says nothing at it, and no state `from_bytes` admits is there,
   nor any reachable in practice: `checked_add` at `u64::MAX - 1` does yield
   `u64::MAX`, so the ceiling is constructible in principle, by 2^64 - 1
-  transitions.
+  transitions. The sparse ratchet's T1 has since followed the same path:
+  `SpqrT1.lean`'s `advance_no_panic`, `maybe_advance_no_panic`,
+  `send_no_panic` and `receive_no_panic` dropped `hepoch` and `hcounter`,
+  the source's epoch and counter increments all being `checked_add` whose
+  `None` arm returns `ChainExhausted`, and `SpqrT3.lean` keeps both for the
+  same model-side reason `BraidT3.lean` keeps its `hepoch`.
 
 ## Scope
 

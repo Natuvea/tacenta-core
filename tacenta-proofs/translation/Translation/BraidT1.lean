@@ -106,14 +106,26 @@ def EkVectorLenTotal : Prop := ∃ v : Usize, tacenta_kem.EK_VECTOR_LEN = ok v �
 def Ct1LenTotal : Prop := ∃ v : Usize, tacenta_kem.CT1_LEN = ok v ∧ v.val ≤ 4096
 def Ct2LenTotal : Prop := ∃ v : Usize, tacenta_kem.CT2_LEN = ok v ∧ v.val ≤ 4096
 
+/-- A randomness source that answers. Key-pair generation and the first
+encapsulation each draw their randomness from the caller's `RngCore` through
+`fill_bytes` (`tacenta-core/kem/src/lib.rs`), so their totality is the RNG's:
+a `fill_bytes` that panics propagates through them, and a hypothesis that
+said they return for *every* RNG would be stronger than the crate. This names
+the condition, and the two totals below and `BraidT3.lean`'s `KemAgreesFor`
+carry it as a premise; `step_send_no_panic`, `send_no_panic` and the send
+refinements take it for the RNG they are handed. -/
+def RngTotal {R : Type} (rc : rand_core_1.RngCore R) : Prop :=
+  ∀ (rng : R) (buf : Slice U8), ∃ r, rc.fill_bytes rng buf = ok r
+
 /-- The incremental key pair: generating one (the *outer* `Result` is what
-this states is total; the *inner* `core.result.Result _ KemError` it returns
-is a real value the source already branches on, `Ok` or `Err` both handled),
-reading its header or encapsulation-key vector back out, and decapsulating
-against a peer's ciphertext (same inner/outer split). -/
+this states is total, given an RNG that answers; the *inner*
+`core.result.Result _ KemError` it returns is a real value the source
+already branches on, `Ok` or `Err` both handled), reading its header or
+encapsulation-key vector back out, and decapsulating against a peer's
+ciphertext (same inner/outer split). -/
 def KeyPairGenerateTotal : Prop :=
   ∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R) (rng : R),
-    ∃ r, tacenta_kem.IncrementalKeyPair.generate rc crc rng = ok r
+    RngTotal rc → ∃ r, tacenta_kem.IncrementalKeyPair.generate rc crc rng = ok r
 
 -- Both carry the same concrete size cap as the fixed-size KEM constants
 -- above, and for the same composing-sums reason: each is appended to (a MAC,
@@ -138,8 +150,10 @@ def KeyPairCloneTotal : Prop :=
     ∃ r, tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone kp = ok r
 
 /-- The two-step encapsulation state: sampling it (same inner/outer split as
-key-pair generation), finishing it against a peer's encapsulation-key vector,
-and cloning it while it is held across a state transition. -/
+key-pair generation, and the same `RngTotal` premise, since this is the
+other call that draws randomness), finishing it against a peer's
+encapsulation-key vector, and cloning it while it is held across a state
+transition. -/
 -- Both carry the same concrete size cap on the ciphertext vector they hand
 -- back on success, for the same reason `KeyPairHeaderTotal` does:
 -- `finish_encaps` sums one of these against another opaque bound before
@@ -147,7 +161,7 @@ and cloning it while it is held across a state transition. -/
 -- two concrete caps do.
 def Encapsulate1Total : Prop :=
   ∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
-    (s : Slice U8) (rng : R),
+    (s : Slice U8) (rng : R), RngTotal rc →
     ∃ r, tacenta_kem.encapsulate1 rc crc s rng = ok r ∧
       ∀ es (ct1 : alloc.vec.Vec U8) raw,
         r.1 = core.result.Result.Ok (es, ct1, raw) → ct1.length ≤ 4096
@@ -170,9 +184,13 @@ def ValidateEkTotal : Prop :=
 /-- The two KDF calls, braid's own copies distinct from the sparse ratchet's
 `KdfCkTotal`/`KdfRkTotal` and the classical ratchet's, per the counting trap:
 each translated crate gets its own opaque `hkdf_sha256`, and one proof does
-not discharge another crate's copy. -/
+not discharge another crate's copy. The HKDF premise is RFC 5869's output
+bound of 8160 bytes, which the crate's own `expect` enforces, so the
+hypothesis is stated exactly where the real operation returns
+(`T1.HkdfTotal` says why); this crate asks for 32 or 64 bytes. -/
 def HkdfSha256Total : Prop :=
-  ∀ (N : Usize) (a b c : Slice U8), ∃ r, tacenta_kdf.hkdf_sha256 N a b c = ok r
+  ∀ (N : Usize) (a b c : Slice U8), N.val ≤ 8160 →
+    ∃ r, tacenta_kdf.hkdf_sha256 N a b c = ok r
 
 def HmacSha256Total : Prop :=
   ∀ (a b : Slice U8), ∃ r, tacenta_kdf.hmac_sha256 a b = ok r
@@ -286,7 +304,7 @@ theorem Auth.update_no_panic (hkdf : HkdfSha256Total) (hz : ZeroizingArrayRoundT
   unfold Auth.update
   step*
   all_goals (try (step with info_no_panic AUTH_UPDATE epoch (by simp [hau]; scalar_tac)))
-  all_goals (try (obtain ⟨okm, hokm⟩ := hkdf 64#usize s key v.deref; simp only [hokm]))
+  all_goals (try (obtain ⟨okm, hokm⟩ := hkdf 64#usize s key v.deref (by scalar_tac); simp only [hokm]))
   all_goals (try (step with zeroizing_new_spec hz))
   all_goals (try step*)
   all_goals (try (step with zeroizing_deref_spec ‹_›))
@@ -331,7 +349,7 @@ theorem kdf_ok_no_panic (hkdf : HkdfSha256Total) (shared_secret : Slice U8) (epo
   unfold kdf_ok
   step*
   all_goals (try (step with info_no_panic SCKA_KEY epoch (by simp [hsk]; scalar_tac)))
-  all_goals (try (obtain ⟨out, hout⟩ := hkdf 32#usize s shared_secret v.deref; simp only [hout]))
+  all_goals (try (obtain ⟨out, hout⟩ := hkdf 32#usize s shared_secret v.deref (by scalar_tac); simp only [hout]))
   all_goals (try step*)
 
 /-- `init` is `update` from an all-zero starting authenticator, so it inherits
@@ -503,7 +521,7 @@ is the same shape as those three with no state to leave alone; and two
 (`KeysUnsampled`, `HeaderReceived`) sample fresh key material and branch on
 whether the KEM call succeeded, the only real branching this function does. -/
 theorem Braid.step_send_no_panic {R : Type} (rc : rand_core_1.RngCore R)
-    (crc : rand_core_1.CryptoRng R) (hgen : KeyPairGenerateTotal)
+    (crc : rand_core_1.CryptoRng R) (hrng : RngTotal rc) (hgen : KeyPairGenerateTotal)
     (hhdr : KeyPairHeaderTotal) (hmac : HmacSha256Total) (henew : EncoderNewTotal)
     (henext : EncoderNextChunkTotal) (hkdf : HkdfSha256Total)
     (hencaps1 : Encapsulate1Total) (hz : ZeroizingArrayRoundTrip) (hzz : ArrayZeroizeTotal)
@@ -518,7 +536,7 @@ theorem Braid.step_send_no_panic {R : Type} (rc : rand_core_1.RngCore R)
     | ⟨epoch, auth, encaps, ct1, ek_vector, ct1_enc⟩
     | ⟨epoch, auth, header, encaps, ct1, ek_dec⟩ | ⟨epoch, auth, ct2_enc⟩ | -
   · -- KeysUnsampled: sample a key pair, MAC its header, start an encoder.
-    obtain ⟨⟨rval, rng1⟩, hr⟩ := hgen rc crc rng
+    obtain ⟨⟨rval, rng1⟩, hr⟩ := hgen rc crc rng hrng
     simp only [hr]
     rcases rval with kp | e
     all_goals (try step*)
@@ -556,7 +574,7 @@ theorem Braid.step_send_no_panic {R : Type} (rc : rand_core_1.RngCore R)
     all_goals (try (step with state_back_no_panic))
     all_goals (try (step with Msg.empty_no_panic))
   · -- HeaderReceived: sample an encapsulation, derive the shared key.
-    obtain ⟨⟨rval, rng1⟩, hr, hrbound⟩ := hencaps1 rc crc header.deref rng
+    obtain ⟨⟨rval, rng1⟩, hr, hrbound⟩ := hencaps1 rc crc header.deref rng hrng
     simp only [hr]
     rcases rval with ⟨encaps, ct1, raw1⟩ | e
     all_goals (try step*)
@@ -597,7 +615,8 @@ theorem Braid.step_send_no_panic {R : Type} (rc : rand_core_1.RngCore R)
 /-- `send`: clone the current state, step it, and read back the reportable
 epoch. All three are already total. -/
 theorem Braid.send_no_panic {R : Type} (rc : rand_core_1.RngCore R)
-    (crc : rand_core_1.CryptoRng R) (henc : EncoderCloneTotal) (hdec : DecoderCloneTotal)
+    (crc : rand_core_1.CryptoRng R) (hrng : RngTotal rc)
+    (henc : EncoderCloneTotal) (hdec : DecoderCloneTotal)
     (hkp : KeyPairCloneTotal) (hes : EncapsStateCloneTotal) (hgen : KeyPairGenerateTotal)
     (hhdr : KeyPairHeaderTotal) (hmac : HmacSha256Total) (henew : EncoderNewTotal)
     (henext : EncoderNextChunkTotal) (hkdf : HkdfSha256Total) (hencaps1 : Encapsulate1Total)
@@ -606,7 +625,7 @@ theorem Braid.send_no_panic {R : Type} (rc : rand_core_1.RngCore R)
     Braid.send rc crc self rng ⦃ fun _ => True ⦄ := by
   unfold Braid.send
   step with State.clone_no_panic henc hdec hkp hes
-  all_goals (try (step with Braid.step_send_no_panic rc crc hgen hhdr hmac henew henext hkdf hencaps1 hz hzz hrf))
+  all_goals (try (step with Braid.step_send_no_panic rc crc hrng hgen hhdr hmac henew henext hkdf hencaps1 hz hzz hrf))
   all_goals (try (step with Braid.reported_no_panic))
 
 /-- Finishing an encapsulation: sample the second ciphertext, MAC it together

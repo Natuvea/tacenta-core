@@ -72,27 +72,30 @@ def keyOf {n : Usize} (a : Array Std.U8 n) : Model.State.Key := a.val.map u8
 
 /-! ## The trusted boundary, restated as agreement
 
-`TripleT1.lean` assumed `hkdf_sha256` (via `HkdfSha256Total`) cannot fail.
-Refinement needs more: that when it returns, it returns what `Model.Kdf.hkdf`
-computes. Argument order follows the Rust and the model alike: salt, then the
-input keying material, then the info string -- `split_secret`/`combine` both
-call `hkdf_sha256` this way, and `Model.TripleRatchet.splitSecret`/`combine`
-both call `Model.Kdf.hkdf` the same way. -/
+`TripleT1.lean` assumed `hkdf_sha256` (via `HkdfSha256Total`) cannot fail
+within RFC 5869's output bound. Refinement needs more: that when it returns,
+it returns what `Model.Kdf.hkdf` computes. Argument order follows the Rust
+and the model alike: salt, then the input keying material, then the info
+string -- `split_secret`/`combine` both call `hkdf_sha256` this way, and
+`Model.TripleRatchet.splitSecret`/`combine` both call `Model.Kdf.hkdf` the
+same way. The premise is the same bound, 8160 bytes, which the crate's own
+`expect` enforces (`T1.HkdfTotal` says why). -/
 def TripleHkdfAgrees : Prop :=
-  ∀ N salt ikm info, ∃ r, tacenta_kdf.hkdf_sha256 N salt ikm info = ok r ∧
+  ∀ N salt ikm info, N.val ≤ 8160 → ∃ r, tacenta_kdf.hkdf_sha256 N salt ikm info = ok r ∧
     keyOf r = Model.Kdf.hkdf (sliceOf salt) (sliceOf ikm) (sliceOf info) N.val
 
 @[step]
-theorem hkdf_step (h : TripleHkdfAgrees) (N : Usize) (salt ikm info : Slice Std.U8) :
+theorem hkdf_step (h : TripleHkdfAgrees) (N : Usize) (salt ikm info : Slice Std.U8)
+    (hN : N.val ≤ 8160) :
     tacenta_kdf.hkdf_sha256 N salt ikm info ⦃ fun r =>
       keyOf r = Model.Kdf.hkdf (sliceOf salt) (sliceOf ikm) (sliceOf info) N.val ⦄ := by
-  obtain ⟨r, hr, hv⟩ := h N salt ikm info; simp [hr, hv]
+  obtain ⟨r, hr, hv⟩ := h N salt ikm info hN; simp [hr, hv]
 
 /-- Strictly stronger than `TripleT1.lean`'s totality-only assumption, so
 that file needs no edits: this crate's `HkdfSha256Total` follows as a
 corollary. -/
 theorem TripleHkdfAgrees.total (h : TripleHkdfAgrees) : Tacenta.TripleT1.HkdfSha256Total :=
-  fun N a b c => by obtain ⟨r, hr, _⟩ := h N a b c; exact ⟨r, hr⟩
+  fun N a b c hN => by obtain ⟨r, hr, _⟩ := h N a b c hN; exact ⟨r, hr⟩
 
 /-! ## The `zeroize` wrapper round-trips, at the one width this crate wraps at
 

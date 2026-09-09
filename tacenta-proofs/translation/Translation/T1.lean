@@ -26,10 +26,15 @@ def HmacTotal : Prop :=
   ∀ key data, ∃ r, tacenta_kdf.hmac_sha256 key data = ok r
 
 /-- The other half of that boundary: the opaque HKDF expansion returns a value
-on every input, for every output length. Root-key steps rest on this the way
-chain-key steps rest on `HmacTotal`. -/
+on every input whose output length is within RFC 5869's `255 · HashLen`, which
+for SHA-256 is 8160 bytes. That is the bound the crate's own `expect` enforces
+(`tacenta-core/kdf/src/lib.rs`), so this is exactly the condition under which
+the real operation returns, and not a wider one; every call in the verified
+zone asks for 32, 64 or 80 bytes, and the stepping rule below discharges the
+premise from the literal. Root-key steps rest on this the way chain-key steps
+rest on `HmacTotal`. -/
 def HkdfTotal : Prop :=
-  ∀ N key salt info, ∃ r, tacenta_kdf.hkdf_sha256 N key salt info = ok r
+  ∀ N key salt info, N.val ≤ 8160 → ∃ r, tacenta_kdf.hkdf_sha256 N key salt info = ok r
 
 /-- A third opaque boundary, and the one that is not ours: the `zeroize` crate.
 The translation cannot see inside an external dependency, so wrapping a value
@@ -173,8 +178,9 @@ theorem skip_message_keys_loop_no_panic [DerivedKeysModel]
     -- The cursor's increment needs the wrapper's vector to be a vector: its
     -- length is within `Usize.max`, so a cursor below it has room to move.
     have hfits := (DerivedKeysModel.contents keys).property
-    by_cases hlt : j.val < (DerivedKeysModel.contents keys).val.length <;>
-      step* <;> simp_all [alloc.vec.Vec.len] <;> omega
+    by_cases hlt : j.val < (DerivedKeysModel.contents keys).val.length
+    · step*; simp_all [alloc.vec.Vec.len]; omega
+    · step*
   · exact h
 
 /-- The chain-derivation loop cannot fail. Its fallible steps are the chain-key
@@ -201,7 +207,9 @@ theorem derive_chain_loop_no_panic (h : HmacTotal) [DerivedKeysModel]
     simp only at hinv
     obtain ⟨⟨nx, mk⟩, hck⟩ := kdf_ck_no_panic h c
     simp only [derive_chain_loop.body, hck]
-    by_cases hlt : it.start.val < it.end.val <;> step* <;> simp_all <;> omega
+    by_cases hlt : it.start.val < it.end.val
+    · step*; simp_all; omega
+    · step*
   · exact hb
 
 private theorem allM_pure_ok {α : Type} (g : α → Bool) (l : List α) :
@@ -235,48 +243,44 @@ theorem array_eq_total {N : Usize} (a b : Array U8 N) :
   simp [hr]
 
 /-- A second boundary. Aeneas does not model `Vec::remove`, so it reaches the
-translation as an opaque function and this hypothesis states its totality. Rust's `Vec::remove` panics only on an
-out-of-bounds index, which the length check in the scan already rules out, so
-assuming it total is sound. It is stated rather than assumed silently, and it is
-worth removing: unlike the HMAC, this is a standard-library operation rather
-than a deliberate trusted primitive, so the verified zone should not depend on
-one that the translation cannot see into.
+translation as an opaque function and this hypothesis states what it does
+**at an in-range index**: it returns, and the vector it hands back is the
+input with that index erased. That is the whole of what Rust's `Vec::remove`
+promises; out of range it panics, and the hypothesis says nothing there. So
+this is a fact the real operation satisfies for every quantified input, not
+a totality stronger than the crate, and every use of it in this file sits
+under the loop guard `i < len` that the source code itself checks first --
+the guard is discharged from that branch condition, in the proof, rather
+than argued about the call sites in prose. It is stated rather than assumed
+silently, and it is worth removing: unlike the HMAC, this is a
+standard-library operation rather than a deliberate trusted primitive, so
+the verified zone should not depend on one that the translation cannot see
+into.
 
-**`[Inhabited T]` is load-bearing, not decoration.** Stated for every `T`,
-the hypothesis would be refutable: at `T := Empty` the existential asks for
-an element of an empty type, so `VecRemoveTotal → False` would be provable
-and every theorem taking it -- `try_skipped_no_panic`, `age_store_spec`, the
-receive path, and `T3.lean`'s `receive_refines` -- with it
-(`Translation/Satisfiability.lean` carries the refutation of the unbounded
-shape and a model of this one). The bound rules out the Lean artefact and
-nothing else: the hypothesis still says nothing about an out-of-range index,
-where Rust panics, so it remains sound *as used* (every call site checks the
-index first) and stronger than Rust; guarding it with `i.val < v.length →`
-is an open item in `LIMITATIONS.md`. -/
+The guard is also what keeps the statement satisfiable without an
+`[Inhabited T]` bound. Stated for every index, the existential would ask,
+at `T := Empty` and an empty vector, for an element of an empty type, and
+`VecRemoveTotal → False` would be provable -- with every theorem taking it.
+Under the guard a vector of an empty type has no in-range index, so the
+question does not arise (`Translation/Satisfiability.lean` keeps the
+refutation of the unguarded shape, and exhibits a model of this one: the
+operation that returns the element in range and panics otherwise, which is
+the real one). -/
 def VecRemoveTotal : Prop :=
-  ∀ {T : Type} [Inhabited T] (A : Type) (v : alloc.vec.Vec T) (i : Usize),
+  ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize), i.val < v.val.length →
     ∃ r, alloc.vec.Vec.remove A v i = ok r ∧ r.2.val = v.val.eraseIdx i.val
 
-/-- Aeneas does not derive this for its generated structures; `VecRemoveTotal`
-asks for it (see its docstring), and this is the element type every
-`remove` in the crate is applied to. -/
-instance : Inhabited SkippedKey :=
-  ⟨{ dh := default, n := default, stored_at := default, key := default }⟩
-
-/-- The two length facts the loops need, derived rather than assumed. Stating
-the assumption as the operation's value and deriving the rest is what refinement
-needs anyway, and it means the lengths cannot drift from the value. -/
-theorem VecRemoveTotal.lengths (hrm : VecRemoveTotal) {T : Type} [Inhabited T] (A : Type)
-    (v : alloc.vec.Vec T) (i : Usize) :
-    ∃ r, alloc.vec.Vec.remove A v i = ok r ∧ r.2.val.length ≤ v.val.length
-      ∧ (i.val < v.val.length → r.2.val.length + 1 = v.val.length) := by
-  obtain ⟨r, hr, hv⟩ := hrm A v i
-  refine ⟨r, hr, ?_, ?_⟩
-  · simp only [hv, List.length_eraseIdx]
-    split <;> omega
-  · intro hlt
-    simp only [hv, List.length_eraseIdx]
-    split <;> omega
+/-- The length fact the loops need, derived rather than assumed: a removal in
+range shortens the vector by exactly one. Stating the assumption as the
+operation's value and deriving the rest is what refinement needs anyway, and it
+means the length cannot drift from the value. -/
+theorem VecRemoveTotal.lengths (hrm : VecRemoveTotal) {T : Type} (A : Type)
+    (v : alloc.vec.Vec T) (i : Usize) (hi : i.val < v.val.length) :
+    ∃ r, alloc.vec.Vec.remove A v i = ok r ∧ r.2.val.length + 1 = v.val.length := by
+  obtain ⟨r, hr, hv⟩ := hrm A v i hi
+  refine ⟨r, hr, ?_⟩
+  simp only [hv, List.length_eraseIdx]
+  split <;> omega
 
 /-- The skipped-key scan cannot fail. The index is guarded by the length check
 that precedes it, so neither the read nor the removal goes out of bounds, and
@@ -293,8 +297,12 @@ theorem try_skipped_loop_no_panic (hrm : VecRemoveTotal)
     (inv := fun _ => True)
   · rintro j -
     simp only [try_skipped_loop.body]
-    obtain ⟨⟨removed, v'⟩, hrm', -, -⟩ := hrm.lengths Global state.skipped j
-    by_cases hlt : j.val < state.skipped.val.length <;> step* <;> simp_all
+    -- The removal's hypothesis is available only under the guard the body
+    -- checks first, so the case split comes before the removal is named.
+    by_cases hlt : j.val < state.skipped.val.length
+    · obtain ⟨⟨removed, v'⟩, hrm', -⟩ := hrm.lengths Global state.skipped j hlt
+      step*; simp_all
+    · step*
   · trivial
 
 /-- `derive_chain` is the loop with its initial state, so it inherits the loop's
@@ -337,7 +345,9 @@ theorem derive_chain_loop_length (h : HmacTotal) [DerivedKeysModel]
     simp only at hinv
     obtain ⟨⟨nx, mk⟩, hck⟩ := kdf_ck_no_panic h c
     simp only [derive_chain_loop.body, hck]
-    by_cases hlt : it.start.val < it.end.val <;> step* <;> simp_all <;> omega
+    by_cases hlt : it.start.val < it.end.val
+    · step*; simp_all; omega
+    · step*
   · exact hb
 
 /-- The same, lifted to the whole function, with the bound still free. -/
@@ -382,8 +392,10 @@ theorem purge_chain_range_loop_no_panic (hrm : VecRemoveTotal)
     (inv := fun _ => True)
   · rintro ⟨v, j⟩ -
     simp only [purge_chain_range_loop.body]
-    obtain ⟨⟨removed, v'⟩, hrm', hle, heq⟩ := hrm.lengths Global v j
-    by_cases hlt : j.val < v.val.length <;> step* <;> simp_all <;> omega
+    by_cases hlt : j.val < v.val.length
+    · obtain ⟨⟨removed, v'⟩, hrm', heq⟩ := hrm.lengths Global v j hlt
+      step*; simp_all; omega
+    · step*
   · trivial
 
 /-- The purge never grows the store, which is what carries the store-length
@@ -400,8 +412,10 @@ theorem purge_chain_range_loop_shrinks (hrm : VecRemoveTotal)
   · rintro ⟨v, j⟩ hinv
     simp only at hinv
     simp only [purge_chain_range_loop.body]
-    obtain ⟨⟨removed, v'⟩, hrm', hle, heq⟩ := hrm.lengths Global v j
-    by_cases hlt : j.val < v.val.length <;> step* <;> simp_all <;> omega
+    by_cases hlt : j.val < v.val.length
+    · obtain ⟨⟨removed, v'⟩, hrm', heq⟩ := hrm.lengths Global v j hlt
+      step*; simp_all; omega
+    · step*
   · simp
 
 @[step]
@@ -472,8 +486,9 @@ theorem skip_message_keys_loop_bound [DerivedKeysModel] (B : Nat) (hB : B ≤ Us
     -- The cursor's increment needs the wrapper's vector to be a vector: its
     -- length is within `Usize.max`, so a cursor below it has room to move.
     have hfits := (DerivedKeysModel.contents keys).property
-    by_cases hlt : j.val < (DerivedKeysModel.contents keys).val.length <;>
-      step* <;> simp_all [alloc.vec.Vec.len] <;> omega
+    by_cases hlt : j.val < (DerivedKeysModel.contents keys).val.length
+    · step*; simp_all [alloc.vec.Vec.len]; omega
+    · step*
   · exact h
 
 /-- The store bound in its canonical form: at most what went in. Stated this way
@@ -505,7 +520,7 @@ theorem skip_message_keys_bound (h : HmacTotal) (hrm : VecRemoveTotal)
   simp only [lift]
   step*
   all_goals (try obtain ⟨ck2, keys⟩ := v)
-  all_goals (step* <;> simp_all [alloc.vec.Vec.len, MAX_SKIPPED_STORE] <;> omega)
+  all_goals ((step*; simp_all [alloc.vec.Vec.len, MAX_SKIPPED_STORE]) <;> omega)
 
 /-- The scan never grows the store: it either removes the matching key or leaves
 the store alone. `receive` needs this to carry its own precondition across the
@@ -520,8 +535,10 @@ theorem try_skipped_loop_shrinks (hrm : VecRemoveTotal) (state : State)
     (inv := fun _ => True)
   · rintro j -
     simp only [try_skipped_loop.body]
-    obtain ⟨⟨removed, v'⟩, hrm', hlen, -⟩ := hrm.lengths Global state.skipped j
-    by_cases hlt : j.val < state.skipped.val.length <;> step* <;> simp_all
+    by_cases hlt : j.val < state.skipped.val.length
+    · obtain ⟨⟨removed, v'⟩, hrm', hlen⟩ := hrm.lengths Global state.skipped j hlt
+      step*; simp_all; omega
+    · step*
   · trivial
 
 /-- The same for the wrapper, which only repackages the tuple. -/
@@ -552,9 +569,10 @@ theorem kdf_ck_step (h : HmacTotal) (ck : Array U8 32#usize) :
   obtain ⟨r, hr⟩ := kdf_ck_no_panic h ck; simp [hr]
 
 @[step]
-theorem hkdf_step (h : HkdfTotal) (N : Usize) (key salt info : Slice U8) :
+theorem hkdf_step (h : HkdfTotal) (N : Usize) (key salt info : Slice U8)
+    (hN : N.val ≤ 8160) :
     tacenta_kdf.hkdf_sha256 N key salt info ⦃ fun _ => True ⦄ := by
-  obtain ⟨r, hr⟩ := h N key salt info; simp [hr]
+  obtain ⟨r, hr⟩ := h N key salt info hN; simp [hr]
 
 @[step]
 theorem zeroizing_new_step (hz : ZeroizingTotal)
@@ -608,10 +626,13 @@ theorem age_store_loop_bound (hrm : VecRemoveTotal) (B : Nat)
     (inv := fun x => (Prod.fst x).val.length ≤ B)
   · rintro ⟨w, j⟩ hinv
     simp only [age_store_loop.body, lift]
-    -- The third fact is what the measure needs: a removal in range shortens the
-    -- store by exactly one, so the measure falls even though the cursor does not.
-    obtain ⟨⟨removed, w'⟩, hrm', hlen, hdec⟩ := hrm.lengths Global w j
-    by_cases hlt : j.val < w.val.length <;> step* <;> simp_all <;> omega
+    -- The length fact is what the measure needs: a removal in range shortens
+    -- the store by exactly one, so the measure falls even though the cursor
+    -- does not.
+    by_cases hlt : j.val < w.val.length
+    · obtain ⟨⟨removed, w'⟩, hrm', hdec⟩ := hrm.lengths Global w j hlt
+      step*; simp_all; omega
+    · step*
   · exact h
 
 /-- The wrapper: the record update replaces `skipped` with what the loop
@@ -655,9 +676,11 @@ each named as an assumption rather than left implicit:
   put in it, since the two loops that build and read that vector need its
   length and not only a value; and
 * `VecRemoveTotal`: Aeneas does not model `Vec::remove`, so it reaches the
-  translation as an opaque function and this hypothesis states its totality.
-  `Vec::remove` panics only on an out-of-bounds index, which the scan's own
-  length check rules out, and it plainly does not lengthen the vector.
+  translation as an opaque function and this hypothesis states what it does
+  at an in-range index -- returns, with that index erased -- which is what
+  `Vec::remove` does. It says nothing out of range, where `Vec::remove`
+  panics; each use is under the scan's own length check, and the proof
+  discharges the guard from that branch.
 
 `receive` carries one precondition, and it is a real one rather than a
 formality. The skipped-key store must be small enough that its length plus the

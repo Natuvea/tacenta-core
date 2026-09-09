@@ -30,9 +30,12 @@ tractable, and `Zeroizing` belongs to an external crate. They are separate
 constants from the ratchet's because each generated module declares its own, so
 they are stated again rather than shared. -/
 
-/-- The key derivation returns. -/
+/-- The key derivation returns, for every output length within RFC 5869's
+bound of 8160 bytes -- the bound the crate's own `expect` enforces, so the
+hypothesis is stated exactly where the real operation returns (`T1.HkdfTotal`
+says why); the one call here asks for 32 bytes. -/
 def HkdfTotal : Prop :=
-  ∀ (N : Usize) (salt ikm info : Slice U8),
+  ∀ (N : Usize) (salt ikm info : Slice U8), N.val ≤ 8160 →
     ∃ r, tacenta_kdf.hkdf_sha256 N salt ikm info = ok r
 
 /-- `Zeroizing` behaves like a transparent container: it has contents, wrapping
@@ -125,8 +128,7 @@ way the code branches and the way the model does. -/
 
 /-- A 32-byte array holds 32 bytes. -/
 theorem array32_length (a : Array U8 32#usize) : a.val.length = 32 := by
-  have := a.property
-  simpa using this
+  simp
 
 /-- Anything that fits a `u32` fits a `usize`: the width is thirty-two or
 sixty-four bits, and both are far past the fixed sizes assembled here. Needed
@@ -196,7 +198,7 @@ theorem encode_ec_spec (pk : Array U8 32#usize) :
     encode_ec pk ⦃ fun r => r.val = ENCODE_EC_CURVE25519 :: pk.val ⦄ := by
   unfold encode_ec
   have lp := array32_length pk
-  step* <;> simp_all
+  step*; simp_all
 
 @[step]
 theorem encode_kem_spec (pk : Slice U8)
@@ -233,7 +235,7 @@ theorem decode_ec_loop_spec (bytes : Slice U8) (k : Array U8 32#usize) (i : Usiz
     -- length in the form its bounds are stated with.
     have hlen' : Slice.length bytes = 33 := by simpa using hlen
     by_cases hlt : j.val < 32
-    · step* <;> simp_all
+    · step*; simp_all
       refine ⟨?_, by omega⟩
       intro j1 hj1
       rcases Nat.lt_or_ge j1 j.val with hcase | hcase
@@ -247,7 +249,6 @@ theorem decode_ec_loop_spec (bytes : Slice U8) (k : Array U8 32#usize) (i : Usiz
         first
           | simp [List.getElem?_set_self, hw]
           | simp [List.getElem?_set, hw]
-          | rw [List.getElem?_set_self (by omega)]
         -- The write landed inside the array, and the byte read is inside the
         -- slice, so both sides are the same element.
         rw [if_pos hlt, List.getElem?_eq_getElem (by omega)]
@@ -325,13 +326,14 @@ theorem zeroizing_deref_mut_step (inst : zeroize.Zeroize (alloc.vec.Vec U8))
         ∧ ∀ v', ZeroizingModel.contents (p.2 v') = v' ⦄ :=
   ZeroizingModel.deref_mut inst z
 
-@[step]
-theorem hkdf_step (hk : HkdfTotal) (N : Usize) (salt ikm info : Slice U8) :
-    tacenta_kdf.hkdf_sha256 N salt ikm info ⦃ fun _ => True ⦄ := by
-  obtain ⟨r, hr⟩ := hk N salt ikm info
-  simp [hr]
-
 end Zeroizing
+
+@[step]
+theorem hkdf_step (hk : HkdfTotal) (N : Usize) (salt ikm info : Slice U8)
+    (hN : N.val ≤ 8160) :
+    tacenta_kdf.hkdf_sha256 N salt ikm info ⦃ fun _ => True ⦄ := by
+  obtain ⟨r, hr⟩ := hk N salt ikm info hN
+  simp [hr]
 
 theorem kdf_sk_no_panic (hk : HkdfTotal) [ZeroizingModel]
     (km_bytes : Slice U8)

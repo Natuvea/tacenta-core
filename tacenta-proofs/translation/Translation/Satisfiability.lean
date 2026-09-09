@@ -24,17 +24,18 @@ the current hypothesis is exactly that shape applied to the axiom
 (`Iff.rfl`, so the two cannot drift), and exhibits a concrete function
 satisfying it, so the hypothesis is consistent: at least one model of that
 hypothesis makes it true. Alongside each it also states the natural over-strong
-shape -- an `append` with no length guard, a `remove` over every element
-type, a `remove` naming its out-of-range value through `default` -- and
-proves that **no** function satisfies it, so the guards on the hypotheses
-are shown to be necessary rather than merely cautious. An edit that makes a
-hypothesis unsatisfiable breaks the witness here.
+shape -- an `append` with no length guard, a `remove` with no index guard --
+and proves that **no** function satisfies it, so the guards on the
+hypotheses are shown to be necessary rather than merely cautious. An edit
+that makes a hypothesis unsatisfiable breaks the witness here.
 
-Consistency is all this establishes. A satisfiable hypothesis can still be
-false of the real `Vec::remove` -- the `Remove` shapes say nothing about an
-out-of-range index, where Rust panics (`LIMITATIONS.md`) -- and nothing
-here says the axiom Aeneas generated *is* the witness. It says the theorems
-downstream are not proofs of `False`.
+Consistency is all this establishes. Nothing here says the axiom Aeneas
+generated *is* the witness; it says the theorems downstream are not proofs
+of `False`. For `Vec::remove` the witness happens to be the real operation's
+own behaviour -- the element in range, a panic otherwise -- because the
+hypotheses are stated under the index guard and so ask for nothing the real
+operation does not do; for `append` and `retain` it is one model among
+several.
 -/
 
 namespace Tacenta.Satisfiability
@@ -114,28 +115,28 @@ theorem append_total_unguarded_unsatisfiable : ¬ ∃ f : AppendFn, AppendTotalU
 abbrev RemoveFn :=
   {T : Type} → (A : Type) → alloc.vec.Vec T → Usize → Result (T × alloc.vec.Vec T)
 
-/-- The shape of `T1.VecRemoveTotal` and `SpqrT1.VecRemoveTotal`. -/
+/-- The shape of `T1.VecRemoveTotal` and `SpqrT1.VecRemoveTotal`: under the
+index guard, the operation returns with that index erased. -/
 def RemoveTotal (f : RemoveFn) : Prop :=
-  ∀ {T : Type} [Inhabited T] (A : Type) (v : alloc.vec.Vec T) (i : Usize),
+  ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize), i.val < v.val.length →
     ∃ r, f A v i = ok r ∧ r.2.val = v.val.eraseIdx i.val
 
-/-- The shape of `SpqrT3.VecRemoveAgrees`. -/
+/-- The shape of `SpqrT3.VecRemoveAgrees`: the same, naming the element
+removed, which the guard makes well-defined without an `Inhabited` bound. -/
 def RemoveAgrees (f : RemoveFn) : Prop :=
-  ∀ {T : Type} [Inhabited T] (A : Type) (v : alloc.vec.Vec T) (i : Usize),
-    ∃ r, f A v i = ok r ∧
-      (∀ h : i.val < v.val.length, r.1 = v.val[i.val]'h) ∧
-      r.2.val = v.val.eraseIdx i.val
+  ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize) (h : i.val < v.val.length),
+    ∃ r, f A v i = ok r ∧ r.1 = v.val[i.val]'h ∧ r.2.val = v.val.eraseIdx i.val
 
-/-- The over-strong shape: `VecRemoveTotal` over every `T`, inhabited or not. -/
-def RemoveTotalUnbounded (f : RemoveFn) : Prop :=
+/-- The over-strong shape: `VecRemoveTotal` at every index, guard or no guard.
+This is the shape the hypotheses used to have with an `[Inhabited T]` bound
+in place of the guard; the bound is gone because the guard does its work
+(below), and the shape is kept, unguarded and unbounded, as the record of
+why one of the two is needed. No `!`-indexed variant of `RemoveAgrees` is
+refuted any more: under the guard the removed element is `v.val[i.val]`
+outright, and there is no out-of-range value to name through `default`. -/
+def RemoveTotalUnguarded (f : RemoveFn) : Prop :=
   ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize),
     ∃ r, f A v i = ok r ∧ r.2.val = v.val.eraseIdx i.val
-
-/-- The over-strong shape: `VecRemoveAgrees` naming the removed element with
-the `!` index. -/
-def RemoveAgreesBang (f : RemoveFn) : Prop :=
-  ∀ {T : Type} [Inhabited T] (A : Type) (v : alloc.vec.Vec T) (i : Usize),
-    ∃ r, f A v i = ok r ∧ r.1 = v.val[i.val]! ∧ r.2.val = v.val.eraseIdx i.val
 
 theorem T1_VecRemoveTotal_is :
     Tacenta.T1.VecRemoveTotal ↔ RemoveTotal @tacenta_ratchet.alloc.vec.Vec.remove :=
@@ -153,53 +154,36 @@ theorem length_eraseIdx_le_max {T : Type} (v : alloc.vec.Vec T) (i : Nat) :
     (v.val.eraseIdx i).length ≤ Usize.max :=
   le_trans (List.length_eraseIdx_le _ _) v.property
 
-open Classical in
-/-- In range: the element at the index and the shortened vector. Out of range:
-the real operation panics; the shapes above only ask that *some* element come
-back, so any element does. Choosing one classically is what makes the witness
-uniform in `T` while the shapes quantify over inhabited `T` only. -/
-noncomputable def removeWitness : RemoveFn := fun {T} _A v i =>
+/-- In range: the element at the index and the shortened vector. Out of
+range: a panic. This is what Rust's `Vec::remove` does, so the witness is
+not a toy: the guarded shapes ask for exactly the real operation's behaviour
+and nothing past it. -/
+def removeWitness : RemoveFn := fun {_T} _A v i =>
   if h : i.val < v.val.length then
     ok (v.val[i.val], ⟨v.val.eraseIdx i.val, length_eraseIdx_le_max v i.val⟩)
-  else if hT : Nonempty T then
-    ok (Classical.choice hT, ⟨v.val.eraseIdx i.val, length_eraseIdx_le_max v i.val⟩)
   else fail .panic
 
 theorem removeWitness_agrees : RemoveAgrees @removeWitness := by
-  intro T _ A v i
-  by_cases h : i.val < v.val.length
-  · exact ⟨(v.val[i.val], ⟨v.val.eraseIdx i.val, length_eraseIdx_le_max v i.val⟩),
-      by simp [removeWitness, h], fun _ => rfl, rfl⟩
-  · have hT : Nonempty T := ⟨default⟩
-    exact ⟨(Classical.choice hT, ⟨v.val.eraseIdx i.val, length_eraseIdx_le_max v i.val⟩),
-      by simp [removeWitness, h, hT], fun h' => absurd h' h, rfl⟩
+  intro T A v i h
+  exact ⟨(v.val[i.val], ⟨v.val.eraseIdx i.val, length_eraseIdx_le_max v i.val⟩),
+    by simp [removeWitness, h], rfl, rfl⟩
 
 theorem remove_agrees_satisfiable : ∃ f : RemoveFn, RemoveAgrees f :=
   ⟨@removeWitness, removeWitness_agrees⟩
 
 theorem remove_total_satisfiable : ∃ f : RemoveFn, RemoveTotal f := by
-  refine ⟨@removeWitness, fun A v i => ?_⟩
-  obtain ⟨r, hr, -, hv⟩ := removeWitness_agrees A v i
+  refine ⟨@removeWitness, fun A v i h => ?_⟩
+  obtain ⟨r, hr, -, hv⟩ := removeWitness_agrees A v i h
   exact ⟨r, hr, hv⟩
 
-/-- Why the `Inhabited` bound: at an empty element type the existential has
-nothing to offer. -/
-theorem remove_total_unbounded_unsatisfiable : ¬ ∃ f : RemoveFn, RemoveTotalUnbounded f := by
+/-- Why the guard: at an empty element type and an empty vector, an
+unguarded existential has nothing to offer, so the unguarded shape has no
+model at all. Under the guard the case does not arise, since an empty vector
+has no in-range index. -/
+theorem remove_total_unguarded_unsatisfiable : ¬ ∃ f : RemoveFn, RemoveTotalUnguarded f := by
   rintro ⟨f, hf⟩
   obtain ⟨r, -, -⟩ := hf Unit (alloc.vec.Vec.new Empty) 0#usize
   exact r.1.elim
-
-/-- Why the conditional value: `[]![0]` is `default`, and two instances on
-`Bool` give two defaults for one function value. -/
-theorem remove_agrees_bang_unsatisfiable : ¬ ∃ f : RemoveFn, RemoveAgreesBang f := by
-  rintro ⟨f, hf⟩
-  obtain ⟨r₁, h₁, hv₁, -⟩ := @hf Bool ⟨true⟩ Unit (alloc.vec.Vec.new Bool) 0#usize
-  obtain ⟨r₂, h₂, hv₂, -⟩ := @hf Bool ⟨false⟩ Unit (alloc.vec.Vec.new Bool) 0#usize
-  rw [h₁] at h₂
-  cases h₂
-  simp at hv₁ hv₂
-  rw [hv₁] at hv₂
-  cases hv₂
 
 /-! ## `Vec::retain` -/
 
@@ -239,7 +223,7 @@ open Classical in
 only kind `VecRetainAgrees` speaks about -- filter by it; otherwise keep
 everything, which `VecRetainTotal` permits. Classical, because recovering the
 predicate from the closure is a choice. -/
-noncomputable def retainWitness : RetainFn := fun {T} _A {F} inst v g =>
+noncomputable def retainWitness : RetainFn := fun {T} _A {_F} inst v g =>
   if h : ∃ p : T → Bool, ∀ x, inst.call_mut g x = ok (p x, g) then
     ok ⟨v.val.filter (Classical.choose h), length_filter_le_max _ v⟩
   else ok v
@@ -571,31 +555,37 @@ section BraidRefutations
 
 open Tacenta.BraidT3 tacenta_braid
 
-/-- An RNG that never answers, enough to instantiate the `∀ {R}` clauses. -/
+/-- An RNG that answers `fill_bytes` by handing the buffer back untouched,
+enough to instantiate the `∀ {R}` clauses and to satisfy the `RngTotal`
+premise they carry. -/
 def dummyRng : rand_core_1.RngCore Unit where
   next_u32 _ := fail .panic
   next_u64 _ := fail .panic
-  fill_bytes _ _ := fail .panic
+  fill_bytes r buf := ok (r, buf)
   try_fill_bytes _ _ := fail .panic
 
 def dummyCryptoRng : rand_core_1.CryptoRng Unit := {}
 
+theorem dummyRng_total : Tacenta.BraidT1.RngTotal dummyRng :=
+  fun r buf => ⟨(r, buf), rfl⟩
+
 /-- The over-strong `encaps1` clause of `KemAgreesFor`: every split of the header. -/
 def KemEncaps1AgreesUnsplit (K : Model.Braid.Kem) : Prop :=
   ∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
-      (header : Slice Std.U8) (rng : R),
-    ∃ es ct1raw ssraw rng',
+      (header : Slice Std.U8) (rng : R), Tacenta.BraidT1.RngTotal rc →
+    ∃ es ct1raw ssraw rng' rand',
       tacenta_kem.encapsulate1 rc crc header rng =
         ok (core.result.Result.Ok (es, ct1raw, ssraw), rng') ∧
       (∀ ekSeed hek : Bytes, sliceOf header = ekSeed ++ hek →
-        (K.encaps1 ekSeed hek).2.1 = vecOf ct1raw ∧
-        (K.encaps1 ekSeed hek).2.2 = keyOf ssraw)
+        (K.encaps1 rand' ekSeed hek).2.1 = vecOf ct1raw ∧
+        (K.encaps1 rand' ekSeed hek).2.2 = keyOf ssraw)
 
 /-- At the model's toy KEM: the empty header has one split, `[] ++ []`,
 under which the shared secret is `[]`, against a 32-byte `Array`. -/
 theorem kemEncaps1_unsplit_toyKem_refutable : ¬ KemEncaps1AgreesUnsplit Model.Braid.toyKem := by
   intro henc
-  obtain ⟨es, ct1, ss, rng', -, hsplit⟩ := henc dummyRng dummyCryptoRng ⟨[], by simp⟩ ()
+  obtain ⟨es, ct1, ss, rng', rand', -, hsplit⟩ :=
+    henc dummyRng dummyCryptoRng ⟨[], by simp⟩ () dummyRng_total
   obtain ⟨-, hss⟩ := hsplit [] [] rfl
   have := congrArg List.length hss
   simp [keyOf, Model.Braid.toyKem, ss.property] at this

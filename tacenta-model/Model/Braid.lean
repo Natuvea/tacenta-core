@@ -116,8 +116,12 @@ structure Kem where
   keyGen  : Nat → Bytes × Bytes × Bytes
   /-- `SHA3-256(ek_seed || ek_vector)`. -/
   hashEk  : Bytes → Bytes → Bytes
-  /-- From the header alone: `(encaps_secret, ct1, shared_secret)`. -/
-  encaps1 : Bytes → Bytes → Bytes × Bytes × Bytes
+  /-- Randomness in, then from the header alone:
+      `(encaps_secret, ct1, shared_secret)`. Encapsulation draws fresh
+      randomness, as key generation does (ML-KEM's encapsulation samples a
+      32-byte message), so it is a function of that randomness and the header,
+      not of the header alone. -/
+  encaps1 : Nat → Bytes → Bytes → Bytes × Bytes × Bytes
   /-- From the rest of the key: `ct2`. -/
   encaps2 : Bytes → Bytes → Bytes → Bytes
   decaps  : Bytes → Bytes → Bytes → Bytes
@@ -125,13 +129,14 @@ structure Kem where
   ct1Size : Nat
   ct2Size : Nat
 
-/-- The one law the state machine rests on. Everything else about ML-KEM is the
-    KEM's business, not this protocol's. -/
+/-- The one law the state machine rests on, for every choice of the two
+    parties' randomness. Everything else about ML-KEM is the KEM's business,
+    not this protocol's. -/
 def Kem.Correct (K : Kem) : Prop :=
-  ∀ r : Nat,
+  ∀ r r' : Nat,
     let (dk, seed, vec) := K.keyGen r
     let hek := K.hashEk seed vec
-    let (es, ct1, ss) := K.encaps1 seed hek
+    let (es, ct1, ss) := K.encaps1 r' seed hek
     K.decaps dk ct1 (K.encaps2 es seed vec) = ss
 
 def headerSize : Nat := 64
@@ -289,8 +294,10 @@ def send (K : Kem) (rand : Nat) : BraidState → Option Msg × Nat × Option Out
     (some ⟨epoch, .none, Option.none⟩, st.epoch - 1, none, st)
   | .headerReceived epoch auth ekSeed hek ekDec =>
     -- Transition (7): the responder learns the epoch key here, well before the
-    -- initiator does. That gap is what `sending_epoch` exists to report.
-    let (encapsSecret, ct1, ssRaw) := K.encaps1 ekSeed hek
+    -- initiator does. That gap is what `sending_epoch` exists to report. This
+    -- is the second of the two transitions that draw randomness (the first
+    -- is transition (1)), and `rand` is that randomness.
+    let (encapsSecret, ct1, ssRaw) := K.encaps1 rand ekSeed hek
     let ss := kdfOk ssRaw epoch
     let auth' := auth.update epoch ss
     let enc := encode ct1
@@ -524,7 +531,7 @@ def toyKem : Kem where
                 List.replicate 32 (UInt8.ofNat r),
                 List.replicate 64 (UInt8.ofNat r))
   hashEk s v := List.replicate 32 (v.foldl (· + ·) (s.foldl (· + ·) 0))
-  encaps1 seed _ := (seed, List.replicate 64 7, seed)
+  encaps1 _ seed _ := (seed, List.replicate 64 7, seed)
   encaps2 _ _ _  := List.replicate 32 9
   decaps dk _ _  := dk
   ekSize  := 64
@@ -532,7 +539,7 @@ def toyKem : Kem where
   ct2Size := 32
 
 theorem toyKem_correct : toyKem.Correct := by
-  intro r; rfl
+  intro r r'; rfl
 
 structure Sim where
   alice : BraidState

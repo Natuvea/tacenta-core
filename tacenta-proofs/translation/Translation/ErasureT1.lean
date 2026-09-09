@@ -61,9 +61,7 @@ theorem clmul_loop_no_panic (b : U16) (x : U32) (acc : U32) (i : U32)
 @[step]
 theorem clmul_no_panic (a b : U16) : gf.clmul a b ⦃ fun _ => True ⦄ := by
   unfold gf.clmul
-  step* <;> first
-    | exact clmul_loop_no_panic _ _ _ _ (by scalar_tac)
-    | simp
+  step*
 
 /-- The reduction's loop cannot fail.
 
@@ -90,9 +88,7 @@ theorem reduce_loop_no_panic (v : U32) (i : U32) (h : i.val ≤ 31) :
 @[step]
 theorem reduce_no_panic (v : U32) : gf.reduce v ⦃ fun _ => True ⦄ := by
   unfold gf.reduce
-  step* <;> first
-    | exact reduce_loop_no_panic _ _ (by scalar_tac)
-    | simp
+  step*
 
 /-- **Multiplication cannot fail, for any pair of field elements.**
 
@@ -154,14 +150,15 @@ file. It is also a different kind of boundary from the ratchet's: that one wraps
 a cryptographic primitive we chose to trust, this one is arithmetic the toolchain
 happens not to see through. -/
 def DivCeilTotal : Prop :=
-  ∀ a b, ∃ r, core.num.Usize.div_ceil a b = ok r
+  ∀ a b, b.val ≠ 0 → ∃ r, core.num.Usize.div_ceil a b = ok r
 
-/-- The chunk count cannot fail, given that. -/
+/-- The chunk count cannot fail, given that: its one divisor is the constant
+`CHUNK_BYTES`, thirty-two, and the premise is discharged from the literal. -/
 @[step]
 theorem chunk_count_no_panic (hdc : DivCeilTotal) (size : Usize) :
     chunk_count size ⦃ fun _ => True ⦄ := by
   unfold chunk_count
-  obtain ⟨r, hr⟩ := hdc size CHUNK_BYTES
+  obtain ⟨r, hr⟩ := hdc size CHUNK_BYTES (by simp only [global_simps]; scalar_tac)
   simp [hr]
 
 /-- Reading a field element out of a chunk cannot fail, for any lane below
@@ -220,10 +217,7 @@ theorem interpolate_outer_no_panic (nodes vals : Slice U16) (x : U16) (n : Usize
     simp only []
     split <;> [skip; simp]
     step*
-    first
-      | (split <;> step* <;> simp_all <;> scalar_tac)
-      | (step* <;> simp_all <;> scalar_tac)
-      | (simp_all <;> scalar_tac)
+    split <;> step*
   · trivial
 
 /-- **Interpolation cannot fail, for any inputs at all.**
@@ -239,9 +233,7 @@ for each of `k` outer turns. -/
 theorem interpolate_no_panic (nodes vals : Slice U16) (x : U16) :
     interpolate nodes vals x ⦃ fun _ => True ⦄ := by
   unfold interpolate
-  step* <;> first
-    | exact interpolate_outer_no_panic _ _ _ _ _ _ (by simp)
-    | trivial
+  step*
 
 /-! ## The barycentric form
 
@@ -290,7 +282,7 @@ theorem weights_outer_no_panic (nodes : Slice U16) (n : Usize) (w : alloc.vec.Ve
     unfold weights_loop0.body
     simp only []
     split <;> [skip; simp]
-    step* <;> simp_all <;> scalar_tac
+    step*; simp_all; scalar_tac
   · simp
 
 /-- **Computing the weights cannot fail, for any node set.** -/
@@ -298,10 +290,9 @@ theorem weights_outer_no_panic (nodes : Slice U16) (n : Usize) (w : alloc.vec.Ve
 theorem weights_no_panic (nodes : Slice U16) :
     weights nodes ⦃ fun _ => True ⦄ := by
   unfold weights
-  step* <;> first
-    | exact weights_outer_no_panic _ _ _ _ (by simp)
-        (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]; scalar_tac)
-    | trivial
+  step*
+  exact weights_outer_no_panic _ _ _ _ (by simp)
+    (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]; scalar_tac)
 
 /-- The numerator loop cannot fail: the same shape as the denominator loop. -/
 @[step]
@@ -337,10 +328,7 @@ theorem coefficients_outer_no_panic (nodes weights1 : Slice U16) (x : U16) (n : 
     simp only []
     split <;> [skip; simp]
     step*
-    first
-      | (split <;> step* <;> simp_all <;> scalar_tac)
-      | (step* <;> simp_all <;> scalar_tac)
-      | (simp_all <;> scalar_tac)
+    split <;> step* <;> simp_all <;> scalar_tac
   · simp
 
 /-- **Computing the coefficients cannot fail, for any inputs.** -/
@@ -348,10 +336,9 @@ theorem coefficients_outer_no_panic (nodes weights1 : Slice U16) (x : U16) (n : 
 theorem coefficients_no_panic (nodes weights1 : Slice U16) (x : U16) :
     coefficients nodes weights1 x ⦃ fun _ => True ⦄ := by
   unfold coefficients
-  step* <;> first
-    | exact coefficients_outer_no_panic _ _ _ _ _ _ (by simp)
-        (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]; scalar_tac)
-    | trivial
+  step*
+  exact coefficients_outer_no_panic _ _ _ _ _ _ (by simp)
+    (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]; scalar_tac)
 
 /-- The accumulation cannot fail: both reads are guarded by their slice's own
 length. -/
@@ -367,10 +354,7 @@ theorem evaluate_loop_no_panic (coeffs vals : Slice U16) (acc : U16) (i : Usize)
     simp only []
     split <;> [skip; simp]
     step*
-    first
-      | (split <;> step* <;> simp_all <;> scalar_tac)
-      | (step* <;> simp_all <;> scalar_tac)
-      | (simp_all <;> scalar_tac)
+    split <;> step*
   · trivial
 
 /-- **Evaluating cannot fail, for any inputs.** -/
@@ -420,9 +404,7 @@ theorem add_chunk_no_panic (self : Decoder) (chunk : Chunk)
     (h : self.«have».val.length < Usize.max) :
     NoPanic (Decoder.add_chunk self chunk) := by
   unfold NoPanic Decoder.add_chunk
-  step* <;> first
-    | exact add_chunk_loop_no_panic _ _ _ h
-    | trivial
+  step*
 
 /-- Asking whether the message is ready cannot fail.
 
@@ -456,7 +438,7 @@ theorem next_chunk_nodes_no_panic (k : Usize) (nodes : alloc.vec.Vec U16) (s : U
     unfold Encoder.next_chunk_loop0.body
     simp only []
     split <;> [skip; simp]
-    step* <;> simp_all <;> scalar_tac
+    step*; simp_all; scalar_tac
   · simp
 
 /-- The lane-value loop cannot fail.
@@ -479,10 +461,7 @@ theorem next_chunk_vals_no_panic (v : alloc.vec.Vec (Array U8 32#usize)) (k j : 
     simp only []
     split <;> [skip; simp]
     step*
-    first
-      | (split <;> step* <;> simp_all <;> scalar_tac)
-      | (step* <;> simp_all <;> scalar_tac)
-      | (simp_all <;> scalar_tac)
+    split <;> step* <;> simp_all <;> scalar_tac
   · simp
 
 /-- The lane loop cannot fail.
@@ -506,10 +485,7 @@ theorem next_chunk_lanes_no_panic (v : alloc.vec.Vec (Array U8 32#usize))
     unfold Encoder.next_chunk_loop1.body
     simp only [LANES, CHUNK_BYTES]
     step*
-    first
-      | (split <;> step* <;> simp_all [alloc.vec.Vec.with_capacity] <;> scalar_tac)
-      | (step* <;> simp_all [alloc.vec.Vec.with_capacity] <;> scalar_tac)
-      | (simp_all [alloc.vec.Vec.with_capacity] <;> scalar_tac)
+    simp_all [alloc.vec.Vec.with_capacity]
   · exact hj
 
 /-- The counter guard, as arithmetic.
@@ -551,7 +527,6 @@ theorem next_chunk_no_panic (self : Encoder)
     | exact coefficients_no_panic _ _ _
     | exact next_chunk_lanes_no_panic _ _ _ _ _ hlen (by simp)
     | exact u16_succ_ok (by assumption)
-    | trivial
 
 /-! ## The decoder's reconstruction
 
@@ -575,10 +550,7 @@ theorem message_nodes_no_panic (k : Usize) (v : alloc.vec.Vec Chunk)
     simp only []
     split <;> [skip; simp]
     step*
-    first
-      | (split <;> step* <;> simp_all <;> scalar_tac)
-      | (step* <;> simp_all <;> scalar_tac)
-      | (simp_all <;> scalar_tac)
+    split <;> step* <;> simp_all <;> scalar_tac
   · simp
 
 /-- The search for a codeword that landed on the target cannot fail. It only
@@ -596,11 +568,7 @@ theorem message_direct_no_panic (k : Usize) (v : alloc.vec.Vec Chunk)
     simp only []
     split <;> [skip; simp]
     step*
-    first
-      | (split <;> step* <;> split <;> step* <;> simp_all <;> scalar_tac)
-      | (split <;> step* <;> simp_all <;> scalar_tac)
-      | (step* <;> simp_all <;> scalar_tac)
-      | (simp_all <;> scalar_tac)
+    (split <;> step*); split <;> step*
   · trivial
 
 /-- Gathering one lane's values across the held codewords cannot fail. -/
@@ -619,10 +587,7 @@ theorem message_vals_no_panic (k : Usize) (v : alloc.vec.Vec Chunk) (j : Usize)
     simp only []
     split <;> [skip; simp]
     step*
-    first
-      | (split <;> step* <;> simp_all <;> scalar_tac)
-      | (step* <;> simp_all <;> scalar_tac)
-      | (simp_all <;> scalar_tac)
+    split <;> step* <;> simp_all <;> scalar_tac
   · simp
 
 /-- Evaluating every lane of one target cannot fail.

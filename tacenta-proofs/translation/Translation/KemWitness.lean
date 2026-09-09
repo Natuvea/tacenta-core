@@ -16,9 +16,13 @@ satisfying every one of them at once. `ErasureWitness.lean` explains the
 method; here nothing needs Mathlib, since `toyKem` is arithmetic-free.
 
 A key pair is its randomness (a number); an encapsulation state is `Unit`,
-since `toyKem.encaps2` ignores it. Consistency is all this establishes: the
-real `tacenta_kem` is ML-KEM-1024, not `toyKem`, and the hypotheses about it
-stay assumed.
+since `toyKem.encaps2` ignores it. `toyKem.encaps1` ignores its randomness
+argument too, which is a legitimate model of the encapsulation clause now
+that the clause binds the model's randomness existentially per RNG state (a
+KEM that draws no randomness satisfies "some randomness makes the model
+agree" with any value at all; here it is `0`). Consistency is all this
+establishes: the real `tacenta_kem` is ML-KEM-1024, not `toyKem`, and the
+hypotheses about it stay assumed.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -63,6 +67,7 @@ def KemLenAgrees (K : Model.Braid.Kem) : Prop :=
 def KemAgreesFor (K : Model.Braid.Kem) : Prop :=
   K.Correct ∧
     (∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R) (rng : R),
+      Tacenta.BraidT1.RngTotal rc →
       ∃ kp rng' rand,
         A.generate rc crc rng = ok (core.result.Result.Ok kp, rng') ∧
         (∃ h, A.header kp = ok h ∧
@@ -72,27 +77,20 @@ def KemAgreesFor (K : Model.Braid.Kem) : Prop :=
           ∃ raw : Array Std.U8 32#usize,
             A.decapsulate kp ct1 ct2 = ok (core.result.Result.Ok raw) ∧
             keyOf raw = K.decaps (K.keyGen rand).1 (sliceOf ct1) (sliceOf ct2))) ∧
-    (∀ (kp : KP),
-      ∃ dk ekSeed ekVector : Bytes,
-        (∃ h, A.header kp = ok h ∧ vecOf h = ekSeed ++ K.hashEk ekSeed ekVector) ∧
-        (∃ v, A.ekVector kp = ok v ∧ vecOf v = ekVector) ∧
-        (∀ ct1 ct2 : Slice Std.U8, ct1.length = K.ct1Size → ct2.length = K.ct2Size →
-          ∃ raw : Array Std.U8 32#usize,
-            A.decapsulate kp ct1 ct2 = ok (core.result.Result.Ok raw) ∧
-            keyOf raw = K.decaps dk (sliceOf ct1) (sliceOf ct2))) ∧
     (∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
-        (header : Slice Std.U8) (rng : R), header.length = Model.Braid.headerSize →
-      ∃ es ct1raw ssraw rng',
+        (header : Slice Std.U8) (rng : R), Tacenta.BraidT1.RngTotal rc →
+      header.length = Model.Braid.headerSize →
+      ∃ es ct1raw ssraw rng' rand',
         A.encapsulate1 rc crc header rng =
           ok (core.result.Result.Ok (es, ct1raw, ssraw), rng') ∧
         (∀ ekSeed hek : Bytes, ekSeed.length = 32 → sliceOf header = ekSeed ++ hek →
-          (K.encaps1 ekSeed hek).2.1 = vecOf ct1raw ∧
-          (K.encaps1 ekSeed hek).2.2 = keyOf ssraw ∧
+          (K.encaps1 rand' ekSeed hek).2.1 = vecOf ct1raw ∧
+          (K.encaps1 rand' ekSeed hek).2.2 = keyOf ssraw ∧
           (∀ ekVector : Slice Std.U8, ekVector.length = K.ekSize →
             ∃ ct2raw,
               A.encapsulate2 es ekVector = ok (core.result.Result.Ok ct2raw) ∧
               vecOf ct2raw =
-                K.encaps2 (K.encaps1 ekSeed hek).1 ekSeed (sliceOf ekVector))))
+                K.encaps2 (K.encaps1 rand' ekSeed hek).1 ekSeed (sliceOf ekVector))))
 
 def ValidateEkAgrees (K : Model.Braid.Kem) : Prop :=
   ∀ (header ekVector : Slice Std.U8) (ekSeed hek : Bytes),
@@ -122,13 +120,13 @@ def Totals : Prop :=
   (∃ v : Usize, A.ct1Len = ok v ∧ v.val ≤ 4096) ∧
   (∃ v : Usize, A.ct2Len = ok v ∧ v.val ≤ 4096) ∧
   (∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R) (rng : R),
-    ∃ r, A.generate rc crc rng = ok r) ∧
+    Tacenta.BraidT1.RngTotal rc → ∃ r, A.generate rc crc rng = ok r) ∧
   (∀ (kp : KP), ∃ r : alloc.vec.Vec Std.U8, A.header kp = ok r ∧ r.length ≤ 4096) ∧
   (∀ (kp : KP), ∃ r : alloc.vec.Vec Std.U8, A.ekVector kp = ok r ∧ r.length ≤ 4096) ∧
   (∀ (kp : KP) (a b : Slice Std.U8), ∃ r, A.decapsulate kp a b = ok r) ∧
   (∀ (kp : KP), ∃ r, A.cloneKp kp = ok r) ∧
   (∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
-    (s : Slice Std.U8) (rng : R),
+    (s : Slice Std.U8) (rng : R), Tacenta.BraidT1.RngTotal rc →
     ∃ r, A.encapsulate1 rc crc s rng = ok r ∧
       ∀ es (ct1 : alloc.vec.Vec Std.U8) raw,
         r.1 = core.result.Result.Ok (es, ct1, raw) → ct1.length ≤ 4096) ∧
@@ -182,7 +180,7 @@ theorem totals_iff :
 
 theorem usize_max_ge (n : ℕ) (h : n ≤ 2 ^ 32 - 1) : n ≤ Usize.max := by
   simp only [Usize.max, Usize.numBits, UScalarTy.Usize_numBits_eq]
-  cases System.Platform.numBits_eq <;> simp_all <;> omega
+  (cases System.Platform.numBits_eq <;> simp_all); omega
 
 def bytesOf (l : Bytes) : List Std.U8 := l.map ofU8
 
@@ -249,22 +247,16 @@ theorem api_lenAgrees : KemLenAgrees api Model.Braid.toyKem := by
     simp [Model.Braid.headerSize, Model.Braid.toyKem]
 
 theorem api_agreesFor : KemAgreesFor api Model.Braid.toyKem := by
-  refine ⟨Model.Braid.toyKem_correct, ?_, ?_, ?_⟩
-  · intro R rc crc rng
+  refine ⟨Model.Braid.toyKem_correct, ?_, ?_⟩
+  · intro R rc crc rng _
     refine ⟨0, rng, 0, rfl, ⟨_, rfl, ?_⟩, ⟨_, rfl, ?_⟩, ?_⟩
     · rw [vecOf_vecOfBytes]; rfl
     · rw [vecOf_vecOfBytes]; rfl
     · intro ct1 ct2 _ _
       refine ⟨arr32 (seedOf 0), rfl, ?_⟩
       rw [keyOf_arr32 _ (by simp [seedOf])]; rfl
-  · intro r
-    refine ⟨seedOf r, seedOf r, ekVecOf r, ⟨_, rfl, vecOf_vecOfBytes _ _⟩,
-      ⟨_, rfl, vecOf_vecOfBytes _ _⟩, ?_⟩
-    intro ct1 ct2 _ _
-    refine ⟨arr32 (seedOf r), rfl, ?_⟩
-    rw [keyOf_arr32 _ (by simp [seedOf])]; rfl
-  · intro R rc crc header rng _
-    refine ⟨(), _, arr32 ((sliceOf header).take 32), rng, rfl, ?_⟩
+  · intro R rc crc header rng _ _
+    refine ⟨(), _, arr32 ((sliceOf header).take 32), rng, 0, rfl, ?_⟩
     intro ekSeed hek hlen hsplit
     refine ⟨?_, ?_, ?_⟩
     · rw [vecOf_vecOfBytes]; rfl
@@ -290,7 +282,7 @@ theorem api_cloneAgrees : KemCloneAgrees api := by
 
 theorem api_totals : Totals api := by
   refine ⟨⟨64#usize, rfl, by simp⟩, ⟨64#usize, rfl, by simp⟩, ⟨64#usize, rfl, by simp⟩,
-    ⟨32#usize, rfl, by simp⟩, fun _ _ rng => ⟨_, rfl⟩, ?_, ?_, fun _ _ _ => ⟨_, rfl⟩,
+    ⟨32#usize, rfl, by simp⟩, fun _ _ rng _ => ⟨_, rfl⟩, ?_, ?_, fun _ _ _ => ⟨_, rfl⟩,
     fun _ => ⟨_, rfl⟩, ?_, ?_, fun _ => ⟨_, rfl⟩, fun _ _ => ⟨_, rfl⟩⟩
   · intro kp
     refine ⟨_, rfl, ?_⟩
@@ -298,7 +290,7 @@ theorem api_totals : Totals api := by
   · intro kp
     refine ⟨_, rfl, ?_⟩
     rw [length_vecOfBytes]; simp [ekVecOf]
-  · intro R rc crc s rng
+  · intro R rc crc s rng _
     refine ⟨_, rfl, ?_⟩
     intro es ct1 raw h
     simp only [core.result.Result.Ok.injEq, Prod.mk.injEq] at h
