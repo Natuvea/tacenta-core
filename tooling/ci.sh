@@ -71,6 +71,17 @@ python3 tooling/check-bundle-drift.py
 # the next reader.
 bash tooling/tests/run-check-bundle-drift-cases.sh
 
+# The three-leaf translation unit is generated from the three leaf crates, and
+# a generated crate that has stopped agreeing with its sources is a crate whose
+# translation is about code that is no longer there. This regenerates it into a
+# temporary directory and diffs; it needs no Charon, no Aeneas and no Lean, so
+# it runs here with the other cheap checks rather than beside the translation
+# build. `attest.py --check` below is the other half: this says the unit crate
+# is what the leaves assemble to, that says the committed translation is the
+# one produced from it.
+echo "== The three-leaf translation unit is what its leaves assemble to =="
+sh tacenta-proofs/scripts/assemble-triple-unit.sh --check
+
 # Derivation labels are protocol constants, and a codebase that cannot enumerate
 # its own is one nobody can review. `tacenta-core/LABELS.md` is the freeze;
 # this makes it binding rather than aspirational, and enforces prefix-freedom

@@ -7,9 +7,11 @@
 # outside the compiler's shape -- but only in the environment it is run in,
 # which is whatever the invoking module imports. Each package carries one
 # such module (`Properties/AxiomAudit.lean`, `Proofs/AxiomAudit.lean`,
-# `Translation/AxiomAudit.lean`, and `Translation/AxiomAuditTriple.lean` for
-# the Triple half that cannot share an environment with the rest), each with
-# a hand-maintained import list. A module missing from every list is built,
+# `Translation/AxiomAudit.lean`, and, for the two Triple translations that
+# cannot share an environment with the rest or with each other,
+# `Translation/AxiomAuditTriple.lean` and
+# `Translation/AxiomAuditTripleUnit.lean`), each with a hand-maintained import
+# list. A module missing from every list is built,
 # has its `sorry`s scanned, is replayed by `leanchecker`, and is never
 # walked: an axiom declared in it, or a planted compiler-trust axiom the
 # text scan did not see, would reach every theorem importing it without the
@@ -41,7 +43,8 @@ PACKAGES = [
     ("tacenta-model", ["Properties/AxiomAudit.lean"], ["Model", "Properties"], []),
     ("tacenta-proofs", ["Proofs/AxiomAudit.lean"], ["Proofs"], []),
     ("tacenta-proofs/translation",
-     ["Translation/AxiomAudit.lean", "Translation/AxiomAuditTriple.lean"],
+     ["Translation/AxiomAudit.lean", "Translation/AxiomAuditTriple.lean",
+      "Translation/AxiomAuditTripleUnit.lean"],
      ["Translation"], ["Translation.lean"]),
 ]
 FIRST_PARTY = ("Model", "Properties", "Proofs", "Translation")
@@ -116,13 +119,14 @@ for pkg, audits, subdirs, roots in PACKAGES:
             sys.stderr.write(f"    {m}\n")
         sys.stderr.write(
             "  Add each to the audit module's imports (or, for a Triple module, to "
-            "Translation/AxiomAuditTriple.lean).\n")
+            "Translation/AxiomAuditTriple.lean, or for the three-leaf unit to "
+            "Translation/AxiomAuditTripleUnit.lean).\n")
     n = len(required & reached)
     total_reached += n
     summary.append(f"{pkg} {n}")
 
 if not fail:
-    print(f"audit-reach: the 4 audit modules reach all {total_reached} first-party "
-          f"modules ({', '.join(summary)})")
+    print(f"audit-reach: the {sum(len(a) for _, a, _, _ in PACKAGES)} audit modules "
+          f"reach all {total_reached} first-party modules ({', '.join(summary)})")
 sys.exit(1 if fail else 0)
 PY

@@ -48,7 +48,9 @@ compiler produces rather than to a name:
   do. An `axiom Evil._native.ax : False` has the component and none of the
   rest, and is refused; so is one with the right name and the wrong
   statement, one hung off a declaration in another module, or one that
-  nothing under its parent's name applies. Those axioms are visible to
+  nothing under its parent's name applies *while something first-party
+  applies it somewhere* (see `compilerNamesApplied` for that qualification,
+  which is what an orphan axiom turns on). Those axioms are visible to
   `#print axioms`, are pinned where they are load-bearing, and are recorded
   in `LIMITATIONS.md`; a declaration-level audit that refused them would
   refuse the field proofs.
@@ -79,9 +81,9 @@ from a real one on shape alone.** What excludes them is textual:
 in hand-written first-party Lean -- `run_cmd`, `#eval`, `elab`, `macro`,
 `syntax`, `initialize`, `addDecl` and its kin, and any reference to the
 `Lean` namespace at all -- outside this module's own implementation and the
-four `run_cmd Model.AxiomAudit.run` lines, which it allow-lists by file path
+five `run_cmd Model.AxiomAudit.run` lines, which it allow-lists by file path
 and exact line content; and `scripts/check-audit-reach.sh` fails if any
-first-party module is outside the four audit modules' import closure, so no
+first-party module is outside the five audit modules' import closure, so no
 module escapes the walk. The division of labour: this module recognises the
 declaration kinds a grep cannot, and the grep refuses the code that could
 forge what this module accepts.
@@ -179,12 +181,14 @@ where
 generate, held to their shape: named `<decl>._native.<tactic>.ax_<n>`,
 hanging off a theorem or definition declared in the same module, stating
 that a compiled Boolean evaluation returned `true`, and applied by that
-declaration's own value (see `mentionsVia`). They are the one axiom shape a
+declaration's own value (see `mentionsVia`) unless nothing first-party
+applies it at all (see `compilerNamesApplied`). They are the one axiom shape a
 hand-written module may declare, because `#print axioms` reports them and
 the pins hold them. The shape is what the tactic produces, and what
 elaboration-time code could produce too; see the module docstring for what
 excludes that. -/
-def compilerTrust (env : Environment) (m : Name) (n : Name) (c : ConstantInfo) : Bool :=
+def compilerTrust (env : Environment) (applied : NameSet)
+    (m : Name) (n : Name) (c : ConstantInfo) : Bool :=
   match n, c with
   | .str (.str (.str decl "_native") tactic) ax, .axiomInfo _ =>
     ax.startsWith "ax_" &&
@@ -192,7 +196,7 @@ def compilerTrust (env : Environment) (m : Name) (n : Name) (c : ConstantInfo) :
       | some (.thmInfo _) | some (.defnInfo _) => moduleOf env decl == m
       | _ => false) &&
     isBoolEvalTrue (compilerTrustHeads tactic) c.type &&
-    mentionsVia env m decl n
+    (mentionsVia env m decl n || !applied.contains n)
   | _, _ => false
 
 /-- The generated translation: `Translation.Tacenta<Crate>`. Its axioms are the
@@ -261,12 +265,52 @@ write, and the two exemptions above accept it only in the compiler's shape. -/
 def compilerNamed (n : Name) : Bool :=
   n.components.any fun c => c.toString == "_unsafe_rec" || c.toString == "_native"
 
+/-- Every constant named into the compiler's namespace (`compilerNamed`) that
+some first-party declaration's value applies.
+
+Why the audit needs it: `decide +native` names the axiom it adds after the
+declaration being elaborated, but the proof term it builds may not use that
+axiom. Lean caches these by statement, so when two declarations in one module
+discharge the *same* obligation, the second reuses the first's axiom and the
+axiom named after the second is left declared and applied by nothing. That is
+not hypothetical here: the three-leaf translation unit
+(`Translation.TacentaTripleUnit`) puts the Double Ratchet's and the sparse
+ratchet's error enums in one module, they share three variant names, and
+Aeneas's `toStr` takes a length bound `by decide +native` for each -- so ten
+such orphans exist there, and none exists in any module that holds one crate.
+
+An orphan is inert: no declaration reaches it, so it is in no theorem's
+`#print axioms` and can widen no trust base. The rule below therefore waives
+the "its parent applies it" requirement exactly for an axiom nothing
+first-party applies, and keeps it for every axiom that is actually used.
+Waiving it for an unused axiom costs nothing: to become load-bearing it must
+be applied, and then this set contains it and the requirement is back.
+
+First-party is the right scope and not a shortcut: a third-party module cannot
+mention a first-party axiom, since the dependency runs the other way, so a use
+that could ever reach one of our theorems is a use by a first-party
+declaration and is seen here.
+
+The same waiver is deliberately *not* extended to `<f>._unsafe_rec` (see
+`compilerAuxiliary`). An unused axiom is inert; an unused `_unsafe_rec` is
+not, because the code generator calls it by name whether or not anything
+mentions it. -/
+def compilerNamesApplied (env : Environment) (prefixes : Array Name) : NameSet :=
+  Id.run do
+    let mut out : NameSet := {}
+    for (n, c) in env.constants.toList do
+      if !isFirstParty prefixes (moduleOf env n) then continue
+      if let some v := c.value? (allowOpaque := true) then
+        for u in v.getUsedConstants do
+          if compilerNamed u then out := out.insert u
+    return out
+
 /-- The reasons a constant is refused, if any. Several can apply at once, and
 all are reported. -/
-def reasons (env : Environment) (m : Name) (n : Name) (c : ConstantInfo) :
-    List String := Id.run do
+def reasons (env : Environment) (applied : NameSet)
+    (m : Name) (n : Name) (c : ConstantInfo) : List String := Id.run do
   let mut out : List String := []
-  let trusted := compilerTrust env m n c
+  let trusted := compilerTrust env applied m n c
   let auxiliary := compilerAuxiliary env m n c
   match c with
   | .axiomInfo _ =>
@@ -304,15 +348,19 @@ def audit (env : Environment) (prefixes : Array Name) : Result := Id.run do
   let mut seen := 0
   let mut generated : Array (Name × Name) := #[]
   let mut generatedNative : Array (Name × Name) := #[]
+  -- One pass for the whole walk: which compiler-named constants anything
+  -- first-party applies. See `compilerNamesApplied`.
+  let applied := compilerNamesApplied env prefixes
   for (n, c) in env.constants.toList do
     let m := moduleOf env n
     if !isFirstParty prefixes m then continue
     seen := seen + 1
     if isGenerated m then
       if let .axiomInfo _ := c then
-        if compilerTrust env m n c then generatedNative := generatedNative.push (m, n)
+        if compilerTrust env applied m n c then
+          generatedNative := generatedNative.push (m, n)
         else generated := generated.push (m, n)
-    for k in reasons env m n c do
+    for k in reasons env applied m n c do
       offences := offences.push { decl := n, module := m, kind := k }
   let byName (a b : Name × Name) : Bool := a.2.toString < b.2.toString
   return { offences := offences.qsort (fun a b => a.decl.toString < b.decl.toString),

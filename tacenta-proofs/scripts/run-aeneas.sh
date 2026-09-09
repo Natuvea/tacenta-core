@@ -20,6 +20,14 @@
 # translation/Translation/ and the verification workflow fails if regenerating it here
 # produces different files. T1 and T3 are done for all seven crates (see
 # CLAIMS.md).
+#
+# An eighth translation comes from a crate nobody wrote: `tacenta-core/triple-unit`,
+# the Triple Ratchet and both inner ratchets compiled as one crate, assembled
+# from the three leaf sources by `scripts/assemble-triple-unit.sh` (run below,
+# before anything is translated) so that Charon sees the composition together
+# with its leaves rather than over opaque axioms. It carries no proofs yet.
+# Read that script's header for what the unit is and, just as importantly,
+# what it is not.
 set -eu
 # **The pin, and it must match the verification workflow.** Keeping the
 # release name here rather than only in the workflow is what makes a local run
@@ -52,6 +60,14 @@ done
 
 here=$(cd "$(dirname "$0")/.." && pwd)
 core="$here/../tacenta-core"
+
+# Assemble the three-leaf translation unit first, so that what is translated
+# below is the unit the leaves say it is rather than whatever was left in the
+# tree. The script is deterministic and rewrites in place; a tree that was
+# already current is unchanged, and `attest.py --check` would have failed
+# beforehand if it were not.
+echo "run-aeneas: assembling the three-leaf translation unit"
+sh "$here/scripts/assemble-triple-unit.sh"
 out="$here/Generated/aeneas-output"
 # Stage the results where the translation lake package builds them (see
 # tacenta-proofs/translation/lakefile.toml).
@@ -137,6 +153,26 @@ translate braid tacenta-braid tacenta_braid.llbc TacentaBraid
 # reason, which `TripleT3.lean`'s header records. Do not add a root import
 # of this module.
 translate triple tacenta-triple tacenta_triple.llbc TacentaTriple
+
+# The same three crates' source, compiled as one crate: the composition with
+# its leaves in one translation unit, where `tacenta_ratchet.State` is a type
+# with fields and `tacenta_ratchet.send` is a body with a precondition rather
+# than the bare axioms the translation above is forced to invent. This is what
+# a panic-freedom proof for the shipping composition has to be about;
+# `scripts/assemble-triple-unit.sh` says what the unit is and is not, and
+# LIMITATIONS.md records the crate boundary as the gap it leaves.
+#
+# Its axiom set must be exactly the union of the three leaves': the leaves'
+# opaque externals are the trusted primitive boundary, and the unit crosses no
+# boundary they do not. An axiom here that appears in none of the three is a
+# finding, not a detail -- it would mean the unit reaches something none of the
+# leaves does.
+#
+# Like `TacentaTriple`, this module cannot share an environment with
+# `TacentaRatchet` or `TacentaSpqr` (same anonymous discriminant instances,
+# same reason), so it is neither imported by the root module nor by either
+# existing audit module; `Translation/AxiomAuditTripleUnit.lean` walks it.
+translate triple-unit tacenta-triple-unit tacenta_triple_unit.llbc TacentaTripleUnit
 
 echo "run-aeneas: next, record what was just generated:"
 echo "run-aeneas:   python3 tacenta-proofs/scripts/attest.py --refresh-translation"

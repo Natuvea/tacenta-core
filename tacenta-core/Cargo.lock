@@ -1176,6 +1176,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "tacenta-triple-unit"
+version = "0.0.0"
+dependencies = [
+ "tacenta-kdf",
+ "zeroize",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

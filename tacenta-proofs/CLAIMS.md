@@ -1475,7 +1475,7 @@ and cannot tell a planted one, added by such code with its name assembled
 from string literals, from a real one, so the absence of such code is what
 excludes it (`LIMITATIONS.md`, "Trusted, not verified").
 `scripts/check-audit-reach.sh` fails if any first-party module, generated
-ones included, is outside the four audit modules' import closure, since
+ones included, is outside the five audit modules' import closure, since
 the audit walks only what its invoking module imports.
 `no-sorry.sh` then replays every first-party module through the kernel
 with `leanchecker`, which is the check against a declaration added with

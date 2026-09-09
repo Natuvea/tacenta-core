@@ -138,7 +138,7 @@ Model.AxiomAudit.run` lines, which it allow-lists by file path and exact
 line content, because such code could plant an axiom in the one shape the
 audit accepts; and `check-audit-reach.sh`, which asks Lean for every
 first-party module's imports and fails if any module (the generated
-`Tacenta*.lean` included) is outside the four audit modules' import
+`Tacenta*.lean` included) is outside the five audit modules' import
 closure, since the audit walks only what its invoking module imports -- and
 then replays every first-party module through the kernel with
 `leanchecker` (below).
@@ -152,7 +152,7 @@ attest: the axiom audit's opaque-external list matches translation-attestation.j
 no-sorry: the model-layer proofs is complete
 no-sorry: the model and its property theorems is complete
 check-lean-constructs: 57 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 4 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
-audit-reach: the 4 audit modules reach all 63 first-party modules (tacenta-model 25, tacenta-proofs 10, tacenta-proofs/translation 28)
+audit-reach: the 5 audit modules reach all 66 first-party modules (tacenta-model 25, tacenta-proofs 10, tacenta-proofs/translation 31)
 no-sorry: replaying the translation and its T1/T3 proofs through the kernel (leanchecker)
 no-sorry: the translation and its T1/T3 proofs replays clean (27 modules)
 no-sorry: replaying the model-layer proofs through the kernel (leanchecker)

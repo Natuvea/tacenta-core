@@ -182,7 +182,7 @@ ELAB_RULES = [
 
 # The allow-list: file path -> the exact source lines (whitespace collapsed)
 # on which an ELAB_RULES hit is accepted. Every entry must be present in its
-# file, or the run fails: the four `run_cmd` lines are the audit invocations
+# file, or the run fails: the five `run_cmd` lines are the audit invocations
 # and a missing one is an audit nothing runs. `Model/AxiomAudit.lean` is the
 # audit's implementation and is otherwise held to every rule here, so a
 # `run_cmd` or an `addDecl` added to it fails like anywhere else.
@@ -196,6 +196,10 @@ ALLOW = {
     "tacenta-proofs/translation/Translation/AxiomAudit.lean":
         [AUDIT_CALL.format("Translation")],
     "tacenta-proofs/translation/Translation/AxiomAuditTriple.lean":
+        [AUDIT_CALL.format("Translation")],
+    # The three-leaf translation unit, which can share an environment with
+    # neither the rest of the translation nor the Triple's own.
+    "tacenta-proofs/translation/Translation/AxiomAuditTripleUnit.lean":
         [AUDIT_CALL.format("Translation")],
     "tacenta-model/Model/AxiomAudit.lean": [
         "import Lean",
@@ -322,6 +326,6 @@ fi
 
 count=$(echo "$lean_files" | wc -l | tr -d ' ')
 if [ "$status" -eq 0 ]; then
-  echo "check-lean-constructs: $count first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 4 allow-listed invocations and its implementation; 3 lakefiles set no Lean option"
+  echo "check-lean-constructs: $count first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 5 allow-listed invocations and its implementation; 3 lakefiles set no Lean option"
 fi
 exit "$status"
