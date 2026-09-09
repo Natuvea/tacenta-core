@@ -136,10 +136,16 @@ pub enum SpqrError {
     /// not a crash. Unchecked arithmetic would panic in debug builds and wrap
     /// in release, and the wrap is the worse of the two.
     ///
-    /// Reachable only from a state that arrived saturated, since no session
-    /// sends 2^64 messages on one chain. Persisted state is exactly such an
-    /// arrival: `from_bytes` takes these counters from the buffer, so an
-    /// untrusted store could establish one.
+    /// On a chain counter, reachable only from a state that arrived
+    /// saturated, since no session sends 2^64 messages on one chain.
+    /// Persisted state is exactly such an arrival: `from_bytes` takes these
+    /// counters from the buffer, so an untrusted store could establish one.
+    ///
+    /// On the epoch, reachable one step earlier than that: `advance` reserves
+    /// `u64::MAX` and returns this rather than opening chains under an epoch
+    /// its own retention window would immediately retire (see `advance`). So
+    /// this is what a state at `epoch = u64::MAX - 1` answers, saturated or
+    /// not, and it is why `u64::MAX` is a value no state here ever holds.
     ChainExhausted,
 }
 
@@ -362,6 +368,120 @@ impl State {
         self.skipped.len()
     }
 
+    /// Which side of the session this state is on. For the Triple Ratchet,
+    /// whose invariant checks it against the classical half's role.
+    pub fn direction(&self) -> Direction {
+        self.direction
+    }
+
+    /// What `init` and every operation maintain, stated once so `from_bytes`
+    /// can check it last and the tests and fuzz targets can check it after
+    /// every step (CR-21). The clauses, and what each discharges:
+    ///
+    /// - the store holds at most `MAX_SKIPPED_STORE` keys, which
+    ///   `skip_message_keys` refuses to exceed;
+    /// - the store is a map on `(epoch, n)`: `skip_message_keys` retains
+    ///   nothing in the range it re-derives and `try_skipped` answers with the
+    ///   first match, so a second entry for one pair would be unreachable and
+    ///   would hold a slot against the bound. `SpqrT3`'s `hone`;
+    /// - one `chains` entry per epoch, as `set_chains` maintains: `find_chains`
+    ///   answers with the first match and `set_chains`'s `retain` removes every
+    ///   match, so two entries for one epoch would disagree about which chains
+    ///   are live;
+    /// - every chains epoch is at most the current one, and inside the window
+    ///   `clear_old_epochs` keeps, `current < e + EPOCHS_KEPT` with the sum
+    ///   saturating as it does there. Chains open only under `advance`'s new
+    ///   epoch, and every advance retires what the window no longer covers;
+    /// - the current epoch has a chains entry: `init` opens epoch zero's and
+    ///   `advance` opens the new epoch's before retiring, which keeps it;
+    /// - every skipped key's epoch has a chains entry: a key is stored only
+    ///   under an epoch whose chains were found, and `clear_old_epochs` retires
+    ///   chains and keys together under one predicate.
+    ///
+    /// **What this gives the refinement, and what it does not.** The epoch is
+    /// constrained, though by no clause of its own: the current epoch has a
+    /// chains entry, and that entry's epoch is strictly below its own
+    /// saturating window end, which is at most `u64::MAX`. So `epoch <
+    /// u64::MAX` follows, recorded as `Spqr.inv_gives_epoch_room` in
+    /// `Translation/ImportInv.lean`. `advance` reserves `u64::MAX` and
+    /// refuses the step that would reach it (see there), so this is a fact of
+    /// every state the operations produce too, and not only of the ones the
+    /// decoder happens to accept. It is *not* `SpqrT3`'s `hepoch`, which asks
+    /// for `epoch + 1 < u64::MAX`: the refinement stops one step below the
+    /// reservation, because the model counts in `Nat` and keeps going where
+    /// this crate refuses.
+    ///
+    /// Still hypotheses of the refinement, not facts of an imported state:
+    ///
+    /// - `hepoch`, that `epoch + 1` is below `u64::MAX`. The clause above
+    ///   gives the ceiling but not the step below it, and `u64::MAX - 1` is a
+    ///   state the operations reach and the decoder accepts.
+    /// - `hcounter`, that each chain's message counter is below `u64::MAX`.
+    ///   Nothing here constrains it. It is honestly reachable, and `send` and
+    ///   `receive` refuse the step past it with `ChainExhausted` (the
+    ///   exhaustion tests below) rather than leaving a state the decoder must
+    ///   reject, so the invariant has no reason to speak about it;
+    /// - `hcb` and `hsb`, that every chains and skipped epoch satisfies
+    ///   `e + EPOCHS_KEPT <= u64::MAX` -- an epoch of at most `u64::MAX - 2`.
+    ///   That is two below what this invariant forces, and `u64::MAX - 1` is
+    ///   a fully usable epoch here, so a state at it with a chain there
+    ///   satisfies `invariant` and fails both. Reserving the top
+    ///   `EPOCHS_KEPT` epochs rather than the top one would close the gap, at
+    ///   the cost of a new clause to prove and a retention policy stated in
+    ///   two places; it has not been done. Recorded as open in
+    ///   `tacenta-proofs/CLAIMS.md`.
+    ///
+    /// Index loops with flags, the shape the translation models; the pair
+    /// loops are quadratic in counts the first clause and the window bound.
+    pub fn invariant(&self) -> bool {
+        let mut chains_ok = true;
+        let mut current_present = false;
+        let mut i = 0;
+        while i < self.chains.len() {
+            let e = self.chains[i].0;
+            if e == self.epoch {
+                current_present = true;
+            }
+            if e > self.epoch || self.epoch >= e.saturating_add(EPOCHS_KEPT) {
+                chains_ok = false;
+            }
+            let mut j = i + 1;
+            while j < self.chains.len() {
+                if self.chains[j].0 == e {
+                    chains_ok = false;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+        let mut skipped_ok = true;
+        let mut i = 0;
+        while i < self.skipped.len() {
+            let mut present = false;
+            let mut k = 0;
+            while k < self.chains.len() {
+                if self.chains[k].0 == self.skipped[i].epoch {
+                    present = true;
+                }
+                k += 1;
+            }
+            if !present {
+                skipped_ok = false;
+            }
+            let mut j = i + 1;
+            while j < self.skipped.len() {
+                if self.skipped[i].epoch == self.skipped[j].epoch
+                    && self.skipped[i].n == self.skipped[j].n
+                {
+                    skipped_ok = false;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+        self.skipped.len() <= MAX_SKIPPED_STORE && chains_ok && current_present && skipped_ok
+    }
+
     /// Delete up to `count` of the oldest stored skipped keys and return how
     /// many were deleted; zero means the store was already empty. Oldest is
     /// oldest *stored*: entries are appended in derivation order and only
@@ -415,10 +535,26 @@ impl State {
 
     /// Fold a new secret into the root key and open a fresh pair of chains under
     /// its epoch.
+    ///
+    /// **`u64::MAX` is a reserved epoch, refused rather than opened.** The
+    /// window `clear_old_epochs` keeps is `current < e + EPOCHS_KEPT` with the
+    /// sum saturating, so at `current == u64::MAX` the sum saturates to
+    /// `u64::MAX` and the test is false for *every* entry, including the pair
+    /// this call has just installed: `chains` would come out empty,
+    /// `current_present` false, and the state one this crate's own
+    /// `from_bytes` refuses -- reachable in a single step from
+    /// `epoch = u64::MAX - 1`, and with `receive` answering `NoChain` from
+    /// then on. Refusing the step keeps the ceiling out of reach instead, so
+    /// `invariant` is inductive over every operation here, and it is refused
+    /// with the exhaustion this crate already returns when a counter reaches
+    /// the end of its range. `u64::MAX - 1` remains fully usable.
     fn advance(&mut self, out: &Output) -> Result<(), SpqrError> {
         let Some(next_epoch) = self.epoch.checked_add(1) else {
             return Err(SpqrError::ChainExhausted);
         };
+        if next_epoch == u64::MAX {
+            return Err(SpqrError::ChainExhausted);
+        }
         if out.key_epoch != next_epoch {
             return Err(SpqrError::EpochOutOfOrder);
         }
@@ -837,27 +973,6 @@ impl State {
         if !chains_ok {
             return Err(SpqrDecodeError::Malformed);
         }
-        // **One entry per epoch, as `set_chains` maintains.** `find_chains`
-        // answers with the first match and `set_chains`'s `retain` removes
-        // every match, so a store holding two entries for one epoch would
-        // have the two disagree about which chains are live. An index loop
-        // over a count already bounded by the buffer, with a flag rather than
-        // a return from inside it (CR-21).
-        let mut distinct = true;
-        let mut i = 0;
-        while i < chains.len() {
-            let mut j = i + 1;
-            while j < chains.len() {
-                if chains[i].0 == chains[j].0 {
-                    distinct = false;
-                }
-                j += 1;
-            }
-            i += 1;
-        }
-        if !distinct {
-            return Err(SpqrDecodeError::Malformed);
-        }
 
         if bytes.len() < pos + 4 {
             return Err(SpqrDecodeError::TooShort);
@@ -890,13 +1005,23 @@ impl State {
             return Err(SpqrDecodeError::Malformed);
         }
 
-        Ok(State {
+        // **The state must be one the operations could have built**, which
+        // is `invariant` in full: the store's bound and its map, one chains
+        // entry per epoch, every epoch inside the window with the current
+        // one present, and every stored key under a live epoch. Checked
+        // last, as one predicate, so what the decoder accepts and what the
+        // operations keep are the same statement (CR-21).
+        let state = State {
             rk,
             epoch,
             chains,
             skipped,
             direction,
-        })
+        };
+        if !state.invariant() {
+            return Err(SpqrDecodeError::Malformed);
+        }
+        Ok(state)
     }
 }
 
@@ -970,6 +1095,12 @@ mod exhaustion_tests {
     /// The epoch counter gets the same treatment, for the same reason: a
     /// wrapped epoch could compare equal to an attacker-chosen `key_epoch` and
     /// step the ratchet on a secret it should have refused.
+    ///
+    /// The state driven here is one no run reaches -- `advance` refuses a
+    /// step to `u64::MAX` a step earlier, which
+    /// `tests::the_epoch_ceiling_is_unreachable` pins. This keeps the
+    /// `checked_add` arm itself covered, since `from_bytes` is not the only
+    /// way a field can arrive wrong.
     #[test]
     fn a_saturated_epoch_refuses_instead_of_wrapping() {
         let mut state = State::init_alice(&[4u8; 32]);

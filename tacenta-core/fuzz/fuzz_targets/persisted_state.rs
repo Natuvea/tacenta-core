@@ -25,6 +25,16 @@
 //! versioned and length-checked, so handing all of them the same bytes
 //! exercises each one's own framing rather than only the shape its own encoder
 //! emits.
+//!
+//! **What an accepted state has to satisfy.** Every decoder that accepts
+//! calls its type's `invariant` last, so an accepted state satisfies it by
+//! construction; the target asserts it anyway, and again after every step it
+//! drives, because the point is inductive: a predicate the decoder
+//! establishes and an operation then breaks is a predicate the next import
+//! refuses on, and the honest run in between is where that would show. Each
+//! format's own predicate is asserted here as its crate exposes one; the
+//! Triple Ratchet's is the one still to come, and its two halves are
+//! asserted on their own.
 
 #![no_main]
 
@@ -38,24 +48,69 @@ fuzz_target!(|data: &[u8]| {
     // reachable only through it. Each accepted state must re-encode to the
     // bytes it came from.
     if let Ok(s) = tacenta_ratchet::State::from_bytes(data) {
-        assert_eq!(s.to_bytes().as_slice(), data, "ratchet state is not canonical");
+        assert_eq!(
+            s.to_bytes().as_slice(),
+            data,
+            "ratchet state is not canonical"
+        );
+        assert!(
+            s.invariant(),
+            "an accepted ratchet state violates its invariant"
+        );
     }
     if let Ok(s) = tacenta_spqr::State::from_bytes(data) {
         assert_eq!(s.to_bytes().as_slice(), data, "spqr state is not canonical");
+        assert!(
+            s.invariant(),
+            "an accepted spqr state violates its invariant"
+        );
     }
     if let Ok(b) = tacenta_braid::Braid::from_bytes(data) {
-        assert_eq!(b.to_bytes().as_slice(), data, "braid state is not canonical");
+        assert_eq!(
+            b.to_bytes().as_slice(),
+            data,
+            "braid state is not canonical"
+        );
+        assert!(b.invariant(), "an accepted braid violates its invariant");
     }
     if let Ok(s) = tacenta_triple::State::from_bytes(data) {
-        assert_eq!(s.to_bytes().as_slice(), data, "triple state is not canonical");
+        assert_eq!(
+            s.to_bytes().as_slice(),
+            data,
+            "triple state is not canonical"
+        );
+        // The composition's own predicate, which is more than the two halves'
+        // conjunction: the halves asserted above are decoded from the same
+        // bytes as separate states, not from this Triple's two halves, so its
+        // `roles_agree` clause is checked here and nowhere else.
+        assert!(
+            s.invariant(),
+            "an accepted triple state violates its invariant"
+        );
     }
 
     // The erasure coders, which the Braid's format nests inside its own.
     if let Some(e) = tacenta_erasure::Encoder::from_bytes(data) {
-        assert_eq!(e.to_bytes().as_slice(), data, "erasure encoder is not canonical");
+        assert_eq!(
+            e.to_bytes().as_slice(),
+            data,
+            "erasure encoder is not canonical"
+        );
+        assert!(
+            e.invariant(),
+            "an accepted erasure encoder violates its invariant"
+        );
     }
     if let Some(d) = tacenta_erasure::Decoder::from_bytes(data) {
-        assert_eq!(d.to_bytes().as_slice(), data, "erasure decoder is not canonical");
+        assert_eq!(
+            d.to_bytes().as_slice(),
+            data,
+            "erasure decoder is not canonical"
+        );
+        assert!(
+            d.invariant(),
+            "an accepted erasure decoder violates its invariant"
+        );
         // A restored decoder must be drivable: `message()` reserves `size`
         // bytes, which is where an unvalidated `size` would show.
         let _ = d.message();
@@ -72,12 +127,24 @@ fuzz_target!(|data: &[u8]| {
     // older one the oracle is idempotence: what it writes back must itself
     // read and re-emit unchanged.
     if let Ok(p) = PrekeyStore::from_bytes(data) {
+        assert!(
+            p.invariant(),
+            "an accepted prekey store violates its invariant"
+        );
         let re = p.to_bytes();
         if data.first() == re.first() {
             assert_eq!(re.as_slice(), data, "prekey store is not canonical");
         } else {
             let again = PrekeyStore::from_bytes(&re).expect("an upgraded store must read back");
-            assert_eq!(again.to_bytes().as_slice(), re.as_slice(), "upgrade is not idempotent");
+            assert!(
+                again.invariant(),
+                "an upgraded prekey store violates its invariant"
+            );
+            assert_eq!(
+                again.to_bytes().as_slice(),
+                re.as_slice(),
+                "upgrade is not idempotent"
+            );
         }
     }
 
@@ -99,9 +166,18 @@ fuzz_target!(|data: &[u8]| {
     }
     let (stored, wire) = rest.split_at(cut);
     if let Ok(mut s) = Session::import(stored) {
-        assert_eq!(s.export().as_slice(), stored, "session import is not canonical");
+        assert_eq!(
+            s.export().as_slice(),
+            stored,
+            "session import is not canonical"
+        );
+        assert!(s.invariant(), "an imported session violates its invariant");
         let mut rng = rand::rngs::StdRng::seed_from_u64(0);
+        // A refused message changes nothing and an accepted one preserves the
+        // invariant, so it holds after each step whichever way it went.
         let _ = s.decrypt(wire, &mut rng);
+        assert!(s.invariant(), "decrypt broke the session invariant");
         let _ = s.encrypt(wire, &mut rng);
+        assert!(s.invariant(), "encrypt broke the session invariant");
     }
 });

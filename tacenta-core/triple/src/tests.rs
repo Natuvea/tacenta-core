@@ -368,6 +368,171 @@ fn from_bytes_rejects_trailing_bytes() {
     ));
 }
 
+/// Two halves that disagree on the role are refused (`State::invariant`),
+/// though each half's own decoder accepts them: the sender's classical half
+/// with the post-quantum half's direction flipped, and the receiver's the
+/// other way. Once the classical half has taken a Diffie-Hellman step its
+/// shape no longer shows the role, and the flipped direction restores.
+#[test]
+fn from_bytes_refuses_halves_that_disagree_on_the_role() {
+    // Version, the classical half's length prefix and bytes, then the
+    // post-quantum half's length prefix; its direction byte follows its
+    // version, root key and epoch.
+    let direction_at = |s: &State| 1 + 4 + s.classical.to_bytes().len() + 4 + 1 + 32 + 8;
+
+    let a = alice();
+    let mut bytes = a.to_bytes().to_vec();
+    let at = direction_at(&a);
+    assert_eq!(bytes[at], 0x00, "the sender's post-quantum half is A2b");
+    bytes[at] = 0x01;
+    assert!(matches!(
+        State::from_bytes(&bytes),
+        Err(TripleDecodeError::Malformed)
+    ));
+
+    let b = bob();
+    let mut bytes = b.to_bytes().to_vec();
+    let at = direction_at(&b);
+    assert_eq!(bytes[at], 0x01, "the receiver's post-quantum half is B2a");
+    bytes[at] = 0x00;
+    assert!(matches!(
+        State::from_bytes(&bytes),
+        Err(TripleDecodeError::Malformed)
+    ));
+
+    let mut a = alice();
+    let mut b = bob();
+    let (h, _) = a.send(0, None).unwrap();
+    receive_and_commit(&mut b, &h, &DH_AB, &DH_B2A, B2_PUB, None).unwrap();
+    assert_eq!(b.classical.started_as_sender(), None);
+    let mut bytes = b.to_bytes().to_vec();
+    let at = direction_at(&b);
+    bytes[at] = 0x00;
+    assert!(State::from_bytes(&bytes).is_ok());
+}
+
+/// `invariant` holds after every send and every committed receive of a
+/// conversation with out-of-order delivery, losses, stored keys spent later,
+/// Diffie-Hellman steps in both directions and several epoch advances, and
+/// survives a round trip through persistence at every step, so what
+/// `from_bytes` checks is an inductive invariant of the operations and not
+/// only a shape of the encoding. The keys still agree, so the states driven
+/// are ones a working session holds.
+#[test]
+fn the_invariant_holds_after_every_step_and_round_trip() {
+    let mut seed: u64 = 0x9e37_79b9_7f4a_7c15;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed
+    };
+    let key = |v: u64| {
+        let mut k = [0u8; 32];
+        k[..8].copy_from_slice(&v.to_be_bytes());
+        k[8] = 1;
+        k
+    };
+    let mut a = alice();
+    let mut b = bob();
+    assert!(a.invariant() && b.invariant());
+    assert_eq!(
+        (a.direction(), a.started_as_sender()),
+        (Direction::A2b, Some(true))
+    );
+    assert_eq!(
+        (b.direction(), b.started_as_sender()),
+        (Direction::B2a, Some(false))
+    );
+    // The DH output the current sending chain was derived under, which the
+    // next receiver's step folds in as `dh_out_recv`; see the Double
+    // Ratchet's own version of this test.
+    let mut pending = DH_AB;
+    let mut backlog_a: Vec<(Header, Key)> = Vec::new();
+    let mut backlog_b: Vec<(Header, Key)> = Vec::new();
+    let mut epoch = 0u64;
+    let mut delivered = 0;
+    let mut found_later = 0;
+    let mut round = 0;
+    while round < 60 {
+        let (sender, receiver, backlog_s, backlog_r) = if round % 2 == 0 {
+            (&mut a, &mut b, &mut backlog_a, &mut backlog_b)
+        } else {
+            (&mut b, &mut a, &mut backlog_b, &mut backlog_a)
+        };
+        while !backlog_s.is_empty() && next() % 3 != 0 {
+            let (h, k) = backlog_s.remove(0);
+            if h.epoch + tacenta_spqr::EPOCHS_KEPT > sender.epoch() {
+                let got = receive_and_commit(sender, &h, &pending, &pending, key(0), None).unwrap();
+                assert_eq!(got, k, "a stored key in round {round}");
+                assert!(sender.invariant(), "after a stored key in round {round}");
+                found_later += 1;
+            }
+        }
+        let mut secret = None;
+        if round % 3 == 2 {
+            epoch += 1;
+            secret = Some(out(epoch, epoch as u8));
+        }
+        let dh_out = key(next());
+        let fresh_pub = key(next());
+        let count = 1 + (next() % 12) as usize;
+        let mut sent = Vec::new();
+        let mut i = 0;
+        while i < count {
+            let o = if i == 0 { secret.as_ref() } else { None };
+            let (h, k) = sender.send(epoch, o).unwrap();
+            assert!(sender.invariant(), "sender after send {i} of round {round}");
+            sent.push((h, k));
+            i += 1;
+        }
+        let mut highest = 0;
+        let mut dropped = Vec::new();
+        let mut i = 0;
+        while i < count {
+            let pick = (next() as usize) % sent.len();
+            let (h, k) = sent.remove(pick);
+            if i == 0 || next() % 4 != 0 {
+                let o = if i == 0 { secret.as_ref() } else { None };
+                let (candidate, got) = receiver
+                    .receive(&h, &pending, &dh_out, fresh_pub, o)
+                    .unwrap();
+                assert!(candidate.invariant(), "candidate {i} of round {round}");
+                receiver.commit(candidate);
+                assert_eq!(got, k, "message {i} of round {round}");
+                if h.pq_n > highest {
+                    highest = h.pq_n;
+                }
+                delivered += 1;
+            } else {
+                dropped.push((h, k));
+            }
+            i += 1;
+        }
+        let mut i = 0;
+        while i < dropped.len() {
+            if dropped[i].0.pq_n < highest {
+                backlog_r.push(dropped[i]);
+            }
+            i += 1;
+        }
+        pending = dh_out;
+        *sender = State::from_bytes(&sender.to_bytes()).unwrap();
+        *receiver = State::from_bytes(&receiver.to_bytes()).unwrap();
+        assert!(
+            sender.invariant() && receiver.invariant(),
+            "after the round trip of round {round}"
+        );
+        round += 1;
+    }
+    assert!(epoch >= 15, "only {epoch} epochs");
+    assert!(delivered >= 200, "only {delivered} messages delivered");
+    assert!(
+        found_later >= 10,
+        "only {found_later} stored keys were spent"
+    );
+}
+
 /// The two verified-zone copies of `take_len_prefixed` must not drift.
 ///
 /// `LABELS.md` explains why there is no shared crate for the leaf zones:

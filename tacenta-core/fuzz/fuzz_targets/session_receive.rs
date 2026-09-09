@@ -20,7 +20,11 @@
 //! responder's receive paths are each past their opening state (the
 //! responder's was previously never reached, CR-10). A random message cannot
 //! pass the AEAD, so nothing commits here by design; what this asks is that
-//! neither side panics on the way to refusing.
+//! neither side panics on the way to refusing, and that both sessions and
+//! the store still satisfy their `invariant` afterwards -- a refusal that
+//! changed nothing preserves it trivially, and an acceptance that broke it
+//! would be a state the next import refuses (`persisted_state` says why the
+//! predicate is asserted after every step rather than only at import).
 
 #![no_main]
 
@@ -41,7 +45,16 @@ fuzz_target!(|data: &[u8]| {
     // prekey for a message that fails to authenticate -- the second is not
     // asserted here (a fuzz target has no oracle for it) but the first is what
     // a crash would show.
-    let _ = establish_responder(&bob, &mut bob_prekeys, data, &mut rng);
+    if let Ok((session, _)) = establish_responder(&bob, &mut bob_prekeys, data, &mut rng) {
+        assert!(
+            session.invariant(),
+            "an established session violates its invariant"
+        );
+    }
+    assert!(
+        bob_prekeys.invariant(),
+        "establish_responder broke the store invariant"
+    );
 
     // Path two: a message arriving on a session that is already established,
     // on either side. Alice opens one against Bob's real bundle so the ratchet
@@ -52,18 +65,35 @@ fuzz_target!(|data: &[u8]| {
     let alice = Identity::generate(&mut rng);
     let bundle = bob_prekeys.publish();
     if let Ok(mut alice_session) = establish_initiator(&alice, &bundle, &mut rng) {
+        assert!(alice_session.invariant(), "establish_initiator");
         let Ok(initial) = alice_session.encrypt(b"fuzz", &mut rng) else {
             return;
         };
+        assert!(alice_session.invariant(), "the initiator's first encrypt");
         let Ok((mut bob_session, _)) =
             establish_responder(&bob, &mut bob_prekeys, &initial, &mut rng)
         else {
             return;
         };
+        assert!(bob_session.invariant(), "establish_responder");
+        assert!(
+            bob_prekeys.invariant(),
+            "the store after establish_responder"
+        );
         if let Ok(reply) = bob_session.encrypt(b"reply", &mut rng) {
+            assert!(bob_session.invariant(), "the responder's first encrypt");
             let _ = alice_session.decrypt(&reply, &mut rng);
+            assert!(alice_session.invariant(), "the initiator's first decrypt");
         }
         let _ = alice_session.decrypt(data, &mut rng);
+        assert!(
+            alice_session.invariant(),
+            "the initiator after the fuzzed message"
+        );
         let _ = bob_session.decrypt(data, &mut rng);
+        assert!(
+            bob_session.invariant(),
+            "the responder after the fuzzed message"
+        );
     }
 });

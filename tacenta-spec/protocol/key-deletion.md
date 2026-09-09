@@ -325,7 +325,14 @@ implemented is worse than one that is neither.
   that persists the exported bytes is choosing to hold session secrets on
   storage media, and protecting that copy at rest -- disk encryption, or an
   encryption layer in the caller's own storage code -- is that caller's job.
-  The export format itself provides no encryption of its own.
+  The export format itself provides no encryption of its own. What the
+  reader does check is that the bytes describe a session or a store the
+  constructors could have built -- the ratchet private key matching the
+  advertised public key, the epochs in step, the identifier namespace
+  intact (session-persistence.md, "Semantic rules" under each format) -- so
+  that a session which imports is one that can go on, and a store which
+  imports is one whose next bundle does not collide with a live key. That
+  is a check against corruption, not against a reader of the medium.
 
 ## Sources
 

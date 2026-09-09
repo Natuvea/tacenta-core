@@ -19,7 +19,7 @@ use super::{
     PreKeyBundle, SessionError, associated_data, decode_ec, encode_ec, encode_kem,
     initiator_shared_secret, responder_shared_secret,
 };
-use tacenta_spqr::SpqrError;
+use tacenta_spqr::{Direction, SpqrError};
 use tacenta_triple::TripleError;
 
 use crate::primitives::aead;
@@ -1125,96 +1125,6 @@ impl PrekeyStore {
             return Err(PrekeyStoreDecodeError::Malformed);
         }
 
-        // The record's two invariants, which the field-by-field reads above
-        // cannot see. Every entry is tagged with a key that can still decrypt
-        // -- the current last-resort key or the one the last rotation retired
-        // -- because `rotate_kem` drops a key's entries when it wipes the key
-        // and the encoder never writes anything else; an entry under any
-        // other identifier is corruption, or a record that outlived its keys,
-        // and neither is accepted. And no fingerprint appears twice, because
-        // `establish_responder` refuses the second arrival of one before it
-        // could be recorded, so a duplicate could only have been written by
-        // something other than `to_bytes`. The tag check holds trivially for
-        // the untagged formats, whose entries were all tagged with the current
-        // key above; the duplicate check applies to them on the same terms.
-        let previous_kem_id = previous_kem.as_ref().map(|(_, id, _)| *id);
-        let mut distinct = std::collections::HashSet::with_capacity(last_resort_seen.len());
-        for (id, fp) in &last_resort_seen {
-            if *id != kem_id && Some(*id) != previous_kem_id {
-                return Err(PrekeyStoreDecodeError::Malformed);
-            }
-            if !distinct.insert(*fp) {
-                return Err(PrekeyStoreDecodeError::Malformed);
-            }
-        }
-
-        // The identifiers, which the reads above take on trust. Every
-        // identifier a store holds was handed out by `next_id`, which only
-        // climbs, so each is below it: one at or past it is either corruption
-        // or a counter that has been wound back, and the next key handed out
-        // would collide with a live one. And no two live keys share an
-        // identifier, because the store finds keys by their *first* match
-        // (the note on `next_id` says what a duplicate one-time identifier
-        // does) and `rotate_kem` prunes the record by the wiped key's
-        // identifier: a previous KEM identifier equal to the current one
-        // would have the next rotation drop the *live* key's entries, after
-        // which every replay they refused is accepted again. None of this can
-        // come out of `to_bytes`, so all of it is refused as malformed. Index
-        // loops, so the duplicate checks read as the pairwise comparisons
-        // they are.
-        if signed_prekey_id >= next_id || kem_id >= next_id {
-            return Err(PrekeyStoreDecodeError::Malformed);
-        }
-        if let Some((_, id, _)) = &previous_signed_prekey {
-            if *id == signed_prekey_id || *id >= next_id {
-                return Err(PrekeyStoreDecodeError::Malformed);
-            }
-        }
-        if let Some(id) = previous_kem_id {
-            if id == kem_id || id >= next_id {
-                return Err(PrekeyStoreDecodeError::Malformed);
-            }
-        }
-        let mut i = 0;
-        while i < last_resort_seen.len() {
-            // Implied by the tag check above once the two key identifiers
-            // are below `next_id`, and stated anyway so the rule reads whole.
-            if last_resort_seen[i].0 >= next_id {
-                return Err(PrekeyStoreDecodeError::Malformed);
-            }
-            i += 1;
-        }
-        let mut i = 0;
-        while i < one_time.len() {
-            let id = one_time[i].0;
-            if id >= next_id {
-                return Err(PrekeyStoreDecodeError::Malformed);
-            }
-            let mut j = 0;
-            while j < i {
-                if one_time[j].0 == id {
-                    return Err(PrekeyStoreDecodeError::Malformed);
-                }
-                j += 1;
-            }
-            i += 1;
-        }
-        let mut i = 0;
-        while i < kem_one_time.len() {
-            let id = kem_one_time[i].0;
-            if id >= next_id || id == kem_id || Some(id) == previous_kem_id {
-                return Err(PrekeyStoreDecodeError::Malformed);
-            }
-            let mut j = 0;
-            while j < i {
-                if kem_one_time[j].0 == id {
-                    return Err(PrekeyStoreDecodeError::Malformed);
-                }
-                j += 1;
-            }
-            i += 1;
-        }
-
         let store = PrekeyStore {
             last_resort_seen,
             identity_public: dh::PublicKeyBytes::from_bytes(identity_public),
@@ -1252,7 +1162,86 @@ impl PrekeyStore {
             return Err(PrekeyStoreDecodeError::NonCanonical);
         }
 
+        // The relations between fields that the reads above take on trust --
+        // the identifier namespace and the record's shape -- checked last,
+        // over the decoded store, by the same predicate the tests and the
+        // fuzz targets assert after every operation. `invariant` says what
+        // each clause prevents. A record entry under an unknown key, a
+        // repeated fingerprint, a repeated or wound-back identifier: none
+        // can come out of `to_bytes`, so all are refused as malformed.
+        if !store.invariant() {
+            return Err(PrekeyStoreDecodeError::Malformed);
+        }
+
         Ok(store)
+    }
+
+    /// Whether this store is one `create_prekeys` builds and every operation
+    /// on it preserves: the identifier namespace and the replay record's
+    /// shape, which no field-by-field read can see.
+    ///
+    /// `from_bytes` refuses a store for which this is false (`Malformed`),
+    /// last, once the fields have decoded; the tests and the fuzz targets
+    /// assert it after every operation, so that it is checked as an inductive
+    /// invariant rather than trusted at one point. The clauses:
+    ///
+    /// - **Every identifier is below `next_id`.** `next_id` only climbs and
+    ///   is what every identifier was handed out from, so one at or past it
+    ///   is corruption or a counter wound back, and the next key handed out
+    ///   would collide with a live one: a corrupted `next_id` poisons every
+    ///   future bundle, and persists canonically.
+    /// - **No identifier is the absent-identifier sentinel** (`ABSENT_ID`,
+    ///   zero). `create_prekeys` numbers from one. A one-time prekey under
+    ///   zero could never be named by an initial message, which reads zero
+    ///   as "none", so it would sit in the store unconsumable.
+    /// - **Every identifier is distinct**: the signed prekey's, the
+    ///   last-resort KEM key's, the two a rotation retired, and each one-time
+    ///   key's of either kind. The store finds keys by their *first* match,
+    ///   so a repeated one-time identifier lets a replayed initial message be
+    ///   served twice (the note on `next_id`); a retired identifier equal to
+    ///   the live one has the next `rotate_kem` drop the live key's record
+    ///   entries, after which every replay they refused is accepted; and a
+    ///   one-time KEM identifier equal to a last-resort one is looked up on
+    ///   the last-resort path and never consumed. One counter numbers them
+    ///   all, so distinctness across every kind is what the constructor
+    ///   establishes, not only within each.
+    /// - **The record holds at most `MAX_LAST_RESORT_SEEN` entries, each
+    ///   tagged with a key that can still decrypt** -- the current last-resort
+    ///   key or the retired one -- **and no fingerprint twice.**
+    ///   `establish_responder` refuses the handshake that would overflow the
+    ///   record, and the repeat of one already in it, before either could be
+    ///   recorded; `rotate_kem` drops a key's entries when it wipes the key;
+    ///   and `to_bytes` never writes anything else.
+    pub fn invariant(&self) -> bool {
+        let previous_signed_id = self.previous_signed_prekey.as_ref().map(|(_, id, _)| *id);
+        let previous_kem_id = self.previous_kem.as_ref().map(|(_, id, _)| *id);
+
+        let mut ids: Vec<u32> = vec![self.signed_prekey_id, self.kem_id];
+        ids.extend(previous_signed_id);
+        ids.extend(previous_kem_id);
+        ids.extend(self.one_time.iter().map(|(id, _)| *id));
+        ids.extend(self.kem_one_time.iter().map(|(id, _, _)| *id));
+        let mut distinct = std::collections::HashSet::with_capacity(ids.len());
+        for id in &ids {
+            if *id == ABSENT_ID || *id >= self.next_id || !distinct.insert(*id) {
+                return false;
+            }
+        }
+
+        if self.last_resort_seen.len() > MAX_LAST_RESORT_SEEN {
+            return false;
+        }
+        let mut fingerprints =
+            std::collections::HashSet::with_capacity(self.last_resort_seen.len());
+        for (id, fp) in &self.last_resort_seen {
+            if *id != self.kem_id && Some(*id) != previous_kem_id {
+                return false;
+            }
+            if !fingerprints.insert(*fp) {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -2132,6 +2121,19 @@ pub enum SessionDecodeError {
     /// it, and a stored blob that is not the encoding of what it decodes to
     /// cannot be authenticated by anything computed over exact bytes.
     NonCanonical,
+    /// The bytes decoded, canonically, to a session no constructor builds
+    /// and no operation preserves: [`Session::invariant`] is false of it.
+    ///
+    /// Distinct from `NonCanonical`, which is about the byte string, and
+    /// from `Malformed`, which is about one field. Every clause of the
+    /// invariant is a relation *between* fields -- the ratchet private key
+    /// and the public key the ratchet advertises, the sparse ratchet's epoch
+    /// and the Braid's, the associated data and the role -- which a
+    /// field-by-field decode accepts one field at a time and which,
+    /// accepted, does not fail at import but on some later message, and in
+    /// the first two cases for good. Refused here so that a session which
+    /// imports is one that can go on.
+    Inconsistent,
 }
 
 fn push_len_prefixed(out: &mut Vec<u8>, bytes: &[u8]) {
@@ -2306,16 +2308,178 @@ impl Session {
     /// function needing to know where -- which is the property that makes it
     /// worth doing here rather than field by field.
     ///
-    /// **What it does not catch**: a byte string that is canonical and
-    /// semantically extreme. A saturated counter re-encodes to itself and
-    /// passes. That is a separate property whose check belongs at the use
-    /// site, not here.
+    /// **What the re-encode does not catch**, and what the second check is
+    /// for: a byte string that is canonical and describes a session no
+    /// constructor builds. A ratchet private key beside an advertised public
+    /// key that is not its own re-encodes to itself and passes; so does an
+    /// epoch pair the sparse ratchet cannot follow. Those are relations
+    /// *between* fields, and [`Session::invariant`] states them: a session
+    /// for which it is false is refused as `Inconsistent`, after the
+    /// re-encode, so that the error names the more specific of the two
+    /// things wrong with the bytes. What remains uncaught is a canonical,
+    /// consistent state that is merely extreme -- a saturated counter --
+    /// which is a property whose check belongs at the use site, not here.
     pub fn import(bytes: &[u8]) -> Result<Session, SessionDecodeError> {
         let session = Session::import_unchecked(bytes)?;
         if session.export().as_slice() != bytes {
             return Err(SessionDecodeError::NonCanonical);
         }
+        if !session.invariant() {
+            return Err(SessionDecodeError::Inconsistent);
+        }
         Ok(session)
+    }
+
+    /// Whether this session is one the constructors build and the operations
+    /// preserve.
+    ///
+    /// The relations between fields that a field-by-field decode cannot see.
+    /// [`import`](Session::import) refuses a session for which this is false
+    /// (`SessionDecodeError::Inconsistent`), and the tests and the fuzz
+    /// targets assert it after every establishment, message and round trip,
+    /// so that it is checked as an inductive invariant -- established by the
+    /// constructors, preserved by every operation, re-established at the
+    /// persistence boundary -- rather than trusted at one point. Each clause
+    /// says what accepting its violation would cost, because none of them
+    /// fails at import: each fails on some later message, and the first two
+    /// for good.
+    ///
+    /// What it does not check is anything a hostile writer of the storage
+    /// medium could still forge: key material is bytes, and no relation
+    /// between fields says whether a root key is the one the peer holds.
+    /// That is at-rest protection, which session-persistence.md places with
+    /// the caller.
+    pub fn invariant(&self) -> bool {
+        // (a) The ratchet private key is the private half of the public key
+        // the classical ratchet advertises in its headers. The peer agrees
+        // against the advertised key and this side against the private one,
+        // so a mismatch survives until the peer's next Diffie-Hellman step
+        // and then breaks every message after it, for good: the two sides
+        // derive different root keys and nothing ever reconciles them.
+        if *self.ratchet_private.public_key().as_bytes() != self.triple.sending_public() {
+            return false;
+        }
+
+        // (b) The sparse ratchet's epoch and the Braid's stand in the
+        // relation every persistence point has. The Braid negotiates epoch
+        // `e`; the sparse ratchet holds the last epoch whose secret was
+        // folded in. The fold happens at one of two transitions, and both
+        // sides pass through both over the session's life because the roles
+        // swap each epoch: the header-receiving side folds when it samples
+        // `ct1` (Ct1Sampled, tag 7, and the three states after it, tags 8
+        // to 10), and the header-sending side folds when it decapsulates
+        // `ct2` (transition 5), which advances the Braid to `e + 1` in the
+        // same step. So the sparse ratchet is at `e` in tags 7 through 10
+        // and at `e - 1` in tags 0 through 6, and `Session::encrypt` and
+        // `decrypt_ratchet` commit both halves together, so there is no
+        // point between. Confirmed over two hundred epochs of honest traffic
+        // when this clause was written; tests/import_invariants.rs holds
+        // about fifty of them, from both roles, at every message and round
+        // trip. A failed Braid reports no epoch and is exempt: a failure is
+        // terminal and persisted as such. Outside this relation the sparse ratchet refuses the next
+        // agreement output as `EpochOutOfOrder`, on every message, and the
+        // session never recovers -- the external review's 346 failures in
+        // 400 round trips.
+        if !self.braid.failed() {
+            let braid_epoch = self.braid.epoch();
+            let folded = self.triple.epoch();
+            let related = match self.braid.state_tag() {
+                7..=10 => folded == braid_epoch,
+                _ => folded.checked_add(1) == Some(braid_epoch),
+            };
+            if !related {
+                return false;
+            }
+        }
+
+        // (c) The associated data binds the two identities in the orientation
+        // the role fixes: initiator first. Which side this session is on is
+        // read from `established_ephemeral`, which every responder carries
+        // for its whole life (`establish_responder` sets it and nothing
+        // clears it) and no initiator ever has; `pending_initial` would not
+        // do, since an initiator drops it once the peer answers. The Braid
+        // carries the same fact and is compared against it below rather than
+        // read as the source, because a role read from the Braid could not
+        // then be checked against the Braid. Wrong orientation is an AEAD
+        // failure on every message in both directions, since the peer
+        // computes its own from the same rule.
+        let (initiator, responder) = if self.is_responder() {
+            (&self.peer_identity_public, &self.our_identity_public)
+        } else {
+            (&self.our_identity_public, &self.peer_identity_public)
+        };
+        if self.identity_ad != identity_ad(initiator, responder) {
+            return false;
+        }
+
+        // (d) The halves agree on the role. The Braid reports its own
+        // (`is_initiator`: the initiator sends the first epoch's header and
+        // the sides swap each epoch, so the party that started as initiator
+        // is on the header-sending side in every odd epoch; `None` once
+        // failed, which has no role left). A Braid on the wrong side of an
+        // epoch waits for the messages the peer is waiting for, and the
+        // agreement stalls without failing. The sparse ratchet's `Direction`
+        // is the role too, fixed at `init_alice`/`init_bob` and never
+        // changed -- `A2b` is the initiator's, since `init_sender` pairs the
+        // classical sender with it -- and a session on the wrong one sends
+        // on the chain the peer receives on and reads the peer's sends
+        // against the wrong chain key, so nothing decrypts. The classical
+        // ratchet shows its role only until its first Diffie-Hellman step
+        // (both sides then hold both chains), and the Triple Ratchet's own
+        // invariant checks it against the sparse ratchet's while it can, so
+        // it is reached through clause (g) rather than repeated here.
+        if let Some(braid_initiator) = self.braid.is_initiator() {
+            if braid_initiator == self.is_responder() {
+                return false;
+            }
+        }
+        if (self.triple.direction() == Direction::A2b) == self.is_responder() {
+            return false;
+        }
+
+        // (e) An initiator that is still to be answered is not also a
+        // responder. `pending_initial` is the initiator's unanswered initial
+        // message and `established_ephemeral` the responder's record of the
+        // one it answered; a session holding both would prepend a prekey
+        // message to every send while accepting repeats of a different one.
+        if self.pending_initial.is_some() && self.established_ephemeral.is_some() {
+            return false;
+        }
+
+        // (f) The pending initial message's KEM ciphertext has the length the
+        // KEM produces, and the established ephemeral is an `EncodeEC` value:
+        // 33 bytes, the curve byte first. Neither is checked where it is
+        // used. `encode_initial` length-prefixes whatever it is given, so a
+        // ciphertext of the wrong length would go out on every repeat of the
+        // initial message and be refused by the peer's decapsulation each
+        // time; and a repeated initial message is matched against
+        // `established_ephemeral` byte for byte, so a value no initiator can
+        // send makes every repeat look like a different establishment.
+        if let Some(p) = &self.pending_initial {
+            if p.kem_ciphertext.len() != kem::ciphertext_len() {
+                return false;
+            }
+        }
+        if let Some(e) = &self.established_ephemeral {
+            if decode_ec(e).is_none() {
+                return false;
+            }
+        }
+
+        // (g) Each half is one its own constructors build. The Triple
+        // Ratchet's predicate covers both ratchets and their agreement on the
+        // role; the Braid's covers its twelve states and the coders inside
+        // them. Both decoders refuse on their own predicate, so at import
+        // this is a second reading, and after a message it is the only one.
+        self.triple.invariant() && self.braid.invariant()
+    }
+
+    /// Which side of the handshake this session is on, read from the one
+    /// field that says so for a session's whole life. Clause (c) of
+    /// [`invariant`](Session::invariant) says why this field and not
+    /// `pending_initial`.
+    fn is_responder(&self) -> bool {
+        self.established_ephemeral.is_some()
     }
 
     fn import_unchecked(bytes: &[u8]) -> Result<Session, SessionDecodeError> {
@@ -2742,6 +2906,26 @@ mod tests {
             restored.kem_one_time.iter().all(|(id, _, _)| *id != kem_id),
             "a consumed KEM prekey came back on restore"
         );
+    }
+
+    /// The two private deletions preserve the store's invariant, and so does
+    /// the removal shape they use (zeroize, swap-with-last, pop): the
+    /// identifier the moved entry carries is still the one it had.
+    #[test]
+    fn the_one_time_deletions_preserve_the_invariant() {
+        let mut rng = rand_core::OsRng;
+        let id = Identity::generate(&mut rng);
+        let mut store = id.create_prekeys(4, &mut rng);
+        assert!(store.invariant());
+        // Delete from the front, so the swap actually moves something.
+        let curve_id = store.one_time[0].0;
+        let kem_id = store.kem_one_time[0].0;
+        assert!(store.take_one_time(curve_id));
+        assert!(store.invariant());
+        assert!(store.take_one_time_kem(kem_id).is_some());
+        assert!(store.invariant());
+        assert!(!store.take_one_time(curve_id), "already deleted");
+        assert!(store.invariant());
     }
 
     /// A store with no one-time keys at all (the last-resort-only bundle

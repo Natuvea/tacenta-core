@@ -173,6 +173,33 @@ at exactly `MAX_SKIP * EPOCHS_KEPT`, which is the cap. So the two bounds are
 consistent rather than in tension, and the total cap is doing its work against
 one chain rather than against many.
 
+### Addition: reserved counter ceilings
+
+Three of the crates reserve the top value of a counter the published algorithms
+leave unreserved, and the models -- which count in `Nat` -- have no notion of a
+reserved counter value at all. Recorded here for the same reason the store's
+total bound is: it is this implementation's addition, and it is a deliberate
+divergence from the model rather than a discrepancy to be fixed.
+
+- `tacenta-ratchet`'s skipped-key clock stops at `MAX_EVENTS = u32::MAX - 1`:
+  `age_store` clamps the saturating step there rather than reaching `u32::MAX`.
+- `tacenta-spqr`'s `advance` refuses the step to `epoch == u64::MAX` and
+  returns `ChainExhausted`, because at that epoch the retention window would
+  retire every chain including the one just opened.
+- `tacenta-braid`'s `step_receive` refuses the same step in transitions (5)
+  and (13), answering `Failed`.
+
+In each case the reservation makes the crate's own `invariant()` clause
+inductive: `from_bytes` then refuses only states the operations cannot build,
+rather than refusing a state the crate itself could export and never import
+again. The models reserve nothing and keep counting, so the refinement
+theorems are stated one step below the ceiling
+(`tacenta-proofs/CLAIMS.md` and `LIMITATIONS.md` carry the exact
+preconditions). No vector drives a counter anywhere near these values; the
+divergence is established by the crates' own tests
+(`the_clock_stops_one_below_its_ceiling`, `the_epoch_ceiling_is_unreachable`,
+`the_epoch_ceiling_is_out_of_reach`) and by the proofs, not by this directory.
+
 ### Determined elsewhere
 
 The constants naming the protocol in each derivation, the combination constant,

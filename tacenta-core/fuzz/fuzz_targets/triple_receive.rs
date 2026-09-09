@@ -90,9 +90,17 @@ fuzz_target!(|data: &[u8]| {
         if let Ok((next, _key)) = state.receive(&header, &DH_AB, &DH_B2A, NEW_PUB, output.as_ref())
         {
             state.commit(next);
+            assert!(
+                state.invariant(),
+                "a committed triple state violates its invariant"
+            );
         }
         // The send side must stay usable from whatever a refused header left
         // behind; a sequence that wedges it is a denial of service.
         let _ = state.send(state.epoch(), None);
+        assert!(
+            state.invariant(),
+            "a triple state violates its invariant after a send"
+        );
     }
 });

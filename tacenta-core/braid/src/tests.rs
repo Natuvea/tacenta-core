@@ -530,10 +530,127 @@ fn from_bytes_refuses_an_epoch_at_the_ceiling() {
     assert!(Braid::from_bytes(&bytes).is_ok());
 }
 
+/// A persisted epoch of zero is refused as malformed. Both constructors
+/// start at one and nothing counts down, so no run produced it; and the
+/// epoch a caller reads is the negotiated one less one, so a restored
+/// epoch-zero Braid would report an epoch of zero as "known to both
+/// parties" and label the first completed epoch wrongly. Checked for
+/// every state that carries an epoch: `Failed` carries none.
+#[test]
+fn from_bytes_refuses_epoch_zero() {
+    let mut r = rng(32);
+    let mut p = Pair::new(b"a preshared secret from the handshake");
+    let mut samples: Vec<Option<Zeroizing<Vec<u8>>>> = vec![None; 11];
+    let mut i = 0usize;
+    while i < 1500 {
+        let (m, _, _, next) = p.a.send(&mut r);
+        p.a = next;
+        Pair::receive_and_commit(&mut p.b, &m);
+        let (m, _, _, next) = p.b.send(&mut r);
+        p.b = next;
+        if i.is_multiple_of(3) {
+            Pair::receive_and_commit(&mut p.a, &m);
+        }
+        let ta = p.a.state_tag() as usize;
+        if ta < 11 && samples[ta].is_none() {
+            samples[ta] = Some(p.a.to_bytes());
+        }
+        let tb = p.b.state_tag() as usize;
+        if tb < 11 && samples[tb].is_none() {
+            samples[tb] = Some(p.b.to_bytes());
+        }
+        i += 1;
+    }
+    let mut tag = 0;
+    while tag < 11 {
+        let mut bytes = samples[tag]
+            .clone()
+            .unwrap_or_else(|| panic!("the negotiation never reached tag {tag}"))
+            .to_vec();
+        assert!(
+            Braid::from_bytes(&bytes).is_ok(),
+            "tag {tag} sample does not restore"
+        );
+        // Version, tag, then the eight epoch bytes.
+        bytes[2..10].copy_from_slice(&0u64.to_be_bytes());
+        assert!(
+            matches!(Braid::from_bytes(&bytes), Err(BraidDecodeError::Malformed)),
+            "tag {tag} at epoch zero was restored"
+        );
+        tag += 1;
+    }
+    let failed = Braid::from_bytes(&[STATE_VERSION, 11]).unwrap();
+    assert!(failed.failed() && failed.invariant());
+}
+
+/// The `ct1` clause of `invariant` is stated as an exact length; the bound
+/// `BraidT1`'s `State.ct1_bounded` asks for follows from it only while the
+/// exact length is within that bound.
+#[test]
+fn ct1_is_within_the_bound_the_proof_states() {
+    const {
+        assert!(CT1_LEN <= 4096);
+    }
+}
+
+/// `invariant` holds after every send and every committed receive of a
+/// lossy negotiation and survives a round trip through persistence at every
+/// step, on both sides, so what `from_bytes` checks is an inductive
+/// invariant of the transitions and not only a shape of the encoding. The
+/// same schedule as `from_bytes_refuses_a_field_of_the_wrong_length`, so
+/// every live state is visited. `is_initiator` stays what each party was
+/// built as, through every swap of sides.
+#[test]
+fn the_invariant_holds_after_every_step_and_round_trip() {
+    let mut r = rng(33);
+    let mut p = Pair::new(b"a preshared secret from the handshake");
+    let mut seen = [false; 11];
+    let mut i = 0usize;
+    while i < 1500 {
+        let (m, _, _, next) = p.a.send(&mut r);
+        assert!(next.invariant(), "initiator after send {i}");
+        p.a = next;
+        let (_, _, next) = p.b.receive(&m);
+        assert!(next.invariant(), "responder after receive {i}");
+        p.b.commit(next);
+        let (m, _, _, next) = p.b.send(&mut r);
+        assert!(next.invariant(), "responder after send {i}");
+        p.b = next;
+        if i.is_multiple_of(3) {
+            let (_, _, next) = p.a.receive(&m);
+            assert!(next.invariant(), "initiator after receive {i}");
+            p.a.commit(next);
+        }
+        assert_eq!(p.a.is_initiator(), Some(true), "step {i}");
+        assert_eq!(p.b.is_initiator(), Some(false), "step {i}");
+        p.a = Braid::from_bytes(&p.a.to_bytes()).unwrap();
+        p.b = Braid::from_bytes(&p.b.to_bytes()).unwrap();
+        assert!(
+            p.a.invariant() && p.b.invariant(),
+            "after the round trip at {i}"
+        );
+        seen[p.a.state_tag() as usize] = true;
+        seen[p.b.state_tag() as usize] = true;
+        i += 1;
+    }
+    assert!(!p.a.failed() && !p.b.failed());
+    assert!(p.a.epoch() >= 3, "only epoch {} reached", p.a.epoch());
+    assert!(
+        seen.iter().all(|s| *s),
+        "not every live state was visited: {seen:?}"
+    );
+}
+
 /// The two states that increment the epoch fail closed at the ceiling
 /// instead of panicking. The states are built directly, since `from_bytes`
 /// now refuses to construct them: this pins the arithmetic itself, so that
 /// the decoder's refusal is a second line rather than the only one.
+///
+/// The states driven here are ones no run reaches -- transitions (5) and
+/// (13) refuse the step to `u64::MAX` an epoch earlier, which
+/// `the_epoch_ceiling_is_out_of_reach` pins -- and this keeps the
+/// `checked_add` arm itself covered, since the decoder is not the only way a
+/// field could arrive wrong.
 #[test]
 fn a_step_from_an_epoch_at_the_ceiling_fails_rather_than_panics() {
     let mut r = rng(30);
@@ -584,6 +701,167 @@ fn a_step_from_an_epoch_at_the_ceiling_fails_rather_than_panics() {
         cur.failed(),
         "completing an epoch at the ceiling must fail closed"
     );
+}
+
+/// A Braid at `epoch`, built the way an auditor builds one: patch the epoch
+/// field of a real `to_bytes` output and decode it. The epoch is the eight
+/// bytes after the version and the tag in every state's encoding, the same
+/// field `from_bytes_refuses_an_epoch_at_the_ceiling` patches.
+fn at_epoch(b: &Braid, epoch: u64) -> Braid {
+    let mut bytes = b.to_bytes();
+    bytes[2..10].copy_from_slice(&epoch.to_be_bytes());
+    Braid::from_bytes(&bytes).expect("a patched epoch must restore")
+}
+
+/// What is asked of every state a step produces: it holds the invariant, it
+/// holds no epoch the decoder would refuse, and it survives a round trip
+/// through persistence. Returns what came back from the round trip, so the
+/// run continues on the restored state rather than on the one that went in.
+fn checked(b: Braid, what: &str, i: usize) -> Braid {
+    assert!(b.invariant(), "invariant, {what} {i}");
+    assert!(b.epoch() < u64::MAX, "an epoch at the ceiling, {what} {i}");
+    let restored = Braid::from_bytes(&b.to_bytes())
+        .unwrap_or_else(|e| panic!("round trip, {what} {i}: {e:?}"));
+    assert_eq!(restored.state_tag(), b.state_tag(), "{what} {i}");
+    assert!(
+        restored.invariant(),
+        "invariant after the round trip, {what} {i}"
+    );
+    restored
+}
+
+/// Run a pair from `epoch` until the side holding the keypair completes that
+/// epoch, and report the key the completion produced and the state it left.
+/// That side is the one transition (5) belongs to.
+///
+/// Messages stop being delivered to the other side once it is holding `ct2`.
+/// That is a schedule no caller would have, and it is the one this needs:
+/// from `Ct2Sampled` the only step left is transition (13), which at the
+/// ceiling abandons that side before it has sent the `ct2` the completion
+/// under test is waiting for. Sending never fails, so it goes on sending.
+fn complete_the_epoch_at(epoch: u64, seed: u64) -> (Option<Output>, Braid) {
+    let mut r = rng(seed);
+    let mut p = Pair::new(b"a preshared secret from the handshake");
+    p.a = at_epoch(&p.a, epoch);
+    p.b = at_epoch(&p.b, epoch);
+
+    let mut completed = None;
+    let mut i = 0usize;
+    while i < 600 && completed.is_none() && !p.a.failed() {
+        let (m, _, _, next) = p.a.send(&mut r);
+        p.a = next;
+        if p.b.state_name() != "Ct2Sampled" {
+            let (_, _, next) = p.b.receive(&m);
+            p.b.commit(next);
+        }
+        let (m, _, _, next) = p.b.send(&mut r);
+        p.b = next;
+        let (_, out, next) = p.a.receive(&m);
+        p.a.commit(next);
+        if out.is_some() {
+            completed = out;
+        }
+        i += 1;
+    }
+    (completed, p.a)
+}
+
+/// The epoch ceiling is out of reach, so no run of these transitions
+/// produces a state `from_bytes` would refuse: what the machine builds and
+/// what the decoder accepts are the same set of states, and a session this
+/// crate exported can always be imported again. `u64::MAX` is reserved, and
+/// the two transitions that move an epoch refuse the step that would land on
+/// it rather than taking it.
+///
+/// Driven from two below the ceiling. Both sides are moved together, since
+/// the authenticator MACs whatever epoch it is handed and the two have to
+/// agree on it; two below is odd, as epoch one is, so the roles line up with
+/// the parity as well. What follows is an ordinary strictly alternating
+/// negotiation: `u64::MAX - 2` completes like any other epoch, the roles
+/// swap into `u64::MAX - 1` like any other, and the step out of that one is
+/// refused -- transition (13) here, and transition (5) below, which needs a
+/// schedule of its own to be reached at all. Every state along the way is
+/// held to the invariant and to a round trip through persistence.
+#[test]
+fn the_epoch_ceiling_is_out_of_reach() {
+    let mut r = rng(34);
+    let mut p = Pair::new(b"a preshared secret from the handshake");
+    p.a = at_epoch(&p.a, u64::MAX - 2);
+    p.b = at_epoch(&p.b, u64::MAX - 2);
+    assert_eq!(p.a.epoch(), u64::MAX - 2);
+    assert_eq!(p.b.epoch(), u64::MAX - 2);
+
+    let mut top_reached = false;
+    let mut failed_from = "";
+    let mut i = 0usize;
+    while i < 700 && !p.a.failed() && !p.b.failed() {
+        let (m, _, out, next) = p.a.send(&mut r);
+        p.a = checked(next, "initiator after send", i);
+        if let Some(o) = out {
+            p.a_out.push(o);
+        }
+        let (_, out, next) = p.b.receive(&m);
+        p.b.commit(checked(next, "responder after receive", i));
+        if let Some(o) = out {
+            p.b_out.push(o);
+        }
+
+        let (m, _, out, next) = p.b.send(&mut r);
+        p.b = checked(next, "responder after send", i);
+        if let Some(o) = out {
+            p.b_out.push(o);
+        }
+        let before = p.a.state_name();
+        let (_, out, next) = p.a.receive(&m);
+        p.a.commit(checked(next, "initiator after receive", i));
+        if let Some(o) = out {
+            p.a_out.push(o);
+        }
+        if p.a.failed() {
+            failed_from = before;
+        }
+
+        top_reached |= p.a.epoch() == u64::MAX - 1;
+        i += 1;
+    }
+
+    // The epoch two below the ceiling completed like any other, on both
+    // sides and under the same label.
+    assert!(!p.a_out.is_empty() && !p.b_out.is_empty());
+    assert_eq!(p.a_out[0].key_epoch, u64::MAX - 2);
+    assert_eq!(p.b_out[0].key_epoch, u64::MAX - 2);
+    assert_eq!(p.a_out[0].key, p.b_out[0].key);
+    // The epoch below the reserved one is negotiated in like any other, so
+    // what is reserved is the ceiling and not the epoch under it.
+    assert!(top_reached, "u64::MAX - 1 was never reached");
+    // And the run comes to rest abandoned rather than on the ceiling:
+    // transition (13) refused the swap that would have opened `u64::MAX`.
+    // `checked` has refused an epoch of `u64::MAX` after every step above.
+    assert!(!p.b.failed());
+    assert!(p.a.failed(), "the initiator never ran out of epochs");
+    assert_eq!(failed_from, "Ct2Sampled");
+    assert!(Braid::from_bytes(&p.a.to_bytes()).is_ok());
+
+    // Transition (5) is the other refusal. It only happens on a completed
+    // epoch, so it takes a schedule of its own. Two epochs below the last
+    // usable one, and so of the same parity and the same roles, the
+    // completion happens as it always has: a key for that epoch, and the
+    // next one open.
+    let (out, a) = complete_the_epoch_at(u64::MAX - 3, 35);
+    let out = out.expect("an ordinary epoch must complete");
+    assert_eq!(out.key_epoch, u64::MAX - 3);
+    assert_eq!(a.epoch(), u64::MAX - 2);
+    assert!(a.invariant());
+
+    // At the last usable epoch the identical drive is refused. This is the
+    // step that was taken before: a key for `u64::MAX - 1` and a live state
+    // at `u64::MAX`, which `to_bytes` writes and `from_bytes` then refuses
+    // for good.
+    let (out, a) = complete_the_epoch_at(u64::MAX - 1, 35);
+    assert!(out.is_none(), "a key for an epoch the session cannot leave");
+    assert!(a.failed(), "completing the last usable epoch must abandon");
+    assert!(a.invariant());
+    assert!(Braid::from_bytes(&a.to_bytes()).is_ok());
 }
 
 /// Every restored variable-length field and every restored coder is held to

@@ -867,12 +867,32 @@ theorem clear_old_epochs_refines (hret : VecRetainAgrees)
 /-- A translated agreement output as the model's. -/
 def outputOf (o : Output) : Model.SparseRatchet.Output := ⟨o.key_epoch.val, keyOf o.key⟩
 
+/-- `State.advance` refines `Model.SparseRatchet.advance`.
+
+**`hepoch` is one step tighter than the type's own ceiling, and the step it
+gives up is the reserved epoch.** The source refuses to reach `u64::MAX`: a
+state installed at that epoch would have every one of its entries, the one
+just installed included, retired by `clear_old_epochs`'s own
+`epoch < p.0.saturating_add(EPOCHS_KEPT)` window, leaving `chains == []`,
+which the crate's `invariant` rejects and its decoder therefore refuses
+forever. So `advance` returns `ChainExhausted` there instead. The model has
+no such reservation -- it counts epochs in `Nat`, where nothing is reserved --
+so at `epoch = u64::MAX - 1` the model advances where the code refuses, and
+the correspondence below is simply false at that one epoch. `hepoch` names
+it: `s.epoch.val + 1 < Std.U64.max` is exactly "the next epoch is not the
+reserved one, nor past it".
+
+The weaker `s.epoch.val < Std.U64.max` this carried before excluded only the
+`checked_add` overflow, which is now the second of the two refusals rather
+than the only one. `u64::MAX - 1` remains a fully usable epoch for every
+other operation; it is only *this* theorem's one-step lookahead that the
+reservation costs. -/
 theorem advance_refines (hkr : SpqrHkdfAgrees) (hz96 : ZeroizingRoundTrips96)
     (hret : VecRetainAgrees)
     (hz : Tacenta.SpqrT1.ZeroizeTotal)
     {s : State} {m : Model.SparseRatchet.State} (hrel : StateRefines s m)
     (out : Output)
-    (hepoch : s.epoch.val < Std.U64.max)
+    (hepoch : s.epoch.val + 1 < Std.U64.max)
     (hroom : s.chains.val.length + 1 < Usize.max)
     (hcb : ∀ p ∈ s.chains.val, p.1.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
     (hsb : ∀ sk ∈ s.skipped.val, sk.epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
@@ -882,13 +902,15 @@ theorem advance_refines (hkr : SpqrHkdfAgrees) (hz96 : ZeroizingRoundTrips96)
       | none => r.1 = core.result.Result.Err SpqrError.EpochOutOfOrder ∧ r.2 = s
       | some m' => r.1 = core.result.Result.Ok () ∧ StateRefines r.2 m' ⦄ := by
   unfold State.advance
-  -- **The epoch increment is a `checked_add`, so the code has three
-  -- branches.** The exhaustion branch cannot arise here: `hepoch` is exactly
-  -- the hypothesis that excludes it. So exhaustion is
-  -- *refuted* rather than refined, which is the honest shape -- the model
-  -- counts in unbounded naturals and has no saturated counter to refine
-  -- against. Binding the successor as `i` keeps the two branches below
-  -- untouched.
+  -- **The epoch increment is a `checked_add` followed by the reserved-value
+  -- check, so the code has four branches.** Neither refusal can arise here:
+  -- `hepoch` is exactly the hypothesis that excludes both, the overflow one
+  -- because `s.epoch.val + 1 < Std.U64.max` bounds `s.epoch` below the top,
+  -- and the reservation because it bounds the successor below it too. So
+  -- both exhaustion arms are *refuted* rather than refined, which is the
+  -- honest shape -- the model counts in unbounded naturals and has neither a
+  -- saturated counter nor a reserved epoch to refine against. Binding the
+  -- successor as `i` keeps the two branches below untouched.
   rcases hadd : s.epoch.checked_add 1#u64 with _ | i
   · exfalso
     have hspec := U64.checked_add_bv_spec s.epoch 1#u64
@@ -903,6 +925,15 @@ theorem advance_refines (hkr : SpqrHkdfAgrees) (hz96 : ZeroizingRoundTrips96)
     -- only the middle conjunct is the equation the branches below use.
     exact hspec.2.1
   step*
+  · -- The real code took the reserved-epoch branch: the successor is
+    -- `u64::MAX`, which `advance` refuses rather than installs. `hepoch`
+    -- puts the successor strictly below that value, so this branch is
+    -- unreachable under the theorem's own premise.
+    exfalso
+    rename_i hmax
+    have hmaxval : i.val = Std.U64.max := by
+      rw [hmax, Std.U64.max_eq]; rfl
+    omega
   · -- The real code took the mismatch branch: both sides reject.
     rename_i hmis
     have hi : i.val = s.epoch.val + 1 := i_post
@@ -1020,7 +1051,7 @@ theorem maybe_advance_refines (hkr : SpqrHkdfAgrees) (hz96 : ZeroizingRoundTrips
     (hz : Tacenta.SpqrT1.ZeroizeTotal)
     {s : State} {m : Model.SparseRatchet.State} (hrel : StateRefines s m)
     (out : Option Output)
-    (hepoch : s.epoch.val < Std.U64.max)
+    (hepoch : s.epoch.val + 1 < Std.U64.max)
     (hroom : s.chains.val.length + 1 < Usize.max)
     (hcb : ∀ p ∈ s.chains.val, p.1.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
     (hsb : ∀ sk ∈ s.skipped.val, sk.epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
@@ -1052,7 +1083,7 @@ theorem send_refines (hkr : SpqrHkdfAgrees)
     (hz : Tacenta.SpqrT1.ZeroizeTotal) (hopt : Tacenta.SpqrT1.OptionCloneTotal)
     {s : State} {m : Model.SparseRatchet.State} (hrel : StateRefines s m)
     (sending_epoch : Std.U64) (out : Option Output)
-    (hepoch : s.epoch.val < Std.U64.max)
+    (hepoch : s.epoch.val + 1 < Std.U64.max)
     (hroom : s.chains.val.length + 1 < Usize.max)
     (hcb : ∀ p ∈ s.chains.val, p.1.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
     (hsb : ∀ sk ∈ s.skipped.val, sk.epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
@@ -1851,7 +1882,7 @@ theorem receive_refines (hkr : SpqrHkdfAgrees)
     (hopt : Tacenta.SpqrT1.OptionCloneTotal)
     {s : State} {m : Model.SparseRatchet.State} (hrel : StateRefines s m)
     (receiving_epoch : Std.U64) (out : Option Output) (n : Std.U64)
-    (hepoch : s.epoch.val < Std.U64.max)
+    (hepoch : s.epoch.val + 1 < Std.U64.max)
     (hroom : s.chains.val.length + 2 < Usize.max)
     (hcb : ∀ p ∈ s.chains.val, p.1.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
     (hsb : ∀ sk ∈ s.skipped.val, sk.epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
@@ -1976,6 +2007,32 @@ proofs walk. This file keeps both, for the model's reason rather than the
 code's -- `Model.SparseRatchet` counts in `Nat`, so at the ceiling the real
 code's `ChainExhausted` has nothing to refine against, exactly as
 `BraidT3.lean` keeps its `hepoch` where `BraidT1.lean` dropped it. See
-`LIMITATIONS.md`. -/
+`LIMITATIONS.md`.
+
+**`hepoch` is now `epoch + 1 < u64::MAX`, one step tighter than the
+`epoch < u64::MAX` this file carried before.** `advance` gained a second
+refusal beside the `checked_add`: it declines the step that would reach
+`u64::MAX`, because `clear_old_epochs` retains on
+`epoch < p.0.saturating_add(EPOCHS_KEPT)` and at `u64::MAX` that window
+retires every entry including the one just installed, leaving a state whose
+own `invariant` is false and whose own decoder would refuse it forever. The
+model reserves nothing, so it advances at `epoch = u64::MAX - 1` where the
+code now returns `ChainExhausted`, and the correspondence is false at that
+one epoch -- not weakened by naming it, but false without. The tightened
+bound is the smallest hypothesis that names exactly it, and it is stated on
+`advance_refines` and carried unchanged through `maybe_advance_refines`,
+`send_refines` and `receive_refines`; no second hypothesis was added.
+
+`u64::MAX - 1` remains a fully usable epoch: a state there sends, receives
+and re-exports, and only the *next* `advance` refuses. So the cost of the
+reservation to these theorems is one step of lookahead, not a state they can
+no longer speak about.
+
+One consequence outside this file: `ImportInv.lean`'s `inv_gives_epoch_room`
+derives `epoch < u64::MAX` from the crate's `invariant`, which was `hepoch`
+before and is now strictly weaker than it. The invariant does not exclude
+`epoch = u64::MAX - 1` -- such a state passes it -- so `hepoch` joins `hcb`,
+`hsb`, `hnewb` and `hcounter` as a premise the decoded-state chain does not
+discharge. -/
 
 end Tacenta.SpqrT3

@@ -3,6 +3,7 @@ import Translation
 import Translation.SpqrT3
 import Translation.BraidT3
 import Translation.Satisfiability
+import Translation.ImportInv
 import Translation.ErasureWitness
 import Translation.KemWitness
 
