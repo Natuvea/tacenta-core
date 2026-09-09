@@ -74,8 +74,9 @@
 # `run_cmd` in an audit module, a `run_cmd` in any other file, or an audit
 # module invoking something other than `Model.AxiomAudit.run` fails. The
 # allow-list entries must also all be present, so an audit invocation that
-# is deleted fails here as well; `check-audit-reach.sh` checks that the
-# four modules carrying them reach every first-party module.
+# is deleted fails here as well; `check-audit-reach.sh` checks that the five
+# modules carrying them reach every first-party module, and that all five
+# name the same first-party prefixes.
 #
 # Earlier versions of this script required the keyword at the start of a line,
 # after at most a run of attributes and modifiers, and so missed `set_option
@@ -189,18 +190,22 @@ ELAB_RULES = [
 # (`\x60` is a backtick, Lean's name-literal quote: this program sits inside
 # a `$(...)` substitution, and the shell would pair backticks in it.)
 BT = "\x60"
-AUDIT_CALL = "run_cmd Model.AxiomAudit.run #[" + BT + "Model, " + BT + "{}]"
+# One line, the same at all five sites. The prefixes name every first-party
+# namespace whether or not the invoking module's environment holds any of
+# them, because the audit's waiver for an unmentioned compiler-trust axiom
+# asks whether any first-party declaration mentions it, and a narrower list at
+# one site would make a real use invisible there.
+# `check-audit-reach.sh` checks the same thing from the other side.
+AUDIT_CALL = ("run_cmd Model.AxiomAudit.run #[" + BT + "Model, " + BT
+              + "Properties, " + BT + "Proofs, " + BT + "Translation]")
 ALLOW = {
-    "tacenta-model/Properties/AxiomAudit.lean": [AUDIT_CALL.format("Properties")],
-    "tacenta-proofs/Proofs/AxiomAudit.lean": [AUDIT_CALL.format("Proofs")],
-    "tacenta-proofs/translation/Translation/AxiomAudit.lean":
-        [AUDIT_CALL.format("Translation")],
-    "tacenta-proofs/translation/Translation/AxiomAuditTriple.lean":
-        [AUDIT_CALL.format("Translation")],
+    "tacenta-model/Properties/AxiomAudit.lean": [AUDIT_CALL],
+    "tacenta-proofs/Proofs/AxiomAudit.lean": [AUDIT_CALL],
+    "tacenta-proofs/translation/Translation/AxiomAudit.lean": [AUDIT_CALL],
+    "tacenta-proofs/translation/Translation/AxiomAuditTriple.lean": [AUDIT_CALL],
     # The three-leaf translation unit, which can share an environment with
     # neither the rest of the translation nor the Triple's own.
-    "tacenta-proofs/translation/Translation/AxiomAuditTripleUnit.lean":
-        [AUDIT_CALL.format("Translation")],
+    "tacenta-proofs/translation/Translation/AxiomAuditTripleUnit.lean": [AUDIT_CALL],
     "tacenta-model/Model/AxiomAudit.lean": [
         "import Lean",
         "open Lean",

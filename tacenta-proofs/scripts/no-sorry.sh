@@ -96,6 +96,14 @@ bash scripts/check-lean-constructs.sh || fail=1
 # reached) is outside the five audit modules' import closure.
 bash scripts/check-audit-reach.sh || fail=1
 
+# Both of the checks above ask what the audit found. This one asks whether the
+# audit finds anything: it plants declarations the rule says to refuse, and the
+# one shape the rule says to allow, in a throwaway first-party module and
+# compares the outcome with the rule. It is the only check that would notice
+# the audit going quiet, which matters most for the waiver `compilerTrust`
+# grants an unmentioned compiler-trust axiom.
+bash scripts/check-audit-negatives.sh || fail=1
+
 # Replay every first-party module through the kernel from its olean.
 #
 # `lake build` checks a declaration with the kernel when it adds it, unless

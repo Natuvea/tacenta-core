@@ -160,7 +160,8 @@ translate triple tacenta-triple tacenta_triple.llbc TacentaTriple
 # than the bare axioms the translation above is forced to invent. This is what
 # a panic-freedom proof for the shipping composition has to be about;
 # `scripts/assemble-triple-unit.sh` says what the unit is and is not, and
-# LIMITATIONS.md records the crate boundary as the gap it leaves.
+# LIMITATIONS.md records the crate boundary as the gap it leaves, under "The
+# three-leaf translation unit is an eighth zone, and it ships to nobody".
 #
 # Its axiom set must be exactly the union of the three leaves': the leaves'
 # opaque externals are the trusted primitive boundary, and the unit crosses no

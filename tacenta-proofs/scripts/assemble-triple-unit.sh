@@ -38,14 +38,16 @@
 # The byte-identity is attestable rather than asserted. Two of the three files
 # are not copied at all -- they are the leaf files, loaded with `#[path]` --
 # and the third is a copy that differs from its leaf by a generated header and
-# one inserted `use` and by nothing else, which this script verifies by
-# deleting exactly those lines again and diffing against the leaf.
-# `attest.py --check` holds the committed unit to the hashes of this script and
-# of all three leaf trees.
+# one inserted `use` and by nothing else. This script verifies that by reading
+# the copy back: it finds the inserted block by its text, requires exactly one
+# of it, deletes it, and diffs the remainder against the leaf; then it checks
+# separately that no top-level inner attribute follows the inserted `use`,
+# which byte identity alone would not catch. `attest.py --check` holds the
+# committed unit to the hashes of this script and of all three leaf trees.
 #
 # A sceptical reader may still count "same text, different crate graph" as a
-# gap between what is proved and what ships. That is a fair reading and
-# `LIMITATIONS.md` records it as one.
+# gap between what is proved and what ships. That is a fair reading, and
+# `LIMITATIONS.md` records it under "The three-leaf translation unit".
 #
 # ## What the assembly does beyond `include!`
 #
@@ -268,8 +270,8 @@ inject_block() {
 // Inserted by tacenta-proofs/scripts/assemble-triple-unit.sh. These lines are
 // the *entire* difference between this file and
 // tacenta-core/triple/src/lib.rs; everything above and below is that file byte
-// for byte, and the script verifies it by deleting these lines again and
-// diffing.
+// for byte, and the script verifies it by finding these lines again, deleting
+// them, and diffing against the leaf.
 //
 // In the shipping crate graph `tacenta_ratchet` and `tacenta_spqr` are
 // dependencies, and their names come from the extern prelude. Here they are
@@ -290,30 +292,81 @@ inject_lines=$(inject_block | wc -l | tr -d ' ')
   sed -n "$((header_end + 1)),\$p" "$leaf"
 } > "$copy"
 
-# The byte-identity claim, checked rather than asserted: delete the generated
-# header and the inserted block by line number, and what is left must be the
-# leaf exactly. A `sed` that silently matched the wrong range, or a leaf whose
-# header shape this script misread, fails here rather than in Charon.
+# Two checks on the copy, both read back from the file rather than recomputed
+# from the variables that wrote it.
+#
+# The first is the byte-identity claim: find the generated header and the
+# inserted block *by their text*, delete them, and what is left must be the
+# leaf exactly. Locating them by content is the point. Stripping the same line
+# ranges the write used would reconstruct the leaf whatever those ranges were,
+# so it would check the arithmetic against itself and pass on any `header_end`;
+# an earlier version of this script did exactly that and called it a check.
 note_lines=$(generated_note "//" | wc -l | tr -d ' ')
-# The copy is: <note_lines> of header, one blank line, the leaf's first
-# `header_end` lines, `inject_lines` inserted lines, then the rest of the leaf.
-leaf_head_start=$((note_lines + 2))
-leaf_head_end=$((note_lines + 1 + header_end))
-leaf_tail_start=$((leaf_head_end + inject_lines + 1))
 stripped=$(mktemp)
-{
-  sed -n "${leaf_head_start},${leaf_head_end}p" "$copy"
-  sed -n "${leaf_tail_start},\$p" "$copy"
-} > "$stripped"
+inject_file=$(mktemp)
+inject_block > "$inject_file"
+trap 'rm -f "$stripped" "$inject_file"' EXIT
+
+if ! python3 - "$copy" "$leaf" "$inject_file" "$note_lines" "$stripped" <<'PYEOF'; then
+import sys
+copy, leaf, inject_file, note_lines, out = sys.argv[1:]
+note_lines = int(note_lines)
+copy_lines = open(copy).read().splitlines(keepends=True)
+leaf_lines = open(leaf).read().splitlines(keepends=True)
+inject = open(inject_file).read().splitlines(keepends=True)
+
+# The inserted block, wherever it is, and there must be exactly one of it.
+hits = [i for i in range(len(copy_lines) - len(inject) + 1)
+        if copy_lines[i:i + len(inject)] == inject]
+if len(hits) != 1:
+    sys.stderr.write(
+        f"assemble-triple-unit: ERROR: the inserted block occurs {len(hits)} "
+        f"times in {copy}; expected exactly one.\n")
+    sys.exit(1)
+at = hits[0]
+
+# The generated header is the first `note_lines` lines plus the blank after it.
+rest = copy_lines[note_lines + 1:]
+at -= note_lines + 1
+open(out, "w").writelines(rest[:at] + rest[at + len(inject):])
+sys.exit(0)
+PYEOF
+  exit 1
+fi
+
 if ! diff -q "$stripped" "$leaf" > /dev/null; then
   echo "assemble-triple-unit: ERROR: the copy is not the leaf plus the inserted" >&2
   echo "  block. Removing the generated header and the inserted lines from" >&2
   echo "  $copy did not reproduce $leaf:" >&2
   diff "$stripped" "$leaf" | head -20 >&2
-  rm -f "$stripped"
   exit 1
 fi
-rm -f "$stripped"
+
+# The second check is where the block landed, which byte identity says nothing
+# about: the same lines inserted inside the leaf's `//!` block reproduce the
+# leaf just as exactly, and give a file rustc refuses with E0753. An inner
+# attribute and an inner doc comment may only precede the items of their
+# module, so nothing at the file's top level may carry one after the inserted
+# `use`. Indented ones are left alone: those belong to an inline nested module,
+# where they are legal and none of this script's business.
+use_line=$(grep -n '^use crate::{tacenta_ratchet, tacenta_spqr};$' "$copy" | cut -d: -f1)
+if [ "$(echo "$use_line" | wc -l | tr -d ' ')" != 1 ] || [ -z "$use_line" ]; then
+  echo "assemble-triple-unit: ERROR: expected exactly one inserted \`use\` line in" >&2
+  echo "  $copy; found $(echo "$use_line" | wc -w | tr -d ' ')." >&2
+  exit 1
+fi
+late=$(tail -n "+$((use_line + 1))" "$copy" | grep -nE '^(#!\[|//!)' | head -3 \
+       | awk -F: -v base="$use_line" '{ n = $1 + base; sub(/^[0-9]+:/, ""); print n ": " $0 }' || true)
+if [ -n "$late" ]; then
+  echo "assemble-triple-unit: ERROR: the inserted \`use\` landed before a top-level" >&2
+  echo "  inner attribute in $copy, which rustc refuses (E0753). The leaf's" >&2
+  echo "  header run was read as ending at line $header_end; it ends later." >&2
+  echo "$late" | sed 's/^/    line /' >&2
+  exit 1
+fi
+
+rm -f "$stripped" "$inject_file"
+trap - EXIT
 
 # ---------------------------------------------------------------------------
 # src/tacenta_triple/tests.rs
@@ -326,9 +379,13 @@ rm -f "$stripped"
 # `lib.rs` removes the whole module under `cfg(test)`, and `test = false` keeps
 # `cargo test` away. But `rustfmt` resolves `mod` declarations without reading
 # `cfg`, so `cargo fmt` walks into it and fails on a file that is not there.
-# The other two leaves need no stand-in: their `lib.rs` is a mod-rs file
-# wherever it is read from, so their `mod tests;` resolves beside the leaf, to
-# the leaf's own tests.
+# The other two leaves need no stand-in, for different reasons. The Double
+# Ratchet's tests are an inline `mod tests { ... }`, so there is no file to
+# resolve. The sparse ratchet's are a `mod tests;` beside its `lib.rs`, and
+# `#[path]` sets a module's directory to that of the file it names, so the
+# declaration resolves to `spqr/src/tests.rs` -- the leaf's own tests -- exactly
+# as it does in the leaf crate. Only the Triple is copied rather than pointed
+# at, and only a copy leaves a `mod tests;` with nothing beside it.
 #
 # The stand-in is empty on purpose. Copying the leaf's tests in would be
 # copying source that is not translated, into a crate that cannot run it.

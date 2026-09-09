@@ -181,8 +181,10 @@ where
 generate, held to their shape: named `<decl>._native.<tactic>.ax_<n>`,
 hanging off a theorem or definition declared in the same module, stating
 that a compiled Boolean evaluation returned `true`, and applied by that
-declaration's own value (see `mentionsVia`) unless nothing first-party
-applies it at all (see `compilerNamesApplied`). They are the one axiom shape a
+declaration's own value (see `mentionsVia`) unless no first-party declaration
+mentions it at all, in a value or in a statement (see `compilerNamesApplied`).
+`check-audit-negatives.sh` plants each of these conditions and checks that the
+rule refuses what it says it refuses. They are the one axiom shape a
 hand-written module may declare, because `#print axioms` reports them and
 the pins hold them. The shape is what the tactic produces, and what
 elaboration-time code could produce too; see the module docstring for what
@@ -266,30 +268,48 @@ def compilerNamed (n : Name) : Bool :=
   n.components.any fun c => c.toString == "_unsafe_rec" || c.toString == "_native"
 
 /-- Every constant named into the compiler's namespace (`compilerNamed`) that
-some first-party declaration's value applies.
+some first-party declaration mentions, in its value or in its statement.
 
 Why the audit needs it: `decide +native` names the axiom it adds after the
 declaration being elaborated, but the proof term it builds may not use that
 axiom. Lean caches these by statement, so when two declarations in one module
 discharge the *same* obligation, the second reuses the first's axiom and the
-axiom named after the second is left declared and applied by nothing. That is
-not hypothetical here: the three-leaf translation unit
-(`Translation.TacentaTripleUnit`) puts the Double Ratchet's and the sparse
-ratchet's error enums in one module, they share three variant names, and
-Aeneas's `toStr` takes a length bound `by decide +native` for each -- so ten
-such orphans exist there, and none exists in any module that holds one crate.
+axiom named after the second is left declared and mentioned by nothing. That
+is not hypothetical here: the three-leaf translation unit
+(`Translation.TacentaTripleUnit`) puts all three leaves' types in one module,
+and seven string literals occur in more than one leaf's `Debug` body --
+`ChainExhausted`, `SkippedStoreFull`, `TooManySkipped`, `Malformed`,
+`TooShort`, `UnknownVersion` and `Header`. Aeneas's `toStr` takes a length
+bound `by decide +native` for each occurrence, and every occurrence after the
+first reuses the cached proof, so ten such orphans exist there. None exists in
+any module that holds one crate, where each literal occurs once.
 
 An orphan is inert: no declaration reaches it, so it is in no theorem's
 `#print axioms` and can widen no trust base. The rule below therefore waives
 the "its parent applies it" requirement exactly for an axiom nothing
-first-party applies, and keeps it for every axiom that is actually used.
+first-party mentions, and keeps it for every axiom that is actually used.
 Waiving it for an unused axiom costs nothing: to become load-bearing it must
-be applied, and then this set contains it and the requirement is back.
+be mentioned, and then this set contains it and the requirement is back.
+
+Statements are walked as well as values, and the difference is not cosmetic.
+`#print axioms` traverses both, so a declaration whose *type* names an axiom
+depends on it even if its proof term does not. Reading values alone would call
+such an axiom unmentioned and waive it while a theorem genuinely rests on it,
+which is exactly the inertness this waiver claims. Walking both closes that
+gap; it waives none of the orphans this rule exists for, because no first-party
+statement here names a compiler-trust axiom.
 
 First-party is the right scope and not a shortcut: a third-party module cannot
 mention a first-party axiom, since the dependency runs the other way, so a use
 that could ever reach one of our theorems is a use by a first-party
 declaration and is seen here.
+
+The set is built from the environment the audit runs in, so it sees a use only
+if the using module is in that environment. Every audit is therefore given the
+same `prefixes`, covering all four first-party namespaces, so that a declaring
+module and a using module are never split across audits in a way that lets each
+call the axiom someone else's problem. `check-audit-reach.sh` holds the other
+half of that: every first-party module is in some audit's environment.
 
 The same waiver is deliberately *not* extended to `<f>._unsafe_rec` (see
 `compilerAuxiliary`). An unused axiom is inert; an unused `_unsafe_rec` is
@@ -300,6 +320,8 @@ def compilerNamesApplied (env : Environment) (prefixes : Array Name) : NameSet :
     let mut out : NameSet := {}
     for (n, c) in env.constants.toList do
       if !isFirstParty prefixes (moduleOf env n) then continue
+      for u in c.type.getUsedConstants do
+        if compilerNamed u then out := out.insert u
       if let some v := c.value? (allowOpaque := true) then
         for u in v.getUsedConstants do
           if compilerNamed u then out := out.insert u

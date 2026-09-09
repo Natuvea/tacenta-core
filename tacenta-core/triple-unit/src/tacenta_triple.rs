@@ -53,8 +53,8 @@
 // Inserted by tacenta-proofs/scripts/assemble-triple-unit.sh. These lines are
 // the *entire* difference between this file and
 // tacenta-core/triple/src/lib.rs; everything above and below is that file byte
-// for byte, and the script verifies it by deleting these lines again and
-// diffing.
+// for byte, and the script verifies it by finding these lines again, deleting
+// them, and diffing against the leaf.
 //
 // In the shipping crate graph `tacenta_ratchet` and `tacenta_spqr` are
 // dependencies, and their names come from the extern prelude. Here they are

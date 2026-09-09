@@ -14,4 +14,4 @@ witnesses, is imported here for the same reason, so that its declarations
 are walked too.
 -/
 
-run_cmd Model.AxiomAudit.run #[`Model, `Translation]
+run_cmd Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]
