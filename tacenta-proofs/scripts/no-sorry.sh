@@ -19,9 +19,9 @@ cd "$(dirname "$0")/.."
 
 fail=0
 
-# check <lake package dir> <regex matching our source paths> <label>
+# check <lake package dir> <regex matching our source paths> <label> [<keep log at>]
 check() {
-  local dir="$1" ours="$2" label="$3"
+  local dir="$1" ours="$2" label="$3" keep="${4:-}"
   echo "no-sorry: building $label"
   local log
   log="$(mktemp)"
@@ -38,14 +38,35 @@ check() {
   else
     echo "no-sorry: $label is complete"
   fi
-  rm -f "$log"
+  if [ -n "$keep" ]; then
+    mv "$log" "$keep"
+  else
+    rm -f "$log"
+  fi
 }
 
-check translation '(^|[^/[:alnum:]])Translation/' "the translation and its T1/T3 proofs"
+translation_log="$(mktemp)"
+check translation '(^|[^/[:alnum:]])Translation/' "the translation and its T1/T3 proofs" "$translation_log"
 # A module outside the build target is a proof nothing is holding: the log
 # scan above can only see what `lake build` elaborated. Assert every
 # Translation/*.lean produced a current olean.
 bash scripts/check-translation-coverage.sh || fail=1
+# The generated files' axiom sets, as the environment has them. The axiom
+# audit that ran inside the build above walked the elaborated environment and
+# printed every axiom it found in a generated `Translation.Tacenta*` module as
+# an `audit-axiom:` line (Lake replays the lines from its log for an
+# up-to-date module, so a cached build carries them too). `attest.py --check`
+# holds the same files to the recorded manifest by reading their *text*; this
+# compares the manifest with what the text elaborated to, so an axiom the
+# text scan cannot recognise (one a macro produced, or a command added) and
+# a recorded axiom the environment no longer holds both fail here.
+if grep -q "audit-axiom:" "$translation_log"; then
+  python3 scripts/attest.py --compare-audit "$translation_log" || fail=1
+else
+  echo "::error::the translation build log carries no audit-axiom lines; the axiom audit did not run" >&2
+  fail=1
+fi
+rm -f "$translation_log"
 check .           '(^|[^/[:alnum:]])(Proofs|Model)/' "the model-layer proofs"
 # The model package on its own terms, so that `Properties/` is built and
 # scanned. Nothing in `Proofs/` imports the forward-secrecy, post-compromise,

@@ -9,7 +9,10 @@ Every `Vec` operation Aeneas does not model reaches the translation as an
 axiom, as do the `zeroize` wrapper's constructor and projection, and the
 T1/T3 files assume what they need about them as a named `Prop`
 (`VecAppendTotal`, `VecRemoveAgrees`, `ZeroizingRoundTrips96`,
-`ZeroizingArrayRoundTrip`, ...), or as a class (`T1.DerivedKeysModel`). A
+`ZeroizingArrayRoundTrip`, `T3.ZeroizingRoundTrips80`, ...), or as a class
+(`T1.DerivedKeysModel`). The Triple Ratchet's copies of the `zeroize`
+hypotheses have their witnesses in `Translation/SatisfiabilityTriple.lean`,
+since `TacentaTriple` cannot be imported alongside `TacentaRatchet`. A
 hypothesis of that kind carries
 a risk the rest of the proof cannot see: if it is **refutable** -- if no
 function at all could satisfy it -- then every theorem taking it is provable
@@ -486,6 +489,49 @@ theorem derived_keys_model_satisfiable :
     fun _ _ => by simp [ratchetZeroizingDerefMutWitness]⟩
 
 end DerivedKeys
+
+/-! ## The classical ratchet's `zeroize` round trips, `T3.ZeroizingRoundTrips` and `ZeroizingRoundTrips80`
+
+`T3.lean`'s two round-trip hypotheses, at the sixty-four-byte root-key width
+and the eighty-byte `message_keys` width, carry a second conjunct the sparse
+ratchet's do not: the projection is total on *every* wrapper, not only on one
+the constructor built, which is what lets each subsume `T1.ZeroizingTotal`
+(`ZeroizingRoundTrips.total`). So the shape is the round trip together with
+that totality, at the ratchet's own copies of the constructor and projection
+(`SpqrT1.lean`'s counting rule again), with the width left free so one witness
+covers both. The transparent wrapper satisfies both conjuncts. -/
+
+section RatchetZeroize
+
+/-- The shape of `T3.ZeroizingRoundTrips` and `T3.ZeroizingRoundTrips80`, at
+a width `N`. -/
+def ZeroizingRoundTripsTotal (N : Usize) {W : Type → Type}
+    (new : RatchetZeroizingNewFn W) (deref : RatchetZeroizingDerefFn W) : Prop :=
+  ∀ inst : tacenta_ratchet.zeroize.Zeroize (Array Std.U8 N),
+    (∀ z, ∃ w, new inst z = ok w ∧ deref inst w = ok z) ∧
+    (∀ w, ∃ z, deref inst w = ok z)
+
+theorem T3_ZeroizingRoundTrips_is :
+    Tacenta.T3.ZeroizingRoundTrips ↔
+      ZeroizingRoundTripsTotal 64#usize (W := tacenta_ratchet.zeroize.Zeroizing)
+        @tacenta_ratchet.zeroize.Zeroizing.new
+        @tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref :=
+  Iff.rfl
+
+theorem T3_ZeroizingRoundTrips80_is :
+    Tacenta.T3.ZeroizingRoundTrips80 ↔
+      ZeroizingRoundTripsTotal 80#usize (W := tacenta_ratchet.zeroize.Zeroizing)
+        @tacenta_ratchet.zeroize.Zeroizing.new
+        @tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref :=
+  Iff.rfl
+
+theorem zeroizing_round_trips_total_satisfiable (N : Usize) :
+    ∃ (W : Type → Type) (new : RatchetZeroizingNewFn W) (deref : RatchetZeroizingDerefFn W),
+      ZeroizingRoundTripsTotal N new deref :=
+  ⟨fun Z => Z, @ratchetZeroizingNewWitness, @ratchetZeroizingDerefWitness,
+    fun _ => ⟨fun z => ⟨z, rfl, rfl⟩, fun w => ⟨w, rfl⟩⟩⟩
+
+end RatchetZeroize
 
 /-! ## The Braid's T3 boundary: over-strong shapes, and why they are not used
 

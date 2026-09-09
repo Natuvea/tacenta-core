@@ -42,8 +42,14 @@ this section says in one place what is not proved.
   everything composed from them in `TripleT1.lean`/`TripleT3.lean` take these
   hypotheses, so `Translation/Satisfiability.lean` exhibits a model of each
   and a refutation of each unguarded shape, and the build fails if any of
-  them becomes refutable. A satisfiable hypothesis is still only a
-  hypothesis: the `Remove` forms remain stronger than Rust for an
+  them becomes refutable. The same file witnesses every `zeroize`-wrapper
+  hypothesis the sparse ratchet, the Braid and the classical ratchet take
+  (`ZeroizingRoundTrips96`/`64`, `ZeroizingArrayRoundTrip`, `T3.lean`'s
+  `ZeroizingRoundTrips` and `ZeroizingRoundTrips80`, `T1.DerivedKeysModel`),
+  and `Translation/SatisfiabilityTriple.lean` the Triple Ratchet's two
+  (`TripleT1.ZeroizingTotal`, `TripleT3.ZeroizingRoundTrips`), which cannot
+  share an environment with the rest. A satisfiable hypothesis is still only
+  a hypothesis: the `Remove` forms remain stronger than Rust for an
   out-of-range index (`LIMITATIONS.md`).
 - **The ML-KEM Braid's T3 theorems carry two preconditions beyond the
   boundary agreements.** `step_send_refines`, `Braid.send_refines`,
@@ -182,8 +188,10 @@ operation carries it to the model's operation.
   split-order error would change every ciphertext key through while every
   other theorem stayed true. Under `HkdfAgrees` and `ZeroizingRoundTrips80`,
   the wrapper round trip at the eighty-byte width this one call uses, stated
-  separately so that no other theorem's hypothesis widened. Pinned; the
-  ratchet vectors record the same three values on every step.
+  separately so that no other theorem's hypothesis widened
+  (`Translation/Satisfiability.lean` exhibits a model of it and of the
+  sixty-four-byte `ZeroizingRoundTrips`). Pinned; the ratchet vectors record
+  the same three values on every step.
 - `kdf_ck_refines`, `kdf_rk_refines`: the chain-key and root-key steps
   compute `Model.State.kdfCk`/`kdfRk`, the first modulo `HmacAgrees` and the
   second modulo `HkdfAgrees` and `ZeroizingRoundTrips`. `rk_info_agrees` and
@@ -514,7 +522,9 @@ This file is the only one that says anything about the composition itself.
   `T1.lean` proves it from the translated body). This crate's own copies of
   the KDF, `Zeroize` and `Zeroizing`-wrapper axioms (`HkdfSha256Total`,
   `ZeroizeTotal`, `ZeroizingTotal`) round out the count, the same per-crate
-  counting rule `SpqrT1.lean` describes. `ZeroizingTotal` is new with CR-15:
+  counting rule `SpqrT1.lean` describes
+  (`Translation/SatisfiabilityTriple.lean` exhibits a model of
+  `ZeroizingTotal`). `ZeroizingTotal` is new with CR-15:
   `split_secret` now wipes its sixty-four-byte expansion on the way out, and
   the wrapper's constructor and projection are opaque to the translation, so
   `split_secret_no_panic` and the two initialisers that call it take it, in
@@ -601,6 +611,7 @@ against a symbolic attacker") says exactly how little that covers.
   subsumes `TripleT1.lean`'s `ZeroizingTotal`, `ZeroizingRoundTrips.total`),
   needed since CR-15 wrapped `split_secret`'s expansion in `Zeroizing`:
   refinement needs the value to survive the wrapper, not just the return.
+  `Translation/SatisfiabilityTriple.lean` exhibits a model of it.
 - `split_secret_refines`, `combine_refines`: proved outright against
   `Model.TripleRatchet.splitSecret`/`combine`, translated Rust bottoming out
   only in the assumed KDF boundary and, for `split_secret`, the wrapper
@@ -828,7 +839,9 @@ What a reader has to grant:
   epochs in `Nat`, so at the ceiling the real code's `checked_add` answers
   `Failed` where the model's `epoch + 1` keeps counting. The refinement holds
   below the ceiling and says nothing at it; `from_bytes` refuses `u64::MAX`,
-  so no state the crate can construct is there.
+  so no state `from_bytes` admits is there, and none is reachable in
+  practice (`checked_add` at `u64::MAX - 1` does yield `u64::MAX`, so the
+  ceiling is constructible only by 2^64 - 1 transitions).
 - **Carried over from T1, new with CR-15:** `ZeroizingArrayRoundTrip`,
   `ArrayZeroizeTotal` and `RangeFullIndexTotal`, `BraidT1.lean`'s own copies
   of the `zeroize` wrapper's round trip, the in-place wipe, and the
@@ -1007,17 +1020,31 @@ public `translation` CI job and the verification workflow both run:
 it builds the translation package, and that build covers every module under
 `translation/Translation/` whether or not the root imports it
 (`scripts/check-translation-coverage.sh` asserts each produced an `.olean`),
-including `Translation/Satisfiability.lean`, which fails if any `Vec`-family
-boundary hypothesis becomes refutable, `Translation/ErasureWitness.lean`
-and `Translation/KemWitness.lean`, which fail if the Braid's erasure or KEM
-hypotheses lose their model, and `Translation/AxiomAudit.lean` and
-`AxiomAuditTriple.lean`, which walk the elaborated environment and fail if
-any hand-written declaration is an axiom, opaque, unsafe or partial or
-carries `implemented_by`/`extern` (`tacenta-model/Model/AxiomAudit.lean`;
-the proofs and model packages run the same audit). `no-sorry.sh` then
-replays every first-party module through the kernel with `leanchecker`,
-which is the check against a declaration added with kernel checking turned
-off.
+including `Translation/Satisfiability.lean` and
+`Translation/SatisfiabilityTriple.lean`, which fail if any `Vec`-family or
+`zeroize`-wrapper boundary hypothesis becomes refutable,
+`Translation/ErasureWitness.lean` and `Translation/KemWitness.lean`, which
+fail if the Braid's erasure or KEM hypotheses lose their model, and
+`Translation/AxiomAudit.lean` and `AxiomAuditTriple.lean`, which walk the
+elaborated environment and fail if any hand-written declaration is an
+axiom, opaque, unsafe or partial, carries `implemented_by`/`extern`, or is
+named into the compiler's `_native`/`_unsafe_rec` namespace outside the
+exact shape the compiler produces -- the `native_decide`/`bv_decide` axioms
+are accepted only as `<decl>._native.<tactic>.ax_*`, off a declaration in
+the same module, stating that a compiled Boolean evaluation returned `true`
+(`tacenta-model/Model/AxiomAudit.lean`; the proofs and model packages run
+the same audit). The audit also prints every axiom the generated
+`Translation.Tacenta*` modules hold in the built environment, and
+`no-sorry.sh` fails if that list differs from the per-file sets
+`manifests/translation-attestation.json` records, so the record is held to
+what the text elaborated to and not only to the text.
+`scripts/check-lean-constructs.sh`, the textual second line, strips
+comments and strings and refuses those keywords wherever they sit on a
+line, in every hand-written module including the package roots and
+`Vectors.lean`, and refuses a lakefile that sets any Lean option.
+`no-sorry.sh` then replays every first-party module through the kernel
+with `leanchecker`, which is the check against a declaration added with
+kernel checking turned off.
 
 The translation itself is regenerated only by the private verification
 workflow, using the pinned Aeneas release
@@ -1034,14 +1061,22 @@ What the public tree can check about the translation is recorded in
 `manifests/translation-attestation.json`, written only by
 `scripts/attest.py --refresh-translation` immediately after a
 `run-aeneas.sh` run: for each generated `Translation/Tacenta*.lean`, its
-SHA-256, the `axiom` names it declares, and the SHA-256 of the Rust crate it
-was generated from, with the Aeneas pin. A green `scripts/attest.py --check`
-(`scripts/check-generated-files.sh` runs the translation half of it on its
-own) establishes exactly this: that every generated file is byte for byte
-the file recorded at the last generation, declares exactly the axioms
-recorded then, and that the Rust it stands for hashes to what it hashed to
-when it was translated -- as recorded by whoever ran the toolchain. It does
-not establish that the toolchain was run on those bytes, or run honestly;
+SHA-256, the `axiom` names it declares, the SHA-256 of the Rust crate it
+was generated from, and the SHA-256 of the workspace inputs that shape what
+Charon extracts from every crate (the workspace `Cargo.toml` and its
+profiles, `Cargo.lock`, `.cargo/`, and the `kdf` and `kem` crates whose
+signatures are the opaque externals), with the Aeneas pin. A green
+`scripts/attest.py --check` (`scripts/check-generated-files.sh` runs the
+translation half of it on its own) establishes exactly this: that every
+file named `Translation/Tacenta*.lean` is a module `run-aeneas.sh`
+produces, is byte for byte the file recorded at the last generation,
+declares exactly the axioms recorded then (the `axiom` keyword read from
+the comment-stripped text wherever it sits, compared as a set, so a removed
+axiom fails as an added one does), and that the Rust it stands for and the
+workspace inputs hash to what they hashed to when it was translated -- as
+recorded by whoever ran the toolchain, which `--refresh-translation`
+refuses to do for a file the script does not produce. It does not establish
+that the toolchain was run on those bytes, or run honestly;
 only regenerating with the pinned release and diffing does, which the
 private workflow does on every push and which any linux-x86_64 reader can
 do by hand (`REPRODUCING.md`). `attest.py --check` also checks the ledger

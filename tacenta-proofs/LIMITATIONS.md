@@ -77,6 +77,20 @@ every theorem; pinning the sparse ratchet's, the Braid's and the Triple's
 headline theorems under `#guard_msgs` is open work (the classical ratchet's,
 the session's, the erasure coder's and the parser's are pinned).
 
+**The generated translation carries compiler-trust axioms of its own**,
+sixty-eight on the current generation. Aeneas's `toStr` discharges its
+string-length bound with `by decide +native`, so every generated `Debug`
+`fmt` body (one per error and header type) adds axioms named
+`<fmt>._native.decide.ax_*`, each stating `decide (s.toByteArray.size ≤
+U32.max) = true` for a string literal. No pinned theorem depends on one -- a
+`Debug` formatter is on no proof's path -- and `attest.py` would classify a
+pin that did as compiler-trusted rather than kernel-only. They are not
+opaque externals and are not in `manifests/translation-attestation.json`;
+the axiom audit accepts them under the same shape rule as the hand-written
+`native_decide` uses (name, statement, and a parent in the same module) and
+prints them apart from the externals, as `audit-native:` lines in the
+translation build log, so the count is visible rather than folded in.
+
 ## Trusted, not verified
 
 - The recorded generation of the translation is trusted.
@@ -1268,8 +1282,10 @@ Two entries this list used to carry closed with the CR-03/CR-22 re-translation:
   `BraidT3.lean`'s `step_receive_refines`/`Braid.receive_refines` keep it,
   because `Model.Braid` counts epochs in `Nat` and its `epoch + 1` keeps
   counting where the real code fails closed; the refinement holds below the
-  ceiling and says nothing at it, and no state the crate can construct is
-  there.
+  ceiling and says nothing at it, and no state `from_bytes` admits is there,
+  nor any reachable in practice: `checked_add` at `u64::MAX - 1` does yield
+  `u64::MAX`, so the ceiling is constructible in principle, by 2^64 - 1
+  transitions.
 
 ## Scope
 

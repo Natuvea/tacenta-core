@@ -63,13 +63,20 @@ python3 tacenta-proofs/scripts/attest.py --refresh-translation
 ```
 
 This rewrites `manifests/translation-attestation.json`: for each generated
-`Translation/Tacenta*.lean`, its SHA-256, the `axiom` names it declares, and
-the SHA-256 of the Rust crate it was generated from, with the Aeneas pin.
+`Translation/Tacenta*.lean`, its SHA-256, the `axiom` names it declares (the
+keyword read from the comment-stripped text wherever it sits on a line), the
+SHA-256 of the Rust crate it was generated from, and the SHA-256 of the
+workspace inputs that shape what Charon extracts from every crate -- the
+workspace `Cargo.toml` and its `[profile]` tables, `Cargo.lock`, `.cargo/`
+if present, and the `kdf` and `kem` crates -- with the Aeneas pin. It
+refuses to record a `Tacenta*.lean` that `run-aeneas.sh` does not produce.
 Every other `attest.py` mode, and `scripts/check-generated-files.sh` (which
 runs `attest.py --check-translation` and nothing else), compares the tree
-against that record and fails on a generated file that differs from it, on a
-changed axiom set, or on a Rust crate whose hash has moved since it was
-translated -- the message names the crate and says to regenerate. Running
+against that record and fails on a file named like a generated one that the
+script does not produce, on a generated file that differs from the record,
+on an axiom set that gained or lost a name, or on a Rust crate or a
+workspace input whose hash has moved since the translation was made -- the
+message names the crate and says to regenerate. Running
 `--refresh-translation` at any other time would record whatever the files
 happen to be, which is why its whole value is in when it is run. The drift
 step in the private verification workflow is the stronger check: it
@@ -104,25 +111,40 @@ anything it does not recognise is treated as third-party rather than quietly as
 first-party. Each of those builds also runs the package's `AxiomAudit`
 module (`tacenta-model/Model/AxiomAudit.lean`), which walks the elaborated
 environment and fails the build if any hand-written declaration is an axiom,
-opaque, unsafe or partial, or carries `implemented_by`/`extern`; the generated
-`Translation/Tacenta*.lean` are exempt from the axiom rule only, and
-`attest.py` holds their axiom sets to the recorded manifest instead. After the
-builds it runs two checks -- `check-translation-coverage.sh`, that every
-`Translation/*.lean` produced an olean, and `check-lean-constructs.sh`, the
-textual second line of the audit, which is also the only one that sees
-`set_option debug.skipKernelTC` -- and then replays every first-party module
-through the kernel with `leanchecker` (below).
+opaque, unsafe or partial, carries `implemented_by`/`extern`, or is named
+into the compiler's `_native`/`_unsafe_rec` namespace outside the exact
+shape the compiler produces (a `native_decide`/`bv_decide` axiom is accepted
+only as `<decl>._native.<tactic>.ax_*`, off a declaration in the same
+module, stating that a compiled Boolean evaluation returned `true`; a
+`<f>._unsafe_rec` only as the partial definition the compiler makes for a
+recursive `<f>` in the same module, because the code generator would call a
+hand-written one in place of `<f>`). The generated `Translation/Tacenta*.lean`
+are exempt from the axiom rule only: `attest.py` holds their axiom sets to
+the recorded manifest from the text, and the audit prints every axiom it
+finds in them in the built environment (`audit-axiom:` lines, with the
+compiler-trust ones Aeneas's `toStr` introduces apart as `audit-native:`),
+which `no-sorry.sh` hands to `attest.py --compare-audit` to check against
+the same manifest. After the builds it runs three checks --
+`check-translation-coverage.sh`, that every `Translation/*.lean` produced an
+olean; that comparison; and `check-lean-constructs.sh`, the textual second
+line of the audit, which strips comments and strings, refuses the keywords
+wherever they sit on a line in every hand-written module (the package roots
+and `Vectors.lean` included), refuses a lakefile that sets any Lean option,
+and is the only one that sees `set_option debug.skipKernelTC` -- and then
+replays every first-party module through the kernel with `leanchecker`
+(below).
 
 Expected tail:
 
 ```
 no-sorry: the translation and its T1/T3 proofs is complete
-translation-coverage: all 26 Translation/*.lean modules are in the build target and built
+translation-coverage: all 27 Translation/*.lean modules are in the build target and built
+attest: the axiom audit's opaque-external list matches translation-attestation.json for 7 generated modules (68 compiler-trust axioms in them, from Aeneas's toStr bound, are not externals and are listed in the build log)
 no-sorry: the model-layer proofs is complete
 no-sorry: the model and its property theorems is complete
-check-lean-constructs: 54 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe or debug.skipKernelTC
+check-lean-constructs: 57 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug.skipKernelTC; 3 lakefiles set no Lean option
 no-sorry: replaying the translation and its T1/T3 proofs through the kernel (leanchecker)
-no-sorry: the translation and its T1/T3 proofs replays clean (26 modules)
+no-sorry: the translation and its T1/T3 proofs replays clean (27 modules)
 no-sorry: replaying the model-layer proofs through the kernel (leanchecker)
 no-sorry: the model-layer proofs replays clean (10 modules)
 no-sorry: replaying the model and its property theorems through the kernel (leanchecker)
@@ -172,7 +194,10 @@ you do:
   the `#guard_msgs` docstrings in the source; the script hashes and
   cross-references those, and delegates *checking that they are true* to the
   build. So a green `attest` says the ledger is consistent with what the files
-  claim; only a green heavy gate says the files are telling the truth.
+  claim; only a green heavy gate says the files are telling the truth. The one
+  place the two meet is the generated files' axiom sets: `attest.py --check`
+  reads them from the text, and `no-sorry.sh` reads the same sets out of the
+  built environment and fails if they differ.
 
   The ledger check is exact by name. Every theorem a claim bullet names --
   every backticked identifier in the bullet's leading run, not only the

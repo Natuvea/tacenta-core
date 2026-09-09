@@ -20,10 +20,14 @@ the build breaks first and this never runs.
 ## The one manifest that is not regenerated on every run
 
 `manifests/translation-attestation.json` records, for each generated
-`Translation/Tacenta*.lean`, its SHA-256, the `axiom` names it declares, and
-the SHA-256 of the Rust verified zone it was generated from, with the Aeneas
-pin. It is written only by `--refresh-translation`, which is meant to be run
-immediately after `scripts/run-aeneas.sh`, and every other mode compares the
+`Translation/Tacenta*.lean`, its SHA-256, the `axiom` names it declares, the
+SHA-256 of the Rust verified zone it was generated from, and the SHA-256 of
+the workspace inputs that shape what Charon extracts from every zone (the
+workspace `Cargo.toml` and its profiles, `Cargo.lock`, `.cargo/`, and the
+`kdf` and `kem` crates whose signatures become the opaque externals), with
+the Aeneas pin. It is written only by `--refresh-translation`, which is meant
+to be run immediately after `scripts/run-aeneas.sh`, refuses a `Tacenta*.lean`
+that `run-aeneas.sh` does not produce, and every other mode compares the
 tree against it. That is what makes it provenance rather than self-description:
 the other two manifests are recomputed from the tree they describe, so they can
 only ever say the tree is consistent with itself; this one says the generated
@@ -53,6 +57,9 @@ TRANSLATION_MANIFEST = MANIFESTS / "translation-attestation.json"
 RUN_AENEAS = ROOT / "tacenta-proofs" / "scripts" / "run-aeneas.sh"
 
 SCHEMA_VERSION = 1
+# The translation attestation's own schema: 2 added `workspace_sha256` to every
+# record, so a manifest without it is refused rather than read as complete.
+TRANSLATION_SCHEMA_VERSION = 2
 
 # The crates Charon and Aeneas translate. A proof about translated Rust is a
 # proof about *these* bytes, so their hashes belong in the attestation.
@@ -90,6 +97,22 @@ LOCKFILES = [
     "tacenta-core/Cargo.lock",
 ]
 
+# Everything outside a verified zone that changes what Charon extracts from
+# it: the workspace manifest (its `[profile]` tables decide `overflow-checks`,
+# and so whether an addition panics or wraps in the code being translated),
+# the lockfile, any `.cargo/` configuration (rustflags, cfgs), and the two
+# trusted primitive crates, whose signatures are the opaque externals every
+# translation declares. Hashed together into one `workspace_sha256` that each
+# translation record carries, so a change to any of them makes every recorded
+# generation stale until the toolchain is run again.
+WORKSPACE_INPUTS = [
+    "tacenta-core/Cargo.toml",
+    "tacenta-core/Cargo.lock",
+    "tacenta-core/.cargo",
+    "tacenta-core/kdf",
+    "tacenta-core/kem",
+]
+
 # Axioms the Lean kernel itself introduces. A theorem whose `#print axioms`
 # lists nothing outside this set was checked by the kernel alone.
 KERNEL_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
@@ -117,10 +140,56 @@ def compiler_axiom(name):
 # files to the axiom set recorded at generation time (see `check_translation`),
 # so a new one fails there rather than being reclassified here.
 GENERATED = ROOT / "tacenta-proofs" / "translation" / "Translation"
-# An `axiom` line as Aeneas writes it, at any indentation and behind any
-# attribute, so that a declaration moved inside a namespace block or given an
-# attribute is still counted.
-AXIOM_DECL = re.compile(r"^\s*(?:@\[[^\]]*\]\s*)?axiom\s+(\S+)", re.M)
+
+
+def lean_code(text):
+    """`text` with `--` line comments, `/- ... -/` block comments (docstrings
+    included, and nested blocks) and `"..."` string literals replaced by
+    spaces, newlines kept, so that what remains is code and line numbers
+    survive. Shared by every scan below: a keyword in prose or in a string is
+    not a declaration, and a declaration is one wherever it sits on a line.
+    The same stripper as `scripts/check-lean-constructs.sh`."""
+    out = []
+    i, n, depth = 0, len(text), 0
+    while i < n:
+        two = text[i:i + 2]
+        if depth == 0 and two == "--":
+            j = text.find("\n", i)
+            j = n if j < 0 else j
+            out.append(" " * (j - i))
+            i = j
+            continue
+        if two == "/-":
+            depth += 1
+            out.append("  ")
+            i += 2
+            continue
+        if depth > 0 and two == "-/":
+            depth -= 1
+            out.append("  ")
+            i += 2
+            continue
+        if depth == 0 and text[i] == '"':
+            j = i + 1
+            while j < n and text[j] != '"':
+                j += 2 if text[j] == "\\" else 1
+            j = min(j + 1, n)
+            out.append("".join("\n" if ch == "\n" else " " for ch in text[i:j]))
+            i = j
+            continue
+        out.append(text[i] if depth == 0 or text[i] == "\n" else " ")
+        i += 1
+    return "".join(out)
+
+
+# The `axiom` keyword as a token, wherever it sits: at the start of a line as
+# Aeneas writes it, behind an attribute or `private`, after `set_option ... in`
+# or `namespace X` on the same line, or after another command's last token.
+# `axiom` is a reserved word, so outside a comment or a string (which
+# `lean_code` has removed) a token of that spelling is the keyword. The name
+# is what follows it, as written: inside `namespace tacenta_braid` the file
+# says `axiom tacenta_kdf.hkdf_sha256`, and that is what is recorded.
+AXIOM_DECL = re.compile(r"(?<![\w.«])axiom\s+([^\s:({\[]+)")
 
 
 def generated_files():
@@ -128,7 +197,7 @@ def generated_files():
 
 
 def axioms_declared(path):
-    return sorted(set(AXIOM_DECL.findall(path.read_text())))
+    return sorted(set(AXIOM_DECL.findall(lean_code(path.read_text()))))
 
 
 def opaque_externals():
@@ -161,11 +230,14 @@ def classify(axioms, externals):
         return "opaque-external"
     return "compiler"
 
-# Where the machine-checked claims live.
+# Where the machine-checked claims live. A directory is walked; the last entry
+# is the translation package's root module, which sits beside its directory
+# rather than in it and would otherwise be neither scanned nor hashed.
 PROOF_TREES = [
     "tacenta-model",
     "tacenta-proofs/Proofs",
     "tacenta-proofs/translation/Translation",
+    "tacenta-proofs/translation/Translation.lean",
 ]
 
 
@@ -204,6 +276,36 @@ def file_hash(rel):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def source_files(rel):
+    """The files a content hash covers under `rel`: the file itself if `rel`
+    names one, otherwise every file below the directory except Lake's build
+    tree, a `target/` at the directory's top level (Cargo's, and only
+    Cargo's: a source directory named `target` deeper down is source), and
+    dotfiles. Sorted, so the hash is a function of content alone."""
+    path = ROOT / rel
+    if not path.exists():
+        return []
+    if path.is_file():
+        return [path]
+    return sorted(
+        p for p in path.rglob("*")
+        if p.is_file()
+        and ".lake" not in p.parts
+        and p.relative_to(path).parts[0] != "target"
+        and not p.name.startswith(".")
+    )
+
+
+def hash_files(files):
+    h = hashlib.sha256()
+    for p in files:
+        h.update(str(p.relative_to(ROOT)).encode())
+        h.update(b"\0")
+        h.update(p.read_bytes())
+        h.update(b"\0")
+    return h.hexdigest()
+
+
 def tree_hash(rel):
     """A content hash over a directory's tracked source.
 
@@ -212,23 +314,20 @@ def tree_hash(rel):
     committed yet. Hashing the files gives the same answer for the same content
     either way.
     """
-    path = ROOT / rel
-    if not path.exists():
+    if not (ROOT / rel).exists():
         return None
-    files = sorted(
-        p for p in path.rglob("*")
-        if p.is_file()
-        and ".lake" not in p.parts
-        and "target" not in p.parts
-        and not p.name.startswith(".")
-    )
-    h = hashlib.sha256()
-    for p in files:
-        h.update(str(p.relative_to(ROOT)).encode())
-        h.update(b"\0")
-        h.update(p.read_bytes())
-        h.update(b"\0")
-    return {"sha256": h.hexdigest(), "files": len(files)}
+    files = source_files(rel)
+    return {"sha256": hash_files(files), "files": len(files)}
+
+
+def workspace_hash():
+    """One hash over `WORKSPACE_INPUTS`, the inputs outside the verified zones
+    that shape their translation. Absent entries (`.cargo/` today) contribute
+    nothing, so adding one later changes the hash."""
+    files = []
+    for rel in WORKSPACE_INPUTS:
+        files += source_files(rel)
+    return {"sha256": hash_files(files), "files": len(files), "inputs": WORKSPACE_INPUTS}
 
 
 def aeneas_commit():
@@ -293,13 +392,9 @@ AXIOM_PIN = re.compile(
 
 def proof_files():
     for rel in PROOF_TREES:
-        base = ROOT / rel
-        if not base.exists():
-            continue
-        for p in sorted(base.rglob("*.lean")):
-            if ".lake" in p.parts:
-                continue
-            yield p
+        for p in source_files(rel):
+            if p.suffix == ".lean":
+                yield p
 
 
 def axiom_pins():
@@ -473,10 +568,11 @@ def claims():
 # build knows (`Tacenta.T3.send_refines`) is what the ledger is checked
 # against, rather than the bare last segment (`send_refines`), which several
 # files share.
-DECL = re.compile(
-    r"^\s*(?:@\[[^\]]*\]\s*)?(?:private\s+|protected\s+)*theorem\s+([A-Za-z_][A-Za-z0-9_.']*)",
-    re.M,
-)
+#
+# Matched on the comment-stripped text (`lean_code`), as a token wherever it
+# sits, so that the word in a docstring ("the theorem above relates ...") is
+# not a declaration and a declaration after `set_option ... in` is one.
+DECL = re.compile(r"(?<![\w.«])theorem\s+([A-Za-z_][A-Za-z0-9_.']*)")
 NAMESPACE = re.compile(r"^(namespace|end|section)\b\s*(\S*)", re.M)
 
 
@@ -485,7 +581,7 @@ def declared_theorems():
     by the `namespace` blocks around it, with the file it is in."""
     found = []
     for p in proof_files():
-        text = p.read_text()
+        text = lean_code(p.read_text())
         events = []
         for m in NAMESPACE.finditer(text):
             events.append((m.start(), "ns", m.group(1), m.group(2)))
@@ -600,6 +696,7 @@ def translation_attestation():
     """What the generated translation is, right now: per file, its hash, the
     axioms it declares, and the hash of the Rust it stands for."""
     zones = translated_modules()
+    workspace = workspace_hash()["sha256"]
     files = {}
     for p in generated_files():
         module = p.stem
@@ -610,20 +707,25 @@ def translation_attestation():
             "axioms": axioms_declared(p),
             "zone": zone,
             "zone_sha256": tree_hash(zone)["sha256"] if zone else None,
+            "workspace_sha256": workspace,
         }
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": TRANSLATION_SCHEMA_VERSION,
         "_note": (
             "Written only by `tacenta-proofs/scripts/attest.py --refresh-translation`, "
             "immediately after `scripts/run-aeneas.sh` on the pinned toolchain, and "
             "compared against by every other mode. A green `attest.py --check` "
-            "establishes that each generated Translation/Tacenta*.lean is byte for "
-            "byte the file recorded here, declares exactly the axioms recorded here, "
-            "and that the Rust verified zone it was generated from hashes to what it "
-            "hashed to when this was written, as recorded by whoever ran the "
-            "toolchain. It does not establish that the toolchain was run, or run "
-            "honestly: that is checked by regenerating with run-aeneas.sh and "
-            "diffing, which REPRODUCING.md describes."
+            "establishes that each generated Translation/Tacenta*.lean is a module "
+            "run-aeneas.sh produces, is byte for byte the file recorded here, declares "
+            "exactly the axioms recorded here (as text; no-sorry.sh compares the same "
+            "record with what the axiom audit saw in the built environment), and that "
+            "the Rust verified zone it was generated from, and the workspace inputs "
+            "that shape every zone's extraction (Cargo.toml and its profiles, "
+            "Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed "
+            "to when this was written, as recorded by whoever ran the toolchain. It "
+            "does not establish that the toolchain was run, or run honestly: that is "
+            "checked by regenerating with run-aeneas.sh and diffing, which "
+            "REPRODUCING.md describes."
         ),
         "generated_at_commit": git_commit(),
         "aeneas": {
@@ -637,22 +739,37 @@ def translation_attestation():
 def check_translation(current):
     """The tree against the recorded translation attestation.
 
-    Three questions, each its own failure: is every generated file the bytes
-    that were recorded; does each declare exactly the axioms that were
-    recorded; and is the Rust each was generated from still the Rust in the
-    tree. The last is the one that goes stale by ordinary work, and its
-    message says what to do.
+    Five questions, each its own failure: is every file named like a
+    generated one a module `run-aeneas.sh` produces; is every generated file
+    the bytes that were recorded; does each declare exactly the axioms that
+    were recorded (compared as sets, so a removed axiom fails as an added one
+    does); is the Rust each was generated from still the Rust in the tree; and
+    are the workspace inputs that shape every zone's extraction still what
+    they were. The last two are the ones that go stale by ordinary work, and
+    their messages say what to do.
     """
     problems = []
+    for rel, w in current["generated_files"].items():
+        if w["zone"] is None:
+            problems.append(
+                f"{rel} is named like a generated file but scripts/run-aeneas.sh "
+                f"produces no module {w['module']}: nothing attests it, so it may not "
+                "sit under Translation/ with that name"
+            )
     if not TRANSLATION_MANIFEST.exists():
-        return [
+        return problems + [
             f"{TRANSLATION_MANIFEST.relative_to(ROOT)} is missing: run "
             "scripts/run-aeneas.sh on the pinned toolchain, then "
             "`attest.py --refresh-translation`"
         ]
     recorded = json.loads(TRANSLATION_MANIFEST.read_text())
-    if recorded.get("schema_version") != SCHEMA_VERSION:
-        problems.append("translation-attestation.json has an unrecognised schema_version")
+    if recorded.get("schema_version") != TRANSLATION_SCHEMA_VERSION:
+        problems.append(
+            f"translation-attestation.json has schema_version "
+            f"{recorded.get('schema_version')!r}, and this script reads "
+            f"{TRANSLATION_SCHEMA_VERSION}: regenerate with scripts/run-aeneas.sh on "
+            "the pinned toolchain and re-run attest.py --refresh-translation"
+        )
     if recorded.get("aeneas") != current["aeneas"]:
         problems.append(
             f"the Aeneas pin changed since the translation was recorded "
@@ -672,6 +789,11 @@ def check_translation(current):
         )
     for rel in sorted(set(want) & set(have)):
         r, w = have[rel], want[rel]
+        if r.get("zone") is None:
+            problems.append(
+                f"{rel} is recorded with no zone: the record was written for a file "
+                "run-aeneas.sh does not produce, which --refresh-translation now refuses"
+            )
         if r.get("sha256") != w["sha256"]:
             problems.append(
                 f"{rel} differs from the recorded generation (sha256 {r.get('sha256')} "
@@ -698,7 +820,93 @@ def check_translation(current):
                 "regenerate with scripts/run-aeneas.sh on the pinned toolchain and "
                 "re-run attest.py --refresh-translation"
             )
+        if r.get("workspace_sha256") != w["workspace_sha256"]:
+            problems.append(
+                f"translation is stale for {rel}: the workspace inputs "
+                f"({', '.join(WORKSPACE_INPUTS)}) hash to {w['workspace_sha256'][:12]}... "
+                f"now and hashed to {str(r.get('workspace_sha256'))[:12]}... when it was "
+                "generated; a profile, lockfile, cargo configuration or primitive-crate "
+                "change shapes what Charon extracts, so regenerate with "
+                "scripts/run-aeneas.sh on the pinned toolchain and re-run attest.py "
+                "--refresh-translation"
+            )
     return problems
+
+
+# ---------------------------------------------------------------------------
+# The environment's view of the generated axioms
+# ---------------------------------------------------------------------------
+
+# What `Model.AxiomAudit.run` prints for every axiom it finds in a generated
+# module, fully qualified: `audit-axiom: Translation.TacentaBraid
+# tacenta_braid.tacenta_kdf.hkdf_sha256`. The file records the name as
+# declared (`tacenta_kdf.hkdf_sha256`, inside `namespace tacenta_braid`), so
+# the two are matched as a declared name against a qualified one.
+# Not anchored at the line start: Lake prefixes the first line of a message
+# with `info: <file>:<line>:<col>: `, and the rest follow verbatim.
+AUDIT_LINE = re.compile(r"\baudit-axiom:\s+(\S+)\s+(\S+)\s*$", re.M)
+# The compiler-trust axioms the audit found in generated modules (Aeneas's
+# `toStr` discharges its length bound `by decide +native`, so every generated
+# `Debug` `fmt` body carries some). Not opaque externals and not in the
+# manifest; counted, so the log says how many there are.
+AUDIT_NATIVE_LINE = re.compile(r"\baudit-native:\s+(\S+)\s+(\S+)\s*$", re.M)
+
+
+def compare_audit(log_path):
+    """The axiom audit's list of generated axioms, read from a `lake build` log
+    of the translation package, against the recorded per-file sets.
+
+    `axioms_declared` reads the text; the audit reads the environment the text
+    elaborated to. A declaration the text scan does not recognise as an axiom
+    (one produced by a macro, or added by a command) is an axiom to the audit,
+    and a recorded axiom the environment no longer holds is missing to it. Both
+    audit modules' output must be in the log: `Translation.AxiomAudit` covers
+    six generated modules and `AxiomAuditTriple` the seventh.
+    """
+    problems = []
+    log = Path(log_path).read_text(errors="replace")
+    seen = {}
+    for module, name in AUDIT_LINE.findall(log):
+        seen.setdefault(module, set()).add(name)
+    native = {(m, n) for m, n in AUDIT_NATIVE_LINE.findall(log)}
+    if not TRANSLATION_MANIFEST.exists():
+        return [f"{TRANSLATION_MANIFEST.relative_to(ROOT)} is missing"], 0
+    recorded = json.loads(TRANSLATION_MANIFEST.read_text()).get("generated_files", {})
+    by_module = {r["module"]: (rel, set(r.get("axioms", []))) for rel, r in recorded.items()}
+    expected_modules = {f"Translation.{m}" for m in by_module}
+    for module in sorted(expected_modules - set(seen)):
+        # A module recorded with no axioms (the wire parser translates with
+        # none) prints no lines; one recorded with some and printing none
+        # was not audited, or its output was not captured.
+        if by_module[module.split(".", 1)[1]][1]:
+            problems.append(
+                f"the build log carries no audit-axiom lines for {module}: the axiom "
+                "audit did not run over it, or its output was not captured"
+            )
+    for module in sorted(set(seen) - expected_modules):
+        problems.append(
+            f"the axiom audit reports axioms in {module}, which has no record in "
+            "translation-attestation.json"
+        )
+    for module in sorted(set(seen) & expected_modules):
+        rel, declared = by_module[module.split(".", 1)[1]]
+        qualified = seen[module]
+        unrecorded = sorted(
+            q for q in qualified
+            if not any(q == d or q.endswith("." + d) for d in declared)
+        )
+        missing = sorted(
+            d for d in declared
+            if not any(q == d or q.endswith("." + d) for q in qualified)
+        )
+        if unrecorded or missing:
+            problems.append(
+                f"{rel}: the axiom audit saw a different axiom set in the built "
+                f"environment from the recorded one (in the environment but not "
+                f"recorded: {', '.join(unrecorded) or 'none'}; recorded but not in the "
+                f"environment: {', '.join(missing) or 'none'})"
+            )
+    return problems, len(native)
 
 
 def build():
@@ -750,6 +958,7 @@ def build():
         "verified_zones": {z: tree_hash(z) for z in VERIFIED_ZONES},
         "trusted_primitive_zones": {z: tree_hash(z) for z in TRUSTED_PRIMITIVE_ZONES},
         "lockfiles": {f: file_hash(f) for f in LOCKFILES},
+        "workspace": workspace_hash(),
         "proof_trees": {t: tree_hash(t) for t in PROOF_TREES},
     }
     return verification, attestation, problems
@@ -765,7 +974,8 @@ def report(problems, heading):
         print(f"  {p}", file=sys.stderr)
 
 
-USAGE = """usage: attest.py [--check | --check-translation | --refresh-translation]
+USAGE = """usage: attest.py [--check | --check-translation | --refresh-translation
+                 | --compare-audit <lake build log>]
 
   (no flag)              regenerate verification-manifest.json and
                          source-commit-attestation.json; verify the generated
@@ -777,12 +987,35 @@ USAGE = """usage: attest.py [--check | --check-translation | --refresh-translati
                          then regenerate the other two. Run this only right
                          after scripts/run-aeneas.sh on the pinned toolchain:
                          it records whatever the generated files are, and its
-                         value is that nobody runs it at any other time.
+                         value is that nobody runs it at any other time. It
+                         refuses a Tacenta*.lean that run-aeneas.sh does not
+                         produce.
+  --compare-audit <log>  compare the `audit-axiom:` lines the axiom audit
+                         printed into a translation-package build log with the
+                         per-file axiom sets recorded in
+                         translation-attestation.json (no-sorry.sh runs this)
 """
 
 
 def main():
-    args = set(sys.argv[1:])
+    argv = sys.argv[1:]
+    if argv[:1] == ["--compare-audit"]:
+        if len(argv) != 2:
+            print(USAGE, file=sys.stderr)
+            return 2
+        problems, native = compare_audit(argv[1])
+        if problems:
+            report(problems, "the axiom audit and translation-attestation.json disagree")
+            return 1
+        n = len(json.loads(TRANSLATION_MANIFEST.read_text()).get("generated_files", {}))
+        print(
+            f"attest: the axiom audit's opaque-external list matches "
+            f"translation-attestation.json for {n} generated modules ({native} "
+            "compiler-trust axioms in them, from Aeneas's toStr bound, are not externals "
+            "and are listed in the build log)"
+        )
+        return 0
+    args = set(argv)
     known = {"--check", "--check-translation", "--refresh-translation"}
     if args - known or len(args) > 1:
         print(USAGE, file=sys.stderr)
@@ -793,6 +1026,19 @@ def main():
 
     current = translation_attestation()
     if refresh:
+        unmapped = sorted(
+            rel for rel, w in current["generated_files"].items() if w["zone"] is None
+        )
+        if unmapped:
+            report(
+                [
+                    f"{rel} is named like a generated file but scripts/run-aeneas.sh "
+                    "produces no such module; remove it or add it to run-aeneas.sh first"
+                    for rel in unmapped
+                ],
+                "refusing to record a file the translation script does not produce",
+            )
+            return 1
         MANIFESTS.mkdir(parents=True, exist_ok=True)
         write(current, TRANSLATION_MANIFEST)
         print(f"attest: wrote {TRANSLATION_MANIFEST.relative_to(ROOT)}")

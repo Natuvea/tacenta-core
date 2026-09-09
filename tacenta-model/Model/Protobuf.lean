@@ -152,7 +152,7 @@ theorem varintFrom_canonical (fuel : Nat) :
       · obtain ⟨w, hv, hbs, hpos⟩ := ih (factor * 128) (acc + tail.toNat % 128 * factor)
           _ v rest (by omega) h.2.2.2
         have hw : 1 ≤ w := hpos (by omega)
-        refine ⟨tail.toNat % 128 + w * 128, by rw [hv]; simp [Nat.mul_add, 
+        refine ⟨tail.toNat % 128 + w * 128, by rw [hv]; simp [Nat.mul_add,
             Nat.mul_comm, Nat.mul_left_comm, Nat.add_assoc], ?_, by omega⟩
         have h128 : ¬ (tail.toNat % 128 + w * 128 < 128) := by omega
         simp [encodeVarintFrom, h128, hbs]
