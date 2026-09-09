@@ -38,11 +38,17 @@ fn ratchet_vectors_pass() {
         .flat_map(|v| v.steps.iter())
         .filter(|s| s.expect != "reject")
         .map(|s| {
-            assert!(s.message_keys.is_some(), "a model-generated step records no message_keys");
+            assert!(
+                s.message_keys.is_some(),
+                "a model-generated step records no message_keys"
+            );
             1
         })
         .sum();
-    assert!(expansions >= 12, "checked {expansions} message-key expansions");
+    assert!(
+        expansions >= 12,
+        "checked {expansions} message-key expansions"
+    );
     eprintln!(
         "checked {total} ratchet steps across {vectors} vectors in {} files",
         files.len()
