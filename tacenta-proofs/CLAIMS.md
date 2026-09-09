@@ -38,7 +38,7 @@ this section says in one place what is not proved.
   the loop guard the source checks first (the guard also removed the
   `[Inhabited]` bound the unguarded statements needed: stated for every
   index and every element type, including the empty one, they would imply
-  `False`); every HKDF hypothesis carries RFC 5869's `N.val ≤ 8160`, the
+  `False`); every width-polymorphic HKDF hypothesis carries RFC 5869's `N.val ≤ 8160` (`SessionT3.HkdfAgrees` is fixed at 32 bytes and needs none), the
   bound the crate's `expect` enforces; `DivCeilTotal` carries `b.val ≠ 0`;
   and the KEM's two randomness-drawing totals and clauses carry
   `BraidT1.RngTotal rc`, that the caller's `fill_bytes` returns. A hypothesis

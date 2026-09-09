@@ -194,8 +194,16 @@ one from these; "Trusted, not verified" below says what excludes it.
   `Braid.send_refines` take it for the RNG they are handed. What remains
   stronger than the Rust is listed where it belongs: `TripleT1.lean`'s
   seventeen unconditional cross-crate totals (under the Triple Ratchet,
-  below) and the domain check `ValidateEkAgrees` does not see (under the
-  Braid's KEM hypotheses, below).
+  below); `BraidT1.lean`'s five totals over the erasure coder
+  (`EncoderNewTotal`, `EncoderNextChunkTotal`, `DecoderNewTotal`,
+  `DecoderAddChunkTotal`, `DecoderMessageTotal`), which are the same
+  shape, since the erasure crate's own theorems about `next_chunk`,
+  `add_chunk` and `message` carry `Usize.max` headroom preconditions the
+  Braid cannot state through the opaque types (the Rust documents the
+  constructible-but-unreachable overflow at `Decoder::new(usize::MAX)`);
+  the domain check `ValidateEkAgrees` does not see (under the Braid's KEM
+  hypotheses, below); and `Kem.Correct`'s idealisation of ML-KEM's
+  decapsulation-failure probability to zero (same section).
 
 ## Secret deletion is partial
 
@@ -873,7 +881,13 @@ its randomness, which is now a legitimate model of the clause (a KEM that
 draws no randomness satisfies "some randomness makes the model agree" with
 any value), and the witness picks `0`. What the two randomness-drawing
 clauses assume beyond agreement is `BraidT1.RngTotal rc`: that the caller's
-`fill_bytes` returns, which the real `generate`/`encapsulate1` need. The
+`fill_bytes` returns, which the real `generate`/`encapsulate1` need. One
+idealisation remains: `Kem.Correct` asks that decapsulation recover the
+secret for *every* pair of randomness values, and ML-KEM-1024 is only
+δ-correct, with a decapsulation-failure probability FIPS 203 bounds at
+2^-174. So the real KEM satisfies `KemAgreesFor` up to that probability,
+which the model rounds to zero; the randomness-shape gap is closed, and
+this is what is left. The
 definition's former `∀ kp` clause -- that *every* `IncrementalKeyPair`
 decodes as some `dk`, `ekSeed` and `ekVector` whose header is `ekSeed ++
 hashEk ekSeed ekVector` -- was applied by no proof in `BraidT3.lean` and is
