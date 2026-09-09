@@ -217,6 +217,7 @@ fn a_full_last_resort_record_refuses_new_handshakes_and_still_refuses_replays() 
     // last-resort key and is fingerprinted.
     let mut store = bob.create_prekeys(0, &mut r);
     let bundle = store.publish_multi_use();
+    assert_eq!(store.last_resort_record_remaining(), BOUND);
 
     // The victim's handshake, delivered once and its bytes kept.
     let victim = Identity::generate(&mut r);
@@ -238,6 +239,8 @@ fn a_full_last_resort_record_refuses_new_handshakes_and_still_refuses_replays() 
             .unwrap_or_else(|e| panic!("attacker handshake {i} was refused: {e:?}"));
     }
     let full = store.to_bytes();
+    // The count an operator polls reads zero exactly when the record is full.
+    assert_eq!(store.last_resort_record_remaining(), 0);
 
     // The handshake that would exceed the bound is refused, and refused before
     // anything changes: the store's bytes are identical afterwards, so nothing
@@ -255,6 +258,7 @@ fn a_full_last_resort_record_refuses_new_handshakes_and_still_refuses_replays() 
         full.as_slice(),
         "a refused handshake must leave the store untouched"
     );
+    assert_eq!(store.last_resort_record_remaining(), 0);
 
     // The victim's replay is still a replay, and still changes nothing.
     assert!(

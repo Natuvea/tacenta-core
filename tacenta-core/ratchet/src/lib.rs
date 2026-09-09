@@ -852,10 +852,12 @@ fn purge_chain_range(skipped: &mut Vec<SkippedKey>, dhr: Key, from: u32, upto: u
 /// Applied once per accepted receive, at the end, so a key stored during that
 /// same receive is one message old rather than zero.
 ///
-/// `events` saturates rather than wrapping. A session that receives `u32::MAX`
-/// messages then expires every skipped key immediately, which fails safe; the
-/// refinement against the model excludes that case, as it does everywhere the
-/// core counts in `u32` and the model in the naturals.
+/// `events` saturates rather than wrapping. Once it has, `now` no longer
+/// moves, so a key stored at or within `MAX_SKIPPED_AGE` of saturation is
+/// never expired by age; it leaves only on use or through the bound on the
+/// store. That is the lenient direction, and the refinement against the model
+/// excludes that case, as it does everywhere the core counts in `u32` and the
+/// model in the naturals.
 fn age_store(state: &mut State) {
     let now = state.events.saturating_add(1);
     state.events = now;

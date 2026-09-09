@@ -49,8 +49,12 @@ discovered must be registered, and everything registered must still exist.
   walk refuses to guess: a file whose braces do not balance in that view, or
   a module or `impl` block that never closes, is an error, not a silent
   truncation.
-- **`const fn`, `unsafe fn`, and `async fn` are declarations too**, in any
-  order of qualifiers; a qualifier is not a way out of discovery.
+- **`const fn`, `unsafe fn`, `async fn`, and `extern "C" fn` are declarations
+  too**, in any order of qualifiers; a qualifier is not a way out of discovery.
+- **A declaration is discovered wherever a statement can begin**: at the start
+  of a line, or after `{`, `;`, or `}` on the same line. Anchoring at the line
+  start alone would miss `} fn receive(` and a one-line block, which is a way
+  out of discovery that costs nothing to close.
 - **Verbs match anywhere in the name**, so `step_receive` is discovered, with a
   small exemption list for accessors (`receive_count` and friends) and the pure
   `read_*` byte helpers.
@@ -107,11 +111,17 @@ FAMILY = (
 # A function declaration, `pub` or not, with its receiver captured: the text
 # between the opening parenthesis and the first comma or closing parenthesis,
 # which is `&self`, `&mut self`, `self`, or an ordinary first parameter.
-# `const`, `async`, and `unsafe` may precede `fn` in any order; a `const fn
-# receive` is a receive.
-QUALIFIERS = r"(?:(?:const|async|unsafe)\s+)*"
+# `const`, `async`, `unsafe`, and `extern` (with or without an ABI string;
+# the string is blanked in the code view, so both spellings are matched) may
+# precede `fn` in any order; a `const fn receive` is a receive.
+QUALIFIERS = r'(?:(?:const|async|unsafe|extern(?:\s+"[^"]*")?)\s+)*'
+# Where a declaration may begin: the start of a line, or after a `{`, `;`, or
+# `}` earlier on it. The position is a statement position either way, and
+# nothing else in Rust puts `fn` followed by a lower-case name there (a
+# closure has no `fn`; `Fn(...)` and a `fn(...)` pointer type have no name).
+STATEMENT_START = r"(?:^|(?<=[{;}]))(?P<indent>[ \t]*)"
 DECL = re.compile(
-    r"^(?P<indent>[ \t]*)(?:pub(?:\([^)]*\))?\s+)?" + QUALIFIERS + r"fn\s+"
+    STATEMENT_START + r"(?:pub(?:\([^)]*\))?\s+)?" + QUALIFIERS + r"fn\s+"
     # The generic list may nest one level (`<F: Fn(&Msg) -> Option<Key>>`), which
     # a plain `<[^>]*>` cannot span; discovery must accept every declaration,
     # so the pattern spans one level of nesting.
@@ -121,16 +131,19 @@ DECL = re.compile(
 )
 
 # Reading a counter or a chain is not consuming a message, and neither is
-# initialising a party (`init_receiver` matches `receive` as a substring).
-# The `read_*` byte helpers are pure primitives the decoders call, not decoders
-# themselves -- they take an offset into a buffer and return one field -- so the
-# consuming path is the `from_bytes` that calls them, which is registered; the
-# helpers are exempted by name rather than each given a row (CR-09).
+# initialising a party (`init_receiver` matches `receive` as a substring; it
+# is the one `init_*` name that does, so it is exempted exactly rather than by
+# prefix, and a future `init_from_bytes` is discovered). The `read_*` byte
+# helpers are pure primitives the decoders call, not decoders themselves --
+# they take an offset into a buffer and return one field -- so the consuming
+# path is the `from_bytes` that calls them, which is registered; the helpers
+# are exempted by name rather than each given a row (CR-09).
 EXEMPT = {
     "receive_count",
     "receive_chain",
     "receive_chain_key",
     "receive_chains",
+    "init_receiver",
     "read_key",
     "read_optional_key",
     "read_u32",
@@ -139,7 +152,6 @@ EXEMPT = {
     "read_epoch",
     "read_prekey_u32",
 }
-EXEMPT_PREFIXES = ("init_",)
 
 # Pure functions that consume attacker-supplied bundle material before anything
 # authenticates it, but whose names carry none of the verbs above, so discovery
@@ -156,7 +168,7 @@ def _explicit_decl(name: str) -> "re.Pattern":
     the start of the first parameter the way `DECL` does, so the same parameter
     extraction works on it."""
     return re.compile(
-        r"^(?P<indent>[ \t]*)(?:pub(?:\([^)]*\))?\s+)?" + QUALIFIERS + r"fn\s+"
+        STATEMENT_START + r"(?:pub(?:\([^)]*\))?\s+)?" + QUALIFIERS + r"fn\s+"
         r"(?P<name>" + re.escape(name) + r")\s*(?:<(?:[^<>]|<[^<>]*>)*>)?\s*\("
         r"(?P<first>[^,)]*)",
         re.M,
@@ -470,7 +482,7 @@ def discovered():
 
             for m in DECL.finditer(text):
                 name = m.group("name")
-                if name in EXEMPT or name.startswith(EXEMPT_PREFIXES):
+                if name in EXEMPT:
                     continue
                 entry = record(m)
                 if entry is not None:

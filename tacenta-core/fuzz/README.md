@@ -44,9 +44,9 @@ cargo fuzz run wire_decoders
 ```
 
 Needs nightly Rust and `cargo install cargo-fuzz`. Each target keeps its corpus
-in `corpus/<target>/`, which is committed: 2,726 files holding about 1.4 MB
-of content in all (`du` reports nearer 11 MB, which is block usage across that
-many small files).
+in `corpus/<target>/`, which is committed: 2,726 files holding 1,401,534 bytes of
+content in all, about 1.4 MB or 1.3 MiB (`du` reports nearer 11 MB, which is
+block usage across that many small files).
 It is the accumulated set of inputs that reached distinct branches, plus the
 seeds the ignored tests named above write, and starting each run from it
 rather than from nothing is most of what makes a short run worth anything: a

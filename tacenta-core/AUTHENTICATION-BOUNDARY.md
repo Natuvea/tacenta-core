@@ -43,8 +43,13 @@ discovered along with the `receive` that wraps it. Discovery reads each file
 through a view with its strings, character literals, and comments blanked, so
 a brace inside a test's string cannot hide the code below a test module, and
 it refuses rather than guesses when a file's braces do not balance in that
-view or a block never closes. A `const fn`, `unsafe fn`, or `async fn` is
-discovered like any other.
+view or a block never closes. A `const fn`, `unsafe fn`, `async fn`, or
+`extern "C" fn` is discovered like any other, and a declaration is discovered
+wherever a statement can begin -- at the start of a line, or after a `{`,
+`;`, or `}` earlier on the same line -- rather than at the start of a line
+only. The exemptions for names that carry a verb without consuming anything
+(`receive_count`, the `read_*` byte helpers, `init_receiver`) are exact names,
+not prefixes, so a new `init_from_bytes` would be discovered.
 
 ## Why a registry rather than a rule
 

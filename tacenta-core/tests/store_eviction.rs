@@ -135,14 +135,12 @@ fn the_first_eviction_is_sized_to_the_shortfall_not_the_skip_count() {
 
     // Oldest first, and 99 of them from the classical store. The post-quantum
     // half holds the same skipped keys, has no shortfall figure of its own,
-    // and climbs 1, 2, 4, ... for the same excess, so it takes 127; a message
-    // needs both halves, so the first key of round one that still decrypts
-    // is the 128th. Sized by the skip count, the classical half would have
-    // taken 599, and nothing before "one 599" would decrypt.
-    assert!(
-        bob.decrypt(&first[98], &mut r).is_err(),
-        "the 99th-oldest key should have been evicted"
-    );
+    // and climbs 1, 2, 4, ... for the same excess, so it takes 127 however
+    // the classical half is sized; a message needs both halves, so nothing
+    // before "one 127" decrypts either way, and its absence pins nothing.
+    // What pins the shortfall is that "one 127" decrypts at all: sized by the
+    // skip count, the classical half would have taken 599, and nothing before
+    // "one 599" would.
     assert_eq!(bob.decrypt(&first[127], &mut r).unwrap(), b"one 127");
     assert_eq!(
         bob.decrypt(&first[MAX_SKIP as usize - 1], &mut r).unwrap(),

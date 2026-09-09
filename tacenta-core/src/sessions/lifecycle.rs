@@ -183,15 +183,27 @@ impl Identity {
 /// are keeping one-time KEM prekeys stocked (`replenish`), which keeps peers
 /// off this path, and rotating the last-resort key (`rotate_kem`), which frees
 /// a key's entries once the rotation after it wipes that key.
+///
+/// Rotation is relief, not a reset, against an attacker who is filling the
+/// record on purpose. The entries the second rotation drops are the wiped
+/// key's; the retired key still decrypts, its public bundle is still in the
+/// attacker's hands, and a last-resort handshake costs about 1.3 ms, so the
+/// record the rotation emptied is full again in about a second. What holds
+/// durably is what stops the handshakes arriving at that rate: a directory
+/// that rate-limits bundle fetches, and one-time KEM prekeys kept stocked so
+/// that first contacts do not land here at all. `last_resort_record_remaining`
+/// is the count to watch for both.
 const MAX_LAST_RESORT_SEEN: usize = 1024;
 
 /// A domain-separated fingerprint of the handshake half of an initial message.
 ///
-/// It covers exactly the fields that determine `SK`: both public keys, the KEM
-/// ciphertext, and the two prekey identifiers. The ratchet message is left out
-/// on purpose -- it is authenticated under keys derived from `SK`, so an
-/// attacker cannot vary it and still be accepted, and including it would let a
-/// replay evade the check by being re-framed.
+/// It covers the fields that vary per handshake among those that determine
+/// `SK`: both public keys, the KEM ciphertext, and the two prekey identifiers.
+/// The signed prekey identifier is bound by `SK` itself and is not included.
+/// The ratchet message is left out on purpose -- it is authenticated under
+/// keys derived from `SK`, so an attacker cannot vary it and still be
+/// accepted, and including it would let a replay evade the check by being
+/// re-framed.
 ///
 /// HMAC-SHA256 under a fixed label rather than a bare hash, because the label
 /// is what stops a fingerprint from colliding with any other digest this
@@ -323,8 +335,17 @@ pub struct PrekeyStore {
     /// `rotate_kem` wipes that key, because a message naming a wiped key fails
     /// with `UnknownPrekeyId` before the record is consulted. What the bound
     /// measures is therefore how many distinct last-resort handshakes those
-    /// keys have accepted over their lifetime, which rotation resets, not how
-    /// many arrived recently.
+    /// keys have accepted over their lifetime, not how many arrived recently.
+    ///
+    /// Rotation frees a key's share of the record, but against an attacker
+    /// who is filling it on purpose that is a window, not a reset: the
+    /// retired key still decrypts, its public bundle is still out there, and
+    /// at about 1.3 ms per last-resort handshake the 1023 entries the second
+    /// rotation dropped are back in about a second. The defences that hold
+    /// are the ones that keep the handshakes from arriving at that rate -- a
+    /// directory that rate-limits bundle fetches, and one-time KEM prekeys
+    /// kept stocked -- and `last_resort_record_remaining` is what says
+    /// whether they are holding.
     ///
     /// When the record is full, a last-resort handshake whose fingerprint is
     /// not in it is refused with `Error::LastResortRecordFull` before anything
@@ -598,6 +619,24 @@ impl PrekeyStore {
     /// message may name a KEM one-time prekey and no curve one.
     pub fn one_time_remaining(&self) -> (usize, usize) {
         (self.one_time.len(), self.kem_one_time.len())
+    }
+
+    /// How many more last-resort handshakes the replay record can hold before
+    /// `establish_responder` refuses new ones with `Error::LastResortRecordFull`.
+    ///
+    /// The signal for the two levers `MAX_LAST_RESORT_SEEN` names. A count
+    /// that keeps falling means first contacts are landing on the last-resort
+    /// path, so one-time KEM prekeys need restocking (`replenish`;
+    /// `one_time_remaining` says how many are left). A count that falls
+    /// faster than peers could plausibly arrive is someone filling the record
+    /// on purpose, which is the directory's rate limit on bundle fetches to
+    /// stop; `rotate_kem` relieves it only for as long as they take to fill
+    /// it again.
+    pub fn last_resort_record_remaining(&self) -> usize {
+        // The record never exceeds the bound -- a handshake that would take it
+        // past is refused, and `from_bytes` refuses a larger count -- so this
+        // never saturates; saturating anyway rather than trusting that here.
+        MAX_LAST_RESORT_SEEN.saturating_sub(self.last_resort_seen.len())
     }
 
     /// One published bundle per one-time pair the store still holds, for a
@@ -1107,6 +1146,73 @@ impl PrekeyStore {
             if !distinct.insert(*fp) {
                 return Err(PrekeyStoreDecodeError::Malformed);
             }
+        }
+
+        // The identifiers, which the reads above take on trust. Every
+        // identifier a store holds was handed out by `next_id`, which only
+        // climbs, so each is below it: one at or past it is either corruption
+        // or a counter that has been wound back, and the next key handed out
+        // would collide with a live one. And no two live keys share an
+        // identifier, because the store finds keys by their *first* match
+        // (the note on `next_id` says what a duplicate one-time identifier
+        // does) and `rotate_kem` prunes the record by the wiped key's
+        // identifier: a previous KEM identifier equal to the current one
+        // would have the next rotation drop the *live* key's entries, after
+        // which every replay they refused is accepted again. None of this can
+        // come out of `to_bytes`, so all of it is refused as malformed. Index
+        // loops, so the duplicate checks read as the pairwise comparisons
+        // they are.
+        if signed_prekey_id >= next_id || kem_id >= next_id {
+            return Err(PrekeyStoreDecodeError::Malformed);
+        }
+        if let Some((_, id, _)) = &previous_signed_prekey {
+            if *id == signed_prekey_id || *id >= next_id {
+                return Err(PrekeyStoreDecodeError::Malformed);
+            }
+        }
+        if let Some(id) = previous_kem_id {
+            if id == kem_id || id >= next_id {
+                return Err(PrekeyStoreDecodeError::Malformed);
+            }
+        }
+        let mut i = 0;
+        while i < last_resort_seen.len() {
+            // Implied by the tag check above once the two key identifiers
+            // are below `next_id`, and stated anyway so the rule reads whole.
+            if last_resort_seen[i].0 >= next_id {
+                return Err(PrekeyStoreDecodeError::Malformed);
+            }
+            i += 1;
+        }
+        let mut i = 0;
+        while i < one_time.len() {
+            let id = one_time[i].0;
+            if id >= next_id {
+                return Err(PrekeyStoreDecodeError::Malformed);
+            }
+            let mut j = 0;
+            while j < i {
+                if one_time[j].0 == id {
+                    return Err(PrekeyStoreDecodeError::Malformed);
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+        let mut i = 0;
+        while i < kem_one_time.len() {
+            let id = kem_one_time[i].0;
+            if id >= next_id || id == kem_id || Some(id) == previous_kem_id {
+                return Err(PrekeyStoreDecodeError::Malformed);
+            }
+            let mut j = 0;
+            while j < i {
+                if kem_one_time[j].0 == id {
+                    return Err(PrekeyStoreDecodeError::Malformed);
+                }
+                j += 1;
+            }
+            i += 1;
         }
 
         let store = PrekeyStore {
@@ -1915,12 +2021,18 @@ impl Session {
         // classical half runs first inside `receive` and a batch sized for its
         // need must not be spent on the post-quantum store, whose need is
         // unrelated.
-        let shortfall = |half: FullStore| -> usize {
+        //
+        // The figure is read from the copy being evicted from, not from
+        // `self`: the two agree on the first attempt, and a post-quantum
+        // eviction never touches the classical store, so they agree on every
+        // later one too, but reading `work` makes that true by construction
+        // rather than by argument.
+        let shortfall = |half: FullStore, state: &tacenta_triple::State| -> usize {
             match half {
                 FullStore::Classical => {
-                    let held = self.triple.classical_skipped_len();
+                    let held = state.classical_skipped_len();
                     let need =
-                        (composite.n as usize).saturating_sub(self.triple.receive_count() as usize);
+                        (composite.n as usize).saturating_sub(state.receive_count() as usize);
                     held.saturating_add(need)
                         .saturating_sub(crate::ratchet::MAX_SKIPPED_STORE)
                         .max(1)
@@ -1944,7 +2056,7 @@ impl Session {
                     return Err(Error::Triple(first));
                 };
                 let mut work = self.triple.clone();
-                let mut batch: usize = shortfall(half);
+                let mut batch: usize = shortfall(half, &work);
                 let mut pending = first;
                 loop {
                     let evicted = match half {
@@ -1967,7 +2079,7 @@ impl Session {
                             };
                             if next != half {
                                 half = next;
-                                batch = shortfall(next);
+                                batch = shortfall(next, &work);
                             }
                             pending = e;
                         }

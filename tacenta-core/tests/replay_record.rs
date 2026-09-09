@@ -8,6 +8,12 @@
 //! (which error a replay draws) and through `to_bytes`, whose length moves by
 //! exactly one 36-byte entry per record entry once the rest of the store is
 //! held equal. The fail-closed bound is `agreement_and_bounds.rs`.
+//!
+//! The identifier rules `from_bytes` enforces are here too: no identifier at
+//! or past `next_id`, no retired identifier equal to the live one, no
+//! repeated one-time identifier, and no one-time KEM prekey carrying a
+//! last-resort key's identifier. Each is a store `to_bytes` never writes and
+//! at least one is a store that, accepted, would let a replay through.
 
 use rand::SeedableRng;
 use tacenta_core::sessions::{
@@ -328,4 +334,230 @@ fn from_bytes_refuses_a_count_above_the_bound_in_v4_and_v3() {
             "version {version:#04x} must refuse a count above the bound"
         );
     }
+}
+
+// ------------------------------------------------------------- identifiers
+
+/// The big-endian `u32` at `at`.
+fn u32_at(bytes: &[u8], at: usize) -> u32 {
+    u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap())
+}
+
+/// Where the signed prekey identifier sits: after the version byte, the
+/// identity key, and the signed prekey secret, all fixed-width.
+const SIGNED_PREKEY_ID_AT: usize = 1 + 32 + 32;
+
+/// Where the current last-resort KEM key's identifier sits: after the
+/// one-time curve vector, whose entries are fixed-width, and the KEM key
+/// pair, which is length-prefixed. Unlike `seen_count_offset` this walks the
+/// curve vector rather than requiring it to be empty.
+fn kem_id_offset(bytes: &[u8]) -> usize {
+    let mut pos = 1 + 32 + (32 + 4 + 64);
+    let curve_count = u32_at(bytes, pos) as usize;
+    pos += 4 + curve_count * 36;
+    let kem_len = u32_at(bytes, pos) as usize;
+    pos + 4 + kem_len
+}
+
+/// Where the first one-time KEM entry's identifier sits: past the current
+/// KEM identifier, its signature, and the vector's count.
+fn first_kem_one_time_at(bytes: &[u8]) -> usize {
+    kem_id_offset(bytes) + 4 + 64 + 4
+}
+
+/// A retired identifier equal to the live one is malformed. Accepted, a
+/// retired KEM identifier equal to the current one would have the next
+/// rotation prune the record by the *live* key's identifier, dropping every
+/// entry that key had recorded, after which a captured message naming it is
+/// accepted a second time. The honest store after one rotation is the
+/// starting point, so the only difference is the one identifier.
+#[test]
+fn from_bytes_refuses_a_retired_identifier_equal_to_the_current_one() {
+    let mut r = rng(9);
+    let bob = Identity::generate(&mut r);
+
+    let mut store = bob.create_prekeys(0, &mut r);
+    store.rotate_kem(&bob, &mut r);
+    let honest = store.to_bytes().to_vec();
+    assert!(PrekeyStore::from_bytes(&honest).is_ok());
+    let kem_id = u32_at(&honest, kem_id_offset(&honest));
+    // The retired KEM key is the tail of the encoding: a presence byte, the
+    // length-prefixed pair, the identifier, then a 64-byte signature.
+    let at = honest.len() - 64 - 4;
+    assert_ne!(
+        u32_at(&honest, at),
+        kem_id,
+        "an honest rotation retires a distinct key"
+    );
+    let mut bytes = honest.clone();
+    bytes[at..at + 4].copy_from_slice(&kem_id.to_be_bytes());
+    assert!(
+        matches!(
+            PrekeyStore::from_bytes(&bytes),
+            Err(PrekeyStoreDecodeError::Malformed)
+        ),
+        "a retired KEM identifier equal to the live one must be refused"
+    );
+
+    // The same rule for the signed prekey. With no retired KEM key the tail
+    // is the retired signed prekey -- presence byte, secret, identifier,
+    // signature -- then the KEM key's absent-marker byte.
+    let mut store = bob.create_prekeys(0, &mut r);
+    store.rotate_signed_prekey(&bob, &mut r);
+    let honest = store.to_bytes().to_vec();
+    assert!(PrekeyStore::from_bytes(&honest).is_ok());
+    let signed_id = u32_at(&honest, SIGNED_PREKEY_ID_AT);
+    let at = honest.len() - 1 - 64 - 4;
+    assert_ne!(u32_at(&honest, at), signed_id);
+    let mut bytes = honest.clone();
+    bytes[at..at + 4].copy_from_slice(&signed_id.to_be_bytes());
+    assert!(matches!(
+        PrekeyStore::from_bytes(&bytes),
+        Err(PrekeyStoreDecodeError::Malformed)
+    ));
+}
+
+/// Every identifier a store holds was handed out by `next_id`, so each is
+/// below it. A counter wound back to a live identifier, or an identifier past
+/// the counter, is refused: either way the next key handed out could collide
+/// with one the store still holds.
+#[test]
+fn from_bytes_refuses_an_identifier_at_or_past_next_id() {
+    let mut r = rng(10);
+    let bob = Identity::generate(&mut r);
+    let store = bob.create_prekeys(0, &mut r);
+    let honest = store.to_bytes().to_vec();
+    let kem_id = u32_at(&honest, kem_id_offset(&honest));
+    let next_at = seen_count_offset(&honest) - 4;
+    assert!(u32_at(&honest, next_at) > kem_id);
+
+    // The counter wound back to the live key's identifier.
+    let mut wound = honest.clone();
+    wound[next_at..next_at + 4].copy_from_slice(&kem_id.to_be_bytes());
+    assert!(
+        matches!(
+            PrekeyStore::from_bytes(&wound),
+            Err(PrekeyStoreDecodeError::Malformed)
+        ),
+        "an identifier equal to next_id must be refused"
+    );
+
+    // An identifier past the counter, on the signed prekey.
+    let mut past = honest.clone();
+    past[SIGNED_PREKEY_ID_AT..SIGNED_PREKEY_ID_AT + 4].copy_from_slice(&u32::MAX.to_be_bytes());
+    assert!(
+        matches!(
+            PrekeyStore::from_bytes(&past),
+            Err(PrekeyStoreDecodeError::Malformed)
+        ),
+        "an identifier past next_id must be refused"
+    );
+}
+
+/// Two one-time prekeys of one kind sharing an identifier is malformed: the
+/// store consumes the first match, so the second would serve a replay of the
+/// initial message that spent the first.
+#[test]
+fn from_bytes_refuses_a_repeated_one_time_identifier() {
+    let mut r = rng(11);
+    let bob = Identity::generate(&mut r);
+    let store = bob.create_prekeys(2, &mut r);
+    let honest = store.to_bytes().to_vec();
+    assert!(PrekeyStore::from_bytes(&honest).is_ok());
+
+    // Curve entries are 36 bytes each, straight after their count.
+    let first = 1 + 32 + (32 + 4 + 64) + 4;
+    let second = first + 36;
+    let mut curve = honest.clone();
+    let id = u32_at(&curve, first);
+    curve[second..second + 4].copy_from_slice(&id.to_be_bytes());
+    assert!(matches!(
+        PrekeyStore::from_bytes(&curve),
+        Err(PrekeyStoreDecodeError::Malformed)
+    ));
+
+    // A KEM entry is the identifier, the length-prefixed pair, then the
+    // signature, so the second entry's position depends on the first's
+    // length.
+    let first = first_kem_one_time_at(&honest);
+    let pair_len = u32_at(&honest, first + 4) as usize;
+    let second = first + 4 + 4 + pair_len + 64;
+    let mut kem = honest.clone();
+    let id = u32_at(&kem, first);
+    kem[second..second + 4].copy_from_slice(&id.to_be_bytes());
+    assert!(matches!(
+        PrekeyStore::from_bytes(&kem),
+        Err(PrekeyStoreDecodeError::Malformed)
+    ));
+}
+
+/// A one-time KEM prekey carrying a last-resort key's identifier, current or
+/// retired, is malformed: an initial message naming that identifier would be
+/// served from whichever the lookup reached first.
+#[test]
+fn from_bytes_refuses_a_one_time_kem_identifier_shared_with_a_last_resort_key() {
+    let mut r = rng(12);
+    let bob = Identity::generate(&mut r);
+    let mut store = bob.create_prekeys(1, &mut r);
+    store.rotate_kem(&bob, &mut r);
+    let honest = store.to_bytes().to_vec();
+    assert!(PrekeyStore::from_bytes(&honest).is_ok());
+    let one_time_at = first_kem_one_time_at(&honest);
+    let current = u32_at(&honest, kem_id_offset(&honest));
+    let retired = u32_at(&honest, honest.len() - 64 - 4);
+    for shared in [current, retired] {
+        let mut bytes = honest.clone();
+        bytes[one_time_at..one_time_at + 4].copy_from_slice(&shared.to_be_bytes());
+        assert!(
+            matches!(
+                PrekeyStore::from_bytes(&bytes),
+                Err(PrekeyStoreDecodeError::Malformed)
+            ),
+            "a one-time KEM identifier equal to {shared} must be refused"
+        );
+    }
+}
+
+// --------------------------------------------------------------- occupancy
+
+/// `last_resort_record_remaining` counts down as last-resort handshakes are
+/// accepted, holds through a refusal and through the rotation that retires a
+/// key, climbs back when the rotation after it wipes the key, and survives
+/// persistence.
+#[test]
+fn the_record_reports_its_remaining_room() {
+    let mut r = rng(13);
+    let bob = Identity::generate(&mut r);
+    let mut store = bob.create_prekeys(0, &mut r);
+    // `MAX_LAST_RESORT_SEEN`, which is private; the bound is also pinned in
+    // `agreement_and_bounds.rs`.
+    let full = 1024;
+    assert_eq!(store.last_resort_record_remaining(), full);
+
+    let first_bundle = store.publish_multi_use();
+    let captured = last_resort_initial(&first_bundle, b"first", &mut r);
+    establish_responder(&bob, &mut store, &captured, &mut r).unwrap();
+    assert_eq!(store.last_resort_record_remaining(), full - 1);
+
+    // A refused replay records nothing.
+    assert!(matches!(
+        establish_responder(&bob, &mut store, &captured, &mut r),
+        Err(LifecycleError::ReplayedLastResort)
+    ));
+    assert_eq!(store.last_resort_record_remaining(), full - 1);
+
+    // The rotation that retires the key keeps its entry; a handshake against
+    // the new key adds one.
+    store.rotate_kem(&bob, &mut r);
+    assert_eq!(store.last_resort_record_remaining(), full - 1);
+    let second = last_resort_initial(&store.publish_multi_use(), b"second", &mut r);
+    establish_responder(&bob, &mut store, &second, &mut r).unwrap();
+    assert_eq!(store.last_resort_record_remaining(), full - 2);
+
+    // The rotation after it wipes the first key and frees its entry only.
+    store.rotate_kem(&bob, &mut r);
+    assert_eq!(store.last_resort_record_remaining(), full - 1);
+
+    let restored = PrekeyStore::from_bytes(&store.to_bytes()).unwrap();
+    assert_eq!(restored.last_resort_record_remaining(), full - 1);
 }
