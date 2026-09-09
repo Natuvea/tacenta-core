@@ -28,52 +28,63 @@ this section says in one place what is not proved.
   pedantry.
 - **The primitives are opaque.** X25519, ML-KEM, SHA-256, HMAC and the AEAD are
   assumed at the boundary. No proof here says anything about them.
-- **Every `Vec`-family boundary hypothesis is guarded, and the build checks
-  that each is satisfiable.** `VecAppendTotal`/`VecAppendAgrees` carry a
-  length guard (Aeneas's `Vec` has no room for two full vectors),
-  `VecRemoveTotal` in both `T1.lean` and `SpqrT1.lean` carries an
-  `[Inhabited]` bound (stated for every element type, including the empty
-  one, it would imply `False`), and `VecRemoveAgrees` names the out-of-range
-  element as `default` under that same bound. A hypothesis that implies
-  `False` in Lean turns every theorem taking it into a proof of `False → _`,
-  kernel-checked and establishing nothing; the kernel does not flag this, and
-  `#print axioms` does not either. The sparse ratchet's `receive_no_panic`
-  and `receive_refines`, the classical ratchet's `receive_refines`, and
-  everything composed from them in `TripleT1.lean`/`TripleT3.lean` take these
-  hypotheses, so `Translation/Satisfiability.lean` exhibits a model of each
-  and a refutation of each unguarded shape, and the build fails if any of
-  them becomes refutable. The same file witnesses every `zeroize`-wrapper
-  hypothesis the sparse ratchet, the Braid and the classical ratchet take
-  (`ZeroizingRoundTrips96`/`64`, `ZeroizingArrayRoundTrip`, `T3.lean`'s
-  `ZeroizingRoundTrips` and `ZeroizingRoundTrips80`, `T1.DerivedKeysModel`),
-  and `Translation/SatisfiabilityTriple.lean` the Triple Ratchet's two
+- **Every boundary hypothesis about an opaque operation is guarded by that
+  operation's own precondition, and the build checks that each `Vec`-family
+  one is satisfiable.** `VecAppendTotal`/`VecAppendAgrees` carry a length
+  guard (Aeneas's `Vec` has no room for two full vectors); `VecRemoveTotal`
+  in both `T1.lean` and `SpqrT1.lean` and `VecRemoveAgrees` carry the index
+  guard `i.val < v.val.length →`, the one condition under which Rust's
+  `Vec::remove` returns rather than panics, discharged in each proof from
+  the loop guard the source checks first (the guard also removed the
+  `[Inhabited]` bound the unguarded statements needed: stated for every
+  index and every element type, including the empty one, they would imply
+  `False`); every HKDF hypothesis carries RFC 5869's `N.val ≤ 8160`, the
+  bound the crate's `expect` enforces; `DivCeilTotal` carries `b.val ≠ 0`;
+  and the KEM's two randomness-drawing totals and clauses carry
+  `BraidT1.RngTotal rc`, that the caller's `fill_bytes` returns. A hypothesis
+  that implies `False` in Lean turns every theorem taking it into a proof of
+  `False → _`, kernel-checked and establishing nothing; the kernel does not
+  flag this, and `#print axioms` does not either. The sparse ratchet's
+  `receive_no_panic` and `receive_refines`, the classical ratchet's
+  `receive_refines`, and everything composed from them in
+  `TripleT1.lean`/`TripleT3.lean` take these hypotheses, so
+  `Translation/Satisfiability.lean` exhibits a model of each `Vec`-family
+  one and a refutation of each unguarded shape, and the build fails if any
+  of them becomes refutable; for `Vec::remove` the model is the real
+  operation's own behaviour, the element in range and a panic otherwise. The
+  same file witnesses every `zeroize`-wrapper hypothesis the sparse ratchet,
+  the Braid and the classical ratchet take (`ZeroizingRoundTrips96`/`64`,
+  `ZeroizingArrayRoundTrip`, `T3.lean`'s `ZeroizingRoundTrips` and
+  `ZeroizingRoundTrips80`, `T1.DerivedKeysModel`), and
+  `Translation/SatisfiabilityTriple.lean` the Triple Ratchet's two
   (`TripleT1.ZeroizingTotal`, `TripleT3.ZeroizingRoundTrips`), which cannot
   share an environment with the rest. A satisfiable hypothesis is still only
-  a hypothesis: the `Remove` forms remain stronger than Rust for an
-  out-of-range index (`LIMITATIONS.md`).
+  a hypothesis (`LIMITATIONS.md`).
 - **The ML-KEM Braid's T3 theorems carry two preconditions beyond the
   boundary agreements.** `step_send_refines`, `Braid.send_refines`,
   `step_receive_refines` and `Braid.receive_refines` take a live encoder
   (fewer than 65,536 codewords emitted) and an unspliced chunk stream
   (`HonestChunk`), and the erasure agreement they rest on is bounded to what
-  a real erasure code can satisfy; the KEM agreement is not yet, as the next
-  bullet says. The section below
+  a real erasure code can satisfy, as is the KEM agreement, since the
+  revision the next bullet describes. The section below
   records every hypothesis; `Translation/Satisfiability.lean` refutes the
   unbounded shapes so they cannot be restated, and
   `Translation/ErasureWitness.lean` proves the erasure hypotheses have a
   model (a Reed-Solomon code over `GF(2^256)`, built from Mathlib).
-- **The KEM agreement currently admits only a derandomised KEM.** The
-  encapsulation clause of `BraidT3.lean`'s `KemAgreesFor` asks the real
-  `encapsulate1` to return, for every RNG state, the single ciphertext and
-  shared secret the model's randomness-free `Kem.encaps1` computes from the
-  header. ML-KEM encapsulation draws fresh randomness, so no `K` makes that
-  clause true of the real operation, and the only implementation known to
-  satisfy it is `Translation/KemWitness.lean`'s `toyKem`. The four Braid
-  refinement theorems therefore describe a Braid over a derandomised KEM
-  until the clause is restated with the randomness bound existentially per
-  RNG state, as the key-generation clause already is. `LIMITATIONS.md`'s KEM
-  entry (under the Braid's erasure and KEM hypotheses) has the full account
-  and the planned fix.
+- **The KEM agreement binds the model's randomness existentially per RNG
+  state, for encapsulation as for key generation.** `Model.Braid.Kem.encaps1`
+  takes a randomness argument, `Kem.Correct` quantifies over both parties'
+  randomness, and the encapsulation clause of `BraidT3.lean`'s `KemAgreesFor`
+  says that for each RNG state *some* model randomness makes `K.encaps1`'s
+  ciphertext and shared secret the real `encapsulate1`'s -- the same shape
+  the key-generation clause always had. An earlier revision's clause fixed
+  one pair per header for every RNG state, which ML-KEM's fresh randomness
+  makes false of the real operation, so the four Braid refinement theorems
+  described a Braid over a derandomised KEM; `LIMITATIONS.md`'s KEM entry
+  (under the Braid's erasure and KEM hypotheses) records that this was so
+  and is closed. What the two randomness-drawing clauses assume beyond
+  agreement is `BraidT1.RngTotal rc`, that the caller's `fill_bytes`
+  returns; `step_send_refines` and `Braid.send_refines` take it.
 - **A verified zone is not a verified library.** The zone is the ratchet and
   what it calls; orchestration, storage and lifecycle sit outside it.
 - **The verified wire parser has no caller.** `tacenta-protobuf` carries T1
@@ -131,8 +142,10 @@ this section says in one place what is not proved.
   `ArrayZeroizeTotal` and `RangeFullIndexTotal`), and two preconditions:
   `State.ct1_bounded self.state`, which the T1 section names, and
   `epoch < U64.max`, which the T1 theorems no longer need (CR-03) and the T3
-  section says why the refinement still does. The theorem's signature is the
-  authoritative list.
+  section says why the refinement still does. `Braid.send_refines` and
+  `step_send_refines` take `BraidT1.RngTotal rc` for the RNG they are
+  handed, as `Braid.send_no_panic`/`step_send_no_panic` do. The theorem's
+  signature is the authoritative list.
 
 The honest one-line summary: **the protocol core is proved to refine a model
 under stated assumptions; the code path a customer's message actually travels
@@ -186,8 +199,10 @@ operation carries it to the model's operation.
   and the fresh ratchet key as bytes, returns the key `Model.Ratchet.receive`
   returns and a state still related, across the skipped-key hit, the
   same-chain path and the Diffie-Hellman ratchet path. Under `HmacAgrees`,
-  `HkdfAgrees`, `ZeroizingRoundTrips`, `VecRemoveTotal` and
-  `DerivedKeysModel` (the T1 section says what it is), the `hone`
+  `HkdfAgrees` (stated under RFC 5869's `N.val ≤ 8160`, discharged at the
+  64- and 80-byte literals), `ZeroizingRoundTrips`, `VecRemoveTotal`
+  (stated under `i.val < v.val.length`, discharged from each scan's own loop
+  guard) and `DerivedKeysModel` (the T1 section says what it is), the `hone`
   at-most-one hypothesis named in "what is not proved", a store-size
   precondition (`hs`) and room in the expiry clock (`hroom`); it says nothing
   about the failure branches. Pinned base: the kernel's three axioms and
@@ -257,7 +272,9 @@ Location: `Translation/SessionT3.lean`, with panic-freedom in
   agreement outputs, the core and the model produce the same thirty-two bytes,
   in both shapes. **Modulo `HkdfAgrees`**: the key derivation is opaque on both
   sides, so that the two agree is assumed, and the model-generated byte vectors
-  are what covers it outside Lean.
+  are what covers it outside Lean. (`SessionT3.HkdfAgrees` is stated at the
+  fixed 32-byte width the derivation uses, so it needs no length premise;
+  `SessionT1.HkdfTotal` beneath it carries `N.val ≤ 8160` like the others.)
 - `km_refines_none`, `km_refines_some`, `associated_data_refines`,
   `associated_data_with_kem_refines`: assumption-free, settled by structure.
 - `decode_ec_after_encode_ec`: reading an encoding back gives what was encoded.
@@ -350,7 +367,13 @@ Location: `tacenta-proofs/translation/Translation/T1.lean` and
 - `send_no_panic`: sending on the classical ratchet cannot panic; the
   `ChainExhausted` refusal at the `u32` counter's limit is a returned error,
   not a failure. Pinned with the other two.
-- `receive_no_panic`: the translated Double Ratchet receive cannot panic.
+- `receive_no_panic`: the translated Double Ratchet receive cannot panic,
+  under `HmacTotal`, `HkdfTotal` (stated for every output length within RFC
+  5869's `N.val ≤ 8160`, which the crate's `expect` enforces; the two calls
+  ask for 64 and 80 bytes), `ZeroizingTotal`, `VecRemoveTotal` (stated for
+  an in-range index, `i.val < v.val.length →`, which is where `Vec::remove`
+  returns; each of the three scans discharges it from its own loop guard)
+  and `DerivedKeysModel`, plus the store-size precondition `hs`.
   Since CR-15 the forward derivation returns its keys in a `Zeroizing`
   wrapper and the store loop reads them back by index, so this and the
   `skip_message_keys`/`derive_chain` lemmas beneath it take
@@ -390,7 +413,10 @@ Location: `Translation/ErasureT1.lean`.
 
 `Encoder::new`, `Decoder::new`, `needed`, `received` and the codecs have no
 theorem, as "translated is not proved" says, and `LIMITATIONS.md` records
-what T3 does and does not reach in this crate.
+what T3 does and does not reach in this crate. `chunk_count_no_panic` takes
+`DivCeilTotal`, stated under `b.val ≠ 0` (the one input on which
+`usize::div_ceil` panics) and discharged at its one use, the constant
+`CHUNK_BYTES`.
 
 ## Proved (tier T1, the wire parser cannot fail)
 
@@ -414,9 +440,13 @@ Location: `tacenta-proofs/translation/Translation/SpqrT1.lean`.
 These three are in the `Tacenta.SpqrT1` namespace -- bare names shared with,
 and distinct from, the classical ratchet's own theorems of the same name
 above. All three carry stated room preconditions (the epoch table has space
-for one or two more entries, an epoch counter and a per-chain message counter
-are each below `2^64`, the skipped-key store has room for one more batch);
-none is unconditional totality.
+for one or two more entries, the skipped-key store has room for one more
+batch); none is unconditional totality. None carries an epoch or counter
+bound any more: every epoch and per-chain counter increment in the source
+is a `checked_add` whose `None` arm returns `ChainExhausted`, and the proofs
+walk that arm as a value, as `BraidT1.lean`'s did after CR-03; the
+refinement in `SpqrT3.lean` keeps `hepoch`/`hcounter` for the model's
+reason (it counts in `Nat`), as that section says.
 
 - `advance_no_panic`: the sparse post-quantum ratchet's DH-style epoch advance
   cannot panic.
@@ -429,11 +459,12 @@ none is unconditional totality.
   composes this with the classical ratchet above, is translated and proved
   (see below).
 - Seven opaque-operation assumptions back these theorems (`VecRemoveTotal`,
-  `KdfCkTotal`, `ZeroizeTotal`, `VecRetainTotal`, `KdfRkTotal`,
-  `OptionCloneTotal`, `VecAppendTotal`), each a per-crate axiom Aeneas could not
-  model, none shared with the classical ratchet's own copies of the same
-  operations. See `SpqrT1.lean`'s own closing section for why the count is
-  seven and not five.
+  stated under the index guard `i.val < v.val.length →` and discharged from
+  the skipped-key scan's own loop check; `KdfCkTotal`, `ZeroizeTotal`,
+  `VecRetainTotal`, `KdfRkTotal`, `OptionCloneTotal`, `VecAppendTotal`), each
+  a per-crate axiom Aeneas could not model, none shared with the classical
+  ratchet's own copies of the same operations. See `SpqrT1.lean`'s own
+  closing section for why the count is seven and not five.
 
 ## Proved (tier T1, the ML-KEM Braid's entry points cannot fail)
 
@@ -442,7 +473,10 @@ Location: `tacenta-proofs/translation/Translation/BraidT1.lean`.
 - `mac_eq_no_panic`: the constant-time authenticator comparison cannot panic,
   given equal-length inputs -- the crate's only loop.
 - `Braid.step_send_no_panic`, `Braid.send_no_panic`: the eleven-state
-  machine's sending half, and its entry point, cannot panic.
+  machine's sending half, and its entry point, cannot panic, given an RNG
+  whose `fill_bytes` returns (`RngTotal rc`, the premise the real
+  `generate`/`encapsulate1` need, carried by `KeyPairGenerateTotal` and
+  `Encapsulate1Total` and threaded through both theorems).
 - `Braid.step_receive_no_panic`, `Braid.receive_no_panic`: the receiving half
   and its entry point cannot panic. This is the one an attacker's header,
   chunk data, and claimed lengths drive directly, so this is what stands
@@ -472,8 +506,11 @@ Location: `tacenta-proofs/translation/Translation/BraidT1.lean`.
   `Braid.clone_no_panic`, `Output.clone_no_panic`), are proved along the way,
   since `step_send`/`step_receive` call all of them.
 - Twenty-six opaque-operation assumptions back these theorems, over the
-  erasure coder, the KEM, the two KDF calls, this crate's own copy of
-  `Option::clone`, and, since CR-15, the `zeroize` crate's three touches
+  erasure coder, the KEM (its two randomness-drawing totals under
+  `RngTotal rc`), the two KDF calls (`HkdfSha256Total` under RFC 5869's
+  `N.val ≤ 8160`, discharged at the 32- and 64-byte literals), this crate's
+  own copy of `Option::clone`, and, since CR-15, the `zeroize` crate's three
+  touches
   (`ZeroizingArrayRoundTrip`, the wrapper's constructor and projection as one
   round trip at every width; `ArrayZeroizeTotal`, the in-place wipe of the
   raw KEM secret; `RangeFullIndexTotal`, the `key[..]` index the Aeneas
@@ -513,7 +550,7 @@ This file is the only one that says anything about the composition itself.
   and its siblings in `TripleT1.lean` are stated for *every* state, with no
   hypothesis. `T1.lean`'s `receive_no_panic` needs `hs` (the store size plus
   `U32.max` within `Usize.max`); `SpqrT1.lean`'s `send_no_panic` and
-  `receive_no_panic` need `hroom`, `hepoch`, `hskiproom` and `hcounter`. So the
+  `receive_no_panic` need `hroom` and `hskiproom`. So the
   Triple theorems rest on assumptions no leaf theorem discharges, and which
   are not provable as stated in the Aeneas model (a `Vec::push` at
   `Usize.max` fails). `TripleT3.lean` carries the leaf preconditions verbatim
@@ -618,7 +655,12 @@ against a symbolic attacker") says exactly how little that covers.
   `ZeroizingRoundTrips`:** two assumptions, the only opaque primitives this
   crate calls that are genuinely its own (inside the translated, non-opaque
   `split_secret`/`combine`). `TripleHkdfAgrees` is stated the same way
-  `SpqrHkdfAgrees`/`HkdfAgrees` are for the other two crates.
+  `SpqrHkdfAgrees`/`HkdfAgrees` are for the other two crates, under RFC
+  5869's `N.val ≤ 8160`, discharged at the 32- and 64-byte literals.
+  `SpqrAgreesFor` mirrors `SpqrT3.lean`'s `send_refines`/`receive_refines`
+  preconditions, `hepoch` and `hcounter` included, which that refinement
+  keeps for the model's reason (below) although `SpqrT1.lean` no longer
+  needs them.
   `ZeroizingRoundTrips` is this crate's copy of `T3.lean`'s hypothesis of the
   same name, at sixty-four bytes and in the same two-conjunct shape (so it
   subsumes `TripleT1.lean`'s `ZeroizingTotal`, `ZeroizingRoundTrips.total`),
@@ -802,7 +844,12 @@ What a reader has to grant:
   crate returns an error -- not refutable, but stronger than the crate; for
   `ValidateEkAgrees`, which demands a definite answer rather than success,
   the unguarded statement was false of the real `validate_ek` for every
-  `K` (`LIMITATIONS.md`).
+  `K` (`LIMITATIONS.md`). The two clauses that draw randomness -- key
+  generation and `encapsulate1` -- are further guarded by
+  `BraidT1.RngTotal rc`, since the real operations return only if the
+  caller's `fill_bytes` does; `step_send_refines` and `Braid.send_refines`
+  take it, and `KeyPairGenerateTotal`/`Encapsulate1Total` in `BraidT1.lean`
+  carry the same premise.
 - **The model's `Decoder.message` returns the empty message for a decoder
   sized for zero bytes**, as the real decoder does; returning `none` there
   would make `ErasureAgrees` false of the crate at size zero (unreachable in
@@ -839,10 +886,10 @@ What a reader has to grant:
   model's own `toyKem`, satisfies all of them at once
   (`kem_hypotheses_satisfiable`), and each concrete hypothesis is the shape
   at the real operations by `Iff.rfl`. Same caveat: consistency, not
-  correctness of the real ML-KEM wrapper, which stays assumed. For the
-  encapsulation clause the caveat is sharper: `toyKem` satisfies it because
-  its `encaps1` draws no randomness, and a real KEM cannot (`LIMITATIONS.md`,
-  the KEM entry).
+  correctness of the real ML-KEM wrapper, which stays assumed. `toyKem`'s
+  `encaps1` ignores its randomness argument, which is a legitimate model of
+  a clause that asks only that *some* randomness make the model agree; the
+  witness picks `0`.
 
 - `step_send_refines`, `Braid.send_refines`: the eleven-state machine's
   sending half, and its entry point, compute what `Model.Braid.send` says --
@@ -900,10 +947,16 @@ What a reader has to grant:
   `IncrementalKeyPair`/`EncapsState` operations equal -- rather than one axiom
   per KEM operation, since the model's own `Kem` record is itself
   uninterpreted functions with no separate reference computation to equate a
-  per-op axiom against. One clause of it is too strong for any real KEM: the
-  encapsulation clause fixes one `(ct1, ss)` per header across every RNG
-  state, which only a derandomised KEM satisfies; `LIMITATIONS.md`'s KEM
-  entry states the consequence and the planned restatement.
+  per-op axiom against. Two clauses, for the two operations that draw
+  randomness (`generate`, `encapsulate1`), each binding the model's
+  randomness existentially per RNG state and each under `RngTotal rc`; the
+  encapsulation clause used to fix one `(ct1, ss)` per header across every
+  RNG state, which only a derandomised KEM satisfies, and
+  `Model.Braid.Kem.encaps1` now takes the randomness that makes the
+  existential meaningful. A third clause, over every `IncrementalKeyPair`
+  whether or not `generate` built it, was false of `from_bytes`-built pairs
+  and applied by no proof, and is gone (`LIMITATIONS.md`'s KEM entry has the
+  record).
 - **The erasure boundary, `ErasureAgrees`:** one freestanding relational
   invariant over `tacenta_erasure`'s `Encoder`/`Decoder`, in the same trust
   category as the ratchet's `HmacAgrees`/`HkdfAgrees` -- an assumed agreement
@@ -953,12 +1006,16 @@ Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
 - **The KDF boundary, `SpqrHkdfAgrees`:** one assumption, stated one level
   below `SpqrT1.lean`'s totality-only `KdfRkTotal`/`KdfCkTotal`, at the
   opaque `hkdf_sha256` call itself -- that when it returns, it returns what
-  `Model.Kdf.hkdf` computes. Subsumes both of `SpqrT1.lean`'s KDF
+  `Model.Kdf.hkdf` computes -- under RFC 5869's `N.val ≤ 8160`, discharged
+  at the 64- and 96-byte literals. Subsumes both of `SpqrT1.lean`'s KDF
   assumptions, so this file states the boundary once rather than twice.
 - **`VecRetainAgrees` and `VecRemoveAgrees`:** each states what `retain`/
   `remove` return, not only that they return, and each is strictly stronger
   than its `SpqrT1.lean` namesake, so neither older hypothesis is separately
-  assumed here.
+  assumed here. `VecRemoveAgrees` is stated under the index guard
+  `i.val < v.val.length`, where `Vec::remove` returns, and names the removed
+  element as `v.val[i.val]` outright, with no `Inhabited` bound and no
+  out-of-range value to name.
 - **`VecAppendAgrees`:** genuinely new. `SpqrT1.lean` needed only
   `VecAppendTotal`, since nothing there depended on what
   `skip_message_keys`'s concatenation actually produced; this file does.
@@ -975,7 +1032,12 @@ Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
   and the incoming `Output.key_epoch` must satisfy `+ epochsKept ≤ U64.max`,
   so the retirement arithmetic cannot overflow. These propagate verbatim into
   `TripleT3.lean`'s `SpqrAgreesFor` and so into its
-  `send_refines`/`receive_refines`.
+  `send_refines`/`receive_refines`. `hepoch` and `hcounter` are the model's
+  requirements, not the code's: `SpqrT1.lean`'s `send_no_panic`/
+  `receive_no_panic` no longer carry either, every epoch and counter
+  increment being a `checked_add` whose `None` arm returns `ChainExhausted`,
+  while `Model.SparseRatchet` counts in `Nat` and has nothing for that arm
+  to refine against -- the same reason `BraidT3.lean` keeps its `hepoch`.
 - **Axiom base:** beyond `propext`, `Classical.choice`, `Quot.sound`, and the
   per-crate opaque-operation axioms, `send_refines` rests on three
   `native_decide` reflection axioms, one per label agreement helper
