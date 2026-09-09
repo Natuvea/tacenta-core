@@ -30,16 +30,38 @@ this section says in one place what is not proved.
   `Translation/ImportInv.lean` proves that a state the translated `from_bytes`
   returns satisfies that invariant and that the invariant yields the
   preconditions -- the classical ratchet's `hs` (given one platform-width
-  fact), `hone` and `hroom`; the sparse ratchet's `hroom`, `hskiproom`,
-  `hepoch` and `hone`; the Braid's `ct1_bounded`. See "Proved: what a decoded
-  state satisfies" for the exact statements. What is **not** closed:
-  `SpqrT3.receive_refines`'s `hcb`, `hsb`, `hnewb` and `hcounter` and
-  `BraidT3.step_receive_refines`'s `epoch < u64::MAX` are not consequences of
-  those crates' invariants and are still the caller's; `tacenta-triple`,
+  fact) and `hone`; the sparse ratchet's `hroom`, `hskiproom` and `hone`; the
+  Braid's `ct1_bounded`. See "Proved: what a decoded state satisfies" for the
+  exact statements. What is **not** closed: `T3.receive_refines`'s `hroom`,
+  `SpqrT3.receive_refines`'s `hepoch`, `hcb`, `hsb`, `hnewb` and `hcounter`,
+  and `BraidT3.step_receive_refines`'s `epoch + 1 < u64::MAX` are not
+  consequences of those crates' invariants and are still the caller's (the
+  bullet below says why the three counter bounds cannot be); `tacenta-triple`,
   `tacenta-erasure`, `tacenta-session` and `tacenta-protobuf` have no such
   theorem; and the subject throughout is a leaf crate's own persistence
   format, not the session layer above it, which is untranslated. Wherever that
   chain does not reach, the sentence in bold still stands unchanged.
+- **A decoded state is panic-free unconditionally; it refines the model
+  provided the relevant counter has a step of headroom left.** That is the
+  one-line shape of what `Translation/ImportInv.lean` gives, and the split is
+  not an artefact of how the proofs are written. Each of the three crates
+  reserves the top value of the counter it steps -- the classical ratchet's
+  clock clamps at `MAX_EVENTS = u32::MAX - 1`, the sparse ratchet's `advance`
+  refuses the step to `epoch == u64::MAX`, the Braid's `step_receive` refuses
+  the same in transitions (5) and (13) -- so that no state a crate's own
+  operations produce is one its own decoder refuses. The models reserve
+  nothing: they count in `Nat`. So at the last unreserved value the code stops
+  and the model goes on, and the refinement theorems ask for one step of
+  headroom (`events + 1 < u32::MAX`, `epoch + 1 < u64::MAX`) where they used
+  to ask for the plain ceiling bound. No `invariant()` can supply that step,
+  because the state at the last unreserved value is an ordinary state the
+  crate produces, decodes and goes on operating on; a clause excluding it
+  would refuse a state the crate exports, which is the defect the reservation
+  removed. So the headroom is the caller's premise, and is named as one
+  wherever it appears -- an explicit argument on
+  `Ratchet.decoded_receive_refines`, and an open premise for the other two.
+  The panic-freedom theorems are untouched: every `decoded_*_no_panic` in
+  `ImportInv.lean` is unconditional in the counters.
 - **The primitives are opaque.** X25519, ML-KEM, SHA-256, HMAC and the AEAD are
   assumed at the boundary. No proof here says anything about them.
 - **Every boundary hypothesis about an opaque operation is guarded by that
@@ -162,8 +184,8 @@ this section says in one place what is not proved.
   `OptionCloneTotal`, and since CR-15 `ZeroizingArrayRoundTrip`,
   `ArrayZeroizeTotal` and `RangeFullIndexTotal`), and two preconditions:
   `State.ct1_bounded self.state`, which the T1 section names, and
-  `epoch < U64.max`, which the T1 theorems no longer need (CR-03) and the T3
-  section says why the refinement still does. `Braid.send_refines` and
+  `epoch + 1 < U64.max`, which the T1 theorems no longer need (CR-03) and the
+  T3 section says why the refinement still does. `Braid.send_refines` and
   `step_send_refines` take `BraidT1.RngTotal rc` for the RNG they are
   handed, as `Braid.send_no_panic`/`step_send_no_panic` do. The theorem's
   signature is the authoritative list.
@@ -225,8 +247,10 @@ operation carries it to the model's operation.
   (stated under `i.val < v.val.length`, discharged from each scan's own loop
   guard) and `DerivedKeysModel` (the T1 section says what it is), the `hone`
   at-most-one hypothesis named in "what is not proved", a store-size
-  precondition (`hs`) and room in the expiry clock (`hroom`); it says nothing
-  about the failure branches. Pinned base: the kernel's three axioms and
+  precondition (`hs`) and a step of room in the expiry clock
+  (`hroom : events + 1 < U32.max`, one step below the `u32` ceiling because
+  `age_store` clamps the clock at `MAX_EVENTS = u32::MAX - 1` while the model
+  counts in `Nat`); it says nothing about the failure branches. Pinned base: the kernel's three axioms and
   eleven opaque externals (`hkdf_sha256`, `hmac_sha256`, five declarations of
   the `zeroize` wrapper including `deref_mut`, the array, pair and `Vec`
   `Zeroize` instances, and `Vec::remove`), and no `native_decide`.
@@ -559,8 +583,39 @@ Read each crate's chain in one line: **decoded state → `Inv` → precondition 
 theorem.** The subject throughout is the *translated* `from_bytes`, the same
 artefact every other theorem in this package is about.
 
-Two hypotheses are carried rather than discharged, both named, both satisfied
-by the real Rust, neither new to this file in substance:
+**What is not claimed: preservation.** Nothing in this section says the
+predicates are *preserved by every operation*. Each `Inv` is a conjunction of
+field conditions; the theorems below say a decoded state satisfies it, and
+that it yields the preconditions the `receive` theorems take, and no more.
+There is no theorem here of the form "`send`/`receive` carries a state
+satisfying `Inv` to one satisfying `Inv`", for any of the three crates, and
+`Inv s` therefore does not on its own say that any run of the crate built `s`.
+
+That is worth stating because it decides how the decoder's refusal should be
+read. Where a predicate is not maintained by the operations, `from_bytes` can
+refuse a state an honest run could produce, and the refusal is a **policy**
+rather than a consistency check. The property that makes it a consistency
+check -- that no run of the crate produces a state the predicate rejects, so
+the values the predicate excludes are values the operations never reach -- is
+established by the crates, in the Rust, in the comments beside the counters
+concerned and in their import tests, not here. Read it as the property the
+crates establish; the Lean side would need a preservation theorem per
+operation, and that is open work.
+
+**What is not claimed: a step of counter headroom.** The three crates reserve
+the top value of the counter each steps, so that no state their operations
+produce is one their own decoder refuses; the models count in `Nat` and
+reserve nothing. The refinement theorems are therefore stated one step below
+the ceiling -- `T3.receive_refines`'s `hroom` is `events + 1 < u32::MAX`,
+`SpqrT3`'s and `BraidT3`'s `hepoch` is `epoch + 1 < u64::MAX` -- and no
+`invariant()` can close that step, because the state at the last unreserved
+value is one the crate produces, decodes and goes on operating on. The
+panic-freedom corollaries here are unaffected and take no such premise; the
+refinement corollary takes it as an explicit argument. "Read this first" gives
+the one-line form.
+
+Three hypotheses are carried rather than discharged, all named, none new to
+this file in substance:
 
 - `hplat : MAX_SKIPPED_STORE.val + U32.max ≤ Usize.max`, the platform-width
   fact the classical ratchet's `hs` reduces to once the store bound is known.
@@ -571,6 +626,14 @@ by the real Rust, neither new to this file in substance:
   states and already uses: `tacenta_kem::CT1_LEN` returns a value at most
   4096. The real constant is 1408 (`braid/src/lib.rs` says so where
   `ct1_bounded` is motivated).
+- `hclock_unparked : s.events.val + 1 < U32.max` on
+  `Ratchet.decoded_receive_refines`, the step of clock headroom
+  `T3.receive_refines`'s `hroom` asks for. Unlike the other two this one is
+  **not** satisfied by every state the real Rust produces: it excludes exactly
+  the parked clock, `events = MAX_EVENTS = u32::MAX - 1`, which `age_store`
+  clamps to and which an honest run reaches after 2^32 accepted receives. It
+  is an explicit argument for that reason, so a caller sees what is being
+  asked.
 
 ### `tacenta-ratchet` -- complete
 
@@ -594,21 +657,62 @@ entry's `stored_at` is ahead of `events`, the store is pairwise distinct on
   an equation rather than assumed. Axioms: `propext`, `Classical.choice`,
   `Quot.sound`, pinned under `#guard_msgs`.
 - Bridges: `Ratchet.inv_gives_store_bound` (`Inv` + `hplat` → T1's `hs`),
-  `Ratchet.inv_gives_clock_room` (`Inv` → T3's `hroom`),
-  `Ratchet.inv_gives_store_is_map` (`Inv` + `StateR` → T3's `hone`).
-- End to end: `Ratchet.decoded_receive_no_panic` (a `receive` on a decoded
-  state does not panic) and `Ratchet.decoded_receive_refines` (it refines
-  `Model.Ratchet.receive`), each taking the decode as its hypothesis and
-  discharging the state-shaped preconditions itself.
+  `Ratchet.inv_gives_store_is_map` (`Inv` + `StateR` → T3's `hone`), and
+  `Ratchet.inv_gives_clock_room` (`Inv` → `events < u32::MAX`, the
+  invariant's own clock clause). That last one is **one step short of T3's
+  `hroom`** and deliberately stays there: `hroom` is now
+  `events + 1 < u32::MAX`, and the clause cannot be strengthened to close the
+  step, because `events = MAX_EVENTS` is a state `age_store` produces and the
+  decoder accepts. What the clamp did buy is on the other side of the ledger:
+  `age_store` now *preserves* `events < u32::MAX` rather than assuming it, so
+  that clause holds of every state a run reaches and not only of every state
+  the decoder admits.
+- `Ratchet.decoded_receive_no_panic`, `Ratchet.decoded_receive_refines`: the
+  chain end to end -- a `receive` on a decoded state does not panic, and,
+  given a step of clock headroom, it refines `Model.Ratchet.receive` -- each
+  taking the decode as its hypothesis and discharging the state-shaped
+  preconditions itself. Panic-freedom is unconditional in the clock;
+  `decoded_receive_refines` takes `hclock_unparked` as an explicit argument
+  beside `hplat`, as described above. **Neither is
+  kernel-only.** Each composes with a `T1`/`T3` `receive` theorem, so each
+  carries that theorem's eleven `tacenta_ratchet.*` opaque-operation axioms
+  (the two KDF calls, `Vec::remove`, and the `zeroize` wrapper's constructor,
+  projections and `Zeroize` instances). Both are pinned under `#guard_msgs`
+  with that list in the pin, so the base cannot widen unnoticed.
+- `Ratchet.from_bytes_accepts_witness`: `∃ s, State.from_bytes witnessBytes =
+  ok (Ok s)` -- the translated decoder accepts a concrete 185-byte string
+  (`witnessBytes`: version byte, four keys with each `Option` tag present,
+  four zero counters, the label byte, a zero skipped-key count). Axioms:
+  `propext`, `Classical.choice`, `Quot.sound`, pinned. The concrete byte
+  reads are `decide` on a list literal, so this is kernel work and not
+  `native_decide`'s compiler trust.
+- `Ratchet.from_bytes_establishes_inv_nonvacuous`: `∃ bytes s,
+  State.from_bytes bytes = ok (Ok s) ∧ Inv s` -- so
+  `from_bytes_establishes_inv` is **not vacuous**: its premise is
+  satisfiable, and a decoder that rejected every buffer would not satisfy
+  this. Same three axioms, pinned. This is the discipline
+  `Translation/Satisfiability.lean` applies to every boundary hypothesis,
+  applied to a decoder's premise. There is no counterpart for the sparse
+  ratchet or the Braid: those `from_bytes` chains are longer, and the
+  Braid's runs through the opaque erasure and KEM decoders, which no byte
+  string can be shown to satisfy from inside the translation. Their
+  `from_bytes_establishes_inv` are therefore **not** known to be
+  non-vacuous, and the Rust-side round-trip tests
+  (`ratchet/tests/audit_import.rs` and its siblings) are the only evidence
+  that those decoders accept anything.
 
-### `tacenta-spqr` -- the sparse ratchet, complete for T1 and for four of T3's premises
+### `tacenta-spqr` -- the sparse ratchet, complete for T1 and for three of T3's premises
 
 `Inv` mirrors `State::invariant`'s four clauses across its two pairs of nested
-loops: the skipped store is at most `MAX_SKIPPED_STORE`; every chain's epoch is
-inside `[epoch, saturating_add epoch EPOCHS_KEPT)` from below and at most
-`epoch`, with no two chains sharing an epoch; the current epoch is among them;
-and every skipped key names a present chain, with no two sharing `(epoch, n)`.
-The window is written with `saturating_add` exactly as the Rust writes it.
+loops: the skipped store is at most `MAX_SKIPPED_STORE`; every chain's epoch
+`q.1` satisfies `q.1 ≤ epoch ∧ epoch < saturating_add q.1 EPOCHS_KEPT` -- the
+*current* epoch lies in the window starting at the chain's, which for
+`EPOCHS_KEPT = 2` puts the chain epochs in `{epoch - 1, epoch}` -- with no two
+chains sharing an epoch; the current epoch is among them; and every skipped
+key names a present chain, with no two sharing `(epoch, n)`. Note the
+direction: the clause is not "the chain's epoch is in a window above `epoch`".
+`Spqr.inv_gives_chains_len` reads the two-value bound straight off it. The
+window is written with `saturating_add` exactly as the Rust writes it.
 
 - `Spqr.invariant_eq : State.invariant s = ok (InvB s)`, over five loop
   characterisations: `chains_inner_eq`, `chains_outer_eq`, `present_eq`,
@@ -618,22 +722,43 @@ The window is written with `saturating_add` exactly as the Rust writes it.
 - `Spqr.from_bytes_establishes_inv`: `∀ bytes s, State.from_bytes bytes =
   ok (Ok s) → Inv s`. No hypothesis; same three axioms, pinned.
 - Bridges: `Spqr.inv_gives_chain_room` (`Inv` → `SpqrT1`'s
-  `hroom : chains.length + 2 < Usize.max`), `Spqr.inv_gives_skip_room`
-  (`Inv` → `SpqrT1`'s `hskiproom`), `Spqr.inv_gives_epoch_room` (`Inv` →
-  `SpqrT3`'s `hepoch : epoch < u64::MAX`), `Spqr.inv_gives_store_is_map`
-  (`Inv` + `StateRefines` → `SpqrT3`'s `hone`). Both T1 bridges are
+  `hroom : chains.length + 2 < Usize.max`, which is also `SpqrT3`'s),
+  `Spqr.inv_gives_skip_room` (`Inv` → `SpqrT1`'s `hskiproom`, likewise),
+  `Spqr.inv_gives_store_is_map` (`Inv` + `StateRefines` → `SpqrT3`'s `hone`),
+  and `Spqr.inv_gives_epoch_room` (`Inv` → `epoch < u64::MAX`). That last one
+  **is no longer `SpqrT3`'s `hepoch`**: `advance` now reserves `u64::MAX` and
+  refuses the step that would reach it -- at that epoch `clear_old_epochs`'s
+  own window would retire every chain including the one just opened -- so
+  `hepoch` reads `epoch + 1 < u64::MAX`, while `epoch = u64::MAX - 1` remains
+  a fully usable epoch the operations produce and the invariant admits. The
+  lemma stands as a recorded consequence of `Inv`; it discharges no premise of
+  the corollary below, since `SpqrT1.receive_no_panic` takes no epoch bound at
+  all. Both T1 bridges are
   unconditional: `Spqr.inv_gives_chains_len` derives `chains.length ≤ 2` from
   the window and the distinctness (the retention policy, read back off the
   invariant), and 4 and 3000 are below `Usize.max` on every target Aeneas
   models.
-- End to end: `Spqr.decoded_receive_no_panic` -- a `receive` on a decoded
-  state does not panic, with no side condition left for a caller.
+- `Spqr.decoded_receive_no_panic`: the chain end to end -- a `receive` on a
+  decoded state does not panic, with no side condition left for a caller.
+  **Not kernel-only, and not only because of the opaque operations.** It
+  carries ten `tacenta_spqr.*` opaque-operation axioms *and*
+  `SpqrT1.receive_no_panic._native.native_decide.ax_1_1`, inherited from
+  `SpqrT1.receive_no_panic`: one closed numeric fact in that proof is settled
+  by `native_decide`, so the Lean compiler's evaluation is trusted where the
+  kernel would otherwise check. This end-to-end statement is the point at
+  which that compiler trust reaches a claim about a state read off disk. It is
+  pinned under `#guard_msgs` with the axiom named in the pin, and it is the
+  only compiler-trusted statement in `ImportInv.lean`. `LIMITATIONS.md` counts
+  that `native_decide` use among the fourteen inside translation theorems.
 
-**What this does not give.** `SpqrT3.receive_refines` also takes `hcb`, `hsb`,
-`hnewb` and `hcounter`, and those are **not** consequences of the crate's
-`invariant`: a state with `epoch = u64::MAX - 1` and a chain at that epoch
-passes `invariant` and fails `hcb`. There is deliberately no
-`decoded_receive_refines` for this crate; those four premises stay with the
+**What this does not give.** `SpqrT3.receive_refines` also takes `hepoch`,
+`hcb`, `hsb`, `hnewb` and `hcounter`, and those are **not** consequences of
+the crate's `invariant`: a state with `epoch = u64::MAX - 1` and a chain at
+that epoch passes `invariant` and fails both `hepoch` and `hcb`. `hepoch` is
+on this list because the reserved ceiling moved it there -- it now asks for a
+step of headroom, `epoch + 1 < u64::MAX`, and the invariant reaches only
+`epoch < u64::MAX` (`Spqr.inv_gives_epoch_room`). There is deliberately no
+`decoded_receive_refines` for this crate; those five premises stay with the
 caller.
 
 ### `tacenta-braid` -- the one clause its theorems need
@@ -653,14 +778,20 @@ theorems take.
   `Braid.from_bytes_establishes_invariant`: `Braid.from_bytes bytes = ok (Ok b)
   → Braid.invariant b = ok true`, and the second
   composing the two.
-- End to end: `Braid.decoded_receive_no_panic` -- a `receive` on a decoded
-  Braid does not panic, given the boundary hypotheses
-  `BraidT1.Braid.receive_no_panic` already takes.
+- `Braid.decoded_receive_no_panic`: the chain end to end -- a `receive` on a
+  decoded Braid does not panic, given the boundary hypotheses
+  `BraidT1.Braid.receive_no_panic` already takes. Kernel-only it is not: its
+  axiom base is the union of the erasure coder's and the KEM's opaque
+  constants with the Braid's own KDF calls and `zeroize` touches, and it is
+  pinned under `#guard_msgs` with that list.
 
 **What this does not give.** `BraidT3.step_receive_refines` also takes
-`hepoch : epoch < u64::MAX`, which the Rust `invariant` does not check at all
-(it checks `epoch >= 1` and nothing above), so there is no
-`decoded_step_receive_refines`.
+`hepoch : epoch + 1 < u64::MAX`, which the Rust `invariant` does not check at
+all (it checks `epoch >= 1` and nothing above), so there is no
+`decoded_step_receive_refines`. `epoch < u64::MAX` is now a property of every
+state a run of the Braid reaches (the Braid T3 section says how), but it is
+still not derivable from `invariant`, which bounds the epoch only from below,
+and it is one step short of what the refinement asks in any case.
 
 ### The crates still open
 
@@ -1000,6 +1131,17 @@ What a reader has to grant:
   caller's `fill_bytes` does; `step_send_refines` and `Braid.send_refines`
   take it, and `KeyPairGenerateTotal`/`Encapsulate1Total` in `BraidT1.lean`
   carry the same premise.
+- **What `validate_ek` covers, and what nothing covers.** The check is
+  FIPS 203's `H(ek)`: it recomputes the hash of the *encapsulation* key
+  embedded in the header and compares it with the stored hash, so it binds
+  the public half to the header and nothing else. **The decapsulation half is
+  not verified**, here or anywhere in the tree: roughly half of an ML-KEM
+  decapsulation key -- the secret polynomial vector -- has no redundancy in
+  the encoding to check it against, so it cannot be validated from the bytes
+  alone, and neither `validate_ek`, nor `IncrementalKeyPair::from_bytes`
+  (which checks only its input's length), nor `ValidateEkAgrees` says
+  anything about it. A stored key pair whose private half has been altered
+  passes every check made and fails only at decapsulation.
 - **The model's `Decoder.message` returns the empty message for a decoder
   sized for zero bytes**, as the real decoder does; returning `none` there
   would make `ErasureAgrees` false of the crate at size zero (unreachable in
@@ -1052,15 +1194,21 @@ What a reader has to grant:
   each can take. This is the crate's largest theorem, and the one closest to
   an attacker's own input: every branch it proves is a shape
   of message a remote peer chooses. Both keep the precondition `hepoch`
-  (`State.epoch_val _ < U64.max`) that `BraidT1.lean`'s
+  (`State.epoch_val _ + 1 < U64.max`) that `BraidT1.lean`'s
   `step_receive_no_panic`/`receive_no_panic` dropped with CR-03, and for a
   reason that is the model's rather than the code's: `Model.Braid` counts
-  epochs in `Nat`, so at the ceiling the real code's `checked_add` answers
-  `Failed` where the model's `epoch + 1` keeps counting. The refinement holds
-  below the ceiling and says nothing at it; `from_bytes` refuses `u64::MAX`,
-  so no state `from_bytes` admits is there, and none is reachable in
-  practice (`checked_add` at `u64::MAX - 1` does yield `u64::MAX`, so the
-  ceiling is constructible only by 2^64 - 1 transitions).
+  epochs in `Nat`, so where the real code stops the model's `epoch + 1` keeps
+  counting. The premise is a step of headroom rather than the plain ceiling
+  bound, because `u64::MAX` is now a **reserved** epoch: transitions (5) and
+  (13) refuse the step that would land on it rather than taking it, so at
+  `epoch = u64::MAX - 1` the code answers `Failed` and the model advances, and
+  the refinement is stated one step below that. `epoch < u64::MAX` is thereby
+  a property of every state a run reaches, not only of every state
+  `from_bytes` admits -- the transitions keep it and `read_epoch` refuses it
+  on the way in, so the ceiling is not constructible by any sequence of
+  transitions at all, where before it was constructible in principle by
+  2^64 - 1 of them. It is still not a clause of `invariant`, and it is one
+  step short of `hepoch` in any case, so `hepoch` stays a hypothesis.
 - **Carried over from T1, new with CR-15:** `ZeroizingArrayRoundTrip`,
   `ArrayZeroizeTotal` and `RangeFullIndexTotal`, `BraidT1.lean`'s own copies
   of the `zeroize` wrapper's round trip, the in-place wipe, and the
@@ -1188,6 +1336,13 @@ Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
   increment being a `checked_add` whose `None` arm returns `ChainExhausted`,
   while `Model.SparseRatchet` counts in `Nat` and has nothing for that arm
   to refine against -- the same reason `BraidT3.lean` keeps its `hepoch`.
+  `hepoch` is `epoch + 1 < U64.max`, a step of headroom rather than the plain
+  ceiling bound: `advance` reserves `u64::MAX` and returns `ChainExhausted`
+  rather than opening chains under an epoch its own retention window would
+  immediately retire, so the model advances at `epoch = u64::MAX - 1` where
+  the code refuses. `u64::MAX - 1` is otherwise a fully usable epoch, so what
+  the reservation costs these theorems is one step of lookahead and not a
+  state they can no longer speak about.
 - **Axiom base:** beyond `propext`, `Classical.choice`, `Quot.sound`, and the
   per-crate opaque-operation axioms, `send_refines` rests on three
   `native_decide` reflection axioms, one per label agreement helper

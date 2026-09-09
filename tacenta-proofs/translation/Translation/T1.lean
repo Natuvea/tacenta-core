@@ -635,6 +635,13 @@ theorem age_store_loop_bound (hrm : VecRemoveTotal) (B : Nat)
     · step*
   · exact h
 
+/-- A branch between two values, rather than between two computations, commutes
+with `ok`. The clamp in `age_store` has that shape, and lifting the `ok` out of
+it is what lets the stepping tactic carry on through the bind. -/
+theorem ite_ok {a : Type} (c : Prop) [Decidable c] (x y : a) :
+    (if c then (ok x : Result a) else ok y) = ok (if c then x else y) := by
+  split <;> rfl
+
 /-- The wrapper: the record update replaces `skipped` with what the loop
 returned and touches nothing else that the bound mentions. -/
 @[step]
@@ -642,8 +649,19 @@ theorem age_store_spec (hrm : VecRemoveTotal) (state : State) :
     age_store state ⦃ fun s => s.skipped.val.length ≤ state.skipped.val.length ⦄ := by
   unfold age_store
   simp only [lift]
-  have hl := age_store_loop_bound hrm state.skipped.val.length state.skipped
-    (core.num.U32.saturating_add state.events 1#u32) 0#usize (le_refl _)
+  -- The clock is clamped one below its ceiling before the scan, so `now` is no
+  -- longer syntactically the saturating step; the bound holds for whichever
+  -- value the clamp produces, so it is supplied for every `now` at once.
+  have hl : ∀ now : U32,
+      age_store_loop state.skipped now 0#usize
+        ⦃ fun r => r.val.length ≤ state.skipped.val.length ⦄ :=
+    fun now =>
+      age_store_loop_bound hrm state.skipped.val.length state.skipped now
+        0#usize (le_refl _)
+  -- The clamp is a choice between two values, not between two computations, so
+  -- the `ok` comes out of the branch and the stepping tactic sees an ordinary
+  -- bind again.
+  simp only [ite_ok]
   step*
 
 theorem receive_no_panic (h : HmacTotal) (hk : HkdfTotal) (hz : ZeroizingTotal)

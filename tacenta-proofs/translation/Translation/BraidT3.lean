@@ -1613,9 +1613,48 @@ theorem hdr_decoder_refines (hea : ErasureAgrees)
     rw [hi1] at hdecsim
     exact hdecsim
 
+/-! ## The reserved epoch
+
+`u64::MAX` is not an epoch. `read_epoch` refuses it on the way in, and the
+two transitions that advance an epoch -- (5) and (13) -- refuse the step that
+would land on it rather than taking it, so that what the transitions produce
+and what the decoder accepts are the same set of states.
+
+The model counts epochs in `Nat` and has no ceiling, so it takes that step.
+The two lemmas below are what the refinement uses to place the real code on
+the side of the branch where both agree; `step_receive_refines`'s `hepoch`
+is what rules the other side out. -/
+
+/-- The reserved epoch constant, as a `Nat`. `core.num.U64.MAX` is Aeneas'
+`UScalar.ofNat U64.rMax`, and `U64.rMax` is `U64.max` spelled as a literal
+rather than as `2 ^ numBits - 1`; both sides are `irreducible`, so the
+unfolding has to be asked for by name. -/
+private theorem u64MAX_val : (core.num.U64.MAX : Std.U64).val = Std.U64.max := by
+  simp [core.num.U64.MAX, Std.U64.max, Std.U64.rMax, Std.U64.numBits,
+    Std.UScalarTy.numBits]
+
+/-- An epoch strictly below the ceiling is not the reserved value, which is
+how both refusal arms are discharged: `hepoch` bounds the successor epoch,
+and this turns that bound into the branch the real code takes. -/
+private theorem ne_u64MAX {i : Std.U64} (h : i.val < Std.U64.max) :
+    ¬ (i = core.num.U64.MAX) := by
+  intro he
+  rw [he, u64MAX_val] at h
+  omega
+
 set_option maxHeartbeats 1000000 in
 /-- `step_receive` refines `Model.Braid.receive`. `self` is unused by the real
-function (it operates purely on the passed `state`), same as `step_send`. -/
+function (it operates purely on the passed `state`), same as `step_send`.
+
+`hepoch` bounds the *successor* of the state's epoch, not the epoch itself.
+Transitions (5) and (13) advance an epoch, and both now refuse the step that
+would reach the reserved `u64::MAX`: at `epoch = u64::MAX - 1` the real code
+answers `Failed` where the model, counting in `Nat`, advances. That is one
+epoch lower than the point at which `checked_add` used to be the only
+divergence, so the hypothesis moved down with it. Every state a run can
+reach still satisfies `epoch < u64::MAX` -- the transitions keep it and
+`read_epoch` enforces it -- but `epoch + 1 < u64::MAX` is strictly more than
+that, and is the caller's premise, not a fact about reachable states. -/
 theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     (hmac : BraidHmacAgrees) (hkdf : BraidHkdfAgrees)
     (hlens : KemLenAgrees K) (hvalek : ValidateEkAgrees K)
@@ -1628,7 +1667,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     (hrf : Tacenta.BraidT1.RangeFullIndexTotal)
     (self : Braid) (state : State) (msg : tacenta_braid.Msg)
     (hct1b : Tacenta.BraidT1.State.ct1_bounded state)
-    (hepoch : (Tacenta.BraidT1.State.epoch_val state).val < Std.U64.max)
+    (hepoch : (Tacenta.BraidT1.State.epoch_val state).val + 1 < Std.U64.max)
     {model : Model.Braid.BraidState} {modelMsg : Model.Braid.Msg}
     (hrel : StateRefines K state model) (hmsg : MsgRefines msg modelMsg)
     (hhonest : HonestChunk model modelMsg) :
@@ -1903,21 +1942,26 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
   case Ct2Sampled.ct2Sampled =>
     rename_i epoch1 auth ct2_enc epoch' auth' ct2EncM
     obtain ⟨he, ha, hencr⟩ := hrel
-    have hepoch1 : epoch1.val < Std.U64.max := by
+    have hepoch1 : epoch1.val + 1 < Std.U64.max := by
       simpa [Tacenta.BraidT1.State.epoch_val] using hepoch
     unfold Braid.step_receive
     unfold State.epoch
     simp only [bind_tc_ok]
-    -- Transition 13 advances the epoch with `checked_add`. Below the ceiling
-    -- (`hepoch`) it is `some`, and the model's `epoch + 1` is its value; at the
-    -- ceiling the real code answers `Failed` where the model's `Nat` keeps
-    -- counting, which is why the refinement keeps `hepoch`.
+    -- Transition 13 advances the epoch with `checked_add` and then refuses the
+    -- successor `u64::MAX`, which is reserved. Below the ceiling (`hepoch`) the
+    -- `checked_add` is `some` and the successor is not the reserved value, so
+    -- both refusals are unreachable and the successor is the model's
+    -- `epoch + 1`; at or one below the ceiling the real code answers `Failed`
+    -- where the model's `Nat` keeps counting, which is why the refinement keeps
+    -- `hepoch`.
     have hcs := Std.U64.checked_add_bv_spec epoch1 1#u64
     rcases hchk : Std.U64.checked_add epoch1 1#u64 with _ | i
     · rw [hchk] at hcs; simp at hcs; scalar_tac
     rw [hchk] at hcs
     obtain ⟨-, i_post, -⟩ := hcs
     simp only [lift, bind_tc_ok]
+    -- The reserved successor is refused; `hepoch` puts it out of reach.
+    rw [if_neg (ne_u64MAX (by scalar_tac))]
     have h1 := hmsg.1
     by_cases hep : msg.epoch = i
     · have hepM : modelMsg.epoch = epoch' + 1 := by
@@ -2491,11 +2535,24 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
               simp only [Tacenta.BraidT1.State.epoch_val] at hepoch
               simp at o1_post
               scalar_tac
+            · -- Transition 5's successor is the reserved `u64::MAX`, so the
+              -- step is refused rather than taken: unreachable one epoch below
+              -- where `checked_add` would have failed, and for the same reason
+              -- -- `hepoch` bounds the successor, not the epoch.
+              rename_i ho1 hmax
+              exfalso
+              rw [ho1] at o1_post
+              simp only [Tacenta.BraidT1.State.epoch_val] at hepoch
+              simp at o1_post
+              exact ne_u64MAX (by scalar_tac) hmax
             · simp only [alloc.vec.Vec.deref, Slice.length]
               have hi2eq : i2.val = K.ct2Size + Model.Braid.macSize := by
                 rw [i2_post, ← hlveq, ← macLen_agrees]
               scalar_tac
-            · rename_i ho1
+            · -- The successor is `some` and is not the reserved value: the two
+              -- trailing hypotheses are those two branch decisions, and only
+              -- the first is needed below.
+              rename_i ho1 _
               have hne : next_epoch.val = epoch1.val + 1 := by
                 have h := o1_post
                 rw [ho1] at h
@@ -2877,7 +2934,10 @@ shape. When the step *did* produce an output, the real code reports that
 output's own `key_epoch` directly instead of calling `Braid.reported`, and
 every model transition that emits `some output` sets its own leading `Nat`
 to exactly that output's `keyEpoch`, so `OutputRefines`'s first component is
-already the fact needed here, no separate epoch computation to prove. -/
+already the fact needed here, no separate epoch computation to prove.
+
+`hepoch` is `step_receive_refines`'s, passed straight through the clone: it
+bounds the state's *successor* epoch, for the reason recorded there. -/
 theorem Braid.receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     (hmac : BraidHmacAgrees) (hkdf : BraidHkdfAgrees)
     (hlens : KemLenAgrees K) (hvalek : ValidateEkAgrees K)
@@ -2894,7 +2954,7 @@ theorem Braid.receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     (hrf : Tacenta.BraidT1.RangeFullIndexTotal)
     (self : Braid) (msg : tacenta_braid.Msg)
     (hct1b : Tacenta.BraidT1.State.ct1_bounded self.state)
-    (hepoch : (Tacenta.BraidT1.State.epoch_val self.state).val < Std.U64.max)
+    (hepoch : (Tacenta.BraidT1.State.epoch_val self.state).val + 1 < Std.U64.max)
     {model : Model.Braid.BraidState} {modelMsg : Model.Braid.Msg}
     (hrel : StateRefines K self.state model) (hmsg : MsgRefines msg modelMsg)
     (hhonest : HonestChunk model modelMsg) :

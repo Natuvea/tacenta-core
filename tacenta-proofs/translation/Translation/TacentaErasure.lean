@@ -1351,13 +1351,13 @@ def Decoder.impl.size (self : Decoder) : Result Std.Usize := do
   ok self.size
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::invariant]: loop body 0:
-    Source: 'erasure/src/lib.rs', lines 583:8-590:9
+    Source: 'erasure/src/lib.rs', lines 590:8-601:9
     Visibility: public -/
 @[rust_loop_body]
 def Decoder.invariant_loop.body
-  (self : Decoder) (seen : Array Bool 65536#usize) (distinct : Bool)
+  (self : Decoder) (seen : Array Std.U8 8192#usize) (distinct : Bool)
   (i : Std.Usize) :
-  Result (ControlFlow ((Array Bool 65536#usize) × Bool × Std.Usize)
+  Result (ControlFlow ((Array Std.U8 8192#usize) × Bool × Std.Usize)
     (Std.Usize × Std.Usize × (alloc.vec.Vec Chunk) × Bool))
   := do
   let i1 := alloc.vec.Vec.len self.«have»
@@ -1367,21 +1367,26 @@ def Decoder.invariant_loop.body
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Chunk)
         self.«have» i
     let idx ← lift (UScalar.cast .Usize c.index)
-    let b ← Array.index_usize seen idx
-    let distinct1 ← if b
+    let word ← idx / 8#usize
+    let i2 ← idx % 8#usize
+    let bit ← 1#u8 <<< i2
+    let i3 ← Array.index_usize seen word
+    let i4 ← lift (i3 &&& bit)
+    let distinct1 ← if i4 != 0#u8
                       then ok false
                       else ok distinct
-    let a ← Array.update seen idx true
-    let i2 ← i + 1#usize
-    ok (cont (a, distinct1, i2))
+    let i5 ← lift (i3 ||| bit)
+    let a ← Array.update seen word i5
+    let i6 ← i + 1#usize
+    ok (cont (a, distinct1, i6))
   else ok (done (self.size, self.needed, self.«have», distinct))
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::invariant]: loop 0:
-    Source: 'erasure/src/lib.rs', lines 583:8-590:9
+    Source: 'erasure/src/lib.rs', lines 590:8-601:9
     Visibility: public -/
 @[rust_loop]
 def Decoder.invariant_loop
-  (self : Decoder) (seen : Array Bool 65536#usize) (distinct : Bool)
+  (self : Decoder) (seen : Array Std.U8 8192#usize) (distinct : Bool)
   (i : Std.Usize) :
   Result (Std.Usize × Std.Usize × (alloc.vec.Vec Chunk) × Bool)
   := do
@@ -1391,10 +1396,10 @@ def Decoder.invariant_loop
     (seen, distinct, i)
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::invariant]:
-    Source: 'erasure/src/lib.rs', lines 579:4-595:5
+    Source: 'erasure/src/lib.rs', lines 586:4-606:5
     Visibility: public -/
 def Decoder.invariant (self : Decoder) : Result Bool := do
-  let seen := Array.repeat 65536#usize false
+  let seen := Array.repeat 8192#usize 0#u8
   let (i, i1, v, distinct) ← Decoder.invariant_loop self seen true 0#usize
   let i2 ← chunk_count i
   if i1 = i2
@@ -1409,7 +1414,7 @@ def Decoder.invariant (self : Decoder) : Result Bool := do
   else ok false
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::message]: loop body 0:
-    Source: 'erasure/src/lib.rs', lines 605:8-610:9
+    Source: 'erasure/src/lib.rs', lines 616:8-621:9
     Visibility: public -/
 @[rust_loop_body]
 def Decoder.message_loop0.body
@@ -1434,7 +1439,7 @@ def Decoder.message_loop0.body
   else ok (done nodes)
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::message]: loop 0:
-    Source: 'erasure/src/lib.rs', lines 605:8-610:9
+    Source: 'erasure/src/lib.rs', lines 616:8-621:9
     Visibility: public -/
 @[rust_loop]
 def Decoder.message_loop0
@@ -1447,7 +1452,7 @@ def Decoder.message_loop0
     (nodes, i)
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::message]: loop body 2:
-    Source: 'erasure/src/lib.rs', lines 1:0-634:13
+    Source: 'erasure/src/lib.rs', lines 1:0-645:13
     Visibility: public -/
 @[rust_loop_body]
 def Decoder.message_loop1_loop0.body
@@ -1473,7 +1478,7 @@ def Decoder.message_loop1_loop0.body
   else ok (done direct)
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::message]: loop 2:
-    Source: 'erasure/src/lib.rs', lines 1:0-634:13
+    Source: 'erasure/src/lib.rs', lines 1:0-645:13
     Visibility: public -/
 @[rust_loop]
 def Decoder.message_loop1_loop0
@@ -1487,7 +1492,7 @@ def Decoder.message_loop1_loop0
     (direct, i)
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::message]: loop body 4:
-    Source: 'erasure/src/lib.rs', lines 644:24-649:25
+    Source: 'erasure/src/lib.rs', lines 655:24-660:25
     Visibility: public -/
 @[rust_loop_body]
 def Decoder.message_loop1_loop1_loop0.body
@@ -1513,7 +1518,7 @@ def Decoder.message_loop1_loop1_loop0.body
   else ok (done vals)
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::message]: loop 4:
-    Source: 'erasure/src/lib.rs', lines 644:24-649:25
+    Source: 'erasure/src/lib.rs', lines 655:24-660:25
     Visibility: public -/
 @[rust_loop]
 def Decoder.message_loop1_loop1_loop0
@@ -1526,7 +1531,7 @@ def Decoder.message_loop1_loop1_loop0
     (vals, i)
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::message]: loop body 3:
-    Source: 'erasure/src/lib.rs', lines 641:20-654:21
+    Source: 'erasure/src/lib.rs', lines 652:20-665:21
     Visibility: public -/
 @[rust_loop_body]
 def Decoder.message_loop1_loop1.body
@@ -1553,7 +1558,7 @@ def Decoder.message_loop1_loop1.body
   else ok (done out)
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::message]: loop 3:
-    Source: 'erasure/src/lib.rs', lines 641:20-654:21
+    Source: 'erasure/src/lib.rs', lines 652:20-665:21
     Visibility: public -/
 @[rust_loop]
 def Decoder.message_loop1_loop1
@@ -1566,7 +1571,7 @@ def Decoder.message_loop1_loop1
     (out, j)
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::message]: loop body 1:
-    Source: 'erasure/src/lib.rs', lines 1:0-658:9
+    Source: 'erasure/src/lib.rs', lines 1:0-669:9
     Visibility: public -/
 @[rust_loop_body]
 def Decoder.message_loop1.body
@@ -1595,7 +1600,7 @@ def Decoder.message_loop1.body
   else ok (done out)
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::message]: loop 1:
-    Source: 'erasure/src/lib.rs', lines 1:0-658:9
+    Source: 'erasure/src/lib.rs', lines 1:0-669:9
     Visibility: public -/
 @[rust_loop]
 def Decoder.message_loop1
@@ -1608,7 +1613,7 @@ def Decoder.message_loop1
     (out, t)
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::message]:
-    Source: 'erasure/src/lib.rs', lines 598:4-661:5
+    Source: 'erasure/src/lib.rs', lines 609:4-672:5
     Visibility: public -/
 def Decoder.message
   (self : Decoder) : Result (Option (alloc.vec.Vec Std.U8)) := do
@@ -1628,7 +1633,7 @@ def Decoder.message
   else ok none
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::to_bytes]: loop body 0:
-    Source: 'erasure/src/lib.rs', lines 673:8-678:9
+    Source: 'erasure/src/lib.rs', lines 684:8-689:9
     Visibility: public -/
 @[rust_loop_body]
 def Decoder.to_bytes_loop.body
@@ -1651,7 +1656,7 @@ def Decoder.to_bytes_loop.body
   else ok (done out)
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::to_bytes]: loop 0:
-    Source: 'erasure/src/lib.rs', lines 673:8-678:9
+    Source: 'erasure/src/lib.rs', lines 684:8-689:9
     Visibility: public -/
 @[rust_loop]
 def Decoder.to_bytes_loop
@@ -1663,7 +1668,7 @@ def Decoder.to_bytes_loop
     (out, i)
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::to_bytes]:
-    Source: 'erasure/src/lib.rs', lines 667:4-680:5
+    Source: 'erasure/src/lib.rs', lines 678:4-691:5
     Visibility: public -/
 def Decoder.to_bytes (self : Decoder) : Result (alloc.vec.Vec Std.U8) := do
   let i ← lift (UScalar.cast .U64 self.size)
@@ -1684,7 +1689,7 @@ def Decoder.to_bytes (self : Decoder) : Result (alloc.vec.Vec Std.U8) := do
   Decoder.to_bytes_loop self.«have» out2 0#usize
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::from_bytes]: loop body 0:
-    Source: 'erasure/src/lib.rs', lines 706:8-720:9
+    Source: 'erasure/src/lib.rs', lines 717:8-731:9
     Visibility: public -/
 @[rust_loop_body]
 def Decoder.from_bytes_loop.body
@@ -1730,7 +1735,7 @@ def Decoder.from_bytes_loop.body
       ok (cont (iter1, pos1, have2, ok1))
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::from_bytes]: loop 0:
-    Source: 'erasure/src/lib.rs', lines 706:8-720:9
+    Source: 'erasure/src/lib.rs', lines 717:8-731:9
     Visibility: public -/
 @[rust_loop]
 def Decoder.from_bytes_loop
@@ -1745,7 +1750,7 @@ def Decoder.from_bytes_loop
     (iter, pos, have1, ok1)
 
 /-- [tacenta_erasure::{tacenta_erasure::Decoder}::from_bytes]:
-    Source: 'erasure/src/lib.rs', lines 683:4-741:5
+    Source: 'erasure/src/lib.rs', lines 694:4-752:5
     Visibility: public -/
 def Decoder.from_bytes (bytes : Slice Std.U8) : Result (Option Decoder) := do
   let i := Slice.len bytes

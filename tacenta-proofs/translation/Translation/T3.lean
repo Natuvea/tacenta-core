@@ -960,12 +960,21 @@ theorem age_store_loop_refines (hrm : Tacenta.T1.VecRemoveTotal)
            exact hinv2)
   · simpa using hinv
 
-/-- Ageing the store refines the model's, given the counter has room. The bound
-is the finite-width boundary: past `U32.max` the core saturates and the model
-does not, and the refinement says nothing there. -/
+/-- Ageing the store refines the model's, given the counter has room for the
+step. The bound is the finite-width boundary, and the core now stops one short
+of it: the saturating step is clamped to `MAX_EVENTS`, one below `u32::MAX`, so
+that a state the crate exports still satisfies its own `invariant`'s
+`events < u32::MAX` rather than being refused by its own decoder forever. The
+model counts in the naturals and neither saturates nor clamps, so the two part
+company at the clamp and not only at the ceiling: from `events = MAX_EVENTS` the
+core's clock stands still while the model's moves on. The precondition therefore
+asks room for the increment -- `events + 1 < U32.max`, which is
+`events < MAX_EVENTS` -- and not merely for the value, and that is exactly the
+region where the two agree. Below it the clamp never fires and `now` is the
+saturating step itself. -/
 theorem age_store_refines (hrm : Tacenta.T1.VecRemoveTotal)
     (s : State) (m : Model.State.State) (hR : StateR s m)
-    (hroom : s.events.val < U32.max) :
+    (hroom : s.events.val + 1 < U32.max) :
     age_store s ⦃ fun s' => StateR s' (Model.State.ageStore m) ⦄ := by
   obtain ⟨hdhs, hdhr, hrk, hcks, hckr, hns, hnr, hpn, hskip, hev, hlab⟩ := hR
   unfold age_store
@@ -973,6 +982,18 @@ theorem age_store_refines (hrm : Tacenta.T1.VecRemoveTotal)
   have hnow : (core.num.U32.saturating_add s.events 1#u32).val = m.events + 1 := by
     rw [saturating_add_val]
     scalar_tac
+  -- The clamp is a branch on a value, not on a computation, so it is discharged
+  -- before the stepping tactic reaches it. Under `hroom` the step lands strictly
+  -- below the ceiling, so the branch is the `else` and `now` is the step itself.
+  have hmax : (core.num.U32.MAX : U32).val = U32.max := by
+    simp only [core.num.U32.MAX, UScalar.ofNat, UScalar.ofNatCore_val_eq, U32.rMax]
+    scalar_tac
+  have hne : ¬ (core.num.U32.saturating_add s.events 1#u32 = core.num.U32.MAX) := by
+    intro hc
+    have hval := congrArg UScalar.val hc
+    rw [saturating_add_val, hmax] at hval
+    scalar_tac
+  simp only [bind_tc_ok, if_neg hne]
   have hl := age_store_loop_refines hrm (core.num.U32.saturating_add s.events 1#u32)
     _ s.skipped 0#usize rfl
   step*
@@ -1304,7 +1325,7 @@ that proof from being written three times. -/
 theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.T1.VecRemoveTotal)
     [DerivedKeysModel] (st : State) (mst : Model.State.State) (hR : StateR st mst) (n : Std.U32)
     (hs : st.skipped.val.length + U32.max ≤ Usize.max)
-    (hroom : st.events.val < U32.max) :
+    (hroom : st.events.val + 1 < U32.max) :
     (do
       let (r1, state4) ← skip_message_keys st n
       match r1 with
@@ -1365,7 +1386,7 @@ theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.T1.VecRemoveTotal)
       ⟨hSR2.dhs_pub, hSR2.dhr_pub, hSR2.rk, hSR2.cks, by simp,
         hSR2.ns, by simpa using hnr, hSR2.pn, hSR2.skipped, hSR2.events,
         hSR2.labels⟩
-    have hroom2 : (({ state4 with ckr := some ck2, nr := next_nr } : State)).events.val
+    have hroom2 : (({ state4 with ckr := some ck2, nr := next_nr } : State)).events.val + 1
         < U32.max := by
       have he4 := hSR2.events
       have hmev := Model.State.skipMessageKeys_events mst n.val m2 hm2
@@ -1405,7 +1426,7 @@ theorem receive_refines (h : HmacAgrees) (hk : HkdfAgrees)
     (hone : (m.skipped.filter (matchesHeader mh)).length ≤ 1)
     (hs : max s.skipped.val.length MAX_SKIPPED_STORE.val + U32.max
             ≤ Usize.max)
-    (hroom : s.events.val < U32.max) :
+    (hroom : s.events.val + 1 < U32.max) :
     receive s hdr dh_out_recv dh_out_send new_dhs_pub ⦃ fun r =>
       ∀ mk, r.1 = core.result.Result.Ok mk →
         ∃ m', Model.Ratchet.receive m mh (keyOf dh_out_recv) (keyOf dh_out_send)
@@ -1464,7 +1485,7 @@ theorem receive_refines (h : HmacAgrees) (hk : HkdfAgrees)
           omega
         -- Nothing between the entry and here moves the counter: skipping does
         -- not, and the ratchet step replaces every field but this one.
-        have hroom3 : r3.events.val < U32.max := by
+        have hroom3 : r3.events.val + 1 < U32.max := by
           have h1 := hdr3.events
           have h2 := Model.State.skipMessageKeys_events m hdr.pn.val m2 hm2
           have h3 := hR.events
@@ -1523,7 +1544,7 @@ theorem receive_refines (h : HmacAgrees) (hk : HkdfAgrees)
           omega
         -- Nothing between the entry and here moves the counter: skipping does
         -- not, and the ratchet step replaces every field but this one.
-        have hroom3 : r3.events.val < U32.max := by
+        have hroom3 : r3.events.val + 1 < U32.max := by
           have h1 := hdr3.events
           have h2 := Model.State.skipMessageKeys_events m hdr.pn.val m2 hm2
           have h3 := hR.events
@@ -1573,7 +1594,7 @@ theorem receive_refines (h : HmacAgrees) (hk : HkdfAgrees)
   · obtain ⟨m', hm', hSR'⟩ := hsome mk0 rfl
     -- The store is aged on this path too: a message taken from the store is a
     -- received message, and both sides count it.
-    have hroom1 : state1.events.val < U32.max := by
+    have hroom1 : state1.events.val + 1 < U32.max := by
       have hev1 := hSR'.events
       have hevm := Model.Ratchet.trySkipped_events m mh (m', keyOf mk0) hm'
       have hev3 := hR.events
@@ -1620,9 +1641,23 @@ And the **finite-width boundary shows through** wherever the Rust counts in
 `u32` and the model in `Nat`. Sending can report `ChainExhausted` where the
 model simply continues; `receive` carries a store-size precondition that holds
 on any 64-bit target but not automatically on a 32-bit one; and expiry means
-`receive` also requires the store's clock to have room, because at `u32::MAX`
-the core's counter saturates and the model's does not. Those cases
-are excluded from the correspondence deliberately rather than papered over.
+`receive` also requires the store's clock to have room for the step, because the
+core's counter stops and the model's does not. The stop is now one below the
+ceiling rather than at it: `age_store` clamps the saturating step to
+`MAX_EVENTS`, so that a state the crate exports still satisfies its own
+`invariant`'s `events < u32::MAX` instead of being refused by its own decoder
+for the rest of the session. That clamp is why `hroom` reads
+`events + 1 < U32.max` and not `events < U32.max`: at `events = MAX_EVENTS` the
+two sides genuinely disagree, the core holding its clock still while the model's
+advances, and the refinement is stated where they agree. It also means the
+crate's own `events < u32::MAX` is now *preserved* by `age_store` rather than
+merely assumed by it -- true of the state afterwards for any state at all --
+which is one clause of `invariant` that no longer has to be carried in by hand;
+it is, however, one clause weaker than the refinement's `hroom`, so a caller
+holding only `invariant` no longer holds `hroom`: `ImportInv`'s
+`inv_gives_clock_room` reaches `events < u32::MAX` and stops one short of what
+`receive_refines` now asks. Those cases are excluded from the correspondence
+deliberately rather than papered over.
 
 What expiry touches, for the next person adding a field to the state: the
 store's element type carries an extra component and `StateR` an extra field, and
