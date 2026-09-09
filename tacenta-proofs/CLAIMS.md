@@ -607,7 +607,9 @@ the top value of the counter each steps, so that no state their operations
 produce is one their own decoder refuses; the models count in `Nat` and
 reserve nothing. The refinement theorems are therefore stated one step below
 the ceiling -- `T3.receive_refines`'s `hroom` is `events + 1 < u32::MAX`,
-`SpqrT3`'s and `BraidT3`'s `hepoch` is `epoch + 1 < u64::MAX` -- and no
+`SpqrT3`'s and `BraidT3`'s `hepoch` is `epoch + 1 < u64::MAX`, and
+`TripleT3`'s `send_refines`/`receive_refines` pass the same two premises
+through to their caller -- and no
 `invariant()` can close that step, because the state at the last unreserved
 value is one the crate produces, decodes and goes on operating on. The
 panic-freedom corollaries here are unaffected and take no such premise; the
@@ -656,14 +658,18 @@ entry's `stored_at` is ahead of `events`, the store is pairwise distinct on
   decoder returned, so every fallible step it took returned and is peeled as
   an equation rather than assumed. Axioms: `propext`, `Classical.choice`,
   `Quot.sound`, pinned under `#guard_msgs`.
-- Bridges: `Ratchet.inv_gives_store_bound` (`Inv` + `hplat` → T1's `hs`),
-  `Ratchet.inv_gives_store_is_map` (`Inv` + `StateR` → T3's `hone`), and
+- Bridges -- two, each discharging a named premise:
+  `Ratchet.inv_gives_store_bound` (`Inv` + `hplat` → T1's `hs`) and
+  `Ratchet.inv_gives_store_is_map` (`Inv` + `StateR` → T3's `hone`).
+- A recorded consequence of `Inv`, and **not** a bridge:
   `Ratchet.inv_gives_clock_room` (`Inv` → `events < u32::MAX`, the
-  invariant's own clock clause). That last one is **one step short of T3's
+  invariant's own clock clause). It is **one step short of T3's
   `hroom`** and deliberately stays there: `hroom` is now
   `events + 1 < u32::MAX`, and the clause cannot be strengthened to close the
   step, because `events = MAX_EVENTS` is a state `age_store` produces and the
-  decoder accepts. What the clamp did buy is on the other side of the ledger:
+  decoder accepts -- which is why `decoded_receive_refines` below takes that
+  step as `hclock_unparked`, an explicit argument, rather than reading it off
+  the invariant. What the clamp did buy is on the other side of the ledger:
   `age_store` now *preserves* `events < u32::MAX` rather than assuming it, so
   that clause holds of every state a run reaches and not only of every state
   the decoder admits.
@@ -721,23 +727,28 @@ window is written with `saturating_add` exactly as the Rust writes it.
   equivalence as the ratchet's, over the six clauses above.
 - `Spqr.from_bytes_establishes_inv`: `∀ bytes s, State.from_bytes bytes =
   ok (Ok s) → Inv s`. No hypothesis; same three axioms, pinned.
-- Bridges: `Spqr.inv_gives_chain_room` (`Inv` → `SpqrT1`'s
+- Bridges -- three, each discharging a named premise:
+  `Spqr.inv_gives_chain_room` (`Inv` → `SpqrT1`'s
   `hroom : chains.length + 2 < Usize.max`, which is also `SpqrT3`'s),
-  `Spqr.inv_gives_skip_room` (`Inv` → `SpqrT1`'s `hskiproom`, likewise),
-  `Spqr.inv_gives_store_is_map` (`Inv` + `StateRefines` → `SpqrT3`'s `hone`),
-  and `Spqr.inv_gives_epoch_room` (`Inv` → `epoch < u64::MAX`). That last one
-  **is no longer `SpqrT3`'s `hepoch`**: `advance` now reserves `u64::MAX` and
-  refuses the step that would reach it -- at that epoch `clear_old_epochs`'s
-  own window would retire every chain including the one just opened -- so
-  `hepoch` reads `epoch + 1 < u64::MAX`, while `epoch = u64::MAX - 1` remains
-  a fully usable epoch the operations produce and the invariant admits. The
-  lemma stands as a recorded consequence of `Inv`; it discharges no premise of
-  the corollary below, since `SpqrT1.receive_no_panic` takes no epoch bound at
-  all. Both T1 bridges are
+  `Spqr.inv_gives_skip_room` (`Inv` → `SpqrT1`'s `hskiproom`, likewise), and
+  `Spqr.inv_gives_store_is_map` (`Inv` + `StateRefines` → `SpqrT3`'s `hone`).
+  Both T1 bridges are
   unconditional: `Spqr.inv_gives_chains_len` derives `chains.length ≤ 2` from
   the window and the distinctness (the retention policy, read back off the
   invariant), and 4 and 3000 are below `Usize.max` on every target Aeneas
   models.
+- A recorded consequence of `Inv`, and **not** a bridge:
+  `Spqr.inv_gives_epoch_room` (`Inv` → `epoch < u64::MAX`). It **is no longer
+  `SpqrT3`'s `hepoch`**: `advance` now reserves `u64::MAX` and
+  refuses the step that would reach it -- at that epoch `clear_old_epochs`'s
+  own window would retire every chain including the one just opened -- so
+  `hepoch` reads `epoch + 1 < u64::MAX`, while `epoch = u64::MAX - 1` remains
+  a fully usable epoch the operations produce and the invariant admits. So the
+  lemma discharges no premise of anything: not `SpqrT3`'s `hepoch`, which is
+  now a step stronger, and not the corollary below either, since
+  `SpqrT1.receive_no_panic` takes no epoch bound at all. It is kept as a fact
+  about `Inv` worth having on the record, listed apart from the bridges so the
+  list of bridges stays a list of premises actually discharged.
 - `Spqr.decoded_receive_no_panic`: the chain end to end -- a `receive` on a
   decoded state does not panic, with no side condition left for a caller.
   **Not kernel-only, and not only because of the opaque operations.** It
@@ -834,10 +845,12 @@ This file is the only one that says anything about the composition itself.
   `receive_no_panic` need `hroom` and `hskiproom`. So the
   Triple theorems rest on assumptions no leaf theorem discharges, and which
   are not provable as stated in the Aeneas model (a `Vec::push` at
-  `Usize.max` fails). `TripleT3.lean` carries the leaf preconditions verbatim
-  in its bundles; `TripleT1.lean` does not, and restating its assumptions with
-  those preconditions is open work. Until then, read these three theorems as:
-  *if* each ratchet call returns, the composition does not panic around it.
+  `Usize.max` fails). `TripleT3.lean`'s bundles do restate the leaf
+  preconditions -- by hand, transported through the abstraction function, and
+  checked by eye rather than by Lean (below); `TripleT1.lean` does not restate
+  them at all, and doing so is open work. Until then, read these three
+  theorems as: *if* each ratchet call returns, the composition does not panic
+  around it.
 - `split_secret_no_panic`, `combine_no_panic`, `State.init_sender_no_panic`,
   `State.init_receiver_no_panic`, and `State`'s clone and small accessors,
   are proved along the way, since `State.send`/`State.receive` call some of
@@ -880,8 +893,9 @@ decision the specification page does not carry. So the theorems below check
 the translated crate against a model read off the same crate, which is less
 independence than the other tiers have. What they establish is that the
 composition does what its own small, spec-derived description says, and that
-nothing is weaker than the leaf theorems (the agreement bundles carry the
-leaf preconditions verbatim); what they do not bring is a second,
+nothing is weaker than the leaf theorems (the agreement bundles restate the
+leaf preconditions, with the caveat below about who checks that they still
+match); what they do not bring is a second,
 independently written account of the composition.
 `tacenta-model/docs/mapping-to-spec.md` records the same. The four security
 properties in `tacenta-model/Properties/` are deliberately absent from this
@@ -925,23 +939,41 @@ against a symbolic attacker") says exactly how little that covers.
   corresponding model function -- the same bundled-existential shape
   `BraidT3.lean`'s `KemAgreesFor` already uses for its KEM boundary, for a
   different reason: a KEM is uninterpreted by design, where here each inner
-  ratchet is already fully proven in its own file and unreachable
-  from this one by this translation limit, not by design. `RatchetAgreesFor`/
-  `SpqrAgreesFor` are not cryptographic trust assumptions the way
-  `TripleHkdfAgrees` is -- they hold if and only if `T3.lean`'s/
-  `SpqrT3.lean`'s own theorems hold of the real code, which they do, proved
-  elsewhere; this file cannot make Lean say so directly, so it says the same
-  content again as a fresh, independently-stated hypothesis.
+  ratchet's own `send`/`receive` are already proven in its own file and
+  unreachable from this one by this translation limit, not by design.
+  `RatchetAgreesFor`/`SpqrAgreesFor` are not cryptographic trust assumptions the way
+  `TripleHkdfAgrees` is, but they are assumptions, and on two counts more than
+  a restatement of results held elsewhere. **Only their `send`/`receive` and
+  classical-initialiser clauses restate a leaf theorem at all**; the two
+  `clone`s, the four small accessors and `tacenta_spqr`'s
+  `init_alice`/`init_bob` have no refinement theorem in any leaf file and are
+  assumed here for the first time -- each should hold of a derived clone, a
+  field read and a straight-line initialiser, but that is the whole argument
+  for them. **And the restatement is maintained by hand.** Each bundle is a
+  `def ... : Prop` written out afresh, never an application of the leaf
+  theorem it mirrors -- it cannot be one, the leaf theorem not being
+  importable -- so Lean has nothing to compare and a leaf theorem can tighten
+  a precondition while this file compiles green and still says it mirrors it.
+  That happened: when the crates began reserving their counters' ceilings,
+  `T3.receive_refines`'s `hroom` became `events + 1 < u32::MAX` and
+  `SpqrT3.lean`'s `hepoch` became `epoch + 1 < u64::MAX`, and the bundles held
+  the older, weaker bounds until a reader compared them by eye. They match
+  again as of this entry. Read "mirrors" here as a claim about two files that
+  only a reader can check, not as one Lean has checked.
 - **The KDF boundary, `TripleHkdfAgrees`, and the wrapper,
   `ZeroizingRoundTrips`:** two assumptions, the only opaque primitives this
   crate calls that are genuinely its own (inside the translated, non-opaque
   `split_secret`/`combine`). `TripleHkdfAgrees` is stated the same way
   `SpqrHkdfAgrees`/`HkdfAgrees` are for the other two crates, under RFC
   5869's `N.val ≤ 8160`, discharged at the 32- and 64-byte literals.
-  `SpqrAgreesFor` mirrors `SpqrT3.lean`'s `send_refines`/`receive_refines`
-  preconditions, `hepoch` and `hcounter` included, which that refinement
-  keeps for the model's reason (below) although `SpqrT1.lean` no longer
-  needs them.
+  `SpqrAgreesFor`'s `send`/`receive` clauses restate `SpqrT3.lean`'s
+  `send_refines`/`receive_refines` preconditions as they stand today,
+  transported through the abstraction function: `hepoch` at the reserved
+  ceiling, `epoch + 1 < u64::MAX`, and `hcounter` over the model's image of
+  the chain table rather than the real table `SpqrT3.lean` scopes it to (the
+  same statement under `SpqrT3.StateRefines`). That refinement keeps both for
+  the model's reason (below) although `SpqrT1.lean` no longer needs them. The
+  match is by hand, as above.
   `ZeroizingRoundTrips` is this crate's copy of `T3.lean`'s hypothesis of the
   same name, at sixty-four bytes and in the same two-conjunct shape (so it
   subsumes `TripleT1.lean`'s `ZeroizingTotal`, `ZeroizingRoundTrips.total`),

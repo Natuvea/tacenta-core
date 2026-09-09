@@ -730,8 +730,11 @@ table's contents needs. `SpqrT3.lean` keeps both bounds for the model's
 reason rather than the code's: `Model.SparseRatchet` counts in `Nat`, so at
 the ceiling the real code's `ChainExhausted` has nothing to refine against,
 exactly as `BraidT3.lean` keeps its `hepoch` where `BraidT1.lean` dropped
-it. `TripleT3.lean`'s `SpqrAgreesFor` mirrors `SpqrT3.lean`'s
-preconditions and so keeps them too.
+it. `TripleT3.lean`'s `SpqrAgreesFor` restates those preconditions, at the
+reserved ceiling's `epoch + 1 < u64::MAX`, and so keeps them too -- but by
+hand: it is written afresh, never applied from the leaf, so nothing in the
+build holds the two in step. They drifted once already, when the leaves
+tightened and the bundle did not.
 
 **`tacenta-triple` has T3, against a composed model of its own.**
 `Model.TripleRatchet.lean` carries `splitSecret`/`combine`, the two
@@ -762,14 +765,24 @@ one existential abstraction function under which `clone`, both initialisers,
 the small accessors, `send`, and `receive` agree with the corresponding
 model function -- the same bundled-existential shape `BraidT3.lean`'s
 `KemAgreesFor` already uses, for a different reason: a KEM is uninterpreted
-by design, where each inner ratchet here is already fully proven in its own
-file and unreachable from this one by a translation limit, not by
-design. Stated plainly so that it does not read as a weaker proof than
-intended: `RatchetAgreesFor`/`SpqrAgreesFor` hold if and only if `T3.lean`'s/
-`SpqrT3.lean`'s own theorems hold of the real code, which they do, proved
-elsewhere; this file cannot make Lean say so directly, so it states the same
-content again as a fresh, independently-stated hypothesis rather than a
-derived one.
+by design, where each inner ratchet's `send` and `receive` are already proven
+in its own file and unreachable from this one by a translation limit, not by
+design. Stated plainly, because the shape invites a stronger reading than it
+deserves: some clauses of these bundles do restate a leaf theorem, and
+others -- both `clone`s, the small accessors, and the sparse ratchet's two
+initialisers -- restate nothing, because no refinement theorem for them
+exists anywhere in the translation. Even the clauses that do restate a leaf
+are strictly stronger than it, because they assert their refinement
+unconditionally where the leaf proves it only under that crate's own
+boundary hypotheses (`HmacAgrees`, `HkdfAgrees`, `SpqrHkdfAgrees`, the
+`Zeroizing` round trips, the `Vec` agreements, `DerivedKeysModel`), none of
+which has a clause here. So these are cryptographic trust assumptions too,
+not merely structural ones, and the correspondence with the leaves is
+maintained by hand: each bundle is a `def ... : Prop` written afresh, never
+an application of the leaf theorem, so Lean has nothing to compare and a
+build cannot catch a drift between them. One such drift has already
+happened, when the leaves tightened their counter bounds by a step and the
+bundles kept the older, weaker ones.
 
 **`receive_refines` claims the success case only, and that traces back to
 `T3.lean`'s own claim, not a new gap.** `Translation/T3.lean`'s

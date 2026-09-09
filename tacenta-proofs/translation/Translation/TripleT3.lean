@@ -38,18 +38,50 @@ both already establish exactly the fact needed. What it does instead:
 `RatchetAgreesFor`/`SpqrAgreesFor` below each bundle one existential
 abstraction function (`tacenta_ratchet.State`/`tacenta_spqr.State` to
 `Model.State.State`/`Model.SparseRatchet.State`) under which every function
-this crate actually calls (`clone`, the two initialisers, `send`, `receive`,
-and the small accessors `TripleT1.lean` already treats as this state's public
-interface) agrees with the corresponding model function -- the same bundled-
+this file's three theorems need (`clone`, the two initialisers, `send`,
+`receive`, and the small accessors `TripleT1.lean` already treats as this
+state's public interface -- the crate calls more than this, including its
+codecs, `invariant` and `evict_oldest`, which no clause here covers) agrees with the corresponding model function -- the same bundled-
 existential shape `BraidT3.lean`'s `KemAgreesFor` already uses for its KEM
 boundary, for a different reason: a KEM is inherently uninterpreted by
-design, where here the inner ratchets are already fully proven, just
-unreachable from this file by a toolchain limit, not by design. Naming that
-difference is the point of this note: `RatchetAgreesFor`/`SpqrAgreesFor` are
-not cryptographic trust assumptions the way `HmacAgrees`/`SpqrHkdfAgrees` are
--- they hold if and only if `T3.lean`'s/`SpqrT3.lean`'s own theorems hold of
-the real code, which they do, proved elsewhere; this file just cannot make
-Lean say so directly.
+design, where here the inner ratchets' own `send`/`receive` are already
+proven, just unreachable from this file by a toolchain limit, not by design.
+Naming that difference is the point of this note: what these bundles assume is
+not itself uninterpreted, the way a KEM or a hash is. They are still
+assumptions, though, and three things stop them from being a mere restatement
+of results held elsewhere. The third is the sharpest and is easy to miss: the
+bundles assert their refinements *unconditionally*, where the leaf theorems
+prove them only under the crates' own boundary hypotheses -- `HmacAgrees`,
+`HkdfAgrees`, `SpqrHkdfAgrees`, the `Zeroizing` round trips, the `Vec`
+agreements and `DerivedKeysModel`. None of those has a clause here. So a
+reader holding `RatchetAgreesFor α` is getting the classical refinement
+*without* separately assuming the crate's HMAC and HKDF agreement, and these
+bundles are therefore cryptographic trust assumptions too, not merely
+structural ones.
+
+**Only part of what they assume is proved elsewhere at all.** The
+`send`/`receive` clauses restate `T3.lean`'s and `SpqrT3.lean`'s own
+`send_refines`/`receive_refines`, and the classical initialisers restate
+`T3.lean`'s `init_sender_refines`/`init_receiver_refines`. The remaining
+clauses -- the two `clone`s, the four small accessors, and `tacenta_spqr`'s
+`init_alice`/`init_bob` -- have no refinement theorem in any leaf file. They
+are assumed here for the first time. Each should be true of a derived clone, a
+field read and a straight-line initialiser, but "should be" is the whole of
+the argument for them.
+
+**The agreement is maintained by hand, and no build checks it.** Each bundle
+is a `def ... : Prop`: a statement written out afresh here, never an
+application of the leaf theorem it mirrors -- it cannot be one, since the leaf
+theorem is not importable. So Lean has nothing to compare, and a leaf theorem
+can change its preconditions while this file still compiles and still says it
+mirrors them. That has already happened once: when the crates began reserving
+their counters' ceilings, `T3.receive_refines`'s `hroom` became
+`events + 1 < u32::MAX` and `SpqrT3.lean`'s `hepoch` became
+`epoch + 1 < u64::MAX`, and the bundles below kept the older, weaker bounds
+through a green build until a reader compared them by eye. They now match
+again. A reader checking this file should do the same comparison rather than
+take "mirrors" on trust: the word is a claim about two files, and only one of
+them is in front of Lean.
 
 Beyond that boundary, this crate calls exactly one opaque primitive that is
 genuinely its own: `hkdf_sha256`, inside the translated (non-opaque)
@@ -180,12 +212,15 @@ theorem combine_refines (h : TripleHkdfAgrees) (mk_classical mk_pq : Array Std.U
 /-! ## The two inner ratchets, bundled as agreement
 
 Neither inner state can be related to its model field by field from here --
-see the file header. What each bundle below states is exactly what
+see the file header. Each bundle's `send`/`receive` clauses restate what
 `Translation/T3.lean`'s `send_refines`/`receive_refines` and
 `Translation/SpqrT3.lean`'s `send_refines`/`receive_refines` already prove
 about the real code, transported through an assumed abstraction function
-rather than derived from those proofs directly. Same shape as
-`BraidT3.lean`'s `KemAgreesFor`, for the reason given above. -/
+rather than derived from those proofs directly; the remaining clauses cover
+calls no leaf file has a refinement theorem for, and are assumed outright.
+Same shape as `BraidT3.lean`'s `KemAgreesFor`, for the reason given above.
+Which clauses are which, and why the restatement holds only as long as
+someone keeps checking it, are set out on the two definitions below. -/
 
 /-- A translated ratchet header as the model's -- concrete on both sides, so
 this is a plain field-by-field fact, not part of the bundle below. -/
@@ -204,12 +239,27 @@ def spqrOutputOf (o : tacenta_spqr.Output) : Model.SparseRatchet.Output :=
   ⟨o.key_epoch.val, keyOf o.key⟩
 
 /-- Bundled agreement for the classical ratchet's calling surface, through an
-assumed abstraction `α`. Covers exactly what this crate calls: `clone`, the
-two initialisers, the three small accessors `TripleT1.lean` already treats as
-this state's public interface, and `send`/`receive` -- the last two carrying
-the same preconditions `T3.lean`'s own `send_refines`/`receive_refines` do,
-transported through `α` rather than stated on the real state's own fields,
-since there are none to state them on here. -/
+assumed abstraction `α`. Covers exactly what this file's theorems need:
+`clone`, the two initialisers, the three small accessors `TripleT1.lean`
+already treats as this state's public interface, and `send`/`receive`. The
+crate calls more than that; nothing here speaks for the rest.
+
+The `send`/`receive` clauses are written to carry the preconditions
+`T3.lean`'s own `send_refines`/`receive_refines` carry **today** -- `send`
+none at all, `receive` the three below -- transported through `α` rather than
+stated on the real state's own fields, since there are none to state them on
+here. Under `T3.StateR` the transport is faithful clause for clause: the
+at-most-one-stored-key bound is that theorem's `matchesHeader mh` written with
+projections (definitionally the same predicate, `T3.matchesHeader_eta`), the
+store bound reads `Model.State.maxSkippedStore` for `MAX_SKIPPED_STORE.val`
+(`T3.max_skipped_store_agrees`), and the clock bound reads `(α s).events` for
+`s.events.val` -- at `+ 1`, the step of headroom `receive_refines` now asks
+for since `age_store` parks the clock at `MAX_EVENTS`. Nothing but this
+comment ties any of that to the leaf theorem; see the file header.
+
+The `clone` and accessor clauses restate no leaf theorem -- no file proves
+them -- while the two initialisers restate
+`T3.init_sender_refines`/`init_receiver_refines`. -/
 def RatchetAgreesFor (α : tacenta_ratchet.State → Model.State.State) : Prop :=
   (∀ s, ∃ r, tacenta_ratchet.State.Insts.CoreCloneClone.clone s = ok r ∧ α r = α s) ∧
   (∀ s, ∃ r, tacenta_ratchet.State.sending_public s = ok r ∧ keyOf r = (α s).dhsPub) ∧
@@ -233,7 +283,7 @@ def RatchetAgreesFor (α : tacenta_ratchet.State → Model.State.State) : Prop :
     ∀ (dh_out_recv dh_out_send new_dhs_pub : Array Std.U8 32#usize),
     ((α s).skipped.filter (fun x => x.1 == mh.dh && x.2.1 == mh.n)).length ≤ 1 →
     max (α s).skipped.length Model.State.maxSkippedStore + Std.U32.max ≤ Usize.max →
-    (α s).events < Std.U32.max →
+    (α s).events + 1 < Std.U32.max →
     ∃ r, tacenta_ratchet.receive s hdr dh_out_recv dh_out_send new_dhs_pub = ok r ∧
       ∀ mk, r.1 = core.result.Result.Ok mk →
         ∃ m', Model.Ratchet.receive (α s) mh (keyOf dh_out_recv) (keyOf dh_out_send)
@@ -243,10 +293,26 @@ def RatchetAgrees : Prop := ∃ α, RatchetAgreesFor α
 
 /-- Bundled agreement for the sparse ratchet's calling surface, through an
 assumed abstraction `β`. Covers `clone`, the two initialisers, `epoch`, and
-`send`/`receive` -- the last two carrying the same preconditions
-`SpqrT3.lean`'s own `send_refines`/`receive_refines` do (including
-`hcounter` scoped to the real state's own chain table, exactly as
-`SpqrT3.lean` states it). -/
+`send`/`receive`.
+
+The `send`/`receive` clauses are written to carry the preconditions
+`SpqrT3.lean`'s own `send_refines`/`receive_refines` carry **today**,
+transported through `β`: the epoch bound at the reserved ceiling
+(`epoch + 1 < u64::MAX`, one step below the increment `advance` refuses), the
+chain room at `+ 1` for `send` and `+ 2` for `receive`, the epoch-window
+bounds on the chain table, the stored keys and the incoming output, the skip
+room read as `Model.SparseRatchet.maxSkip` for `MAX_SKIP.val`
+(`SpqrT3.max_skip_agrees`), the at-most-one stored key for `(epoch, n)`, and
+the chain-counter bound. That last one is stated here over `(β s).chains` and
+the model's `Chain`, where `SpqrT3.lean` states it over the real state's own
+chain table; the two say the same thing under `SpqrT3.StateRefines`, the model
+table being the real one's image under `chainsEntryOf`
+(`SpqrT3.chainCounterBounded_of_real` crosses the same gap inside that file).
+As above, nothing but this comment ties these clauses to that theorem; see the
+file header.
+
+`clone`, `epoch`, `init_alice` and `init_bob` restate no leaf theorem -- no
+file proves them. -/
 def SpqrAgreesFor (β : tacenta_spqr.State → Model.SparseRatchet.State) : Prop :=
   (∀ s, ∃ r, tacenta_spqr.State.Insts.CoreCloneClone.clone s = ok r ∧ β r = β s) ∧
   (∀ s, ∃ r, tacenta_spqr.State.epoch s = ok r ∧ r.val = (β s).epoch) ∧
@@ -255,7 +321,7 @@ def SpqrAgreesFor (β : tacenta_spqr.State → Model.SparseRatchet.State) : Prop
   (∀ sk : Slice Std.U8, ∃ r, tacenta_spqr.State.init_bob sk = ok r ∧
     β r = Model.SparseRatchet.initBob (sliceOf sk)) ∧
   (∀ (s : tacenta_spqr.State) (e : Std.U64) (out : Option tacenta_spqr.Output),
-    (β s).epoch < Std.U64.max →
+    (β s).epoch + 1 < Std.U64.max →
     (β s).chains.length + 1 < Usize.max →
     (∀ p ∈ (β s).chains, p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max) →
     (∀ sk ∈ (β s).skipped, sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max) →
@@ -271,7 +337,7 @@ def SpqrAgreesFor (β : tacenta_spqr.State → Model.SparseRatchet.State) : Prop
         Model.SparseRatchet.send (β s) e.val (out.map spqrOutputOf) = none)) ∧
   (∀ (s : tacenta_spqr.State) (receiving_epoch : Std.U64) (out : Option tacenta_spqr.Output)
       (n : Std.U64),
-    (β s).epoch < Std.U64.max →
+    (β s).epoch + 1 < Std.U64.max →
     (β s).chains.length + 2 < Usize.max →
     (∀ p ∈ (β s).chains, p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max) →
     (∀ sk ∈ (β s).skipped, sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max) →
@@ -336,7 +402,7 @@ theorem send_refines {α : tacenta_ratchet.State → Model.State.State}
     (hsb : ∀ sk ∈ m.postQuantum.skipped, sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
     (hnewb : ∀ o : tacenta_spqr.Output, output = some o →
       o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
-    (hepoch : m.postQuantum.epoch < Std.U64.max)
+    (hepoch : m.postQuantum.epoch + 1 < Std.U64.max)
     (hcounter : ∀ p ∈ m.postQuantum.chains, ∀ ch : Model.SparseRatchet.Chain,
       (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max) :
     State.send s sending_epoch output ⦃ fun r =>
@@ -455,8 +521,8 @@ theorem receive_refines {α : tacenta_ratchet.State → Model.State.State}
     (output : Option tacenta_spqr.Output)
     (hone : (m.classical.skipped.filter (fun x => x.1 == mh.dh && x.2.1 == mh.n)).length ≤ 1)
     (hs : max m.classical.skipped.length Model.State.maxSkippedStore + Std.U32.max ≤ Usize.max)
-    (hevents : m.classical.events < Std.U32.max)
-    (hepoch : m.postQuantum.epoch < Std.U64.max)
+    (hevents : m.classical.events + 1 < Std.U32.max)
+    (hepoch : m.postQuantum.epoch + 1 < Std.U64.max)
     (hroom : m.postQuantum.chains.length + 2 < Usize.max)
     (hcb : ∀ p ∈ m.postQuantum.chains, p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
     (hsb : ∀ sk ∈ m.postQuantum.skipped, sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)

@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "_note": "Written only by `tacenta-proofs/scripts/attest.py --refresh-translation`, immediately after `scripts/run-aeneas.sh` on the pinned toolchain, and compared against by every other mode. A green `attest.py --check` establishes that each generated Translation/Tacenta*.lean is a module run-aeneas.sh produces, is byte for byte the file recorded here, declares exactly the axioms recorded here (as text; no-sorry.sh compares the same record with what the axiom audit saw in the built environment), and that the Rust verified zone it was generated from, and the workspace inputs that shape every zone's extraction (Cargo.toml and its profiles, Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed to when this was written, as recorded by whoever ran the toolchain. It does not establish that the toolchain was run, or run honestly: that is checked by regenerating with run-aeneas.sh and diffing, which REPRODUCING.md describes.",
-  "generated_at_commit": "804db44dc5196bb03accf6d1170bf22c02b2ac1e",
+  "generated_at_commit": "792643eaeeb4f53c8a162d02c2beb9acbdc6b6c4",
   "aeneas": {
     "release": "nightly-2026.07.22-b1214ca",
     "commit": "b1214ca0a024e8121f41fe2b2ed15e26af02373b"
@@ -9,7 +9,7 @@
   "generated_files": {
     "tacenta-proofs/translation/Translation/TacentaBraid.lean": {
       "module": "TacentaBraid",
-      "sha256": "ab1a33ce4c8564cb0a3ee683394b879e66745647c8e5cb80916863544c4b1134",
+      "sha256": "380401159117df09fd9aa62588d07e0abc9373191cb48fda91fbf8d51e55d3a7",
       "axioms": [
         "Array.Insts.ZeroizeZeroize.zeroize",
         "alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize",
@@ -72,7 +72,7 @@
         "zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop"
       ],
       "zone": "tacenta-core/braid",
-      "zone_sha256": "65fc5c31191e540c0eebeb30301f5eee0da6527f47e07a801cd31031511df2ea",
+      "zone_sha256": "c8cf19b3b1a17d6dd619096834d4b8cf07b41686f565a29d1fb0621a4571ecdb",
       "workspace_sha256": "3e40b749dd5e98f45b661ccb8bf4e1cfb8fd410dcb0988acfa9622218b36d654"
     },
     "tacenta-proofs/translation/Translation/TacentaErasure.lean": {

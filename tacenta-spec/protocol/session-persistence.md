@@ -52,15 +52,22 @@ interoperating with anyone.
   that refuses nothing: the state exports, re-imports, and is refused from
   then on. So where an operation could carry a counter to a value its
   predicate excludes, the value is made unreachable rather than the predicate
-  widened. Two counters are reserved at their ceiling for exactly that
+  widened. Three counters are reserved at their ceiling for exactly that
   reason: the classical ratchet's received-message clock stops at
-  `u32::MAX - 1` rather than saturating into `u32::MAX`, and the sparse
+  `u32::MAX - 1` rather than saturating into `u32::MAX`; the sparse
   ratchet refuses the agreement output that would advance it to epoch
   `u64::MAX` -- an epoch its own retention window then reads as covering
   nothing, retiring the chains it had just opened -- with the
   counter-exhaustion error it already returns for a chain at the end of its
-  range. Neither ceiling is reachable in an honest run: the first needs 2^32
-  accepted receives, the second 2^64 completed agreements. Both are pinned by
+  range; and the ML-KEM Braid refuses, in each of the two transitions that
+  advance an epoch, the step that would land on `u64::MAX`, which is the
+  epoch its own reader refuses. The Braid's is the case where reader and
+  transitions had drifted apart, which is what the principle is about. No
+  ceiling is reachable in an honest run: the first needs 2^32 accepted
+  receives, the others 2^64 completed agreements. Because the Braid's
+  refusing transition is also the one that emits an epoch's output, the last
+  epoch it can complete on both sides is `u64::MAX - 2`. All three are
+  pinned by
   a test in the crate that owns the counter.
 - **At-rest protection is out of scope.** This format is plaintext once
   decoded; it authenticates nothing against a hostile reader of the storage

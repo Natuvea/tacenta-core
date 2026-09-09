@@ -1075,7 +1075,14 @@ impl Braid {
                             // `receive` has no way to say "refused,
                             // unchanged", and a session with no epoch left
                             // to negotiate is what terminal failure is for.
-                            // `u64::MAX - 1` stays an epoch like any other.
+                            // Note what this does and does not leave
+                            // usable: this arm both emits the epoch's
+                            // output and advances, so refusing here refuses
+                            // the *completion* of `u64::MAX - 1`. That
+                            // epoch can be entered and held; the last one
+                            // both parties agree a key on is
+                            // `u64::MAX - 2`. The crate's ceiling test
+                            // pins exactly that.
                             // Neither arm is reachable from an honest start
                             // -- epochs begin at one -- so the T1
                             // precondition `epoch < u64::MAX` is now kept by
