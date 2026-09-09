@@ -101,10 +101,16 @@ translate() {
 translate ratchet tacenta-ratchet tacenta_ratchet.llbc TacentaRatchet
 translate session tacenta-session tacenta_session.llbc TacentaSession
 translate erasure tacenta-erasure tacenta_erasure.llbc TacentaErasure
-# The wire parser. The verified-core design's first branch puts it inside the verified
-# core, so refinement begins at received bytes rather than after a trusted
-# parser. If this stops translating, that decision reopens rather than the crate
-# quietly moving out.
+# The bounded wire-format reader. The verified-core design's first branch puts
+# it inside the verified core so that refinement *can* begin at received bytes
+# rather than after a trusted parser -- but it does not yet. Today
+# `tacenta-protobuf` has no caller outside its own crate and the fuzz target:
+# the bytes a peer actually sends are parsed by `decode_message`,
+# `decode_composite` and `decode_initial` in the root crate's `serialization`
+# module, which this script deliberately does not translate. So what the
+# protobuf proofs establish is a verified reader that the live path does not
+# use; CLAIMS.md and LIMITATIONS.md say the same. If this stops translating,
+# that decision reopens rather than the crate quietly moving out.
 translate protobuf tacenta-protobuf tacenta_protobuf.llbc TacentaProtobuf
 
 # The post-quantum stack, on the shipping path since the triple-ratchet
@@ -121,4 +127,10 @@ translate braid tacenta-braid tacenta_braid.llbc TacentaBraid
 # crate's own copy inside `namespace tacenta_triple`), so nothing collides.
 translate triple tacenta-triple tacenta_triple.llbc TacentaTriple
 
-echo "run-aeneas: next, in tacenta-proofs/translation: lake exe cache get && lake build"
+echo "run-aeneas: next, record what was just generated:"
+echo "run-aeneas:   python3 tacenta-proofs/scripts/attest.py --refresh-translation"
+echo "run-aeneas: which rewrites manifests/translation-attestation.json (per-file"
+echo "run-aeneas: SHA-256, axiom names, and the hash of the Rust each file came"
+echo "run-aeneas: from). Run it now and at no other time: attest.py --check holds"
+echo "run-aeneas: the tree to that record. Then, in tacenta-proofs/translation:"
+echo "run-aeneas:   lake exe cache get && lake build"

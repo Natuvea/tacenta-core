@@ -181,7 +181,7 @@ theorem be64_agrees (n : Std.U64) :
     simp only [sliceOf, Array.to_slice, List.getElem_map, Model.SparseRatchet.be64,
       List.getElem_range]
     have hib8 : i < n.bv.toBEBytes.length := by simp [BitVec.toBEBytes_length]; omega
-    simp only [u8, core.num.U64.to_be_bytes, List.getElem_map, getElem!_pos, hib8]
+    simp only [u8, core.num.U64.to_be_bytes, List.getElem_map]
     rw [← getElem!_pos _ i hib8, beByte_eq n.bv i hi]
     apply UInt8.toNat.inj
     simp only [UInt8.toNat_ofNat', UScalar.val, setWidth8_toNat,
@@ -209,7 +209,7 @@ theorem kdf_rk_refines (h : SpqrHkdfAgrees) (rk k : Array Std.U8 32#usize) :
   step*
   all_goals (try (simp only [root_label_len]; scalar_tac))
   all_goals (try simp_all [Model.SparseRatchet.kdfRk, Model.SparseRatchet.split3,
-    keyOf, sliceOf, u8, vec_deref_coe, List.slice, List.map_take, List.map_drop])
+    keyOf, sliceOf, vec_deref_coe, List.slice, List.map_take, List.map_drop])
 
 theorem kdf_ck_refines (h : SpqrHkdfAgrees) (ck : Array Std.U8 32#usize) (n : Std.U64) :
     tacenta_spqr.kdf_ck ck n ⦃ fun r =>
@@ -220,8 +220,7 @@ theorem kdf_ck_refines (h : SpqrHkdfAgrees) (ck : Array Std.U8 32#usize) (n : St
   unfold tacenta_spqr.kdf_ck tacenta_spqr.be64
   step*
   all_goals (try (simp only [chain_label_len]; scalar_tac))
-  all_goals (try simp_all [Model.SparseRatchet.kdfCk, keyOf, sliceOf, u8,
-    vec_deref_coe, Array.to_slice, List.slice, List.map_take, List.map_drop])
+  all_goals (try simp_all [Model.SparseRatchet.kdfCk, keyOf, sliceOf, vec_deref_coe, Array.to_slice, List.slice, List.map_take, List.map_drop])
 
 /-- Agreement subsumes the totality `SpqrT1.lean` assumed for these two, so a
 caller holding this need not carry that hypothesis as well. -/
@@ -348,7 +347,7 @@ theorem find_chains_loop_refines (s : State) (e : Std.U64) (i : Usize)
         intro hc
         exact heq (by scalar_tac)
       rw [i3_post]
-      rw [List.take_succ, List.getElem?_eq_getElem hjm, List.filter_append, hinv]
+      rw [List.take_add_one, List.getElem?_eq_getElem hjm, List.filter_append, hinv]
       simp [chainsEntryOf, hi1, hnm]
       scalar_tac
     · -- The scan is spent, so nothing matched anywhere.
@@ -731,7 +730,6 @@ theorem set_chains_refines (hret : VecRetainAgrees)
   have hflen : (s.chains.val.filter (fun x => x.1 != e)).length ≤ s.chains.val.length :=
     List.length_filter_le _ _
   step*
-  all_goals (try (simp only [hveq] at *; scalar_tac))
   refine ⟨hrel.rk, hrel.epoch, ?_, hrel.skipped, hrel.direction⟩
   simp only [Model.SparseRatchet.setChains]
   rw [← hrel.chains, v1_post, List.map_append, hveq]
@@ -869,7 +867,7 @@ theorem advance_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
     have hmdir := hrel.direction
     match hdir : s.direction with
     | .A2b =>
-      simp only [hdir]
+      simp only
       have hmdir' : m.direction = Model.SparseRatchet.Direction.a2b := by
         rw [← hmdir, hdir]; rfl
       step*
@@ -912,7 +910,7 @@ theorem advance_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
       simpa [chainsOf, chainOf, hk1, hk2, hmdir'] using self2_post
     -- (B2a branch below)
     | .B2a =>
-      simp only [hdir]
+      simp only
       have hmdir' : m.direction = Model.SparseRatchet.Direction.b2a := by
         rw [← hmdir, hdir]; rfl
       step*
@@ -1045,9 +1043,9 @@ theorem send_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
         rcases hout : out with _ | o
         · rw [hout] at hsc
           simp only [Option.some.injEq] at hsc
-          simp [Model.SparseRatchet.send, hout, hsc, hfindeq]
+          simp [Model.SparseRatchet.send, hsc, hfindeq]
         · rw [hout] at hsc
-          simp [Model.SparseRatchet.send, hout, hsc, hfindeq]
+          simp [Model.SparseRatchet.send, hsc, hfindeq]
     · -- Chains for this epoch exist: clone them and check the sending side.
       rename_i cs hoeq
       have hfindeq : Model.SparseRatchet.findChains m' sending_epoch.val = some (chainsOf cs) := by
@@ -1067,9 +1065,9 @@ theorem send_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
           rcases hout : out with _ | o
           · rw [hout] at hsc
             simp only [Option.some.injEq] at hsc
-            simp [Model.SparseRatchet.send, hout, hsc, hfindeq, hcssnone]
+            simp [Model.SparseRatchet.send, hsc, hfindeq, hcssnone]
           · rw [hout] at hsc
-            simp [Model.SparseRatchet.send, hout, hsc, hfindeq, hcssnone]
+            simp [Model.SparseRatchet.send, hsc, hfindeq, hcssnone]
       · -- Ready to send: derive the next chain key and message key.
         have hcss : cs.send = some ch := by rw [← cs1_post]; exact hcss1
         step with Tacenta.SpqrT1.chain_clone_spec ch
@@ -1134,10 +1132,10 @@ theorem send_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
           · rcases hout : out with _ | o
             · rw [hout] at hsc
               simp only [Option.some.injEq] at hsc
-              simp [Model.SparseRatchet.send, hout, hsc, hfindeq, hchsend, hckeq, chainOf, chainsOf,
+              simp [Model.SparseRatchet.send, hsc, hfindeq, chainOf, chainsOf,
                 r_post, hnval2, hnexteq, hmkeq, hcss, o2_post, cs1_post]
             · rw [hout] at hsc
-              simp [Model.SparseRatchet.send, hout, hsc, hfindeq, hchsend, hckeq, chainOf, chainsOf,
+              simp [Model.SparseRatchet.send, hsc, hfindeq, chainOf, chainsOf,
                 r_post, hnval2, hnexteq, hmkeq, hcss, o2_post, cs1_post]
           · exact self2_post
         · intro e he; injection he
@@ -1202,7 +1200,7 @@ theorem try_skipped_loop_refines (hrm : VecRemoveAgrees) (st : State) (e n : Std
         simpa [beq_eq_false_iff_ne] using heq2
       rw [List.getElem_map] at hnm
       rw [i2_post]
-      rw [List.take_succ, List.getElem?_eq_getElem hjm, List.filter_append, hinv]
+      rw [List.take_add_one, List.getElem?_eq_getElem hjm, List.filter_append, hinv]
       simp [hnm]
       scalar_tac
     · -- The epoch differs: keep scanning past it.
@@ -1216,7 +1214,7 @@ theorem try_skipped_loop_refines (hrm : VecRemoveAgrees) (st : State) (e n : Std
         simpa [beq_eq_false_iff_ne] using heq1
       rw [List.getElem_map] at hnm
       rw [i2_post]
-      rw [List.take_succ, List.getElem?_eq_getElem hjm, List.filter_append, hinv]
+      rw [List.take_add_one, List.getElem?_eq_getElem hjm, List.filter_append, hinv]
       simp [hnm]
       scalar_tac
     · -- The scan is spent: nothing matched anywhere.
@@ -1564,7 +1562,7 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees
             (fun x => !(x.epoch == e && ch1.n < x.n && x.n ≤ upto))
             (fun x => !(x.1 == e.val && ch1.n.val < x.2.1 && x.2.1 ≤ upto.val))
             (fun x => by
-              simp only [skippedOf, chainOf, ch1_post]
+              simp only [skippedOf, ch1_post]
               congr 1
               congr 1
               congr 1 <;> first | rfl | scalar_tac | simp [UScalar.eq_equiv])
@@ -1732,7 +1730,7 @@ theorem receive_refines_continuation (hkr : SpqrHkdfAgrees) (hret : VecRetainAgr
             rw [hadd] at hspec
             simp_all
             omega
-          simp only [lift]
+          simp only
           have expected_post : expected.val = ch.n.val + 1 := by
             have hn1 : ch1.n.val = ch.n.val := by rw [← ch1_post]
             have hspec := Std.U64.checked_add_bv_spec ch1.n 1#u64
@@ -1817,13 +1815,13 @@ theorem receive_refines (hkr : SpqrHkdfAgrees) (hret : VecRetainAgrees)
     rcases hadv : (Model.SparseRatchet.advance m (outputOf o)) with _ | m1
     · rw [hadv] at r_post
       obtain ⟨o', hno, herr, hstate⟩ := r_post
-      simp only [hadv]
+      simp only
       rw [herr] at cf_post
       simp only [cf_post]
       exact ⟨_, rfl⟩
     · rw [hadv] at r_post
       obtain ⟨hrOk, hrel1⟩ := r_post
-      simp only [hadv]
+      simp only
       rw [hrOk] at cf_post
       simp only [cf_post]
       have hlen := advance_skipped_len_le m (outputOf o) m1 hadv

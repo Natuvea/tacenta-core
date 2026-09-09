@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://tacenta.dev/test-vectors/vector.schema.json",
+  "$id": "https://tacenta.dev/schema/vector.schema.json",
   "title": "Tacenta test-vector file",
   "description": "A set of known-answer or conformance vectors for one algorithm or protocol component. Primitive vectors come from public standards; protocol vectors are generated from the Lean model. Byte strings are lowercase hex.",
   "type": "object",

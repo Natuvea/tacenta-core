@@ -176,7 +176,7 @@ theorem associated_data_spec (a b : Slice U8)
     (h : a.val.length + b.val.length ≤ Usize.max) :
     associated_data a b ⦃ fun r => r.val = a.val ++ b.val ⦄ := by
   unfold associated_data
-  step* <;> simp_all
+  step*
 
 @[step]
 theorem associated_data_with_kem_spec (a b c : Slice U8)
@@ -184,21 +184,21 @@ theorem associated_data_with_kem_spec (a b c : Slice U8)
     associated_data_with_kem a b c ⦃ fun r => r.val = a.val ++ b.val ++ c.val ⦄ := by
   unfold associated_data_with_kem
   have hab : a.val.length + b.val.length ≤ Usize.max := by omega
-  step* <;> simp_all
+  step*
 
 @[step]
 theorem encode_ec_spec (pk : Array U8 32#usize) :
     encode_ec pk ⦃ fun r => r.val = ENCODE_EC_CURVE25519 :: pk.val ⦄ := by
   unfold encode_ec
   have lp := array32_length pk
-  step* <;> simp_all <;> exact small_le_usize_max (by omega)
+  step* <;> simp_all
 
 @[step]
 theorem encode_kem_spec (pk : Slice U8)
     (h : pk.val.length + 1 ≤ Usize.max) :
     encode_kem pk ⦃ fun r => r.val = ENCODE_KEM_ML_KEM_1024 :: pk.val ⦄ := by
   unfold encode_kem
-  step* <;> simp_all
+  step*
 
 /-! ## Reading an encoding back
 
@@ -248,7 +248,7 @@ theorem decode_ec_loop_spec (bytes : Slice U8) (k : Array U8 32#usize) (i : Usiz
         rw [if_pos hlt, List.getElem?_eq_getElem (by omega)]
     · -- The cursor has reached the end, so the invariant already covers every
       -- index the postcondition asks about.
-      step* <;> simp_all
+      step*
   · exact ⟨hi, hpre⟩
 
 /-- The loop as the wrapper calls it, at a cursor of zero. A canonical
@@ -276,9 +276,9 @@ theorem decode_ec_spec (bytes : Slice U8) :
       simp only [Slice.len, ENCODE_EC_LEN] at hl
       scalar_tac
     simp only [hl, if_pos]
-    step* <;> simp_all
-  · simp only [hl, if_neg, if_false]
-    step* <;> simp_all
+    step*
+  · simp only [hl, if_false]
+    step*
 
 /-! ## The derivation
 

@@ -92,7 +92,7 @@ fn be64(bytes: &[u8]) -> Result<u64, String> {
 }
 
 fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
-    use tacenta_core::primitives::{dh, kdf, sign};
+    use tacenta_core::primitives::{dh, kdf};
     use tacenta_core::sessions;
 
     match algorithm {
@@ -161,13 +161,37 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
                 None => Err("agreement refused: the peer key is low-order".to_owned()),
             }
         }
+        // Ed25519 is a trusted-boundary primitive, not a tacenta-core API:
+        // the core exposes no Ed25519 signing of its own, and `xeddsa::verify`
+        // checks with `ed25519_dalek::VerifyingKey::verify_strict`. So the
+        // RFC 8032 vectors are checked against that crate directly, at the
+        // version this runner's lockfile pins, which is the same version and
+        // build tacenta-core links.
         "ed25519" => {
-            let pair = sign::SigningKeyPair::from_bytes(array32(&input(v, "secret")?)?);
+            use ed25519_dalek::{Signer, SigningKey};
+            let key = SigningKey::from_bytes(&array32(&input(v, "secret")?)?);
             let message = input(v, "message")?;
-            let sig = pair.sign(&message);
+            let sig = key.sign(&message);
+            eq(&sig.to_bytes(), &bytes(&v.output)?)?;
+            key.verifying_key()
+                .verify_strict(&message, &sig)
+                .map_err(|_| "the signature does not verify".to_string())
+        }
+        // XEdDSA is randomised: the signer draws 64 bytes of `Z`. The vector
+        // supplies those bytes as `nonce`, served by a byte source that
+        // repeats them, so the signature is a fixed function of key, message
+        // and nonce and the expected bytes can be pinned. The verification
+        // that follows is the half that does not depend on this crate's own
+        // word: `verify` checks with an independent Ed25519 implementation.
+        "xeddsa" => {
+            use tacenta_core::primitives::xeddsa;
+            let secret = array32(&input(v, "secret")?)?;
+            let message = input(v, "message")?;
+            let mut rng = FixedBytes::new(input(v, "nonce")?)?;
+            let sig = xeddsa::sign(&secret, &message, &mut rng);
             eq(&sig, &bytes(&v.output)?)?;
-            pair.verifying_key()
-                .verify(&message, &sig)
+            let public = dh::PrivateKey::from_bytes(secret).public_key();
+            xeddsa::verify(&public, &message, &sig)
                 .map_err(|_| "the signature does not verify".to_string())
         }
         // The post-quantum derivations. These crates were transcribed from the
@@ -287,6 +311,51 @@ fn composite_from(v: &Vector) -> Result<tacenta_core::serialization::composite::
     })
 }
 
+/// A byte source that serves a fixed sequence, repeating it, for the one
+/// primitive here that consumes randomness. Mirrors the source the crate's
+/// own XEdDSA test uses, so the same vector pins the same bytes on both sides.
+struct FixedBytes {
+    bytes: Vec<u8>,
+    at: usize,
+}
+
+impl FixedBytes {
+    fn new(bytes: Vec<u8>) -> Result<FixedBytes, String> {
+        if bytes.is_empty() {
+            return Err("nonce must not be empty".to_string());
+        }
+        Ok(FixedBytes { bytes, at: 0 })
+    }
+}
+
+impl rand_core::RngCore for FixedBytes {
+    fn next_u32(&mut self) -> u32 {
+        let mut b = [0u8; 4];
+        self.fill_bytes(&mut b);
+        u32::from_le_bytes(b)
+    }
+    fn next_u64(&mut self) -> u64 {
+        let mut b = [0u8; 8];
+        self.fill_bytes(&mut b);
+        u64::from_le_bytes(b)
+    }
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        for d in dest.iter_mut() {
+            *d = self.bytes[self.at % self.bytes.len()];
+            self.at += 1;
+        }
+    }
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+        self.fill_bytes(dest);
+        Ok(())
+    }
+}
+
+// Not random, and says so in the one place it matters: this trait is what
+// `xeddsa::sign` asks for, and a fixed sequence satisfies it only for a
+// known-answer check.
+impl rand_core::CryptoRng for FixedBytes {}
+
 fn input(v: &Vector, key: &str) -> Result<Vec<u8>, String> {
     let s = v.inputs.get(key).ok_or(format!("missing input {key}"))?;
     hex::decode(s).map_err(|e| format!("bad hex for {key}: {e}"))
@@ -359,6 +428,11 @@ pub struct RatchetStep {
     pub expect: String,
     #[serde(default)]
     pub mk: String,
+    /// The expansion of `mk` into the AEAD key, the MAC key and the IV.
+    /// Present on model-generated ok steps; optional so that hand-authored
+    /// vectors need not carry it.
+    #[serde(default)]
+    pub message_keys: Option<MessageKeysJson>,
     #[serde(default)]
     pub header: Option<HeaderJson>,
     #[serde(default)]
@@ -374,6 +448,17 @@ pub struct HeaderJson {
     pub dh: String,
     pub pn: u32,
     pub n: u32,
+}
+
+/// The message-key expansion a step records: what `ratchet::message_keys`
+/// must derive from the step's `mk`. Pinning these bytes is what checks the
+/// label, the zero salt and the 32/32/16 split order, none of which the
+/// ratchet-level `mk` alone exercises.
+#[derive(Deserialize)]
+pub struct MessageKeysJson {
+    pub enc: String,
+    pub mac: String,
+    pub iv: String,
 }
 
 /// Load every `*.json` ratchet vector file in `dir`.
@@ -468,6 +553,27 @@ fn run_ratchet_vector(v: &RatchetVector) -> Result<(), String> {
                     hex::encode(got),
                     hex::encode(expected)
                 ));
+            }
+            // The expansion, from the key just checked, under the same label
+            // set the vectors were generated with.
+            if let Some(mkeys) = &step.message_keys {
+                let (enc, mac, iv) = ratchet::message_keys(&got, ratchet::LabelSet::Tacenta);
+                let want_enc = array32(&bytes(&mkeys.enc)?)?;
+                let want_mac = array32(&bytes(&mkeys.mac)?)?;
+                let want_iv = bytes(&mkeys.iv)?;
+                if enc != want_enc || mac != want_mac || iv.as_slice() != want_iv.as_slice() {
+                    return Err(format!(
+                        "step {i} ({} {}): message-key expansion mismatch: got enc {} mac {} iv {}, expected enc {} mac {} iv {}",
+                        step.actor,
+                        step.op,
+                        hex::encode(enc),
+                        hex::encode(mac),
+                        hex::encode(iv),
+                        mkeys.enc,
+                        mkeys.mac,
+                        mkeys.iv
+                    ));
+                }
             }
         }
     }

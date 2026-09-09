@@ -42,8 +42,6 @@ theorem mac_eq_loop_no_panic (a b : Slice U8) (diff : U8) (i : Usize)
     simp only [mac_eq_loop.body]
     split
     · step*
-      all_goals (try simp_all)
-      all_goals (try scalar_tac)
     · simp
   · trivial
 
@@ -54,7 +52,7 @@ theorem mac_eq_no_panic (a b : Slice U8) : mac_eq a b ⦃ fun _ => True ⦄ := b
   simp only []
   split
   · simp
-  · step with mac_eq_loop_no_panic a b _ _ (by scalar_tac) <;> simp
+  · step with mac_eq_loop_no_panic a b _ _ (by scalar_tac)
 
 /-! ## The opaque surface: erasure coding, the KEM, and two KDF calls
 
@@ -206,8 +204,7 @@ theorem info_no_panic (label : Slice U8) (epoch : U64)
     simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new, alloc.vec.Vec.length]
   unfold info
   step*
-  all_goals (try step*)
-  all_goals (try simp_all [hcap])
+  all_goals (try simp_all)
   all_goals (try scalar_tac)
 
 /-- Ratcheting the authenticator's two 32-byte keys forward from an epoch's
@@ -221,11 +218,8 @@ theorem Auth.update_no_panic (hkdf : HkdfSha256Total) (self : Auth) (epoch : U64
   unfold Auth.update
   step*
   all_goals (try (step with info_no_panic AUTH_UPDATE epoch (by simp [hau]; scalar_tac)))
-  all_goals (try step*)
   all_goals (try (obtain ⟨out, hout⟩ := hkdf 64#usize s key v.deref; simp only [hout]))
   all_goals (try step*)
-  all_goals (try simp_all)
-  all_goals (try scalar_tac)
 
 /-- Computing a header's authenticator: the length precondition gives the
 append past `info`'s output room to spare, and the HMAC call is total by
@@ -241,8 +235,6 @@ theorem Auth.mac_hdr_no_panic (hmac : HmacSha256Total) (self : Auth) (epoch : U6
   all_goals (try step*)
   all_goals (try (obtain ⟨out, hout⟩ := hmac s data1.deref; simp only [hout]))
   all_goals (try step*)
-  all_goals (try simp_all)
-  all_goals (try scalar_tac)
 
 /-- Computing a ciphertext authenticator: the same shape as `mac_hdr`, with
 two appends (`ct1` then `ct2`) instead of one. -/
@@ -257,8 +249,6 @@ theorem Auth.mac_ct_no_panic (hmac : HmacSha256Total) (self : Auth) (epoch : U64
   all_goals (try step*)
   all_goals (try (obtain ⟨out, hout⟩ := hmac s data2.deref; simp only [hout]))
   all_goals (try step*)
-  all_goals (try simp_all)
-  all_goals (try scalar_tac)
 
 /-- Deriving the ML-KEM Braid's shared-channel key from an epoch's shared
 secret: `info` is called on a fixed all-zero 32-byte array, so there is no
@@ -270,11 +260,8 @@ theorem kdf_ok_no_panic (hkdf : HkdfSha256Total) (shared_secret : Slice U8) (epo
   unfold kdf_ok
   step*
   all_goals (try (step with info_no_panic SCKA_KEY epoch (by simp [hsk]; scalar_tac)))
-  all_goals (try step*)
   all_goals (try (obtain ⟨out, hout⟩ := hkdf 32#usize s shared_secret v.deref; simp only [hout]))
   all_goals (try step*)
-  all_goals (try simp_all)
-  all_goals (try scalar_tac)
 
 /-- The all-zero starting authenticator, and reading its two keys back out:
 neither can fail. -/
@@ -298,9 +285,9 @@ theorem Auth.clone_no_panic (self : Auth) :
     Auth.Insts.CoreCloneClone.clone self ⦃ fun r => r = self ⦄ := by
   unfold Auth.Insts.CoreCloneClone.clone
   step with core.array.CloneArray.clone_spec core.clone.CloneU8 self.root_key
-    (fun x _ => by simp [core.clone.CloneU8])
+    (fun x _ => by simp)
   step with core.array.CloneArray.clone_spec core.clone.CloneU8 self.mac_key
-    (fun x _ => by simp [core.clone.CloneU8])
+    (fun x _ => by simp)
   simp only [← a_post, ← a1_post]
 
 /-- A `Vec U8` clones as the identity: `u8`'s own clone is, and the library
@@ -383,7 +370,6 @@ theorem State.clone_no_panic (henc : EncoderCloneTotal) (hdec : DecoderCloneTota
        all_goals (try (step with vecU8_clone_no_panic))
        all_goals (try step*)
        all_goals (try (step with vecU8_clone_no_panic))
-       all_goals (try step*)
        all_goals (try (simp_all [State.epoch_val, State.ct1_bounded])))
 
 theorem Braid.clone_no_panic (henc : EncoderCloneTotal) (hdec : DecoderCloneTotal)
@@ -391,7 +377,6 @@ theorem Braid.clone_no_panic (henc : EncoderCloneTotal) (hdec : DecoderCloneTota
     Braid.Insts.CoreCloneClone.clone self ⦃ fun _ => True ⦄ := by
   unfold Braid.Insts.CoreCloneClone.clone
   step with State.clone_no_panic henc hdec hkp hes
-  (try simp)
 
 theorem hdr_decoder_no_panic (hdec : DecoderNewTotal) (hhl : HeaderLenTotal) :
     hdr_decoder ⦃ fun _ => True ⦄ := by
@@ -407,7 +392,6 @@ theorem Braid.initiator_no_panic (hkdf : HkdfSha256Total) (secret : Slice U8) :
     Braid.initiator secret ⦃ fun _ => True ⦄ := by
   unfold Braid.initiator
   step with Auth.init_no_panic hkdf 1#u64 secret
-  (try simp)
 
 theorem Braid.responder_no_panic (hkdf : HkdfSha256Total) (hdec : DecoderNewTotal)
     (hhl : HeaderLenTotal) (secret : Slice U8) :
@@ -415,7 +399,6 @@ theorem Braid.responder_no_panic (hkdf : HkdfSha256Total) (hdec : DecoderNewTota
   unfold Braid.responder
   step with Auth.init_no_panic hkdf 1#u64 secret
   step with hdr_decoder_no_panic hdec hhl
-  (try simp)
 
 theorem Braid.epoch_no_panic (self : Braid) : Braid.epoch self ⦃ fun _ => True ⦄ := by
   unfold Braid.epoch; exact State.epoch_no_panic self.state
@@ -431,7 +414,6 @@ theorem Braid.state_tag_no_panic (self : Braid) : Braid.state_tag self ⦃ fun _
 theorem Braid.reported_no_panic (self : Braid) : Braid.reported self ⦃ fun _ => True ⦄ := by
   unfold Braid.reported
   step with State.epoch_no_panic self.state
-  (try simp)
 
 theorem state_back_no_panic (state : State) : state_back state ⦃ fun _ => True ⦄ := by
   unfold state_back; simp
@@ -479,46 +461,35 @@ theorem Braid.step_send_no_panic {R : Type} (rc : rand_core_1.RngCore R)
     all_goals (try step*)
     all_goals (try (step with Auth.mac_hdr_no_panic hmac auth epoch header.deref (by simp only [alloc.vec.Vec.deref, Slice.length]; scalar_tac)))
     all_goals (try step*)
-    all_goals (try scalar_tac)
-    all_goals (try step*)
     all_goals (try (obtain ⟨henc_r, hhenc⟩ := henew header1.deref; simp only [hhenc]))
     all_goals (try step*)
     all_goals (try (obtain ⟨⟨chunk, hdr_enc1⟩, hchunk⟩ := henext henc_r; simp only [hchunk]))
     all_goals (try step*)
     all_goals (try (step with Msg.with_no_panic))
     all_goals (try (step with Msg.empty_no_panic))
-    all_goals (try step*)
-    all_goals (try simp_all)
   · -- KeysSampled
     step*
     all_goals (try (obtain ⟨⟨chunk, enc1⟩, hr⟩ := henext ‹_›; simp only [hr]))
     all_goals (try step*)
     all_goals (try (step with Msg.with_no_panic))
-    all_goals (try simp_all)
   · -- HeaderSent
     step*
     all_goals (try (obtain ⟨⟨chunk, enc1⟩, hr⟩ := henext ‹_›; simp only [hr]))
     all_goals (try step*)
     all_goals (try (step with Msg.with_no_panic))
-    all_goals (try simp_all)
   · -- Ct1Received
     step*
     all_goals (try (obtain ⟨⟨chunk, enc1⟩, hr⟩ := henext ‹_›; simp only [hr]))
     all_goals (try step*)
     all_goals (try (step with Msg.with_no_panic))
-    all_goals (try simp_all)
   · -- EkSentCt1Received: leaves the state alone.
     step*
     all_goals (try (step with state_back_no_panic))
-    all_goals (try step*)
     all_goals (try (step with Msg.empty_no_panic))
-    all_goals (try simp_all)
   · -- NoHeaderReceived: leaves the state alone.
     step*
     all_goals (try (step with state_back_no_panic))
-    all_goals (try step*)
     all_goals (try (step with Msg.empty_no_panic))
-    all_goals (try simp_all)
   · -- HeaderReceived: sample an encapsulation, derive the shared key.
     obtain ⟨⟨rval, rng1⟩, hr, hrbound⟩ := hencaps1 rc crc header.deref rng
     simp only [hr]
@@ -527,42 +498,33 @@ theorem Braid.step_send_no_panic {R : Type} (rc : rand_core_1.RngCore R)
     all_goals (try (step with kdf_ok_no_panic hkdf))
     all_goals (try step*)
     all_goals (try (step with Auth.update_no_panic hkdf))
-    all_goals (try step*)
     all_goals (try (obtain ⟨henc_r, hhenc⟩ := henew ct1.deref; simp only [hhenc]))
     all_goals (try step*)
     all_goals (try (obtain ⟨⟨chunk, ct1_enc1⟩, hchunk⟩ := henext henc_r; simp only [hchunk]))
     all_goals (try step*)
     all_goals (try (step with Msg.with_no_panic))
     all_goals (try (step with Msg.empty_no_panic))
-    all_goals (try step*)
-    all_goals (try simp_all)
   · -- Ct1Sampled
     step*
     all_goals (try (obtain ⟨⟨chunk, enc1⟩, hr⟩ := henext ‹_›; simp only [hr]))
     all_goals (try step*)
     all_goals (try (step with Msg.with_no_panic))
-    all_goals (try simp_all)
   · -- EkReceivedCt1Sampled
     step*
     all_goals (try (obtain ⟨⟨chunk, enc1⟩, hr⟩ := henext ‹_›; simp only [hr]))
     all_goals (try step*)
     all_goals (try (step with Msg.with_no_panic))
-    all_goals (try simp_all)
   · -- Ct1Acknowledged: leaves the state alone.
     step*
     all_goals (try (step with state_back_no_panic))
-    all_goals (try step*)
     all_goals (try (step with Msg.empty_no_panic))
-    all_goals (try simp_all)
   · -- Ct2Sampled
     step*
     all_goals (try (obtain ⟨⟨chunk, enc1⟩, hr⟩ := henext ‹_›; simp only [hr]))
     all_goals (try step*)
     all_goals (try (step with Msg.with_no_panic))
-    all_goals (try simp_all)
   · -- Failed
     step with Msg.empty_no_panic
-    (try simp)
 
 /-- `send`: clone the current state, step it, and read back the reportable
 epoch. All three are already total. -/
@@ -575,12 +537,8 @@ theorem Braid.send_no_panic {R : Type} (rc : rand_core_1.RngCore R)
     Braid.send rc crc self rng ⦃ fun _ => True ⦄ := by
   unfold Braid.send
   step with State.clone_no_panic henc hdec hkp hes
-  step*
   all_goals (try (step with Braid.step_send_no_panic rc crc hgen hhdr hmac henew henext hkdf hencaps1))
-  all_goals (try step*)
   all_goals (try (step with Braid.reported_no_panic))
-  all_goals (try step*)
-  all_goals (try simp_all)
 
 /-- Finishing an encapsulation: sample the second ciphertext, MAC it together
 with the first (both concrete-capped, so the sum stays in bounds), append the
@@ -599,7 +557,6 @@ theorem finish_encaps_no_panic (hencaps2 : Encapsulate2Total) (hmac : HmacSha256
   all_goals (try step*)
   all_goals (try (obtain ⟨henc_r, hhenc⟩ := henew c1.deref; simp only [hhenc]))
   all_goals (try step*)
-  all_goals (try simp_all)
 
 /-- The receiving half of the eleven-state machine, and the one an attacker's
 header, chunk data and claimed lengths drive directly. Three branches
@@ -639,7 +596,6 @@ theorem Braid.step_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAd
     all_goals (try step*)
     all_goals (try (obtain ⟨enc, henc⟩ := henew v2.deref; simp only [henc]))
     all_goals (try step*)
-    all_goals (try simp_all)
   case HeaderSent =>
     simp only [State.epoch, MsgType.Insts.CoreCmpPartialEqMsgType.eq]
     step*
@@ -647,19 +603,16 @@ theorem Braid.step_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAd
     all_goals (try step*)
     all_goals (try (obtain ⟨o, ho⟩ := hdmsg ct1_dec1; simp only [ho]))
     all_goals (try step*)
-    all_goals (try simp_all)
   case Ct1Received =>
     simp only [State.epoch, MsgType.Insts.CoreCmpPartialEqMsgType.eq]
     step*
     all_goals (try (obtain ⟨v, hv, hvb⟩ := hct2len; simp only [hv]))
     all_goals (try step*)
     all_goals (try (simp only [global_simps]; scalar_tac))
-    all_goals (try step*)
     all_goals (try (obtain ⟨r, hr⟩ := hdnew ‹_›; simp only [hr]))
     all_goals (try step*)
     all_goals (try (obtain ⟨⟨b, ct2_dec1⟩, hr⟩ := hdadd r ‹_›; simp only [hr]))
     all_goals (try step*)
-    all_goals (try simp_all)
   case EkSentCt1Received =>
     simp only [State.ct1_bounded] at hct1b
     simp only [State.epoch_val] at hepoch
@@ -672,9 +625,7 @@ theorem Braid.step_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAd
     all_goals (try (obtain ⟨v, hv, hvb⟩ := hct2len; simp only [hv]))
     all_goals (try step*)
     all_goals (try (simp only [global_simps]; scalar_tac))
-    all_goals (try step*)
     all_goals (try (simp only [alloc.vec.Vec.deref, Slice.length]; scalar_tac))
-    all_goals (try step*)
     all_goals (try (obtain ⟨r2, hr2⟩ := hdecap kp ct1.deref ct2; simp only [hr2]))
     all_goals (try step*)
     all_goals (try (rcases r2 with ss | e))
@@ -682,17 +633,9 @@ theorem Braid.step_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAd
     all_goals (try (step with kdf_ok_no_panic hkdf))
     all_goals (try step*)
     all_goals (try (step with Auth.update_no_panic hkdf))
-    all_goals (try step*)
     all_goals (try (step with Auth.mac_ct_no_panic hmac auth1 epoch1 ct1.deref ct2 (by simp only [alloc.vec.Vec.deref, Slice.length]; scalar_tac)))
     all_goals (try step*)
-    all_goals (try (step with mac_eq_no_panic))
-    all_goals (try step*)
-    all_goals (try (simp only [global_simps]; scalar_tac))
-    all_goals (try step*)
     all_goals (try (step with hdr_decoder_no_panic hdnew hhdrlen))
-    all_goals (try step*)
-    all_goals (try simp_all)
-    all_goals (try scalar_tac)
   case NoHeaderReceived =>
     simp only [State.epoch, MsgType.Insts.CoreCmpPartialEqMsgType.eq]
     step*
@@ -703,19 +646,13 @@ theorem Braid.step_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAd
     all_goals (try (obtain ⟨v, hv, hvb⟩ := hhdrlen; simp only [hv]))
     all_goals (try step*)
     all_goals (try (simp only [global_simps]; scalar_tac))
-    all_goals (try step*)
     all_goals (try (simp only [alloc.vec.Vec.deref, Slice.length]; scalar_tac))
-    all_goals (try step*)
     all_goals (try (step with Auth.mac_hdr_no_panic hmac auth epoch1 header (by scalar_tac)))
-    all_goals (try step*)
-    all_goals (try (step with mac_eq_no_panic))
     all_goals (try step*)
     all_goals (try (obtain ⟨v2, hv2, hv2b⟩ := hekveclen; simp only [hv2]))
     all_goals (try step*)
     all_goals (try (obtain ⟨r, hr⟩ := hdnew v2; simp only [hr]))
     all_goals (try step*)
-    all_goals (try simp_all)
-    all_goals (try scalar_tac)
   case HeaderReceived =>
     simp [State.epoch]
   case Ct1Sampled =>
@@ -731,15 +668,11 @@ theorem Braid.step_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAd
     all_goals (try (obtain ⟨b2, hb2⟩ := hvalek header.deref ek_vector.deref; simp only [hb2]))
     all_goals (try step*)
     all_goals (try (step with finish_encaps_no_panic hencaps2 hmac henew epoch1 auth encaps ct1.deref ek_vector.deref (by simp only [alloc.vec.Vec.deref, Slice.length]; scalar_tac)))
-    all_goals (try step*)
-    all_goals (try simp_all)
   case EkReceivedCt1Sampled =>
     simp only [State.ct1_bounded] at hct1b
     simp only [State.epoch, MsgType.Insts.CoreCmpPartialEqMsgType.eq]
     step*
     all_goals (try (step with finish_encaps_no_panic hencaps2 hmac henew epoch1 auth encaps ct1.deref ek_vector.deref (by simp only [alloc.vec.Vec.deref, Slice.length]; scalar_tac)))
-    all_goals (try step*)
-    all_goals (try simp_all)
   case Ct1Acknowledged =>
     simp only [State.ct1_bounded] at hct1b
     simp only [State.epoch, MsgType.Insts.CoreCmpPartialEqMsgType.eq]
@@ -751,14 +684,10 @@ theorem Braid.step_receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAd
     all_goals (try (obtain ⟨b1, hb1⟩ := hvalek header.deref ek_vector.deref; simp only [hb1]))
     all_goals (try step*)
     all_goals (try (step with finish_encaps_no_panic hencaps2 hmac henew epoch1 auth encaps ct1.deref ek_vector.deref (by simp only [alloc.vec.Vec.deref, Slice.length]; scalar_tac)))
-    all_goals (try step*)
-    all_goals (try simp_all)
   case Ct2Sampled =>
     simp only [State.epoch_val] at hepoch
     simp only [State.epoch]
     step*
-    all_goals (try simp_all)
-    all_goals (try scalar_tac)
   case Failed =>
     simp [State.epoch]
 
@@ -769,7 +698,7 @@ theorem Output.clone_no_panic (self : Output) :
   unfold Output.Insts.CoreCloneClone.clone
   simp only [lift]
   step with core.array.CloneArray.clone_spec core.clone.CloneU8 self.key
-    (fun x _ => by simp [core.clone.CloneU8])
+    (fun x _ => by simp)
   simp [← i_post]
 
 /-- `receive`: clone the state (carrying the two facts `step_receive` needs
@@ -787,13 +716,10 @@ theorem Braid.receive_no_panic (hdnew : DecoderNewTotal) (hdadd : DecoderAddChun
     Braid.receive self msg ⦃ fun _ => True ⦄ := by
   unfold Braid.receive
   step with State.clone_no_panic henc hdec hkp hes
-  all_goals (try step*)
   all_goals (try (step with Braid.step_receive_no_panic hdnew hdadd hdmsg hct1len hct2len hhdrlen hekveclen hekvec henew hdecap hkdf hmac hvalek hencaps2 self ‹_› msg (by simp_all) (by simp_all)))
   all_goals (try step*)
   all_goals (try (step with Braid.reported_no_panic))
   all_goals (try (step with hopt Output.Insts.CoreCloneClone (some o) (fun x _ => Output.clone_no_panic x)))
-  all_goals (try step*)
-  all_goals (try simp_all)
 
 /-! ## What this covers, and what it does not
 

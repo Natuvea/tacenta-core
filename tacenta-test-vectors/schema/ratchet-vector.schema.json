@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tacenta.dev/schema/ratchet-vector.schema.json",
   "title": "Tacenta Double Ratchet protocol vectors, version 1",
-  "description": "A scenario-driven vector file for the Double Ratchet. Each vector is a scripted exchange: an initial state and a sequence of send and receive steps, each recording the message key the model produced. A runner replays the script against an implementation and checks each message key. Diffie-Hellman outputs are supplied as bytes, since the curve is a trusted-boundary primitive.",
+  "description": "A scenario-driven vector file for the Double Ratchet. Each vector is a scripted exchange: an initial state and a sequence of send and receive steps, each recording the message key the model produced and, on model-generated steps, its expansion into the AEAD key, the MAC key and the IV. A runner replays the script against an implementation and checks each message key and each expansion. Diffie-Hellman outputs are supplied as bytes, since the curve is a trusted-boundary primitive.",
   "type": "object",
   "required": ["schema_version", "algorithm", "source", "vectors"],
   "properties": {
@@ -44,6 +44,16 @@
                   "type": "string",
                   "pattern": "^[0-9a-f]{64}$",
                   "description": "Present on ok steps: the expected message key the step produces."
+                },
+                "message_keys": {
+                  "type": "object",
+                  "description": "Present on model-generated ok steps: the expansion of mk into the AEAD key, the MAC key and the IV (ratchet.md, message keys; HKDF over the message-key label with a zero salt, 80 bytes split 32/32/16). A runner that has mk checks these against the implementation's expansion, so the label, the salt and the split order are pinned by bytes. Optional, so hand-authored vectors need not carry it.",
+                  "required": ["enc", "mac", "iv"],
+                  "properties": {
+                    "enc": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+                    "mac": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+                    "iv": { "type": "string", "pattern": "^[0-9a-f]{32}$" }
+                  }
                 },
                 "header": {
                   "type": "object",

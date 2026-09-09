@@ -17,6 +17,21 @@ build-verified before it reads them, and collecting them here adds no trust that
 the build did not already establish. If a proof starts resting on something new,
 the build breaks first and this never runs.
 
+## The one manifest that is not regenerated on every run
+
+`manifests/translation-attestation.json` records, for each generated
+`Translation/Tacenta*.lean`, its SHA-256, the `axiom` names it declares, and
+the SHA-256 of the Rust verified zone it was generated from, with the Aeneas
+pin. It is written only by `--refresh-translation`, which is meant to be run
+immediately after `scripts/run-aeneas.sh`, and every other mode compares the
+tree against it. That is what makes it provenance rather than self-description:
+the other two manifests are recomputed from the tree they describe, so they can
+only ever say the tree is consistent with itself; this one says the generated
+files are the bytes somebody recorded after running the pinned toolchain, and
+the Rust they were generated from is the Rust in the tree now. What it cannot
+say is that the toolchain was run honestly, or run at all: a reader who wants
+that runs `run-aeneas.sh` themselves and diffs, which `REPRODUCING.md` describes.
+
 ## What it deliberately does not claim
 
 That the listed theorems are the *right* theorems, or that they add up to a
@@ -34,6 +49,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFESTS = ROOT / "tacenta-proofs" / "manifests"
+TRANSLATION_MANIFEST = MANIFESTS / "translation-attestation.json"
+RUN_AENEAS = ROOT / "tacenta-proofs" / "scripts" / "run-aeneas.sh"
 
 SCHEMA_VERSION = 1
 
@@ -95,16 +112,38 @@ def compiler_axiom(name):
 # discloses, not compiler trust, and are classified apart from `native_decide`
 # so that a T1 theorem with no compiler axiom among its dependencies is not
 # reported as "compiler trusted". The set is read from the generated files
-# rather than hand-listed, so a new external is classified the day it appears.
+# rather than hand-listed, so a new external is classified the day it appears;
+# and because it is read from the generated files, `--check` also holds those
+# files to the axiom set recorded at generation time (see `check_translation`),
+# so a new one fails there rather than being reclassified here.
 GENERATED = ROOT / "tacenta-proofs" / "translation" / "Translation"
-AXIOM_DECL = re.compile(r"^axiom\s+(\S+)", re.M)
+# An `axiom` line as Aeneas writes it, at any indentation and behind any
+# attribute, so that a declaration moved inside a namespace block or given an
+# attribute is still counted.
+AXIOM_DECL = re.compile(r"^\s*(?:@\[[^\]]*\]\s*)?axiom\s+(\S+)", re.M)
+
+
+def generated_files():
+    return sorted(GENERATED.glob("Tacenta*.lean"))
+
+
+def axioms_declared(path):
+    return sorted(set(AXIOM_DECL.findall(path.read_text())))
 
 
 def opaque_externals():
     names = set()
-    for p in sorted(GENERATED.glob("Tacenta*.lean")):
-        names.update(AXIOM_DECL.findall(p.read_text()))
+    for p in generated_files():
+        names.update(axioms_declared(p))
     return names
+
+
+def is_external(name, externals):
+    """`#print axioms` prints an external fully qualified (`tacenta_triple.
+    tacenta_kdf.hkdf_sha256`) where the generated file declares it inside a
+    `namespace` (`axiom tacenta_kdf.hkdf_sha256`), so match on the declared
+    name as a dotted suffix rather than on equality alone."""
+    return any(name == e or name.endswith("." + e) for e in externals)
 
 
 def classify(axioms, externals):
@@ -118,7 +157,7 @@ def classify(axioms, externals):
         return "kernel"
     if any(compiler_axiom(a) for a in axioms):
         return "compiler"
-    if all(a in KERNEL_AXIOMS or a in externals for a in axioms):
+    if all(a in KERNEL_AXIOMS or is_external(a, externals) for a in axioms):
         return "opaque-external"
     return "compiler"
 
@@ -192,6 +231,23 @@ def tree_hash(rel):
     return {"sha256": h.hexdigest(), "files": len(files)}
 
 
+def aeneas_commit():
+    lakefile = ROOT / "tacenta-proofs/translation/lakefile.toml"
+    if not lakefile.exists():
+        return None
+    m = re.search(r'name\s*=\s*"aeneas".*?rev\s*=\s*"([^"]+)"', lakefile.read_text(), re.S)
+    return m.group(1) if m else None
+
+
+def aeneas_release():
+    """The release name `run-aeneas.sh` pins, which is also the name the
+    verification workflow downloads and checksums."""
+    if not RUN_AENEAS.exists():
+        return None
+    m = re.search(r'AENEAS_RELEASE="\$\{AENEAS_RELEASE:-([^}]+)\}"', RUN_AENEAS.read_text())
+    return m.group(1) if m else None
+
+
 def toolchains():
     """The versions a rebuild would need. Read from the pins, never typed."""
     out = {}
@@ -204,15 +260,15 @@ def toolchains():
         if p.exists():
             out[rel] = p.read_text().strip()
 
-    lakefile = ROOT / "tacenta-proofs/translation/lakefile.toml"
-    if lakefile.exists():
-        text = lakefile.read_text()
-        m = re.search(r'name\s*=\s*"aeneas".*?rev\s*=\s*"([^"]+)"', text, re.S)
-        if m:
-            out["aeneas"] = m.group(1)
+    commit = aeneas_commit()
+    if commit:
+        out["aeneas"] = commit
+    release = aeneas_release()
+    if release:
+        out["aeneas_release"] = release
 
-    # The Aeneas archive pin lives in the verification workflow and is
-    # not read here.
+    # The Aeneas archive digest lives in REPRODUCING.md and the verification
+    # workflow and is not read here.
     return out
 
 
@@ -235,6 +291,17 @@ AXIOM_PIN = re.compile(
 )
 
 
+def proof_files():
+    for rel in PROOF_TREES:
+        base = ROOT / rel
+        if not base.exists():
+            continue
+        for p in sorted(base.rglob("*.lean")):
+            if ".lake" in p.parts:
+                continue
+            yield p
+
+
 def axiom_pins():
     """Collect every build-verified axiom pin in the repository.
 
@@ -243,50 +310,58 @@ def axiom_pins():
     """
     pins = []
     externals = opaque_externals()
-    for rel in PROOF_TREES:
-        base = ROOT / rel
-        if not base.exists():
-            continue
-        for p in sorted(base.rglob("*.lean")):
-            if ".lake" in p.parts:
-                continue
-            text = p.read_text()
-            # Every `#guard_msgs in` / `#print axioms` pair in the file must be
-            # a match, or this stops: a pin whose docstring has a shape the
-            # regex does not recognise would otherwise drop out of the count.
-            raw_pairs = len(RAW_PIN.findall(text))
-            matched = len(AXIOM_PIN.findall(text))
-            if raw_pairs != matched:
+    for p in proof_files():
+        text = p.read_text()
+        # Every `#guard_msgs in` / `#print axioms` pair in the file must be
+        # a match, or this stops: a pin whose docstring has a shape the
+        # regex does not recognise would otherwise drop out of the count.
+        raw_pairs = len(RAW_PIN.findall(text))
+        matched = len(AXIOM_PIN.findall(text))
+        if raw_pairs != matched:
+            raise SystemExit(
+                f"{p}: {raw_pairs} `#guard_msgs in`/`#print axioms` pairs but the pin "
+                f"regex matched {matched}; a pin's docstring has a shape AXIOM_PIN "
+                "does not recognise"
+            )
+        for m in AXIOM_PIN.finditer(text):
+            name = m.group("name")
+            if m.group("again") != name:
                 raise SystemExit(
-                    f"{p}: {raw_pairs} `#guard_msgs in`/`#print axioms` pairs but the pin "
-                    f"regex matched {matched}; a pin's docstring has a shape AXIOM_PIN "
-                    "does not recognise"
+                    f"{p}: pin names {name} but prints {m.group('again')}"
                 )
-            for m in AXIOM_PIN.finditer(text):
-                name = m.group("name")
-                if m.group("again") != name:
-                    raise SystemExit(
-                        f"{p}: pin names {name} but prints {m.group('again')}"
-                    )
-                axioms = [a.strip() for a in m.group("axioms").split(",")]
-                axioms = [a for a in axioms if a]
-                trust = classify(axioms, externals)
-                pins.append(
-                    {
-                        "theorem": name,
-                        "file": str(p.relative_to(ROOT)),
-                        "axioms": sorted(axioms),
-                        # The distinctions that matter to a reader: a proof the
-                        # kernel checked; one that assumes the translation's
-                        # opaque externals (the disclosed trusted boundary);
-                        # and one that trusts a compiled program to have
-                        # evaluated correctly.
-                        "trust": trust,
-                        "kernel_only": trust == "kernel",
-                    }
-                )
+            axioms = [a.strip() for a in m.group("axioms").split(",")]
+            axioms = [a for a in axioms if a]
+            trust = classify(axioms, externals)
+            pins.append(
+                {
+                    "theorem": name,
+                    "file": str(p.relative_to(ROOT)),
+                    "axioms": sorted(axioms),
+                    # The distinctions that matter to a reader: a proof the
+                    # kernel checked; one that assumes the translation's
+                    # opaque externals (the disclosed trusted boundary);
+                    # and one that trusts a compiled program to have
+                    # evaluated correctly.
+                    "trust": trust,
+                    "kernel_only": trust == "kernel",
+                }
+            )
     return sorted(pins, key=lambda x: (x["file"], x["theorem"]))
 
+
+# ---------------------------------------------------------------------------
+# The claim ledger
+#
+# A "Proved" section of CLAIMS.md names its files on a `Location:` line and
+# its theorems in bullets. A claim bullet opens with a run of backticked
+# identifiers -- `` - `a`, `b` and `c`: ... `` -- and every identifier in that
+# run is a claim; the run ends at the first token that is not a backticked
+# identifier followed by a separator, so a name mentioned in passing further
+# into the sentence (`` `MAX_SKIP` ``, `` `Nat` ``) is prose and not a claim.
+# An identifier may carry its own location, `` `hkdf_length` (in
+# `tacenta-model/Model/Kdf.lean`) ``, for the few theorems a section cites from
+# a file its `Location:` line does not name.
+# ---------------------------------------------------------------------------
 
 CLAIM_SECTION = re.compile(r"^## (.+)$", re.M)
 # A section may name more than one file: the wire-encoding section says the
@@ -294,14 +369,62 @@ CLAIM_SECTION = re.compile(r"^## (.+)$", re.M)
 # every path it names rather than the first, which is what a reader does.
 CLAIM_LOCATION = re.compile(r"Location:(.+?)(?:\n\n|\n-)", re.S)
 CLAIM_PATH = re.compile(r"`([^`]+\.lean)`")
-CLAIM_ITEM = re.compile(r"^- `([A-Za-z_][A-Za-z0-9_.']*)`", re.M)
+CLAIM_BULLET = re.compile(r"^- (.*?)(?=\n- |\n\n|\Z)", re.M | re.S)
+IDENT = r"[A-Za-z_][A-Za-z0-9_.']*"
+CLAIM_TOKEN = re.compile(rf"`({IDENT})`(?:\s*\(in\s+`([^`]+\.lean)`\))?")
+# What may follow a claimed identifier: a colon ending the run, a separator
+# leading to the next identifier, or the end of the bullet's first clause.
+CLAIM_SEP = re.compile(r"\s*(?::|,\s*(?:and\s+)?|\s+and\s+|$)")
+
+# Where a `Location:` path is resolved from. CLAIMS.md is written from inside
+# `tacenta-proofs/`, so paths are relative to it, to the translation package,
+# or to the repository root, and each is tried in turn.
+PATH_BASES = [
+    ROOT / "tacenta-proofs",
+    ROOT / "tacenta-proofs" / "translation",
+    ROOT,
+]
+
+
+def resolve_claim_path(rel):
+    rel = rel.lstrip("./")
+    for base in PATH_BASES:
+        p = base / rel
+        if p.exists():
+            return str(p.relative_to(ROOT))
+    return None
+
+
+def claim_names(bullet):
+    """The leading run of backticked identifiers in a bullet, each with its
+    own location override if it carries one."""
+    out = []
+    pos = 0
+    while True:
+        m = CLAIM_TOKEN.match(bullet, pos)
+        if not m:
+            break
+        sep = CLAIM_SEP.match(bullet, m.end())
+        if not sep:
+            break
+        out.append((m.group(1), m.group(2)))
+        if sep.group(0).strip() in (":", ""):
+            break
+        pos = sep.end()
+    return out
 
 
 def claims():
-    """Parse CLAIMS.md into the theorem names it asserts, with their files."""
+    """Parse CLAIMS.md into the theorem names it asserts, with their files.
+
+    Returns the claim list and any problems with the ledger's own shape: a
+    `Location:` path that does not exist, or a per-bullet location that does
+    not.
+    """
     p = ROOT / "tacenta-proofs" / "CLAIMS.md"
     text = p.read_text()
     out = []
+    problems = []
     bounds = [(m.start(), m.group(1)) for m in CLAIM_SECTION.finditer(text)]
     bounds.append((len(text), None))
     for i in range(len(bounds) - 1):
@@ -311,51 +434,114 @@ def claims():
             continue
         body = text[start:end]
         loc = CLAIM_LOCATION.search(body)
-        files = CLAIM_PATH.findall(loc.group(1)) if loc else []
-        for m in CLAIM_ITEM.finditer(body):
-            out.append(
-                {
-                    "section": title,
-                    "theorem": m.group(1),
-                    "claimed_files": files,
-                }
-            )
-    return out
+        files = []
+        if loc:
+            for rel in CLAIM_PATH.findall(loc.group(1)):
+                resolved = resolve_claim_path(rel)
+                if resolved is None:
+                    problems.append(
+                        f"CLAIMS.md section `{title}` names `{rel}` on its Location "
+                        "line, and no such file exists"
+                    )
+                else:
+                    files.append(resolved)
+        else:
+            problems.append(f"CLAIMS.md section `{title}` has no Location: line")
+        for b in CLAIM_BULLET.finditer(body):
+            for name, override in claim_names(b.group(1)):
+                claimed_files = files
+                if override:
+                    resolved = resolve_claim_path(override)
+                    if resolved is None:
+                        problems.append(
+                            f"CLAIMS.md places `{name}` in `{override}`, and no such "
+                            "file exists"
+                        )
+                        continue
+                    claimed_files = [resolved]
+                out.append(
+                    {
+                        "section": title,
+                        "theorem": name,
+                        "claimed_files": claimed_files,
+                    }
+                )
+    return out, problems
+
+
+# A declaration and the `namespace` nesting it sits in, so that the name the
+# build knows (`Tacenta.T3.send_refines`) is what the ledger is checked
+# against, rather than the bare last segment (`send_refines`), which several
+# files share.
+DECL = re.compile(
+    r"^\s*(?:@\[[^\]]*\]\s*)?(?:private\s+|protected\s+)*theorem\s+([A-Za-z_][A-Za-z0-9_.']*)",
+    re.M,
+)
+NAMESPACE = re.compile(r"^(namespace|end|section)\b\s*(\S*)", re.M)
 
 
 def declared_theorems():
-    """Every theorem name declared in the first-party proof trees."""
-    decl = re.compile(r"^\s*(?:@\[[^\]]*\]\s*)?(?:private\s+)?theorem\s+([A-Za-z_][A-Za-z0-9_.']*)", re.M)
-    found = {}
-    for rel in PROOF_TREES:
-        base = ROOT / rel
-        if not base.exists():
-            continue
-        for p in sorted(base.rglob("*.lean")):
-            if ".lake" in p.parts:
-                continue
-            for m in decl.finditer(p.read_text()):
-                found.setdefault(m.group(1), []).append(str(p.relative_to(ROOT)))
+    """Every theorem declared in the first-party proof trees, fully qualified
+    by the `namespace` blocks around it, with the file it is in."""
+    found = []
+    for p in proof_files():
+        text = p.read_text()
+        events = []
+        for m in NAMESPACE.finditer(text):
+            events.append((m.start(), "ns", m.group(1), m.group(2)))
+        for m in DECL.finditer(text):
+            events.append((m.start(), "decl", m.group(1), None))
+        events.sort(key=lambda e: e[0])
+        stack = []  # (kind, name)
+        for _, kind, a, b in events:
+            if kind == "ns":
+                if a == "namespace":
+                    stack.append(("namespace", b))
+                elif a == "section":
+                    stack.append(("section", b))
+                elif stack:
+                    stack.pop()
+            else:
+                prefix = ".".join(n for k, n in stack if k == "namespace" and n)
+                fq = f"{prefix}.{a}" if prefix else a
+                found.append((fq, str(p.relative_to(ROOT))))
     return found
 
 
+def resolve_claim(claim, declared):
+    """The fully-qualified theorem a claim names, in the file its section
+    names, or a problem string."""
+    name = claim["theorem"]
+    matches = [(fq, f) for fq, f in declared if fq == name or fq.endswith("." + name)]
+    if not matches:
+        return None, f"CLAIMS.md claims `{name}` but no such theorem is declared"
+    wants = claim["claimed_files"]
+    if wants:
+        located = [(fq, f) for fq, f in matches if f in wants]
+        if not located:
+            return None, (
+                f"CLAIMS.md places `{name}` in {' or '.join(wants)}, "
+                f"found in {', '.join(sorted({f for _, f in matches}))}"
+            )
+        matches = located
+    names = sorted({fq for fq, _ in matches})
+    if len(names) > 1:
+        return None, (
+            f"CLAIMS.md claims `{name}` and it is ambiguous between "
+            f"{', '.join(names)}; qualify it"
+        )
+    return names[0], None
+
+
 def check_claims(claim_list, declared):
-    """Every claim must name a theorem that exists, in the file it says."""
+    """Every claim must name a theorem that exists, in the file it says. Fills
+    in each claim's resolved fully-qualified name as a side effect."""
     problems = []
     for c in claim_list:
-        name = c["theorem"]
-        where = declared.get(name)
-        if not where:
-            problems.append(
-                f"CLAIMS.md claims `{name}` but no such theorem is declared"
-            )
-            continue
-        wants = [f.lstrip("./") for f in c["claimed_files"]]
-        if wants and not any(w.endswith(want) for want in wants for w in where):
-            problems.append(
-                f"CLAIMS.md places `{name}` in {' or '.join(wants)}, "
-                f"found in {', '.join(where)}"
-            )
+        fq, problem = resolve_claim(c, declared)
+        if problem:
+            problems.append(problem)
+        c["resolved"] = fq
     return problems
 
 
@@ -365,14 +551,28 @@ def check_completeness(claim_list, pins):
     Not every theorem belongs in a claims document; most are lemmas. A pin is
     the repository's own mark that a result is load-bearing, so "pinned but not
     claimed" is exactly the drift worth failing on: a ledger calling itself
-    exact while a proof area that has landed is missing from it.
+    exact while a proof area that has landed is missing from it. Compared on
+    fully-qualified names, so a `send_refines` claim in one section does not
+    cover a pinned `send_refines` in another.
     """
-    claimed = {c["theorem"] for c in claim_list}
+    claimed = {c.get("resolved") for c in claim_list} - {None}
     return [
         f"`{p['theorem']}` is axiom-pinned in {p['file']} but absent from CLAIMS.md"
         for p in pins
-        if p["theorem"].split(".")[-1] not in claimed and p["theorem"] not in claimed
+        if p["theorem"] not in claimed
     ]
+
+
+def translated_modules():
+    """`translate <leaf dir> <package> <llbc> <module>` lines in run-aeneas.sh:
+    which generated module comes from which crate."""
+    script = RUN_AENEAS.read_text()
+    return {
+        module: f"tacenta-core/{leaf}"
+        for leaf, _pkg, _llbc, module in re.findall(
+            r"^translate\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)", script, re.M
+        )
+    }
 
 
 def check_zones_match_translation():
@@ -381,25 +581,132 @@ def check_zones_match_translation():
     The attestation is only worth reading if it hashes every crate the proofs
     are about, and the translation script is the authority on which those are.
     """
-    script = (ROOT / "tacenta-proofs" / "scripts" / "run-aeneas.sh").read_text()
-    # One `translate <leaf dir> <package> <llbc> <module>` line per zone.
-    translated = set(re.findall(r"^translate\s+([a-z]+)\s", script, re.M))
-    attested = {z.split("/")[-1] for z in VERIFIED_ZONES}
+    translated = set(translated_modules().values())
+    attested = set(VERIFIED_ZONES)
     return [
-        f"run-aeneas.sh translates `tacenta-core/{c}` but VERIFIED_ZONES does not attest it"
+        f"run-aeneas.sh translates `{c}` but VERIFIED_ZONES does not attest it"
         for c in sorted(translated - attested)
     ] + [
-        f"VERIFIED_ZONES attests `tacenta-core/{c}` but run-aeneas.sh does not translate it"
+        f"VERIFIED_ZONES attests `{c}` but run-aeneas.sh does not translate it"
         for c in sorted(attested - translated)
     ]
+
+
+# ---------------------------------------------------------------------------
+# The translation attestation
+# ---------------------------------------------------------------------------
+
+def translation_attestation():
+    """What the generated translation is, right now: per file, its hash, the
+    axioms it declares, and the hash of the Rust it stands for."""
+    zones = translated_modules()
+    files = {}
+    for p in generated_files():
+        module = p.stem
+        zone = zones.get(module)
+        files[str(p.relative_to(ROOT))] = {
+            "module": module,
+            "sha256": hashlib.sha256(p.read_bytes()).hexdigest(),
+            "axioms": axioms_declared(p),
+            "zone": zone,
+            "zone_sha256": tree_hash(zone)["sha256"] if zone else None,
+        }
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "_note": (
+            "Written only by `tacenta-proofs/scripts/attest.py --refresh-translation`, "
+            "immediately after `scripts/run-aeneas.sh` on the pinned toolchain, and "
+            "compared against by every other mode. A green `attest.py --check` "
+            "establishes that each generated Translation/Tacenta*.lean is byte for "
+            "byte the file recorded here, declares exactly the axioms recorded here, "
+            "and that the Rust verified zone it was generated from hashes to what it "
+            "hashed to when this was written, as recorded by whoever ran the "
+            "toolchain. It does not establish that the toolchain was run, or run "
+            "honestly: that is checked by regenerating with run-aeneas.sh and "
+            "diffing, which REPRODUCING.md describes."
+        ),
+        "generated_at_commit": git_commit(),
+        "aeneas": {
+            "release": aeneas_release(),
+            "commit": aeneas_commit(),
+        },
+        "generated_files": files,
+    }
+
+
+def check_translation(current):
+    """The tree against the recorded translation attestation.
+
+    Three questions, each its own failure: is every generated file the bytes
+    that were recorded; does each declare exactly the axioms that were
+    recorded; and is the Rust each was generated from still the Rust in the
+    tree. The last is the one that goes stale by ordinary work, and its
+    message says what to do.
+    """
+    problems = []
+    if not TRANSLATION_MANIFEST.exists():
+        return [
+            f"{TRANSLATION_MANIFEST.relative_to(ROOT)} is missing: run "
+            "scripts/run-aeneas.sh on the pinned toolchain, then "
+            "`attest.py --refresh-translation`"
+        ]
+    recorded = json.loads(TRANSLATION_MANIFEST.read_text())
+    if recorded.get("schema_version") != SCHEMA_VERSION:
+        problems.append("translation-attestation.json has an unrecognised schema_version")
+    if recorded.get("aeneas") != current["aeneas"]:
+        problems.append(
+            f"the Aeneas pin changed since the translation was recorded "
+            f"({recorded.get('aeneas')} recorded, {current['aeneas']} now): regenerate "
+            "with scripts/run-aeneas.sh on the new pin and re-run attest.py "
+            "--refresh-translation"
+        )
+    have = recorded.get("generated_files", {})
+    want = current["generated_files"]
+    for rel in sorted(set(have) - set(want)):
+        problems.append(f"{rel} is recorded in translation-attestation.json but is not in the tree")
+    for rel in sorted(set(want) - set(have)):
+        problems.append(
+            f"{rel} is a generated file with no record in translation-attestation.json: "
+            "if it came from scripts/run-aeneas.sh on the pinned toolchain, run "
+            "attest.py --refresh-translation"
+        )
+    for rel in sorted(set(want) & set(have)):
+        r, w = have[rel], want[rel]
+        if r.get("sha256") != w["sha256"]:
+            problems.append(
+                f"{rel} differs from the recorded generation (sha256 {r.get('sha256')} "
+                f"recorded, {w['sha256']} now): a generated file may only change by "
+                "running scripts/run-aeneas.sh on the pinned toolchain, followed by "
+                "attest.py --refresh-translation"
+            )
+        added = sorted(set(w["axioms"]) - set(r.get("axioms", [])))
+        removed = sorted(set(r.get("axioms", [])) - set(w["axioms"]))
+        if added or removed:
+            problems.append(
+                f"{rel} declares a different axiom set from the recorded one "
+                f"(added: {', '.join(added) or 'none'}; removed: {', '.join(removed) or 'none'}): "
+                "an opaque external appears only through scripts/run-aeneas.sh, "
+                "followed by attest.py --refresh-translation"
+            )
+        if r.get("zone") != w["zone"]:
+            problems.append(f"{rel} is recorded as generated from {r.get('zone')} but run-aeneas.sh now maps it to {w['zone']}")
+        elif w["zone"] and r.get("zone_sha256") != w["zone_sha256"]:
+            problems.append(
+                f"translation is stale for {w['zone']}: the crate hashes to "
+                f"{w['zone_sha256'][:12]}... now and hashed to "
+                f"{str(r.get('zone_sha256'))[:12]}... when {rel} was generated; "
+                "regenerate with scripts/run-aeneas.sh on the pinned toolchain and "
+                "re-run attest.py --refresh-translation"
+            )
+    return problems
 
 
 def build():
     commit = git_commit()
     pins = axiom_pins()
-    claim_list = claims()
+    claim_list, problems = claims()
     declared = declared_theorems()
-    problems = check_claims(claim_list, declared)
+    problems += check_claims(claim_list, declared)
     problems += check_completeness(claim_list, pins)
     problems += check_zones_match_translation()
 
@@ -435,7 +742,9 @@ def build():
             "tell you whether the proofs and the sources in a checkout still "
             "match each other, and nothing about whether either was altered "
             "before you obtained it. Verify the checkout against a signed tag "
-            "for that."
+            "for that. Whether the generated translation is the one produced "
+            "from these sources is the separate question "
+            "translation-attestation.json answers."
         ),
         "generated_at_commit": commit,
         "verified_zones": {z: tree_hash(z) for z in VERIFIED_ZONES},
@@ -450,14 +759,55 @@ def write(obj, path):
     path.write_text(json.dumps(obj, indent=2, sort_keys=False) + "\n")
 
 
-def main():
-    check = "--check" in sys.argv
-    verification, attestation, problems = build()
+def report(problems, heading):
+    print(f"attest: {heading}", file=sys.stderr)
+    for p in problems:
+        print(f"  {p}", file=sys.stderr)
 
+
+USAGE = """usage: attest.py [--check | --check-translation | --refresh-translation]
+
+  (no flag)              regenerate verification-manifest.json and
+                         source-commit-attestation.json; verify the generated
+                         translation against translation-attestation.json
+  --check                verify all three manifests against the tree (CI)
+  --check-translation    verify only the generated translation against
+                         translation-attestation.json
+  --refresh-translation  rewrite translation-attestation.json from the tree,
+                         then regenerate the other two. Run this only right
+                         after scripts/run-aeneas.sh on the pinned toolchain:
+                         it records whatever the generated files are, and its
+                         value is that nobody runs it at any other time.
+"""
+
+
+def main():
+    args = set(sys.argv[1:])
+    known = {"--check", "--check-translation", "--refresh-translation"}
+    if args - known or len(args) > 1:
+        print(USAGE, file=sys.stderr)
+        return 2
+    check = "--check" in args
+    check_only_translation = "--check-translation" in args
+    refresh = "--refresh-translation" in args
+
+    current = translation_attestation()
+    if refresh:
+        MANIFESTS.mkdir(parents=True, exist_ok=True)
+        write(current, TRANSLATION_MANIFEST)
+        print(f"attest: wrote {TRANSLATION_MANIFEST.relative_to(ROOT)}")
+    translation_problems = check_translation(current)
+    if check_only_translation:
+        if translation_problems:
+            report(translation_problems, "the generated translation does not match its attestation")
+            return 1
+        n = len(current["generated_files"])
+        print(f"attest: {n} generated files match translation-attestation.json")
+        return 0
+
+    verification, attestation, problems = build()
     if problems:
-        print("attest: the claim ledger does not match the proofs", file=sys.stderr)
-        for p in problems:
-            print(f"  {p}", file=sys.stderr)
+        report(problems, "the claim ledger does not match the proofs")
         return 1
 
     targets = [
@@ -481,11 +831,15 @@ def main():
                 "attest: run `python3 tacenta-proofs/scripts/attest.py` and commit",
                 file=sys.stderr,
             )
+        if translation_problems:
+            report(translation_problems, "the generated translation does not match its attestation")
+        if stale or translation_problems:
             return 1
         print(
             f"attest: manifests current "
             f"({verification['counts']['pinned_theorems']} pinned theorems, "
-            f"{verification['counts']['kernel_only']} on the kernel alone)"
+            f"{verification['counts']['kernel_only']} on the kernel alone; "
+            f"{len(current['generated_files'])} generated files match their attestation)"
         )
         return 0
 
@@ -493,6 +847,9 @@ def main():
     for obj, path in targets:
         write(obj, path)
         print(f"attest: wrote {path.relative_to(ROOT)}")
+    if translation_problems:
+        report(translation_problems, "the generated translation does not match its attestation")
+        return 1
     return 0
 
 

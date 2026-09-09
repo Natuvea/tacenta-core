@@ -32,12 +32,18 @@ nodes, so the erasure code's correctness runs through that axiom.
 
 **Where this is and is not the case is pinned by the build, not described.**
 `Proofs.TrustedBase` prints the axioms of the load-bearing theorems under
-`#guard_msgs`, so a proof that starts trusting something new fails there.
-`Translation.SessionT3` does the same for the session's T3 zone, and
-`Translation.ErasureT3` for the erasure code's field; the sparse ratchet's, the
-Braid's and the Triple's T1/T3 files are **not yet pinned**, so the axiom bases
-stated for them below are read off `#print axioms` by hand rather than held by
-the build. Some results are on the
+`#guard_msgs`, so a proof that starts trusting something new fails there: the
+Braid's epoch accounting, the classical ratchet's five T2 theorems, the field
+and interpolation results, and the composite header. `Translation.T1` and
+`Translation.T3` do the same for the classical ratchet's T1 and T3 headline
+theorems (`send_refines`, `receive_refines`, `message_keys_refines`),
+`Translation.SessionT1`/`SessionT3` for the session's,
+`Translation.ErasureT1`/`ErasureT3` for the erasure coder's two entry points
+and its field, and `Translation.ProtobufT1`/`ProtobufT3` for both message
+parsers, the encoder and all nine refinement theorems. The sparse ratchet's,
+the Braid's and the Triple's T1/T3 files are **not yet pinned**, so the axiom
+bases stated for them below are read off `#print axioms` by hand rather than
+held by the build. Some results are on the
 kernel alone and are worth knowing as such. The ML-KEM Braid's epoch accounting
 depends on `propext` and `Quot.sound`, nothing more. That is the calculation on
 which both sides must agree exactly, so having it on the kernel rather than on
@@ -67,11 +73,33 @@ puts the compiler into the axiom base of every theorem downstream: in
 particular the sparse ratchet's T1 headline theorem and every T3 refinement
 that uses a label lemma are compiler-trusted, not kernel-only, and `CLAIMS.md`
 should be read with that in mind. Counted by a `#print axioms` sweep over
-every theorem; pinning the headline theorems under `#guard_msgs` is open
-work.
+every theorem; pinning the sparse ratchet's, the Braid's and the Triple's
+headline theorems under `#guard_msgs` is open work (the classical ratchet's,
+the session's, the erasure coder's and the parser's are pinned).
 
 ## Trusted, not verified
 
+- The recorded generation of the translation is trusted.
+  `manifests/translation-attestation.json` says which bytes each generated
+  `Translation/Tacenta*.lean` had, which `axiom` names it declared, and which
+  Rust it came from, as of the last time someone ran `scripts/run-aeneas.sh`
+  on the pinned toolchain and then `attest.py --refresh-translation`.
+  `attest.py --check` holds the tree to that record, so a generated file
+  edited by hand, a new opaque external, or a Rust change nobody
+  re-translated each fail in the public tree with a message naming the file
+  or the crate. That the recorded generation was produced by the pinned
+  toolchain, and honestly, is not something the public tree can check: it is
+  what the private verification workflow's drift step checks by
+  regenerating, and what any linux-x86_64 reader can check the same way.
+- A declaration added with `set_option debug.skipKernelTC true` is checked
+  by the elaborator and not by the kernel, and nothing in the environment
+  says so afterwards. `Model.AxiomAudit`, which every package's build runs,
+  refuses axioms, opaques, unsafe and partial declarations and
+  `implemented_by`/`extern` from the elaborated environment, but cannot see
+  this one; `scripts/check-lean-constructs.sh` refuses the option textually,
+  and `no-sorry.sh` replays every first-party module through the kernel with
+  `leanchecker`, which is the check that actually settles it. `leanchecker`
+  is Lean's own kernel rerun over the oleans, not an independent checker.
 - The Mathlib build artifacts the T1/T3 build loads are trusted. `lake exe cache
   get` fetches prebuilt `.olean` files for the pinned Mathlib commit from
   Mathlib's cache over HTTPS with no signature, and Lean loads an olean without
@@ -728,7 +756,22 @@ entry decoders and length helpers) and a few accessors are translated and
 carry no theorem, as CLAIMS.md's "Translated is not proved" lists.
 
 - `tacenta-core/ratchet` (`tacenta-ratchet`): the Double Ratchet state machine.
-  T1, T2, T3.
+  T1, T2, T3. T3 includes `message_keys`, the expansion of a message key into
+  the AEAD key, the MAC key and the IV (`message_keys_refines`, pinned); the
+  codecs and accessors remain the exception.
+
+  **Which private key is agreed with which public key at a Diffie-Hellman
+  ratchet step is outside every proof and every vector.** `receive` takes the
+  two agreement outputs as bytes -- `dh_out_recv` for the receiving chain,
+  `dh_out_send` for the sending chain -- and so do `Model.Ratchet.receive`,
+  `receive_refines` and the ratchet vectors. The choice of which key pair
+  produces which output (the old pair for the receiving chain, the fresh one
+  for the sending chain, as the specification requires) is made in
+  `tacenta-core/src/sessions/lifecycle.rs`, which is neither translated nor
+  modelled, so a swap there would pass every proof, every vector and
+  `attest`. By inspection the pairing is right; a session-level test that
+  drives `Session` against a model scenario is being added so that it is
+  checked by running rather than by reading.
 - `tacenta-core/session` (`tacenta-session`): the PQXDH derivation. T1, T2, T3.
 - `tacenta-core/erasure` (`tacenta-erasure`): Reed-Solomon over GF(2^16).
   Translates with no gap, and **T1 complete for the coding functions**: the
@@ -825,16 +868,27 @@ carry no theorem, as CLAIMS.md's "Translated is not proved" lists.
   fields and seven missing-field refusals rather than five, `prekeyId`
   excluded from the check as the one optional field in either message type
   -- is proved against `Model.Protobuf.parsePrekeyBody` the same way. No
-  boundary assumption anywhere in either. `#print axioms` on the three
-  theorems pinned under `#guard_msgs` in `ProtobufT3.lean` (`tag_refines`,
-  `length_delimited_refines`, `admit_refines`) shows nothing beyond `propext`,
-  `Classical.choice`, `Quot.sound`; the two message-parser refinements are not
-  yet pinned, so their base is read by hand. Canonical
+  boundary assumption anywhere in either. All nine refinement theorems are
+  pinned under `#guard_msgs` in `ProtobufT3.lean`, and both parsers and the
+  encoder in `ProtobufT1.lean`, to nothing beyond `propext`,
+  `Classical.choice`, `Quot.sound`. Canonical
   emission and raw-byte fidelity are not proved, so **there is still no
   end-to-end claim from wire bytes to a ratchet decision** -- both because
   those two pieces are missing and because `tacenta-protobuf` is not yet
   called from the live `Session` send/receive path, which still uses the
   older fixed-width `tacenta_core::serialization` format.
+
+  **The verified reader has no caller.** Outside its own directory
+  `tacenta-protobuf` is referenced only by the `protobuf_bodies` fuzz target.
+  The decoders a peer's bytes actually reach are `decode_message`,
+  `decode_composite` and `decode_initial` in the root crate's
+  `serialization` module, which `scripts/run-aeneas.sh` deliberately does not
+  translate and which have no theorem. So the crate's T1 and T3 are a
+  verified reader the product does not yet use, and a sentence anywhere that
+  says refinement begins at received bytes describes the design's intent,
+  not the shipping path. `decode_composite` is fixed-width and loop-free,
+  already in the translatable style; moving it into a leaf crate is what
+  would make the claim true.
 
   **Why the parser state is one struct and the loop body one call, because
   it is the transferable part.** Charon joins the branches of an `if`/`else`
@@ -1022,8 +1076,8 @@ that assembly possible.
     panic-free: the chain-key and root-key steps, sending, the chain-derivation
     and skip loops with their wrappers, the skipped-key scan, the DH ratchet
     step, and `receive`, which composes the rest. There is no `sorry`, and a
-    `#guard_msgs` audit pins the two ends of the chain, the chain-key step and
-    `receive`, to an explicit axiom list, so a later change that smuggled in an
+    `#guard_msgs` audit pins the chain-key step, `send` and `receive` to an
+    explicit axiom list, so a later change that smuggled in an
     assumption would fail the build rather than pass quietly.
 
     Two things are worth stating precisely, because "panic-free" on its own
@@ -1149,8 +1203,13 @@ that assembly possible.
   are the visible part, and the postconditions carrying them are most of the
   work.
 
-- T3 (refinement: the core's ratchet step refines the model's) **is proven**,
-  across every operation the model defines, with no `sorry`. It holds modulo
+- T3 (refinement: the core's ratchet step refines the model's) **is proven**
+  for every protocol operation the model defines -- both key-derivation
+  steps, the message-key expansion, both initialisers, `send`, the
+  Diffie-Hellman step, chain derivation, the skip step with its purge scan,
+  the skipped-key lookup, and `receive` -- with no `sorry`. The persistence
+  codecs and the small accessors are translated and have no refinement
+  theorem, as `CLAIMS.md`'s "translated is not proved" lists. It holds modulo
   agreement of the opaque key-derivation primitives, which is the same
   deliberate boundary T1 rests on and is not closed by anything in Lean: the
   model-generated byte vectors are what covers it. It also excludes the cases

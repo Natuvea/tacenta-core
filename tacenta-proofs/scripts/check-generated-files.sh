@@ -1,23 +1,19 @@
 #!/bin/sh
-# Superseded. The check this file is named for lives in the private
-# verification workflow, as "The committed translation matches the pinned
-# toolchain".
+# Fail if a generated `Translation/Tacenta*.lean` is not the file the last
+# recorded generation produced.
 #
-# The check is "fail if the committed generated files differ from a fresh
-# regeneration". It lives in the workflow because regenerating needs Charon and
-# Aeneas, the pinned release is linux-x86_64 only, and this script is invoked
-# from machines that have neither.
+# The check compares each generated file's SHA-256, the `axiom` names it
+# declares, and the hash of the Rust crate it was generated from against
+# `manifests/translation-attestation.json`, which is written only by
+# `attest.py --refresh-translation` immediately after `run-aeneas.sh` on the
+# pinned toolchain. So a generated file edited by hand fails here, a new axiom
+# in one fails here, and a Rust change nobody re-translated fails here with a
+# message naming the crate.
 #
-# The workflow's form is the stronger one. `git diff --exit-code` over
-# `Translation/` after `run-aeneas.sh` catches a generated file edited by hand --
-# the case this script is named for -- and also catches a committed generation
-# the toolchain would no longer produce, which a hand-edit check alone would
-# not.
-#
-# Kept as a signpost rather than deleted, because the name is referenced from
-# `REPRODUCING.md`, and a reader who goes looking should find out where the
-# check went rather than that it vanished.
+# What it does not check: that the recorded generation was honest. That is
+# the drift step in the private verification workflow, and any linux-x86_64
+# reader who runs `run-aeneas.sh` and diffs. This script runs anywhere,
+# needs only python3, and is the public half of that pair.
 set -eu
-echo "check-generated-files: superseded by the drift check in the verification workflow" >&2
-echo "check-generated-files: see the comment in this file for why" >&2
-exit 0
+here=$(cd "$(dirname "$0")" && pwd)
+exec python3 "$here/attest.py" --check-translation

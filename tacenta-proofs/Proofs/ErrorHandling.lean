@@ -47,7 +47,7 @@ theorem skipMessageKeys_none_iff (st : State) (upto : Nat) :
     cases hdhr : st.dhrPub with
     | none => simp
     | some dhr =>
-      simp only [hck, hdhr]
+      simp only
       by_cases h1 : upto ≤ st.nr
       · simp [h1, Nat.not_lt.mpr h1]
       · simp only [h1, if_false]
@@ -58,7 +58,7 @@ theorem skipMessageKeys_none_iff (st : State) (upto : Nat) :
           · simp [h3, Nat.lt_of_not_le h1]
           · simp only [h3, if_false]
             simp only [Nat.not_lt] at h2 h3
-            simp [Nat.lt_of_not_le h1, Nat.not_lt.mpr h2, Nat.not_lt.mpr h3]
+            simp [Nat.lt_of_not_le h1]
 
 /-- Skipping with no receiving chain **succeeds**, as a no-op.
 

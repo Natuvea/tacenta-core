@@ -550,7 +550,7 @@ theorem age_store_spec (hrm : VecRemoveTotal) (state : State) :
   simp only [lift]
   have hl := age_store_loop_bound hrm state.skipped.val.length state.skipped
     (core.num.U32.saturating_add state.events 1#u32) 0#usize (le_refl _)
-  step* <;> simp_all
+  step*
 
 theorem receive_no_panic (h : HmacTotal) (hk : HkdfTotal) (hz : ZeroizingTotal)
     (hrm : VecRemoveTotal) (state : State) (header : Header)
@@ -559,7 +559,7 @@ theorem receive_no_panic (h : HmacTotal) (hk : HkdfTotal) (hz : ZeroizingTotal)
     NoPanic (receive state header dh_out_recv dh_out_send new_dhs_pub) := by
   unfold NoPanic receive
   step*
-  rcases hd : state1.dhr_pub with _ | dhr <;> (try simp only [hd]) <;> step*
+  rcases hd : state1.dhr_pub with _ | dhr <;> (try simp only) <;> step*
   all_goals (simp_all [MAX_SKIPPED_STORE]; omega)
 
 /-

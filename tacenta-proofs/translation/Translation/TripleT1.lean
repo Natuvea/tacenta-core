@@ -226,7 +226,6 @@ theorem State.init_sender_no_panic (hss : HkdfSha256Total) (hris : RatchetInitSe
     State.init_sender sk our_pub peer_pub dh_out labels ⦃ fun _ => True ⦄ := by
   unfold State.init_sender
   step with split_secret_no_panic hss sk
-  all_goals (try step*)
   all_goals (try (obtain ⟨s, hs⟩ := hris ec our_pub peer_pub dh_out labels; simp only [hs]))
   all_goals (try step*)
   all_goals (try (obtain ⟨s2, hs2⟩ := hsia s1; simp only [hs2]))
@@ -235,7 +234,6 @@ theorem State.init_sender_no_panic (hss : HkdfSha256Total) (hris : RatchetInitSe
   all_goals (try step*)
   all_goals (try (obtain ⟨r1, hr1⟩ := hz pq; simp only [hr1]))
   all_goals (try step*)
-  all_goals (try simp_all)
 
 theorem State.init_receiver_no_panic (hss : HkdfSha256Total) (hrir : RatchetInitReceiverTotal)
     (hsib : SpqrInitBobTotal) (hz : ZeroizeTotal) (sk : Slice U8) (our_pub : Array U8 32#usize)
@@ -243,7 +241,6 @@ theorem State.init_receiver_no_panic (hss : HkdfSha256Total) (hrir : RatchetInit
     State.init_receiver sk our_pub labels ⦃ fun _ => True ⦄ := by
   unfold State.init_receiver
   step with split_secret_no_panic hss sk
-  all_goals (try step*)
   all_goals (try (obtain ⟨s, hs⟩ := hrir ec our_pub labels; simp only [hs]))
   all_goals (try step*)
   all_goals (try (obtain ⟨s2, hs2⟩ := hsib s1; simp only [hs2]))
@@ -252,7 +249,6 @@ theorem State.init_receiver_no_panic (hss : HkdfSha256Total) (hrir : RatchetInit
   all_goals (try step*)
   all_goals (try (obtain ⟨r1, hr1⟩ := hz pq; simp only [hr1]))
   all_goals (try step*)
-  all_goals (try simp_all)
 
 /-! ## `State.send`, `State.receive`, `State.commit`
 
@@ -268,7 +264,6 @@ theorem State.send_no_panic (hrc : RatchetStateCloneTotal) (hsc : SpqrStateClone
     State.send self sending_epoch output ⦃ fun _ => True ⦄ := by
   unfold State.send
   step with State.clone_no_panic hrc hsc
-  all_goals (try step*)
   all_goals (try (obtain ⟨r, hr⟩ := hrs candidate.classical; simp only [hr]))
   all_goals (try step*)
   all_goals (try (rcases r with v | e))
@@ -280,12 +275,10 @@ theorem State.send_no_panic (hrc : RatchetStateCloneTotal) (hsc : SpqrStateClone
   all_goals (try step*)
   all_goals (try (obtain ⟨pq_n, mk_pq⟩ := v1))
   all_goals (try (step with combine_no_panic hkdf))
-  all_goals (try step*)
   all_goals (try (obtain ⟨r2, hr2⟩ := hz mk_ec; simp only [hr2]))
   all_goals (try step*)
   all_goals (try (obtain ⟨r3, hr3⟩ := hz mk_pq; simp only [hr3]))
   all_goals (try step*)
-  all_goals (try simp_all)
 
 theorem State.receive_no_panic (hrc : RatchetStateCloneTotal) (hsc : SpqrStateCloneTotal)
     (hrr : RatchetReceiveTotal) (hsr : SpqrReceiveTotal) (hkdf : HkdfSha256Total) (hz : ZeroizeTotal)
@@ -295,7 +288,6 @@ theorem State.receive_no_panic (hrc : RatchetStateCloneTotal) (hsc : SpqrStateCl
     State.receive self header dh_out_recv dh_out_send new_dhs_pub output ⦃ fun _ => True ⦄ := by
   unfold State.receive
   step with State.clone_no_panic hrc hsc
-  all_goals (try step*)
   all_goals (try (obtain ⟨r, hr⟩ := hrr candidate.classical header.dr dh_out_recv dh_out_send new_dhs_pub; simp only [hr]))
   all_goals (try step*)
   all_goals (try (rcases r with v | e))
@@ -305,12 +297,10 @@ theorem State.receive_no_panic (hrc : RatchetStateCloneTotal) (hsc : SpqrStateCl
   all_goals (try (rcases r1 with v1 | e1))
   all_goals (try step*)
   all_goals (try (step with combine_no_panic hkdf))
-  all_goals (try step*)
   all_goals (try (obtain ⟨r2, hr2⟩ := hz v; simp only [hr2]))
   all_goals (try step*)
   all_goals (try (obtain ⟨r3, hr3⟩ := hz v1; simp only [hr3]))
   all_goals (try step*)
-  all_goals (try simp_all)
 
 theorem State.commit_no_panic (self next : State) : State.commit self next ⦃ fun _ => True ⦄ := by
   unfold State.commit; simp

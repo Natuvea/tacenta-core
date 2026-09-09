@@ -115,13 +115,12 @@ theorem split_secret_refines (h : TripleHkdfAgrees) (sk : Slice Std.U8) :
       (keyOf r.1, keyOf r.2) = Model.TripleRatchet.splitSecret (sliceOf sk) ⦄ := by
   unfold split_secret
   step*
-  all_goals (try (simp only [split_info_len]; scalar_tac))
   all_goals (try (simp_all only []; scalar_tac))
   all_goals (try (
     have hzero : List.map u8 (Array.repeat 32#usize 0#u8 : Array Std.U8 32#usize).val
         = List.replicate 32 (0 : UInt8) := by native_decide
     simp only [Model.TripleRatchet.splitSecret, ← split_info_agrees]
-    simp_all [keyOf, sliceOf, u8, hzero, List.slice, List.map_take, List.map_drop]))
+    simp_all [keyOf, sliceOf, u8, List.slice, List.map_take, List.map_drop]))
 
 theorem combine_refines (h : TripleHkdfAgrees) (mk_classical mk_pq : Array Std.U8 32#usize) :
     combine mk_classical mk_pq ⦃ fun r =>
@@ -130,7 +129,7 @@ theorem combine_refines (h : TripleHkdfAgrees) (mk_classical mk_pq : Array Std.U
   step*
   simp only [Model.TripleRatchet.combine]
   rw [← combine_info_agrees]
-  simp_all [keyOf, sliceOf, u8]
+  simp_all [keyOf, sliceOf]
 
 /-! ## The two inner ratchets, bundled as agreement
 
@@ -482,7 +481,6 @@ theorem receive_refines {α : tacenta_ratchet.State → Model.State.State}
       simp only [hkbz2]
       intro st key hcon; injection hcon
   · step*
-    all_goals (try (intro st key hcon; injection hcon))
 
 /-! ## `commit` refines the model's -/
 

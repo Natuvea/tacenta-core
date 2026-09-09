@@ -471,7 +471,7 @@ theorem xtIter_mul (k : Nat) (a b : BitVec 16) :
 that many times. -/
 
 theorem mul_pow_0 (x : BitVec 16) : mul x (1#16 <<< 0) = xtIter 0 x := by
-  simp only [xtIter, xtime_eq, mul, reduce, redAt, clmul]
+  simp only [xtIter, mul, reduce, redAt, clmul]
   bv_decide
 
 theorem mul_pow_1 (x : BitVec 16) : mul x (1#16 <<< 1) = xtIter 1 x := by

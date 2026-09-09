@@ -14,7 +14,7 @@ running both.
 | Lean | `leanprover/lean4:v4.31.0` | `lean-toolchain` (and `translation/lean-toolchain`) |
 | Lean dependencies, model layer | exact revisions | `lake-manifest.json` |
 | Lean dependencies, translation (Aeneas library, Mathlib, Batteries, Aesop) | exact revisions | `translation/lake-manifest.json`, with the Aeneas library `rev` pinned by commit in `translation/lakefile.toml` |
-| Charon and Aeneas | release `nightly-2026.07.22-b1214ca`, archive `aeneas-linux-x86_64.tar.gz` with SHA-256 `bc26c30daf92679b57c264c630710096bd9d4428e28795fe0638afdb0c2df65f`, checked on every run, and stated here so a reader elsewhere can confirm they hold the same binaries | the verification workflow; also recorded by `attest.py` in `manifests/verification-manifest.json` |
+| Charon and Aeneas | release `nightly-2026.07.22-b1214ca`, archive `aeneas-linux-x86_64.tar.gz` with SHA-256 `bc26c30daf92679b57c264c630710096bd9d4428e28795fe0638afdb0c2df65f`. The digest is checked by the private verification workflow before it extracts the archive (that workflow is not in this tree), and stated here so a reader elsewhere can confirm they hold the same binaries. What the public tree checks is the recorded manifest: the release name and the library commit are read by `attest.py` into `manifests/verification-manifest.json`, and the generated files that release produced are held, byte for byte, to `manifests/translation-attestation.json` by `attest.py --check` | `scripts/run-aeneas.sh` and `translation/lakefile.toml` carry the pins; the verification workflow carries the digest |
 | Mathlib build artifacts | **not pinned**: `lake exe cache get` fetches prebuilt oleans for the manifest's Mathlib commit from Mathlib's cache over HTTPS, and Lean loads them without re-checking against source | trusted, see `LIMITATIONS.md` |
 | Rust, for Charon | whatever the Aeneas release's `rust-toolchain` names | resolved at run time, not pinned here |
 
@@ -55,11 +55,27 @@ bash tacenta-proofs/scripts/run-aeneas.sh
 
 Translates the verified zone -- the leaf crates only: ratchet, session, erasure,
 protobuf, spqr, braid, triple. It writes into `translation/Translation/`
-alongside the hand-written proofs. The drift step in the verification workflow fails if
-the committed files differ from what the pinned toolchain regenerates, which
-catches both a generated file edited by hand and a committed generation the
-toolchain no longer produces. (`scripts/check-generated-files.sh` is a signpost
-to that step and always exits zero; it is not a check.)
+alongside the hand-written proofs. Immediately afterwards, and at no other
+time, record what it produced:
+
+```sh
+python3 tacenta-proofs/scripts/attest.py --refresh-translation
+```
+
+This rewrites `manifests/translation-attestation.json`: for each generated
+`Translation/Tacenta*.lean`, its SHA-256, the `axiom` names it declares, and
+the SHA-256 of the Rust crate it was generated from, with the Aeneas pin.
+Every other `attest.py` mode, and `scripts/check-generated-files.sh` (which
+runs `attest.py --check-translation` and nothing else), compares the tree
+against that record and fails on a generated file that differs from it, on a
+changed axiom set, or on a Rust crate whose hash has moved since it was
+translated -- the message names the crate and says to regenerate. Running
+`--refresh-translation` at any other time would record whatever the files
+happen to be, which is why its whole value is in when it is run. The drift
+step in the private verification workflow is the stronger check: it
+regenerates with the pinned toolchain and fails on any difference, which
+also catches a recorded generation the toolchain would no longer produce.
+The recorded manifest is what the public tree holds in its place.
 
 ```sh
 cd tacenta-proofs/translation && lake exe cache get && lake build
@@ -80,18 +96,67 @@ bash tacenta-proofs/scripts/no-sorry.sh
 **This is the authoritative completeness check.** It asks the compiler instead
 of grepping the source: Lean emits "declaration uses `sorry`" for every
 incomplete declaration it elaborates, so a build log is exhaustive where a grep
-is not. It covers both lake packages -- `translation/` and the model layer --
-and it filters *positively* by our own directories, so a third-party `sorry`
+is not. It runs three builds -- `translation/`, the model-layer proofs, and
+the model package on its own terms so that `Properties/` is elaborated -- and
+it filters *positively* by our own directories, so a third-party `sorry`
 (Aeneas's own library ships four) is not ours and is not failed on, while
 anything it does not recognise is treated as third-party rather than quietly as
-first-party.
+first-party. Each of those builds also runs the package's `AxiomAudit`
+module (`tacenta-model/Model/AxiomAudit.lean`), which walks the elaborated
+environment and fails the build if any hand-written declaration is an axiom,
+opaque, unsafe or partial, or carries `implemented_by`/`extern`; the generated
+`Translation/Tacenta*.lean` are exempt from the axiom rule only, and
+`attest.py` holds their axiom sets to the recorded manifest instead. After the
+builds it runs two checks -- `check-translation-coverage.sh`, that every
+`Translation/*.lean` produced an olean, and `check-lean-constructs.sh`, the
+textual second line of the audit, which is also the only one that sees
+`set_option debug.skipKernelTC` -- and then replays every first-party module
+through the kernel with `leanchecker` (below).
 
 Expected tail:
 
 ```
 no-sorry: the translation and its T1/T3 proofs is complete
+translation-coverage: all 26 Translation/*.lean modules are in the build target and built
 no-sorry: the model-layer proofs is complete
+no-sorry: the model and its property theorems is complete
+check-lean-constructs: 54 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe or debug.skipKernelTC
+no-sorry: replaying the translation and its T1/T3 proofs through the kernel (leanchecker)
+no-sorry: the translation and its T1/T3 proofs replays clean (26 modules)
+no-sorry: replaying the model-layer proofs through the kernel (leanchecker)
+no-sorry: the model-layer proofs replays clean (10 modules)
+no-sorry: replaying the model and its property theorems through the kernel (leanchecker)
+no-sorry: the model and its property theorems replays clean (25 modules)
 ```
+
+## Replaying through the kernel
+
+`lake build` checks a declaration with the kernel when it adds it, unless the
+file asked it not to: `set_option debug.skipKernelTC true in` adds the next
+declaration on the elaborator's word alone, and nothing in the resulting
+environment records that it happened. The `#print axioms` pins do not see
+it, the axiom audit does not see it, and `no-sorry.sh`'s log scan does not
+see it. What does is `leanchecker`, which ships with the pinned toolchain
+(it is the former `lean4checker`, merged into Lean from v4.28.0): it loads a
+module's imports from their oleans and re-adds each of the module's own
+declarations through the kernel, so a declaration the kernel would have
+refused fails there. `no-sorry.sh` runs it over every first-party module of
+all three packages; by hand, from the package directory:
+
+```sh
+cd tacenta-proofs/translation && lake env leanchecker Translation.T3
+cd tacenta-proofs && lake env leanchecker Proofs.TrustedBase
+cd tacenta-model && lake env leanchecker Properties.ForwardSecrecy
+```
+
+A module that replays prints nothing and exits zero. `lake env leanchecker
+--fresh Translation.T3` replays every imported constant as well, from an
+empty environment; that covers Mathlib and Aeneas too and takes far longer,
+and is the form to use if the question is whether an *import* was tampered
+with rather than a first-party file. Neither form is an independent
+verifier: `leanchecker` is Lean's own kernel, run again over the oleans. It
+is the direct defence against environment hacking, not against a bug in the
+kernel itself.
 
 ## What a green run does and does not establish
 
@@ -108,6 +173,23 @@ you do:
   cross-references those, and delegates *checking that they are true* to the
   build. So a green `attest` says the ledger is consistent with what the files
   claim; only a green heavy gate says the files are telling the truth.
+
+  The ledger check is exact by name. Every theorem a claim bullet names --
+  every backticked identifier in the bullet's leading run, not only the
+  first -- must exist, fully qualified by its `namespace`, in a file the
+  section's `Location:` line names (or the bullet's own `(in ...)`
+  annotation, for the few theorems a section cites from the model); every
+  `Location:` path must exist; and every theorem pinned under `#guard_msgs`
+  anywhere must be claimed, matched on its full name so that a claim in one
+  section cannot cover a pin in another.
+
+  **And it holds the generated translation to a recorded generation.** A
+  green `attest` says every `Translation/Tacenta*.lean` is the file recorded
+  in `manifests/translation-attestation.json` at the last
+  `--refresh-translation`, declares exactly the axioms recorded then, and
+  that the Rust it was generated from is the Rust in the tree now. It does
+  not say the recorded generation was produced by the pinned toolchain, or
+  honestly: that is the heavy gate's drift step, described above.
 - **T1 and T3 are about the Aeneas model of the Rust**, not the machine code
   `rustc` produces. The Charon and Aeneas translation, the Lean kernel, and the
   Rust compiler are all trusted. That trust is the point of writing the pins

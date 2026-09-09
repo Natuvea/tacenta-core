@@ -138,7 +138,7 @@ theorem u8_inj {x y : Std.U8} (h : u8 x = u8 y) : x = y := by
   have hx : x.val < 256 := by scalar_tac
   have hy : y.val < 256 := by scalar_tac
   have := congrArg UInt8.toNat h
-  simp [UInt8.toNat_ofNat] at this
+  simp at this
   scalar_tac
 
 theorem keyOf_inj {n : Usize} {a b : Array Std.U8 n} (h : keyOf a = keyOf b) :
@@ -169,13 +169,13 @@ here rather than assumed. -/
 theorem rk_info_agrees (l : LabelSet) :
     sliceOf RK_INFO = (labelsOf l).rkInfo := by
   cases l
-  simp [sliceOf, RK_INFO, Model.State.rkInfo, u8]
+  simp [sliceOf, RK_INFO]
   rfl
 
 theorem mk_info_agrees (l : LabelSet) :
     sliceOf MK_INFO = (labelsOf l).mkInfo := by
   cases l
-  simp [sliceOf, MK_INFO, Model.State.mkInfo, u8]
+  simp [sliceOf, MK_INFO]
   rfl
 
 /-! ## The bounds agree -/
@@ -349,6 +349,51 @@ theorem kdf_rk_refines (h : HkdfAgrees) (hz : ZeroizingRoundTrips)
 -- Restored, so nothing outside this proof is affected by the removal above.
 attribute [step] Tacenta.T1.zeroizing_deref_step
 
+/-! ## Message-key expansion refines the model's
+
+The last derivation before the cipher. A message key is expanded by one HKDF
+call into the AEAD key, the MAC key and the IV, and it is the one derivation a
+label or split-order error would change every ciphertext key through while
+every ratchet-level theorem stayed true, since nothing above it reads the
+expansion back. So it is related to `Model.State.messageKeys` directly: the
+same zero salt, the same `info`, the same eighty bytes split at the same two
+offsets. -/
+
+/-- The `zeroize` round trip at the eighty-byte width `message_keys` wraps its
+expansion at. `ZeroizingRoundTrips` is stated at sixty-four bytes, the
+root-key step's width, and deliberately no wider, so this is the same
+assumption at the one other width the crate uses, kept separate so that no
+existing theorem's hypothesis widens. -/
+def ZeroizingRoundTrips80 : Prop :=
+  ∀ inst : zeroize.Zeroize (Array Std.U8 80#usize),
+    (∀ z, ∃ w, zeroize.Zeroizing.new inst z = ok w ∧
+       zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst w = ok z) ∧
+    (∀ w, ∃ z, zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst w = ok z)
+
+@[step]
+theorem zeroizing_new_step80 (hz : ZeroizingRoundTrips80)
+    (inst : zeroize.Zeroize (Array Std.U8 80#usize)) (z : Array Std.U8 80#usize) :
+    zeroize.Zeroizing.new inst z ⦃ fun w =>
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst w = ok z ⦄ := by
+  obtain ⟨w, hw, hd⟩ := (hz inst).1 z; simp [hw, hd]
+
+/-- The translated zero byte is the model's zero byte. The stepping tactic
+expands the all-zero salt into thirty-two translated literals, so this is what
+lets the salt the code passes normalise to the salt the model writes. -/
+theorem u8_zero : u8 0#u8 = 0 := rfl
+
+theorem message_keys_refines (h : HkdfAgrees) (hz : ZeroizingRoundTrips80)
+    (mk : Array Std.U8 32#usize) (labels : LabelSet) :
+    message_keys mk labels ⦃ fun r =>
+      (keyOf r.1, keyOf r.2.1, keyOf r.2.2)
+        = Model.State.messageKeys (keyOf mk) (labelsOf labels) ⦄ := by
+  have hht : Tacenta.T1.HkdfTotal := h.total
+  unfold message_keys
+  step*
+  simp only [out_post]
+  step* <;> simp_all [Slice.length, Model.State.messageKeys, keyOf,
+    mk_info_agrees labels, u8_zero, List.slice, List.map_take, List.map_drop]
+
 /-! ## Sending refines the model's send
 
 The two disagree in one place, and it is worth naming rather than hiding. The
@@ -465,18 +510,13 @@ theorem derive_chain_loop_refines (h : HmacAgrees) (start_n : Std.U32)
       have hk2 : it.end.val - (it.start.val + 1) = k := by omega
       simp only [predOf, hk, Model.State.deriveChain, Model.State.kdfCk] at hinv2
       step*
-      all_goals (try simp only [lift])
-      all_goals (try split)
-      all_goals (try step*)
       all_goals
-        simp_all [predOf, keysOf, pairOf, hk2, Model.State.deriveChain,
-          Model.State.kdfCk, Nat.add_assoc]
+        simp_all [predOf, keysOf, pairOf, Model.State.kdfCk, Nat.add_assoc]
       all_goals omega
     · -- The range is spent, so the model derives nothing further and the
       -- invariant is already the answer.
       step* <;>
-        simp_all [predOf, keysOf, pairOf, Model.State.deriveChain,
-          Model.State.kdfCk] <;> omega
+        simp_all [predOf, keysOf, Model.State.deriveChain]
   · exact ⟨hinv, hb⟩
 
 /-- The loop lifted to the whole function: what the Rust derives is what the
@@ -567,7 +607,7 @@ theorem saturating_add_le (x y : Std.U32) :
     (core.num.U32.saturating_add x y).val ≤ x.val + y.val := by
   simp only [core.num.U32.saturating_add, UScalar.saturating_add]
   simp only [UScalar.val, BitVec.toNat_ofNat]
-  simp [UScalar.max, UScalarTy.numBits]
+  simp [UScalarTy.numBits]
   omega
 
 /-! ## The purge scan refines the model's filter
@@ -591,7 +631,7 @@ theorem prefix_step_keep {α : Type} (L : List α) (p : α → Bool) (j : Nat)
     L.take j ++ (L.drop j).filter p = L.take (j + 1) ++ (L.drop (j + 1)).filter p := by
   rw [List.drop_eq_getElem_cons hj, List.filter_cons_of_pos hp]
   have h : L.take (j + 1) = L.take j ++ [L[j]] := by
-    rw [List.take_succ, List.getElem?_eq_getElem hj]; simp
+    rw [List.take_add_one, List.getElem?_eq_getElem hj]; simp
   simp only [h, List.append_assoc, List.singleton_append]
 
 /-- Removing an entry the predicate rejects: it leaves the filtered tail and
@@ -784,8 +824,7 @@ theorem saturating_sub_val (x y : Std.U32) :
     | (simp only [core.num.U32.saturating_sub, UScalar.saturating_sub]
        scalar_tac)
     | (simp only [core.num.U32.saturating_sub, UScalar.saturating_sub,
-         UScalar.val, BitVec.toNat_ofNat, UScalarTy.numBits, U32.numBits,
-         Nat.zero_max]
+         UScalar.val, BitVec.toNat_ofNat, UScalarTy.numBits, Nat.zero_max]
        omega)
 
 /-- The saturating addition at its value, which the counter's step needs
@@ -888,7 +927,7 @@ theorem age_store_refines (hrm : Tacenta.T1.VecRemoveTotal)
   refine ⟨hdhs, hdhr, hrk, hcks, hckr, hns, hnr, hpn, ?_, ?_, hlab⟩
   · simp only [Model.State.ageStore]
     rw [← hskip]
-    simp_all [hnow]
+    simp_all
   · simpa [Model.State.ageStore] using hnow
 
 theorem skip_message_keys_refines (h : HmacAgrees)
@@ -919,7 +958,7 @@ theorem skip_message_keys_refines (h : HmacAgrees)
         simp [hle, hleN]
         exact hSR
       · have hgtN : ¬ (upto.val ≤ m.nr) := by rw [← hnr]; scalar_tac
-        simp only [hle, hgtN, if_false, ite_false, lift]
+        simp only [hle, hgtN, if_false, lift]
         step*
         obtain ⟨ck2, keys⟩ := v
         simp only [alloc.vec.IntoIteratorVec.into_iter]
@@ -948,7 +987,7 @@ theorem skip_message_keys_refines (h : HmacAgrees)
             simp only [Model.State.maxSkippedStore, MAX_SKIPPED_STORE,
               alloc.vec.Vec.len] at *
             scalar_tac
-          simp only [hg1, hg2, if_false, ite_false]
+          simp only [hg1, hg2, if_false]
           -- The derivation was indexed by the Rust's counters; restate it at
           -- the model's before matching, or the two never line up.
           have hi2 : i2.val = upto.val - m.nr := by rw [← hnr]; omega
@@ -970,7 +1009,7 @@ theorem skip_message_keys_refines (h : HmacAgrees)
             rw [v1_post, hskip, hnr]
             rfl
           refine ⟨_, rfl, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩ <;>
-            simp_all [storedOf, pairOf, keysOf, List.map_map]
+            simp_all [keysOf]
 
 /-! ## The skipped-key lookup refines the model's
 
@@ -1087,7 +1126,7 @@ theorem try_skipped_loop_refines (hrm : Tacenta.T1.VecRemoveTotal)
         simpa using hlt
       rw [i2_post]
       refine ⟨?_, by omega⟩
-      rw [List.take_succ, List.getElem?_eq_getElem hjm, List.filter_append,
+      rw [List.take_add_one, List.getElem?_eq_getElem hjm, List.filter_append,
         hinv2]
       simp only [List.nil_append, List.getElem_map, ← sk_post]
       have hnm : matchesHeader mh (skippedOf sk) = false := by
@@ -1108,7 +1147,7 @@ theorem try_skipped_loop_refines (hrm : Tacenta.T1.VecRemoveTotal)
         simpa using hlt
       rw [i2_post]
       refine ⟨?_, by omega⟩
-      rw [List.take_succ, List.getElem?_eq_getElem hjm, List.filter_append,
+      rw [List.take_add_one, List.getElem?_eq_getElem hjm, List.filter_append,
         hinv2]
       simp only [List.nil_append, List.getElem_map, ← sk_post]
       have hnm : matchesHeader mh (skippedOf sk) = false := by
@@ -1150,7 +1189,7 @@ theorem try_skipped_loop_fields (hrm : Tacenta.T1.VecRemoveTotal)
   · rintro j -
     obtain ⟨⟨removed, v'⟩, hrm', hv⟩ := hrm Global s.skipped j
     simp only [try_skipped_loop.body, hrm']
-    by_cases hlt : j.val < s.skipped.val.length <;> step* <;> simp_all <;> omega
+    by_cases hlt : j.val < s.skipped.val.length <;> step*
   · trivial
 
 /-- The lookup, lifted to the whole function. On a hit it returns the key the
@@ -1338,7 +1377,7 @@ theorem receive_refines (h : HmacAgrees) (hk : HkdfAgrees)
       have hh := congrArg List.length (hSR1.skipped.trans hR.skipped.symm)
       simpa using hh
     step*
-    rcases hd : state1.dhr_pub with _ | dhr <;> (try simp only [hd]) <;> step*
+    rcases hd : state1.dhr_pub with _ | dhr <;> (try simp only) <;> step*
     -- No receiving ratchet key held yet, so the first message ratchets.
     · have hnotsame : ¬ (m.dhrPub = some mh.dh) := by
         have hc := hSR1.dhr_pub
@@ -1504,11 +1543,15 @@ theorem receive_refines (h : HmacAgrees) (hk : HkdfAgrees)
 /-
 ## What remains
 
-**T3 is complete.** Every operation the model defines is proved to be refined by
-the translated Rust: both key-derivation steps, both session-initialisation
-operations, `send`, `dh_ratchet`, chain derivation, the whole skip step with its
-purge scan, the skipped-key lookup, and `receive`, which composes the rest.
-There is no `sorry`.
+**T3 covers every protocol operation the model defines.** Each is proved to
+be refined by the translated Rust: both key-derivation steps, the message-key
+expansion (`message_keys_refines`, the last derivation before the cipher),
+both session-initialisation operations, `send`, `dh_ratchet`, chain
+derivation, the whole skip step with its purge scan, the skipped-key lookup,
+and `receive`, which composes the rest. There is no `sorry`. What it does not
+cover is what the translation contains and the model does not define: the
+persistence codecs (`from_bytes`, `to_bytes` and their helpers) and the small
+accessors, which `CLAIMS.md` lists under "translated is not proved".
 
 Two limits stand, and neither is a formality.
 
@@ -1544,5 +1587,49 @@ destructuring `let`. A `let` with a type ascription elaborates to an opaque
 form.
 
 -/
+
+/-! ## The axiom audit, enforced rather than asserted
+
+The two headline theorems and the expansion, pinned so that a change which
+made one of them rest on something new -- a `sorry`, a `native_decide`, an
+assumption smuggled in through a lemma -- fails the build here rather than
+being noticed by whoever next runs `#print axioms` by hand. Everything each
+rests on beyond Lean's three standard axioms is an opaque external the
+translation declares: the key-derivation primitives, the `zeroize` wrapper,
+and `Vec::remove`. -/
+
+/-- info: 'Tacenta.T3.send_refines' depends on axioms: [propext, Classical.choice, Quot.sound, tacenta_kdf.hmac_sha256] -/
+#guard_msgs in
+#print axioms Tacenta.T3.send_refines
+
+/--
+info: 'Tacenta.T3.receive_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kdf.hkdf_sha256,
+ tacenta_kdf.hmac_sha256,
+ zeroize.Zeroizing,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ alloc.vec.Vec.remove,
+ zeroize.Zeroize.Blanket.zeroize,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref]
+-/
+#guard_msgs in
+#print axioms Tacenta.T3.receive_refines
+
+/--
+info: 'Tacenta.T3.message_keys_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kdf.hkdf_sha256,
+ zeroize.Zeroizing,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ zeroize.Zeroize.Blanket.zeroize,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref]
+-/
+#guard_msgs in
+#print axioms Tacenta.T3.message_keys_refines
 
 end Tacenta.T3

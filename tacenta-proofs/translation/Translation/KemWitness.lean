@@ -300,13 +300,13 @@ theorem api_totals : Totals api := by
   · intro R rc crc s rng
     refine ⟨_, rfl, ?_⟩
     intro es ct1 raw h
-    simp only [api, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
+    simp only [core.result.Result.Ok.injEq, Prod.mk.injEq] at h
     obtain ⟨-, rfl, -⟩ := h
     rw [length_vecOfBytes]; simp
   · intro es s
     refine ⟨_, rfl, ?_⟩
     intro c h
-    simp only [api, core.result.Result.Ok.injEq] at h
+    simp only [core.result.Result.Ok.injEq] at h
     subst h
     rw [length_vecOfBytes]; simp
 

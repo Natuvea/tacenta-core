@@ -2,6 +2,7 @@
 name = "tacenta-vectors-rust"
 version = "0.0.0"
 edition = "2024"
+license = "Apache-2.0"
 description = "Rust conformance runner: loads the shared test vectors and checks tacenta-core against them."
 publish = false
 
@@ -9,8 +10,17 @@ publish = false
 tacenta-core = { path = "../../../tacenta-core" }
 tacenta-erasure = { path = "../../../tacenta-core/erasure" }
 tacenta-spqr = { path = "../../../tacenta-core/spqr" }
-tacenta-braid = { path = "../../../tacenta-core/braid" }
+tacenta-braid = { path = "../../../tacenta-core/braid", features = ["conformance"] }
 tacenta-triple = { path = "../../../tacenta-core/triple" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 hex = "0.4"
+# The trait `xeddsa::sign` takes its randomness through; the runner supplies
+# a fixed byte source so the signature is a known answer. The same major
+# version tacenta-core names, so the trait is the same trait.
+rand_core = "0.6"
+# The Ed25519 implementation at tacenta-core's trusted boundary, which
+# `xeddsa::verify` calls. The core exposes no Ed25519 API of its own, so the
+# RFC 8032 vectors are checked against this crate directly; the lockfile pins
+# the one version both crates link.
+ed25519-dalek = "2"

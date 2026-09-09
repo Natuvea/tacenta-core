@@ -987,7 +987,9 @@ dependencies = [
 name = "tacenta-vectors-rust"
 version = "0.0.0"
 dependencies = [
+ "ed25519-dalek",
  "hex",
+ "rand_core 0.6.4",
  "serde",
  "serde_json",
  "tacenta-braid",
