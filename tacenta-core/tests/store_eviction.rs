@@ -11,11 +11,16 @@
 //!
 //! The session instead evicts the oldest keys from a *working copy* and
 //! retries, committing the copy only after the tag verifies. These tests pin
-//! both halves of that: recovery happens, and a forgery still evicts nothing.
+//! that: recovery happens, the first batch is sized to what the message
+//! actually displaces, and a forgery still evicts nothing -- including the
+//! forgery that reaches the one sizing path honest traffic cannot, a header
+//! naming the epoch a fold is about to open.
 
 use rand::SeedableRng;
 use tacenta_core::ratchet::{MAX_SKIP, MAX_SKIPPED_STORE};
+use tacenta_core::serialization::{decode_message, encode_message};
 use tacenta_core::sessions::{self, Session, establish_initiator, establish_responder};
+use tacenta_spqr::MAX_SKIP as PQ_MAX_SKIP;
 
 fn rng(seed: u64) -> rand::rngs::StdRng {
     rand::rngs::StdRng::seed_from_u64(seed)
@@ -210,4 +215,123 @@ fn a_forgery_against_a_full_store_evicts_nothing() {
         bob.decrypt(&genuine, &mut r).unwrap(),
         format!("three {MAX_SKIP}").as_bytes()
     );
+}
+
+/// The post-quantum sizing has a fallback the arithmetic above cannot reach:
+/// a header naming an epoch the state holds no receiving chain for. There is
+/// no receive count to compute a shortfall from, so the batch starts at one
+/// and climbs geometrically, which is the only place that ramp survives.
+///
+/// **Nothing a session sends produces that header.** The agreement reports the
+/// epoch both parties are known to hold, which is one behind the sender's own,
+/// so the message that carries the output opening epoch `e` is itself stamped
+/// `e - 1` -- the assertion below pins that, and it is why the branch never
+/// fires on honest traffic. A header naming an epoch already *retired* does
+/// not reach the sizing either: the sparse ratchet answers `NoChain`, which is
+/// not a store-full refusal, and the caller returns before any eviction is
+/// considered.
+///
+/// What is left is a forged header, and that is what this builds: the epoch
+/// raised to the one the fold is about to open, and a message number far
+/// enough ahead that the store refuses once the fold has happened. The message
+/// key never authenticates -- the associated data covers the whole header --
+/// so the point is not that it decrypts. The point is the one the forgery test
+/// above makes for the classical store: the ramp runs, climbing from one until
+/// it has taken hundreds of keys off the working copy, and commits none of it.
+#[test]
+fn a_forged_header_naming_the_epoch_a_fold_opens_evicts_nothing() {
+    let mut r = rng(34);
+    let (mut alice, mut bob) = establish(&mut r);
+
+    // Bob sends without hearing back, so his agreement cannot move and every
+    // message stays on epoch 0.
+    let mut fill = Vec::new();
+    for i in 0..=(MAX_SKIP as usize + PQ_MAX_SKIP as usize / 2) {
+        fill.push(bob.encrypt(format!("fill {i}").as_bytes(), &mut r).unwrap());
+    }
+
+    // Alice takes two of them, and each stores the keys it skipped past: the
+    // first a full `MAX_SKIP`, the second the rest. Her post-quantum store is
+    // then 1500 of its 2000, which is what makes the forged message's skip
+    // overflow it.
+    let first = MAX_SKIP as usize;
+    let second = fill.len() - 1;
+    assert_eq!(
+        alice.decrypt(&fill[first], &mut r).unwrap(),
+        format!("fill {first}").as_bytes()
+    );
+    assert_eq!(
+        alice.decrypt(&fill[second], &mut r).unwrap(),
+        format!("fill {second}").as_bytes()
+    );
+
+    // Now let the agreement run to the point where one of Bob's messages
+    // carries the output that opens epoch 1 on Alice. Each candidate is tried
+    // on a copy first, because the message that folds must not be delivered:
+    // it is the one to forge.
+    let folding = loop_until_fold(&mut alice, &mut bob, &mut r);
+
+    // The fold-carrying message names the epoch *before* the one it opens.
+    // This is the reason the branch below is unreachable without a forgery.
+    let mut forged = decode_message(&folding).unwrap();
+    assert_eq!(
+        forged.header.pq_epoch, 0,
+        "the message that opens epoch 1 must still name epoch 0"
+    );
+
+    // Forge it: name the epoch the fold is about to open, and a number that
+    // skips a full `MAX_SKIP` on a chain that does not exist yet. Once the
+    // fold has run, 1500 held plus 1000 skipped passes the 2000-key cap, so
+    // the store refuses and the sizing has no receive count to work from.
+    forged.header.pq_epoch = 1;
+    forged.header.pq_n = PQ_MAX_SKIP + 1;
+    let forged_bytes = encode_message(&forged.header, &forged.ciphertext);
+    assert!(
+        alice.decrypt(&forged_bytes, &mut r).is_err(),
+        "a forged header must not authenticate"
+    );
+
+    // Nothing was committed. The oldest key Alice holds is the first one an
+    // eviction takes, and it is still there.
+    assert_eq!(
+        alice.decrypt(&fill[0], &mut r).unwrap(),
+        b"fill 0",
+        "the ramp evicted from the committed state"
+    );
+
+    // And the genuine message still folds and decrypts, so the agreement was
+    // not moved either.
+    assert_eq!(alice.decrypt(&folding, &mut r).unwrap(), b"b");
+}
+
+/// Deliver messages both ways until one of Bob's carries the output that opens
+/// epoch 1 on Alice, and return that message *undelivered*.
+///
+/// Nothing public reports the folded epoch, so this reads it off the wire: the
+/// epoch a session stamps on its next message moves from 0 to 1 exactly when
+/// it folds. `export`/`import` is what makes the question askable without
+/// answering it -- the candidate is decrypted on a copy, and the copy is
+/// thrown away.
+fn loop_until_fold(alice: &mut Session, bob: &mut Session, r: &mut rand::rngs::StdRng) -> Vec<u8> {
+    for _ in 0..400 {
+        let m = alice.encrypt(b"a", r).unwrap();
+        assert_eq!(bob.decrypt(&m, r).unwrap(), b"a");
+
+        let m = bob.encrypt(b"b", r).unwrap();
+        let mut probe = Session::import(&alice.export()).unwrap();
+        assert_eq!(probe.decrypt(&m, r).unwrap(), b"b");
+        if stamped_epoch(&probe, r) == 1 {
+            return m;
+        }
+        assert_eq!(alice.decrypt(&m, r).unwrap(), b"b");
+    }
+    panic!("the agreement did not reach epoch 1");
+}
+
+/// The epoch a session would stamp on its next message, read without keeping
+/// the send that reveals it.
+fn stamped_epoch(s: &Session, r: &mut rand::rngs::StdRng) -> u64 {
+    let mut probe = Session::import(&s.export()).unwrap();
+    let m = probe.encrypt(b"probe", r).unwrap();
+    decode_message(&m).unwrap().header.pq_epoch
 }

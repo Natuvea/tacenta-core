@@ -219,7 +219,8 @@ deleting them after an interval, triggered by a timer or by counting events.
   store is left exactly as it was. It was once a window, oldest evicted first,
   and a window is a count an unauthenticated peer can drive: anyone holding
   the public bundle can complete a last-resort handshake under a fresh
-  identity in about a millisecond and a half, so 1024 of them evicted a chosen
+  identity in well under a millisecond on a current laptop, so 1024 of them
+  evicted a chosen
   victim's fingerprint in about two seconds, after which the captured message
   replayed. What the bound measures now is how many distinct last-resort
   handshakes one key has accepted over its lifetime, not how many arrived
@@ -237,8 +238,10 @@ deleting them after an interval, triggered by a timer or by counting events.
   the retired key keeps its entries and keeps refusing their replays. The
   relief is real but brief against a peer who is filling the record on
   purpose: the new bundle is the one they fetch too, and at about a
-  millisecond and a half per handshake the fresh budget is spent again in
-  about a second, so rotation opens a window rather than closing one.
+  cost the fresh budget is spent again in a fraction of a second, so rotation
+  opens a window rather than closing one. No benchmark in the tree pins those
+  figures; what matters is the order of magnitude, which is that the work is
+  cheap for whoever is doing it.
   Replenishment keeps first contacts off this path altogether, and a
   directory that rate-limits bundle fetches bounds how fast anyone can fill
   the record; those two are the durable defence. `PrekeyStore::

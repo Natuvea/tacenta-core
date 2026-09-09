@@ -65,9 +65,10 @@ bash tooling/check-proof-hygiene.sh
 echo "== Bundle clauses still say what their leaf theorems say =="
 python3 tooling/check-bundle-drift.py
 # And the checker is held to its own cases -- a matching pair, a drifted
-# bound, a dropped hypothesis, a deleted clause, an unmarked clause and one it
-# cannot analyse -- so a substitution loosened by mistake fails this gate
-# rather than the next reader.
+# bound, a dropped hypothesis, a deleted clause, an unmarked clause, a marker
+# naming a leaf theorem the leaf file no longer declares, and one it cannot
+# analyse -- so a substitution loosened by mistake fails this gate rather than
+# the next reader.
 bash tooling/tests/run-check-bundle-drift-cases.sh
 
 # Derivation labels are protocol constants, and a codebase that cannot enumerate

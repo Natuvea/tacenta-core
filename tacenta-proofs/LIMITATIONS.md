@@ -264,6 +264,21 @@ Four things are not erased, and they are the honest remainder:
   once into an exactly sized `Zeroizing` buffer that is wiped when it drops.
   That is a wiped copy in place of the unwiped ones a growing output buffer
   made. Every `Vec` inside libcrux is libcrux's.
+  Two things about those exact sizings are worth stating plainly. The
+  `debug_assert_eq!` holding each one is a development check, compiled out of
+  a release build, so the shipping binary carries the sizing but not the check
+  on it; Charon does not know that, and each assert arrives in the generated
+  Lean as a `massert` the T1 proofs discharge. On those lines the Lean is
+  stricter than the binary it was translated from -- the harmless direction,
+  but not the same program.
+  And the *reading* direction of the sparse ratchet is untouched by all of it:
+  `State::from_bytes` still builds **both** of its vectors by pushing, the
+  chain table (`spqr/src/lib.rs:1008`), whose entries carry chain keys, and
+  the skipped-key list (`:1035`), whose entries carry message keys, so a
+  reallocation in either loop hands back an un-wiped copy of what it had read
+  so far. Each count is bounded against the buffer before its loop runs, so
+  sizing both exactly is available; it waits on the window "Waiting on the
+  next re-translation window" describes.
 
 **None of it is proved.** Charon and Aeneas ignore `Drop` entirely, so the
 generated Lean is byte for byte identical with and without every destructor
@@ -1715,12 +1730,13 @@ ones are listed here so nobody mistakes "not yet" for "not known":
 One entry closed with this re-translation: `tacenta_spqr::State::to_bytes` and
 `tacenta_braid::Braid::to_bytes` no longer grow their buffer by pushing, and
 neither do the Triple's or the erasure coders'. What that leaves open there is
-smaller and stated above: `from_bytes` on the sparse ratchet still builds its
-skipped-key vector by pushing, and those entries are message keys. The count is
-bounded against the buffer before the loop, so sizing it is safe; it is held
-back only because that function is the one `ImportInv.lean` steps through, and
-it belongs in a window where its proof can have proper attention rather than
-being carried along.
+smaller and stated above: `from_bytes` on the sparse ratchet still builds two
+vectors by pushing, its chain table and its skipped-key list, so the entries a
+reallocation can leave behind are chain keys as well as message keys. Both
+counts are bounded against the buffer before their loops, so sizing them is
+safe; it is held back only because that function is the one `ImportInv.lean`
+steps through, and it belongs in a window where its proof can have proper
+attention rather than being carried along.
 
 Two further entries this list used to carry closed with the CR-03/CR-22
 re-translation:

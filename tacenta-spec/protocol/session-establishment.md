@@ -215,7 +215,8 @@ bundle handed out afterwards names, so the next handshake to arrive is counted
 against a clean budget, while the retired key keeps its entries and goes on
 refusing their replays for as long as it can still decrypt. The relief is
 brief against a peer who is filling the record deliberately -- they fetch the
-new bundle too, and can spend a fresh budget in about a second -- so the
+new bundle too, and can spend a fresh budget in a fraction of a second -- so
+the
 durable defences remain a directory that rate-limits bundle fetches and
 one-time KEM prekeys kept stocked. This is hardening beyond what the published
 specification asks for, not a claim about it; `key-deletion.md` states what a

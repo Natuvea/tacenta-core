@@ -200,8 +200,11 @@ impl Identity {
 ///
 /// Rotation is relief, not a reset, against an attacker who is filling the
 /// record on purpose. The new bundle is what they fetch too, a last-resort
-/// handshake costs about 1.3 ms, and they need nothing but the public bundle,
-/// so the fresh budget is spent again in about a second. What holds durably is
+/// handshake costs well under a millisecond on a current laptop, and they
+/// need nothing but the public bundle, so a fresh budget goes again in a
+/// fraction of a second. Nothing in this tree pins that figure to a
+/// benchmark, and it is the direction rather than the number that matters:
+/// the work is on the attacker's cheap side. What holds durably is
 /// what stops the handshakes arriving at that rate: a directory that
 /// rate-limits bundle fetches, and one-time KEM prekeys kept stocked so that
 /// first contacts do not land here at all. `last_resort_record_remaining` is
@@ -339,9 +342,10 @@ pub struct PrekeyStore {
     /// was once a window of the last `MAX_LAST_RESORT_SEEN` fingerprints,
     /// oldest evicted first. A window is a count an unauthenticated peer can
     /// drive: anyone holding the public bundle can complete a last-resort
-    /// handshake under a fresh identity in about a millisecond and a half, so
-    /// a thousand of them evicted a chosen victim's fingerprint in about two
-    /// seconds, after which the captured message replayed. Now the record
+    /// handshake under a fresh identity in well under a millisecond on a
+    /// current laptop, so a thousand of them evicted a chosen victim's
+    /// fingerprint in a fraction of a second, after which the captured
+    /// message replayed. Now the record
     /// holds entries only for keys that can still decrypt -- the current
     /// last-resort key and, after a rotation, the retired one -- each tagged
     /// with the key it was made against, and a key's entries are dropped when
@@ -362,8 +366,10 @@ pub struct PrekeyStore {
     ///
     /// Rotation is still relief and not a reset against an attacker who is
     /// filling the record on purpose: the new bundle is the one they fetch
-    /// too, and at about 1.3 ms per last-resort handshake the fresh budget is
-    /// spent again in about a second. The defences that hold are the ones
+    /// too, and at well under a millisecond per last-resort handshake on a
+    /// current laptop -- a figure no benchmark in this tree pins, and quoted
+    /// only for its direction -- a fresh budget goes again in a fraction of a
+    /// second. The defences that hold are the ones
     /// that keep the handshakes from arriving at that rate -- a directory
     /// that rate-limits bundle fetches, and one-time KEM prekeys kept stocked
     /// -- and `last_resort_record_remaining` is what says whether they are
@@ -661,9 +667,19 @@ impl PrekeyStore {
     /// budget is not a lever anyone can pull -- it only shrinks, by
     /// handshakes made against a bundle fetched before the last rotation, and
     /// it is released wholesale by the next one -- so an operator watching it
-    /// would learn nothing they could act on. A caller who wants the retired
-    /// key's occupancy can read it from a persisted store's tags; nothing in
-    /// this crate needs it.
+    /// would learn nothing they could act on. A caller who does want the
+    /// retired key's occupancy asks for it by identifier with
+    /// `last_resort_record_remaining_for`.
+    ///
+    /// **What one number cannot say.** Straight after a rotation this reads
+    /// the full budget, and the record may at that moment hold a spent 1024
+    /// entries under the retired key -- half of the 2048 the two live budgets
+    /// allow. Nothing in the figure is wrong: the next arrival really does
+    /// have a full budget, because it names the new key. But an operator
+    /// polling only this one sees the relief and not what is still occupied,
+    /// and the retired key's entries leave only when the next rotation wipes
+    /// that key. `last_resort_record_remaining_for` is what shows the other
+    /// half.
     ///
     /// The signal for the two levers `MAX_LAST_RESORT_SEEN` names. A count
     /// that keeps falling means first contacts are landing on the last-resort
@@ -679,6 +695,34 @@ impl PrekeyStore {
         // -- so this never saturates; saturating anyway rather than trusting
         // that here.
         MAX_LAST_RESORT_SEEN.saturating_sub(self.last_resort_seen_for(self.kem_id))
+    }
+
+    /// How many more last-resort handshakes the last-resort KEM key named by
+    /// `key_id` can accept, or `None` when that identifier is neither of the
+    /// two the store can still decrypt for.
+    ///
+    /// The per-key figure `last_resort_record_remaining` has to leave out.
+    /// Both budgets are real -- a handshake is refused against the key it
+    /// names, not against the record -- so an operator who wants the whole
+    /// picture after a rotation needs the retired key's number as well as the
+    /// current one, and the identifiers to ask with are the `kem_prekey_id`
+    /// of the bundles the store published.
+    ///
+    /// `None` rather than the full budget for anything else, and the
+    /// distinction matters: an identifier this store never issued, or one a
+    /// rotation has wiped, has no budget rather than an untouched one, and a
+    /// handshake naming it is refused with `UnknownPrekeyId` before the
+    /// record is reached at all.
+    pub fn last_resort_record_remaining_for(&self, key_id: u32) -> Option<usize> {
+        let live = key_id == self.kem_id
+            || self
+                .previous_kem
+                .as_ref()
+                .is_some_and(|(_, id, _)| *id == key_id);
+        if !live {
+            return None;
+        }
+        Some(MAX_LAST_RESORT_SEEN.saturating_sub(self.last_resort_seen_for(key_id)))
     }
 
     /// How many record entries are tagged with one last-resort KEM key.
@@ -2109,12 +2153,22 @@ impl Session {
         //
         // The ramp stays as the fallback for a header naming an epoch the state
         // holds no receiving chain for, where the accessor reports nothing and
-        // there is no figure to start from. That is the epoch a pending
-        // agreement output is about to open: `receive` folds the output in
-        // before it touches a chain, so the chain the message wants may not
-        // exist until that has happened, and it is exactly the case where a
-        // shortfall computed from what the state holds now would be about the
-        // wrong chain.
+        // there is no figure to start from. `receive` folds a pending agreement
+        // output in before it touches a chain, so the chain such a header wants
+        // exists only once that has happened, and a shortfall computed from
+        // what the state holds now would be about the wrong chain.
+        //
+        // Nothing a session sends produces that header. The agreement reports
+        // the epoch both parties are known to hold, which is one behind the
+        // sender's own, so the message carrying the output that opens epoch `e`
+        // is itself stamped `e - 1`, and the accessor answers for a chain that
+        // is already open. A header naming an epoch already *retired* does not
+        // arrive here either: the sparse ratchet answers `NoChain`, which
+        // `full_store` does not recognise, so this function returns before any
+        // eviction is sized. The branch is therefore defensive, and
+        // `store_eviction.rs` reaches it the only way anything can -- with a
+        // forged header naming the epoch a fold is about to open -- to pin that
+        // the ramp evicts from the working copy and commits none of it.
         //
         // Each half's figure carries one honest imprecision, in opposite
         // directions and both benign. The classical one counts the current
@@ -2126,9 +2180,14 @@ impl Session {
         // *over*-estimate -- by at most what that retirement dropped, and never
         // by enough to empty the store: a store-full refusal means the message
         // skips at most `MAX_SKIP` keys, so the batch is at most
-        // `held - MAX_SKIP` and leaves a thousand keys standing whatever it
-        // evicts. Either way the first batch never exceeds what the message
-        // displaces.
+        // `held + MAX_SKIP - MAX_SKIPPED_STORE` and leaves at least
+        // `MAX_SKIPPED_STORE - MAX_SKIP` keys standing whatever it evicts.
+        // Stated against the two constants rather than as `held - MAX_SKIP`,
+        // which is the same figure only while `MAX_SKIPPED_STORE` is exactly
+        // twice `MAX_SKIP`; both are public and tunable, and the argument is
+        // meant to survive one of them moving. At today's values that floor is
+        // a thousand keys. Either way the first batch never exceeds what the
+        // message displaces.
         //
         // The batch is reset when the *other* store reports full, because the
         // classical half runs first inside `receive` and a batch sized for its

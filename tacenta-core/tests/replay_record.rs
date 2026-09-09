@@ -592,3 +592,79 @@ fn the_record_reports_its_remaining_room() {
     let restored = PrekeyStore::from_bytes(&store.to_bytes()).unwrap();
     assert_eq!(restored.last_resort_record_remaining(), full);
 }
+
+/// `last_resort_record_remaining_for` reports the same room by identifier,
+/// which is what makes the retired key's occupancy visible at all. The number
+/// an operator polls reads full straight after a rotation while the record
+/// still holds everything spent against the key that rotation retired, and
+/// this is what shows the other half.
+///
+/// An identifier that is neither live key gets `None` rather than a full
+/// budget: a key this store never issued has no budget, and one a rotation has
+/// wiped has none either, since a message naming it fails with
+/// `UnknownPrekeyId` before the record is consulted.
+#[test]
+fn each_live_key_reports_its_own_room_by_identifier() {
+    let mut r = rng(14);
+    let bob = Identity::generate(&mut r);
+    let mut store = bob.create_prekeys(0, &mut r);
+    // `MAX_LAST_RESORT_SEEN`, which is private, as above.
+    let full = 1024;
+
+    let first_id = store.publish_multi_use().kem_prekey_id;
+    assert_eq!(store.last_resort_record_remaining_for(first_id), Some(full));
+    // Identifiers are handed out in sequence from one, so nothing near this
+    // has been issued.
+    assert_eq!(
+        store.last_resort_record_remaining_for(first_id + 1000),
+        None
+    );
+
+    let captured = last_resort_initial(&store.publish_multi_use(), b"first", &mut r);
+    establish_responder(&bob, &mut store, &captured, &mut r).unwrap();
+    assert_eq!(
+        store.last_resort_record_remaining_for(first_id),
+        Some(full - 1)
+    );
+
+    // The rotation retires the first key and opens a second. The figure an
+    // operator polls reads full; the retired key's still shows the handshake
+    // spent against it, and that entry is still in the record.
+    store.rotate_kem(&bob, &mut r);
+    let second_id = store.publish_multi_use().kem_prekey_id;
+    assert_ne!(second_id, first_id);
+    assert_eq!(store.last_resort_record_remaining(), full);
+    assert_eq!(
+        store.last_resort_record_remaining_for(second_id),
+        Some(full)
+    );
+    assert_eq!(
+        store.last_resort_record_remaining_for(first_id),
+        Some(full - 1),
+        "the retired key's budget must still show what was spent against it"
+    );
+
+    // The rotation after it wipes the first key. A wiped key has no budget
+    // rather than a fresh one.
+    store.rotate_kem(&bob, &mut r);
+    let third_id = store.publish_multi_use().kem_prekey_id;
+    assert_eq!(store.last_resort_record_remaining_for(first_id), None);
+    assert_eq!(
+        store.last_resort_record_remaining_for(second_id),
+        Some(full)
+    );
+    assert_eq!(store.last_resort_record_remaining_for(third_id), Some(full));
+
+    // And both live figures survive persistence, since the record is written
+    // with the tags they read.
+    let restored = PrekeyStore::from_bytes(&store.to_bytes()).unwrap();
+    assert_eq!(
+        restored.last_resort_record_remaining_for(third_id),
+        Some(full)
+    );
+    assert_eq!(
+        restored.last_resort_record_remaining_for(second_id),
+        Some(full)
+    );
+    assert_eq!(restored.last_resort_record_remaining_for(first_id), None);
+}

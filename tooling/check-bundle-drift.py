@@ -47,7 +47,16 @@ and it is small and explicit on purpose:
     `MAX_SKIP.val`. Each such bridge names the leaf lemma that justifies it,
     and the script fails if that lemma is no longer in the file it names;
   * the element maps -- `p.1.val` against `p.1` and `sk.epoch.val` against
-    `sk.1` inside a quantifier over a transported list, likewise named;
+    `sk.1` inside a quantifier over a transported list, likewise named --
+    but named for the *transport*, not for a lemma justifying it. No
+    top-level declaration states either equality: `chainsEntryOf` and
+    `skippedOf` are `def`s, and what makes the two sides equal is a field of
+    `StateRefines` (`chains`, `skipped`), which is not a declaration this
+    check can look for. So those bridges' guard says only that the transport
+    is still there, and the one written as `StateRefines` says less than
+    that, since the relation is the state relation the whole comparison is
+    already built on and cannot go missing while anything else works. The
+    bridge table below says so on each of them;
   * the definitional restatements -- `matchesHeader mh` against the projection
     lambda the bundle writes out;
   * plain renaming -- the crate namespace, `Std.`, `RatchetHeaderR` against
@@ -62,7 +71,10 @@ checker and it does not evaluate Lean.
      `max_skipped_store_agrees`, `max_skip_agrees` and
      `chainCounterBounded_of_real` are checked to *exist*, not to say what the
      table claims they say. A bridge whose lemma is reworded to mean something
-     else still passes.
+     else still passes. Two of the sparse ratchet's bridges are weaker again:
+     they name a transport (`chainsEntryOf`, `StateRefines`) rather than any
+     lemma, because nothing states their equality at the top level, so the
+     guard checks that the transport is still defined and nothing more.
   2. It cannot see a clause whose leaf theorem is not named. A clause marked
      `mirrors: nothing` is taken at its word -- the two `clone`s, the four
      accessors and `tacenta_spqr`'s initialisers genuinely have no leaf
@@ -132,13 +144,19 @@ STATE_RELATIONS = ["StateR", "StateRefines"]
 
 
 class Bridge:
-    """One declared equivalence, with the leaf lemma that justifies it."""
+    """One declared equivalence, anchored to a declaration in the leaf file.
+
+    Usually that declaration is the lemma proving the two sides equal. Where
+    no top-level declaration states the equality it is the transport itself,
+    a `def` or the refinement `structure`; the bridge's `note` says which,
+    because the guard is only as strong as what it names.
+    """
 
     def __init__(self, leaf, bundle, canon, lemma, lemma_file, note):
         self.leaf = leaf            # regex, leaf-side spelling
         self.bundle = bundle        # regex, bundle-side spelling
         self.canon = canon          # what both become
-        self.lemma = lemma          # leaf lemma that makes them equal
+        self.lemma = lemma          # the declaration this bridge is anchored to
         self.lemma_file = lemma_file
         self.note = note
 
@@ -220,14 +238,19 @@ SPQR = BundleSpec(
             canon=r"\1.1",
             lemma="chainsEntryOf", lemma_file="SpqrT3.lean",
             note="a chain-table entry's epoch: the model table is the real "
-                 "one's image under `chainsEntryOf`"),
+                 "one's image under `chainsEntryOf`. Anchored to that "
+                 "transport, a `def`; the equality is `StateRefines.chains`, "
+                 "a field and not a declaration this check can look for"),
         Bridge(
             leaf=r"\b(\w+)\.epoch\.val\b",
             bundle=r"\b(\w+)\.1\b(?!\.val)",
             canon=r"\1.1",
             lemma="StateRefines", lemma_file="SpqrT3.lean",
             note="a stored key's epoch: the model list is the real one's "
-                 "image under `skippedOf`"),
+                 "image under `skippedOf`, which is `StateRefines.skipped`. "
+                 "Anchored to the relation itself, so this one is a pointer "
+                 "rather than a check: it cannot fire while the comparison "
+                 "it belongs to runs at all"),
         Bridge(
             leaf=r"\b(\w+)\.n\.val\b",
             bundle=r"\b(\w+)\.n\b(?!\.val)",
@@ -241,7 +264,9 @@ SPQR = BundleSpec(
             canon="Chain",
             lemma="chainsEntryOf", lemma_file="SpqrT3.lean",
             note="the counter bound quantifies over the model's chain type "
-                 "here and the real one in the leaf"),
+                 "here and the real one in the leaf. Anchored to the same "
+                 "transport as the entry bridge, and weak the same way; the "
+                 "bound itself travels by `chainCounterBounded_of_real`"),
     ],
     boundary=["SpqrHkdfAgrees", "ZeroizingRoundTrips96", "ZeroizingRoundTrips64",
               "VecRetainAgrees", "VecAppendAgrees", "VecRemoveAgrees",
@@ -999,7 +1024,7 @@ def check_bridges(spec, translation_dir, errors):
         if not re.search(r"^(private\s+)?(theorem|def|structure|abbrev)\s+%s\b"
                          % re.escape(bridge.lemma), source, re.M):
             errors.append(
-                "%s: the bridge that lets `%s` be compared is justified by "
+                "%s: the bridge that lets `%s` be compared is anchored to "
                 "`%s` in %s, and there is no such declaration any more -- the "
                 "bridge cannot be trusted until this is resolved"
                 % (spec.name, bridge.canon, bridge.lemma, bridge.lemma_file))
@@ -1091,8 +1116,10 @@ def check_bundle(spec, translation_dir, out, need_convention):
 
 LIMITS = """
 What this check does not see, stated so it is not mistaken for more:
-  * it checks that a bridge's justifying lemma exists, never that the lemma
-    still says what the bridge claims;
+  * it checks that the declaration a bridge is anchored to exists, never that
+    it still says what the bridge claims -- and two of the sparse ratchet's
+    are anchored to a transport rather than a lemma, so for those there is no
+    statement of the equality to have said anything;
   * a clause marked `mirrors: nothing` is taken at its word;
   * the crate-boundary assumptions listed above as not carried are dropped by
     an explicit list, and whether dropping them is still sound is a judgement
