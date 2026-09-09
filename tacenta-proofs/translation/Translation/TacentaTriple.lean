@@ -183,8 +183,23 @@ axiom tacenta_ratchet.State.send_count
 axiom tacenta_ratchet.State.receive_count
   : tacenta_ratchet.State → Result Std.U32
 
+/-- [tacenta_ratchet::{tacenta_ratchet::State}::started_as_sender]:
+    Source: 'ratchet/src/lib.rs', lines 295:4-295:51
+    Name pattern: [tacenta_ratchet::{tacenta_ratchet::State}::started_as_sender]
+    Visibility: public -/
+@[rust_fun "tacenta_ratchet::{tacenta_ratchet::State}::started_as_sender"]
+axiom tacenta_ratchet.State.started_as_sender
+  : tacenta_ratchet.State → Result (Option Bool)
+
+/-- [tacenta_ratchet::{tacenta_ratchet::State}::invariant]:
+    Source: 'ratchet/src/lib.rs', lines 339:4-339:35
+    Name pattern: [tacenta_ratchet::{tacenta_ratchet::State}::invariant]
+    Visibility: public -/
+@[rust_fun "tacenta_ratchet::{tacenta_ratchet::State}::invariant"]
+axiom tacenta_ratchet.State.invariant : tacenta_ratchet.State → Result Bool
+
 /-- [tacenta_ratchet::RatchetDecodeError]
-    Source: 'ratchet/src/lib.rs', lines 308:0-308:27
+    Source: 'ratchet/src/lib.rs', lines 387:0-387:27
     Name pattern: [tacenta_ratchet::RatchetDecodeError]
     Visibility: public -/
 @[discriminant isize, rust_type "tacenta_ratchet::RatchetDecodeError"]
@@ -201,7 +216,7 @@ inductive tacenta_ratchet.RatchetDecodeError where
 axiom zeroize.Zeroizing (Z : Type) : Type
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::to_bytes]:
-    Source: 'ratchet/src/lib.rs', lines 452:4-452:48
+    Source: 'ratchet/src/lib.rs', lines 531:4-531:48
     Name pattern: [tacenta_ratchet::{tacenta_ratchet::State}::to_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::{tacenta_ratchet::State}::to_bytes"]
@@ -209,7 +224,7 @@ axiom tacenta_ratchet.State.to_bytes
   : tacenta_ratchet.State → Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::from_bytes]:
-    Source: 'ratchet/src/lib.rs', lines 477:4-477:72
+    Source: 'ratchet/src/lib.rs', lines 556:4-556:72
     Name pattern: [tacenta_ratchet::{tacenta_ratchet::State}::from_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::{tacenta_ratchet::State}::from_bytes"]
@@ -219,7 +234,7 @@ axiom tacenta_ratchet.State.from_bytes
     tacenta_ratchet.RatchetDecodeError)
 
 /-- [tacenta_ratchet::init_sender]:
-    Source: 'ratchet/src/lib.rs', lines 723:0-723:98
+    Source: 'ratchet/src/lib.rs', lines 779:0-779:98
     Name pattern: [tacenta_ratchet::init_sender]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::init_sender"]
@@ -230,7 +245,7 @@ axiom tacenta_ratchet.init_sender
     tacenta_ratchet.State
 
 /-- [tacenta_ratchet::init_receiver]:
-    Source: 'ratchet/src/lib.rs', lines 743:0-743:71
+    Source: 'ratchet/src/lib.rs', lines 799:0-799:71
     Name pattern: [tacenta_ratchet::init_receiver]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::init_receiver"]
@@ -240,7 +255,7 @@ axiom tacenta_ratchet.init_receiver
     → Result tacenta_ratchet.State
 
 /-- [tacenta_ratchet::send]:
-    Source: 'ratchet/src/lib.rs', lines 761:0-761:69
+    Source: 'ratchet/src/lib.rs', lines 817:0-817:69
     Name pattern: [tacenta_ratchet::send]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::send"]
@@ -251,7 +266,7 @@ axiom tacenta_ratchet.send
     tacenta_ratchet.State)
 
 /-- [tacenta_ratchet::receive]:
-    Source: 'ratchet/src/lib.rs', lines 909:0-915:30
+    Source: 'ratchet/src/lib.rs', lines 967:0-973:30
     Name pattern: [tacenta_ratchet::receive]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::receive"]
@@ -270,6 +285,15 @@ axiom tacenta_ratchet.receive
 structure tacenta_spqr.Output where
   key_epoch : Std.U64
   key : Array Std.U8 32#usize
+
+/-- [tacenta_spqr::Direction]
+    Source: 'spqr/src/lib.rs', lines 101:0-101:18
+    Name pattern: [tacenta_spqr::Direction]
+    Visibility: public -/
+@[discriminant isize, rust_type "tacenta_spqr::Direction"]
+inductive tacenta_spqr.Direction where
+| A2b : tacenta_spqr.Direction
+| B2a : tacenta_spqr.Direction
 
 /-- [tacenta_spqr::SpqrError]
     Source: 'spqr/src/lib.rs', lines 114:0-114:18
@@ -360,8 +384,23 @@ axiom tacenta_spqr.State.init_bob : Slice Std.U8 → Result tacenta_spqr.State
 @[rust_fun "tacenta_spqr::{tacenta_spqr::State}::epoch"]
 axiom tacenta_spqr.State.epoch : tacenta_spqr.State → Result Std.U64
 
+/-- [tacenta_spqr::{tacenta_spqr::State}::direction]:
+    Source: 'spqr/src/lib.rs', lines 367:4-367:40
+    Name pattern: [tacenta_spqr::{tacenta_spqr::State}::direction]
+    Visibility: public -/
+@[rust_fun "tacenta_spqr::{tacenta_spqr::State}::direction"]
+axiom tacenta_spqr.State.direction
+  : tacenta_spqr.State → Result tacenta_spqr.Direction
+
+/-- [tacenta_spqr::{tacenta_spqr::State}::invariant]:
+    Source: 'spqr/src/lib.rs', lines 403:4-403:35
+    Name pattern: [tacenta_spqr::{tacenta_spqr::State}::invariant]
+    Visibility: public -/
+@[rust_fun "tacenta_spqr::{tacenta_spqr::State}::invariant"]
+axiom tacenta_spqr.State.invariant : tacenta_spqr.State → Result Bool
+
 /-- [tacenta_spqr::{tacenta_spqr::State}::evict_oldest]:
-    Source: 'spqr/src/lib.rs', lines 382:4-382:57
+    Source: 'spqr/src/lib.rs', lines 469:4-469:57
     Name pattern: [tacenta_spqr::{tacenta_spqr::State}::evict_oldest]
     Visibility: public -/
 @[rust_fun "tacenta_spqr::{tacenta_spqr::State}::evict_oldest"]
@@ -370,7 +409,7 @@ axiom tacenta_spqr.State.evict_oldest
   tacenta_spqr.State → Std.Usize → Result (Std.Usize × tacenta_spqr.State)
 
 /-- [tacenta_spqr::{tacenta_spqr::State}::send]:
-    Source: 'spqr/src/lib.rs', lines 457:4-461:38
+    Source: 'spqr/src/lib.rs', lines 544:4-548:38
     Name pattern: [tacenta_spqr::{tacenta_spqr::State}::send]
     Visibility: public -/
 @[rust_fun "tacenta_spqr::{tacenta_spqr::State}::send"]
@@ -381,7 +420,7 @@ axiom tacenta_spqr.State.send
     tacenta_spqr.SpqrError) × tacenta_spqr.State)
 
 /-- [tacenta_spqr::{tacenta_spqr::State}::receive]:
-    Source: 'spqr/src/lib.rs', lines 566:4-571:31
+    Source: 'spqr/src/lib.rs', lines 653:4-658:31
     Name pattern: [tacenta_spqr::{tacenta_spqr::State}::receive]
     Visibility: public -/
 @[rust_fun "tacenta_spqr::{tacenta_spqr::State}::receive"]
@@ -392,7 +431,7 @@ axiom tacenta_spqr.State.receive
     × tacenta_spqr.State)
 
 /-- [tacenta_spqr::SpqrDecodeError]
-    Source: 'spqr/src/lib.rs', lines 622:0-622:24
+    Source: 'spqr/src/lib.rs', lines 709:0-709:24
     Name pattern: [tacenta_spqr::SpqrDecodeError]
     Visibility: public -/
 @[discriminant isize, rust_type "tacenta_spqr::SpqrDecodeError"]
@@ -402,7 +441,7 @@ inductive tacenta_spqr.SpqrDecodeError where
 | Malformed : tacenta_spqr.SpqrDecodeError
 
 /-- [tacenta_spqr::{tacenta_spqr::State}::to_bytes]:
-    Source: 'spqr/src/lib.rs', lines 757:4-757:48
+    Source: 'spqr/src/lib.rs', lines 844:4-844:48
     Name pattern: [tacenta_spqr::{tacenta_spqr::State}::to_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_spqr::{tacenta_spqr::State}::to_bytes"]
@@ -410,7 +449,7 @@ axiom tacenta_spqr.State.to_bytes
   : tacenta_spqr.State → Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))
 
 /-- [tacenta_spqr::{tacenta_spqr::State}::from_bytes]:
-    Source: 'spqr/src/lib.rs', lines 786:4-786:69
+    Source: 'spqr/src/lib.rs', lines 873:4-873:69
     Name pattern: [tacenta_spqr::{tacenta_spqr::State}::from_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_spqr::{tacenta_spqr::State}::from_bytes"]
@@ -898,8 +937,45 @@ def State.evict_oldest_post_quantum
 def State.epoch (self : State) : Result Std.U64 := do
   tacenta_spqr.State.epoch self.post_quantum
 
+/-- [tacenta_triple::{tacenta_triple::State}::direction]:
+    Source: 'triple/src/lib.rs', lines 254:4-256:5
+    Visibility: public -/
+def State.direction (self : State) : Result tacenta_spqr.Direction := do
+  tacenta_spqr.State.direction self.post_quantum
+
+/-- [tacenta_triple::{tacenta_triple::State}::started_as_sender]:
+    Source: 'triple/src/lib.rs', lines 260:4-262:5
+    Visibility: public -/
+def State.started_as_sender (self : State) : Result (Option Bool) := do
+  tacenta_ratchet.State.started_as_sender self.classical
+
+/-- [tacenta_triple::{tacenta_triple::State}::invariant]:
+    Source: 'triple/src/lib.rs', lines 276:4-292:5
+    Visibility: public -/
+def State.invariant (self : State) : Result Bool := do
+  let d ← tacenta_spqr.State.direction self.post_quantum
+  let roles_agree ←
+    match d with
+    | tacenta_spqr.Direction.A2b => ok true
+    | tacenta_spqr.Direction.B2a => ok false
+  let o ← tacenta_ratchet.State.started_as_sender self.classical
+  let roles_agree1 ←
+    match o with
+    | none => ok true
+    | some sender => if sender
+                     then ok roles_agree
+                     else ok (¬ roles_agree)
+  let b ← tacenta_ratchet.State.invariant self.classical
+  if b
+  then
+    let b1 ← tacenta_spqr.State.invariant self.post_quantum
+    if b1
+    then ok roles_agree1
+    else ok false
+  else ok false
+
 /-- [tacenta_triple::{tacenta_triple::State}::send]:
-    Source: 'triple/src/lib.rs', lines 283:4-312:5
+    Source: 'triple/src/lib.rs', lines 327:4-356:5
     Visibility: public -/
 def State.send
   (self : State) (sending_epoch : Std.U64)
@@ -935,7 +1011,7 @@ def State.send
     ok (core.result.Result.Err (TripleError.Classical e), self)
 
 /-- [tacenta_triple::{tacenta_triple::State}::receive]:
-    Source: 'triple/src/lib.rs', lines 339:4-372:5
+    Source: 'triple/src/lib.rs', lines 383:4-416:5
     Visibility: public -/
 def State.receive
   (self : State) (header : Header) (dh_out_recv : Array Std.U8 32#usize)
@@ -971,17 +1047,17 @@ def State.receive
     ok (core.result.Result.Err (TripleError.Classical e))
 
 /-- [tacenta_triple::{tacenta_triple::State}::commit]:
-    Source: 'triple/src/lib.rs', lines 381:4-383:5
+    Source: 'triple/src/lib.rs', lines 425:4-427:5
     Visibility: public -/
 def State.commit (self : State) (next : State) : Result State := do
   ok next
 
 /-- [tacenta_triple::STATE_VERSION]
-    Source: 'triple/src/lib.rs', lines 390:0-390:31 -/
+    Source: 'triple/src/lib.rs', lines 434:0-434:31 -/
 @[global_simps, irreducible] def STATE_VERSION : Std.U8 := 1#u8
 
 /-- [tacenta_triple::TripleDecodeError]
-    Source: 'triple/src/lib.rs', lines 402:0-406:1
+    Source: 'triple/src/lib.rs', lines 446:0-450:1
     Visibility: public -/
 @[discriminant isize]
 inductive TripleDecodeError where
@@ -990,14 +1066,14 @@ inductive TripleDecodeError where
 | Malformed : TripleDecodeError
 
 /-- [tacenta_triple::{impl core::clone::Clone for tacenta_triple::TripleDecodeError}::clone]:
-    Source: 'triple/src/lib.rs', lines 401:9-401:14
+    Source: 'triple/src/lib.rs', lines 445:9-445:14
     Visibility: public -/
 def TripleDecodeError.Insts.CoreCloneClone.clone
   (self : TripleDecodeError) : Result TripleDecodeError := do
   ok self
 
 /-- Trait implementation: [tacenta_triple::{impl core::clone::Clone for tacenta_triple::TripleDecodeError}]
-    Source: 'triple/src/lib.rs', lines 401:9-401:14 -/
+    Source: 'triple/src/lib.rs', lines 445:9-445:14 -/
 @[reducible]
 def TripleDecodeError.Insts.CoreCloneClone : core.clone.Clone TripleDecodeError
   := {
@@ -1005,7 +1081,7 @@ def TripleDecodeError.Insts.CoreCloneClone : core.clone.Clone TripleDecodeError
 }
 
 /-- Trait implementation: [tacenta_triple::{impl core::marker::Copy for tacenta_triple::TripleDecodeError}]
-    Source: 'triple/src/lib.rs', lines 401:16-401:20 -/
+    Source: 'triple/src/lib.rs', lines 445:16-445:20 -/
 @[reducible]
 def TripleDecodeError.Insts.CoreMarkerCopy : core.marker.Copy TripleDecodeError
   := {
@@ -1013,14 +1089,14 @@ def TripleDecodeError.Insts.CoreMarkerCopy : core.marker.Copy TripleDecodeError
 }
 
 /-- Trait implementation: [tacenta_triple::{impl core::marker::StructuralPartialEq for tacenta_triple::TripleDecodeError}]
-    Source: 'triple/src/lib.rs', lines 401:22-401:31 -/
+    Source: 'triple/src/lib.rs', lines 445:22-445:31 -/
 @[reducible]
 def TripleDecodeError.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq TripleDecodeError := {
 }
 
 /-- [tacenta_triple::{impl core::cmp::PartialEq<tacenta_triple::TripleDecodeError> for tacenta_triple::TripleDecodeError}::eq]:
-    Source: 'triple/src/lib.rs', lines 401:22-401:31
+    Source: 'triple/src/lib.rs', lines 445:22-445:31
     Visibility: public -/
 def TripleDecodeError.Insts.CoreCmpPartialEqTripleDecodeError.eq
   (self : TripleDecodeError) (other : TripleDecodeError) : Result Bool := do
@@ -1029,7 +1105,7 @@ def TripleDecodeError.Insts.CoreCmpPartialEqTripleDecodeError.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tacenta_triple::{impl core::cmp::PartialEq<tacenta_triple::TripleDecodeError> for tacenta_triple::TripleDecodeError}]
-    Source: 'triple/src/lib.rs', lines 401:22-401:31 -/
+    Source: 'triple/src/lib.rs', lines 445:22-445:31 -/
 @[reducible]
 def TripleDecodeError.Insts.CoreCmpPartialEqTripleDecodeError :
   core.cmp.PartialEq TripleDecodeError TripleDecodeError := {
@@ -1037,14 +1113,14 @@ def TripleDecodeError.Insts.CoreCmpPartialEqTripleDecodeError :
 }
 
 /-- [tacenta_triple::{impl core::cmp::Eq for tacenta_triple::TripleDecodeError}::assert_fields_are_eq]:
-    Source: 'triple/src/lib.rs', lines 401:33-401:35
+    Source: 'triple/src/lib.rs', lines 445:33-445:35
     Visibility: public -/
 def TripleDecodeError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : TripleDecodeError) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_triple::{impl core::cmp::Eq for tacenta_triple::TripleDecodeError}]
-    Source: 'triple/src/lib.rs', lines 401:33-401:35 -/
+    Source: 'triple/src/lib.rs', lines 445:33-445:35 -/
 @[reducible]
 def TripleDecodeError.Insts.CoreCmpEq : core.cmp.Eq TripleDecodeError := {
   partialEqInst := TripleDecodeError.Insts.CoreCmpPartialEqTripleDecodeError
@@ -1053,7 +1129,7 @@ def TripleDecodeError.Insts.CoreCmpEq : core.cmp.Eq TripleDecodeError := {
 }
 
 /-- [tacenta_triple::{impl core::fmt::Debug for tacenta_triple::TripleDecodeError}::fmt]:
-    Source: 'triple/src/lib.rs', lines 401:37-401:42
+    Source: 'triple/src/lib.rs', lines 445:37-445:42
     Visibility: public -/
 def TripleDecodeError.Insts.CoreFmtDebug.fmt
   (self : TripleDecodeError) (f : core.fmt.Formatter) :
@@ -1068,7 +1144,7 @@ def TripleDecodeError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "Malformed")
 
 /-- Trait implementation: [tacenta_triple::{impl core::fmt::Debug for tacenta_triple::TripleDecodeError}]
-    Source: 'triple/src/lib.rs', lines 401:37-401:42 -/
+    Source: 'triple/src/lib.rs', lines 445:37-445:42 -/
 @[reducible]
 def TripleDecodeError.Insts.CoreFmtDebug : core.fmt.Debug TripleDecodeError
   := {
@@ -1076,7 +1152,7 @@ def TripleDecodeError.Insts.CoreFmtDebug : core.fmt.Debug TripleDecodeError
 }
 
 /-- [tacenta_triple::take_len_prefixed]:
-    Source: 'triple/src/lib.rs', lines 410:0-432:1 -/
+    Source: 'triple/src/lib.rs', lines 454:0-476:1 -/
 def take_len_prefixed
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option ((Slice Std.U8) × Std.Usize))
@@ -1114,7 +1190,7 @@ def take_len_prefixed
           ok (some (s4, e))
 
 /-- [tacenta_triple::{tacenta_triple::State}::to_bytes]:
-    Source: 'triple/src/lib.rs', lines 441:4-451:5
+    Source: 'triple/src/lib.rs', lines 485:4-495:5
     Visibility: public -/
 def State.to_bytes
   (self : State) : Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8)) := do
@@ -1147,7 +1223,7 @@ def State.to_bytes
     (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) out4
 
 /-- [tacenta_triple::{tacenta_triple::State}::from_bytes]:
-    Source: 'triple/src/lib.rs', lines 454:4-480:5
+    Source: 'triple/src/lib.rs', lines 498:4-533:5
     Visibility: public -/
 def State.from_bytes
   (bytes : Slice Std.U8) :
@@ -1180,7 +1256,11 @@ def State.from_bytes
               let i1 := Slice.len bytes
               if pos1 != i1
               then ok (core.result.Result.Err TripleDecodeError.Malformed)
-              else ok (core.result.Result.Ok { classical, post_quantum })
+              else
+                let b1 ← State.invariant { classical, post_quantum }
+                if b1
+                then ok (core.result.Result.Ok { classical, post_quantum })
+                else ok (core.result.Result.Err TripleDecodeError.Malformed)
             | core.result.Result.Err _ =>
               ok (core.result.Result.Err TripleDecodeError.Malformed)
         | core.result.Result.Err _ =>
