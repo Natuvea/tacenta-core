@@ -22,10 +22,24 @@ this section says in one place what is not proved.
 - **Totality is conditional.** The T1 results carry preconditions -- counter
   bounds, room in the epoch vector, capacity in the skipped-key store. Each is a
   real assumption about how far a session can run before it must be refreshed,
-  not a formality, and **nothing in the type system enforces them**.
-  `from_bytes` lets an untrusted byte string establish a state violating them,
-  which is the sharp reason this distinction matters rather than being
-  pedantry.
+  not a formality, and **nothing in the type system enforces them**. It used to
+  be the sharpest form of that point that `from_bytes` let an untrusted byte
+  string establish a state violating them. For three crates that is now closed:
+  `tacenta-ratchet`, `tacenta-spqr` and `tacenta-braid` each end `from_bytes`
+  by checking the crate's own `invariant()`, and
+  `Translation/ImportInv.lean` proves that a state the translated `from_bytes`
+  returns satisfies that invariant and that the invariant yields the
+  preconditions -- the classical ratchet's `hs` (given one platform-width
+  fact), `hone` and `hroom`; the sparse ratchet's `hroom`, `hskiproom`,
+  `hepoch` and `hone`; the Braid's `ct1_bounded`. See "Proved: what a decoded
+  state satisfies" for the exact statements. What is **not** closed:
+  `SpqrT3.receive_refines`'s `hcb`, `hsb`, `hnewb` and `hcounter` and
+  `BraidT3.step_receive_refines`'s `epoch < u64::MAX` are not consequences of
+  those crates' invariants and are still the caller's; `tacenta-triple`,
+  `tacenta-erasure`, `tacenta-session` and `tacenta-protobuf` have no such
+  theorem; and the subject throughout is a leaf crate's own persistence
+  format, not the session layer above it, which is untranslated. Wherever that
+  chain does not reach, the sentence in bold still stands unchanged.
 - **The primitives are opaque.** X25519, ML-KEM, SHA-256, HMAC and the AEAD are
   assumed at the boundary. No proof here says anything about them.
 - **Every boundary hypothesis about an opaque operation is guarded by that
@@ -123,7 +137,14 @@ this section says in one place what is not proved.
   `message_keys_refines` in `Translation/T3.lean`.) Any sentence below that says "every
   function" or "complete" for a crate is about the protocol functions, not
   these; the codecs in particular parse bytes from storage and are the next
-  T1 target. `LIMITATIONS.md` says the same where each crate is discussed.
+  T1 target. Since `Translation/ImportInv.lean` the three `from_bytes` in
+  `tacenta-ratchet`, `tacenta-spqr` and `tacenta-braid` are no longer
+  theorem-free -- they have the constructor theorem described in "Proved: what
+  a decoded state satisfies", which says what a state they return satisfies.
+  That is not a T1 theorem: it says nothing about whether they can panic, only
+  what is true of a state when they do return one. Every other codec named
+  above still has no theorem of any kind.
+  `LIMITATIONS.md` says the same where each crate is discussed.
 - **T3 carries a third hypothesis besides the two it names.** Besides "modulo
   KDF agreement" and "excluding where `u32` and `Nat` part company", every
   `receive_refines` (classical, sparse, triple) assumes the skipped store
@@ -521,6 +542,135 @@ Location: `tacenta-proofs/translation/Translation/BraidT1.lean`.
   sums two independently-capped values at one call site, and two facts each
   "under `Usize.max`" do not compose the way two concrete caps do. See
   `BraidT1.lean`'s own closing section for the full list.
+
+## Proved: what a decoded state satisfies
+
+Location: `Translation/ImportInv.lean`. The **validated persistence
+constructor**. Every leaf crate's `State::from_bytes` ends by calling that
+crate's own `pub fn invariant(&self) -> bool` and returning the crate's
+malformed error when it is false. Until this file existed, nothing in the tree
+said what that buys: `from_bytes` had no theorem at all, so as far as the
+proofs were concerned an untrusted byte string could hand back a state
+violating the preconditions the T1 and T3 theorems take (`hs`, `hone`,
+`hroom`, `hskiproom`, `ct1_bounded`). That is what "Read this first" recorded,
+and this section is what closes it for three crates.
+
+Read each crate's chain in one line: **decoded state → `Inv` → precondition →
+theorem.** The subject throughout is the *translated* `from_bytes`, the same
+artefact every other theorem in this package is about.
+
+Two hypotheses are carried rather than discharged, both named, both satisfied
+by the real Rust, neither new to this file in substance:
+
+- `hplat : MAX_SKIPPED_STORE.val + U32.max ≤ Usize.max`, the platform-width
+  fact the classical ratchet's `hs` reduces to once the store bound is known.
+  It holds on a 64-bit target and is a genuine constraint on a 32-bit one --
+  exactly what `T1.lean`'s own closing note already said about `hs`. It is an
+  explicit argument, not a global assumption, so a caller sees it.
+- `Tacenta.BraidT1.Ct1LenTotal` for the Braid, which `BraidT1.lean` already
+  states and already uses: `tacenta_kem::CT1_LEN` returns a value at most
+  4096. The real constant is 1408 (`braid/src/lib.rs` says so where
+  `ct1_bounded` is motivated).
+
+### `tacenta-ratchet` -- complete
+
+`Inv` mirrors `State::invariant`'s five clauses on the translated state: the
+store is at most `MAX_SKIPPED_STORE`, `events` is below `u32::MAX`, no stored
+entry's `stored_at` is ahead of `events`, the store is pairwise distinct on
+`(dh, n)`, and a receiving chain implies a sending chain and a peer key.
+
+- `Ratchet.invariant_eq : State.invariant s = ok (InvB s)` -- the translated
+  Bool-valued `invariant` is total and computes an explicit Bool, on every
+  state. Its two nested index loops are characterised by
+  `invariant_inner_spec`/`invariant_inner_eq` and
+  `invariant_outer_spec`/`invariant_outer_eq`, in the loop-invariant style
+  `T1.lean` uses (`loop.spec_decr_nat` with a measure and an invariant,
+  stepping the list with `List.drop_eq_getElem_cons`).
+- `Ratchet.invariant_true_iff`: `State.invariant s = ok true ↔ Inv s`, an
+  equivalence, not an implication.
+- `Ratchet.from_bytes_establishes_inv`: `∀ bytes s, State.from_bytes bytes =
+  ok (Ok s) → Inv s`. **No hypothesis of any kind.** The premise is that the
+  decoder returned, so every fallible step it took returned and is peeled as
+  an equation rather than assumed. Axioms: `propext`, `Classical.choice`,
+  `Quot.sound`, pinned under `#guard_msgs`.
+- Bridges: `Ratchet.inv_gives_store_bound` (`Inv` + `hplat` → T1's `hs`),
+  `Ratchet.inv_gives_clock_room` (`Inv` → T3's `hroom`),
+  `Ratchet.inv_gives_store_is_map` (`Inv` + `StateR` → T3's `hone`).
+- End to end: `Ratchet.decoded_receive_no_panic` (a `receive` on a decoded
+  state does not panic) and `Ratchet.decoded_receive_refines` (it refines
+  `Model.Ratchet.receive`), each taking the decode as its hypothesis and
+  discharging the state-shaped preconditions itself.
+
+### `tacenta-spqr` -- the sparse ratchet, complete for T1 and for four of T3's premises
+
+`Inv` mirrors `State::invariant`'s four clauses across its two pairs of nested
+loops: the skipped store is at most `MAX_SKIPPED_STORE`; every chain's epoch is
+inside `[epoch, saturating_add epoch EPOCHS_KEPT)` from below and at most
+`epoch`, with no two chains sharing an epoch; the current epoch is among them;
+and every skipped key names a present chain, with no two sharing `(epoch, n)`.
+The window is written with `saturating_add` exactly as the Rust writes it.
+
+- `Spqr.invariant_eq : State.invariant s = ok (InvB s)`, over five loop
+  characterisations: `chains_inner_eq`, `chains_outer_eq`, `present_eq`,
+  `skipped_inner_eq`, `skipped_outer_eq`.
+- `Spqr.invariant_true_iff`: `State.invariant s = ok true ↔ Inv s`, the same
+  equivalence as the ratchet's, over the six clauses above.
+- `Spqr.from_bytes_establishes_inv`: `∀ bytes s, State.from_bytes bytes =
+  ok (Ok s) → Inv s`. No hypothesis; same three axioms, pinned.
+- Bridges: `Spqr.inv_gives_chain_room` (`Inv` → `SpqrT1`'s
+  `hroom : chains.length + 2 < Usize.max`), `Spqr.inv_gives_skip_room`
+  (`Inv` → `SpqrT1`'s `hskiproom`), `Spqr.inv_gives_epoch_room` (`Inv` →
+  `SpqrT3`'s `hepoch : epoch < u64::MAX`), `Spqr.inv_gives_store_is_map`
+  (`Inv` + `StateRefines` → `SpqrT3`'s `hone`). Both T1 bridges are
+  unconditional: `Spqr.inv_gives_chains_len` derives `chains.length ≤ 2` from
+  the window and the distinctness (the retention policy, read back off the
+  invariant), and 4 and 3000 are below `Usize.max` on every target Aeneas
+  models.
+- End to end: `Spqr.decoded_receive_no_panic` -- a `receive` on a decoded
+  state does not panic, with no side condition left for a caller.
+
+**What this does not give.** `SpqrT3.receive_refines` also takes `hcb`, `hsb`,
+`hnewb` and `hcounter`, and those are **not** consequences of the crate's
+`invariant`: a state with `epoch = u64::MAX - 1` and a chain at that epoch
+passes `invariant` and fails `hcb`. There is deliberately no
+`decoded_receive_refines` for this crate; those four premises stay with the
+caller.
+
+### `tacenta-braid` -- the one clause its theorems need
+
+The Braid's `invariant` is a twelve-way match whose arms mostly delegate to
+`tacenta-erasure`'s `Encoder::invariant` and `Decoder::invariant`. Those are a
+different crate and reach this translation as opaque axioms, so there is no
+full `Inv` to state here. What is read off the arms directly is the clause the
+theorems take.
+
+- `Braid.Inv b` -- a deliberately partial mirror, holding
+  `Tacenta.BraidT1.State.ct1_bounded b.state`.
+- `Braid.invariant_true_gives_inv : Ct1LenTotal → Braid.invariant b = ok true →
+  Inv b`. One direction only; the converse would have to characterise the
+  opaque erasure invariants.
+- `Braid.from_bytes_establishes_inv`, with
+  `Braid.from_bytes_establishes_invariant`: `Braid.from_bytes bytes = ok (Ok b)
+  → Braid.invariant b = ok true`, and the second
+  composing the two.
+- End to end: `Braid.decoded_receive_no_panic` -- a `receive` on a decoded
+  Braid does not panic, given the boundary hypotheses
+  `BraidT1.Braid.receive_no_panic` already takes.
+
+**What this does not give.** `BraidT3.step_receive_refines` also takes
+`hepoch : epoch < u64::MAX`, which the Rust `invariant` does not check at all
+(it checks `epoch >= 1` and nothing above), so there is no
+`decoded_step_receive_refines`.
+
+### The crates still open
+
+`tacenta-triple`, `tacenta-erasure`, `tacenta-session` and
+`tacenta-protobuf` have no theorem here. `tacenta-triple` and
+`tacenta-erasure` have an `invariant()` and a `from_bytes` that calls it, and
+the same technique applies; they were not done. And in every case the subject
+is a **leaf crate's own persistence format**. `Session::from_bytes` and the
+storage layer that calls it live in `tacenta-core/src/sessions`, which is not
+translated, so nothing here says what a session restored from disk satisfies.
 
 ## Proved conditionally (tier T1, the Triple Ratchet's composed session send/receive path, on hypotheses no leaf theorem discharges)
 

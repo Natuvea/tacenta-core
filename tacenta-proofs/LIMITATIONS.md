@@ -625,6 +625,21 @@ room for one more batch. None of these is checked by the type system; each is
 a real assumption about how far a session can run before it must be
 refreshed, not a formality.
 
+Two of them are no longer assumptions when the state came from
+`State::from_bytes`. `Translation/ImportInv.lean` proves that a state the
+translated `from_bytes` returns satisfies this crate's `invariant()`, and that
+the invariant gives both of `receive_no_panic`'s preconditions outright:
+`Spqr.inv_gives_chain_room` (the epoch window plus per-epoch distinctness bound
+the chains vector at two entries, so `chains.length + 2 < usize::MAX` needs
+nothing further) and `Spqr.inv_gives_skip_room` (2000 stored keys plus
+`MAX_SKIP` is 3000). `Spqr.decoded_receive_no_panic` states the composition
+with no side condition left over. Two of the refinement's premises come off the
+same invariant as well -- `hepoch` and `hone` -- but four do not: `hcb`, `hsb`,
+`hnewb` and `hcounter` are not consequences of `invariant()`, and a state with
+`epoch = u64::MAX - 1` and a chain at that epoch passes the invariant and fails
+`hcb`. Those four stay with the caller, and CLAIMS.md says so where the
+theorems are listed.
+
 **`tacenta-spqr` also has T3**: `send`/`receive` compute what
 `Model.SparseRatchet.send`/`receive` say -- the key returned, the output
 reported, and the state transitioned to -- across every branch each can
@@ -778,6 +793,20 @@ shape of bound the classical ratchet and the sparse ratchet each need for
 their own counters, is no longer a hypothesis: the two transitions that
 advance the epoch use `checked_add` and answer `Failed` at the ceiling
 (CR-03), which the theorems prove as a value.
+
+That size cap is discharged for a decoded Braid.
+`Translation/ImportInv.lean` proves that a Braid the translated
+`Braid::from_bytes` returns is one its `invariant()` accepted, and that the
+invariant's per-state `ct1.len() == CT1_LEN` clauses give
+`State.ct1_bounded` (`Braid.invariant_true_gives_inv`), so
+`Braid.decoded_receive_no_panic` states panic-freedom of `receive` on a decoded
+Braid with no state-shaped side condition. It rests on `Ct1LenTotal`, which
+`BraidT1.lean` already states and uses: `tacenta_kem::CT1_LEN` returns a value
+at most 4096, and the real constant is 1408. Only that clause is derived --
+the rest of the Braid's `invariant()` delegates to `tacenta-erasure`'s coder
+invariants, which reach this translation as opaque axioms -- and
+`BraidT3.step_receive_refines`'s `epoch < u64::MAX` is not among the
+invariant's clauses at all, so it stays with the caller.
 
 **`tacenta-braid` also has T3**: `step_send`/`send` and `step_receive`/
 `receive` compute what `Model.Braid.send`/`Model.Braid.receive` say, across
@@ -1028,6 +1057,19 @@ overstates it. In every crate below, "complete" and "every function" mean the
 protocol functions: the persistence codecs (`from_bytes`, `to_bytes`, their
 entry decoders and length helpers) and a few accessors are translated and
 carry no theorem, as CLAIMS.md's "Translated is not proved" lists.
+
+One exception, added by `Translation/ImportInv.lean` and worth stating
+precisely because it is narrow. In `tacenta-ratchet`, `tacenta-spqr` and
+`tacenta-braid`, `from_bytes` now carries a **constructor** theorem: a state it
+returns satisfies that crate's own `invariant()`, and (for the first two, in
+full; for the Braid, in the single clause `ct1_bounded`) the preconditions the
+T1 and T3 theorems take. That is not a T1 theorem -- it says nothing about
+whether `from_bytes` can panic, only what is true of a state when it does
+return one -- and it is about the *leaf crate's* persistence format. The
+session layer that calls these codecs, in `tacenta-core/src/sessions`, is not
+translated, so nothing here says what a session restored from disk satisfies.
+`to_bytes`, the entry decoders and the length helpers still have no theorem of
+any kind, as do the codecs of the other four crates.
 
 - `tacenta-core/ratchet` (`tacenta-ratchet`): the Double Ratchet state machine.
   T1, T2, T3. T3 includes `message_keys`, the expansion of a message key into
@@ -1379,6 +1421,16 @@ that assembly possible.
     platform width, so the statement keeps it as a hypothesis rather than
     discharging it. A caller on a 32-bit platform is owed that check.
 
+    Where the state came from `State::from_bytes`, the state-shaped half of
+    that precondition is now discharged rather than assumed.
+    `Translation/ImportInv.lean` proves that a state the translated
+    `from_bytes` returns satisfies the crate's own `invariant()`, whose first
+    clause caps the store at `MAX_SKIPPED_STORE`; what is left is
+    `MAX_SKIPPED_STORE + u32::MAX ≤ usize::MAX`, a statement about the target
+    and nothing else, which is passed as an explicit argument
+    (`Ratchet.inv_gives_store_bound`). The 32-bit caller is still owed exactly
+    that check, and no more.
+
     Third, **the refinement of `receive` also assumes the store's clock has
     room.** Skipped-key expiry counts received messages, in `u32` in the core
     and in the naturals in the model. They agree until the counter reaches
@@ -1395,6 +1447,17 @@ that assembly possible.
     boundary the message counters already carry, and it is worth restating that
     a bound of this kind is not a formality: `receive` is the function an
     attacker drives.
+
+    For a state that came from `State::from_bytes`, that assumption is now a
+    theorem: the crate's `invariant()` refuses a saturated clock, and
+    `Ratchet.inv_gives_clock_room` in `Translation/ImportInv.lean` reads
+    `events < u32::MAX` back off it, so every importable state sits inside
+    what the refinement covers. Refusing a saturated clock at import is a
+    **policy** rather than a consistency check -- an honest run reaches
+    saturation only after 2^32 accepted receives -- and the crate makes that
+    choice deliberately, which is what makes the reading sound. The store's
+    "at most one entry per `(dh, n)`" premise (`hone`) comes off the same
+    invariant (`Ratchet.inv_gives_store_is_map`).
 
 - **Unmodelled standard-library operations are a recurring hazard.** Aeneas
   leaves several `core`/`alloc` operations as axioms, and each one that lands on
