@@ -285,6 +285,47 @@ fn to_bytes_from_bytes_round_trips_a_populated_state() {
     assert_eq!(mk1_restored, mk1_direct);
 }
 
+/// `to_bytes` sizes its buffer from the state before its first write, so it
+/// never grows and never hands an allocation holding chain and message keys
+/// back to the allocator unwiped. The length is recomputed here from the
+/// counts, independently of `encoded_len`, so a wrong formula fails here as
+/// well as at the `debug_assert_eq!` inside `to_bytes`.
+#[test]
+fn to_bytes_writes_exactly_the_length_the_state_implies() {
+    // One chains entry, no skipped keys.
+    let fresh = State::init_alice(&sk());
+    assert_eq!(fresh.chains.len(), 1);
+    assert_eq!(fresh.to_bytes().len(), FIXED_PREFIX + CHAINS_LEN + 4);
+
+    // Two epochs of chains and a skipped store with something in it.
+    let mut a = State::init_alice(&sk());
+    let mut b = State::init_bob(&sk());
+    let o1 = out(1, 1);
+    a.send(0, None).unwrap();
+    let (_, _) = a.send(1, Some(&o1)).unwrap();
+    let (n2, _) = a.send(1, None).unwrap();
+    b.receive(1, Some(&o1), n2).unwrap();
+    assert_eq!(b.chains.len(), 2);
+    assert_eq!(b.skipped_len(), 1);
+    assert_eq!(
+        b.to_bytes().len(),
+        FIXED_PREFIX + 2 * CHAINS_LEN + 4 + SKIPPED_LEN
+    );
+
+    // A retired chain still occupies its full width, so the length does not
+    // move when one of a pair is gone.
+    let before = b.to_bytes().len();
+    let cs = b.find_chains(1).unwrap().clone();
+    b.set_chains(
+        1,
+        Chains {
+            send: None,
+            receive: cs.receive.clone(),
+        },
+    );
+    assert_eq!(b.to_bytes().len(), before);
+}
+
 /// A freshly initialised state has one chains entry, an empty skipped store,
 /// and no optional chain retired yet -- the other end of the shape
 /// `to_bytes` encodes.
@@ -681,4 +722,76 @@ fn the_invariant_holds_after_every_step_and_round_trip() {
         found_later >= 10,
         "only {found_later} stored keys were spent"
     );
+}
+
+/// `receive_count` reports what the state actually holds: it starts at zero on
+/// the epoch a state is initialised with, moves only on a receive, counts a
+/// skipped-past message as received, starts again at zero on each new epoch,
+/// and answers `None` for an epoch this state has no receiving chain for --
+/// never opened, retired with its epoch, or retired on its own. With
+/// `skipped_len` it is what lets a caller size an eviction from the shortfall
+/// a header implies rather than climbing to it.
+#[test]
+fn receive_count_reports_what_the_state_holds() {
+    let mut a = State::init_alice(&sk());
+    let mut b = State::init_bob(&sk());
+
+    // Epoch zero is open at zero on both sides; nothing else is open at all.
+    assert_eq!(b.receive_count(0), Some(0));
+    assert_eq!(b.receive_count(1), None);
+    assert_eq!(b.receive_count(u64::MAX), None);
+
+    // Sending does not move the receiving chain.
+    let (n1, _) = a.send(0, None).unwrap();
+    assert_eq!(a.receive_count(0), Some(0));
+
+    // Receiving does, one message at a time.
+    b.receive(0, None, n1).unwrap();
+    assert_eq!(b.receive_count(0), Some(1));
+    let (n2, _) = a.send(0, None).unwrap();
+    b.receive(0, None, n2).unwrap();
+    assert_eq!(b.receive_count(0), Some(2));
+
+    // A message that arrives out of order carries the chain past the ones it
+    // skipped, and those are exactly the keys the store now holds.
+    let mut i = 0;
+    while i < 5 {
+        a.send(0, None).unwrap();
+        i += 1;
+    }
+    let (n8, _) = a.send(0, None).unwrap();
+    assert_eq!(n8, 8);
+    b.receive(0, None, n8).unwrap();
+    assert_eq!(b.receive_count(0), Some(8));
+    assert_eq!(b.skipped_len(), 5, "n3 through n7 are held");
+
+    // A new epoch opens its own chains at zero, and the previous epoch's
+    // count is still there to be read while its chains are kept.
+    let o1 = out(1, 0xAA);
+    let (m1, _) = a.send(1, Some(&o1)).unwrap();
+    b.receive(1, Some(&o1), m1).unwrap();
+    assert_eq!(b.epoch(), 1);
+    assert_eq!(b.receive_count(1), Some(1));
+    assert_eq!(b.receive_count(0), Some(8));
+
+    // Advancing past the retention window retires the old epoch's chains, and
+    // the count goes with them.
+    let o2 = out(2, 0xBB);
+    let (m2, _) = a.send(2, Some(&o2)).unwrap();
+    b.receive(2, Some(&o2), m2).unwrap();
+    assert_eq!(b.receive_count(2), Some(1));
+    assert_eq!(b.receive_count(1), Some(1));
+    assert_eq!(b.receive_count(0), None, "epoch zero is retired");
+
+    // A chains entry whose receiving half alone is retired answers `None`
+    // too: the epoch is present, the chain is not.
+    let cs = b.find_chains(2).unwrap().clone();
+    b.set_chains(
+        2,
+        Chains {
+            send: cs.send.clone(),
+            receive: None,
+        },
+    );
+    assert_eq!(b.receive_count(2), None);
 }

@@ -164,35 +164,48 @@ impl Identity {
     }
 }
 
-/// How many spent last-resort handshakes a store remembers, across the
-/// current last-resort KEM key and the one a rotation retired.
+/// How many spent last-resort handshakes a store remembers **per live
+/// last-resort KEM key**: the current one, and the one a rotation retired.
 ///
 /// 1024 tagged fingerprints is 36 KB, which is small beside a single 14 KB
 /// session and generous beside the number of peers that should ever reach the
 /// last-resort path at all -- they only do so once one-time KEM prekeys are
 /// exhausted. Chosen to be comfortably larger than any realistic burst rather
-/// than tuned.
+/// than tuned. Two keys can decrypt at once, so the record's worst case is two
+/// full budgets, 72 KB, and only between the rotation that retires a key and
+/// the one that wipes it.
 ///
-/// A full record costs availability, not correctness: a new last-resort
-/// handshake against a full record is refused with
-/// `Error::LastResortRecordFull` instead of evicting an older entry, because
-/// eviction is what let anyone holding the public bundle forget a victim's
-/// fingerprint on demand (the note on `PrekeyStore::last_resort_seen` says
-/// how). The cost falls on the last-resort path only; a handshake that names
-/// a one-time KEM prekey never consults the record. The operator's two levers
-/// are keeping one-time KEM prekeys stocked (`replenish`), which keeps peers
-/// off this path, and rotating the last-resort key (`rotate_kem`), which frees
-/// a key's entries once the rotation after it wipes that key.
+/// A full budget costs availability, not correctness: a new last-resort
+/// handshake naming a key whose 1024 entries are already in the record is
+/// refused with `Error::LastResortRecordFull` instead of evicting an older
+/// entry, because eviction is what let anyone holding the public bundle forget
+/// a victim's fingerprint on demand (the note on `PrekeyStore::last_resort_seen`
+/// says how). The cost falls on the last-resort path only; a handshake that
+/// names a one-time KEM prekey never consults the record. The operator's two
+/// levers are keeping one-time KEM prekeys stocked (`replenish`), which keeps
+/// peers off this path, and rotating the last-resort key (`rotate_kem`), which
+/// gives the new key a budget of its own straight away.
+///
+/// **Why the bound is counted per key.** A single bound shared between the two
+/// live keys made the second lever a lie for one rotation: the retired key's
+/// entries stayed, so the rotation that retired it freed nothing, and only the
+/// rotation *after* it -- which wipes that key -- released anything. An
+/// operator told to rotate to relieve a full record saw no relief until they
+/// rotated twice, which the rotation cadence makes slow, and rotating twice in
+/// quick succession is the thing `rotate_signed_prekey` warns against. Counting
+/// per key makes one rotation enough: the bundle a directory hands out after it
+/// names the new key, so every handshake that follows is counted against an
+/// empty budget, while the retired key's entries keep their own budget and
+/// still refuse every replay against the key that can still decrypt them.
 ///
 /// Rotation is relief, not a reset, against an attacker who is filling the
-/// record on purpose. The entries the second rotation drops are the wiped
-/// key's; the retired key still decrypts, its public bundle is still in the
-/// attacker's hands, and a last-resort handshake costs about 1.3 ms, so the
-/// record the rotation emptied is full again in about a second. What holds
-/// durably is what stops the handshakes arriving at that rate: a directory
-/// that rate-limits bundle fetches, and one-time KEM prekeys kept stocked so
-/// that first contacts do not land here at all. `last_resort_record_remaining`
-/// is the count to watch for both.
+/// record on purpose. The new bundle is what they fetch too, a last-resort
+/// handshake costs about 1.3 ms, and they need nothing but the public bundle,
+/// so the fresh budget is spent again in about a second. What holds durably is
+/// what stops the handshakes arriving at that rate: a directory that
+/// rate-limits bundle fetches, and one-time KEM prekeys kept stocked so that
+/// first contacts do not land here at all. `last_resort_record_remaining` is
+/// the count to watch for both.
 const MAX_LAST_RESORT_SEEN: usize = 1024;
 
 /// A domain-separated fingerprint of the handshake half of an initial message.
@@ -299,7 +312,7 @@ pub struct PrekeyStore {
     /// The last-resort handshakes this store has already accepted: for each,
     /// the identifier of the last-resort KEM key it was made against and the
     /// fingerprint of the handshake, newest last, at most
-    /// `MAX_LAST_RESORT_SEEN` in all.
+    /// `MAX_LAST_RESORT_SEEN` **per key**.
     ///
     /// **What this is for.** A one-time KEM prekey defends itself: it is
     /// deleted on use, so replaying an initial message that names one fails
@@ -334,31 +347,41 @@ pub struct PrekeyStore {
     /// with the key it was made against, and a key's entries are dropped when
     /// `rotate_kem` wipes that key, because a message naming a wiped key fails
     /// with `UnknownPrekeyId` before the record is consulted. What the bound
-    /// measures is therefore how many distinct last-resort handshakes those
-    /// keys have accepted over their lifetime, not how many arrived recently.
+    /// measures is therefore how many distinct last-resort handshakes one key
+    /// has accepted over its lifetime, not how many arrived recently.
     ///
-    /// Rotation frees a key's share of the record, but against an attacker
-    /// who is filling it on purpose that is a window, not a reset: the
-    /// retired key still decrypts, its public bundle is still out there, and
-    /// at about 1.3 ms per last-resort handshake the 1023 entries the second
-    /// rotation dropped are back in about a second. The defences that hold
-    /// are the ones that keep the handshakes from arriving at that rate -- a
-    /// directory that rate-limits bundle fetches, and one-time KEM prekeys
-    /// kept stocked -- and `last_resort_record_remaining` is what says
-    /// whether they are holding.
+    /// **The budget is each key's own.** The bound is counted over the entries
+    /// tagged with the key a handshake names, not over the record as a whole,
+    /// so the two live keys never compete for room and the worst case is two
+    /// full budgets rather than one. That is what makes rotation the lever it
+    /// is documented as: the rotation that retires a key leaves its entries
+    /// alone, and the new key -- the one every bundle fetched afterwards names
+    /// -- starts empty, so relief arrives on the first rotation instead of the
+    /// second. Under one shared bound the first rotation freed nothing at all,
+    /// because the retired key's entries stayed and still filled it.
     ///
-    /// When the record is full, a last-resort handshake whose fingerprint is
-    /// not in it is refused with `Error::LastResortRecordFull` before anything
-    /// is decrypted or changed. Nothing is evicted, ever: an entry leaves the
-    /// record only when its key is wiped. A fingerprint already in the record
-    /// is refused as `ReplayedLastResort` whether or not the record is full.
-    /// The refusal is the honest cost of a bound: a store that ran out of
-    /// one-time KEM prekeys and then accepted 1024 last-resort first contacts
-    /// stops accepting more until a rotation wipes the key they were made
-    /// under, and every other path is untouched. Keeping one-time KEM prekeys
-    /// stocked (`replenish`) is what keeps the last-resort path rare enough
-    /// for the bound never to be reached; this record is the backstop for
-    /// when it is not.
+    /// Rotation is still relief and not a reset against an attacker who is
+    /// filling the record on purpose: the new bundle is the one they fetch
+    /// too, and at about 1.3 ms per last-resort handshake the fresh budget is
+    /// spent again in about a second. The defences that hold are the ones
+    /// that keep the handshakes from arriving at that rate -- a directory
+    /// that rate-limits bundle fetches, and one-time KEM prekeys kept stocked
+    /// -- and `last_resort_record_remaining` is what says whether they are
+    /// holding.
+    ///
+    /// When a key's budget is spent, a last-resort handshake naming that key
+    /// whose fingerprint is not in the record is refused with
+    /// `Error::LastResortRecordFull` before anything is decrypted or changed.
+    /// Nothing is evicted, ever: an entry leaves the record only when its key
+    /// is wiped. A fingerprint already in the record is refused as
+    /// `ReplayedLastResort` whether or not any budget is spent. The refusal is
+    /// the honest cost of a bound: a store that ran out of one-time KEM
+    /// prekeys and then accepted 1024 last-resort first contacts under one key
+    /// stops accepting more under that key until a rotation moves new
+    /// handshakes onto a fresh one, and every other path is untouched.
+    /// Keeping one-time KEM prekeys stocked (`replenish`) is what keeps the
+    /// last-resort path rare enough for the bound never to be reached; this
+    /// record is the backstop for when it is not.
     ///
     /// The fingerprint alone decides whether a handshake is a repeat: it
     /// covers the KEM prekey identifier, so two entries with one fingerprint
@@ -584,10 +607,14 @@ impl PrekeyStore {
     /// recorded under the key this rotation *wipes* -- the one the previous
     /// rotation retired -- are dropped here, because a message naming a wiped
     /// key fails with `UnknownPrekeyId` before the record is consulted, so
-    /// they can refuse nothing and would only crowd out live entries. This is
-    /// also what frees a full record: the bound on `last_resort_seen` counts
-    /// entries for keys that can still decrypt, and the rotation after the
-    /// one that retires a key is what releases that key's share of it.
+    /// they can refuse nothing and would only take up room in the file.
+    ///
+    /// This is also the lever against a full record, and it works on the first
+    /// rotation rather than the second: `MAX_LAST_RESORT_SEEN` is counted per
+    /// key, so the key opened here starts with an empty budget, and the bundle
+    /// a directory hands out from now on names it. The retired key's entries
+    /// are neither freed nor in the new key's way; they are released when the
+    /// next rotation wipes that key.
     pub fn rotate_kem<R: RngCore + CryptoRng>(&mut self, identity: &Identity, rng: &mut R) {
         let Some(next) = self.next_id.checked_add(1) else {
             return;
@@ -621,8 +648,22 @@ impl PrekeyStore {
         (self.one_time.len(), self.kem_one_time.len())
     }
 
-    /// How many more last-resort handshakes the replay record can hold before
-    /// `establish_responder` refuses new ones with `Error::LastResortRecordFull`.
+    /// How many more last-resort handshakes this store's **current**
+    /// last-resort KEM key can accept before `establish_responder` refuses
+    /// them with `Error::LastResortRecordFull`.
+    ///
+    /// The bound is per key, so a single number has to pick one, and this
+    /// picks the current key rather than reporting a per-key figure for each
+    /// or a total across both. Two reasons. The published bundle names the
+    /// current key, so every handshake a peer can make from here on is
+    /// counted against this budget and no other: this is the number that says
+    /// whether the next arrival will be accepted. And the retired key's
+    /// budget is not a lever anyone can pull -- it only shrinks, by
+    /// handshakes made against a bundle fetched before the last rotation, and
+    /// it is released wholesale by the next one -- so an operator watching it
+    /// would learn nothing they could act on. A caller who wants the retired
+    /// key's occupancy can read it from a persisted store's tags; nothing in
+    /// this crate needs it.
     ///
     /// The signal for the two levers `MAX_LAST_RESORT_SEEN` names. A count
     /// that keeps falling means first contacts are landing on the last-resort
@@ -630,13 +671,29 @@ impl PrekeyStore {
     /// `one_time_remaining` says how many are left). A count that falls
     /// faster than peers could plausibly arrive is someone filling the record
     /// on purpose, which is the directory's rate limit on bundle fetches to
-    /// stop; `rotate_kem` relieves it only for as long as they take to fill
-    /// it again.
+    /// stop; `rotate_kem` restores this number to the full budget at once,
+    /// but only for as long as they take to spend it again.
     pub fn last_resort_record_remaining(&self) -> usize {
-        // The record never exceeds the bound -- a handshake that would take it
-        // past is refused, and `from_bytes` refuses a larger count -- so this
-        // never saturates; saturating anyway rather than trusting that here.
-        MAX_LAST_RESORT_SEEN.saturating_sub(self.last_resort_seen.len())
+        // No key's entries exceed the bound -- a handshake that would take one
+        // past is refused, and `from_bytes` refuses a file where any key's do
+        // -- so this never saturates; saturating anyway rather than trusting
+        // that here.
+        MAX_LAST_RESORT_SEEN.saturating_sub(self.last_resort_seen_for(self.kem_id))
+    }
+
+    /// How many record entries are tagged with one last-resort KEM key.
+    ///
+    /// The quantity `MAX_LAST_RESORT_SEEN` bounds. A linear scan of a vector
+    /// holding at most two budgets, run once per last-resort handshake and
+    /// never on the one-time path, which is the same shape as the replay scan
+    /// beside it in `establish_responder` and for the same reason: the record
+    /// is a vector rather than a map so that it stays in the translatable
+    /// subset, as the note on the field says.
+    fn last_resort_seen_for(&self, key_id: u32) -> usize {
+        self.last_resort_seen
+            .iter()
+            .filter(|(id, _)| *id == key_id)
+            .count()
     }
 
     /// One published bundle per one-time pair the store still holds, for a
@@ -1026,10 +1083,28 @@ impl PrekeyStore {
             };
             pos += 4;
             // Refuse a count the encoder could never have written, before
-            // trusting it to size anything. The record never exceeds the
-            // bound in memory -- a handshake that would take it past is
-            // refused rather than recorded -- so a larger count is corruption.
-            if seen_count as usize > MAX_LAST_RESORT_SEEN {
+            // trusting it to size anything. The bound is per key and no key's
+            // entries exceed it in memory -- a handshake that would take one
+            // past is refused rather than recorded -- so the ceiling here is
+            // the bound times the number of keys the entries can name. A v4
+            // entry names its own key and at most two can still decrypt, the
+            // current one and the one the last rotation retired, so two full
+            // budgets. An untagged v2 or v3 entry reads back under the current
+            // key alone (see below), so such a file has one budget's worth at
+            // most. Anything larger is corruption.
+            //
+            // This is only the cheap ceiling that stops a bogus count sizing
+            // an allocation; the per-key bound itself is a clause of
+            // `invariant`, which runs at the end of this function over the
+            // decoded store, once each entry's tag is known. A v4 file
+            // carrying 2048 entries all tagged with one key passes here and is
+            // refused there.
+            let seen_ceiling = if version == PREKEY_STORE_VERSION {
+                MAX_LAST_RESORT_SEEN.saturating_mul(2)
+            } else {
+                MAX_LAST_RESORT_SEEN
+            };
+            if seen_count as usize > seen_ceiling {
                 return Err(PrekeyStoreDecodeError::Malformed);
             }
             // A v4 entry carries the identifier of the last-resort KEM key it
@@ -1205,13 +1280,18 @@ impl PrekeyStore {
     ///   the last-resort path and never consumed. One counter numbers them
     ///   all, so distinctness across every kind is what the constructor
     ///   establishes, not only within each.
-    /// - **The record holds at most `MAX_LAST_RESORT_SEEN` entries, each
-    ///   tagged with a key that can still decrypt** -- the current last-resort
-    ///   key or the retired one -- **and no fingerprint twice.**
-    ///   `establish_responder` refuses the handshake that would overflow the
-    ///   record, and the repeat of one already in it, before either could be
-    ///   recorded; `rotate_kem` drops a key's entries when it wipes the key;
-    ///   and `to_bytes` never writes anything else.
+    /// - **Every record entry is tagged with a key that can still decrypt**
+    ///   -- the current last-resort key or the retired one -- **no key has
+    ///   more than `MAX_LAST_RESORT_SEEN` of them, and no fingerprint appears
+    ///   twice.** The bound is counted per key, not over the record as a
+    ///   whole, which is what the record itself is bounded by: two live keys
+    ///   means the record holds at most two budgets.
+    ///   `establish_responder` refuses the handshake that would take a key
+    ///   past its budget, and the repeat of one already in the record, before
+    ///   either could be recorded; `rotate_kem` drops a key's entries when it
+    ///   wipes the key; and `to_bytes` never writes anything else. A file
+    ///   whose entries exceed one key's budget is refused here, which is the
+    ///   only place the tags are available to count by.
     pub fn invariant(&self) -> bool {
         let previous_signed_id = self.previous_signed_prekey.as_ref().map(|(_, id, _)| *id);
         let previous_kem_id = self.previous_kem.as_ref().map(|(_, id, _)| *id);
@@ -1228,18 +1308,28 @@ impl PrekeyStore {
             }
         }
 
-        if self.last_resort_seen.len() > MAX_LAST_RESORT_SEEN {
-            return false;
-        }
+        // Counted per key as the entries are walked, rather than by a scan
+        // per key: the two live keys are the only tags a valid record carries,
+        // so two counters cover it, and an entry naming anything else is
+        // refused on sight.
+        let mut current_seen: usize = 0;
+        let mut previous_seen: usize = 0;
         let mut fingerprints =
             std::collections::HashSet::with_capacity(self.last_resort_seen.len());
         for (id, fp) in &self.last_resort_seen {
-            if *id != self.kem_id && Some(*id) != previous_kem_id {
+            if *id == self.kem_id {
+                current_seen += 1;
+            } else if Some(*id) == previous_kem_id {
+                previous_seen += 1;
+            } else {
                 return false;
             }
             if !fingerprints.insert(*fp) {
                 return false;
             }
+        }
+        if current_seen > MAX_LAST_RESORT_SEEN || previous_seen > MAX_LAST_RESORT_SEEN {
+            return false;
         }
         true
     }
@@ -1343,17 +1433,20 @@ pub enum Error {
     /// A last-resort handshake this store has not seen arrived while its
     /// replay record is full, and was refused rather than recorded.
     ///
-    /// The record holds at most `MAX_LAST_RESORT_SEEN` entries across the
-    /// current last-resort KEM key and the one a rotation retired, and it
-    /// never evicts: eviction was what let anyone holding the public bundle
-    /// forget a victim's fingerprint by completing enough handshakes of their
-    /// own. So the handshake that would overflow it is refused before
-    /// anything is decrypted or changed, and the store is exactly as it was.
-    /// Only the last-resort path is affected; an initial message naming a
-    /// one-time KEM prekey never consults the record. Recovery is the
-    /// operator's: `replenish` one-time KEM prekeys so that first contacts
-    /// stop landing here, and `rotate_kem`, which frees a key's entries once
-    /// the rotation after it wipes that key. See `last_resort_seen`.
+    /// The record holds at most `MAX_LAST_RESORT_SEEN` entries **for each**
+    /// last-resort KEM key that can still decrypt -- the current one and the
+    /// one a rotation retired -- and it never evicts: eviction was what let
+    /// anyone holding the public bundle forget a victim's fingerprint by
+    /// completing enough handshakes of their own. So the handshake that would
+    /// take its key past that key's budget is refused before anything is
+    /// decrypted or changed, and the store is exactly as it was. It says
+    /// nothing about the other key, which keeps its own budget. Only the
+    /// last-resort path is affected; an initial message naming a one-time KEM
+    /// prekey never consults the record. Recovery is the operator's:
+    /// `replenish` one-time KEM prekeys so that first contacts stop landing
+    /// here, and `rotate_kem`, which opens a key with an empty budget and is
+    /// what every bundle handed out afterwards names, so one rotation is
+    /// enough. See `last_resort_seen`.
     LastResortRecordFull,
     /// The post-quantum key agreement (the Braid) reached its terminal failure
     /// state, so no further post-quantum epoch can be agreed on this session.
@@ -1692,15 +1785,21 @@ pub fn establish_responder<R: RngCore + CryptoRng>(
         {
             return Err(Error::ReplayedLastResort);
         }
-        // Fail closed on a full record. Recording this handshake at the end
-        // would take the record past its bound, and the record never evicts:
-        // evicting oldest-first let anyone with the public bundle push a
-        // victim's fingerprint out with a thousand cheap handshakes of their
-        // own and then replay the victim's message (the field's note says
-        // more). Refused here, before decapsulation, so the store is untouched
-        // and no plaintext is produced for a message that could not be
-        // remembered.
-        if our_prekeys.last_resort_seen.len() >= MAX_LAST_RESORT_SEEN {
+        // Fail closed on a spent budget. Recording this handshake at the end
+        // would take its own key past `MAX_LAST_RESORT_SEEN`, and the record
+        // never evicts: evicting oldest-first let anyone with the public
+        // bundle push a victim's fingerprint out with a thousand cheap
+        // handshakes of their own and then replay the victim's message (the
+        // field's note says more). Refused here, before decapsulation, so the
+        // store is untouched and no plaintext is produced for a message that
+        // could not be remembered.
+        //
+        // Counted over the entries tagged with the key *this* handshake names,
+        // not over the whole record. The two live keys hold separate budgets,
+        // so a retired key that a burst filled before the last rotation cannot
+        // refuse handshakes against the current one -- which is what makes
+        // `rotate_kem` relief on the first rotation rather than the second.
+        if our_prekeys.last_resort_seen_for(decoded.kem_prekey_id) >= MAX_LAST_RESORT_SEEN {
             return Err(Error::LastResortRecordFull);
         }
     }
@@ -1784,7 +1883,7 @@ pub fn establish_responder<R: RngCore + CryptoRng>(
     // nothing is evicted to make it.
     if let Some(fp) = fingerprint {
         debug_assert!(
-            our_prekeys.last_resort_seen.len() < MAX_LAST_RESORT_SEEN,
+            our_prekeys.last_resort_seen_for(decoded.kem_prekey_id) < MAX_LAST_RESORT_SEEN,
             "the record-full refusal must run before anything is recorded"
         );
         our_prekeys
@@ -1996,26 +2095,51 @@ impl Session {
         // evicted, not 600. Starting at the excess means a forged full-store
         // header no longer buys a run of eviction-and-retry rounds, each
         // cloning the 2000-entry store and deriving up to `MAX_SKIP` keys,
-        // before it is refused. The figure counts the current chain only: a
-        // message that also steps the ratchet first skips the rest of the
-        // previous chain, whose length is not in the header, so on a step it
-        // is an *under*-estimate and the geometric growth below covers the
-        // rest. Either way the first batch never exceeds what the message
+        // before it is refused.
+        //
+        // The post-quantum half is sized the same way, from the same two
+        // figures read for the epoch its header names: the keys it holds
+        // (`post_quantum_skipped_len`) and how far that epoch's receiving chain
+        // has already got (`post_quantum_receive_count`). Its header number is
+        // an absolute per-epoch index rather than a shortfall, which is why the
+        // receive count is needed to turn one into the other: a message
+        // numbered `n` skips `n - 1 - received` keys on that chain, and the
+        // store refuses when the keys it holds plus that figure would exceed
+        // `MAX_SKIPPED_STORE`, so the room it needs is that excess.
+        //
+        // The ramp stays as the fallback for a header naming an epoch the state
+        // holds no receiving chain for, where the accessor reports nothing and
+        // there is no figure to start from. That is the epoch a pending
+        // agreement output is about to open: `receive` folds the output in
+        // before it touches a chain, so the chain the message wants may not
+        // exist until that has happened, and it is exactly the case where a
+        // shortfall computed from what the state holds now would be about the
+        // wrong chain.
+        //
+        // Each half's figure carries one honest imprecision, in opposite
+        // directions and both benign. The classical one counts the current
+        // chain only: a message that also steps the ratchet first skips the
+        // rest of the previous chain, whose length is not in the header, so on
+        // a step it is an *under*-estimate and the geometric growth below
+        // covers the rest. The post-quantum one reads the held count before the
+        // fold, which may retire an epoch and drop its keys, so it can be an
+        // *over*-estimate -- by at most what that retirement dropped, and never
+        // by enough to empty the store: a store-full refusal means the message
+        // skips at most `MAX_SKIP` keys, so the batch is at most
+        // `held - MAX_SKIP` and leaves a thousand keys standing whatever it
+        // evicts. Either way the first batch never exceeds what the message
         // displaces.
         //
-        // The post-quantum half has no receive-count accessor, and its header
-        // number is an absolute per-epoch index, not a shortfall, so there is no
-        // safe figure to start from; it keeps the geometric ramp from one. The
-        // batch is reset when the *other* store reports full, because the
+        // The batch is reset when the *other* store reports full, because the
         // classical half runs first inside `receive` and a batch sized for its
         // need must not be spent on the post-quantum store, whose need is
         // unrelated.
         //
-        // The figure is read from the copy being evicted from, not from
-        // `self`: the two agree on the first attempt, and a post-quantum
-        // eviction never touches the classical store, so they agree on every
-        // later one too, but reading `work` makes that true by construction
-        // rather than by argument.
+        // The figures are read from the copy being evicted from, not from
+        // `self`: the two agree on the first attempt, and an eviction from one
+        // store never touches the other, so they agree on every later one too,
+        // but reading `work` makes that true by construction rather than by
+        // argument.
         let shortfall = |half: FullStore, state: &tacenta_triple::State| -> usize {
             match half {
                 FullStore::Classical => {
@@ -2026,7 +2150,31 @@ impl Session {
                         .saturating_sub(crate::ratchet::MAX_SKIPPED_STORE)
                         .max(1)
                 }
-                FullStore::PostQuantum => 1,
+                // `None` is the epoch the state holds no receiving chain for,
+                // which is the fallback case above: nothing to compute from, so
+                // the ramp starts at one.
+                FullStore::PostQuantum => {
+                    match state.post_quantum_receive_count(composite.pq_epoch) {
+                        Some(received) => {
+                            let held = state.post_quantum_skipped_len();
+                            // The skip count the sparse ratchet computes, in its
+                            // own arithmetic: it steps the chain to `n - 1`
+                            // saturating, so a message numbered zero asks to skip
+                            // nothing rather than wrapping. Widened saturating
+                            // too, for the platforms where a `u64` does not fit a
+                            // `usize`; the value is under `MAX_SKIP` on every path
+                            // that reaches here.
+                            let need = usize::try_from(
+                                composite.pq_n.saturating_sub(1).saturating_sub(received),
+                            )
+                            .unwrap_or(usize::MAX);
+                            held.saturating_add(need)
+                                .saturating_sub(tacenta_spqr::MAX_SKIPPED_STORE)
+                                .max(1)
+                        }
+                        None => 1,
+                    }
+                }
             }
         };
         let receive = |state: &tacenta_triple::State| {

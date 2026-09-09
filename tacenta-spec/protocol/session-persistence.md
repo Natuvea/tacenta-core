@@ -275,9 +275,13 @@ is the record of spent last-resort handshakes, oldest first; from v4 each
 entry carries the identifier of the last-resort KEM key the handshake was
 made against, which is `kem_id` or the identifier inside `previous_kem`,
 and which is what lets a rotation drop a wiped key's entries
-(key-deletion.md). A count larger than the bound the store enforces
-(`MAX_LAST_RESORT_SEEN`, CONSTANTS.md) is refused as malformed before it
-sizes anything. The two `previous_*` fields are the signed prekey and the
+(key-deletion.md). The bound the store enforces (`MAX_LAST_RESORT_SEEN`,
+CONSTANTS.md) is per key, so no count on its own expresses it and the reader
+checks it in two places: a count larger than what the version could possibly
+have written is refused as malformed before it sizes anything -- two budgets
+for v4, whose entries name a key each and where two keys can still decrypt,
+one budget for v2 and v3, whose untagged entries all read back under
+`kem_id` -- and the per-key bound itself is a rule over what was read, below. The two `previous_*` fields are the signed prekey and the
 last-resort KEM prekey the most recent rotation retired, each behind a
 presence byte and, like the session's `pending_initial`, followed by
 nothing at all when absent.
@@ -339,13 +343,18 @@ key first.
   equal to a last-resort one is looked up on the last-resort path and never
   consumed. One counter numbers them all, so distinctness across every kind
   is what the constructor establishes.
-- **The record holds at most `MAX_LAST_RESORT_SEEN` entries** (CONSTANTS.md),
-  **each tagged with `kem_id` or the identifier inside `previous_kem`, and
-  no fingerprint twice.** The responder refuses the handshake that would
-  overflow the record, and the repeat of one already in it, before either
-  could be recorded; a rotation drops a key's entries when it wipes the key;
-  so the writer never emits anything else. (The count is also refused before
-  it sizes anything, as noted above; the rule here is over what was read.)
+- **Every record entry is tagged with `kem_id` or the identifier inside
+  `previous_kem`, no key has more than `MAX_LAST_RESORT_SEEN` entries**
+  (CONSTANTS.md)**, and no fingerprint appears twice.** The bound is counted
+  per key rather than over the record as a whole, so a store with both keys
+  live may legitimately hold two full budgets, and a file holding more than
+  one budget under a single key is refused however plausible its count.
+  The responder refuses the handshake that would take a key past its budget,
+  and the repeat of one already in the record, before either could be
+  recorded; a rotation drops a key's entries when it wipes the key; so the
+  writer never emits anything else. (The count is also refused before it
+  sizes anything, as noted above; the rule here is over what was read, which
+  is the only point at which the tags can be counted by.)
 
 ## Rejection
 

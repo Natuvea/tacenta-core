@@ -1425,6 +1425,18 @@ impl Auth {
     }
 }
 
+/// The version byte and the state tag, which every persisted state starts
+/// with, and the epoch and authenticator every state but `Failed` carries
+/// next. Named here so `Braid::encoded_len` states each of them once.
+const HEAD_LEN: usize = 1 + 1;
+const EPOCH_AND_AUTH_LEN: usize = 8 + 64;
+
+/// What a field of `len` bytes costs in the buffer: its own bytes and the
+/// four-byte length `push_len_prefixed` writes ahead of it.
+fn len_prefixed_len(len: usize) -> usize {
+    4 + len
+}
+
 /// Append `bytes` with a four-byte big-endian length ahead of it, so a
 /// variable-length field embedded in a larger buffer can be sliced out exactly
 /// before its own `from_bytes` sees it -- the sub-formats here (the erasure
@@ -1516,7 +1528,8 @@ impl Braid {
         // erasure crate's comment on its own unwrapped `to_bytes` says this one
         // is: the buffer carries the authenticator's root and MAC keys and, in
         // five of the states, the whole decapsulation key.
-        let mut out = Vec::new();
+        let len = self.encoded_len();
+        let mut out = Vec::with_capacity(len);
         out.push(STATE_VERSION);
         out.push(self.state_tag());
         match &self.state {
@@ -1652,7 +1665,125 @@ impl Braid {
             }
             State::Failed => {}
         }
+        // The buffer is the length `encoded_len` said it would be, so it was
+        // never grown. A `Vec` that grows moves what it holds -- here the
+        // authenticator's root and MAC keys and, in five of these states, the
+        // whole decapsulation key -- into a larger allocation and hands the
+        // smaller one back to the allocator unwiped, where the `Zeroizing`
+        // wrapper below no longer reaches it. The assertion is what keeps the
+        // formula and the writes from drifting apart.
+        debug_assert_eq!(out.len(), len);
         Zeroizing::new(out)
+    }
+
+    /// Exactly how many bytes `to_bytes` writes for this state: the version
+    /// byte and the tag, then, in every state but `Failed`, the epoch and the
+    /// authenticator, then each variable-length field with the four-byte
+    /// length `push_len_prefixed` writes ahead of it.
+    ///
+    /// The lengths of the two `tacenta-kem` values are fixed for a build but
+    /// that crate does not export them, so measuring one means asking it for
+    /// its bytes. The buffer that costs is exactly sized and wiped when it
+    /// drops, which is precisely what growing the output buffer instead would
+    /// not be; exporting the two lengths from `tacenta-kem` would remove the
+    /// copy and leave this pure arithmetic.
+    fn encoded_len(&self) -> usize {
+        match &self.state {
+            State::KeysUnsampled { .. } => HEAD_LEN + EPOCH_AND_AUTH_LEN,
+            State::KeysSampled { kp, hdr_enc, .. } => {
+                HEAD_LEN
+                    + EPOCH_AND_AUTH_LEN
+                    + len_prefixed_len(kp.to_bytes().len())
+                    + len_prefixed_len(hdr_enc.encoded_len())
+            }
+            State::HeaderSent {
+                kp,
+                ct1_dec,
+                ek_enc,
+                ..
+            } => {
+                HEAD_LEN
+                    + EPOCH_AND_AUTH_LEN
+                    + len_prefixed_len(kp.to_bytes().len())
+                    + len_prefixed_len(ct1_dec.encoded_len())
+                    + len_prefixed_len(ek_enc.encoded_len())
+            }
+            State::Ct1Received {
+                kp, ct1, ek_enc, ..
+            } => {
+                HEAD_LEN
+                    + EPOCH_AND_AUTH_LEN
+                    + len_prefixed_len(kp.to_bytes().len())
+                    + len_prefixed_len(ct1.len())
+                    + len_prefixed_len(ek_enc.encoded_len())
+            }
+            State::EkSentCt1Received {
+                kp, ct1, ct2_dec, ..
+            } => {
+                HEAD_LEN
+                    + EPOCH_AND_AUTH_LEN
+                    + len_prefixed_len(kp.to_bytes().len())
+                    + len_prefixed_len(ct1.len())
+                    + len_prefixed_len(ct2_dec.encoded_len())
+            }
+            State::NoHeaderReceived { hdr_dec, .. } => {
+                HEAD_LEN + EPOCH_AND_AUTH_LEN + len_prefixed_len(hdr_dec.encoded_len())
+            }
+            State::HeaderReceived { header, ek_dec, .. } => {
+                HEAD_LEN
+                    + EPOCH_AND_AUTH_LEN
+                    + len_prefixed_len(header.len())
+                    + len_prefixed_len(ek_dec.encoded_len())
+            }
+            State::Ct1Sampled {
+                header,
+                encaps,
+                ct1,
+                ct1_enc,
+                ek_dec,
+                ..
+            } => {
+                HEAD_LEN
+                    + EPOCH_AND_AUTH_LEN
+                    + len_prefixed_len(header.len())
+                    + len_prefixed_len(encaps.to_bytes().len())
+                    + len_prefixed_len(ct1.len())
+                    + len_prefixed_len(ct1_enc.encoded_len())
+                    + len_prefixed_len(ek_dec.encoded_len())
+            }
+            State::EkReceivedCt1Sampled {
+                encaps,
+                ct1,
+                ek_vector,
+                ct1_enc,
+                ..
+            } => {
+                HEAD_LEN
+                    + EPOCH_AND_AUTH_LEN
+                    + len_prefixed_len(encaps.to_bytes().len())
+                    + len_prefixed_len(ct1.len())
+                    + len_prefixed_len(ek_vector.len())
+                    + len_prefixed_len(ct1_enc.encoded_len())
+            }
+            State::Ct1Acknowledged {
+                header,
+                encaps,
+                ct1,
+                ek_dec,
+                ..
+            } => {
+                HEAD_LEN
+                    + EPOCH_AND_AUTH_LEN
+                    + len_prefixed_len(header.len())
+                    + len_prefixed_len(encaps.to_bytes().len())
+                    + len_prefixed_len(ct1.len())
+                    + len_prefixed_len(ek_dec.encoded_len())
+            }
+            State::Ct2Sampled { ct2_enc, .. } => {
+                HEAD_LEN + EPOCH_AND_AUTH_LEN + len_prefixed_len(ct2_enc.encoded_len())
+            }
+            State::Failed => HEAD_LEN,
+        }
     }
 
     /// Decode a `Braid` persisted by `to_bytes`.

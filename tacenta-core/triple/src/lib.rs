@@ -225,6 +225,26 @@ impl State {
         self.classical.skipped_len()
     }
 
+    /// Skipped message keys the post-quantum ratchet holds, the counterpart
+    /// of `classical_skipped_len` and read for the same purpose: sizing an
+    /// eviction (see `evict_oldest_post_quantum`).
+    pub fn post_quantum_skipped_len(&self) -> usize {
+        self.post_quantum.skipped_len()
+    }
+
+    /// Messages received on the post-quantum chain of `epoch`, or `None` when
+    /// the half holds no receiving chain for it. Takes an epoch where
+    /// `receive_count` above does not, because the post-quantum half keeps a
+    /// pair of chains per epoch rather than one at a time; see
+    /// `tacenta_spqr::State::receive_count`.
+    ///
+    /// With `post_quantum_skipped_len` this is what a caller needs to size a
+    /// post-quantum eviction from the shortfall a header implies, rather than
+    /// climbing to it.
+    pub fn post_quantum_receive_count(&self, epoch: u64) -> Option<u64> {
+        self.post_quantum.receive_count(epoch)
+    }
+
     /// Make room in the classical ratchet's skipped-key store by deleting up
     /// to `count` of its oldest keys; returns how many were deleted. See
     /// `tacenta_ratchet::State::evict_oldest` for why this exists and why it
@@ -483,14 +503,22 @@ impl State {
     /// protection of the persisted bytes is that caller's job, the same as for
     /// the two formats this composes.
     pub fn to_bytes(&self) -> Zeroizing<Vec<u8>> {
-        let mut out = Vec::new();
-        out.push(STATE_VERSION);
+        // Both halves are encoded before the buffer that holds them is
+        // allocated, so it can be sized exactly and never grown: a `Vec` that
+        // grows moves both halves' key material into a larger allocation and
+        // hands the smaller one back to the allocator unwiped, where the
+        // `Zeroizing` wrapper below no longer reaches it. Each half's own
+        // `to_bytes` sizes its buffer the same way.
         let classical = self.classical.to_bytes();
+        let post_quantum = self.post_quantum.to_bytes();
+        let len = 1 + 4 + classical.len() + 4 + post_quantum.len();
+        let mut out = Vec::with_capacity(len);
+        out.push(STATE_VERSION);
         out.extend_from_slice(&(classical.len() as u32).to_be_bytes());
         out.extend_from_slice(&classical);
-        let post_quantum = self.post_quantum.to_bytes();
         out.extend_from_slice(&(post_quantum.len() as u32).to_be_bytes());
         out.extend_from_slice(&post_quantum);
+        debug_assert_eq!(out.len(), len);
         Zeroizing::new(out)
     }
 

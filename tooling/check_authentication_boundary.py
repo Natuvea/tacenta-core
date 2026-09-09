@@ -140,6 +140,11 @@ DECL = re.compile(
 # are exempted by name rather than each given a row (CR-09).
 EXEMPT = {
     "receive_count",
+    # The Triple's passthrough to the sparse ratchet's counter. Exempt for the
+    # same reason `receive_count` is: it reads a counter and consumes nothing.
+    # Named exactly rather than matched by a `_count` suffix, because widening
+    # the rule of a gate is how a gate stops gating.
+    "post_quantum_receive_count",
     "receive_chain",
     "receive_chain_key",
     "receive_chains",

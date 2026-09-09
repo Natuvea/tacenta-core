@@ -254,10 +254,16 @@ Four things are not erased, and they are the honest remainder:
   ratchet's `to_bytes`, `Session::export` and `PrekeyStore::to_bytes` size
   their buffer exactly before the first write, so they never grow, and so do
   the handshake's `km`, `kdf_sk` and `associated_data` in `tacenta-session`
-  (CR-15). The sparse ratchet's and the Braid's `to_bytes` still grow by
-  pushing: those crates are translated, a source change there is a
-  translation change, and it waits for a re-translation window. Every `Vec`
-  inside libcrux is libcrux's.
+  (CR-15). The sparse ratchet's, the Braid's and the Triple Ratchet's
+  `to_bytes` now size their buffer exactly too, each from a length computed
+  from the state and held to what is actually written by a
+  `debug_assert_eq!`, as do the erasure coders' `to_bytes` the Braid embeds.
+  One exception is worth naming: the Braid measures the two `tacenta-kem`
+  values it carries by asking them for their bytes, because that crate
+  exports no length constant for them, so a key pair's encoding is copied
+  once into an exactly sized `Zeroizing` buffer that is wiped when it drops.
+  That is a wiped copy in place of the unwiped ones a growing output buffer
+  made. Every `Vec` inside libcrux is libcrux's.
 
 **None of it is proved.** Charon and Aeneas ignore `Drop` entirely, so the
 generated Lean is byte for byte identical with and without every destructor
@@ -1055,10 +1061,12 @@ holds to.
 
 **Translated is mostly proved.** `State.send`, `State.receive`,
 `State.commit`, the two constructors, the clone, the accessors,
-`split_secret` and `combine` carry T1 theorems (`TripleT1.lean`). Five
-public functions do not: `classical_skipped_len`, `evict_oldest_classical`,
-`evict_oldest_post_quantum`, `to_bytes` and `from_bytes`, and the session
-calls all five, from its eviction loop and its persistence path
+`split_secret` and `combine` carry T1 theorems (`TripleT1.lean`). Seven
+public functions do not: `classical_skipped_len`,
+`post_quantum_skipped_len`, `post_quantum_receive_count`,
+`evict_oldest_classical`, `evict_oldest_post_quantum`, `to_bytes` and
+`from_bytes`, and the session calls all seven, from its eviction loop and its
+persistence path
 (`tacenta-core/src/sessions/lifecycle.rs`). Neither the classical ratchet's own
 `receive_no_panic` nor the sparse ratchet's `send_no_panic`/`receive_no_panic`
 said anything about what happens when the two are composed, and the
@@ -1184,8 +1192,8 @@ decoder accepts anything at all is the Rust round-trip tests.
   Translates with no gap, and **T1 complete for the coding functions**: the
   field arithmetic, interpolation, the chunk helpers, and both public entry
   points of each of the encoder and the decoder are proved panic-free. Not
-  `Encoder::new`, `Decoder::new`, `needed`, `received`, `to_bytes` or
-  `from_bytes`, which have no theorem; `Decoder::from_bytes` refuses by
+  `Encoder::new`, `Decoder::new`, `needed`, `received`, `encoded_len`,
+  `to_bytes` or `from_bytes`, which have no theorem; `Decoder::from_bytes` refuses by
   construction a restored `size` that `message()` could not serve, and that
   refusal is unproved.
 
@@ -1701,12 +1709,21 @@ changes that live inside `spqr`, `braid` or the other verified zones are
 batched into one re-translation rather than made one at a time, and the open
 ones are listed here so nobody mistakes "not yet" for "not known":
 
-- `tacenta_spqr::State::to_bytes` and `tacenta_braid::Braid::to_bytes` grow
-  their buffer by pushing (see "Secret deletion is partial").
 - `tacenta_braid`'s `mac_eq` is a hand-written comparison loop (see
   "Constant-time behaviour is assumed, not proven").
 
-Two entries this list used to carry closed with the CR-03/CR-22 re-translation:
+One entry closed with this re-translation: `tacenta_spqr::State::to_bytes` and
+`tacenta_braid::Braid::to_bytes` no longer grow their buffer by pushing, and
+neither do the Triple's or the erasure coders'. What that leaves open there is
+smaller and stated above: `from_bytes` on the sparse ratchet still builds its
+skipped-key vector by pushing, and those entries are message keys. The count is
+bounded against the buffer before the loop, so sizing it is safe; it is held
+back only because that function is the one `ImportInv.lean` steps through, and
+it belongs in a window where its proof can have proper attention rather than
+being carried along.
+
+Two further entries this list used to carry closed with the CR-03/CR-22
+re-translation:
 
 - `tacenta_braid::Auth::keys` and `Auth::from_root` are compiled only under
   `cfg(any(test, feature = "conformance"))` (CR-22), so a shipping build

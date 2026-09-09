@@ -96,10 +96,19 @@ fn a_full_store_makes_room_and_the_conversation_continues() {
 
 /// The first eviction is sized to the shortfall, which is the keys held plus
 /// the keys the message skips on its chain, less the cap -- not the skip
-/// count on its own. The store refuses well before it holds the cap: 1500
-/// keys and a message 599 ahead is 99 over, and 99 is what must go from the
-/// classical store. Sizing by the skip count would take 599, five hundred
-/// keys the message never displaced (CR-19).
+/// count on its own, and not a geometric climb up to it. The store refuses
+/// well before it holds the cap: 1500 keys and a message 599 ahead is 99
+/// over, and 99 is what must go from each store. Sizing by the skip count
+/// would take 599, five hundred keys the message never displaced (CR-19).
+///
+/// Both halves are pinned. The classical one has been sized from its own
+/// figures since CR-19; the post-quantum one climbed 1, 2, 4, ... until the
+/// sparse ratchet gained the two accessors that let a shortfall be computed
+/// for the epoch a header names, and took 127 for a 99-key excess -- 28 keys
+/// the message never displaced (external review, 2026-09). The two are
+/// distinguishable through what still decrypts, because a message needs a key
+/// from each store: the message whose classical key survives by one is the one
+/// that says the post-quantum half stopped in the same place.
 #[test]
 fn the_first_eviction_is_sized_to_the_shortfall_not_the_skip_count() {
     let mut r = rng(33);
@@ -133,14 +142,23 @@ fn the_first_eviction_is_sized_to_the_shortfall_not_the_skip_count() {
     }
     assert_eq!(bob.decrypt(&later[599], &mut r).unwrap(), b"two 1100");
 
-    // Oldest first, and 99 of them from the classical store. The post-quantum
-    // half holds the same skipped keys, has no shortfall figure of its own,
-    // and climbs 1, 2, 4, ... for the same excess, so it takes 127 however
-    // the classical half is sized; a message needs both halves, so nothing
-    // before "one 127" decrypts either way, and its absence pins nothing.
-    // What pins the shortfall is that "one 127" decrypts at all: sized by the
-    // skip count, the classical half would have taken 599, and nothing before
-    // "one 599" would.
+    // Oldest first, and 99 of them from each store. Both halves hold a key
+    // for every message of round one, so "one 98" is gone whichever half is
+    // sized how, and its absence pins only that an eviction happened at all.
+    assert!(
+        bob.decrypt(&first[98], &mut r).is_err(),
+        "the 99 keys the message displaced must have gone"
+    );
+
+    // "one 99" is the pin, and it pins both halves at once: it is the first
+    // message whose classical key the 99-key eviction spared, so it decrypts
+    // only if the post-quantum store stopped at 99 too. Sized by the skip
+    // count the classical half would have taken 599; climbing 1, 2, 4, ... the
+    // post-quantum half would have taken 127. Either mistake loses this
+    // message.
+    assert_eq!(bob.decrypt(&first[99], &mut r).unwrap(), b"one 99");
+
+    // And nothing above it went either, in either store.
     assert_eq!(bob.decrypt(&first[127], &mut r).unwrap(), b"one 127");
     assert_eq!(
         bob.decrypt(&first[MAX_SKIP as usize - 1], &mut r).unwrap(),

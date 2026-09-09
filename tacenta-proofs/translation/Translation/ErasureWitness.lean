@@ -211,8 +211,8 @@ theorem card_u8 : Fintype.card Std.U8 = 256 := by
 abbrev Data32 := Array Std.U8 32#usize
 
 def data32Equiv : Data32 ≃ List.Vector Std.U8 32 where
-  toFun a := ⟨a.val, by simpa using a.property⟩
-  invFun v := ⟨v.val, by simpa using v.property⟩
+  toFun a := ⟨a.val, by simp⟩
+  invFun v := ⟨v.val, by simp⟩
   left_inv _ := rfl
   right_inv _ := rfl
 
@@ -248,7 +248,7 @@ theorem pt_injOn (s : Finset ℕ) (hs : ∀ i ∈ s, i < 65536) : Set.InjOn pt s
 
 noncomputable def poly (k : ℕ) (c : ℕ → F) : F[X] := ∑ j ∈ Finset.range k, C (c j) * X ^ j
 
-theorem poly_degree_lt (k : ℕ) (c : ℕ → F) (hk : 0 < k) : (poly k c).degree < k := by
+theorem poly_degree_lt (k : ℕ) (c : ℕ → F) (_hk : 0 < k) : (poly k c).degree < k := by
   unfold poly
   apply lt_of_le_of_lt (Polynomial.degree_sum_le _ _)
   rw [Finset.sup_lt_iff (by exact WithBot.bot_lt_coe k)]

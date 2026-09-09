@@ -8,13 +8,17 @@
 //!   the initiator agrees with, a key in an unauthenticated initial message the
 //!   responder agrees with, and the ratchet public in a received header -- and
 //!   the refusal leaves the state it was handed unchanged.
-//! - **The last-resort replay bound fails closed**: once the record holds
-//!   `MAX_LAST_RESORT_SEEN` entries a last-resort handshake it has not seen is
+//! - **The last-resort replay bound fails closed, and is counted per live
+//!   key**: once one last-resort KEM key has `MAX_LAST_RESORT_SEEN` entries in
+//!   the record, a handshake naming that key which has not been seen is
 //!   refused and nothing is evicted, so every fingerprint already in it is
 //!   still refused as a replay (the eviction the record once did was what let
 //!   an attacker with the public bundle replay a victim's captured message);
-//!   and `from_bytes` refuses a stored count above the bound. How the record
-//!   follows its key through rotation and persistence is `replay_record.rs`.
+//!   one `rotate_kem` gives the key it opens a budget of its own, while the
+//!   spent key keeps its entries and keeps refusing their replays; and
+//!   `from_bytes` refuses both a stored count no encoder could have written
+//!   and a file whose entries exceed one key's budget. How the record follows
+//!   its key through rotation and persistence is `replay_record.rs`.
 //!
 //! The AEAD padding-versus-tag indistinguishability the same finding asks for
 //! is a unit test in `src/primitives/aead.rs`, where the HMAC internals needed
@@ -196,20 +200,25 @@ fn decrypt_refuses_a_low_order_ratchet_header_and_changes_nothing() {
 // --------------------------------------------------------- last-resort bound
 
 /// The 1024-entry bound fails closed (CR-28; external review, 2026-09). The
-/// record never evicts: once full, a last-resort handshake it has not seen is
-/// refused with `LastResortRecordFull` and the store is untouched, while every
-/// fingerprint already in it is still refused as a replay.
+/// record never evicts: once a last-resort KEM key's budget is spent, a
+/// handshake naming that key which the record has not seen is refused with
+/// `LastResortRecordFull` and the store is untouched, while every fingerprint
+/// already in it is still refused as a replay.
 ///
 /// This is the attacker's scenario. A victim's last-resort handshake is
 /// delivered once; then fresh identities holding nothing but the public bundle
-/// complete last-resort handshakes until the record is full; then the victim's
-/// captured message is tried again. Under the old oldest-first window the
-/// handshake that filled the record evicted the victim's fingerprint, and the
-/// replay delivered the victim's first plaintext to the application a second
-/// time as a new session. Now the handshake that would overflow the record is
-/// the one refused, and the victim's replay stays refused.
+/// complete last-resort handshakes until the key's budget is spent; then the
+/// victim's captured message is tried again. Under the old oldest-first window
+/// the handshake that filled the record evicted the victim's fingerprint, and
+/// the replay delivered the victim's first plaintext to the application a
+/// second time as a new session. Now the handshake that would take the key
+/// past its budget is the one refused, and the victim's replay stays refused.
+///
+/// No rotation happens here, so one key holds every entry and the per-key
+/// budget is the only one in play. What one rotation does to it is the test
+/// below.
 #[test]
-fn a_full_last_resort_record_refuses_new_handshakes_and_still_refuses_replays() {
+fn a_full_last_resort_budget_refuses_new_handshakes_and_still_refuses_replays() {
     const BOUND: usize = 1024;
     let mut r = rng(4);
     let bob = Identity::generate(&mut r);
@@ -227,7 +236,7 @@ fn a_full_last_resort_record_refuses_new_handshakes_and_still_refuses_replays() 
     assert_eq!(first, b"the victim's first message");
 
     // Fresh identities, each needing only the public bundle. The victim's
-    // entry counts, so BOUND - 1 of these fill the record exactly.
+    // entry counts, so BOUND - 1 of these spend the key's budget exactly.
     let attacker_handshake = |r: &mut rand::rngs::StdRng| {
         let attacker = Identity::generate(r);
         let mut a = establish_initiator(&attacker, &bundle, r).unwrap();
@@ -239,7 +248,8 @@ fn a_full_last_resort_record_refuses_new_handshakes_and_still_refuses_replays() 
             .unwrap_or_else(|e| panic!("attacker handshake {i} was refused: {e:?}"));
     }
     let full = store.to_bytes();
-    // The count an operator polls reads zero exactly when the record is full.
+    // The count an operator polls reads zero exactly when the current key's
+    // budget is spent.
     assert_eq!(store.last_resort_record_remaining(), 0);
 
     // The handshake that would exceed the bound is refused, and refused before
@@ -272,21 +282,119 @@ fn a_full_last_resort_record_refuses_new_handshakes_and_still_refuses_replays() 
 
     // The cost is confined to the last-resort path. A bundle carrying a
     // one-time KEM prekey -- the operator's first lever -- never consults the
-    // record, so a first contact through one succeeds against the full store.
+    // record, so a first contact through one succeeds against the spent
+    // budget.
     store.replenish(&bob, 1, &mut r);
     let one_time = store.publish();
     let peer = Identity::generate(&mut r);
     let mut p = establish_initiator(&peer, &one_time, &mut r).unwrap();
     let m = p.encrypt(b"through a one-time prekey", &mut r).unwrap();
     let (_, pt) = establish_responder(&bob, &mut store, &m, &mut r)
-        .expect("a full record must not affect the one-time path");
+        .expect("a spent last-resort budget must not affect the one-time path");
     assert_eq!(pt, b"through a one-time prekey");
 }
 
-/// `from_bytes` refuses a stored last-resort count larger than the bound before
-/// it trusts the count to size anything (CR-28).
+/// One rotation is the whole relief a full budget needs (external review,
+/// 2026-09). The bound is per key, so the key `rotate_kem` opens starts empty
+/// and accepts a full budget of its own, while the spent key keeps its entries
+/// and keeps refusing every replay against them.
+///
+/// This is the operator lever the constant's note advertises. Under a single
+/// bound shared by both live keys the first rotation freed nothing -- the
+/// retired key's 1024 entries stayed and still filled the record -- so the
+/// documented "rotate to relieve it" was true only after a second rotation,
+/// which the rotation cadence makes slow and which `rotate_signed_prekey`'s
+/// own note warns against running early.
 #[test]
-fn from_bytes_refuses_a_last_resort_count_above_the_bound() {
+fn one_rotation_gives_the_new_key_a_full_budget_and_keeps_the_old_refusals() {
+    const BOUND: usize = 1024;
+    let mut r = rng(9);
+    let bob = Identity::generate(&mut r);
+    let mut store = bob.create_prekeys(0, &mut r);
+
+    let handshake = |bundle: &PublishedBundle, r: &mut rand::rngs::StdRng| {
+        let peer = Identity::generate(r);
+        let mut s = establish_initiator(&peer, bundle, r).unwrap();
+        s.encrypt(b"fresh identity", r).unwrap()
+    };
+
+    // Spend the first key's budget exactly, keeping one of its handshakes to
+    // replay later.
+    let first_bundle = store.publish_multi_use();
+    let mut kept = Vec::new();
+    for i in 0..BOUND {
+        let m = handshake(&first_bundle, &mut r);
+        establish_responder(&bob, &mut store, &m, &mut r)
+            .unwrap_or_else(|e| panic!("handshake {i} against the first key was refused: {e:?}"));
+        if i == 0 || i == BOUND - 1 {
+            kept.push(m);
+        }
+    }
+    assert_eq!(store.last_resort_record_remaining(), 0);
+    assert!(
+        matches!(
+            establish_responder(&bob, &mut store, &handshake(&first_bundle, &mut r), &mut r),
+            Err(LifecycleError::LastResortRecordFull)
+        ),
+        "the first key's budget must be spent"
+    );
+
+    // One rotation. The retired key still decrypts, so its bundle is still
+    // usable; the record still holds its 1024 entries.
+    store.rotate_kem(&bob, &mut r);
+    let second_bundle = store.publish_multi_use();
+    assert_ne!(first_bundle.kem_prekey_id, second_bundle.kem_prekey_id);
+    assert_eq!(
+        store.last_resort_record_remaining(),
+        BOUND,
+        "the key the rotation opened must start with a clean budget"
+    );
+
+    // The new key accepts a full budget of its own, all 1024 of them, with the
+    // retired key's entries still in the record beside them.
+    for i in 0..BOUND {
+        let m = handshake(&second_bundle, &mut r);
+        establish_responder(&bob, &mut store, &m, &mut r)
+            .unwrap_or_else(|e| panic!("handshake {i} against the new key was refused: {e:?}"));
+    }
+    assert_eq!(store.last_resort_record_remaining(), 0);
+    assert!(
+        store.invariant(),
+        "two full budgets is the worst case, not a violation"
+    );
+
+    // And the retired key's entries never stopped refusing their own replays:
+    // that key can still decrypt, so a captured message naming it must not be
+    // accepted a second time.
+    for (i, m) in kept.iter().enumerate() {
+        assert!(
+            matches!(
+                establish_responder(&bob, &mut store, m, &mut r),
+                Err(LifecycleError::ReplayedLastResort)
+            ),
+            "kept handshake {i} against the retired key must still be a replay"
+        );
+    }
+
+    // The new key's budget is spent too, and refuses on its own account.
+    assert!(
+        matches!(
+            establish_responder(&bob, &mut store, &handshake(&second_bundle, &mut r), &mut r),
+            Err(LifecycleError::LastResortRecordFull)
+        ),
+        "the new key's budget must be spent in its turn"
+    );
+}
+
+/// `from_bytes` refuses a stored last-resort count no encoder could have
+/// written, before it trusts the count to size anything (CR-28).
+///
+/// The ceiling for a v4 file is two full budgets, not one: entries are tagged,
+/// two keys can still decrypt, and each holds `MAX_LAST_RESORT_SEEN` of its
+/// own. A count above one budget but within two is refused by the per-key
+/// clause of `invariant` instead, once the tags are known -- the test below.
+#[test]
+fn from_bytes_refuses_a_last_resort_count_above_two_budgets() {
     let mut r = rng(5);
     let bob = Identity::generate(&mut r);
     // A fresh store with no one-time keys, no rotation, and no fingerprints: its
@@ -301,13 +409,70 @@ fn from_bytes_refuses_a_last_resort_count_above_the_bound() {
         "layout drift: expected a zero seen-count and two absent presence bytes at the tail"
     );
 
-    // Overwrite the seen-count with one past the bound.
-    bytes[n - 6..n - 2].copy_from_slice(&(1025u32).to_be_bytes());
+    // Overwrite the seen-count with one past what two budgets could hold.
+    bytes[n - 6..n - 2].copy_from_slice(&(2049u32).to_be_bytes());
     assert!(
         matches!(
             PrekeyStore::from_bytes(&bytes),
             Err(PrekeyStoreDecodeError::Malformed)
         ),
-        "a seen-count above the bound must be refused"
+        "a seen-count above two budgets must be refused"
     );
+}
+
+/// `from_bytes` refuses a file whose entries exceed **one key's** budget, even
+/// though the count itself is one the reader will size an allocation for.
+///
+/// The count alone cannot say this: 1025 entries is a count a store with two
+/// live keys could legitimately write. What makes the file malformed is that
+/// all 1025 name the same key, which `establish_responder` would never have
+/// recorded, and it is `invariant` -- run over the decoded store, once each
+/// entry's tag is readable -- that catches it. Without the per-key clause such
+/// a file restored, and the store came back holding a key past its bound.
+#[test]
+fn from_bytes_refuses_more_than_one_budget_under_a_single_key() {
+    let mut r = rng(10);
+    let bob = Identity::generate(&mut r);
+    let store = bob.create_prekeys(0, &mut r);
+    let kem_id = store.publish_multi_use().kem_prekey_id;
+    let bytes = store.to_bytes().to_vec();
+    let n = bytes.len();
+    assert_eq!(
+        &bytes[n - 6..],
+        &[0, 0, 0, 0, 0, 0],
+        "layout drift: expected a zero seen-count and two absent presence bytes at the tail"
+    );
+
+    // Rebuild the tail with 1025 distinct fingerprints, every one of them
+    // tagged with the current last-resort key. The count is within the
+    // reader's ceiling of two budgets, the entries are well formed and
+    // distinct, and the file re-encodes to itself, so nothing before the
+    // per-key clause has grounds to refuse it.
+    let over = 1025u32;
+    let mut forged = bytes[..n - 6].to_vec();
+    forged.extend_from_slice(&over.to_be_bytes());
+    for i in 0..over {
+        forged.extend_from_slice(&kem_id.to_be_bytes());
+        let mut fp = [0u8; 32];
+        fp[..4].copy_from_slice(&i.to_be_bytes());
+        forged.extend_from_slice(&fp);
+    }
+    forged.extend_from_slice(&[0, 0]);
+
+    assert!(
+        matches!(
+            PrekeyStore::from_bytes(&forged),
+            Err(PrekeyStoreDecodeError::Malformed)
+        ),
+        "a file holding more than one budget under one key must be refused"
+    );
+
+    // One entry fewer is exactly a budget, and restores: the refusal is the
+    // bound and nothing incidental about the forged tail.
+    let mut at_bound = forged.clone();
+    let count_at = n - 6;
+    at_bound[count_at..count_at + 4].copy_from_slice(&(over - 1).to_be_bytes());
+    at_bound.drain(count_at + 4 + (over as usize - 1) * 36..count_at + 4 + over as usize * 36);
+    let restored = PrekeyStore::from_bytes(&at_bound).expect("a full budget must still restore");
+    assert_eq!(restored.last_resort_record_remaining(), 0);
 }

@@ -39,6 +39,26 @@ is SemVer against the specified protocol (not the implementation).
   now states what is written and what is read.
 
 ### Changed
+- `protocol/key-deletion.md`, `protocol/session-establishment.md`,
+  `protocol/session-persistence.md` and `CONSTANTS.md`:
+  `MAX_LAST_RESORT_SEEN` is counted **per live last-resort KEM key** rather
+  than across the record as a whole. The current key and the one the last
+  rotation retired each have a budget of 1024, so the record's worst case is
+  two budgets, and a handshake is refused with `LastResortRecordFull` only
+  when the key it names has spent that key's own budget. This makes rotation
+  the lever the pages already described it as: the key `rotate_kem` opens
+  starts empty and is the key every bundle handed out afterwards names, so
+  one rotation relieves a spent budget, where a single shared bound freed
+  nothing until the following rotation wiped the retired key. The pages keep
+  the honest limit -- against a peer filling the record deliberately the
+  relief lasts about a second, because they fetch the new bundle too, so the
+  durable defences remain a directory that rate-limits bundle fetches and
+  one-time KEM prekeys kept stocked. `last_resort_record_remaining` reports
+  the room left under the current key, the one whose budget the next arrival
+  spends. The persisted format is unchanged at `0x04`, which already tags
+  every entry with its key; session-persistence.md states the reader's two
+  checks, a per-version ceiling on the stored count and the per-key bound as
+  a semantic rule over what was read. External review, 2026-09.
 - `protocol/session-persistence.md`: the "Validated, not only parsed"
   principle now says what being *inductive* costs the operations, rather
   than only asserting that the predicates are. Three counters reserve their

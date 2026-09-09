@@ -168,11 +168,9 @@ theorem varint_loop_refines (r : Reader) (value factor : U32) (taken : Usize)
         -- so they are resolved rather than case-split: the two descriptions are
         -- not choosing independently, which is the whole content of the tier.
         all_goals (first
-          | (rw [if_pos (show 4294967295 < b.val % 128 * factor1.val by omega)] at hg1;
-             try simp_all)
-          | (rw [if_neg (show ¬ (4294967295 < b.val % 128 * factor1.val) by omega),
-                 if_pos (show 4294967295 < value1.val + b.val % 128 * factor1.val by omega)]
-               at hg1; try simp_all)
+          | rw [if_neg (show ¬ (4294967295 < b.val % 128 * factor1.val) by omega),
+                if_pos (show 4294967295 < value1.val + b.val % 128 * factor1.val by omega)]
+              at hg1
           | (rw [if_neg (show ¬ (4294967295 < b.val % 128 * factor1.val) by omega),
                  if_neg (show ¬ (4294967295 < value1.val + b.val % 128 * factor1.val) by omega)]
                at hg1; try simp_all))
@@ -180,9 +178,7 @@ theorem varint_loop_refines (r : Reader) (value factor : U32) (taken : Usize)
         -- conditions, and each is likewise already decided.
         all_goals (try subst cf_post)
         all_goals (try simp_all)
-        all_goals (repeat first
-          | rw [if_neg (by omega)] at hg1
-          | rw [if_pos (by omega)] at hg1)
+        all_goals (repeat rw [if_neg (by omega)] at hg1)
         all_goals (try simp_all)
         -- The continuation: what the loop still has to do is what the model
         -- still has to do, one byte shorter. The only gap is that the loop
@@ -190,12 +186,11 @@ theorem varint_loop_refines (r : Reader) (value factor : U32) (taken : Usize)
         -- arrives as `4 - taken`, which is the same number.
         all_goals (first
           | omega
-          | (refine ⟨?_, by omega⟩; convert hg1 using 2 <;> omega)
-          | (refine ⟨?_, by omega⟩; convert hg1 using 3 <;> omega))
+          | (refine ⟨?_, by omega⟩; convert hg1 using 2; omega))
     · -- taken is at the bound: the model has no fuel left, so it agrees.
       simp_all [MAX_VARINT_BYTES]
       simp only [Model.Protobuf.varintFrom] at hg1
-      first | exact hg1.symm | exact hg1
+      exact hg1.symm
   · exact ⟨hb, hg⟩
 
 /-- And therefore `varint` itself, which enters the loop at the model's origin:
