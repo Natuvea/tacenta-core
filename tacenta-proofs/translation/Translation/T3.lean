@@ -205,12 +205,14 @@ def HmacAgrees : Prop :=
   ∀ key data, ∃ r, tacenta_kdf.hmac_sha256 key data = ok r ∧
     keyOf r = Model.Kdf.hmac (sliceOf key) (sliceOf data)
 
-/-- The opaque HKDF returns, and returns the model's HKDF. Argument order
-follows the Rust: the first slice is the salt and the second the input keying
-material, which is how `kdf_rk` calls it and how `Model.State.kdfRk` is
-written. -/
+/-- The opaque HKDF returns, and returns the model's HKDF, for every output
+length within RFC 5869's bound of 8160 bytes -- the bound the crate's own
+`expect` enforces, and so exactly where the real operation returns
+(`T1.HkdfTotal` says why). Argument order follows the Rust: the first slice is
+the salt and the second the input keying material, which is how `kdf_rk` calls
+it and how `Model.State.kdfRk` is written. -/
 def HkdfAgrees : Prop :=
-  ∀ N key salt info, ∃ r, tacenta_kdf.hkdf_sha256 N key salt info = ok r ∧
+  ∀ N key salt info, N.val ≤ 8160 → ∃ r, tacenta_kdf.hkdf_sha256 N key salt info = ok r ∧
     keyOf r = Model.Kdf.hkdf (sliceOf key) (sliceOf salt) (sliceOf info) N.val
 
 /-- Agreement is strictly stronger than the totality T1 assumed, so a caller
@@ -219,7 +221,7 @@ theorem HmacAgrees.total (h : HmacAgrees) : Tacenta.T1.HmacTotal :=
   fun key data => let ⟨r, hr, _⟩ := h key data; ⟨r, hr⟩
 
 theorem HkdfAgrees.total (h : HkdfAgrees) : Tacenta.T1.HkdfTotal :=
-  fun N key salt info => let ⟨r, hr, _⟩ := h N key salt info; ⟨r, hr⟩
+  fun N key salt info hN => let ⟨r, hr, _⟩ := h N key salt info hN; ⟨r, hr⟩
 
 /-! ## Stepping rules carrying the derivation values
 
@@ -243,10 +245,11 @@ theorem hmac_step (h : HmacAgrees) (key data : Slice Std.U8) :
   obtain ⟨r, hr, hv⟩ := h key data; simp [hr, hv]
 
 @[step]
-theorem hkdf_step (h : HkdfAgrees) (N : Usize) (key salt info : Slice Std.U8) :
+theorem hkdf_step (h : HkdfAgrees) (N : Usize) (key salt info : Slice Std.U8)
+    (hN : N.val ≤ 8160) :
     tacenta_kdf.hkdf_sha256 N key salt info ⦃ fun r =>
       keyOf r = Model.Kdf.hkdf (sliceOf key) (sliceOf salt) (sliceOf info) N.val ⦄ := by
-  obtain ⟨r, hr, hv⟩ := h N key salt info; simp [hr, hv]
+  obtain ⟨r, hr, hv⟩ := h N key salt info hN; simp [hr, hv]
 
 /-- The `zeroize` wrapper round-trips: reading back what was wrapped gives the
 same value. T1 needed only that neither step can fail. Refinement needs the
@@ -334,6 +337,7 @@ structure HeaderR (h : Header) (mh : Model.State.Header) : Prop where
 -- introduce the unwrapped value with nothing tying it to what was wrapped, and
 -- the expansion's output would be lost. Removing it locally makes the tactic
 -- stop at the projection so the round trip can be applied by hand.
+section DerefByHand
 attribute [-step] Tacenta.T1.zeroizing_deref_step
 
 @[step]
@@ -350,8 +354,9 @@ theorem kdf_rk_refines (h : HkdfAgrees) (hz : ZeroizingRoundTrips)
   step* <;> simp_all [Slice.length, Model.State.kdfRk, keyOf,
     rk_info_agrees labels, List.map_take, List.map_drop]
 
--- Restored, so nothing outside this proof is affected by the removal above.
-attribute [step] Tacenta.T1.zeroizing_deref_step
+-- The removal is scoped to this section, so nothing outside this proof is
+-- affected by it and the rule is back in force from here on.
+end DerefByHand
 
 /-! ## Message-key expansion refines the model's
 
@@ -523,8 +528,8 @@ theorem derive_chain_loop_refines (h : HmacAgrees) [DerivedKeysModel]
       all_goals omega
     · -- The range is spent, so the model derives nothing further and the
       -- invariant is already the answer.
-      step* <;>
-        simp_all [predOf, keysOf, Model.State.deriveChain]
+      step*
+      simp_all [predOf, keysOf, Model.State.deriveChain]
   · exact ⟨hinv, hb⟩
 
 /-- The loop lifted to the whole function: what the Rust derives is what the
@@ -629,7 +634,8 @@ theorem skip_message_keys_loop_refines [DerivedKeysModel]
     · -- Nothing left to read, so the invariant is already the answer.
       have hge : (DerivedKeysModel.contents keys).val.length ≤ j.val := by omega
       rw [List.drop_eq_nil_of_le hge] at hinv2
-      step* <;> simp_all [alloc.vec.Vec.len]
+      step*
+      simp_all [alloc.vec.Vec.len]
   · exact ⟨hinv, hb⟩
 
 /-! ## The skip step refines the model's
@@ -799,36 +805,41 @@ theorem purge_chain_range_loop_refines (hrm : Tacenta.T1.VecRemoveTotal)
              (keepOutside (keyOf dhr) from1.val upto.val) = target)
   · rintro ⟨v, j⟩ hinv2
     simp only at hinv2
-    obtain ⟨⟨removed, v'⟩, hrm', hv⟩ := hrm Global v j
-    simp only [purge_chain_range_loop.body, hrm']
+    simp only [purge_chain_range_loop.body]
     simp only [map_take, map_drop] at hinv2
-    by_cases hlt : j.val < v.val.length <;> step*
-    all_goals
-      first
-        -- The entry matches: it goes, and the index stays put.
-        | (rw [hv]
-           refine ⟨?_, by simp only [List.length_eraseIdx]; split <;> omega⟩
-           simp only [map_take, map_drop, map_eraseIdx]
-           rw [prefix_step_erase (List.map skippedOf v.val)
-             (keepOutside (keyOf dhr) from1.val upto.val) j.val
-             (by simpa using hlt)
-             (by simp_all [keepOutside, skippedOf])]
-           exact hinv2)
-        -- The entry is kept and the scan steps past it.
-        | (rw [i2_post]
-           refine ⟨?_, by omega⟩
-           simp only [map_take, map_drop]
-           rw [← prefix_step_keep (List.map skippedOf v.val)
-             (keepOutside (keyOf dhr) from1.val upto.val) j.val
-             (by simpa using hlt)
-             (by simp_all [keepOutside, skippedOf])]
-           exact hinv2)
-        -- The scan is spent: nothing is left to judge, so the invariant is
-        -- already the answer.
-        | (have hge : (List.map skippedOf v.val).length ≤ j.val := by
-             simp; omega
-           rw [List.take_of_length_le hge, List.drop_eq_nil_of_le hge] at hinv2
-           simpa using hinv2)
+    -- The removal's hypothesis is available only under the guard the body
+    -- checks first, so the case split comes before the removal is named.
+    by_cases hlt : j.val < v.val.length
+    · obtain ⟨⟨removed, v'⟩, hrm', hv⟩ := hrm Global v j hlt
+      simp only [hrm']
+      step*
+      all_goals
+        first
+          -- The entry matches: it goes, and the index stays put.
+          | (rw [hv]
+             refine ⟨?_, by simp only [List.length_eraseIdx]; split <;> omega⟩
+             simp only [map_take, map_drop, map_eraseIdx]
+             rw [prefix_step_erase (List.map skippedOf v.val)
+               (keepOutside (keyOf dhr) from1.val upto.val) j.val
+               (by simpa using hlt)
+               (by simp_all [keepOutside, skippedOf])]
+             exact hinv2)
+          -- The entry is kept and the scan steps past it.
+          | (rw [i2_post]
+             refine ⟨?_, by omega⟩
+             simp only [map_take, map_drop]
+             rw [← prefix_step_keep (List.map skippedOf v.val)
+               (keepOutside (keyOf dhr) from1.val upto.val) j.val
+               (by simpa using hlt)
+               (by simp_all [keepOutside, skippedOf])]
+             exact hinv2)
+    · -- The scan is spent: nothing is left to judge, so the invariant is
+      -- already the answer.
+      step*
+      have hge : (List.map skippedOf v.val).length ≤ j.val := by
+        simp; omega
+      rw [List.take_of_length_le hge, List.drop_eq_nil_of_le hge] at hinv2
+      simpa using hinv2
   · exact hinv
 
 /-- The scan lifted to the whole function: what it leaves in the store is what
@@ -884,8 +895,10 @@ def keepFresh (now : Nat) (e : Model.State.Key × Nat × Nat × Model.State.Key)
   decide (now - e.2.2.1 < Model.State.maxSkippedAge)
 
 /-- The model writes its predicate inline; this names it, the same move as
-`matchesHeader_eta`, so the filter it builds rewrites into the loop's form. -/
-@[simp]
+`matchesHeader_eta`, so the filter it builds rewrites into the loop's form.
+Not a global `simp` lemma: its left-hand side is a lambda, which the
+discrimination tree cannot index, so it is supplied by name where it is
+needed. -/
 theorem keepFresh_eta (now : Nat) :
     (fun e : Model.State.Key × Nat × Nat × Model.State.Key =>
       decide (now - e.2.2.1 < Model.State.maxSkippedAge)) = keepFresh now :=
@@ -908,18 +921,20 @@ theorem age_store_loop_refines (hrm : Tacenta.T1.VecRemoveTotal)
              (keepFresh now.val) = target)
   · rintro ⟨v, j⟩ hinv2
     simp only at hinv2
-    obtain ⟨⟨removed, v'⟩, hrm', hv⟩ := hrm Global v j
-    simp only [age_store_loop.body, hrm', lift]
+    simp only [age_store_loop.body, lift]
     simp only [map_take, map_drop] at hinv2
     -- The exit case is separated rather than left to a fallback branch: a
     -- `first` cannot back out of a failure raised inside a nested `by`, so a
-    -- branch that half-applies here would take the goal with it.
+    -- branch that half-applies here would take the goal with it. The removal
+    -- is named only in the other case, under the guard its hypothesis needs.
     by_cases hlt : j.val < v.val.length
     case neg =>
       step*
       rw [List.drop_eq_nil_of_le (by simpa using hlt), List.filter_nil,
         List.append_nil, List.take_of_length_le (by simpa using hlt)] at hinv2
       exact hinv2
+    obtain ⟨⟨removed, v'⟩, hrm', hv⟩ := hrm Global v j hlt
+    simp only [hrm']
     step*
     all_goals
       first
@@ -943,7 +958,6 @@ theorem age_store_loop_refines (hrm : Tacenta.T1.VecRemoveTotal)
              (by simp_all [keepFresh, skippedOf, saturating_sub_val,
                    MAX_SKIPPED_AGE, Model.State.maxSkippedAge])]
            exact hinv2)
-        | simp_all
   · simpa using hinv
 
 /-- Ageing the store refines the model's, given the counter has room. The bound
@@ -958,14 +972,14 @@ theorem age_store_refines (hrm : Tacenta.T1.VecRemoveTotal)
   simp only [lift]
   have hnow : (core.num.U32.saturating_add s.events 1#u32).val = m.events + 1 := by
     rw [saturating_add_val]
-    first | scalar_tac | omega | (simp only [hev] at *; omega)
+    scalar_tac
   have hl := age_store_loop_refines hrm (core.num.U32.saturating_add s.events 1#u32)
     _ s.skipped 0#usize rfl
   step*
   refine ⟨hdhs, hdhr, hrk, hcks, hckr, hns, hnr, hpn, ?_, ?_, hlab⟩
   · simp only [Model.State.ageStore]
     rw [← hskip]
-    simp_all
+    simp_all [keepFresh_eta]
   · simpa [Model.State.ageStore] using hnow
 
 theorem skip_message_keys_refines (h : HmacAgrees)
@@ -1099,8 +1113,8 @@ def matchesHeader (mh : Model.State.Header)
 
 /-- The model writes its predicate inline; this names it, so the scan's
 conclusions rewrite into the model's `match` scrutinee. Definitional, but `rw`
-matches syntactically, so it has to be said. -/
-@[simp]
+matches syntactically, so it has to be said. Not a global `simp` lemma, for
+the same reason as `keepFresh_eta`. -/
 theorem matchesHeader_eta (mh : Model.State.Header) :
     (fun (x : Model.State.Key × Nat × Nat × Model.State.Key) =>
       match x with | (dh, n, _, _) => dh == mh.dh && n == mh.n) = matchesHeader mh :=
@@ -1131,79 +1145,74 @@ theorem try_skipped_loop_refines (hrm : Tacenta.T1.VecRemoveTotal)
     (inv := fun j => ((s.skipped.val.map skippedOf).take j.val).filter
       (matchesHeader mh) = [])
   · rintro j hinv2
-    obtain ⟨⟨removed, v'⟩, hrm', hv⟩ := hrm Global s.skipped j
-    simp only [try_skipped_loop.body, hrm']
-    by_cases hlt : j.val < s.skipped.val.length <;> step*
-    -- The entry matches: the lookup finds it, and deleting every match is
-    -- erasing this index, which is what the store being a map buys.
-    · have hjm : j.val < (s.skipped.val.map skippedOf).length := by simpa using hlt
-      have hdheq : sk.dh = hdr.dh := b_post.mp (by assumption)
-      have hneq : sk.n = hdr.n := by assumption
-      have hpj : matchesHeader mh (s.skipped.val.map skippedOf)[j.val] = true := by
-        rw [List.getElem_map, ← sk_post]
-        simp only [matchesHeader, skippedOf, Bool.and_eq_true, beq_iff_eq]
-        exact ⟨by rw [hdheq, hhdh], by rw [hneq, hhn]⟩
-      refine ⟨?_, by simp⟩
-      rintro mk hmk
-      injection hmk with hmk
-      subst hmk
-      constructor
-      · refine ⟨sk.stored_at.val, ?_⟩
-        have hsp : (s.skipped.val.map skippedOf)
-            = ((s.skipped.val.map skippedOf).take j.val)
-              ++ (s.skipped.val.map skippedOf)[j.val]
-                :: (s.skipped.val.map skippedOf).drop (j.val + 1) := by
-          rw [← List.drop_eq_getElem_cons hjm, List.take_append_drop]
-        rw [hsp, find?_eq_of_split _ _ _ _ hinv2 hpj, List.getElem_map, ← sk_post]
-        simp only [skippedOf]
-        rw [hdheq, hhdh, hneq, hhn]
-      · rw [hv, map_eraseIdx,
-          filter_not_eq_eraseIdx (matchesHeader mh) _ j.val hjm hpj hone]
-    -- The entry's message number differs, so the scan steps past it.
-    · have hjm : j.val < (s.skipped.val.map skippedOf).length := by
-        simpa using hlt
-      rw [i2_post]
-      refine ⟨?_, by omega⟩
-      rw [List.take_add_one, List.getElem?_eq_getElem hjm, List.filter_append,
-        hinv2]
-      simp only [List.nil_append, List.getElem_map, ← sk_post]
-      have hnm : matchesHeader mh (skippedOf sk) = false := by
-        simp only [matchesHeader, skippedOf, Bool.and_eq_false_iff,
-          beq_eq_false_iff_ne]
-        first
-          | (right
-             intro hc
-             rw [← hhn] at hc
-             exact (by assumption : ¬ sk.n = hdr.n) (by scalar_tac))
-          | (left
-             intro hc
-             rw [← hhdh] at hc
-             exact (by assumption : ¬ b = true) (b_post.mpr (keyOf_inj hc)))
-      simp [hnm]
-    -- The entry's ratchet key differs, likewise.
-    · have hjm : j.val < (s.skipped.val.map skippedOf).length := by
-        simpa using hlt
-      rw [i2_post]
-      refine ⟨?_, by omega⟩
-      rw [List.take_add_one, List.getElem?_eq_getElem hjm, List.filter_append,
-        hinv2]
-      simp only [List.nil_append, List.getElem_map, ← sk_post]
-      have hnm : matchesHeader mh (skippedOf sk) = false := by
-        simp only [matchesHeader, skippedOf, Bool.and_eq_false_iff,
-          beq_eq_false_iff_ne]
-        first
-          | (right
-             intro hc
-             rw [← hhn] at hc
-             exact (by assumption : ¬ sk.n = hdr.n) (by scalar_tac))
-          | (left
-             intro hc
-             rw [← hhdh] at hc
-             exact (by assumption : ¬ b = true) (b_post.mpr (keyOf_inj hc)))
-      simp [hnm]
+    simp only [try_skipped_loop.body]
+    -- The removal's hypothesis is available only under the guard the body
+    -- checks first, so the case split comes before the removal is named.
+    by_cases hlt : j.val < s.skipped.val.length
+    · obtain ⟨⟨removed, v'⟩, hrm', hv⟩ := hrm Global s.skipped j hlt
+      simp only [hrm']
+      step*
+      -- The entry matches: the lookup finds it, and deleting every match is
+      -- erasing this index, which is what the store being a map buys.
+      · have hjm : j.val < (s.skipped.val.map skippedOf).length := by simpa using hlt
+        have hdheq : sk.dh = hdr.dh := b_post.mp (by assumption)
+        have hneq : sk.n = hdr.n := by assumption
+        have hpj : matchesHeader mh (s.skipped.val.map skippedOf)[j.val] = true := by
+          rw [List.getElem_map, ← sk_post]
+          simp only [matchesHeader, skippedOf, Bool.and_eq_true, beq_iff_eq]
+          exact ⟨by rw [hdheq, hhdh], by rw [hneq, hhn]⟩
+        refine ⟨?_, by simp⟩
+        rintro mk hmk
+        injection hmk with hmk
+        subst hmk
+        constructor
+        · refine ⟨sk.stored_at.val, ?_⟩
+          have hsp : (s.skipped.val.map skippedOf)
+              = ((s.skipped.val.map skippedOf).take j.val)
+                ++ (s.skipped.val.map skippedOf)[j.val]
+                  :: (s.skipped.val.map skippedOf).drop (j.val + 1) := by
+            rw [← List.drop_eq_getElem_cons hjm, List.take_append_drop]
+          rw [hsp, find?_eq_of_split _ _ _ _ hinv2 hpj, List.getElem_map, ← sk_post]
+          simp only [skippedOf]
+          rw [hdheq, hhdh, hneq, hhn]
+        · rw [hv, map_eraseIdx,
+            filter_not_eq_eraseIdx (matchesHeader mh) _ j.val hjm hpj hone]
+      -- The entry's message number differs, so the scan steps past it.
+      · have hjm : j.val < (s.skipped.val.map skippedOf).length := by
+          simpa using hlt
+        rw [i2_post]
+        refine ⟨?_, by omega⟩
+        rw [List.take_add_one, List.getElem?_eq_getElem hjm, List.filter_append,
+          hinv2]
+        simp only [List.nil_append, List.getElem_map, ← sk_post]
+        have hnm : matchesHeader mh (skippedOf sk) = false := by
+          simp only [matchesHeader, skippedOf, Bool.and_eq_false_iff,
+            beq_eq_false_iff_ne]
+          right
+          intro hc
+          rw [← hhn] at hc
+          exact (by assumption : ¬ sk.n = hdr.n) (by scalar_tac)
+        simp [hnm]
+      -- The entry's ratchet key differs, likewise.
+      · have hjm : j.val < (s.skipped.val.map skippedOf).length := by
+          simpa using hlt
+        rw [i2_post]
+        refine ⟨?_, by omega⟩
+        rw [List.take_add_one, List.getElem?_eq_getElem hjm, List.filter_append,
+          hinv2]
+        simp only [List.nil_append, List.getElem_map, ← sk_post]
+        have hnm : matchesHeader mh (skippedOf sk) = false := by
+          simp only [matchesHeader, skippedOf, Bool.and_eq_false_iff,
+            beq_eq_false_iff_ne]
+          left
+          intro hc
+          rw [← hhdh] at hc
+          exact (by assumption : ¬ b = true) (b_post.mpr (keyOf_inj hc))
+        simp [hnm]
     -- The scan is spent, so nothing matched anywhere and the store is the one
     -- it started with.
-    · refine ⟨by simp, fun _ => ?_⟩
+    · step*
+      refine ⟨by simp, fun _ => ?_⟩
       exact find?_eq_none_of_scanned _ _ j.val (by simpa using hlt) hinv2
   · exact hpre
 
@@ -1225,9 +1234,12 @@ theorem try_skipped_loop_fields (hrm : Tacenta.T1.VecRemoveTotal)
     (measure := fun j => s.skipped.val.length - j.val)
     (inv := fun _ => True)
   · rintro j -
-    obtain ⟨⟨removed, v'⟩, hrm', hv⟩ := hrm Global s.skipped j
-    simp only [try_skipped_loop.body, hrm']
-    by_cases hlt : j.val < s.skipped.val.length <;> step*
+    simp only [try_skipped_loop.body]
+    by_cases hlt : j.val < s.skipped.val.length
+    · obtain ⟨⟨removed, v'⟩, hrm', -⟩ := hrm Global s.skipped j hlt
+      simp only [hrm']
+      step*
+    · step*
   · trivial
 
 /-- The lookup, lifted to the whole function. On a hit it returns the key the

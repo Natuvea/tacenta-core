@@ -52,16 +52,20 @@ opaque primitive itself: that when `hkdf_sha256` returns, it returns what
 alike: salt, then the input keying material, then the info string --
 `kdf_init`/`kdf_rk`/`kdf_ck` all call `hkdf_sha256` this way, and
 `Model.SparseRatchet.kdfInit`/`kdfRk`/`kdfCk` all call `Model.Kdf.hkdf` the
-same way. -/
+same way. The premise is RFC 5869's output bound of 8160 bytes, which the
+crate's own `expect` enforces, so the agreement is stated exactly where the
+real operation returns (`T1.HkdfTotal` says why); every call here asks for
+64 or 96 bytes. -/
 def SpqrHkdfAgrees : Prop :=
-  ∀ N salt ikm info, ∃ r, tacenta_kdf.hkdf_sha256 N salt ikm info = ok r ∧
+  ∀ N salt ikm info, N.val ≤ 8160 → ∃ r, tacenta_kdf.hkdf_sha256 N salt ikm info = ok r ∧
     keyOf r = Model.Kdf.hkdf (sliceOf salt) (sliceOf ikm) (sliceOf info) N.val
 
 @[step]
-theorem hkdf_step (h : SpqrHkdfAgrees) (N : Usize) (salt ikm info : Slice Std.U8) :
+theorem hkdf_step (h : SpqrHkdfAgrees) (N : Usize) (salt ikm info : Slice Std.U8)
+    (hN : N.val ≤ 8160) :
     tacenta_kdf.hkdf_sha256 N salt ikm info ⦃ fun r =>
       keyOf r = Model.Kdf.hkdf (sliceOf salt) (sliceOf ikm) (sliceOf info) N.val ⦄ := by
-  obtain ⟨r, hr, hv⟩ := h N salt ikm info; simp [hr, hv]
+  obtain ⟨r, hr, hv⟩ := h N salt ikm info hN; simp [hr, hv]
 
 /-! ## The `zeroize` wrapper round-trips, at the two widths this crate wraps at
 
@@ -436,13 +440,18 @@ returns the element actually at the index it removed, not merely a vector one
 shorter. Both are strictly stronger than `SpqrT1.lean`'s totality, so this
 file does not also carry that hypothesis.
 
-`VecRemoveAgrees` names the removed element only under the index bound the
-call site has anyway. Naming it as `v.val[i.val]!`, whose out-of-range value
-is the `Inhabited` instance's `default`, quantified over every instance,
-would be refutable (two instances on `Bool`, one empty vector, one axiom
-returning one value), and `try_skipped_refines` and `receive_refines` would
-be provable from `False`; `Translation/Satisfiability.lean` refutes that
-shape and models this one. -/
+`VecRemoveAgrees` speaks only under the index bound `i < len`, which is the
+condition under which the real `Vec::remove` returns at all (out of range it
+panics) and is the loop guard its one call site checks first; the proof
+discharges the premise from that branch. That guard is also what lets the
+removed element be named as `v.val[i.val]` with no `Inhabited` bound and no
+`!` index: named as `v.val[i.val]!`, whose out-of-range value is the
+`Inhabited` instance's `default`, quantified over every instance, the
+hypothesis would be refutable (two instances on `Bool`, one empty vector,
+one axiom returning one value), and `try_skipped_refines` and
+`receive_refines` would be provable from `False`.
+`Translation/Satisfiability.lean` models this shape, and keeps the
+refutation of the unguarded one. -/
 
 def VecRetainAgrees : Prop :=
   ∀ {T F : Type} (A : Type) (inst : core.ops.function.FnMut F T Bool)
@@ -451,9 +460,8 @@ def VecRetainAgrees : Prop :=
     ∃ r, alloc.vec.Vec.retain A inst v f = ok r ∧ r.val = v.val.filter p
 
 def VecRemoveAgrees : Prop :=
-  ∀ {T : Type} [Inhabited T] (A : Type) (v : alloc.vec.Vec T) (i : Usize),
-    ∃ r, alloc.vec.Vec.remove A v i = ok r ∧
-      (∀ h : i.val < v.val.length, r.1 = v.val[i.val]'h) ∧
+  ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize) (h : i.val < v.val.length),
+    ∃ r, alloc.vec.Vec.remove A v i = ok r ∧ r.1 = v.val[i.val]'h ∧
       r.2.val = v.val.eraseIdx i.val
 
 /-- Filtering commutes with a map whose predicate factors through it. Needed
@@ -559,7 +567,7 @@ theorem List.filter_filter_length_le {α : Type} (l : List α) (p q : α → Boo
   | nil => simp
   | cons hd tl ih =>
     simp only [List.filter_cons]
-    by_cases hp : p hd <;> by_cases hq : q hd <;> simp_all <;> omega
+    (by_cases hp : p hd <;> by_cases hq : q hd <;> simp_all); omega
 
 /-- `advance` grows the chain table by at most the one epoch it opens: `setChains`
 retains (never grows) then appends one, and `clearOldEpochs` only retains. Needed
@@ -1223,58 +1231,62 @@ theorem try_skipped_loop_refines (hrm : VecRemoveAgrees) (st : State) (e n : Std
     (inv := fun j => ((st.skipped.val.map skippedOf).take j.val).filter
       (fun x => x.1 == e.val && x.2.1 == n.val) = [])
   · rintro j hinv
-    obtain ⟨⟨removed, v'⟩, hrm', hval, herase⟩ := hrm Global st.skipped j
     simp only [State.try_skipped_loop.body]
-    by_cases hlt : j.val < st.skipped.val.length <;> step*
-    · -- The epoch and the number both match: this is the one, remove it.
-      rename_i heq1 heq2
-      simp only [hrm']
-      have hjm : j.val < (st.skipped.val.map skippedOf).length := by simpa using hlt
-      have hpj : (fun x : Nat × Nat × Model.State.Key => x.1 == e.val && x.2.1 == n.val)
-          (st.skipped.val.map skippedOf)[j.val] = true := by
-        rw [List.getElem_map, ← s_post, skippedOf]; simp [heq1, heq2]
-      have hsp : (st.skipped.val.map skippedOf)
-          = ((st.skipped.val.map skippedOf).take j.val)
-            ++ (st.skipped.val.map skippedOf)[j.val]
-              :: (st.skipped.val.map skippedOf).drop (j.val + 1) := by
-        rw [← List.drop_eq_getElem_cons hjm, List.take_append_drop]
-      have hvaleq : removed = st.skipped.val[j.val]'(by simpa using hlt) := hval _
-      refine ⟨rfl, rfl, rfl, rfl, ?_⟩
-      rw [hsp, find?_eq_of_split _ _ _ _ hinv hpj]
-      refine ⟨removed.key, rfl, ?_, ?_⟩
-      · rw [hvaleq, List.getElem_map]; simp [skippedOf]
-      · have herase' : v'.val = st.skipped.val.eraseIdx j.val := herase
-        rw [herase', map_eraseIdx, ← hsp]
-        exact (filter_not_eq_eraseIdx _ (st.skipped.val.map skippedOf) j.val hjm hpj hone).symm
-    · -- The number differs: keep scanning past it.
-      rename_i heq1 heq2
-      have hjm : j.val < (st.skipped.val.map skippedOf).length := by simpa using hlt
-      have hnm : (fun x : Nat × Nat × Model.State.Key => x.1 == e.val && x.2.1 == n.val)
-          (st.skipped.val.map skippedOf)[j.val] = false := by
-        rw [List.getElem_map, ← s_post]
-        simp only [skippedOf, heq1, Bool.and_eq_false_iff]
-        right
-        simpa [beq_eq_false_iff_ne] using heq2
-      rw [List.getElem_map] at hnm
-      rw [i2_post]
-      rw [List.take_add_one, List.getElem?_eq_getElem hjm, List.filter_append, hinv]
-      simp [hnm]
-      scalar_tac
-    · -- The epoch differs: keep scanning past it.
-      rename_i heq1
-      have hjm : j.val < (st.skipped.val.map skippedOf).length := by simpa using hlt
-      have hnm : (fun x : Nat × Nat × Model.State.Key => x.1 == e.val && x.2.1 == n.val)
-          (st.skipped.val.map skippedOf)[j.val] = false := by
-        rw [List.getElem_map, ← s_post]
-        simp only [skippedOf, Bool.and_eq_false_iff]
-        left
-        simpa [beq_eq_false_iff_ne] using heq1
-      rw [List.getElem_map] at hnm
-      rw [i2_post]
-      rw [List.take_add_one, List.getElem?_eq_getElem hjm, List.filter_append, hinv]
-      simp [hnm]
-      scalar_tac
+    -- The removal's hypothesis is available only under the guard the body
+    -- checks first, so the case split comes before the removal is named.
+    by_cases hlt : j.val < st.skipped.val.length
+    · obtain ⟨⟨removed, v'⟩, hrm', hval, herase⟩ := hrm Global st.skipped j hlt
+      step*
+      · -- The epoch and the number both match: this is the one, remove it.
+        rename_i heq1 heq2
+        simp only [hrm']
+        have hjm : j.val < (st.skipped.val.map skippedOf).length := by simpa using hlt
+        have hpj : (fun x : Nat × Nat × Model.State.Key => x.1 == e.val && x.2.1 == n.val)
+            (st.skipped.val.map skippedOf)[j.val] = true := by
+          rw [List.getElem_map, ← s_post, skippedOf]; simp [heq1, heq2]
+        have hsp : (st.skipped.val.map skippedOf)
+            = ((st.skipped.val.map skippedOf).take j.val)
+              ++ (st.skipped.val.map skippedOf)[j.val]
+                :: (st.skipped.val.map skippedOf).drop (j.val + 1) := by
+          rw [← List.drop_eq_getElem_cons hjm, List.take_append_drop]
+        have hvaleq : removed = st.skipped.val[j.val]'(by simpa using hlt) := hval
+        refine ⟨rfl, rfl, rfl, rfl, ?_⟩
+        rw [hsp, find?_eq_of_split _ _ _ _ hinv hpj]
+        refine ⟨removed.key, rfl, ?_, ?_⟩
+        · rw [hvaleq, List.getElem_map]; simp [skippedOf]
+        · have herase' : v'.val = st.skipped.val.eraseIdx j.val := herase
+          rw [herase', map_eraseIdx, ← hsp]
+          exact (filter_not_eq_eraseIdx _ (st.skipped.val.map skippedOf) j.val hjm hpj hone).symm
+      · -- The number differs: keep scanning past it.
+        rename_i heq1 heq2
+        have hjm : j.val < (st.skipped.val.map skippedOf).length := by simpa using hlt
+        have hnm : (fun x : Nat × Nat × Model.State.Key => x.1 == e.val && x.2.1 == n.val)
+            (st.skipped.val.map skippedOf)[j.val] = false := by
+          rw [List.getElem_map, ← s_post]
+          simp only [skippedOf, heq1, Bool.and_eq_false_iff]
+          right
+          simpa [beq_eq_false_iff_ne] using heq2
+        rw [List.getElem_map] at hnm
+        rw [i2_post]
+        rw [List.take_add_one, List.getElem?_eq_getElem hjm, List.filter_append, hinv]
+        simp [hnm]
+        scalar_tac
+      · -- The epoch differs: keep scanning past it.
+        rename_i heq1
+        have hjm : j.val < (st.skipped.val.map skippedOf).length := by simpa using hlt
+        have hnm : (fun x : Nat × Nat × Model.State.Key => x.1 == e.val && x.2.1 == n.val)
+            (st.skipped.val.map skippedOf)[j.val] = false := by
+          rw [List.getElem_map, ← s_post]
+          simp only [skippedOf, Bool.and_eq_false_iff]
+          left
+          simpa [beq_eq_false_iff_ne] using heq1
+        rw [List.getElem_map] at hnm
+        rw [i2_post]
+        rw [List.take_add_one, List.getElem?_eq_getElem hjm, List.filter_append, hinv]
+        simp [hnm]
+        scalar_tac
     · -- The scan is spent: nothing matched anywhere.
+      step*
       rw [find?_eq_none_of_scanned _ _ j.val (by simpa using hlt) hinv]
       simp
   · exact hpre
@@ -1546,7 +1558,7 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
         have hi3 : i3.val = count.val := by
           have := max_skip_val
           rw [i3_post, UScalar.cast_val_eq]
-          rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac
+          (rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all); scalar_tac
         have hnotC : ¬ m.skipped.length + (upto.val - (chainOf ch).n)
             > Model.SparseRatchet.maxSkippedStore := by
           simp only [chainOf]
@@ -1564,16 +1576,15 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
           s.skipped (e, ch1.n, upto)
           (fun x => !(x.epoch == e && ch1.n < x.n && x.n ≤ upto))
           (fun x => by
-            by_cases h1 : x.epoch = e <;> by_cases h2 : ch1.n < x.n <;> by_cases h3 : x.n ≤ upto <;>
+            (by_cases h1 : x.epoch = e <;> by_cases h2 : ch1.n < x.n <;> by_cases h3 : x.n ≤ upto <;>
               simp [
                 State.skip_message_keys.closure.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool.call_mut,
                 h1, h2, h3] <;>
               (try split) <;>
-              simp_all <;>
-              first
-                | rfl
-                | (congr 1; congr 1; scalar_tac)
-                | (congr 1; congr 1; simp [h1]))
+              simp_all)
+            first
+              | rfl
+              | scalar_tac)
         simp only [hv]
         have hretain := hveq
         step*
@@ -1624,7 +1635,7 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
               simp only [skippedOf, ch1_post]
               congr 1
               congr 1
-              congr 1 <;> first | rfl | scalar_tac | simp [UScalar.eq_equiv])
+              congr 1; first | rfl | scalar_tac | simp [UScalar.eq_equiv])
         set newSkipped : List (Nat × Nat × Model.State.Key) :=
           m.skipped.filter
               (fun x => !(x.1 == e.val && (chainOf ch).n < x.2.1 && x.2.1 ≤ upto.val))
@@ -1958,7 +1969,13 @@ neither `lake build` nor `#print axioms` can flag. `ChainCounterBounded`,
 `maybeAdvance_chain_counter_bounded`, `skipMessageKeys_chain_counter_bounded`,
 and `chainCounterBounded_of_real` (all above, ahead of `send_refines`) are
 what let the internal proofs reach the specific chain each needs the bound
-for; `SpqrT1.lean` scopes its own `hcounter` the same way. See
+for. `SpqrT1.lean`'s `send_no_panic`/`receive_no_panic` no longer carry
+`hepoch` or `hcounter` at all: every epoch and counter increment is a
+`checked_add` whose `None` arm returns `ChainExhausted`, an outcome those
+proofs walk. This file keeps both, for the model's reason rather than the
+code's -- `Model.SparseRatchet` counts in `Nat`, so at the ceiling the real
+code's `ChainExhausted` has nothing to refine against, exactly as
+`BraidT3.lean` keeps its `hepoch` where `BraidT1.lean` dropped it. See
 `LIMITATIONS.md`. -/
 
 end Tacenta.SpqrT3

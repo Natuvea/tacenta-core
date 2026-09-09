@@ -108,9 +108,14 @@ def SpqrReceiveTotal : Prop :=
     ∃ r, tacenta_spqr.State.receive s epoch out n = ok r
 
 /-- This crate's own copy of the opaque KDF and `Zeroize` axioms, distinct
-constants from `T1.lean`'s and `SpqrT1.lean`'s copies of the same operations. -/
+constants from `T1.lean`'s and `SpqrT1.lean`'s copies of the same operations.
+The HKDF premise is RFC 5869's output bound of 8160 bytes, the bound the
+crate's own `expect` enforces, so the hypothesis is stated exactly where the
+real operation returns (`T1.HkdfTotal` says why); this crate asks for 32 or
+64 bytes. -/
 def HkdfSha256Total : Prop :=
-  ∀ (N : Usize) (a b c : Slice U8), ∃ r, tacenta_kdf.hkdf_sha256 N a b c = ok r
+  ∀ (N : Usize) (a b c : Slice U8), N.val ≤ 8160 →
+    ∃ r, tacenta_kdf.hkdf_sha256 N a b c = ok r
 
 def ZeroizeTotal : Prop :=
   ∀ (a : Array U8 32#usize),
@@ -192,7 +197,7 @@ theorem split_secret_no_panic (hkdf : HkdfSha256Total) (hzw : ZeroizingTotal) (s
     split_secret sk ⦃ fun _ => True ⦄ := by
   unfold split_secret
   step*
-  all_goals (try (obtain ⟨r, hr⟩ := hkdf 64#usize ‹_› sk SPLIT_INFO; simp only [hr]))
+  all_goals (try (obtain ⟨r, hr⟩ := hkdf 64#usize ‹_› sk SPLIT_INFO (by scalar_tac); simp only [hr]))
   all_goals (try step*)
   all_goals (try simp_all [Slice.length])
 
@@ -200,7 +205,7 @@ theorem combine_no_panic (hkdf : HkdfSha256Total) (mk_classical mk_pq : Array U8
     combine mk_classical mk_pq ⦃ fun _ => True ⦄ := by
   unfold combine
   step*
-  obtain ⟨r, hr⟩ := hkdf 32#usize s s1 COMBINE_INFO
+  obtain ⟨r, hr⟩ := hkdf 32#usize s s1 COMBINE_INFO (by scalar_tac)
   simp [hr]
 
 /-! ## `State`'s clone and small accessors

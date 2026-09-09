@@ -21,7 +21,12 @@ namespace Tacenta.SpqrT1
 
 open tacenta_spqr
 
-/-- `Vec::remove` returns, **for this crate's copy of it**.
+/-- `Vec::remove` at an in-range index returns the input with that index
+erased, **for this crate's copy of it**. Out of range `Vec::remove` panics,
+and the hypothesis says nothing there: it is a fact the real operation
+satisfies for every quantified input, and its one use below sits under the
+loop guard `i < len` the source checks first, from which the proof discharges
+the premise.
 
 `T1.lean` states the same assumption and it does not apply here. Each
 translation unit declares its own opaque `alloc.vec.Vec.remove`, so
@@ -33,17 +38,14 @@ multiplies the trusted base: one modelling gap in Aeneas becomes one
 assumption per translated crate that touches it, and a reader counting
 assumptions by name rather than by constant will undercount.
 
-`[Inhabited T]` is what makes this satisfiable: without it the statement would
-be refutable at `T := Empty`, and `try_skipped_no_panic` and
-`receive_no_panic` below provable from `False` (see `T1.lean`'s twin and
-`Translation/Satisfiability.lean`). -/
+The guard is also what makes this satisfiable without an `[Inhabited T]`
+bound: stated for every index, the existential would ask at `T := Empty` for
+an element of an empty type, and `try_skipped_no_panic` and
+`receive_no_panic` below would be provable from `False` (see `T1.lean`'s twin
+and `Translation/Satisfiability.lean`). -/
 def VecRemoveTotal : Prop :=
-  ∀ {T : Type} [Inhabited T] (A : Type) (v : alloc.vec.Vec T) (i : Usize),
+  ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize), i.val < v.val.length →
     ∃ r, alloc.vec.Vec.remove A v i = ok r ∧ r.2.val = v.val.eraseIdx i.val
-
-/-- Aeneas does not derive this for its generated structures; `VecRemoveTotal`
-above and `SpqrT3.lean`'s `VecRemoveAgrees` both ask for it. -/
-instance : Inhabited Skipped := ⟨{ epoch := default, n := default, key := default }⟩
 
 /-- Wiping a chain key returns.
 
@@ -115,7 +117,7 @@ theorem chains_clone_spec (hopt : OptionCloneTotal) (cs : Chains) :
     (fun x _ => chain_clone_spec x)
   step with hopt Chain.Insts.CoreCloneClone cs.receive
     (fun x _ => chain_clone_spec x)
-  step* <;> simp_all
+  simp_all
 
 /-- The chain-key derivation returns.
 
@@ -133,8 +135,10 @@ The bound is rechecked every turn, so the index is in range however the vector
 got its length. The measure is how far the index still has to climb, which is
 the same shape as every other scan in this repository. -/
 -- Strengthened past bare panic-freedom: a successful find names a real entry
--- of the table, not merely a value that happens to match, since `receive`'s
--- own per-chain counter bound needs to reach the chain this returns.
+-- of the table, not merely a value that happens to match. The per-chain
+-- counter bound that first needed this is gone from `send`/`receive` (the
+-- counter's increment is a `checked_add`, walked below), and the fact stays
+-- because it is what a caller reasoning about the table's contents needs.
 theorem find_chains_loop_no_panic (st : State) (e : U64) (i : Usize) :
     State.find_chains_loop st e i ⦃ fun r => ∀ cs, r = some cs → (e, cs) ∈ st.chains.val ⦄ := by
   unfold State.find_chains_loop
@@ -147,7 +151,6 @@ theorem find_chains_loop_no_panic (st : State) (e : U64) (i : Usize) :
     split <;> [skip; simp]
     step*
     all_goals (try simp_all)
-    all_goals (try (intro cs hcs; injection hcs with hcs; subst hcs; simp_all [List.mem_iff_getElem]; scalar_tac))
   · trivial
 
 @[step]
@@ -169,15 +172,14 @@ theorem try_skipped_loop_no_panic (hrm : VecRemoveTotal)
     (inv := fun _ => True)
   · rintro i1 -
     simp only [State.try_skipped_loop.body]
-    split
-    · -- Inside the store. The index is in range by the test just taken, the
-      -- removal is total by assumption, and the advance cannot overflow because
-      -- the index is below a vector's length.
-      obtain ⟨⟨removed, v'⟩, hrm', herase⟩ := hrm Global st.skipped i1
+    by_cases hlt : i1.val < st.skipped.val.length
+    · -- Inside the store. The index is in range by the test just taken, which
+      -- is the removal's premise, and the advance cannot overflow because the
+      -- index is below a vector's length.
+      obtain ⟨⟨removed, v'⟩, hrm', herase⟩ := hrm Global st.skipped i1 hlt
       step*
       all_goals (try simp_all [List.length_eraseIdx])
-      all_goals (try scalar_tac)
-    · simp
+    · step*
   · trivial
 
 @[step]
@@ -185,7 +187,7 @@ theorem try_skipped_no_panic (hrm : VecRemoveTotal) (st : State) (e n : U64) :
     State.try_skipped st e n
       ⦃ fun r => r.2.chains = st.chains ∧ r.2.skipped.length ≤ st.skipped.length ⦄ := by
   unfold State.try_skipped
-  step with try_skipped_loop_no_panic hrm <;> simp_all
+  step with try_skipped_loop_no_panic hrm; simp_all
 
 theorem skip_message_keys_loop_no_panic (hkdf : KdfCkTotal) (hz : ZeroizeTotal)
     (e upto : U64) (ck : Array U8 32#usize)
@@ -283,17 +285,20 @@ theorem clear_old_epochs_no_panic (hret : VecRetainTotal) (st : State)
 
 theorem advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
     (hz : ZeroizeTotal) (st : State) (out : Output)
-    (hroom : st.chains.length < Usize.max)
-    (hepoch : st.epoch.val < U64.max) :
+    (hroom : st.chains.length < Usize.max) :
     -- `.skipped` is carried through too, not just `.chains`: `clear_old_epochs`
     -- ages both stores out together, and `receive` downstream needs to know
     -- `maybe_advance` alone cannot grow the skipped-key store, only shrink it.
     -- The membership clause: every surviving entry was already in the table
     -- (a retain, then a retain again, neither one able to fabricate a chain),
     -- and the one entry that can be new is this call's own, freshly opened
-    -- at counter zero on both sides -- named so a caller can derive a
-    -- per-chain counter bound without re-deriving it from `set_chains`'s and
+    -- at counter zero on both sides -- named so a caller can reason about
+    -- the table's contents without re-deriving it from `set_chains`'s and
     -- `clear_old_epochs`'s own separate membership facts each time.
+    --
+    -- No epoch bound: the increment is a `checked_add`, and its `None` arm
+    -- is a returned `ChainExhausted` with the state untouched, walked below
+    -- as a value.
     State.advance st out
       ⦃ fun r => r.2.chains.length ≤ st.chains.length + 1 ∧ r.2.skipped.length ≤ st.skipped.length ∧
           ∀ x ∈ r.2.chains.val, x ∈ st.chains.val ∨
@@ -302,6 +307,12 @@ theorem advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
   unfold State.advance
   obtain ⟨⟨rk', k1', k2'⟩, hrkr⟩ := hrk st.rk out.key
   obtain ⟨_, hzr⟩ := hz (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) st.rk
+  -- The epoch increment is a `checked_add`, so exhaustion at `u64::MAX` is
+  -- an ordinary `ChainExhausted` result with the state untouched, walked
+  -- here as a value rather than assumed away by an epoch bound.
+  rcases U64.checked_add st.epoch 1#u64 with _ | next_epoch
+  · simp only [lift]
+    step*
   -- The room precondition is not passed as an argument: a term for it handed
   -- to `set_chains_no_panic` directly does not unify, because the theorem's
   -- `st` unifies against a record-update literal here, and the precondition's
@@ -310,7 +321,7 @@ theorem advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
   -- which `simp_all` can close using `hroom` already in context.
   match st.direction with
   | .A2b =>
-    simp only [hrkr, hzr]
+    simp only [lift, hrkr, hzr]
     step*
     all_goals (try (step with set_chains_no_panic hret))
     all_goals (try simp_all)
@@ -323,7 +334,7 @@ theorem advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
         | exact Or.inl h1
         | (subst h1b; exact Or.inr ⟨h1a, ⟨_, rfl, rfl⟩, ⟨_, rfl, rfl⟩⟩)))
   | .B2a =>
-    simp only [hrkr, hzr]
+    simp only [lift, hrkr, hzr]
     step*
     all_goals (try (step with set_chains_no_panic hret))
     all_goals (try simp_all)
@@ -338,8 +349,7 @@ theorem advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
 
 theorem maybe_advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
     (hz : ZeroizeTotal) (st : State) (out : Option Output)
-    (hroom : st.chains.length < Usize.max)
-    (hepoch : st.epoch.val < U64.max) :
+    (hroom : st.chains.length < Usize.max) :
     State.maybe_advance st out
       ⦃ fun r => r.2.chains.length ≤ st.chains.length + 1 ∧ r.2.skipped.length ≤ st.skipped.length ∧
           ∀ x ∈ r.2.chains.val, x ∈ st.chains.val ∨
@@ -349,7 +359,7 @@ theorem maybe_advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
   match out with
   | none => simp
   | some o =>
-    refine Std.WP.spec_mono (advance_no_panic hret hrk hz st o hroom hepoch) ?_
+    refine Std.WP.spec_mono (advance_no_panic hret hrk hz st o hroom) ?_
     intro r hr
     obtain ⟨h1, h2, h3⟩ := hr
     refine ⟨h1, h2, fun x hx => ?_⟩
@@ -357,34 +367,29 @@ theorem maybe_advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
     · exact Or.inl h4
     · exact Or.inr ⟨o, rfl, h4⟩
 
+/-- Sending cannot fail. The one room precondition is the chain table's:
+one turn of `advance` may add one epoch's chains before this function's own
+`set_chains` runs, so the room this needs is one more than `advance` alone,
+and the margin `maybe_advance_no_panic` supplies has to survive both.
+
+No epoch bound and no counter bound: the epoch's increment (in `advance`)
+and the chain counter's (here) are both `checked_add`, and each `None` arm
+is a returned `ChainExhausted`, so exhaustion is an outcome the proof walks
+rather than a bound it assumes -- the same move `BraidT1.lean` made for the
+Braid's epoch with CR-03. -/
 theorem send_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
     (hz : ZeroizeTotal) (hkdf : KdfCkTotal) (hopt : OptionCloneTotal)
     (st : State) (sending_epoch : U64) (out : Option Output)
-    -- One turn of `advance` may add one epoch's chains before this function's
-    -- own `set_chains` runs, so the room this needs is one more than `advance`
-    -- alone: the margin `maybe_advance_no_panic` supplies has to survive both.
-    (hroom : st.chains.length + 1 < Usize.max)
-    (hepoch : st.epoch.val < U64.max)
-    (hcounter : ∀ p ∈ st.chains.val, ∀ ch : Chain,
-      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n.val < U64.max) :
+    (hroom : st.chains.length + 1 < Usize.max) :
     State.send st sending_epoch out ⦃ fun _ => True ⦄ := by
   unfold State.send
-  step with maybe_advance_no_panic hret hrk hz st out (by scalar_tac) hepoch
+  step with maybe_advance_no_panic hret hrk hz st out (by scalar_tac)
   all_goals (try step*)
   all_goals (try (step with chains_clone_spec hopt))
   all_goals (try step*)
   all_goals (try (obtain ⟨⟨next, mk⟩, hk⟩ := hkdf ch1.ck n; simp only [hk]))
   all_goals (try (step with hopt Chain.Insts.CoreCloneClone cs1.receive (fun x _ => chain_clone_spec x)))
   all_goals (try (step with set_chains_no_panic hret))
-  all_goals (try (
-    rcases r_post3 sending_epoch cs o_post with hp | ⟨o', ho', ha, hsendfresh, hrecvfresh⟩
-    · exact hcounter sending_epoch cs hp ch (Or.inl ‹cs.send = some ch›)
-    · obtain ⟨ch', hch'eq, hch'n⟩ := hsendfresh
-      rw [‹cs.send = some ch›] at hch'eq
-      injection hch'eq with hch'eq
-      subst hch'eq
-      simp_all
-      scalar_tac))
 
 /-- `Vec::append` returns, with the length of the concatenation.
 
@@ -481,15 +486,14 @@ operation.
 
 Two set_chains calls can land on this one path -- one inside
 `skip_message_keys`, one at the end of `receive` itself -- so the room bound
-carried in is stated with `+ 2`, not `+ 1`, room for both. -/
+carried in is stated with `+ 2`, not `+ 1`, room for both. As for `send`,
+there is no epoch bound and no counter bound: both increments are
+`checked_add`, and their `None` arms are returned `ChainExhausted`s. -/
 theorem receive_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal) (hz : ZeroizeTotal)
     (hkdf : KdfCkTotal) (hopt : OptionCloneTotal) (hrm : VecRemoveTotal)
     (happ : VecAppendTotal) (st : State) (receiving_epoch n : U64) (out : Option Output)
     (hroom : st.chains.length + 2 < Usize.max)
-    (hepoch : st.epoch.val < U64.max)
-    (hskiproom : st.skipped.length + MAX_SKIP.val ≤ Usize.max)
-    (hcounter : ∀ p ∈ st.chains.val, ∀ ch : Chain,
-      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n.val < U64.max) :
+    (hskiproom : st.skipped.length + MAX_SKIP.val ≤ Usize.max) :
     State.receive st receiving_epoch out n ⦃ fun _ => True ⦄ := by
   unfold State.receive
   have hupto1 : (core.num.U64.saturating_sub n 1#u64).val < U64.max := by
@@ -501,7 +505,7 @@ theorem receive_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal) (hz : Zeroiz
     have h2 : n.bv.toNat < 2 ^ UScalarTy.U64.numBits := n.bv.isLt
     rw [Nat.mod_eq_of_lt (by omega)]
     scalar_tac
-  step with maybe_advance_no_panic hret hrk hz st out (by scalar_tac) hepoch
+  step with maybe_advance_no_panic hret hrk hz st out (by scalar_tac)
   all_goals (try step*)
   all_goals (try (simp only [lift]))
   all_goals (try (step with skip_message_keys_no_panic hret happ hkdf hz hopt))
@@ -511,26 +515,6 @@ theorem receive_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal) (hz : Zeroiz
   all_goals (try (obtain ⟨⟨next, mk⟩, hk⟩ := hkdf ch1.ck n; simp only [hk]))
   all_goals (try (step with hopt Chain.Insts.CoreCloneClone cs1.send (fun x _ => chain_clone_spec x)))
   all_goals (try (step with set_chains_no_panic hret))
-  all_goals (try (
-    have hfrom1 : (receiving_epoch, cs) ∈ self1.chains.val → ↑ch.n < U64.max := by
-      intro h1
-      rcases r_post3 receiving_epoch cs h1 with h2 | ⟨o', ho', ha2, hsf, hrf⟩
-      · exact hcounter receiving_epoch cs h2 ch (Or.inr ‹cs.receive = some ch›)
-      · obtain ⟨ch', hch'eq, hch'n⟩ := hrf
-        rw [‹cs.receive = some ch›] at hch'eq
-        injection hch'eq with hch'eq
-        subst hch'eq
-        simp_all
-        scalar_tac
-    rcases i_post2 with heq | hmem
-    · rw [heq] at o1_post
-      exact hfrom1 o1_post
-    · rcases hmem receiving_epoch cs o1_post with h1 | ⟨cs', hcs'mem, ha, x', hb⟩
-      · exact hfrom1 h1
-      · have hch'eq := ‹cs.receive = some ch›
-        simp only [hb, Option.some.injEq] at hch'eq
-        rw [← hch'eq]
-        exact hupto1))
 
 /-! ## Where this stands
 
@@ -569,19 +553,23 @@ The postconditions of `clear_old_epochs_no_panic`, `advance_no_panic`,
 the same reason `send`'s room bound is carried: a caller three calls
 downstream needs a fact only a callee can state.
 
-**`hcounter`, on `send_no_panic`/`receive_no_panic`, is scoped to
-`st.chains.val`.** Quantified over every value the type can hold instead
-(`∀ ch : Chain, ∀ cs : Chains, cs.send = some ch → ch.n.val < U64.max`) it
-would be unsatisfiable, since a `Chain` with `n = U64.max` is a value of the
-type, and neither theorem could then be invoked -- a defect about whether the
-hypothesis is satisfiable, not about whether the proof compiles, which a
-green build cannot flag. Scoping it to the real state's own table needs
-`VecRetainTotal` to carry a membership clause (`retain` cannot fabricate an
-element, only drop one) and `find_chains_no_panic`/`set_chains_no_panic`/
-`clear_old_epochs_no_panic`/`advance_no_panic`/`maybe_advance_no_panic`/
-`skip_message_keys_no_panic` each to carry that fact one call further, so
-the overflow obligation inside `send`/`receive`'s own proofs can reach the
-chain it is about. See `LIMITATIONS.md`.
+**`send_no_panic`/`receive_no_panic` carry no epoch bound and no counter
+bound.** Every increment of the epoch (`advance`) and of a chain's message
+counter (`send`, `receive`) is a `checked_add` in the source, and its `None`
+arm is a returned `ChainExhausted` with the state untouched, so both proofs
+walk that arm as a value rather than assume it away -- the move
+`BraidT1.lean` made for the Braid's epoch with CR-03. An earlier revision
+carried `hepoch : st.epoch.val < U64.max` and a per-chain `hcounter`, scoped
+to `st.chains.val` (quantified over every `Chain` the type can hold it would
+have been unsatisfiable), and the membership clauses that `VecRetainTotal`,
+`find_chains_no_panic`, `set_chains_no_panic`, `clear_old_epochs_no_panic`,
+`advance_no_panic`, `maybe_advance_no_panic` and `skip_message_keys_no_panic`
+carry were introduced so that bound could reach the chain it was about. The
+clauses stay: they are true of the code, cost nothing, and are what a caller
+reasoning about the table's contents needs. `SpqrT3.lean`'s refinement keeps
+both bounds, for the model's reason rather than the code's: it counts in
+`Nat`, so at the ceiling the real code's `ChainExhausted` has nothing to
+refine against. See `LIMITATIONS.md`.
 
 ## Seven assumptions, seven constants, and the counting trap
 
