@@ -183,10 +183,39 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
         // and nonce and the expected bytes can be pinned. The verification
         // that follows is the half that does not depend on this crate's own
         // word: `verify` checks with an independent Ed25519 implementation.
+        //
+        // A vector that carries a `signature` input instead is verify-only:
+        // a public key `u`, a message and a signature that `verify` must
+        // refuse (`result: invalid`) or accept (`result: valid`, with the
+        // output the compressed Edwards key it verified under). These pin
+        // the edges of the accepted set, where this verifier and XEdDSA
+        // Revision 1 differ by design; each vector's comment says which way
+        // Revision 1 goes, and a test in tacenta-core holds the comments to a
+        // transcription of the specification's own verifier.
         "xeddsa" => {
             use tacenta_core::primitives::xeddsa;
-            let secret = array32(&input(v, "secret")?)?;
             let message = input(v, "message")?;
+            if v.inputs.contains_key("signature") {
+                let public = dh::PublicKeyBytes::from_bytes(array32(&input(v, "public")?)?);
+                let signature: [u8; 64] = input(v, "signature")?
+                    .try_into()
+                    .map_err(|_| "expected a 64-byte signature".to_string())?;
+                let outcome = xeddsa::verify(&public, &message, &signature);
+                return match (v.result.as_str(), outcome) {
+                    ("invalid", Err(_)) => Ok(()),
+                    ("invalid", Ok(())) => {
+                        Err("accepted a signature the vector refuses".to_string())
+                    }
+                    ("valid", Err(_)) => Err("refused a signature the vector accepts".to_string()),
+                    ("valid", Ok(())) => {
+                        let key = xeddsa::verifying_key(&public, &signature)
+                            .map_err(|_| "verified, yet the key does not convert".to_string())?;
+                        eq(&key, &bytes(&v.output)?)
+                    }
+                    (other, _) => Err(format!("unknown result {other}")),
+                };
+            }
+            let secret = array32(&input(v, "secret")?)?;
             let mut rng = FixedBytes::new(input(v, "nonce")?)?;
             let sig = xeddsa::sign(&secret, &message, &mut rng);
             eq(&sig, &bytes(&v.output)?)?;

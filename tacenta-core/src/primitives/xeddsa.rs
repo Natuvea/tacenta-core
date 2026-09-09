@@ -61,6 +61,13 @@ const HASH_1_PREFIX: [u8; 32] = [
 /// value would leave the signing scalar in a stack slot nothing wipes, and the
 /// wrapper has to be applied where the value is born rather than after it has
 /// been moved once.
+///
+/// Kept out of line so that `tooling/check-constant-time-asm.sh` can find it
+/// in the release assembly by name and read its branches; inlined into
+/// [`sign`], the conditional negation below would be one instruction among a
+/// scalar multiplication's thousands and the gate would have nothing to
+/// extract.
+#[inline(never)]
 fn calculate_key_pair(secret: &[u8; 32]) -> ([u8; 32], Zeroizing<Scalar>) {
     // The clamped copy is wiped: it is the private scalar in another form.
     let clamped = Zeroizing::new(clamp_integer(*secret));
@@ -230,27 +237,47 @@ pub fn sign<R: RngCore + CryptoRng>(secret: &[u8; 32], message: &[u8], rng: &mut
 /// negligible. `calculate_key_pair` and `sign` follow the specification
 /// line for line; `verify` follows it on the equation and departs from it
 /// on the three points above.
+///
+/// Each edge of the accepted set is pinned by a verify-only vector in
+/// `tacenta-test-vectors/vectors/primitives/xeddsa.json`, whose comment says
+/// whether Revision 1 accepts the same input; the test
+/// `revision_1_transcription_agrees_with_every_vectors_comment` below runs a
+/// transcription of the specification's `xeddsa_verify` over that file, so
+/// the comments are checked and not merely asserted.
 pub fn verify(
     public: &PublicKeyBytes,
     message: &[u8],
     signature: &[u8; 64],
 ) -> Result<(), VerifyError> {
-    let sign = signature[63] >> 7;
+    let edwards = verifying_key(public, signature)?;
     let mut cleared = *signature;
     cleared[63] &= 0x7F;
+    let key = ed25519_dalek::VerifyingKey::from_bytes(&edwards).map_err(|_| VerifyError)?;
+    key.verify_strict(message, &ed25519_dalek::Signature::from_bytes(&cleared))
+        .map_err(|_| VerifyError)
+}
 
-    // The specification's first check: `u >= p` is not a key. See
-    // `is_canonical_field_element` for what accepting it would allow.
+/// The compressed Edwards public key [`verify`] checks `signature` under:
+/// `public` converted with the sign bit `signature[63]` carries.
+///
+/// Refuses what `verify` refuses before it reaches the signature: a
+/// non-canonical `u` (the specification's first check, `u >= p`; see
+/// `is_canonical_field_element`) and `u = p - 1`, the one value below `p`
+/// with no Edwards image (the map's denominator is zero there). Public so the
+/// conformance runner can pin, for a signature that verifies, which of the
+/// two Edwards points `u` names it verified under.
+pub fn verifying_key(
+    public: &PublicKeyBytes,
+    signature: &[u8; 64],
+) -> Result<[u8; 32], VerifyError> {
+    let sign = signature[63] >> 7;
     if !is_canonical_field_element(public.as_bytes()) {
         return Err(VerifyError);
     }
     let edwards = MontgomeryPoint(*public.as_bytes())
         .to_edwards(sign)
         .ok_or(VerifyError)?;
-    let key = ed25519_dalek::VerifyingKey::from_bytes(&edwards.compress().to_bytes())
-        .map_err(|_| VerifyError)?;
-    key.verify_strict(message, &ed25519_dalek::Signature::from_bytes(&cleared))
-        .map_err(|_| VerifyError)
+    Ok(edwards.compress().to_bytes())
 }
 
 #[cfg(test)]
@@ -629,5 +656,154 @@ mod tests {
         assert_ne!(s1[..32], s2[..32], "fresh Z randomizes the nonce point R");
         assert!(verify(&key.public_key(), b"m", &s1).is_ok());
         assert!(verify(&key.public_key(), b"m", &s2).is_ok());
+    }
+
+    /// `p = 2^255 - 19`, little-endian.
+    const P_LE: [u8; 32] = {
+        let mut p = [0xffu8; 32];
+        p[0] = 0xed;
+        p[31] = 0x7f;
+        p
+    };
+
+    /// `a >= b`, both 256-bit little-endian integers.
+    fn ge_le(a: &[u8; 32], b: &[u8; 32]) -> bool {
+        for i in (0..32).rev() {
+            if a[i] != b[i] {
+                return a[i] > b[i];
+            }
+        }
+        true
+    }
+
+    /// XEdDSA Revision 1, section 2.6, `xeddsa_verify`, transcribed line for
+    /// line and nothing else: `u < p`, `s < 2^253`, `A = convert_mont(u)` with
+    /// the sign forced to zero, the equation without the cofactor, no
+    /// small-order check, `R` compared as bytes. The oracle the vectors'
+    /// `Revision 1 accepts` / `Revision 1 rejects` comments are held to.
+    ///
+    /// Two places the pseudocode leaves to the reader, resolved the way the
+    /// comment on each affected vector states: `R.y >= 2^|p|` is read over the
+    /// 255-bit `y` the encoding carries, so it never fires and a non-canonical
+    /// `R` reaches the byte comparison; and `u = p - 1`, where `u_to_y`'s
+    /// denominator is zero, has no image and fails `on_curve`, which is also
+    /// what `to_edwards` does.
+    fn revision_1_verify(u: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> bool {
+        let r_bytes: &[u8; 32] = signature[..32].try_into().unwrap();
+        let s_bytes: &[u8; 32] = signature[32..].try_into().unwrap();
+        // if u >= p or R.y >= 2^|p| or s >= 2^|q|: return false
+        if ge_le(u, &P_LE) || s_bytes[31] & 0xe0 != 0 {
+            return false;
+        }
+        // A = convert_mont(u): u_masked = u (mod 2^|p|), A.y = u_to_y(u_masked), A.s = 0
+        let mut u_masked = *u;
+        u_masked[31] &= 0x7f;
+        // if not on_curve(A): return false
+        let Some(a) = MontgomeryPoint(u_masked).to_edwards(0) else {
+            return false;
+        };
+        // h = hash(R || A || M) (mod q)
+        let h = Scalar::from_bytes_mod_order_wide(
+            &Sha512::new()
+                .chain_update(r_bytes)
+                .chain_update(a.compress().to_bytes())
+                .chain_update(message)
+                .finalize()
+                .into(),
+        );
+        // Rcheck = sB - hA
+        let s = Scalar::from_bytes_mod_order(*s_bytes);
+        let rcheck = EdwardsPoint::vartime_double_scalar_mul_basepoint(&-h, &a, &s);
+        // if bytes_equal(R, Rcheck): return true
+        rcheck.compress().to_bytes() == *r_bytes
+    }
+
+    /// The vectors file's `Revision 1 accepts` / `Revision 1 rejects` column
+    /// is itself tested: the transcription above runs over every vector in
+    /// `tacenta-test-vectors/vectors/primitives/xeddsa.json`, and each
+    /// verify-only vector's comment must open with the verdict it reaches,
+    /// while each signing vector's signature must be one it accepts (every
+    /// signature this signer makes lies in both accepted sets). The runner
+    /// checks the same file against `verify`; this is the other half, the one
+    /// that says what the specification's own verifier would have done.
+    #[test]
+    fn revision_1_transcription_agrees_with_every_vectors_comment() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../tacenta-test-vectors/vectors/primitives/xeddsa.json"
+        );
+        let text = std::fs::read_to_string(path)
+            .unwrap_or_else(|e| panic!("the XEdDSA vectors at {path} must be readable: {e}"));
+        let doc: serde_json::Value = serde_json::from_str(&text).expect("the vectors file is JSON");
+        let vectors = doc["vectors"].as_array().expect("a vectors array");
+        let hex_field = |v: &serde_json::Value, key: &str| -> Vec<u8> {
+            hex::decode(v["inputs"][key].as_str().unwrap_or_default())
+                .unwrap_or_else(|_| panic!("input {key} is hex"))
+        };
+        let mut verify_only = 0;
+        let mut accepted_by_revision_1 = 0;
+        for v in vectors {
+            let id = v["id"].as_str().expect("an id");
+            let message = hex_field(v, "message");
+            if v["inputs"].get("signature").is_none() {
+                // A signing vector: the signer's own output must be in
+                // Revision 1's set as well as ours.
+                let secret: [u8; 32] = hex_field(v, "secret").try_into().unwrap();
+                let signature: [u8; 64] = hex::decode(v["output"].as_str().unwrap())
+                    .unwrap()
+                    .try_into()
+                    .unwrap();
+                let u = *PrivateKey::from_bytes(secret).public_key().as_bytes();
+                assert!(
+                    revision_1_verify(&u, &message, &signature),
+                    "{id}: a signature this signer made is outside Revision 1's accepted set"
+                );
+                continue;
+            }
+            verify_only += 1;
+            let u: [u8; 32] = hex_field(v, "public").try_into().unwrap();
+            let signature: [u8; 64] = hex_field(v, "signature").try_into().unwrap();
+            let comment = v["comment"].as_str().unwrap_or_default();
+            let expected = if comment.starts_with("Revision 1 accepts:") {
+                true
+            } else if comment.starts_with("Revision 1 rejects:") {
+                false
+            } else {
+                panic!(
+                    "{id}: a verify-only vector's comment must open with the Revision 1 verdict"
+                );
+            };
+            let got = revision_1_verify(&u, &message, &signature);
+            assert_eq!(
+                got,
+                expected,
+                "{id}: the comment says Revision 1 {} this input, the transcription {} it",
+                if expected { "accepts" } else { "rejects" },
+                if got { "accepts" } else { "rejects" }
+            );
+            // And the vector's own verdict, so the two columns are read off
+            // the same bytes: `result` against `verify`.
+            let ours = verify(&PublicKeyBytes::from_bytes(u), &message, &signature).is_ok();
+            assert_eq!(
+                ours,
+                v["result"].as_str() == Some("valid"),
+                "{id}: `result` disagrees with verify"
+            );
+            accepted_by_revision_1 += usize::from(got);
+        }
+        // The file pins both directions: inputs Revision 1 accepts and this
+        // verifier refuses, and one it refuses that this verifier accepts.
+        assert!(
+            verify_only >= 13,
+            "expected the thirteen verify-only vectors, found {verify_only}"
+        );
+        assert!(
+            accepted_by_revision_1 >= 1,
+            "no vector shows where Revision 1 is wider"
+        );
+        assert!(
+            accepted_by_revision_1 < verify_only,
+            "no vector shows where Revision 1 is narrower"
+        );
     }
 }

@@ -12,15 +12,17 @@
 # Steps the workflow always runs and this script skips, printing a line that
 # says so, when the tooling is absent from the machine: the advisory audit
 # (`cargo-audit`), the MSRV compile check (a 1.87 toolchain), the 32-bit
-# compile check (the armv7 target), and the translation build with its
-# `sorry` scan (`no-sorry.sh`, which needs the translation's Mathlib cache
-# and is the heavy one). The first three fail rather than skip when
-# `GITHUB_ACTIONS` is set, so a runner cannot report green on a check it did
-# not run. Steps this script runs and the workflow does not: the
-# interoperability harness, which is not in this public tree and skips here,
-# and the fuzz smoke run, which needs `cargo-fuzz` and a nightly toolchain.
-# The README's "Building and checking" section lists the same four and two,
-# and says what runs outside this repository altogether and why.
+# compile check (the armv7 target), the Linux halves of the constant-time
+# disassembly gate (the x86_64 and aarch64 Linux targets; the host is always
+# read), and the translation build with its `sorry` scan (`no-sorry.sh`,
+# which needs the translation's Mathlib cache and is the heavy one). The
+# first four fail rather than skip when `GITHUB_ACTIONS` is set, so a runner
+# cannot report green on a check it did not run. Steps this script runs and
+# the workflow does not: the interoperability harness, which is not in this
+# public tree and skips here, and the fuzz smoke run, which needs
+# `cargo-fuzz` and a nightly toolchain. The README's "Building and checking"
+# section lists the same five and two, and says what runs outside this
+# repository altogether and why.
 #
 # The runner must provide: elan with Lean v4.31.0 (lake on PATH) and a Rust
 # stable toolchain (cargo, clippy, rustfmt). Everything else is optional, and
@@ -131,6 +133,20 @@ elif [ "${GITHUB_ACTIONS:-}" = "true" ]; then
 else
   echo "ci: no $msrv toolchain, skipping the MSRV check (rustup toolchain install $msrv)"
 fi
+
+# The two hand-written constant-time functions -- the Braid's `mac_eq` and
+# XEdDSA's `calculate_key_pair` -- compile to straight-line code: the release
+# assembly is read and any conditional branch beyond `mac_eq`'s public length
+# compare fails, as does a symbol that was inlined away. The timing harness
+# cannot see either function (`tests/timing.rs` says why at its floors); this
+# is the instrument for them. The host target is always read; each Linux
+# target the machine has installed is read too, a missing one is skipped with
+# a line saying so, and in CI, where the workflow installs the aarch64 target
+# beside its x86_64 host, a run with neither Linux target fails. The script
+# builds with `--emit=asm`, which needs no linker, so a target needs only its
+# `rust-std` (`rustup target add <target>`).
+echo "== Rust: the constant-time functions compile to straight-line code =="
+bash tooling/check-constant-time-asm.sh
 
 # Known advisories against the dependency graph. Fails on a vulnerability;
 # warnings (unmaintained, yanked) are printed and do not fail, because those

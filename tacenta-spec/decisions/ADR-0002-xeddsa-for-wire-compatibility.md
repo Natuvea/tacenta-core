@@ -44,4 +44,8 @@ and are not recorded here.
   `s < 2^253`) and on small-order `R` or `A` (refused outright rather than
   checked against the equation), while the sign-bit convention in
   CONSTANTS.md widens it in the other direction; every signature this
-  implementation produces is in both sets (`xeddsa.rs`).
+  implementation produces is in both sets (`xeddsa.rs`). The edges of the
+  accepted set are pinned by thirteen verify-only vectors in
+  `tacenta-test-vectors/vectors/primitives/xeddsa.json`, each carrying
+  Revision 1's own verdict, which a transcription of the specification's
+  pseudocode in the crate's tests checks against every vector.

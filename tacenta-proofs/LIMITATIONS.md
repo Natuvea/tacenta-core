@@ -319,8 +319,12 @@ from it. This holds here by delegation and discipline, not by proof.
   boundary. Moving the comparison behind the `kdf` boundary, where
   `subtle::ConstantTimeEq` is available and the translation sees an opaque
   call, changes the translated source and so waits for the next
-  re-translation window. Until then the guarantee is
-  the loop's shape and an inspection of the generated code, not a library's.
+  re-translation window. Until then the guarantee is the loop's shape and
+  `tooling/check-constant-time-asm.sh`, which CI runs: it reads `mac_eq`'s
+  release assembly on the host and on the x86_64 and aarch64 Linux targets
+  and fails on any conditional branch beyond the public length compare.
+  Today LLVM specialises the loop on the 32-byte length and vectorises it,
+  and the gate counts zero data-dependent branches on every target.
 - **The erasure code's field arithmetic branches on its data, and every
   operand on that path is public.** `gf::clmul`, `gf::reduce`, `gf::pow` and
   `gf::inv` in `tacenta-erasure` (`erasure/src/lib.rs`) test bits of their
@@ -346,10 +350,14 @@ from it. This holds here by delegation and discipline, not by proof.
   `tests/timing.rs` can settle: the harness does not time XEdDSA (it times
   `aead::decrypt`'s rejection path and the tag comparison inside it), and
   one conditional negation inside a full scalar multiplication is not an
-  effect its median-gap gate is built to resolve. It is instead a target for
-  the planned disassembly check, which is to read the generated code for
-  `calculate_key_pair` (and `mac_eq`) and fail on any data-dependent
-  conditional branch.
+  effect its median-gap gate is built to resolve. It is instead settled by
+  `tooling/check-constant-time-asm.sh`, which reads the release assembly of
+  `calculate_key_pair` (and `mac_eq`) on three targets and fails on any
+  conditional branch. Adding that gate found one: with the workspace's
+  overflow checks on, `subtle`'s mask negation compiled to a checked negation
+  with a never-taken branch into a panic block. `subtle` is now compiled
+  without overflow checks in release (`tacenta-core/Cargo.toml`), and the
+  function counts zero branches on every target.
 - **Our own composition is audited to not reintroduce a leak.** tacenta-core's
   ratchet, session, and serialization code branches on and compares only public
   data: ratchet public keys, message numbers, and wire bytes, whose timing
@@ -361,10 +369,15 @@ from it. This holds here by delegation and discipline, not by proof.
   state it decoded and compares the bytes to the input, a canonicality check
   over the caller's own persisted blob, where the only observer is the caller.
   This was checked by reading the code, not by a timing experiment.
-- **Two of the claims above are measured in CI, not only read.**
+- **Four of the claims above are measured in CI, not only read.**
   `tacenta-core/tests/timing.rs` times two input classes and asks whether their
   rejection times differ by an *exploitable* margin -- an effect size in
-  nanoseconds. Representative results from the isolated measurement core
+  nanoseconds. Besides the AEAD tag comparison and the forged-ciphertext
+  path it now times the Braid's header MAC path and the whole
+  `Session::decrypt` rejection path; those two are microsecond-scale
+  operations, gated on a two-percent relative floor whose resolution the
+  test file states (it resolves different work by class, not a ten-nanosecond
+  short-circuit, which is the assembly gate's job). Representative results from the isolated measurement core
   follow. They are from the nightly run on the dedicated machine and carry no
   stamp: no commit, date, hardware or run identifier was recorded with them,
   so a reader cannot tell which build produced them or how old they are.

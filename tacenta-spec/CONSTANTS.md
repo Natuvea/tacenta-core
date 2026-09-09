@@ -53,7 +53,7 @@ a peer's constant does not belong in them.
 
 | Constant | Value | Tier | Provenance |
 |---|---|---|---|
-| XEdDSA signature sign bit | top bit of `signature[63]` | nominated | External interoperability profile, determined by black-box observation of a pinned build (ADR-0003); one of the intentional differences from XEdDSA Revision 1, the one that widens the accepted set; `verify` also narrows it through `verify_strict` (see `xeddsa.rs`). |
+| XEdDSA signature sign bit | top bit of `signature[63]` | nominated | External interoperability profile, determined by black-box observation of a pinned build (ADR-0003); one of the intentional differences from XEdDSA Revision 1, the one that widens the accepted set; `verify` also narrows it through `verify_strict` (see `xeddsa.rs`). The accepted set's edges in both directions are pinned by the verify-only vectors in `tacenta-test-vectors/vectors/primitives/xeddsa.json`. |
 | Signed-prekey signature input | the *tagged* key form (33-byte `EncodeEC`, 1,569-byte `EncodeKEM`) | nominated | External interoperability profile, determined by black-box observation of a pinned build (ADR-0003). |
 
 ## Storage formats
