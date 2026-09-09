@@ -572,20 +572,31 @@ impl Decoder {
     /// there; it would reconstruct the wrong bytes without any signal, which
     /// is worse).
     ///
-    /// The index pass uses a table of every possible `u16`, which fits on
-    /// the stack and keeps this linear rather than quadratic in a count a
-    /// stored file chooses. A flag rather than a return inside the loop,
-    /// which Aeneas does not translate; the loop runs to the end either way.
+    /// The index pass uses a **bitset** over every possible `u16`, one bit
+    /// per index rather than one byte. That keeps the pass linear rather than
+    /// quadratic in a count a stored file chooses -- a pairwise scan would be
+    /// cheaper for the dozen indices an honest decoder holds, but `have` is
+    /// bounded only by `MAX_CODEWORDS`, and 65,536 squared is a slow unit,
+    /// not a refusal. It also keeps the frame at 8 KiB rather than the 64 KiB
+    /// a `[bool; MAX_CODEWORDS]` costs, which is what this pays per call: the
+    /// fuzz targets check the predicate after every step, and the Braid's own
+    /// invariant reaches two decoders. A flag rather than a return inside the
+    /// loop, which Aeneas does not translate; the loop runs to the end either
+    /// way.
     pub fn invariant(&self) -> bool {
-        let mut seen = [false; MAX_CODEWORDS];
+        let mut seen = [0u8; MAX_CODEWORDS / 8];
         let mut distinct = true;
         let mut i = 0;
         while i < self.have.len() {
             let idx = self.have[i].index as usize;
-            if seen[idx] {
+            // `idx` is a `u16` widened, so `idx / 8` is in range by
+            // construction and the shift is by less than eight.
+            let word = idx / 8;
+            let bit = 1u8 << (idx % 8);
+            if seen[word] & bit != 0 {
                 distinct = false;
             }
-            seen[idx] = true;
+            seen[word] |= bit;
             i += 1;
         }
         self.needed == chunk_count(self.size)

@@ -79,8 +79,14 @@ fuzz_target!(|data: &[u8]| {
             data,
             "triple state is not canonical"
         );
-        // Asserted through its own `invariant` once `tacenta_triple::State`
-        // exposes one; its two halves are asserted above.
+        // The composition's own predicate, which is more than the two halves'
+        // conjunction: the halves asserted above are decoded from the same
+        // bytes as separate states, not from this Triple's two halves, so its
+        // `roles_agree` clause is checked here and nowhere else.
+        assert!(
+            s.invariant(),
+            "an accepted triple state violates its invariant"
+        );
     }
 
     // The erasure coders, which the Braid's format nests inside its own.

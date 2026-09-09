@@ -47,6 +47,21 @@ interoperating with anyone.
   rules". They are checked as an inductive invariant: the tests and the fuzz
   targets in `tacenta-core` assert the predicate after every operation, not
   only at import.
+- **Being inductive constrains the operations, not only the predicates.** A
+  decoder that refuses a state its own library can produce is worse than one
+  that refuses nothing: the state exports, re-imports, and is refused from
+  then on. So where an operation could carry a counter to a value its
+  predicate excludes, the value is made unreachable rather than the predicate
+  widened. Two counters are reserved at their ceiling for exactly that
+  reason: the classical ratchet's received-message clock stops at
+  `u32::MAX - 1` rather than saturating into `u32::MAX`, and the sparse
+  ratchet refuses the agreement output that would advance it to epoch
+  `u64::MAX` -- an epoch its own retention window then reads as covering
+  nothing, retiring the chains it had just opened -- with the
+  counter-exhaustion error it already returns for a chain at the end of its
+  range. Neither ceiling is reachable in an honest run: the first needs 2^32
+  accepted receives, the second 2^64 completed agreements. Both are pinned by
+  a test in the crate that owns the counter.
 - **At-rest protection is out of scope.** This format is plaintext once
   decoded; it authenticates nothing against a hostile reader of the storage
   medium, only against corruption. See key-deletion.md's note on what

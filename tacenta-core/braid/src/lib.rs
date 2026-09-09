@@ -517,10 +517,23 @@ impl Braid {
     /// into `step_receive`, stated exactly rather than as its bound:
     /// `CT1_LEN` is 1408, within the 4096 it asks for.
     ///
-    /// Not constrained: the epoch at `u64::MAX`. `from_bytes` refuses it
-    /// (`read_epoch`, CR-03), but an epoch one below the ceiling steps to it
-    /// honestly, so it is a policy of the decoder rather than a fact every
-    /// transition keeps.
+    /// Not a clause here, but now a fact of every state this crate builds
+    /// or accepts: the epoch is below `u64::MAX`. That value is reserved.
+    /// The two transitions that move an epoch refuse the step that would
+    /// land on it rather than taking it (transitions (5) and (13)), and
+    /// `read_epoch` refuses it on the way in, so what the transitions
+    /// produce and what the decoder accepts are the same set of states and
+    /// a session this crate exported can always be imported (CR-03).
+    ///
+    /// It is left out of the clauses below because nothing here needs it:
+    /// `read_epoch` has already settled it by the time `from_bytes` runs
+    /// this, and the transitions keep it without being asked. Adding
+    /// `*epoch < u64::MAX` to the ten arms that carry one would record that
+    /// here, but it would still not give the T3 precondition, which asks for
+    /// `epoch + 1 < u64::MAX`: the refinement stops one step below the
+    /// reservation, because the model counts in `Nat` and keeps going where
+    /// the two advancing transitions refuse. That step is the caller's, and
+    /// a question for the proofs rather than for the decoder.
     pub fn invariant(&self) -> bool {
         match &self.state {
             State::KeysUnsampled { epoch, .. } => *epoch >= 1,
@@ -1048,14 +1061,32 @@ impl Braid {
                             // abandoning the session is the only honest
                             // answer, since nothing this machine could emit
                             // afterwards would carry a number the peer could
-                            // agree on. Unreachable from an honest start --
-                            // epochs begin at one and `from_bytes` refuses
-                            // `u64::MAX` -- so this is the T1 precondition
-                            // `epoch < u64::MAX` made true by construction
-                            // rather than assumed (CR-03).
+                            // agree on.
+                            //
+                            // `u64::MAX` is reserved, so the step that would
+                            // land on it is refused one epoch earlier rather
+                            // than taken. Taking it would leave a Braid that
+                            // `to_bytes` writes and this crate's own
+                            // `from_bytes` then refuses (`read_epoch`) -- a
+                            // session exported and unimportable for good,
+                            // and one whose next step could only abandon it
+                            // anyway. Refused into `Failed` like the arm
+                            // above, and for the arm above's reason:
+                            // `receive` has no way to say "refused,
+                            // unchanged", and a session with no epoch left
+                            // to negotiate is what terminal failure is for.
+                            // `u64::MAX - 1` stays an epoch like any other.
+                            // Neither arm is reachable from an honest start
+                            // -- epochs begin at one -- so the T1
+                            // precondition `epoch < u64::MAX` is now kept by
+                            // every transition and not by the decoder alone
+                            // (CR-03).
                             let Some(next_epoch) = epoch.checked_add(1) else {
                                 return (None, State::Failed);
                             };
+                            if next_epoch == u64::MAX {
+                                return (None, State::Failed);
+                            }
                             let (ct2, mac) = framed.split_at(CT2_LEN);
                             let mut raw = match kp.decapsulate(&ct1, ct2) {
                                 Ok(ss) => ss,
@@ -1277,13 +1308,20 @@ impl Braid {
                 auth,
                 ct2_enc,
             } => {
-                // Checked for the reason transition (5) gives: an epoch with
-                // no successor is one the session cannot continue from, and
-                // `Failed` is the only signal `receive` has. Not reachable
-                // from an honest start (CR-03).
+                // Checked for the reason transition (5) gives, and
+                // `u64::MAX` is reserved here for the reason it is reserved
+                // there: an epoch the session cannot continue from is
+                // abandoned, and `Failed` is the only signal `receive` has.
+                // Swapping roles onto the ceiling would leave a state this
+                // crate exports and then refuses to import, so the step is
+                // refused one epoch earlier instead. Neither arm is
+                // reachable from an honest start (CR-03).
                 let Some(next_epoch) = epoch.checked_add(1) else {
                     return (None, State::Failed);
                 };
+                if next_epoch == u64::MAX {
+                    return (None, State::Failed);
+                }
                 if msg.epoch == next_epoch {
                     return (
                         None,
@@ -1430,12 +1468,15 @@ fn read_u64(bytes: &[u8], pos: usize) -> Option<u64> {
 
 /// Read a persisted epoch, refusing `u64::MAX`.
 ///
-/// No honest run reaches it: epochs start at one and each step's
-/// `checked_add` fails closed before an increment could wrap. A stored state
-/// carrying it is corruption, and admitting it would restore a Braid whose
-/// next transition abandons the session. Refusing it here is also what makes
-/// the T1 theorem's precondition `epoch < u64::MAX` hold for every state this
-/// crate can construct rather than for every state but one (CR-03).
+/// The value is reserved and no run reaches it: epochs start at one, and the
+/// two transitions that move one refuse the step that would land on it
+/// rather than taking it (transitions (5) and (13)). So this refuses a state
+/// the operations cannot produce -- corruption, or a store written to by
+/// something else -- and refuses nothing this crate can export. That
+/// agreement between the decoder and the transitions is the point of the
+/// reservation: it is what makes the T1 theorem's precondition
+/// `epoch < u64::MAX` a property of every state a run can reach, rather than
+/// a policy the decoder imposes on the top of the range (CR-03).
 fn read_epoch(bytes: &[u8], pos: usize) -> Option<u64> {
     let Some(e) = read_u64(bytes, pos) else {
         return None;

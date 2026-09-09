@@ -92,15 +92,35 @@ impl KeyPair {
     /// so at decapsulation; the mismatch surfaces as an AEAD failure on the
     /// peer's first message, which is the same thing a network fault looks
     /// like, and a prekey store holding such a pair serves it to every peer
-    /// who fetches it. Two checks close that. The embedded `ek` must be the
-    /// public half byte for byte, which is what binds the halves, and
+    /// who fetches it. Two checks narrow that. The embedded `ek` must be the
+    /// public half byte for byte, which is what binds the two halves, and
     /// libcrux's `validate_private_key_only` must accept the private half,
-    /// which is the FIPS 203 section 7.3 hash check (`H(ek)` recomputed over
-    /// the embedded key and compared) and says the private half is at least
-    /// one key generation could have written. The threat model is still
-    /// corruption rather than a hostile chooser -- the private half never
-    /// leaves this party -- but a corrupted pair that decapsulates wrongly is
-    /// worse than one that fails to decode, and the check costs one hash.
+    /// which is the FIPS 203 section 7.3 hash check: `H(ek)` recomputed over
+    /// the embedded encapsulation key and compared with the copy beside it.
+    ///
+    /// **How far that reaches, and no further.** Between them the checks bind
+    /// the public half and validate the encapsulation key embedded in the
+    /// private one -- `ek` and `H(ek)`, 1600 of the private half's 3168
+    /// bytes. Nothing covers the rest. `dk_PKE`, the 1536 bytes that actually
+    /// decapsulate, is hashed by nothing in the format, and neither is `z`,
+    /// the 32-byte implicit-rejection seed. A single flipped bit inside
+    /// `dk_PKE` -- at offset 100, say -- passes every check here, decodes,
+    /// and then decapsulates to the wrong secret in silence, which is the
+    /// same outcome the mismatched-halves case had. So what a decoded pair
+    /// gives is that the halves belong to each other and that the embedded
+    /// encapsulation key is well formed; it is not that these bytes are a
+    /// working key pair. Roughly half the private half cannot be verified
+    /// from the bytes alone, and checking it at all would take a trial
+    /// decapsulation against a known ciphertext, or an integrity tag over the
+    /// stored bytes. The threat model is still corruption rather than a
+    /// hostile chooser -- the private half never leaves this party -- and a
+    /// corrupted pair that decapsulates wrongly is worse than one that fails
+    /// to decode, so the part that can be checked for one hash is checked.
+    ///
+    /// **Where that hash is paid.** `from_bytes` is reached only from
+    /// `PrekeyStore::from_bytes`, so once per store load and never per
+    /// message, and the total is linear in the one-time KEM pool: measured at
+    /// about 1.7 ms for ten keys and 15.7 ms for a hundred.
     pub fn from_bytes(bytes: &[u8]) -> Result<KeyPair, KemError> {
         let sk_len = mlkem1024::MlKem1024PrivateKey::len();
         let pk_len = mlkem1024::MlKem1024PublicKey::len();
@@ -280,8 +300,11 @@ mod tests {
     /// the wrong secret -- implicit rejection, so silently -- and a prekey
     /// store holding it served it to every peer, each of whose first messages
     /// then failed to authenticate in a way indistinguishable from a network
-    /// fault. The halves are checked against each other so that a pair
-    /// which decodes is one that decapsulates.
+    /// fault. The halves are checked against each other so that a pair which
+    /// decodes is one whose two halves belong together. That is narrower than
+    /// "a pair which decodes is one that decapsulates": `dk_PKE` and `z` are
+    /// covered by no check in the format, so a corruption inside them still
+    /// decodes here (`from_bytes`).
     #[test]
     fn from_bytes_rejects_halves_from_different_generations() {
         let mut r = rng(7);
@@ -313,6 +336,30 @@ mod tests {
         assert!(matches!(KeyPair::from_bytes(&bytes), Err(KemError)));
     }
 
+    /// The width of what `from_bytes` checks, pinned from the other side: a
+    /// corruption inside `dk_PKE` is **not** caught, and the pair it leaves
+    /// decapsulates to the wrong secret in silence.
+    ///
+    /// Here so the docstring's account of the gap is a checked statement
+    /// rather than an assertion, and so that a later change which does close
+    /// it -- a trial decapsulation, or an integrity tag over the stored bytes
+    /// -- fails here and has to update the paragraph it invalidates.
+    #[test]
+    fn from_bytes_does_not_catch_a_corruption_inside_the_private_half() {
+        let mut r = rng(9);
+        let kp = KeyPair::generate(&mut r);
+        let (ct, sent) = encapsulate(&kp.public_key(), &mut r).unwrap();
+        let mut bytes = kp.to_bytes().to_vec();
+        // Inside `dk_PKE`, which runs from zero to `len(dk) - len(ek) - 64`;
+        // `ek` and `H(ek)` sit above it and are the only parts checked.
+        bytes[100] ^= 0x01;
+        let restored = KeyPair::from_bytes(&bytes).expect("a dk_PKE flip still decodes");
+        assert_ne!(
+            decapsulate(&restored, &ct).unwrap(),
+            sent,
+            "and decapsulates to the wrong secret, with nothing saying so"
+        );
+    }
     #[test]
     fn sizes_are_the_ml_kem_1024_sizes() {
         let mut r = rng(5);

@@ -9,7 +9,7 @@ somebody else chose.
 | --- | --- |
 | `wire_decoders` | `message_type`, `decode_message`, `decode_initial`, `decode_bundle`, `decode_composite` |
 | `protobuf_bodies` | `parse_prekey_body`, `parse_ratchet_body`, `decode_tag` |
-| `persisted_state` | `from_bytes` on the ratchet, sparse ratchet, Braid, triple, and both erasure coders, plus `PrekeyStore::from_bytes` and `Session::import`; every accepted session and store is asserted to satisfy its `invariant`, and the restored session again after the message and the send it is driven through |
+| `persisted_state` | `from_bytes` on the ratchet, sparse ratchet, Braid, triple, and both erasure coders, plus `PrekeyStore::from_bytes` and `Session::import`; every accepted state, session and store is asserted to satisfy its own `invariant`, and the restored session again after the message and the send it is driven through |
 | `session_receive` | `establish_responder` on an unauthenticated message, and `Session::decrypt` on both sides of an established session; both sessions and the store are asserted to satisfy their `invariant` after every establishment, send and receive, accepted or refused |
 | `braid_receive` | `Braid::receive` and `commit` from either role, driven by a sequence of `Msg` values; every candidate that did not fail is adopted, the target sends after each message, and `Braid::invariant` is asserted after every receive and send; so a transcript carries the machine through all eleven live states, though a fuzzed message is only ever *received* in the nine a send leaves behind -- the two it never meets, `KeysUnsampled` and `HeaderReceived`, are the two whose receive arm does nothing. The corpus is seeded with an honest transcript parked in each state (`write_braid_receive_seeds` in `braid/src/tests.rs`) |
 | `triple_receive` | `tacenta_triple::State::receive` and `commit` from either side, driven by a sequence of composite headers and agreement outputs (`write_triple_receive_seeds` in `triple/src/tests.rs`); `State::invariant` is asserted after every receive and send |
@@ -42,6 +42,27 @@ did not would show. The leaf crates' predicates are held the same way:
 Ratchet's, the Braid's and both erasure coders' after each accepted decode,
 `braid_receive` asserts the Braid's after every receive and send, and
 `triple_receive` the Triple Ratchet's.
+
+The inductive reading is a claim about the crates, not only about these
+targets, and it was not free. Two counters could be driven to values their own
+predicate refused: the ratchet's `events` saturated into `u32::MAX`, and an
+advance to epoch `u64::MAX` in the sparse ratchet retired every chain
+including the one it had just opened. Both are now unreachable rather than
+tolerated -- the clock stops one below its ceiling, and the advance to the
+reserved epoch is refused with `ChainExhausted` -- so what the decoders accept
+and what the operations produce are the same set of states, and the assertions
+here are checking a property that holds rather than one that ought to. Each
+crate pins the boundary in a unit test of its own
+(`the_clock_stops_one_below_its_ceiling`, `the_epoch_ceiling_is_unreachable`),
+because a fuzzer will not reach a 2^32nd receive.
+
+One thing to be clear about, because it is easy to over-read the list above:
+in `persisted_state` the ratchet and sparse-ratchet states asserted beside the
+Triple are decoded from the same bytes as *separate* states, not taken from
+the Triple's two halves. The Triple's own `invariant` is a conjunction of both
+halves' plus `roles_agree`, which relates them; asserting the two halves
+separately says nothing about that clause. It is checked where the Triple's
+predicate itself is asserted, and nowhere else.
 
 ## What this is not
 

@@ -39,6 +39,17 @@ is SemVer against the specified protocol (not the implementation).
   now states what is written and what is read.
 
 ### Changed
+- `protocol/session-persistence.md`: the "Validated, not only parsed"
+  principle now says what being *inductive* costs the operations, rather
+  than only asserting that the predicates are. Two counters reserve their
+  ceiling so that no operation can produce a state its own reader refuses:
+  the classical ratchet's received-message clock stops at `u32::MAX - 1`
+  rather than saturating into `u32::MAX`, and an agreement output that would
+  advance the sparse ratchet to epoch `u64::MAX` is refused with the
+  counter-exhaustion error, since that epoch's retention window covers no
+  epoch at all and would retire the chains the advance had just opened.
+  Neither ceiling is honestly reachable (2^32 accepted receives, 2^64
+  completed agreements). External review, 2026-09.
 - `protocol/key-deletion.md`: the persistence passage says what the reader
   checks an export for (the semantic rules in session-persistence.md) and
   that the check is against corruption, not against a reader of the medium.

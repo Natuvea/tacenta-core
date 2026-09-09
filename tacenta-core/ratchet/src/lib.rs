@@ -96,6 +96,25 @@ pub const MAX_SKIPPED_STORE: usize = 2000;
 /// it, and the alternative is keys that never expire at all.
 pub const MAX_SKIPPED_AGE: u32 = 1000;
 
+/// Where the receive clock stops, one below its ceiling.
+///
+/// `age_store` clamps here rather than saturating to `u32::MAX`, so that no
+/// state this crate's own operations produce is one its decoder refuses: the
+/// invariant's clock clause reads `events < u32::MAX`, and a state at the
+/// ceiling would export and never import again. Named rather than written
+/// inline, so the translation sees a constant where an inline `u32::MAX - 1`
+/// would give it a checked subtraction to discharge.
+const MAX_EVENTS: u32 = 4_294_967_294;
+
+/// `MAX_EVENTS` is written as a literal rather than as `u32::MAX - 1` so that
+/// the translation sees a constant where the expression would give it a
+/// checked subtraction to discharge. This keeps the two spellings honest.
+#[allow(
+    dead_code,
+    reason = "a compile-time check, named because the translation cannot take an anonymous constant"
+)]
+const MAX_EVENTS_IS_ONE_BELOW_THE_CEILING: () = assert!(MAX_EVENTS == u32::MAX - 1);
+
 /// A 32-byte protocol key.
 pub type Key = [u8; 32];
 
@@ -153,6 +172,9 @@ pub struct State {
     /// Received messages counted since the session began. The store's clock:
     /// nothing in here can read a wall clock, so the interval after which a
     /// skipped key is deleted is measured in received messages.
+    ///
+    /// Runs from zero to `u32::MAX - 1` and stops there; `u32::MAX` is
+    /// reserved so that `invariant`'s clock clause is inductive (`age_store`).
     events: u32,
     /// Which label set this session derives under. See `LabelSet`.
     ///
@@ -317,14 +339,19 @@ impl State {
     /// - every `stored_at` is at most `events`, since it is a reading of a
     ///   clock that only grows, so an entry from the future is one no run
     ///   produced;
-    /// - `events` is below `u32::MAX`. T3's `hroom`: the refinement of
-    ///   `receive` is stated below the point where the core's clock saturates
-    ///   and the model's does not (LIMITATIONS.md). An honest run reaches
-    ///   saturation only after 2^32 accepted receives, so refusing a saturated
-    ///   clock at import is a **policy**, not a consistency check, and the
-    ///   refusal is the choice made: it keeps every importable state inside
-    ///   what the refinement covers, where past saturation `age_store` is in
-    ///   the lenient direction the refinement says nothing about (see there);
+    /// - `events` is below `u32::MAX`. This is one step short of T3's
+    ///   `hroom`, which asks for `events + 1 < u32::MAX`: the refinement is
+    ///   stated below the point where this clock stops and the model's does
+    ///   not, and a parked clock is a state `age_store` produces, so the
+    ///   headroom is the caller's to establish and cannot be a clause here
+    ///   (LIMITATIONS.md). This is a consistency check
+    ///   and not a policy, because `u32::MAX` is a value no run of this crate
+    ///   produces: `age_store` stops the clock at `u32::MAX - 1` rather than
+    ///   saturating into `u32::MAX`, precisely so that this clause is
+    ///   inductive and the decoder refuses only states the operations cannot
+    ///   build (see there). An honest run reaches the stop after 2^32
+    ///   accepted receives, and past it `age_store` is in the lenient
+    ///   direction the refinement says nothing about;
     /// - the chains are present in the order the operations open them.
     ///   `init_sender` opens the sending chain, and only `dh_ratchet` opens a
     ///   receiving one, setting the peer key and both chains at once; so a
@@ -908,16 +935,32 @@ fn purge_chain_range(skipped: &mut Vec<SkippedKey>, dhr: Key, from: u32, upto: u
 /// Applied once per accepted receive, at the end, so a key stored during that
 /// same receive is one message old rather than zero.
 ///
-/// `events` saturates rather than wrapping. Once it has, `now` no longer
-/// moves, so a key stored at or within `MAX_SKIPPED_AGE` of saturation is
-/// never expired by age; it leaves only on use or through the bound on the
-/// store. That is the lenient direction, and the refinement against the model
-/// excludes that case, as it does everywhere the core counts in `u32` and the
-/// model in the naturals. `from_bytes` refuses a saturated clock, so a
-/// restored state always starts inside what the refinement covers
-/// (`State::invariant`).
+/// **The clock stops at `u32::MAX - 1`, and `u32::MAX` is reserved.** This is
+/// a clock, not a protocol counter: refusing an accepted receive because the
+/// clock had run out would break an honest path over a state that is
+/// otherwise perfectly usable, so this one clamps where `send` and `receive`
+/// return `ChainExhausted`. What the clamp buys is that `u32::MAX` is a value
+/// no run of this crate produces, which is what makes `invariant`'s clock
+/// clause inductive: the decoder refuses exactly the states the operations
+/// cannot build, rather than a state the operations could hand it.
+///
+/// Once the clock has stopped, `now` no longer moves, so a key stored at or
+/// within `MAX_SKIPPED_AGE` of the stop is never expired by age; it leaves
+/// only on use or through the bound on the store. That is the lenient
+/// direction, and the refinement against the model excludes that case, as it
+/// does everywhere the core counts in `u32` and the model in the naturals.
+/// An honest run reaches the stop only after 2^32 accepted receives.
+///
+/// Written as a saturating step and a clamp rather than a guarded `+ 1`, so
+/// the translation sees only operations it already models and no fresh
+/// overflow obligation.
 fn age_store(state: &mut State) {
-    let now = state.events.saturating_add(1);
+    let stepped = state.events.saturating_add(1);
+    let now = if stepped == u32::MAX {
+        MAX_EVENTS
+    } else {
+        stepped
+    };
     state.events = now;
     let mut i = 0;
     while i < state.skipped.len() {
@@ -1335,9 +1378,10 @@ mod tests {
         ));
     }
 
-    /// A saturated store clock is refused at import (`State::invariant`):
-    /// the refinement of `receive` is stated below `u32::MAX`, and an honest
-    /// run needs 2^32 accepted receives to get there. One below it decodes.
+    /// A store clock at `u32::MAX` is refused at import (`State::invariant`).
+    /// `u32::MAX` is reserved: `age_store` stops the clock one below it, so
+    /// this refuses a value no run produces. One below it decodes, and is
+    /// where a run that counted 2^32 receives comes to rest.
     #[test]
     fn from_bytes_refuses_a_saturated_clock() {
         let fresh = init_receiver(&SK, B_PUB, LabelSet::Tacenta);
@@ -1354,6 +1398,55 @@ mod tests {
         let restored = State::from_bytes(&bytes).unwrap();
         assert_eq!(restored.events, u32::MAX - 1);
         assert!(restored.invariant());
+    }
+
+    /// The clock's ceiling is unreachable: no run of the operations produces
+    /// a state `from_bytes` refuses. `age_store` stops the clock one below
+    /// `u32::MAX` rather than saturating into it, so what the decoder accepts
+    /// and what the operations produce are the same set of states.
+    ///
+    /// Driven from just under the ceiling, and built the way an auditor
+    /// builds it: patch the clock field of a real `to_bytes` output and
+    /// decode. Every step after that is an ordinary accepted receive, and
+    /// each is checked against `invariant` and a round trip.
+    #[test]
+    fn the_clock_stops_one_below_its_ceiling() {
+        let mut a = init_sender(&SK, A_PUB, B_PUB, &DH_AB, LabelSet::Tacenta);
+        let mut b = init_receiver(&SK, B_PUB, LabelSet::Tacenta);
+        let (h0, mk0) = send(&mut a).unwrap();
+        assert_eq!(receive(&mut b, &h0, &DH_AB, &DH_B2A, B2_PUB).unwrap(), mk0);
+
+        let mut bytes = b.to_bytes().to_vec();
+        // Version, dhs_pub, three optional keys and rk, then ns, nr, pn: the
+        // same offset `from_bytes_refuses_a_saturated_clock` patches.
+        let at = 1 + 32 + 33 + 32 + 33 + 33 + 4 + 4 + 4;
+        bytes[at..at + 4].copy_from_slice(&(u32::MAX - 3).to_be_bytes());
+        let mut b = State::from_bytes(&bytes).unwrap();
+        assert!(b.invariant());
+        assert_eq!(b.events, u32::MAX - 3);
+
+        let mut step = 0;
+        while step < 6 {
+            let (h, mk) = send(&mut a).unwrap();
+            assert_eq!(
+                receive(&mut b, &h, &DH_AB, &DH_B2A, B2_PUB).unwrap(),
+                mk,
+                "step {step}"
+            );
+            assert!(b.invariant(), "invariant after step {step}");
+            b = State::from_bytes(&b.to_bytes())
+                .unwrap_or_else(|e| panic!("round trip after step {step}: {e:?}"));
+            assert!(
+                b.invariant(),
+                "invariant after the round trip of step {step}"
+            );
+            step += 1;
+        }
+        assert_eq!(
+            b.events,
+            u32::MAX - 1,
+            "the clock stops one below its ceiling"
+        );
     }
 
     /// A receiving chain without a sending chain, or without the peer's key,

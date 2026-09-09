@@ -445,6 +445,64 @@ fn from_bytes_rejects_a_current_epoch_without_chains() {
     ));
 }
 
+/// The epoch counter's ceiling is unreachable, so no run of the operations
+/// produces a state `from_bytes` refuses. `advance` reserves `u64::MAX` and
+/// refuses the step that would reach it: landing there instead would make
+/// `clear_old_epochs` retire every entry including the one just opened,
+/// leaving `chains` empty, `current_present` false, and a state this crate's
+/// own decoder had to reject.
+///
+/// Driven from just under the ceiling, and built the way an auditor builds
+/// it: patch the epoch fields of a real `to_bytes` output and decode.
+#[test]
+fn the_epoch_ceiling_is_unreachable() {
+    let top = u64::MAX - 3;
+    let fresh = State::init_alice(&sk());
+    let mut bytes = fresh.to_bytes().to_vec();
+    // The current epoch, and the one chains entry a fresh state holds.
+    bytes[EPOCH_AT..EPOCH_AT + 8].copy_from_slice(&top.to_be_bytes());
+    bytes[CHAINS_AT..CHAINS_AT + 8].copy_from_slice(&top.to_be_bytes());
+    let mut a = State::from_bytes(&bytes).unwrap();
+    assert!(a.invariant());
+    assert_eq!(a.epoch(), top);
+
+    // Two more advances are honest, and each leaves an importable state.
+    let mut step = 1u64;
+    while step <= 2 {
+        let e = top + step;
+        let (n, _) = a.send(e, Some(&out(e, step as u8))).unwrap();
+        assert_eq!(n, 1);
+        assert!(a.invariant(), "invariant after the advance to top + {step}");
+        a = State::from_bytes(&a.to_bytes())
+            .unwrap_or_else(|err| panic!("round trip after top + {step}: {err:?}"));
+        assert!(a.invariant());
+        assert_eq!(a.epoch(), e);
+        step += 1;
+    }
+    assert_eq!(a.epoch(), u64::MAX - 1);
+
+    // The next advance would reach the reserved value. It is refused with the
+    // exhaustion this crate already returns for a counter at its range, on
+    // both paths, and the state is left as it was rather than unimportable.
+    assert_eq!(
+        a.send(u64::MAX, Some(&out(u64::MAX, 0xEE))),
+        Err(SpqrError::ChainExhausted)
+    );
+    assert_eq!(
+        a.receive(u64::MAX, Some(&out(u64::MAX, 0xEE)), 1),
+        Err(SpqrError::ChainExhausted)
+    );
+    assert!(a.invariant());
+    assert_eq!(a.epoch(), u64::MAX - 1);
+    assert!(State::from_bytes(&a.to_bytes()).is_ok());
+
+    // The chains at the last usable epoch still carry messages.
+    let (n, _) = a.send(u64::MAX - 1, None).unwrap();
+    assert_eq!(n, 2);
+    assert!(a.invariant());
+    assert!(State::from_bytes(&a.to_bytes()).is_ok());
+}
+
 /// A store past `MAX_SKIPPED_STORE` is refused (`State::invariant`), even
 /// with a buffer large enough to hold it; at the bound it restores.
 #[test]
