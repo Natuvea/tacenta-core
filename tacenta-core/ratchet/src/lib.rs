@@ -21,13 +21,23 @@
 //! translated surface exactly the surface we intend to prove. Nothing that is
 //! not the verified zone belongs here.
 
-//! **No `?` in this crate.** The operator desugars through the `Try` trait,
-//! which the translation emits as universe-polymorphic definitions that fail to
-//! typecheck against the Aeneas Lean library, ending the T1 path. The verified
-//! zone therefore uses `let`-`else` and explicit `if let Err(..)` instead, and
-//! `clippy::question_mark` is allowed crate-wide because it asks for exactly
-//! the construct that breaks the proof. The consuming product applies the
-//! same rule to its own verified code.
+//! **The `?` operator.** This is the one place the rule is stated; the other
+//! verified-zone crates point here. The translation notes
+//! (tacenta-proofs/upstream/README.md) record that `?` "does not translate":
+//! it desugars through the `Try` trait, and the failing run produced
+//! universe-polymorphic Lean that did not typecheck. That run kept no
+//! reproducer, so the exact shape that failed is not known. What is known
+//! from the tree itself is narrower than the note: `tacenta-protobuf` and
+//! `tacenta-spqr` use `?` on a `Result` whose error type is the enclosing
+//! function's own -- no `From` conversion, no `Option`, never inside a loop
+//! -- and both translate and carry proofs. Whether `?` translates with a
+//! `From` conversion, on an `Option`, or inside a loop has not been tried
+//! since, and the failure presumably lay in one of those. So the verified
+//! zone spells its early returns as `let`-`else` and `match`, uses `?` only
+//! in the shape known to work, and keeps `clippy::question_mark` off because
+//! that lint asks for `?` wherever a `match` returns early, which is the
+//! untested shape. The consuming product applies the same rule to its own
+//! verified code.
 // No `unsafe` in this library crate, enforced by the attribute rather than
 // observed; every library crate in the workspace carries it. The one `unsafe`
 // block in the workspace is in `tacenta-core/tests/timing.rs`, which sets a CPU flag
@@ -102,7 +112,8 @@ pub struct Header {
 /// No `Debug`, so no derived impl can print the key. Tests get a counters-only
 /// impl below, under `cfg(test)`, so `assert_eq!` still works there and a
 /// `{:?}` in shipping code does not compile.
-#[derive(Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 struct SkippedKey {
     dh: Key,
     n: u32,
@@ -121,7 +132,13 @@ struct SkippedKey {
 /// No `Debug`, so no derived impl can print the root key, the chain keys
 /// or a stored message key. A counters-only impl exists under
 /// `cfg(test)` for the crate's own assertions.
-#[derive(Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+///
+/// Equality only under `cfg(test)`, for the same reason: the derived
+/// comparison is byte-wise over the keys and not constant-time. The tests
+/// need it for round-trip assertions; nothing shipping compares two states,
+/// and with the impl absent nothing shipping can (CR-22).
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct State {
     dhs_pub: Key,
     dhr_pub: Option<Key>,
@@ -207,6 +224,11 @@ impl State {
     /// included, is dropped. `receive` itself stays as proved.
     ///
     /// An index loop, not an iterator, to stay in the translatable subset.
+    ///
+    /// `#[must_use]`: zero means the store was already empty, and a caller
+    /// that does not look at the count retries against an empty store
+    /// forever (CR-20).
+    #[must_use]
     pub fn evict_oldest(&mut self, count: usize) -> usize {
         let mut evicted = 0;
         while evicted < count && !self.skipped.is_empty() {
@@ -498,8 +520,15 @@ impl State {
         // run four billion times against a buffer that cannot satisfy one
         // iteration. Nothing previously accepted is rejected: the `pos !=
         // bytes.len()` check below already requires the count to account for
-        // the buffer exactly. See `tacenta-erasure` for the same bound.
+        // the buffer exactly. See `tacenta-erasure`, whose coders bound their
+        // counts the same way, and then again by what an honest run can hold,
+        // as the next check here does.
         if skipped_count > bytes.len() / SkippedKey::ENCODED_LEN {
+            return Err(RatchetDecodeError::Malformed);
+        }
+        // And against the store's own bound, which `skip_message_keys`
+        // maintains and which a buffer alone does not imply (CR-21).
+        if skipped_count > MAX_SKIPPED_STORE {
             return Err(RatchetDecodeError::Malformed);
         }
 
@@ -521,6 +550,34 @@ impl State {
             }
         }
         if !ok || pos != bytes.len() {
+            return Err(RatchetDecodeError::Malformed);
+        }
+
+        // **The store must be one the operations could have built.** They
+        // keep it a map on `(dh, n)` -- `purge_chain_range` clears a range
+        // before it is re-derived -- and both lookups answer with the first
+        // match, so a second entry for one pair would be unreachable and
+        // would hold a slot against the bound while a genuine message at that
+        // number was answered with the wrong key. And `stored_at` is a
+        // reading of `events`, which only grows, so an entry from the future
+        // is one no run produced. Index loops over a count already bounded
+        // above, with a flag rather than a return from inside (CR-21).
+        let mut consistent = true;
+        let mut i = 0;
+        while i < skipped.len() {
+            if skipped[i].stored_at > events {
+                consistent = false;
+            }
+            let mut j = i + 1;
+            while j < skipped.len() {
+                if skipped[i].dh == skipped[j].dh && skipped[i].n == skipped[j].n {
+                    consistent = false;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+        if !consistent {
             return Err(RatchetDecodeError::Malformed);
         }
 
@@ -581,6 +638,10 @@ pub fn message_keys(mk: &Key, labels: LabelSet) -> (Key, Key, [u8; 16]) {
     (enc, mac, iv)
 }
 
+/// The `(message number, message key)` pairs one `derive_chain` produces,
+/// wiped whole when dropped; see there for why the wrapper is on the vector.
+type DerivedKeys = Zeroizing<Vec<(u32, Key)>>;
+
 /// Advance a chain `count` steps from `start_n`, returning the final chain key
 /// and each `(message number, message key)` produced.
 ///
@@ -590,13 +651,17 @@ pub fn message_keys(mk: &Key, labels: LabelSet) -> (Key, Key, [u8; 16]) {
 /// total removes the panic site by construction rather than leaving a proof
 /// obligation that the bound holds. One less thing to prove, and one less thing
 /// to get wrong if a future caller forgets the bound.
-fn derive_chain(
-    ck: &Key,
-    start_n: u32,
-    count: u32,
-) -> Result<(Key, Vec<(u32, Key)>), RatchetError> {
+///
+/// The accumulator is `Zeroizing`: it can hold up to `MAX_SKIP` message keys,
+/// and the caller copies them into the store, so the vector is wiped where it
+/// stands when it drops rather than handed back to the allocator with the
+/// keys still in it. Wrapping the whole vector, not each key, is what makes
+/// that true: moving elements out of a vector leaves their bytes in its
+/// buffer, so the caller reads them by index and lets the wrapper wipe the
+/// buffer entire (CR-15).
+fn derive_chain(ck: &Key, start_n: u32, count: u32) -> Result<(Key, DerivedKeys), RatchetError> {
     let mut cur = *ck;
-    let mut keys = Vec::new();
+    let mut keys = Zeroizing::new(Vec::new());
     for i in 0..count {
         let Some(n) = start_n.checked_add(i) else {
             return Err(RatchetError::ChainExhausted);
@@ -626,13 +691,17 @@ fn skip_message_keys(state: &mut State, upto: u32) -> Result<(), RatchetError> {
                     Err(e) => return Err(e),
                 };
                 purge_chain_range(&mut state.skipped, dhr, state.nr, upto);
-                for (n, mk) in keys {
+                // By index rather than by consuming the vector, so that it is
+                // wiped whole when it drops; see `derive_chain`.
+                let mut i = 0;
+                while i < keys.len() {
                     state.skipped.push(SkippedKey {
                         dh: dhr,
-                        n,
+                        n: keys[i].0,
                         stored_at: state.events,
-                        key: mk,
+                        key: keys[i].1,
                     });
+                    i += 1;
                 }
                 state.ckr = Some(ck2);
                 state.nr = upto;
@@ -821,6 +890,15 @@ fn try_skipped(state: &mut State, header: &Header) -> Option<Key> {
 /// and take a DH ratchet step; then skip up to `header.n` on the current chain
 /// and derive the message key at `header.n`. DH outputs and the fresh sending
 /// key are ignored on a same-chain message.
+///
+/// **On `Err` the state may already have moved.** On an unseen ratchet key the
+/// old chain is skipped and the DH step taken -- new root key, new sending
+/// key, counters reset -- before the skip on the new chain can still refuse;
+/// and a skipped key is removed from the store the moment it matches. The
+/// Triple Ratchet and the session run this on a copy and adopt it only once
+/// the message authenticates, which is what makes those partial advances
+/// harmless there. A caller driving this crate directly must do the same:
+/// operate on a copy, and treat a state that returned `Err` as spent (CR-20).
 pub fn receive(
     state: &mut State,
     header: &Header,
@@ -1112,6 +1190,86 @@ mod tests {
     /// An absent key's thirty-two bytes must be zero, or the same state has
     /// two spellings and `from_bytes`/`to_bytes` disagree on the bytes. The
     /// sparse ratchet's optional keys have the same shape and the same check.
+    /// A stored entry repeated under one `(dh, n)` is refused (CR-21): both
+    /// lookups take the first match, so the second could neither be found nor
+    /// deleted, and the store would not be the map the operations keep it.
+    #[test]
+    fn from_bytes_rejects_a_duplicated_skipped_entry() {
+        let mut a = init_sender(
+            &[1u8; 32],
+            [2u8; 32],
+            [3u8; 32],
+            &[4u8; 32],
+            LabelSet::Tacenta,
+        );
+        let mut b = init_receiver(&[1u8; 32], [3u8; 32], LabelSet::Tacenta);
+        let h0 = send(&mut a).unwrap().0;
+        let h1 = send(&mut a).unwrap().0;
+        // Deliver the second first, so one key is stored.
+        receive(&mut b, &h1, &[4u8; 32], &[5u8; 32], [6u8; 32]).unwrap();
+        assert_eq!(b.skipped_len(), 1);
+        let bytes = b.to_bytes();
+        let count_at = FIXED_LEN - 4;
+        let entry_at = FIXED_LEN;
+        let mut dirty = Vec::new();
+        dirty.extend_from_slice(&bytes[..count_at]);
+        dirty.extend_from_slice(&2u32.to_be_bytes());
+        dirty.extend_from_slice(&bytes[entry_at..]);
+        dirty.extend_from_slice(&bytes[entry_at..]);
+        assert!(matches!(
+            State::from_bytes(&dirty),
+            Err(RatchetDecodeError::Malformed)
+        ));
+        // The same two entries with distinct numbers are a store an honest run
+        // can hold, and restore.
+        let second_n = entry_at + SkippedKey::ENCODED_LEN + 32;
+        dirty[second_n..second_n + 4].copy_from_slice(&7u32.to_be_bytes());
+        assert!(State::from_bytes(&dirty).is_ok());
+        let _ = h0;
+    }
+
+    /// An entry whose `stored_at` is ahead of the store's clock is refused
+    /// (CR-21): `events` only grows, so no run produced it.
+    #[test]
+    fn from_bytes_rejects_an_entry_stored_in_the_future() {
+        let mut a = init_sender(
+            &[1u8; 32],
+            [2u8; 32],
+            [3u8; 32],
+            &[4u8; 32],
+            LabelSet::Tacenta,
+        );
+        let mut b = init_receiver(&[1u8; 32], [3u8; 32], LabelSet::Tacenta);
+        let _ = send(&mut a).unwrap();
+        let h1 = send(&mut a).unwrap().0;
+        receive(&mut b, &h1, &[4u8; 32], &[5u8; 32], [6u8; 32]).unwrap();
+        let mut bytes = b.to_bytes().to_vec();
+        // The entry's `stored_at` sits after its 32-byte `dh` and 4-byte `n`.
+        let at = FIXED_LEN + 32 + 4;
+        bytes[at..at + 4].copy_from_slice(&u32::MAX.to_be_bytes());
+        assert!(matches!(
+            State::from_bytes(&bytes),
+            Err(RatchetDecodeError::Malformed)
+        ));
+    }
+
+    /// A count past `MAX_SKIPPED_STORE` is refused before the loop, even with
+    /// a buffer large enough to hold it (CR-21).
+    #[test]
+    fn from_bytes_rejects_a_store_past_its_bound() {
+        let b = init_receiver(&[1u8; 32], [3u8; 32], LabelSet::Tacenta);
+        let bytes = b.to_bytes();
+        let count = MAX_SKIPPED_STORE + 1;
+        let mut dirty = Vec::new();
+        dirty.extend_from_slice(&bytes[..FIXED_LEN - 4]);
+        dirty.extend_from_slice(&(count as u32).to_be_bytes());
+        dirty.extend_from_slice(&vec![0u8; count * SkippedKey::ENCODED_LEN]);
+        assert!(matches!(
+            State::from_bytes(&dirty),
+            Err(RatchetDecodeError::Malformed)
+        ));
+    }
+
     #[test]
     fn from_bytes_rejects_nonzero_padding_behind_an_absent_key() {
         let fresh = init_receiver(&SK, B_PUB, LabelSet::Tacenta);

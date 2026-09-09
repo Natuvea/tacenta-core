@@ -21,8 +21,8 @@
 // the trusted boundary and are unaffected.
 #![forbid(unsafe_code)]
 #![no_std]
-// The `?` operator desugars through `Try` into universe-polymorphic Lean that
-// will not typecheck, so it is spelled out here. Same reason as the ratchet's.
+// No `?`: `let`-`else` and `match` instead, for the reason recorded once in
+// tacenta-ratchet's module doc ("The `?` operator"). The lint asks for `?`.
 #![allow(clippy::question_mark)]
 
 extern crate alloc;
@@ -79,7 +79,12 @@ pub const ENCODE_EC_LEN: usize = 33;
 /// a fixed 32 bytes, and that is what makes the concatenation unambiguous:
 /// see `Proofs.SessionEstablishment`.
 pub fn km(dh1: &Key, dh2: &Key, dh3: &Key, dh4: Option<&Key>, ss: &Key) -> Vec<u8> {
-    let mut out = Vec::new();
+    // Sized for the widest case up front. Grown from empty, the vector would
+    // reallocate as each output is appended and hand the allocator back the
+    // 32-, 64- and 128-byte buffers holding the earlier outputs, unwiped; the
+    // caller wraps only the final buffer. One allocation means there is only
+    // the one to wipe (CR-15).
+    let mut out = Vec::with_capacity(5 * 32);
     out.extend_from_slice(dh1);
     out.extend_from_slice(dh2);
     out.extend_from_slice(dh3);
@@ -97,7 +102,14 @@ pub fn km(dh1: &Key, dh2: &Key, dh3: &Key, dh4: Option<&Key>, ss: &Key) -> Vec<u
 /// The buffer is wiped on the way out: it holds the concatenated secret key
 /// material, which the specification says to delete once the secret is derived.
 pub fn kdf_sk(km_bytes: &[u8]) -> Key {
-    let mut ikm = Zeroizing::new(Vec::new());
+    // Sized for the prefix and the material together, so no intermediate
+    // buffer holding the material is freed unwiped on the way to the one
+    // that is (CR-15). Saturating: a capacity hint, and a slice length plus a
+    // constant is an addition the panic-freedom proof would otherwise have to
+    // discharge.
+    let mut ikm = Zeroizing::new(Vec::with_capacity(
+        F_PREFIX.len().saturating_add(km_bytes.len()),
+    ));
     ikm.extend_from_slice(&F_PREFIX);
     ikm.extend_from_slice(km_bytes);
     tacenta_kdf::hkdf_sha256::<32>(&[0u8; 32], &ikm, SK_INFO)
@@ -125,7 +137,9 @@ pub fn shared_secret(dh1: &Key, dh2: &Key, dh3: &Key, dh4: Option<&Key>, ss: &Ke
 /// data, and a binding two pairs satisfy binds neither. `encode_ec` is fixed at
 /// `ENCODE_EC_LEN`, which is what makes this safe.
 pub fn associated_data(encoded_ik_a: &[u8], encoded_ik_b: &[u8]) -> Vec<u8> {
-    let mut ad = Vec::new();
+    // Public data, so nothing here needs wiping; sized up front anyway, for
+    // the same shape as `km` and one allocation rather than two.
+    let mut ad = Vec::with_capacity(encoded_ik_a.len().saturating_add(encoded_ik_b.len()));
     ad.extend_from_slice(encoded_ik_a);
     ad.extend_from_slice(encoded_ik_b);
     ad

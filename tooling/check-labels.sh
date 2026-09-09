@@ -10,10 +10,10 @@
 #
 # **Prefix-freedom, not just distinctness.** Distinctness is what a casual check
 # tests and it is not the property that matters: two labels that differ only by
-# a suffix can collide once either is adjacent to variable-length data. One such
-# pair exists today and is frozen deliberately -- see the registry for why it is
-# not reachable -- so the check grandfathers exactly that pair and refuses any
-# new one.
+# a suffix can collide once either is adjacent to variable-length data. Two such
+# pairs exist today and are frozen deliberately -- see the registry for why
+# neither is reachable -- so the check grandfathers exactly those pairs and
+# refuses any new one.
 #
 # **What counts as a label, and where it is looked for.** Any `const` or
 # `static` byte-string whose name ends in `INFO` or `LABEL`, `pub` or not, in
@@ -59,18 +59,24 @@ if [ "$from_source" != "$from_registry" ]; then
   status=1
 fi
 
-# Distinctness, and prefix-freedom outside the one grandfathered pair.
+# Distinctness, and prefix-freedom outside the grandfathered pairs.
 #
 # Distinctness is checked on the *raw* list, before `sort -u`: a deduplicated
 # list compared with the length of its own set is equal by construction, so
 # "two labels are identical" could never fire on it.
-GRANDFATHERED="Tacenta_CURVE25519_SHA-256_MLKEM1024|Tacenta_CURVE25519_SHA-256_MLKEM1024:Split"
+#
+# Pairs are `prefix|longer`, separated by `;`. Both are spelling facts in the
+# registry: the Triple Ratchet's combine and split labels, and the sparse
+# ratchet's chain label against the specification's chain-start suffix
+# (CR-32).
+GRANDFATHERED="Tacenta_CURVE25519_SHA-256_MLKEM1024|Tacenta_CURVE25519_SHA-256_MLKEM1024:Split;Chain|Chain Start"
 python3 - "$GRANDFATHERED" "$from_source_raw" <<'PYEOF' || status=1
 import collections, sys
 
 allowed = set()
-a, b = sys.argv[1].split("|")
-allowed.add((a, b))
+for pair in sys.argv[1].split(";"):
+    a, b = pair.split("|")
+    allowed.add((a, b))
 
 raw = [l for l in sys.argv[2].splitlines() if l]
 dupes = [l for l, n in collections.Counter(raw).items() if n > 1]
@@ -87,7 +93,7 @@ bad = [(x, y) for x in labels for y in labels
        if x != y and y.startswith(x) and (x, y) not in allowed]
 if bad:
     print("", file=sys.stderr)
-    print("REFUSING: a label is a strict prefix of another, and is not the pair", file=sys.stderr)
+    print("REFUSING: a label is a strict prefix of another, and is not a pair", file=sys.stderr)
     print("the registry grandfathers:", file=sys.stderr)
     for x, y in bad:
         print(f"    {x!r}", file=sys.stderr)
@@ -98,7 +104,7 @@ if bad:
     print("variable-length data. New labels must be prefix-free.", file=sys.stderr)
     sys.exit(1)
 
-print(f"  {len(labels)} labels, distinct, prefix-free apart from the registered pair")
+print(f"  {len(labels)} labels, distinct, prefix-free apart from the {len(allowed)} registered pairs")
 PYEOF
 
 if [ "$status" -ne 0 ]; then

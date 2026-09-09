@@ -509,3 +509,297 @@ fn from_bytes_rejects_trailing_bytes() {
         Err(BraidDecodeError::Malformed)
     ));
 }
+
+/// A persisted epoch of `u64::MAX` is refused as malformed rather than
+/// restored (CR-03). No honest run reaches that epoch, and restoring it would
+/// hand back a Braid whose next transition abandons the session; refusing it
+/// is also what makes the T1 precondition `epoch < u64::MAX` true of every
+/// state this crate constructs.
+#[test]
+fn from_bytes_refuses_an_epoch_at_the_ceiling() {
+    let a = Braid::initiator(b"secret");
+    let mut bytes = a.to_bytes();
+    // Version, tag, then the eight epoch bytes.
+    bytes[2..10].copy_from_slice(&u64::MAX.to_be_bytes());
+    assert!(matches!(
+        Braid::from_bytes(&bytes),
+        Err(BraidDecodeError::Malformed)
+    ));
+    // One below the ceiling is an epoch like any other.
+    bytes[2..10].copy_from_slice(&(u64::MAX - 1).to_be_bytes());
+    assert!(Braid::from_bytes(&bytes).is_ok());
+}
+
+/// The two states that increment the epoch fail closed at the ceiling
+/// instead of panicking. The states are built directly, since `from_bytes`
+/// now refuses to construct them: this pins the arithmetic itself, so that
+/// the decoder's refusal is a second line rather than the only one.
+#[test]
+fn a_step_from_an_epoch_at_the_ceiling_fails_rather_than_panics() {
+    let mut r = rng(30);
+    let auth = Auth::init(u64::MAX, b"secret");
+
+    // Transition (13): a message from the next epoch would swap roles.
+    let b = Braid {
+        state: State::Ct2Sampled {
+            epoch: u64::MAX,
+            auth: auth.clone(),
+            ct2_enc: Encoder::new(&[0u8; CT2_LEN + MAC_LEN]),
+        },
+    };
+    let m = Msg::empty(0);
+    let (_, out, next) = b.receive(&m);
+    assert!(out.is_none());
+    assert!(
+        next.failed(),
+        "a Ct2Sampled state with no successor epoch must fail closed"
+    );
+    // Sending from it still does not panic.
+    let (_, _, out, _) = b.send(&mut r);
+    assert!(out.is_none());
+
+    // Transition (5): the initiator completing an epoch. Driven with a ct2
+    // chunk of the right shape; it fails closed before decapsulating.
+    let kp = IncrementalKeyPair::generate(&mut r).unwrap();
+    let b = Braid {
+        state: State::EkSentCt1Received {
+            epoch: u64::MAX,
+            auth,
+            kp,
+            ct1: vec![0u8; CT1_LEN],
+            ct2_dec: Decoder::new(CT2_LEN + MAC_LEN),
+        },
+    };
+    let mut enc = Encoder::new(&[0u8; CT2_LEN + MAC_LEN]);
+    let mut cur = b;
+    let mut i = 0;
+    while i < 8 && !cur.failed() {
+        let m = Msg::with(u64::MAX, MsgType::Ct2, enc.next_chunk());
+        let (_, out, next) = cur.receive(&m);
+        assert!(out.is_none());
+        cur = next;
+        i += 1;
+    }
+    assert!(
+        cur.failed(),
+        "completing an epoch at the ceiling must fail closed"
+    );
+}
+
+/// Every restored variable-length field and every restored coder is held to
+/// the size its state implies (CR-21, CR-14). Each tag's encoding is taken
+/// from a real negotiation, then one field is resized and the decode must
+/// answer `Malformed` rather than a state that will fail on its next chunk.
+#[test]
+fn from_bytes_refuses_a_field_of_the_wrong_length() {
+    let mut r = rng(31);
+    let mut p = Pair::new(b"a preshared secret from the handshake");
+
+    // Collect one encoding per live tag over a few epochs, from both sides.
+    // Two messages in three from `b` are dropped: under strict alternation
+    // the acknowledgement always rides on the first `ek_vector` chunk, so
+    // `EkReceivedCt1Sampled` (tag 8), where the vector completes before the
+    // acknowledgement, is reached only when the other side's `ct1` chunks
+    // are being lost. The roles swap each epoch, so the loss reaches both.
+    let mut samples: Vec<Option<Zeroizing<Vec<u8>>>> = vec![None; 11];
+    let mut i = 0usize;
+    while i < 1500 {
+        let (m, _, _, next) = p.a.send(&mut r);
+        p.a = next;
+        Pair::receive_and_commit(&mut p.b, &m);
+        let (m, _, _, next) = p.b.send(&mut r);
+        p.b = next;
+        if i.is_multiple_of(3) {
+            Pair::receive_and_commit(&mut p.a, &m);
+        }
+        let ta = p.a.state_tag() as usize;
+        if ta < 11 && samples[ta].is_none() {
+            samples[ta] = Some(p.a.to_bytes());
+        }
+        let tb = p.b.state_tag() as usize;
+        if tb < 11 && samples[tb].is_none() {
+            samples[tb] = Some(p.b.to_bytes());
+        }
+        i += 1;
+    }
+    assert!(!p.a.failed() && !p.b.failed());
+
+    // Walk each encoding's length-prefixed fields after the fixed prefix
+    // (version, tag, epoch, auth) and, one at a time, shrink each by one
+    // byte. A shrunk KEM field is refused by the KEM's own parser and a shrunk
+    // coder by the codec's; the ones this test adds are the plain `Vec`
+    // fields and the coder sizes, and every shrink must come back Malformed.
+    let mut tag = 0;
+    while tag < 11 {
+        let bytes = samples[tag]
+            .clone()
+            .unwrap_or_else(|| panic!("the negotiation never reached tag {tag}"));
+        let mut fields = Vec::new();
+        let mut pos = 2 + 8 + 64;
+        while pos < bytes.len() {
+            let (field, next) = take_len_prefixed(&bytes, pos).expect("well-formed sample");
+            fields.push((pos, field.len()));
+            pos = next;
+        }
+        let mut f = 0;
+        while f < fields.len() {
+            let (at, len) = fields[f];
+            if len > 0 {
+                let mut dirty = Vec::new();
+                dirty.extend_from_slice(&bytes[..at]);
+                dirty.extend_from_slice(&((len - 1) as u32).to_be_bytes());
+                dirty.extend_from_slice(&bytes[at + 4..at + 4 + len - 1]);
+                dirty.extend_from_slice(&bytes[at + 4 + len..]);
+                assert!(
+                    matches!(Braid::from_bytes(&dirty), Err(BraidDecodeError::Malformed)),
+                    "tag {tag}, field {f} shortened by one byte was restored"
+                );
+            }
+            f += 1;
+        }
+        // And the untouched sample still restores, so the refusals above are
+        // about the resize and not the sample.
+        assert!(
+            Braid::from_bytes(&bytes).is_ok(),
+            "tag {tag} sample does not restore"
+        );
+        tag += 1;
+    }
+}
+
+/// A restored decoder whose declared size is off by one, inside a state whose
+/// framing is otherwise exact, is the case the length walk above cannot reach
+/// (a decoder's size is inside its own encoding). Built directly.
+#[test]
+fn from_bytes_refuses_a_decoder_of_the_wrong_size() {
+    let b = Braid {
+        state: State::NoHeaderReceived {
+            epoch: 1,
+            auth: Auth::init(1, b"secret"),
+            hdr_dec: Decoder::new(HEADER_LEN + MAC_LEN - 1),
+        },
+    };
+    assert!(matches!(
+        Braid::from_bytes(&b.to_bytes()),
+        Err(BraidDecodeError::Malformed)
+    ));
+    let honest = Braid::responder(b"secret");
+    assert!(Braid::from_bytes(&honest.to_bytes()).is_ok());
+}
+
+/// Seeds for the `braid_receive` fuzz target, one per live state and per
+/// role: an honest peer's messages up to the first moment the target's own
+/// side is parked in that state.
+///
+/// `fuzz/fuzz_targets/braid_receive.rs` reads a role byte and then messages
+/// at a fixed stride, replays each through `receive`, commits the candidate
+/// unless it failed, and sends. The target's own randomness is a fixed seed
+/// and a fixed secret, and this loop repeats exactly that, so the messages
+/// recorded here are ones the target's side will authenticate when replayed.
+/// libFuzzer could not discover a MAC-valid header by mutation, which is why
+/// the corpus has to be seeded rather than grown (CR-10).
+///
+/// Ignored by default because it writes into the corpus; run it deliberately
+/// when the target's layout or this crate's transitions change:
+///
+/// ```sh
+/// cargo test -p tacenta-braid -- --ignored write_braid_receive_seeds
+/// ```
+#[test]
+#[ignore]
+fn write_braid_receive_seeds() {
+    // The target's layout: a role byte, then per message 8 epoch, 1 type, 1
+    // presence, 2 index, 32 chunk. Kept in step with the target by hand; the
+    // target's doc comment names this test.
+    fn encode(m: &Msg, out: &mut Vec<u8>) {
+        out.extend_from_slice(&m.epoch.to_be_bytes());
+        out.push(match m.ty {
+            MsgType::None => 0,
+            MsgType::Hdr => 1,
+            MsgType::Ek => 2,
+            MsgType::EkCt1Ack => 3,
+            MsgType::Ct1 => 4,
+            MsgType::Ct2 => 5,
+        });
+        match m.data {
+            Some(c) => {
+                out.push(1);
+                out.extend_from_slice(&c.index.to_be_bytes());
+                out.extend_from_slice(&c.data);
+            }
+            None => {
+                out.push(0);
+                out.extend_from_slice(&[0u8; 2 + CHUNK_SIZE]);
+            }
+        }
+    }
+
+    let dir =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../fuzz/corpus/braid_receive");
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let secret = [0x2au8; 32];
+    let mut role = 0u8;
+    while role < 2 {
+        // The target's side, with the target's randomness; the peer with its
+        // own, which the target never sees.
+        let mut target_rng = rng(0);
+        let mut peer_rng = rng(1);
+        let (mut target, mut peer) = if role == 0 {
+            (Braid::initiator(&secret), Braid::responder(&secret))
+        } else {
+            (Braid::responder(&secret), Braid::initiator(&secret))
+        };
+        let mut transcript = vec![role];
+        let mut written = [false; 11];
+        let write = |tag: u8, transcript: &Vec<u8>, written: &mut [bool; 11]| {
+            let t = tag as usize;
+            if t < 11 && !written[t] {
+                written[t] = true;
+                let name = if role == 0 { "initiator" } else { "responder" };
+                let path = dir.join(format!("seed-{name}-state-{t:02}.bin"));
+                std::fs::write(&path, transcript).unwrap();
+                println!("wrote {} ({} bytes)", path.display(), transcript.len());
+            }
+        };
+        write(target.state_tag(), &transcript, &mut written);
+
+        // The first two epochs run without loss, the rest with two of the
+        // target's messages in three never reaching the peer. The target's
+        // own side is unaffected either way -- it still receives, commits and
+        // sends exactly as the fuzz target does -- but the two schedules park
+        // it in different states: under strict alternation the
+        // acknowledgement arrives before `ek_vector` completes
+        // (`Ct1Acknowledged`), and under loss the peer lingers in the state
+        // that keeps sending plain `Ek` chunks, so the vector completes first
+        // (`EkReceivedCt1Sampled`). The roles swap each epoch, so each
+        // schedule gets a responder epoch.
+        let mut i = 0usize;
+        while i < 6000 {
+            let (m, _, _, next) = peer.send(&mut peer_rng);
+            peer = next;
+            encode(&m, &mut transcript);
+            let (_, _, candidate) = target.receive(&m);
+            if !candidate.failed() {
+                target.commit(candidate);
+            }
+            write(target.state_tag(), &transcript, &mut written);
+            let (m2, _, _, next) = target.send(&mut target_rng);
+            target = next;
+            write(target.state_tag(), &transcript, &mut written);
+            let lossy = target.epoch() >= 3;
+            if !lossy || i.is_multiple_of(3) {
+                let (_, _, candidate) = peer.receive(&m2);
+                peer.commit(candidate);
+            }
+            i += 1;
+        }
+        assert!(!target.failed() && !peer.failed());
+        let mut t = 0;
+        while t < 11 {
+            assert!(written[t], "role {role} never parked in state {t}");
+            t += 1;
+        }
+        role += 1;
+    }
+}

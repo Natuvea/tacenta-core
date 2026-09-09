@@ -19,10 +19,11 @@
 //! work. Owned bytes rather than a zero-copy lifetime design: the proof comes
 //! first and the optimisation second, if ever.
 
-// The `?` operator desugars through `Try` into universe-polymorphic Lean that
-// will not typecheck, so this crate cannot use it and clippy's lint demands
-// exactly the construct that breaks the translation. Same reason as
-// `tacenta-ratchet`.
+// `?` appears here only on a `Result` whose error type is this function's own,
+// the one shape known to translate; the remaining early returns are spelled as
+// `match`, and the lint that asks to rewrite those as `?` stays off because
+// what it asks for is not uniformly known to translate. See tacenta-ratchet's
+// module doc ("The `?` operator") for what is and is not known.
 #![allow(clippy::question_mark)]
 #![forbid(unsafe_code)]
 

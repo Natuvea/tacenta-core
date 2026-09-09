@@ -28,16 +28,17 @@
 //!
 //! A MAC that does not verify, or an `ek_vector` that does not match the header
 //! it was promised by, abandons the session. The published specification says to
-//! negotiate a new one, and [`State::Failed`] makes that unrepresentable
-//! otherwise rather than leaving it to a caller's discipline. See the
+//! negotiate a new one, and the private `Failed` state, reported through
+//! [`Braid::failed`], makes that unrepresentable otherwise rather than leaving
+//! it to a caller's discipline. See the
 //! implementation decisions on the specification page for why that matters
 //! here: the
 //! authenticator has already ratcheted by the time the ciphertext MAC is
 //! checked, because the MAC key is what the ratchet produced.
 
 #![forbid(unsafe_code)]
-// The `?` operator desugars through `Try` into Lean that will not typecheck, so
-// the verified zone does not use it. See tacenta-proofs/upstream/README.md.
+// No `?`: `let`-`else` and `match` instead, for the reason recorded once in
+// tacenta-ratchet's module doc ("The `?` operator"). The lint asks for `?`.
 #![allow(clippy::question_mark)]
 // Every `Receive` in the published pseudocode tests the epoch and message type
 // first and then looks at the payload, and this file keeps that shape so the
@@ -46,7 +47,7 @@
 #![allow(clippy::collapsible_if)]
 
 use rand_core::{CryptoRng, RngCore};
-use tacenta_erasure::{CHUNK_BYTES, Chunk, Decoder, Encoder};
+use tacenta_erasure::{CHUNK_BYTES, Chunk, Decoder, Encoder, chunk_count};
 use tacenta_kem::{
     CT1_LEN, CT2_LEN, EK_VECTOR_LEN, EncapsState, HEADER_LEN, IncrementalKeyPair, encapsulate1,
     encapsulate2, validate_ek,
@@ -170,7 +171,11 @@ impl Auth {
     /// An authenticator with a given root key and no MAC key yet.
     ///
     /// For conformance checking against the model's vectors, which supply a
-    /// root key directly rather than deriving one.
+    /// root key directly rather than deriving one. Compiled only for this
+    /// crate's tests and for the vectors runner, which enables the
+    /// `conformance` feature; a shipping build has no way to plant a root key
+    /// (CR-22).
+    #[cfg(any(test, feature = "conformance"))]
     pub fn from_root(root_key: [u8; 32]) -> Auth {
         Auth {
             root_key,
@@ -178,8 +183,9 @@ impl Auth {
         }
     }
 
-    /// The two keys, for conformance checking. They are secret, and a caller
-    /// that reads them outside a test is doing something it should not.
+    /// The two keys, for conformance checking. They are secret, so this is
+    /// compiled only where `from_root` is: a shipping build cannot read them.
+    #[cfg(any(test, feature = "conformance"))]
     pub fn keys(&self) -> ([u8; 32], [u8; 32]) {
         (self.root_key, self.mac_key)
     }
@@ -197,8 +203,13 @@ impl Auth {
     /// Absorb new entropy: 64 bytes of HKDF split into a new root and a new MAC
     /// key.
     pub fn update(&mut self, epoch: u64, key: &[u8]) {
-        let out: [u8; 64] =
-            tacenta_kdf::hkdf_sha256(&self.root_key, key, &info(AUTH_UPDATE, epoch));
+        // Wiped on the way out, as the ratchet's `kdf_rk` wipes its own: the
+        // 64 bytes hold both keys.
+        let out = Zeroizing::new(tacenta_kdf::hkdf_sha256::<64>(
+            &self.root_key,
+            key,
+            &info(AUTH_UPDATE, epoch),
+        ));
         self.root_key.copy_from_slice(&out[..32]);
         self.mac_key.copy_from_slice(&out[32..]);
     }
@@ -244,10 +255,11 @@ fn mac_eq(a: &[u8], b: &[u8]) -> bool {
     diff == 0
 }
 
-/// Which of the eleven states the machine is in.
+/// Which of the eleven states the machine is in, plus the terminal one.
 ///
-/// Public so a caller can observe failure and progress. Its contents are not:
-/// they carry decapsulation keys and encapsulation state.
+/// Private, contents and all: the variants carry decapsulation keys and
+/// encapsulation state. A caller observes failure through `Braid::failed` and
+/// progress through `Braid::state_tag` and `Braid::epoch`.
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 enum State {
@@ -475,6 +487,11 @@ impl Braid {
     /// records why. Returning a candidate makes the caller commit both halves
     /// or neither, which is the only shape that cannot be got wrong by
     /// ordering.
+    ///
+    /// `#[must_use]`: the tuple carries the only copy of the next state, and a
+    /// caller that drops it has sent a message the agreement does not know
+    /// about (CR-20).
+    #[must_use]
     pub fn send<R: RngCore + CryptoRng>(&self, rng: &mut R) -> (Msg, u64, Option<Output>, Braid) {
         let (msg, out, next) = self.step_send(self.state.clone(), rng);
         let candidate = Braid { state: next };
@@ -587,19 +604,25 @@ impl Braid {
                 header,
                 ek_dec,
             } => {
-                let (encaps, ct1, raw) = match encapsulate1(&header, rng) {
+                let (encaps, ct1, mut raw) = match encapsulate1(&header, rng) {
                     Ok(t) => t,
                     Err(_) => return (Msg::empty(epoch), None, State::Failed),
                 };
-                let key = kdf_ok(&raw, epoch);
-                auth.update(epoch, &key);
+                // The raw shared secret is spent the moment the epoch key is
+                // derived from it, and the key lives on only inside `Output`
+                // and the authenticator, both of which wipe themselves; the
+                // locals here are wiped too, so no copy outlives the step
+                // (CR-15).
+                let key = Zeroizing::new(kdf_ok(&raw, epoch));
+                raw.zeroize();
+                auth.update(epoch, &key[..]);
                 let mut ct1_enc = Encoder::new(&ct1);
                 let chunk = ct1_enc.next_chunk();
                 (
                     Msg::with(epoch, MsgType::Ct1, chunk),
                     Some(Output {
                         key_epoch: epoch,
-                        key,
+                        key: *key,
                     }),
                     State::Ct1Sampled {
                         epoch,
@@ -711,6 +734,10 @@ impl Braid {
     /// widest is an incremental ML-KEM key pair of nearly twelve kilobytes. The
     /// loser is wiped rather than dropped, because every secret it holds is
     /// behind `Zeroizing`.
+    ///
+    /// `#[must_use]`: the candidate is the only copy of the state this message
+    /// produces; dropping it silently is the same as never having received.
+    #[must_use]
     pub fn receive(&self, msg: &Msg) -> (u64, Option<Output>, Braid) {
         let (out, next) = self.step_receive(self.state.clone(), msg);
         let candidate = Braid { state: next };
@@ -858,26 +885,40 @@ impl Braid {
                             if framed.len() != CT2_LEN + MAC_LEN {
                                 return (None, State::Failed);
                             }
+                            // Checked before anything is derived: an epoch
+                            // that cannot be followed cannot complete, and
+                            // abandoning the session is the only honest
+                            // answer, since nothing this machine could emit
+                            // afterwards would carry a number the peer could
+                            // agree on. Unreachable from an honest start --
+                            // epochs begin at one and `from_bytes` refuses
+                            // `u64::MAX` -- so this is the T1 precondition
+                            // `epoch < u64::MAX` made true by construction
+                            // rather than assumed (CR-03).
+                            let Some(next_epoch) = epoch.checked_add(1) else {
+                                return (None, State::Failed);
+                            };
                             let (ct2, mac) = framed.split_at(CT2_LEN);
-                            let raw = match kp.decapsulate(&ct1, ct2) {
+                            let mut raw = match kp.decapsulate(&ct1, ct2) {
                                 Ok(ss) => ss,
                                 Err(_) => return (None, State::Failed),
                             };
-                            let key = kdf_ok(&raw, epoch);
+                            let key = Zeroizing::new(kdf_ok(&raw, epoch));
+                            raw.zeroize();
                             // The authenticator ratchets before the MAC is
                             // checked, because the MAC key is what the ratchet
                             // produces. A failure from here is terminal.
-                            auth.update(epoch, &key);
+                            auth.update(epoch, &key[..]);
                             if !mac_eq(&auth.mac_ct(epoch, &ct1, ct2), mac) {
                                 return (None, State::Failed);
                             }
                             return (
                                 Some(Output {
                                     key_epoch: epoch,
-                                    key,
+                                    key: *key,
                                 }),
                                 State::NoHeaderReceived {
-                                    epoch: epoch + 1,
+                                    epoch: next_epoch,
                                     auth,
                                     hdr_dec: hdr_decoder(),
                                 },
@@ -934,8 +975,11 @@ impl Braid {
                     },
                 )
             }
-            // Nothing arrives here: the ek_vector chunks only start once this
-            // party has sent a ct1, and sending one leaves this state.
+            // Nothing that matters arrives here. The peer is still in
+            // KeysSampled and keeps sending header chunks until a ct1 chunk
+            // reaches it, and the ek_vector chunks only start once this party
+            // has sent one, which leaves this state; so what arrives is header
+            // repeats, and they are ignored.
             State::HeaderReceived { .. } => (None, state),
             // The state with the most ways out: ek_vector completing and the
             // acknowledgement arriving can happen in either order, or together.
@@ -1075,11 +1119,18 @@ impl Braid {
                 auth,
                 ct2_enc,
             } => {
-                if msg.epoch == epoch + 1 {
+                // Checked for the reason transition (5) gives: an epoch with
+                // no successor is one the session cannot continue from, and
+                // `Failed` is the only signal `receive` has. Not reachable
+                // from an honest start (CR-03).
+                let Some(next_epoch) = epoch.checked_add(1) else {
+                    return (None, State::Failed);
+                };
+                if msg.epoch == next_epoch {
                     return (
                         None,
                         State::KeysUnsampled {
-                            epoch: epoch + 1,
+                            epoch: next_epoch,
                             auth,
                         },
                     );
@@ -1217,6 +1268,24 @@ fn read_u64(bytes: &[u8], pos: usize) -> Option<u64> {
     let mut b = [0u8; 8];
     b.copy_from_slice(&bytes[pos..pos + 8]);
     Some(u64::from_be_bytes(b))
+}
+
+/// Read a persisted epoch, refusing `u64::MAX`.
+///
+/// No honest run reaches it: epochs start at one and each step's
+/// `checked_add` fails closed before an increment could wrap. A stored state
+/// carrying it is corruption, and admitting it would restore a Braid whose
+/// next transition abandons the session. Refusing it here is also what makes
+/// the T1 theorem's precondition `epoch < u64::MAX` hold for every state this
+/// crate can construct rather than for every state but one (CR-03).
+fn read_epoch(bytes: &[u8], pos: usize) -> Option<u64> {
+    let Some(e) = read_u64(bytes, pos) else {
+        return None;
+    };
+    if e == u64::MAX {
+        return None;
+    }
+    Some(e)
 }
 
 fn read_auth(bytes: &[u8], pos: usize) -> Option<(Auth, usize)> {
@@ -1398,13 +1467,35 @@ impl Braid {
     }
 }
 
+/// Whether a restored encoder is sized for a value of `len` bytes, and a
+/// restored decoder is expecting exactly `len` bytes. Every coder a state
+/// carries is built for one fixed length, so a coder of any other size is one
+/// no honest run produced: restoring it would not panic, since the KEM
+/// wrappers length-check, but the next chunk of its type would end in
+/// `Failed` and a forced re-establishment where `Malformed` was the honest
+/// answer, and an oversized encoder makes the first non-systematic send pay
+/// for a quadratic weight computation over a count the file chose (CR-14,
+/// CR-21).
+fn encoder_sized(enc: &Encoder, len: usize) -> bool {
+    enc.needed() == chunk_count(len)
+}
+
+fn decoder_sized(dec: &Decoder, len: usize) -> bool {
+    dec.size() == len
+}
+
 /// Decode one state variant's fields (everything after the tag byte),
 /// returning it and the position just past its last field. A plain function
 /// with early returns throughout: nothing here loops.
+///
+/// Beyond framing, every variable-length field is held to the length its
+/// state implies -- `header` to `HEADER_LEN`, `ct1` to `CT1_LEN`, `ek_vector`
+/// to `EK_VECTOR_LEN` -- and every coder to the value it streams, so that what
+/// comes back is a state some honest run could have been in (CR-21).
 fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
     match tag {
         0 => {
-            let Some(epoch) = read_u64(bytes, pos) else {
+            let Some(epoch) = read_epoch(bytes, pos) else {
                 return None;
             };
             let Some((auth, pos)) = read_auth(bytes, pos + 8) else {
@@ -1413,7 +1504,7 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             Some((State::KeysUnsampled { epoch, auth }, pos))
         }
         1 => {
-            let Some(epoch) = read_u64(bytes, pos) else {
+            let Some(epoch) = read_epoch(bytes, pos) else {
                 return None;
             };
             let Some((auth, pos)) = read_auth(bytes, pos + 8) else {
@@ -1431,6 +1522,9 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(hdr_enc) = Encoder::from_bytes(hdr_enc_bytes) else {
                 return None;
             };
+            if !encoder_sized(&hdr_enc, HEADER_LEN + MAC_LEN) {
+                return None;
+            }
             Some((
                 State::KeysSampled {
                     epoch,
@@ -1442,7 +1536,7 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             ))
         }
         2 => {
-            let Some(epoch) = read_u64(bytes, pos) else {
+            let Some(epoch) = read_epoch(bytes, pos) else {
                 return None;
             };
             let Some((auth, pos)) = read_auth(bytes, pos + 8) else {
@@ -1466,6 +1560,9 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(ek_enc) = Encoder::from_bytes(ek_enc_bytes) else {
                 return None;
             };
+            if !decoder_sized(&ct1_dec, CT1_LEN) || !encoder_sized(&ek_enc, EK_VECTOR_LEN) {
+                return None;
+            }
             Some((
                 State::HeaderSent {
                     epoch,
@@ -1478,7 +1575,7 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             ))
         }
         3 => {
-            let Some(epoch) = read_u64(bytes, pos) else {
+            let Some(epoch) = read_epoch(bytes, pos) else {
                 return None;
             };
             let Some((auth, pos)) = read_auth(bytes, pos + 8) else {
@@ -1499,6 +1596,9 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(ek_enc) = Encoder::from_bytes(ek_enc_bytes) else {
                 return None;
             };
+            if ct1.len() != CT1_LEN || !encoder_sized(&ek_enc, EK_VECTOR_LEN) {
+                return None;
+            }
             Some((
                 State::Ct1Received {
                     epoch,
@@ -1511,7 +1611,7 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             ))
         }
         4 => {
-            let Some(epoch) = read_u64(bytes, pos) else {
+            let Some(epoch) = read_epoch(bytes, pos) else {
                 return None;
             };
             let Some((auth, pos)) = read_auth(bytes, pos + 8) else {
@@ -1532,6 +1632,9 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(ct2_dec) = Decoder::from_bytes(ct2_dec_bytes) else {
                 return None;
             };
+            if ct1.len() != CT1_LEN || !decoder_sized(&ct2_dec, CT2_LEN + MAC_LEN) {
+                return None;
+            }
             Some((
                 State::EkSentCt1Received {
                     epoch,
@@ -1544,7 +1647,7 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             ))
         }
         5 => {
-            let Some(epoch) = read_u64(bytes, pos) else {
+            let Some(epoch) = read_epoch(bytes, pos) else {
                 return None;
             };
             let Some((auth, pos)) = read_auth(bytes, pos + 8) else {
@@ -1556,6 +1659,9 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(hdr_dec) = Decoder::from_bytes(hdr_dec_bytes) else {
                 return None;
             };
+            if !decoder_sized(&hdr_dec, HEADER_LEN + MAC_LEN) {
+                return None;
+            }
             Some((
                 State::NoHeaderReceived {
                     epoch,
@@ -1566,7 +1672,7 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             ))
         }
         6 => {
-            let Some(epoch) = read_u64(bytes, pos) else {
+            let Some(epoch) = read_epoch(bytes, pos) else {
                 return None;
             };
             let Some((auth, pos)) = read_auth(bytes, pos + 8) else {
@@ -1581,6 +1687,9 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(ek_dec) = Decoder::from_bytes(ek_dec_bytes) else {
                 return None;
             };
+            if header.len() != HEADER_LEN || !decoder_sized(&ek_dec, EK_VECTOR_LEN) {
+                return None;
+            }
             Some((
                 State::HeaderReceived {
                     epoch,
@@ -1592,7 +1701,7 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             ))
         }
         7 => {
-            let Some(epoch) = read_u64(bytes, pos) else {
+            let Some(epoch) = read_epoch(bytes, pos) else {
                 return None;
             };
             let Some((auth, pos)) = read_auth(bytes, pos + 8) else {
@@ -1622,6 +1731,13 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(ek_dec) = Decoder::from_bytes(ek_dec_bytes) else {
                 return None;
             };
+            if header.len() != HEADER_LEN
+                || ct1.len() != CT1_LEN
+                || !encoder_sized(&ct1_enc, CT1_LEN)
+                || !decoder_sized(&ek_dec, EK_VECTOR_LEN)
+            {
+                return None;
+            }
             Some((
                 State::Ct1Sampled {
                     epoch,
@@ -1636,7 +1752,7 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             ))
         }
         8 => {
-            let Some(epoch) = read_u64(bytes, pos) else {
+            let Some(epoch) = read_epoch(bytes, pos) else {
                 return None;
             };
             let Some((auth, pos)) = read_auth(bytes, pos + 8) else {
@@ -1660,6 +1776,12 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(ct1_enc) = Encoder::from_bytes(ct1_enc_bytes) else {
                 return None;
             };
+            if ct1.len() != CT1_LEN
+                || ek_vector.len() != EK_VECTOR_LEN
+                || !encoder_sized(&ct1_enc, CT1_LEN)
+            {
+                return None;
+            }
             Some((
                 State::EkReceivedCt1Sampled {
                     epoch,
@@ -1673,7 +1795,7 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             ))
         }
         9 => {
-            let Some(epoch) = read_u64(bytes, pos) else {
+            let Some(epoch) = read_epoch(bytes, pos) else {
                 return None;
             };
             let Some((auth, pos)) = read_auth(bytes, pos + 8) else {
@@ -1697,6 +1819,12 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(ek_dec) = Decoder::from_bytes(ek_dec_bytes) else {
                 return None;
             };
+            if header.len() != HEADER_LEN
+                || ct1.len() != CT1_LEN
+                || !decoder_sized(&ek_dec, EK_VECTOR_LEN)
+            {
+                return None;
+            }
             Some((
                 State::Ct1Acknowledged {
                     epoch,
@@ -1710,7 +1838,7 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             ))
         }
         10 => {
-            let Some(epoch) = read_u64(bytes, pos) else {
+            let Some(epoch) = read_epoch(bytes, pos) else {
                 return None;
             };
             let Some((auth, pos)) = read_auth(bytes, pos + 8) else {
@@ -1722,6 +1850,9 @@ fn decode_state(tag: u8, bytes: &[u8], pos: usize) -> Option<(State, usize)> {
             let Some(ct2_enc) = Encoder::from_bytes(ct2_enc_bytes) else {
                 return None;
             };
+            if !encoder_sized(&ct2_enc, CT2_LEN + MAC_LEN) {
+                return None;
+            }
             Some((
                 State::Ct2Sampled {
                     epoch,

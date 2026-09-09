@@ -90,6 +90,10 @@ impl IncrementalKeyPair {
         let mut seed = Zeroizing::new([0u8; KEY_GENERATION_SEED_LEN]);
         rng.fill_bytes(seed.as_mut());
         let mut kp = Box::new(Zeroizing::new([0u8; inc::key_pair_len()]));
+        // libcrux takes the seed by value, so `*seed` is a copy the wrapper
+        // cannot avoid: the original is wiped when `seed` drops, the copy
+        // lives on libcrux's stack for the duration of the call and is
+        // outside what this crate can promise about (CR-15).
         match inc::generate_key_pair(*seed, kp.as_mut().as_mut()) {
             Ok(()) => Ok(IncrementalKeyPair(kp)),
             Err(_) => Err(KemError),
@@ -191,6 +195,8 @@ pub fn encapsulate1<R: RngCore + CryptoRng>(
     rng.fill_bytes(randomness.as_mut());
     let mut state = Zeroizing::new(vec![0u8; inc::encaps_state_len()]);
     let mut shared_secret = [0u8; SHARED_SECRET_LEN];
+    // `*randomness` is a copy libcrux's by-value signature forces, as with the
+    // key-generation seed above; the original is wiped on drop.
     let ct1 = match inc::encapsulate1(
         header,
         *randomness,
