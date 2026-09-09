@@ -191,7 +191,8 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
         // the edges of the accepted set, where this verifier and XEdDSA
         // Revision 1 differ by design; each vector's comment says which way
         // Revision 1 goes, and a test in tacenta-core holds the comments to a
-        // transcription of the specification's own verifier.
+        // transcription of the specification's own verifier, and that
+        // transcription to ed25519-dalek's non-strict verify.
         "xeddsa" => {
             use tacenta_core::primitives::xeddsa;
             let message = input(v, "message")?;

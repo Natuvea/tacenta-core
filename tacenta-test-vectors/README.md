@@ -83,8 +83,14 @@ or `A`, wider on the sign bit the interoperability profile carries in
 `signature[63]`, and in agreement on non-canonical encodings. Each such
 comment opens with `Revision 1 accepts:` or `Revision 1 rejects:`, and a
 test in tacenta-core runs a transcription of the specification's own
-`xeddsa_verify` over the file so that column is checked, not asserted. And
-the malformed-input file is hand-authored, as above.
+`xeddsa_verify` over the file so that column is checked, not asserted. The
+transcription is in turn held to a second oracle it shares no code with,
+ed25519-dalek's non-strict `verify` (the same equation without the cofactor,
+no small-order refusal), on every vector where that oracle is defined
+(`u < p`, an Edwards image, `s < l`), which includes the four small-order-`A`
+vectors: those are the inputs on which a transcription that negates the
+scalar rather than the point gives the wrong verdict, and the second oracle
+is what catches it. And the malformed-input file is hand-authored, as above.
 
 ## Status
 

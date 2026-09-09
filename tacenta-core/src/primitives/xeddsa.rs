@@ -711,11 +711,54 @@ mod tests {
                 .finalize()
                 .into(),
         );
-        // Rcheck = sB - hA
+        // Rcheck = sB - hA, as a point subtraction. Not
+        // `vartime_double_scalar_mul_basepoint(&-h, &a, &s)`: that negates the
+        // scalar, and `(-h mod l) * A` is `(l - h) * A`, which equals `-(h * A)`
+        // only when `l * A` is the identity, i.e. for `A` in the prime-order
+        // subgroup. For a small-order `A` the specification's subtraction
+        // accepts when `h` is a multiple of `A`'s order and the scalar form when
+        // `l - h` is, and with `l = 5 (mod 8)` those are different sets. The
+        // four small-order-`A` vectors sit exactly on that difference, which is
+        // what the second oracle below is for.
         let s = Scalar::from_bytes_mod_order(*s_bytes);
-        let rcheck = EdwardsPoint::vartime_double_scalar_mul_basepoint(&-h, &a, &s);
+        let rcheck = EdwardsPoint::mul_base(&s) - a * h;
         // if bytes_equal(R, Rcheck): return true
         rcheck.compress().to_bytes() == *r_bytes
+    }
+
+    /// `l`, the group order, little-endian.
+    const L_LE: [u8; 32] = [
+        0xed, 0xd3, 0xf5, 0x5c, 0x1a, 0x63, 0x12, 0x58, 0xd6, 0x9c, 0xf7, 0xa2, 0xde, 0xf9, 0xde,
+        0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x10,
+    ];
+
+    /// The second, independent oracle for the transcription: ed25519-dalek's
+    /// non-strict `verify`. Read from `ed25519-dalek-2.2.0/src/verifying.rs`:
+    /// `raw_verify` decodes `s` canonically (`check_scalar`, `s < l`), keeps
+    /// `R` as the bytes given, recomputes `[s]B + [k](-A)` with the *point*
+    /// negated (`recompute_R`, `minus_A = -self.key.point`) and no cofactor,
+    /// compresses, and compares bytes; `verify_strict` is the one that adds the
+    /// small-order refusals, `verify` has none. So on every input where both
+    /// are defined -- `u < p`, `A = convert_mont(u)` on the curve, `s < l` --
+    /// the two must agree, and the four small-order-`A` vectors are inside
+    /// that set. Returns `None` where dalek's preconditions are not met and
+    /// the comparison says nothing (`s >= l`, `u >= p`, or no Edwards image).
+    fn dalek_nonstrict_verify(u: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> Option<bool> {
+        use ed25519_dalek::Verifier;
+        let s_bytes: [u8; 32] = signature[32..].try_into().unwrap();
+        if ge_le(u, &P_LE) || ge_le(&s_bytes, &L_LE) {
+            return None;
+        }
+        let mut u_masked = *u;
+        u_masked[31] &= 0x7f;
+        let a = MontgomeryPoint(u_masked).to_edwards(0)?;
+        let key = ed25519_dalek::VerifyingKey::from_bytes(&a.compress().to_bytes())
+            .expect("a compressed point decompresses");
+        Some(
+            key.verify(message, &ed25519_dalek::Signature::from_bytes(signature))
+                .is_ok(),
+        )
     }
 
     /// The vectors file's `Revision 1 accepts` / `Revision 1 rejects` column
@@ -726,8 +769,20 @@ mod tests {
     /// signature this signer makes lies in both accepted sets). The runner
     /// checks the same file against `verify`; this is the other half, the one
     /// that says what the specification's own verifier would have done.
+    ///
+    /// The transcription is itself held to a second oracle it shares no code
+    /// with, ed25519-dalek's non-strict `verify` (`dalek_nonstrict_verify`):
+    /// wherever that oracle is defined the two verdicts must be equal, and
+    /// the four small-order-`A` vectors must be among the inputs compared.
+    /// That is the check that would have caught a transcription computing
+    /// `(l - h) * A` instead of `-(h * A)`, which agrees with the
+    /// specification on every prime-order key and disagrees on exactly these.
     #[test]
     fn revision_1_transcription_agrees_with_every_vectors_comment() {
+        // The vectors file is found relative to this crate, which assumes the
+        // monorepo layout: `tacenta-core` and `tacenta-test-vectors` side by
+        // side under one root. A checkout of the crate alone has no file
+        // there and this test fails at the read, by design.
         let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../tacenta-test-vectors/vectors/primitives/xeddsa.json"
@@ -742,6 +797,27 @@ mod tests {
         };
         let mut verify_only = 0;
         let mut accepted_by_revision_1 = 0;
+        let mut cross_checked = 0;
+        // The transcription against the second oracle, wherever the second is
+        // defined; a small-order-`A` vector outside the second's domain would
+        // mean the cross-check silently skipped the case it exists for.
+        let mut cross_check = |id: &str, u: &[u8; 32], message: &[u8], signature: &[u8; 64]| {
+            let ours = revision_1_verify(u, message, signature);
+            match dalek_nonstrict_verify(u, message, signature) {
+                Some(dalek) => {
+                    assert_eq!(
+                        ours, dalek,
+                        "{id}: the transcription and ed25519-dalek's non-strict verify disagree"
+                    );
+                    cross_checked += 1;
+                }
+                None => assert!(
+                    !id.contains("small-order-A"),
+                    "{id}: a small-order-A vector must be inside the second oracle's domain"
+                ),
+            }
+            ours
+        };
         for v in vectors {
             let id = v["id"].as_str().expect("an id");
             let message = hex_field(v, "message");
@@ -755,7 +831,7 @@ mod tests {
                     .unwrap();
                 let u = *PrivateKey::from_bytes(secret).public_key().as_bytes();
                 assert!(
-                    revision_1_verify(&u, &message, &signature),
+                    cross_check(id, &u, &message, &signature),
                     "{id}: a signature this signer made is outside Revision 1's accepted set"
                 );
                 continue;
@@ -773,7 +849,7 @@ mod tests {
                     "{id}: a verify-only vector's comment must open with the Revision 1 verdict"
                 );
             };
-            let got = revision_1_verify(&u, &message, &signature);
+            let got = cross_check(id, &u, &message, &signature);
             assert_eq!(
                 got,
                 expected,
@@ -804,6 +880,14 @@ mod tests {
         assert!(
             accepted_by_revision_1 < verify_only,
             "no vector shows where Revision 1 is narrower"
+        );
+        // Three signing vectors, the four small-order-A vectors, the
+        // small-order-R one and its non-canonical twin all have u < p, an
+        // Edwards image and s < l, so the second oracle is defined on at
+        // least nine inputs.
+        assert!(
+            cross_checked >= 9,
+            "the second oracle compared only {cross_checked} vectors; expected at least nine"
         );
     }
 }

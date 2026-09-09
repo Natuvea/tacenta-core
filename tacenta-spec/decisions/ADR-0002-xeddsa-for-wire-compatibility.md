@@ -48,4 +48,8 @@ and are not recorded here.
   accepted set are pinned by thirteen verify-only vectors in
   `tacenta-test-vectors/vectors/primitives/xeddsa.json`, each carrying
   Revision 1's own verdict, which a transcription of the specification's
-  pseudocode in the crate's tests checks against every vector.
+  pseudocode in the crate's tests checks against every vector; the
+  transcription is itself cross-checked against ed25519-dalek's non-strict
+  `verify` wherever that is defined, including on the small-order-`A`
+  vectors, where a transcription that negates the scalar instead of the
+  point (`(l - h)A` for `-(hA)`) would give the wrong verdict.

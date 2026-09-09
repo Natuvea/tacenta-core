@@ -261,17 +261,24 @@ const EFFECT_FLOOR_NS: f64 = 5.0;
 /// if that is larger: 60 ns on the ~3 µs Braid header path, and about 2.5 µs
 /// on the ~127 µs session path (measured on an M5 Pro: 3000 vs 3000 ns, both
 /// medians on the same quantum, and 127,250 vs 127,292 ns, one quantum
-/// apart). The honest statement of what that resolves is this: a rejection
-/// path that does *different work* by class -- a MAC skipped, an early return
-/// before the comparison, a state copy or a derivation taken on one side only
-/// -- which is hundreds of nanoseconds to microseconds and trips it, and not
-/// a ~10 ns byte-at-a-time short-circuit inside the comparison itself, which
-/// is below what a wall-clock median can see at this scale. The short-circuit
-/// question is answered where it can be: the ~200 ns tag test above for the
-/// AEAD, and `tooling/check-constant-time-asm.sh` for `mac_eq`, which reads
-/// the compiled comparison and fails on a conditional branch. The measured
-/// gap is printed either way, so a sub-floor difference stays visible to a
-/// human.
+/// apart). The honest statement of what each floor resolves is this, and
+/// the two are not the same. The Braid floor, ~60 ns, resolves a rejection
+/// path that does *different work* by class at the scale of one primitive:
+/// an HMAC-SHA256 skipped on one side (hundreds of nanoseconds), an early
+/// return before the comparison, the reassembled header not built. The
+/// session floor, ~2.5 µs, does not: an HMAC or an HKDF derivation skipped
+/// inside `Session::decrypt` is a sub-microsecond change on a ~127 µs path
+/// (the whole AEAD rejection it contains is about a microsecond) and sits
+/// under the floor. What that floor resolves is an omitted *agreement-scale*
+/// step -- a Diffie-Hellman, a KEM operation, a clone of the session state
+/// -- each tens of microseconds, and nothing finer. Neither floor resolves a
+/// ~10 ns byte-at-a-time short-circuit inside the comparison itself, which
+/// is below what a wall-clock median can see at either scale. The
+/// short-circuit question is answered where it can be: the ~200 ns tag test
+/// above for the AEAD, and `tooling/check-constant-time-asm.sh` for
+/// `mac_eq`, which reads the compiled comparison and fails on a conditional
+/// branch. The measured gap is printed either way, so a sub-floor
+/// difference stays visible to a human.
 const EFFECT_FLOOR_FRACTION: f64 = 0.02;
 
 /// Which floor a measurement is gated on. See the two constants.

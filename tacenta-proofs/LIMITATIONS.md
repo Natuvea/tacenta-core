@@ -320,11 +320,16 @@ from it. This holds here by delegation and discipline, not by proof.
   `subtle::ConstantTimeEq` is available and the translation sees an opaque
   call, changes the translated source and so waits for the next
   re-translation window. Until then the guarantee is the loop's shape and
-  `tooling/check-constant-time-asm.sh`, which CI runs: it reads `mac_eq`'s
-  release assembly on the host and on the x86_64 and aarch64 Linux targets
-  and fails on any conditional branch beyond the public length compare.
-  Today LLVM specialises the loop on the 32-byte length and vectorises it,
-  and the gate counts zero data-dependent branches on every target.
+  `tooling/check-constant-time-asm.sh`, which CI runs: it reads the body of
+  `mac_eq` in the release assembly on the host and on the x86_64 and aarch64
+  Linux targets, from its label to its `.cfi_endproc`, and fails on any
+  conditional-branch mnemonic or indirect jump in that body beyond the
+  public length compare, and on any call out of it (the function calls
+  nothing today; a `memcmp` appearing there would be the short-circuit the
+  gate exists to catch). It inspects that one function and the names of its
+  callees, not the callees' bodies. Today LLVM specialises the loop on the
+  32-byte length and vectorises it, and the gate counts zero data-dependent
+  branches and zero callees on every target.
 - **The erasure code's field arithmetic branches on its data, and every
   operand on that path is public.** `gf::clmul`, `gf::reduce`, `gf::pow` and
   `gf::inv` in `tacenta-erasure` (`erasure/src/lib.rs`) test bits of their
@@ -350,14 +355,25 @@ from it. This holds here by delegation and discipline, not by proof.
   `tests/timing.rs` can settle: the harness does not time XEdDSA (it times
   `aead::decrypt`'s rejection path and the tag comparison inside it), and
   one conditional negation inside a full scalar multiplication is not an
-  effect its median-gap gate is built to resolve. It is instead settled by
-  `tooling/check-constant-time-asm.sh`, which reads the release assembly of
-  `calculate_key_pair` (and `mac_eq`) on three targets and fails on any
-  conditional branch. Adding that gate found one: with the workspace's
-  overflow checks on, `subtle`'s mask negation compiled to a checked negation
-  with a never-taken branch into a panic block. `subtle` is now compiled
-  without overflow checks in release (`tacenta-core/Cargo.toml`), and the
-  function counts zero branches on every target.
+  effect its median-gap gate is built to resolve. It is instead settled, as
+  far as it can be, by `tooling/check-constant-time-asm.sh`, which reads the
+  body of `calculate_key_pair` (and `mac_eq`) in the release assembly on
+  three targets and fails on any conditional-branch mnemonic or indirect
+  jump in it. What it inspects is that one function's instructions and the
+  names of the functions it calls, one level down: it prints the callee
+  set, fails on a callee whose symbol names `subtle` (other than
+  `subtle::black_box`) or `conditional_` -- the shape an outlined
+  constant-time select would take -- and on any callee outside the set seen
+  today (`Scalar`'s negation, `mul_base`, `compress`,
+  `from_bytes_mod_order`, `black_box`, `zeroize`, `drop_in_place`, and the
+  unwind pair). It does not read the callees' bodies: that the dalek scalar
+  and point operations are branch-free is inherited from that crate, as the
+  first bullet says of the whole trusted boundary. Adding the gate found
+  one branch: with the workspace's overflow checks on, `subtle`'s mask
+  negation compiled to a checked negation with a never-taken branch into a
+  panic block. `subtle` is now compiled without overflow checks in this
+  workspace's release profile (`tacenta-core/Cargo.toml`), and the function
+  counts zero branches on every target.
 - **Our own composition is audited to not reintroduce a leak.** tacenta-core's
   ratchet, session, and serialization code branches on and compares only public
   data: ratchet public keys, message numbers, and wire bytes, whose timing
@@ -377,27 +393,56 @@ from it. This holds here by delegation and discipline, not by proof.
   `Session::decrypt` rejection path; those two are microsecond-scale
   operations, gated on a two-percent relative floor whose resolution the
   test file states (it resolves different work by class, not a ten-nanosecond
-  short-circuit, which is the assembly gate's job). Representative results from the isolated measurement core
-  follow. They are from the nightly run on the dedicated machine and carry no
-  stamp: no commit, date, hardware or run identifier was recorded with them,
-  so a reader cannot tell which build produced them or how old they are.
-  `tests/timing.rs` now prints a provenance header at the start of every run
-  (commit, date, `rustc` version, the command line, rounds × samples) to the
-  test's captured output, where it is visible with `--nocapture` (the
-  invocation the file's own usage line gives) and not otherwise, and
-  the nightly job is to add the fields only the machine knows -- CPU model
-  and its fixed frequency, the isolated core, a run id -- after which the
-  numbers here are replaced by a stamped run:
+  short-circuit, which is the assembly gate's job). Representative results
+  follow, in two parts that do not come from the same machine.
 
-  | What | Class A median | Class B median | effect size |
-  | --- | --- | --- | --- |
-  | Tag comparison, by how much of the tag was right | wrong at byte 0: 213 ns | wrong at byte 31: 215 ns | 2 ns |
-  | Rejection, by forged ciphertext contents | all-zero: 261 ns | all-ones: 263 ns | 2 ns |
+  The first two rows are from the nightly run on the dedicated machine's
+  isolated measurement core and carry no stamp: no commit, date, hardware or
+  run identifier was recorded with them, so a reader cannot tell which build
+  produced them or how old they are. `tests/timing.rs` now prints a
+  provenance header at the start of every run (commit, date, `rustc`
+  version, the command line, rounds × samples) to the test's captured
+  output, where it is visible with `--nocapture` (the invocation the file's
+  own usage line gives) and not otherwise, and the nightly job is to add the
+  fields only the machine knows -- CPU model and its fixed frequency, the
+  isolated core, a run id -- after which these two rows are replaced by a
+  stamped run:
+
+  | What | Class A median | Class B median | effect size | leak floor |
+  | --- | --- | --- | --- | --- |
+  | Tag comparison, by how much of the tag was right | wrong at byte 0: 213 ns | wrong at byte 31: 215 ns | 2 ns | 5 ns |
+  | Rejection, by forged ciphertext contents | all-zero: 261 ns | all-ones: 263 ns | 2 ns | 5 ns |
 
   The classes differ by ~2 ns -- the integer-nanosecond timer's quantization
   floor -- against a 5 ns leak floor. A byte-wise `==` that short-circuited on the
   first wrong byte would differ by ~10 ns, and an attacker who saw that would
   recover a tag one byte at a time; the constant-time `Mac::verify_slice` does not.
+
+  The next two rows are the two microsecond-scale tests, and they are
+  **local screening numbers, not the nightly's**: one release run on a
+  developer machine, not on an isolated core at a fixed clock, taken to show
+  the scale each floor sits at and nothing finer. They carry the stamp the
+  test printed -- commit `687b248e4e0a5abd5f5b2ba6cca2939a770364dc`, date
+  `2026-09-09T13:35:17Z`, `rustc 1.96.0-nightly (562dee482 2026-03-21)`,
+  plan 11 rounds × 4000 samples per class, run with `--test-threads=1` --
+  on an `aarch64-apple-darwin` host (the target `rustc -vV` reports; the
+  stamp has no CPU field, so no model is recorded here). The timer on that
+  host has a 41.67 ns quantum, which is why the medians land on multiples
+  of it:
+
+  | What | Class A median | Class B median | effect size | leak floor |
+  | --- | --- | --- | --- | --- |
+  | Braid header MAC, by how much of the MAC was right | 2,625 ns | 2,625 ns | 0 ns | 52.5 ns (2 %) |
+  | `Session::decrypt` rejection, by how much of the tag was right | 107,750 ns | 107,875 ns | 125 ns | 2,155 ns (2 %) |
+
+  Read against what the test file says the floors resolve: the Braid floor
+  of ~50 ns sits below the cost of one skipped HMAC, so a MAC skipped on one
+  side would show; the session floor of ~2 µs does not, and would show only
+  an omitted agreement-scale step (a Diffie-Hellman, a KEM operation, a
+  state clone). The 125 ns session gap is three timer quanta on a path that
+  allocates and walks kilobytes of state, the allocator-and-cache drift the
+  test file describes for two interleaved classes on a shared machine; the
+  nightly's numbers on the isolated core are the ones to hold the claim to.
 
   **This raises those two from assumed to measured, not to proven.** A measurement
   covers the inputs it draws on the machine it runs on; a proof covers all of
