@@ -27,7 +27,7 @@ axiom tacenta_kdf.hkdf_sha256
   Slice Std.U8 → Slice Std.U8 → Slice Std.U8 → Result (Array Std.U8 N)
 
 /-- [tacenta_ratchet::LabelSet]
-    Source: 'ratchet/src/lib.rs', lines 67:0-67:17
+    Source: 'ratchet/src/lib.rs', lines 68:0-68:17
     Name pattern: [tacenta_ratchet::LabelSet]
     Visibility: public -/
 @[discriminant isize, rust_type "tacenta_ratchet::LabelSet"]
@@ -35,7 +35,7 @@ inductive tacenta_ratchet.LabelSet where
 | Tacenta : tacenta_ratchet.LabelSet
 
 /-- [tacenta_ratchet::Header]
-    Source: 'ratchet/src/lib.rs', lines 104:0-104:17
+    Source: 'ratchet/src/lib.rs', lines 105:0-105:17
     Name pattern: [tacenta_ratchet::Header]
     Visibility: public -/
 @[rust_type "tacenta_ratchet::Header"]
@@ -45,7 +45,7 @@ structure tacenta_ratchet.Header where
   n : Std.U32
 
 /-- [tacenta_ratchet::{impl core::cmp::PartialEq<tacenta_ratchet::Header> for tacenta_ratchet::Header}::eq]:
-    Source: 'ratchet/src/lib.rs', lines 103:22-103:31
+    Source: 'ratchet/src/lib.rs', lines 104:22-104:31
     Name pattern: [tacenta_ratchet::{core::cmp::PartialEq<tacenta_ratchet::Header, tacenta_ratchet::Header>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -54,7 +54,7 @@ axiom tacenta_ratchet.Header.Insts.CoreCmpPartialEqHeader.eq
   : tacenta_ratchet.Header → tacenta_ratchet.Header → Result Bool
 
 /-- [tacenta_ratchet::{impl core::fmt::Debug for tacenta_ratchet::Header}::fmt]:
-    Source: 'ratchet/src/lib.rs', lines 103:37-103:42
+    Source: 'ratchet/src/lib.rs', lines 104:37-104:42
     Name pattern: [tacenta_ratchet::{core::fmt::Debug<tacenta_ratchet::Header>}::fmt]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::{core::fmt::Debug<tacenta_ratchet::Header>}::fmt"]
@@ -64,7 +64,7 @@ axiom tacenta_ratchet.Header.Insts.CoreFmtDebug.fmt
     Unit core.fmt.Error) × core.fmt.Formatter)
 
 /-- Trait implementation: [tacenta_ratchet::{impl core::fmt::Debug for tacenta_ratchet::Header}]
-    Source: 'ratchet/src/lib.rs', lines 103:37-103:42
+    Source: 'ratchet/src/lib.rs', lines 104:37-104:42
     Name pattern: [core::fmt::Debug<tacenta_ratchet::Header>] -/
 @[reducible, rust_trait_impl "core::fmt::Debug<tacenta_ratchet::Header>"]
 def tacenta_ratchet.Header.Insts.CoreFmtDebug : core.fmt.Debug
@@ -73,14 +73,14 @@ def tacenta_ratchet.Header.Insts.CoreFmtDebug : core.fmt.Debug
 }
 
 /-- [tacenta_ratchet::State]
-    Source: 'ratchet/src/lib.rs', lines 142:0-142:16
+    Source: 'ratchet/src/lib.rs', lines 143:0-143:16
     Name pattern: [tacenta_ratchet::State]
     Visibility: public -/
 @[rust_type "tacenta_ratchet::State"]
 axiom tacenta_ratchet.State : Type
 
 /-- [tacenta_ratchet::{impl core::clone::Clone for tacenta_ratchet::State}::clone]:
-    Source: 'ratchet/src/lib.rs', lines 140:9-140:14
+    Source: 'ratchet/src/lib.rs', lines 141:9-141:14
     Name pattern: [tacenta_ratchet::{core::clone::Clone<tacenta_ratchet::State>}::clone]
     Visibility: public -/
 @[rust_fun
@@ -88,8 +88,16 @@ axiom tacenta_ratchet.State : Type
 axiom tacenta_ratchet.State.Insts.CoreCloneClone.clone
   : tacenta_ratchet.State → Result tacenta_ratchet.State
 
+/-- [tacenta_ratchet::{tacenta_ratchet::State}::skipped_len]:
+    Source: 'ratchet/src/lib.rs', lines 202:4-202:38
+    Name pattern: [tacenta_ratchet::{tacenta_ratchet::State}::skipped_len]
+    Visibility: public -/
+@[rust_fun "tacenta_ratchet::{tacenta_ratchet::State}::skipped_len"]
+axiom tacenta_ratchet.State.skipped_len
+  : tacenta_ratchet.State → Result Std.Usize
+
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::evict_oldest]:
-    Source: 'ratchet/src/lib.rs', lines 232:4-232:57
+    Source: 'ratchet/src/lib.rs', lines 233:4-233:57
     Name pattern: [tacenta_ratchet::{tacenta_ratchet::State}::evict_oldest]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::{tacenta_ratchet::State}::evict_oldest"]
@@ -99,7 +107,7 @@ axiom tacenta_ratchet.State.evict_oldest
     tacenta_ratchet.State)
 
 /-- [tacenta_ratchet::RatchetError]
-    Source: 'ratchet/src/lib.rs', lines 252:0-252:21
+    Source: 'ratchet/src/lib.rs', lines 253:0-253:21
     Name pattern: [tacenta_ratchet::RatchetError]
     Visibility: public -/
 @[discriminant isize, rust_type "tacenta_ratchet::RatchetError"]
@@ -111,7 +119,7 @@ inductive tacenta_ratchet.RatchetError where
 | ChainExhausted : tacenta_ratchet.RatchetError
 
 /-- [tacenta_ratchet::{impl core::cmp::PartialEq<tacenta_ratchet::RatchetError> for tacenta_ratchet::RatchetError}::eq]:
-    Source: 'ratchet/src/lib.rs', lines 251:22-251:31
+    Source: 'ratchet/src/lib.rs', lines 252:22-252:31
     Name pattern: [tacenta_ratchet::{core::cmp::PartialEq<tacenta_ratchet::RatchetError, tacenta_ratchet::RatchetError>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -121,7 +129,7 @@ axiom tacenta_ratchet.RatchetError.Insts.CoreCmpPartialEqRatchetError.eq
   tacenta_ratchet.RatchetError → tacenta_ratchet.RatchetError → Result Bool
 
 /-- Trait implementation: [tacenta_ratchet::{impl core::cmp::PartialEq<tacenta_ratchet::RatchetError> for tacenta_ratchet::RatchetError}]
-    Source: 'ratchet/src/lib.rs', lines 251:22-251:31
+    Source: 'ratchet/src/lib.rs', lines 252:22-252:31
     Name pattern: [core::cmp::PartialEq<tacenta_ratchet::RatchetError, tacenta_ratchet::RatchetError>] -/
 @[reducible, rust_trait_impl
   "core::cmp::PartialEq<tacenta_ratchet::RatchetError, tacenta_ratchet::RatchetError>"]
@@ -132,7 +140,7 @@ def tacenta_ratchet.RatchetError.Insts.CoreCmpPartialEqRatchetError :
 }
 
 /-- [tacenta_ratchet::{impl core::fmt::Debug for tacenta_ratchet::RatchetError}::fmt]:
-    Source: 'ratchet/src/lib.rs', lines 251:37-251:42
+    Source: 'ratchet/src/lib.rs', lines 252:37-252:42
     Name pattern: [tacenta_ratchet::{core::fmt::Debug<tacenta_ratchet::RatchetError>}::fmt]
     Visibility: public -/
 @[rust_fun
@@ -143,7 +151,7 @@ axiom tacenta_ratchet.RatchetError.Insts.CoreFmtDebug.fmt
     ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
 
 /-- Trait implementation: [tacenta_ratchet::{impl core::fmt::Debug for tacenta_ratchet::RatchetError}]
-    Source: 'ratchet/src/lib.rs', lines 251:37-251:42
+    Source: 'ratchet/src/lib.rs', lines 252:37-252:42
     Name pattern: [core::fmt::Debug<tacenta_ratchet::RatchetError>] -/
 @[reducible, rust_trait_impl "core::fmt::Debug<tacenta_ratchet::RatchetError>"]
 def tacenta_ratchet.RatchetError.Insts.CoreFmtDebug : core.fmt.Debug
@@ -152,7 +160,7 @@ def tacenta_ratchet.RatchetError.Insts.CoreFmtDebug : core.fmt.Debug
 }
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::sending_public]:
-    Source: 'ratchet/src/lib.rs', lines 272:4-272:39
+    Source: 'ratchet/src/lib.rs', lines 273:4-273:39
     Name pattern: [tacenta_ratchet::{tacenta_ratchet::State}::sending_public]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::{tacenta_ratchet::State}::sending_public"]
@@ -160,7 +168,7 @@ axiom tacenta_ratchet.State.sending_public
   : tacenta_ratchet.State → Result (Array Std.U8 32#usize)
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::send_count]:
-    Source: 'ratchet/src/lib.rs', lines 277:4-277:35
+    Source: 'ratchet/src/lib.rs', lines 278:4-278:35
     Name pattern: [tacenta_ratchet::{tacenta_ratchet::State}::send_count]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::{tacenta_ratchet::State}::send_count"]
@@ -168,7 +176,7 @@ axiom tacenta_ratchet.State.send_count
   : tacenta_ratchet.State → Result Std.U32
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::receive_count]:
-    Source: 'ratchet/src/lib.rs', lines 282:4-282:38
+    Source: 'ratchet/src/lib.rs', lines 283:4-283:38
     Name pattern: [tacenta_ratchet::{tacenta_ratchet::State}::receive_count]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::{tacenta_ratchet::State}::receive_count"]
@@ -176,7 +184,7 @@ axiom tacenta_ratchet.State.receive_count
   : tacenta_ratchet.State → Result Std.U32
 
 /-- [tacenta_ratchet::RatchetDecodeError]
-    Source: 'ratchet/src/lib.rs', lines 307:0-307:27
+    Source: 'ratchet/src/lib.rs', lines 308:0-308:27
     Name pattern: [tacenta_ratchet::RatchetDecodeError]
     Visibility: public -/
 @[discriminant isize, rust_type "tacenta_ratchet::RatchetDecodeError"]
@@ -193,7 +201,7 @@ inductive tacenta_ratchet.RatchetDecodeError where
 axiom zeroize.Zeroizing (Z : Type) : Type
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::to_bytes]:
-    Source: 'ratchet/src/lib.rs', lines 451:4-451:48
+    Source: 'ratchet/src/lib.rs', lines 452:4-452:48
     Name pattern: [tacenta_ratchet::{tacenta_ratchet::State}::to_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::{tacenta_ratchet::State}::to_bytes"]
@@ -201,7 +209,7 @@ axiom tacenta_ratchet.State.to_bytes
   : tacenta_ratchet.State → Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::from_bytes]:
-    Source: 'ratchet/src/lib.rs', lines 476:4-476:72
+    Source: 'ratchet/src/lib.rs', lines 477:4-477:72
     Name pattern: [tacenta_ratchet::{tacenta_ratchet::State}::from_bytes]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::{tacenta_ratchet::State}::from_bytes"]
@@ -211,7 +219,7 @@ axiom tacenta_ratchet.State.from_bytes
     tacenta_ratchet.RatchetDecodeError)
 
 /-- [tacenta_ratchet::init_sender]:
-    Source: 'ratchet/src/lib.rs', lines 718:0-718:98
+    Source: 'ratchet/src/lib.rs', lines 723:0-723:98
     Name pattern: [tacenta_ratchet::init_sender]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::init_sender"]
@@ -222,7 +230,7 @@ axiom tacenta_ratchet.init_sender
     tacenta_ratchet.State
 
 /-- [tacenta_ratchet::init_receiver]:
-    Source: 'ratchet/src/lib.rs', lines 738:0-738:71
+    Source: 'ratchet/src/lib.rs', lines 743:0-743:71
     Name pattern: [tacenta_ratchet::init_receiver]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::init_receiver"]
@@ -232,7 +240,7 @@ axiom tacenta_ratchet.init_receiver
     → Result tacenta_ratchet.State
 
 /-- [tacenta_ratchet::send]:
-    Source: 'ratchet/src/lib.rs', lines 756:0-756:69
+    Source: 'ratchet/src/lib.rs', lines 761:0-761:69
     Name pattern: [tacenta_ratchet::send]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::send"]
@@ -243,7 +251,7 @@ axiom tacenta_ratchet.send
     tacenta_ratchet.State)
 
 /-- [tacenta_ratchet::receive]:
-    Source: 'ratchet/src/lib.rs', lines 902:0-908:30
+    Source: 'ratchet/src/lib.rs', lines 907:0-913:30
     Name pattern: [tacenta_ratchet::receive]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::receive"]
@@ -862,8 +870,14 @@ def State.send_count (self : State) : Result Std.U32 := do
 def State.receive_count (self : State) : Result Std.U32 := do
   tacenta_ratchet.State.receive_count self.classical
 
+/-- [tacenta_triple::{tacenta_triple::State}::classical_skipped_len]:
+    Source: 'triple/src/lib.rs', lines 224:4-226:5
+    Visibility: public -/
+def State.classical_skipped_len (self : State) : Result Std.Usize := do
+  tacenta_ratchet.State.skipped_len self.classical
+
 /-- [tacenta_triple::{tacenta_triple::State}::evict_oldest_classical]:
-    Source: 'triple/src/lib.rs', lines 227:4-229:5
+    Source: 'triple/src/lib.rs', lines 235:4-237:5
     Visibility: public -/
 def State.evict_oldest_classical
   (self : State) (count : Std.Usize) : Result (Std.Usize × State) := do
@@ -871,7 +885,7 @@ def State.evict_oldest_classical
   ok (i, { self with classical := s })
 
 /-- [tacenta_triple::{tacenta_triple::State}::evict_oldest_post_quantum]:
-    Source: 'triple/src/lib.rs', lines 233:4-235:5
+    Source: 'triple/src/lib.rs', lines 241:4-243:5
     Visibility: public -/
 def State.evict_oldest_post_quantum
   (self : State) (count : Std.Usize) : Result (Std.Usize × State) := do
@@ -879,13 +893,13 @@ def State.evict_oldest_post_quantum
   ok (i, { self with post_quantum := s })
 
 /-- [tacenta_triple::{tacenta_triple::State}::epoch]:
-    Source: 'triple/src/lib.rs', lines 238:4-240:5
+    Source: 'triple/src/lib.rs', lines 246:4-248:5
     Visibility: public -/
 def State.epoch (self : State) : Result Std.U64 := do
   tacenta_spqr.State.epoch self.post_quantum
 
 /-- [tacenta_triple::{tacenta_triple::State}::send]:
-    Source: 'triple/src/lib.rs', lines 275:4-304:5
+    Source: 'triple/src/lib.rs', lines 283:4-312:5
     Visibility: public -/
 def State.send
   (self : State) (sending_epoch : Std.U64)
@@ -921,7 +935,7 @@ def State.send
     ok (core.result.Result.Err (TripleError.Classical e), self)
 
 /-- [tacenta_triple::{tacenta_triple::State}::receive]:
-    Source: 'triple/src/lib.rs', lines 331:4-364:5
+    Source: 'triple/src/lib.rs', lines 339:4-372:5
     Visibility: public -/
 def State.receive
   (self : State) (header : Header) (dh_out_recv : Array Std.U8 32#usize)
@@ -957,17 +971,17 @@ def State.receive
     ok (core.result.Result.Err (TripleError.Classical e))
 
 /-- [tacenta_triple::{tacenta_triple::State}::commit]:
-    Source: 'triple/src/lib.rs', lines 373:4-375:5
+    Source: 'triple/src/lib.rs', lines 381:4-383:5
     Visibility: public -/
 def State.commit (self : State) (next : State) : Result State := do
   ok next
 
 /-- [tacenta_triple::STATE_VERSION]
-    Source: 'triple/src/lib.rs', lines 382:0-382:31 -/
+    Source: 'triple/src/lib.rs', lines 390:0-390:31 -/
 @[global_simps, irreducible] def STATE_VERSION : Std.U8 := 1#u8
 
 /-- [tacenta_triple::TripleDecodeError]
-    Source: 'triple/src/lib.rs', lines 394:0-398:1
+    Source: 'triple/src/lib.rs', lines 402:0-406:1
     Visibility: public -/
 @[discriminant isize]
 inductive TripleDecodeError where
@@ -976,14 +990,14 @@ inductive TripleDecodeError where
 | Malformed : TripleDecodeError
 
 /-- [tacenta_triple::{impl core::clone::Clone for tacenta_triple::TripleDecodeError}::clone]:
-    Source: 'triple/src/lib.rs', lines 393:9-393:14
+    Source: 'triple/src/lib.rs', lines 401:9-401:14
     Visibility: public -/
 def TripleDecodeError.Insts.CoreCloneClone.clone
   (self : TripleDecodeError) : Result TripleDecodeError := do
   ok self
 
 /-- Trait implementation: [tacenta_triple::{impl core::clone::Clone for tacenta_triple::TripleDecodeError}]
-    Source: 'triple/src/lib.rs', lines 393:9-393:14 -/
+    Source: 'triple/src/lib.rs', lines 401:9-401:14 -/
 @[reducible]
 def TripleDecodeError.Insts.CoreCloneClone : core.clone.Clone TripleDecodeError
   := {
@@ -991,7 +1005,7 @@ def TripleDecodeError.Insts.CoreCloneClone : core.clone.Clone TripleDecodeError
 }
 
 /-- Trait implementation: [tacenta_triple::{impl core::marker::Copy for tacenta_triple::TripleDecodeError}]
-    Source: 'triple/src/lib.rs', lines 393:16-393:20 -/
+    Source: 'triple/src/lib.rs', lines 401:16-401:20 -/
 @[reducible]
 def TripleDecodeError.Insts.CoreMarkerCopy : core.marker.Copy TripleDecodeError
   := {
@@ -999,14 +1013,14 @@ def TripleDecodeError.Insts.CoreMarkerCopy : core.marker.Copy TripleDecodeError
 }
 
 /-- Trait implementation: [tacenta_triple::{impl core::marker::StructuralPartialEq for tacenta_triple::TripleDecodeError}]
-    Source: 'triple/src/lib.rs', lines 393:22-393:31 -/
+    Source: 'triple/src/lib.rs', lines 401:22-401:31 -/
 @[reducible]
 def TripleDecodeError.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq TripleDecodeError := {
 }
 
 /-- [tacenta_triple::{impl core::cmp::PartialEq<tacenta_triple::TripleDecodeError> for tacenta_triple::TripleDecodeError}::eq]:
-    Source: 'triple/src/lib.rs', lines 393:22-393:31
+    Source: 'triple/src/lib.rs', lines 401:22-401:31
     Visibility: public -/
 def TripleDecodeError.Insts.CoreCmpPartialEqTripleDecodeError.eq
   (self : TripleDecodeError) (other : TripleDecodeError) : Result Bool := do
@@ -1015,7 +1029,7 @@ def TripleDecodeError.Insts.CoreCmpPartialEqTripleDecodeError.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tacenta_triple::{impl core::cmp::PartialEq<tacenta_triple::TripleDecodeError> for tacenta_triple::TripleDecodeError}]
-    Source: 'triple/src/lib.rs', lines 393:22-393:31 -/
+    Source: 'triple/src/lib.rs', lines 401:22-401:31 -/
 @[reducible]
 def TripleDecodeError.Insts.CoreCmpPartialEqTripleDecodeError :
   core.cmp.PartialEq TripleDecodeError TripleDecodeError := {
@@ -1023,14 +1037,14 @@ def TripleDecodeError.Insts.CoreCmpPartialEqTripleDecodeError :
 }
 
 /-- [tacenta_triple::{impl core::cmp::Eq for tacenta_triple::TripleDecodeError}::assert_fields_are_eq]:
-    Source: 'triple/src/lib.rs', lines 393:33-393:35
+    Source: 'triple/src/lib.rs', lines 401:33-401:35
     Visibility: public -/
 def TripleDecodeError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : TripleDecodeError) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_triple::{impl core::cmp::Eq for tacenta_triple::TripleDecodeError}]
-    Source: 'triple/src/lib.rs', lines 393:33-393:35 -/
+    Source: 'triple/src/lib.rs', lines 401:33-401:35 -/
 @[reducible]
 def TripleDecodeError.Insts.CoreCmpEq : core.cmp.Eq TripleDecodeError := {
   partialEqInst := TripleDecodeError.Insts.CoreCmpPartialEqTripleDecodeError
@@ -1039,7 +1053,7 @@ def TripleDecodeError.Insts.CoreCmpEq : core.cmp.Eq TripleDecodeError := {
 }
 
 /-- [tacenta_triple::{impl core::fmt::Debug for tacenta_triple::TripleDecodeError}::fmt]:
-    Source: 'triple/src/lib.rs', lines 393:37-393:42
+    Source: 'triple/src/lib.rs', lines 401:37-401:42
     Visibility: public -/
 def TripleDecodeError.Insts.CoreFmtDebug.fmt
   (self : TripleDecodeError) (f : core.fmt.Formatter) :
@@ -1054,7 +1068,7 @@ def TripleDecodeError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "Malformed")
 
 /-- Trait implementation: [tacenta_triple::{impl core::fmt::Debug for tacenta_triple::TripleDecodeError}]
-    Source: 'triple/src/lib.rs', lines 393:37-393:42 -/
+    Source: 'triple/src/lib.rs', lines 401:37-401:42 -/
 @[reducible]
 def TripleDecodeError.Insts.CoreFmtDebug : core.fmt.Debug TripleDecodeError
   := {
@@ -1062,7 +1076,7 @@ def TripleDecodeError.Insts.CoreFmtDebug : core.fmt.Debug TripleDecodeError
 }
 
 /-- [tacenta_triple::take_len_prefixed]:
-    Source: 'triple/src/lib.rs', lines 402:0-424:1 -/
+    Source: 'triple/src/lib.rs', lines 410:0-432:1 -/
 def take_len_prefixed
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option ((Slice Std.U8) × Std.Usize))
@@ -1100,7 +1114,7 @@ def take_len_prefixed
           ok (some (s4, e))
 
 /-- [tacenta_triple::{tacenta_triple::State}::to_bytes]:
-    Source: 'triple/src/lib.rs', lines 433:4-443:5
+    Source: 'triple/src/lib.rs', lines 441:4-451:5
     Visibility: public -/
 def State.to_bytes
   (self : State) : Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8)) := do
@@ -1133,7 +1147,7 @@ def State.to_bytes
     (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) out4
 
 /-- [tacenta_triple::{tacenta_triple::State}::from_bytes]:
-    Source: 'triple/src/lib.rs', lines 446:4-472:5
+    Source: 'triple/src/lib.rs', lines 454:4-480:5
     Visibility: public -/
 def State.from_bytes
   (bytes : Slice Std.U8) :

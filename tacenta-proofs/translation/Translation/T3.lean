@@ -550,6 +550,7 @@ theorem derive_chain_refines (h : HmacAgrees) [DerivedKeysModel]
         ∧ (DerivedKeysModel.contents p.2).val.length ≤ count.val
       | core.result.Result.Err _ => True ⦄ := by
   unfold derive_chain
+  simp only [lift, alloc.vec.Vec.with_capacity]
   step
   refine derive_chain_loop_refines h start_n _ count.val (by scalar_tac)
     _ ck _ ?_ ?_

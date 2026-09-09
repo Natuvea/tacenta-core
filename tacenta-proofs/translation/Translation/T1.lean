@@ -305,6 +305,7 @@ theorem derive_chain_no_panic (h : HmacTotal) [DerivedKeysModel]
     (ck : Array U8 32#usize) (start_n count : U32) :
     derive_chain ck start_n count ⦃ fun _ => True ⦄ := by
   unfold derive_chain
+  simp only [lift, alloc.vec.Vec.with_capacity]
   step
   refine derive_chain_loop_no_panic h _ start_n ck _ ?_
   simp_all
@@ -348,6 +349,7 @@ theorem derive_chain_length (h : HmacTotal) [DerivedKeysModel]
       | core.result.Result.Ok p => (DerivedKeysModel.contents p.2).val.length ≤ N
       | core.result.Result.Err _ => True ⦄ := by
   unfold derive_chain
+  simp only [lift, alloc.vec.Vec.with_capacity]
   step
   refine derive_chain_loop_length h N hN _ start_n ck _ ?_
   simp_all
