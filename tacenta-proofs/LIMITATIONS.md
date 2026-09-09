@@ -114,9 +114,11 @@ no theorem's `#print axioms` and so widens no trust base, and the moment
 anything mentions it the requirement is back. It is not extended to
 `_unsafe_rec`, which the code generator calls by name whether or not anything
 mentions it. `check-audit-negatives.sh` plants each condition of the rule,
-including this waiver's, and fails if the audit calls any of them wrongly. That shape is one
-elaboration-time code could plant, and the audit could not tell a planted
-one from these; "Trusted, not verified" below says what excludes it.
+including this waiver's, and fails if the audit calls any of them wrongly.
+
+That shape is one elaboration-time code could plant, and the audit could not
+tell a planted one from these; "Trusted, not verified" below says what
+excludes it.
 
 ## Trusted, not verified
 
@@ -163,13 +165,16 @@ one from these; "Trusted, not verified" below says what excludes it.
   and no reference to the `Lean` namespace, which is where every such API
   lives -- outside `Model/AxiomAudit.lean`'s own implementation and the
   five `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
-  exact line content so that a sixth invocation anywhere fails;
+  exact line content, so that an invocation written any other way fails
+  there and a second one in an audit module fails in the reach check below;
   `scripts/check-audit-reach.sh`, which fails if any first-party module is
   outside the five audit modules' import closure, so that no module holds
   such a declaration unwalked, and fails if the five do not all run with the
-  same first-party prefixes; and `scripts/check-audit-negatives.sh`, which
-  plants each case the rule decides and fails if the audit decides it
-  wrongly. The grep is what it is: a construct the
+  same first-party prefixes, and if any of them invokes the audit more than
+  once or in a form the prefix check cannot read; and
+  `scripts/check-audit-negatives.sh`, which plants one declaration for each
+  kind the audit refuses and one for the shape it allows, and fails if the
+  audit decides any of them wrongly. The grep is what it is: a construct the
   stripper mishandles, or a route to the environment that names none of
   those tokens, would be a hole in this rule and not something the audit
   would catch.

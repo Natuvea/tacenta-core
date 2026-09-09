@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "_note": "Written only by `tacenta-proofs/scripts/attest.py --refresh-translation`, immediately after `scripts/run-aeneas.sh` on the pinned toolchain, and compared against by every other mode. A green `attest.py --check` establishes that each generated Translation/Tacenta*.lean is a module run-aeneas.sh produces, is byte for byte the file recorded here, declares exactly the axioms recorded here (as text; no-sorry.sh compares the same record with what the axiom audit saw in the built environment), and that the Rust verified zone it was generated from, and the workspace inputs that shape every zone's extraction (Cargo.toml and its profiles, Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed to when this was written, as recorded by whoever ran the toolchain. Where the zone is assembled rather than written (tacenta-core/triple-unit, the three-leaf translation unit), the record carries an `assembly` field naming the script and the three leaf trees it was assembled from, with their hashes, and --check fails if any of them has moved since; assemble-triple-unit.sh --check is the separate question of whether the unit crate in the tree is what those leaves assemble to. It does not establish that the toolchain was run, or run honestly: that is checked by regenerating with run-aeneas.sh and diffing, which REPRODUCING.md describes.",
-  "generated_at_commit": "5dbb7c4891a0392bde7dec55cc8293618acc1a2e",
+  "generated_at_commit": "2d007398cbe1d570113fd6ff6df647252b88d714",
   "aeneas": {
     "release": "nightly-2026.07.22-b1214ca",
     "commit": "b1214ca0a024e8121f41fe2b2ed15e26af02373b"
@@ -240,7 +240,7 @@
       "workspace_sha256": "650d607299cfb7a1e908fc0a0006a0d187b28fb5db4ac94fab012cf314dfb413",
       "assembly": {
         "script": "tacenta-proofs/scripts/assemble-triple-unit.sh",
-        "script_sha256": "139d8dc8f9fc6d37bf8e5267ac19f92fe85679e4f663ffde3dc71015b4b00104",
+        "script_sha256": "8afd8575003527f735697f9dddc98464558e351072bb51c030c93ae4dac3e1a0",
         "sources": {
           "tacenta-core/ratchet": "78122ceb7c458458943c938ccb96d4825e2955ace948254111a64dde88266a43",
           "tacenta-core/spqr": "c102a22a0cdba8b0ec142c54b1950715fb18cdfb7996bf5ea3b4bae6241b0d91",

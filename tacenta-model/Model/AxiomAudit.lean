@@ -183,8 +183,9 @@ hanging off a theorem or definition declared in the same module, stating
 that a compiled Boolean evaluation returned `true`, and applied by that
 declaration's own value (see `mentionsVia`) unless no first-party declaration
 mentions it at all, in a value or in a statement (see `compilerNamesApplied`).
-`check-audit-negatives.sh` plants each of these conditions and checks that the
-rule refuses what it says it refuses. They are the one axiom shape a
+`check-audit-negatives.sh` plants each of these conditions, and each other
+kind the audit refuses, and checks that the rule refuses what it says it
+refuses. They are the one axiom shape a
 hand-written module may declare, because `#print axioms` reports them and
 the pins hold them. The shape is what the tactic produces, and what
 elaboration-time code could produce too; see the module docstring for what

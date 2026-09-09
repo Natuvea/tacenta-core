@@ -1480,9 +1480,12 @@ the audit walks only what its invoking module imports, and fails if the
 five do not all run with the same first-party prefixes, since the audit's
 waiver for an unmentioned compiler-trust axiom asks whether any first-party
 declaration mentions it and only sees the modules in its own environment.
-`scripts/check-audit-negatives.sh` plants a declaration for each condition
-of the rule -- including the waiver, whose one accepted shape it also
-plants -- and fails if the audit calls any of them wrongly.
+`scripts/check-audit-negatives.sh` plants twelve declarations: one for each
+of the seven kinds the audit refuses, one for each condition a compiler-trust
+axiom must meet, and one for the shape the waiver accepts. It fails if the
+audit calls any of them wrongly. Its own comment carries the matrix of which
+case goes red when which rule is deleted, because a test that passes on a
+broken rule is worth nothing.
 `no-sorry.sh` then replays every first-party module through the kernel
 with `leanchecker`, which is the check against a declaration added with
 kernel checking turned off.

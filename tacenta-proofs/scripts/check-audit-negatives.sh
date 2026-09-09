@@ -8,6 +8,11 @@
 # a declaration in a throwaway first-party module, runs the audit over it, and
 # compares the outcome with what the rule says should happen.
 #
+# It plants one case for each of the seven kinds the audit refuses -- `axiom`,
+# `opaque`, `unsafe`, `partial`, `implemented_by`, `extern` and
+# `compiler-namespace` -- with the compiler-trust conditions covered case by
+# case, plus the one shape the rule allows.
+#
 # It exists because the rule has been wrong before. `compilerTrust` waives its
 # "the parent applies it" requirement for a compiler-trust axiom no first-party
 # declaration mentions, since `decide +native` caches by statement and leaves
@@ -17,11 +22,36 @@
 # unmentioned here and as a dependency there -- accepted by the gate while a
 # theorem rested on it. Case `type-only-mention` is that exact declaration.
 #
-# Each case runs in its own throwaway module outside the package tree, so a
+# The cases share one throwaway module path outside the package tree, rewritten
+# and run in a fresh `lean` process for each, so a
 # failed run leaves nothing behind that a later build or `check-audit-reach.sh`
 # could pick up. The module name is what makes a probe first-party, so the
 # probes live at `Translation/AuditProbe.lean` under a temporary root and are
 # run from there; `lake env` supplies the toolchain and the import path.
+#
+# A test of a gate is itself a gate, so it was validated the same way: by
+# breaking `Model/AxiomAudit.lean` one rule at a time, rebuilding, and checking
+# that the intended case, and no other, came out red. Every rule below was
+# unplanted at some point, and deleting it left this script reporting every
+# case correct. The matrix, last run 2026-09-10:
+#
+#   rule removed from Model/AxiomAudit.lean   case that goes red
+#   ---------------------------------------   ------------------
+#   the `.opaqueInfo` arm                     opaque-definition
+#   the `implementedByAttr` test              implemented-by
+#   the `isExtern` test                       extern-attribute
+#   `c.isPartial`                             partial-definition
+#   `c.isUnsafe`                              unsafe-definition
+#   the `.axiomInfo` arm                      plain-axiom
+#   `c.type.getUsedConstants` in the          type-only-mention
+#     mention set
+#   the `compilerNamed n` test                the five compiler-namespace cases
+#
+# Redo it after changing either file. Each case must be red for its own reason:
+# `partial def` also elaborates to an `opaque`, so a case that accepted any
+# refusal would stay green when the rule it exists for was deleted. That is why
+# the expectation names the reason and the match is against the audit's
+# per-declaration line.
 #
 # Run from any directory. Needs the model package built.
 set -euo pipefail
@@ -37,9 +67,20 @@ pass=0
 fail=0
 
 # run <name> <expectation> -- the case's Lean is read from stdin.
-# <expectation> is `accept`, or `refuse:<substring>` naming the reason the
-# audit must give. Requiring the reason keeps a case from passing because the
-# audit refused it for something incidental.
+# <expectation> is `accept`, or `refuse:<reason>` naming the reason the audit
+# must give. Requiring the reason keeps a case from passing because the audit
+# refused it for something incidental.
+#
+# The reason is matched against the audit's per-declaration lines, which read
+# `  <name> (<module>): <reason>`, and not against the whole output. The
+# closing blurb of a refusal names every reason the audit knows, so any
+# refusal whatsoever contains the word `axiom`, and matching the whole output
+# would turn `refuse:axiom` into a bare exit-status check.
+#
+# The match is a shell pattern rather than a pipe into `grep`. Under
+# `pipefail`, `grep -q` exits at the first match and can leave the writer with
+# SIGPIPE, which is a 141 the pipeline reports as failure -- a green case read
+# as red on a large enough output.
 run() {
   local name=$1 expect=$2 out status
   {
@@ -71,7 +112,7 @@ run() {
     echo "$out" | sed 's/^/    /'
     return
   fi
-  if ! echo "$out" | grep -q "$reason"; then
+  if [[ "$out" != *"(Translation.AuditProbe): $reason"* ]]; then
     fail=$((fail + 1))
     echo "::error::audit-negatives: case '$name' was refused, but not for '$reason':"
     echo "$out" | sed 's/^/    /'
@@ -120,9 +161,13 @@ theorem P : True := trivial
 axiom P._native.decide.ax_1 : (2 : Nat) = 3
 EOF
 
-# The waiver is not extended to `_unsafe_rec`: the code generator calls one by
-# name whether or not anything mentions it, so an unreached one is not inert.
-run unsafe-rec-orphan refuse:compiler-namespace <<'EOF'
+# `_unsafe_rec` is held to the compiler's shape and has no waiver of its own --
+# `compilerAuxiliary` is not given the mention set at all, which is what "the
+# waiver is not extended to `_unsafe_rec`" means. The code generator calls one
+# by name whether or not anything mentions it, so an unreached one is not
+# inert. This plants one beside a non-recursive `g`, which fails the shape on
+# three counts, and would still be refused if the waiver were widened.
+run unsafe-rec-shape refuse:compiler-namespace <<'EOF'
 def g : Nat := 0
 unsafe def g._unsafe_rec : Nat := 0
 EOF
@@ -130,6 +175,38 @@ EOF
 # The ordinary case, and the one the gate is mostly there for.
 run plain-axiom refuse:axiom <<'EOF'
 axiom Bad : True
+EOF
+
+# The audit refuses seven kinds of declaration and the five below are the rest
+# of them. Each was unplanted once, and deleting its rule from
+# `Model/AxiomAudit.lean` left this script reporting every case correct.
+
+# A constant the kernel cannot unfold. `partial def` elaborates to one of
+# these, which is why both are refused.
+run opaque-definition refuse:opaque <<'EOF'
+opaque Hidden : Nat := 0
+EOF
+
+# The compiled program is a different definition from the one the kernel
+# reasons about, which is the textbook route to proving `False` by evaluation.
+run implemented-by refuse:implemented_by <<'EOF'
+def Real : Nat := 0
+@[implemented_by Real] def Fake : Nat := 1
+EOF
+
+# The same, with the other definition outside Lean altogether.
+run extern-attribute refuse:extern <<'EOF'
+@[extern "probe_c_function"] def Outside : Nat := 0
+EOF
+
+# Opts out of termination checking.
+run partial-definition refuse:partial <<'EOF'
+partial def Spin (n : Nat) : Nat := Spin n
+EOF
+
+# Opts out of everything.
+run unsafe-definition refuse:unsafe <<'EOF'
+unsafe def Reckless : Nat := 0
 EOF
 
 if [ $fail -ne 0 ]; then

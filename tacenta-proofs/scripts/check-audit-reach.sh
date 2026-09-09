@@ -110,7 +110,22 @@ for pkg, audits, _, _ in PACKAGES:
         path = os.path.join(pkg, a)
         if not os.path.exists(path):
             continue
-        calls = audit_call.findall(open(path).read())
+        text = open(path).read()
+        calls = audit_call.findall(text)
+        # Any other way of writing the call -- parenthesised, indented, on the
+        # end of another line -- is not matched by the pattern above and would
+        # otherwise be invisible here. `check-lean-constructs.sh` refuses such
+        # a line outright, and this counts it so that neither script is the
+        # only thing standing between a second invocation and the tree.
+        mentions = text.count("Model.AxiomAudit.run")
+        if mentions != len(calls):
+            fail = True
+            sys.stderr.write(
+                f"::error::{path}: mentions Model.AxiomAudit.run {mentions} "
+                f"time(s) but only {len(calls)} are a plain `run_cmd "
+                f"Model.AxiomAudit.run ...` line. An invocation written any "
+                f"other way is not checked here.\n")
+            continue
         if len(calls) != 1:
             fail = True
             sys.stderr.write(

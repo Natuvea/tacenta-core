@@ -144,8 +144,9 @@ which also requires all five to run with the same first-party prefixes, so
 that no declaration is first-party to the audit that declares an axiom and
 foreign to the audit that uses it; and `check-audit-negatives.sh`, which
 plants declarations the audit's rule says to refuse, and the one shape it
-says to allow, in a throwaway first-party module and fails if the audit
-calls any of them wrongly -- and then replays every first-party module
+says to allow -- twelve in all, one per refusal kind and one per
+compiler-trust condition -- in a throwaway first-party module, and fails if
+the audit calls any of them wrongly -- and then replays every first-party module
 through the kernel with `leanchecker` (below).
 
 Expected tail:
@@ -248,8 +249,8 @@ you do:
   the second is a grep: a construct its stripper mishandles would be a hole
   in the rule, not something the audit would catch. A fourth check,
   `check-audit-negatives.sh`, asks the separate question of whether the rule
-  still refuses what it says it refuses, by planting each case and comparing. `LIMITATIONS.md`
-  records this under "Trusted, not verified".
+  still refuses what it says it refuses, by planting each case and
+  comparing. `LIMITATIONS.md` records this under "Trusted, not verified".
 - **T1 and T3 are about the Aeneas model of the Rust**, not the machine code
   `rustc` produces. The Charon and Aeneas translation, the Lean kernel, and the
   Rust compiler are all trusted. That trust is the point of writing the pins

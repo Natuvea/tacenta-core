@@ -103,10 +103,27 @@ if [ $# -gt 0 ]; then
   esac
 fi
 
+# Everything this script may have to remove, and one trap for all of it.
+# Two traps on EXIT would not compose: the second silently replaces the first,
+# and the temporary tree `--check` assembles into would be left behind on every
+# run. That happened once.
+unit_tmp=""
+stripped=""
+inject_file=""
+note_file=""
+cleanup() {
+  [ -n "$unit_tmp" ] && rm -rf "$unit_tmp"
+  [ -n "$stripped" ] && rm -f "$stripped"
+  [ -n "$inject_file" ] && rm -f "$inject_file"
+  [ -n "$note_file" ] && rm -f "$note_file"
+  return 0
+}
+trap cleanup EXIT INT TERM
+
 unit="$core/triple-unit"
 if [ "$check" -eq 1 ]; then
-  unit=$(mktemp -d)
-  trap 'rm -rf "$unit"' EXIT INT TERM
+  unit_tmp=$(mktemp -d)
+  unit="$unit_tmp"
 fi
 
 mkdir -p "$unit/src"
@@ -295,39 +312,46 @@ inject_lines=$(inject_block | wc -l | tr -d ' ')
 # Two checks on the copy, both read back from the file rather than recomputed
 # from the variables that wrote it.
 #
-# The first is the byte-identity claim: find the generated header and the
-# inserted block *by their text*, delete them, and what is left must be the
-# leaf exactly. Locating them by content is the point. Stripping the same line
-# ranges the write used would reconstruct the leaf whatever those ranges were,
-# so it would check the arithmetic against itself and pass on any `header_end`;
-# an earlier version of this script did exactly that and called it a check.
-note_lines=$(generated_note "//" | wc -l | tr -d ' ')
+# The first is the byte-identity claim: match the generated header against its
+# own text at the front of the file, find the inserted block by its text
+# wherever it is, delete both, and what is left must be the leaf exactly.
+# Locating the block by content is the point. Deleting the same line ranges the
+# write used would reconstruct the leaf whatever those ranges were, so it would
+# check the arithmetic against itself and pass on any `header_end`; an earlier
+# version of this script did exactly that and called it a check. The header is
+# matched rather than counted for the same reason, even though its position is
+# not in question.
+note_file=$(mktemp)
+{ generated_note "//"; echo ""; } > "$note_file"
 stripped=$(mktemp)
 inject_file=$(mktemp)
 inject_block > "$inject_file"
-trap 'rm -f "$stripped" "$inject_file"' EXIT
 
-if ! python3 - "$copy" "$leaf" "$inject_file" "$note_lines" "$stripped" <<'PYEOF'; then
+if ! python3 - "$copy" "$inject_file" "$note_file" "$stripped" <<'PYEOF'; then
 import sys
-copy, leaf, inject_file, note_lines, out = sys.argv[1:]
-note_lines = int(note_lines)
+copy, inject_file, note_file, out = sys.argv[1:]
 copy_lines = open(copy).read().splitlines(keepends=True)
-leaf_lines = open(leaf).read().splitlines(keepends=True)
 inject = open(inject_file).read().splitlines(keepends=True)
+note = open(note_file).read().splitlines(keepends=True)
+
+# The generated header, matched against its own text at the front of the file.
+if copy_lines[:len(note)] != note:
+    sys.stderr.write(
+        f"assemble-triple-unit: ERROR: {copy} does not begin with the generated "
+        f"header this script writes.\n")
+    sys.exit(1)
+rest = copy_lines[len(note):]
 
 # The inserted block, wherever it is, and there must be exactly one of it.
-hits = [i for i in range(len(copy_lines) - len(inject) + 1)
-        if copy_lines[i:i + len(inject)] == inject]
+hits = [i for i in range(len(rest) - len(inject) + 1)
+        if rest[i:i + len(inject)] == inject]
 if len(hits) != 1:
     sys.stderr.write(
         f"assemble-triple-unit: ERROR: the inserted block occurs {len(hits)} "
-        f"times in {copy}; expected exactly one.\n")
+        f"times in {copy} after its header; expected exactly one.\n")
     sys.exit(1)
 at = hits[0]
 
-# The generated header is the first `note_lines` lines plus the blank after it.
-rest = copy_lines[note_lines + 1:]
-at -= note_lines + 1
 open(out, "w").writelines(rest[:at] + rest[at + len(inject):])
 sys.exit(0)
 PYEOF
@@ -346,17 +370,34 @@ fi
 # about: the same lines inserted inside the leaf's `//!` block reproduce the
 # leaf just as exactly, and give a file rustc refuses with E0753. An inner
 # attribute and an inner doc comment may only precede the items of their
-# module, so nothing at the file's top level may carry one after the inserted
-# `use`. Indented ones are left alone: those belong to an inline nested module,
-# where they are legal and none of this script's business.
+# module, so the inserted `use` must come after the last of them.
+#
+# The scan runs from the `use` to the first line that begins an item, and no
+# further. That bound is what keeps it honest in both directions. Stopping
+# early would miss the failure, since a misread header leaves the rest of the
+# leaf's `//!` run immediately after the `use`, before any item. Running on
+# would report legal Rust: a `//!` at column 0 inside a raw string literal, or
+# a `#![...]` opening an inline nested module, are both fine where they sit and
+# both appear only after items have started.
 use_line=$(grep -n '^use crate::{tacenta_ratchet, tacenta_spqr};$' "$copy" | cut -d: -f1)
 if [ "$(echo "$use_line" | wc -l | tr -d ' ')" != 1 ] || [ -z "$use_line" ]; then
   echo "assemble-triple-unit: ERROR: expected exactly one inserted \`use\` line in" >&2
   echo "  $copy; found $(echo "$use_line" | wc -w | tr -d ' ')." >&2
   exit 1
 fi
-late=$(tail -n "+$((use_line + 1))" "$copy" | grep -nE '^(#!\[|//!)' | head -3 \
-       | awk -F: -v base="$use_line" '{ n = $1 + base; sub(/^[0-9]+:/, ""); print n ": " $0 }' || true)
+late=$(awk -v start="$use_line" '
+  NR <= start { next }
+  # An inner attribute or inner doc comment at the top level, before any item
+  # has started: this is the failure.
+  /^(#!\[|\/\/!)/ { print NR ": " $0; if (++n == 3) exit; next }
+  # Still in the leading run: blank, an ordinary comment, or an outer
+  # attribute introducing the item that ends the scan.
+  /^[[:space:]]*$/ { next }
+  /^[[:space:]]*\/\// { next }
+  /^#\[/ { next }
+  # Anything else is the first item. Stop.
+  { exit }
+' "$copy")
 if [ -n "$late" ]; then
   echo "assemble-triple-unit: ERROR: the inserted \`use\` landed before a top-level" >&2
   echo "  inner attribute in $copy, which rustc refuses (E0753). The leaf's" >&2
@@ -365,8 +406,10 @@ if [ -n "$late" ]; then
   exit 1
 fi
 
-rm -f "$stripped" "$inject_file"
-trap - EXIT
+rm -f "$stripped" "$inject_file" "$note_file"
+stripped=""
+inject_file=""
+note_file=""
 
 # ---------------------------------------------------------------------------
 # src/tacenta_triple/tests.rs
