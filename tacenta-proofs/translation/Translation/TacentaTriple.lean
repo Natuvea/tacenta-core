@@ -251,7 +251,7 @@ axiom tacenta_ratchet.send
     tacenta_ratchet.State)
 
 /-- [tacenta_ratchet::receive]:
-    Source: 'ratchet/src/lib.rs', lines 907:0-913:30
+    Source: 'ratchet/src/lib.rs', lines 909:0-915:30
     Name pattern: [tacenta_ratchet::receive]
     Visibility: public -/
 @[rust_fun "tacenta_ratchet::receive"]

@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "_note": "Written only by `tacenta-proofs/scripts/attest.py --refresh-translation`, immediately after `scripts/run-aeneas.sh` on the pinned toolchain, and compared against by every other mode. A green `attest.py --check` establishes that each generated Translation/Tacenta*.lean is a module run-aeneas.sh produces, is byte for byte the file recorded here, declares exactly the axioms recorded here (as text; no-sorry.sh compares the same record with what the axiom audit saw in the built environment), and that the Rust verified zone it was generated from, and the workspace inputs that shape every zone's extraction (Cargo.toml and its profiles, Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed to when this was written, as recorded by whoever ran the toolchain. It does not establish that the toolchain was run, or run honestly: that is checked by regenerating with run-aeneas.sh and diffing, which REPRODUCING.md describes.",
-  "generated_at_commit": "04b47c2259ec7e878a65c177e289586dd6a9a383",
+  "generated_at_commit": "1463cb27432f6a82893cbeea0d2b290871083114",
   "aeneas": {
     "release": "nightly-2026.07.22-b1214ca",
     "commit": "b1214ca0a024e8121f41fe2b2ed15e26af02373b"
@@ -94,7 +94,7 @@
     },
     "tacenta-proofs/translation/Translation/TacentaRatchet.lean": {
       "module": "TacentaRatchet",
-      "sha256": "f5d34ecc2cc3d307af58f9abea13d54322c75099fe4c169e88c6e85a46b6cebe",
+      "sha256": "c74448c73630426f8774bf2f020cb14881d7c6c4598dc3e6d909315209af8658",
       "axioms": [
         "Array.Insts.ZeroizeZeroize.zeroize",
         "Pair.Insts.ZeroizeZeroize.zeroize",
@@ -113,7 +113,7 @@
         "zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop"
       ],
       "zone": "tacenta-core/ratchet",
-      "zone_sha256": "69131c74e7b04f63b52f0933516e7e6f985e62b8bd64a9e0944681b1e49fb4fd",
+      "zone_sha256": "642b4982123b6f85107114d018960233810dc07f360199e238d376a4cb7174cc",
       "workspace_sha256": "f106337baa6b1f3b1bf6edff16b16b35b0a73e25ea3a464bd2711debd4ce5ae4"
     },
     "tacenta-proofs/translation/Translation/TacentaSession.lean": {
@@ -158,7 +158,7 @@
     },
     "tacenta-proofs/translation/Translation/TacentaTriple.lean": {
       "module": "TacentaTriple",
-      "sha256": "97444cfdd2e3ac9ebfe7684e626190a263133a405b805e9d8e936730916626c7",
+      "sha256": "5c751dbef5d15eb923edf654fc28f80769ca670a1d6caeac24e49578d577a842",
       "axioms": [
         "Array.Insts.ZeroizeZeroize.zeroize",
         "alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize",

@@ -1895,7 +1895,7 @@ def dh_ratchet
     }
 
 /-- [tacenta_ratchet::age_store]: loop body 0:
-    Source: 'ratchet/src/lib.rs', lines 863:4-874:5 -/
+    Source: 'ratchet/src/lib.rs', lines 865:4-876:5 -/
 @[rust_loop_body]
 def age_store_loop.body
   (now : Std.U32) (v : alloc.vec.Vec SkippedKey) (i : Std.Usize) :
@@ -1917,7 +1917,7 @@ def age_store_loop.body
   else ok (done v)
 
 /-- [tacenta_ratchet::age_store]: loop 0:
-    Source: 'ratchet/src/lib.rs', lines 863:4-874:5 -/
+    Source: 'ratchet/src/lib.rs', lines 865:4-876:5 -/
 @[rust_loop]
 def age_store_loop
   (v : alloc.vec.Vec SkippedKey) (now : Std.U32) (i : Std.Usize) :
@@ -1928,14 +1928,14 @@ def age_store_loop
     (v, i)
 
 /-- [tacenta_ratchet::age_store]:
-    Source: 'ratchet/src/lib.rs', lines 859:0-875:1 -/
+    Source: 'ratchet/src/lib.rs', lines 861:0-877:1 -/
 def age_store (state : State) : Result State := do
   let now ← lift (core.num.U32.saturating_add state.events 1#u32)
   let v ← age_store_loop state.skipped now 0#usize
   ok { state with skipped := v, events := now }
 
 /-- [tacenta_ratchet::try_skipped]: loop body 0:
-    Source: 'ratchet/src/lib.rs', lines 1:0-891:1 -/
+    Source: 'ratchet/src/lib.rs', lines 1:0-893:1 -/
 @[rust_loop_body]
 def try_skipped_loop.body
   (state : State) (header : Header) (i : Std.Usize) :
@@ -1972,7 +1972,7 @@ def try_skipped_loop.body
       state.labels))
 
 /-- [tacenta_ratchet::try_skipped]: loop 0:
-    Source: 'ratchet/src/lib.rs', lines 1:0-891:1 -/
+    Source: 'ratchet/src/lib.rs', lines 1:0-893:1 -/
 @[rust_loop]
 def try_skipped_loop
   (state : State) (header : Header) (i : Std.Usize) :
@@ -1986,7 +1986,7 @@ def try_skipped_loop
     i
 
 /-- [tacenta_ratchet::try_skipped]:
-    Source: 'ratchet/src/lib.rs', lines 877:0-891:1 -/
+    Source: 'ratchet/src/lib.rs', lines 879:0-893:1 -/
 def try_skipped
   (state : State) (header : Header) :
   Result ((Option (Array Std.U8 32#usize)) × State)
@@ -2009,7 +2009,7 @@ def try_skipped
     })
 
 /-- [tacenta_ratchet::receive]:
-    Source: 'ratchet/src/lib.rs', lines 907:0-950:1
+    Source: 'ratchet/src/lib.rs', lines 909:0-952:1
     Visibility: public -/
 def receive
   (state : State) (header : Header) (dh_out_recv : Array Std.U8 32#usize)
