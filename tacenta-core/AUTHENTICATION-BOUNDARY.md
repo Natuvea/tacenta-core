@@ -39,7 +39,12 @@ row whose first cell is `` `path::name` `` registers a function, never a
 backticked name in prose; `#[cfg(test)]` exempts a function only as the
 attribute directly on the item, never as nearby text; and verbs are matched
 anywhere in a name, so a function such as the braid's `step_receive` is
-discovered along with the `receive` that wraps it.
+discovered along with the `receive` that wraps it. Discovery reads each file
+through a view with its strings, character literals, and comments blanked, so
+a brace inside a test's string cannot hide the code below a test module, and
+it refuses rather than guesses when a file's braces do not balance in that
+view or a block never closes. A `const fn`, `unsafe fn`, or `async fn` is
+discovered like any other.
 
 ## Why a registry rather than a rule
 

@@ -1015,6 +1015,16 @@ impl PrekeyStore {
         // `to_bytes` and are refused. Skipped for v1 and v2, which legitimately
         // re-encode to v3 (they gain the fields the newer format added), so a
         // re-encode comparison there would reject every honest upgrade.
+        //
+        // For v3 as the decoder above stands, this is unreachable by
+        // construction: every field is fixed-width or length-prefixed and
+        // re-encoded exactly as read, the presence bytes admit only 0x00 and
+        // 0x01, and trailing bytes are refused, so any byte string that decodes
+        // re-encodes to itself. It is kept as insurance: a future field with
+        // two encodings of one value would otherwise pass unnoticed, and the
+        // check costs nothing to reason about. What it does cost is one full
+        // re-encode per load, every held KEM key pair included, paid once at
+        // restore and never on the wire.
         if version == PREKEY_STORE_VERSION && store.to_bytes().as_slice() != bytes {
             return Err(PrekeyStoreDecodeError::NonCanonical);
         }
@@ -1393,15 +1403,16 @@ pub fn establish_responder<R: RngCore + CryptoRng>(
     // Wrapped: this copy lives for the whole handshake, and a bare `[u8; 32]`
     // would outlive its use unwiped. The `from_bytes` calls below take a
     // transient copy each, which is the accepted class.
+    // A guarded `match` rather than a let-chain: the workspace promises Rust
+    // 1.87, and let-chains are stable only from 1.88.
     let signed_prekey_secret: Zeroizing<[u8; 32]> = Zeroizing::new(
         if decoded.signed_prekey_id == our_prekeys.signed_prekey_id {
             our_prekeys.signed_prekey_secret
-        } else if let Some((secret, id, _)) = &our_prekeys.previous_signed_prekey
-            && *id == decoded.signed_prekey_id
-        {
-            *secret
         } else {
-            return Err(Error::UnknownPrekeyId);
+            match &our_prekeys.previous_signed_prekey {
+                Some((secret, id, _)) if *id == decoded.signed_prekey_id => *secret,
+                _ => return Err(Error::UnknownPrekeyId),
+            }
         },
     );
 
@@ -1433,8 +1444,9 @@ pub fn establish_responder<R: RngCore + CryptoRng>(
         .map(|(pair, _, _)| pair);
     let last_resort = decoded.kem_prekey_id == our_prekeys.kem_id || previous_kem.is_some();
     let fingerprint = last_resort.then(|| last_resort_fingerprint(&decoded));
-    if let Some(fp) = &fingerprint
-        && our_prekeys.last_resort_seen.contains(fp)
+    if fingerprint
+        .as_ref()
+        .is_some_and(|fp| our_prekeys.last_resort_seen.contains(fp))
     {
         return Err(Error::ReplayedLastResort);
     }
@@ -1715,17 +1727,22 @@ impl Session {
         // evicts nothing: the copy it drove is dropped with it.
         //
         // The first eviction aims at the shortfall the header implies rather
-        // than climbing 1, 2, 4, ... up to it (CR-19). When the classical store
-        // is full it holds `MAX_SKIPPED_STORE` keys, so the room a message needs
-        // is the number of keys it will skip on the current chain, which is its
-        // header number minus the current receive count -- known before the
-        // first attempt. Starting there means a forged full-store header no
-        // longer buys a run of eviction-and-retry rounds, each cloning the
-        // 2000-entry store and deriving up to `MAX_SKIP` keys, before it is
-        // refused. It is only ever an *under*-estimate (a step also skips the
-        // previous chain, whose length is not in the header), and the geometric
-        // growth below covers the rest, so it never evicts a key the message did
-        // not displace.
+        // than climbing 1, 2, 4, ... up to it (CR-19). The classical ratchet
+        // refuses when the keys it holds plus the keys this message skips on
+        // the current chain -- its header number minus the current receive
+        // count -- would exceed `MAX_SKIPPED_STORE`, so the room it needs is
+        // that excess and nothing more, and both terms are known before the
+        // first attempt. "Full" does not mean the store holds exactly the cap:
+        // a store of 1500 keys refuses a message 600 ahead, and needs 100
+        // evicted, not 600. Starting at the excess means a forged full-store
+        // header no longer buys a run of eviction-and-retry rounds, each
+        // cloning the 2000-entry store and deriving up to `MAX_SKIP` keys,
+        // before it is refused. The figure counts the current chain only: a
+        // message that also steps the ratchet first skips the rest of the
+        // previous chain, whose length is not in the header, so on a step it
+        // is an *under*-estimate and the geometric growth below covers the
+        // rest. Either way the first batch never exceeds what the message
+        // displaces.
         //
         // The post-quantum half has no receive-count accessor, and its header
         // number is an absolute per-epoch index, not a shortfall, so there is no
@@ -1736,9 +1753,14 @@ impl Session {
         // unrelated.
         let shortfall = |half: FullStore| -> usize {
             match half {
-                FullStore::Classical => (composite.n as usize)
-                    .saturating_sub(self.triple.receive_count() as usize)
-                    .clamp(1, crate::ratchet::MAX_SKIPPED_STORE),
+                FullStore::Classical => {
+                    let held = self.triple.classical_skipped_len();
+                    let need =
+                        (composite.n as usize).saturating_sub(self.triple.receive_count() as usize);
+                    held.saturating_add(need)
+                        .saturating_sub(crate::ratchet::MAX_SKIPPED_STORE)
+                        .max(1)
+                }
                 FullStore::PostQuantum => 1,
             }
         };

@@ -42,7 +42,15 @@ discovered must be registered, and everything registered must still exist.
   text nearby; a comment mentioning it exempts nothing. A `#[cfg(test)] mod`
   is removed by its own byte range (blanked in place, so line numbers hold),
   not by cutting the file at the first one, so real code below a test module is
-  still discovered (CR-09).
+  still discovered (CR-09). The walk that finds a module's closing brace, like
+  every match in this file, reads a view of the source with every string,
+  character literal, and comment blanked to spaces, so a `"{"` inside a test
+  string cannot shift the span over the code that follows the module. The
+  walk refuses to guess: a file whose braces do not balance in that view, or
+  a module or `impl` block that never closes, is an error, not a silent
+  truncation.
+- **`const fn`, `unsafe fn`, and `async fn` are declarations too**, in any
+  order of qualifiers; a qualifier is not a way out of discovery.
 - **Verbs match anywhere in the name**, so `step_receive` is discovered, with a
   small exemption list for accessors (`receive_count` and friends) and the pure
   `read_*` byte helpers.
@@ -99,8 +107,11 @@ FAMILY = (
 # A function declaration, `pub` or not, with its receiver captured: the text
 # between the opening parenthesis and the first comma or closing parenthesis,
 # which is `&self`, `&mut self`, `self`, or an ordinary first parameter.
+# `const`, `async`, and `unsafe` may precede `fn` in any order; a `const fn
+# receive` is a receive.
+QUALIFIERS = r"(?:(?:const|async|unsafe)\s+)*"
 DECL = re.compile(
-    r"^(?P<indent>[ \t]*)(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+"
+    r"^(?P<indent>[ \t]*)(?:pub(?:\([^)]*\))?\s+)?" + QUALIFIERS + r"fn\s+"
     # The generic list may nest one level (`<F: Fn(&Msg) -> Option<Key>>`), which
     # a plain `<[^>]*>` cannot span; discovery must accept every declaration,
     # so the pattern spans one level of nesting.
@@ -145,7 +156,7 @@ def _explicit_decl(name: str) -> "re.Pattern":
     the start of the first parameter the way `DECL` does, so the same parameter
     extraction works on it."""
     return re.compile(
-        r"^(?P<indent>[ \t]*)(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+"
+        r"^(?P<indent>[ \t]*)(?:pub(?:\([^)]*\))?\s+)?" + QUALIFIERS + r"fn\s+"
         r"(?P<name>" + re.escape(name) + r")\s*(?:<(?:[^<>]|<[^<>]*>)*>)?\s*\("
         r"(?P<first>[^,)]*)",
         re.M,
@@ -231,27 +242,19 @@ IMPL_START = re.compile(
 )
 
 
-def _impl_spans(text: str):
+def _impl_spans(text: str, rel: str):
     """Every `impl` block as `(type, start, end)`, so a function's enclosing
     type can be recovered. Rust does not nest `impl` blocks, so at most one span
-    contains a given position."""
+    contains a given position. `text` is the code view (see `_code_view`), so
+    the brace walk counts only braces that are code; a block that never
+    closes is an error rather than a span to the end of the file."""
     spans = []
     for m in IMPL_START.finditer(text):
         ty = m.group("b") or m.group("a")
-        depth = 0
-        i = m.end() - 1
-        end = len(text)
-        while i < len(text):
-            c = text[i]
-            if c == "{":
-                depth += 1
-            elif c == "}":
-                depth -= 1
-                if depth == 0:
-                    end = i + 1
-                    break
-            i += 1
-        spans.append((ty, m.start(), end))
+        end = _matching_brace(text, m.end() - 1)
+        if end is None:
+            _refuse(f"{rel}: the `impl {ty}` block at offset {m.start()} never closes")
+        spans.append((ty, m.start(), end + 1))
     return spans
 
 
@@ -282,38 +285,139 @@ def _param_list(text: str, open_paren: int) -> str:
     return text[open_paren + 1 :]
 
 
-def _blank_test_modules(text: str) -> str:
+def _refuse(why: str):
+    """Stop the check outright. Discovery that cannot see a file's structure
+    must not guess at it: a guess that hides a function reads as a pass."""
+    print(f"::error::{why}; refusing to guess at the file's structure", file=sys.stderr)
+    sys.exit(1)
+
+
+# The pieces of a Rust source that are not code, as far as brace counting and
+# declaration matching care: line and block comments (block comments nest),
+# ordinary and byte strings, raw strings with any number of hashes, and
+# character and byte-character literals. A lifetime (`'a`) is a lone quote
+# with no closing one and is left alone. Each is matched at a position and
+# replaced, newlines kept, by spaces.
+_LINE_COMMENT = re.compile(r"//[^\n]*")
+_STRING = re.compile(r'(?:b|c)?"(?:[^"\\]|\\.|\\\n)*"', re.S)
+_RAW_STRING_START = re.compile(r'(?:b|c)?r(?P<hashes>#*)"')
+_CHAR = re.compile(r"b?'(?:[^'\\\n]|\\(?:[^u]|u\{[0-9a-fA-F_]{1,6}\}))'")
+
+
+def _code_view(text: str) -> str:
+    """`text` with every comment, string literal, and character literal
+    replaced by spaces of the same length, newlines kept, so that offsets and
+    line numbers in the view are those of the source and a brace inside a
+    string or a comment is not a brace. Every regular-expression match in this
+    file runs over the view, and so does every brace walk."""
+    out = []
+    i = 0
+    n = len(text)
+
+    def blank(s: str) -> str:
+        return "".join("\n" if ch == "\n" else " " for ch in s)
+
+    while i < n:
+        c = text[i]
+        two = text[i : i + 2]
+        if two == "//":
+            m = _LINE_COMMENT.match(text, i)
+            out.append(blank(m.group()))
+            i = m.end()
+        elif two == "/*":
+            depth = 0
+            j = i
+            while j < n:
+                if text.startswith("/*", j):
+                    depth += 1
+                    j += 2
+                elif text.startswith("*/", j):
+                    depth -= 1
+                    j += 2
+                    if depth == 0:
+                        break
+                else:
+                    j += 1
+            out.append(blank(text[i:j]))
+            i = j
+        elif c == "'":
+            m = _CHAR.match(text, i)
+            if m:
+                out.append(blank(m.group()))
+                i = m.end()
+            else:
+                out.append(c)
+                i += 1
+        elif c == '"' or (
+            c in "rbc" and (i == 0 or not (text[i - 1].isalnum() or text[i - 1] == "_"))
+        ):
+            m = _RAW_STRING_START.match(text, i)
+            if m:
+                close = '"' + m.group("hashes")
+                j = text.find(close, m.end())
+                j = n if j < 0 else j + len(close)
+                out.append(blank(text[i:j]))
+                i = j
+                continue
+            m = _CHAR.match(text, i) if c == "b" else None
+            if m is None:
+                m = _STRING.match(text, i)
+            if m:
+                out.append(blank(m.group()))
+                i = m.end()
+            else:
+                out.append(c)
+                i += 1
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
+def _matching_brace(text: str, open_pos: int):
+    """The index of the `}` that closes the `{` at `open_pos`, or `None` if
+    the text ends first. `text` must be the code view, so every brace seen is
+    code."""
+    depth = 0
+    i = open_pos
+    while i < len(text):
+        c = text[i]
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return None
+
+
+def _blank_test_modules(text: str, rel: str) -> str:
     """Remove every `#[cfg(test)] mod ... { ... }` span, replacing it with as
     many blank lines as it spanned.
 
     Only the test module's own byte range is removed, not everything after the
     first one (CR-09): cutting at the first `#[cfg(test)]` would blind discovery
     to any real code below a test module. Blanking rather than deleting keeps
-    every surviving declaration on its original line number. Braces inside
-    strings or comments are not accounted for, the same limitation the file
-    already lived with; the modules here do not contain any."""
+    every surviving declaration on its original line number.
+
+    `text` is the code view, so a brace inside a test's string or a comment
+    cannot move the module's end over the code that follows it. The walk
+    fails closed: the view's braces must balance before a module is looked
+    for, and a module that never closes is an error, because either would
+    otherwise leave the walk free to blank real code below the module and
+    report the file as covered."""
+    if text.count("{") != text.count("}"):
+        _refuse(f"{rel}: braces do not balance outside strings and comments")
     pattern = re.compile(r"#\[cfg\(test\)\]\s*\n\s*mod\s+[A-Za-z0-9_]+\s*\{", re.M)
     while True:
         m = pattern.search(text)
         if not m:
             return text
-        depth = 0
-        i = m.end() - 1
-        end = None
-        while i < len(text):
-            c = text[i]
-            if c == "{":
-                depth += 1
-            elif c == "}":
-                depth -= 1
-                if depth == 0:
-                    end = i + 1
-                    break
-            i += 1
+        end = _matching_brace(text, m.end() - 1)
         if end is None:
-            # Unbalanced: no honest test module reaches here, but rather than
-            # loop forever, drop from the attribute to the end of the file.
-            return text[: m.start()]
+            _refuse(f"{rel}: the test module at offset {m.start()} never closes")
+        end += 1
         span = text[m.start() : end]
         text = text[: m.start()] + ("\n" * span.count("\n")) + text[end:]
 
@@ -342,12 +446,14 @@ def discovered():
         for path in sorted(base.rglob("*.rs")):
             if path.name in ("tests.rs",) or "/tests/" in str(path):
                 continue
-            # Blank every test module's byte range, keeping line numbers and any
-            # real code below a test module.
-            text = _blank_test_modules(path.read_text())
             rel = path.relative_to(ROOT).as_posix()
+            # Match against the code view -- strings and comments blanked, so
+            # neither a brace nor a declaration inside one counts -- with every
+            # test module's byte range blanked too, keeping line numbers and
+            # any real code below a test module.
+            text = _blank_test_modules(_code_view(path.read_text()), rel)
             lines = text.split("\n")
-            spans = _impl_spans(text)
+            spans = _impl_spans(text, rel)
 
             def record(m):
                 """Turn a `DECL`/explicit match into a discovery entry, reading

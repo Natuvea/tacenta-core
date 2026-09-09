@@ -11,7 +11,7 @@ somebody else chose.
 | `protobuf_bodies` | `parse_prekey_body`, `parse_ratchet_body`, `decode_tag` |
 | `persisted_state` | `from_bytes` on the ratchet, sparse ratchet, Braid, triple, and both erasure coders, plus `PrekeyStore::from_bytes` and `Session::import` |
 | `session_receive` | `establish_responder` on an unauthenticated message, and `Session::decrypt` on both sides of an established session |
-| `braid_receive` | `Braid::receive` and `commit` from either role, driven by a sequence of `Msg` values; every candidate that did not fail is adopted, so a transcript can carry the machine through all eleven live states, and the corpus is seeded with an honest transcript parked in each (`write_braid_receive_seeds` in `braid/src/tests.rs`) |
+| `braid_receive` | `Braid::receive` and `commit` from either role, driven by a sequence of `Msg` values; every candidate that did not fail is adopted and the target sends after each message, so a transcript carries the machine through all eleven live states, though a fuzzed message is only ever *received* in the nine a send leaves behind -- the two it never meets, `KeysUnsampled` and `HeaderReceived`, are the two whose receive arm does nothing. The corpus is seeded with an honest transcript parked in each state (`write_braid_receive_seeds` in `braid/src/tests.rs`) |
 | `triple_receive` | `tacenta_triple::State::receive` and `commit` from either side, driven by a sequence of composite headers and agreement outputs (`write_triple_receive_seeds` in `triple/src/tests.rs`) |
 
 The first three take bytes. The last three drive state machines, which is the
@@ -44,7 +44,9 @@ cargo fuzz run wire_decoders
 ```
 
 Needs nightly Rust and `cargo install cargo-fuzz`. Each target keeps its corpus
-in `corpus/<target>/`, which is committed: about 2,700 files and 11 MB in all.
+in `corpus/<target>/`, which is committed: 2,726 files holding about 1.4 MB
+of content in all (`du` reports nearer 11 MB, which is block usage across that
+many small files).
 It is the accumulated set of inputs that reached distinct branches, plus the
 seeds the ignored tests named above write, and starting each run from it
 rather than from nothing is most of what makes a short run worth anything: a

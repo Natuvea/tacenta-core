@@ -173,8 +173,10 @@ impl Auth {
     /// For conformance checking against the model's vectors, which supply a
     /// root key directly rather than deriving one. Compiled only for this
     /// crate's tests and for the vectors runner, which enables the
-    /// `conformance` feature; a shipping build has no way to plant a root key
-    /// (CR-22).
+    /// `conformance` feature. The gate keeps an API a shipping build has no
+    /// use for out of its surface; it removes no capability, since
+    /// `from_bytes` restores an authenticator, keys and all, from a persisted
+    /// Braid (CR-22).
     #[cfg(any(test, feature = "conformance"))]
     pub fn from_root(root_key: [u8; 32]) -> Auth {
         Auth {
@@ -184,7 +186,9 @@ impl Auth {
     }
 
     /// The two keys, for conformance checking. They are secret, so this is
-    /// compiled only where `from_root` is: a shipping build cannot read them.
+    /// compiled only where `from_root` is. As there, the gate is about the
+    /// API, not the capability: `to_bytes` carries both keys in the clear for
+    /// persistence, so whoever holds the Braid can already read them.
     #[cfg(any(test, feature = "conformance"))]
     pub fn keys(&self) -> ([u8; 32], [u8; 32]) {
         (self.root_key, self.mac_key)

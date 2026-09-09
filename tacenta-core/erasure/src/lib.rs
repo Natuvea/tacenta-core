@@ -300,6 +300,14 @@ impl Encoder {
     /// wrong; it is not reachable through this workspace, whose largest value
     /// is 48 chunks, and an infallible `new` keeps the Braid's send path the
     /// shape its refinement proof is written against (CR-14).
+    ///
+    /// The cap is a stall at the far end, not a silent loss: the decoder is
+    /// told the message's true length, and a length past `MAX_CODEWORDS`
+    /// chunks names more codewords than this stream will ever issue, so that
+    /// decoder never completes. At the cap the systematic prefix alone spends
+    /// every node in the field, so no parity codeword is issued either, and a
+    /// receiver that missed one chunk of a capped stream is short for good.
+    /// Both are the honest outcome for a message the field cannot carry.
     pub fn new(message: &[u8]) -> Encoder {
         let mut k = chunk_count(message.len());
         if k > MAX_CODEWORDS {
@@ -778,14 +786,42 @@ mod decode_bounds_tests {
     }
 
     /// `new` caps a stream at the field's node count rather than letting the
-    /// node index wrap; the encoder that comes back has exactly that many
-    /// chunks and still issues codewords.
+    /// node index wrap. At the cap the systematic prefix alone spends every
+    /// node: the stream issues exactly `MAX_CODEWORDS` codewords, in order,
+    /// the last of them carrying the last chunk kept, and then reports
+    /// exhaustion with no parity codeword ever issued. The chunks past the
+    /// cap never appear.
     #[test]
     fn new_caps_a_message_at_the_field_size() {
-        let msg = vec![0x5au8; (MAX_CODEWORDS + 3) * CHUNK_BYTES];
+        let mut msg = vec![0x5au8; (MAX_CODEWORDS + 3) * CHUNK_BYTES];
+        // Mark the last chunk kept and the first one dropped, so the test can
+        // tell which of them the last codeword carries.
+        msg[(MAX_CODEWORDS - 1) * CHUNK_BYTES] = 0x01;
+        msg[MAX_CODEWORDS * CHUNK_BYTES] = 0x02;
         let mut enc = Encoder::new(&msg);
         assert_eq!(enc.needed(), MAX_CODEWORDS);
-        assert!(enc.next_chunk().is_some());
+
+        let mut issued = 0usize;
+        let mut last = None;
+        while let Some(chunk) = enc.next_chunk() {
+            assert_eq!(
+                chunk.index as usize, issued,
+                "codewords are issued in order"
+            );
+            issued += 1;
+            last = Some(chunk);
+        }
+        assert_eq!(
+            issued, MAX_CODEWORDS,
+            "one codeword per node, and no parity"
+        );
+        let last = last.unwrap();
+        assert_eq!(last.index, u16::MAX);
+        assert_eq!(
+            last.data[0], 0x01,
+            "the last codeword is the last chunk kept"
+        );
+        assert!(enc.next_chunk().is_none(), "exhaustion holds");
     }
 }
 

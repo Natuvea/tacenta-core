@@ -124,15 +124,22 @@ fn pqxdh_secret_seeds_the_ratchet_and_a_message_round_trips() {
 /// step -- old key with the peer's new key for receiving, a fresh key with it
 /// for sending -- is decided in `sessions::lifecycle`, which no proof, vector,
 /// or model covers (CR-07). This drives a real `Session` (not the leaf ratchet)
-/// through a step and checks that pairing against the `dh` primitive directly.
+/// through a step and establishes two things: the message sent under the
+/// peer's new key decrypts, which it can only do if the receiving chain was
+/// seeded from the old key and that new key (Bob seeded his sending chain
+/// from exactly that pair, and any other pairing gives a different chain);
+/// and the sending public key changes on the step, which is the fresh key
+/// being adopted for sending and not before.
 ///
-/// The session's ratchet private key is not a public accessor, but `export`
-/// serialises it at a known offset, so the test can read it back and compute
-/// the agreement itself rather than trusting the session's word for it.
+/// Recomputing the agreement with the `dh` primitive would add nothing: the
+/// two orders of one X25519 agreement are equal by the primitive's own
+/// algebra, whichever keys the session paired. What the test can check
+/// directly is that `export` carries the ratchet private key the session is
+/// using, so it reads that back at its known offset and compares it with the
+/// published public key on both sides.
 #[test]
 fn a_session_dh_step_pairs_the_old_key_with_the_peers_new_key() {
     use rand::SeedableRng;
-    use tacenta_core::primitives::dh::PublicKeyBytes;
     use tacenta_core::sessions::{Identity, Session, establish_initiator, establish_responder};
 
     // `export` writes: version(1), then two length-prefixed blobs (the triple
@@ -180,37 +187,13 @@ fn a_session_dh_step_pairs_the_old_key_with_the_peers_new_key() {
         "export gave Bob's key"
     );
 
-    // The pairing, checked with the primitive: when Alice receives a message
-    // sent under Bob's `b1`, her receiving chain is seeded from DH(her current
-    // key `a1`, `b1`) -- the old key with the peer's new key. Bob's sending
-    // chain under `b1` was seeded from DH(`b1`, `a1`). The two are the same
-    // agreement, so if the pairing is right they are equal.
-    let alice_receiving_seed = a1_priv
-        .agree(&PublicKeyBytes::from_bytes(b1))
-        .expect("honest keys are contributory");
-    let bob_sending_seed = b1_priv
-        .agree(&PublicKeyBytes::from_bytes(a1))
-        .expect("honest keys are contributory");
-    assert_eq!(
-        alice_receiving_seed, bob_sending_seed,
-        "the receiving chain must pair the old key with the peer's new key"
-    );
-
-    // Pairing the peer's new key with a *fresh* key instead -- the send rule,
-    // wrongly applied on receive -- would seed a different chain, which is why
-    // the two halves are not interchangeable.
-    let fresh = dh::PrivateKey::from_bytes([0x5a; 32]);
-    assert_ne!(
-        fresh
-            .agree(&PublicKeyBytes::from_bytes(b1))
-            .expect("contributory"),
-        alice_receiving_seed,
-        "a fresh key on receive would seed the wrong chain"
-    );
-
-    // Now drive the actual step through the session and confirm it uses that
-    // pairing (the message decrypts) and adopts a fresh key for sending only on
-    // the step (Alice's sending public changes).
+    // Drive the step through the session. Bob's sending chain under `b1` was
+    // seeded from DH(`b1`, `a1`); Alice's receiving chain must be seeded from
+    // DH(`a1`, `b1`) -- her old key with the peer's new one -- for the message
+    // to decrypt at all. A fresh key on receive would seed a different chain
+    // and the decrypt would fail. Then the step adopts a fresh key for
+    // sending, and only the step: Alice's sending public changes here and
+    // nowhere earlier.
     let from_bob = bob.encrypt(b"reply", &mut r).unwrap();
     let a_before = alice.public_state().our_ratchet_public;
     assert_eq!(alice.decrypt(&from_bob, &mut r).unwrap(), b"reply");

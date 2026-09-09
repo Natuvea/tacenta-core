@@ -217,6 +217,14 @@ impl State {
         self.classical.receive_count()
     }
 
+    /// Skipped message keys the classical ratchet holds, for the caller
+    /// sizing an eviction (see `evict_oldest_classical`): the store refuses
+    /// when this plus the keys a message skips would pass the cap, so the
+    /// room to make is that excess, not the skip count (CR-19).
+    pub fn classical_skipped_len(&self) -> usize {
+        self.classical.skipped_len()
+    }
+
     /// Make room in the classical ratchet's skipped-key store by deleting up
     /// to `count` of its oldest keys; returns how many were deleted. See
     /// `tacenta_ratchet::State::evict_oldest` for why this exists and why it

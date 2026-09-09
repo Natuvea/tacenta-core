@@ -29,10 +29,11 @@
 //! reproducer, so the exact shape that failed is not known. What is known
 //! from the tree itself is narrower than the note: `tacenta-protobuf` and
 //! `tacenta-spqr` use `?` on a `Result` whose error type is the enclosing
-//! function's own -- no `From` conversion, no `Option`, never inside a loop
-//! -- and both translate and carry proofs. Whether `?` translates with a
-//! `From` conversion, on an `Option`, or inside a loop has not been tried
-//! since, and the failure presumably lay in one of those. So the verified
+//! function's own -- no `From` conversion, no `Option` -- and both translate
+//! and carry proofs; `tacenta-protobuf` uses it inside a `while` loop, so a
+//! loop body is not what failed. Whether `?` translates with a `From`
+//! conversion or on an `Option` has not been tried since, and the failure
+//! presumably lay in one of those. So the verified
 //! zone spells its early returns as `let`-`else` and `match`, uses `?` only
 //! in the shape known to work, and keeps `clippy::question_mark` off because
 //! that lint asks for `?` wherever a `match` returns early, which is the
@@ -652,16 +653,20 @@ type DerivedKeys = Zeroizing<Vec<(u32, Key)>>;
 /// obligation that the bound holds. One less thing to prove, and one less thing
 /// to get wrong if a future caller forgets the bound.
 ///
-/// The accumulator is `Zeroizing`: it can hold up to `MAX_SKIP` message keys,
-/// and the caller copies them into the store, so the vector is wiped where it
-/// stands when it drops rather than handed back to the allocator with the
-/// keys still in it. Wrapping the whole vector, not each key, is what makes
-/// that true: moving elements out of a vector leaves their bytes in its
-/// buffer, so the caller reads them by index and lets the wrapper wipe the
-/// buffer entire (CR-15).
+/// The accumulator is `Zeroizing` and allocated at its final size: it can
+/// hold up to `MAX_SKIP` message keys, and the caller copies them into the
+/// store, so the vector is wiped where it stands when it drops rather than
+/// handed back to the allocator with the keys still in it. Two things make
+/// that true. Wrapping the whole vector, not each key: moving elements out of
+/// a vector leaves their bytes in its buffer, so the caller reads them by
+/// index and lets the wrapper wipe the buffer entire (CR-15). And reserving
+/// `count` slots before the first push: a vector that grew as it went would
+/// copy the keys derived so far into each larger buffer and free the old one
+/// unwiped, behind the wrapper's back. The reservation is also why the bound
+/// on `count` matters for memory, not only for time.
 fn derive_chain(ck: &Key, start_n: u32, count: u32) -> Result<(Key, DerivedKeys), RatchetError> {
     let mut cur = *ck;
-    let mut keys = Zeroizing::new(Vec::new());
+    let mut keys = Zeroizing::new(Vec::with_capacity(count as usize));
     for i in 0..count {
         let Some(n) = start_n.checked_add(i) else {
             return Err(RatchetError::ChainExhausted);
