@@ -1488,17 +1488,36 @@ check stripped the same line ranges it had written and so could not fail; it
 was replaced after an external review, and the replacement was tested by
 forcing the misread it claims to catch.
 
-**Translated is not proved, and here that is the whole of it.** The unit is
-translated with no `sorry` and no body Aeneas gave up on, and it carries no
-theorem. Every T1 and T3 statement about the Triple still rests on the
-hand-written bundles and on the leaves' own proofs, exactly as before. Porting
-the leaf proofs onto the unit's constants is open work, and it is not a
-re-import: the leaves' proofs are stated about the leaves' own translated
-constants, which are different constants, so they have to be re-proved in the
-unit's namespace rather than reused. For the same reason the unit's
-translation cannot be imported into the same Lean environment as the leaves' --
-the instances collide -- which is why it has an axiom audit module of its own,
-`Translation/AxiomAuditTripleUnit.lean`, and why the two worlds stay separate.
+**What is proved about it, and what is not.** The unit is translated with no
+`sorry` and no body Aeneas gave up on. The two leaf panic-freedom proofs have
+been restated about it, as `Translation/UnitT1.lean` and
+`Translation/UnitSpqrT1.lean`, so the Double Ratchet and the sparse ratchet are
+proved panic-free as compiled inside the unit and not only as compiled alone.
+Those files are generated from the leaf proofs by
+`scripts/port-unit-proofs.sh`, which rewrites the import, the namespace and the
+`open` and copies every proof body unchanged; `--check` regenerates and diffs
+in CI. `Translation/UnitPins.lean` pins each theorem's axiom base and holds it
+to the leaf's, name for name, so the port cannot quietly add an assumption,
+turn an assumption into a definition, or make a kernel-only proof
+compiler-trusted.
+
+The port is not a re-import and could not have been. The leaves' proofs are
+stated about the leaves' own translated constants, which are different
+constants; nothing connects them, so the theorems exist twice. Generating the
+second copy is what keeps that duplication from becoming drift. For the same
+reason the unit's translation cannot be imported into the same Lean environment
+as the leaves' -- the instances collide -- which is why it has an axiom audit
+module of its own, `Translation/AxiomAuditTripleUnit.lean`, and why the two
+worlds stay separate.
+
+**What the unit does not yet do is the thing it exists for.** `TripleT1` and
+`TripleT3` are stated about `Translation/TacentaTriple.lean`, the Triple
+translated on its own, where the leaf operations are opaque axioms. So they
+still assume what the leaves prove, through the hand-written bundle clauses
+that `check-bundle-drift.py` compares against the leaf theorems. Restating them
+about the unit is what would let the theorems above be applied and the bundles
+deleted. Until that is done the unit removes the *need* for the hand-written
+link without removing the link.
 
 **The ten waived compiler-trust axioms are here.** Putting all three leaves'
 types in one module makes seven string literals occur more than once across

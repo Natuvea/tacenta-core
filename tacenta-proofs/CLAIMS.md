@@ -814,6 +814,50 @@ is a **leaf crate's own persistence format**. `Session::from_bytes` and the
 storage layer that calls it live in `tacenta-core/src/sessions`, which is not
 translated, so nothing here says what a session restored from disk satisfies.
 
+## Proved (tier T1, the same two ratchets compiled as one crate with the Triple)
+
+Location: `tacenta-proofs/translation/Translation/UnitT1.lean`,
+`Translation/UnitSpqrT1.lean` and `Translation/UnitPins.lean`.
+
+These are the theorems above, restated about
+`Translation/TacentaTripleUnit.lean` -- the translation of
+`tacenta-core/triple-unit`, which is the Triple Ratchet and both inner ratchets
+compiled as one crate. They exist because a theorem about the Double Ratchet's
+own translation says nothing about the Double Ratchet inside the unit: the
+constants are different constants, and Lean has no reason to connect them.
+`LIMITATIONS.md` says what the crate boundary does and does not cost, under
+"The three-leaf translation unit".
+
+The proof files are **generated** from the leaf proofs by
+`scripts/port-unit-proofs.sh`, which rewrites the import, the namespace and the
+`open` and copies every proof body unchanged. `--check` regenerates and diffs
+in CI, so the copies cannot drift from the originals in either direction.
+
+- `Tacenta.UnitT1.kdf_ck_no_panic`: `kdf_ck` compiled inside the unit cannot
+  panic.
+- `Tacenta.UnitT1.send_no_panic`: likewise for the classical ratchet's send.
+- `Tacenta.UnitT1.receive_no_panic`: likewise for receive, under exactly the
+  hypotheses the leaf theorem takes.
+- `Tacenta.UnitSpqrT1.receive_no_panic`: likewise for the sparse ratchet's
+  receive.
+
+**What the pins add, which is the reason to have them.** Each of the four is
+pinned in `UnitPins.lean`, and each base is the leaf theorem's base name for
+name, with `tacenta_triple_unit.` in front of every translated axiom and
+nothing else changed. Nothing appears that the leaf did not assume, nothing the
+leaf assumed has quietly become a definition, and no proof that was kernel-only
+has become compiler-trusted. `Tacenta.UnitSpqrT1.receive_no_panic` carries
+`Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`, the same
+compiler-trust axiom its leaf twin carries and for the same closed numeric
+fact; it is the one of the four that is not kernel-only, in the unit as in the
+leaf.
+
+**What these do not yet do.** They do not close the Triple's own panic-freedom.
+`TripleT1`'s bundles still assume what the leaves prove rather than applying
+these theorems, because `TripleT1` is stated about `Translation/TacentaTriple.lean`,
+the Triple translated on its own. Restating it about the unit is the step that
+would let these be applied and the bundles deleted, and it is not done.
+
 ## Proved conditionally (tier T1, the Triple Ratchet's composed session send/receive path, on hypotheses no leaf theorem discharges)
 
 **Read the heading literally.** The theorems in this section are checked by

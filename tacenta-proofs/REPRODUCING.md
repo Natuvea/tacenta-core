@@ -153,15 +153,15 @@ Expected tail:
 
 ```
 no-sorry: the translation and its T1/T3 proofs is complete
-translation-coverage: all 30 Translation/*.lean modules are in the build target and built
+translation-coverage: all 33 Translation/*.lean modules are in the build target and built
 attest: the axiom audit's opaque-external list matches translation-attestation.json for 8 generated modules (102 compiler-trust axioms in them, from Aeneas's toStr bound, are not externals and are listed in the build log)
 no-sorry: the model-layer proofs is complete
 no-sorry: the model and its property theorems is complete
-check-lean-constructs: 59 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 5 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
-audit-reach: the 5 audit modules, all with the same first-party prefixes, reach all 66 first-party modules (tacenta-model 25, tacenta-proofs 10, tacenta-proofs/translation 31)
-audit-negatives: the audit called all 7 planted cases correctly
+check-lean-constructs: 62 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 5 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
+audit-reach: the 5 audit modules, all with the same first-party prefixes, reach all 69 first-party modules (tacenta-model 25, tacenta-proofs 10, tacenta-proofs/translation 34)
+audit-negatives: the audit called all 12 planted cases correctly
 no-sorry: replaying the translation and its T1/T3 proofs through the kernel (leanchecker)
-no-sorry: the translation and its T1/T3 proofs replays clean (30 modules)
+no-sorry: the translation and its T1/T3 proofs replays clean (33 modules)
 no-sorry: replaying the model-layer proofs through the kernel (leanchecker)
 no-sorry: the model-layer proofs replays clean (10 modules)
 no-sorry: replaying the model and its property theorems through the kernel (leanchecker)
