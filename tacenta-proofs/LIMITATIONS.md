@@ -1569,15 +1569,74 @@ assuming something nothing could satisfy. What it covers is the *opaque
 operation* family: the `Vec` operations, the `zeroize` wrapper, the
 derived-keys model.
 
-It has never covered a **numeric precondition**, on any island. Not one of the
-store, chain-length or counter bounds carried by a `no_panic` or `refines`
-theorem has a witness or a refutation anywhere in this tree. That is exactly
-where the defect corrected on 2026-09-10 lived: `receive`'s store bound asked
-for something no state could satisfy at 32 bits, sat in this file for months
-described as a genuine constraint, and no guard was pointed at it. A one-line
-`example : ∃ s, <the precondition> s` beside each numeric hypothesis would have
-caught it the day it was written. Adding those is open work and is the first
-thing to do after this.
+It does not cover the **numeric preconditions**, the store, chain-length and
+counter bounds a `no_panic` or `refines` theorem carries about a state's sizes.
+That is the family the defect corrected on 2026-09-10 lived in: `receive`'s
+store bound asked for something no state with anything in it could satisfy at
+32 bits, and sat in this file for months described as a genuine constraint.
+
+Two things now bear on that family, and they should not be mistaken for more.
+
+**A lint trips on some textual forms of the class the defect belonged to.**
+`tooling/check-precondition-shapes.py` refuses a bound comparing an additive
+term that is one integer type's maximum `A` with a bound that is another's
+maximum `B`, where `A` is at least `B` on some target, because there the bound
+forces what it constrains to zero. It recognises six comparison forms and a
+fixed list of ways to write a maximum, one declaration at a time, and reports
+each site at the line and column of the offending maximum. Its docstring lists
+exactly which forms and spellings it catches, which ones review has found it
+misses, and which legitimate code it refuses. Those lists are the claim, and
+nothing here extends it.
+
+Getting that claim true took four rounds, and the failures are worth recording,
+because each one was a guard described as more than it was. The first version
+accepted a flipped comparison, a parenthesised addend and fully qualified names.
+The second reported several sites in one declaration as a single site. The third
+reported every site at the maximum after the one at fault, could be slipped past
+by any declaration its detector did not recognise, and still accepted three
+spellings of a maximum this tree uses elsewhere. Every one of those is now a
+fixture case. The fourth round's fixes were each confirmed by breaking them and
+watching their cases fail.
+
+Run against the tree as it stood before the fix, it reports **twenty-one**
+sites in sixteen declarations across six files: fourteen hypotheses, one
+conclusion, two assumption-bundle definitions, and four restatements of the
+bound inside one proof. Three of the sixteen declarations are in
+`ImportInv.lean`, which took the platform fact as an argument. That matches a
+reviewer's independent count file for file, and each of the twenty-one reported
+columns lands on the offending maximum.
+
+**The class is proved to be the right thing to refuse.**
+`Translation/PreconditionShapes.lean` refutes both forms the defect took: the
+store bound admits no store at 32 bits, and the skip bound admits only the
+empty one. That file is excluded from the lint, because it states the shape on
+purpose. The lint checks only that both refutations are still present by name.
+It does not check what they say, and it scans nothing else in that file. An
+earlier version tried to excuse the refutations by name and binder instead, and
+review found five ways to smuggle an ordinary precondition past that.
+
+What is **not** established is that the tree's numeric preconditions are
+satisfiable in general. There are some 140 bound hypotheses on some 95
+theorems, in about 54 shapes, by two reviewers' rough and slightly different
+counts. An earlier version of that file claimed to witness them all through
+"six shapes"; a cold read showed the six covered under half of the theorems,
+and that the witnesses were connected to none of them, since nothing compared
+a witness with any theorem's hypothesis. Those witnesses were removed rather
+than defended.
+The store bounds the classical ratchet's `receive` carries are satisfied by
+every state its decoder accepts (`Ratchet.inv_gives_store_bound`,
+`Ratchet.store_plus_skip_fits`), and the sparse ratchet's room bounds likewise
+(`Spqr.inv_gives_chain_room`, `Spqr.inv_gives_skip_room`), which is far
+stronger than a witness. The remaining shapes, among them the `epochsKept`
+family on the sparse ratchet's refinement and the `32 *` bounds on the erasure
+coder, are unexamined.
+
+**Satisfiable is not satisfied by every state.** A witness says a hypothesis is
+not vacuous. It does not say every reachable state meets it. The clock headroom
+on the refinement of `receive` is satisfiable and excludes the parked clock, an
+ordinary state a session reaches, and `PreconditionShapes.lean` states both
+facts beside each other. The epoch step on the sparse ratchet's refinement is
+another instance.
 
 The unit island is thinner still: nothing there has a witness of either kind.
 `UnitT1.DerivedKeysModel`'s leaf twin is witnessed and its copy is not, which

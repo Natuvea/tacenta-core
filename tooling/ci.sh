@@ -71,6 +71,18 @@ python3 tooling/check-bundle-drift.py
 # the next reader.
 bash tooling/tests/run-check-bundle-drift-cases.sh
 
+# A numeric precondition of the shape `x + A.max ≤ B.max`, with `A` at least as
+# wide as `B` on some target, forces `x` to zero there and describes no state
+# that has held anything. One such bound made `receive_no_panic` vacuous on
+# 32-bit targets for months while reading as a strong hypothesis. This is a
+# tripwire for the forms its docstring lists, not a proof that no bound forces
+# its subject to zero, and the docstring also lists what review found it misses.
+# PreconditionShapes.lean is excluded, since it states the shape on purpose. The
+# cases hold the lint to exact sites, lines and columns.
+echo "== The precondition-shape tripwire finds none of the forms it lists =="
+python3 tooling/check-precondition-shapes.py
+bash tooling/tests/run-check-precondition-shapes-cases.sh
+
 # The three-leaf translation unit is generated from the three leaf crates, and
 # a generated crate that has stopped agreeing with its sources is a crate whose
 # translation is about code that is no longer there. This regenerates it into a
