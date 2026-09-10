@@ -1446,8 +1446,9 @@ stating rather than folding into the general list:
 workspace, and no shipping path reaches it. No shipping crate depends on it, it
 exports nothing anyone calls, and deleting it would change no behaviour that
 anybody observes. It exists to be translated and proved about, and proofs do
-depend on it: `Translation/UnitT1.lean`, `Translation/UnitSpqrT1.lean` and
-`Translation/UnitPins.lean` are all statements about its constants.
+depend on it: `Translation/UnitT1.lean`, `Translation/UnitSpqrT1.lean`,
+`Translation/UnitTripleT1.lean` and `Translation/UnitPins.lean` are all
+statements about its constants.
 
 **What it is for.** Translating `tacenta-core/triple` on its own gives Aeneas
 three crates and lets it see one. The Double Ratchet's and the sparse ratchet's
@@ -1512,14 +1513,67 @@ as the leaves' -- the instances collide -- which is why it has an axiom audit
 module of its own, `Translation/AxiomAuditTripleUnit.lean`, and why the two
 worlds stay separate.
 
-**What the unit does not yet do is the thing it exists for.** `TripleT1` and
-`TripleT3` are stated about `Translation/TacentaTriple.lean`, the Triple
-translated on its own, where the leaf operations are opaque axioms. So they
-still assume what the leaves prove, through the hand-written bundle clauses
-that `check-bundle-drift.py` compares against the leaf theorems. Restating them
-about the unit is what would let the theorems above be applied and the bundles
-deleted. Until that is done the unit removes the *need* for the hand-written
-link without removing the link.
+**The Triple's own T1 is now proved on the unit, and this is duplication
+rather than replacement.** `Translation/UnitTripleT1.lean` restates
+`TripleT1.lean` about the unit and **proves** all seventeen of the `*Total`
+bundles `TripleT1.lean` assumes, from the two leaf theorems above. That is what
+the unit exists for, and for `TripleT1` it is done.
+
+`TripleT1.lean` nevertheless still exists and still assumes those seventeen
+bundles, and will keep doing so. `TripleT3.lean` and
+`SatisfiabilityTriple.lean` depend on its definitions, and they are in the
+other island: the unit's translation cannot share a Lean environment with the
+leaves', so deleting `TripleT1.lean` would take those two files with it. Both
+files are in the tree, saying overlapping things about the same Rust. `TripleT3`
+is untouched by this and still rests on the hand-written bundle clauses that
+`check-bundle-drift.py` compares against the leaf theorems.
+
+**And the duplicate can drift, unlike the leaves' copies.**
+`Translation/UnitT1.lean` and `Translation/UnitSpqrT1.lean` are generated and
+diffed in CI, so an edit to a leaf that is not carried across fails the build.
+`Translation/UnitTripleT1.lean` is hand-written and cannot be generated:
+`port-unit-proofs.sh` assumes a leaf proof never writes a translated name in
+qualified form, and `TripleT1.lean` writes forty-nine of them, on top of
+proof bodies that genuinely change (roughly twenty newly-in-scope `@[step]`
+rules mean several bodies need pruning rather than substitution, and three of
+`TripleT1.lean`'s boundary assumptions collapse into the leaves'). So nothing
+mechanical holds the two Triple files to each other. An edit to `TripleT1.lean`
+that is not mirrored will pass CI. That is a real gap and this paragraph is the
+disclosure of it.
+
+**Four preconditions land outside the translated tree.** Proving the bundles
+instead of assuming them means carrying the leaves' real preconditions, which
+`TripleT1.lean`'s unconditional bundles hide: `State.send` on the unit needs
+`self.post_quantum.chains.length + 1 < Usize.max`, and `State.receive` needs
+`max self.classical.skipped.val.length MAX_SKIPPED_STORE.val + U32.max ≤ Usize.max`,
+`self.post_quantum.chains.length + 2 < Usize.max` and
+`self.post_quantum.skipped.length + MAX_SKIP.val ≤ Usize.max`. Nothing in the
+translated tree discharges them. They are obligations on the **untranslated
+session layer** in `tacenta-core/src/sessions`, which decides how large a
+skipped-key store and a chain table a session may carry, and that layer is not
+translated or proved in its own right. On a 64-bit target all four hold of any
+state that could exist; on a 32-bit one they are genuine, because Aeneas models
+`usize` at the platform width.
+
+Transporting them to `self` is free only because the clone is provably the
+identity on the unit -- every field is an array, a scalar, an `Option` under
+`OptionCloneTotal`, or a `Vec` whose elements clone as the identity.
+`TripleT1.State.clone_no_panic` proves only that the clone returns, which is
+all it can prove where the inner states are opaque, so on that side a
+precondition could not be transported at all.
+
+**And the composed `receive` stops being kernel-only.**
+`Tacenta.TripleT1.State.receive_no_panic` depends on twelve axioms, none of
+them compiler-trusted. The ported theorem depends on eighteen and inherits
+`Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`. The reason
+is not a weaker proof: the current theorem is kernel-only because it *assumes*
+the sparse ratchet's receive is total rather than proving it, so its
+kernel-only status is bought by assuming the hard part. The ported one proves
+that part and inherits the one compiler-trusted numeric fact that proof rests
+on. The six extra axioms are a substitution rather than a new kind of trust --
+the bare operation axioms are replaced by KDF, `zeroize` and `Vec` boundary
+axioms already shared with every other proof in the tree. `Translation/UnitPins.lean`
+records the whole base and `CLAIMS.md` repeats it.
 
 **The ten waived compiler-trust axioms are here.** Putting all three leaves'
 types in one module makes seven string literals occur more than once across
