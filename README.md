@@ -107,7 +107,13 @@ check on the minimum supported Rust version, a 32-bit compile check, and the
 constant-time disassembly gate (the release assembly of the two hand-written
 constant-time functions, read for conditional branches); and the committed
 Rust-to-Lean translation with its T1/T3 proofs, built and scanned for
-`sorry`.
+`sorry`. In the workflow a pull request reuses the Lean build outputs of the
+newest successful push to main with the same toolchain and dependency pins, and
+rebuilds only what its changes invalidate. A module that did not change is not
+re-elaborated on the pull request: the messages main's build logged for it, which
+the `sorry` scan and the axiom comparison read, are replayed. Every push to main
+builds from nothing, and every run replays the modules under `Translation/`,
+`Proofs/`, `Model/` and `Properties/` through the kernel.
 
 The two do not run exactly the same set, and the difference is stated
 rather than papered over. Five of those steps need tooling the workflow

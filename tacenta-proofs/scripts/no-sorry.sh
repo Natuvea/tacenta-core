@@ -19,6 +19,25 @@ cd "$(dirname "$0")/.."
 
 fail=0
 
+# On the CI runner, say how long each phase took, in the log and in the step
+# summary, so the job's one long step can be read apart. Only there: a local
+# run prints what `REPRODUCING.md` quotes and nothing else.
+timing_header=0
+report_time() {
+  if [ "${GITHUB_ACTIONS:-}" != "true" ]; then
+    return 0
+  fi
+  local took=$(( SECONDS - $2 ))
+  echo "no-sorry: timing: $1 took ${took}s"
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    if [ "$timing_header" -eq 0 ]; then
+      printf '| no-sorry phase | seconds |\n| --- | --- |\n' >> "$GITHUB_STEP_SUMMARY"
+      timing_header=1
+    fi
+    echo "| $1 | ${took} |" >> "$GITHUB_STEP_SUMMARY"
+  fi
+}
+
 # check <lake package dir> <regex matching our source paths> <label> [<keep log at>]
 check() {
   local dir="$1" ours="$2" label="$3" keep="${4:-}"
@@ -46,11 +65,15 @@ check() {
 }
 
 translation_log="$(mktemp)"
+t=$SECONDS
 check translation '(^|[^/[:alnum:]])Translation/' "the translation and its T1/T3 proofs" "$translation_log"
+report_time "build and scan: translation package" "$t"
 # A module outside the build target is a proof nothing is holding: the log
 # scan above can only see what `lake build` elaborated. Assert every
 # Translation/*.lean produced a current olean.
+t=$SECONDS
 bash scripts/check-translation-coverage.sh || fail=1
+report_time "translation coverage" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as
@@ -60,6 +83,7 @@ bash scripts/check-translation-coverage.sh || fail=1
 # compares the manifest with what the text elaborated to, so an axiom the
 # text scan cannot recognise (one a macro produced, or a command added) and
 # a recorded axiom the environment no longer holds both fail here.
+t=$SECONDS
 if grep -q "audit-axiom:" "$translation_log"; then
   python3 scripts/attest.py --compare-audit "$translation_log" || fail=1
 else
@@ -67,13 +91,18 @@ else
   fail=1
 fi
 rm -f "$translation_log"
+report_time "axiom comparison" "$t"
+t=$SECONDS
 check .           '(^|[^/[:alnum:]])(Proofs|Model)/' "the model-layer proofs"
+report_time "build and scan: proofs package" "$t"
 # The model package on its own terms, so that `Properties/` is built and
 # scanned. Nothing in `Proofs/` imports the forward-secrecy, post-compromise,
 # secrecy and authentication theorems, so the check above does not elaborate
 # them; this one does, and its regex names `Properties` so a `sorry` in any of
 # those five files is failed on.
+t=$SECONDS
 check ../tacenta-model '(^|[^/[:alnum:]])(Model|Properties)/' "the model and its property theorems"
+report_time "build and scan: model package" "$t"
 
 # Constructs a `sorry` grep cannot see. An `axiom`, an `opaque`, an
 # `@[implemented_by]` or `@[extern]` (which swap a definition's meaning for a
@@ -85,7 +114,9 @@ check ../tacenta-model '(^|[^/[:alnum:]])(Model|Properties)/' "the model and its
 # package's directory, which the `cd` at the top made the working directory;
 # `$(dirname "$0")` would be relative to where the caller was, which on the
 # runner is not this package.
+t=$SECONDS
 bash scripts/check-lean-constructs.sh || fail=1
+report_time "construct check" "$t"
 
 # The audit above walks only what its invoking module imports, and each
 # package's audit module carries a hand-maintained import list. A first-party
@@ -94,7 +125,9 @@ bash scripts/check-lean-constructs.sh || fail=1
 # first-party module (the generated `Tacenta*.lean` included, since the
 # `audit-axiom:` comparison above sees only the generated modules the audit
 # reached) is outside the four audit modules' import closure.
+t=$SECONDS
 bash scripts/check-audit-reach.sh || fail=1
+report_time "audit reach" "$t"
 
 # Both of the checks above ask what the audit found. This one asks whether the
 # audit finds anything: it plants declarations the rule says to refuse, and the
@@ -102,7 +135,9 @@ bash scripts/check-audit-reach.sh || fail=1
 # compares the outcome with the rule. It is the only check that would notice
 # the audit going quiet, which matters most for the waiver `compilerTrust`
 # grants an unmentioned compiler-trust axiom.
+t=$SECONDS
 bash scripts/check-audit-negatives.sh || fail=1
+report_time "audit negatives" "$t"
 
 # Replay every first-party module through the kernel from its olean.
 #
@@ -120,6 +155,7 @@ bash scripts/check-audit-negatives.sh || fail=1
 replay() {
   local dir="$1" label="$2" jobs="$3"
   shift 3
+  local t0=$SECONDS
   echo "no-sorry: replaying $label through the kernel (leanchecker)"
   local failed
   failed="$(cd "$dir" && printf '%s\n' "$@" | xargs -P "$jobs" -n 1 sh -c \
@@ -131,6 +167,7 @@ replay() {
   else
     echo "no-sorry: $label replays clean ($# modules)"
   fi
+  report_time "kernel replay: $label" "$t0"
 }
 modules() {
   # <dir> <subdir>...: the module name of every .lean under each subdir.

@@ -182,6 +182,22 @@ jobs:
           persist-credentials: false
       - name: Install the pinned elan release
         run: bash tooling/install-elan.sh
+      # The Lean build outputs, restored on pull requests only. The `translation`
+      # job below saves them and says why a restored build is still checked in
+      # full. The path list must match that job's exactly: a cache is looked up
+      # by its paths as well as its key.
+      - name: Restore the Lean build outputs (pull requests only)
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            tacenta-model/.lake/build
+            tacenta-proofs/.lake/build
+            tacenta-proofs/translation/.lake/build
+            tacenta-proofs/translation/.lake/packages/aeneas/backends/lean/.lake/build
+          key: lean-build-${{ runner.os }}-${{ hashFiles('tacenta-model/lean-toolchain', 'tacenta-model/lake-manifest.json', 'tacenta-proofs/lean-toolchain', 'tacenta-proofs/lake-manifest.json', 'tacenta-proofs/translation/lean-toolchain', 'tacenta-proofs/translation/lake-manifest.json') }}-${{ github.event.pull_request.base.sha }}
+          restore-keys: |
+            lean-build-${{ runner.os }}-${{ hashFiles('tacenta-model/lean-toolchain', 'tacenta-model/lake-manifest.json', 'tacenta-proofs/lean-toolchain', 'tacenta-proofs/lake-manifest.json', 'tacenta-proofs/translation/lean-toolchain', 'tacenta-proofs/translation/lake-manifest.json') }}-
       - name: The model builds, including the vector generator
         run: (cd tacenta-model && lake build)
       - name: The proofs build and use no sorry
@@ -211,12 +227,74 @@ jobs:
           persist-credentials: false
       - name: Install the pinned elan release
         run: bash tooling/install-elan.sh
+      # Mathlib's own compressed build files, which `lake exe cache get`
+      # otherwise downloads from Mathlib's cache server on every run. Keyed on
+      # the translation's manifest, so a Mathlib bump downloads afresh. The
+      # files are the ones `cache get` would fetch; it still unpacks them. The
+      # directory is named explicitly with `MATHLIB_CACHE_DIR`, which Mathlib's
+      # cache reads before `XDG_CACHE_HOME` and `~/.cache`, so the path cached
+      # is the path used.
+      - name: Restore Mathlib's downloaded cache files
+        id: mathlib-files
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/mathlib-cache
+          key: mathlib-files-${{ runner.os }}-${{ hashFiles('tacenta-proofs/translation/lake-manifest.json') }}
       - name: Fetch the Mathlib cache
         working-directory: tacenta-proofs/translation
+        env:
+          MATHLIB_CACHE_DIR: ${{ runner.temp }}/mathlib-cache
         run: lake exe cache get
+      - name: Save Mathlib's downloaded cache files (pushes to main only)
+        if: github.event_name == 'push' && steps.mathlib-files.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/mathlib-cache
+          key: mathlib-files-${{ runner.os }}-${{ hashFiles('tacenta-proofs/translation/lake-manifest.json') }}
+      # The Lean build outputs of this tree's three packages and of the Aeneas
+      # library, which Mathlib's cache does not carry. Without them every run
+      # rebuilds all of it, which is most of this job's time.
+      #
+      # Only a push to main saves this cache, only when its build succeeded,
+      # and a push to main never restores it: what is cached is always the cold
+      # build of a main commit. A pull request restores the newest one with the
+      # same toolchain and dependency pins. Lake compares each module's inputs
+      # by hash, so a module whose sources or imports changed is rebuilt and
+      # re-elaborated. A module whose inputs hash the same is not: its tactics,
+      # `#guard_msgs` pins, `example`s and axiom audit do not run again on the
+      # pull request, and what the `sorry` scan and the axiom comparison read
+      # for it are the messages main's cold build logged, which Lake replays.
+      # The kernel replay in `no-sorry.sh` still re-checks every declaration of
+      # every module under `Translation/`, `Proofs/`, `Model/` and `Properties/`
+      # from its olean. A pull request's run can save caches only into its own
+      # merge ref, which main's runs never read. The cache is restored after
+      # the Mathlib fetch because the Aeneas path sits inside a package that
+      # step clones.
+      - name: Restore the Lean build outputs (pull requests only)
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            tacenta-model/.lake/build
+            tacenta-proofs/.lake/build
+            tacenta-proofs/translation/.lake/build
+            tacenta-proofs/translation/.lake/packages/aeneas/backends/lean/.lake/build
+          key: lean-build-${{ runner.os }}-${{ hashFiles('tacenta-model/lean-toolchain', 'tacenta-model/lake-manifest.json', 'tacenta-proofs/lean-toolchain', 'tacenta-proofs/lake-manifest.json', 'tacenta-proofs/translation/lean-toolchain', 'tacenta-proofs/translation/lake-manifest.json') }}-${{ github.event.pull_request.base.sha }}
+          restore-keys: |
+            lean-build-${{ runner.os }}-${{ hashFiles('tacenta-model/lean-toolchain', 'tacenta-model/lake-manifest.json', 'tacenta-proofs/lean-toolchain', 'tacenta-proofs/lake-manifest.json', 'tacenta-proofs/translation/lean-toolchain', 'tacenta-proofs/translation/lake-manifest.json') }}-
       - name: The translation, proofs and model build with no incomplete declaration
         shell: bash
         run: bash tacenta-proofs/scripts/no-sorry.sh
+      - name: Save the Lean build outputs (pushes to main only)
+        if: github.event_name == 'push'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            tacenta-model/.lake/build
+            tacenta-proofs/.lake/build
+            tacenta-proofs/translation/.lake/build
+            tacenta-proofs/translation/.lake/packages/aeneas/backends/lean/.lake/build
+          key: lean-build-${{ runner.os }}-${{ hashFiles('tacenta-model/lean-toolchain', 'tacenta-model/lake-manifest.json', 'tacenta-proofs/lean-toolchain', 'tacenta-proofs/lake-manifest.json', 'tacenta-proofs/translation/lean-toolchain', 'tacenta-proofs/translation/lake-manifest.json') }}-${{ github.sha }}
 
   # The repository's own consistency checks: the ones `tooling/ci.sh` runs
   # before building anything, plus the attestation gate.
