@@ -230,38 +230,46 @@ jobs:
       # Mathlib's own compressed build files, which `lake exe cache get`
       # otherwise downloads from Mathlib's cache server on every run. Keyed on
       # the translation's manifest, so a Mathlib bump downloads afresh. The
-      # files are the ones `cache get` would fetch; it still unpacks them.
+      # files are the ones `cache get` would fetch; it still unpacks them. The
+      # directory is named explicitly with `MATHLIB_CACHE_DIR`, which Mathlib's
+      # cache reads before `XDG_CACHE_HOME` and `~/.cache`, so the path cached
+      # is the path used.
       - name: Restore Mathlib's downloaded cache files
         id: mathlib-files
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/mathlib
+          path: ${{ runner.temp }}/mathlib-cache
           key: mathlib-files-${{ runner.os }}-${{ hashFiles('tacenta-proofs/translation/lake-manifest.json') }}
       - name: Fetch the Mathlib cache
         working-directory: tacenta-proofs/translation
+        env:
+          MATHLIB_CACHE_DIR: ${{ runner.temp }}/mathlib-cache
         run: lake exe cache get
       - name: Save Mathlib's downloaded cache files (pushes to main only)
         if: github.event_name == 'push' && steps.mathlib-files.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/mathlib
+          path: ${{ runner.temp }}/mathlib-cache
           key: mathlib-files-${{ runner.os }}-${{ hashFiles('tacenta-proofs/translation/lake-manifest.json') }}
       # The Lean build outputs of this tree's three packages and of the Aeneas
       # library, which Mathlib's cache does not carry. Without them every run
       # rebuilds all of it, which is most of this job's time.
       #
-      # Only a push to main writes this cache, and it never reads it: every
-      # merge is built from nothing, so what is cached is always a cold build
-      # of main. A pull request reads the newest one and rebuilds only the
-      # modules its changes invalidate; Lake compares each module's inputs by
-      # hash, so a restored module whose sources or imports changed is rebuilt,
-      # and its logged messages are replayed for one that did not, which is
-      # what the `sorry` scan and the axiom comparison read. The kernel replay
-      # in `no-sorry.sh` still re-checks every module from its olean on every
-      # run. A pull request cannot write the cache main's runs read: GitHub
-      # scopes a cache to the ref that saved it. It is restored after the
-      # Mathlib fetch because that step clones the packages the Aeneas path
-      # sits inside.
+      # Only a push to main saves this cache, only when its build succeeded,
+      # and a push to main never restores it: what is cached is always the cold
+      # build of a main commit. A pull request restores the newest one with the
+      # same toolchain and dependency pins. Lake compares each module's inputs
+      # by hash, so a module whose sources or imports changed is rebuilt and
+      # re-elaborated. A module whose inputs hash the same is not: its tactics,
+      # `#guard_msgs` pins, `example`s and axiom audit do not run again on the
+      # pull request, and what the `sorry` scan and the axiom comparison read
+      # for it are the messages main's cold build logged, which Lake replays.
+      # The kernel replay in `no-sorry.sh` still re-checks every declaration of
+      # every module under `Translation/`, `Proofs/`, `Model/` and `Properties/`
+      # from its olean. A pull request's run can save caches only into its own
+      # merge ref, which main's runs never read. The cache is restored after
+      # the Mathlib fetch because that step clones the Aeneas package, and
+      # would discard build outputs restored inside it beforehand.
       - name: Restore the Lean build outputs (pull requests only)
         if: github.event_name == 'pull_request'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

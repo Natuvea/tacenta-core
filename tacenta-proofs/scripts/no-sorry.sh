@@ -19,7 +19,6 @@ cd "$(dirname "$0")/.."
 
 fail=0
 
-# check <lake package dir> <regex matching our source paths> <label> [<keep log at>]
 # On the CI runner, say how long each phase took, in the log and in the step
 # summary, so the job's one long step can be read apart. Only there: a local
 # run prints what `REPRODUCING.md` quotes and nothing else.
@@ -39,6 +38,7 @@ report_time() {
   fi
 }
 
+# check <lake package dir> <regex matching our source paths> <label> [<keep log at>]
 check() {
   local dir="$1" ours="$2" label="$3" keep="${4:-}"
   echo "no-sorry: building $label"
