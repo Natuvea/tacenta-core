@@ -9,8 +9,10 @@ inner refinements take, restated about the unit's constants.
 `Translation/Satisfiability.lean` witnesses the leaves' copies of most of those
 hypotheses, but it is about the leaves' constants and cannot share a Lean
 environment with the unit, so it says nothing about these. This file witnesses
-the unit's own, in the same style. Each hypothesis is shown, by `Iff.rfl`, to be
-exactly a shape at the unit's constants, and a model of that shape is exhibited.
+the unit's own, in the same style. Each hypothesis is shown to be exactly a shape
+at the unit's constants -- by `Iff.rfl`, except the joint wrapper group, whose
+`Nonempty` conjunct needs an explicit equivalence -- and a model of that shape is
+exhibited.
 Consistency is all this establishes: the theorems downstream are not proofs of
 `False`.
 
@@ -27,8 +29,11 @@ witness for that inner hypothesis. It is strictly stronger than
 ## Hypotheses that share a constant
 
 On the leaves the classical and sparse ratchets' hypotheses constrain different
-constants. On the unit some constrain the same one, and a witness for each on its
-own would not show they hold together:
+constants, though one ratchet's can share one: `T3.lean` takes both
+`ZeroizingRoundTrips` and `T1.DerivedKeysModel`, about one wrapper, and
+`Satisfiability.lean` witnesses those one at a time. On the unit the sharing also
+crosses ratchets, and a witness for each hypothesis on its own would not show
+they hold together:
 
 * `UnitT3.ZeroizingRoundTrips`, `UnitSpqrT3.ZeroizingRoundTrips96` and
   `ZeroizingRoundTrips64`, `UnitTripleT3.ZeroizingRoundTrips` and
@@ -37,17 +42,28 @@ own would not show they hold together:
 * `UnitT1.VecRemoveTotal` and `UnitSpqrT3.VecRemoveAgrees` both constrain
   `alloc.vec.Vec.remove`. `vec_remove_joint_satisfiable` witnesses both.
 
-The other witnessed hypotheses, `UnitSpqrT3.VecAppendAgrees`,
-`UnitSpqrT3.VecRetainAgrees`, `UnitSpqrT1.OptionCloneTotal` and the general
-`UnitSpqrT1.ZeroizeTotal`, each constrain a constant no other hypothesis here
-mentions. That their separate witnesses combine is an argument about independent
-opaque constants, made in this comment and not checked by Lean.
+The other witnessed hypotheses, `UnitT3.HmacAgrees`, `UnitT3.HkdfAgrees` (which
+`UnitSpqrT3.SpqrHkdfAgrees` and `UnitTripleT3.TripleHkdfAgrees` are, by `Iff.rfl`),
+`UnitSpqrT3.VecAppendAgrees`, `UnitSpqrT3.VecRetainAgrees`,
+`UnitSpqrT1.OptionCloneTotal` and the general `UnitSpqrT1.ZeroizeTotal`, each
+constrain a constant no other hypothesis here mentions. That their separate
+witnesses combine is an argument about independent opaque constants, made in this
+comment and not checked by Lean.
 
-## What is not witnessed
+## Coverage
 
-`UnitT3.HmacAgrees` and `UnitT3.HkdfAgrees`, which `UnitSpqrT3.SpqrHkdfAgrees` and
-`UnitTripleT3.TripleHkdfAgrees` are definitionally. No file witnesses them, on the
-leaves' side either, and both discharged theorems take them.
+Together these cover every boundary hypothesis the two discharged theorems take.
+The two `example`s at the end check that against the theorems themselves: each
+applies one theorem to exactly the hypotheses witnessed here, in its signature's
+order, up to the state relation. A boundary hypothesis added to the theorem ahead
+of that point, or replaced by a proposition these are not, stops this file
+building.
+
+## What is not witnessed here
+
+The leaves' copies of the HMAC and HKDF agreements, and `SpqrT1.OptionCloneTotal`,
+still have no witness on the leaves' side; `Satisfiability.lean` does not cover
+them, and it witnesses the leaves' shared-constant hypotheses one at a time.
 
 No over-strong shape is refuted here. `Satisfiability.lean` keeps the refutations
 of the unguarded `Vec` shapes, and the unit's hypotheses carry the same guards.
@@ -324,5 +340,99 @@ theorem array_zeroize_total_satisfiable : ∃ f, ArrayZeroizeTotal f :=
   ⟨fun {_Z} {_N} _inst a => ok a, fun _ a => ⟨a, rfl⟩⟩
 
 end InnerBoundary
+
+/-! ## HMAC and HKDF agreement
+
+The model's HMAC always returns a hash-length tag and its HKDF exactly the
+requested length (`Model.Kdf.hmac_length`, `Model.Kdf.hkdf_length`), so returning
+the model's bytes as an array is a model of each agreement. -/
+
+/-- The type of `tacenta_triple_unit.tacenta_kdf.hmac_sha256`. -/
+abbrev HmacFn := Slice Std.U8 → Slice Std.U8 → Result (Array Std.U8 32#usize)
+
+/-- The type of `tacenta_triple_unit.tacenta_kdf.hkdf_sha256`. -/
+abbrev HkdfFn :=
+  (N : Usize) → Slice Std.U8 → Slice Std.U8 → Slice Std.U8 → Result (Array Std.U8 N)
+
+/-- The shape of `UnitT3.HmacAgrees`. -/
+def HmacShape (f : HmacFn) : Prop :=
+  ∀ key data, ∃ r, f key data = ok r ∧
+    Tacenta.UnitT3.keyOf r = Model.Kdf.hmac (Tacenta.UnitT3.sliceOf key) (Tacenta.UnitT3.sliceOf data)
+
+/-- The shape of `UnitT3.HkdfAgrees`. -/
+def HkdfShape (f : HkdfFn) : Prop :=
+  ∀ N key salt info, N.val ≤ 8160 → ∃ r, f N key salt info = ok r ∧
+    Tacenta.UnitT3.keyOf r = Model.Kdf.hkdf (Tacenta.UnitT3.sliceOf key)
+      (Tacenta.UnitT3.sliceOf salt) (Tacenta.UnitT3.sliceOf info) N.val
+
+theorem HmacAgrees_is :
+    Tacenta.UnitT3.HmacAgrees ↔ HmacShape @tacenta_triple_unit.tacenta_kdf.hmac_sha256 :=
+  Iff.rfl
+
+theorem HkdfAgrees_is :
+    Tacenta.UnitT3.HkdfAgrees ↔ HkdfShape @tacenta_triple_unit.tacenta_kdf.hkdf_sha256 :=
+  Iff.rfl
+
+/-- The sparse ratchet's and the Triple's HKDF agreements are the classical one. -/
+theorem SpqrHkdfAgrees_is_classical :
+    Tacenta.UnitSpqrT3.SpqrHkdfAgrees ↔ Tacenta.UnitT3.HkdfAgrees :=
+  Iff.rfl
+
+theorem TripleHkdfAgrees_is_classical :
+    Tacenta.UnitTripleT3.TripleHkdfAgrees ↔ Tacenta.UnitT3.HkdfAgrees :=
+  Iff.rfl
+
+/-- A model byte as a translated one. -/
+def toU8 (x : UInt8) : Std.U8 := ⟨x.toBitVec⟩
+
+theorem u8_toU8 (x : UInt8) : Tacenta.UnitT3.u8 (toU8 x) = x := by
+  show UInt8.ofNat x.toBitVec.toNat = x
+  simp
+
+def hmacWitness : HmacFn := fun key data =>
+  ok ⟨(Model.Kdf.hmac (Tacenta.UnitT3.sliceOf key) (Tacenta.UnitT3.sliceOf data)).map toU8,
+    by simp [Model.Kdf.hmac_length, Model.Kdf.hashLen]⟩
+
+def hkdfWitness : HkdfFn := fun N key salt info =>
+  ok ⟨(Model.Kdf.hkdf (Tacenta.UnitT3.sliceOf key) (Tacenta.UnitT3.sliceOf salt)
+      (Tacenta.UnitT3.sliceOf info) N.val).map toU8, by simp [Model.Kdf.hkdf_length]⟩
+
+theorem hmac_agrees_satisfiable : ∃ f, HmacShape f :=
+  ⟨hmacWitness, fun key data =>
+    ⟨_, rfl, by simp [Tacenta.UnitT3.keyOf, Function.comp_def, u8_toU8]⟩⟩
+
+theorem hkdf_agrees_satisfiable : ∃ f, HkdfShape f :=
+  ⟨hkdfWitness, fun N key salt info _ =>
+    ⟨_, rfl, by simp [Tacenta.UnitT3.keyOf, Function.comp_def, u8_toU8]⟩⟩
+
+/-! ## Coverage, checked against the discharged theorems -/
+
+example (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
+    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.VecRemoveTotal)
+    [Tacenta.UnitT1.DerivedKeysModel]
+    (hz96 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips96)
+    (hz64 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips64)
+    (hret : Tacenta.UnitSpqrT3.VecRetainAgrees) (happ : Tacenta.UnitSpqrT3.VecAppendAgrees)
+    (hrm : Tacenta.UnitSpqrT3.VecRemoveAgrees) (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
+    (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal)
+    {s : tacenta_triple_unit.tacenta_triple.State} {m : Model.Triple.State}
+    (hrel : Tacenta.UnitTripleT3.StateRefines Tacenta.UnitTripleT3.ratchetAbs
+      Tacenta.UnitTripleT3.spqrAbs s m) :=
+  Tacenta.UnitTripleT3.send_refines_discharged hmac hkdf hzr hvr hz96 hz64 hret happ hrm
+    hzs hopt hrel
+
+example (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
+    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.VecRemoveTotal)
+    [Tacenta.UnitT1.DerivedKeysModel]
+    (hz96 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips96)
+    (hz64 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips64)
+    (hret : Tacenta.UnitSpqrT3.VecRetainAgrees) (happ : Tacenta.UnitSpqrT3.VecAppendAgrees)
+    (hrm : Tacenta.UnitSpqrT3.VecRemoveAgrees) (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
+    (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal)
+    {s : tacenta_triple_unit.tacenta_triple.State} {m : Model.Triple.State}
+    (hrel : Tacenta.UnitTripleT3.StateRefines Tacenta.UnitTripleT3.ratchetAbs
+      Tacenta.UnitTripleT3.spqrAbs s m) :=
+  Tacenta.UnitTripleT3.receive_refines_discharged hmac hkdf hzr hvr hz96 hz64 hret happ hrm
+    hzs hopt hrel
 
 end Tacenta.UnitSatisfiabilityTriple

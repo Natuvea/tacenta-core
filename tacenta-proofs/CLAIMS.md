@@ -100,8 +100,8 @@ this section says in one place what is not proved.
   inner refinements' boundary as restated about the unit, jointly where two
   hypotheses there constrain one constant: the `zeroize` wrapper family with
   `DerivedKeysModel`, `Vec::remove`, `append` and `retain`, `Option`'s clone and
-  the general array `ZeroizeTotal`. No file, on either side, witnesses the HMAC
-  or HKDF agreements. A satisfiable hypothesis is still only
+  the general array `ZeroizeTotal`, and the HMAC and HKDF agreements. The leaves'
+  copies of those two agreements still have no witness. A satisfiable hypothesis is still only
   a hypothesis (`LIMITATIONS.md`).
 - **The ML-KEM Braid's T3 theorems carry two preconditions beyond the
   boundary agreements.** `step_send_refines`, `Braid.send_refines`,
@@ -1039,9 +1039,9 @@ The same holds for `receive`.
 `UnitT1.DerivedKeysModel`, `UnitSpqrT3.ZeroizingRoundTrips96` and
 `ZeroizingRoundTrips64`, `UnitSpqrT3.VecRetainAgrees`, `VecAppendAgrees` and
 `VecRemoveAgrees`, `UnitSpqrT1.ZeroizeTotal` and `UnitSpqrT1.OptionCloneTotal`.
-`UnitSatisfiabilityTriple.lean` witnesses all of them except the HMAC and HKDF
-agreements, jointly where two constrain the same constant. Nothing witnesses those
-two.
+`UnitSatisfiabilityTriple.lean` witnesses all twelve, jointly where two constrain
+the same constant, and applies both theorems to exactly those hypotheses, so a
+boundary hypothesis added ahead of the state relation stops it building.
 
 ## Proved conditionally (tier T1, the Triple Ratchet's composed session send/receive path, on hypotheses no leaf theorem discharges)
 

@@ -47,8 +47,9 @@ Three things are worth knowing about that trade.
   hypotheses, already rests on none of them, and on the external primitives the
   inner refinements rest on instead. Discharging the bundles removes them as
   hypotheses and adds one thing at the axiom level: the eight `native_decide`
-  compiler-trust axioms `UnitSpqrT3.lean` carries, on top of the one this file
-  carries. `UnitPins.lean` pins the discharged theorems' lists.
+  compiler-trust axioms `UnitSpqrT3.lean` carries, on top of the one of this
+  file's three that they already rest on. `UnitPins.lean` pins the discharged
+  theorems' lists.
 * **Each bundle covers its ratchet's whole calling surface**, so
   `send_refines_discharged` assumes the receive path's boundary too.
 * **`send_refines` and `receive_refines` are kept as `TripleT3.lean` states

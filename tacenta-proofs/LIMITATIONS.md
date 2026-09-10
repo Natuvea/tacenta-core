@@ -1638,16 +1638,20 @@ ordinary state a session reaches, and `PreconditionShapes.lean` states both
 facts beside each other. The epoch step on the sparse ratchet's refinement is
 another instance.
 
-The unit island is thinner still: nothing there has a witness of either kind.
-`UnitT1.DerivedKeysModel`'s leaf twin is witnessed and its copy is not, which
-is a straightforward port. The rest are not ports at all.
-`UnitSpqrT1.OptionCloneTotal` has no witness in either island;
-`KdfRkTotal` and `KdfCkTotal` are *derived* on the leaf side from
-`SpqrHkdfAgrees`, which is itself unwitnessed; and `KdfInitTotal` has no leaf
-twin, so calling it inherited rather than introduced is wrong. These bottom out
-in the key-derivation primitives, which are the trusted boundary and are
-assumed rather than witnessed by design -- but that reasoning should be written
-here rather than left to be inferred, and until now it was not.
+The unit island has witnesses of the first kind and none of the second.
+`UnitSatisfiabilityTriple.lean` witnesses every boundary hypothesis the Triple's
+discharged refinement takes, `UnitT1.DerivedKeysModel`,
+`UnitSpqrT1.OptionCloneTotal` and the HMAC and HKDF agreements among them; the
+passage on the Triple's refinement below lists them. On that list the leaf island
+is now the thinner one: `SpqrT1.OptionCloneTotal` and the leaves' HMAC and HKDF
+agreements have no witness there. Three of `UnitTripleT1.lean`'s totality
+hypotheses have no witness of their own but follow from witnessed ones.
+`KdfRkTotal` and `KdfCkTotal` are *derived* in `UnitSpqrT3.lean` from
+`SpqrHkdfAgrees` and the `zeroize` round trips, and `KdfInitTotal`, which has no
+leaf twin, is what `UnitSpqrT3.kdf_init_refines` gives under the same
+hypotheses, though no theorem states that step. Whether each of
+`UnitTripleT1.lean`'s other hypotheses follows from a witnessed one has not been
+checked hypothesis by hypothesis.
 
 Transporting them to `self` is free only because the clone is provably the
 identity on the unit -- every field is an array, a scalar, an `Option` under
@@ -1710,8 +1714,8 @@ from the classical crate that Lean reuses because it is the same term.
 
 **The Triple's refinement is on the unit, with both bundles proved.**
 `Translation/UnitTripleT3.lean` restates `TripleT3.lean` about the unit, and
-`Translation/UnitSatisfiabilityTriple.lean` restates its two satisfiability
-witnesses. On the unit, the hand-written bundles `TripleT3.lean` has to assume,
+`Translation/UnitSatisfiabilityTriple.lean` ports its two satisfiability witnesses
+and witnesses the inner boundary its discharged theorems take. On the unit, the hand-written bundles `TripleT3.lean` has to assume,
 `RatchetAgreesFor` and `SpqrAgreesFor`, are proved. The inner states are
 concrete, each inner refinement relation fixes every field of its model state so
 the abstraction can be written down, and every clause follows from a unit theorem
@@ -1736,19 +1740,22 @@ bundles discharged. What that does and does not buy:
   Triple's narrow one, so neither is listed twice. Proving the classical `clone`
   clause needs `OptionCloneTotal`. Each bundle covers its ratchet's whole calling
   surface, so the `send` theorem assumes the receive path's boundary as well.
-* **HMAC and HKDF agreement are witnessed nowhere.**
-  `UnitSatisfiabilityTriple.lean` witnesses every other boundary hypothesis the
-  discharged theorems take, about the unit's constants. It does so jointly where
-  the unit makes two hypotheses constrain one constant, which never happened on
-  the leaves: the classical round trip, the sparse round trips at 96 and 64 bytes,
-  the Triple's round trip and `DerivedKeysModel` all constrain one
-  `zeroize.Zeroizing` family, and `VecRemoveTotal` and `VecRemoveAgrees` both
-  constrain `Vec::remove`. The rest each constrain a constant nothing else
-  mentions, and that their separate witnesses combine is an argument in prose,
-  not a checked one. `HmacAgrees` and `HkdfAgrees`, which the unit's
-  `SpqrHkdfAgrees` and `TripleHkdfAgrees` are definitionally, have no witness on
-  either side: `Satisfiability.lean` does not cover them. Nothing checks that
-  they can hold.
+* **Every boundary hypothesis of the discharged theorems is witnessed on the
+  unit.** `UnitSatisfiabilityTriple.lean` witnesses all twelve, about the unit's
+  constants, including the HMAC and HKDF agreements (from the model's output
+  lengths). Where two constrain one constant it witnesses them jointly: the
+  classical round trip, which is also the Triple's, the sparse round trips at 96
+  and 64 bytes and `DerivedKeysModel` all constrain one `zeroize.Zeroizing`
+  family, and `VecRemoveTotal` and `VecRemoveAgrees` both constrain `Vec::remove`.
+  The rest each constrain a constant nothing else mentions, and that their
+  separate witnesses combine is an argument in prose, not a checked one. Two
+  `example`s apply the discharged theorems to exactly the witnessed hypotheses,
+  so one added ahead of the state relation stops the build; nothing checks the
+  preconditions after it. The leaves are behind the unit here: their HMAC and HKDF
+  agreements and `SpqrT1.OptionCloneTotal` have no witness, and
+  `Satisfiability.lean` witnesses their shared-constant hypotheses one at a time
+  (`T3.lean` takes both `ZeroizingRoundTrips` and `T1.DerivedKeysModel` about one
+  wrapper, and the sparse ratchet's two round trips share one too).
 * **The port is hand-written.** It differs from `TripleT3.lean` in more than names,
   and its header lists each difference. Three stepping-rule erasures keep the
   original proofs elaborating: one retargeted from the original, and two for rules

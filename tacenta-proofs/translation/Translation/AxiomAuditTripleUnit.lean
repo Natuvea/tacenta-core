@@ -25,8 +25,8 @@ Triple's panic-freedom on the unit, `Translation.UnitTripleT1`, and the Triple's
 refinement on the unit, `Translation.UnitTripleT3`. It imports two modules
 directly because nothing else does: `Translation.UnitSpqrT3`, the sparse
 ratchet's refinement, which nothing pins, and
-`Translation.UnitSatisfiabilityTriple`, the witnesses for the Triple's `zeroize`
-wrapper hypotheses on the unit. Those are the only proofs in this island,
+`Translation.UnitSatisfiabilityTriple`, the satisfiability witnesses for the
+Triple's refinement on the unit. Those are the only proofs in this island,
 and this is the only module that reaches them, so the audit walks them here or
 nowhere: `scripts/no-sorry.sh` compares the `audit-axiom:` lines with the
 recorded manifest, and a module nothing imports would be built, scanned and
