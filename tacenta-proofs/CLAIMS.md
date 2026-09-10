@@ -842,7 +842,11 @@ in CI, so the copies cannot drift from the originals in either direction.
 **What the pins add, which is the reason to have them.** Each of the four is
 pinned in `UnitPins.lean`, and each base is the leaf theorem's base name for
 name, with `tacenta_triple_unit.` in front of every translated axiom and
-nothing else changed. Nothing appears that the leaf did not assume, nothing the
+nothing else changed. That is a statement about the printed lists. A leaf file opens its
+crate's namespace, so its pins print a translated axiom without the
+crate's own prefix -- `tacenta_kdf.hmac_sha256` for what is fully
+`tacenta_ratchet.tacenta_kdf.hmac_sha256` -- and the underlying names
+differ by that prefix as well. Nothing appears that the leaf did not assume, nothing the
 leaf assumed has quietly become a definition, and no proof that was kernel-only
 has become compiler-trusted. `Tacenta.UnitSpqrT1.receive_no_panic` carries
 `Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`, the same
@@ -953,16 +957,23 @@ Location: `tacenta-proofs/translation/Translation/UnitT3.lean`,
 models, about the constants those crates' own translations declare. These are
 the same proofs, **generated** onto the three-leaf unit by
 `scripts/port-unit-proofs.sh`, which rewrites the imports, the namespace and the
-`open`, renames qualified references to the unit's copies, and copies every
-statement and proof body unchanged. `--check` regenerates and diffs in CI.
+`open`, and renames qualified references to the leaf proofs' namespaces so they
+name the unit's copies. The renames reach statements and proof bodies as well as
+prose -- 45 references in `T3.lean` and 24 in `SpqrT3.lean`: hypothesis types,
+cited lemmas, removed stepping rules -- and apart from them every statement and
+proof body is copied as written. Each rewrite asserts how often it matches, and
+`--check` regenerates and diffs in CI.
 
-The sparse copy carries one line its original does not. On the unit the two
-ratchets share one set of `zeroize` constants, so two stepping rules
-`UnitT1.lean` registers for them match goals in `UnitSpqrT3.lean` that, in the
-leaf island, they could never reach; both demand `UnitT1.ZeroizingTotal`, which
-no hypothesis there provides. The generator removes those two rules at the top
-of the copy, restoring the stepping environment `SpqrT3.lean` was proved in. It
-is the reason `T3.lean` already removes one of them for itself.
+The sparse copy also carries one erasure its original does not. On the unit the
+two ratchets share one set of `zeroize` constants, so
+`UnitT1.zeroizing_deref_step`, a stepping rule `UnitT1.lean` registers for the
+classical ratchet, reaches a goal in `UnitSpqrT3.lean` that it cannot reach in
+the leaf island, and demands `UnitT1.ZeroizingTotal`, which no hypothesis there
+provides. The generator removes that rule at the top of the copy, as `T3.lean`
+removes its own copy of it. It is the only rule whose removal matters: two more
+`UnitT1.lean` rules sit on constants the unit shares, and removing them as well
+changes no proof term. The removal does not carry into a module that imports
+the copy.
 
 - `Tacenta.UnitT3.send_refines`: `send` on the classical ratchet, compiled inside
   the unit, refines the model's send.
@@ -972,7 +983,11 @@ is the reason `T3.lean` already removes one of them for itself.
 
 Each is pinned in `UnitPins.lean`, and each prints exactly the axioms its leaf
 twin prints, name for name, with `tacenta_triple_unit.` in front of every
-translated axiom and nothing else changed.
+translated axiom and nothing else changed. That is a statement about the printed lists. A leaf file opens its
+crate's namespace, so its pins print a translated axiom without the
+crate's own prefix -- `tacenta_kdf.hmac_sha256` for what is fully
+`tacenta_ratchet.tacenta_kdf.hmac_sha256` -- and the underlying names
+differ by that prefix as well.
 
 ## Proved conditionally (tier T1, the Triple Ratchet's composed session send/receive path, on hypotheses no leaf theorem discharges)
 

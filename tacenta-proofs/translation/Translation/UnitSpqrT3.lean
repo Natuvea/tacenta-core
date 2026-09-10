@@ -3,10 +3,13 @@
 -- regenerates this file and fails on any difference.
 --
 -- This is SpqrT3.lean restated about the three-leaf translation unit, whose
--- constants are different constants from the ones SpqrT3.lean is about. Only the
--- imports, the namespace and the `open` differ, plus any stepping-rule erasure
--- this script inserts and explains beside it; every proof body is the same text.
--- The `#print axioms` pins are in Translation/UnitPins.lean.
+-- constants are different constants from the ones SpqrT3.lean is about. What
+-- differs is the imports, the namespace, the `open`, qualified references to
+-- the leaf proofs' own namespaces, and any stepping-rule erasure this script
+-- inserts and explains beside it. No other text in a statement or a proof body
+-- changes.
+-- SpqrT3.lean pins nothing, and nothing pins this copy; the unit's axiom
+-- audit walks it.
 
 import Translation.TacentaTripleUnit
 import Translation.UnitSpqrT1
@@ -44,17 +47,20 @@ namespace Tacenta.UnitSpqrT3
 
 open tacenta_triple_unit tacenta_triple_unit.tacenta_spqr
 
--- Inserted by port-unit-proofs.sh: the one line here that is neither
--- SpqrT3.lean's own text nor a rename. On the unit the classical and
--- sparse ratchets share one set of `zeroize` constants, so two stepping
--- rules UnitT1.lean registers for them now match goals in this file that,
--- in the leaf island, they could never reach. Both demand
--- `UnitT1.ZeroizingTotal`, which no hypothesis here provides, and both say
--- only that the call returned -- the reason T3.lean already removes the
--- projection rule for itself. Removing them restores the stepping
--- environment SpqrT3.lean was proved in. No statement and no proof body
--- changes.
-attribute [-step] Tacenta.UnitT1.zeroizing_new_step Tacenta.UnitT1.zeroizing_deref_step
+-- Inserted by port-unit-proofs.sh; neither SpqrT3.lean's text nor a
+-- rename. On the unit the classical and sparse ratchets share one set
+-- of `zeroize` constants, so `UnitT1.zeroizing_deref_step`, a stepping
+-- rule UnitT1.lean registers for the classical ratchet, reaches a goal
+-- in `kdf_ck_refines` below that it cannot reach in the leaf island.
+-- It demands `UnitT1.ZeroizingTotal`, which no hypothesis here provides,
+-- and says only that the call returned; T3.lean removes its own copy
+-- of the rule for the same reason. Two more UnitT1.lean rules sit on
+-- constants the unit shares, `zeroizing_new_step` and `hkdf_step`, but
+-- this file registers its own rules for those calls later and `step`
+-- tries the newest rule first, so removing them changes no proof here
+-- and they are left. The removal is local to this file: a module that
+-- imports it has the rule back.
+attribute [-step] Tacenta.UnitT1.zeroizing_deref_step
 
 /-- A translated byte as the model's. -/
 def u8 (b : Std.U8) : UInt8 := UInt8.ofNat b.val

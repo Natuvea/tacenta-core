@@ -1677,20 +1677,36 @@ inside the unit, and not only as compiled alone. Measured on 2026-09-10, every
 one of the 115 public theorems in the two copies depends on exactly the axioms
 its leaf twin depends on, once each translation's crate prefix is set aside.
 The same eight compiler-trust axioms appear on both sides, and 61 of the 115
-are kernel-only on both. That comparison was run once, by a probe outside the
-tree. The pins in `UnitPins.lean` enforce it only for the three theorems
+are kernel-only on both. Outside the 115 there is one difference, and it runs
+the other way: the matcher Lean generates for `maybe_advance_refines` and its
+two congruence equations depend on `propext`, `Classical.choice` and
+`Quot.sound` in `SpqrT3.lean` and on no axioms at all in `UnitSpqrT3.lean`. It
+is already there in the matcher, before any proof uses it. That comparison was
+run once, by a probe outside the tree. The pins in `UnitPins.lean` enforce it only for the three theorems
 `T3.lean` pins, so a later change could move the rest without failing a build.
 
-The sparse copy is not quite a pure copy. On the unit the two ratchets share
-one set of `zeroize` constants, so two stepping rules `UnitT1.lean` registers
-match goals in `UnitSpqrT3.lean` that, in the leaf island, they could never
-reach. One proof stopped short there, demanding `UnitT1.ZeroizingTotal`, which
-nothing in that file provides. The generator inserts a single `attribute
-[-step]` line removing those two rules, which restores the environment
-`SpqrT3.lean` was proved in; no statement and no proof body changes. It is the
-first place the unit's shared constants changed how a copied proof runs, and
-it need not be the last: any leaf rule whose target the unit now shares can
-reach a goal it could not reach before.
+Neither copy is a pure copy. In both, qualified references to the leaf proofs'
+namespaces are renamed, inside statements and proof bodies as well as prose,
+and the sparse copy carries one inserted erasure. On the unit the two ratchets
+share one set of `zeroize` constants, so `UnitT1.zeroizing_deref_step`, a
+stepping rule `UnitT1.lean` registers for the classical ratchet, reaches a goal
+in `UnitSpqrT3.lean` that it cannot reach in the leaf island. One proof stopped
+short there, demanding `UnitT1.ZeroizingTotal`, which nothing in that file
+provides. The generator inserts an `attribute [-step]` line removing that rule;
+no statement and no proof body changes. Two more `UnitT1.lean` rules sit on
+constants the unit shares, and removing them as well changes no proof term, so
+they stay. The removal is scoped to the copy: a module that imports
+`UnitSpqrT3.lean` has the rule back, so the Triple's refinement, once it is on
+the unit, needs its own.
+
+This is the first place a leaf stepping rule reached a goal in a copied proof
+that it could not reach before, and it need not be the last. It is not the
+first effect of the shared constants on the copies, though. The sparse copies'
+proof terms already name different auxiliary constants from their leaves': where
+`SpqrT1.receive_no_panic` uses its own crate's `State.receive.match_1`,
+`UnitSpqrT1.receive_no_panic` uses
+`tacenta_triple_unit.tacenta_ratchet.State.started_as_sender.match_1`, a matcher
+from the classical crate that Lean reuses because it is the same term.
 
 What this does not yet do is the step the refinement copies exist for. The
 Triple's own refinement, `TripleT3.lean`, and its satisfiability witnesses are

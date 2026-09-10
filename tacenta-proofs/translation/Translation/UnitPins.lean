@@ -17,7 +17,10 @@ compiler actually prints.
 **What these pins are for.** Not to record a new trust base -- to state that
 there is no new trust base. Each theorem below must depend on exactly the
 axioms its leaf twin depends on, name for name, with `tacenta_triple_unit.`
-in front of every translated one and nothing else changed. That is the claim
+in front of every translated one and nothing else changed. That is a statement
+about the printed lists: a leaf file opens its crate's namespace, so its pins
+print a translated axiom without the crate's own prefix (`tacenta_kdf.hmac_sha256`
+for what is fully `tacenta_ratchet.tacenta_kdf.hmac_sha256`). That is the claim
 the port rests on: compiling the three crates as one changes which constants
 the theorems are about and changes nothing about what they assume.
 

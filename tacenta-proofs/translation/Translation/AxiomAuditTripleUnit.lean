@@ -20,8 +20,9 @@ with neither audit that already exists.
 
 It also imports `Translation.UnitPins`, and through it the unit's copies of
 the two leaf panic-freedom proofs and the classical ratchet's refinement, and
-`Translation.UnitSpqrT3`, the sparse ratchet's refinement, which pins nothing of
-its own and so is reached directly. Those are the only proofs in this island,
+the Triple's panic-freedom on the unit, `Translation.UnitTripleT1`; and it
+imports `Translation.UnitSpqrT3`, the sparse ratchet's refinement, which nothing
+pins and so is reached directly. Those are the only proofs in this island,
 and this is the only module that reaches them, so the audit walks them here or
 nowhere: `scripts/no-sorry.sh` compares the `audit-axiom:` lines with the
 recorded manifest, and a module nothing imports would be built, scanned and
