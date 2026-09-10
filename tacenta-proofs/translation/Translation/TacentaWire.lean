@@ -47,17 +47,17 @@ axiom core.option.Option.Insts.CoreCmpPartialEqOption.eq
   Option T → Option T → Result Bool
 
 /-- [tacenta_wire::VERSION]
-    Source: 'wire/src/lib.rs', lines 50:0-50:29
+    Source: 'wire/src/lib.rs', lines 51:0-51:29
     Visibility: public -/
 @[global_simps, irreducible] def VERSION : Std.U8 := 1#u8
 
 /-- [tacenta_wire::TYPE_RATCHET]
-    Source: 'wire/src/lib.rs', lines 53:0-53:34
+    Source: 'wire/src/lib.rs', lines 54:0-54:34
     Visibility: public -/
 @[global_simps, irreducible] def TYPE_RATCHET : Std.U8 := 1#u8
 
 /-- [tacenta_wire::DecodeError]
-    Source: 'wire/src/lib.rs', lines 62:0-71:1
+    Source: 'wire/src/lib.rs', lines 63:0-72:1
     Visibility: public -/
 @[discriminant isize]
 inductive DecodeError where
@@ -67,35 +67,35 @@ inductive DecodeError where
 | LengthOverrun : DecodeError
 
 /-- [tacenta_wire::{impl core::clone::Clone for tacenta_wire::DecodeError}::clone]:
-    Source: 'wire/src/lib.rs', lines 60:9-60:14
+    Source: 'wire/src/lib.rs', lines 61:9-61:14
     Visibility: public -/
 def DecodeError.Insts.CoreCloneClone.clone
   (self : DecodeError) : Result DecodeError := do
   ok self
 
 /-- Trait implementation: [tacenta_wire::{impl core::clone::Clone for tacenta_wire::DecodeError}]
-    Source: 'wire/src/lib.rs', lines 60:9-60:14 -/
+    Source: 'wire/src/lib.rs', lines 61:9-61:14 -/
 @[reducible]
 def DecodeError.Insts.CoreCloneClone : core.clone.Clone DecodeError := {
   clone := DecodeError.Insts.CoreCloneClone.clone
 }
 
 /-- Trait implementation: [tacenta_wire::{impl core::marker::Copy for tacenta_wire::DecodeError}]
-    Source: 'wire/src/lib.rs', lines 60:16-60:20 -/
+    Source: 'wire/src/lib.rs', lines 61:16-61:20 -/
 @[reducible]
 def DecodeError.Insts.CoreMarkerCopy : core.marker.Copy DecodeError := {
   cloneInst := DecodeError.Insts.CoreCloneClone
 }
 
 /-- Trait implementation: [tacenta_wire::{impl core::marker::StructuralPartialEq for tacenta_wire::DecodeError}]
-    Source: 'wire/src/lib.rs', lines 60:22-60:31 -/
+    Source: 'wire/src/lib.rs', lines 61:22-61:31 -/
 @[reducible]
 def DecodeError.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq DecodeError := {
 }
 
 /-- [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::DecodeError> for tacenta_wire::DecodeError}::eq]:
-    Source: 'wire/src/lib.rs', lines 60:22-60:31
+    Source: 'wire/src/lib.rs', lines 61:22-61:31
     Visibility: public -/
 def DecodeError.Insts.CoreCmpPartialEqDecodeError.eq
   (self : DecodeError) (other : DecodeError) : Result Bool := do
@@ -104,7 +104,7 @@ def DecodeError.Insts.CoreCmpPartialEqDecodeError.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::DecodeError> for tacenta_wire::DecodeError}]
-    Source: 'wire/src/lib.rs', lines 60:22-60:31 -/
+    Source: 'wire/src/lib.rs', lines 61:22-61:31 -/
 @[reducible]
 def DecodeError.Insts.CoreCmpPartialEqDecodeError : core.cmp.PartialEq
   DecodeError DecodeError := {
@@ -112,14 +112,14 @@ def DecodeError.Insts.CoreCmpPartialEqDecodeError : core.cmp.PartialEq
 }
 
 /-- [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::DecodeError}::assert_fields_are_eq]:
-    Source: 'wire/src/lib.rs', lines 60:33-60:35
+    Source: 'wire/src/lib.rs', lines 61:33-61:35
     Visibility: public -/
 def DecodeError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : DecodeError) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::DecodeError}]
-    Source: 'wire/src/lib.rs', lines 60:33-60:35 -/
+    Source: 'wire/src/lib.rs', lines 61:33-61:35 -/
 @[reducible]
 def DecodeError.Insts.CoreCmpEq : core.cmp.Eq DecodeError := {
   partialEqInst := DecodeError.Insts.CoreCmpPartialEqDecodeError
@@ -127,7 +127,7 @@ def DecodeError.Insts.CoreCmpEq : core.cmp.Eq DecodeError := {
 }
 
 /-- [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::DecodeError}::fmt]:
-    Source: 'wire/src/lib.rs', lines 60:37-60:42
+    Source: 'wire/src/lib.rs', lines 61:37-61:42
     Visibility: public -/
 def DecodeError.Insts.CoreFmtDebug.fmt
   (self : DecodeError) (f : core.fmt.Formatter) :
@@ -142,19 +142,19 @@ def DecodeError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "LengthOverrun")
 
 /-- Trait implementation: [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::DecodeError}]
-    Source: 'wire/src/lib.rs', lines 60:37-60:42 -/
+    Source: 'wire/src/lib.rs', lines 61:37-61:42 -/
 @[reducible]
 def DecodeError.Insts.CoreFmtDebug : core.fmt.Debug DecodeError := {
   fmt := DecodeError.Insts.CoreFmtDebug.fmt
 }
 
 /-- [tacenta_wire::CHUNK_BYTES]
-    Source: 'wire/src/lib.rs', lines 76:0-76:34
+    Source: 'wire/src/lib.rs', lines 77:0-77:34
     Visibility: public -/
 @[global_simps, irreducible] def CHUNK_BYTES : Std.Usize := 32#usize
 
 /-- [tacenta_wire::COMPOSITE_LEN]
-    Source: 'wire/src/lib.rs', lines 79:0-79:86
+    Source: 'wire/src/lib.rs', lines 80:0-80:86
     Visibility: public -/
 @[global_simps, irreducible]
 def COMPOSITE_LEN : Result Std.Usize := do
@@ -170,7 +170,7 @@ def COMPOSITE_LEN : Result Std.Usize := do
   i8 + CHUNK_BYTES
 
 /-- [tacenta_wire::AgreementType]
-    Source: 'wire/src/lib.rs', lines 88:0-95:1
+    Source: 'wire/src/lib.rs', lines 89:0-96:1
     Visibility: public -/
 @[discriminant isize]
 inductive AgreementType where
@@ -182,35 +182,35 @@ inductive AgreementType where
 | Ct2 : AgreementType
 
 /-- [tacenta_wire::{impl core::clone::Clone for tacenta_wire::AgreementType}::clone]:
-    Source: 'wire/src/lib.rs', lines 87:9-87:14
+    Source: 'wire/src/lib.rs', lines 88:9-88:14
     Visibility: public -/
 def AgreementType.Insts.CoreCloneClone.clone
   (self : AgreementType) : Result AgreementType := do
   ok self
 
 /-- Trait implementation: [tacenta_wire::{impl core::clone::Clone for tacenta_wire::AgreementType}]
-    Source: 'wire/src/lib.rs', lines 87:9-87:14 -/
+    Source: 'wire/src/lib.rs', lines 88:9-88:14 -/
 @[reducible]
 def AgreementType.Insts.CoreCloneClone : core.clone.Clone AgreementType := {
   clone := AgreementType.Insts.CoreCloneClone.clone
 }
 
 /-- Trait implementation: [tacenta_wire::{impl core::marker::Copy for tacenta_wire::AgreementType}]
-    Source: 'wire/src/lib.rs', lines 87:16-87:20 -/
+    Source: 'wire/src/lib.rs', lines 88:16-88:20 -/
 @[reducible]
 def AgreementType.Insts.CoreMarkerCopy : core.marker.Copy AgreementType := {
   cloneInst := AgreementType.Insts.CoreCloneClone
 }
 
 /-- Trait implementation: [tacenta_wire::{impl core::marker::StructuralPartialEq for tacenta_wire::AgreementType}]
-    Source: 'wire/src/lib.rs', lines 87:22-87:31 -/
+    Source: 'wire/src/lib.rs', lines 88:22-88:31 -/
 @[reducible]
 def AgreementType.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq AgreementType := {
 }
 
 /-- [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::AgreementType> for tacenta_wire::AgreementType}::eq]:
-    Source: 'wire/src/lib.rs', lines 87:22-87:31
+    Source: 'wire/src/lib.rs', lines 88:22-88:31
     Visibility: public -/
 def AgreementType.Insts.CoreCmpPartialEqAgreementType.eq
   (self : AgreementType) (other : AgreementType) : Result Bool := do
@@ -219,7 +219,7 @@ def AgreementType.Insts.CoreCmpPartialEqAgreementType.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::AgreementType> for tacenta_wire::AgreementType}]
-    Source: 'wire/src/lib.rs', lines 87:22-87:31 -/
+    Source: 'wire/src/lib.rs', lines 88:22-88:31 -/
 @[reducible]
 def AgreementType.Insts.CoreCmpPartialEqAgreementType : core.cmp.PartialEq
   AgreementType AgreementType := {
@@ -227,14 +227,14 @@ def AgreementType.Insts.CoreCmpPartialEqAgreementType : core.cmp.PartialEq
 }
 
 /-- [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::AgreementType}::assert_fields_are_eq]:
-    Source: 'wire/src/lib.rs', lines 87:33-87:35
+    Source: 'wire/src/lib.rs', lines 88:33-88:35
     Visibility: public -/
 def AgreementType.Insts.CoreCmpEq.assert_fields_are_eq
   (self : AgreementType) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::AgreementType}]
-    Source: 'wire/src/lib.rs', lines 87:33-87:35 -/
+    Source: 'wire/src/lib.rs', lines 88:33-88:35 -/
 @[reducible]
 def AgreementType.Insts.CoreCmpEq : core.cmp.Eq AgreementType := {
   partialEqInst := AgreementType.Insts.CoreCmpPartialEqAgreementType
@@ -242,7 +242,7 @@ def AgreementType.Insts.CoreCmpEq : core.cmp.Eq AgreementType := {
 }
 
 /-- [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::AgreementType}::fmt]:
-    Source: 'wire/src/lib.rs', lines 87:37-87:42
+    Source: 'wire/src/lib.rs', lines 88:37-88:42
     Visibility: public -/
 def AgreementType.Insts.CoreFmtDebug.fmt
   (self : AgreementType) (f : core.fmt.Formatter) :
@@ -257,14 +257,14 @@ def AgreementType.Insts.CoreFmtDebug.fmt
   | AgreementType.Ct2 => core.fmt.Formatter.write_str f (toStr "Ct2")
 
 /-- Trait implementation: [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::AgreementType}]
-    Source: 'wire/src/lib.rs', lines 87:37-87:42 -/
+    Source: 'wire/src/lib.rs', lines 88:37-88:42 -/
 @[reducible]
 def AgreementType.Insts.CoreFmtDebug : core.fmt.Debug AgreementType := {
   fmt := AgreementType.Insts.CoreFmtDebug.fmt
 }
 
 /-- [tacenta_wire::{tacenta_wire::AgreementType}::to_byte]:
-    Source: 'wire/src/lib.rs', lines 98:4-107:5 -/
+    Source: 'wire/src/lib.rs', lines 99:4-108:5 -/
 def AgreementType.to_byte (self : AgreementType) : Result Std.U8 := do
   match self with
   | AgreementType.None => ok 0#u8
@@ -275,7 +275,7 @@ def AgreementType.to_byte (self : AgreementType) : Result Std.U8 := do
   | AgreementType.Ct2 => ok 5#u8
 
 /-- [tacenta_wire::{tacenta_wire::AgreementType}::from_byte]:
-    Source: 'wire/src/lib.rs', lines 109:4-119:5 -/
+    Source: 'wire/src/lib.rs', lines 110:4-120:5 -/
 def AgreementType.from_byte (b : Std.U8) : Result (Option AgreementType) := do
   match b with
   | 0#uscalar => ok (some AgreementType.None)
@@ -287,42 +287,42 @@ def AgreementType.from_byte (b : Std.U8) : Result (Option AgreementType) := do
   | _ => ok none
 
 /-- [tacenta_wire::Codeword]
-    Source: 'wire/src/lib.rs', lines 124:0-127:1
+    Source: 'wire/src/lib.rs', lines 125:0-128:1
     Visibility: public -/
 structure Codeword where
   index : Std.U16
   data : Array Std.U8 32#usize
 
 /-- [tacenta_wire::{impl core::clone::Clone for tacenta_wire::Codeword}::clone]:
-    Source: 'wire/src/lib.rs', lines 123:9-123:14
+    Source: 'wire/src/lib.rs', lines 124:9-124:14
     Visibility: public -/
 def Codeword.Insts.CoreCloneClone.clone
   (self : Codeword) : Result Codeword := do
   ok self
 
 /-- Trait implementation: [tacenta_wire::{impl core::clone::Clone for tacenta_wire::Codeword}]
-    Source: 'wire/src/lib.rs', lines 123:9-123:14 -/
+    Source: 'wire/src/lib.rs', lines 124:9-124:14 -/
 @[reducible]
 def Codeword.Insts.CoreCloneClone : core.clone.Clone Codeword := {
   clone := Codeword.Insts.CoreCloneClone.clone
 }
 
 /-- Trait implementation: [tacenta_wire::{impl core::marker::Copy for tacenta_wire::Codeword}]
-    Source: 'wire/src/lib.rs', lines 123:16-123:20 -/
+    Source: 'wire/src/lib.rs', lines 124:16-124:20 -/
 @[reducible]
 def Codeword.Insts.CoreMarkerCopy : core.marker.Copy Codeword := {
   cloneInst := Codeword.Insts.CoreCloneClone
 }
 
 /-- Trait implementation: [tacenta_wire::{impl core::marker::StructuralPartialEq for tacenta_wire::Codeword}]
-    Source: 'wire/src/lib.rs', lines 123:22-123:31 -/
+    Source: 'wire/src/lib.rs', lines 124:22-124:31 -/
 @[reducible]
 def Codeword.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq Codeword := {
 }
 
 /-- [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::Codeword> for tacenta_wire::Codeword}::eq]:
-    Source: 'wire/src/lib.rs', lines 123:22-123:31
+    Source: 'wire/src/lib.rs', lines 124:22-124:31
     Visibility: public -/
 def Codeword.Insts.CoreCmpPartialEqCodeword.eq
   (self : Codeword) (other : Codeword) : Result Bool := do
@@ -333,7 +333,7 @@ def Codeword.Insts.CoreCmpPartialEqCodeword.eq
   else ok false
 
 /-- Trait implementation: [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::Codeword> for tacenta_wire::Codeword}]
-    Source: 'wire/src/lib.rs', lines 123:22-123:31 -/
+    Source: 'wire/src/lib.rs', lines 124:22-124:31 -/
 @[reducible]
 def Codeword.Insts.CoreCmpPartialEqCodeword : core.cmp.PartialEq Codeword
   Codeword := {
@@ -341,14 +341,14 @@ def Codeword.Insts.CoreCmpPartialEqCodeword : core.cmp.PartialEq Codeword
 }
 
 /-- [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::Codeword}::assert_fields_are_eq]:
-    Source: 'wire/src/lib.rs', lines 123:33-123:35
+    Source: 'wire/src/lib.rs', lines 124:33-124:35
     Visibility: public -/
 def Codeword.Insts.CoreCmpEq.assert_fields_are_eq
   (self : Codeword) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::Codeword}]
-    Source: 'wire/src/lib.rs', lines 123:33-123:35 -/
+    Source: 'wire/src/lib.rs', lines 124:33-124:35 -/
 @[reducible]
 def Codeword.Insts.CoreCmpEq : core.cmp.Eq Codeword := {
   partialEqInst := Codeword.Insts.CoreCmpPartialEqCodeword
@@ -356,7 +356,7 @@ def Codeword.Insts.CoreCmpEq : core.cmp.Eq Codeword := {
 }
 
 /-- [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::Codeword}::fmt]:
-    Source: 'wire/src/lib.rs', lines 123:37-123:42
+    Source: 'wire/src/lib.rs', lines 124:37-124:42
     Visibility: public -/
 def Codeword.Insts.CoreFmtDebug.fmt
   (self : Codeword) (f : core.fmt.Formatter) :
@@ -370,14 +370,14 @@ def Codeword.Insts.CoreFmtDebug.fmt
     "index") dyn (toStr "data") dyn1
 
 /-- Trait implementation: [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::Codeword}]
-    Source: 'wire/src/lib.rs', lines 123:37-123:42 -/
+    Source: 'wire/src/lib.rs', lines 124:37-124:42 -/
 @[reducible]
 def Codeword.Insts.CoreFmtDebug : core.fmt.Debug Codeword := {
   fmt := Codeword.Insts.CoreFmtDebug.fmt
 }
 
 /-- [tacenta_wire::Composite]
-    Source: 'wire/src/lib.rs', lines 131:0-148:1
+    Source: 'wire/src/lib.rs', lines 132:0-149:1
     Visibility: public -/
 structure Composite where
   dh : Array Std.U8 32#usize
@@ -390,35 +390,35 @@ structure Composite where
   ag_chunk : Option Codeword
 
 /-- [tacenta_wire::{impl core::clone::Clone for tacenta_wire::Composite}::clone]:
-    Source: 'wire/src/lib.rs', lines 130:9-130:14
+    Source: 'wire/src/lib.rs', lines 131:9-131:14
     Visibility: public -/
 def Composite.Insts.CoreCloneClone.clone
   (self : Composite) : Result Composite := do
   ok self
 
 /-- Trait implementation: [tacenta_wire::{impl core::clone::Clone for tacenta_wire::Composite}]
-    Source: 'wire/src/lib.rs', lines 130:9-130:14 -/
+    Source: 'wire/src/lib.rs', lines 131:9-131:14 -/
 @[reducible]
 def Composite.Insts.CoreCloneClone : core.clone.Clone Composite := {
   clone := Composite.Insts.CoreCloneClone.clone
 }
 
 /-- Trait implementation: [tacenta_wire::{impl core::marker::Copy for tacenta_wire::Composite}]
-    Source: 'wire/src/lib.rs', lines 130:16-130:20 -/
+    Source: 'wire/src/lib.rs', lines 131:16-131:20 -/
 @[reducible]
 def Composite.Insts.CoreMarkerCopy : core.marker.Copy Composite := {
   cloneInst := Composite.Insts.CoreCloneClone
 }
 
 /-- Trait implementation: [tacenta_wire::{impl core::marker::StructuralPartialEq for tacenta_wire::Composite}]
-    Source: 'wire/src/lib.rs', lines 130:22-130:31 -/
+    Source: 'wire/src/lib.rs', lines 131:22-131:31 -/
 @[reducible]
 def Composite.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq Composite := {
 }
 
 /-- [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::Composite> for tacenta_wire::Composite}::eq]:
-    Source: 'wire/src/lib.rs', lines 130:22-130:31
+    Source: 'wire/src/lib.rs', lines 131:22-131:31
     Visibility: public -/
 def Composite.Insts.CoreCmpPartialEqComposite.eq
   (self : Composite) (other : Composite) : Result Bool := do
@@ -454,7 +454,7 @@ def Composite.Insts.CoreCmpPartialEqComposite.eq
   else ok false
 
 /-- Trait implementation: [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::Composite> for tacenta_wire::Composite}]
-    Source: 'wire/src/lib.rs', lines 130:22-130:31 -/
+    Source: 'wire/src/lib.rs', lines 131:22-131:31 -/
 @[reducible]
 def Composite.Insts.CoreCmpPartialEqComposite : core.cmp.PartialEq Composite
   Composite := {
@@ -462,14 +462,14 @@ def Composite.Insts.CoreCmpPartialEqComposite : core.cmp.PartialEq Composite
 }
 
 /-- [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::Composite}::assert_fields_are_eq]:
-    Source: 'wire/src/lib.rs', lines 130:33-130:35
+    Source: 'wire/src/lib.rs', lines 131:33-131:35
     Visibility: public -/
 def Composite.Insts.CoreCmpEq.assert_fields_are_eq
   (self : Composite) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::Composite}]
-    Source: 'wire/src/lib.rs', lines 130:33-130:35 -/
+    Source: 'wire/src/lib.rs', lines 131:33-131:35 -/
 @[reducible]
 def Composite.Insts.CoreCmpEq : core.cmp.Eq Composite := {
   partialEqInst := Composite.Insts.CoreCmpPartialEqComposite
@@ -477,7 +477,7 @@ def Composite.Insts.CoreCmpEq : core.cmp.Eq Composite := {
 }
 
 /-- [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::Composite}::fmt]:
-    Source: 'wire/src/lib.rs', lines 130:37-130:42
+    Source: 'wire/src/lib.rs', lines 131:37-131:42
     Visibility: public -/
 def Composite.Insts.CoreFmtDebug.fmt
   (self : Composite) (f : core.fmt.Formatter) :
@@ -506,14 +506,14 @@ def Composite.Insts.CoreFmtDebug.fmt
   core.fmt.Formatter.debug_struct_fields_finish f (toStr "Composite") s values
 
 /-- Trait implementation: [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::Composite}]
-    Source: 'wire/src/lib.rs', lines 130:37-130:42 -/
+    Source: 'wire/src/lib.rs', lines 131:37-131:42 -/
 @[reducible]
 def Composite.Insts.CoreFmtDebug : core.fmt.Debug Composite := {
   fmt := Composite.Insts.CoreFmtDebug.fmt
 }
 
 /-- [tacenta_wire::encode_composite]:
-    Source: 'wire/src/lib.rs', lines 151:0-174:1
+    Source: 'wire/src/lib.rs', lines 152:0-175:1
     Visibility: public -/
 def encode_composite (h : Composite) : Result (alloc.vec.Vec Std.U8) := do
   let i ← COMPOSITE_LEN
@@ -554,7 +554,7 @@ def encode_composite (h : Composite) : Result (alloc.vec.Vec Std.U8) := do
     alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out11 s7
 
 /-- [tacenta_wire::be64_at]:
-    Source: 'wire/src/lib.rs', lines 265:0-269:1 -/
+    Source: 'wire/src/lib.rs', lines 266:0-270:1 -/
 def be64_at (bytes : Slice Std.U8) (at1 : Std.Usize) : Result Std.U64 := do
   let a := Array.repeat 8#usize 0#u8
   let (s, to_slice_mut_back) ← lift (Array.to_slice_mut a)
@@ -567,7 +567,7 @@ def be64_at (bytes : Slice Std.U8) (at1 : Std.Usize) : Result Std.U64 := do
   ok (core.num.U64.from_be_bytes a1)
 
 /-- [tacenta_wire::or_bytes]: loop body 0:
-    Source: 'wire/src/lib.rs', lines 258:4-261:5 -/
+    Source: 'wire/src/lib.rs', lines 259:4-262:5 -/
 @[rust_loop_body]
 def or_bytes_loop.body
   (bytes : Slice Std.U8) (from1 : Std.Usize) (len : Std.Usize) (acc : Std.U8)
@@ -584,7 +584,7 @@ def or_bytes_loop.body
   else ok (done acc)
 
 /-- [tacenta_wire::or_bytes]: loop 0:
-    Source: 'wire/src/lib.rs', lines 258:4-261:5 -/
+    Source: 'wire/src/lib.rs', lines 259:4-262:5 -/
 @[rust_loop]
 def or_bytes_loop
   (bytes : Slice Std.U8) (from1 : Std.Usize) (len : Std.Usize) (acc : Std.U8)
@@ -596,7 +596,7 @@ def or_bytes_loop
     (acc, i)
 
 /-- [tacenta_wire::or_bytes]:
-    Source: 'wire/src/lib.rs', lines 255:0-263:1 -/
+    Source: 'wire/src/lib.rs', lines 256:0-264:1 -/
 @[reducible]
 def or_bytes
   (bytes : Slice Std.U8) (from1 : Std.Usize) (len : Std.Usize) :
@@ -605,7 +605,7 @@ def or_bytes
   or_bytes_loop bytes from1 len 0#u8 0#usize
 
 /-- [tacenta_wire::decode_composite]:
-    Source: 'wire/src/lib.rs', lines 180:0-246:1
+    Source: 'wire/src/lib.rs', lines 181:0-247:1
     Visibility: public -/
 def decode_composite
   (bytes : Slice Std.U8) :
@@ -776,14 +776,14 @@ def decode_composite
                      }, s3))
 
 /-- [tacenta_wire::DecodedMessage]
-    Source: 'wire/src/lib.rs', lines 273:0-276:1
+    Source: 'wire/src/lib.rs', lines 274:0-277:1
     Visibility: public -/
 structure DecodedMessage where
   header : Composite
   ciphertext : alloc.vec.Vec Std.U8
 
 /-- [tacenta_wire::{impl core::clone::Clone for tacenta_wire::DecodedMessage}::clone]:
-    Source: 'wire/src/lib.rs', lines 272:9-272:14
+    Source: 'wire/src/lib.rs', lines 273:9-273:14
     Visibility: public -/
 def DecodedMessage.Insts.CoreCloneClone.clone
   (self : DecodedMessage) : Result DecodedMessage := do
@@ -792,21 +792,21 @@ def DecodedMessage.Insts.CoreCloneClone.clone
   ok { header := c, ciphertext := v }
 
 /-- Trait implementation: [tacenta_wire::{impl core::clone::Clone for tacenta_wire::DecodedMessage}]
-    Source: 'wire/src/lib.rs', lines 272:9-272:14 -/
+    Source: 'wire/src/lib.rs', lines 273:9-273:14 -/
 @[reducible]
 def DecodedMessage.Insts.CoreCloneClone : core.clone.Clone DecodedMessage := {
   clone := DecodedMessage.Insts.CoreCloneClone.clone
 }
 
 /-- Trait implementation: [tacenta_wire::{impl core::marker::StructuralPartialEq for tacenta_wire::DecodedMessage}]
-    Source: 'wire/src/lib.rs', lines 272:16-272:25 -/
+    Source: 'wire/src/lib.rs', lines 273:16-273:25 -/
 @[reducible]
 def DecodedMessage.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq DecodedMessage := {
 }
 
 /-- [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::DecodedMessage> for tacenta_wire::DecodedMessage}::eq]:
-    Source: 'wire/src/lib.rs', lines 272:16-272:25
+    Source: 'wire/src/lib.rs', lines 273:16-273:25
     Visibility: public -/
 def DecodedMessage.Insts.CoreCmpPartialEqDecodedMessage.eq
   (self : DecodedMessage) (other : DecodedMessage) : Result Bool := do
@@ -819,7 +819,7 @@ def DecodedMessage.Insts.CoreCmpPartialEqDecodedMessage.eq
   else ok false
 
 /-- Trait implementation: [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::DecodedMessage> for tacenta_wire::DecodedMessage}]
-    Source: 'wire/src/lib.rs', lines 272:16-272:25 -/
+    Source: 'wire/src/lib.rs', lines 273:16-273:25 -/
 @[reducible]
 def DecodedMessage.Insts.CoreCmpPartialEqDecodedMessage : core.cmp.PartialEq
   DecodedMessage DecodedMessage := {
@@ -827,14 +827,14 @@ def DecodedMessage.Insts.CoreCmpPartialEqDecodedMessage : core.cmp.PartialEq
 }
 
 /-- [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::DecodedMessage}::assert_fields_are_eq]:
-    Source: 'wire/src/lib.rs', lines 272:27-272:29
+    Source: 'wire/src/lib.rs', lines 273:27-273:29
     Visibility: public -/
 def DecodedMessage.Insts.CoreCmpEq.assert_fields_are_eq
   (self : DecodedMessage) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::DecodedMessage}]
-    Source: 'wire/src/lib.rs', lines 272:27-272:29 -/
+    Source: 'wire/src/lib.rs', lines 273:27-273:29 -/
 @[reducible]
 def DecodedMessage.Insts.CoreCmpEq : core.cmp.Eq DecodedMessage := {
   partialEqInst := DecodedMessage.Insts.CoreCmpPartialEqDecodedMessage
@@ -842,7 +842,7 @@ def DecodedMessage.Insts.CoreCmpEq : core.cmp.Eq DecodedMessage := {
 }
 
 /-- [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::DecodedMessage}::fmt]:
-    Source: 'wire/src/lib.rs', lines 272:31-272:36
+    Source: 'wire/src/lib.rs', lines 273:31-273:36
     Visibility: public -/
 def DecodedMessage.Insts.CoreFmtDebug.fmt
   (self : DecodedMessage) (f : core.fmt.Formatter) :
@@ -856,14 +856,14 @@ def DecodedMessage.Insts.CoreFmtDebug.fmt
     (toStr "header") dyn (toStr "ciphertext") dyn1
 
 /-- Trait implementation: [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::DecodedMessage}]
-    Source: 'wire/src/lib.rs', lines 272:31-272:36 -/
+    Source: 'wire/src/lib.rs', lines 273:31-273:36 -/
 @[reducible]
 def DecodedMessage.Insts.CoreFmtDebug : core.fmt.Debug DecodedMessage := {
   fmt := DecodedMessage.Insts.CoreFmtDebug.fmt
 }
 
 /-- [tacenta_wire::decode_message]:
-    Source: 'wire/src/lib.rs', lines 283:0-293:1
+    Source: 'wire/src/lib.rs', lines 284:0-294:1
     Visibility: public -/
 def decode_message
   (bytes : Slice Std.U8) :
@@ -876,5 +876,266 @@ def decode_message
     let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 s
     ok (core.result.Result.Ok { header := c, ciphertext := v })
   | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [tacenta_wire::TYPE_INITIAL]
+    Source: 'wire/src/lib.rs', lines 297:0-297:34
+    Visibility: public -/
+@[global_simps, irreducible] def TYPE_INITIAL : Std.U8 := 2#u8
+
+/-- [tacenta_wire::EC_LEN]
+    Source: 'wire/src/lib.rs', lines 300:0-300:25 -/
+@[global_simps, irreducible] def EC_LEN : Std.Usize := 33#usize
+
+/-- [tacenta_wire::DecodedInitial]
+    Source: 'wire/src/lib.rs', lines 304:0-312:1
+    Visibility: public -/
+structure DecodedInitial where
+  identity : alloc.vec.Vec Std.U8
+  ephemeral : alloc.vec.Vec Std.U8
+  kem_ciphertext : alloc.vec.Vec Std.U8
+  signed_prekey_id : Std.U32
+  one_time_prekey_id : Std.U32
+  kem_prekey_id : Std.U32
+  message : alloc.vec.Vec Std.U8
+
+/-- [tacenta_wire::{impl core::clone::Clone for tacenta_wire::DecodedInitial}::clone]:
+    Source: 'wire/src/lib.rs', lines 303:9-303:14
+    Visibility: public -/
+def DecodedInitial.Insts.CoreCloneClone.clone
+  (self : DecodedInitial) : Result DecodedInitial := do
+  let v ← alloc.vec.CloneVec.clone core.clone.CloneU8 self.identity
+  let v1 ← alloc.vec.CloneVec.clone core.clone.CloneU8 self.ephemeral
+  let v2 ← alloc.vec.CloneVec.clone core.clone.CloneU8 self.kem_ciphertext
+  let i ← lift (core.clone.impls.CloneU32.clone self.signed_prekey_id)
+  let i1 ← lift (core.clone.impls.CloneU32.clone self.one_time_prekey_id)
+  let i2 ← lift (core.clone.impls.CloneU32.clone self.kem_prekey_id)
+  let v3 ← alloc.vec.CloneVec.clone core.clone.CloneU8 self.message
+  ok
+    {
+      identity := v,
+      ephemeral := v1,
+      kem_ciphertext := v2,
+      signed_prekey_id := i,
+      one_time_prekey_id := i1,
+      kem_prekey_id := i2,
+      message := v3
+    }
+
+/-- Trait implementation: [tacenta_wire::{impl core::clone::Clone for tacenta_wire::DecodedInitial}]
+    Source: 'wire/src/lib.rs', lines 303:9-303:14 -/
+@[reducible]
+def DecodedInitial.Insts.CoreCloneClone : core.clone.Clone DecodedInitial := {
+  clone := DecodedInitial.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [tacenta_wire::{impl core::marker::StructuralPartialEq for tacenta_wire::DecodedInitial}]
+    Source: 'wire/src/lib.rs', lines 303:16-303:25 -/
+@[reducible]
+def DecodedInitial.Insts.CoreMarkerStructuralPartialEq :
+  core.marker.StructuralPartialEq DecodedInitial := {
+}
+
+/-- [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::DecodedInitial> for tacenta_wire::DecodedInitial}::eq]:
+    Source: 'wire/src/lib.rs', lines 303:16-303:25
+    Visibility: public -/
+def DecodedInitial.Insts.CoreCmpPartialEqDecodedInitial.eq
+  (self : DecodedInitial) (other : DecodedInitial) : Result Bool := do
+  if self.signed_prekey_id = other.signed_prekey_id
+  then
+    if self.one_time_prekey_id = other.one_time_prekey_id
+    then
+      if self.kem_prekey_id = other.kem_prekey_id
+      then
+        let b ←
+          alloc.vec.partial_eq.PartialEqVec.eq core.cmp.PartialEqU8
+            self.identity other.identity
+        if b
+        then
+          let b1 ←
+            alloc.vec.partial_eq.PartialEqVec.eq core.cmp.PartialEqU8
+              self.ephemeral other.ephemeral
+          if b1
+          then
+            let b2 ←
+              alloc.vec.partial_eq.PartialEqVec.eq core.cmp.PartialEqU8
+                self.kem_ciphertext other.kem_ciphertext
+            if b2
+            then
+              alloc.vec.partial_eq.PartialEqVec.eq core.cmp.PartialEqU8
+                self.message other.message
+            else ok false
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- Trait implementation: [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::DecodedInitial> for tacenta_wire::DecodedInitial}]
+    Source: 'wire/src/lib.rs', lines 303:16-303:25 -/
+@[reducible]
+def DecodedInitial.Insts.CoreCmpPartialEqDecodedInitial : core.cmp.PartialEq
+  DecodedInitial DecodedInitial := {
+  eq := DecodedInitial.Insts.CoreCmpPartialEqDecodedInitial.eq
+}
+
+/-- [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::DecodedInitial}::assert_fields_are_eq]:
+    Source: 'wire/src/lib.rs', lines 303:27-303:29
+    Visibility: public -/
+def DecodedInitial.Insts.CoreCmpEq.assert_fields_are_eq
+  (self : DecodedInitial) : Result Unit := do
+  ok ()
+
+/-- Trait implementation: [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::DecodedInitial}]
+    Source: 'wire/src/lib.rs', lines 303:27-303:29 -/
+@[reducible]
+def DecodedInitial.Insts.CoreCmpEq : core.cmp.Eq DecodedInitial := {
+  partialEqInst := DecodedInitial.Insts.CoreCmpPartialEqDecodedInitial
+  assert_fields_are_eq := DecodedInitial.Insts.CoreCmpEq.assert_fields_are_eq
+}
+
+/-- [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::DecodedInitial}::fmt]:
+    Source: 'wire/src/lib.rs', lines 303:31-303:36
+    Visibility: public -/
+def DecodedInitial.Insts.CoreFmtDebug.fmt
+  (self : DecodedInitial) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  let dyn := Dyn.mk _ (core.fmt.DebugVec core.fmt.DebugU8) self.identity
+  let dyn1 := Dyn.mk _ (core.fmt.DebugVec core.fmt.DebugU8) self.ephemeral
+  let dyn2 := Dyn.mk _ (core.fmt.DebugVec core.fmt.DebugU8) self.kem_ciphertext
+  let dyn3 := Dyn.mk _ core.fmt.DebugU32 self.signed_prekey_id
+  let dyn4 := Dyn.mk _ core.fmt.DebugU32 self.one_time_prekey_id
+  let dyn5 := Dyn.mk _ core.fmt.DebugU32 self.kem_prekey_id
+  let dyn6 :=
+    Dyn.mk _ (core.fmt.DebugShared (core.fmt.DebugVec core.fmt.DebugU8))
+      self.message
+  let values :=
+    Array.to_slice
+      (Array.make 7#usize [ dyn, dyn1, dyn2, dyn3, dyn4, dyn5, dyn6 ])
+  let s ←
+    lift (Array.to_slice
+      (Array.make 7#usize [
+        toStr "identity", toStr "ephemeral", toStr "kem_ciphertext", toStr
+        "signed_prekey_id", toStr "one_time_prekey_id", toStr "kem_prekey_id",
+        toStr "message"
+        ]))
+  core.fmt.Formatter.debug_struct_fields_finish f (toStr "DecodedInitial") s
+    values
+
+/-- Trait implementation: [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::DecodedInitial}]
+    Source: 'wire/src/lib.rs', lines 303:31-303:36 -/
+@[reducible]
+def DecodedInitial.Insts.CoreFmtDebug : core.fmt.Debug DecodedInitial := {
+  fmt := DecodedInitial.Insts.CoreFmtDebug.fmt
+}
+
+/-- [tacenta_wire::span_end]:
+    Source: 'wire/src/lib.rs', lines 331:0-342:1 -/
+def span_end
+  (bytes : Slice Std.U8) (at1 : Std.Usize) (n : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  let o ← lift (Usize.checked_add at1 n)
+  match o with
+  | none => ok none
+  | some end1 => let i := Slice.len bytes
+                 if end1 <= i
+                 then ok o
+                 else ok none
+
+/-- [tacenta_wire::be32_at]:
+    Source: 'wire/src/lib.rs', lines 345:0-347:1 -/
+def be32_at (bytes : Slice Std.U8) (at1 : Std.Usize) : Result Std.U32 := do
+  let i ← Slice.index_usize bytes at1
+  let i1 ← at1 + 1#usize
+  let i2 ← Slice.index_usize bytes i1
+  let i3 ← at1 + 2#usize
+  let i4 ← Slice.index_usize bytes i3
+  let i5 ← at1 + 3#usize
+  let i6 ← Slice.index_usize bytes i5
+  ok (core.num.U32.from_be_bytes (Array.make 4#usize [ i, i2, i4, i6 ]))
+
+/-- [tacenta_wire::decode_initial]:
+    Source: 'wire/src/lib.rs', lines 357:0-405:1
+    Visibility: public -/
+def decode_initial
+  (bytes : Slice Std.U8) :
+  Result (core.result.Result DecodedInitial DecodeError)
+  := do
+  let i := Slice.len bytes
+  if i < 2#usize
+  then ok (core.result.Result.Err DecodeError.TooShort)
+  else
+    let i1 ← Slice.index_usize bytes 0#usize
+    if i1 != VERSION
+    then ok (core.result.Result.Err DecodeError.UnknownVersion)
+    else
+      let i2 ← Slice.index_usize bytes 1#usize
+      if i2 != TYPE_INITIAL
+      then ok (core.result.Result.Err DecodeError.WrongType)
+      else
+        let o ← span_end bytes 2#usize EC_LEN
+        match o with
+        | none => ok (core.result.Result.Err DecodeError.TooShort)
+        | some end1 =>
+          let o1 ← span_end bytes end1 EC_LEN
+          match o1 with
+          | none => ok (core.result.Result.Err DecodeError.TooShort)
+          | some end2 =>
+            let o2 ← span_end bytes end2 4#usize
+            match o2 with
+            | none => ok (core.result.Result.Err DecodeError.TooShort)
+            | some end3 =>
+              let i3 ← be32_at bytes end2
+              let kem_len ← lift (UScalar.cast .Usize i3)
+              let o3 ← span_end bytes end3 kem_len
+              match o3 with
+              | none => ok (core.result.Result.Err DecodeError.LengthOverrun)
+              | some end4 =>
+                let o4 ← span_end bytes end4 4#usize
+                match o4 with
+                | none => ok (core.result.Result.Err DecodeError.TooShort)
+                | some end5 =>
+                  let o5 ← span_end bytes end5 4#usize
+                  match o5 with
+                  | none => ok (core.result.Result.Err DecodeError.TooShort)
+                  | some end6 =>
+                    let o6 ← span_end bytes end6 4#usize
+                    match o6 with
+                    | none => ok (core.result.Result.Err DecodeError.TooShort)
+                    | some end7 =>
+                      let s ←
+                        core.slice.index.Slice.index
+                          (core.slice.index.SliceIndexRangeUsizeSlice Std.U8)
+                          bytes { start := 2#usize, «end» := end1 }
+                      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 s
+                      let s1 ←
+                        core.slice.index.Slice.index
+                          (core.slice.index.SliceIndexRangeUsizeSlice Std.U8)
+                          bytes { start := end1, «end» := end2 }
+                      let v1 ← alloc.slice.Slice.to_vec core.clone.CloneU8 s1
+                      let s2 ←
+                        core.slice.index.Slice.index
+                          (core.slice.index.SliceIndexRangeUsizeSlice Std.U8)
+                          bytes { start := end3, «end» := end4 }
+                      let v2 ← alloc.slice.Slice.to_vec core.clone.CloneU8 s2
+                      let i4 ← be32_at bytes end4
+                      let i5 ← be32_at bytes end5
+                      let i6 ← be32_at bytes end6
+                      let s3 ←
+                        core.slice.index.Slice.index
+                          (core.slice.index.SliceIndexRangeFromUsizeSlice
+                          Std.U8) bytes { start := end7 }
+                      let v3 ← alloc.slice.Slice.to_vec core.clone.CloneU8 s3
+                      ok (core.result.Result.Ok
+                        {
+                          identity := v,
+                          ephemeral := v1,
+                          kem_ciphertext := v2,
+                          signed_prekey_id := i4,
+                          one_time_prekey_id := i5,
+                          kem_prekey_id := i6,
+                          message := v3
+                        })
 
 end tacenta_wire
