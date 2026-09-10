@@ -135,15 +135,15 @@ this section says in one place what is not proved.
   returns; `step_send_refines` and `Braid.send_refines` take it.
 - **A verified zone is not a verified library.** The zone is the ratchet and
   what it calls; orchestration, storage and lifecycle sit outside it.
-- **The verified wire parser has no caller.** `tacenta-protobuf` carries T1
-  and T3 below, and nothing on the live path calls it: outside its own
-  directory it is referenced only by a fuzz target. The bytes a peer actually
-  sends are parsed by `decode_message`, `decode_composite` and
-  `decode_initial` in the root crate's `serialization` module, which are
-  outside the translated surface and have no theorem. A reader who sees T1
-  and T3 for a wire parser and concludes that received bytes are parsed by
-  proved code would be wrong today; the proofs are what such a claim would
-  need on the parsing side, not the claim.
+- **The verified protobuf parser has no caller, and the prekey-message decoder
+  has no theorem.** `tacenta-protobuf` carries T1 and T3 below, and nothing on
+  the live path calls it: outside its own directory it is referenced only by a
+  fuzz target. The bytes of a ratchet message are parsed by `decode_message`
+  and `decode_composite`, which live in the `tacenta-wire` leaf crate and are
+  proved below (T1 and T3). A prekey message is parsed by `decode_initial`, in
+  the root crate's `serialization` module, which is outside the translated
+  surface and has no theorem. So received bytes are parsed by proved code for
+  a ratchet message and not for a prekey message.
 - **Which private key is agreed with which public key at a Diffie-Hellman
   ratchet step is decided outside every proof and every vector.** The
   specification's rule -- the old key pair for the receiving chain, the fresh
@@ -507,6 +507,33 @@ them, so this is the decoder the product runs.
 
 `decode_initial`, which decodes a prekey message, is still in the root crate
 and has no theorem.
+
+## Proved (tier T3, the ratchet-message decoder computes what the model says)
+
+Location: `Translation/WireT3.lean`.
+
+Against `Model.CompositeHeader.decode`, the model's decoder for the composite
+header, which applies the same "exactly one spelling" rules as the code.
+
+- `decode_composite_refines`: for every byte string, `decode_composite`
+  returns `Ok` exactly when the model returns `some`, with the same header
+  and the same unread bytes, and `Err` exactly when the model returns `none`.
+  No hypothesis. Because the model accepts one spelling of each header, the
+  code does too, for every input: the property `tests/canonicality.rs`
+  samples, stated in full.
+- `decode_message_refines`: the same for `decode_message`, whose ciphertext
+  is exactly the bytes the model leaves after the header.
+
+Both are pinned to `propext`, `Classical.choice` and `Quot.sound` alone.
+The big-endian arithmetic relating the code's `from_be_bytes` to the model's
+shifts and ORs is proved on the kernel in the same file; the model's own
+round-trip lemmas settle the same identities with `bv_decide`, and neither
+theorem depends on them.
+
+**What this does not give.** An end-to-end claim from wire bytes to a ratchet
+decision also needs the session's use of the decoded header, which is outside
+the translated surface (`tacenta-core/src/sessions`), and a prekey message's
+decoder, `decode_initial`, has no theorem.
 
 ## Proved (tier T1, the sparse post-quantum ratchet's entry points cannot fail)
 
@@ -1220,11 +1247,11 @@ Location: `tacenta-proofs/translation/Translation/SessionT3.lean`,
   interoperability tests that are not part of this public tree; nothing
   in the live `Session`
   send/receive path calls into it yet, which still uses the older fixed-width
-  `tacenta_core::serialization` format: `decode_message`, `decode_composite`
-  and `decode_initial` in the root crate are the decoders a peer's bytes
-  actually reach, they are outside the translated surface, and they have no
-  theorem. These proofs are what such a claim would need on the parsing
-  side, not the claim itself.
+  `tacenta_core::serialization` format. Of the decoders a peer's bytes
+  actually reach, `decode_message` and `decode_composite` are translated and
+  proved (see the `tacenta-wire` sections), and `decode_initial` is outside
+  the translated surface and has no theorem. These proofs are what such a
+  claim would need on the protobuf parsing side, not the claim itself.
 
   **Still not proved.** Canonical emission and raw-byte fidelity -- items 6
   and 7 of the verified-core contract.

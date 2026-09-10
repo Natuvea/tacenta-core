@@ -863,21 +863,18 @@ def DecodedMessage.Insts.CoreFmtDebug : core.fmt.Debug DecodedMessage := {
 }
 
 /-- [tacenta_wire::decode_message]:
-    Source: 'wire/src/lib.rs', lines 283:0-289:1
+    Source: 'wire/src/lib.rs', lines 283:0-293:1
     Visibility: public -/
 def decode_message
   (bytes : Slice Std.U8) :
   Result (core.result.Result DecodedMessage DecodeError)
   := do
   let r ← decode_composite bytes
-  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-  match cf with
-  | core.ops.control_flow.ControlFlow.Continue p =>
-    let (header, rest) := p
-    let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 rest
-    ok (core.result.Result.Ok { header, ciphertext := v })
-  | core.ops.control_flow.ControlFlow.Break residual =>
-    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
-      DecodedMessage (core.convert.FromSame DecodeError) residual
+  match r with
+  | core.result.Result.Ok p =>
+    let (c, s) := p
+    let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 s
+    ok (core.result.Result.Ok { header := c, ciphertext := v })
+  | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 end tacenta_wire

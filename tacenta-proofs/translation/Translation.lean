@@ -17,6 +17,7 @@ import Translation.ProtobufT3
 -- message's bytes reach on the live receive path.
 import Translation.TacentaWire
 import Translation.WireT1
+import Translation.WireT3
 -- The post-quantum stack, on the session's send and receive path. The
 -- classical half is under `T1`.
 import Translation.TacentaSpqr

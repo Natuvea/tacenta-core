@@ -281,11 +281,15 @@ pub struct DecodedMessage {
 /// message, in one structure. `decode_composite` returns the bytes that
 /// followed it, which are the ciphertext.
 pub fn decode_message(bytes: &[u8]) -> Result<DecodedMessage, DecodeError> {
-    let (header, rest) = decode_composite(bytes)?;
-    Ok(DecodedMessage {
-        header,
-        ciphertext: rest.to_vec(),
-    })
+    // A `match` rather than `?` and a tuple pattern: the translation of either
+    // is a pure destructuring `let` that the proofs cannot step through.
+    match decode_composite(bytes) {
+        Ok(parsed) => Ok(DecodedMessage {
+            header: parsed.0,
+            ciphertext: parsed.1.to_vec(),
+        }),
+        Err(e) => Err(e),
+    }
 }
 
 #[cfg(test)]

@@ -656,7 +656,7 @@ alone. And nothing anywhere in this project proves that an identity key belongs 
 the person a user means: that is trust on first use and the directory's problem,
 and it is the assumption a user actually bears.
 
-## Seven verified zones on the shipping path, and the orchestration runs outside them
+## Eight verified zones on the shipping path, and the orchestration runs outside them
 
 **Read this before the list.** Integrating the Triple Ratchet
 moved `Session::encrypt` and `Session::decrypt` off `tacenta-ratchet::send` and
@@ -1295,17 +1295,21 @@ decoder accepts anything at all is the Rust round-trip tests.
   called from the live `Session` send/receive path, which still uses the
   older fixed-width `tacenta_core::serialization` format.
 
-  **The verified reader has no caller.** Outside its own directory
+  **The verified protobuf reader has no caller.** Outside its own directory
   `tacenta-protobuf` is referenced only by the `protobuf_bodies` fuzz target.
-  The decoders a peer's bytes actually reach are `decode_message`,
-  `decode_composite` and `decode_initial` in the root crate's
-  `serialization` module, which `scripts/run-aeneas.sh` deliberately does not
-  translate and which have no theorem. So the crate's T1 and T3 are a
-  verified reader the product does not yet use, and a sentence anywhere that
-  says refinement begins at received bytes describes the design's intent,
-  not the shipping path. `decode_composite` is fixed-width and loop-free,
-  already in the translatable style; moving it into a leaf crate is what
-  would make the claim true.
+  The decoders a peer's bytes actually reach are `decode_message` and
+  `decode_composite`, for a ratchet message, and `decode_initial`, for a
+  prekey message. The first two now live in the `tacenta-wire` leaf crate,
+  which the root crate's `serialization` module re-exports, and they are
+  translated and proved: `Translation/WireT1.lean` shows they cannot fail on any
+  byte string, and `Translation/WireT3.lean` that `decode_composite` returns
+  exactly what `Model.CompositeHeader.decode` returns, kernel-only. So for a
+  ratchet message, what is parsed out of the bytes it arrived as is proved to
+  be what the model parses; what the session then does with the parsed header
+  is not translated.
+  `decode_initial` is still in the root crate, untranslated and without a
+  theorem, so a prekey message's parsing is not covered, and the protobuf
+  crate's T1 and T3 remain a verified reader the product does not use.
 
   **Why the parser state is one struct and the loop body one call, because
   it is the transferable part.** Charon joins the branches of an `if`/`else`
@@ -1508,7 +1512,7 @@ store and a chain table a session may carry, and that layer is not translated
 or proved in its own right. The classical one is discharged in the other
 island, by `Ratchet.inv_gives_store_bound` in `Translation/ImportInv.lean` and
 through it by `Ratchet.decoded_receive_no_panic`, for a state that came from
-`from_bytes`; "Seven verified zones on the shipping path" above describes that
+`from_bytes`; "Eight verified zones on the shipping path" above describes that
 route. It has not been ported to the unit, so it does not reach these
 theorems. All four hold of any state that could exist, at either platform
 width. They are bounds against `usize::MAX` on quantities a real session keeps
@@ -1761,7 +1765,7 @@ that assembly possible.
 
 - T1 (panic-freedom and memory safety of the core's verified zone via the
   Charon and Aeneas translation) **is proven**, under the stated assumptions and
-  for the verified zone only, which is the seven leaf crates and not the
+  for the verified zone only, which is the eight leaf crates and not the
   product. The assumptions it rests on are not all ones anybody chose. Where
   it stands, precisely:
   - **The ratchet, the verified zone, translates.** Charon extracts and Aeneas
