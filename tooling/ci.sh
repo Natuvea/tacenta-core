@@ -71,6 +71,17 @@ python3 tooling/check-bundle-drift.py
 # the next reader.
 bash tooling/tests/run-check-bundle-drift-cases.sh
 
+# A numeric precondition of the shape `x + A.max ≤ B.max`, with `A` at least as
+# wide as `B` on some target, forces `x` to zero there and describes no state
+# that has held anything. One such bound made `receive_no_panic` vacuous on
+# 32-bit targets for months while reading as a strong hypothesis. This refuses
+# the class in every first-party Lean file, and its cases hold it to that,
+# including that the two Lean refutations it allow-lists cannot be quietly
+# turned back into preconditions.
+echo "== No numeric precondition forces its subject to zero on some target =="
+python3 tooling/check-precondition-shapes.py
+bash tooling/tests/run-check-precondition-shapes-cases.sh
+
 # The three-leaf translation unit is generated from the three leaf crates, and
 # a generated crate that has stopped agreeing with its sources is a crate whose
 # translation is about code that is no longer there. This regenerates it into a

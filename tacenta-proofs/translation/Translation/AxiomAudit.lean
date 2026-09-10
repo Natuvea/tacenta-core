@@ -2,7 +2,7 @@ import Model.AxiomAudit
 import Translation
 import Translation.SpqrT3
 import Translation.BraidT3
-import Translation.PreconditionWitness
+import Translation.PreconditionShapes
 import Translation.Satisfiability
 import Translation.ImportInv
 import Translation.ErasureWitness
@@ -11,7 +11,7 @@ import Translation.KemWitness
 /-!
 The translation package's axiom audit, over everything the root `Translation`
 module imports plus the modules it cannot (`SpqrT3`, `BraidT3`,
-`PreconditionWitness`, `Satisfiability`, `ErasureWitness`, `KemWitness`, which the `Translation.*`
+`PreconditionShapes`, `Satisfiability`, `ErasureWitness`, `KemWitness`, which the `Translation.*`
 glob builds on their own). `TripleT1`/`TripleT3` cannot be imported alongside
 these -- `TacentaTriple` and `TacentaRatchet` both define
 `instDiscriminantRatchetErrorIsize`, the same limit `lakefile.toml` records --

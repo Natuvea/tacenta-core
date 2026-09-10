@@ -906,14 +906,18 @@ is discharged in the *other* island -- `Ratchet.inv_gives_store_bound` in
 `Ratchet.decoded_receive_no_panic` chains it from `from_bytes` -- so a state
 read off disk satisfies it there. That route has not been ported to the unit,
 which is why it does not help here. All four hold of any
-state that could exist, at either platform width, and
-`Translation/PreconditionWitness.lean` exhibits a value satisfying each shape
-rather than leaving that to be taken on trust. They are bounds against
+state that could exist, at either platform width. That is a claim about every
+realisable state and rests on the sizes involved, not on a proof: a witness
+would show only that some state meets each bound, which is weaker, and none of
+these four is proved to hold of every decoded state on the unit island. They are bounds against
 `Usize.max` on quantities that a real session keeps in the low thousands, so
 the way to violate one is to hold a vector with billions of entries.
 
 **What the trust base becomes, honestly.** `Tacenta.TripleT1.State.receive_no_panic`
-depends on twelve axioms and is kernel-only. This file's depends on eighteen
+depends on twelve axioms and is kernel-only, as measured on 2026-09-10 with
+`#print axioms`. It is **not pinned** -- the Triple's T1 and T3 files carry no
+`#guard_msgs` pin, which "Read this first" records -- so nothing enforces that
+count and it could move unnoticed. This file's depends on eighteen
 and is not: it inherits
 `Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`. Both halves
 matter. The current theorem is kernel-only because it *assumes* the sparse

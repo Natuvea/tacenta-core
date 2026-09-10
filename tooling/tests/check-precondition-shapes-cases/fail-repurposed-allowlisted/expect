@@ -1,0 +1,1 @@
+fail: no longer takes `h32 : Usize.max = U32.max`

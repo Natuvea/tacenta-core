@@ -1569,31 +1569,53 @@ assuming something nothing could satisfy. What it covers is the *opaque
 operation* family: the `Vec` operations, the `zeroize` wrapper, the
 derived-keys model.
 
-It did not cover a **numeric precondition** until 2026-09-10. Not one of the
-store, chain-length or counter bounds carried by a `no_panic` or `refines`
-theorem had a witness or a refutation anywhere in this tree, and that is
-exactly where the defect corrected on the same day lived: `receive`'s store
-bound asked for something no state could satisfy at 32 bits, sat in this file
-for months described as a genuine constraint, and no guard was pointed at it.
+It does not cover the **numeric preconditions**, the store, chain-length and
+counter bounds a `no_panic` or `refines` theorem carries about a state's sizes.
+That is the family the defect corrected on 2026-09-10 lived in: `receive`'s
+store bound asked for something no state with anything in it could satisfy at
+32 bits, and sat in this file for months described as a genuine constraint.
 
-`Translation/PreconditionWitness.lean` now points one at it. The tree's thirty
-or so numeric preconditions come in six shapes, and each shape is exhibited
-satisfiable at either platform width, splitting on `Std.Usize.bounds_eq` rather
-than assuming the wider one, since the defect was invisible on the machine the
-proofs were written on. The bound that was wrong is kept as a refutation:
-`old_store_bound_unsatisfiable_at_32` proves no store meets it on the narrower
-width, so reintroducing the shape fails a proof rather than passing as a
-strong-looking hypothesis.
+Two things now bear on that family, and they should not be mistaken for more.
 
-**What a witness there says, and what it does not.** It says the hypothesis is
-not vacuous. It does not say every state a session can reach satisfies it, and
-for one of the six that stronger claim is false: the clock headroom on the
-refinement of `receive` excludes the parked clock, which an honest run reaches
-after `2^32` accepted receives. Both facts are stated in that file, next to
-each other, because conflating them is how the 32-bit defect survived. Where
-the stronger claim does hold it is proved in `Translation/ImportInv.lean` from
-the crate's own `invariant()`, and `CLAIMS.md` says which preconditions have
-that treatment.
+**A lint refuses the class the defect belonged to, in every file.**
+`tooling/check-precondition-shapes.py` refuses any bound `x + A.max ≤ B.max`
+(or `<`, or with the addend first) where `A` is at least as wide as `B` on some
+target, since there the bound forces `x` to zero. It reads theorem binders,
+assumption-bundle bodies and bounds split across lines, with comments and
+strings removed. Run against the tree as it stood before the fix, it refuses
+**twenty-one** sites across eight files, which is more than the fix itself
+counted: besides the classical ratchet's and the refinement's, it finds the
+three in `ImportInv.lean` that took the platform fact as an argument. Its cases
+hold it to the class, including a bundle clause and a bound split over three
+lines. It catches that one class and no other.
+
+**The class is proved to be the right thing to refuse.**
+`Translation/PreconditionShapes.lean` refutes both forms the defect took: the
+store bound admits no store at 32 bits, and the skip bound admits only the empty
+one. The lint allow-lists exactly those two theorems, only while each still
+takes the 32-bit width as a hypothesis, so neither can be turned back into a
+precondition under its allow-listed name, and it fails if either is deleted.
+
+What is **not** established is that the tree's numeric preconditions are
+satisfiable in general. There are 144 such bounds on 96 theorems, in 54 shapes.
+An earlier version of that file claimed to witness them all through "six
+shapes"; a cold read showed the six covered 42 of the 96 theorems and that the
+witnesses were connected to none of them, since nothing compared a witness with
+any theorem's hypothesis. Those witnesses were removed rather than defended.
+The store bounds the classical ratchet's `receive` carries are satisfied by
+every state its decoder accepts (`Ratchet.inv_gives_store_bound`,
+`Ratchet.store_plus_skip_fits`), and the sparse ratchet's room bounds likewise
+(`Spqr.inv_gives_chain_room`, `Spqr.inv_gives_skip_room`), which is far
+stronger than a witness. The remaining shapes, among them the `epochsKept`
+family on the sparse ratchet's refinement and the `32 *` bounds on the erasure
+coder, are unexamined.
+
+**Satisfiable is not satisfied by every state.** A witness says a hypothesis is
+not vacuous. It does not say every reachable state meets it. The clock headroom
+on the refinement of `receive` is satisfiable and excludes the parked clock, an
+ordinary state a session reaches, and `PreconditionShapes.lean` states both
+facts beside each other. The epoch step on the sparse ratchet's refinement is
+another instance.
 
 The unit island is thinner still: nothing there has a witness of either kind.
 `UnitT1.DerivedKeysModel`'s leaf twin is witnessed and its copy is not, which

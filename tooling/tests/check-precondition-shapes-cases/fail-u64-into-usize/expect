@@ -1,0 +1,1 @@
+fail: `U64.max` is added to a bound against `Usize.max`

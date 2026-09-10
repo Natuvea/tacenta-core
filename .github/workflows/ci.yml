@@ -242,6 +242,8 @@ jobs:
       # no Lean toolchain, so it belongs in this job.
       - run: python3 tooling/check-bundle-drift.py
       - run: bash tooling/tests/run-check-bundle-drift-cases.sh
+      - run: python3 tooling/check-precondition-shapes.py
+      - run: bash tooling/tests/run-check-precondition-shapes-cases.sh
       # The three-leaf translation unit, `tacenta-core/triple-unit`, is
       # generated from the three leaf crates. This re-assembles it into a
       # temporary directory and diffs, so a hand-edited unit crate or one left
