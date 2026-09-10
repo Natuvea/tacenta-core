@@ -96,7 +96,10 @@ this section says in one place what is not proved.
   `T3.ZeroizingRoundTrips` with `T1.DerivedKeysModel`, and the sparse ratchet's
   two round trips), and every HMAC and HKDF agreement and `OptionCloneTotal` the
   classical, sparse, session and Braid refinements take, from the model's output
-  lengths and the identity clone.
+  lengths and the identity clone. The session's HKDF totality and wrapper model,
+  the sparse ratchet's array wipe and the erasure crate's `div_ceil` and
+  `truncate` are witnessed there too, and the remaining key-derivation totalities
+  follow from witnessed agreements by named theorems.
   `Translation/UnitSatisfiabilityTriple.lean`, which cannot share an
   environment with the rest, does the same for the Triple Ratchet's two
   (`UnitT1.ZeroizingTotal`, `UnitTripleT3.ZeroizingRoundTrips`) and for the
@@ -704,7 +707,7 @@ entry's `stored_at` is ahead of `events`, the store is pairwise distinct on
   `from_bytes_establishes_inv` is **not vacuous**: its premise is
   satisfiable, and a decoder that rejected every buffer would not satisfy
   this. Same three axioms, pinned. This is the discipline
-  `Translation/Satisfiability.lean` applies to every boundary hypothesis,
+  `Translation/Satisfiability.lean` applies to the leaves' opaque-boundary hypotheses,
   applied to a decoder's premise. There is no counterpart for the sparse
   ratchet or the Braid: those `from_bytes` chains are longer, and the
   Braid's runs through the opaque erasure and KEM decoders, which no byte
@@ -1558,8 +1561,10 @@ it builds the translation package, and that build covers every module under
 `translation/Translation/` whether or not the root imports it
 (`scripts/check-translation-coverage.sh` asserts each produced an `.olean`),
 including `Translation/Satisfiability.lean` and
-`Translation/UnitSatisfiabilityTriple.lean`, which fail if any `Vec`-family or
-`zeroize`-wrapper boundary hypothesis becomes refutable,
+`Translation/UnitSatisfiabilityTriple.lean`, which fail if a witnessed
+opaque-boundary hypothesis (the `Vec` operations, the `zeroize` wrapper, the
+key-derivation agreements, `Option`'s clone and the rest they list) becomes
+refutable,
 `Translation/ErasureWitness.lean` and `Translation/KemWitness.lean`, which
 fail if the Braid's erasure or KEM hypotheses lose their model, and
 `Translation/AxiomAudit.lean` and `AxiomAuditTripleUnit.lean`, which walk the

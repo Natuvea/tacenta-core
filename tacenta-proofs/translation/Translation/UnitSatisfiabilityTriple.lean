@@ -6,7 +6,7 @@ import Translation.UnitTripleT3
 `Translation/UnitTripleT3.lean` restates the Triple Ratchet's refinement about the
 three-leaf translation unit, and its discharged theorems take the boundary the
 inner refinements take, restated about the unit's constants.
-`Translation/Satisfiability.lean` witnesses the leaves' copies of most of those
+`Translation/Satisfiability.lean` witnesses the leaves' copies of those
 hypotheses, but it is about the leaves' constants and cannot share a Lean
 environment with the unit, so it says nothing about these. This file witnesses
 the unit's own, in the same style. Each hypothesis is shown to be exactly a shape

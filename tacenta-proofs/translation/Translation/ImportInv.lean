@@ -55,8 +55,8 @@ For `tacenta-ratchet` there is a fourth thing: `witnessBytes`, a concrete
 byte string the translated `from_bytes` accepts, and
 `from_bytes_establishes_inv_nonvacuous`, which composes it with (2) so that
 the implication in (2) is known to have a witness rather than only an
-unsatisfiable premise. `Satisfiability.lean` applies that discipline to every
-boundary hypothesis; this is the same discipline applied to a decoder. The
+unsatisfiable premise. `Satisfiability.lean` applies that discipline to the leaves'
+opaque-boundary hypotheses; this is the same discipline applied to a decoder. The
 sparse ratchet and the Braid have no such witness: their `from_bytes` chains
 are longer, and the Braid's runs through the opaque erasure and KEM decoders,
 which no byte string can be shown to satisfy from inside this translation.

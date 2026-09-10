@@ -1519,8 +1519,10 @@ this tree's worst defect lived.** `Translation/Satisfiability.lean` and
 assumption, and for several also prove that the over-broad version of the same
 assumption admits no implementation at all. That is a real guard against
 assuming something nothing could satisfy. What it covers is the *opaque
-operation* family: the `Vec` operations, the `zeroize` wrapper, the
-derived-keys model.
+operation* family: the `Vec` operations, the `zeroize` wrapper and its models,
+the key-derivation agreements and totalities, `Option`'s clone, and the erasure
+crate's `div_ceil` and `truncate` -- some of the totalities only by derivation
+from a witnessed agreement.
 
 It does not cover the **numeric preconditions**, the store, chain-length and
 counter bounds a `no_panic` or `refines` theorem carries about a state's sizes.
