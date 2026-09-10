@@ -26,4 +26,4 @@ and `Translation` prefixes are audited here: the model is imported into this
 package, and a widening in it would reach every refinement theorem.
 -/
 
-run_cmd Model.AxiomAudit.run #[`Model, `Translation]
+run_cmd Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]

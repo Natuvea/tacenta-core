@@ -1,0 +1,24 @@
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Written by tacenta-proofs/scripts/assemble-triple-unit.sh from the three
+# leaf crates. Edit the leaves; run the script. An edit here is undone by
+# the next run and refused by `assemble-triple-unit.sh --check`, which
+# tooling/ci.sh runs, and by `attest.py --check`, which holds this crate
+# to the hashes of the script and of all three leaf trees.
+
+[package]
+name = "tacenta-triple-unit"
+license = "Apache-2.0"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.87"
+description = "The Triple Ratchet and both inner ratchets compiled as one crate, so Charon translates the composition with its leaves rather than over opaque axioms. Generated; not shipped."
+publish = false
+
+[dependencies]
+tacenta-kdf = { path = "../kdf" }
+zeroize = { version = "1", features = ["derive"] }
+
+[lib]
+test = false
+doctest = false

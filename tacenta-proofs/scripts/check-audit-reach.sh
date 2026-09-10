@@ -7,9 +7,11 @@
 # outside the compiler's shape -- but only in the environment it is run in,
 # which is whatever the invoking module imports. Each package carries one
 # such module (`Properties/AxiomAudit.lean`, `Proofs/AxiomAudit.lean`,
-# `Translation/AxiomAudit.lean`, and `Translation/AxiomAuditTriple.lean` for
-# the Triple half that cannot share an environment with the rest), each with
-# a hand-maintained import list. A module missing from every list is built,
+# `Translation/AxiomAudit.lean`, and, for the two Triple translations that
+# cannot share an environment with the rest or with each other,
+# `Translation/AxiomAuditTriple.lean` and
+# `Translation/AxiomAuditTripleUnit.lean`), each with a hand-maintained import
+# list. A module missing from every list is built,
 # has its `sorry`s scanned, is replayed by `leanchecker`, and is never
 # walked: an axiom declared in it, or a planted compiler-trust axiom the
 # text scan did not see, would reach every theorem importing it without the
@@ -27,6 +29,16 @@
 # and is imported by nothing; it is scanned textually by
 # `check-lean-constructs.sh` and is outside this check.
 #
+# It also checks the other half of the audit's scope: that every audit is
+# given the same first-party prefixes. `Model.AxiomAudit` decides what counts
+# as a first-party module from the `prefixes` argument at its call site, and
+# the waiver for an unmentioned compiler-trust axiom asks whether any
+# first-party declaration mentions it. If one audit's prefixes named fewer
+# namespaces than another's, a use could sit in a module that audit does not
+# count as first-party, and the axiom would look unmentioned to the audit that
+# declares it while never being walked by the audit that uses it. Reachability
+# alone does not rule that out. Requiring one prefix list everywhere does.
+#
 # Run after the three builds (`no-sorry.sh` does), from any directory.
 set -euo pipefail
 
@@ -35,13 +47,17 @@ cd "$(dirname "$0")/../.."
 python3 - <<'PY'
 import os, re, subprocess, sys
 
+# The one prefix list every audit must be given.
+PREFIXES = "#[`Model, `Properties, `Proofs, `Translation]"
+
 # package directory -> (audit modules, source directories whose every .lean
 # must be reached, root modules that must be reached)
 PACKAGES = [
     ("tacenta-model", ["Properties/AxiomAudit.lean"], ["Model", "Properties"], []),
     ("tacenta-proofs", ["Proofs/AxiomAudit.lean"], ["Proofs"], []),
     ("tacenta-proofs/translation",
-     ["Translation/AxiomAudit.lean", "Translation/AxiomAuditTriple.lean"],
+     ["Translation/AxiomAudit.lean", "Translation/AxiomAuditTriple.lean",
+      "Translation/AxiomAuditTripleUnit.lean"],
      ["Translation"], ["Translation.lean"]),
 ]
 FIRST_PARTY = ("Model", "Properties", "Proofs", "Translation")
@@ -87,6 +103,45 @@ def direct_imports(pkg, files):
 fail = False
 total_reached = 0
 summary = []
+audit_call = re.compile(r"^run_cmd Model\.AxiomAudit\.run (.*)$", re.M)
+n_calls = 0
+for pkg, audits, _, _ in PACKAGES:
+    for a in audits:
+        path = os.path.join(pkg, a)
+        if not os.path.exists(path):
+            continue
+        text = open(path).read()
+        calls = audit_call.findall(text)
+        # Any other way of writing the call -- parenthesised, indented, on the
+        # end of another line -- is not matched by the pattern above and would
+        # otherwise be invisible here. `check-lean-constructs.sh` refuses such
+        # a line outright, and this counts it so that neither script is the
+        # only thing standing between a second invocation and the tree.
+        mentions = text.count("Model.AxiomAudit.run")
+        if mentions != len(calls):
+            fail = True
+            sys.stderr.write(
+                f"::error::{path}: mentions Model.AxiomAudit.run {mentions} "
+                f"time(s) but only {len(calls)} are a plain `run_cmd "
+                f"Model.AxiomAudit.run ...` line. An invocation written any "
+                f"other way is not checked here.\n")
+            continue
+        if len(calls) != 1:
+            fail = True
+            sys.stderr.write(
+                f"::error::{path}: expected exactly one `run_cmd "
+                f"Model.AxiomAudit.run` line, found {len(calls)}\n")
+            continue
+        n_calls += 1
+        if calls[0].strip() != PREFIXES:
+            fail = True
+            sys.stderr.write(
+                f"::error::{path}: the audit runs with prefixes {calls[0].strip()}, "
+                f"not {PREFIXES}. Every audit must be given the same first-party "
+                f"prefixes, or a declaration one audit counts as first-party is "
+                f"invisible to another and the unmentioned-axiom waiver can be "
+                f"satisfied by a split rather than by disuse.\n")
+
 for pkg, audits, subdirs, roots in PACKAGES:
     files = sources(pkg, subdirs, roots)
     required = {module_of(f) for f in files}
@@ -116,13 +171,15 @@ for pkg, audits, subdirs, roots in PACKAGES:
             sys.stderr.write(f"    {m}\n")
         sys.stderr.write(
             "  Add each to the audit module's imports (or, for a Triple module, to "
-            "Translation/AxiomAuditTriple.lean).\n")
+            "Translation/AxiomAuditTriple.lean, or for the three-leaf unit to "
+            "Translation/AxiomAuditTripleUnit.lean).\n")
     n = len(required & reached)
     total_reached += n
     summary.append(f"{pkg} {n}")
 
 if not fail:
-    print(f"audit-reach: the 4 audit modules reach all {total_reached} first-party "
-          f"modules ({', '.join(summary)})")
+    print(f"audit-reach: the {n_calls} audit modules, all with the same first-party "
+          f"prefixes, reach all {total_reached} first-party modules "
+          f"({', '.join(summary)})")
 sys.exit(1 if fail else 0)
 PY

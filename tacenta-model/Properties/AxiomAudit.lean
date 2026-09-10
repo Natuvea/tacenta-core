@@ -33,4 +33,4 @@ to be audited; the model's own `native_decide` field proofs pass under the
 compiler-trust allowance the audit documents.
 -/
 
-run_cmd Model.AxiomAudit.run #[`Model, `Properties]
+run_cmd Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]

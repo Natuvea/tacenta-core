@@ -1469,14 +1469,23 @@ line, in every hand-written module including the package roots and
 refuses every elaboration-time construct (`run_cmd`, `#eval`, `elab`,
 `macro`, `syntax`, `initialize`, `addDecl`, any reference to the `Lean`
 namespace) outside `Model/AxiomAudit.lean`'s own implementation and the
-four `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
+five `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
 exact line content: the audit accepts the compiler-trust axioms by shape
 and cannot tell a planted one, added by such code with its name assembled
 from string literals, from a real one, so the absence of such code is what
 excludes it (`LIMITATIONS.md`, "Trusted, not verified").
 `scripts/check-audit-reach.sh` fails if any first-party module, generated
-ones included, is outside the four audit modules' import closure, since
-the audit walks only what its invoking module imports.
+ones included, is outside the five audit modules' import closure, since
+the audit walks only what its invoking module imports, and fails if the
+five do not all run with the same first-party prefixes, since the audit's
+waiver for an unmentioned compiler-trust axiom asks whether any first-party
+declaration mentions it and only sees the modules in its own environment.
+`scripts/check-audit-negatives.sh` plants twelve declarations: one for each
+of the seven kinds the audit refuses, one for each condition a compiler-trust
+axiom must meet, and one for the shape the waiver accepts. It fails if the
+audit calls any of them wrongly. Its own comment carries the matrix of which
+case goes red when which rule is deleted, because a test that passes on a
+broken rule is worth nothing.
 `no-sorry.sh` then replays every first-party module through the kernel
 with `leanchecker`, which is the check against a declaration added with
 kernel checking turned off.

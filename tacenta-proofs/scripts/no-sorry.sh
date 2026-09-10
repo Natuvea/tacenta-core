@@ -93,8 +93,16 @@ bash scripts/check-lean-constructs.sh || fail=1
 # audited. This asks Lean for each module's imports and fails if any
 # first-party module (the generated `Tacenta*.lean` included, since the
 # `audit-axiom:` comparison above sees only the generated modules the audit
-# reached) is outside the four audit modules' import closure.
+# reached) is outside the five audit modules' import closure.
 bash scripts/check-audit-reach.sh || fail=1
+
+# Both of the checks above ask what the audit found. This one asks whether the
+# audit finds anything: it plants declarations the rule says to refuse, and the
+# one shape the rule says to allow, in a throwaway first-party module and
+# compares the outcome with the rule. It is the only check that would notice
+# the audit going quiet, which matters most for the waiver `compilerTrust`
+# grants an unmentioned compiler-trust axiom.
+bash scripts/check-audit-negatives.sh || fail=1
 
 # Replay every first-party module through the kernel from its olean.
 #

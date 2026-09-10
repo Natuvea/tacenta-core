@@ -1,5 +1,13 @@
 [workspace]
-members = ["ratchet", "session", "kdf", "erasure", "kem", "braid", "spqr", "triple", "protobuf"]
+members = ["ratchet", "session", "kdf", "erasure", "kem", "braid", "spqr", "triple", "protobuf", "triple-unit"]
+
+# `triple-unit` is generated, not written: `tacenta-proofs/scripts/assemble-triple-unit.sh`
+# assembles the Triple Ratchet and both inner ratchets into one crate so that
+# Charon translates the composition together with its leaves rather than over
+# opaque axioms (the script's header says why, and what the unit is and is not).
+# Nothing links against it and it is never published; it is a member so that it
+# resolves against this lockfile and compiles under the profiles below, which is
+# what makes its translation the leaves' compilation rather than a second one.
 
 # Overflow checks stay on in release builds, for every crate in the workspace.
 # A length computation that wraps in release is exactly the class of bug this

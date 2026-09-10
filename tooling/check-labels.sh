@@ -23,6 +23,20 @@
 # the leaf crates', and `LABELS.md` can say every domain-separation string is
 # in one place.
 #
+# **One directory is left out, and it is the only one.** `tacenta-core/triple-unit`
+# is generated, not written: `tacenta-proofs/scripts/assemble-triple-unit.sh`
+# assembles the Triple Ratchet and both inner ratchets into one crate so Charon
+# can translate the composition together with its leaves. Its
+# `src/tacenta_triple.rs` is a copy of `tacenta-core/triple/src/lib.rs` and so
+# carries that file's two labels a second time, which the duplicate check below
+# would refuse -- correctly, on its own terms, since two constants with one value
+# usually are two names for one label. Here they are one constant read twice.
+# Skipping the generated crate is what keeps the check about labels somebody
+# wrote. Nothing is lost by it: the copy is byte-identical to the leaf apart
+# from an inserted `use` (`assemble-triple-unit.sh --check` and
+# `attest.py --check` both hold it to that), so a label added, changed or
+# removed there is a label added, changed or removed in
+# `tacenta-core/triple/src/lib.rs`, which is scanned.
 set -euo pipefail
 
 cd "$(cd "$(dirname "$0")/.." && pwd)"
@@ -30,11 +44,22 @@ cd "$(cd "$(dirname "$0")/.." && pwd)"
 registry="tacenta-core/LABELS.md"
 status=0
 
+# The directories scanned: the root crate's own source and each leaf crate's,
+# minus the generated translation unit (see the header). Built as a list rather
+# than left as a glob so that the one exclusion is visible and named.
+scan_dirs=()
+for d in tacenta-core/src tacenta-core/*/src; do
+  case "$d" in
+    tacenta-core/triple-unit/src) continue ;;
+  esac
+  [ -d "$d" ] && scan_dirs+=("$d")
+done
+
 # Source of truth: the constants themselves. One extraction, used by both
 # halves below, so the two cannot disagree about what a label is.
 extract_labels() {
   grep -rhoE '^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?(const|static)[[:space:]]+[A-Z_]*(INFO|LABEL):[[:space:]]*&('\''static[[:space:]]+)?\[u8\][[:space:]]*=[[:space:]]*b"[^"]*"' \
-    --include='*.rs' tacenta-core/src tacenta-core/*/src 2>/dev/null \
+    --include='*.rs' "${scan_dirs[@]}" 2>/dev/null \
     | sed 's/.*b"//; s/"$//'
 }
 

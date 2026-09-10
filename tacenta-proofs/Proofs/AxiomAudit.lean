@@ -19,4 +19,4 @@ named after). A new module under `Proofs/` must be added to the imports above
 to be audited.
 -/
 
-run_cmd Model.AxiomAudit.run #[`Model, `Proofs]
+run_cmd Model.AxiomAudit.run #[`Model, `Properties, `Proofs, `Translation]

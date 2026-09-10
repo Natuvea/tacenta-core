@@ -25,7 +25,10 @@ SHA-256 of the Rust verified zone it was generated from, and the SHA-256 of
 the workspace inputs that shape what Charon extracts from every zone (the
 workspace `Cargo.toml` and its profiles, `Cargo.lock`, `.cargo/`, and the
 `kdf` and `kem` crates whose signatures become the opaque externals), with
-the Aeneas pin. It is written only by `--refresh-translation`, which is meant
+the Aeneas pin. One zone is generated rather than written -- the three-leaf
+translation unit `tacenta-core/triple-unit` -- and its record carries its
+provenance as well as its bytes: the assembly script and all three leaf trees
+it was assembled from, so that a leaf edited without re-assembling fails. It is written only by `--refresh-translation`, which is meant
 to be run immediately after `scripts/run-aeneas.sh`, refuses a `Tacenta*.lean`
 that `run-aeneas.sh` does not produce, and every other mode compares the
 tree against it. That is what makes it provenance rather than self-description:
@@ -58,16 +61,24 @@ RUN_AENEAS = ROOT / "tacenta-proofs" / "scripts" / "run-aeneas.sh"
 
 SCHEMA_VERSION = 1
 # The translation attestation's own schema: 2 added `workspace_sha256` to every
-# record, so a manifest without it is refused rather than read as complete.
-TRANSLATION_SCHEMA_VERSION = 2
+# record, so a manifest without it is refused rather than read as complete;
+# 3 added `assembly` to the records of zones that are generated rather than
+# written, so a manifest without it cannot claim to have covered their sources.
+TRANSLATION_SCHEMA_VERSION = 3
 
 # The crates Charon and Aeneas translate. A proof about translated Rust is a
 # proof about *these* bytes, so their hashes belong in the attestation.
 #
-# All seven, matching `scripts/run-aeneas.sh`, so that the attestation records
+# All eight, matching `scripts/run-aeneas.sh`, so that the attestation records
 # bytes for every crate `CLAIMS.md` carries T1 and T3 for. If `run-aeneas.sh`
 # gains a crate, this list must gain it too; the two are checked against each
 # other below.
+#
+# The eighth, `triple-unit`, carries no claims yet: it is the three-leaf
+# translation unit, generated rather than written, and hashing it is how a
+# hand-edited generated crate is caught. Where its *sources* are hashed is
+# `ASSEMBLED_ZONES`, immediately below, because hashing a generated tree says
+# only that it is the tree somebody generated, not what it was generated from.
 VERIFIED_ZONES = [
     "tacenta-core/ratchet",
     "tacenta-core/session",
@@ -76,7 +87,35 @@ VERIFIED_ZONES = [
     "tacenta-core/spqr",
     "tacenta-core/braid",
     "tacenta-core/triple",
+    "tacenta-core/triple-unit",
 ]
+
+# Verified zones that are *assembled*, and what from.
+#
+# An ordinary zone is written by hand, so `zone_sha256` is its provenance: the
+# translation is stale exactly when the crate's bytes move. A generated zone's
+# bytes are a consequence, not a cause. Its provenance is the script that wrote
+# it and the trees the script read, so the record carries those too and
+# `--check` fails when any of them moves without a regeneration -- which is the
+# case that matters, since editing a leaf changes the unit's translation while
+# leaving the unit crate in the tree looking untouched until somebody re-runs
+# the assembly.
+#
+# This is stricter than it may look: the leaf trees here are already attested
+# in their own right (all three are verified zones), so a leaf edit already
+# fails the check for that leaf's own generated module. Naming them again here
+# is what makes the *unit's* record fail too, independently and with a message
+# that says to re-assemble and re-translate rather than only to re-translate.
+ASSEMBLED_ZONES = {
+    "tacenta-core/triple-unit": {
+        "script": "tacenta-proofs/scripts/assemble-triple-unit.sh",
+        "sources": [
+            "tacenta-core/ratchet",
+            "tacenta-core/spqr",
+            "tacenta-core/triple",
+        ],
+    },
+}
 
 # The crates the verified zones bottom out in but that are NOT translated:
 # every `HmacTotal`/`HkdfAgrees`/`Encapsulate2Total`-style hypothesis is a
@@ -692,16 +731,33 @@ def check_zones_match_translation():
 # The translation attestation
 # ---------------------------------------------------------------------------
 
+def assembly_record(zone):
+    """For a zone that is assembled rather than written, what it was assembled
+    from: the script, and each source tree it reads. `None` for an ordinary
+    zone, whose own hash is already its provenance."""
+    spec = ASSEMBLED_ZONES.get(zone)
+    if spec is None:
+        return None
+    return {
+        "script": spec["script"],
+        "script_sha256": file_hash(spec["script"]),
+        "sources": {
+            src: tree_hash(src)["sha256"] for src in spec["sources"]
+        },
+    }
+
+
 def translation_attestation():
     """What the generated translation is, right now: per file, its hash, the
-    axioms it declares, and the hash of the Rust it stands for."""
+    axioms it declares, and the hash of the Rust it stands for -- plus, where
+    that Rust is itself generated, what it was generated from."""
     zones = translated_modules()
     workspace = workspace_hash()["sha256"]
     files = {}
     for p in generated_files():
         module = p.stem
         zone = zones.get(module)
-        files[str(p.relative_to(ROOT))] = {
+        record = {
             "module": module,
             "sha256": hashlib.sha256(p.read_bytes()).hexdigest(),
             "axioms": axioms_declared(p),
@@ -709,6 +765,10 @@ def translation_attestation():
             "zone_sha256": tree_hash(zone)["sha256"] if zone else None,
             "workspace_sha256": workspace,
         }
+        assembly = assembly_record(zone) if zone else None
+        if assembly is not None:
+            record["assembly"] = assembly
+        files[str(p.relative_to(ROOT))] = record
     return {
         "schema_version": TRANSLATION_SCHEMA_VERSION,
         "_note": (
@@ -722,7 +782,13 @@ def translation_attestation():
             "the Rust verified zone it was generated from, and the workspace inputs "
             "that shape every zone's extraction (Cargo.toml and its profiles, "
             "Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed "
-            "to when this was written, as recorded by whoever ran the toolchain. It "
+            "to when this was written, as recorded by whoever ran the toolchain. "
+            "Where the zone is assembled rather than written (tacenta-core/triple-unit, "
+            "the three-leaf translation unit), the record carries an `assembly` "
+            "field naming the script and the three leaf trees it was assembled from, "
+            "with their hashes, and --check fails if any of them has moved since; "
+            "assemble-triple-unit.sh --check is the separate question of whether the "
+            "unit crate in the tree is what those leaves assemble to. It "
             "does not establish that the toolchain was run, or run honestly: that is "
             "checked by regenerating with run-aeneas.sh and diffing, which "
             "REPRODUCING.md describes."
@@ -739,14 +805,15 @@ def translation_attestation():
 def check_translation(current):
     """The tree against the recorded translation attestation.
 
-    Five questions, each its own failure: is every file named like a
+    Six questions, each its own failure: is every file named like a
     generated one a module `run-aeneas.sh` produces; is every generated file
     the bytes that were recorded; does each declare exactly the axioms that
     were recorded (compared as sets, so a removed axiom fails as an added one
-    does); is the Rust each was generated from still the Rust in the tree; and
-    are the workspace inputs that shape every zone's extraction still what
-    they were. The last two are the ones that go stale by ordinary work, and
-    their messages say what to do.
+    does); is the Rust each was generated from still the Rust in the tree; for
+    a zone that is assembled rather than written, are the assembly script and
+    all three leaf trees still what they were; and are the workspace inputs
+    that shape every zone's extraction still what they were. The last three are
+    the ones that go stale by ordinary work, and their messages say what to do.
     """
     problems = []
     for rel, w in current["generated_files"].items():
@@ -820,6 +887,54 @@ def check_translation(current):
                 "regenerate with scripts/run-aeneas.sh on the pinned toolchain and "
                 "re-run attest.py --refresh-translation"
             )
+        # The assembled zone's provenance. Compared field by field rather than
+        # as one blob so the message can name what moved: an edited assembly
+        # script and an edited leaf are different mistakes with different
+        # fixes, and "the record differs" would send a reader looking through
+        # four trees.
+        r_asm, w_asm = r.get("assembly"), w.get("assembly")
+        if (r_asm is None) != (w_asm is None):
+            problems.append(
+                f"{rel} is recorded "
+                f"{'with' if r_asm else 'without'} an assembly record and the tree "
+                f"now says it is {'assembled' if w_asm else 'written by hand'}: "
+                "ASSEMBLED_ZONES and the recorded manifest disagree about how this "
+                "zone comes to exist; regenerate with scripts/run-aeneas.sh and "
+                "re-run attest.py --refresh-translation"
+            )
+        elif w_asm is not None:
+            if r_asm.get("script") != w_asm["script"]:
+                problems.append(
+                    f"{rel} is recorded as assembled by {r_asm.get('script')} and "
+                    f"ASSEMBLED_ZONES now names {w_asm['script']}"
+                )
+            elif r_asm.get("script_sha256") != w_asm["script_sha256"]:
+                problems.append(
+                    f"the translation is stale for {rel}: its assembly script "
+                    f"{w_asm['script']} hashes to {w_asm['script_sha256'][:12]}... now "
+                    f"and hashed to {str(r_asm.get('script_sha256'))[:12]}... when the "
+                    "unit was generated; re-assemble and re-translate with "
+                    "scripts/run-aeneas.sh, then re-run attest.py "
+                    "--refresh-translation"
+                )
+            r_src, w_src = r_asm.get("sources", {}), w_asm["sources"]
+            for src in sorted(set(r_src) ^ set(w_src)):
+                problems.append(
+                    f"{rel} is recorded as assembled from "
+                    f"{', '.join(sorted(r_src)) or 'nothing'} and ASSEMBLED_ZONES now "
+                    f"names {', '.join(sorted(w_src))}"
+                )
+            for src in sorted(set(r_src) & set(w_src)):
+                if r_src[src] != w_src[src]:
+                    problems.append(
+                        f"the translation is stale for {rel}: it was assembled from "
+                        f"{src}, which hashes to {w_src[src][:12]}... now and hashed "
+                        f"to {str(r_src[src])[:12]}... when the unit was generated. "
+                        "A leaf edit changes the unit's translation even though the "
+                        "unit crate in the tree still looks untouched; re-assemble "
+                        "and re-translate with scripts/run-aeneas.sh, then re-run "
+                        "attest.py --refresh-translation"
+                    )
         if r.get("workspace_sha256") != w["workspace_sha256"]:
             problems.append(
                 f"translation is stale for {rel}: the workspace inputs "
@@ -859,9 +974,11 @@ def compare_audit(log_path):
     `axioms_declared` reads the text; the audit reads the environment the text
     elaborated to. A declaration the text scan does not recognise as an axiom
     (one produced by a macro, or added by a command) is an axiom to the audit,
-    and a recorded axiom the environment no longer holds is missing to it. Both
-    audit modules' output must be in the log: `Translation.AxiomAudit` covers
-    six generated modules and `AxiomAuditTriple` the seventh.
+    and a recorded axiom the environment no longer holds is missing to it. All
+    three audit modules' output must be in the log: `Translation.AxiomAudit`
+    covers six generated modules, `AxiomAuditTriple` the seventh, and
+    `AxiomAuditTripleUnit` the three-leaf translation unit, which can share an
+    environment with neither.
     """
     problems = []
     log = Path(log_path).read_text(errors="replace")

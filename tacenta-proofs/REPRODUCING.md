@@ -133,28 +133,35 @@ and `Vectors.lean` included), refuses a lakefile that sets any Lean option,
 is the only one that sees `set_option debug.skipKernelTC`, and refuses
 every elaboration-time construct (`run_cmd`, `#eval`, `elab`, `macro`,
 `syntax`, `initialize`, `addDecl`, any reference to the `Lean` namespace)
-outside `Model/AxiomAudit.lean`'s own implementation and the four `run_cmd
+outside `Model/AxiomAudit.lean`'s own implementation and the five `run_cmd
 Model.AxiomAudit.run` lines, which it allow-lists by file path and exact
 line content, because such code could plant an axiom in the one shape the
-audit accepts; and `check-audit-reach.sh`, which asks Lean for every
+audit accepts; `check-audit-reach.sh`, which asks Lean for every
 first-party module's imports and fails if any module (the generated
-`Tacenta*.lean` included) is outside the four audit modules' import
-closure, since the audit walks only what its invoking module imports -- and
-then replays every first-party module through the kernel with
-`leanchecker` (below).
+`Tacenta*.lean` included) is outside the five audit modules' import
+closure, since the audit walks only what its invoking module imports, and
+which also requires all five to run with the same first-party prefixes, so
+that no declaration is first-party to the audit that declares an axiom and
+foreign to the audit that uses it; and `check-audit-negatives.sh`, which
+plants declarations the audit's rule says to refuse, and the one shape it
+says to allow -- twelve in all, one per refusal kind and one per
+compiler-trust condition -- in a throwaway first-party module, and fails if
+the audit calls any of them wrongly -- and then replays every first-party module
+through the kernel with `leanchecker` (below).
 
 Expected tail:
 
 ```
 no-sorry: the translation and its T1/T3 proofs is complete
-translation-coverage: all 27 Translation/*.lean modules are in the build target and built
-attest: the axiom audit's opaque-external list matches translation-attestation.json for 7 generated modules (68 compiler-trust axioms in them, from Aeneas's toStr bound, are not externals and are listed in the build log)
+translation-coverage: all 30 Translation/*.lean modules are in the build target and built
+attest: the axiom audit's opaque-external list matches translation-attestation.json for 8 generated modules (102 compiler-trust axioms in them, from Aeneas's toStr bound, are not externals and are listed in the build log)
 no-sorry: the model-layer proofs is complete
 no-sorry: the model and its property theorems is complete
-check-lean-constructs: 57 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 4 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
-audit-reach: the 4 audit modules reach all 63 first-party modules (tacenta-model 25, tacenta-proofs 10, tacenta-proofs/translation 28)
+check-lean-constructs: 59 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 5 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
+audit-reach: the 5 audit modules, all with the same first-party prefixes, reach all 66 first-party modules (tacenta-model 25, tacenta-proofs 10, tacenta-proofs/translation 31)
+audit-negatives: the audit called all 7 planted cases correctly
 no-sorry: replaying the translation and its T1/T3 proofs through the kernel (leanchecker)
-no-sorry: the translation and its T1/T3 proofs replays clean (27 modules)
+no-sorry: the translation and its T1/T3 proofs replays clean (30 modules)
 no-sorry: replaying the model-layer proofs through the kernel (leanchecker)
 no-sorry: the model-layer proofs replays clean (10 modules)
 no-sorry: replaying the model and its property theorems through the kernel (leanchecker)
@@ -236,12 +243,14 @@ you do:
   things *together*: every compiler-namespace declaration the audit saw has
   the compiler's shape; no hand-written first-party module contains
   elaboration-time code (`check-lean-constructs.sh`, which allow-lists only
-  the audit's own implementation and its four invocations, by path and
+  the audit's own implementation and its five invocations, by path and
   exact line); and every first-party module is in an audit's import closure
   (`check-audit-reach.sh`). The first alone excludes nothing planted, and
   the second is a grep: a construct its stripper mishandles would be a hole
-  in the rule, not something the audit would catch. `LIMITATIONS.md`
-  records this under "Trusted, not verified".
+  in the rule, not something the audit would catch. A fourth check,
+  `check-audit-negatives.sh`, asks the separate question of whether the rule
+  still refuses what it says it refuses, by planting each case and
+  comparing. `LIMITATIONS.md` records this under "Trusted, not verified".
 - **T1 and T3 are about the Aeneas model of the Rust**, not the machine code
   `rustc` produces. The Charon and Aeneas translation, the Lean kernel, and the
   Rust compiler are all trusted. That trust is the point of writing the pins

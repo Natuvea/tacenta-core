@@ -86,7 +86,7 @@ headline theorems under `#guard_msgs` is open work (the classical ratchet's,
 the session's, the erasure coder's and the parser's are pinned).
 
 **The generated translation carries compiler-trust axioms of its own**,
-sixty-eight on the current generation. Aeneas's `toStr` discharges its
+a hundred and two on the current generation. Aeneas's `toStr` discharges its
 string-length bound with `by decide +native`, so every generated `Debug`
 `fmt` body (one per error and header type) adds axioms named
 `<fmt>._native.decide.ax_*`, each stating `decide (s.toByteArray.size ≤
@@ -99,9 +99,26 @@ the axiom audit accepts them under the same shape rule as the hand-written
 that parent's own value applying the axiom -- here through the `_proof_n`
 auxiliary the elaborator splits out of a `fmt` body) and prints them apart
 from the externals, as `audit-native:` lines in the translation build log,
-so the count is visible rather than folded in. That shape is one
-elaboration-time code could plant, and the audit could not tell a planted
-one from these; "Trusted, not verified" below says what excludes it.
+so the count is visible rather than folded in.
+
+Ten of the hundred and two meet every part of that rule except the last, and
+the audit waives it for them. All ten are in the three-leaf translation unit
+described under "The three-leaf translation unit" below, which puts all three
+leaves' types in one module. Seven string literals occur in more than one
+leaf's `Debug` body, `decide +native` caches its result by statement, and the
+second and third occurrence of a literal reuse the first's proof -- leaving the
+axiom named after each later declaration declared and reached by nothing. The
+waiver is exactly that: an axiom no first-party declaration mentions, in a
+value or in a statement, need not be applied by its parent. Such an axiom is in
+no theorem's `#print axioms` and so widens no trust base, and the moment
+anything mentions it the requirement is back. It is not extended to
+`_unsafe_rec`, which the code generator calls by name whether or not anything
+mentions it. `check-audit-negatives.sh` plants each condition of the rule,
+including this waiver's, and fails if the audit calls any of them wrongly.
+
+That shape is one elaboration-time code could plant, and the audit could not
+tell a planted one from these; "Trusted, not verified" below says what
+excludes it.
 
 ## Trusted, not verified
 
@@ -147,11 +164,17 @@ one from these; "Trusted, not verified" below says what excludes it.
   `run_cmd`, `#eval`, `elab`, `macro`, `syntax`, `initialize`, `addDecl`,
   and no reference to the `Lean` namespace, which is where every such API
   lives -- outside `Model/AxiomAudit.lean`'s own implementation and the
-  four `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
-  exact line content so that a fifth invocation anywhere fails; and
+  five `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
+  exact line content, so that an invocation written any other way fails
+  there and a second one in an audit module fails in the reach check below;
   `scripts/check-audit-reach.sh`, which fails if any first-party module is
-  outside the four audit modules' import closure, so that no module holds
-  such a declaration unwalked. The grep is what it is: a construct the
+  outside the five audit modules' import closure, so that no module holds
+  such a declaration unwalked, and fails if the five do not all run with the
+  same first-party prefixes, and if any of them invokes the audit more than
+  once or in a form the prefix check cannot read; and
+  `scripts/check-audit-negatives.sh`, which plants one declaration for each
+  kind the audit refuses and one for the shape it allows, and fails if the
+  audit decides any of them wrongly. The grep is what it is: a construct the
   stripper mishandles, or a route to the environment that names none of
   those tokens, would be a hole in this rule and not something the audit
   would catch.
@@ -627,7 +650,7 @@ alone. And nothing anywhere in this project proves that an identity key belongs 
 the person a user means: that is trust on first use and the directory's problem,
 and it is the assumption a user actually bears.
 
-## Seven verified zones, and the shipping path's orchestration runs outside them
+## Seven verified zones on the shipping path, and the orchestration runs outside them
 
 **Read this before the list.** Integrating the Triple Ratchet
 moved `Session::encrypt` and `Session::decrypt` off `tacenta-ratchet::send` and
@@ -1416,6 +1439,74 @@ stating rather than folding into the general list:
   the model writes as lists of code points. Decided by evaluation, so they trust
   the compiler and not only the kernel. They are listed in the audited axiom
   set in `Translation/SessionT3.lean`, which is where that becomes visible.
+
+### The three-leaf translation unit is an eighth zone, and it ships to nobody
+
+`tacenta-core/triple-unit` is a verified zone in `attest.py` and a crate in the
+workspace, and no shipping path reaches it. Nothing depends on it, it exports
+nothing anyone calls, and deleting it would change no behaviour. It exists to
+be translated.
+
+**What it is for.** Translating `tacenta-core/triple` on its own gives Aeneas
+three crates and lets it see one. The Double Ratchet's and the sparse ratchet's
+operations arrive as opaque externals -- thirty-five axioms -- so the Triple's
+T1 assumes exactly what the leaves' own T1 proves, and the two halves are
+joined by hand in the bundle clauses that `check-bundle-drift.py` compares
+against the leaf theorems. That comparison is a check on a hand-written link,
+not a proof that there is no link to write. The unit removes the need for one:
+it presents the three leaves to Aeneas as three modules of one crate, so the
+leaf operations translate to definitions and the Triple's bodies call them
+directly. The thirty-five axioms go, and the unit declares nineteen, exactly
+the union of what the two leaves declare on their own.
+
+**The gap it leaves, which is the point of listing it here.** The unit is the
+same text and not the same crate graph. Two of its three modules are the leaf
+files themselves, loaded with `#[path]` rather than copied; the third is the
+Triple's `lib.rs` byte for byte plus a generated header and one `use` that
+brings the two sibling module names into scope, since a path's first segment
+resolves in the current module and the extern prelude and not in the parent.
+It is a workspace member, so it compiles under the same profiles, the same
+lockfile, the same edition and the same `overflow-checks`. What differs is the
+crate boundary: in the shipping build these are three crates, and here they are
+one. Name resolution, monomorphisation and the borrow check all run after the
+module structure is fixed, and each leaf's `#![forbid(unsafe_code)]` still
+bounds its own module, so we do not know of a way the difference changes a
+function body. "We do not know of a way" is the claim, and it is weaker than a
+proof. A reader who holds that what is proved must be what ships should count
+this boundary as a gap, and this paragraph is the disclosure of it.
+
+**What holds the unit to the leaves.** `assemble-triple-unit.sh --check`
+regenerates the whole tree and diffs it against the committed one, so a hand
+edit anywhere in the unit fails. Within that, the copied file is read back:
+the inserted block is found by its text and deleted, the remainder must be the
+leaf exactly, and no top-level inner attribute may follow the inserted `use`.
+`attest.py --check` records the assembly script's hash and the hashes of all
+three leaf trees, which is what catches a leaf moving under a unit nobody
+re-assembled -- the case where the unit's translation goes stale while the unit
+crate in the tree still looks untouched. An earlier version of the byte-identity
+check stripped the same line ranges it had written and so could not fail; it
+was replaced after an external review, and the replacement was tested by
+forcing the misread it claims to catch.
+
+**Translated is not proved, and here that is the whole of it.** The unit is
+translated with no `sorry` and no body Aeneas gave up on, and it carries no
+theorem. Every T1 and T3 statement about the Triple still rests on the
+hand-written bundles and on the leaves' own proofs, exactly as before. Porting
+the leaf proofs onto the unit's constants is open work, and it is not a
+re-import: the leaves' proofs are stated about the leaves' own translated
+constants, which are different constants, so they have to be re-proved in the
+unit's namespace rather than reused. For the same reason the unit's
+translation cannot be imported into the same Lean environment as the leaves' --
+the instances collide -- which is why it has an axiom audit module of its own,
+`Translation/AxiomAuditTripleUnit.lean`, and why the two worlds stay separate.
+
+**The ten waived compiler-trust axioms are here.** Putting all three leaves'
+types in one module makes seven string literals occur more than once across
+their `Debug` bodies, and `decide +native` caches by statement, so ten of the
+axioms it names are left declared and reached by nothing. The axiom audit
+waives its "the parent applies it" requirement for them; "The proofs are
+trusted by evaluation, not only by the kernel" above states the waiver and its
+bound.
 
 ## The erasure coding's field is proved
 
