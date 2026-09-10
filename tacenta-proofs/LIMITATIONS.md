@@ -1708,11 +1708,49 @@ proof terms already name different auxiliary constants from their leaves': where
 `tacenta_triple_unit.tacenta_ratchet.State.started_as_sender.match_1`, a matcher
 from the classical crate that Lean reuses because it is the same term.
 
-What this does not yet do is the step the refinement copies exist for. The
-Triple's own refinement, `TripleT3.lean`, and its satisfiability witnesses are
-still stated about the Triple translated alone, and still assume what the
-leaves prove through hand-written bundles. Restating them about the unit is what
-would let the whole original Triple island be deleted, and it is not done.
+**The Triple's refinement is on the unit, with both bundles proved.**
+`Translation/UnitTripleT3.lean` restates `TripleT3.lean` about the unit, and
+`Translation/UnitSatisfiabilityTriple.lean` restates its two satisfiability
+witnesses. On the unit, the hand-written bundles `TripleT3.lean` has to assume,
+`RatchetAgreesFor` and `SpqrAgreesFor`, are proved. The inner states are
+concrete, each inner refinement relation fixes every field of its model state so
+the abstraction can be written down, and every clause follows from a unit theorem
+(`ratchet_agrees_for`, `spqr_agrees_for`). `send_refines_discharged` and
+`receive_refines_discharged` state the composed `send` and `receive` with both
+bundles discharged. What that does and does not buy:
+
+* **The trust base changes shape, not only size.** Measured on 2026-09-10 with
+  `#print axioms`: `TripleT3.send_refines` rests on sixteen opaque declarations of
+  the inner crates, the two state types and fourteen calls, and none of them
+  appears under either discharged theorem. Those rest instead on the external
+  primitives the inner refinements already rest on (HMAC, the `zeroize` wrapper
+  and trait, three `Vec` operations, `Option`'s clone), and they carry nine
+  `native_decide` compiler-trust axioms where the standalone theorems carry one:
+  the eight `UnitSpqrT3.lean` carries arrive with the sparse ratchet's refinement.
+  `UnitPins.lean` pins all four new theorems.
+* **There are more hypotheses, not fewer**, because the standalone theorems hide
+  the inner boundary inside the bundles, and `TripleT3.lean`'s header says so. One
+  HKDF agreement serves all three crates, and the general `ZeroizeTotal` gives the
+  Triple's narrow one, so neither is listed twice. Proving the classical `clone`
+  clause needs `OptionCloneTotal`. Each bundle covers its ratchet's whole calling
+  surface, so the `send` theorem assumes the receive path's boundary as well.
+* **The inner boundary is witnessed only on the leaves' side.**
+  `Satisfiability.lean` shows the leaves' `Vec`, `zeroize` and HKDF hypotheses can
+  hold, about the leaves' constants. The same hypotheses restated about the unit,
+  which `UnitT3.lean`, `UnitSpqrT3.lean` and so the discharged theorems take, have
+  no witness of their own. The shapes are the same and the unit declares the
+  underlying operations the same way, but no build checks it; porting those
+  witnesses to the unit is not done. `UnitSatisfiabilityTriple.lean` covers only
+  the Triple's own two `zeroize`-wrapper hypotheses.
+* **The port is hand-written.** It differs from `TripleT3.lean` in more than names,
+  and its header lists each difference. Three stepping-rule erasures keep the
+  original proofs elaborating: one retargeted from the original, and two for rules
+  `UnitTripleT1.lean` registers that `TripleT1.lean` never did. Nothing but a
+  reader checks that the two files keep saying the same thing.
+* **The original island still stands.** `TacentaTriple.lean`, `TripleT1.lean`,
+  `TripleT3.lean`, `SatisfiabilityTriple.lean`, `AxiomAuditTriple.lean` and the
+  bundle drift checker are still built and checked. Whether to delete them, now
+  that the unit covers what they cover, is a decision this change does not make.
 
 **The ten waived compiler-trust axioms are here.** Putting all three leaves'
 types in one module makes seven string literals occur more than once across

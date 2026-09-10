@@ -94,7 +94,11 @@ this section says in one place what is not proved.
   `ZeroizingRoundTrips80`, `T1.DerivedKeysModel`), and
   `Translation/SatisfiabilityTriple.lean` the Triple Ratchet's two
   (`TripleT1.ZeroizingTotal`, `TripleT3.ZeroizingRoundTrips`), which cannot
-  share an environment with the rest. A satisfiable hypothesis is still only
+  share an environment with the rest. `Translation/UnitSatisfiabilityTriple.lean`
+  does the same for the unit's copies of those two
+  (`UnitT1.ZeroizingTotal`, `UnitTripleT3.ZeroizingRoundTrips`); the inner
+  refinements' own boundary, as restated about the unit, has no witness on the
+  unit's side, which `LIMITATIONS.md` records. A satisfiable hypothesis is still only
   a hypothesis (`LIMITATIONS.md`).
 - **The ML-KEM Braid's T3 theorems carry two preconditions beyond the
   boundary agreements.** `step_send_refines`, `Braid.send_refines`,
@@ -989,6 +993,38 @@ crate's own prefix -- `tacenta_kdf.hmac_sha256` for what is fully
 `tacenta_ratchet.tacenta_kdf.hmac_sha256` -- and the underlying names
 differ by that prefix as well.
 
+## Proved (tier T3, the Triple Ratchet's composed session on the unit, with both inner bundles discharged)
+
+Location: `tacenta-proofs/translation/Translation/UnitTripleT3.lean` and
+`Translation/UnitPins.lean`, against `Model.Triple`.
+
+`TripleT3.lean` (below) proves the composed session refines `Model.Triple` given
+two hand-written bundles, `RatchetAgreesFor` and `SpqrAgreesFor`, which it has to
+assume because the Triple's standalone translation cannot see either inner
+ratchet. `UnitTripleT3.lean` restates it about the three-leaf unit, where both
+inner states are concrete and the inner refinements restated about the unit
+import, and there both bundles are proved. The file is hand-written, not
+generated, and its header lists every way it differs from `TripleT3.lean`.
+
+- `Tacenta.UnitTripleT3.ratchet_agrees_for`: the classical bundle holds at the
+  abstraction `UnitT3.StateR` determines, from `UnitT3.lean`'s refinements under
+  their boundary, with `OptionCloneTotal` for `clone`.
+- `Tacenta.UnitTripleT3.spqr_agrees_for`: likewise for the sparse bundle, from
+  `UnitSpqrT3.lean`'s refinements and a refinement of the sparse initialiser this
+  file proves.
+- `Tacenta.UnitTripleT3.send_refines_discharged`: the composed `send` refines
+  `Model.Triple.send`, as `TripleT3.send_refines` states it, with both bundles
+  discharged. It assumes the receive path's boundary as well, because each bundle
+  covers its ratchet's whole calling surface.
+- `Tacenta.UnitTripleT3.receive_refines_discharged`: likewise for `receive`.
+
+Each is pinned in `UnitPins.lean`. The trust base is not the standalone one with
+two assumptions taken away. The sixteen opaque inner-crate declarations
+`TripleT3.send_refines` rests on are absent; the external primitives the inner
+refinements rest on, and eight `native_decide` compiler-trust axioms from
+`UnitSpqrT3.lean`, are present. `LIMITATIONS.md` gives the details, including that
+the inner boundary's satisfiability witnesses exist on the leaves' side only.
+
 ## Proved conditionally (tier T1, the Triple Ratchet's composed session send/receive path, on hypotheses no leaf theorem discharges)
 
 **Read the heading literally.** The theorems in this section are checked by
@@ -999,7 +1035,7 @@ sense the sections above use the word. Details below.
 
 Location: `tacenta-proofs/translation/Translation/TripleT1.lean`.
 
-**The same theorems are proved unconditionally two sections above**, on the
+**The same theorems are proved unconditionally in the section on `UnitTripleT1.lean` above**, on the
 three-leaf translation unit, where the bundles below are theorems rather than
 assumptions -- at the cost of four preconditions that land on the untranslated
 session layer. This file stays because `TripleT3.lean` and
@@ -1066,6 +1102,11 @@ Location: `tacenta-proofs/translation/Translation/TripleT3.lean`, against
 `Model.Triple` in `tacenta-model/Model/Triple.lean` (the composed state
 machine; `tacenta-model/Model/TripleRatchet.lean` carries only
 `splitSecret`/`combine` -- see `LIMITATIONS.md` for what each file covers).
+
+**On the three-leaf unit, the two bundles this section assumes are proved.**
+`UnitTripleT3.lean` restates these theorems about the unit and discharges both;
+see the section on it above. This section is about the Triple translated on its
+own.
 
 **`Model.Triple` is transcribed from the crate it refines.** Its header says
 it is written from `tacenta-spec/protocol/triple-ratchet.md` *and* from

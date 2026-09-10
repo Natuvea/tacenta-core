@@ -2,6 +2,7 @@ import Model.AxiomAudit
 import Translation.TacentaTripleUnit
 import Translation.UnitPins
 import Translation.UnitSpqrT3
+import Translation.UnitSatisfiabilityTriple
 
 /-!
 The three-leaf translation unit's half of the translation package's axiom
@@ -19,10 +20,13 @@ declaring the same name into one environment. So it can share an environment
 with neither audit that already exists.
 
 It also imports `Translation.UnitPins`, and through it the unit's copies of
-the two leaf panic-freedom proofs and the classical ratchet's refinement, and
-the Triple's panic-freedom on the unit, `Translation.UnitTripleT1`; and it
-imports `Translation.UnitSpqrT3`, the sparse ratchet's refinement, which nothing
-pins and so is reached directly. Those are the only proofs in this island,
+the two leaf panic-freedom proofs and the classical ratchet's refinement, the
+Triple's panic-freedom on the unit, `Translation.UnitTripleT1`, and the Triple's
+refinement on the unit, `Translation.UnitTripleT3`. It imports two modules
+directly because nothing else does: `Translation.UnitSpqrT3`, the sparse
+ratchet's refinement, which nothing pins, and
+`Translation.UnitSatisfiabilityTriple`, the witnesses for the Triple's `zeroize`
+wrapper hypotheses on the unit. Those are the only proofs in this island,
 and this is the only module that reaches them, so the audit walks them here or
 nowhere: `scripts/no-sorry.sh` compares the `audit-axiom:` lines with the
 recorded manifest, and a module nothing imports would be built, scanned and
