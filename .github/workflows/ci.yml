@@ -1,7 +1,16 @@
 # Public CI for the open tacenta-core repository.
 #
 # This runs the steps of `tooling/ci.sh`, split into jobs so a failure names
-# its cause. Everything here runs on a GitHub-hosted runner without secrets.
+# its cause. No job holds a secret. Pull requests run every job on
+# GitHub-hosted runners. A push to main runs the two Lean jobs, `proofs` and
+# `translation`, on a self-hosted runner instead: an organisation runner group
+# that GitHub lets only this file, as it is on main, use, running as an
+# unprivileged account that holds no keys. A pull request runs its own copy of
+# this file, so nothing written here could keep one off that runner; the
+# group's restriction does. The `runs-on` expressions below only stop a pull
+# request queueing for a runner it cannot have, and
+# `tooling/check-workflows.sh` refuses a `runs-on` that names the self-hosted
+# runner without the push-to-main condition.
 # Five of the script's steps are optional on a developer's machine and
 # unconditional here, because this workflow installs what they need: the
 # advisory audit, the MSRV check, the 32-bit check, the Linux halves of the
@@ -175,7 +184,9 @@ jobs:
   # `scripts/no-sorry.sh`, which the `translation` job runs (it needs the
   # translation's Mathlib cache first).
   proofs:
-    runs-on: ubuntu-latest
+    # GitHub-hosted for a pull request, self-hosted for a push to main (see the
+    # header).
+    runs-on: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && fromJSON('["self-hosted", "tacenta-core"]') || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -220,7 +231,9 @@ jobs:
   # outside this repository; `tacenta-proofs/CLAIMS.md` states the release
   # and its digest.
   translation:
-    runs-on: ubuntu-latest
+    # GitHub-hosted for a pull request, self-hosted for a push to main (see the
+    # header).
+    runs-on: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && fromJSON('["self-hosted", "tacenta-core"]') || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -233,23 +246,34 @@ jobs:
       # files are the ones `cache get` would fetch; it still unpacks them. The
       # directory is named explicitly with `MATHLIB_CACHE_DIR`, which Mathlib's
       # cache reads before `XDG_CACHE_HOME` and `~/.cache`, so the path cached
-      # is the path used.
+      # is the path used. The path is the same on both kinds of runner, because
+      # a cache is looked up by its path as well as its key. The self-hosted
+      # runner keeps the directory between jobs, so there the restore only
+      # looks the key up, and the save still uploads once when the key is new.
       - name: Restore Mathlib's downloaded cache files
         id: mathlib-files
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ runner.temp }}/mathlib-cache
+          path: ~/.cache/tacenta-mathlib
           key: mathlib-files-${{ runner.os }}-${{ hashFiles('tacenta-proofs/translation/lake-manifest.json') }}
+          lookup-only: ${{ runner.environment == 'self-hosted' }}
+      # The checkout has just deleted `.lake`. A hosted runner clones the Lake
+      # dependencies in the next step, quickly; the self-hosted machine clones
+      # them from local mirrors instead, at the revisions the manifest pins.
+      - name: Clone the Lake dependencies from local mirrors (self-hosted only)
+        if: runner.environment == 'self-hosted'
+        run: bash tooling/seed-lake-packages.sh tacenta-proofs/translation
       - name: Fetch the Mathlib cache
         working-directory: tacenta-proofs/translation
-        env:
-          MATHLIB_CACHE_DIR: ${{ runner.temp }}/mathlib-cache
-        run: lake exe cache get
+        shell: bash
+        run: |
+          export MATHLIB_CACHE_DIR="$HOME/.cache/tacenta-mathlib"
+          lake exe cache get
       - name: Save Mathlib's downloaded cache files (pushes to main only)
         if: github.event_name == 'push' && steps.mathlib-files.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ runner.temp }}/mathlib-cache
+          path: ~/.cache/tacenta-mathlib
           key: mathlib-files-${{ runner.os }}-${{ hashFiles('tacenta-proofs/translation/lake-manifest.json') }}
       # The Lean build outputs of this tree's three packages and of the Aeneas
       # library, which Mathlib's cache does not carry. Without them every run

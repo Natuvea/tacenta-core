@@ -53,6 +53,14 @@
 #    shape without the check between is a download executed unread, one step
 #    slower than a pipe. Textual, as rule 4 is; a script that mentions the
 #    checksum tool without running it passes this and should not pass review.
+# 7. A job's `runs-on` names `self-hosted` only inside an expression that also
+#    requires `github.event_name == 'push'` and
+#    `github.ref == 'refs/heads/main'`. This rule is not the boundary: a pull
+#    request runs its own copy of the workflow, and what keeps it off the
+#    self-hosted runner is the runner group, which GitHub lets only this
+#    repository's workflow, as it is on main, use. The rule keeps the file
+#    saying the same thing, so a pull request is not queued for a runner it
+#    cannot have. Textual, as rules 4 and 6 are.
 #
 # The cases each rule is held to, passing and failing, are the files under
 # `tooling/tests/check-workflows-cases/`, which
@@ -212,6 +220,17 @@ for f in files:
             continue
         if "runs-on" not in job and "uses" not in job:
             complain("%s job '%s' has neither runs-on nor uses" % (f, name))
+
+        # Rule 7.
+        runs_on = job.get("runs-on")
+        if runs_on is not None and "self-hosted" in str(runs_on).lower():
+            if not (isinstance(runs_on, str)
+                    and "github.event_name == 'push'" in runs_on
+                    and "github.ref == 'refs/heads/main'" in runs_on):
+                complain("%s job '%s' can be scheduled on a self-hosted runner "
+                         "outside a push to main -- name it only in a `runs-on` "
+                         "expression that requires github.event_name == 'push' "
+                         "and github.ref == 'refs/heads/main'" % (f, name))
 
         # Rule 1 at the job level. A reusable workflow is called by ref, and
         # that ref is as movable as an action's tag; it runs with this
