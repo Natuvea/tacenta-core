@@ -113,7 +113,9 @@ rebuilds only what its changes invalidate. A module that did not change is not
 re-elaborated on the pull request: the messages main's build logged for it, which
 the `sorry` scan and the axiom comparison read, are replayed. Every push to main
 builds from nothing, and every run replays the modules under `Translation/`,
-`Proofs/`, `Model/` and `Properties/` through the kernel.
+`Proofs/`, `Model/` and `Properties/` through the kernel. Pull requests run on
+GitHub-hosted machines; a push to main runs the two Lean jobs on a self-hosted
+runner that GitHub lets only this workflow, as it is on main, use.
 
 The two do not run exactly the same set, and the difference is stated
 rather than papered over. Five of those steps need tooling the workflow

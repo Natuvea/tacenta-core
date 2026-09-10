@@ -1,0 +1,10 @@
+# expect: can be scheduled on a self-hosted runner outside a push to main
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: [self-hosted, linux]
+    steps:
+      - run: true
