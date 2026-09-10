@@ -10,49 +10,75 @@ Aeneas models `usize` at the platform width. On a 32-bit target `Usize.max` and
 in it, and every theorem carrying it was vacuous on a platform this workspace
 compiles for. The documentation called it a genuine constraint for months.
 
-THE CLASS. A comparison between an additive term that is one integer type's
-maximum `A` and a bound that is another type's maximum `B`, where `A`'s maximum
-is at least `B`'s on some target, 32- or 64-bit. There the bound forces what it
-constrains down to zero. The forms recognised, each also with `<` or `>`:
+This is a tripwire for a handful of textual forms of that defect. It is not a
+proof that no bound in the tree forces its subject to zero, and an earlier
+version of this docstring claiming more than that was wrong three times over.
+What follows is exactly what it catches and, as far as three adversarial
+reviews have found, what it does not.
+
+WHAT IT CATCHES. A comparison between an additive term that is one integer
+type's maximum `A` and a bound that is another's maximum `B`, where `A`'s
+maximum is at least `B`'s on some target, 32- or 64-bit, in one of these forms,
+each also with `<` or `>`, `<=` or `>=`:
 
     x + A ≤ B    A + x ≤ B    B ≥ x + A    B ≥ A + x    x ≤ B - A    B - A ≥ x
 
-with `≤` or `<=`, and `≥` or `>=`. `A` and `B` may be written `T.max` or
-`T.rMax`, qualified by `Std.` or `Aeneas.Std.`, as `UScalar.max .T` or
-`IScalar.max .T`, or as the literal value of a fixed-width unsigned maximum.
-Parentheses, a `(_ : Nat)` ascription and `↑` around them are ignored. A bound
-whose right side carries on with more arithmetic, as in
-`≤ Usize.max + U32.max`, is not matched. `usize` and `isize` differ by target,
-so `U32` against `Usize` is refused and `U32` against `U64` is not. Maxima are
-compared by value on each target, so `I32` against `Usize` is not refused.
+`A` and `B` are recognised when written as `T.max` or `T.rMax`, optionally
+qualified by `_root_.`, `Aeneas.` or `Std.`; as `UScalar.max .T` or
+`UScalar.max UScalarTy.T`, and the same for `IScalar`; as `core.num.T.MAX.val`
+or `(core.num.T.MAX : T).val`; as `2 ^ N - 1` for a fixed width `N`; or as the
+literal value of a fixed-width unsigned maximum. Parentheses, `↑`, and a
+`(_ : Nat)`, `ℕ`, `Int` or `ℤ` ascription written directly on a maximum are
+ignored. Maxima are compared by value on each target, so `U32` against `Usize`
+is refused, `U32` against `U64` is not, and `I32` against `Usize` is not.
 
-WHERE. Every first-party Lean file: the model, its properties and vector
-generator, the model-layer proofs, the translation package including its
-generated files and its root, and the two lakefiles written in Lean. A scan directory or root file that is
-missing, a symbolic link under them, a file that is not UTF-8, and a comment or
-string that never terminates are all reported and never skipped. Comments,
-docstrings, string literals including raw strings, and character literals are
-removed before matching. Matching is confined to one declaration at a time, so
-a maximum in one declaration is never joined to a bound in the next.
+WHAT IT DOES NOT CATCH. At least these, all found by review:
+  * an ascription on the side that is not a maximum, `U32.max + (s : Nat)`;
+  * any of `:` `=` `=>` `,` `;` `∧` `∨` `→` `↔` between an addend written first
+    and its relation, which ends the matching window, so `fun x => …` inside
+    the addend hides the bound;
+  * the room form, `U32.max ≤ Usize.max - s` or `Usize.max - s ≥ U32.max`;
+  * a bound shifted by a constant: `≤ Usize.max - 1`, `< Usize.max + 1`,
+    `s + U32.max - 1 < Usize.max`;
+  * `T.size`, `LE.le` applied as a function, `.succ`, `2 * U32.max`, and the
+    comparison under `¬` written with the relation reversed;
+  * anything standing for a maximum through an `abbrev`, `def`,
+    `irreducible_def`, `notation` or `macro`;
+  * any precondition unsatisfiable for another reason: two contradictory
+    hypotheses, a bound against the wrong constant, `2 * x` near a ceiling.
 
-WHAT IT ALLOWS. The shape may appear in exactly the two declarations named in
-`ALLOW`, the Lean refutations proving the rule right. They are identified by
-their full names including namespace, and accepted only while each takes
-`h32 : Usize.max = U32.max` as a binder before its colon. Each must still state
-the shape in its statement, not only inside its proof, so the justification
-cannot be emptied while the rule stays.
+WHAT IT REFUSES THAT IS LEGITIMATE. A bound deliberately scoped to 64-bit
+targets by a width hypothesis; the shape used as a decidable guard in
+`if … then` or under `¬`; and a maximum placed beside an unrelated bound once
+parentheses are removed, as in `min y (x + U32.max) ≤ Usize.max`.
 
-WHAT IT IS NOT. A tripwire for the spellings this tree uses, not a proof that no
-bound forces its subject to zero. It does not see through an `abbrev`, `def`,
-`notation` or `macro` that stands for a maximum; `LE.le a b` written as an
-application; `UScalar.size` or any form not listed above; an addend further
-from its relation than the matching window; or a precondition unsatisfiable for
-any other reason, such as two contradictory hypotheses, a bound against the
-wrong constant, or `2 * x` near a ceiling. Whether the tree's numeric
-preconditions are satisfiable in general is not established by this script or
-anywhere else, and `LIMITATIONS.md` says so.
+HOW SITES ARE ATTRIBUTED. Matching runs one declaration at a time, found by a
+keyword at the start of a line. A declaration introduced any other way --
+`open … in theorem` on one line, `include … in`, `variable`, `notation`,
+`macro_rules` -- is folded into the declaration before it. A site there is
+still reported, because nothing is excused by region, but it is attributed to
+the wrong declaration and can be joined to a bound in the other one. Each site
+is reported at the line and column of `A`'s own token.
+
+WHAT IS EXCLUDED. `PreconditionShapes.lean` is not scanned. It holds the two
+Lean refutations that state the refused shape on purpose. The script checks
+only that both refutations are still present by name. It does not check what
+they say, and it does not look at anything else in that file. An earlier
+version tried to excuse the refutations by name and binder instead, and review
+found five ways to smuggle an ordinary precondition past that; an explicit
+exclusion claims less and cannot be slipped past.
+
+WHERE IT LOOKS. The model, its properties, the vector generator, the
+model-layer proofs, the translation package including its generated files and
+root, and the two lakefiles written in Lean. Every `.lean` under
+`tacenta-model/` and `tacenta-proofs/` must be in that set, or the run fails;
+directories named `.lake` or `Generated` are skipped, and Lean outside those two
+package directories is not looked for. A missing path, a symbolic link, a
+non-UTF-8 file, and a comment or string that never terminates are reported,
+never skipped.
 """
 import argparse
+import bisect
 import os
 import re
 import sys
@@ -66,10 +92,10 @@ MAXV = {
     "I32": (2**31 - 1, 2**31 - 1), "I64": (2**63 - 1, 2**63 - 1),
     "I128": (2**127 - 1, 2**127 - 1), "Isize": (2**31 - 1, 2**63 - 1),
 }
-# The literal value of each fixed-width unsigned maximum.
 LITERAL = {str(v[0]): t for t, v in MAXV.items()
            if t.startswith("U") and t != "Usize"}
 TYPES = "|".join(sorted(MAXV, key=len, reverse=True))
+WIDTHS = "128|64|32|16|8"
 
 
 def dangerous(a, b):
@@ -77,23 +103,47 @@ def dangerous(a, b):
     return any(MAXV[a][i] >= MAXV[b][i] for i in (0, 1))
 
 
-MAX_NAMED = re.compile(
-    r"(?<![\w.])(?:Aeneas\.)?(?:Std\.)?(" + TYPES + r")\.(?:max|rMax)(?![\w'])")
-MAX_SCALAR = re.compile(
-    r"(?<![\w.])(?:Aeneas\.)?(?:Std\.)?(?:UScalar|IScalar)\.max\s*\.(" + TYPES
-    + r")(?![\w'])")
-MAX_LITERAL = re.compile(
-    r"(?<![\w.#])(" + "|".join(sorted(LITERAL, key=len, reverse=True))
-    + r")(?![\w.#])")
-ASCRIBED = re.compile(r"(«\w+»)\s*:\s*(?:Nat|ℕ|Int|ℤ)(?![\w.'])")
+# Every recognised spelling of a maximum, as one alternation with one named
+# group per spelling. One regex means one left-to-right pass, and that is what
+# makes the k-th marker in the normalised text the k-th match in the raw text.
+_Q = r"(?:_root_\.)?(?:Aeneas\.)?(?:Std\.)?"
+_SPELLINGS = [
+    ("named", r"(?<![\w.])" + _Q + r"(?P<named>" + TYPES + r")\.(?:max|rMax)(?![\w'])",
+     lambda g: g),
+    ("dot", r"(?<![\w.])" + _Q + r"(?:UScalar|IScalar)\.(?:max|rMax)\s*\.(?P<dot>"
+     + TYPES + r")(?![\w'])", lambda g: g),
+    ("ty", r"(?<![\w.])" + _Q + r"(?:UScalar|IScalar)\.(?:max|rMax)\s+" + _Q
+     + r"(?:UScalarTy|IScalarTy)\.(?P<ty>" + TYPES + r")(?![\w'])", lambda g: g),
+    ("coreasc", r"\(\s*core\.num\.(?P<coreasc>" + TYPES
+     + r")\.MAX\s*:\s*[\w.]+\s*\)\s*\.val(?![\w'])", lambda g: g),
+    ("core", r"(?<![\w.])core\.num\.(?P<core>" + TYPES + r")\.MAX\.val(?![\w'])",
+     lambda g: g),
+    ("pow", r"(?<![\w.])2\s*\^\s*(?P<pow>" + WIDTHS + r")\s*-\s*1(?![\w.#])",
+     lambda g: "U" + g),
+    ("lit", r"(?<![\w.#])(?P<lit>" + "|".join(sorted(LITERAL, key=len, reverse=True))
+     + r")(?![\w.#])", lambda g: LITERAL[g]),
+]
+MAXIMUM = re.compile("|".join("(?:%s)" % pat for _, pat, _ in _SPELLINGS))
+_TYPE_OF = {name: fn for name, _, fn in _SPELLINGS}
+
+# Private-use code points as markers: Lean source has no reason to contain
+# them, unlike the guillemets Lean uses for identifiers such as `r.«end»`, which
+# an earlier version used as markers and so miscounted.
+OPEN_MARK, CLOSE_MARK = "", ""
+M = OPEN_MARK + r"(\w+)" + CLOSE_MARK
+ASCRIBED = re.compile("(" + OPEN_MARK + r"\w+" + CLOSE_MARK
+                      + r")\s*:\s*(?:Nat|ℕ|Int|ℤ)(?![\w.'])")
+
+
+def _type_of(m):
+    name = m.lastgroup
+    return _TYPE_OF[name](m.group(name))
 
 
 def normalise(t):
-    """Canonicalise every recognised spelling of a maximum to «T», drop the
-    wrapping that does not change the bound, and make relations uniform."""
-    t = MAX_NAMED.sub(lambda m: "«%s»" % m.group(1), t)
-    t = MAX_SCALAR.sub(lambda m: "«%s»" % m.group(1), t)
-    t = MAX_LITERAL.sub(lambda m: "«%s»" % LITERAL[m.group(1)], t)
+    """Mark every recognised maximum, drop wrapping that does not change the
+    bound, and make relations uniform."""
+    t = MAXIMUM.sub(lambda m: OPEN_MARK + _type_of(m) + CLOSE_MARK, t)
     t = t.replace("↑", " ")
     t = re.sub(r"\s+", " ", t)
     t = ASCRIBED.sub(r"\1", t)
@@ -103,17 +153,11 @@ def normalise(t):
 
 
 S = r" ?"
-M = r"«(\w+)»"
 LE = r"(≤|<)"
 GE = r"(≥|>)"
 END = r"(?! ?[-+*/])"
-# `B` on the left of a relation must not itself be part of a larger sum.
 NO_ARITH_BEFORE = r"(?<![-+*/] )(?<![-+*/])"
-# An addend written first may follow another `+`, but not a product or a
-# difference, which would change what it means.
 NO_SCALE_BEFORE = r"(?<![-*/] )(?<![-*/])"
-# No relation or logical connective in the gap, so one bound is never joined to
-# another; a binder's colon stops it too.
 GAP = r"[^≤≥<>=∧∨→↔,:;]{0,160}?"
 
 # (form, pattern, group holding A, group holding B)
@@ -130,60 +174,57 @@ FORMS = [
      2, 1),
 ]
 
+# A declaration starts at a keyword at the start of a line, after any
+# attributes (one level of bracket nesting inside them) and modifiers. No
+# repeated `open … in` prefix: that was exponential on a long line, and a
+# declaration missed here is folded into the one before rather than excused.
 DECL = re.compile(
-    r"^[ \t]*"
-    r"(?:(?:open|set_option)\b[^\n]*?\bin\b\s*)*"
-    r"(?:@\[[^\]]*\]\s*)*"
+    r"^[ \t]*(?:@\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*\][ \t]*\n?[ \t]*)*"
     r"(?:(?:private|protected|noncomputable|nonrec|partial|unsafe|scoped|local)"
     r"\s+)*"
     r"(theorem|lemma|def|abbrev|instance|structure|class|axiom|opaque|example|"
-    r"inductive)\b"
+    r"inductive|irreducible_def)\b"
     r"(?:[ \t]+(?![:(\[{⦃])([^\s:(\[{⦃]+))?",
     re.M)
-SCOPE = re.compile(r"^[ \t]*(namespace|section|end)\b[ \t]*([^\s]*)", re.M)
-H32 = re.compile(
-    r"\(\s*h32\s*:\s*(?:Aeneas\.)?(?:Std\.)?Usize\.max\s*=\s*"
-    r"(?:Aeneas\.)?(?:Std\.)?U32\.max\s*\)")
+SCOPE = re.compile(
+    r"^[ \t]*(?:noncomputable[ \t]+)?(namespace|section|mutual|end)\b[ \t]*([^\s]*)",
+    re.M)
 
-SHAPES = "tacenta-proofs/translation/Translation/PreconditionShapes.lean"
-ALLOW = {
-    (SHAPES, "Tacenta.PreconditionShapes.old_store_bound_unsatisfiable_at_32"),
-    (SHAPES, "Tacenta.PreconditionShapes.old_skip_bound_forces_empty_at_32"),
-}
+EXCLUDED = "tacenta-proofs/translation/Translation/PreconditionShapes.lean"
+REFUTATIONS = ["old_store_bound_unsatisfiable_at_32",
+               "old_skip_bound_forces_empty_at_32"]
 
 # Kept in step with the runner's skeleton in
-# tooling/tests/run-check-precondition-shapes-cases.sh; the fail-shape-in-* and
-# fail-missing-* cases go red if the two drift apart.
+# tooling/tests/run-check-precondition-shapes-cases.sh.
 SCAN_DIRS = [
     "tacenta-model/Model",
     "tacenta-model/Properties",
     "tacenta-proofs/Proofs",
     "tacenta-proofs/translation/Translation",
 ]
-# The packages that declare their modules by glob have no root file. The Lean
-# files outside the scan directories are the vector generator, the translation
-# package's root, and the two lakefiles written in Lean.
+# The packages that declare their modules by glob have no root file.
 SCAN_FILES = [
     "tacenta-model/Vectors.lean",
     "tacenta-model/lakefile.lean",
     "tacenta-proofs/lakefile.lean",
     "tacenta-proofs/translation/Translation.lean",
 ]
+PACKAGE_DIRS = ["tacenta-model", "tacenta-proofs"]
+SKIPPED_DIR_NAMES = {".lake", "Generated", ".git"}
 
-BOUND = ("%s:%d:%d: `%s` against `%s` %s (form `%s`, in its %s). `%s`'s maximum is "
-         "at least `%s`'s on some target, so this bound forces what it "
+BOUND = ("%s:%d:%d: `%s` against `%s` %s (form `%s`, in its %s). `%s`'s maximum "
+         "is at least `%s`'s on some target, so this bound forces what it "
          "constrains to zero there and describes no state that has ever held "
          "anything. Bound by what the code actually enforces instead -- "
          "`receive` uses `MAX_SKIP`, because the code refuses larger requests "
          "before the addition.")
-ALLOW_H32 = ("%s: `%s` is allow-listed as a refutation of this shape, and does "
-             "not take `h32 : Usize.max = U32.max` as a binder before its "
-             "colon. Without it the shape is an ordinary precondition, which is "
-             "exactly what the allow-list must not excuse.")
-ALLOW_GONE = ("%s: the allow-listed refutation `%s` no longer states the refused "
-              "shape in its statement, or is gone. It is the proof this "
-              "script's rule is right; the rule and its justification have to "
-              "leave together.")
+REFUTATION_GONE = ("%s: the refutation `%s` is gone. It is the Lean proof that "
+                   "this script's rule is right, and this file is excluded from "
+                   "the scan on the strength of holding it; the exclusion and "
+                   "the refutation have to leave together.")
+UNSCANNED = ("%s is a Lean file in a package directory that this script does not "
+             "scan. Add its directory to SCAN_DIRS or the file to SCAN_FILES; a "
+             "bound written there would never be checked.")
 MISSING = ("%s is missing. Every scanned directory and root file must exist; a "
            "missing one would silently narrow what this checks.")
 LINK = ("%s is a symbolic link. It would be walked or skipped depending on where "
@@ -195,7 +236,10 @@ class StripError(Exception):
     pass
 
 
-IDENT = re.compile(r"[\w'.!?«»]")
+# Characters that make a following `'` part of an identifier. `!` and `?` are
+# not among them: in `!'"'` the `!` is boolean negation and the `'` opens a
+# character literal, which an earlier version missed.
+IDENT = re.compile(r"[\w'.«»]")
 CHAR_LIT = re.compile(r"'(?:\\(?:x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|.)|[^\\'\n])'")
 RAW_OPEN = re.compile(r'r(#*)"')
 
@@ -278,7 +322,7 @@ def namespace_at(events, offset):
     for off, kind, arg in events:
         if off >= offset:
             break
-        if kind in ("namespace", "section"):
+        if kind in ("namespace", "section", "mutual"):
             stack.append((kind, arg))
         elif kind == "end":
             for idx in range(len(stack) - 1, -1, -1):
@@ -289,8 +333,6 @@ def namespace_at(events, offset):
 
 
 def regions(text):
-    """(start, end, qualified name or None, declaration match or None) for each
-    declaration, plus the text before the first one."""
     decls = list(DECL.finditer(text))
     events = [(m.start(), m.group(1), m.group(2)) for m in SCOPE.finditer(text)]
     out = []
@@ -311,27 +353,18 @@ CLOSERS = ")]}⦄⟩"
 
 
 def split_decl(text, start, end, m):
-    """The binders before the top-level colon, the statement before the
-    top-level `:=`, and the body after it."""
-    i = m.end()
-    depth, colon, assign = 0, None, None
-    j = i
+    """The statement, up to the top-level `:=`, and what follows it."""
+    depth, j = 0, m.end()
     while j < end:
         ch = text[j]
         if ch in OPENERS:
             depth += 1
         elif ch in CLOSERS:
             depth = max(0, depth - 1)
-        elif depth == 0:
-            if text.startswith(":=", j):
-                assign = j
-                break
-            if ch == ":" and colon is None:
-                colon = j
+        elif depth == 0 and text.startswith(":=", j):
+            return (start, j), (j, end)
         j += 1
-    stop = assign if assign is not None else end
-    binders = text[i: colon if colon is not None else stop]
-    return binders, (start, stop), (stop, end)
+    return (start, end), (end, end)
 
 
 def collect(root, problems):
@@ -350,6 +383,8 @@ def collect(root, problems):
                 if os.path.islink(full):
                     problems.append(LINK % os.path.relpath(full, root))
                     dirnames.remove(dn)
+                elif dn in SKIPPED_DIR_NAMES:
+                    dirnames.remove(dn)
             for fn in sorted(filenames):
                 full = os.path.join(dirpath, fn)
                 rel = os.path.relpath(full, root)
@@ -367,75 +402,65 @@ def collect(root, problems):
             problems.append(MISSING % f)
             continue
         files.append(f)
-    return sorted(set(files))
+    scanned = set(files)
+    # Every Lean file in the two package directories has to be in that set, so
+    # a new library does not quietly go unchecked.
+    for pkg in PACKAGE_DIRS:
+        base = os.path.join(root, pkg)
+        if not os.path.isdir(base):
+            continue
+        for dirpath, dirnames, filenames in os.walk(base, followlinks=False):
+            dirnames[:] = [dn for dn in dirnames if dn not in SKIPPED_DIR_NAMES]
+            for fn in filenames:
+                if fn.lower().endswith(".lean"):
+                    rel = os.path.relpath(os.path.join(dirpath, fn), root)
+                    if rel not in scanned:
+                        problems.append(UNSCANNED % rel)
+    return sorted(scanned)
 
 
-def max_token_offsets(raw):
-    """Offsets in `raw` of every spelling `normalise` turns into «T», in order.
+def scan(rel, text, problems):
+    starts = [0] + [m.end() for m in re.finditer("\n", text)]
 
-    Each recognised spelling becomes exactly one «T» and the rewrites keep
-    their order, so the k-th «T» in the normalised text is the k-th offset
-    here. That is what lets a hit found in normalised text be reported at its
-    own line and column: without it, two sites in one declaration produce the
-    same message and collapse into one, and a reader fixes one of them believing
-    it was the only one. That happened, on the proof of `T3.receive_refines`,
-    whose four restatements of the bound were reported as one."""
-    offs = []
-    for rx in (MAX_NAMED, MAX_SCALAR, MAX_LITERAL):
-        offs.extend(m.start() for m in rx.finditer(raw))
-    return sorted(offs)
+    def line_col(pos):
+        line = bisect.bisect_right(starts, pos)
+        return line, pos - starts[line - 1] + 1
 
-
-def scan(rel, text, problems, stated):
     for start, end, q, m in regions(text):
         if m is not None:
-            binders, stmt, body = split_decl(text, start, end, m)
+            stmt, body = split_decl(text, start, end, m)
+            body_label = ("proof" if m.group(1) in ("theorem", "lemma", "example")
+                          else "definition")
         else:
-            binders, stmt, body = "", (start, end), (end, end)
-        line = text.count("\n", 0, start) + 1
+            stmt, body, body_label = (start, end), (end, end), "proof"
+        decl_line = line_col(start)[0]
         if m is None:
             where = "before any declaration"
         elif q is None:
-            where = "in an unnamed declaration at line %d" % line
+            where = "in an unnamed declaration at line %d" % decl_line
         else:
-            where = "in `%s`, declared at line %d" % (q, line)
-        # After `:=` a theorem has a proof; a definition, an assumption bundle
-        # among them, has a body. Say which, so a bundle clause is not
-        # reported as though it were a step inside a proof.
-        body_label = "proof"
-        if m is not None and m.group(1) not in ("theorem", "lemma", "example"):
-            body_label = "definition"
+            where = "in `%s`, declared at line %d" % (q, decl_line)
         for part, (p0, p1) in (("statement", stmt), (body_label, body)):
             if p1 <= p0:
                 continue
             raw = text[p0:p1]
             norm = normalise(raw)
-            offs = max_token_offsets(raw)
+            offs = [mm.start() for mm in MAXIMUM.finditer(raw)]
             seen = set()
             for form, rx, ga, gb in FORMS:
                 for hit in rx.finditer(norm):
                     a, b = hit.group(ga), hit.group(gb)
                     if a not in MAXV or b not in MAXV or not dangerous(a, b):
                         continue
-                    # The position of A's own token in the file. A site is
-                    # that token: two sites in one declaration, or two bounds
-                    # on one line, are two problems; one bound that two forms
-                    # both match names the same token and is one.
-                    k = norm.count("«", 0, hit.start(ga))
-                    pos = p0 + offs[k] if k < len(offs) else start
+                    # The group starts just after A's own marker, so the
+                    # markers strictly before that one number A's token.
+                    k = norm.count(OPEN_MARK, 0, hit.start(ga) - 1)
+                    pos = p0 + offs[k]
                     if (pos, a, b) in seen:
                         continue
                     seen.add((pos, a, b))
-                    site = text.count("\n", 0, pos) + 1
-                    col = pos - (text.rfind("\n", 0, pos) + 1) + 1
-                    if (rel, q) in ALLOW:
-                        if H32.search(binders):
-                            if part == "statement":
-                                stated.add((rel, q))
-                            continue
-                        problems.append(ALLOW_H32 % (rel, q))
-                        continue
-                    problems.append(BOUND % (rel, site, col, a, b, where, form,
+                    line, col = line_col(pos)
+                    problems.append(BOUND % (rel, line, col, a, b, where, form,
                                              part, a, b))
 
 
@@ -445,8 +470,9 @@ def main():
         os.path.abspath(__file__))), help="repository root")
     args = ap.parse_args()
 
-    problems, stated = [], set()
+    problems = []
     files = collect(args.root, problems)
+    checked = 0
     for rel in files:
         try:
             with open(os.path.join(args.root, rel), encoding="utf-8") as fh:
@@ -459,10 +485,16 @@ def main():
         except StripError as exc:
             problems.append("%s: cannot be checked: %s" % (rel, exc))
             continue
-        scan(rel, text, problems, stated)
-
-    for rel, q in sorted(ALLOW - stated):
-        problems.append(ALLOW_GONE % (rel, q))
+        if rel == EXCLUDED:
+            for name in REFUTATIONS:
+                if not re.search(r"^[ \t]*theorem[ \t]+%s\b" % re.escape(name),
+                                 text, re.M):
+                    problems.append(REFUTATION_GONE % (rel, name))
+            continue
+        checked += 1
+        scan(rel, text, problems)
+    if EXCLUDED not in files:
+        problems.append(MISSING % EXCLUDED)
 
     unique = list(dict.fromkeys(problems))
     if unique:
@@ -471,12 +503,10 @@ def main():
         print("check-precondition-shapes: %d problem(s)" % len(unique),
               file=sys.stderr)
         return 1
-    print("check-precondition-shapes: %d first-party Lean files, no bound of the "
-          "refused shape in a form this tripwire recognises (%d allow-listed "
-          "refutations, each taking the 32-bit width as a binder and stating "
-          "the shape). This is not a proof that no bound forces its subject to "
-          "zero; the script's docstring lists what it misses."
-          % (len(files), len(stated)))
+    print("check-precondition-shapes: %d Lean files checked for the forms this "
+          "script's docstring lists, none found; PreconditionShapes.lean "
+          "excluded, both its refutations present. A tripwire for those forms, "
+          "not a proof that no bound forces its subject to zero." % checked)
     return 0
 
 

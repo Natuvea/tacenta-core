@@ -12,21 +12,20 @@ documentation called it a genuine constraint.
 
 The general form compares an additive term that is one integer type's maximum
 `A` with a bound that is another's maximum `B`, where `A` is at least `B` on
-some target: `x + A.max ≤ B.max`, the same comparison written the other way
-round, or the subtraction moved to the bound. On that target the bound forces
-`x` to zero, so it describes no state that has ever done anything.
+some target. On that target the bound forces what it constrains to zero, so it
+describes no state that has ever done anything.
 
-`tooling/check-precondition-shapes.py` trips on that class in the spellings
-this tree uses. It is a tripwire, not a guarantee. It does not see through an
-alias, a `notation` or a `macro` standing for a maximum, and a precondition
-that is unsatisfiable for any other reason passes it. Its docstring lists what
-it misses.
+`tooling/check-precondition-shapes.py` is a tripwire for a handful of textual
+forms of that class. It is not a guarantee. Its docstring lists the forms it
+catches, the forms review found it misses, and the legitimate code it refuses,
+and those lists are the claim.
 
-This file is the justification for that rule, kept as proof rather than prose.
-The script allow-lists the two refutations below by their full names, and only
-while each still takes the 32-bit width as a binder before its colon and still
-states the shape in its statement. So neither can be quietly turned into a
-precondition under its allow-listed name.
+This file is not scanned by that script. It holds the two refutations below,
+which state the refused shape on purpose, and the script checks only that both
+are still present by name. It does not check what they say. An earlier version
+tried to excuse them by name and binder instead, and review found five ways to
+smuggle an ordinary precondition past that, so the exclusion is explicit and
+claims only what it does.
 
 ## What this file does not do
 
@@ -41,8 +40,7 @@ anywhere else.
 
 What is established, and where:
 
-* The class above trips the script wherever it is written in a form the script
-  recognises.
+* The forms the script's docstring lists trip it in every file it scans.
 * The store bounds the classical ratchet's `receive` carries are satisfied by
   **every** state the crate's decoder accepts, which is far stronger than a
   witness: `Ratchet.inv_gives_store_bound` and `Ratchet.store_plus_skip_fits`
@@ -65,7 +63,8 @@ namespace Tacenta.PreconditionShapes
 `UnitTripleT1.State.receive_no_panic`, and by two assumption bundles,
 `RatchetAgreesFor` and `RatchetReceiveTotal`. On a 32-bit target no store meets
 it, the empty one included, because the left side is at least `2000 + U32.max`.
-`ImportInv.lean` carried a closed spelling of the same fact, the constant part
+`ImportInv.lean` carried it twice more: in full, as the conclusion of
+`Ratchet.inv_gives_store_bound`, and in a closed spelling, the constant part
 passed in as `hplat`, which is false at 32 bits and is the `n = 0` case of this.
 
 `h32` takes the narrower branch of `Std.Usize.bounds_eq` as a hypothesis rather

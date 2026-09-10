@@ -24,6 +24,9 @@
 #   count           the exact number of `::error::` lines a refused case must
 #                   produce. Without it a case checks only that the script
 #                   refused and why, which cannot see two sites reported as one.
+#   location        lines of `path:line:col:`, each of which must appear. A
+#                   review found every reported column pointing at the maximum
+#                   after the one at fault, and no case had looked.
 #
 # The script is not changed to run these. It reads a root, and this assembles
 # one per case, so no case file ever sits where the real run would read it.
@@ -107,13 +110,27 @@ PY
     wrong=$((wrong + 1))
     echo "WRONG  $name: refused, but not for '$reason':"
     echo "$out" | sed 's/^/    /'
-  elif [ -f "$dir/count" ]; then
-    want=$(tr -d ' \n' < "$dir/count")
-    got=$(printf '%s\n' "$out" | grep -c '^::error::' || true)
-    if [ "$got" != "$want" ]; then
-      wrong=$((wrong + 1))
-      echo "WRONG  $name: refused for the right reason, but reported $got problem(s), expected $want:"
-      echo "$out" | sed 's/^/    /'
+  else
+    if [ -f "$dir/count" ]; then
+      want=$(tr -d ' \n' < "$dir/count")
+      got=$(printf '%s\n' "$out" | grep -c '^::error::' || true)
+      if [ "$got" != "$want" ]; then
+        wrong=$((wrong + 1))
+        echo "WRONG  $name: refused for the right reason, but reported $got problem(s), expected $want:"
+        echo "$out" | sed 's/^/    /'
+        continue
+      fi
+    fi
+    if [ -f "$dir/location" ]; then
+      while IFS= read -r want_loc || [ -n "$want_loc" ]; do
+        [ -z "$want_loc" ] && continue
+        if [[ "$out" != *"check-precondition-shapes: $want_loc"* ]]; then
+          wrong=$((wrong + 1))
+          echo "WRONG  $name: no report at $want_loc:"
+          echo "$out" | sed 's/^/    /'
+          break
+        fi
+      done < "$dir/location"
     fi
   fi
 done

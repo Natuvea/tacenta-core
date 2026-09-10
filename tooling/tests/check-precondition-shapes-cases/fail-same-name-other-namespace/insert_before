@@ -1,6 +1,0 @@
-/-! ## Satisfiable is not the same
-namespace Other
-theorem old_store_bound_unsatisfiable_at_32 (h32 : Usize.max = U32.max) (s : Nat) (hs : s + U32.max ≤ Usize.max) : True := trivial
-
-end Other
-

@@ -74,12 +74,12 @@ bash tooling/tests/run-check-bundle-drift-cases.sh
 # A numeric precondition of the shape `x + A.max ≤ B.max`, with `A` at least as
 # wide as `B` on some target, forces `x` to zero there and describes no state
 # that has held anything. One such bound made `receive_no_panic` vacuous on
-# 32-bit targets for months while reading as a strong hypothesis. This trips on
-# that class in the spellings the tree uses, and its cases hold it to those,
-# including that the two Lean refutations it allow-lists cannot be quietly
-# turned back into preconditions. It is a tripwire and not a proof that no bound
-# forces its subject to zero; the script's docstring lists what it misses.
-echo "== No bound of the refused precondition shape, as the tripwire recognises it =="
+# 32-bit targets for months while reading as a strong hypothesis. This is a
+# tripwire for the forms its docstring lists, not a proof that no bound forces
+# its subject to zero, and the docstring also lists what review found it misses.
+# PreconditionShapes.lean is excluded, since it states the shape on purpose. The
+# cases hold the lint to exact sites, lines and columns.
+echo "== The precondition-shape tripwire finds none of the forms it lists =="
 python3 tooling/check-precondition-shapes.py
 bash tooling/tests/run-check-precondition-shapes-cases.sh
 

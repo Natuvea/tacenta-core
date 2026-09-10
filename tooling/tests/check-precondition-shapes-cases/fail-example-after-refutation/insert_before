@@ -1,3 +1,0 @@
-/-! ## Satisfiable is not the same
-example (s : Nat) (hs : s + U32.max ≤ Usize.max) : True := trivial
-

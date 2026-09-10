@@ -1577,42 +1577,43 @@ store bound asked for something no state with anything in it could satisfy at
 
 Two things now bear on that family, and they should not be mistaken for more.
 
-**A lint trips on the class the defect belonged to, in the spellings this tree
-uses.** `tooling/check-precondition-shapes.py` refuses a bound comparing an
-additive term that is one integer type's maximum `A` with a bound that is
-another's maximum `B`, where `A` is at least `B` on some target, because there
-the bound forces what it constrains to zero. It recognises the comparison
-written either way round or with the subtraction moved to the bound, with
-`<=` and `>=`, parentheses, ascriptions, qualified names, `rMax`,
-`UScalar.max` and literal maxima, in statements, proofs, assumption bundles and
-bounds split across lines, one declaration at a time, and reports each site at
-its own line and column.
+**A lint trips on some textual forms of the class the defect belonged to.**
+`tooling/check-precondition-shapes.py` refuses a bound comparing an additive
+term that is one integer type's maximum `A` with a bound that is another's
+maximum `B`, where `A` is at least `B` on some target, because there the bound
+forces what it constrains to zero. It recognises six comparison forms and a
+fixed list of ways to write a maximum, one declaration at a time, and reports
+each site at the line and column of the offending maximum. Its docstring lists
+exactly which forms and spellings it catches, which ones review has found it
+misses, and which legitimate code it refuses. Those lists are the claim, and
+nothing here extends it.
 
-It is a tripwire, not a guarantee. It does not see through an alias, a
-`notation` or a `macro` standing for a maximum, and a precondition
-unsatisfiable for any other reason passes it; its docstring lists what it
-misses. Its first version was weaker than it claimed: a cold read found it
-accepted a flipped comparison, a parenthesised addend and a fully qualified
-name, all spellings this tree already uses elsewhere, and that its allow-list
-and its file scope could both be slipped past. Each of those is now a fixture
-case.
+Getting that claim true took four rounds, and the failures are worth recording,
+because each one was a guard described as more than it was. The first version
+accepted a flipped comparison, a parenthesised addend and fully qualified names.
+The second reported several sites in one declaration as a single site. The third
+reported every site at the maximum after the one at fault, could be slipped past
+by any declaration its detector did not recognise, and still accepted three
+spellings of a maximum this tree uses elsewhere. Every one of those is now a
+fixture case. The fourth round's fixes were each confirmed by breaking them and
+watching their cases fail.
 
 Run against the tree as it stood before the fix, it reports **twenty-one**
 sites in sixteen declarations across six files: fourteen hypotheses, one
 conclusion, two assumption-bundle definitions, and four restatements of the
 bound inside one proof. Three of the sixteen declarations are in
-`ImportInv.lean`, which took the platform fact as an argument. That figure
-matches a reviewer's independent count file for file. An earlier account of the
-same history said eight files, and an earlier version of the lint reported the
-four restatements as one site; both were wrong, and the second is now guarded
-by cases that assert exact counts.
+`ImportInv.lean`, which took the platform fact as an argument. That matches a
+reviewer's independent count file for file, and each of the twenty-one reported
+columns lands on the offending maximum.
 
 **The class is proved to be the right thing to refuse.**
 `Translation/PreconditionShapes.lean` refutes both forms the defect took: the
-store bound admits no store at 32 bits, and the skip bound admits only the empty
-one. The lint allow-lists exactly those two theorems, only while each still
-takes the 32-bit width as a hypothesis, so neither can be turned back into a
-precondition under its allow-listed name, and it fails if either is deleted.
+store bound admits no store at 32 bits, and the skip bound admits only the
+empty one. That file is excluded from the lint, because it states the shape on
+purpose. The lint checks only that both refutations are still present by name.
+It does not check what they say, and it scans nothing else in that file. An
+earlier version tried to excuse the refutations by name and binder instead, and
+review found five ways to smuggle an ordinary precondition past that.
 
 What is **not** established is that the tree's numeric preconditions are
 satisfiable in general. There are some 140 bound hypotheses on some 95
