@@ -1,16 +1,19 @@
 import Translation.SpqrT3
 import Translation.T3
 import Translation.BraidT3
+import Translation.SessionT3
 
 /-!
-# Satisfiability of the `Vec`-family and `zeroize`-wrapper boundary hypotheses
+# Satisfiability of the leaves' opaque-boundary hypotheses
 
 Every `Vec` operation Aeneas does not model reaches the translation as an
 axiom, as do the `zeroize` wrapper's constructor and projection, and the
 T1/T3 files assume what they need about them as a named `Prop`
 (`VecAppendTotal`, `VecRemoveAgrees`, `ZeroizingRoundTrips96`,
 `ZeroizingArrayRoundTrip`, `T3.ZeroizingRoundTrips80`, ...), or as a class
-(`T1.DerivedKeysModel`). The three-leaf unit's copies of these, and the Triple
+(`T1.DerivedKeysModel`), and so are the key-derivation agreements (`T3.HmacAgrees`,
+`T3.HkdfAgrees`, `SpqrT3.SpqrHkdfAgrees`, `SessionT3.HkdfAgrees` and the Braid's
+two) and `OptionCloneTotal`. The three-leaf unit's copies of these, and the Triple
 Ratchet's own, have their witnesses in `Translation/UnitSatisfiabilityTriple.lean`,
 since `TacentaTripleUnit` cannot be imported alongside `TacentaRatchet`. A
 hypothesis of that kind carries
@@ -23,7 +26,7 @@ This file is the check against that. For each hypothesis it states the
 the current hypothesis is exactly that shape applied to the axiom
 (`Iff.rfl`, so the two cannot drift), and exhibits a concrete function
 satisfying it, so the hypothesis is consistent: at least one model of that
-hypothesis makes it true. Alongside each it also states the natural over-strong
+hypothesis makes it true. Alongside each `Vec` hypothesis it also states the natural over-strong
 shape -- an `append` with no length guard, a `remove` with no index guard --
 and proves that **no** function satisfies it, so the guards on the
 hypotheses are shown to be necessary rather than merely cautious. An edit
@@ -693,5 +696,197 @@ theorem decoderSim_allSources_refutable (real0 : tacenta_erasure.Decoder)
   simp at e2
 
 end BraidRefutations
+
+/-! ## HMAC and HKDF agreement, and `Option`'s clone
+
+Four crates carry their own opaque copy of the key-derivation primitives and two
+their own opaque copy of `Option`'s clone, by the per-crate counting rule
+`SpqrT1.lean` describes, and the refinements take an agreement or totality
+hypothesis about each copy. The model's HMAC always returns a hash-length tag and
+its HKDF exactly the requested length (`Model.Kdf.hmac_length`,
+`Model.Kdf.hkdf_length`), so returning the model's bytes as an array is a model
+of every agreement; the identity is a model of `OptionCloneTotal`. The shapes are
+stated with `T3.lean`'s `keyOf` and `sliceOf`. The other crates' copies have the
+same bodies, so each hypothesis is its shape by `Iff.rfl`, and each constant is
+named by the `_is` theorem for its crate. -/
+
+section KdfAndOptionClone
+
+/-- The type of each crate's `tacenta_kdf.hmac_sha256`. -/
+abbrev HmacFn := Slice Std.U8 → Slice Std.U8 → Result (Array Std.U8 32#usize)
+
+/-- The type of each crate's `tacenta_kdf.hkdf_sha256`. -/
+abbrev HkdfFn :=
+  (N : Usize) → Slice Std.U8 → Slice Std.U8 → Slice Std.U8 → Result (Array Std.U8 N)
+
+/-- The shape of `T3.HmacAgrees` and `BraidT3.BraidHmacAgrees`. -/
+def HmacShape (f : HmacFn) : Prop :=
+  ∀ key data, ∃ r, f key data = ok r ∧
+    Tacenta.T3.keyOf r = Model.Kdf.hmac (Tacenta.T3.sliceOf key) (Tacenta.T3.sliceOf data)
+
+/-- The shape of `T3.HkdfAgrees`, `SpqrT3.SpqrHkdfAgrees` and
+`BraidT3.BraidHkdfAgrees`. -/
+def HkdfShape (f : HkdfFn) : Prop :=
+  ∀ N key salt info, N.val ≤ 8160 → ∃ r, f N key salt info = ok r ∧
+    Tacenta.T3.keyOf r = Model.Kdf.hkdf (Tacenta.T3.sliceOf key)
+      (Tacenta.T3.sliceOf salt) (Tacenta.T3.sliceOf info) N.val
+
+/-- The shape of `SessionT3.HkdfAgrees`: a Hoare triple at the one width the
+session derives. -/
+def Hkdf32Shape (f : HkdfFn) : Prop :=
+  ∀ (salt ikm info : Slice Std.U8),
+    f 32#usize salt ikm info ⦃ fun r =>
+      Tacenta.T3.keyOf r = Model.Kdf.hkdf (Tacenta.T3.sliceOf salt)
+        (Tacenta.T3.sliceOf ikm) (Tacenta.T3.sliceOf info) 32 ⦄
+
+theorem T3_HmacAgrees_is :
+    Tacenta.T3.HmacAgrees ↔ HmacShape @tacenta_ratchet.tacenta_kdf.hmac_sha256 :=
+  Iff.rfl
+
+theorem T3_HkdfAgrees_is :
+    Tacenta.T3.HkdfAgrees ↔ HkdfShape @tacenta_ratchet.tacenta_kdf.hkdf_sha256 :=
+  Iff.rfl
+
+theorem SpqrHkdfAgrees_is :
+    Tacenta.SpqrT3.SpqrHkdfAgrees ↔ HkdfShape @tacenta_spqr.tacenta_kdf.hkdf_sha256 :=
+  Iff.rfl
+
+theorem SessionT3_HkdfAgrees_is :
+    Tacenta.SessionT3.HkdfAgrees ↔ Hkdf32Shape @tacenta_session.tacenta_kdf.hkdf_sha256 :=
+  Iff.rfl
+
+theorem BraidHkdfAgrees_is :
+    Tacenta.BraidT3.BraidHkdfAgrees ↔ HkdfShape @tacenta_braid.tacenta_kdf.hkdf_sha256 :=
+  Iff.rfl
+
+theorem BraidHmacAgrees_is :
+    Tacenta.BraidT3.BraidHmacAgrees ↔ HmacShape @tacenta_braid.tacenta_kdf.hmac_sha256 :=
+  Iff.rfl
+
+/-- A model byte as a translated one. -/
+def toU8 (x : UInt8) : Std.U8 := ⟨x.toBitVec⟩
+
+theorem u8_toU8 (x : UInt8) : Tacenta.T3.u8 (toU8 x) = x := by
+  show UInt8.ofNat x.toBitVec.toNat = x
+  simp
+
+def hmacWitness : HmacFn := fun key data =>
+  ok ⟨(Model.Kdf.hmac (Tacenta.T3.sliceOf key) (Tacenta.T3.sliceOf data)).map toU8,
+    by simp [Model.Kdf.hmac_length, Model.Kdf.hashLen]⟩
+
+def hkdfWitness : HkdfFn := fun N key salt info =>
+  ok ⟨(Model.Kdf.hkdf (Tacenta.T3.sliceOf key) (Tacenta.T3.sliceOf salt)
+      (Tacenta.T3.sliceOf info) N.val).map toU8, by simp [Model.Kdf.hkdf_length]⟩
+
+theorem hmac_agrees_satisfiable : ∃ f, HmacShape f :=
+  ⟨hmacWitness, fun key data =>
+    ⟨_, rfl, by simp [Tacenta.T3.keyOf, Function.comp_def, u8_toU8]⟩⟩
+
+theorem hkdf_agrees_satisfiable : ∃ f, HkdfShape f :=
+  ⟨hkdfWitness, fun N key salt info _ =>
+    ⟨_, rfl, by simp [Tacenta.T3.keyOf, Function.comp_def, u8_toU8]⟩⟩
+
+theorem hkdf32_agrees_satisfiable : ∃ f, Hkdf32Shape f :=
+  ⟨hkdfWitness, fun salt ikm info => by
+    simp [hkdfWitness, Tacenta.T3.keyOf, Function.comp_def, u8_toU8]⟩
+
+/-- The type of each crate's `core.option.Option.Insts.CoreCloneClone.clone`. -/
+abbrev OptionCloneFn := {T : Type} → core.clone.Clone T → Option T → Result (Option T)
+
+/-- The shape of `SpqrT1.OptionCloneTotal` and `BraidT1.OptionCloneTotal`. -/
+def OptionCloneShape (f : OptionCloneFn) : Prop :=
+  ∀ {T : Type} (inst : core.clone.Clone T) (o : Option T),
+    (∀ x, o = some x → inst.clone x ⦃ fun y => y = x ⦄) → f inst o ⦃ fun o' => o' = o ⦄
+
+theorem SpqrT1_OptionCloneTotal_is :
+    Tacenta.SpqrT1.OptionCloneTotal ↔
+      OptionCloneShape @tacenta_spqr.core.option.Option.Insts.CoreCloneClone.clone :=
+  Iff.rfl
+
+theorem BraidT1_OptionCloneTotal_is :
+    Tacenta.BraidT1.OptionCloneTotal ↔
+      OptionCloneShape @tacenta_braid.core.option.Option.Insts.CoreCloneClone.clone :=
+  Iff.rfl
+
+theorem option_clone_satisfiable : ∃ f, OptionCloneShape f :=
+  ⟨fun _ o => ok o, fun _ _ _ => by simp⟩
+
+end KdfAndOptionClone
+
+/-! ## Hypotheses that share a constant, witnessed together
+
+The witnesses above take one hypothesis at a time. Where one theorem takes two
+hypotheses about the same opaque constants, that is not enough to show they hold
+together. Two groups do:
+
+* `T1.receive_no_panic` takes `T1.ZeroizingTotal` and `T1.DerivedKeysModel`, and
+  `T3.receive_refines` takes `T3.ZeroizingRoundTrips` and `T1.DerivedKeysModel`
+  (as do their decoded-state corollaries in `ImportInv.lean`), all about the
+  classical ratchet's `zeroize.Zeroizing` constructor and projections.
+  `T3.ZeroizingRoundTrips80` is about the same constants. `ratchet_zeroizing_joint_is`
+  and `ratchet_zeroizing_joint_satisfiable` take all four at once.
+* `SpqrT3.send_refines` and `receive_refines` take `ZeroizingRoundTrips96` and
+  `ZeroizingRoundTrips64`, both about the sparse ratchet's wrapper.
+  `spqr_zeroizing_joint_satisfiable` takes both at once.
+
+The transparent wrapper models each group. -/
+
+section JointWrappers
+
+/-- The shape of `T1.ZeroizingTotal`: the classical ratchet's wrapper constructor
+and projection both return, at sixty-four bytes. -/
+def RatchetZeroizingTotal {W : Type → Type}
+    (new : RatchetZeroizingNewFn W) (deref : RatchetZeroizingDerefFn W) : Prop :=
+  ∀ inst : tacenta_ratchet.zeroize.Zeroize (Array Std.U8 64#usize),
+    (∀ z, ∃ r, new inst z = ok r) ∧ (∀ z, ∃ r, deref inst z = ok r)
+
+/-- Every hypothesis about the classical ratchet's wrapper, at once. -/
+def RatchetZeroizingJoint {W : Type → Type} (contents : W DerivedKeys → DerivedKeys)
+    (new : RatchetZeroizingNewFn W) (deref : RatchetZeroizingDerefFn W)
+    (deref_mut : RatchetZeroizingDerefMutFn W) : Prop :=
+  RatchetZeroizingTotal new deref ∧ ZeroizingRoundTripsTotal 64#usize new deref ∧
+    ZeroizingRoundTripsTotal 80#usize new deref ∧
+    DerivedKeysShape contents new deref deref_mut
+
+theorem ratchet_zeroizing_joint_is :
+    (Tacenta.T1.ZeroizingTotal ∧ Tacenta.T3.ZeroizingRoundTrips ∧
+      Tacenta.T3.ZeroizingRoundTrips80 ∧ Nonempty Tacenta.T1.DerivedKeysModel) ↔
+    ∃ contents, RatchetZeroizingJoint (W := tacenta_ratchet.zeroize.Zeroizing) contents
+      @tacenta_ratchet.zeroize.Zeroizing.new
+      @tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      @tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut :=
+  ⟨fun ⟨a, b, c, ⟨m⟩⟩ => ⟨m.contents, a, b, c, m.new, m.deref, m.deref_mut⟩,
+   fun ⟨k, a, b, c, hn, hd, hm⟩ => ⟨a, b, c, ⟨⟨k, hn, hd, hm⟩⟩⟩⟩
+
+theorem ratchet_zeroizing_joint_satisfiable :
+    ∃ (W : Type → Type) (contents : W DerivedKeys → DerivedKeys)
+      (new : RatchetZeroizingNewFn W) (deref : RatchetZeroizingDerefFn W)
+      (deref_mut : RatchetZeroizingDerefMutFn W),
+      RatchetZeroizingJoint contents new deref deref_mut := by
+  refine ⟨fun Z => Z, id, @ratchetZeroizingNewWitness, @ratchetZeroizingDerefWitness,
+    @ratchetZeroizingDerefMutWitness, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · exact fun _ => ⟨fun z => ⟨z, rfl⟩, fun w => ⟨w, rfl⟩⟩
+  · exact fun _ => ⟨fun z => ⟨z, rfl, rfl⟩, fun w => ⟨w, rfl⟩⟩
+  · exact fun _ => ⟨fun z => ⟨z, rfl, rfl⟩, fun w => ⟨w, rfl⟩⟩
+  all_goals intros; simp [ratchetZeroizingNewWitness, ratchetZeroizingDerefWitness,
+    ratchetZeroizingDerefMutWitness]
+
+theorem spqr_zeroizing_joint_is :
+    (Tacenta.SpqrT3.ZeroizingRoundTrips96 ∧ Tacenta.SpqrT3.ZeroizingRoundTrips64) ↔
+      (ZeroizingRoundTrips 96#usize (W := tacenta_spqr.zeroize.Zeroizing)
+          @tacenta_spqr.zeroize.Zeroizing.new
+          @tacenta_spqr.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref ∧
+        ZeroizingRoundTrips 64#usize (W := tacenta_spqr.zeroize.Zeroizing)
+          @tacenta_spqr.zeroize.Zeroizing.new
+          @tacenta_spqr.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref) :=
+  Iff.rfl
+
+theorem spqr_zeroizing_joint_satisfiable :
+    ∃ (W : Type → Type) (new : ZeroizingNewFn W) (deref : ZeroizingDerefFn W),
+      ZeroizingRoundTrips 96#usize new deref ∧ ZeroizingRoundTrips 64#usize new deref :=
+  ⟨fun Z => Z, @zeroizingNewWitness, @zeroizingDerefWitness,
+    fun _ z => ⟨z, rfl, rfl⟩, fun _ z => ⟨z, rfl, rfl⟩⟩
+
+end JointWrappers
 
 end Tacenta.Satisfiability

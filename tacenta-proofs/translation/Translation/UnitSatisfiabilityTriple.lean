@@ -31,7 +31,7 @@ witness for that inner hypothesis. It is strictly stronger than
 On the leaves the classical and sparse ratchets' hypotheses constrain different
 constants, though one ratchet's can share one: `T3.lean` takes both
 `ZeroizingRoundTrips` and `T1.DerivedKeysModel`, about one wrapper, and
-`Satisfiability.lean` witnesses those one at a time. On the unit the sharing also
+`Satisfiability.lean` witnesses those together. On the unit the sharing also
 crosses ratchets, and a witness for each hypothesis on its own would not show
 they hold together:
 
@@ -59,11 +59,10 @@ order, up to the state relation. A boundary hypothesis added to the theorem ahea
 of that point, or replaced by a proposition these are not, stops this file
 building.
 
-## What is not witnessed here
+## The leaves' copies
 
-The leaves' copies of the HMAC and HKDF agreements, and `SpqrT1.OptionCloneTotal`,
-still have no witness on the leaves' side; `Satisfiability.lean` does not cover
-them, and it witnesses the leaves' shared-constant hypotheses one at a time.
+The leaves' copies of these hypotheses are witnessed in `Satisfiability.lean`,
+about the leaves' own constants, the shared-wrapper ones jointly.
 
 No over-strong shape is refuted here. `Satisfiability.lean` keeps the refutations
 of the unguarded `Vec` shapes, and the unit's hypotheses carry the same guards.

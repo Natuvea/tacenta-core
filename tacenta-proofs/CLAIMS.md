@@ -91,15 +91,19 @@ this section says in one place what is not proved.
   same file witnesses every `zeroize`-wrapper hypothesis the sparse ratchet,
   the Braid and the classical ratchet take (`ZeroizingRoundTrips96`/`64`,
   `ZeroizingArrayRoundTrip`, `T3.lean`'s `ZeroizingRoundTrips` and
-  `ZeroizingRoundTrips80`, `T1.DerivedKeysModel`).
+  `ZeroizingRoundTrips80`, `T1.DerivedKeysModel`), jointly where one theorem
+  takes two about the same wrapper (`T1.ZeroizingTotal` or
+  `T3.ZeroizingRoundTrips` with `T1.DerivedKeysModel`, and the sparse ratchet's
+  two round trips), and every HMAC and HKDF agreement and `OptionCloneTotal` the
+  classical, sparse, session and Braid refinements take, from the model's output
+  lengths and the identity clone.
   `Translation/UnitSatisfiabilityTriple.lean`, which cannot share an
   environment with the rest, does the same for the Triple Ratchet's two
   (`UnitT1.ZeroizingTotal`, `UnitTripleT3.ZeroizingRoundTrips`) and for the
   inner refinements' boundary as restated about the unit, jointly where two
   hypotheses there constrain one constant: the `zeroize` wrapper family with
   `DerivedKeysModel`, `Vec::remove`, `append` and `retain`, `Option`'s clone and
-  the general array `ZeroizeTotal`, and the HMAC and HKDF agreements. The leaves'
-  copies of those two agreements still have no witness. A satisfiable hypothesis is still only
+  the general array `ZeroizeTotal`, and the HMAC and HKDF agreements. A satisfiable hypothesis is still only
   a hypothesis (`LIMITATIONS.md`).
 - **The ML-KEM Braid's T3 theorems carry two preconditions beyond the
   boundary agreements.** `step_send_refines`, `Braid.send_refines`,
@@ -1309,10 +1313,10 @@ What a reader has to grant:
   bijection between 32-byte data and field elements, and the interpolation
   theorem; the module is noncomputable throughout, which a witness may be.
   What it establishes is consistency -- assuming those hypotheses is not
-  assuming `False` -- not that the real crate is this code. Two boundary
-  hypotheses of the Braid theorems have no witness yet: `BraidHmacAgrees`/
-  `BraidHkdfAgrees` (satisfiable by the model's own `hmac`/`hkdf`, which
-  return exactly the requested lengths) and `OptionCloneTotal`.
+  assuming `False` -- not that the real crate is this code. The Braid's
+  `BraidHmacAgrees`/`BraidHkdfAgrees` and `OptionCloneTotal` are witnessed in
+  `Translation/Satisfiability.lean`, from the model's own `hmac`/`hkdf`, which
+  return exactly the requested lengths, and the identity clone.
 - **The KEM hypotheses have a model too.** `Translation/KemWitness.lean`
   does the same for `KemAgreesFor`, `ValidateEkAgrees`, `KemLenAgrees`,
   `KemCloneAgrees` and every `BraidT1.lean` totality and size bound on the
