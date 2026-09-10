@@ -199,7 +199,7 @@ def HmacSha256Total : Prop :=
 assumes too, for the same reason it needs one: cloning an
 `Option` a caller reports back out (`receive`'s returned `Output`) is not
 known total by the library, and this crate's copy of the axiom is a distinct
-constant from either of theirs. -/
+constant from its. -/
 def OptionCloneTotal : Prop :=
   ∀ {T : Type} (inst : core.clone.Clone T) (o : Option T),
     (∀ x, o = some x → inst.clone x ⦃ fun y => y = x ⦄) →

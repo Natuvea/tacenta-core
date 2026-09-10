@@ -23,16 +23,19 @@ a risk the rest of the proof cannot see: if it is **refutable** -- if no
 function at all could satisfy it -- then every theorem taking it is provable
 from `False`, and the kernel will happily check it.
 
-This file is the check against that. For each hypothesis it states the
+This file is the check against that. For each hypothesis it witnesses it states the
 *shape* as a predicate on an arbitrary function of the axiom's type, shows
 the current hypothesis is exactly that shape applied to the axiom
 (`Iff.rfl`, so the two cannot drift), and exhibits a concrete function
 satisfying it, so the hypothesis is consistent: at least one model of that
-hypothesis makes it true. Alongside each `Vec` hypothesis it also states the natural over-strong
+hypothesis makes it true. Alongside the `append` and `remove` hypotheses it also states the natural over-strong
 shape -- an `append` with no length guard, a `remove` with no index guard --
 and proves that **no** function satisfies it, so the guards on the
 hypotheses are shown to be necessary rather than merely cautious. An edit
-that makes a hypothesis unsatisfiable breaks the witness here.
+that makes a witnessed hypothesis unsatisfiable breaks its witness here. The six
+totalities covered only by derivation have no witness of their own; the
+`example`s at the end of the last section hold them to the theorems that derive
+them.
 
 Consistency is all this establishes. Nothing here says the axiom Aeneas
 generated *is* the witness; it says the theorems downstream are not proofs
@@ -836,7 +839,8 @@ together. Two groups of hypotheses about the same wrapper constants do:
 The transparent wrapper models each group.
 
 A third group is about translated functions rather than opaque constants.
-`SpqrT1.receive_no_panic` and `ImportInv`'s `Spqr.decoded_receive_no_panic` take
+`SpqrT1.send_no_panic`, `SpqrT1.receive_no_panic` and `ImportInv`'s
+`Spqr.decoded_receive_no_panic` take
 `SpqrT1.KdfRkTotal`, `KdfCkTotal` and `ZeroizeTotal`, and `kdf_rk` and `kdf_ck`
 both reach the sparse ratchet's `hkdf_sha256` and wrapper. Those two totalities
 are not witnessed here. They follow from `SpqrHkdfAgrees` and the two round trips
@@ -905,8 +909,10 @@ end JointWrappers
 
 /-! ## The rest of the leaves' opaque boundary
 
-Five more hypotheses leaf theorems take about opaque constants, each about a
-constant no other hypothesis witnessed here constrains:
+Five more hypotheses leaf theorems take about opaque constants. Four are about a
+constant no other hypothesis witnessed here constrains; the session's HKDF
+totality shares its constant with `SessionT3.HkdfAgrees`, and one model covers
+both:
 
 * `SpqrT1.ZeroizeTotal`, that the sparse ratchet's array wipe returns, at any
   element type, width and instance;
@@ -924,7 +930,8 @@ theorems: `T1.HmacTotal` and `T1.HkdfTotal` from `T3.lean`'s agreements, the
 Braid's `HkdfSha256Total` and `HmacSha256Total` from `BraidT3.lean`'s, and
 `SpqrT1.KdfRkTotal` and `KdfCkTotal` from `SpqrHkdfAgrees` and the sparse
 ratchet's round trips (`SpqrHkdfAgrees.kdfRkTotal`/`kdfCkTotal` in
-`SpqrT3.lean`). -/
+`SpqrT3.lean`). The `example`s at the end of this section hold each derivation to
+its theorem. -/
 
 section RemainingLeafBoundary
 
@@ -1027,6 +1034,30 @@ theorem ErasureT1_TruncateTotal_is :
 
 theorem truncate_total_satisfiable : ∃ f, TruncateTotalShape f :=
   ⟨fun _ v _ => ok v, fun v _ => ⟨v, rfl⟩⟩
+
+/-! The six derived totalities, each held to the theorem that derives it: if one
+of those theorems gains a hypothesis, trades one for a hypothesis not witnessed
+here, or disappears, this file stops building. -/
+
+example : Tacenta.T3.HmacAgrees → Tacenta.T1.HmacTotal :=
+  Tacenta.T3.HmacAgrees.total
+
+example : Tacenta.T3.HkdfAgrees → Tacenta.T1.HkdfTotal :=
+  Tacenta.T3.HkdfAgrees.total
+
+example : Tacenta.BraidT3.BraidHkdfAgrees → Tacenta.BraidT1.HkdfSha256Total :=
+  Tacenta.BraidT3.BraidHkdfAgrees.total
+
+example : Tacenta.BraidT3.BraidHmacAgrees → Tacenta.BraidT1.HmacSha256Total :=
+  Tacenta.BraidT3.BraidHmacAgrees.total
+
+example : Tacenta.SpqrT3.SpqrHkdfAgrees → Tacenta.SpqrT3.ZeroizingRoundTrips96 →
+    Tacenta.SpqrT1.KdfRkTotal :=
+  Tacenta.SpqrT3.SpqrHkdfAgrees.kdfRkTotal
+
+example : Tacenta.SpqrT3.SpqrHkdfAgrees → Tacenta.SpqrT3.ZeroizingRoundTrips64 →
+    Tacenta.SpqrT1.KdfCkTotal :=
+  Tacenta.SpqrT3.SpqrHkdfAgrees.kdfCkTotal
 
 end RemainingLeafBoundary
 
