@@ -1719,14 +1719,16 @@ the abstraction can be written down, and every clause follows from a unit theore
 `receive_refines_discharged` state the composed `send` and `receive` with both
 bundles discharged. What that does and does not buy:
 
-* **The trust base changes shape, not only size.** Measured on 2026-09-10 with
-  `#print axioms`: `TripleT3.send_refines` rests on sixteen opaque declarations of
-  the inner crates, the two state types and fourteen calls, and none of them
-  appears under either discharged theorem. Those rest instead on the external
-  primitives the inner refinements already rest on (HMAC, the `zeroize` wrapper
-  and trait, three `Vec` operations, `Option`'s clone), and they carry nine
-  `native_decide` compiler-trust axioms where the standalone theorems carry one:
-  the eight `UnitSpqrT3.lean` carries arrive with the sparse ratchet's refinement.
+* **Most of the trust-base change is the unit translation's, not the
+  discharge's.** Measured on 2026-09-10 with `#print axioms`:
+  `TripleT3.send_refines` rests on sixteen opaque declarations of the inner
+  crates, the two state types and fourteen calls. On the unit those calls are
+  defined, so `UnitTripleT3.send_refines`, with the bundles still as hypotheses,
+  already rests on none of them, and on the external primitives the inner
+  refinements rest on instead (HMAC, the `zeroize` wrapper and trait, three `Vec`
+  operations, `Option`'s clone), with the same one `native_decide` axiom.
+  Discharging the bundles adds exactly the eight `native_decide` axioms
+  `UnitSpqrT3.lean` carries, and nothing else; the same holds for `receive`.
   `UnitPins.lean` pins all four new theorems.
 * **There are more hypotheses, not fewer**, because the standalone theorems hide
   the inner boundary inside the bundles, and `TripleT3.lean`'s header says so. One
@@ -1734,14 +1736,19 @@ bundles discharged. What that does and does not buy:
   Triple's narrow one, so neither is listed twice. Proving the classical `clone`
   clause needs `OptionCloneTotal`. Each bundle covers its ratchet's whole calling
   surface, so the `send` theorem assumes the receive path's boundary as well.
-* **The inner boundary is witnessed only on the leaves' side.**
-  `Satisfiability.lean` shows the leaves' `Vec`, `zeroize` and HKDF hypotheses can
-  hold, about the leaves' constants. The same hypotheses restated about the unit,
-  which `UnitT3.lean`, `UnitSpqrT3.lean` and so the discharged theorems take, have
-  no witness of their own. The shapes are the same and the unit declares the
-  underlying operations the same way, but no build checks it; porting those
-  witnesses to the unit is not done. `UnitSatisfiabilityTriple.lean` covers only
-  the Triple's own two `zeroize`-wrapper hypotheses.
+* **HMAC and HKDF agreement are witnessed nowhere.**
+  `UnitSatisfiabilityTriple.lean` witnesses every other boundary hypothesis the
+  discharged theorems take, about the unit's constants. It does so jointly where
+  the unit makes two hypotheses constrain one constant, which never happened on
+  the leaves: the classical round trip, the sparse round trips at 96 and 64 bytes,
+  the Triple's round trip and `DerivedKeysModel` all constrain one
+  `zeroize.Zeroizing` family, and `VecRemoveTotal` and `VecRemoveAgrees` both
+  constrain `Vec::remove`. The rest each constrain a constant nothing else
+  mentions, and that their separate witnesses combine is an argument in prose,
+  not a checked one. `HmacAgrees` and `HkdfAgrees`, which the unit's
+  `SpqrHkdfAgrees` and `TripleHkdfAgrees` are definitionally, have no witness on
+  either side: `Satisfiability.lean` does not cover them. Nothing checks that
+  they can hold.
 * **The port is hand-written.** It differs from `TripleT3.lean` in more than names,
   and its header lists each difference. Three stepping-rule erasures keep the
   original proofs elaborating: one retargeted from the original, and two for rules

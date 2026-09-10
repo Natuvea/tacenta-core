@@ -284,9 +284,11 @@ what is assumed: the two bundle proofs, and `send_refines` and `receive_refines`
 with both bundles discharged. Unlike the pins above they have no leaf twin to
 match, since `TripleT3.lean` states no such theorems, so they record a new trust
 base rather than hold one to an old one. Against `TripleT3.send_refines`, the
-sixteen opaque inner-crate declarations it rests on are absent, and the eight
-`native_decide` axioms `UnitSpqrT3.lean` carries are present; `LIMITATIONS.md`
-says what that trade is. -/
+sixteen opaque inner-crate declarations it rests on are absent, but that is the
+unit's doing: `UnitTripleT3.send_refines`, with the bundles still as hypotheses,
+already rests on none of them. What discharging adds is the eight
+`native_decide` axioms `UnitSpqrT3.lean` carries; `LIMITATIONS.md` says what
+that trade is. -/
 
 /--
 info: 'Tacenta.UnitTripleT3.ratchet_agrees_for' depends on axioms: [propext,

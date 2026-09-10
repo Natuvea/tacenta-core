@@ -30,28 +30,38 @@ field of its model state, so the abstraction can be written down, and every
 clause of both bundles follows from a theorem already proved.
 `ratchet_agrees_for` and `spqr_agrees_for`, near the end of this file, prove the
 bundles, and `send_refines_discharged` and `receive_refines_discharged` are the
-composed `send` and `receive` with both discharged. Nothing those two assume is
-a hand-written statement about either inner ratchet. What they do assume is the
-boundary the inner refinements themselves take: the HMAC and HKDF agreements,
+composed `send` and `receive` with both discharged. Nothing those two assume
+about either inner ratchet's behaviour is written by hand; what they state about
+the inner states is the numeric preconditions the inner theorems need, carried
+through the abstraction. What they do assume is the boundary the inner
+refinements themselves take: the HMAC and HKDF agreements,
 the `zeroize` round trips, three `Vec` agreements, `VecRemoveTotal`,
 `DerivedKeysModel`, `OptionCloneTotal` and the general `ZeroizeTotal`.
 
 Three things are worth knowing about that trade.
 
-* **The trust base changes shape, not only size.** `TripleT3.send_refines` rests
-  on sixteen opaque declarations of the inner crates, the two state types and
-  fourteen calls, and the discharged theorems mention none of them. In their
-  place come the external primitives the inner refinements already rest on, and
-  the eight `native_decide` compiler-trust axioms `UnitSpqrT3.lean` carries, on
-  top of the one the standalone theorem carries. `UnitPins.lean` pins the lists.
+* **Most of the trust-base change is the unit's doing, not the discharge's.**
+  `TripleT3.send_refines` rests on sixteen opaque declarations of the inner
+  crates, the two state types and fourteen calls. On the unit those are defined
+  rather than opaque, so `send_refines` here, with the bundles still as
+  hypotheses, already rests on none of them, and on the external primitives the
+  inner refinements rest on instead. Discharging the bundles removes them as
+  hypotheses and adds one thing at the axiom level: the eight `native_decide`
+  compiler-trust axioms `UnitSpqrT3.lean` carries, on top of the one this file
+  carries. `UnitPins.lean` pins the discharged theorems' lists.
 * **Each bundle covers its ratchet's whole calling surface**, so
   `send_refines_discharged` assumes the receive path's boundary too.
 * **`send_refines` and `receive_refines` are kept as `TripleT3.lean` states
   them**, taking the bundles as hypotheses, so this file reads against its
   original line for line. The `-- mirrors:` comments on the bundles now name the
-  unit's copies, and they are no longer the only thing tying a clause to its
-  inner theorem: a clause that asked less than that theorem needs, or promised
-  more than it proves, would break the bundle's proof.
+  unit's copies, and in one direction they are no longer the only thing tying a
+  clause to its inner theorem: a clause that asked less than that theorem needs,
+  or promised more than it proves, would break the bundle's proof. The other
+  direction is unguarded. A clause that asked more or promised less would still
+  prove, and the accessor, initialiser and `epoch` clauses, which `send_refines`
+  and `receive_refines` never use, could be weakened with no proof noticing. That
+  leaves what the discharged theorems mean untouched, since their statements do
+  not mention the bundles.
 
 ## Every difference from `TripleT3.lean` above the bundle proofs
 
@@ -277,13 +287,13 @@ proves them from `UnitTripleT1.ratchet_state_clone_id` and the accessors'
 definitions. The two initialisers are `UnitT3.init_sender_refines` and
 `init_receiver_refines`. -/
 def RatchetAgreesFor (α : tacenta_ratchet.State → Model.State.State) : Prop :=
-  -- mirrors: nothing -- no leaf theorem proves the derived `clone`
+  -- mirrors: nothing -- no inner theorem; `ratchet_agrees_for` uses `UnitTripleT1.ratchet_state_clone_id`
   (∀ s, ∃ r, tacenta_ratchet.State.Insts.CoreCloneClone.clone s = ok r ∧ α r = α s) ∧
-  -- mirrors: nothing -- no leaf theorem proves this accessor
+  -- mirrors: nothing -- an accessor no inner theorem covers; `ratchet_agrees_for` reads the field
   (∀ s, ∃ r, tacenta_ratchet.State.sending_public s = ok r ∧ keyOf r = (α s).dhsPub) ∧
-  -- mirrors: nothing -- no leaf theorem proves this accessor
+  -- mirrors: nothing -- an accessor no inner theorem covers; `ratchet_agrees_for` reads the field
   (∀ s, ∃ r, tacenta_ratchet.State.send_count s = ok r ∧ r.val = (α s).ns) ∧
-  -- mirrors: nothing -- no leaf theorem proves this accessor
+  -- mirrors: nothing -- an accessor no inner theorem covers; `ratchet_agrees_for` reads the field
   (∀ s, ∃ r, tacenta_ratchet.State.receive_count s = ok r ∧ r.val = (α s).nr) ∧
   -- mirrors: Tacenta.UnitT3.init_sender_refines in UnitT3.lean
   (∀ (ec our_pub peer_pub dh_out : Array Std.U8 32#usize) (labels : tacenta_ratchet.LabelSet),
@@ -335,14 +345,14 @@ No inner theorem covers `clone`, `epoch`, `init_alice` or `init_bob`.
 the accessor's definition, and the initialisers from `spqr_init_refines`, which
 this file proves from the key derivation's refinement. -/
 def SpqrAgreesFor (β : tacenta_spqr.State → Model.SparseRatchet.State) : Prop :=
-  -- mirrors: nothing -- no leaf theorem proves the derived `clone`
+  -- mirrors: nothing -- no inner theorem; `spqr_agrees_for` uses `UnitTripleT1.spqr_state_clone_id`
   (∀ s, ∃ r, tacenta_spqr.State.Insts.CoreCloneClone.clone s = ok r ∧ β r = β s) ∧
-  -- mirrors: nothing -- no leaf theorem proves this accessor
+  -- mirrors: nothing -- an accessor no inner theorem covers; `spqr_agrees_for` reads the field
   (∀ s, ∃ r, tacenta_spqr.State.impl.epoch s = ok r ∧ r.val = (β s).epoch) ∧
-  -- mirrors: nothing -- no leaf theorem proves this initialiser
+  -- mirrors: nothing -- no inner theorem; `spqr_agrees_for` uses `spqr_init_refines`
   (∀ sk : Slice Std.U8, ∃ r, tacenta_spqr.State.init_alice sk = ok r ∧
     β r = Model.SparseRatchet.initAlice (sliceOf sk)) ∧
-  -- mirrors: nothing -- no leaf theorem proves this initialiser
+  -- mirrors: nothing -- no inner theorem; `spqr_agrees_for` uses `spqr_init_refines`
   (∀ sk : Slice Std.U8, ∃ r, tacenta_spqr.State.init_bob sk = ok r ∧
     β r = Model.SparseRatchet.initBob (sliceOf sk)) ∧
   -- mirrors: Tacenta.UnitSpqrT3.send_refines in UnitSpqrT3.lean

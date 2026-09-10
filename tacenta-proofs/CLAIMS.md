@@ -96,9 +96,12 @@ this section says in one place what is not proved.
   (`TripleT1.ZeroizingTotal`, `TripleT3.ZeroizingRoundTrips`), which cannot
   share an environment with the rest. `Translation/UnitSatisfiabilityTriple.lean`
   does the same for the unit's copies of those two
-  (`UnitT1.ZeroizingTotal`, `UnitTripleT3.ZeroizingRoundTrips`); the inner
-  refinements' own boundary, as restated about the unit, has no witness on the
-  unit's side, which `LIMITATIONS.md` records. A satisfiable hypothesis is still only
+  (`UnitT1.ZeroizingTotal`, `UnitTripleT3.ZeroizingRoundTrips`), and for the
+  inner refinements' boundary as restated about the unit, jointly where two
+  hypotheses there constrain one constant: the `zeroize` wrapper family with
+  `DerivedKeysModel`, `Vec::remove`, `append` and `retain`, `Option`'s clone and
+  the general array `ZeroizeTotal`. No file, on either side, witnesses the HMAC
+  or HKDF agreements. A satisfiable hypothesis is still only
   a hypothesis (`LIMITATIONS.md`).
 - **The ML-KEM Braid's T3 theorems carry two preconditions beyond the
   boundary agreements.** `step_send_refines`, `Braid.send_refines`,
@@ -1018,12 +1021,27 @@ generated, and its header lists every way it differs from `TripleT3.lean`.
   covers its ratchet's whole calling surface.
 - `Tacenta.UnitTripleT3.receive_refines_discharged`: likewise for `receive`.
 
-Each is pinned in `UnitPins.lean`. The trust base is not the standalone one with
-two assumptions taken away. The sixteen opaque inner-crate declarations
-`TripleT3.send_refines` rests on are absent; the external primitives the inner
-refinements rest on, and eight `native_decide` compiler-trust axioms from
-`UnitSpqrT3.lean`, are present. `LIMITATIONS.md` gives the details, including that
-the inner boundary's satisfiability witnesses exist on the leaves' side only.
+Each is pinned in `UnitPins.lean`.
+
+**What discharging changes in the trust base.** Against `TripleT3.send_refines`,
+the sixteen opaque inner-crate declarations are absent, but that is the unit
+translation's doing: `UnitTripleT3.send_refines`, with the bundles still as
+hypotheses, already rests on none of them. What discharging the bundles adds at
+the axiom level is exactly the eight `native_decide` compiler-trust axioms
+`UnitSpqrT3.lean` carries, from its `chain_label_agrees`, `chain_start_agrees`,
+`max_skip_agrees`, `max_skip_val`, `max_skipped_store_agrees`,
+`protocol_info_agrees`, `receive_refines_continuation` and `root_label_agrees`.
+The same holds for `receive`.
+
+**What the two discharged theorems assume**, beyond the numeric preconditions
+`TripleT3.lean`'s theorems carry: `UnitT3.HmacAgrees`, `UnitT3.HkdfAgrees`,
+`UnitT3.ZeroizingRoundTrips`, `UnitT1.VecRemoveTotal`, an instance of
+`UnitT1.DerivedKeysModel`, `UnitSpqrT3.ZeroizingRoundTrips96` and
+`ZeroizingRoundTrips64`, `UnitSpqrT3.VecRetainAgrees`, `VecAppendAgrees` and
+`VecRemoveAgrees`, `UnitSpqrT1.ZeroizeTotal` and `UnitSpqrT1.OptionCloneTotal`.
+`UnitSatisfiabilityTriple.lean` witnesses all of them except the HMAC and HKDF
+agreements, jointly where two constrain the same constant. Nothing witnesses those
+two.
 
 ## Proved conditionally (tier T1, the Triple Ratchet's composed session send/receive path, on hypotheses no leaf theorem discharges)
 
