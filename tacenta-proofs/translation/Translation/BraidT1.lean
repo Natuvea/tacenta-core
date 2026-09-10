@@ -195,11 +195,11 @@ def HkdfSha256Total : Prop :=
 def HmacSha256Total : Prop :=
   ∀ (a b : Slice U8), ∃ r, tacenta_kdf.hmac_sha256 a b = ok r
 
-/-- Braid's own copy of the generic `Option::clone` axiom `T1.lean` and
-`SpqrT1.lean` each assume too, for the same reason those need one: cloning an
+/-- Braid's own copy of the generic `Option::clone` axiom, which `SpqrT1.lean`
+assumes too, for the same reason it needs one: cloning an
 `Option` a caller reports back out (`receive`'s returned `Output`) is not
 known total by the library, and this crate's copy of the axiom is a distinct
-constant from either of theirs. -/
+constant from its. -/
 def OptionCloneTotal : Prop :=
   ∀ {T : Type} (inst : core.clone.Clone T) (o : Option T),
     (∀ x, o = some x → inst.clone x ⦃ fun y => y = x ⦄) →

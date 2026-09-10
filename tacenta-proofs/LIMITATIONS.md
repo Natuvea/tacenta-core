@@ -1519,8 +1519,10 @@ this tree's worst defect lived.** `Translation/Satisfiability.lean` and
 assumption, and for several also prove that the over-broad version of the same
 assumption admits no implementation at all. That is a real guard against
 assuming something nothing could satisfy. What it covers is the *opaque
-operation* family: the `Vec` operations, the `zeroize` wrapper, the
-derived-keys model.
+operation* family: the `Vec` operations, the `zeroize` wrapper and its models,
+the key-derivation agreements and totalities, `Option`'s clone, and the erasure
+crate's `div_ceil` and `truncate` -- some of the totalities only by derivation
+from a witnessed agreement.
 
 It does not cover the **numeric preconditions**, the store, chain-length and
 counter bounds a `no_panic` or `refines` theorem carries about a state's sizes.
@@ -1595,9 +1597,9 @@ The unit island has witnesses of the first kind and none of the second.
 `UnitSatisfiabilityTriple.lean` witnesses every boundary hypothesis the Triple's
 discharged refinement takes, `UnitT1.DerivedKeysModel`,
 `UnitSpqrT1.OptionCloneTotal` and the HMAC and HKDF agreements among them; the
-passage on the Triple's refinement below lists them. On that list the leaf island
-is now the thinner one: `SpqrT1.OptionCloneTotal` and the leaves' HMAC and HKDF
-agreements have no witness there. Three of `UnitTripleT1.lean`'s totality
+passage on the Triple's refinement below lists them. The leaf island's copies of
+those hypotheses are witnessed in `Satisfiability.lean`, the shared-wrapper ones
+jointly. Three of `UnitTripleT1.lean`'s totality
 hypotheses have no witness of their own but follow from witnessed ones.
 `KdfRkTotal` and `KdfCkTotal` are *derived* in `UnitSpqrT3.lean` from
 `SpqrHkdfAgrees` and the `zeroize` round trips, and `KdfInitTotal`, which has no
@@ -1704,11 +1706,11 @@ bundles discharged. What that does and does not buy:
   separate witnesses combine is an argument in prose, not a checked one. Two
   `example`s apply the discharged theorems to exactly the witnessed hypotheses,
   so one added ahead of the state relation stops the build; nothing checks the
-  preconditions after it. The leaves are behind the unit here: their HMAC and HKDF
-  agreements and `SpqrT1.OptionCloneTotal` have no witness, and
-  `Satisfiability.lean` witnesses their shared-constant hypotheses one at a time
-  (`T3.lean` takes both `ZeroizingRoundTrips` and `T1.DerivedKeysModel` about one
-  wrapper, and the sparse ratchet's two round trips share one too).
+  preconditions after it. The leaves' copies are witnessed the same way in
+  `Satisfiability.lean`, jointly where one leaf theorem takes two hypotheses about
+  one wrapper (`T3.lean` takes both `ZeroizingRoundTrips` and `T1.DerivedKeysModel`,
+  and the sparse ratchet's refinements both of its round trips), though nothing
+  there checks the list against the leaf theorems' signatures.
 * **The port is hand-written.** It began as `TripleT3.lean` and differs from it in
   more than names; its header lists each difference against that file as of
   2a89a7f. Three stepping-rule erasures keep the

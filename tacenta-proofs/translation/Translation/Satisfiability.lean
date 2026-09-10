@@ -1,16 +1,21 @@
 import Translation.SpqrT3
 import Translation.T3
 import Translation.BraidT3
+import Translation.SessionT3
+import Translation.ErasureT1
 
 /-!
-# Satisfiability of the `Vec`-family and `zeroize`-wrapper boundary hypotheses
+# Satisfiability of the leaves' opaque-boundary hypotheses
 
 Every `Vec` operation Aeneas does not model reaches the translation as an
 axiom, as do the `zeroize` wrapper's constructor and projection, and the
 T1/T3 files assume what they need about them as a named `Prop`
 (`VecAppendTotal`, `VecRemoveAgrees`, `ZeroizingRoundTrips96`,
 `ZeroizingArrayRoundTrip`, `T3.ZeroizingRoundTrips80`, ...), or as a class
-(`T1.DerivedKeysModel`). The three-leaf unit's copies of these, and the Triple
+(`T1.DerivedKeysModel`), and so are the key-derivation agreements (`T3.HmacAgrees`,
+`T3.HkdfAgrees`, `SpqrT3.SpqrHkdfAgrees`, `SessionT3.HkdfAgrees` and the Braid's
+two), `OptionCloneTotal`, and the few more the last section lists, some of them
+only by derivation from a witnessed agreement. The three-leaf unit's copies of these, and the Triple
 Ratchet's own, have their witnesses in `Translation/UnitSatisfiabilityTriple.lean`,
 since `TacentaTripleUnit` cannot be imported alongside `TacentaRatchet`. A
 hypothesis of that kind carries
@@ -18,16 +23,19 @@ a risk the rest of the proof cannot see: if it is **refutable** -- if no
 function at all could satisfy it -- then every theorem taking it is provable
 from `False`, and the kernel will happily check it.
 
-This file is the check against that. For each hypothesis it states the
+This file is the check against that. For each hypothesis it witnesses it states the
 *shape* as a predicate on an arbitrary function of the axiom's type, shows
 the current hypothesis is exactly that shape applied to the axiom
 (`Iff.rfl`, so the two cannot drift), and exhibits a concrete function
 satisfying it, so the hypothesis is consistent: at least one model of that
-hypothesis makes it true. Alongside each it also states the natural over-strong
+hypothesis makes it true. Alongside the `append` and `remove` hypotheses it also states the natural over-strong
 shape -- an `append` with no length guard, a `remove` with no index guard --
 and proves that **no** function satisfies it, so the guards on the
 hypotheses are shown to be necessary rather than merely cautious. An edit
-that makes a hypothesis unsatisfiable breaks the witness here.
+that makes a witnessed hypothesis unsatisfiable breaks its witness here. The six
+totalities covered only by derivation have no witness of their own; the
+`example`s at the end of the last section hold them to the theorems that derive
+them.
 
 Consistency is all this establishes. Nothing here says the axiom Aeneas
 generated *is* the witness; it says the theorems downstream are not proofs
@@ -618,10 +626,10 @@ theorem validateEk_unsplit_toyKem_refutable : ¬ ValidateEkAgreesUnsplit Model.B
   exact t₂ t₁
 
 /-- The over-strong `EncoderRefines`: every number of steps. -/
-def EncoderRefinesUnbounded (real : tacenta_erasure.Encoder) (model : Model.Braid.Encoder) : Prop :=
+def EncoderRefinesUnbounded (real : tacenta_braid.tacenta_erasure.Encoder) (model : Model.Braid.Encoder) : Prop :=
   ∀ n, EncoderSim n real model
 
-theorem encoderSim_index_bound (n : Nat) (real : tacenta_erasure.Encoder) (src : List UInt8)
+theorem encoderSim_index_bound (n : Nat) (real : tacenta_braid.tacenta_erasure.Encoder) (src : List UInt8)
     (k : Nat) (h : EncoderSim (n + 1) real ⟨src, k⟩) : k ≤ 65535 := by
   obtain ⟨chunk, -, -, hidx, -⟩ := h
   have := chunk.index.hmax
@@ -629,7 +637,7 @@ theorem encoderSim_index_bound (n : Nat) (real : tacenta_erasure.Encoder) (src :
   simp at this
   omega
 
-theorem encoderSim_step (real : tacenta_erasure.Encoder) (src : List UInt8) (k : Nat)
+theorem encoderSim_step (real : tacenta_braid.tacenta_erasure.Encoder) (src : List UInt8) (k : Nat)
     (h : EncoderRefinesUnbounded real ⟨src, k⟩) :
     ∃ real', EncoderRefinesUnbounded real' ⟨src, k + 1⟩ := by
   obtain ⟨chunk, real', hnext, -, -⟩ := h 1
@@ -642,7 +650,7 @@ theorem encoderSim_step (real : tacenta_erasure.Encoder) (src : List UInt8) (k :
 /-- Walk a fresh encoder 65,536 steps; the next chunk's index does not fit a
 `u16`. So no real encoder satisfies the unbounded shape, for any model
 encoder at all. -/
-theorem encoderRefines_unbounded_refutable (real : tacenta_erasure.Encoder) (src : List UInt8) :
+theorem encoderRefines_unbounded_refutable (real : tacenta_braid.tacenta_erasure.Encoder) (src : List UInt8) :
     ¬ EncoderRefinesUnbounded real ⟨src, 0⟩ := by
   intro hsim
   have key : ∀ k, ∃ real, EncoderRefinesUnbounded real ⟨src, k⟩ := by
@@ -657,23 +665,23 @@ theorem encoderRefines_unbounded_refutable (real : tacenta_erasure.Encoder) (src
   omega
 
 /-- The over-strong `DecoderSim`: every model chunk with the real chunk's index. -/
-def DecoderSimAllSources : Nat → tacenta_erasure.Decoder → Model.Braid.Decoder → Prop
+def DecoderSimAllSources : Nat → tacenta_braid.tacenta_erasure.Decoder → Model.Braid.Decoder → Prop
   | 0, _, _ => True
   | n + 1, real, model =>
-    (∀ (chunk : tacenta_erasure.Chunk) (advanced : Bool) (real' : tacenta_erasure.Decoder),
-      tacenta_erasure.Decoder.add_chunk real chunk = ok (advanced, real') →
+    (∀ (chunk : tacenta_braid.tacenta_erasure.Chunk) (advanced : Bool) (real' : tacenta_braid.tacenta_erasure.Decoder),
+      tacenta_braid.tacenta_erasure.Decoder.add_chunk real chunk = ok (advanced, real') →
       ∀ modelChunk : Model.Braid.Chunk, modelChunk.index = chunk.index.val →
         DecoderSimAllSources n real' (model.addChunk modelChunk)) ∧
-    (∀ msg, tacenta_erasure.Decoder.message real = ok msg →
+    (∀ msg, tacenta_braid.tacenta_erasure.Decoder.message real = ok msg →
       msg.map vecOf = model.message)
 
 /-- One real chunk, two model sources, one total `message`. Stated for a
 fresh 32-byte decoder that satisfies the over-strong shape for two steps. -/
-theorem decoderSim_allSources_refutable (real0 : tacenta_erasure.Decoder)
+theorem decoderSim_allSources_refutable (real0 : tacenta_braid.tacenta_erasure.Decoder)
     (hsim : DecoderSimAllSources 2 real0 (Model.Braid.Decoder.new 32))
     (hdadd : Tacenta.BraidT1.DecoderAddChunkTotal)
     (hdmsg : Tacenta.BraidT1.DecoderMessageTotal) : False := by
-  let c : tacenta_erasure.Chunk := ⟨0#u16, ⟨List.replicate 32 0#u8, by simp⟩⟩
+  let c : tacenta_braid.tacenta_erasure.Chunk := ⟨0#u16, ⟨List.replicate 32 0#u8, by simp⟩⟩
   obtain ⟨⟨adv, real1⟩, hadd⟩ := hdadd real0 c
   obtain ⟨hstep, -⟩ := hsim
   let mc1 : Model.Braid.Chunk := ⟨List.replicate 32 1, 0⟩
@@ -693,5 +701,364 @@ theorem decoderSim_allSources_refutable (real0 : tacenta_erasure.Decoder)
   simp at e2
 
 end BraidRefutations
+
+/-! ## HMAC and HKDF agreement, and `Option`'s clone
+
+The classical ratchet and the Braid each declare their own opaque `hmac_sha256`
+and `hkdf_sha256`, and the sparse ratchet and the session their own `hkdf_sha256`,
+by the per-crate counting rule `SpqrT1.lean` describes, and the refinements take
+an agreement hypothesis about each. The classical ratchet, the sparse ratchet and
+the Braid each declare an opaque `Option` clone, and the sparse ratchet's and the
+Braid's theorems take a hypothesis about theirs. The model's HMAC always returns a hash-length tag and
+its HKDF exactly the requested length (`Model.Kdf.hmac_length`,
+`Model.Kdf.hkdf_length`), so returning the model's bytes as an array is a model
+of every agreement; the identity is a model of `OptionCloneTotal`. The shapes are
+stated with `T3.lean`'s `keyOf` and `sliceOf`. The other crates' copies have the
+same bodies, so each hypothesis is its shape by `Iff.rfl`, and each constant is
+named by the `_is` theorem for its crate. -/
+
+section KdfAndOptionClone
+
+/-- The type of each crate's `tacenta_kdf.hmac_sha256`. -/
+abbrev HmacFn := Slice Std.U8 → Slice Std.U8 → Result (Array Std.U8 32#usize)
+
+/-- The type of each crate's `tacenta_kdf.hkdf_sha256`. -/
+abbrev HkdfFn :=
+  (N : Usize) → Slice Std.U8 → Slice Std.U8 → Slice Std.U8 → Result (Array Std.U8 N)
+
+/-- The shape of `T3.HmacAgrees` and `BraidT3.BraidHmacAgrees`. -/
+def HmacShape (f : HmacFn) : Prop :=
+  ∀ key data, ∃ r, f key data = ok r ∧
+    Tacenta.T3.keyOf r = Model.Kdf.hmac (Tacenta.T3.sliceOf key) (Tacenta.T3.sliceOf data)
+
+/-- The shape of `T3.HkdfAgrees`, `SpqrT3.SpqrHkdfAgrees` and
+`BraidT3.BraidHkdfAgrees`. -/
+def HkdfShape (f : HkdfFn) : Prop :=
+  ∀ N key salt info, N.val ≤ 8160 → ∃ r, f N key salt info = ok r ∧
+    Tacenta.T3.keyOf r = Model.Kdf.hkdf (Tacenta.T3.sliceOf key)
+      (Tacenta.T3.sliceOf salt) (Tacenta.T3.sliceOf info) N.val
+
+/-- The shape of `SessionT3.HkdfAgrees`: a Hoare triple at the one width the
+session derives. -/
+def Hkdf32Shape (f : HkdfFn) : Prop :=
+  ∀ (salt ikm info : Slice Std.U8),
+    f 32#usize salt ikm info ⦃ fun r =>
+      Tacenta.T3.keyOf r = Model.Kdf.hkdf (Tacenta.T3.sliceOf salt)
+        (Tacenta.T3.sliceOf ikm) (Tacenta.T3.sliceOf info) 32 ⦄
+
+theorem T3_HmacAgrees_is :
+    Tacenta.T3.HmacAgrees ↔ HmacShape @tacenta_ratchet.tacenta_kdf.hmac_sha256 :=
+  Iff.rfl
+
+theorem T3_HkdfAgrees_is :
+    Tacenta.T3.HkdfAgrees ↔ HkdfShape @tacenta_ratchet.tacenta_kdf.hkdf_sha256 :=
+  Iff.rfl
+
+theorem SpqrHkdfAgrees_is :
+    Tacenta.SpqrT3.SpqrHkdfAgrees ↔ HkdfShape @tacenta_spqr.tacenta_kdf.hkdf_sha256 :=
+  Iff.rfl
+
+theorem SessionT3_HkdfAgrees_is :
+    Tacenta.SessionT3.HkdfAgrees ↔ Hkdf32Shape @tacenta_session.tacenta_kdf.hkdf_sha256 :=
+  Iff.rfl
+
+theorem BraidHkdfAgrees_is :
+    Tacenta.BraidT3.BraidHkdfAgrees ↔ HkdfShape @tacenta_braid.tacenta_kdf.hkdf_sha256 :=
+  Iff.rfl
+
+theorem BraidHmacAgrees_is :
+    Tacenta.BraidT3.BraidHmacAgrees ↔ HmacShape @tacenta_braid.tacenta_kdf.hmac_sha256 :=
+  Iff.rfl
+
+/-- A model byte as a translated one. -/
+def toU8 (x : UInt8) : Std.U8 := ⟨x.toBitVec⟩
+
+theorem u8_toU8 (x : UInt8) : Tacenta.T3.u8 (toU8 x) = x := by
+  show UInt8.ofNat x.toBitVec.toNat = x
+  simp
+
+def hmacWitness : HmacFn := fun key data =>
+  ok ⟨(Model.Kdf.hmac (Tacenta.T3.sliceOf key) (Tacenta.T3.sliceOf data)).map toU8,
+    by simp [Model.Kdf.hmac_length, Model.Kdf.hashLen]⟩
+
+def hkdfWitness : HkdfFn := fun N key salt info =>
+  ok ⟨(Model.Kdf.hkdf (Tacenta.T3.sliceOf key) (Tacenta.T3.sliceOf salt)
+      (Tacenta.T3.sliceOf info) N.val).map toU8, by simp [Model.Kdf.hkdf_length]⟩
+
+theorem hmac_agrees_satisfiable : ∃ f, HmacShape f :=
+  ⟨hmacWitness, fun key data =>
+    ⟨_, rfl, by simp [Tacenta.T3.keyOf, Function.comp_def, u8_toU8]⟩⟩
+
+theorem hkdf_agrees_satisfiable : ∃ f, HkdfShape f :=
+  ⟨hkdfWitness, fun N key salt info _ =>
+    ⟨_, rfl, by simp [Tacenta.T3.keyOf, Function.comp_def, u8_toU8]⟩⟩
+
+theorem hkdf32_agrees_satisfiable : ∃ f, Hkdf32Shape f :=
+  ⟨hkdfWitness, fun salt ikm info => by
+    simp [hkdfWitness, Tacenta.T3.keyOf, Function.comp_def, u8_toU8]⟩
+
+/-- The type of each crate's `core.option.Option.Insts.CoreCloneClone.clone`. -/
+abbrev OptionCloneFn := {T : Type} → core.clone.Clone T → Option T → Result (Option T)
+
+/-- The shape of `SpqrT1.OptionCloneTotal` and `BraidT1.OptionCloneTotal`. -/
+def OptionCloneShape (f : OptionCloneFn) : Prop :=
+  ∀ {T : Type} (inst : core.clone.Clone T) (o : Option T),
+    (∀ x, o = some x → inst.clone x ⦃ fun y => y = x ⦄) → f inst o ⦃ fun o' => o' = o ⦄
+
+theorem SpqrT1_OptionCloneTotal_is :
+    Tacenta.SpqrT1.OptionCloneTotal ↔
+      OptionCloneShape @tacenta_spqr.core.option.Option.Insts.CoreCloneClone.clone :=
+  Iff.rfl
+
+theorem BraidT1_OptionCloneTotal_is :
+    Tacenta.BraidT1.OptionCloneTotal ↔
+      OptionCloneShape @tacenta_braid.core.option.Option.Insts.CoreCloneClone.clone :=
+  Iff.rfl
+
+theorem option_clone_satisfiable : ∃ f, OptionCloneShape f :=
+  ⟨fun _ o => ok o, fun _ _ _ => by simp⟩
+
+end KdfAndOptionClone
+
+/-! ## Hypotheses that share a constant, witnessed together
+
+The witnesses above take one hypothesis at a time. Where one theorem takes two
+hypotheses about the same opaque constants, that is not enough to show they hold
+together. Two groups of hypotheses about the same wrapper constants do:
+
+* `T1.receive_no_panic` takes `T1.ZeroizingTotal` and `T1.DerivedKeysModel`, and
+  `T3.receive_refines` takes `T3.ZeroizingRoundTrips` and `T1.DerivedKeysModel`
+  (as do their decoded-state corollaries in `ImportInv.lean`), all about the
+  classical ratchet's `zeroize.Zeroizing` constructor and projections.
+  `T3.ZeroizingRoundTrips80` is about the same constants. `ratchet_zeroizing_joint_is`
+  and `ratchet_zeroizing_joint_satisfiable` take all four at once.
+* `SpqrT3.send_refines` and `receive_refines` take `ZeroizingRoundTrips96` and
+  `ZeroizingRoundTrips64`, both about the sparse ratchet's wrapper.
+  `spqr_zeroizing_joint_satisfiable` takes both at once.
+
+The transparent wrapper models each group.
+
+A third group is about translated functions rather than opaque constants.
+`SpqrT1.send_no_panic`, `SpqrT1.receive_no_panic` and `ImportInv`'s
+`Spqr.decoded_receive_no_panic` take
+`SpqrT1.KdfRkTotal`, `KdfCkTotal` and `ZeroizeTotal`, and `kdf_rk` and `kdf_ck`
+both reach the sparse ratchet's `hkdf_sha256` and wrapper. Those two totalities
+are not witnessed here. They follow from `SpqrHkdfAgrees` and the two round trips
+(`SpqrHkdfAgrees.kdfRkTotal`/`kdfCkTotal` in `SpqrT3.lean`), which are witnessed,
+the round trips jointly; `ZeroizeTotal` constrains a constant none of those
+mentions, and that the separate witnesses combine is an argument in this comment,
+not one Lean checks. -/
+
+section JointWrappers
+
+/-- The shape of `T1.ZeroizingTotal`: the classical ratchet's wrapper constructor
+and projection both return, at sixty-four bytes. -/
+def RatchetZeroizingTotal {W : Type → Type}
+    (new : RatchetZeroizingNewFn W) (deref : RatchetZeroizingDerefFn W) : Prop :=
+  ∀ inst : tacenta_ratchet.zeroize.Zeroize (Array Std.U8 64#usize),
+    (∀ z, ∃ r, new inst z = ok r) ∧ (∀ z, ∃ r, deref inst z = ok r)
+
+/-- Every hypothesis about the classical ratchet's wrapper, at once. -/
+def RatchetZeroizingJoint {W : Type → Type} (contents : W DerivedKeys → DerivedKeys)
+    (new : RatchetZeroizingNewFn W) (deref : RatchetZeroizingDerefFn W)
+    (deref_mut : RatchetZeroizingDerefMutFn W) : Prop :=
+  RatchetZeroizingTotal new deref ∧ ZeroizingRoundTripsTotal 64#usize new deref ∧
+    ZeroizingRoundTripsTotal 80#usize new deref ∧
+    DerivedKeysShape contents new deref deref_mut
+
+theorem ratchet_zeroizing_joint_is :
+    (Tacenta.T1.ZeroizingTotal ∧ Tacenta.T3.ZeroizingRoundTrips ∧
+      Tacenta.T3.ZeroizingRoundTrips80 ∧ Nonempty Tacenta.T1.DerivedKeysModel) ↔
+    ∃ contents, RatchetZeroizingJoint (W := tacenta_ratchet.zeroize.Zeroizing) contents
+      @tacenta_ratchet.zeroize.Zeroizing.new
+      @tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      @tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut :=
+  ⟨fun ⟨a, b, c, ⟨m⟩⟩ => ⟨m.contents, a, b, c, m.new, m.deref, m.deref_mut⟩,
+   fun ⟨k, a, b, c, hn, hd, hm⟩ => ⟨a, b, c, ⟨⟨k, hn, hd, hm⟩⟩⟩⟩
+
+theorem ratchet_zeroizing_joint_satisfiable :
+    ∃ (W : Type → Type) (contents : W DerivedKeys → DerivedKeys)
+      (new : RatchetZeroizingNewFn W) (deref : RatchetZeroizingDerefFn W)
+      (deref_mut : RatchetZeroizingDerefMutFn W),
+      RatchetZeroizingJoint contents new deref deref_mut := by
+  refine ⟨fun Z => Z, id, @ratchetZeroizingNewWitness, @ratchetZeroizingDerefWitness,
+    @ratchetZeroizingDerefMutWitness, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · exact fun _ => ⟨fun z => ⟨z, rfl⟩, fun w => ⟨w, rfl⟩⟩
+  · exact fun _ => ⟨fun z => ⟨z, rfl, rfl⟩, fun w => ⟨w, rfl⟩⟩
+  · exact fun _ => ⟨fun z => ⟨z, rfl, rfl⟩, fun w => ⟨w, rfl⟩⟩
+  all_goals intros; simp [ratchetZeroizingNewWitness, ratchetZeroizingDerefWitness,
+    ratchetZeroizingDerefMutWitness]
+
+theorem spqr_zeroizing_joint_is :
+    (Tacenta.SpqrT3.ZeroizingRoundTrips96 ∧ Tacenta.SpqrT3.ZeroizingRoundTrips64) ↔
+      (ZeroizingRoundTrips 96#usize (W := tacenta_spqr.zeroize.Zeroizing)
+          @tacenta_spqr.zeroize.Zeroizing.new
+          @tacenta_spqr.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref ∧
+        ZeroizingRoundTrips 64#usize (W := tacenta_spqr.zeroize.Zeroizing)
+          @tacenta_spqr.zeroize.Zeroizing.new
+          @tacenta_spqr.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref) :=
+  Iff.rfl
+
+theorem spqr_zeroizing_joint_satisfiable :
+    ∃ (W : Type → Type) (new : ZeroizingNewFn W) (deref : ZeroizingDerefFn W),
+      ZeroizingRoundTrips 96#usize new deref ∧ ZeroizingRoundTrips 64#usize new deref :=
+  ⟨fun Z => Z, @zeroizingNewWitness, @zeroizingDerefWitness,
+    fun _ z => ⟨z, rfl, rfl⟩, fun _ z => ⟨z, rfl, rfl⟩⟩
+
+end JointWrappers
+
+/-! ## The rest of the leaves' opaque boundary
+
+Five more hypotheses leaf theorems take about opaque constants. Four are about a
+constant no other hypothesis witnessed here constrains; the session's HKDF
+totality shares its constant with `SessionT3.HkdfAgrees`, and one model covers
+both:
+
+* `SpqrT1.ZeroizeTotal`, that the sparse ratchet's array wipe returns, at any
+  element type, width and instance;
+* `SessionT1.HkdfTotal`, that the session's HKDF returns within RFC 5869's bound.
+  `SessionT3.HkdfAgrees` does not imply it, being fixed at thirty-two bytes, so it
+  needs its own witness, and `session_hkdf_satisfiable` gives one model of both;
+* `SessionT1.ZeroizingModel`, the session's transparent-container model of its
+  `zeroize` wrapper over a byte vector, taken beside those HKDF hypotheses but
+  about different constants;
+* `ErasureT1.DivCeilTotal` and `ErasureT1.TruncateTotal`, that the erasure
+  crate's `usize::div_ceil`, for a nonzero divisor, and `Vec::truncate` return.
+
+Six more are not witnessed directly but follow from witnessed hypotheses by named
+theorems: `T1.HmacTotal` and `T1.HkdfTotal` from `T3.lean`'s agreements, the
+Braid's `HkdfSha256Total` and `HmacSha256Total` from `BraidT3.lean`'s, and
+`SpqrT1.KdfRkTotal` and `KdfCkTotal` from `SpqrHkdfAgrees` and the sparse
+ratchet's round trips (`SpqrHkdfAgrees.kdfRkTotal`/`kdfCkTotal` in
+`SpqrT3.lean`). The `example`s at the end of this section hold each derivation to
+its theorem. -/
+
+section RemainingLeafBoundary
+
+/-- The type of `tacenta_spqr.Array.Insts.ZeroizeZeroize.zeroize`. -/
+abbrev SpqrArrayZeroizeFn :=
+  {Z : Type} → {N : Usize} → tacenta_spqr.zeroize.Zeroize Z → Array Z N → Result (Array Z N)
+
+/-- The shape of `SpqrT1.ZeroizeTotal`. -/
+def SpqrArrayZeroizeTotal (f : SpqrArrayZeroizeFn) : Prop :=
+  ∀ {Z : Type} {N : Usize} (inst : tacenta_spqr.zeroize.Zeroize Z) (a : Array Z N),
+    ∃ r, f inst a = ok r
+
+theorem SpqrT1_ZeroizeTotal_is :
+    Tacenta.SpqrT1.ZeroizeTotal ↔
+      SpqrArrayZeroizeTotal @tacenta_spqr.Array.Insts.ZeroizeZeroize.zeroize :=
+  Iff.rfl
+
+theorem spqr_array_zeroize_total_satisfiable : ∃ f, SpqrArrayZeroizeTotal f :=
+  ⟨fun _ a => ok a, fun _ a => ⟨a, rfl⟩⟩
+
+/-- The shape of `SessionT1.HkdfTotal`. -/
+def HkdfTotalShape (f : HkdfFn) : Prop :=
+  ∀ (N : Usize) (salt ikm info : Slice Std.U8), N.val ≤ 8160 → ∃ r, f N salt ikm info = ok r
+
+theorem SessionT1_HkdfTotal_is :
+    Tacenta.SessionT1.HkdfTotal ↔ HkdfTotalShape @tacenta_session.tacenta_kdf.hkdf_sha256 :=
+  Iff.rfl
+
+/-- One model of both of the session's HKDF hypotheses at once. -/
+theorem session_hkdf_satisfiable : ∃ f, HkdfTotalShape f ∧ Hkdf32Shape f :=
+  ⟨hkdfWitness, fun _ _ _ _ _ => ⟨_, rfl⟩, fun salt ikm info => by
+    simp [hkdfWitness, Tacenta.T3.keyOf, Function.comp_def, u8_toU8]⟩
+
+/-- The one type the session wraps. -/
+abbrev SessionBytes := alloc.vec.Vec Std.U8
+
+abbrev SessionZeroizingNewFn (W : Type → Type) :=
+  {Z : Type} → tacenta_session.zeroize.Zeroize Z → Z → Result (W Z)
+
+abbrev SessionZeroizingDerefFn (W : Type → Type) :=
+  {Z : Type} → tacenta_session.zeroize.Zeroize Z → W Z → Result Z
+
+abbrev SessionZeroizingDerefMutFn (W : Type → Type) :=
+  {Z : Type} → tacenta_session.zeroize.Zeroize Z → W Z → Result (Z × (Z → W Z))
+
+/-- The shape of `SessionT1.ZeroizingModel`'s three equations, at a contents
+function. -/
+def SessionZeroizingShape {W : Type → Type} (contents : W SessionBytes → SessionBytes)
+    (new : SessionZeroizingNewFn W) (deref : SessionZeroizingDerefFn W)
+    (deref_mut : SessionZeroizingDerefMutFn W) : Prop :=
+  (∀ (inst : tacenta_session.zeroize.Zeroize SessionBytes) (v : SessionBytes),
+    new inst v ⦃ fun z => contents z = v ⦄) ∧
+  (∀ (inst : tacenta_session.zeroize.Zeroize SessionBytes) (z : W SessionBytes),
+    deref inst z ⦃ fun v => v = contents z ⦄) ∧
+  (∀ (inst : tacenta_session.zeroize.Zeroize SessionBytes) (z : W SessionBytes),
+    deref_mut inst z ⦃ fun p => p.1 = contents z ∧ ∀ v', contents (p.2 v') = v' ⦄)
+
+theorem SessionT1_ZeroizingModel_is :
+    Nonempty Tacenta.SessionT1.ZeroizingModel ↔
+      ∃ contents, SessionZeroizingShape (W := tacenta_session.zeroize.Zeroizing) contents
+        @tacenta_session.zeroize.Zeroizing.new
+        @tacenta_session.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        @tacenta_session.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut :=
+  ⟨fun ⟨m⟩ => ⟨m.contents, m.new, m.deref, m.deref_mut⟩,
+   fun ⟨c, hn, hd, hm⟩ => ⟨⟨c, hn, hd, hm⟩⟩⟩
+
+theorem session_zeroizing_model_satisfiable :
+    ∃ (W : Type → Type) (contents : W SessionBytes → SessionBytes)
+      (new : SessionZeroizingNewFn W) (deref : SessionZeroizingDerefFn W)
+      (deref_mut : SessionZeroizingDerefMutFn W),
+      SessionZeroizingShape contents new deref deref_mut := by
+  refine ⟨fun Z => Z, id, fun _ z => ok z, fun _ w => ok w, fun _ w => ok (w, id), ?_, ?_, ?_⟩
+  all_goals intros; simp
+
+/-- The type of `tacenta_erasure.core.num.Usize.div_ceil`. -/
+abbrev DivCeilFn := Std.Usize → Std.Usize → Result Std.Usize
+
+/-- The shape of `ErasureT1.DivCeilTotal`. -/
+def DivCeilTotalShape (f : DivCeilFn) : Prop :=
+  ∀ a b : Std.Usize, b.val ≠ 0 → ∃ r, f a b = ok r
+
+theorem ErasureT1_DivCeilTotal_is :
+    Tacenta.ErasureT1.DivCeilTotal ↔ DivCeilTotalShape tacenta_erasure.core.num.Usize.div_ceil :=
+  Iff.rfl
+
+theorem div_ceil_total_satisfiable : ∃ f, DivCeilTotalShape f :=
+  ⟨fun a _ => ok a, fun a _ _ => ⟨a, rfl⟩⟩
+
+/-- The type of `tacenta_erasure.alloc.vec.Vec.truncate`. -/
+abbrev TruncateFn :=
+  {T : Type} → (A : Type) → alloc.vec.Vec T → Std.Usize → Result (alloc.vec.Vec T)
+
+/-- The shape of `ErasureT1.TruncateTotal`. -/
+def TruncateTotalShape (f : TruncateFn) : Prop :=
+  ∀ (v : alloc.vec.Vec Std.U8) (n : Std.Usize), ∃ r, f Global v n = ok r
+
+theorem ErasureT1_TruncateTotal_is :
+    Tacenta.ErasureT1.TruncateTotal ↔ TruncateTotalShape @tacenta_erasure.alloc.vec.Vec.truncate :=
+  Iff.rfl
+
+theorem truncate_total_satisfiable : ∃ f, TruncateTotalShape f :=
+  ⟨fun _ v _ => ok v, fun v _ => ⟨v, rfl⟩⟩
+
+/-! The six derived totalities, each held to the theorem that derives it: if one
+of those theorems gains a hypothesis, trades one for a hypothesis not witnessed
+here, or disappears, this file stops building. -/
+
+example : Tacenta.T3.HmacAgrees → Tacenta.T1.HmacTotal :=
+  Tacenta.T3.HmacAgrees.total
+
+example : Tacenta.T3.HkdfAgrees → Tacenta.T1.HkdfTotal :=
+  Tacenta.T3.HkdfAgrees.total
+
+example : Tacenta.BraidT3.BraidHkdfAgrees → Tacenta.BraidT1.HkdfSha256Total :=
+  Tacenta.BraidT3.BraidHkdfAgrees.total
+
+example : Tacenta.BraidT3.BraidHmacAgrees → Tacenta.BraidT1.HmacSha256Total :=
+  Tacenta.BraidT3.BraidHmacAgrees.total
+
+example : Tacenta.SpqrT3.SpqrHkdfAgrees → Tacenta.SpqrT3.ZeroizingRoundTrips96 →
+    Tacenta.SpqrT1.KdfRkTotal :=
+  Tacenta.SpqrT3.SpqrHkdfAgrees.kdfRkTotal
+
+example : Tacenta.SpqrT3.SpqrHkdfAgrees → Tacenta.SpqrT3.ZeroizingRoundTrips64 →
+    Tacenta.SpqrT1.KdfCkTotal :=
+  Tacenta.SpqrT3.SpqrHkdfAgrees.kdfCkTotal
+
+end RemainingLeafBoundary
 
 end Tacenta.Satisfiability
