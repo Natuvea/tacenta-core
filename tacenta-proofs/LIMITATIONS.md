@@ -1443,9 +1443,12 @@ stating rather than folding into the general list:
 ### The three-leaf translation unit is an eighth zone, and it ships to nobody
 
 `tacenta-core/triple-unit` is a verified zone in `attest.py` and a crate in the
-workspace, and no shipping path reaches it. Nothing depends on it, it exports
-nothing anyone calls, and deleting it would change no behaviour. It exists to
-be translated.
+workspace, and no shipping path reaches it. No shipping crate depends on it, it
+exports nothing anyone calls, and deleting it would change no behaviour that
+anybody observes. It exists to be translated and proved about, and proofs do
+depend on it: `Translation/UnitT1.lean`, `Translation/UnitSpqrT1.lean`,
+`Translation/UnitTripleT1.lean` and `Translation/UnitPins.lean` are all
+statements about its constants.
 
 **What it is for.** Translating `tacenta-core/triple` on its own gives Aeneas
 three crates and lets it see one. The Double Ratchet's and the sparse ratchet's
@@ -1488,17 +1491,124 @@ check stripped the same line ranges it had written and so could not fail; it
 was replaced after an external review, and the replacement was tested by
 forcing the misread it claims to catch.
 
-**Translated is not proved, and here that is the whole of it.** The unit is
-translated with no `sorry` and no body Aeneas gave up on, and it carries no
-theorem. Every T1 and T3 statement about the Triple still rests on the
-hand-written bundles and on the leaves' own proofs, exactly as before. Porting
-the leaf proofs onto the unit's constants is open work, and it is not a
-re-import: the leaves' proofs are stated about the leaves' own translated
-constants, which are different constants, so they have to be re-proved in the
-unit's namespace rather than reused. For the same reason the unit's
-translation cannot be imported into the same Lean environment as the leaves' --
-the instances collide -- which is why it has an axiom audit module of its own,
-`Translation/AxiomAuditTripleUnit.lean`, and why the two worlds stay separate.
+**What is proved about it, and what is not.** The unit is translated with no
+`sorry` and no body Aeneas gave up on. The two leaf panic-freedom proofs have
+been restated about it, as `Translation/UnitT1.lean` and
+`Translation/UnitSpqrT1.lean`, so the Double Ratchet and the sparse ratchet are
+proved panic-free as compiled inside the unit and not only as compiled alone.
+Those files are generated from the leaf proofs by
+`scripts/port-unit-proofs.sh`, which rewrites the import, the namespace and the
+`open` and copies every proof body unchanged; `--check` regenerates and diffs
+in CI. `Translation/UnitPins.lean` pins each theorem's axiom base and holds it
+to the leaf's, name for name, so the port cannot quietly add an assumption,
+turn an assumption into a definition, or make a kernel-only proof
+compiler-trusted.
+
+The port is not a re-import and could not have been. The leaves' proofs are
+stated about the leaves' own translated constants, which are different
+constants; nothing connects them, so the theorems exist twice. Generating the
+second copy is what keeps that duplication from becoming drift. For the same
+reason the unit's translation cannot be imported into the same Lean environment
+as the leaves' -- the instances collide -- which is why it has an axiom audit
+module of its own, `Translation/AxiomAuditTripleUnit.lean`, and why the two
+worlds stay separate.
+
+**The Triple's own T1 is now proved on the unit, and this is duplication
+rather than replacement.** `Translation/UnitTripleT1.lean` restates
+`TripleT1.lean` about the unit and **proves** all seventeen of the `*Total`
+bundles `TripleT1.lean` assumes, from the two leaf theorems above. That is what
+the unit exists for, and for `TripleT1` it is done.
+
+`TripleT1.lean` nevertheless still exists and still assumes those seventeen
+bundles, and will keep doing so. `TripleT3.lean` and
+`SatisfiabilityTriple.lean` depend on its definitions, and they are in the
+other island: the unit's translation cannot share a Lean environment with the
+leaves', so deleting `TripleT1.lean` would take those two files with it. Both
+files are in the tree, saying overlapping things about the same Rust. `TripleT3`
+is untouched by this and still rests on the hand-written bundle clauses that
+`check-bundle-drift.py` compares against the leaf theorems.
+
+**And the duplicate can drift, unlike the leaves' copies.**
+`Translation/UnitT1.lean` and `Translation/UnitSpqrT1.lean` are generated and
+diffed in CI, so an edit to a leaf that is not carried across fails the build.
+`Translation/UnitTripleT1.lean` is hand-written and cannot be generated:
+`port-unit-proofs.sh` assumes a leaf proof never writes a translated name in
+qualified form, and `TripleT1.lean` writes forty-nine of them, on top of
+proof bodies that genuinely change (roughly twenty newly-in-scope `@[step]`
+rules mean several bodies need pruning rather than substitution, and three of
+`TripleT1.lean`'s boundary assumptions collapse into the leaves'). So nothing
+mechanical holds the two Triple files to each other. An edit to `TripleT1.lean`
+that is not mirrored will pass CI. That is a real gap and this paragraph is the
+disclosure of it.
+
+**Four preconditions land outside the translated tree.** Proving the bundles
+instead of assuming them means carrying the leaves' real preconditions, which
+`TripleT1.lean`'s unconditional bundles hide: `State.send` on the unit needs
+`self.post_quantum.chains.length + 1 < Usize.max`, and `State.receive` needs
+`max self.classical.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val ≤ Usize.max`,
+`self.post_quantum.chains.length + 2 < Usize.max` and
+`self.post_quantum.skipped.length + MAX_SKIP.val ≤ Usize.max`. Nothing on the
+unit island discharges them. They are obligations on the **untranslated session
+layer** in `tacenta-core/src/sessions`, which decides how large a skipped-key
+store and a chain table a session may carry, and that layer is not translated
+or proved in its own right. The classical one is discharged in the other
+island, by `Ratchet.inv_gives_store_bound` in `Translation/ImportInv.lean` and
+through it by `Ratchet.decoded_receive_no_panic`, for a state that came from
+`from_bytes`; "Seven verified zones on the shipping path" above describes that
+route. It has not been ported to the unit, so it does not reach these
+theorems. All four hold of any state that could exist, at either platform
+width. They are bounds against `usize::MAX` on quantities a real session keeps
+in the low thousands.
+
+**The satisfiability guard is narrower than it reads, and the gap is where
+this tree's worst defect lived.** `Translation/Satisfiability.lean` and
+`Translation/SatisfiabilityTriple.lean` exhibit a witness for a boundary
+assumption, and for several also prove that the over-broad version of the same
+assumption admits no implementation at all. That is a real guard against
+assuming something nothing could satisfy. What it covers is the *opaque
+operation* family: the `Vec` operations, the `zeroize` wrapper, the
+derived-keys model.
+
+It has never covered a **numeric precondition**, on any island. Not one of the
+store, chain-length or counter bounds carried by a `no_panic` or `refines`
+theorem has a witness or a refutation anywhere in this tree. That is exactly
+where the defect corrected on 2026-09-10 lived: `receive`'s store bound asked
+for something no state could satisfy at 32 bits, sat in this file for months
+described as a genuine constraint, and no guard was pointed at it. A one-line
+`example : ∃ s, <the precondition> s` beside each numeric hypothesis would have
+caught it the day it was written. Adding those is open work and is the first
+thing to do after this.
+
+The unit island is thinner still: nothing there has a witness of either kind.
+`UnitT1.DerivedKeysModel`'s leaf twin is witnessed and its copy is not, which
+is a straightforward port. The rest are not ports at all.
+`UnitSpqrT1.OptionCloneTotal` has no witness in either island;
+`KdfRkTotal` and `KdfCkTotal` are *derived* on the leaf side from
+`SpqrHkdfAgrees`, which is itself unwitnessed; and `KdfInitTotal` has no leaf
+twin, so calling it inherited rather than introduced is wrong. These bottom out
+in the key-derivation primitives, which are the trusted boundary and are
+assumed rather than witnessed by design -- but that reasoning should be written
+here rather than left to be inferred, and until now it was not.
+
+Transporting them to `self` is free only because the clone is provably the
+identity on the unit -- every field is an array, a scalar, an `Option` under
+`OptionCloneTotal`, or a `Vec` whose elements clone as the identity.
+`TripleT1.State.clone_no_panic` proves only that the clone returns, which is
+all it can prove where the inner states are opaque, so on that side a
+precondition could not be transported at all.
+
+**And the composed `receive` stops being kernel-only.**
+`Tacenta.TripleT1.State.receive_no_panic` depends on twelve axioms, none of
+them compiler-trusted. The ported theorem depends on eighteen and inherits
+`Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`. The reason
+is not a weaker proof: the current theorem is kernel-only because it *assumes*
+the sparse ratchet's receive is total rather than proving it, so its
+kernel-only status is bought by assuming the hard part. The ported one proves
+that part and inherits the one compiler-trusted numeric fact that proof rests
+on. The six extra axioms are a substitution rather than a new kind of trust --
+the bare operation axioms are replaced by KDF, `zeroize` and `Vec` boundary
+axioms already shared with every other proof in the tree. `Translation/UnitPins.lean`
+records the whole base and `CLAIMS.md` repeats it.
 
 **The ten waived compiler-trust axioms are here.** Putting all three leaves'
 types in one module makes seven string literals occur more than once across
@@ -1619,22 +1729,39 @@ that assembly possible.
     anyone intended it.
 
     Second, **`receive` carries a precondition, and it is a real one.** The
-    skipped-key store must be small enough that its length plus the whole `u32`
-    range still fits a `usize`, measured at the largest the store can reach.
-    On a 64-bit target any store that could exist satisfies it. On a 32-bit
-    target it does not hold automatically, because Aeneas models `usize` at the
-    platform width, so the statement keeps it as a hypothesis rather than
-    discharging it. A caller on a 32-bit platform is owed that check.
+    skipped-key store must be small enough that its length plus `MAX_SKIP`
+    still fits a `usize`, measured at the largest the store can reach. Both
+    platform widths admit it, since the constant part is 2000 plus 1000.
 
-    Where the state came from `State::from_bytes`, the state-shaped half of
-    that precondition is now discharged rather than assumed.
+    This bound was wrong until 2026-09-10, and the way it was wrong is worth
+    recording, because it is a failure mode this ledger exists to catch. It
+    asked for the store's length plus the *whole* `u32` range. Aeneas models
+    `usize` at the platform width, so on a 32-bit target `usize::MAX` and
+    `u32::MAX` are the same number and the hypothesis said "the store holds at
+    most zero keys" -- false of every state, the empty one included. It was not
+    a demanding precondition. It was an impossible one, and a theorem with an
+    impossible hypothesis is vacuously true, so `receive_no_panic` and the
+    `receive` refinement established **nothing at all** on 32-bit targets,
+    which the workspace compiles for (`armv7-linux-androideabi` in CI). The
+    text here called it "a genuine constraint" and said a 32-bit caller was
+    owed a check that no caller could ever meet.
+
+    The bound is now `MAX_SKIP`, which is what the code actually needs:
+    `skip_message_keys` returns `TooManySkipped` before the addition when the
+    request is further ahead than `MAX_SKIP`, so the gap the store has to
+    absorb is at most 1000 and never the counter's full range. The proofs use
+    that guard (`T1.skip_gap_le`) instead of bounding the gap by the type.
+
+    Where the state came from `State::from_bytes`, the precondition is
+    discharged rather than assumed, and now entirely.
     `Translation/ImportInv.lean` proves that a state the translated
     `from_bytes` returns satisfies the crate's own `invariant()`, whose first
-    clause caps the store at `MAX_SKIPPED_STORE`; what is left is
-    `MAX_SKIPPED_STORE + u32::MAX ≤ usize::MAX`, a statement about the target
-    and nothing else, which is passed as an explicit argument
-    (`Ratchet.inv_gives_store_bound`). The 32-bit caller is still owed exactly
-    that check, and no more.
+    clause caps the store at `MAX_SKIPPED_STORE`; what was left,
+    `MAX_SKIPPED_STORE + MAX_SKIP ≤ usize::MAX`, is now proved outright at
+    either width by `Ratchet.store_plus_skip_fits` instead of being passed in.
+    `Ratchet.decoded_receive_no_panic` is therefore unconditional: the boundary
+    assumptions, the bytes, and the decode. Nothing is owed by any caller on
+    any target.
 
     Third, **the refinement of `receive` also assumes the store's clock has a
     step of room left, and that assumption stays with the caller even for a

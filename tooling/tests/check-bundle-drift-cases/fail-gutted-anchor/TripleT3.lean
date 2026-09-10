@@ -1,6 +1,4 @@
--- expect: no `theorem receive_refines_v2` in T3.lean
--- The marker names a theorem the leaf file does not declare -- a leaf
--- renamed without the bundle following.
+-- expect: does not mention the leaf or the bundle spelling
 -- The two bundles as the tree holds them, against the leaf files beside this
 -- directory. Everything that follows in a `fail-*` case is one edit away from
 -- this file, so a case says exactly what it is about.
@@ -27,7 +25,7 @@ def RatchetAgreesFor (α : tacenta_ratchet.State → Model.State.State) : Prop :
         α r.2 = m' ∧ RatchetHeaderR hdr mh) ∧
     (r.1 = core.result.Result.Err tacenta_ratchet.RatchetError.NoSendingChain →
       Model.Ratchet.send (α s) = none)) ∧
-  -- mirrors: Tacenta.T3.receive_refines_v2 in T3.lean
+  -- mirrors: Tacenta.T3.receive_refines in T3.lean
   (∀ (s : tacenta_ratchet.State) (hdr : tacenta_ratchet.Header) (mh : Model.State.Header),
     RatchetHeaderR hdr mh →
     ∀ (dh_out_recv dh_out_send new_dhs_pub : Array Std.U8 32#usize),

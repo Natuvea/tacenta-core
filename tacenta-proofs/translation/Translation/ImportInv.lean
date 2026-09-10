@@ -93,8 +93,8 @@ which no byte string can be shown to satisfy from inside this translation.
   and a sparse ratchet at `epoch = u64::MAX - 1` are ordinary states: they
   satisfy the `invariant`, they decode, and their crates go on operating on
   them. So no `invariant` can supply that step, and none is asked to; the
-  ratchet's is an explicit argument on `decoded_receive_refines` below, beside
-  `hplat`. **Panic-freedom is unaffected:** every `decoded_*_no_panic` here is
+  ratchet's is the one explicit argument `decoded_receive_refines` below still
+  takes. **Panic-freedom is unaffected:** every `decoded_*_no_panic` here is
   unconditional in the counters.
 * For the sparse ratchet, `SpqrT3.receive_refines`'s `hepoch`, `hcb`, `hsb`,
   `hnewb` and `hcounter` are **not** consequences of the crate's `invariant`,
@@ -628,18 +628,27 @@ end Witness
 
 /-! ### From `Inv` to the theorems' preconditions -/
 
-/-- `Inv` → `T1.receive_no_panic`'s `hs`, given the platform-width fact.
+/-- The platform-width side of `T1.receive_no_panic`'s `hs`, discharged rather
+than assumed. Both quantities are constants -- `MAX_SKIPPED_STORE` is 2000 and
+`MAX_SKIP` is 1000 -- and `usize` is at least 32 bits wide on either target
+Aeneas models, so the sum fits with room to spare. -/
+theorem store_plus_skip_fits :
+    MAX_SKIPPED_STORE.val + MAX_SKIP.val ≤ Std.Usize.max := by
+  have h := Std.Usize.bounds_eq
+  simp only [MAX_SKIPPED_STORE, MAX_SKIP]
+  rcases h with h | h <;> simp [h] <;> scalar_tac
 
-`hs` asks that the store at its largest, plus the whole `u32` range, still fits
-a `usize`. `Inv` collapses "at its largest" to the constant
-`MAX_SKIPPED_STORE`; what remains is a statement about the target only, and
-`T1.lean`'s own docstring already records that it holds on a 64-bit target and
-is a genuine constraint on a 32-bit one. It is taken as an argument rather than
-assumed here, so a caller sees exactly what is being asked. -/
-theorem inv_gives_store_bound (s : State) (hi : Inv s)
-    (hplat : MAX_SKIPPED_STORE.val + Std.U32.max ≤ Std.Usize.max) :
-    max s.skipped.val.length MAX_SKIPPED_STORE.val + Std.U32.max ≤ Std.Usize.max := by
+/-- `Inv` → `T1.receive_no_panic`'s `hs`.
+
+`hs` asks that the store at its largest, plus the gap one skip can add, still
+fits a `usize`. `Inv` collapses "at its largest" to the constant
+`MAX_SKIPPED_STORE`, and what remains is `MAX_SKIPPED_STORE + MAX_SKIP`, which
+`store_plus_skip_fits` settles at either width. Nothing is left for the caller
+to supply. -/
+theorem inv_gives_store_bound (s : State) (hi : Inv s) :
+    max s.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val ≤ Std.Usize.max := by
   have := hi.store_bound
+  have := store_plus_skip_fits
   omega
 
 /-- `Inv` → the clock clause: the store's clock is below the `u32` ceiling.
@@ -689,22 +698,19 @@ state that came out of `from_bytes` does not panic. -/
 theorem decoded_receive_no_panic (h : Tacenta.T1.HmacTotal) (hk : Tacenta.T1.HkdfTotal)
     (hz : Tacenta.T1.ZeroizingTotal) (hrm : Tacenta.T1.VecRemoveTotal)
     [Tacenta.T1.DerivedKeysModel]
-    (hplat : MAX_SKIPPED_STORE.val + Std.U32.max ≤ Std.Usize.max)
     (bytes : Slice Std.U8) (s : State)
     (hdec : State.from_bytes bytes = ok (core.result.Result.Ok s))
     (header : Header) (dh_out_recv dh_out_send new_dhs_pub : Array Std.U8 32#usize) :
     Tacenta.T1.NoPanic (receive s header dh_out_recv dh_out_send new_dhs_pub) :=
   Tacenta.T1.receive_no_panic h hk hz hrm s header dh_out_recv dh_out_send new_dhs_pub
-    (inv_gives_store_bound s (from_bytes_establishes_inv bytes s hdec) hplat)
+    (inv_gives_store_bound s (from_bytes_establishes_inv bytes s hdec))
 
 /-- **Decoded state → `Inv` → `hone`, `hs` → `T3.receive_refines`, given a step
 of clock headroom.** A `receive` on a state that came out of `from_bytes`
 refines the model's, provided the store's clock has not parked.
 
-Two premises stay with the caller, and both are explicit arguments rather than
-global assumptions, so a reader sees what is being asked.
-
-`hplat` is the platform-width fact, as on `decoded_receive_no_panic` above.
+One premise stays with the caller, and it is an explicit argument rather than
+a global assumption, so a reader sees what is being asked.
 
 `hclock_unparked` is the step of headroom `T3.receive_refines`'s `hroom` now
 asks for. `age_store` clamps the clock at `MAX_EVENTS = u32::MAX - 1` so that
@@ -726,7 +732,6 @@ means. -/
 theorem decoded_receive_refines (h : Tacenta.T3.HmacAgrees) (hk : Tacenta.T3.HkdfAgrees)
     (hz : Tacenta.T3.ZeroizingRoundTrips) (hrm : Tacenta.T1.VecRemoveTotal)
     [Tacenta.T1.DerivedKeysModel]
-    (hplat : MAX_SKIPPED_STORE.val + Std.U32.max ≤ Std.Usize.max)
     (bytes : Slice Std.U8) (s : State)
     (hdec : State.from_bytes bytes = ok (core.result.Result.Ok s))
     (hclock_unparked : s.events.val + 1 < Std.U32.max)
@@ -743,7 +748,7 @@ theorem decoded_receive_refines (h : Tacenta.T3.HmacAgrees) (hk : Tacenta.T3.Hkd
   Tacenta.T3.receive_refines h hk hz hrm s m hR hdr mh hH
     dh_out_recv dh_out_send new_dhs_pub
     (inv_gives_store_is_map s m hR hinv mh)
-    (inv_gives_store_bound s hinv hplat)
+    (inv_gives_store_bound s hinv)
     hclock_unparked
 
 end Ratchet

@@ -616,21 +616,16 @@ panic-freedom corollaries here are unaffected and take no such premise; the
 refinement corollary takes it as an explicit argument. "Read this first" gives
 the one-line form.
 
-Three hypotheses are carried rather than discharged, all named, none new to
+Two hypotheses are carried rather than discharged, both named, neither new to
 this file in substance:
 
-- `hplat : MAX_SKIPPED_STORE.val + U32.max ≤ Usize.max`, the platform-width
-  fact the classical ratchet's `hs` reduces to once the store bound is known.
-  It holds on a 64-bit target and is a genuine constraint on a 32-bit one --
-  exactly what `T1.lean`'s own closing note already said about `hs`. It is an
-  explicit argument, not a global assumption, so a caller sees it.
 - `Tacenta.BraidT1.Ct1LenTotal` for the Braid, which `BraidT1.lean` already
   states and already uses: `tacenta_kem::CT1_LEN` returns a value at most
   4096. The real constant is 1408 (`braid/src/lib.rs` says so where
   `ct1_bounded` is motivated).
 - `hclock_unparked : s.events.val + 1 < U32.max` on
   `Ratchet.decoded_receive_refines`, the step of clock headroom
-  `T3.receive_refines`'s `hroom` asks for. Unlike the other two this one is
+  `T3.receive_refines`'s `hroom` asks for. Unlike the other this one is
   **not** satisfied by every state the real Rust produces: it excludes exactly
   the parked clock, `events = MAX_EVENTS = u32::MAX - 1`, which `age_store`
   clamps to and which an honest run reaches after 2^32 accepted receives. It
@@ -659,7 +654,9 @@ entry's `stored_at` is ahead of `events`, the store is pairwise distinct on
   an equation rather than assumed. Axioms: `propext`, `Classical.choice`,
   `Quot.sound`, pinned under `#guard_msgs`.
 - Bridges -- two, each discharging a named premise:
-  `Ratchet.inv_gives_store_bound` (`Inv` + `hplat` → T1's `hs`) and
+  `Ratchet.inv_gives_store_bound` (`Inv` → T1's `hs`, with the constant part
+  `MAX_SKIPPED_STORE + MAX_SKIP ≤ usize::MAX` proved outright by
+  `Ratchet.store_plus_skip_fits` rather than assumed) and
   `Ratchet.inv_gives_store_is_map` (`Inv` + `StateR` → T3's `hone`).
 - A recorded consequence of `Inv`, and **not** a bridge:
   `Ratchet.inv_gives_clock_room` (`Inv` → `events < u32::MAX`, the
@@ -677,9 +674,10 @@ entry's `stored_at` is ahead of `events`, the store is pairwise distinct on
   chain end to end -- a `receive` on a decoded state does not panic, and,
   given a step of clock headroom, it refines `Model.Ratchet.receive` -- each
   taking the decode as its hypothesis and discharging the state-shaped
-  preconditions itself. Panic-freedom is unconditional in the clock;
-  `decoded_receive_refines` takes `hclock_unparked` as an explicit argument
-  beside `hplat`, as described above. **Neither is
+  preconditions itself. `decoded_receive_no_panic` is now unconditional: the
+  boundary assumptions, the bytes and the decode, and nothing else.
+  `decoded_receive_refines` takes one explicit argument,
+  `hclock_unparked`, as described above. **Neither is
   kernel-only.** Each composes with a `T1`/`T3` `receive` theorem, so each
   carries that theorem's eleven `tacenta_ratchet.*` opaque-operation axioms
   (the two KDF calls, `Vec::remove`, and the `zeroize` wrapper's constructor,
@@ -814,6 +812,131 @@ is a **leaf crate's own persistence format**. `Session::from_bytes` and the
 storage layer that calls it live in `tacenta-core/src/sessions`, which is not
 translated, so nothing here says what a session restored from disk satisfies.
 
+## Proved (tier T1, the same two ratchets compiled as one crate with the Triple)
+
+Location: `tacenta-proofs/translation/Translation/UnitT1.lean`,
+`Translation/UnitSpqrT1.lean` and `Translation/UnitPins.lean`.
+
+These are the theorems above, restated about
+`Translation/TacentaTripleUnit.lean` -- the translation of
+`tacenta-core/triple-unit`, which is the Triple Ratchet and both inner ratchets
+compiled as one crate. They exist because a theorem about the Double Ratchet's
+own translation says nothing about the Double Ratchet inside the unit: the
+constants are different constants, and Lean has no reason to connect them.
+`LIMITATIONS.md` says what the crate boundary does and does not cost, under
+"The three-leaf translation unit".
+
+The proof files are **generated** from the leaf proofs by
+`scripts/port-unit-proofs.sh`, which rewrites the import, the namespace and the
+`open` and copies every proof body unchanged. `--check` regenerates and diffs
+in CI, so the copies cannot drift from the originals in either direction.
+
+- `Tacenta.UnitT1.kdf_ck_no_panic`: `kdf_ck` compiled inside the unit cannot
+  panic.
+- `Tacenta.UnitT1.send_no_panic`: likewise for the classical ratchet's send.
+- `Tacenta.UnitT1.receive_no_panic`: likewise for receive, under exactly the
+  hypotheses the leaf theorem takes.
+- `Tacenta.UnitSpqrT1.receive_no_panic`: likewise for the sparse ratchet's
+  receive.
+
+**What the pins add, which is the reason to have them.** Each of the four is
+pinned in `UnitPins.lean`, and each base is the leaf theorem's base name for
+name, with `tacenta_triple_unit.` in front of every translated axiom and
+nothing else changed. Nothing appears that the leaf did not assume, nothing the
+leaf assumed has quietly become a definition, and no proof that was kernel-only
+has become compiler-trusted. `Tacenta.UnitSpqrT1.receive_no_panic` carries
+`Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`, the same
+compiler-trust axiom its leaf twin carries and for the same closed numeric
+fact; it is the one of the four that is not kernel-only, in the unit as in the
+leaf.
+
+**What these do not do on their own.** They say nothing about the composition:
+that is the next section, `Translation/UnitTripleT1.lean`, which restates
+`TripleT1.lean` about the unit and proves its seventeen bundles from these
+theorems. `TripleT1.lean` still exists and still assumes them, because
+`TripleT3.lean` and `SatisfiabilityTriple.lean` depend on its definitions from
+the other island; the two files are duplication, not replacement.
+
+## Proved (tier T1, the Triple Ratchet's composed path on that same unit)
+
+Location: `tacenta-proofs/translation/Translation/UnitTripleT1.lean` and
+`Translation/UnitPins.lean`.
+
+`TripleT1.lean` restated about `Translation/TacentaTripleUnit.lean`. Where that
+file **assumes** seventeen `*Total : Prop` bundles about the two inner
+ratchets' operations -- because the Triple translated on its own sees them as
+opaque axioms -- this file **proves** all seventeen from the two leaf theorems
+in the section above. The section heading says "Proved" and not "Proved
+conditionally" for that reason.
+
+Unlike the leaf copies this file is **hand-written**, not generated by
+`scripts/port-unit-proofs.sh`: that script's premise is that a leaf proof never
+writes a translated name in qualified form, and `TripleT1.lean` writes
+forty-nine of them, on top of proof bodies that genuinely change. So it can
+drift from `TripleT1.lean` in a way the generated copies cannot; `LIMITATIONS.md`
+records that under "The three-leaf translation unit".
+
+- `Tacenta.UnitTripleT1.State.send_no_panic`: the composed send path cannot
+  panic, given one precondition -- the sparse ratchet's chain table has room
+  for the epoch `maybe_advance` may add plus the one `set_chains` writes
+  (`self.post_quantum.chains.length + 1 < Usize.max`).
+- `Tacenta.UnitTripleT1.State.receive_no_panic`: the composed receive path
+  cannot panic, given three -- the classical ratchet's skipped-store bound
+  (`max self.classical.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val ≤ Usize.max`),
+  and the sparse ratchet's chain-table and skipped-store bounds
+  (`self.post_quantum.chains.length + 2 < Usize.max` and
+  `self.post_quantum.skipped.length + MAX_SKIP.val ≤ Usize.max`).
+- `Tacenta.UnitTripleT1.State.clone_no_panic`: cloning the composed state
+  cannot panic. Proved from the stronger fact that it returns `self` unchanged,
+  which is what carries the four preconditions above from `self` to the
+  `candidate` the two bodies actually call into.
+- `Tacenta.UnitTripleT1.State.classical_skipped_len_no_panic`,
+  `Tacenta.UnitTripleT1.State.post_quantum_skipped_len_no_panic` and
+  `Tacenta.UnitTripleT1.State.post_quantum_receive_count_no_panic`: three of
+  the seven functions `TripleT1.lean` lists as unproved. Each wraps an inner
+  operation that is opaque there and a definition here, so each is a
+  kernel-only one-liner with no boundary axiom at all.
+
+**Where the four preconditions land.** They are obligations, not decorations,
+and nothing on the unit island discharges them: they land on the untranslated
+session layer in `tacenta-core/src/sessions`, which decides how large a
+skipped-key store and a chain table it lets a session carry. The classical one
+is discharged in the *other* island -- `Ratchet.inv_gives_store_bound` in
+`Translation/ImportInv.lean` gets it from the crate's own `invariant()`, and
+`Ratchet.decoded_receive_no_panic` chains it from `from_bytes` -- so a state
+read off disk satisfies it there. That route has not been ported to the unit,
+which is why it does not help here. All four hold of any
+state that could exist, at either platform width. They are bounds against
+`Usize.max` on quantities that a real session keeps in the low thousands, so
+the way to violate one is to hold a vector with billions of entries.
+
+**What the trust base becomes, honestly.** `Tacenta.TripleT1.State.receive_no_panic`
+depends on twelve axioms and is kernel-only. This file's depends on eighteen
+and is not: it inherits
+`Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`. Both halves
+matter. The current theorem is kernel-only because it *assumes* the sparse
+ratchet's receive is total rather than proving it, so its kernel-only status is
+bought by assuming the hard part; this one proves that part and inherits the
+one compiler-trusted numeric fact that proof rests on. Six axioms go and twelve arrive. Eleven of the
+twelve are a substitution rather than a new kind of trust: the bare operation
+axioms are replaced by KDF, `zeroize` and `Vec` boundary axioms that other
+proofs in this tree already carry. The twelfth is the `native_decide` axiom
+above, which is neither, and is the whole of the regression. `send` is quieter -- twelve axioms before and twelve
+after, kernel-only on both sides. `Translation/UnitPins.lean` records all of it.
+
+**Two more assumptions, and one trade.** `SpqrInitAliceTotal` and
+`SpqrInitBobTotal` bottom out in `tacenta_spqr.kdf_init`, which no leaf proof
+covers, so this file declares `KdfInitTotal` in the same shape as
+`UnitSpqrT1.KdfRkTotal`. That replaces two opaque-crate-boundary assumptions
+with one trusted-KDF assumption of the kind already relied on everywhere else.
+
+**What is still not proved.** The four remaining entries on `TripleT1.lean`'s
+not-proved list -- `State.evict_oldest_classical`,
+`State.evict_oldest_post_quantum`, `State.to_bytes` and `State.from_bytes`.
+Being inside the unit does not make them fall out: the eviction loops and the
+length-prefixed framing are their own proof obligations, unrelated to the crate
+boundary this file removes.
+
 ## Proved conditionally (tier T1, the Triple Ratchet's composed session send/receive path, on hypotheses no leaf theorem discharges)
 
 **Read the heading literally.** The theorems in this section are checked by
@@ -823,6 +946,13 @@ provable as stated in the Aeneas model, so nothing here is "proved" in the
 sense the sections above use the word. Details below.
 
 Location: `tacenta-proofs/translation/Translation/TripleT1.lean`.
+
+**The same theorems are proved unconditionally two sections above**, on the
+three-leaf translation unit, where the bundles below are theorems rather than
+assumptions -- at the cost of four preconditions that land on the untranslated
+session layer. This file stays because `TripleT3.lean` and
+`SatisfiabilityTriple.lean` depend on its definitions and live in the other
+island; `LIMITATIONS.md` says so under "The three-leaf translation unit".
 
 `tacenta-triple` composes the classical Double Ratchet (`tacenta-ratchet`)
 and the sparse post-quantum ratchet (`tacenta-spqr`), and since the triple-ratchet integration

@@ -82,6 +82,15 @@ bash tooling/tests/run-check-bundle-drift-cases.sh
 echo "== The three-leaf translation unit is what its leaves assemble to =="
 sh tacenta-proofs/scripts/assemble-triple-unit.sh --check
 
+# The unit's copies of the two leaf panic-freedom proofs are generated from
+# those proofs, not maintained beside them: the constants differ, so the
+# theorems have to exist twice, and this is what stops the second copy drifting
+# from the first. Needs no toolchain, so it runs here rather than beside the
+# proof build; the build itself is what checks that the copies still prove
+# anything.
+echo "== The unit's copies of the leaf panic-freedom proofs are the ported originals =="
+bash tacenta-proofs/scripts/port-unit-proofs.sh --check
+
 # Derivation labels are protocol constants, and a codebase that cannot enumerate
 # its own is one nobody can review. `tacenta-core/LABELS.md` is the freeze;
 # this makes it binding rather than aspirational, and enforces prefix-freedom
