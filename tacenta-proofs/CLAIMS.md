@@ -490,6 +490,24 @@ Location: `Translation/ProtobufT1.lean`.
 above. What these theorems establish is that a verified reader exists, not
 that received bytes go through it.
 
+## Proved (tier T1, the ratchet-message decoder cannot fail)
+
+Location: `Translation/WireT1.lean`.
+
+`decode_message` is the first code the bytes of a ratchet message reach on the
+live receive path: the session calls it before anything is authenticated, and
+`decode_composite` is all of its parsing. Both live in `tacenta-core/wire`, a
+leaf crate the translation covers, and `tacenta_core::serialization` re-exports
+them, so this is the decoder the product runs.
+
+- `decode_composite_no_panic`, `decode_message_no_panic`: every byte string
+  decodes to an `Ok` or an `Err` and never to a failure, with no precondition,
+  since the input is whatever arrived. Pinned to `propext`, `Classical.choice`
+  and `Quot.sound` alone: the decoder calls no opaque operation.
+
+`decode_initial`, which decodes a prekey message, is still in the root crate
+and has no theorem.
+
 ## Proved (tier T1, the sparse post-quantum ratchet's entry points cannot fail)
 
 Location: `tacenta-proofs/translation/Translation/SpqrT1.lean`.

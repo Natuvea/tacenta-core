@@ -919,6 +919,7 @@ dependencies = [
  "tacenta-session",
  "tacenta-spqr",
  "tacenta-triple",
+ "tacenta-wire",
  "x25519-dalek",
  "zeroize",
 ]
@@ -998,6 +999,10 @@ dependencies = [
  "tacenta-spqr",
  "tacenta-triple",
 ]
+
+[[package]]
+name = "tacenta-wire"
+version = "0.0.0"
 
 [[package]]
 name = "typenum"

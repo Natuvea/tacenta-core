@@ -128,6 +128,12 @@ translate erasure tacenta-erasure tacenta_erasure.llbc TacentaErasure
 # use; CLAIMS.md and LIMITATIONS.md say the same. If this stops translating,
 # that decision reopens rather than the crate quietly moving out.
 translate protobuf tacenta-protobuf tacenta_protobuf.llbc TacentaProtobuf
+# The composite header and the ratchet-message decoder, `decode_composite` and
+# `decode_message`: the first code the bytes of a ratchet message reach on the
+# live receive path, moved out of the root crate's `serialization` module into a
+# leaf crate so that they are translated. `decode_initial` is still in the root
+# crate and still untranslated.
+translate wire tacenta-wire tacenta_wire.llbc TacentaWire
 
 # The post-quantum stack, on the shipping path since the triple-ratchet
 # integration.

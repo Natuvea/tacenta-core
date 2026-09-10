@@ -1,0 +1,13 @@
+[package]
+name = "tacenta-wire"
+license = "Apache-2.0"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.87"
+description = "The fixed-width decoder every ratchet message a peer sends goes through, isolated as a leaf crate for Charon/Aeneas translation."
+publish = false
+
+# **No dependencies, on purpose.** Every byte this crate reads was chosen by
+# whoever sent the message, and a dependency here would be a parser the proofs
+# do not cover.
+[dependencies]

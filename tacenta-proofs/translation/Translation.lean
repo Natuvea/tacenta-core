@@ -13,6 +13,10 @@ import Translation.ErasureT3
 import Translation.TacentaProtobuf
 import Translation.ProtobufT1
 import Translation.ProtobufT3
+-- The composite header and the ratchet-message decoder: the first code a ratchet
+-- message's bytes reach on the live receive path.
+import Translation.TacentaWire
+import Translation.WireT1
 -- The post-quantum stack, on the session's send and receive path. The
 -- classical half is under `T1`.
 import Translation.TacentaSpqr
