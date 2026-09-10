@@ -52,7 +52,14 @@ which is the harder half:
   and `UnitT1.ZeroizingTotal`; its `ZeroizeTotal` is a narrowing of
   `UnitSpqrT1.ZeroizeTotal` at one instance, which has to be written out at
   every use), and its two `@[step]` `zeroize.Zeroizing` helpers are duplicates
-  of `UnitT1`'s, so none of the five is redeclared;
+  of `UnitT1`'s, so none of the five is redeclared. Two of the three collapses
+  are exact and the third is not: the two constructor theorems below take
+  `UnitSpqrT1.ZeroizeTotal`, which quantifies over the element type, the width
+  and the instance, where `TripleT1.ZeroizeTotal` fixes all three at
+  `Array U8 32`. They assume strictly more than their twins do, which makes
+  them strictly weaker theorems. The narrow form is what the two constructors
+  need -- each wipes two 32-byte arrays and nothing else -- so the generality
+  is a convenience of reusing the leaf's constant, not a requirement;
 * three bundles gain preconditions, and the theorems that use them gain those
   preconditions too.
 
@@ -68,9 +75,10 @@ conditionally". Proving the bundles instead of assuming them means carrying
 the leaves' real preconditions, and there are three:
 
 * `RatchetReceiveTotal` needs
-  `max state.skipped.val.length MAX_SKIPPED_STORE.val + U32.max ≤ Usize.max`.
-  Vacuous on a 64-bit target, a real constraint on a 32-bit one, because
-  Aeneas models `usize` at the platform width.
+  `max state.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val ≤
+  Usize.max`, the store at its largest plus the gap one skip can add. Both
+  addends are bounded by constants, so it is satisfiable at either width
+  Aeneas models `usize` at.
 * `SpqrSendTotal` needs `st.chains.length + 1 < Usize.max`.
 * `SpqrReceiveTotal` needs `st.chains.length + 2 < Usize.max` and
   `st.skipped.length + MAX_SKIP.val ≤ Usize.max`.
@@ -80,8 +88,17 @@ covers, so `KdfInitTotal` is declared here, in the same shape as
 `UnitSpqrT1.KdfRkTotal`: a translated function bottoming out in the opaque
 `hkdf_sha256`, at 96 bytes. That trade is worth naming -- it replaces two
 opaque-crate-boundary assumptions (`SpqrInitAliceTotal`, `SpqrInitBobTotal`
-as `TripleT1.lean` states them) with one trusted-KDF assumption of the kind
-every other proof in this tree already relies on.
+as `TripleT1.lean` states them) with one assumption of a kind other proofs in
+this tree already rely on. "Trusted KDF" undersells what it bundles: besides
+`hkdf_sha256` it covers the `zeroize` wrapper at a width nothing else states
+and the `info` builder, exactly as `UnitSpqrT1.KdfRkTotal` does.
+
+Like every other hypothesis on this island, it has no satisfiability witness.
+`Translation/Satisfiability.lean` and `Translation/SatisfiabilityTriple.lean`
+exhibit witnesses for the leaf islands' assumptions; nothing does so here, and
+`KdfInitTotal` joins `UnitT1.DerivedKeysModel`, `UnitSpqrT1.OptionCloneTotal`,
+`KdfRkTotal` and `KdfCkTotal` in that. This is inherited rather than
+introduced, and `LIMITATIONS.md` records it.
 
 ## Why the preconditions transport for free
 
@@ -254,7 +271,8 @@ theorem ratchetSendTotal (h : UnitT1.HmacTotal) : RatchetSendTotal :=
 def RatchetReceiveTotal : Prop :=
   ∀ (s : tacenta_ratchet.State) (hdr : tacenta_ratchet.Header)
     (a b c : Array U8 32#usize),
-    max s.skipped.val.length tacenta_ratchet.MAX_SKIPPED_STORE.val + U32.max ≤ Usize.max →
+    max s.skipped.val.length tacenta_ratchet.MAX_SKIPPED_STORE.val
+      + tacenta_ratchet.MAX_SKIP.val ≤ Usize.max →
     ∃ r, tacenta_ratchet.receive s hdr a b c = ok r
 
 theorem ratchetReceiveTotal (h : UnitT1.HmacTotal) (hk : UnitT1.HkdfTotal)
@@ -508,7 +526,7 @@ classical ratchet's skipped-key store bound, and the sparse ratchet's chain-tabl
 and skipped-store bounds. All three are stated about `self`; `State.clone_spec`
 carries them to the clone the body calls into. -/
 theorem State.receive_no_panic (hhmac : UnitT1.HmacTotal) (hkdf : UnitT1.HkdfTotal)
-    (hzw : UnitT1.ZeroizingTotal) (hrmr : UnitT1.VecRemoveTotal) [UnitT1.DerivedKeysModel]
+    (hzw : UnitT1.ZeroizingTotal) [UnitT1.DerivedKeysModel]
     (hz : UnitSpqrT1.ZeroizeTotal) (hret : UnitSpqrT1.VecRetainTotal)
     (hrk : UnitSpqrT1.KdfRkTotal) (hck : UnitSpqrT1.KdfCkTotal)
     (hopt : UnitSpqrT1.OptionCloneTotal) (hrm : UnitSpqrT1.VecRemoveTotal)
@@ -517,12 +535,12 @@ theorem State.receive_no_panic (hhmac : UnitT1.HmacTotal) (hkdf : UnitT1.HkdfTot
     (dh_out_recv dh_out_send new_dhs_pub : Array U8 32#usize)
     (output : Option tacenta_spqr.Output)
     (hs : max self.classical.skipped.val.length tacenta_ratchet.MAX_SKIPPED_STORE.val
-      + U32.max ≤ Usize.max)
+      + tacenta_ratchet.MAX_SKIP.val ≤ Usize.max)
     (hroom : self.post_quantum.chains.length + 2 < Usize.max)
     (hskiproom : self.post_quantum.skipped.length + tacenta_spqr.MAX_SKIP.val ≤ Usize.max) :
     State.receive self header dh_out_recv dh_out_send new_dhs_pub output ⦃ fun _ => True ⦄ := by
   obtain ⟨⟨r, s⟩, hrs⟩ :=
-    ratchetReceiveTotal hhmac hkdf hzw hrmr self.classical header.dr dh_out_recv
+    ratchetReceiveTotal hhmac hkdf hzw hrm self.classical header.dr dh_out_recv
       dh_out_send new_dhs_pub hs
   obtain ⟨⟨r1, s1⟩, hrq⟩ :=
     spqrReceiveTotal hret hrk hz hck hopt hrm happ self.post_quantum header.epoch output
@@ -577,10 +595,12 @@ Both halves of that are worth stating plainly, and `Translation/UnitPins.lean`
 states them: the current theorem is kernel-only because it *assumes* the
 sparse ratchet's receive is total rather than proving it, so its kernel-only
 status is bought by assuming the hard part; this one proves that part and
-inherits what proving it costs. The six extra axioms are not new kinds of
-trust either -- the bare operation axioms (`tacenta_ratchet.receive`,
+inherits what proving it costs. Underneath, six axioms go and twelve arrive:
+the bare operation axioms (`tacenta_ratchet.receive`,
 `tacenta_spqr.State.receive`, the two states and their clones) are replaced by
-KDF, zeroize and `Vec` boundary axioms already shared with every other proof
-in this tree. -/
+KDF, zeroize and `Vec` boundary axioms already shared with other proofs in this
+tree. That accounts for eleven of the twelve. The twelfth is the
+`native_decide` axiom named above, which is neither, and saying otherwise would
+be a summary at odds with its own lead. -/
 
 end Tacenta.UnitTripleT1

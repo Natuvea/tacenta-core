@@ -200,6 +200,12 @@ RATCHET = BundleSpec(
             lemma="max_skipped_store_agrees", lemma_file="T3.lean",
             note="the store bound is one constant written two ways"),
         Bridge(
+            leaf=r"\bMAX_SKIP\.val\b",
+            bundle=r"\bModel\.State\.maxSkip\b",
+            canon="MAX_SKIP",
+            lemma="max_skip_agrees", lemma_file="T3.lean",
+            note="the skip bound is one constant written two ways"),
+        Bridge(
             leaf=r"\bmatchesHeader (?P<mh>\w+)\b",
             bundle=r"\(fun (?P<v>[\w♯']+) => (?P=v)\.1 == (?P<mh>\w+)\.dh"
                    r" && (?P=v)\.2\.1 == (?P=mh)\.n\)",

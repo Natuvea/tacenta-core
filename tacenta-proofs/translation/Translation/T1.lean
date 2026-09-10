@@ -427,6 +427,34 @@ theorem purge_chain_range_shrinks (hrm : VecRemoveTotal)
   unfold purge_chain_range
   exact purge_chain_range_loop_shrinks hrm skipped dhr from1 upto 0#usize
 
+/-- A saturating sum is at most the true sum, whether or not it saturated.
+Stated here rather than imported because `T1` sits below the modules that also
+need it. -/
+theorem saturating_add_val_le {ty : UScalarTy} (x y : UScalar ty) :
+    (UScalar.saturating_add x y).val ≤ x.val + y.val := by
+  simp only [UScalar.saturating_add, UScalar.val, BitVec.toNat_ofNat]
+  exact le_trans (Nat.mod_le _ _) (min_le_right _ _)
+
+/-- The gap the skip adds to the store is at most `MAX_SKIP`. This is the
+guard the Rust checks before the store arithmetic runs: `upto` is refused
+unless it is within `MAX_SKIP` of the cursor, and the check is a *saturating*
+sum, so it holds at the top of the `u32` range too -- there the sum sticks at
+`u32::MAX` and the gap is smaller still.
+
+Without this the store's overflow obligation could only be discharged from the
+whole `u32` range, which is a bound no 32-bit target can satisfy: `usize` is
+modelled at the platform width, so `len + u32::MAX <= usize::MAX` is false
+there for every state. With it the obligation is `len + MAX_SKIP`, which is
+satisfiable at both widths. -/
+theorem skip_gap_le (nr upto : U32)
+    (hg : ¬ upto > core.num.U32.saturating_add nr MAX_SKIP) :
+    upto.val - nr.val ≤ MAX_SKIP.val := by
+  have h1 : upto.val ≤ (UScalar.saturating_add nr MAX_SKIP).val := by
+    simpa [core.num.U32.saturating_add, UScalar.lt_equiv] using hg
+  have h2 : (UScalar.saturating_add nr MAX_SKIP).val ≤ nr.val + MAX_SKIP.val :=
+    saturating_add_val_le nr MAX_SKIP
+  omega
+
 /-- Skipping forward cannot fail. Every fallible step is guarded: the
 subtraction by the check that `upto` is past the cursor, the store arithmetic by
 the `MAX_SKIPPED_STORE` bound, and the derivation and the store loop by their
@@ -435,16 +463,25 @@ so it is a hypothesis.
 
 The two stepping phases are deliberately sequenced rather than nested: the
 second does not fire inside `all_goals`, and the pair the derivation returns has
-to be destructured between them or a `let` residue blocks the goal. -/
+to be destructured between them or a `let` residue blocks the goal.
+
+The `MAX_SKIP` guard has to be split before stepping rather than after: the
+store's overflow obligation arises inside the bind, and the branch that bounds
+the gap is the one the stepping tactic has already walked past by then. Under
+the guard the whole call is the `TooManySkipped` return and there is no
+arithmetic to discharge; under its negation `skip_gap_le` supplies the bound. -/
 theorem skip_message_keys_no_panic (h : HmacTotal) (hrm : VecRemoveTotal)
     [DerivedKeysModel] (state : State) (upto : U32)
-    (hs : state.skipped.val.length + U32.max ≤ Usize.max) :
+    (hs : state.skipped.val.length + MAX_SKIP.val ≤ Usize.max) :
     NoPanic (skip_message_keys state upto) := by
   unfold NoPanic skip_message_keys
   simp only [lift]
-  step*
-  obtain ⟨ck2, keys⟩ := v
-  step*
+  by_cases hg : upto > core.num.U32.saturating_add state.nr MAX_SKIP
+  · step*
+  · have hgap := skip_gap_le state.nr upto hg
+    step*
+    obtain ⟨ck2, keys⟩ := v
+    step*
 
 /-- The scan's wrapper only repackages the tuple the loop returns, so it
 inherits the loop's proof. -/
@@ -513,14 +550,18 @@ not enough to compose. -/
 @[step]
 theorem skip_message_keys_bound (h : HmacTotal) (hrm : VecRemoveTotal)
     [DerivedKeysModel] (state : State) (upto : U32)
-    (hs : state.skipped.val.length + U32.max ≤ Usize.max) :
+    (hs : state.skipped.val.length + MAX_SKIP.val ≤ Usize.max) :
     skip_message_keys state upto ⦃ fun p =>
       p.2.skipped.val.length ≤ max state.skipped.val.length MAX_SKIPPED_STORE.val ⦄ := by
   unfold skip_message_keys
   simp only [lift]
-  step*
-  all_goals (try obtain ⟨ck2, keys⟩ := v)
-  all_goals ((step*; simp_all [alloc.vec.Vec.len, MAX_SKIPPED_STORE]) <;> omega)
+  by_cases hg : upto > core.num.U32.saturating_add state.nr MAX_SKIP
+  · step*
+    all_goals simp_all [MAX_SKIPPED_STORE]
+  · have hgap := skip_gap_le state.nr upto hg
+    step*
+    all_goals (try obtain ⟨ck2, keys⟩ := v)
+    all_goals ((step*; simp_all [alloc.vec.Vec.len, MAX_SKIPPED_STORE]) <;> omega)
 
 /-- The scan never grows the store: it either removes the matching key or leaves
 the store alone. `receive` needs this to carry its own precondition across the
@@ -667,7 +708,7 @@ theorem age_store_spec (hrm : VecRemoveTotal) (state : State) :
 theorem receive_no_panic (h : HmacTotal) (hk : HkdfTotal) (hz : ZeroizingTotal)
     (hrm : VecRemoveTotal) [DerivedKeysModel] (state : State) (header : Header)
     (dh_out_recv dh_out_send new_dhs_pub : Array U8 32#usize)
-    (hs : max state.skipped.val.length MAX_SKIPPED_STORE.val + U32.max ≤ Usize.max) :
+    (hs : max state.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val ≤ Usize.max) :
     NoPanic (receive state header dh_out_recv dh_out_send new_dhs_pub) := by
   unfold NoPanic receive
   step*
@@ -701,13 +742,23 @@ each named as an assumption rather than left implicit:
   discharges the guard from that branch.
 
 `receive` carries one precondition, and it is a real one rather than a
-formality. The skipped-key store must be small enough that its length plus the
-whole `u32` range still fits a `usize`, taking the store at the largest it can
-reach, which is its starting size or `MAX_SKIPPED_STORE`, whichever is bigger.
-On a 64-bit target that is satisfied by any store that could exist. On a 32-bit
-target it is a genuine constraint, because Aeneas models `usize` at the
-platform width and the sum would not fit; that is why the precondition is stated
-in terms of the maximum rather than assumed away.
+formality. The skipped-key store must be small enough that its length plus
+`MAX_SKIP` still fits a `usize`, taking the store at the largest it can reach,
+which is its starting size or `MAX_SKIPPED_STORE`, whichever is bigger. Both
+widths admit it: 2000 plus 1000 is far inside a 32-bit `usize`, and
+`ImportInv.store_plus_skip_fits` proves the constant part outright rather than
+assuming it.
+
+An earlier version of this bound asked for the store's length plus the *whole*
+`u32` range, and that was a mistake worth recording. Aeneas models `usize` at
+the platform width, so on a 32-bit target `Usize.max` and `U32.max` are the
+same number and the hypothesis reduced to "the store holds at most zero keys".
+It was not a strong precondition; it was one nothing could satisfy, which made
+this theorem vacuous on a platform the workspace compiles for. `MAX_SKIP` is
+the honest bound because the code refuses the request before the addition
+happens: `skip_message_keys` returns `TooManySkipped` when `upto` is past
+`nr + MAX_SKIP`, so the gap the store must absorb is at most `MAX_SKIP` and
+never the counter's full range. `skip_gap_le` is that guard, stated once.
 -/
 
 -- The axiom audit, enforced rather than asserted. The proofs rest on Lean's

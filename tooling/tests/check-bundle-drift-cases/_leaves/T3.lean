@@ -9,6 +9,8 @@ namespace Tacenta.T3
 theorem max_skipped_store_agrees :
     MAX_SKIPPED_STORE.val = Model.State.maxSkippedStore := by simp
 
+theorem max_skip_agrees : MAX_SKIP.val = Model.State.maxSkip := by simp
+
 theorem matchesHeader_eta (mh : Model.State.Header) :
     (fun x => x.1 == mh.dh && x.2.1 == mh.n) = matchesHeader mh := rfl
 
@@ -39,7 +41,7 @@ theorem receive_refines (h : HmacAgrees) (hk : HkdfAgrees)
     (hdr : Header) (mh : Model.State.Header) (hH : HeaderR hdr mh)
     (dh_out_recv dh_out_send new_dhs_pub : Array Std.U8 32#usize)
     (hone : (m.skipped.filter (matchesHeader mh)).length ≤ 1)
-    (hs : max s.skipped.val.length MAX_SKIPPED_STORE.val + U32.max
+    (hs : max s.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val
             ≤ Usize.max)
     (hroom : s.events.val + 1 < U32.max) :
     receive s hdr dh_out_recv dh_out_send new_dhs_pub ⦃ fun r =>

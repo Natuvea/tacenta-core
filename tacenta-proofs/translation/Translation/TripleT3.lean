@@ -290,7 +290,7 @@ def RatchetAgreesFor (α : tacenta_ratchet.State → Model.State.State) : Prop :
     RatchetHeaderR hdr mh →
     ∀ (dh_out_recv dh_out_send new_dhs_pub : Array Std.U8 32#usize),
     ((α s).skipped.filter (fun x => x.1 == mh.dh && x.2.1 == mh.n)).length ≤ 1 →
-    max (α s).skipped.length Model.State.maxSkippedStore + Std.U32.max ≤ Usize.max →
+    max (α s).skipped.length Model.State.maxSkippedStore + Model.State.maxSkip ≤ Usize.max →
     (α s).events + 1 < Std.U32.max →
     ∃ r, tacenta_ratchet.receive s hdr dh_out_recv dh_out_send new_dhs_pub = ok r ∧
       ∀ mk, r.1 = core.result.Result.Ok mk →
@@ -534,7 +534,7 @@ theorem receive_refines {α : tacenta_ratchet.State → Model.State.State}
     (dh_out_recv dh_out_send new_dhs_pub : Array Std.U8 32#usize)
     (output : Option tacenta_spqr.Output)
     (hone : (m.classical.skipped.filter (fun x => x.1 == mh.dh && x.2.1 == mh.n)).length ≤ 1)
-    (hs : max m.classical.skipped.length Model.State.maxSkippedStore + Std.U32.max ≤ Usize.max)
+    (hs : max m.classical.skipped.length Model.State.maxSkippedStore + Model.State.maxSkip ≤ Usize.max)
     (hevents : m.classical.events + 1 < Std.U32.max)
     (hepoch : m.postQuantum.epoch + 1 < Std.U64.max)
     (hroom : m.postQuantum.chains.length + 2 < Usize.max)

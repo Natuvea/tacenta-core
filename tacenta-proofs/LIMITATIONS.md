@@ -1547,13 +1547,28 @@ instead of assuming them means carrying the leaves' real preconditions, which
 `self.post_quantum.chains.length + 1 < Usize.max`, and `State.receive` needs
 `max self.classical.skipped.val.length MAX_SKIPPED_STORE.val + U32.max ≤ Usize.max`,
 `self.post_quantum.chains.length + 2 < Usize.max` and
-`self.post_quantum.skipped.length + MAX_SKIP.val ≤ Usize.max`. Nothing in the
-translated tree discharges them. They are obligations on the **untranslated
-session layer** in `tacenta-core/src/sessions`, which decides how large a
-skipped-key store and a chain table a session may carry, and that layer is not
-translated or proved in its own right. On a 64-bit target all four hold of any
-state that could exist; on a 32-bit one they are genuine, because Aeneas models
-`usize` at the platform width.
+`self.post_quantum.skipped.length + MAX_SKIP.val ≤ Usize.max`. Nothing on the
+unit island discharges them. They are obligations on the **untranslated session
+layer** in `tacenta-core/src/sessions`, which decides how large a skipped-key
+store and a chain table a session may carry, and that layer is not translated
+or proved in its own right. The classical one is discharged in the other
+island, by `Ratchet.inv_gives_store_bound` in `Translation/ImportInv.lean` and
+through it by `Ratchet.decoded_receive_no_panic`, for a state that came from
+`from_bytes`; "Seven verified zones on the shipping path" above describes that
+route. It has not been ported to the unit, so it does not reach these
+theorems. On a 64-bit target all four hold of any
+state that could exist, at either platform width. They are bounds against
+`usize::MAX` on quantities a real session keeps in the low thousands.
+
+**No hypothesis on the unit island has a satisfiability witness.**
+`Translation/Satisfiability.lean` and `Translation/SatisfiabilityTriple.lean`
+exhibit witnesses for the leaf islands' assumptions, which is how this tree
+guards against a hypothesis nothing could satisfy. Nothing does that for the
+unit: not `UnitT1.DerivedKeysModel`, not `UnitSpqrT1.OptionCloneTotal`, not
+`KdfRkTotal` or `KdfCkTotal`, and not the `KdfInitTotal` this work adds. Each
+is a copy of a leaf assumption that does have a witness, so the risk is low,
+but it is a gap in the guard rather than an absence of one, and porting the
+witnesses is open work.
 
 Transporting them to `self` is free only because the clone is provably the
 identity on the unit -- every field is an array, a scalar, an `Option` under
@@ -1694,22 +1709,39 @@ that assembly possible.
     anyone intended it.
 
     Second, **`receive` carries a precondition, and it is a real one.** The
-    skipped-key store must be small enough that its length plus the whole `u32`
-    range still fits a `usize`, measured at the largest the store can reach.
-    On a 64-bit target any store that could exist satisfies it. On a 32-bit
-    target it does not hold automatically, because Aeneas models `usize` at the
-    platform width, so the statement keeps it as a hypothesis rather than
-    discharging it. A caller on a 32-bit platform is owed that check.
+    skipped-key store must be small enough that its length plus `MAX_SKIP`
+    still fits a `usize`, measured at the largest the store can reach. Both
+    platform widths admit it, since the constant part is 2000 plus 1000.
 
-    Where the state came from `State::from_bytes`, the state-shaped half of
-    that precondition is now discharged rather than assumed.
+    This bound was wrong until 2026-09-10, and the way it was wrong is worth
+    recording, because it is a failure mode this ledger exists to catch. It
+    asked for the store's length plus the *whole* `u32` range. Aeneas models
+    `usize` at the platform width, so on a 32-bit target `usize::MAX` and
+    `u32::MAX` are the same number and the hypothesis said "the store holds at
+    most zero keys" -- false of every state, the empty one included. It was not
+    a demanding precondition. It was an impossible one, and a theorem with an
+    impossible hypothesis is vacuously true, so `receive_no_panic` and the
+    `receive` refinement established **nothing at all** on 32-bit targets,
+    which the workspace compiles for (`armv7-linux-androideabi` in CI). The
+    text here called it "a genuine constraint" and said a 32-bit caller was
+    owed a check that no caller could ever meet.
+
+    The bound is now `MAX_SKIP`, which is what the code actually needs:
+    `skip_message_keys` returns `TooManySkipped` before the addition when the
+    request is further ahead than `MAX_SKIP`, so the gap the store has to
+    absorb is at most 1000 and never the counter's full range. The proofs use
+    that guard (`T1.skip_gap_le`) instead of bounding the gap by the type.
+
+    Where the state came from `State::from_bytes`, the precondition is
+    discharged rather than assumed, and now entirely.
     `Translation/ImportInv.lean` proves that a state the translated
     `from_bytes` returns satisfies the crate's own `invariant()`, whose first
-    clause caps the store at `MAX_SKIPPED_STORE`; what is left is
-    `MAX_SKIPPED_STORE + u32::MAX ≤ usize::MAX`, a statement about the target
-    and nothing else, which is passed as an explicit argument
-    (`Ratchet.inv_gives_store_bound`). The 32-bit caller is still owed exactly
-    that check, and no more.
+    clause caps the store at `MAX_SKIPPED_STORE`; what was left,
+    `MAX_SKIPPED_STORE + MAX_SKIP ≤ usize::MAX`, is now proved outright at
+    either width by `Ratchet.store_plus_skip_fits` instead of being passed in.
+    `Ratchet.decoded_receive_no_panic` is therefore unconditional: the boundary
+    assumptions, the bytes, and the decode. Nothing is owed by any caller on
+    any target.
 
     Third, **the refinement of `receive` also assumes the store's clock has a
     step of room left, and that assumption stays with the caller even for a

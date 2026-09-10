@@ -616,14 +616,9 @@ panic-freedom corollaries here are unaffected and take no such premise; the
 refinement corollary takes it as an explicit argument. "Read this first" gives
 the one-line form.
 
-Three hypotheses are carried rather than discharged, all named, none new to
+Two hypotheses are carried rather than discharged, both named, neither new to
 this file in substance:
 
-- `hplat : MAX_SKIPPED_STORE.val + U32.max ≤ Usize.max`, the platform-width
-  fact the classical ratchet's `hs` reduces to once the store bound is known.
-  It holds on a 64-bit target and is a genuine constraint on a 32-bit one --
-  exactly what `T1.lean`'s own closing note already said about `hs`. It is an
-  explicit argument, not a global assumption, so a caller sees it.
 - `Tacenta.BraidT1.Ct1LenTotal` for the Braid, which `BraidT1.lean` already
   states and already uses: `tacenta_kem::CT1_LEN` returns a value at most
   4096. The real constant is 1408 (`braid/src/lib.rs` says so where
@@ -659,7 +654,9 @@ entry's `stored_at` is ahead of `events`, the store is pairwise distinct on
   an equation rather than assumed. Axioms: `propext`, `Classical.choice`,
   `Quot.sound`, pinned under `#guard_msgs`.
 - Bridges -- two, each discharging a named premise:
-  `Ratchet.inv_gives_store_bound` (`Inv` + `hplat` → T1's `hs`) and
+  `Ratchet.inv_gives_store_bound` (`Inv` → T1's `hs`, with the constant part
+  `MAX_SKIPPED_STORE + MAX_SKIP ≤ usize::MAX` proved outright by
+  `Ratchet.store_plus_skip_fits` rather than assumed) and
   `Ratchet.inv_gives_store_is_map` (`Inv` + `StateR` → T3's `hone`).
 - A recorded consequence of `Inv`, and **not** a bridge:
   `Ratchet.inv_gives_clock_room` (`Inv` → `events < u32::MAX`, the
@@ -677,9 +674,10 @@ entry's `stored_at` is ahead of `events`, the store is pairwise distinct on
   chain end to end -- a `receive` on a decoded state does not panic, and,
   given a step of clock headroom, it refines `Model.Ratchet.receive` -- each
   taking the decode as its hypothesis and discharging the state-shaped
-  preconditions itself. Panic-freedom is unconditional in the clock;
-  `decoded_receive_refines` takes `hclock_unparked` as an explicit argument
-  beside `hplat`, as described above. **Neither is
+  preconditions itself. `decoded_receive_no_panic` is now unconditional: the
+  boundary assumptions, the bytes and the decode, and nothing else.
+  `decoded_receive_refines` takes one explicit argument,
+  `hclock_unparked`, as described above. **Neither is
   kernel-only.** Each composes with a `T1`/`T3` `receive` theorem, so each
   carries that theorem's eleven `tacenta_ratchet.*` opaque-operation axioms
   (the two KDF calls, `Vec::remove`, and the `zeroize` wrapper's constructor,
@@ -900,11 +898,17 @@ records that under "The three-leaf translation unit".
   kernel-only one-liner with no boundary axiom at all.
 
 **Where the four preconditions land.** They are obligations, not decorations,
-and nothing in the translated tree discharges them: they land on the
-untranslated session layer in `tacenta-core/src/sessions`, which decides how
-large a skipped-key store and a chain table it lets a session carry. On a
-64-bit target all four are satisfied by any state that could exist; on a 32-bit
-one they are real, because Aeneas models `usize` at the platform width.
+and nothing on the unit island discharges them: they land on the untranslated
+session layer in `tacenta-core/src/sessions`, which decides how large a
+skipped-key store and a chain table it lets a session carry. The classical one
+is discharged in the *other* island -- `Ratchet.inv_gives_store_bound` in
+`Translation/ImportInv.lean` gets it from the crate's own `invariant()`, and
+`Ratchet.decoded_receive_no_panic` chains it from `from_bytes` -- so a state
+read off disk satisfies it there. That route has not been ported to the unit,
+which is why it does not help here. All four hold of any
+state that could exist, at either platform width. They are bounds against
+`Usize.max` on quantities that a real session keeps in the low thousands, so
+the way to violate one is to hold a vector with billions of entries.
 
 **What the trust base becomes, honestly.** `Tacenta.TripleT1.State.receive_no_panic`
 depends on twelve axioms and is kernel-only. This file's depends on eighteen
@@ -913,10 +917,11 @@ and is not: it inherits
 matter. The current theorem is kernel-only because it *assumes* the sparse
 ratchet's receive is total rather than proving it, so its kernel-only status is
 bought by assuming the hard part; this one proves that part and inherits the
-one compiler-trusted numeric fact that proof rests on. The six extra axioms are
-a substitution rather than a new kind of trust: the bare operation axioms are
-replaced by the KDF, `zeroize` and `Vec` boundary axioms every other proof in
-this tree already carries. `send` is quieter -- twelve axioms before and twelve
+one compiler-trusted numeric fact that proof rests on. Six axioms go and twelve arrive. Eleven of the
+twelve are a substitution rather than a new kind of trust: the bare operation
+axioms are replaced by KDF, `zeroize` and `Vec` boundary axioms that other
+proofs in this tree already carry. The twelfth is the `native_decide` axiom
+above, which is neither, and is the whole of the regression. `send` is quieter -- twelve axioms before and twelve
 after, kernel-only on both sides. `Translation/UnitPins.lean` records all of it.
 
 **Two more assumptions, and one trade.** `SpqrInitAliceTotal` and

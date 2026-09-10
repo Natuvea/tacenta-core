@@ -118,15 +118,22 @@ rests on. Which is the better trade is the reader's to judge; what is not
 open to judgement is that the axiom count went from twelve to eighteen and
 that a kernel-only proof stopped being kernel-only.
 
-The six extra axioms are a substitution rather than an addition in kind. What
-goes is the bare operation axioms -- `tacenta_ratchet.State`,
-`tacenta_ratchet.receive`, `tacenta_spqr.State`, `tacenta_spqr.State.receive`
-and the two states' clones, five constants standing for "this call returns,
-because we say so". What arrives in their place is the KDF, `zeroize` and
-`Vec` boundary axioms every other proof in this tree already carries:
-`hmac_sha256` beside the `hkdf_sha256` that was already there,
-`zeroize.Zeroizing` and its three operations, `Vec.append`, `Vec.remove`,
-`Vec.retain`, and `Option`'s clone.
+Six axioms go and twelve arrive. What goes is the bare operation axioms --
+`tacenta_ratchet.State`, `tacenta_ratchet.receive`, `tacenta_spqr.State`,
+`tacenta_spqr.State.receive` and the two states' clones, six constants standing
+for "this call returns, because we say so".
+
+Eleven of the twelve that arrive are a substitution rather than an addition in
+kind: KDF, `zeroize` and `Vec` boundary axioms that other proofs in this tree
+already carry. They are `hmac_sha256` beside the `hkdf_sha256` that was already
+there; `zeroize.Zeroizing` with its constructor and its two projections;
+`Vec.append`, `Vec.remove` and `Vec.retain`; the `Zeroize` instances for
+`Array`, `Pair` and `Vec`; and `Option`'s clone.
+
+The twelfth is the `native_decide` axiom named above. It is neither a boundary
+axiom nor shared with the rest of the tree, and it is the whole of the
+regression. Counting it among the others would be the kind of summary that
+contradicts its own evidence.
 
 `send` is the quieter case: twelve axioms before and twelve after, kernel-only
 on both sides, with the same substitution underneath.

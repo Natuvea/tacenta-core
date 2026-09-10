@@ -1006,7 +1006,7 @@ theorem age_store_refines (hrm : Tacenta.T1.VecRemoveTotal)
 theorem skip_message_keys_refines (h : HmacAgrees)
     (hrm : Tacenta.T1.VecRemoveTotal) [DerivedKeysModel] (s : State)
     (m : Model.State.State) (hR : StateR s m) (upto : Std.U32)
-    (hs : s.skipped.val.length + U32.max ≤ Usize.max) :
+    (hs : s.skipped.val.length + MAX_SKIP.val ≤ Usize.max) :
     skip_message_keys s upto ⦃ fun r =>
       r.1 = core.result.Result.Ok () →
         ∃ m', Model.State.skipMessageKeys m upto.val = some m'
@@ -1032,6 +1032,14 @@ theorem skip_message_keys_refines (h : HmacAgrees)
         exact hSR
       · have hgtN : ¬ (upto.val ≤ m.nr) := by rw [← hnr]; scalar_tac
         simp only [hle, hgtN, if_false, lift]
+        -- The `MAX_SKIP` guard is split before stepping: under it the call is
+        -- the `TooManySkipped` return and the postcondition is vacuous, and
+        -- under its negation `skip_gap_le` bounds the gap the store grows by,
+        -- which is what the store's overflow obligation now needs.
+        by_cases hg : upto > core.num.U32.saturating_add s.nr MAX_SKIP
+        · have hg' : (core.num.U32.saturating_add s.nr MAX_SKIP).val < upto.val := hg
+          simp [hg']
+        have hgap := Tacenta.T1.skip_gap_le s.nr upto hg
         step*
         obtain ⟨ck2, keys⟩ := v
         have hrOk : r = core.result.Result.Ok (ck2, keys) := by assumption
@@ -1324,7 +1332,7 @@ message number, then take the chain-key step. Factoring it out is what keeps
 that proof from being written three times. -/
 theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.T1.VecRemoveTotal)
     [DerivedKeysModel] (st : State) (mst : Model.State.State) (hR : StateR st mst) (n : Std.U32)
-    (hs : st.skipped.val.length + U32.max ≤ Usize.max)
+    (hs : st.skipped.val.length + MAX_SKIP.val ≤ Usize.max)
     (hroom : st.events.val + 1 < U32.max) :
     (do
       let (r1, state4) ← skip_message_keys st n
@@ -1424,7 +1432,7 @@ theorem receive_refines (h : HmacAgrees) (hk : HkdfAgrees)
     (hdr : Header) (mh : Model.State.Header) (hH : HeaderR hdr mh)
     (dh_out_recv dh_out_send new_dhs_pub : Array Std.U8 32#usize)
     (hone : (m.skipped.filter (matchesHeader mh)).length ≤ 1)
-    (hs : max s.skipped.val.length MAX_SKIPPED_STORE.val + U32.max
+    (hs : max s.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val
             ≤ Usize.max)
     (hroom : s.events.val + 1 < U32.max) :
     receive s hdr dh_out_recv dh_out_send new_dhs_pub ⦃ fun r =>
@@ -1457,7 +1465,7 @@ theorem receive_refines (h : HmacAgrees) (hk : HkdfAgrees)
         rw [← hc]
         simp
       rw [← hd]
-      have hlen : state1.skipped.val.length + U32.max ≤ Usize.max := by
+      have hlen : state1.skipped.val.length + MAX_SKIP.val ≤ Usize.max := by
         simp only [MAX_SKIPPED_STORE] at *
         omega
       obtain ⟨r2, hr2⟩ := (Tacenta.T1.noPanic_iff _).mp
@@ -1472,7 +1480,7 @@ theorem receive_refines (h : HmacAgrees) (hk : HkdfAgrees)
           (dh_ratchet_refines hk hz state2 m2 hSR2 hdr mh hH dh_out_recv
             dh_out_send new_dhs_pub)
         rw [hr3]
-        have hlen3 : r3.skipped.val.length + U32.max ≤ Usize.max := by
+        have hlen3 : r3.skipped.val.length + MAX_SKIP.val ≤ Usize.max := by
           have hb := Tacenta.T1.skip_message_keys_bound hht hrm state1 hdr.pn hlen
           rw [hr2] at hb
           have hd3 := Tacenta.T1.dh_ratchet_spec hkt hzt state2 hdr dh_out_recv
@@ -1516,7 +1524,7 @@ theorem receive_refines (h : HmacAgrees) (hk : HkdfAgrees)
         rw [← hH.dh] at heq
         exact hne (keyOf_inj heq)
       rw [← hd]
-      have hlen : state1.skipped.val.length + U32.max ≤ Usize.max := by
+      have hlen : state1.skipped.val.length + MAX_SKIP.val ≤ Usize.max := by
         simp only [MAX_SKIPPED_STORE] at *
         omega
       obtain ⟨r2, hr2⟩ := (Tacenta.T1.noPanic_iff _).mp
@@ -1531,7 +1539,7 @@ theorem receive_refines (h : HmacAgrees) (hk : HkdfAgrees)
           (dh_ratchet_refines hk hz state2 m2 hSR2 hdr mh hH dh_out_recv
             dh_out_send new_dhs_pub)
         rw [hr3]
-        have hlen3 : r3.skipped.val.length + U32.max ≤ Usize.max := by
+        have hlen3 : r3.skipped.val.length + MAX_SKIP.val ≤ Usize.max := by
           have hb := Tacenta.T1.skip_message_keys_bound hht hrm state1 hdr.pn hlen
           rw [hr2] at hb
           have hd3 := Tacenta.T1.dh_ratchet_spec hkt hzt state2 hdr dh_out_recv
