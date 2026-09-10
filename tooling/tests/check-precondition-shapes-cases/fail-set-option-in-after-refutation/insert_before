@@ -1,0 +1,4 @@
+/-! ## Satisfiable is not the same
+set_option maxHeartbeats 400000 in
+theorem bad3 (s : Nat) (hs : s + U32.max ≤ Usize.max) : True := trivial
+

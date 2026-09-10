@@ -1,1 +1,1 @@
-fail: `U32.max` is added to a bound against `Usize.max`
+fail: `U32` against `Usize`

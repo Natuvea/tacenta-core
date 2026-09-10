@@ -10,38 +10,47 @@ hypothesis demanded a store with no keys in it. Every theorem carrying it was
 vacuous there, on a platform this workspace compiles for, while the
 documentation called it a genuine constraint.
 
-The general form is a bound `x + A.max ≤ B.max` (or `<`) where `A` is at least
-as wide as `B` on some target. On that target the hypothesis forces `x` to zero,
-so it describes no state that has ever done anything. The class is refused
-mechanically, across every first-party Lean file, by
-`tooling/check-precondition-shapes.py`. That script, not this
-file, is what stops the shape coming back.
+The general form compares an additive term that is one integer type's maximum
+`A` with a bound that is another's maximum `B`, where `A` is at least `B` on
+some target: `x + A.max ≤ B.max`, the same comparison written the other way
+round, or the subtraction moved to the bound. On that target the bound forces
+`x` to zero, so it describes no state that has ever done anything.
 
-This file is the justification for the script's rule, kept as proof rather than
-prose. The two theorems below are the only places the shape may appear, and the
-script allow-lists them by name and only while each still takes the 32-bit
-width as a hypothesis, so neither can be quietly turned into a precondition.
+`tooling/check-precondition-shapes.py` trips on that class in the spellings
+this tree uses. It is a tripwire, not a guarantee. It does not see through an
+alias, a `notation` or a `macro` standing for a maximum, and a precondition
+that is unsatisfiable for any other reason passes it. Its docstring lists what
+it misses.
+
+This file is the justification for that rule, kept as proof rather than prose.
+The script allow-lists the two refutations below by their full names, and only
+while each still takes the 32-bit width as a binder before its colon and still
+states the shape in its statement. So neither can be quietly turned into a
+precondition under its allow-listed name.
 
 ## What this file does not do
 
 An earlier version claimed to witness every numeric precondition in the tree
-by exhibiting a satisfying value for "six shapes". A cold read counted 144
-bound hypotheses on 96 theorems in 54 shapes, and found that the witnesses were
-connected to none of them: nothing compared a witness's statement with any
-theorem's hypothesis, so a theorem could carry the old shape beside the file
-and still build. Those witnesses are gone. Satisfiability of the tree's numeric
-preconditions *in general* is not established here or anywhere else.
+through "six shapes". A cold read counted some 140 bound hypotheses on some 95
+theorems, in about 54 shapes, and found that the six covered under half of
+them. It also found the witnesses connected to none of them: nothing compared a
+witness with any theorem's hypothesis, so a theorem could carry the old shape
+beside the file and still build. Those witnesses are gone. Satisfiability of
+the tree's numeric preconditions *in general* is not established here or
+anywhere else.
 
 What is established, and where:
 
-* The dangerous class above is refused by rule in every file, by the script.
+* The class above trips the script wherever it is written in a form the script
+  recognises.
 * The store bounds the classical ratchet's `receive` carries are satisfied by
   **every** state the crate's decoder accepts, which is far stronger than a
   witness: `Ratchet.inv_gives_store_bound` and `Ratchet.store_plus_skip_fits`
   in `Translation/ImportInv.lean`. The sparse ratchet's room bounds have the
   same treatment there (`Spqr.inv_gives_chain_room`,
   `Spqr.inv_gives_skip_room`).
-* The rest of the 54 shapes are unexamined, and `LIMITATIONS.md` says so.
+* The rest of the tree's numeric preconditions are unexamined, and
+  `LIMITATIONS.md` says so.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -50,9 +59,14 @@ namespace Tacenta.PreconditionShapes
 
 /-! ## The refuted shape, in both of the forms it took -/
 
-/-- The form `receive_no_panic` and `T3.receive_refines` carried, taken at the
-larger of the store's length and its cap. On a 32-bit target no store meets it,
-the empty one included, because the left side is at least `2000 + U32.max`.
+/-- The form carried, taken at the larger of the store's length and its cap, by
+`T1.receive_no_panic` and its copy on the three-leaf unit, by
+`T3.receive_refines`, `TripleT3.receive_refines` and
+`UnitTripleT1.State.receive_no_panic`, and by two assumption bundles,
+`RatchetAgreesFor` and `RatchetReceiveTotal`. On a 32-bit target no store meets
+it, the empty one included, because the left side is at least `2000 + U32.max`.
+`ImportInv.lean` carried a closed spelling of the same fact, the constant part
+passed in as `hplat`, which is false at 32 bits and is the `n = 0` case of this.
 
 `h32` takes the narrower branch of `Std.Usize.bounds_eq` as a hypothesis rather
 than deriving it from the platform, which is the strongest form this can be
@@ -70,12 +84,13 @@ theorem old_store_bound_unsatisfiable_at_32 (h32 : Usize.max = U32.max) :
     le_trans (Nat.add_le_add_right hge _) hn
   omega
 
-/-- The form four other theorems carried: `T1.skip_message_keys_no_panic`,
-`T1.skip_message_keys_bound`, `T3.skip_message_keys_refines` and
-`T3.receive_tail_refines`. This one is not unsatisfiable at 32 bits, and saying
-it was would be the kind of overstatement the file exists to correct: the empty
-store meets it. What it does is force the store to be empty, so it says nothing
-about any store that has ever held a key. -/
+/-- The form six other theorems carried: `T1.skip_message_keys_no_panic`,
+`T1.skip_message_keys_bound`, their two copies on the three-leaf unit,
+`T3.skip_message_keys_refines` and `T3.receive_tail_refines`. This one is not
+unsatisfiable at 32 bits, and saying it was would be the kind of overstatement
+the file exists to correct: the empty store meets it. What it does is force the
+store to be empty, so it says nothing about any store that has ever held a key.
+-/
 theorem old_skip_bound_forces_empty_at_32 (h32 : Usize.max = U32.max) :
     ∀ n : Nat, n + U32.max ≤ Usize.max → n = 0 := by
   intro n hn

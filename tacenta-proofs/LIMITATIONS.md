@@ -1577,17 +1577,35 @@ store bound asked for something no state with anything in it could satisfy at
 
 Two things now bear on that family, and they should not be mistaken for more.
 
-**A lint refuses the class the defect belonged to, in every file.**
-`tooling/check-precondition-shapes.py` refuses any bound `x + A.max ≤ B.max`
-(or `<`, or with the addend first) where `A` is at least as wide as `B` on some
-target, since there the bound forces `x` to zero. It reads theorem binders,
-assumption-bundle bodies and bounds split across lines, with comments and
-strings removed. Run against the tree as it stood before the fix, it refuses
-**twenty-one** sites across eight files, which is more than the fix itself
-counted: besides the classical ratchet's and the refinement's, it finds the
-three in `ImportInv.lean` that took the platform fact as an argument. Its cases
-hold it to the class, including a bundle clause and a bound split over three
-lines. It catches that one class and no other.
+**A lint trips on the class the defect belonged to, in the spellings this tree
+uses.** `tooling/check-precondition-shapes.py` refuses a bound comparing an
+additive term that is one integer type's maximum `A` with a bound that is
+another's maximum `B`, where `A` is at least `B` on some target, because there
+the bound forces what it constrains to zero. It recognises the comparison
+written either way round or with the subtraction moved to the bound, with
+`<=` and `>=`, parentheses, ascriptions, qualified names, `rMax`,
+`UScalar.max` and literal maxima, in statements, proofs, assumption bundles and
+bounds split across lines, one declaration at a time, and reports each site at
+its own line and column.
+
+It is a tripwire, not a guarantee. It does not see through an alias, a
+`notation` or a `macro` standing for a maximum, and a precondition
+unsatisfiable for any other reason passes it; its docstring lists what it
+misses. Its first version was weaker than it claimed: a cold read found it
+accepted a flipped comparison, a parenthesised addend and a fully qualified
+name, all spellings this tree already uses elsewhere, and that its allow-list
+and its file scope could both be slipped past. Each of those is now a fixture
+case.
+
+Run against the tree as it stood before the fix, it reports **twenty-one**
+sites in sixteen declarations across six files: fourteen hypotheses, one
+conclusion, two assumption-bundle definitions, and four restatements of the
+bound inside one proof. Three of the sixteen declarations are in
+`ImportInv.lean`, which took the platform fact as an argument. That figure
+matches a reviewer's independent count file for file. An earlier account of the
+same history said eight files, and an earlier version of the lint reported the
+four restatements as one site; both were wrong, and the second is now guarded
+by cases that assert exact counts.
 
 **The class is proved to be the right thing to refuse.**
 `Translation/PreconditionShapes.lean` refutes both forms the defect took: the
@@ -1597,11 +1615,13 @@ takes the 32-bit width as a hypothesis, so neither can be turned back into a
 precondition under its allow-listed name, and it fails if either is deleted.
 
 What is **not** established is that the tree's numeric preconditions are
-satisfiable in general. There are 144 such bounds on 96 theorems, in 54 shapes.
-An earlier version of that file claimed to witness them all through "six
-shapes"; a cold read showed the six covered 42 of the 96 theorems and that the
-witnesses were connected to none of them, since nothing compared a witness with
-any theorem's hypothesis. Those witnesses were removed rather than defended.
+satisfiable in general. There are some 140 bound hypotheses on some 95
+theorems, in about 54 shapes, by two reviewers' rough and slightly different
+counts. An earlier version of that file claimed to witness them all through
+"six shapes"; a cold read showed the six covered under half of the theorems,
+and that the witnesses were connected to none of them, since nothing compared
+a witness with any theorem's hypothesis. Those witnesses were removed rather
+than defended.
 The store bounds the classical ratchet's `receive` carries are satisfied by
 every state its decoder accepts (`Ratchet.inv_gives_store_bound`,
 `Ratchet.store_plus_skip_fits`), and the sparse ratchet's room bounds likewise

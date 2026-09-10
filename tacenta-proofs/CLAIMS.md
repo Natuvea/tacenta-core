@@ -916,7 +916,7 @@ the way to violate one is to hold a vector with billions of entries.
 **What the trust base becomes, honestly.** `Tacenta.TripleT1.State.receive_no_panic`
 depends on twelve axioms and is kernel-only, as measured on 2026-09-10 with
 `#print axioms`. It is **not pinned** -- the Triple's T1 and T3 files carry no
-`#guard_msgs` pin, which "Read this first" records -- so nothing enforces that
+`#guard_msgs` pin, which `LIMITATIONS.md` records under "The proofs are trusted by evaluation, not only by the kernel" -- so nothing enforces that
 count and it could move unnoticed. This file's depends on eighteen
 and is not: it inherits
 `Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`. Both halves
