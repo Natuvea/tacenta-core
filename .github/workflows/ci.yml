@@ -268,8 +268,8 @@ jobs:
       # every module under `Translation/`, `Proofs/`, `Model/` and `Properties/`
       # from its olean. A pull request's run can save caches only into its own
       # merge ref, which main's runs never read. The cache is restored after
-      # the Mathlib fetch because that step clones the Aeneas package, and
-      # would discard build outputs restored inside it beforehand.
+      # the Mathlib fetch because the Aeneas path sits inside a package that
+      # step clones.
       - name: Restore the Lean build outputs (pull requests only)
         if: github.event_name == 'pull_request'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
