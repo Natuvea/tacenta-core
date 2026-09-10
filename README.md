@@ -107,7 +107,10 @@ check on the minimum supported Rust version, a 32-bit compile check, and the
 constant-time disassembly gate (the release assembly of the two hand-written
 constant-time functions, read for conditional branches); and the committed
 Rust-to-Lean translation with its T1/T3 proofs, built and scanned for
-`sorry`.
+`sorry`. In the workflow a pull request reuses the Lean build outputs of the
+newest push to main, and rebuilds only what its changes invalidate; every push
+to main builds from nothing, and every run replays every module through the
+kernel regardless.
 
 The two do not run exactly the same set, and the difference is stated
 rather than papered over. Five of those steps need tooling the workflow
