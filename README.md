@@ -6,7 +6,8 @@ proofs over its verified zone.
 
 ## What this is
 
-The cryptographic foundation behind Tacenta, built to stand on its own. It is
+The cryptographic foundation behind [Tacenta](https://tacenta.com), built to
+stand on its own. It is
 protocol, cryptography, and their verification, nothing else: no product
 coupling, no application policy, no services. Tacenta is its first consumer, but
 it is meant to serve other projects too, the way libsignal does. Each of the
