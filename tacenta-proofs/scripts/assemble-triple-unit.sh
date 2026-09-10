@@ -5,14 +5,14 @@
 # ## Why it exists
 #
 # `tacenta-triple` composes `tacenta-ratchet` and `tacenta-spqr`. Charon
-# translates one crate at a time, so in the Triple's own translation both inner
-# `State` types are bare opaque axioms and every inner operation is an axiom
-# with no precondition: `TripleT1.lean` assumes the unconditional totality of
-# about twenty operations whose leaf theorems carry hypotheses, and
-# `TripleT3.lean` restates two leaf refinement results by hand because Lean
-# cannot reach them (`tooling/check-bundle-drift.py` is the comparison the
-# build cannot make). Panic-freedom therefore does not close for the
-# composition that ships, which is what `CLAIMS.md` and `LIMITATIONS.md` say.
+# translates one crate at a time, so in a translation of the Triple on its own
+# both inner `State` types are bare opaque axioms and every inner operation is an
+# axiom with no precondition. The proofs about that translation had to assume the
+# unconditional totality of about twenty operations whose leaf theorems carry
+# hypotheses, and restate two leaf refinement results by hand, compared with the
+# leaves by a script rather than by Lean, so panic-freedom did not close for the
+# composition that ships. That translation and those proofs were deleted after
+# 2a89a7f, once the proofs about this unit covered what they covered.
 #
 # Compiled as **one** crate, the three leaves are one Charon translation: the
 # inner types are real types, the inner operations are real bodies, and the

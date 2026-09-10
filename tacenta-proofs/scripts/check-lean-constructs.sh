@@ -75,7 +75,7 @@
 # module invoking something other than `Model.AxiomAudit.run` fails. The
 # allow-list entries must also all be present, so an audit invocation that
 # is deleted fails here as well; `check-audit-reach.sh` checks that the five
-# modules carrying them reach every first-party module, and that all five
+# modules carrying them reach every first-party module, and that all four
 # name the same first-party prefixes.
 #
 # Earlier versions of this script required the keyword at the start of a line,
@@ -183,14 +183,14 @@ ELAB_RULES = [
 
 # The allow-list: file path -> the exact source lines (whitespace collapsed)
 # on which an ELAB_RULES hit is accepted. Every entry must be present in its
-# file, or the run fails: the five `run_cmd` lines are the audit invocations
+# file, or the run fails: the four `run_cmd` lines are the audit invocations
 # and a missing one is an audit nothing runs. `Model/AxiomAudit.lean` is the
 # audit's implementation and is otherwise held to every rule here, so a
 # `run_cmd` or an `addDecl` added to it fails like anywhere else.
 # (`\x60` is a backtick, Lean's name-literal quote: this program sits inside
 # a `$(...)` substitution, and the shell would pair backticks in it.)
 BT = "\x60"
-# One line, the same at all five sites. The prefixes name every first-party
+# One line, the same at all four sites. The prefixes name every first-party
 # namespace whether or not the invoking module's environment holds any of
 # them, because the audit's waiver for an unmentioned compiler-trust axiom
 # asks whether any first-party declaration mentions it, and a narrower list at
@@ -202,9 +202,8 @@ ALLOW = {
     "tacenta-model/Properties/AxiomAudit.lean": [AUDIT_CALL],
     "tacenta-proofs/Proofs/AxiomAudit.lean": [AUDIT_CALL],
     "tacenta-proofs/translation/Translation/AxiomAudit.lean": [AUDIT_CALL],
-    "tacenta-proofs/translation/Translation/AxiomAuditTriple.lean": [AUDIT_CALL],
-    # The three-leaf translation unit, which can share an environment with
-    # neither the rest of the translation nor the Triple's own.
+    # The three-leaf translation unit, which cannot share an environment with
+    # the rest of the translation.
     "tacenta-proofs/translation/Translation/AxiomAuditTripleUnit.lean": [AUDIT_CALL],
     "tacenta-model/Model/AxiomAudit.lean": [
         "import Lean",
@@ -331,6 +330,6 @@ fi
 
 count=$(echo "$lean_files" | wc -l | tr -d ' ')
 if [ "$status" -eq 0 ]; then
-  echo "check-lean-constructs: $count first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 5 allow-listed invocations and its implementation; 3 lakefiles set no Lean option"
+  echo "check-lean-constructs: $count first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 4 allow-listed invocations and its implementation; 3 lakefiles set no Lean option"
 fi
 exit "$status"

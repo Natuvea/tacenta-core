@@ -164,7 +164,7 @@ def rewrite(text, subs, origin):
 def renames(t1, spqr_t1, t3, spqr_t3):
     """Qualified references to the four leaf proof namespaces, with how many
     of each the file holds. None of the four patterns matches inside another,
-    nor inside `Tacenta.TripleT1.` or `Tacenta.TripleT3.`."""
+    nor inside `Tacenta.UnitTripleT1.` or `Tacenta.UnitTripleT3.`."""
     return [
         (r"(?<![\w.])Tacenta\.T1\.", "Tacenta.UnitT1.", t1),
         (r"(?<![\w.])Tacenta\.SpqrT1\.", "Tacenta.UnitSpqrT1.", spqr_t1),

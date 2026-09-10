@@ -81,9 +81,9 @@ from a real one on shape alone.** What excludes them is textual:
 in hand-written first-party Lean -- `run_cmd`, `#eval`, `elab`, `macro`,
 `syntax`, `initialize`, `addDecl` and its kin, and any reference to the
 `Lean` namespace at all -- outside this module's own implementation and the
-five `run_cmd Model.AxiomAudit.run` lines, which it allow-lists by file path
+four `run_cmd Model.AxiomAudit.run` lines, which it allow-lists by file path
 and exact line content; and `scripts/check-audit-reach.sh` fails if any
-first-party module is outside the five audit modules' import closure, so no
+first-party module is outside the four audit modules' import closure, so no
 module escapes the walk. The division of labour: this module recognises the
 declaration kinds a grep cannot, and the grep refuses the code that could
 forge what this module accepts.

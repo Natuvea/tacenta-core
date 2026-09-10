@@ -11,13 +11,11 @@ audit. See `Translation/AxiomAudit.lean` for the rule.
 `Translation.TacentaTripleUnit` is the translation of `tacenta-core/triple-unit`,
 the Triple Ratchet and both inner ratchets compiled as one crate
 (`tacenta-proofs/scripts/assemble-triple-unit.sh` assembles it, and its header
-says what the unit is and is not). It needs an audit module of its own for the
-same reason `AxiomAuditTriple.lean` does, and against both of the others: it
+says what the unit is and is not). It needs an audit module of its own: it
 declares `instDiscriminantRatchetErrorIsize` and
-`instDiscriminantSpqrErrorIsize`, as `TacentaRatchet`/`TacentaSpqr` do and as
-`TacentaTriple`'s re-emitted copies do, and Lean refuses to import two modules
-declaring the same name into one environment. So it can share an environment
-with neither audit that already exists.
+`instDiscriminantSpqrErrorIsize`, as `TacentaRatchet`/`TacentaSpqr` do, and Lean
+refuses to import two modules declaring the same name into one environment. So
+it cannot share an environment with `Translation/AxiomAudit.lean`.
 
 It also imports `Translation.UnitPins`, and through it the unit's copies of
 the two leaf panic-freedom proofs and the classical ratchet's refinement, the

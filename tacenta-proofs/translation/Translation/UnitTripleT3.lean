@@ -7,21 +7,21 @@ import Model.Triple
 /-!
 # T3 for the Triple Ratchet, on the three-leaf unit
 
-`TripleT3.lean` proves the translated Triple Ratchet refines `Model.Triple`,
-about the Triple translated on its own. This file restates that proof about the
+`TripleT3.lean`, deleted after 2a89a7f, proved the translated Triple Ratchet
+refines `Model.Triple`, about the Triple translated on its own. This file restates that proof about the
 three-leaf translation unit (`Translation/TacentaTripleUnit.lean`), where the
 Triple and both inner ratchets are compiled as one crate, as `UnitTripleT1.lean`
 did for panic-freedom. Then it goes a step further than its original can.
 
 ## The bundles are proved here
 
-`TripleT3.lean` cannot cite the inner ratchets' refinement theorems. The
-Triple's standalone translation declares each inner state as a bare opaque type
-and collides with the inner crates' own translations, so the fact it needs is
-proved in files it cannot import. It works around that with two hand-written
+`TripleT3.lean` could not cite the inner ratchets' refinement theorems. The
+Triple's standalone translation declared each inner state as a bare opaque type
+and collided with the inner crates' own translations, so the fact it needed was
+proved in files it could not import. It worked around that with two hand-written
 bundles, `RatchetAgreesFor` and `SpqrAgreesFor`, each an assumed abstraction
 under which every inner call the Triple makes agrees with the model, and its
-header says what that costs.
+header said what that cost.
 
 None of that holds on the unit. The inner states are concrete structures, and
 `Tacenta.UnitT3` and `Tacenta.UnitSpqrT3`, the inner refinements restated about
@@ -41,8 +41,8 @@ the `zeroize` round trips, three `Vec` agreements, `VecRemoveTotal`,
 Three things are worth knowing about that trade.
 
 * **Most of the trust-base change is the unit's doing, not the discharge's.**
-  `TripleT3.send_refines` rests on sixteen opaque declarations of the inner
-  crates, the two state types and fourteen calls. On the unit those are defined
+  The standalone `TripleT3.send_refines` rested on sixteen opaque declarations
+  of the inner crates, the two state types and fourteen calls. On the unit those are defined
   rather than opaque, so `send_refines` here, with the bundles still as
   hypotheses, already rests on none of them, and on the external primitives the
   inner refinements rest on instead. Discharging the bundles removes them as
@@ -52,9 +52,9 @@ Three things are worth knowing about that trade.
   theorems' lists.
 * **Each bundle covers its ratchet's whole calling surface**, so
   `send_refines_discharged` assumes the receive path's boundary too.
-* **`send_refines` and `receive_refines` are kept as `TripleT3.lean` states
-  them**, taking the bundles as hypotheses, so this file reads against its
-  original line for line. The `-- mirrors:` comments on the bundles now name the
+* **`send_refines` and `receive_refines` are kept as `TripleT3.lean` stated
+  them**, taking the bundles as hypotheses, so this file reads against that file,
+  as of 2a89a7f, line for line. The `-- mirrors:` comments on the bundles now name the
   unit's copies, and in one direction they are no longer the only thing tying a
   clause to its inner theorem: a clause that asked less than that theorem needs,
   or promised more than it proves, would break the bundle's proof. The other
@@ -64,11 +64,10 @@ Three things are worth knowing about that trade.
   leaves what the discharged theorems mean untouched, since their statements do
   not mention the bundles.
 
-## Every difference from `TripleT3.lean` above the bundle proofs
+## Every difference from `TripleT3.lean`, as of 2a89a7f, above the bundle proofs
 
 This file is hand-written, not generated: not every difference is a rename, so
-`port-unit-proofs.sh` cannot derive it, and nothing but a reader checks that it
-keeps saying what its original says. Each difference was made to get the
+`port-unit-proofs.sh` could not derive it. Each difference was made to get the
 original text to elaborate on the unit:
 
 * the imports: `TacentaTripleUnit`, `UnitTripleT1`, `UnitT3` and `UnitSpqrT3` in
@@ -93,8 +92,8 @@ original text to elaborate on the unit:
   and `zeroize` calls with them and leaves `UnitT1.HkdfTotal` and the general
   `UnitSpqrT1.ZeroizeTotal` as goals before the proofs can apply
   `combine_refines` and the narrow `ZeroizeTotal`;
-* this header and the bundles' docstrings, which in `TripleT3.lean` explain why
-  the inner theorems cannot be cited.
+* this header and the bundles' docstrings, which in `TripleT3.lean` explained why
+  the inner theorems could not be cited.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -143,8 +142,8 @@ theorem hkdf_step (h : TripleHkdfAgrees) (N : Usize) (salt ikm info : Slice Std.
   obtain ⟨r, hr, hv⟩ := h N salt ikm info hN; simp [hr, hv]
 
 /-- Strictly stronger than `TripleT1.lean`'s totality-only assumption, so
-that file needs no edits: this crate's `HkdfSha256Total` follows as a
-corollary. -/
+that file needed no edits: its `HkdfSha256Total` followed as a corollary, as
+`UnitT1.HkdfTotal` does here. -/
 theorem TripleHkdfAgrees.total (h : TripleHkdfAgrees) : Tacenta.UnitT1.HkdfTotal :=
   fun N a b c hN => by obtain ⟨r, hr, _⟩ := h N a b c hN; exact ⟨r, hr⟩
 
@@ -180,7 +179,7 @@ theorem ZeroizingRoundTrips.total (h : ZeroizingRoundTrips) :
 -- what was wrapped. Removing it locally makes the tactic stop at the
 -- projection so the round trip the wrapper's rule hands back can be applied
 -- by hand.
--- `TripleT3.lean` erases `TripleT1.zeroizing_deref_step`. On the unit the one
+-- `TripleT3.lean` erased `TripleT1.zeroizing_deref_step`. On the unit the one
 -- copy of that rule is `UnitT1.zeroizing_deref_step`. `UnitT3.lean` and
 -- `UnitSpqrT3.lean` erase it for themselves, but an erasure does not carry into
 -- a module that imports them, so this file erases it again.
@@ -244,7 +243,7 @@ theorem combine_refines (h : TripleHkdfAgrees) (mk_classical mk_pq : Array Std.U
 
 /-! ## The two inner ratchets, bundled as agreement
 
-The bundles as `TripleT3.lean` states them, kept so that the theorems below read
+The bundles as `TripleT3.lean` stated them, kept so that the theorems below read
 the same as their originals. There each is an assumption. Here both are proved,
 by `ratchet_agrees_for` and `spqr_agrees_for` at the end of the file, and each
 clause's `-- mirrors:` comment names the unit theorem that proof uses for it, or
@@ -268,7 +267,7 @@ def spqrOutputOf (o : tacenta_spqr.Output) : Model.SparseRatchet.Output :=
 
 /-- Bundled agreement for the classical ratchet's calling surface, through an
 abstraction `α`. Covers exactly what this file's theorems need: `clone`, the two
-initialisers, the three small accessors `TripleT1.lean` already treats as this
+initialisers, the three small accessors `TripleT1.lean` already treated as this
 state's public interface, and `send`/`receive`. The crate calls more than that;
 nothing here speaks for the rest.
 
@@ -646,9 +645,9 @@ theorem commit_refines {α : tacenta_ratchet.State → Model.State.State}
 
 /-! ## The two inner bundles, discharged on the unit
 
-`TripleT3.lean` has to assume `RatchetAgreesFor α` and `SpqrAgreesFor β`: in the
-Triple's standalone translation the inner states are opaque, so no abstraction
-can be written down and no inner theorem can be cited. On the unit neither
+`TripleT3.lean` had to assume `RatchetAgreesFor α` and `SpqrAgreesFor β`: in the
+Triple's standalone translation the inner states were opaque, so no abstraction
+could be written down and no inner theorem could be cited. On the unit neither
 obstacle exists. Each inner refinement relation fixes every field of its model
 state, so reading it field by field gives the abstraction, and the inner
 refinements, restated about the unit in `UnitT3.lean` and `UnitSpqrT3.lean`,
@@ -838,7 +837,7 @@ theorem spqr_agrees_for (hkr : Tacenta.UnitSpqrT3.SpqrHkdfAgrees)
 
 /-! ## `send` and `receive`, with the bundles discharged
 
-`send_refines` and `receive_refines` above are `TripleT3.lean`'s theorems, still
+`send_refines` and `receive_refines` above are the theorems `TripleT3.lean` stated, still
 taking `RatchetAgreesFor α` and `SpqrAgreesFor β`. These are the same two
 theorems at the abstractions `ratchet_agrees_for` and `spqr_agrees_for` prove the
 bundles for, so what they assume is the inner ratchets' boundary and nothing

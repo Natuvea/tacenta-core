@@ -10,9 +10,9 @@ axiom, as do the `zeroize` wrapper's constructor and projection, and the
 T1/T3 files assume what they need about them as a named `Prop`
 (`VecAppendTotal`, `VecRemoveAgrees`, `ZeroizingRoundTrips96`,
 `ZeroizingArrayRoundTrip`, `T3.ZeroizingRoundTrips80`, ...), or as a class
-(`T1.DerivedKeysModel`). The Triple Ratchet's copies of the `zeroize`
-hypotheses have their witnesses in `Translation/SatisfiabilityTriple.lean`,
-since `TacentaTriple` cannot be imported alongside `TacentaRatchet`. A
+(`T1.DerivedKeysModel`). The three-leaf unit's copies of these, and the Triple
+Ratchet's own, have their witnesses in `Translation/UnitSatisfiabilityTriple.lean`,
+since `TacentaTripleUnit` cannot be imported alongside `TacentaRatchet`. A
 hypothesis of that kind carries
 a risk the rest of the proof cannot see: if it is **refutable** -- if no
 function at all could satisfy it -- then every theorem taking it is provable

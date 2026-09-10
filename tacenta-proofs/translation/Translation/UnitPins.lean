@@ -102,22 +102,22 @@ info: 'Tacenta.UnitSpqrT1.receive_no_panic' depends on axioms: [propext,
 
 `Translation/UnitTripleT1.lean` is a different kind of file from the two
 above. It is not generated, and its pins are not claims that nothing changed:
-its whole point is that the seventeen `*Total` bundles `TripleT1.lean` assumes
-are theorems here, so the trust base *does* change, and these pins are where
+its whole point is that the seventeen `*Total` bundles the standalone
+`TripleT1.lean` assumed are theorems here, so the trust base *does* change, and these pins are where
 that change is recorded rather than described.
 
 **Report it honestly, because one half of it is a regression.**
-`Tacenta.TripleT1.State.receive_no_panic` depends on twelve axioms and is
-kernel-only. The ported theorem below depends on eighteen and is **not**
+The standalone `Tacenta.TripleT1.State.receive_no_panic`, deleted after
+2a89a7f, depended on twelve axioms and was kernel-only. The ported theorem below depends on eighteen and is **not**
 kernel-only: it inherits
 `Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`, the one
 compiler-trusted numeric fact the sparse ratchet's own `receive` proof rests
 on (`LIMITATIONS.md`, "The proofs are trusted by evaluation, not only by the
 kernel").
 
-Both halves belong in the same sentence. The current theorem is kernel-only
-because it *assumes* the sparse ratchet's receive is total instead of proving
-it -- its kernel-only status is bought by assuming the hard part. The ported
+Both halves belong in the same sentence. The standalone theorem was kernel-only
+because it *assumed* the sparse ratchet's receive is total instead of proving
+it -- its kernel-only status was bought by assuming the hard part. The ported
 one proves that part, and inherits the one compiler-trusted fact proving it
 rests on. Which is the better trade is the reader's to judge; what is not
 open to judgement is that the axiom count went from twelve to eighteen and
@@ -199,9 +199,9 @@ info: 'Tacenta.UnitTripleT1.State.clone_no_panic' depends on axioms: [propext,
 #guard_msgs in
 #print axioms Tacenta.UnitTripleT1.State.clone_no_panic
 
-/-! The three accessors `TripleT1.lean` lists as unproved. Each is kernel-only,
-with no boundary axiom at all: the inner operation each wraps is opaque there
-and a definition here, so what was a missing assumption becomes a one-liner. -/
+/-! The three accessors `TripleT1.lean` listed as unproved. Each is kernel-only,
+with no boundary axiom at all: the inner operation each wraps was opaque there
+and is a definition here, so what was a missing assumption becomes a one-liner. -/
 
 /--
 info: 'Tacenta.UnitTripleT1.State.classical_skipped_len_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -278,13 +278,14 @@ info: 'Tacenta.UnitT3.message_keys_refines' depends on axioms: [propext,
 
 /-! ## The Triple's refinement on the unit, with both bundles discharged
 
-`Translation/UnitTripleT3.lean` restates `TripleT3.lean` about the unit and proves
-the two bundles that file has to assume. These four are the theorems that change
+`Translation/UnitTripleT3.lean` proves the Triple's refinement on the unit,
+including the two bundles the standalone `TripleT3.lean` had to assume. These four are the theorems that change
 what is assumed: the two bundle proofs, and `send_refines` and `receive_refines`
 with both bundles discharged. Unlike the pins above they have no leaf twin to
-match, since `TripleT3.lean` states no such theorems, so they record a new trust
-base rather than hold one to an old one. Against `TripleT3.send_refines`, the
-sixteen opaque inner-crate declarations it rests on are absent, but that is the
+match, since no other file states such theorems, so they record a new trust
+base rather than hold one to an old one. Against the standalone
+`TripleT3.send_refines`, measured before its deletion, the sixteen opaque
+inner-crate declarations it rested on are absent, but that is the
 unit's doing: `UnitTripleT3.send_refines`, with the bundles still as hypotheses,
 already rests on none of them. What discharging adds is the eight
 `native_decide` axioms `UnitSpqrT3.lean` carries; `LIMITATIONS.md` says what

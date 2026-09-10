@@ -12,10 +12,10 @@ import Translation.KemWitness
 The translation package's axiom audit, over everything the root `Translation`
 module imports plus the modules it cannot (`SpqrT3`, `BraidT3`,
 `PreconditionShapes`, `Satisfiability`, `ErasureWitness`, `KemWitness`, which the `Translation.*`
-glob builds on their own). `TripleT1`/`TripleT3` cannot be imported alongside
-these -- `TacentaTriple` and `TacentaRatchet` both define
+glob builds on their own). The three-leaf unit's proofs cannot be imported
+alongside these -- `TacentaTripleUnit` and `TacentaRatchet` both define
 `instDiscriminantRatchetErrorIsize`, the same limit `lakefile.toml` records --
-so they have their own audit in `Translation/AxiomAuditTriple.lean`.
+so they have their own audit in `Translation/AxiomAuditTripleUnit.lean`.
 
 `Model.AxiomAudit` refuses any first-party hand-written declaration that is
 an axiom, opaque, unsafe or partial, or carries `implemented_by`/`extern`.

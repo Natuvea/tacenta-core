@@ -35,10 +35,10 @@ path = "../../tacenta-model"
 # Build EVERY module under Translation/, not only what the root
 # `Translation.lean` happens to import. Without this glob, `lake build` (and so
 # CI and `no-sorry.sh`, which reads the build log) would
-# elaborate only the root's imports and skip SpqrT3, BraidT3, TripleT1,
-# TripleT3 and TacentaTriple. The
-# root cannot simply import them because `TacentaTriple` and `TacentaRatchet`
-# both define `instDiscriminantRatchetErrorIsize`; a glob builds each module on
+# elaborate only the root's imports and skip SpqrT3, BraidT3 and the three-leaf
+# unit's modules. The root cannot simply import the unit's because
+# `TacentaTripleUnit` and `TacentaRatchet` both define
+# `instDiscriminantRatchetErrorIsize`; a glob builds each module on
 # its own, which is all coverage needs. `scripts/check-translation-coverage.sh`
 # then asserts every `Translation/*.lean` produced an olean.
 [[lean_lib]]

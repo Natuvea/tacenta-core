@@ -133,14 +133,14 @@ and `Vectors.lean` included), refuses a lakefile that sets any Lean option,
 is the only one that sees `set_option debug.skipKernelTC`, and refuses
 every elaboration-time construct (`run_cmd`, `#eval`, `elab`, `macro`,
 `syntax`, `initialize`, `addDecl`, any reference to the `Lean` namespace)
-outside `Model/AxiomAudit.lean`'s own implementation and the five `run_cmd
+outside `Model/AxiomAudit.lean`'s own implementation and the four `run_cmd
 Model.AxiomAudit.run` lines, which it allow-lists by file path and exact
 line content, because such code could plant an axiom in the one shape the
 audit accepts; `check-audit-reach.sh`, which asks Lean for every
 first-party module's imports and fails if any module (the generated
-`Tacenta*.lean` included) is outside the five audit modules' import
+`Tacenta*.lean` included) is outside the four audit modules' import
 closure, since the audit walks only what its invoking module imports, and
-which also requires all five to run with the same first-party prefixes, so
+which also requires all four to run with the same first-party prefixes, so
 that no declaration is first-party to the audit that declares an axiom and
 foreign to the audit that uses it; and `check-audit-negatives.sh`, which
 plants declarations the audit's rule says to refuse, and the one shape it
@@ -153,15 +153,15 @@ Expected tail:
 
 ```
 no-sorry: the translation and its T1/T3 proofs is complete
-translation-coverage: all 39 Translation/*.lean modules are in the build target and built
-attest: the axiom audit's opaque-external list matches translation-attestation.json for 8 generated modules (102 compiler-trust axioms in them, from Aeneas's toStr bound, are not externals and are listed in the build log)
+translation-coverage: all 34 Translation/*.lean modules are in the build target and built
+attest: the axiom audit's opaque-external list matches translation-attestation.json for 7 generated modules (93 compiler-trust axioms in them, from Aeneas's toStr bound, are not externals and are listed in the build log)
 no-sorry: the model-layer proofs is complete
 no-sorry: the model and its property theorems is complete
-check-lean-constructs: 68 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 5 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
-audit-reach: the 5 audit modules, all with the same first-party prefixes, reach all 75 first-party modules (tacenta-model 25, tacenta-proofs 10, tacenta-proofs/translation 40)
+check-lean-constructs: 64 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 4 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
+audit-reach: the 4 audit modules, all with the same first-party prefixes, reach all 70 first-party modules (tacenta-model 25, tacenta-proofs 10, tacenta-proofs/translation 35)
 audit-negatives: the audit called all 12 planted cases correctly
 no-sorry: replaying the translation and its T1/T3 proofs through the kernel (leanchecker)
-no-sorry: the translation and its T1/T3 proofs replays clean (39 modules)
+no-sorry: the translation and its T1/T3 proofs replays clean (34 modules)
 no-sorry: replaying the model-layer proofs through the kernel (leanchecker)
 no-sorry: the model-layer proofs replays clean (10 modules)
 no-sorry: replaying the model and its property theorems through the kernel (leanchecker)

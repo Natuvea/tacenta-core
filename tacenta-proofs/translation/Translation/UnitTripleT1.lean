@@ -5,36 +5,36 @@ import Translation.UnitSpqrT1
 /-!
 # T1 for the Triple Ratchet, restated about the three-leaf translation unit
 
-This is `Translation/TripleT1.lean` restated about
-`Translation/TacentaTripleUnit.lean` -- the translation of
-`tacenta-core/triple-unit`, where the Triple Ratchet and both inner ratchets
-compile as one crate. The difference that matters is not the names. In
-`TripleT1.lean` every operation on `tacenta_ratchet.State` or
-`tacenta_spqr.State` is an opaque external, so that file **assumes**
-seventeen `*Total : Prop` bundles about them. Here those operations are real
+The Triple Ratchet's panic-freedom, about `Translation/TacentaTripleUnit.lean`
+-- the translation of `tacenta-core/triple-unit`, where the Triple Ratchet and
+both inner ratchets compile as one crate. It began as `Translation/TripleT1.lean`,
+the proof about the Triple translated on its own, deleted after 2a89a7f. The
+difference that mattered was not the names. In `TripleT1.lean` every operation
+on `tacenta_ratchet.State` or `tacenta_spqr.State` was an opaque external, so
+that file **assumed** seventeen `*Total : Prop` bundles about them. Here those operations are real
 definitions, and the leaves' own panic-freedom proofs
 (`Translation/UnitT1.lean`, `Translation/UnitSpqrT1.lean`) are about exactly
 these constants. So the seventeen bundles are declared here and then
 **proved**, and the theorems ported from `TripleT1.lean` take the leaves'
 boundary hypotheses instead.
 
-## This does not replace `TripleT1.lean`, and both files exist
+## It replaced `TripleT1.lean`
 
-`Translation/TripleT3.lean` and `Translation/SatisfiabilityTriple.lean` depend
-on `TripleT1.lean`'s definitions, and they live in the other island: the
-unit's translation cannot share a Lean environment with the leaves' (the
-instances collide), which is why `Translation/AxiomAuditTripleUnit.lean` is a
-separate audit module. Deleting `TripleT1.lean` would take those two files
-with it. This is **duplication, not replacement**, and `LIMITATIONS.md` says
-so under "The three-leaf translation unit".
+`TripleT1.lean` stayed in the tree while `Translation/TripleT3.lean` and
+`Translation/SatisfiabilityTriple.lean` depended on its definitions. Once
+`Translation/UnitTripleT3.lean` proved the Triple's refinement on the unit, the
+standalone translation and all four files about it were deleted. The unit's
+translation cannot share a Lean environment with the leaves' (the instances
+collide), which is why `Translation/AxiomAuditTripleUnit.lean` is a separate
+audit module.
 
 ## Why the generator cannot write this file
 
 `scripts/port-unit-proofs.sh` derives `UnitT1.lean` and `UnitSpqrT1.lean` from
-their leaves by rewriting the import, the namespace and the `open`, and
-copying every proof body unchanged. Its premise is that the leaf proofs never
-write a translated name in qualified form. That premise fails here:
-`TripleT1.lean` writes forty-nine qualified `tacenta_ratchet.*` and
+their leaves by rewriting the imports, the namespace, the `open` and qualified
+references to the leaf proofs' namespaces. Its premise is that the leaf proofs
+rarely write a translated name in qualified form. That premise failed here:
+`TripleT1.lean` wrote forty-nine qualified `tacenta_ratchet.*` and
 `tacenta_spqr.*` occurrences (fifty-nine counting `tacenta_kdf.` and
 `zeroize.`). Under `open tacenta_triple_unit` those prefixes
 happen to resolve correctly anyway, but the proof bodies genuinely change,
@@ -44,10 +44,10 @@ which is the harder half:
   several bodies need *pruning* rather than substitution -- `combine`'s and
   `split_secret`'s explicit HKDF steps become "no goals to be solved" because
   `UnitT1.hkdf_step` now fires on its own;
-* `tacenta_spqr.State.epoch` is `tacenta_spqr.State.impl.epoch` here (only
-  `TacentaTriple.lean`'s axiom uses the unprefixed form, which on the unit
-  would resolve to the structure field);
-* three of `TripleT1.lean`'s boundary copies collapse into the leaves'
+* `tacenta_spqr.State.epoch` is `tacenta_spqr.State.impl.epoch` here (the
+  standalone translation's axiom used the unprefixed form, which on the unit
+  resolves to the structure field);
+* three of `TripleT1.lean`'s boundary copies collapsed into the leaves'
   (`HkdfSha256Total` and `ZeroizingTotal` are `rfl`-equal to `UnitT1.HkdfTotal`
   and `UnitT1.ZeroizingTotal`; its `ZeroizeTotal` is a narrowing of
   `UnitSpqrT1.ZeroizeTotal` at one instance, which has to be written out at
@@ -55,23 +55,23 @@ which is the harder half:
   of `UnitT1`'s, so none of the five is redeclared. Two of the three collapses
   are exact and the third is not: the two constructor theorems below take
   `UnitSpqrT1.ZeroizeTotal`, which quantifies over the element type, the width
-  and the instance, where `TripleT1.ZeroizeTotal` fixes all three at
-  `Array U8 32`. They assume strictly more than their twins do, which makes
+  and the instance, where `TripleT1.ZeroizeTotal` fixed all three at
+  `Array U8 32`. They assume strictly more than their twins did, which makes
   them strictly weaker theorems. The narrow form is what the two constructors
   need -- each wipes two 32-byte arrays and nothing else -- so the generality
   is a convenience of reusing the leaf's constant, not a requirement;
 * three bundles gain preconditions, and the theorems that use them gain those
   preconditions too.
 
-So this file is hand-written, and unlike the generated leaf copies it can
-drift from `TripleT1.lean`. `LIMITATIONS.md` names that as the cost.
+So this file is hand-written. With its original deleted there is nothing for
+it to drift from; it is held by its own statements, as any hand-written proof
+is.
 
 ## The three preconditions, which are the substance of the exercise
 
-`TripleT1.lean`'s bundles are stated with no hypothesis: unconditional
+`TripleT1.lean`'s bundles were stated with no hypothesis: unconditional
 totality of every ratchet call. That is stronger than what the leaves prove,
-and it is what `CLAIMS.md` flags by putting `TripleT1.lean` under "Proved
-conditionally". Proving the bundles instead of assuming them means carrying
+and `CLAIMS.md` listed that file under "Proved conditionally" for it. Proving the bundles instead of assuming them means carrying
 the leaves' real preconditions, and there are three:
 
 * `RatchetReceiveTotal` needs
@@ -88,41 +88,40 @@ covers, so `KdfInitTotal` is declared here, in the same shape as
 `UnitSpqrT1.KdfRkTotal`: a translated function bottoming out in the opaque
 `hkdf_sha256`, at 96 bytes. That trade is worth naming -- it replaces two
 opaque-crate-boundary assumptions (`SpqrInitAliceTotal`, `SpqrInitBobTotal`
-as `TripleT1.lean` states them) with one assumption of a kind other proofs in
+as `TripleT1.lean` stated them) with one assumption of a kind other proofs in
 this tree already rely on. "Trusted KDF" undersells what it bundles: besides
 `hkdf_sha256` it covers the `zeroize` wrapper at a width nothing else states
 and the `info` builder, exactly as `UnitSpqrT1.KdfRkTotal` does.
 
-Like every other hypothesis on this island, it has no satisfiability witness.
-`Translation/Satisfiability.lean` and `Translation/SatisfiabilityTriple.lean`
-exhibit witnesses for the leaf islands' assumptions; nothing does so here, and
-`KdfInitTotal` joins `UnitT1.DerivedKeysModel`, `UnitSpqrT1.OptionCloneTotal`,
-`KdfRkTotal` and `KdfCkTotal` in that. Calling that inherited would be too
-kind: `KdfRkTotal` and `KdfCkTotal` are at least derived on the leaf side from
-`SpqrT3.SpqrHkdfAgrees`, and `KdfInitTotal` has no leaf twin at all, so it is
-introduced here. `LIMITATIONS.md` records what the guard does and does not
+It has no satisfiability witness of its own, and it has no leaf twin, so it is
+introduced here. `Translation/UnitSatisfiabilityTriple.lean` witnesses the unit's
+`DerivedKeysModel`, `OptionCloneTotal` and HKDF agreement, among others.
+`KdfRkTotal` and `KdfCkTotal` are derived in `UnitSpqrT3.lean` from that
+agreement and the `zeroize` round trips, and `KdfInitTotal` is what
+`UnitSpqrT3.kdf_init_refines` gives under the same hypotheses, though no theorem
+states that step. `LIMITATIONS.md` records what the guard does and does not
 cover.
 
 ## Why the preconditions transport for free
 
 The Triple calls each leaf on `candidate`, a clone of `self`, so a
 precondition about `self` is useless unless something says the clone preserves
-it. `TripleT1.State.clone_no_panic` proves only that the clone *returns*,
-which is all it can prove where the inner states are opaque; a precondition
-could not be transported through it. On the unit the clone is a real
+it. The standalone `TripleT1.State.clone_no_panic` proved only that the clone
+*returns*, which was all it could prove where the inner states were opaque; a
+precondition could not be transported through it. On the unit the clone is a real
 definition and every field is an array, a scalar, an `Option` under
 `UnitSpqrT1.OptionCloneTotal`, or a `Vec` whose elements clone as the
 identity, so `State.Insts.CoreCloneClone.clone s = ok s` is provable outright
 (`triple_state_clone_id`). That is what `State.clone_spec` below carries into
 `State.send` and `State.receive`, and it is the one place this file is
-strictly stronger than `TripleT1.lean` rather than merely differently stated.
+was strictly stronger than `TripleT1.lean` rather than merely differently stated.
 
-## Three functions `TripleT1.lean` lists as unproved
+## Three functions `TripleT1.lean` listed as unproved
 
 `State.classical_skipped_len`, `State.post_quantum_skipped_len` and
 `State.post_quantum_receive_count` are one-liners here: each wraps an inner
-operation that is opaque in `TripleT1.lean` and a definition in the unit. The
-other four on that file's not-proved list (`State.evict_oldest_classical`,
+operation that was opaque in `TripleT1.lean` and is a definition in the unit.
+The other four on that list (`State.evict_oldest_classical`,
 `State.evict_oldest_post_quantum`, `State.to_bytes`, `State.from_bytes`) do
 **not** fall out and are not claimed.
 
@@ -484,7 +483,7 @@ theorem State.init_receiver_no_panic (hss : UnitT1.HkdfTotal) (hzw : UnitT1.Zero
 /-- The clone in the spec form the two composed paths step through: it returns,
 and what it returns *is* `self`. This is what carries the three preconditions
 below across the clone, and it is the one place this file is stronger than
-`TripleT1.lean`, which can only say the clone returns. -/
+`TripleT1.lean` was, which could only say the clone returns. -/
 theorem State.clone_spec (hopt : UnitSpqrT1.OptionCloneTotal) (self : State) :
     State.Insts.CoreCloneClone.clone self ⦃ fun c => c = self ⦄ := by
   simp [triple_state_clone_id hopt]
@@ -556,7 +555,7 @@ theorem State.receive_no_panic (hhmac : UnitT1.HmacTotal) (hkdf : UnitT1.HkdfTot
 theorem State.commit_no_panic (self next : State) : State.commit self next ⦃ fun _ => True ⦄ := by
   unfold State.commit; simp
 
-/-! ## Three accessors `TripleT1.lean` leaves unproved -/
+/-! ## Three accessors `TripleT1.lean` left unproved -/
 
 theorem State.classical_skipped_len_no_panic (self : State) :
     State.classical_skipped_len self ⦃ fun _ => True ⦄ := by
@@ -573,31 +572,32 @@ theorem State.post_quantum_receive_count_no_panic (self : State) (epoch : U64) :
 
 /-! ## Where this stands
 
-**Proved:** everything `TripleT1.lean` proves, plus the three accessors it
-lists as unproved -- `split_secret`, `combine`, `Header`'s and `TripleError`'s
+**Proved:** everything `TripleT1.lean` proved, plus the three accessors it
+listed as unproved -- `split_secret`, `combine`, `Header`'s and `TripleError`'s
 clone and equality, `State`'s clone (as an identity, not merely as total), the
 four accessors that read a counter or a key off the state, the two
 constructors, `State.send`, `State.receive`, `State.commit`,
 `State.classical_skipped_len`, `State.post_quantum_skipped_len` and
 `State.post_quantum_receive_count`. Above those, the seventeen bundles
-`TripleT1.lean` assumes.
+`TripleT1.lean` assumed.
 
 **Not proved:** `State.evict_oldest_classical`,
 `State.evict_oldest_post_quantum`, `State.to_bytes` and `State.from_bytes`,
-the four remaining entries on `TripleT1.lean`'s not-proved list. Being inside
+the four remaining entries on that list. Being inside
 the unit does not make them fall out: the eviction loops and the
 length-prefixed framing are their own proof obligations, unrelated to the
 crate boundary this file removes.
 
-**What the trust base becomes.** `TripleT1.lean`'s `State.receive_no_panic`
-depends on twelve axioms and is kernel-only. This file's depends on eighteen
+**What the trust base became.** `TripleT1.lean`'s `State.receive_no_panic`
+depended on twelve axioms and was kernel-only, measured on 2026-09-10 before its
+deletion. This file's depends on eighteen
 and is not: it inherits
 `Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`, the one
 compiler-trusted numeric fact the sparse ratchet's own receive proof rests on.
 Both halves of that are worth stating plainly, and `Translation/UnitPins.lean`
-states them: the current theorem is kernel-only because it *assumes* the
+states them: the standalone theorem was kernel-only because it *assumed* the
 sparse ratchet's receive is total rather than proving it, so its kernel-only
-status is bought by assuming the hard part; this one proves that part and
+status was bought by assuming the hard part; this one proves that part and
 inherits what proving it costs. Underneath, six axioms go and twelve arrive:
 the bare operation axioms (`tacenta_ratchet.receive`,
 `tacenta_spqr.State.receive`, the two states and their clones) are replaced by

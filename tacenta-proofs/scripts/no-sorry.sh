@@ -93,7 +93,7 @@ bash scripts/check-lean-constructs.sh || fail=1
 # audited. This asks Lean for each module's imports and fails if any
 # first-party module (the generated `Tacenta*.lean` included, since the
 # `audit-axiom:` comparison above sees only the generated modules the audit
-# reached) is outside the five audit modules' import closure.
+# reached) is outside the four audit modules' import closure.
 bash scripts/check-audit-reach.sh || fail=1
 
 # Both of the checks above ask what the audit found. This one asks whether the

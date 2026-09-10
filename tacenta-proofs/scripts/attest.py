@@ -66,17 +66,18 @@ SCHEMA_VERSION = 1
 # written, so a manifest without it cannot claim to have covered their sources.
 TRANSLATION_SCHEMA_VERSION = 3
 
-# The crates Charon and Aeneas translate. A proof about translated Rust is a
-# proof about *these* bytes, so their hashes belong in the attestation.
+# The crates the proofs are about. A proof about translated Rust is a proof
+# about *these* bytes, so their hashes belong in the attestation.
 #
-# All eight, matching `scripts/run-aeneas.sh`, so that the attestation records
-# bytes for every crate `CLAIMS.md` carries T1 and T3 for. If `run-aeneas.sh`
-# gains a crate, this list must gain it too; the two are checked against each
-# other below.
+# The six `scripts/run-aeneas.sh` translates on their own, the three-leaf unit
+# it translates, and `tacenta-core/triple`, which it translates only inside the
+# unit: the Triple Ratchet's proofs are about the unit's translation, and the
+# unit is generated from these bytes. If `run-aeneas.sh` gains a crate, this
+# list must gain it too; the two are checked against each other below, counting
+# an assembled zone's sources as translated with it.
 #
-# The eighth, `triple-unit`, carries no claims yet: it is the three-leaf
-# translation unit, generated rather than written, and hashing it is how a
-# hand-edited generated crate is caught. Where its *sources* are hashed is
+# `triple-unit` is the three-leaf translation unit, generated rather than
+# written, and hashing it is how a hand-edited generated crate is caught. Where its *sources* are hashed is
 # `ASSEMBLED_ZONES`, immediately below, because hashing a generated tree says
 # only that it is the tree somebody generated, not what it was generated from.
 VERIFIED_ZONES = [
@@ -717,6 +718,11 @@ def check_zones_match_translation():
     are about, and the translation script is the authority on which those are.
     """
     translated = set(translated_modules().values())
+    # A crate translated only as a source of an assembled zone -- the Triple,
+    # inside the three-leaf unit -- is translated with that zone.
+    for zone, spec in ASSEMBLED_ZONES.items():
+        if zone in translated:
+            translated.update(spec["sources"])
     attested = set(VERIFIED_ZONES)
     return [
         f"run-aeneas.sh translates `{c}` but VERIFIED_ZONES does not attest it"
@@ -974,11 +980,10 @@ def compare_audit(log_path):
     `axioms_declared` reads the text; the audit reads the environment the text
     elaborated to. A declaration the text scan does not recognise as an axiom
     (one produced by a macro, or added by a command) is an axiom to the audit,
-    and a recorded axiom the environment no longer holds is missing to it. All
-    three audit modules' output must be in the log: `Translation.AxiomAudit`
-    covers six generated modules, `AxiomAuditTriple` the seventh, and
-    `AxiomAuditTripleUnit` the three-leaf translation unit, which can share an
-    environment with neither.
+    and a recorded axiom the environment no longer holds is missing to it. Both
+    audit modules' output must be in the log: `Translation.AxiomAudit` covers
+    six generated modules and `AxiomAuditTripleUnit` the three-leaf translation
+    unit, which cannot share an environment with it.
     """
     problems = []
     log = Path(log_path).read_text(errors="replace")

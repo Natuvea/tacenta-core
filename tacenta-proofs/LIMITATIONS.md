@@ -48,10 +48,11 @@ separately the Braid's `from_bytes_establishes_inv` and each of the four
 `decoded_*` corollaries, which are not -- the Braid's reaches the opaque
 erasure and KEM decoders, and a corollary carries the boundary axioms of the
 `receive` theorem it composes with, the sparse ratchet's carrying a
-compiler-trust axiom too. The sparse ratchet's,
-the Braid's and the Triple's T1/T3 files are **not yet pinned**, so the axiom
+compiler-trust axiom too. The sparse ratchet's and
+the Braid's T1/T3 files are **not yet pinned**, so the axiom
 bases stated for them below are read off `#print axioms` by hand rather than
-held by the build. Some results are on the
+held by the build; the Triple Ratchet's, on the three-leaf unit, are pinned in
+`Translation/UnitPins.lean`. Some results are on the
 kernel alone and are worth knowing as such. The ML-KEM Braid's epoch accounting
 depends on `propext` and `Quot.sound`, nothing more. That is the calculation on
 which both sides must agree exactly, so having it on the kernel rather than on
@@ -65,9 +66,11 @@ wrong, and no theorem depends on them, so they widen no proof's trust base.
 `Translation.SessionT3`; in `Translation.SpqrT3`, `protocol_info_agrees`,
 `chain_start_agrees`, `root_label_agrees`, `chain_label_agrees`,
 `max_skip_agrees`, `max_skipped_store_agrees`, `max_skip_val`, and one step of
-`receive_refines_continuation`; in `Translation.TripleT3`, `split_info_agrees`,
+`receive_refines_continuation`; in `Translation.UnitTripleT3`, `split_info_agrees`,
 `combine_info_agrees`, and one step of `split_secret_refines`; and one step of
-`Translation.SpqrT1.receive_no_panic` (that `(1 : U64)` has value 1). A
+`Translation.SpqrT1.receive_no_panic` (that `(1 : U64)` has value 1). The
+three-leaf unit's generated copies of the sparse ratchet's proofs carry those
+nine again and are not counted here. A
 fifteenth, `Model.Gf65536.mul_inv_cancel`, lives in the model and is pinned in
 `Proofs.TrustedBase`. `u8_zero`, `zeroSalt_agrees` and
 `decode_ec_after_encode_ec` are **not** among them: each is written `first |
@@ -81,12 +84,13 @@ puts the compiler into the axiom base of every theorem downstream: in
 particular the sparse ratchet's T1 headline theorem and every T3 refinement
 that uses a label lemma are compiler-trusted, not kernel-only, and `CLAIMS.md`
 should be read with that in mind. Counted by a `#print axioms` sweep over
-every theorem; pinning the sparse ratchet's, the Braid's and the Triple's
-headline theorems under `#guard_msgs` is open work (the classical ratchet's,
-the session's, the erasure coder's and the parser's are pinned).
+every theorem; pinning the sparse ratchet's and the Braid's headline theorems
+under `#guard_msgs` is open work (the classical ratchet's, the session's, the
+erasure coder's, the parser's and, on the unit, the Triple Ratchet's are
+pinned).
 
 **The generated translation carries compiler-trust axioms of its own**,
-a hundred and two on the current generation. Aeneas's `toStr` discharges its
+ninety-three on the current generation. Aeneas's `toStr` discharges its
 string-length bound with `by decide +native`, so every generated `Debug`
 `fmt` body (one per error and header type) adds axioms named
 `<fmt>._native.decide.ax_*`, each stating `decide (s.toByteArray.size ≤
@@ -101,7 +105,7 @@ auxiliary the elaborator splits out of a `fmt` body) and prints them apart
 from the externals, as `audit-native:` lines in the translation build log,
 so the count is visible rather than folded in.
 
-Ten of the hundred and two meet every part of that rule except the last, and
+Ten of the ninety-three meet every part of that rule except the last, and
 the audit waives it for them. All ten are in the three-leaf translation unit
 described under "The three-leaf translation unit" below, which puts all three
 leaves' types in one module. Seven string literals occur in more than one
@@ -164,12 +168,12 @@ excludes it.
   `run_cmd`, `#eval`, `elab`, `macro`, `syntax`, `initialize`, `addDecl`,
   and no reference to the `Lean` namespace, which is where every such API
   lives -- outside `Model/AxiomAudit.lean`'s own implementation and the
-  five `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
+  four `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
   exact line content, so that an invocation written any other way fails
   there and a second one in an audit module fails in the reach check below;
   `scripts/check-audit-reach.sh`, which fails if any first-party module is
-  outside the five audit modules' import closure, so that no module holds
-  such a declaration unwalked, and fails if the five do not all run with the
+  outside the four audit modules' import closure, so that no module holds
+  such a declaration unwalked, and fails if the four do not all run with the
   same first-party prefixes, and if any of them invokes the audit more than
   once or in a form the prefix check cannot read; and
   `scripts/check-audit-negatives.sh`, which plants one declaration for each
@@ -223,9 +227,7 @@ excludes it.
   real `generate`/`encapsulate1` need since they fill their randomness from
   it; `step_send_no_panic`, `send_no_panic`, `step_send_refines` and
   `Braid.send_refines` take it for the RNG they are handed. What remains
-  stronger than the Rust is listed where it belongs: `TripleT1.lean`'s
-  seventeen unconditional cross-crate totals (under the Triple Ratchet,
-  below); `BraidT1.lean`'s five totals over the erasure coder
+  stronger than the Rust is listed where it belongs: `BraidT1.lean`'s five totals over the erasure coder
   (`EncoderNewTotal`, `EncoderNextChunkTotal`, `DecoderNewTotal`,
   `DecoderAddChunkTotal`, `DecoderMessageTotal`), which are the same
   shape, since the erasure crate's own theorems about `next_chunk`,
@@ -774,11 +776,11 @@ table's contents needs. `SpqrT3.lean` keeps both bounds for the model's
 reason rather than the code's: `Model.SparseRatchet` counts in `Nat`, so at
 the ceiling the real code's `ChainExhausted` has nothing to refine against,
 exactly as `BraidT3.lean` keeps its `hepoch` where `BraidT1.lean` dropped
-it. `TripleT3.lean`'s `SpqrAgreesFor` restates those preconditions, at the
-reserved ceiling's `epoch + 1 < u64::MAX`, and so keeps them too -- but by
-hand: it is written afresh, never applied from the leaf, so nothing in the
-build holds the two in step. They drifted once already, when the leaves
-tightened and the bundle did not.
+it. The Triple Ratchet's refinement keeps them too, through its sparse
+bundle, at the reserved ceiling's `epoch + 1 < u64::MAX`. On the three-leaf unit
+that bundle is proved from `UnitSpqrT3.lean`'s theorems, so a clause asking less
+than they need would not build. While the bundle was only assumed, on the Triple
+translated alone, it drifted from the leaves once.
 
 **`tacenta-triple` has T3, against a composed model of its own.**
 `Model.TripleRatchet.lean` carries `splitSecret`/`combine`, the two
@@ -788,50 +790,25 @@ real crate's clone-candidate-commit shape (`receive` returns a candidate
 state without mutating its input; `commit` is a separate, near-trivial step,
 so that state never advances on an unauthenticated message).
 
-**The two inner ratchets' own T3 proofs cannot be imported into this file,
-and it is a real toolchain limit, not a style choice.** `Translation/T3.lean`'s
-and `Translation/SpqrT3.lean`'s own `send_refines`/`receive_refines` cannot be
-composed directly, the way `TripleT1.lean` composes their totality facts.
-`import Translation.TacentaTriple` together with either inner crate's own
-standalone translation fails outright: Charon translates each crate
-separately, and `tacenta_ratchet.State`/`tacenta_spqr.State` are each a
-**bare opaque axiom** inside `tacenta-triple`'s own translation (Charon
-translating that crate alone has no visibility across the crate boundary
-into either dependency's real struct), where the same names are concrete,
-field-bearing structures in each crate's own standalone translation --
-different declarations sharing a name, and the auto-generated instances
-collide if both are imported into one file. There is also no field to
-project even where the collision is set aside: a `StateR`-style relation
-needs fields that are not visible from here.
-
-So, in `TripleT3.lean`, `RatchetAgreesFor`/`SpqrAgreesFor` each bundle
-one existential abstraction function under which `clone`, both initialisers,
-the small accessors, `send`, and `receive` agree with the corresponding
-model function -- the same bundled-existential shape `BraidT3.lean`'s
-`KemAgreesFor` already uses, for a different reason: a KEM is uninterpreted
-by design, where each inner ratchet's `send` and `receive` are already proven
-in its own file and unreachable from this one by a translation limit, not by
-design. Stated plainly, because the shape invites a stronger reading than it
-deserves: some clauses of these bundles do restate a leaf theorem, and
-others -- both `clone`s, the small accessors, and the sparse ratchet's two
-initialisers -- restate nothing, because no refinement theorem for them
-exists anywhere in the translation. Even the clauses that do restate a leaf
-are strictly stronger than it, because they assert their refinement
-unconditionally where the leaf proves it only under that crate's own
-boundary hypotheses (`HmacAgrees`, `HkdfAgrees`, `SpqrHkdfAgrees`, the
-`Zeroizing` round trips, the `Vec` agreements, `DerivedKeysModel`), none of
-which has a clause here. So these are cryptographic trust assumptions too,
-not merely structural ones, and the correspondence with the leaves is
-maintained by hand: each bundle is a `def ... : Prop` written afresh, never
-an application of the leaf theorem, so Lean has nothing to compare and a
-build cannot catch a drift between them. One such drift has already
-happened, when the leaves tightened their counter bounds by a step and the
-bundles kept the older, weaker ones.
+**Its T3 is proved on the three-leaf unit, and its history explains the
+shape.** On the Triple translated on its own, both inner states were bare opaque
+axioms and the inner ratchets' own refinement theorems could not be imported
+beside it, so the proof about that translation, `TripleT3.lean`, had to assume
+two hand-written bundles, `RatchetAgreesFor`/`SpqrAgreesFor`: an abstraction under
+which `clone`, both initialisers, the small accessors, `send` and `receive` agree
+with the model. They were stronger than the leaves, carrying none of their
+boundary hypotheses, and held to the leaf theorems by eye and by a textual drift
+checker. `Translation/UnitTripleT3.lean` states the same theorems on the unit,
+where the inner states are concrete, and proves both bundles from the unit's
+copies of the inner refinements; the standalone translation, `TripleT3.lean` and
+the checker were deleted after 2a89a7f. What remains assumed is the inner
+refinements' own boundary, stated explicitly; "The Triple's refinement is on the
+unit" below gives the details.
 
 **`receive_refines` claims the success case only, and that traces back to
 `T3.lean`'s own claim, not a new gap.** `Translation/T3.lean`'s
 `receive_refines` for the classical ratchet states no failure-branch fact at
-all, so there is nothing for `TripleT3.lean`'s own `receive_refines` to
+all, so there is nothing for `UnitTripleT3.lean`'s `receive_refines` to
 compose a triple-level failure claim from.
 
 **`send_refines`'s failure branch is not symmetric between the two
@@ -854,9 +831,10 @@ classical `ChainExhausted` failure -- the same finite-width boundary
 `SpqrAgreesFor`'s analogous clause is unconditional and genuinely holds:
 `hcounter` already rules out the post-quantum counter's own exhaustion.
 
-One assumption is genuinely this crate's own: `TripleHkdfAgrees`, at the one
-opaque primitive `split_secret`/`combine` call that is not just the two
-ratchets' public calling surface.
+The one opaque primitive `split_secret`/`combine` call that is not the two
+ratchets' public calling surface is `hkdf_sha256`. Its agreement,
+`TripleHkdfAgrees`, is on the unit the same proposition as the classical
+ratchet's `HkdfAgrees`.
 
 **`tacenta-braid` has T1 for its whole public surface, not just its one
 loop.** The eleven-state machine's `step_send` and `step_receive`, their entry
@@ -1092,54 +1070,34 @@ caps do.
 **Two leaf crates proved is not the whole agreement**, since `tacenta-triple`
 is the crate that actually composes them with the classical ratchet.
 
-**`tacenta-triple` is translated, and carries its T1 proofs.**
-`run-aeneas.sh` stages it alongside the other six leaf crates, and it carries
-no `sorry` and no body Aeneas gave up on, the same bar the rest of this list
-holds to.
+**`tacenta-triple` is translated inside the three-leaf unit, and carries its T1
+proofs there.** `run-aeneas.sh` does not translate it on its own; it translates
+`tacenta-core/triple-unit`, the Triple and both inner ratchets compiled as one
+crate ("The three-leaf translation unit" below), which carries no `sorry` and no
+body Aeneas gave up on, the same bar the rest of this list holds to.
 
 **Translated is mostly proved.** `State.send`, `State.receive`,
 `State.commit`, the two constructors, the clone, the accessors,
-`split_secret` and `combine` carry T1 theorems (`TripleT1.lean`). Seven
-public functions do not: `classical_skipped_len`,
-`post_quantum_skipped_len`, `post_quantum_receive_count`,
+`split_secret` and `combine` carry T1 theorems (`UnitTripleT1.lean`), and so do
+`classical_skipped_len`, `post_quantum_skipped_len` and
+`post_quantum_receive_count`. Four public functions do not:
 `evict_oldest_classical`, `evict_oldest_post_quantum`, `to_bytes` and
-`from_bytes`, and the session calls all seven, from its eviction loop and its
+`from_bytes`, and the session calls all four, from its eviction loop and its
 persistence path
 (`tacenta-core/src/sessions/lifecycle.rs`). Neither the classical ratchet's own
 `receive_no_panic` nor the sparse ratchet's `send_no_panic`/`receive_no_panic`
 said anything about what happens when the two are composed, and the
 composition is what ships since the triple-ratchet integration -- this is that composition's
-own proof. No precondition beyond totality is stated anywhere in it: this
-crate never touches a vector, a chain, or a counter directly, only the two
-ratchets that do, through their public calling surface, so it carries no room
-or counter bound of its own to state. Twenty opaque-operation assumptions
-back it, seventeen of them totality claims about `tacenta_ratchet.State` or
-`tacenta_spqr.State` treated as opaque, the other three this crate's own
-copies of the KDF, `Zeroize` and `Zeroizing`-wrapper axioms (the last new
-with CR-15, since `split_secret` now wipes its expansion on the way out).
+own proof. It carries four preconditions, all about the inner ratchets' sizes,
+and they land on the untranslated session layer ("Four preconditions land
+outside the translated tree" below).
 
-**And that is the gap, in two parts.** First, those seventeen are stated
-*unconditionally* -- "for every state, `receive` returns" -- while the leaf
-theorems that correspond to them carry preconditions (`hs` in `T1.lean`;
-`hroom` and `hskiproom` in `SpqrT1.lean`). Second, most of
-the seventeen correspond to no leaf theorem at all. Six do:
-`RatchetSendTotal`, `RatchetReceiveTotal`, `SpqrSendTotal` and
-`SpqrReceiveTotal` echo the two leaf files' `send_no_panic` and
-`receive_no_panic`, and `RatchetInitSenderTotal` and
-`RatchetInitReceiverTotal` echo `T3.lean`'s `init_sender_refines` and
-`init_receiver_refines`. The other eleven have nothing to point at. Six of
-them are one-line bodies in the leaf translations -- the `sending_public`,
-`send_count`, `receive_count` and `epoch` projections, and the derived
-`PartialEq` instances on `RatchetError` and `SpqrError` -- and five are
-real if small obligations: `Header`'s derived `PartialEq`
-(`Header.Insts.CoreCmpPartialEqHeader.eq` in `TacentaRatchet.lean`, a
-nested conditional on `pn` and `n` that ends in the array equality on
-`dh`), both `State` clones, `init_alice` and `init_bob`. The Triple T1 result therefore rests on assumptions stronger
-than anything proved, several of them about operations no leaf file has a
-theorem for, and unprovable as stated in the Aeneas model. `TripleT3.lean`
-carries the leaf preconditions verbatim and is not affected by the first
-part; restating `TripleT1.lean` the same way, and giving the eleven their
-leaf theorems, is open work.
+**The gap the standalone proof had is closed on the unit.** Proved about the
+Triple translated on its own, the same theorems rested on seventeen
+unconditional totality bundles about the inner ratchets, stronger than any leaf
+theorem and several about operations no leaf file proved anything about. The
+unit proves all seventeen under the leaves' real preconditions, and that
+standalone proof was deleted after 2a89a7f.
 
 **So the session's send and receive path has a claim resting under it, at
 the crate that actually carries it.** `Session::encrypt` and
@@ -1446,17 +1404,17 @@ stating rather than folding into the general list:
 workspace, and no shipping path reaches it. No shipping crate depends on it, it
 exports nothing anyone calls, and deleting it would change no behaviour that
 anybody observes. It exists to be translated and proved about, and proofs do
-depend on it: `Translation/UnitT1.lean`, `Translation/UnitSpqrT1.lean`,
-`Translation/UnitTripleT1.lean` and `Translation/UnitPins.lean` are all
-statements about its constants.
+depend on it: every `Translation/Unit*.lean` file is a statement about its constants, and the
+Triple Ratchet's T1 and T3 are proved nowhere else.
 
 **What it is for.** Translating `tacenta-core/triple` on its own gives Aeneas
 three crates and lets it see one. The Double Ratchet's and the sparse ratchet's
 operations arrive as opaque externals -- thirty-five axioms -- so the Triple's
-T1 assumes exactly what the leaves' own T1 proves, and the two halves are
-joined by hand in the bundle clauses that `check-bundle-drift.py` compares
-against the leaf theorems. That comparison is a check on a hand-written link,
-not a proof that there is no link to write. The unit removes the need for one:
+T1 on that translation had to assume exactly what the leaves' own T1 proves, and
+its T3 joined the two halves by hand in bundle clauses a script compared against
+the leaf theorems. That comparison was a check on a hand-written link, not a
+proof that there is no link to write. The unit removes the need for one, and the
+standalone translation and those proofs were deleted after 2a89a7f:
 it presents the three leaves to Aeneas as three modules of one crate, so the
 leaf operations translate to definitions and the Triple's bodies call them
 directly. The thirty-five axioms go, and the unit declares nineteen, exactly
@@ -1513,37 +1471,29 @@ as the leaves' -- the instances collide -- which is why it has an axiom audit
 module of its own, `Translation/AxiomAuditTripleUnit.lean`, and why the two
 worlds stay separate.
 
-**The Triple's own T1 is now proved on the unit, and this is duplication
-rather than replacement.** `Translation/UnitTripleT1.lean` restates
-`TripleT1.lean` about the unit and **proves** all seventeen of the `*Total`
-bundles `TripleT1.lean` assumes, from the two leaf theorems above. That is what
-the unit exists for, and for `TripleT1` it is done.
+**The Triple's own T1 and T3 are proved on the unit, and they replaced the
+standalone proofs.** `Translation/UnitTripleT1.lean` **proves** all seventeen of
+the `*Total` bundles the standalone `TripleT1.lean` assumed, from the two leaf
+theorems above, and `Translation/UnitTripleT3.lean` proves the two refinement
+bundles the standalone `TripleT3.lean` assumed. That is what the unit exists
+for. The standalone translation, those two files, their satisfiability
+witnesses, their axiom audit module and the script that compared the refinement
+bundles with the leaf theorems by text were deleted after 2a89a7f.
 
-`TripleT1.lean` nevertheless still exists and still assumes those seventeen
-bundles, and will keep doing so. `TripleT3.lean` and
-`SatisfiabilityTriple.lean` depend on its definitions, and they are in the
-other island: the unit's translation cannot share a Lean environment with the
-leaves', so deleting `TripleT1.lean` would take those two files with it. Both
-files are in the tree, saying overlapping things about the same Rust. `TripleT3`
-is untouched by this and still rests on the hand-written bundle clauses that
-`check-bundle-drift.py` compares against the leaf theorems.
-
-**And the duplicate can drift, unlike the leaves' copies.**
+**The Triple's unit proofs are hand-written, unlike the leaves' copies.**
 `Translation/UnitT1.lean` and `Translation/UnitSpqrT1.lean` are generated and
 diffed in CI, so an edit to a leaf that is not carried across fails the build.
-`Translation/UnitTripleT1.lean` is hand-written and cannot be generated:
-`port-unit-proofs.sh` assumes a leaf proof never writes a translated name in
-qualified form, and `TripleT1.lean` writes forty-nine of them, on top of
-proof bodies that genuinely change (roughly twenty newly-in-scope `@[step]`
-rules mean several bodies need pruning rather than substitution, and three of
-`TripleT1.lean`'s boundary assumptions collapse into the leaves'). So nothing
-mechanical holds the two Triple files to each other. An edit to `TripleT1.lean`
-that is not mirrored will pass CI. That is a real gap and this paragraph is the
-disclosure of it.
+`UnitTripleT1.lean` and `UnitTripleT3.lean` could not be generated: they began
+as `TripleT1.lean` and `TripleT3.lean`, which wrote translated names in qualified
+form (forty-nine in `TripleT1.lean`), and their proof bodies genuinely changed
+(roughly twenty newly-in-scope `@[step]` rules meant pruning rather than
+substitution, and several boundary assumptions collapsed into the leaves'). With
+the originals deleted there is nothing for them to drift from; they are ordinary
+hand-written proofs.
 
 **Four preconditions land outside the translated tree.** Proving the bundles
 instead of assuming them means carrying the leaves' real preconditions, which
-`TripleT1.lean`'s unconditional bundles hide: `State.send` on the unit needs
+the standalone proof's unconditional bundles hid: `State.send` on the unit needs
 `self.post_quantum.chains.length + 1 < Usize.max`, and `State.receive` needs
 `max self.classical.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val ≤ Usize.max`,
 `self.post_quantum.chains.length + 2 < Usize.max` and
@@ -1562,7 +1512,7 @@ in the low thousands.
 
 **The satisfiability guard is narrower than it reads, and the gap is where
 this tree's worst defect lived.** `Translation/Satisfiability.lean` and
-`Translation/SatisfiabilityTriple.lean` exhibit a witness for a boundary
+`Translation/UnitSatisfiabilityTriple.lean` exhibit a witness for a boundary
 assumption, and for several also prove that the over-broad version of the same
 assumption admits no implementation at all. That is a real guard against
 assuming something nothing could satisfy. What it covers is the *opaque
@@ -1656,17 +1606,17 @@ checked hypothesis by hypothesis.
 Transporting them to `self` is free only because the clone is provably the
 identity on the unit -- every field is an array, a scalar, an `Option` under
 `OptionCloneTotal`, or a `Vec` whose elements clone as the identity.
-`TripleT1.State.clone_no_panic` proves only that the clone returns, which is
-all it can prove where the inner states are opaque, so on that side a
-precondition could not be transported at all.
+The standalone `TripleT1.State.clone_no_panic` proved only that the clone
+returns, which was all it could prove where the inner states were opaque, so
+there a precondition could not be transported at all.
 
 **And the composed `receive` stops being kernel-only.**
-`Tacenta.TripleT1.State.receive_no_panic` depends on twelve axioms, none of
-them compiler-trusted. The ported theorem depends on eighteen and inherits
+The standalone `Tacenta.TripleT1.State.receive_no_panic` depended on twelve
+axioms, none of them compiler-trusted, measured before its deletion. The ported theorem depends on eighteen and inherits
 `Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`. The reason
-is not a weaker proof: the current theorem is kernel-only because it *assumes*
-the sparse ratchet's receive is total rather than proving it, so its
-kernel-only status is bought by assuming the hard part. The ported one proves
+is not a weaker proof: the standalone theorem was kernel-only because it
+*assumed* the sparse ratchet's receive is total rather than proving it, so its
+kernel-only status was bought by assuming the hard part. The ported one proves
 that part and inherits the one compiler-trusted numeric fact that proof rests
 on. The six extra axioms are a substitution rather than a new kind of trust --
 the bare operation axioms are replaced by KDF, `zeroize` and `Vec` boundary
@@ -1713,9 +1663,9 @@ proof terms already name different auxiliary constants from their leaves': where
 from the classical crate that Lean reuses because it is the same term.
 
 **The Triple's refinement is on the unit, with both bundles proved.**
-`Translation/UnitTripleT3.lean` restates `TripleT3.lean` about the unit, and
-`Translation/UnitSatisfiabilityTriple.lean` ports its two satisfiability witnesses
-and witnesses the inner boundary its discharged theorems take. On the unit, the hand-written bundles `TripleT3.lean` has to assume,
+`Translation/UnitTripleT3.lean` proves the Triple's refinement on the unit, and
+`Translation/UnitSatisfiabilityTriple.lean` holds the Triple's two satisfiability witnesses
+and witnesses the inner boundary its discharged theorems take. On the unit, the hand-written bundles the standalone `TripleT3.lean` had to assume,
 `RatchetAgreesFor` and `SpqrAgreesFor`, are proved. The inner states are
 concrete, each inner refinement relation fixes every field of its model state so
 the abstraction can be written down, and every clause follows from a unit theorem
@@ -1725,7 +1675,7 @@ bundles discharged. What that does and does not buy:
 
 * **Most of the trust-base change is the unit translation's, not the
   discharge's.** Measured on 2026-09-10 with `#print axioms`:
-  `TripleT3.send_refines` rests on sixteen opaque declarations of the inner
+  the standalone `TripleT3.send_refines` rested on sixteen opaque declarations of the inner
   crates, the two state types and fourteen calls. On the unit those calls are
   defined, so `UnitTripleT3.send_refines`, with the bundles still as hypotheses,
   already rests on none of them, and on the external primitives the inner
@@ -1734,8 +1684,8 @@ bundles discharged. What that does and does not buy:
   Discharging the bundles adds exactly the eight `native_decide` axioms
   `UnitSpqrT3.lean` carries, and nothing else; the same holds for `receive`.
   `UnitPins.lean` pins all four new theorems.
-* **There are more hypotheses, not fewer**, because the standalone theorems hide
-  the inner boundary inside the bundles, and `TripleT3.lean`'s header says so. One
+* **There are more hypotheses, not fewer**, because the standalone theorems hid
+  the inner boundary inside the bundles, as the standalone file's header said. One
   HKDF agreement serves all three crates, and the general `ZeroizeTotal` gives the
   Triple's narrow one, so neither is listed twice. Proving the classical `clone`
   clause needs `OptionCloneTotal`. Each bundle covers its ratchet's whole calling
@@ -1756,15 +1706,15 @@ bundles discharged. What that does and does not buy:
   `Satisfiability.lean` witnesses their shared-constant hypotheses one at a time
   (`T3.lean` takes both `ZeroizingRoundTrips` and `T1.DerivedKeysModel` about one
   wrapper, and the sparse ratchet's two round trips share one too).
-* **The port is hand-written.** It differs from `TripleT3.lean` in more than names,
-  and its header lists each difference. Three stepping-rule erasures keep the
+* **The port is hand-written.** It began as `TripleT3.lean` and differs from it in
+  more than names; its header lists each difference against that file as of
+  2a89a7f. Three stepping-rule erasures keep the
   original proofs elaborating: one retargeted from the original, and two for rules
-  `UnitTripleT1.lean` registers that `TripleT1.lean` never did. Nothing but a
-  reader checks that the two files keep saying the same thing.
-* **The original island still stands.** `TacentaTriple.lean`, `TripleT1.lean`,
+  `UnitTripleT1.lean` registers that `TripleT1.lean` never did.
+* **The standalone proofs are gone.** `TacentaTriple.lean`, `TripleT1.lean`,
   `TripleT3.lean`, `SatisfiabilityTriple.lean`, `AxiomAuditTriple.lean` and the
-  bundle drift checker are still built and checked. Whether to delete them, now
-  that the unit covers what they cover, is a decision this change does not make.
+  bundle drift checker were deleted after 2a89a7f. The comparisons above with
+  `TripleT3.send_refines` were measured before that.
 
 **The ten waived compiler-trust axioms are here.** Putting all three leaves'
 types in one module makes seven string literals occur more than once across
@@ -2172,7 +2122,8 @@ classical agreement alone.
 
 What is *not* done for that integration is separate and open: proofs about
 `Session::encrypt`/`Session::decrypt` themselves, the orchestration around
-the crates. `TripleT1.lean` and `TripleT3.lean` cover the composition; only
+the crates. `UnitTripleT1.lean` and `UnitTripleT3.lean` cover the composition, on
+the three-leaf unit; only
 the session-layer orchestration remains uncovered.
 
 Optional variants such as the Double Ratchet's header-encryption mode are out of
