@@ -225,8 +225,8 @@ def strip_pins(text, origin, expected, prose):
     UnitPins.lean, against the unit's own names.
 
     `expected` is how many this file carries. `T1.lean` and `T3.lean` pin
-    three headline theorems each; `SpqrT1.lean` and `SpqrT3.lean` pin none of
-    their own. Either number changing is a change to what the repository
+    three headline theorems each; `SpqrT1.lean` and `SpqrT3.lean` pin their two
+    entry points each. Either number changing is a change to what the repository
     treats as load-bearing, so it fails here and the author decides where the
     unit's version of the new pin belongs.
 
@@ -392,10 +392,10 @@ JOBS = [
     dict(
         origin="SpqrT1.lean",
         dest="UnitSpqrT1.lean",
-        pins=0,
+        pins=2,
         prose={},
-        note="SpqrT1.lean pins nothing of its own; Translation/UnitPins.lean "
-             "pins this\n-- copy's `receive_no_panic`.",
+        note="SpqrT1.lean's two pins are restated against this copy's names in\n"
+             "-- Translation/UnitPins.lean.",
         subs=[
             (r"^import Translation\.TacentaSpqr$",
              "import Translation.TacentaTripleUnit", 1),
@@ -404,7 +404,7 @@ JOBS = [
             (r"^end Tacenta\.SpqrT1$", "end Tacenta.UnitSpqrT1", 1),
             (r"^open tacenta_spqr$",
              "open tacenta_triple_unit tacenta_triple_unit.tacenta_spqr", 1),
-        ] + renames(0, 0, 0, 0),
+        ] + renames(0, 4, 0, 0),
     ),
     # `T3.lean` is the classical ratchet's refinement of the model. It opens one
     # name from the panic-freedom namespace, which moves with it. Its other 45
@@ -434,8 +434,8 @@ JOBS = [
              "open Tacenta.UnitT1 (DerivedKeysModel)", 1),
         ] + renames(45, 0, 6, 0),
     ),
-    # `SpqrT3.lean` is the sparse ratchet's refinement. It pins nothing of its
-    # own. Its eleven qualified `tacenta_spqr.*` references, to six names, are
+    # `SpqrT3.lean` is the sparse ratchet's refinement. Its four references to
+    # `Tacenta.SpqrT3.` are inside its two pins. Its eleven qualified `tacenta_spqr.*` references, to six names, are
     # left as written: under `open tacenta_triple_unit` they resolve to the
     # unit's constants, as the qualified names in `UnitTripleT1.lean` do.
     #
@@ -452,13 +452,13 @@ JOBS = [
     dict(
         origin="SpqrT3.lean",
         dest="UnitSpqrT3.lean",
-        pins=0,
+        pins=2,
         prose={
             "neither `lake build` nor `#print axioms` can flag. "
             "`ChainCounterBounded`,": 1,
         },
-        note="SpqrT3.lean pins nothing, and nothing pins this copy; the unit's "
-             "axiom\n-- audit walks it.",
+        note="SpqrT3.lean's two pins are restated against this copy's names in\n"
+             "-- Translation/UnitPins.lean.",
         subs=[
             (r"^import Translation\.TacentaSpqr$",
              "import Translation.TacentaTripleUnit", 1),
@@ -482,7 +482,7 @@ JOBS = [
              "-- and they are left. The removal is local to this file: a module that\n"
              "-- imports it has the rule back.\n"
              "attribute [-step] Tacenta.UnitT1.zeroizing_deref_step", 1),
-        ] + renames(0, 24, 0, 0),
+        ] + renames(0, 24, 0, 4),
     ),
 ]
 

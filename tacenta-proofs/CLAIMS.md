@@ -515,6 +515,11 @@ reason (it counts in `Nat`), as that section says.
   a remote denial of service, for this one leaf crate. `tacenta-triple`, which
   composes this with the classical ratchet above, is translated and proved
   (see below).
+- `send_no_panic` and `receive_no_panic` are pinned under `#guard_msgs` at the
+  end of the file. `receive_no_panic` is not kernel-only: besides the crate's
+  opaque-operation axioms it carries
+  `SpqrT1.receive_no_panic._native.native_decide.ax_1_1`, one closed numeric
+  fact in its proof settled by `native_decide`.
 - Seven opaque-operation assumptions back these theorems (`VecRemoveTotal`,
   stated under the index guard `i.val < v.val.length →` and discharged from
   the skipped-key scan's own loop check; `KdfCkTotal`, `ZeroizeTotal`,
@@ -578,6 +583,9 @@ Location: `tacenta-proofs/translation/Translation/BraidT1.lean`.
   sums two independently-capped values at one call site, and two facts each
   "under `Usize.max`" do not compose the way two concrete caps do. See
   `BraidT1.lean`'s own closing section for the full list.
+- `Braid.send_no_panic` and `Braid.receive_no_panic` are pinned under
+  `#guard_msgs` at the end of the file, to the kernel's three axioms and the
+  crate's opaque constants; no `native_decide` reaches either.
 
 ## Proved: what a decoded state satisfies
 
@@ -848,10 +856,11 @@ in CI, so the copies cannot drift from the originals in either direction.
 - `Tacenta.UnitT1.send_no_panic`: likewise for the classical ratchet's send.
 - `Tacenta.UnitT1.receive_no_panic`: likewise for receive, under exactly the
   hypotheses the leaf theorem takes.
+- `Tacenta.UnitSpqrT1.send_no_panic`: likewise for the sparse ratchet's send.
 - `Tacenta.UnitSpqrT1.receive_no_panic`: likewise for the sparse ratchet's
   receive.
 
-**What the pins add, which is the reason to have them.** Each of the four is
+**What the pins add, which is the reason to have them.** Each of the five is
 pinned in `UnitPins.lean`, and each base is the leaf theorem's base name for
 name, with `tacenta_triple_unit.` in front of every translated axiom and
 nothing else changed. That is a statement about the printed lists. A leaf file opens its
@@ -863,7 +872,7 @@ leaf assumed has quietly become a definition, and no proof that was kernel-only
 has become compiler-trusted. `Tacenta.UnitSpqrT1.receive_no_panic` carries
 `Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1`, the same
 compiler-trust axiom its leaf twin carries and for the same closed numeric
-fact; it is the one of the four that is not kernel-only, in the unit as in the
+fact; it is the one of the five that is not kernel-only, in the unit as in the
 leaf.
 
 **What these do not do on their own.** They say nothing about the composition:
@@ -1009,10 +1018,15 @@ the copy.
 - `Tacenta.UnitT3.receive_refines`: likewise for receive, under the hypotheses
   `T3.receive_refines` takes.
 - `Tacenta.UnitT3.message_keys_refines`: likewise for the message-key expansion.
+- `Tacenta.UnitSpqrT3.send_refines` and `Tacenta.UnitSpqrT3.receive_refines`:
+  the sparse ratchet's two refinements, compiled inside the unit, under the
+  hypotheses `SpqrT3.send_refines` and `SpqrT3.receive_refines` take.
 
 Each is pinned in `UnitPins.lean`, and each prints exactly the axioms its leaf
 twin prints, name for name, with `tacenta_triple_unit.` in front of every
-translated axiom and nothing else changed. That is a statement about the printed lists. A leaf file opens its
+translated axiom, each `native_decide` axiom of the two sparse refinements named
+under the unit's copy of the lemma that carries it in the leaf, and nothing else
+changed. That is a statement about the printed lists. A leaf file opens its
 crate's namespace, so its pins print a translated axiom without the
 crate's own prefix -- `tacenta_kdf.hmac_sha256` for what is fully
 `tacenta_ratchet.tacenta_kdf.hmac_sha256` -- and the underlying names
@@ -1358,6 +1372,9 @@ What a reader has to grant:
   transitions at all, where before it was constructible in principle by
   2^64 - 1 of them. It is still not a clause of `invariant`, and it is one
   step short of `hepoch` in any case, so `hepoch` stays a hypothesis.
+- `Braid.send_refines` and `Braid.receive_refines` are pinned under
+  `#guard_msgs` at the end of the file, to the kernel's three axioms and the
+  crate's opaque constants; no `native_decide` reaches either.
 - **Carried over from T1, new with CR-15:** `ZeroizingArrayRoundTrip`,
   `ArrayZeroizeTotal` and `RangeFullIndexTotal`, `BraidT1.lean`'s own copies
   of the `zeroize` wrapper's round trip, the in-place wipe, and the
@@ -1500,8 +1517,8 @@ Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
   step inside `receive_refines_continuation` (that `(1 : U64)` has value
   one). `LIMITATIONS.md`'s count of `native_decide` uses in this file is one
   higher because it includes `chain_start_agrees`, which neither entry point
-  depends on. Read off `#print axioms` by hand; this file's theorems are not
-  yet pinned under `#guard_msgs`.
+  depends on. Both are pinned under `#guard_msgs` at the end of the file with
+  exactly these lists.
 - **Carried over from T1 unchanged:** `Tacenta.SpqrT1.ZeroizeTotal` and
   `Tacenta.SpqrT1.OptionCloneTotal`, since neither the buffer wipe nor the
   direction clone is ever read back from, only required to complete.

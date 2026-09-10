@@ -590,4 +590,44 @@ Aeneas becomes one assumption per translated crate that touches it, and a list
 naming `VecRemoveTotal` once while two crates assume it understates what is
 trusted. -/
 
+-- The trust base of the two entry points, held by the build. The copy of this
+-- file generated onto the three-leaf unit leaves these out; `UnitPins.lean`
+-- restates them against the unit's names. `receive_no_panic` is not
+-- kernel-only: one closed numeric fact in its proof is settled by `native_decide`.
+
+/--
+info: 'Tacenta.SpqrT1.send_no_panic' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kdf.hkdf_sha256,
+ zeroize.Zeroizing,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ alloc.vec.Vec.retain,
+ zeroize.Zeroize.Blanket.zeroize,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ core.option.Option.Insts.CoreCloneClone.clone]
+-/
+#guard_msgs in
+#print axioms Tacenta.SpqrT1.send_no_panic
+
+/--
+info: 'Tacenta.SpqrT1.receive_no_panic' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kdf.hkdf_sha256,
+ zeroize.Zeroizing,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ alloc.vec.Vec.append,
+ alloc.vec.Vec.remove,
+ alloc.vec.Vec.retain,
+ zeroize.Zeroize.Blanket.zeroize,
+ receive_no_panic._native.native_decide.ax_1_1,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ core.option.Option.Insts.CoreCloneClone.clone]
+-/
+#guard_msgs in
+#print axioms Tacenta.SpqrT1.receive_no_panic
+
 end Tacenta.SpqrT1
