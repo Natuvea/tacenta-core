@@ -4,7 +4,8 @@
 --
 -- This is SpqrT1.lean restated about the three-leaf translation unit, whose
 -- constants are different constants from the ones SpqrT1.lean is about. Only the
--- import, the namespace and the `open` differ; every proof is the same text.
+-- imports, the namespace and the `open` differ, plus any stepping-rule erasure
+-- this script inserts and explains beside it; every proof body is the same text.
 -- The `#print axioms` pins are in Translation/UnitPins.lean.
 
 import Translation.TacentaTripleUnit

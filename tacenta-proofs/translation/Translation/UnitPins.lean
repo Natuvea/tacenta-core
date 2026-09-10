@@ -1,5 +1,6 @@
 import Translation.UnitT1
 import Translation.UnitSpqrT1
+import Translation.UnitT3
 import Translation.UnitTripleT1
 
 /-!
@@ -219,3 +220,54 @@ info: 'Tacenta.UnitTripleT1.State.post_quantum_receive_count_no_panic' depends o
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitTripleT1.State.post_quantum_receive_count_no_panic
+
+/-! ## The classical ratchet's refinement, restated about the unit
+
+`Translation/UnitT3.lean` is `T3.lean` generated onto the three-leaf unit by
+`scripts/port-unit-proofs.sh`. The three theorems `T3.lean` pins are pinned
+here. Each prints exactly the axioms its leaf twin prints, name for name, with
+`tacenta_triple_unit.` in front of every translated axiom and nothing else
+changed. `send_refines` wraps onto several lines here where the leaf's fits on
+one, only because the longer names push it past the pretty-printer's width. -/
+
+/--
+info: 'Tacenta.UnitT3.send_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_triple_unit.tacenta_kdf.hmac_sha256]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitT3.send_refines
+
+/--
+info: 'Tacenta.UnitT3.receive_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_triple_unit.tacenta_kdf.hmac_sha256,
+ tacenta_triple_unit.zeroize.Zeroizing,
+ tacenta_triple_unit.zeroize.Zeroizing.new,
+ tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.alloc.vec.Vec.remove,
+ tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
+ tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitT3.receive_refines
+
+/--
+info: 'Tacenta.UnitT3.message_keys_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_triple_unit.zeroize.Zeroizing,
+ tacenta_triple_unit.zeroize.Zeroizing.new,
+ tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitT3.message_keys_refines

@@ -98,7 +98,8 @@ NOTE = """\
 --
 -- This is {origin} restated about the three-leaf translation unit, whose
 -- constants are different constants from the ones {origin} is about. Only the
--- import, the namespace and the `open` differ; every proof is the same text.
+-- imports, the namespace and the `open` differ, plus any stepping-rule erasure
+-- this script inserts and explains beside it; every proof body is the same text.
 -- The `#print axioms` pins are in Translation/UnitPins.lean.
 
 """
@@ -147,7 +148,12 @@ def strip_pins(text, origin, expected):
             f"changes what is claimed; UnitPins.lean has to be updated to "
             f"match, and then this count.\n")
         sys.exit(1)
-    if "#guard_msgs" in text or "#print axioms" in text:
+    # Only a line that begins with the command is a pin. Prose may name
+    # `#print axioms` -- both refinement files do, at T3.lean:1691 and
+    # SpqrT3.lean:1998 -- and a substring test refused them as leftover pins.
+    # Anchoring on the start of the line still catches a real pin in a format
+    # the strip patterns above do not match, which is what this check is for.
+    if re.search(r"^[ \t]*(?:#guard_msgs|#print axioms)\b", text, re.M):
         sys.stderr.write(
             f"port-unit-proofs: ERROR: {origin} still has a `#guard_msgs` or "
             f"`#print axioms` after the pins were removed.\n")
@@ -186,6 +192,58 @@ JOBS = [
              "open tacenta_triple_unit tacenta_triple_unit.tacenta_spqr", 1),
         ],
     ),
+    # `T3.lean` is the classical ratchet's refinement of the model. It opens one
+    # name from the panic-freedom namespace, which moves with it; its other 45
+    # references to `Tacenta.T1.` are qualified and follow the global rename
+    # below, four of them `attribute [-step]` erasures of rules `UnitT1.lean`
+    # also registers. Its three pins are restated in `UnitPins.lean`.
+    dict(
+        origin="T3.lean",
+        dest="UnitT3.lean",
+        pins=3,
+        subs=[
+            (r"^import Translation\.TacentaRatchet$",
+             "import Translation.TacentaTripleUnit", 1),
+            (r"^import Translation\.T1$", "import Translation.UnitT1", 1),
+            (r"^namespace Tacenta\.T3$", "namespace Tacenta.UnitT3", 1),
+            (r"^end Tacenta\.T3$", "end Tacenta.UnitT3", 1),
+            (r"^open tacenta_ratchet$",
+             "open tacenta_triple_unit tacenta_triple_unit.tacenta_ratchet", 1),
+            (r"^open Tacenta\.T1 \(DerivedKeysModel\)$",
+             "open Tacenta.UnitT1 (DerivedKeysModel)", 1),
+        ],
+    ),
+    # `SpqrT3.lean` is the sparse ratchet's refinement. It pins nothing of its
+    # own. Its eight qualified `tacenta_spqr.*` names are left as written: under
+    # `open tacenta_triple_unit` they resolve to the unit's constants, as the 49
+    # qualified names in `UnitTripleT1.lean` did.
+    dict(
+        origin="SpqrT3.lean",
+        dest="UnitSpqrT3.lean",
+        pins=0,
+        subs=[
+            (r"^import Translation\.TacentaSpqr$",
+             "import Translation.TacentaTripleUnit", 1),
+            (r"^import Translation\.SpqrT1$", "import Translation.UnitSpqrT1", 1),
+            (r"^namespace Tacenta\.SpqrT3$", "namespace Tacenta.UnitSpqrT3", 1),
+            (r"^end Tacenta\.SpqrT3$", "end Tacenta.UnitSpqrT3", 1),
+            (r"^open tacenta_spqr$",
+             "open tacenta_triple_unit tacenta_triple_unit.tacenta_spqr\n"
+             "\n"
+             "-- Inserted by port-unit-proofs.sh: the one line here that is neither\n"
+             "-- SpqrT3.lean's own text nor a rename. On the unit the classical and\n"
+             "-- sparse ratchets share one set of `zeroize` constants, so two stepping\n"
+             "-- rules UnitT1.lean registers for them now match goals in this file that,\n"
+             "-- in the leaf island, they could never reach. Both demand\n"
+             "-- `UnitT1.ZeroizingTotal`, which no hypothesis here provides, and both say\n"
+             "-- only that the call returned -- the reason T3.lean already removes the\n"
+             "-- projection rule for itself. Removing them restores the stepping\n"
+             "-- environment SpqrT3.lean was proved in. No statement and no proof body\n"
+             "-- changes.\n"
+             "attribute [-step] Tacenta.UnitT1.zeroizing_new_step "
+             "Tacenta.UnitT1.zeroizing_deref_step", 1),
+        ],
+    ),
 ]
 
 for job in JOBS:
@@ -195,6 +253,10 @@ for job in JOBS:
     # Qualified references to the leaf namespace, in prose and in terms.
     text = re.sub(r"(?<![\w.])Tacenta\.T1\.", "Tacenta.UnitT1.", text)
     text = re.sub(r"(?<![\w.])Tacenta\.SpqrT1\.", "Tacenta.UnitSpqrT1.", text)
+    # The refinement namespaces. Neither pattern matches inside the other, nor
+    # inside `Tacenta.TripleT3.`, since none of those contains the other's text.
+    text = re.sub(r"(?<![\w.])Tacenta\.T3\.", "Tacenta.UnitT3.", text)
+    text = re.sub(r"(?<![\w.])Tacenta\.SpqrT3\.", "Tacenta.UnitSpqrT3.", text)
     text = strip_pins(text, origin, job["pins"])
     open(os.path.join(out, dest), "w").write(NOTE.format(origin=origin) + text)
     print(f"port-unit-proofs: {dest} (from {origin})")
@@ -208,7 +270,7 @@ if [ "$check" -eq 0 ]; then
 fi
 
 fail=0
-for f in UnitT1.lean UnitSpqrT1.lean; do
+for f in UnitT1.lean UnitSpqrT1.lean UnitT3.lean UnitSpqrT3.lean; do
   if ! diff -u "$src/$f" "$tmp/$f" > /dev/null; then
     if [ "$fail" -eq 0 ]; then
       echo "port-unit-proofs: ERROR: the committed copies are not what the leaf" >&2

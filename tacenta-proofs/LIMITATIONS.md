@@ -1669,6 +1669,35 @@ the bare operation axioms are replaced by KDF, `zeroize` and `Vec` boundary
 axioms already shared with every other proof in the tree. `Translation/UnitPins.lean`
 records the whole base and `CLAIMS.md` repeats it.
 
+**The refinement layer is on the unit too, with its trust base unchanged.**
+`Translation/UnitT3.lean` and `Translation/UnitSpqrT3.lean` are `T3.lean` and
+`SpqrT3.lean` generated onto the unit by `scripts/port-unit-proofs.sh`, so the
+classical and sparse ratchets are proved to refine their models as compiled
+inside the unit, and not only as compiled alone. Measured on 2026-09-10, every
+one of the 115 public theorems in the two copies depends on exactly the axioms
+its leaf twin depends on, once each translation's crate prefix is set aside.
+The same eight compiler-trust axioms appear on both sides, and 61 of the 115
+are kernel-only on both. That comparison was run once, by a probe outside the
+tree. The pins in `UnitPins.lean` enforce it only for the three theorems
+`T3.lean` pins, so a later change could move the rest without failing a build.
+
+The sparse copy is not quite a pure copy. On the unit the two ratchets share
+one set of `zeroize` constants, so two stepping rules `UnitT1.lean` registers
+match goals in `UnitSpqrT3.lean` that, in the leaf island, they could never
+reach. One proof stopped short there, demanding `UnitT1.ZeroizingTotal`, which
+nothing in that file provides. The generator inserts a single `attribute
+[-step]` line removing those two rules, which restores the environment
+`SpqrT3.lean` was proved in; no statement and no proof body changes. It is the
+first place the unit's shared constants changed how a copied proof runs, and
+it need not be the last: any leaf rule whose target the unit now shares can
+reach a goal it could not reach before.
+
+What this does not yet do is the step the refinement copies exist for. The
+Triple's own refinement, `TripleT3.lean`, and its satisfiability witnesses are
+still stated about the Triple translated alone, and still assume what the
+leaves prove through hand-written bundles. Restating them about the unit is what
+would let the whole original Triple island be deleted, and it is not done.
+
 **The ten waived compiler-trust axioms are here.** Putting all three leaves'
 types in one module makes seven string literals occur more than once across
 their `Debug` bodies, and `decide +native` caches by statement, so ten of the

@@ -943,6 +943,37 @@ Being inside the unit does not make them fall out: the eviction loops and the
 length-prefixed framing are their own proof obligations, unrelated to the crate
 boundary this file removes.
 
+
+## Proved (tier T3, the two inner ratchets' refinements restated about the unit)
+
+Location: `tacenta-proofs/translation/Translation/UnitT3.lean`,
+`Translation/UnitSpqrT3.lean` and `Translation/UnitPins.lean`.
+
+`T3.lean` and `SpqrT3.lean` prove the classical and sparse ratchets refine their
+models, about the constants those crates' own translations declare. These are
+the same proofs, **generated** onto the three-leaf unit by
+`scripts/port-unit-proofs.sh`, which rewrites the imports, the namespace and the
+`open`, renames qualified references to the unit's copies, and copies every
+statement and proof body unchanged. `--check` regenerates and diffs in CI.
+
+The sparse copy carries one line its original does not. On the unit the two
+ratchets share one set of `zeroize` constants, so two stepping rules
+`UnitT1.lean` registers for them match goals in `UnitSpqrT3.lean` that, in the
+leaf island, they could never reach; both demand `UnitT1.ZeroizingTotal`, which
+no hypothesis there provides. The generator removes those two rules at the top
+of the copy, restoring the stepping environment `SpqrT3.lean` was proved in. It
+is the reason `T3.lean` already removes one of them for itself.
+
+- `Tacenta.UnitT3.send_refines`: `send` on the classical ratchet, compiled inside
+  the unit, refines the model's send.
+- `Tacenta.UnitT3.receive_refines`: likewise for receive, under the hypotheses
+  `T3.receive_refines` takes.
+- `Tacenta.UnitT3.message_keys_refines`: likewise for the message-key expansion.
+
+Each is pinned in `UnitPins.lean`, and each prints exactly the axioms its leaf
+twin prints, name for name, with `tacenta_triple_unit.` in front of every
+translated axiom and nothing else changed.
+
 ## Proved conditionally (tier T1, the Triple Ratchet's composed session send/receive path, on hypotheses no leaf theorem discharges)
 
 **Read the heading literally.** The theorems in this section are checked by
