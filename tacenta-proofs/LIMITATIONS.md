@@ -1638,16 +1638,20 @@ ordinary state a session reaches, and `PreconditionShapes.lean` states both
 facts beside each other. The epoch step on the sparse ratchet's refinement is
 another instance.
 
-The unit island is thinner still: nothing there has a witness of either kind.
-`UnitT1.DerivedKeysModel`'s leaf twin is witnessed and its copy is not, which
-is a straightforward port. The rest are not ports at all.
-`UnitSpqrT1.OptionCloneTotal` has no witness in either island;
-`KdfRkTotal` and `KdfCkTotal` are *derived* on the leaf side from
-`SpqrHkdfAgrees`, which is itself unwitnessed; and `KdfInitTotal` has no leaf
-twin, so calling it inherited rather than introduced is wrong. These bottom out
-in the key-derivation primitives, which are the trusted boundary and are
-assumed rather than witnessed by design -- but that reasoning should be written
-here rather than left to be inferred, and until now it was not.
+The unit island has witnesses of the first kind and none of the second.
+`UnitSatisfiabilityTriple.lean` witnesses every boundary hypothesis the Triple's
+discharged refinement takes, `UnitT1.DerivedKeysModel`,
+`UnitSpqrT1.OptionCloneTotal` and the HMAC and HKDF agreements among them; the
+passage on the Triple's refinement below lists them. On that list the leaf island
+is now the thinner one: `SpqrT1.OptionCloneTotal` and the leaves' HMAC and HKDF
+agreements have no witness there. Three of `UnitTripleT1.lean`'s totality
+hypotheses have no witness of their own but follow from witnessed ones.
+`KdfRkTotal` and `KdfCkTotal` are *derived* in `UnitSpqrT3.lean` from
+`SpqrHkdfAgrees` and the `zeroize` round trips, and `KdfInitTotal`, which has no
+leaf twin, is what `UnitSpqrT3.kdf_init_refines` gives under the same
+hypotheses, though no theorem states that step. Whether each of
+`UnitTripleT1.lean`'s other hypotheses follows from a witnessed one has not been
+checked hypothesis by hypothesis.
 
 Transporting them to `self` is free only because the clone is provably the
 identity on the unit -- every field is an array, a scalar, an `Option` under
@@ -1668,6 +1672,99 @@ on. The six extra axioms are a substitution rather than a new kind of trust --
 the bare operation axioms are replaced by KDF, `zeroize` and `Vec` boundary
 axioms already shared with every other proof in the tree. `Translation/UnitPins.lean`
 records the whole base and `CLAIMS.md` repeats it.
+
+**The refinement layer is on the unit too, with its trust base unchanged.**
+`Translation/UnitT3.lean` and `Translation/UnitSpqrT3.lean` are `T3.lean` and
+`SpqrT3.lean` generated onto the unit by `scripts/port-unit-proofs.sh`, so the
+classical and sparse ratchets are proved to refine their models as compiled
+inside the unit, and not only as compiled alone. Measured on 2026-09-10, every
+one of the 115 public theorems in the two copies depends on exactly the axioms
+its leaf twin depends on, once each translation's crate prefix is set aside.
+The same eight compiler-trust axioms appear on both sides, and 61 of the 115
+are kernel-only on both. Outside the 115 there is one difference, and it runs
+the other way: the matcher Lean generates for `maybe_advance_refines` and its
+two congruence equations depend on `propext`, `Classical.choice` and
+`Quot.sound` in `SpqrT3.lean` and on no axioms at all in `UnitSpqrT3.lean`. It
+is already there in the matcher, before any proof uses it. That comparison was
+run once, by a probe outside the tree. The pins in `UnitPins.lean` enforce it only for the three theorems
+`T3.lean` pins, so a later change could move the rest without failing a build.
+
+Neither copy is a pure copy. In both, qualified references to the leaf proofs'
+namespaces are renamed, inside statements and proof bodies as well as prose,
+and the sparse copy carries one inserted erasure. On the unit the two ratchets
+share one set of `zeroize` constants, so `UnitT1.zeroizing_deref_step`, a
+stepping rule `UnitT1.lean` registers for the classical ratchet, reaches a goal
+in `UnitSpqrT3.lean` that it cannot reach in the leaf island. One proof stopped
+short there, demanding `UnitT1.ZeroizingTotal`, which nothing in that file
+provides. The generator inserts an `attribute [-step]` line removing that rule;
+no statement and no proof body changes. Two more `UnitT1.lean` rules sit on
+constants the unit shares, and removing them as well changes no proof term, so
+they stay. The removal is scoped to the copy: a module that imports
+`UnitSpqrT3.lean` has the rule back, so the Triple's refinement, once it is on
+the unit, needs its own.
+
+This is the first place a leaf stepping rule reached a goal in a copied proof
+that it could not reach before, and it need not be the last. It is not the
+first effect of the shared constants on the copies, though. The sparse copies'
+proof terms already name different auxiliary constants from their leaves': where
+`SpqrT1.receive_no_panic` uses its own crate's `State.receive.match_1`,
+`UnitSpqrT1.receive_no_panic` uses
+`tacenta_triple_unit.tacenta_ratchet.State.started_as_sender.match_1`, a matcher
+from the classical crate that Lean reuses because it is the same term.
+
+**The Triple's refinement is on the unit, with both bundles proved.**
+`Translation/UnitTripleT3.lean` restates `TripleT3.lean` about the unit, and
+`Translation/UnitSatisfiabilityTriple.lean` ports its two satisfiability witnesses
+and witnesses the inner boundary its discharged theorems take. On the unit, the hand-written bundles `TripleT3.lean` has to assume,
+`RatchetAgreesFor` and `SpqrAgreesFor`, are proved. The inner states are
+concrete, each inner refinement relation fixes every field of its model state so
+the abstraction can be written down, and every clause follows from a unit theorem
+(`ratchet_agrees_for`, `spqr_agrees_for`). `send_refines_discharged` and
+`receive_refines_discharged` state the composed `send` and `receive` with both
+bundles discharged. What that does and does not buy:
+
+* **Most of the trust-base change is the unit translation's, not the
+  discharge's.** Measured on 2026-09-10 with `#print axioms`:
+  `TripleT3.send_refines` rests on sixteen opaque declarations of the inner
+  crates, the two state types and fourteen calls. On the unit those calls are
+  defined, so `UnitTripleT3.send_refines`, with the bundles still as hypotheses,
+  already rests on none of them, and on the external primitives the inner
+  refinements rest on instead (HMAC, the `zeroize` wrapper and trait, three `Vec`
+  operations, `Option`'s clone), with the same one `native_decide` axiom.
+  Discharging the bundles adds exactly the eight `native_decide` axioms
+  `UnitSpqrT3.lean` carries, and nothing else; the same holds for `receive`.
+  `UnitPins.lean` pins all four new theorems.
+* **There are more hypotheses, not fewer**, because the standalone theorems hide
+  the inner boundary inside the bundles, and `TripleT3.lean`'s header says so. One
+  HKDF agreement serves all three crates, and the general `ZeroizeTotal` gives the
+  Triple's narrow one, so neither is listed twice. Proving the classical `clone`
+  clause needs `OptionCloneTotal`. Each bundle covers its ratchet's whole calling
+  surface, so the `send` theorem assumes the receive path's boundary as well.
+* **Every boundary hypothesis of the discharged theorems is witnessed on the
+  unit.** `UnitSatisfiabilityTriple.lean` witnesses all twelve, about the unit's
+  constants, including the HMAC and HKDF agreements (from the model's output
+  lengths). Where two constrain one constant it witnesses them jointly: the
+  classical round trip, which is also the Triple's, the sparse round trips at 96
+  and 64 bytes and `DerivedKeysModel` all constrain one `zeroize.Zeroizing`
+  family, and `VecRemoveTotal` and `VecRemoveAgrees` both constrain `Vec::remove`.
+  The rest each constrain a constant nothing else mentions, and that their
+  separate witnesses combine is an argument in prose, not a checked one. Two
+  `example`s apply the discharged theorems to exactly the witnessed hypotheses,
+  so one added ahead of the state relation stops the build; nothing checks the
+  preconditions after it. The leaves are behind the unit here: their HMAC and HKDF
+  agreements and `SpqrT1.OptionCloneTotal` have no witness, and
+  `Satisfiability.lean` witnesses their shared-constant hypotheses one at a time
+  (`T3.lean` takes both `ZeroizingRoundTrips` and `T1.DerivedKeysModel` about one
+  wrapper, and the sparse ratchet's two round trips share one too).
+* **The port is hand-written.** It differs from `TripleT3.lean` in more than names,
+  and its header lists each difference. Three stepping-rule erasures keep the
+  original proofs elaborating: one retargeted from the original, and two for rules
+  `UnitTripleT1.lean` registers that `TripleT1.lean` never did. Nothing but a
+  reader checks that the two files keep saying the same thing.
+* **The original island still stands.** `TacentaTriple.lean`, `TripleT1.lean`,
+  `TripleT3.lean`, `SatisfiabilityTriple.lean`, `AxiomAuditTriple.lean` and the
+  bundle drift checker are still built and checked. Whether to delete them, now
+  that the unit covers what they cover, is a decision this change does not make.
 
 **The ten waived compiler-trust axioms are here.** Putting all three leaves'
 types in one module makes seven string literals occur more than once across

@@ -3,9 +3,12 @@
 -- regenerates this file and fails on any difference.
 --
 -- This is T1.lean restated about the three-leaf translation unit, whose
--- constants are different constants from the ones T1.lean is about. Only the
--- import, the namespace and the `open` differ; every proof is the same text.
--- The `#print axioms` pins are in Translation/UnitPins.lean.
+-- constants are different constants from the ones T1.lean is about. What
+-- differs is the imports, the namespace, the `open`, qualified references to
+-- the leaf proofs' own namespaces, and any stepping-rule erasure this script
+-- inserts and explains beside it. No other text in a statement or a proof body
+-- changes.
+-- The `#print axioms` pins are restated in Translation/UnitPins.lean.
 
 import Translation.TacentaTripleUnit
 
