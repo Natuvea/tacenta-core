@@ -1443,9 +1443,11 @@ stating rather than folding into the general list:
 ### The three-leaf translation unit is an eighth zone, and it ships to nobody
 
 `tacenta-core/triple-unit` is a verified zone in `attest.py` and a crate in the
-workspace, and no shipping path reaches it. Nothing depends on it, it exports
-nothing anyone calls, and deleting it would change no behaviour. It exists to
-be translated.
+workspace, and no shipping path reaches it. No shipping crate depends on it, it
+exports nothing anyone calls, and deleting it would change no behaviour that
+anybody observes. It exists to be translated and proved about, and proofs do
+depend on it: `Translation/UnitT1.lean`, `Translation/UnitSpqrT1.lean` and
+`Translation/UnitPins.lean` are all statements about its constants.
 
 **What it is for.** Translating `tacenta-core/triple` on its own gives Aeneas
 three crates and lets it see one. The Double Ratchet's and the sparse ratchet's
