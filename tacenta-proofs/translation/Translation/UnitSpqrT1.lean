@@ -8,8 +8,8 @@
 -- the leaf proofs' own namespaces, and any stepping-rule erasure this script
 -- inserts and explains beside it. No other text in a statement or a proof body
 -- changes.
--- SpqrT1.lean pins nothing of its own; Translation/UnitPins.lean pins this
--- copy's `receive_no_panic`.
+-- SpqrT1.lean's two pins are restated against this copy's names in
+-- Translation/UnitPins.lean.
 
 import Translation.TacentaTripleUnit
 import Translation.UnitT1
@@ -602,5 +602,10 @@ qualified names is what shows why.
 Aeneas becomes one assumption per translated crate that touches it, and a list
 naming `VecRemoveTotal` once while two crates assume it understates what is
 trusted. -/
+
+-- The trust base of the two entry points, held by the build. The copy of this
+-- file generated onto the three-leaf unit leaves these out; `UnitPins.lean`
+-- restates them against the unit's names. `receive_no_panic` is not
+-- kernel-only: one closed numeric fact in its proof is settled by `native_decide`.
 
 end Tacenta.UnitSpqrT1

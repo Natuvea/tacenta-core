@@ -2035,4 +2035,54 @@ before and is now strictly weaker than it. The invariant does not exclude
 `hsb`, `hnewb` and `hcounter` as a premise the decoded-state chain does not
 discharge. -/
 
+-- The trust base of the two refinements, held by the build: three `native_decide`
+-- label facts under `send_refines`, and those three, the three bound facts and
+-- one step of `receive_refines_continuation` under `receive_refines`. The copy
+-- of this file generated onto the three-leaf unit leaves these out;
+-- `UnitPins.lean` restates them against the unit's names.
+
+/--
+info: 'Tacenta.SpqrT3.send_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kdf.hkdf_sha256,
+ zeroize.Zeroizing,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ alloc.vec.Vec.retain,
+ zeroize.Zeroize.Blanket.zeroize,
+ chain_label_agrees._native.native_decide.ax_1_1,
+ protocol_info_agrees._native.native_decide.ax_1_1,
+ root_label_agrees._native.native_decide.ax_1_1,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ core.option.Option.Insts.CoreCloneClone.clone]
+-/
+#guard_msgs in
+#print axioms Tacenta.SpqrT3.send_refines
+
+/--
+info: 'Tacenta.SpqrT3.receive_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_kdf.hkdf_sha256,
+ zeroize.Zeroizing,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ alloc.vec.Vec.append,
+ alloc.vec.Vec.remove,
+ alloc.vec.Vec.retain,
+ zeroize.Zeroize.Blanket.zeroize,
+ chain_label_agrees._native.native_decide.ax_1_1,
+ max_skip_agrees._native.native_decide.ax_1_1,
+ max_skip_val._native.native_decide.ax_1_1,
+ max_skipped_store_agrees._native.native_decide.ax_1_1,
+ protocol_info_agrees._native.native_decide.ax_1_1,
+ receive_refines_continuation._native.native_decide.ax_1_29,
+ root_label_agrees._native.native_decide.ax_1_1,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ core.option.Option.Insts.CoreCloneClone.clone]
+-/
+#guard_msgs in
+#print axioms Tacenta.SpqrT3.receive_refines
+
 end Tacenta.SpqrT3

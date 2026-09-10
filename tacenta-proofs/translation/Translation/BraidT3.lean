@@ -2993,4 +2993,100 @@ theorem Braid.receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     rw [ho1, hMsome]
     exact hout
 
+-- The axiom audit for the two refinements, enforced rather than asserted: the
+-- kernel's three axioms and the crate's opaque boundary (erasure coder, KEM, KDF,
+-- `zeroize`, and the library types and operations Aeneas does not model), and
+-- nothing else. No `native_decide` reaches either. A proof that starts
+-- trusting something new fails here.
+
+/--
+info: 'Tacenta.BraidT3.Braid.send_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_erasure.Decoder,
+ tacenta_erasure.Encoder,
+ tacenta_kdf.hkdf_sha256,
+ tacenta_kdf.hmac_sha256,
+ tacenta_kem.CT1_LEN,
+ tacenta_kem.CT2_LEN,
+ tacenta_kem.EncapsState,
+ tacenta_kem.IncrementalKeyPair,
+ tacenta_kem.encapsulate1,
+ tacenta_kem.encapsulate2,
+ zeroize.Zeroizing,
+ rand_core_1.error.Error,
+ tacenta_erasure.Decoder.add_chunk,
+ tacenta_erasure.Decoder.message,
+ tacenta_erasure.Decoder.new,
+ tacenta_erasure.Encoder.new,
+ tacenta_erasure.Encoder.next_chunk,
+ tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_kem.IncrementalKeyPair.header,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ zeroize.Zeroize.Blanket.zeroize,
+ tacenta_erasure.Decoder.Insts.CoreCloneClone.clone,
+ tacenta_erasure.Encoder.Insts.CoreCloneClone.clone,
+ tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.BraidT3.Braid.send_refines
+
+/--
+info: 'Tacenta.BraidT3.Braid.receive_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_erasure.Decoder,
+ tacenta_erasure.Encoder,
+ tacenta_kdf.hkdf_sha256,
+ tacenta_kdf.hmac_sha256,
+ tacenta_kem.CT1_LEN,
+ tacenta_kem.CT2_LEN,
+ tacenta_kem.EK_VECTOR_LEN,
+ tacenta_kem.EncapsState,
+ tacenta_kem.HEADER_LEN,
+ tacenta_kem.IncrementalKeyPair,
+ tacenta_kem.encapsulate1,
+ tacenta_kem.encapsulate2,
+ tacenta_kem.validate_ek,
+ zeroize.Zeroizing,
+ rand_core_1.error.Error,
+ tacenta_erasure.Decoder.add_chunk,
+ tacenta_erasure.Decoder.message,
+ tacenta_erasure.Decoder.new,
+ tacenta_erasure.Encoder.new,
+ tacenta_erasure.Encoder.next_chunk,
+ tacenta_kem.IncrementalKeyPair.decapsulate,
+ tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_kem.IncrementalKeyPair.generate,
+ tacenta_kem.IncrementalKeyPair.header,
+ zeroize.Zeroizing.new,
+ Array.Insts.ZeroizeZeroize.zeroize,
+ zeroize.Zeroize.Blanket.zeroize,
+ tacenta_erasure.Decoder.Insts.CoreCloneClone.clone,
+ tacenta_erasure.Encoder.Insts.CoreCloneClone.clone,
+ tacenta_kem.EncapsState.Insts.CoreCloneClone.clone,
+ tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone,
+ zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ core.option.Option.Insts.CoreCloneClone.clone,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index,
+ core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut]
+-/
+#guard_msgs in
+#print axioms Tacenta.BraidT3.Braid.receive_refines
+
 end Tacenta.BraidT3

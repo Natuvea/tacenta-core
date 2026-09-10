@@ -48,14 +48,15 @@ separately the Braid's `from_bytes_establishes_inv` and each of the four
 `decoded_*` corollaries, which are not -- the Braid's reaches the opaque
 erasure and KEM decoders, and a corollary carries the boundary axioms of the
 `receive` theorem it composes with, the sparse ratchet's carrying a
-compiler-trust axiom too. The sparse ratchet's and
-the Braid's T1/T3 files are **not yet pinned**, so the axiom
-bases stated for them below are read off `#print axioms` by hand rather than
-held by the build. Ten of the Triple Ratchet's theorems on the three-leaf unit
-are pinned in `Translation/UnitPins.lean` -- composed `send`, `receive` and
-`clone`, three accessors, the two bundle proofs and the two discharged
-refinements -- and the rest of its T1/T3 are read off by hand like the
-others. Some results are on the
+compiler-trust axiom too. `Translation.SpqrT1`/`SpqrT3` pin the sparse
+ratchet's `send` and `receive`, for panic-freedom and for refinement, and
+`Translation.BraidT1`/`BraidT3` the Braid's; the bases stated below for those
+crates' other theorems are read off `#print axioms` by hand. Ten of the Triple
+Ratchet's theorems on the three-leaf unit are pinned in
+`Translation/UnitPins.lean` -- composed `send`, `receive` and `clone`, three
+accessors, the two bundle proofs and the two discharged refinements -- beside
+the unit's copies of the two inner ratchets' pinned theorems, and the rest of
+its T1/T3 are read off by hand. Some results are on the
 kernel alone and are worth knowing as such. The ML-KEM Braid's epoch accounting
 depends on `propext` and `Quot.sound`, nothing more. That is the calculation on
 which both sides must agree exactly, so having it on the kernel rather than on
@@ -87,10 +88,10 @@ puts the compiler into the axiom base of every theorem downstream: in
 particular the sparse ratchet's T1 headline theorem and every T3 refinement
 that uses a label lemma are compiler-trusted, not kernel-only, and `CLAIMS.md`
 should be read with that in mind. Counted by a `#print axioms` sweep over
-every theorem; pinning the sparse ratchet's and the Braid's headline theorems
-under `#guard_msgs` is open work (the classical ratchet's, the session's, the
-erasure coder's and the parser's are pinned, and ten of the Triple Ratchet's
-on the unit).
+every theorem. The headline theorems of the classical and sparse ratchets, the
+Braid, the session, the erasure coder and the parser are pinned under
+`#guard_msgs`, and ten of the Triple Ratchet's on the unit, so a new
+`native_decide` reaching one of them fails the build.
 
 **The generated translation carries compiler-trust axioms of its own**,
 ninety-three on the current generation. Aeneas's `toStr` discharges its

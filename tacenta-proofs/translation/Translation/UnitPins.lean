@@ -1,5 +1,6 @@
 import Translation.UnitT1
 import Translation.UnitSpqrT1
+import Translation.UnitSpqrT3
 import Translation.UnitT3
 import Translation.UnitTripleT1
 import Translation.UnitTripleT3
@@ -37,8 +38,10 @@ compiler-trusted. `#guard_msgs` refuses each of these at build time.
 
 The sparse ratchet's `receive_no_panic` carries a `native_decide` axiom in the
 leaf as well; `LIMITATIONS.md` records why, under "The proofs are trusted by
-evaluation, not only by the kernel". It is the one entry below that is not
-kernel-only, and it is not kernel-only in the leaf either.
+evaluation, not only by the kernel". Of the panic-freedom pins it is the one
+that is not kernel-only, and it is not kernel-only in the leaf either. The
+sparse ratchet's refinements and the Triple's discharged refinements carry more
+such axioms, each stated where it is pinned.
 -/
 
 /--
@@ -77,6 +80,22 @@ info: 'Tacenta.UnitT1.receive_no_panic' depends on axioms: [propext,
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitT1.receive_no_panic
+
+/--
+info: 'Tacenta.UnitSpqrT1.send_no_panic' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_triple_unit.zeroize.Zeroizing,
+ tacenta_triple_unit.zeroize.Zeroizing.new,
+ tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.alloc.vec.Vec.retain,
+ tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
+ tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitSpqrT1.send_no_panic
 
 /--
 info: 'Tacenta.UnitSpqrT1.receive_no_panic' depends on axioms: [propext,
@@ -275,6 +294,58 @@ info: 'Tacenta.UnitT3.message_keys_refines' depends on axioms: [propext,
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitT3.message_keys_refines
+
+/-! ## The sparse ratchet's refinement, restated about the unit
+
+`Translation/UnitSpqrT3.lean` is `SpqrT3.lean` generated onto the three-leaf
+unit. The two theorems `SpqrT3.lean` pins are pinned here, and each prints
+exactly the axioms its leaf twin prints, name for name: `tacenta_triple_unit.`
+in front of every translated axiom, and each `native_decide` axiom under the
+unit's copy of the lemma that carries it in the leaf. Nothing else changed. -/
+
+/--
+info: 'Tacenta.UnitSpqrT3.send_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_triple_unit.zeroize.Zeroizing,
+ tacenta_triple_unit.zeroize.Zeroizing.new,
+ tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.alloc.vec.Vec.retain,
+ tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.UnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.UnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.UnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitSpqrT3.send_refines
+
+/--
+info: 'Tacenta.UnitSpqrT3.receive_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ tacenta_triple_unit.tacenta_kdf.hkdf_sha256,
+ tacenta_triple_unit.zeroize.Zeroizing,
+ tacenta_triple_unit.zeroize.Zeroizing.new,
+ tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.alloc.vec.Vec.append,
+ tacenta_triple_unit.alloc.vec.Vec.remove,
+ tacenta_triple_unit.alloc.vec.Vec.retain,
+ tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
+ Tacenta.UnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
+ Tacenta.UnitSpqrT3.max_skip_agrees._native.native_decide.ax_1_1,
+ Tacenta.UnitSpqrT3.max_skip_val._native.native_decide.ax_1_1,
+ Tacenta.UnitSpqrT3.max_skipped_store_agrees._native.native_decide.ax_1_1,
+ Tacenta.UnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
+ Tacenta.UnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
+ Tacenta.UnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
+ tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
+ tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
+-/
+#guard_msgs in
+#print axioms Tacenta.UnitSpqrT3.receive_refines
 
 /-! ## The Triple's refinement on the unit, with both bundles discharged
 

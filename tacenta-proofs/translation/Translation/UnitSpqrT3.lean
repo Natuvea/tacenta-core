@@ -8,8 +8,8 @@
 -- the leaf proofs' own namespaces, and any stepping-rule erasure this script
 -- inserts and explains beside it. No other text in a statement or a proof body
 -- changes.
--- SpqrT3.lean pins nothing, and nothing pins this copy; the unit's axiom
--- audit walks it.
+-- SpqrT3.lean's two pins are restated against this copy's names in
+-- Translation/UnitPins.lean.
 
 import Translation.TacentaTripleUnit
 import Translation.UnitSpqrT1
@@ -2062,5 +2062,11 @@ before and is now strictly weaker than it. The invariant does not exclude
 `epoch = u64::MAX - 1` -- such a state passes it -- so `hepoch` joins `hcb`,
 `hsb`, `hnewb` and `hcounter` as a premise the decoded-state chain does not
 discharge. -/
+
+-- The trust base of the two refinements, held by the build: three `native_decide`
+-- label facts under `send_refines`, and those three, the three bound facts and
+-- one step of `receive_refines_continuation` under `receive_refines`. The copy
+-- of this file generated onto the three-leaf unit leaves these out;
+-- `UnitPins.lean` restates them against the unit's names.
 
 end Tacenta.UnitSpqrT3
