@@ -18,16 +18,16 @@
 # ~/tools/aeneas-nightly). The scratch output under Generated/aeneas-output is
 # gitignored; the translation the proofs are about is *committed* under
 # translation/Translation/ and the verification workflow fails if regenerating it here
-# produces different files. T1 and T3 are done for all seven crates (see
-# CLAIMS.md).
+# produces different files. T1 and T3 are done for the six crates translated
+# on their own below (see CLAIMS.md).
 #
-# An eighth translation comes from a crate nobody wrote: `tacenta-core/triple-unit`,
+# A seventh translation comes from a crate nobody wrote: `tacenta-core/triple-unit`,
 # the Triple Ratchet and both inner ratchets compiled as one crate, assembled
 # from the three leaf sources by `scripts/assemble-triple-unit.sh` (run below,
 # before anything is translated) so that Charon sees the composition together
-# with its leaves rather than over opaque axioms. It carries no proofs yet.
-# Read that script's header for what the unit is and, just as importantly,
-# what it is not.
+# with its leaves rather than over opaque axioms. It is the only translation of
+# the Triple Ratchet, and the Triple's T1 and T3 proofs are about it. Read that
+# script's header for what the unit is and, just as importantly, what it is not.
 set -eu
 # **The pin, and it must match the verification workflow.** Keeping the
 # release name here rather than only in the workflow is what makes a local run
@@ -134,30 +134,18 @@ translate protobuf tacenta-protobuf tacenta_protobuf.llbc TacentaProtobuf
 translate spqr tacenta-spqr tacenta_spqr.llbc TacentaSpqr
 translate braid tacenta-braid tacenta_braid.llbc TacentaBraid
 
-# The composition, `tacenta-triple`, depends on both `tacenta-ratchet` and
-# `tacenta-spqr`. Charon translates it as a self-contained unit, so the two
-# inner crates' `State` types come out as bare opaque axioms here and their
-# error enums are re-emitted as this crate's own copies
-# (`tacenta_ratchet.RatchetError` inside `namespace tacenta_triple`, beside
-# the real one inside `namespace tacenta_ratchet`). The namespaced names do
-# not collide; the anonymous instances Aeneas's `@[discriminant isize]`
-# generates for those enums do, since they are named from the short type
-# name alone and land outside either crate's namespace
-# (`instDiscriminantRatchetErrorIsize`, `instDiscriminantSpqrErrorIsize`):
-# importing `Translation.TacentaTriple`
-# together with `Translation.TacentaRatchet` or `Translation.TacentaSpqr`
-# fails on them. `lake build` passes over the whole package only because
-# lakefile.toml builds every module under Translation/ on its own (the note
-# on its `globs` line) and nothing imports both sides; `TripleT1.lean` and
-# `TripleT3.lean` cannot cite the inner crates' theorems for the same
-# reason, which `TripleT3.lean`'s header records. Do not add a root import
-# of this module.
-translate triple tacenta-triple tacenta_triple.llbc TacentaTriple
+# The composition, `tacenta-triple`, is not translated on its own. Charon
+# translates one crate at a time, so on its own the Triple sees both inner
+# ratchets as bare opaque axioms, and nothing proved about the inner crates can
+# be cited against it. It is translated inside the three-leaf unit below, where
+# the inner ratchets are real code. A standalone translation and the proofs
+# about it were in the tree until the commit after 2a89a7f.
 
 # The same three crates' source, compiled as one crate: the composition with
 # its leaves in one translation unit, where `tacenta_ratchet.State` is a type
 # with fields and `tacenta_ratchet.send` is a body with a precondition rather
-# than the bare axioms the translation above is forced to invent. This is what
+# than the bare axioms a translation of the Triple on its own is forced to
+# invent. This is what
 # a panic-freedom proof for the shipping composition has to be about;
 # `scripts/assemble-triple-unit.sh` says what the unit is and is not, and
 # LIMITATIONS.md records the crate boundary as the gap it leaves, under "The
@@ -169,10 +157,13 @@ translate triple tacenta-triple tacenta_triple.llbc TacentaTriple
 # finding, not a detail -- it would mean the unit reaches something none of the
 # leaves does.
 #
-# Like `TacentaTriple`, this module cannot share an environment with
-# `TacentaRatchet` or `TacentaSpqr` (same anonymous discriminant instances,
-# same reason), so it is neither imported by the root module nor by either
-# existing audit module; `Translation/AxiomAuditTripleUnit.lean` walks it.
+# This module cannot share an environment with `TacentaRatchet` or
+# `TacentaSpqr`. Aeneas names the instances it generates for the inner crates'
+# error enums (`instDiscriminantRatchetErrorIsize`,
+# `instDiscriminantSpqrErrorIsize`) from the short type name alone, outside any
+# crate namespace, so the unit and the leaves both declare them. It is imported
+# neither by the root module nor by `Translation/AxiomAudit.lean`;
+# `Translation/AxiomAuditTripleUnit.lean` walks it.
 translate triple-unit tacenta-triple-unit tacenta_triple_unit.llbc TacentaTripleUnit
 
 echo "run-aeneas: next, record what was just generated:"

@@ -7,7 +7,7 @@ One definition also draws on this project's own implementation:
 `tacenta-spec/protocol/triple-ratchet.md` *and* from
 `tacenta-core/triple/src/lib.rs`, because the clone-candidate-commit shape is
 an implementation decision the spec page does not carry. That is our own code,
-so no third-party boundary is involved; the consequence is that `TripleT3`
+so no third-party boundary is involved; the consequence is that `UnitTripleT3`
 refines the crate against a model transcribed from it, which is less
 independence than the other tiers have.
 

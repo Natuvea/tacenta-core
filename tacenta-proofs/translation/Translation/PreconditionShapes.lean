@@ -59,7 +59,7 @@ namespace Tacenta.PreconditionShapes
 
 /-- The form carried, taken at the larger of the store's length and its cap, by
 `T1.receive_no_panic` and its copy on the three-leaf unit, by
-`T3.receive_refines`, `TripleT3.receive_refines` and
+`T3.receive_refines`, `UnitTripleT3.receive_refines` and
 `UnitTripleT1.State.receive_no_panic`, and by two assumption bundles,
 `RatchetAgreesFor` and `RatchetReceiveTotal`. On a 32-bit target no store meets
 it, the empty one included, because the left side is at least `2000 + U32.max`.
