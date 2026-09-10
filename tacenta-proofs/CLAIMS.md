@@ -625,7 +625,7 @@ this file in substance:
   `ct1_bounded` is motivated).
 - `hclock_unparked : s.events.val + 1 < U32.max` on
   `Ratchet.decoded_receive_refines`, the step of clock headroom
-  `T3.receive_refines`'s `hroom` asks for. Unlike the other two this one is
+  `T3.receive_refines`'s `hroom` asks for. Unlike the other this one is
   **not** satisfied by every state the real Rust produces: it excludes exactly
   the parked clock, `events = MAX_EVENTS = u32::MAX - 1`, which `age_store`
   clamps to and which an honest run reaches after 2^32 accepted receives. It
@@ -882,7 +882,7 @@ records that under "The three-leaf translation unit".
   (`self.post_quantum.chains.length + 1 < Usize.max`).
 - `Tacenta.UnitTripleT1.State.receive_no_panic`: the composed receive path
   cannot panic, given three -- the classical ratchet's skipped-store bound
-  (`max self.classical.skipped.val.length MAX_SKIPPED_STORE.val + U32.max ≤ Usize.max`),
+  (`max self.classical.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val ≤ Usize.max`),
   and the sparse ratchet's chain-table and skipped-store bounds
   (`self.post_quantum.chains.length + 2 < Usize.max` and
   `self.post_quantum.skipped.length + MAX_SKIP.val ≤ Usize.max`).

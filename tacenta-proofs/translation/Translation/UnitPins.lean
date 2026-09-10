@@ -127,8 +127,10 @@ Eleven of the twelve that arrive are a substitution rather than an addition in
 kind: KDF, `zeroize` and `Vec` boundary axioms that other proofs in this tree
 already carry. They are `hmac_sha256` beside the `hkdf_sha256` that was already
 there; `zeroize.Zeroizing` with its constructor and its two projections;
-`Vec.append`, `Vec.remove` and `Vec.retain`; the `Zeroize` instances for
-`Array`, `Pair` and `Vec`; and `Option`'s clone.
+`Vec.append`, `Vec.remove` and `Vec.retain`; the `Zeroize` instances for `Pair`
+and `Vec`; and `Option`'s clone. `Array`'s `Zeroize` instance and the blanket
+one are on both sides and arrive nowhere; naming them here would repeat the
+miscount this paragraph was rewritten to fix.
 
 The twelfth is the `native_decide` axiom named above. It is neither a boundary
 axiom nor shared with the rest of the tree, and it is the whole of the

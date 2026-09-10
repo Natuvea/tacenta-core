@@ -45,7 +45,8 @@ and it is small and explicit on purpose:
   * the constants -- `Model.State.maxSkippedStore` against
     `MAX_SKIPPED_STORE.val`, and `Model.SparseRatchet.maxSkip` against
     `MAX_SKIP.val`. Each such bridge names the leaf lemma that justifies it,
-    and the script fails if that lemma is no longer in the file it names;
+    and the script fails if that lemma is no longer in the file it names, or
+    if its statement no longer mentions both spellings;
   * the element maps -- `p.1.val` against `p.1` and `sk.epoch.val` against
     `sk.1` inside a quantifier over a transported list, likewise named --
     but named for the *transport*, not for a lemma justifying it. No
@@ -152,10 +153,18 @@ class Bridge:
     because the guard is only as strong as what it names.
     """
 
-    def __init__(self, leaf, bundle, canon, lemma, lemma_file, note):
+    def __init__(self, leaf, bundle, canon, lemma, lemma_file, note,
+                 anchor_states=False):
         self.leaf = leaf            # regex, leaf-side spelling
         self.bundle = bundle        # regex, bundle-side spelling
         self.canon = canon          # what both become
+        # Whether the anchor's own statement must mention both spellings.
+        # True for a bridge between two names for one constant, where the
+        # anchor really is a lemma equating them and its statement can be
+        # read. False where the anchor is a transport (a `def`, or the
+        # refinement `structure`), whose statement says no such thing; the
+        # `note` says which case a bridge is.
+        self.anchor_states = anchor_states
         self.lemma = lemma          # the declaration this bridge is anchored to
         self.lemma_file = lemma_file
         self.note = note
@@ -198,12 +207,14 @@ RATCHET = BundleSpec(
             bundle=r"\bModel\.State\.maxSkippedStore\b",
             canon="MAX_SKIPPED_STORE",
             lemma="max_skipped_store_agrees", lemma_file="T3.lean",
+            anchor_states=True,
             note="the store bound is one constant written two ways"),
         Bridge(
             leaf=r"\bMAX_SKIP\.val\b",
             bundle=r"\bModel\.State\.maxSkip\b",
             canon="MAX_SKIP",
             lemma="max_skip_agrees", lemma_file="T3.lean",
+            anchor_states=True,
             note="the skip bound is one constant written two ways"),
         Bridge(
             leaf=r"\bmatchesHeader (?P<mh>\w+)\b",
@@ -237,6 +248,7 @@ SPQR = BundleSpec(
             bundle=r"\bModel\.SparseRatchet\.maxSkip\b",
             canon="MAX_SKIP",
             lemma="max_skip_agrees", lemma_file="SpqrT3.lean",
+            anchor_states=True,
             note="the skip bound is one constant written two ways"),
         Bridge(
             leaf=r"\b(\w+)\.1\.val\b",
@@ -1027,13 +1039,36 @@ def check_bridges(spec, translation_dir, errors):
             continue
         with open(path, encoding="utf-8") as fh:
             source = fh.read()
-        if not re.search(r"^(private\s+)?(theorem|def|structure|abbrev)\s+%s\b"
-                         % re.escape(bridge.lemma), source, re.M):
+        m = re.search(
+            r"^(private\s+)?(theorem|def|structure|abbrev)\s+%s\b(?P<sig>.*?)"
+            r"(?=:=|\Z)" % re.escape(bridge.lemma), source, re.M | re.S)
+        if not m:
             errors.append(
                 "%s: the bridge that lets `%s` be compared is anchored to "
                 "`%s` in %s, and there is no such declaration any more -- the "
                 "bridge cannot be trusted until this is resolved"
                 % (spec.name, bridge.canon, bridge.lemma, bridge.lemma_file))
+            continue
+        if not bridge.anchor_states:
+            continue
+        # The anchor exists. For a constant bridge it must also *say* what the
+        # bridge claims: a lemma with the right name and a statement that
+        # mentions only one of the two spellings, or neither, justifies
+        # nothing. Without this the name alone is the guard, and a lemma
+        # rewritten to `True` would pass.
+        sig = m.group("sig")
+        missing = [side for side, pat in (("leaf", bridge.leaf),
+                                          ("bundle", bridge.bundle))
+                   if not re.search(pat, sig)]
+        if missing:
+            errors.append(
+                "%s: the bridge that lets `%s` be compared is anchored to "
+                "`%s` in %s, and that declaration's statement does not mention "
+                "the %s spelling. An anchor has to state the equality it "
+                "stands for; matching its name alone would let a lemma "
+                "reworded to say nothing keep the bridge alive"
+                % (spec.name, bridge.canon, bridge.lemma, bridge.lemma_file,
+                   " or the ".join(missing)))
 
 
 def check_bundle(spec, translation_dir, out, need_convention):
@@ -1122,10 +1157,14 @@ def check_bundle(spec, translation_dir, out, need_convention):
 
 LIMITS = """
 What this check does not see, stated so it is not mistaken for more:
-  * it checks that the declaration a bridge is anchored to exists, never that
-    it still says what the bridge claims -- and two of the sparse ratchet's
-    are anchored to a transport rather than a lemma, so for those there is no
-    statement of the equality to have said anything;
+  * where a bridge is anchored to a *transport* -- a `def`, or the refinement
+    `structure` -- this checks only that the declaration is still there. Such
+    an anchor states no equality, so there is nothing to read. Four of the
+    sparse ratchet's five bridges are of that kind, and their notes say so.
+    A bridge between two names for one constant is anchored to a lemma that
+    does state the equality, and for those three the lemma's statement is read
+    and must mention both spellings, so an anchor reworded to say nothing
+    fails here rather than passing on its name;
   * a clause marked `mirrors: nothing` is taken at its word;
   * the crate-boundary assumptions listed above as not carried are dropped by
     an explicit list, and whether dropping them is still sound is a judgement

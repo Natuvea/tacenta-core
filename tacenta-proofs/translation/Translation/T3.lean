@@ -1647,8 +1647,8 @@ operation Aeneas does not model.
 
 And the **finite-width boundary shows through** wherever the Rust counts in
 `u32` and the model in `Nat`. Sending can report `ChainExhausted` where the
-model simply continues; `receive` carries a store-size precondition that holds
-on any 64-bit target but not automatically on a 32-bit one; and expiry means
+model simply continues; `receive` carries a store-size precondition, the store's
+length plus `MAX_SKIP`, which holds at either platform width; and expiry means
 `receive` also requires the store's clock to have room for the step, because the
 core's counter stops and the model's does not. The stop is now one below the
 ceiling rather than at it: `age_store` clamps the saturating step to

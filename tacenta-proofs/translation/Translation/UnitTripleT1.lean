@@ -97,8 +97,11 @@ Like every other hypothesis on this island, it has no satisfiability witness.
 `Translation/Satisfiability.lean` and `Translation/SatisfiabilityTriple.lean`
 exhibit witnesses for the leaf islands' assumptions; nothing does so here, and
 `KdfInitTotal` joins `UnitT1.DerivedKeysModel`, `UnitSpqrT1.OptionCloneTotal`,
-`KdfRkTotal` and `KdfCkTotal` in that. This is inherited rather than
-introduced, and `LIMITATIONS.md` records it.
+`KdfRkTotal` and `KdfCkTotal` in that. Calling that inherited would be too
+kind: `KdfRkTotal` and `KdfCkTotal` are at least derived on the leaf side from
+`SpqrT3.SpqrHkdfAgrees`, and `KdfInitTotal` has no leaf twin at all, so it is
+introduced here. `LIMITATIONS.md` records what the guard does and does not
+cover.
 
 ## Why the preconditions transport for free
 

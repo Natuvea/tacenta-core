@@ -1545,7 +1545,7 @@ disclosure of it.
 instead of assuming them means carrying the leaves' real preconditions, which
 `TripleT1.lean`'s unconditional bundles hide: `State.send` on the unit needs
 `self.post_quantum.chains.length + 1 < Usize.max`, and `State.receive` needs
-`max self.classical.skipped.val.length MAX_SKIPPED_STORE.val + U32.max ≤ Usize.max`,
+`max self.classical.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val ≤ Usize.max`,
 `self.post_quantum.chains.length + 2 < Usize.max` and
 `self.post_quantum.skipped.length + MAX_SKIP.val ≤ Usize.max`. Nothing on the
 unit island discharges them. They are obligations on the **untranslated session
@@ -1556,19 +1556,39 @@ island, by `Ratchet.inv_gives_store_bound` in `Translation/ImportInv.lean` and
 through it by `Ratchet.decoded_receive_no_panic`, for a state that came from
 `from_bytes`; "Seven verified zones on the shipping path" above describes that
 route. It has not been ported to the unit, so it does not reach these
-theorems. On a 64-bit target all four hold of any
-state that could exist, at either platform width. They are bounds against
-`usize::MAX` on quantities a real session keeps in the low thousands.
+theorems. All four hold of any state that could exist, at either platform
+width. They are bounds against `usize::MAX` on quantities a real session keeps
+in the low thousands.
 
-**No hypothesis on the unit island has a satisfiability witness.**
-`Translation/Satisfiability.lean` and `Translation/SatisfiabilityTriple.lean`
-exhibit witnesses for the leaf islands' assumptions, which is how this tree
-guards against a hypothesis nothing could satisfy. Nothing does that for the
-unit: not `UnitT1.DerivedKeysModel`, not `UnitSpqrT1.OptionCloneTotal`, not
-`KdfRkTotal` or `KdfCkTotal`, and not the `KdfInitTotal` this work adds. Each
-is a copy of a leaf assumption that does have a witness, so the risk is low,
-but it is a gap in the guard rather than an absence of one, and porting the
-witnesses is open work.
+**The satisfiability guard is narrower than it reads, and the gap is where
+this tree's worst defect lived.** `Translation/Satisfiability.lean` and
+`Translation/SatisfiabilityTriple.lean` exhibit a witness for a boundary
+assumption, and for several also prove that the over-broad version of the same
+assumption admits no implementation at all. That is a real guard against
+assuming something nothing could satisfy. What it covers is the *opaque
+operation* family: the `Vec` operations, the `zeroize` wrapper, the
+derived-keys model.
+
+It has never covered a **numeric precondition**, on any island. Not one of the
+store, chain-length or counter bounds carried by a `no_panic` or `refines`
+theorem has a witness or a refutation anywhere in this tree. That is exactly
+where the defect corrected on 2026-09-10 lived: `receive`'s store bound asked
+for something no state could satisfy at 32 bits, sat in this file for months
+described as a genuine constraint, and no guard was pointed at it. A one-line
+`example : ∃ s, <the precondition> s` beside each numeric hypothesis would have
+caught it the day it was written. Adding those is open work and is the first
+thing to do after this.
+
+The unit island is thinner still: nothing there has a witness of either kind.
+`UnitT1.DerivedKeysModel`'s leaf twin is witnessed and its copy is not, which
+is a straightforward port. The rest are not ports at all.
+`UnitSpqrT1.OptionCloneTotal` has no witness in either island;
+`KdfRkTotal` and `KdfCkTotal` are *derived* on the leaf side from
+`SpqrHkdfAgrees`, which is itself unwitnessed; and `KdfInitTotal` has no leaf
+twin, so calling it inherited rather than introduced is wrong. These bottom out
+in the key-derivation primitives, which are the trusted boundary and are
+assumed rather than witnessed by design -- but that reasoning should be written
+here rather than left to be inferred, and until now it was not.
 
 Transporting them to `self` is free only because the clone is provably the
 identity on the unit -- every field is an array, a scalar, an `Option` under
