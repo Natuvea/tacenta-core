@@ -1569,15 +1569,31 @@ assuming something nothing could satisfy. What it covers is the *opaque
 operation* family: the `Vec` operations, the `zeroize` wrapper, the
 derived-keys model.
 
-It has never covered a **numeric precondition**, on any island. Not one of the
+It did not cover a **numeric precondition** until 2026-09-10. Not one of the
 store, chain-length or counter bounds carried by a `no_panic` or `refines`
-theorem has a witness or a refutation anywhere in this tree. That is exactly
-where the defect corrected on 2026-09-10 lived: `receive`'s store bound asked
-for something no state could satisfy at 32 bits, sat in this file for months
-described as a genuine constraint, and no guard was pointed at it. A one-line
-`example : ∃ s, <the precondition> s` beside each numeric hypothesis would have
-caught it the day it was written. Adding those is open work and is the first
-thing to do after this.
+theorem had a witness or a refutation anywhere in this tree, and that is
+exactly where the defect corrected on the same day lived: `receive`'s store
+bound asked for something no state could satisfy at 32 bits, sat in this file
+for months described as a genuine constraint, and no guard was pointed at it.
+
+`Translation/PreconditionWitness.lean` now points one at it. The tree's thirty
+or so numeric preconditions come in six shapes, and each shape is exhibited
+satisfiable at either platform width, splitting on `Std.Usize.bounds_eq` rather
+than assuming the wider one, since the defect was invisible on the machine the
+proofs were written on. The bound that was wrong is kept as a refutation:
+`old_store_bound_unsatisfiable_at_32` proves no store meets it on the narrower
+width, so reintroducing the shape fails a proof rather than passing as a
+strong-looking hypothesis.
+
+**What a witness there says, and what it does not.** It says the hypothesis is
+not vacuous. It does not say every state a session can reach satisfies it, and
+for one of the six that stronger claim is false: the clock headroom on the
+refinement of `receive` excludes the parked clock, which an honest run reaches
+after `2^32` accepted receives. Both facts are stated in that file, next to
+each other, because conflating them is how the 32-bit defect survived. Where
+the stronger claim does hold it is proved in `Translation/ImportInv.lean` from
+the crate's own `invariant()`, and `CLAIMS.md` says which preconditions have
+that treatment.
 
 The unit island is thinner still: nothing there has a witness of either kind.
 `UnitT1.DerivedKeysModel`'s leaf twin is witnessed and its copy is not, which

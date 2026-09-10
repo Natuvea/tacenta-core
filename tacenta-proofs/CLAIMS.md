@@ -906,7 +906,9 @@ is discharged in the *other* island -- `Ratchet.inv_gives_store_bound` in
 `Ratchet.decoded_receive_no_panic` chains it from `from_bytes` -- so a state
 read off disk satisfies it there. That route has not been ported to the unit,
 which is why it does not help here. All four hold of any
-state that could exist, at either platform width. They are bounds against
+state that could exist, at either platform width, and
+`Translation/PreconditionWitness.lean` exhibits a value satisfying each shape
+rather than leaving that to be taken on trust. They are bounds against
 `Usize.max` on quantities that a real session keeps in the low thousands, so
 the way to violate one is to hold a vector with billions of entries.
 
