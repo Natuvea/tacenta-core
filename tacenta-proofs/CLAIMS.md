@@ -909,6 +909,20 @@ boundary below it.
   translated on its own. Each wraps an inner operation that was opaque there
   and is a definition here, so each is a kernel-only one-liner with no boundary
   axiom at all.
+- `Tacenta.UnitTripleT1.State.commit_no_panic`: committing the candidate state a
+  successful `send` or `receive` returns cannot panic. Kernel-only.
+- `Tacenta.UnitTripleT1.State.init_sender_no_panic` and
+  `Tacenta.UnitTripleT1.State.init_receiver_no_panic`: the two constructors
+  cannot panic. They rest on the HKDF and `zeroize` wrapper boundary, through
+  `split_secret`.
+- `Tacenta.UnitTripleT1.split_secret_no_panic` and
+  `Tacenta.UnitTripleT1.combine_no_panic`: expanding the handshake secret into
+  the two ratchets' secrets, and combining the two ratchets' message keys, cannot
+  panic. `combine` rests on the HKDF boundary alone; `split_secret` also on the
+  `zeroize` wrapper it wipes its expansion with.
+
+These last five are not pinned. Their axiom bases were read off `#print axioms`
+on 2026-09-10; the six above them are pinned in `UnitPins.lean`.
 
 **Where the four preconditions land.** They are obligations, not decorations,
 and nothing on the unit island discharges them: they land on the untranslated
@@ -1039,22 +1053,35 @@ symbolic attacker") says how little they cover.
   covers its ratchet's whole calling surface.
 - `Tacenta.UnitTripleT3.receive_refines_discharged`: likewise for `receive`.
 
-The two discharged theorems state what `send_refines` and `receive_refines` in
-the same file state, and those carry two scopings worth reading literally.
-`send_refines` states the success case and a failure case, but the failure case
-is not symmetric: it holds for every post-quantum error and, on the classical
-side, only for `NoSendingChain`, because `T3.lean`'s own `send_refines` proves
-the model-failure correspondence for that error and no other -- `ChainExhausted`,
-the real `u32` send counter wrapping, has no counterpart in a model that counts
-in `Nat`. `receive_refines` states the success case only, because `T3.lean`'s
-`receive_refines` carries no failure-branch fact to compose one from.
-`commit_refines` is a bare projection on both sides. `split_secret_refines` and
-`combine_refines` are proved outright against
-`Model.TripleRatchet.splitSecret`/`combine`, bottoming out in the HKDF agreement
-and, for `split_secret`, the sixty-four-byte `zeroize` round trip, which on the
-unit are the classical ratchet's own `HkdfAgrees` and `ZeroizingRoundTrips`.
+Each of these four is pinned in `UnitPins.lean`.
 
-Each is pinned in `UnitPins.lean`.
+The two discharged theorems state what the bundle-taking theorems in the same
+file state, and those are claimed as well. They carry two scopings worth reading
+literally.
+
+- `Tacenta.UnitTripleT3.send_refines`: the composed `send` refines
+  `Model.Triple.send`, given the two bundles. It states the success case and a
+  failure case, and the failure case is not symmetric: it holds for every
+  post-quantum error and, on the classical side, only for `NoSendingChain`,
+  because `T3.lean`'s own `send_refines` proves the model-failure correspondence
+  for that error and no other -- `ChainExhausted`, the real `u32` send counter
+  wrapping, has no counterpart in a model that counts in `Nat`.
+- `Tacenta.UnitTripleT3.receive_refines`: likewise for `receive`, success case
+  only, because `T3.lean`'s `receive_refines` carries no failure-branch fact to
+  compose one from.
+- `Tacenta.UnitTripleT3.commit_refines`: a bare projection on both sides.
+  Kernel-only.
+- `Tacenta.UnitTripleT3.split_secret_refines` and
+  `Tacenta.UnitTripleT3.combine_refines`: proved outright against
+  `Model.TripleRatchet.splitSecret`/`combine`, from the HKDF agreement and, for
+  `split_secret`, the sixty-four-byte `zeroize` round trip, which on the unit are
+  the classical ratchet's own `HkdfAgrees` and `ZeroizingRoundTrips`. Both are
+  compiler-trusted: `combine_refines` carries `combine_info_agrees`'s
+  `native_decide` axiom, and `split_secret_refines` carries `split_info_agrees`'s
+  and one of its own.
+
+None of these five is pinned; the axiom bases stated for them here and below
+were read off `#print axioms` on 2026-09-10.
 
 **What discharging changes in the trust base.** Measured on 2026-09-10 against
 the standalone `TripleT3.send_refines`, before its deletion, the sixteen opaque

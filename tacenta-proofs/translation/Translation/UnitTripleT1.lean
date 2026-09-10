@@ -114,7 +114,7 @@ definition and every field is an array, a scalar, an `Option` under
 identity, so `State.Insts.CoreCloneClone.clone s = ok s` is provable outright
 (`triple_state_clone_id`). That is what `State.clone_spec` below carries into
 `State.send` and `State.receive`, and it is the one place this file is
-was strictly stronger than `TripleT1.lean` rather than merely differently stated.
+strictly stronger than `TripleT1.lean` was, rather than merely differently stated.
 
 ## Three functions `TripleT1.lean` listed as unproved
 

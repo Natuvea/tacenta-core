@@ -733,6 +733,37 @@ def check_zones_match_translation():
     ]
 
 
+# How an assembly script names the leaf trees it reads: the `#[path]` lines it
+# writes into the unit's root module, and the leaf file it copies.
+ASSEMBLY_SOURCE_RES = (
+    re.compile(r'#\[path = "\.\./\.\./([a-z0-9-]+)/src/lib\.rs"\]'),
+    re.compile(r"\$core/([a-z0-9-]+)/src/lib\.rs"),
+)
+
+
+def check_assembly_sources():
+    """`ASSEMBLED_ZONES` names each assembled zone's sources by hand, and
+    `check_zones_match_translation` counts those sources as translated. Read
+    the same list out of the assembly script, so that a source named there that
+    the script never reads -- which would let an attested zone nothing
+    translates pass -- or one the script reads that is not named, fails."""
+    problems = []
+    for zone, spec in ASSEMBLED_ZONES.items():
+        text = (ROOT / spec["script"]).read_text()
+        read = {f"tacenta-core/{leaf}" for rx in ASSEMBLY_SOURCE_RES for leaf in rx.findall(text)}
+        named = set(spec["sources"])
+        problems += [
+            f"ASSEMBLED_ZONES names `{src}` as a source of `{zone}`, but "
+            f"{spec['script']} never reads it"
+            for src in sorted(named - read)
+        ] + [
+            f"{spec['script']} reads `{src}` for `{zone}`, but ASSEMBLED_ZONES "
+            "does not name it as a source"
+            for src in sorted(read - named)
+        ]
+    return problems
+
+
 # ---------------------------------------------------------------------------
 # The translation attestation
 # ---------------------------------------------------------------------------
@@ -1039,6 +1070,7 @@ def build():
     problems += check_claims(claim_list, declared)
     problems += check_completeness(claim_list, pins)
     problems += check_zones_match_translation()
+    problems += check_assembly_sources()
 
     verification = {
         "schema_version": SCHEMA_VERSION,

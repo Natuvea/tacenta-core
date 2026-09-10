@@ -53,8 +53,9 @@ Locally it is three steps, and the first needs Charon and Aeneas on `PATH`:
 bash tacenta-proofs/scripts/run-aeneas.sh
 ```
 
-Translates the verified zone -- the leaf crates only: ratchet, session, erasure,
-protobuf, spqr, braid, triple. It writes into `translation/Translation/`
+Translates the verified zone -- six leaf crates, ratchet, session, erasure,
+protobuf, spqr and braid, and the three-leaf unit `triple-unit`, which is the
+only translation of the Triple crate. It writes into `translation/Translation/`
 alongside the hand-written proofs. Immediately afterwards, and at no other
 time, record what it produced:
 
@@ -243,7 +244,7 @@ you do:
   things *together*: every compiler-namespace declaration the audit saw has
   the compiler's shape; no hand-written first-party module contains
   elaboration-time code (`check-lean-constructs.sh`, which allow-lists only
-  the audit's own implementation and its five invocations, by path and
+  the audit's own implementation and its four invocations, by path and
   exact line); and every first-party module is in an audit's import closure
   (`check-audit-reach.sh`). The first alone excludes nothing planted, and
   the second is a grep: a construct its stripper mishandles would be a hole

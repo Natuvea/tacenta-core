@@ -74,7 +74,7 @@
 # `run_cmd` in an audit module, a `run_cmd` in any other file, or an audit
 # module invoking something other than `Model.AxiomAudit.run` fails. The
 # allow-list entries must also all be present, so an audit invocation that
-# is deleted fails here as well; `check-audit-reach.sh` checks that the five
+# is deleted fails here as well; `check-audit-reach.sh` checks that the four
 # modules carrying them reach every first-party module, and that all four
 # name the same first-party prefixes.
 #

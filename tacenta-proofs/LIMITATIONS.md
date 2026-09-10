@@ -51,8 +51,11 @@ erasure and KEM decoders, and a corollary carries the boundary axioms of the
 compiler-trust axiom too. The sparse ratchet's and
 the Braid's T1/T3 files are **not yet pinned**, so the axiom
 bases stated for them below are read off `#print axioms` by hand rather than
-held by the build; the Triple Ratchet's, on the three-leaf unit, are pinned in
-`Translation/UnitPins.lean`. Some results are on the
+held by the build. Ten of the Triple Ratchet's theorems on the three-leaf unit
+are pinned in `Translation/UnitPins.lean` -- composed `send`, `receive` and
+`clone`, three accessors, the two bundle proofs and the two discharged
+refinements -- and the rest of its T1/T3 are read off by hand like the
+others. Some results are on the
 kernel alone and are worth knowing as such. The ML-KEM Braid's epoch accounting
 depends on `propext` and `Quot.sound`, nothing more. That is the calculation on
 which both sides must agree exactly, so having it on the kernel rather than on
@@ -86,8 +89,8 @@ that uses a label lemma are compiler-trusted, not kernel-only, and `CLAIMS.md`
 should be read with that in mind. Counted by a `#print axioms` sweep over
 every theorem; pinning the sparse ratchet's and the Braid's headline theorems
 under `#guard_msgs` is open work (the classical ratchet's, the session's, the
-erasure coder's, the parser's and, on the unit, the Triple Ratchet's are
-pinned).
+erasure coder's and the parser's are pinned, and ten of the Triple Ratchet's
+on the unit).
 
 **The generated translation carries compiler-trust axioms of its own**,
 ninety-three on the current generation. Aeneas's `toStr` discharges its
