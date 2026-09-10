@@ -85,6 +85,7 @@ VERIFIED_ZONES = [
     "tacenta-core/session",
     "tacenta-core/erasure",
     "tacenta-core/protobuf",
+    "tacenta-core/wire",
     "tacenta-core/spqr",
     "tacenta-core/braid",
     "tacenta-core/triple",

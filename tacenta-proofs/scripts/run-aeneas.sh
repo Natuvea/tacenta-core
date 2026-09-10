@@ -18,10 +18,10 @@
 # ~/tools/aeneas-nightly). The scratch output under Generated/aeneas-output is
 # gitignored; the translation the proofs are about is *committed* under
 # translation/Translation/ and the verification workflow fails if regenerating it here
-# produces different files. T1 and T3 are done for the six crates translated
+# produces different files. T1 and T3 are done for the seven crates translated
 # on their own below (see CLAIMS.md).
 #
-# A seventh translation comes from a crate nobody wrote: `tacenta-core/triple-unit`,
+# An eighth translation comes from a crate nobody wrote: `tacenta-core/triple-unit`,
 # the Triple Ratchet and both inner ratchets compiled as one crate, assembled
 # from the three leaf sources by `scripts/assemble-triple-unit.sh` (run below,
 # before anything is translated) so that Charon sees the composition together
@@ -121,13 +121,20 @@ translate erasure tacenta-erasure tacenta_erasure.llbc TacentaErasure
 # it inside the verified core so that refinement *can* begin at received bytes
 # rather than after a trusted parser -- but it does not yet. Today
 # `tacenta-protobuf` has no caller outside its own crate and the fuzz target:
-# the bytes a peer actually sends are parsed by `decode_message`,
-# `decode_composite` and `decode_initial` in the root crate's `serialization`
-# module, which this script deliberately does not translate. So what the
-# protobuf proofs establish is a verified reader that the live path does not
-# use; CLAIMS.md and LIMITATIONS.md say the same. If this stops translating,
+# the bytes of a ratchet message are parsed by `decode_message` and
+# `decode_composite`, translated below as `tacenta-wire`, and a prekey message
+# by `decode_initial` in the root crate's `serialization` module, which this
+# script does not translate. So what the protobuf proofs establish is a
+# verified reader that the live path does not use; CLAIMS.md and LIMITATIONS.md
+# say the same. If this stops translating,
 # that decision reopens rather than the crate quietly moving out.
 translate protobuf tacenta-protobuf tacenta_protobuf.llbc TacentaProtobuf
+# The composite header and the ratchet-message decoder, `decode_composite` and
+# `decode_message`: the first code the bytes of a ratchet message reach on the
+# live receive path, moved out of the root crate's `serialization` module into a
+# leaf crate so that they are translated. `decode_initial` is still in the root
+# crate and still untranslated.
+translate wire tacenta-wire tacenta_wire.llbc TacentaWire
 
 # The post-quantum stack, on the shipping path since the triple-ratchet
 # integration.

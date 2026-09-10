@@ -12,15 +12,15 @@
 
 use crate::ratchet::Header;
 
-/// The message version byte. **Wire-sensitive** (message-format.md).
 pub mod composite;
 
-use composite::{decode_composite, encode_composite};
+use composite::encode_composite;
 
-pub const VERSION: u8 = 0x01;
-
-/// Message type: a ratchet message. **Wire-sensitive.**
-pub const TYPE_RATCHET: u8 = 0x01;
+// The version and ratchet type bytes, the decode error, and the ratchet-message
+// decoder live in `tacenta-wire` with the composite header they frame, so the
+// translation covers them; see `composite`. Re-exported here under their old
+// paths.
+pub use tacenta_wire::{DecodeError, DecodedMessage, TYPE_RATCHET, VERSION, decode_message};
 
 /// Message type: an initial (prekey) message. **Wire-sensitive.**
 pub const TYPE_INITIAL: u8 = 0x02;
@@ -57,31 +57,6 @@ pub fn message_type(bytes: &[u8]) -> Option<MessageType> {
         [VERSION, TYPE_INITIAL, ..] => Some(MessageType::Initial),
         _ => None,
     }
-}
-
-/// Why a decode failed. Distinct from an authentication failure, and no more
-/// informative than "not acceptable".
-///
-/// `#[non_exhaustive]`: pre-1.0, so new decode-failure reasons are not a
-/// breaking change and a consumer must carry a wildcard arm (CR-27).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-#[non_exhaustive]
-pub enum DecodeError {
-    /// The version byte is not one this implementation accepts.
-    UnknownVersion,
-    /// The type byte is not the one expected for this decoder.
-    WrongType,
-    /// The input is shorter than its fixed fields require.
-    TooShort,
-    /// A length prefix runs past the end of the input.
-    LengthOverrun,
-}
-
-/// A decoded ratchet message.
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct DecodedMessage {
-    pub header: composite::Composite,
-    pub ciphertext: Vec<u8>,
 }
 
 /// A decoded initial (prekey) message.
@@ -165,19 +140,6 @@ pub fn encode_message(header: &composite::Composite, ciphertext: &[u8]) -> Vec<u
     let mut out = encode_composite(header);
     out.extend_from_slice(ciphertext);
     out
-}
-
-/// Parse a ratchet message, rejecting anything that is not canonical.
-///
-/// The header is a composite one: both ratchets' state and the agreement's
-/// message, in one structure. `decode_composite` returns the bytes that
-/// followed it, which are the ciphertext.
-pub fn decode_message(bytes: &[u8]) -> Result<DecodedMessage, DecodeError> {
-    let (header, rest) = decode_composite(bytes)?;
-    Ok(DecodedMessage {
-        header,
-        ciphertext: rest.to_vec(),
-    })
 }
 
 /// `CONCAT(ad, header)`: the length of the application's associated data, then
