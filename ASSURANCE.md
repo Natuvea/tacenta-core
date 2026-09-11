@@ -49,7 +49,7 @@ A summary by component. A tick means the component has that kind of evidence, no
 | Protobuf profile | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | L4 | L4 |
 | PQXDH derivation | ✓ | ✓ (through the session) | ✓ | ✓ | ✓ | ✓ | ✓ | L4 | L4 |
 | Session orchestration and prekey store | ✓ | ✓ | — | decoders only | partial | — | — | L1 | L2 |
-| Persisted formats: ratchet, sparse ratchet | ✓ | ✓ | ✓ | ✓, including the counter ceilings | — (the reader skips these vectors) | codec | — | L1 → L2 | L3 |
+| Persisted formats: ratchet, sparse ratchet | ✓ | ✓ | ✓ | ✓, including the counter ceilings | ✓ | codec | — | L3 | L3 |
 | Persisted formats: erasure coders | ✓ | ✓ | ✓ | ✓ | ✓ | codec | — | L3 | L3 |
 | Persisted formats: triple, Braid, session, prekey store | ✓ | ✓ | — | — | — | — | — | L1 | L2 |
 
