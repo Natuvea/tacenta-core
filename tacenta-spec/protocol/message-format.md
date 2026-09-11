@@ -274,7 +274,12 @@ unrecognised version, a type byte other than `0x02`, input that ends inside
 identifiers, and a `kem_ciphertext_len` that runs past the end of the input.
 It also refuses an `identity` or `ephemeral` whose first byte is not the
 `EncodeEC` curve byte (session-establishment.md), since neither is then an
-`EncodeEC` form; that is a decode failure like the others.
+`EncodeEC` form, and an `identity` or `ephemeral` whose thirty-two key bytes
+are not the canonical encoding of a curve public key (Curve public keys,
+below). Each is a decode failure like the others. So an initial message with a
+re-spelled `identity` or `ephemeral` does not decode, whether it would open a
+session or repeat one (session-establishment.md, Receiving the initial
+message), and every key this decoder returns is one `DecodeEC` accepts.
 
 Everything after `kem_prekey_id` is `ratchet_message`, and the initial-message
 decoder does not validate it: it may be empty, or not a ratchet message at
@@ -351,10 +356,11 @@ The rule covers every curve public key a peer sends:
 - a ratchet message's `dh` (Ratchet message);
 - a prekey bundle's `identity_key`, `signed_prekey` and, when present,
   `one_time_prekey` (Prekey bundle);
-- an initial message's `identity` and `ephemeral`. These are `EncodeEC` forms,
-  and the initial-message decoder above checks only their curve byte;
-  `DecodeEC` applies this rule to their key bytes before either is used
-  (session-establishment.md).
+- an initial message's `identity` and `ephemeral`, the thirty-two key bytes
+  after each one's curve byte (Initial message). These are `EncodeEC` forms,
+  and the initial-message decoder refuses a re-spelled one, as the decoders
+  above refuse theirs. `DecodeEC` states the same rule
+  (session-establishment.md), so it refuses no key this decoder returned.
 
 This is the Canonical principle applied to curve keys, which X25519 alone does
 not enforce. A key's bytes serve as its identity in several places: a
