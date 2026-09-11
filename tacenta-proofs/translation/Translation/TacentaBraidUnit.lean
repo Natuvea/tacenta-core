@@ -3328,7 +3328,7 @@ def tacenta_braid.Braid.is_initiator
   | tacenta_braid.State.Failed => ok none
 
 /-- [tacenta_braid_unit::tacenta_braid::key_pair_valid]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1888:0-1892:1 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1890:0-1894:1 -/
 def tacenta_braid.key_pair_valid
   (kp : tacenta_kem.IncrementalKeyPair) : Result Bool := do
   let header ← tacenta_kem.IncrementalKeyPair.header kp
@@ -3338,14 +3338,14 @@ def tacenta_braid.key_pair_valid
   tacenta_kem.validate_ek s s1
 
 /-- [tacenta_braid_unit::tacenta_braid::decoder_sized]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1871:0-1873:1 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1873:0-1875:1 -/
 def tacenta_braid.decoder_sized
   (dec : tacenta_erasure.Decoder) (len : Std.Usize) : Result Bool := do
   let i ← tacenta_erasure.Decoder.impl.size dec
   ok (i = len)
 
 /-- [tacenta_braid_unit::tacenta_braid::encoder_sized]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1867:0-1869:1 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1869:0-1871:1 -/
 def tacenta_braid.encoder_sized
   (enc : tacenta_erasure.Encoder) (len : Std.Usize) : Result Bool := do
   let i ← tacenta_erasure.Encoder.needed enc
@@ -3353,7 +3353,7 @@ def tacenta_braid.encoder_sized
   ok (i = i1)
 
 /-- [tacenta_braid_unit::tacenta_braid::{tacenta_braid_unit::tacenta_braid::Braid}::invariant]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 571:4-683:5
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 573:4-685:5
     Visibility: public -/
 def tacenta_braid.Braid.invariant
   (self : tacenta_braid.Braid) : Result Bool := do
@@ -3538,20 +3538,20 @@ def tacenta_braid.Braid.invariant
   | tacenta_braid.State.Failed => ok true
 
 /-- [tacenta_braid_unit::tacenta_braid::{tacenta_braid_unit::tacenta_braid::Braid}::reported]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 686:4-688:5 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 688:4-690:5 -/
 def tacenta_braid.Braid.reported
   (self : tacenta_braid.Braid) : Result Std.U64 := do
   let i ← tacenta_braid.State.epoch self.state
   ok (core.num.U64.saturating_sub i 1#u64)
 
 /-- [tacenta_braid_unit::tacenta_braid::state_back]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1429:0-1431:1 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1431:0-1433:1 -/
 def tacenta_braid.state_back
   (state : tacenta_braid.State) : Result tacenta_braid.State := do
   ok state
 
 /-- [tacenta_braid_unit::tacenta_braid::{tacenta_braid_unit::tacenta_braid::Braid}::step_send]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 720:4-925:5 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 722:4-927:5 -/
 def tacenta_braid.Braid.step_send
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
   (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R)
@@ -3663,7 +3663,7 @@ def tacenta_braid.Braid.step_send
     ok ((m, none, tacenta_braid.State.Failed), rng)
 
 /-- [tacenta_braid_unit::tacenta_braid::{tacenta_braid_unit::tacenta_braid::Braid}::send]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 714:4-718:5
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 716:4-720:5
     Visibility: public -/
 def tacenta_braid.Braid.send
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -3680,7 +3680,7 @@ def tacenta_braid.Braid.send
   ok ((msg, i, out, { state := next }), rng1)
 
 /-- [tacenta_braid_unit::tacenta_braid::finish_encaps]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1405:0-1424:1 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1407:0-1426:1 -/
 def tacenta_braid.finish_encaps
   (epoch : Std.U64) (auth : tacenta_braid.Auth)
   (encaps : tacenta_kem.EncapsState) (ct1 : Slice Std.U8)
@@ -3700,7 +3700,7 @@ def tacenta_braid.finish_encaps
   | core.result.Result.Err _ => ok tacenta_braid.State.Failed
 
 /-- [tacenta_braid_unit::tacenta_braid::{tacenta_braid_unit::tacenta_braid::Braid}::step_receive]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 980:4-1400:5 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 982:4-1402:5 -/
 def tacenta_braid.Braid.step_receive
   (self : tacenta_braid.Braid) (state : tacenta_braid.State)
   (msg : tacenta_braid.Msg) :
@@ -3993,7 +3993,7 @@ def tacenta_braid.Braid.step_receive
   | tacenta_braid.State.Failed => ok (none, tacenta_braid.State.Failed)
 
 /-- [tacenta_braid_unit::tacenta_braid::{tacenta_braid_unit::tacenta_braid::Braid}::receive]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 960:4-969:5
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 962:4-971:5
     Visibility: public -/
 def tacenta_braid.Braid.receive
   (self : tacenta_braid.Braid) (msg : tacenta_braid.Msg) :
@@ -4012,7 +4012,7 @@ def tacenta_braid.Braid.receive
     ok (o.key_epoch, o1, { state := next })
 
 /-- [tacenta_braid_unit::tacenta_braid::{tacenta_braid_unit::tacenta_braid::Braid}::commit]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 976:4-978:5
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 978:4-980:5
     Visibility: public -/
 def tacenta_braid.Braid.commit
   (self : tacenta_braid.Braid) (next : tacenta_braid.Braid) :
@@ -4021,17 +4021,17 @@ def tacenta_braid.Braid.commit
   ok next
 
 /-- [tacenta_braid_unit::tacenta_braid::CHUNK_SIZE]
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1435:0-1435:42
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1437:0-1437:42
     Visibility: public -/
 @[global_simps, irreducible]
 def tacenta_braid.CHUNK_SIZE : Std.Usize := tacenta_erasure.CHUNK_BYTES
 
 /-- [tacenta_braid_unit::tacenta_braid::STATE_VERSION]
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1441:0-1441:31 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1443:0-1443:31 -/
 @[global_simps, irreducible] def tacenta_braid.STATE_VERSION : Std.U8 := 1#u8
 
 /-- [tacenta_braid_unit::tacenta_braid::BraidDecodeError]
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1453:0-1457:1
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1455:0-1459:1
     Visibility: public -/
 @[discriminant isize]
 inductive tacenta_braid.BraidDecodeError where
@@ -4040,7 +4040,7 @@ inductive tacenta_braid.BraidDecodeError where
 | Malformed : tacenta_braid.BraidDecodeError
 
 /-- [tacenta_braid_unit::tacenta_braid::{impl core::clone::Clone for tacenta_braid_unit::tacenta_braid::BraidDecodeError}::clone]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1452:9-1452:14
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1454:9-1454:14
     Visibility: public -/
 def tacenta_braid.BraidDecodeError.Insts.CoreCloneClone.clone
   (self : tacenta_braid.BraidDecodeError) :
@@ -4049,7 +4049,7 @@ def tacenta_braid.BraidDecodeError.Insts.CoreCloneClone.clone
   ok self
 
 /-- Trait implementation: [tacenta_braid_unit::tacenta_braid::{impl core::clone::Clone for tacenta_braid_unit::tacenta_braid::BraidDecodeError}]
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1452:9-1452:14 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1454:9-1454:14 -/
 @[reducible]
 def tacenta_braid.BraidDecodeError.Insts.CoreCloneClone : core.clone.Clone
   tacenta_braid.BraidDecodeError := {
@@ -4057,7 +4057,7 @@ def tacenta_braid.BraidDecodeError.Insts.CoreCloneClone : core.clone.Clone
 }
 
 /-- Trait implementation: [tacenta_braid_unit::tacenta_braid::{impl core::marker::Copy for tacenta_braid_unit::tacenta_braid::BraidDecodeError}]
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1452:16-1452:20 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1454:16-1454:20 -/
 @[reducible]
 def tacenta_braid.BraidDecodeError.Insts.CoreMarkerCopy : core.marker.Copy
   tacenta_braid.BraidDecodeError := {
@@ -4065,14 +4065,14 @@ def tacenta_braid.BraidDecodeError.Insts.CoreMarkerCopy : core.marker.Copy
 }
 
 /-- Trait implementation: [tacenta_braid_unit::tacenta_braid::{impl core::marker::StructuralPartialEq for tacenta_braid_unit::tacenta_braid::BraidDecodeError}]
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1452:22-1452:31 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1454:22-1454:31 -/
 @[reducible]
 def tacenta_braid.BraidDecodeError.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq tacenta_braid.BraidDecodeError := {
 }
 
 /-- [tacenta_braid_unit::tacenta_braid::{impl core::cmp::PartialEq<tacenta_braid_unit::tacenta_braid::BraidDecodeError> for tacenta_braid_unit::tacenta_braid::BraidDecodeError}::eq]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1452:22-1452:31
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1454:22-1454:31
     Visibility: public -/
 def tacenta_braid.BraidDecodeError.Insts.CoreCmpPartialEqBraidDecodeError.eq
   (self : tacenta_braid.BraidDecodeError)
@@ -4084,7 +4084,7 @@ def tacenta_braid.BraidDecodeError.Insts.CoreCmpPartialEqBraidDecodeError.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tacenta_braid_unit::tacenta_braid::{impl core::cmp::PartialEq<tacenta_braid_unit::tacenta_braid::BraidDecodeError> for tacenta_braid_unit::tacenta_braid::BraidDecodeError}]
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1452:22-1452:31 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1454:22-1454:31 -/
 @[reducible]
 def tacenta_braid.BraidDecodeError.Insts.CoreCmpPartialEqBraidDecodeError :
   core.cmp.PartialEq tacenta_braid.BraidDecodeError
@@ -4094,14 +4094,14 @@ def tacenta_braid.BraidDecodeError.Insts.CoreCmpPartialEqBraidDecodeError :
 }
 
 /-- [tacenta_braid_unit::tacenta_braid::{impl core::cmp::Eq for tacenta_braid_unit::tacenta_braid::BraidDecodeError}::assert_fields_are_eq]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1452:33-1452:35
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1454:33-1454:35
     Visibility: public -/
 def tacenta_braid.BraidDecodeError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : tacenta_braid.BraidDecodeError) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_braid_unit::tacenta_braid::{impl core::cmp::Eq for tacenta_braid_unit::tacenta_braid::BraidDecodeError}]
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1452:33-1452:35 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1454:33-1454:35 -/
 @[reducible]
 def tacenta_braid.BraidDecodeError.Insts.CoreCmpEq : core.cmp.Eq
   tacenta_braid.BraidDecodeError := {
@@ -4112,7 +4112,7 @@ def tacenta_braid.BraidDecodeError.Insts.CoreCmpEq : core.cmp.Eq
 }
 
 /-- [tacenta_braid_unit::tacenta_braid::{impl core::fmt::Debug for tacenta_braid_unit::tacenta_braid::BraidDecodeError}::fmt]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1452:37-1452:42
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1454:37-1454:42
     Visibility: public -/
 def tacenta_braid.BraidDecodeError.Insts.CoreFmtDebug.fmt
   (self : tacenta_braid.BraidDecodeError) (f : core.fmt.Formatter) :
@@ -4127,7 +4127,7 @@ def tacenta_braid.BraidDecodeError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "Malformed")
 
 /-- Trait implementation: [tacenta_braid_unit::tacenta_braid::{impl core::fmt::Debug for tacenta_braid_unit::tacenta_braid::BraidDecodeError}]
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1452:37-1452:42 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1454:37-1454:42 -/
 @[reducible]
 def tacenta_braid.BraidDecodeError.Insts.CoreFmtDebug : core.fmt.Debug
   tacenta_braid.BraidDecodeError := {
@@ -4135,7 +4135,7 @@ def tacenta_braid.BraidDecodeError.Insts.CoreFmtDebug : core.fmt.Debug
 }
 
 /-- [tacenta_braid_unit::tacenta_braid::{tacenta_braid_unit::tacenta_braid::Auth}::to_bytes]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1460:4-1465:5 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1462:4-1467:5 -/
 def tacenta_braid.Auth.to_bytes
   (self : tacenta_braid.Auth) : Result (Array Std.U8 64#usize) := do
   let out := Array.repeat 64#usize 0#u8
@@ -4155,7 +4155,7 @@ def tacenta_braid.Auth.to_bytes
   ok (index_mut_back1 s5)
 
 /-- [tacenta_braid_unit::tacenta_braid::{tacenta_braid_unit::tacenta_braid::Auth}::from_bytes]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1467:4-1473:5 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1469:4-1475:5 -/
 def tacenta_braid.Auth.from_bytes
   (bytes : Array Std.U8 64#usize) : Result tacenta_braid.Auth := do
   let root_key := Array.repeat 32#usize 0#u8
@@ -4177,22 +4177,22 @@ def tacenta_braid.Auth.from_bytes
   ok { root_key := root_key1, mac_key := mac_key1 }
 
 /-- [tacenta_braid_unit::tacenta_braid::HEAD_LEN]
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1479:0-1479:30 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1481:0-1481:30 -/
 @[global_simps, irreducible]
 def tacenta_braid.HEAD_LEN : Result Std.Usize := 1#usize + 1#usize
 
 /-- [tacenta_braid_unit::tacenta_braid::EPOCH_AND_AUTH_LEN]
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1480:0-1480:41 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1482:0-1482:41 -/
 @[global_simps, irreducible]
 def tacenta_braid.EPOCH_AND_AUTH_LEN : Result Std.Usize := 8#usize + 64#usize
 
 /-- [tacenta_braid_unit::tacenta_braid::len_prefixed_len]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1484:0-1486:1 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1486:0-1488:1 -/
 def tacenta_braid.len_prefixed_len (len : Std.Usize) : Result Std.Usize := do
   4#usize + len
 
 /-- [tacenta_braid_unit::tacenta_braid::push_len_prefixed]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1493:0-1496:1 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1495:0-1498:1 -/
 def tacenta_braid.push_len_prefixed
   (out : alloc.vec.Vec Std.U8) (bytes : Slice Std.U8) :
   Result (alloc.vec.Vec Std.U8)
@@ -4205,7 +4205,7 @@ def tacenta_braid.push_len_prefixed
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 bytes
 
 /-- [tacenta_braid_unit::tacenta_braid::take_len_prefixed]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1501:0-1525:1 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1503:0-1527:1 -/
 def tacenta_braid.take_len_prefixed
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option ((Slice Std.U8) × Std.Usize))
@@ -4243,7 +4243,7 @@ def tacenta_braid.take_len_prefixed
           ok (some (s4, e))
 
 /-- [tacenta_braid_unit::tacenta_braid::read_u64]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1527:0-1534:1 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1529:0-1536:1 -/
 def tacenta_braid.read_u64
   (bytes : Slice Std.U8) (pos : Std.Usize) : Result (Option Std.U64) := do
   let i := Slice.len bytes
@@ -4262,7 +4262,7 @@ def tacenta_braid.read_u64
     ok (some i2)
 
 /-- [tacenta_braid_unit::tacenta_braid::read_epoch]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1547:0-1555:1 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1549:0-1557:1 -/
 def tacenta_braid.read_epoch
   (bytes : Slice Std.U8) (pos : Std.Usize) : Result (Option Std.U64) := do
   let o ← tacenta_braid.read_u64 bytes pos
@@ -4273,7 +4273,7 @@ def tacenta_braid.read_epoch
               else ok o
 
 /-- [tacenta_braid_unit::tacenta_braid::read_auth]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1557:0-1564:1 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1559:0-1566:1 -/
 def tacenta_braid.read_auth
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option (tacenta_braid.Auth × Std.Usize))
@@ -4294,7 +4294,7 @@ def tacenta_braid.read_auth
     ok (some (a2, i1))
 
 /-- [tacenta_braid_unit::tacenta_braid::{tacenta_braid_unit::tacenta_braid::Braid}::encoded_len]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1738:4-1835:5 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1740:4-1837:5 -/
 def tacenta_braid.Braid.encoded_len
   (self : tacenta_braid.Braid) : Result Std.Usize := do
   match self.state with
@@ -4465,7 +4465,7 @@ def tacenta_braid.Braid.encoded_len
   | tacenta_braid.State.Failed => tacenta_braid.HEAD_LEN
 
 /-- [tacenta_braid_unit::tacenta_braid::{tacenta_braid_unit::tacenta_braid::Braid}::to_bytes]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1574:4-1725:5
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1576:4-1727:5
     Visibility: public -/
 def tacenta_braid.Braid.to_bytes
   (self : tacenta_braid.Braid) :
@@ -4679,7 +4679,7 @@ def tacenta_braid.Braid.to_bytes
     (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) out3
 
 /-- [tacenta_braid_unit::tacenta_braid::decode_state]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1903:0-2236:1 -/
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1905:0-2238:1 -/
 def tacenta_braid.decode_state
   (tag : Std.U8) (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option (tacenta_braid.State × Std.Usize))
@@ -5060,7 +5060,7 @@ def tacenta_braid.decode_state
   | _ => ok none
 
 /-- [tacenta_braid_unit::tacenta_braid::{tacenta_braid_unit::tacenta_braid::Braid}::from_bytes]:
-    Source: 'braid-unit/src/tacenta_braid.rs', lines 1838:4-1860:5
+    Source: 'braid-unit/src/tacenta_braid.rs', lines 1840:4-1862:5
     Visibility: public -/
 def tacenta_braid.Braid.from_bytes
   (bytes : Slice Std.U8) :

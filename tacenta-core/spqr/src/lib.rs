@@ -435,8 +435,10 @@ impl State {
     /// every state the operations produce too, and not only of the ones the
     /// decoder happens to accept. It is *not* `SpqrT3`'s `hepoch`, which asks
     /// for `epoch + 1 < u64::MAX`: the refinement stops one step below the
-    /// reservation, because the model counts in `Nat` and keeps going where
-    /// this crate refuses.
+    /// reservation. `Model.SparseRatchet` reserves the same epoch and refuses
+    /// the same step (`Model.SparseRatchet.u64Max`), so `hepoch` is kept from
+    /// before the model stopped, and whether it could now be dropped has not
+    /// been checked.
     ///
     /// Still hypotheses of the refinement, not facts of an imported state:
     ///

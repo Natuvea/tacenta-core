@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "_note": "Written only by `tacenta-proofs/scripts/attest.py --refresh-translation`, immediately after `scripts/run-aeneas.sh` on the pinned toolchain, and compared against by every other mode. A green `attest.py --check` establishes that each generated Translation/Tacenta*.lean is a module run-aeneas.sh produces, is byte for byte the file recorded here, declares exactly the axioms recorded here (as text; no-sorry.sh compares the same record with what the axiom audit saw in the built environment), and that the Rust verified zone it was generated from, and the workspace inputs that shape every zone's extraction (Cargo.toml and its profiles, Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed to when this was written, as recorded by whoever ran the toolchain. Where the zone is assembled rather than written (tacenta-core/triple-unit, the three-leaf translation unit), the record carries an `assembly` field naming the script and the three leaf trees it was assembled from, with their hashes, and --check fails if any of them has moved since; assemble-triple-unit.sh --check is the separate question of whether the unit crate in the tree is what those leaves assemble to. It does not establish that the toolchain was run, or run honestly: that is checked by regenerating with run-aeneas.sh and diffing, which REPRODUCING.md describes.",
-  "generated_at_commit": "5387f35d150790ad9d9f1769b627b7258301adb7",
+  "generated_at_commit": "8d51c1d1aae0960509618afc36e1beda9e255c92",
   "aeneas": {
     "release": "nightly-2026.07.22-b1214ca",
     "commit": "b1214ca0a024e8121f41fe2b2ed15e26af02373b"
@@ -9,7 +9,7 @@
   "generated_files": {
     "tacenta-proofs/translation/Translation/TacentaBraid.lean": {
       "module": "TacentaBraid",
-      "sha256": "050f2af32410554b72c64509a97f3bcc5a645deeecda0fba583d54c688e41370",
+      "sha256": "e374be8e8302259159ae3b493a0aba1a21e60c544a763b14ad17c03f00327be6",
       "axioms": [
         "Array.Insts.ZeroizeZeroize.zeroize",
         "alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize",
@@ -74,12 +74,12 @@
         "zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop"
       ],
       "zone": "tacenta-core/braid",
-      "zone_sha256": "f2f25ddaa8e4daed0396412fc6b6143b50dd96a6413debe63f3c1614dd1d9f55",
+      "zone_sha256": "c04ff6f3e84e1a0359d78e673b7cc00ccc4763630bdb44f28097e883a11552e5",
       "workspace_sha256": "cfa3f5398bae9b235ae079329ed58b71145417eaa1cd64d384fe62b66c29a425"
     },
     "tacenta-proofs/translation/Translation/TacentaBraidUnit.lean": {
       "module": "TacentaBraidUnit",
-      "sha256": "1ce1cc4503eea280634b554901aa5ad4e8d05f73f89597f518bf278d7a4db4ca",
+      "sha256": "0ce8035516476746ed7ea232b713a228993d43939339e1fbed213755504a44a9",
       "axioms": [
         "Array.Insts.ZeroizeZeroize.zeroize",
         "alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize",
@@ -123,13 +123,13 @@
         "zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop"
       ],
       "zone": "tacenta-core/braid-unit",
-      "zone_sha256": "6c5cdf61a019221e55fc5c31673b0e7e5ebaf04356d90028be35ac5087205082",
+      "zone_sha256": "743bcab853386bad28251942f7ac21bec721e177e499da756075d9551399579a",
       "workspace_sha256": "cfa3f5398bae9b235ae079329ed58b71145417eaa1cd64d384fe62b66c29a425",
       "assembly": {
         "script": "tacenta-proofs/scripts/assemble-braid-unit.sh",
         "script_sha256": "c95c7d9fef7a2fb6e1eba9bf37600bf5313a602f78a556a85aef23d2ad35a729",
         "sources": {
-          "tacenta-core/braid": "f2f25ddaa8e4daed0396412fc6b6143b50dd96a6413debe63f3c1614dd1d9f55",
+          "tacenta-core/braid": "c04ff6f3e84e1a0359d78e673b7cc00ccc4763630bdb44f28097e883a11552e5",
           "tacenta-core/erasure": "e3015ee19d0e6d53b267c99069b47209f07adc592e8e6a765474aaf98d49d366"
         }
       }
@@ -195,7 +195,7 @@
     },
     "tacenta-proofs/translation/Translation/TacentaSpqr.lean": {
       "module": "TacentaSpqr",
-      "sha256": "a20d9ca54c8f363895c9a13ecb05b11a73c218d242a8bf21d96ed75f7d487dff",
+      "sha256": "cdcefd2e141da1d36af04a67d7a7c1f7e4a8efba0d49a7eda21f28ae3ea5abe4",
       "axioms": [
         "Array.Insts.ZeroizeZeroize.zeroize",
         "alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize",
@@ -214,12 +214,12 @@
         "zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop"
       ],
       "zone": "tacenta-core/spqr",
-      "zone_sha256": "b2c8bdc22103a13152768a1c284121e760062c99eb692025bc4f5e5cf1348343",
+      "zone_sha256": "8fcf8f3ec6cd4c76cc75e62c4e9836e9f1ca6c71a8bf6ba50d4788acd596c692",
       "workspace_sha256": "cfa3f5398bae9b235ae079329ed58b71145417eaa1cd64d384fe62b66c29a425"
     },
     "tacenta-proofs/translation/Translation/TacentaTripleUnit.lean": {
       "module": "TacentaTripleUnit",
-      "sha256": "a29db4138557aa11ffb5717014f8110223b57709b856ccd919072e6e790c9130",
+      "sha256": "39310510e10f96450124e73f8e6fbecdfeaa6d41fbbfdfbb3fb5bf15ae8ea4ea",
       "axioms": [
         "Array.Insts.ZeroizeZeroize.zeroize",
         "Pair.Insts.ZeroizeZeroize.zeroize",
@@ -249,7 +249,7 @@
         "script_sha256": "a0eab7a4e50df59d1f1aefdd5c9489419d5ffcb89109c35923edcc11a18954e5",
         "sources": {
           "tacenta-core/ratchet": "5deb9ef6a62608a3bd4110cf8cdf267722894dbb7e9e73d990c8e79b9dd2fe87",
-          "tacenta-core/spqr": "b2c8bdc22103a13152768a1c284121e760062c99eb692025bc4f5e5cf1348343",
+          "tacenta-core/spqr": "8fcf8f3ec6cd4c76cc75e62c4e9836e9f1ca6c71a8bf6ba50d4788acd596c692",
           "tacenta-core/triple": "5b8836ebd7e95776bebda01eae96fb6c31b35b180c5d8a0373425572cfd87d95"
         }
       }
