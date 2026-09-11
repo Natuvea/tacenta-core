@@ -262,7 +262,10 @@ operation carries it to the model's operation.
 - `receive_refines`: a successful `receive`, given the two agreement outputs
   and the fresh ratchet key as bytes, returns the key `Model.Ratchet.receive`
   returns and a state still related, across the skipped-key hit, the
-  same-chain path and the Diffie-Hellman ratchet path. Under `HmacAgrees`,
+  same-chain path and the Diffie-Hellman ratchet path. The model refuses a
+  same-chain message numbered below `nr` whose key is not stored, so a
+  successful Rust `receive` is never such a message (the Rust returns
+  `OutOfOrder` there). Under `HmacAgrees`,
   `HkdfAgrees` (stated under RFC 5869's `N.val ≤ 8160`, discharged at the
   64- and 80-byte literals), `ZeroizingRoundTrips`, `VecRemoveTotal`
   (stated under `i.val < v.val.length`, discharged from each scan's own loop
@@ -567,9 +570,11 @@ Against `Model.Messages.decodeInitial`.
   message, and `Err` exactly when the model returns `none`. No hypothesis.
   Pinned to `propext`, `Classical.choice` and `Quot.sound` alone.
 - `decodeInitial_cases`: the model's decoder by cases, the lemma the refinement
-  rewrites with. Too short, a wrong version or type byte, or no room for the two
-  keys and the ciphertext length is `none`; otherwise the decoded message is one
-  expression over fixed offsets and the ciphertext length read at offset 68.
+  rewrites with. Too short, a wrong version or type byte, no room for the two
+  keys, an `identity` or `ephemeral` whose first byte is not the `EncodeEC`
+  curve byte `0x05`, or no room for the ciphertext length is `none`; otherwise
+  the decoded message is one expression over fixed offsets and the ciphertext
+  length read at offset 68.
 
 **What this does not give.** The same limit as above: what the session does
 with a decoded initial message is outside the translated surface.
@@ -589,10 +594,11 @@ exists.
   Pinned to `propext`, `Classical.choice` and `Quot.sound` alone. Since the
   model accepts one spelling of each bundle, so does the code.
 - `decodeBundle_cases`: the model's decoder by cases, the lemma the refinement
-  rewrites with. Too short for the framing, a wrong version or type byte, or too
-  short for the fixed prefix is `none`; otherwise the bundle is `some` exactly
-  when the input is as long as the KEM prekey's length says and the one-time
-  prekey's field is a valid spelling.
+  rewrites with. Too short for the framing, a wrong version or type byte, too
+  short for the fixed prefix, or a KEM prekey length other than 1,568 bytes
+  (the ML-KEM-1024 encapsulation-key length) is `none`; otherwise the bundle is
+  `some` exactly when the input is as long as the KEM prekey's length says and
+  the one-time prekey's field is a valid spelling.
 - `one_time_prekey_at_spec`: the code's decision on the one-time prekey's
   presence byte and thirty-two bytes is the model's `decodeOptionalKey`.
 
@@ -1758,7 +1764,9 @@ kernel proof.
 - Primitive known-answer values: SHA-256 (NIST), HMAC-SHA256 (RFC 4231),
   HKDF-SHA256 (RFC 5869), in both tacenta-model and tacenta-core.
 - Ratchet self-consistency: in-order, out-of-order, and bidirectional agreement,
-  in tacenta-model `Model.Ratchet`.
+  and the refusal of a message delivered a second time on the chain already
+  held (after an in-order receive and after a stored-key receive) with the
+  next message still received, in tacenta-model `Model.Ratchet`.
 - Model-to-core conformance: the ratchet vectors generated from the model,
   replayed against tacenta-core by the Rust runner in tacenta-test-vectors,
   including on every step the expansion of the message key into the AEAD

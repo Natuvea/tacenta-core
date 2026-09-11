@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "_note": "Written only by `tacenta-proofs/scripts/attest.py --refresh-translation`, immediately after `scripts/run-aeneas.sh` on the pinned toolchain, and compared against by every other mode. A green `attest.py --check` establishes that each generated Translation/Tacenta*.lean is a module run-aeneas.sh produces, is byte for byte the file recorded here, declares exactly the axioms recorded here (as text; no-sorry.sh compares the same record with what the axiom audit saw in the built environment), and that the Rust verified zone it was generated from, and the workspace inputs that shape every zone's extraction (Cargo.toml and its profiles, Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed to when this was written, as recorded by whoever ran the toolchain. Where the zone is assembled rather than written (tacenta-core/triple-unit, the three-leaf translation unit), the record carries an `assembly` field naming the script and the three leaf trees it was assembled from, with their hashes, and --check fails if any of them has moved since; assemble-triple-unit.sh --check is the separate question of whether the unit crate in the tree is what those leaves assemble to. It does not establish that the toolchain was run, or run honestly: that is checked by regenerating with run-aeneas.sh and diffing, which REPRODUCING.md describes.",
-  "generated_at_commit": "8d26b3ef6f87735ba6a8e53e76d4acf0fd81d171",
+  "generated_at_commit": "04e3661b95a7ddfc97b099a57456ef0932c780ce",
   "aeneas": {
     "release": "nightly-2026.07.22-b1214ca",
     "commit": "b1214ca0a024e8121f41fe2b2ed15e26af02373b"
@@ -75,7 +75,7 @@
       ],
       "zone": "tacenta-core/braid",
       "zone_sha256": "bca55e72eab8d184144327004ed4b5fa03b0d9742a60402bd78058e7042da7b1",
-      "workspace_sha256": "465c78dd6f6c60e5daf4840cebf9a53a585d9ec7e766ff4db8383d3773252620"
+      "workspace_sha256": "66e7ccaf9fcf301c7defdfd3d97d1b1be80ce2705e66913eabd0521fcb7f9fdf"
     },
     "tacenta-proofs/translation/Translation/TacentaBraidUnit.lean": {
       "module": "TacentaBraidUnit",
@@ -124,13 +124,13 @@
       ],
       "zone": "tacenta-core/braid-unit",
       "zone_sha256": "b840b7639b320c0d00bbb5930924b89b78c1045f54232ae370ecf1013736d144",
-      "workspace_sha256": "465c78dd6f6c60e5daf4840cebf9a53a585d9ec7e766ff4db8383d3773252620",
+      "workspace_sha256": "66e7ccaf9fcf301c7defdfd3d97d1b1be80ce2705e66913eabd0521fcb7f9fdf",
       "assembly": {
         "script": "tacenta-proofs/scripts/assemble-braid-unit.sh",
         "script_sha256": "c95c7d9fef7a2fb6e1eba9bf37600bf5313a602f78a556a85aef23d2ad35a729",
         "sources": {
           "tacenta-core/braid": "bca55e72eab8d184144327004ed4b5fa03b0d9742a60402bd78058e7042da7b1",
-          "tacenta-core/erasure": "e3015ee19d0e6d53b267c99069b47209f07adc592e8e6a765474aaf98d49d366"
+          "tacenta-core/erasure": "f7b3193d617f3a44c63cb81e2d28ae5a5c2379eaeb43c32e3600f57fea9ecef6"
         }
       }
     },
@@ -142,8 +142,8 @@
         "core.num.Usize.div_ceil"
       ],
       "zone": "tacenta-core/erasure",
-      "zone_sha256": "e3015ee19d0e6d53b267c99069b47209f07adc592e8e6a765474aaf98d49d366",
-      "workspace_sha256": "465c78dd6f6c60e5daf4840cebf9a53a585d9ec7e766ff4db8383d3773252620"
+      "zone_sha256": "f7b3193d617f3a44c63cb81e2d28ae5a5c2379eaeb43c32e3600f57fea9ecef6",
+      "workspace_sha256": "66e7ccaf9fcf301c7defdfd3d97d1b1be80ce2705e66913eabd0521fcb7f9fdf"
     },
     "tacenta-proofs/translation/Translation/TacentaProtobuf.lean": {
       "module": "TacentaProtobuf",
@@ -151,11 +151,11 @@
       "axioms": [],
       "zone": "tacenta-core/protobuf",
       "zone_sha256": "f66a2bb9d82b47d781da350e944851fcc38b9369c5aca9e58d1556b0b95651f8",
-      "workspace_sha256": "465c78dd6f6c60e5daf4840cebf9a53a585d9ec7e766ff4db8383d3773252620"
+      "workspace_sha256": "66e7ccaf9fcf301c7defdfd3d97d1b1be80ce2705e66913eabd0521fcb7f9fdf"
     },
     "tacenta-proofs/translation/Translation/TacentaRatchet.lean": {
       "module": "TacentaRatchet",
-      "sha256": "118e7f00be0882aa15cdce134f505187011e19f5d0451635e99072864a1fb7f3",
+      "sha256": "f12146ad49a28ff787f5657acb3b5cc26dc97b0ee32d43ad8013506634408911",
       "axioms": [
         "Array.Insts.ZeroizeZeroize.zeroize",
         "Pair.Insts.ZeroizeZeroize.zeroize",
@@ -174,8 +174,8 @@
         "zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop"
       ],
       "zone": "tacenta-core/ratchet",
-      "zone_sha256": "78122ceb7c458458943c938ccb96d4825e2955ace948254111a64dde88266a43",
-      "workspace_sha256": "465c78dd6f6c60e5daf4840cebf9a53a585d9ec7e766ff4db8383d3773252620"
+      "zone_sha256": "a27bf1925af492dc0963ac9b9c43d19a6d31b5d7211078eac767ba37e629e204",
+      "workspace_sha256": "66e7ccaf9fcf301c7defdfd3d97d1b1be80ce2705e66913eabd0521fcb7f9fdf"
     },
     "tacenta-proofs/translation/Translation/TacentaSession.lean": {
       "module": "TacentaSession",
@@ -191,7 +191,7 @@
       ],
       "zone": "tacenta-core/session",
       "zone_sha256": "e33d65e307a6261e807bc11c1cc720f038f4e67bbb28cdd7f964fc150775a924",
-      "workspace_sha256": "465c78dd6f6c60e5daf4840cebf9a53a585d9ec7e766ff4db8383d3773252620"
+      "workspace_sha256": "66e7ccaf9fcf301c7defdfd3d97d1b1be80ce2705e66913eabd0521fcb7f9fdf"
     },
     "tacenta-proofs/translation/Translation/TacentaSpqr.lean": {
       "module": "TacentaSpqr",
@@ -214,12 +214,12 @@
         "zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop"
       ],
       "zone": "tacenta-core/spqr",
-      "zone_sha256": "b2c8bdc22103a13152768a1c284121e760062c99eb692025bc4f5e5cf1348343",
-      "workspace_sha256": "465c78dd6f6c60e5daf4840cebf9a53a585d9ec7e766ff4db8383d3773252620"
+      "zone_sha256": "0e06b29d5028de40a58c5db5fea96770965f2f36da8c8adc6a01fca79b4632b7",
+      "workspace_sha256": "66e7ccaf9fcf301c7defdfd3d97d1b1be80ce2705e66913eabd0521fcb7f9fdf"
     },
     "tacenta-proofs/translation/Translation/TacentaTripleUnit.lean": {
       "module": "TacentaTripleUnit",
-      "sha256": "f3eb785623cc0c9fe34f40faa36960141858abea5077cf31c8a4a0d29b7a5218",
+      "sha256": "1e941258e01ba6dbe2dfd451162e13ee4f03ab3fbc2f47ba0b579398e8f14f7c",
       "axioms": [
         "Array.Insts.ZeroizeZeroize.zeroize",
         "Pair.Insts.ZeroizeZeroize.zeroize",
@@ -242,29 +242,29 @@
         "zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop"
       ],
       "zone": "tacenta-core/triple-unit",
-      "zone_sha256": "8f274ceda4394e9c7294608aee27335e465d3a9e9ef8ebb2b0bd37dad2ff4333",
-      "workspace_sha256": "465c78dd6f6c60e5daf4840cebf9a53a585d9ec7e766ff4db8383d3773252620",
+      "zone_sha256": "64bb6a6b9a9906fa0cb64122fa95d2511c12ad29ae680c86f68b0dca303edda1",
+      "workspace_sha256": "66e7ccaf9fcf301c7defdfd3d97d1b1be80ce2705e66913eabd0521fcb7f9fdf",
       "assembly": {
         "script": "tacenta-proofs/scripts/assemble-triple-unit.sh",
         "script_sha256": "a0eab7a4e50df59d1f1aefdd5c9489419d5ffcb89109c35923edcc11a18954e5",
         "sources": {
-          "tacenta-core/ratchet": "78122ceb7c458458943c938ccb96d4825e2955ace948254111a64dde88266a43",
-          "tacenta-core/spqr": "b2c8bdc22103a13152768a1c284121e760062c99eb692025bc4f5e5cf1348343",
-          "tacenta-core/triple": "0eb9709f20d0d28ce1d832dbfff54bfd4a5dd72baac9d62a16b2fbd31df86480"
+          "tacenta-core/ratchet": "a27bf1925af492dc0963ac9b9c43d19a6d31b5d7211078eac767ba37e629e204",
+          "tacenta-core/spqr": "0e06b29d5028de40a58c5db5fea96770965f2f36da8c8adc6a01fca79b4632b7",
+          "tacenta-core/triple": "d3ca6b9e58174831c0cc059fae1c4d2851071d97048b3c02c61d10670352427a"
         }
       }
     },
     "tacenta-proofs/translation/Translation/TacentaWire.lean": {
       "module": "TacentaWire",
-      "sha256": "8f5b7b017577b10d0f60d016f14af2adac1f7dcb473c57da8dc41e013e930c7d",
+      "sha256": "8459929a4bd5caf85ce000be7a336ad4e9361810102affa045584682484aa260",
       "axioms": [
         "core.option.Option.Insts.CoreCloneClone.clone",
         "core.option.Option.Insts.CoreCmpPartialEqOption.eq",
         "core.option.Option.Insts.CoreFmtDebug.fmt"
       ],
       "zone": "tacenta-core/wire",
-      "zone_sha256": "a996f9860f8ce8505aa86452cd23277a3383fabaa5b56732779037e213225c7e",
-      "workspace_sha256": "465c78dd6f6c60e5daf4840cebf9a53a585d9ec7e766ff4db8383d3773252620"
+      "zone_sha256": "06c5efc04faa924f5228884d268ddb05414465bddcdedd5d1d3fced6360ac116",
+      "workspace_sha256": "66e7ccaf9fcf301c7defdfd3d97d1b1be80ce2705e66913eabd0521fcb7f9fdf"
     }
   }
 }

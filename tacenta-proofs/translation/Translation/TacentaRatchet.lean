@@ -798,7 +798,7 @@ def State.evict_oldest
   State.evict_oldest_loop0 self count 0#usize
 
 /-- [tacenta_ratchet::RatchetError]
-    Source: 'ratchet/src/lib.rs', lines 275:0-288:1
+    Source: 'ratchet/src/lib.rs', lines 275:0-293:1
     Visibility: public -/
 @[discriminant isize]
 inductive RatchetError where
@@ -806,6 +806,7 @@ inductive RatchetError where
 | SkippedStoreFull : RatchetError
 | NoSendingChain : RatchetError
 | NoReceivingChain : RatchetError
+| OutOfOrder : RatchetError
 | ChainExhausted : RatchetError
 
 /-- [tacenta_ratchet::{impl core::clone::Clone for tacenta_ratchet::RatchetError}::clone]:
@@ -886,6 +887,8 @@ def RatchetError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "NoSendingChain")
   | RatchetError.NoReceivingChain =>
     core.fmt.Formatter.write_str f (toStr "NoReceivingChain")
+  | RatchetError.OutOfOrder =>
+    core.fmt.Formatter.write_str f (toStr "OutOfOrder")
   | RatchetError.ChainExhausted =>
     core.fmt.Formatter.write_str f (toStr "ChainExhausted")
 
@@ -897,25 +900,25 @@ def RatchetError.Insts.CoreFmtDebug : core.fmt.Debug RatchetError := {
 }
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::sending_public]:
-    Source: 'ratchet/src/lib.rs', lines 295:4-297:5
+    Source: 'ratchet/src/lib.rs', lines 300:4-302:5
     Visibility: public -/
 def State.sending_public (self : State) : Result (Array Std.U8 32#usize) := do
   ok self.dhs_pub
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::send_count]:
-    Source: 'ratchet/src/lib.rs', lines 300:4-302:5
+    Source: 'ratchet/src/lib.rs', lines 305:4-307:5
     Visibility: public -/
 def State.send_count (self : State) : Result Std.U32 := do
   ok self.ns
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::receive_count]:
-    Source: 'ratchet/src/lib.rs', lines 305:4-307:5
+    Source: 'ratchet/src/lib.rs', lines 310:4-312:5
     Visibility: public -/
 def State.receive_count (self : State) : Result Std.U32 := do
   ok self.nr
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::started_as_sender]:
-    Source: 'ratchet/src/lib.rs', lines 317:4-323:5
+    Source: 'ratchet/src/lib.rs', lines 322:4-328:5
     Visibility: public -/
 def State.started_as_sender (self : State) : Result (Option Bool) := do
   match self.cks with
@@ -927,7 +930,7 @@ def State.started_as_sender (self : State) : Result (Option Bool) := do
               | some _ => ok none
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::invariant]: loop body 1:
-    Source: 'ratchet/src/lib.rs', lines 1:0-381:13
+    Source: 'ratchet/src/lib.rs', lines 1:0-386:13
     Visibility: public -/
 @[rust_loop_body]
 def State.invariant_loop0_loop0.body
@@ -957,7 +960,7 @@ def State.invariant_loop0_loop0.body
   else ok (done store_ok)
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::invariant]: loop 1:
-    Source: 'ratchet/src/lib.rs', lines 1:0-381:13
+    Source: 'ratchet/src/lib.rs', lines 1:0-386:13
     Visibility: public -/
 @[rust_loop]
 def State.invariant_loop0_loop0
@@ -970,7 +973,7 @@ def State.invariant_loop0_loop0
     (store_ok, j)
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::invariant]: loop body 0:
-    Source: 'ratchet/src/lib.rs', lines 1:0-383:9
+    Source: 'ratchet/src/lib.rs', lines 1:0-388:9
     Visibility: public -/
 @[rust_loop_body]
 def State.invariant_loop0.body
@@ -998,7 +1001,7 @@ def State.invariant_loop0.body
       store_ok))
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::invariant]: loop 0:
-    Source: 'ratchet/src/lib.rs', lines 1:0-383:9
+    Source: 'ratchet/src/lib.rs', lines 1:0-388:9
     Visibility: public -/
 @[rust_loop]
 def State.invariant_loop0
@@ -1012,7 +1015,7 @@ def State.invariant_loop0
     (store_ok, i)
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::invariant]:
-    Source: 'ratchet/src/lib.rs', lines 366:4-391:5
+    Source: 'ratchet/src/lib.rs', lines 371:4-396:5
     Visibility: public -/
 def State.invariant (self : State) : Result Bool := do
   let (o, o1, o2, v, i, store_ok) ← State.invariant_loop0 self true 0#usize
@@ -1036,11 +1039,11 @@ def State.invariant (self : State) : Result Bool := do
   else ok false
 
 /-- [tacenta_ratchet::STATE_VERSION]
-    Source: 'ratchet/src/lib.rs', lines 399:0-399:31 -/
+    Source: 'ratchet/src/lib.rs', lines 404:0-404:31 -/
 @[global_simps, irreducible] def STATE_VERSION : Std.U8 := 1#u8
 
 /-- [tacenta_ratchet::RatchetDecodeError]
-    Source: 'ratchet/src/lib.rs', lines 414:0-418:1
+    Source: 'ratchet/src/lib.rs', lines 419:0-423:1
     Visibility: public -/
 @[discriminant isize]
 inductive RatchetDecodeError where
@@ -1049,14 +1052,14 @@ inductive RatchetDecodeError where
 | Malformed : RatchetDecodeError
 
 /-- [tacenta_ratchet::{impl core::clone::Clone for tacenta_ratchet::RatchetDecodeError}::clone]:
-    Source: 'ratchet/src/lib.rs', lines 413:9-413:14
+    Source: 'ratchet/src/lib.rs', lines 418:9-418:14
     Visibility: public -/
 def RatchetDecodeError.Insts.CoreCloneClone.clone
   (self : RatchetDecodeError) : Result RatchetDecodeError := do
   ok self
 
 /-- Trait implementation: [tacenta_ratchet::{impl core::clone::Clone for tacenta_ratchet::RatchetDecodeError}]
-    Source: 'ratchet/src/lib.rs', lines 413:9-413:14 -/
+    Source: 'ratchet/src/lib.rs', lines 418:9-418:14 -/
 @[reducible]
 def RatchetDecodeError.Insts.CoreCloneClone : core.clone.Clone
   RatchetDecodeError := {
@@ -1064,7 +1067,7 @@ def RatchetDecodeError.Insts.CoreCloneClone : core.clone.Clone
 }
 
 /-- Trait implementation: [tacenta_ratchet::{impl core::marker::Copy for tacenta_ratchet::RatchetDecodeError}]
-    Source: 'ratchet/src/lib.rs', lines 413:16-413:20 -/
+    Source: 'ratchet/src/lib.rs', lines 418:16-418:20 -/
 @[reducible]
 def RatchetDecodeError.Insts.CoreMarkerCopy : core.marker.Copy
   RatchetDecodeError := {
@@ -1072,14 +1075,14 @@ def RatchetDecodeError.Insts.CoreMarkerCopy : core.marker.Copy
 }
 
 /-- Trait implementation: [tacenta_ratchet::{impl core::marker::StructuralPartialEq for tacenta_ratchet::RatchetDecodeError}]
-    Source: 'ratchet/src/lib.rs', lines 413:22-413:31 -/
+    Source: 'ratchet/src/lib.rs', lines 418:22-418:31 -/
 @[reducible]
 def RatchetDecodeError.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq RatchetDecodeError := {
 }
 
 /-- [tacenta_ratchet::{impl core::cmp::PartialEq<tacenta_ratchet::RatchetDecodeError> for tacenta_ratchet::RatchetDecodeError}::eq]:
-    Source: 'ratchet/src/lib.rs', lines 413:22-413:31
+    Source: 'ratchet/src/lib.rs', lines 418:22-418:31
     Visibility: public -/
 def RatchetDecodeError.Insts.CoreCmpPartialEqRatchetDecodeError.eq
   (self : RatchetDecodeError) (other : RatchetDecodeError) : Result Bool := do
@@ -1088,7 +1091,7 @@ def RatchetDecodeError.Insts.CoreCmpPartialEqRatchetDecodeError.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tacenta_ratchet::{impl core::cmp::PartialEq<tacenta_ratchet::RatchetDecodeError> for tacenta_ratchet::RatchetDecodeError}]
-    Source: 'ratchet/src/lib.rs', lines 413:22-413:31 -/
+    Source: 'ratchet/src/lib.rs', lines 418:22-418:31 -/
 @[reducible]
 impl_def RatchetDecodeError.Insts.CoreCmpPartialEqRatchetDecodeError :
   core.cmp.PartialEq RatchetDecodeError RatchetDecodeError := {
@@ -1098,14 +1101,14 @@ impl_def RatchetDecodeError.Insts.CoreCmpPartialEqRatchetDecodeError :
 }
 
 /-- [tacenta_ratchet::{impl core::cmp::Eq for tacenta_ratchet::RatchetDecodeError}::assert_fields_are_eq]:
-    Source: 'ratchet/src/lib.rs', lines 413:33-413:35
+    Source: 'ratchet/src/lib.rs', lines 418:33-418:35
     Visibility: public -/
 def RatchetDecodeError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : RatchetDecodeError) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_ratchet::{impl core::cmp::Eq for tacenta_ratchet::RatchetDecodeError}]
-    Source: 'ratchet/src/lib.rs', lines 413:33-413:35 -/
+    Source: 'ratchet/src/lib.rs', lines 418:33-418:35 -/
 @[reducible]
 def RatchetDecodeError.Insts.CoreCmpEq : core.cmp.Eq RatchetDecodeError := {
   partialEqInst := RatchetDecodeError.Insts.CoreCmpPartialEqRatchetDecodeError
@@ -1114,7 +1117,7 @@ def RatchetDecodeError.Insts.CoreCmpEq : core.cmp.Eq RatchetDecodeError := {
 }
 
 /-- [tacenta_ratchet::{impl core::fmt::Debug for tacenta_ratchet::RatchetDecodeError}::fmt]:
-    Source: 'ratchet/src/lib.rs', lines 413:37-413:42
+    Source: 'ratchet/src/lib.rs', lines 418:37-418:42
     Visibility: public -/
 def RatchetDecodeError.Insts.CoreFmtDebug.fmt
   (self : RatchetDecodeError) (f : core.fmt.Formatter) :
@@ -1129,7 +1132,7 @@ def RatchetDecodeError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "Malformed")
 
 /-- Trait implementation: [tacenta_ratchet::{impl core::fmt::Debug for tacenta_ratchet::RatchetDecodeError}]
-    Source: 'ratchet/src/lib.rs', lines 413:37-413:42 -/
+    Source: 'ratchet/src/lib.rs', lines 418:37-418:42 -/
 @[reducible]
 def RatchetDecodeError.Insts.CoreFmtDebug : core.fmt.Debug RatchetDecodeError
   := {
@@ -1137,12 +1140,12 @@ def RatchetDecodeError.Insts.CoreFmtDebug : core.fmt.Debug RatchetDecodeError
 }
 
 /-- [tacenta_ratchet::OPTIONAL_KEY_LEN]
-    Source: 'ratchet/src/lib.rs', lines 424:0-424:39 -/
+    Source: 'ratchet/src/lib.rs', lines 429:0-429:39 -/
 @[global_simps, irreducible]
 def OPTIONAL_KEY_LEN : Result Std.Usize := 1#usize + 32#usize
 
 /-- [tacenta_ratchet::FIXED_LEN]
-    Source: 'ratchet/src/lib.rs', lines 426:0-435:8 -/
+    Source: 'ratchet/src/lib.rs', lines 431:0-440:8 -/
 @[global_simps, irreducible]
 def FIXED_LEN : Result Std.Usize := do
   let i ← 1#usize + 32#usize
@@ -1159,7 +1162,7 @@ def FIXED_LEN : Result Std.Usize := do
   i10 + 4#usize
 
 /-- [tacenta_ratchet::read_key]:
-    Source: 'ratchet/src/lib.rs', lines 437:0-441:1 -/
+    Source: 'ratchet/src/lib.rs', lines 442:0-446:1 -/
 def read_key
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Array Std.U8 32#usize)
@@ -1174,7 +1177,7 @@ def read_key
   ok (to_slice_mut_back s2)
 
 /-- [tacenta_ratchet::read_u32]:
-    Source: 'ratchet/src/lib.rs', lines 443:0-447:1 -/
+    Source: 'ratchet/src/lib.rs', lines 448:0-452:1 -/
 def read_u32 (bytes : Slice Std.U8) (pos : Std.Usize) : Result Std.U32 := do
   let b := Array.repeat 4#usize 0#u8
   let (s, to_slice_mut_back) ← lift (Array.to_slice_mut b)
@@ -1187,7 +1190,7 @@ def read_u32 (bytes : Slice Std.U8) (pos : Std.Usize) : Result Std.U32 := do
   ok (core.num.U32.from_be_bytes b1)
 
 /-- [tacenta_ratchet::push_optional_key]:
-    Source: 'ratchet/src/lib.rs', lines 449:0-460:1 -/
+    Source: 'ratchet/src/lib.rs', lines 454:0-465:1 -/
 def push_optional_key
   (out : alloc.vec.Vec Std.U8) (key : Option (Array Std.U8 32#usize)) :
   Result (alloc.vec.Vec Std.U8)
@@ -1204,7 +1207,7 @@ def push_optional_key
     alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 s
 
 /-- [tacenta_ratchet::read_optional_key]: loop body 0:
-    Source: 'ratchet/src/lib.rs', lines 474:12-479:13 -/
+    Source: 'ratchet/src/lib.rs', lines 479:12-484:13 -/
 @[rust_loop_body]
 def read_optional_key_loop.body
   (bytes : Slice Std.U8) (pos : Std.Usize) (clean : Bool) (i : Std.Usize) :
@@ -1222,7 +1225,7 @@ def read_optional_key_loop.body
   else ok (done clean)
 
 /-- [tacenta_ratchet::read_optional_key]: loop 0:
-    Source: 'ratchet/src/lib.rs', lines 474:12-479:13 -/
+    Source: 'ratchet/src/lib.rs', lines 479:12-484:13 -/
 @[rust_loop]
 def read_optional_key_loop
   (bytes : Slice Std.U8) (pos : Std.Usize) (clean : Bool) (i : Std.Usize) :
@@ -1233,7 +1236,7 @@ def read_optional_key_loop
     (clean, i)
 
 /-- [tacenta_ratchet::read_optional_key]:
-    Source: 'ratchet/src/lib.rs', lines 462:0-489:1 -/
+    Source: 'ratchet/src/lib.rs', lines 467:0-494:1 -/
 def read_optional_key
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (core.result.Result (Option (Array Std.U8 32#usize))
@@ -1254,19 +1257,19 @@ def read_optional_key
   | _ => ok (core.result.Result.Err RatchetDecodeError.Malformed)
 
 /-- [tacenta_ratchet::{tacenta_ratchet::LabelSet}::to_byte]:
-    Source: 'ratchet/src/lib.rs', lines 492:4-496:5 -/
+    Source: 'ratchet/src/lib.rs', lines 497:4-501:5 -/
 def LabelSet.to_byte (self : LabelSet) : Result Std.U8 := do
   ok 0#u8
 
 /-- [tacenta_ratchet::{tacenta_ratchet::LabelSet}::from_byte]:
-    Source: 'ratchet/src/lib.rs', lines 498:4-503:5 -/
+    Source: 'ratchet/src/lib.rs', lines 503:4-508:5 -/
 def LabelSet.from_byte (b : Std.U8) : Result (Option LabelSet) := do
   match b with
   | 0#uscalar => ok (some LabelSet.Tacenta)
   | _ => ok none
 
 /-- [tacenta_ratchet::{tacenta_ratchet::SkippedKey}::ENCODED_LEN]
-    Source: 'ratchet/src/lib.rs', lines 507:4-507:47 -/
+    Source: 'ratchet/src/lib.rs', lines 512:4-512:47 -/
 @[global_simps, irreducible]
 def SkippedKey.ENCODED_LEN : Result Std.Usize := do
   let i ← 32#usize + 4#usize
@@ -1274,7 +1277,7 @@ def SkippedKey.ENCODED_LEN : Result Std.Usize := do
   i1 + 32#usize
 
 /-- [tacenta_ratchet::{tacenta_ratchet::SkippedKey}::encode_into]:
-    Source: 'ratchet/src/lib.rs', lines 509:4-514:5 -/
+    Source: 'ratchet/src/lib.rs', lines 514:4-519:5 -/
 def SkippedKey.encode_into
   (self : SkippedKey) (out : alloc.vec.Vec Std.U8) :
   Result (alloc.vec.Vec Std.U8)
@@ -1291,7 +1294,7 @@ def SkippedKey.encode_into
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s3
 
 /-- [tacenta_ratchet::{tacenta_ratchet::SkippedKey}::decode]:
-    Source: 'ratchet/src/lib.rs', lines 516:4-534:5 -/
+    Source: 'ratchet/src/lib.rs', lines 521:4-539:5 -/
 def SkippedKey.decode (bytes : Slice Std.U8) : Result (Option SkippedKey) := do
   let i := Slice.len bytes
   let i1 ← SkippedKey.ENCODED_LEN
@@ -1331,7 +1334,7 @@ def SkippedKey.decode (bytes : Slice Std.U8) : Result (Option SkippedKey) := do
     ok (some { dh := dh1, n := i2, stored_at := i3, key := key1 })
 
 /-- [tacenta_ratchet::decode_skipped_entry]:
-    Source: 'ratchet/src/lib.rs', lines 539:0-544:1 -/
+    Source: 'ratchet/src/lib.rs', lines 544:0-549:1 -/
 def decode_skipped_entry
   (bytes : Slice Std.U8) (pos : Std.Usize) : Result (Option SkippedKey) := do
   let i := Slice.len bytes
@@ -1347,7 +1350,7 @@ def decode_skipped_entry
     SkippedKey.decode s
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::to_bytes]: loop body 0:
-    Source: 'ratchet/src/lib.rs', lines 573:8-576:9
+    Source: 'ratchet/src/lib.rs', lines 578:8-581:9
     Visibility: public -/
 @[rust_loop_body]
 def State.to_bytes_loop.body
@@ -1367,7 +1370,7 @@ def State.to_bytes_loop.body
   else ok (done out)
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::to_bytes]: loop 0:
-    Source: 'ratchet/src/lib.rs', lines 573:8-576:9
+    Source: 'ratchet/src/lib.rs', lines 578:8-581:9
     Visibility: public -/
 @[rust_loop]
 def State.to_bytes_loop
@@ -1379,7 +1382,7 @@ def State.to_bytes_loop
     (out, i)
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::to_bytes]:
-    Source: 'ratchet/src/lib.rs', lines 558:4-578:5
+    Source: 'ratchet/src/lib.rs', lines 563:4-583:5
     Visibility: public -/
 def State.to_bytes
   (self : State) : Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8)) := do
@@ -1421,7 +1424,7 @@ def State.to_bytes
     (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) out13
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::from_bytes]: loop body 0:
-    Source: 'ratchet/src/lib.rs', lines 643:8-653:9
+    Source: 'ratchet/src/lib.rs', lines 648:8-658:9
     Visibility: public -/
 @[rust_loop_body]
 def State.from_bytes_loop.body
@@ -1446,7 +1449,7 @@ def State.from_bytes_loop.body
       ok (cont (iter1, pos1, skipped1, ok1))
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::from_bytes]: loop 0:
-    Source: 'ratchet/src/lib.rs', lines 643:8-653:9
+    Source: 'ratchet/src/lib.rs', lines 648:8-658:9
     Visibility: public -/
 @[rust_loop]
 def State.from_bytes_loop
@@ -1461,7 +1464,7 @@ def State.from_bytes_loop
     (iter, pos, skipped, ok1)
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::from_bytes]:
-    Source: 'ratchet/src/lib.rs', lines 583:4-681:5
+    Source: 'ratchet/src/lib.rs', lines 588:4-686:5
     Visibility: public -/
 def State.from_bytes
   (bytes : Slice Std.U8) :
@@ -1565,7 +1568,7 @@ def State.from_bytes
       | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [tacenta_ratchet::kdf_ck]:
-    Source: 'ratchet/src/lib.rs', lines 686:0-690:1 -/
+    Source: 'ratchet/src/lib.rs', lines 691:0-695:1 -/
 def kdf_ck
   (ck : Array Std.U8 32#usize) :
   Result ((Array Std.U8 32#usize) × (Array Std.U8 32#usize))
@@ -1579,7 +1582,7 @@ def kdf_ck
   ok (next, mk)
 
 /-- [tacenta_ratchet::kdf_rk]:
-    Source: 'ratchet/src/lib.rs', lines 694:0-705:1 -/
+    Source: 'ratchet/src/lib.rs', lines 699:0-710:1 -/
 def kdf_rk
   (rk : Array Std.U8 32#usize) (dh_out : Array Std.U8 32#usize)
   (labels : LabelSet) :
@@ -1613,7 +1616,7 @@ def kdf_rk
   ok (rk21, ck1)
 
 /-- [tacenta_ratchet::message_keys]:
-    Source: 'ratchet/src/lib.rs', lines 710:0-723:1
+    Source: 'ratchet/src/lib.rs', lines 715:0-728:1
     Visibility: public -/
 def message_keys
   (mk : Array Std.U8 32#usize) (labels : LabelSet) :
@@ -1657,7 +1660,7 @@ def message_keys
   ok (enc1, mac1, iv1)
 
 /-- [tacenta_ratchet::derive_chain]: loop body 0:
-    Source: 'ratchet/src/lib.rs', lines 753:4-762:1 -/
+    Source: 'ratchet/src/lib.rs', lines 758:4-767:1 -/
 @[rust_loop_body]
 def derive_chain_loop.body
   (start_n : Std.U32) (iter : core.ops.range.Range Std.U32)
@@ -1691,7 +1694,7 @@ def derive_chain_loop.body
       ok (cont (iter1, next, keys1))
 
 /-- [tacenta_ratchet::derive_chain]: loop 0:
-    Source: 'ratchet/src/lib.rs', lines 753:4-762:1 -/
+    Source: 'ratchet/src/lib.rs', lines 758:4-767:1 -/
 @[rust_loop]
 def derive_chain_loop
   (iter : core.ops.range.Range Std.U32) (start_n : Std.U32)
@@ -1707,7 +1710,7 @@ def derive_chain_loop
     (iter, cur, keys)
 
 /-- [tacenta_ratchet::derive_chain]:
-    Source: 'ratchet/src/lib.rs', lines 750:0-762:1 -/
+    Source: 'ratchet/src/lib.rs', lines 755:0-767:1 -/
 def derive_chain
   (ck : Array Std.U8 32#usize) (start_n : Std.U32) (count : Std.U32) :
   Result (core.result.Result ((Array Std.U8 32#usize) × (zeroize.Zeroizing
@@ -1723,7 +1726,7 @@ def derive_chain
   derive_chain_loop { start := 0#u32, «end» := count } start_n ck keys
 
 /-- [tacenta_ratchet::purge_chain_range]: loop body 0:
-    Source: 'ratchet/src/lib.rs', lines 923:4-929:5 -/
+    Source: 'ratchet/src/lib.rs', lines 928:4-934:5 -/
 @[rust_loop_body]
 def purge_chain_range_loop.body
   (dhr : Array Std.U8 32#usize) (from1 : Std.U32) (upto : Std.U32)
@@ -1756,7 +1759,7 @@ def purge_chain_range_loop.body
   else ok (done skipped)
 
 /-- [tacenta_ratchet::purge_chain_range]: loop 0:
-    Source: 'ratchet/src/lib.rs', lines 923:4-929:5 -/
+    Source: 'ratchet/src/lib.rs', lines 928:4-934:5 -/
 @[rust_loop]
 def purge_chain_range_loop
   (skipped : alloc.vec.Vec SkippedKey) (dhr : Array Std.U8 32#usize)
@@ -1769,7 +1772,7 @@ def purge_chain_range_loop
     (skipped, i)
 
 /-- [tacenta_ratchet::purge_chain_range]:
-    Source: 'ratchet/src/lib.rs', lines 921:0-930:1 -/
+    Source: 'ratchet/src/lib.rs', lines 926:0-935:1 -/
 @[reducible]
 def purge_chain_range
   (skipped : alloc.vec.Vec SkippedKey) (dhr : Array Std.U8 32#usize)
@@ -1779,7 +1782,7 @@ def purge_chain_range
   purge_chain_range_loop skipped dhr from1 upto 0#usize
 
 /-- [tacenta_ratchet::skip_message_keys]: loop body 0:
-    Source: 'ratchet/src/lib.rs', lines 785:16-793:17 -/
+    Source: 'ratchet/src/lib.rs', lines 790:16-798:17 -/
 @[rust_loop_body]
 def skip_message_keys_loop.body
   (dhr : Array Std.U8 32#usize) (i : Std.U32)
@@ -1811,7 +1814,7 @@ def skip_message_keys_loop.body
   else ok (done v)
 
 /-- [tacenta_ratchet::skip_message_keys]: loop 0:
-    Source: 'ratchet/src/lib.rs', lines 785:16-793:17 -/
+    Source: 'ratchet/src/lib.rs', lines 790:16-798:17 -/
 @[rust_loop]
 def skip_message_keys_loop
   (dhr : Array Std.U8 32#usize) (v : alloc.vec.Vec SkippedKey) (i : Std.U32)
@@ -1824,7 +1827,7 @@ def skip_message_keys_loop
     (v, i1)
 
 /-- [tacenta_ratchet::skip_message_keys]:
-    Source: 'ratchet/src/lib.rs', lines 767:0-801:1 -/
+    Source: 'ratchet/src/lib.rs', lines 772:0-806:1 -/
 def skip_message_keys
   (state : State) (upto : Std.U32) :
   Result ((core.result.Result Unit RatchetError) × State)
@@ -1861,7 +1864,7 @@ def skip_message_keys
             | core.result.Result.Err e => ok (core.result.Result.Err e, state)
 
 /-- [tacenta_ratchet::init_sender]:
-    Source: 'ratchet/src/lib.rs', lines 806:0-821:1
+    Source: 'ratchet/src/lib.rs', lines 811:0-826:1
     Visibility: public -/
 def init_sender
   (sk : Array Std.U8 32#usize) (our_pub : Array Std.U8 32#usize)
@@ -1886,7 +1889,7 @@ def init_sender
     }
 
 /-- [tacenta_ratchet::init_receiver]:
-    Source: 'ratchet/src/lib.rs', lines 826:0-840:1
+    Source: 'ratchet/src/lib.rs', lines 831:0-845:1
     Visibility: public -/
 def init_receiver
   (sk : Array Std.U8 32#usize) (our_pub : Array Std.U8 32#usize)
@@ -1909,7 +1912,7 @@ def init_receiver
     }
 
 /-- [tacenta_ratchet::send]:
-    Source: 'ratchet/src/lib.rs', lines 844:0-864:1
+    Source: 'ratchet/src/lib.rs', lines 849:0-869:1
     Visibility: public -/
 def send
   (state : State) :
@@ -1929,7 +1932,7 @@ def send
         { state with cks := (some ck2), ns := next_ns })
 
 /-- [tacenta_ratchet::dh_ratchet]:
-    Source: 'ratchet/src/lib.rs', lines 869:0-886:1 -/
+    Source: 'ratchet/src/lib.rs', lines 874:0-891:1 -/
 def dh_ratchet
   (state : State) (header : Header) (dh_out_recv : Array Std.U8 32#usize)
   (dh_out_send : Array Std.U8 32#usize) (new_dhs_pub : Array Std.U8 32#usize) :
@@ -1952,7 +1955,7 @@ def dh_ratchet
     }
 
 /-- [tacenta_ratchet::age_store]: loop body 0:
-    Source: 'ratchet/src/lib.rs', lines 966:4-977:5 -/
+    Source: 'ratchet/src/lib.rs', lines 971:4-982:5 -/
 @[rust_loop_body]
 def age_store_loop.body
   (now : Std.U32) (v : alloc.vec.Vec SkippedKey) (i : Std.Usize) :
@@ -1974,7 +1977,7 @@ def age_store_loop.body
   else ok (done v)
 
 /-- [tacenta_ratchet::age_store]: loop 0:
-    Source: 'ratchet/src/lib.rs', lines 966:4-977:5 -/
+    Source: 'ratchet/src/lib.rs', lines 971:4-982:5 -/
 @[rust_loop]
 def age_store_loop
   (v : alloc.vec.Vec SkippedKey) (now : Std.U32) (i : Std.Usize) :
@@ -1985,7 +1988,7 @@ def age_store_loop
     (v, i)
 
 /-- [tacenta_ratchet::age_store]:
-    Source: 'ratchet/src/lib.rs', lines 957:0-978:1 -/
+    Source: 'ratchet/src/lib.rs', lines 962:0-983:1 -/
 def age_store (state : State) : Result State := do
   let stepped ← lift (core.num.U32.saturating_add state.events 1#u32)
   let now ← if stepped = core.num.U32.MAX
@@ -1995,7 +1998,7 @@ def age_store (state : State) : Result State := do
   ok { state with skipped := v, events := now }
 
 /-- [tacenta_ratchet::try_skipped]: loop body 0:
-    Source: 'ratchet/src/lib.rs', lines 1:0-994:1 -/
+    Source: 'ratchet/src/lib.rs', lines 1:0-999:1 -/
 @[rust_loop_body]
 def try_skipped_loop.body
   (state : State) (header : Header) (i : Std.Usize) :
@@ -2032,7 +2035,7 @@ def try_skipped_loop.body
       state.labels))
 
 /-- [tacenta_ratchet::try_skipped]: loop 0:
-    Source: 'ratchet/src/lib.rs', lines 1:0-994:1 -/
+    Source: 'ratchet/src/lib.rs', lines 1:0-999:1 -/
 @[rust_loop]
 def try_skipped_loop
   (state : State) (header : Header) (i : Std.Usize) :
@@ -2046,7 +2049,7 @@ def try_skipped_loop
     i
 
 /-- [tacenta_ratchet::try_skipped]:
-    Source: 'ratchet/src/lib.rs', lines 980:0-994:1 -/
+    Source: 'ratchet/src/lib.rs', lines 985:0-999:1 -/
 def try_skipped
   (state : State) (header : Header) :
   Result ((Option (Array Std.U8 32#usize)) × State)
@@ -2069,7 +2072,7 @@ def try_skipped
     })
 
 /-- [tacenta_ratchet::receive]:
-    Source: 'ratchet/src/lib.rs', lines 1010:0-1053:1
+    Source: 'ratchet/src/lib.rs', lines 1022:0-1068:1
     Visibility: public -/
 def receive
   (state : State) (header : Header) (dh_out_recv : Array Std.U8 32#usize)
@@ -2099,19 +2102,22 @@ def receive
         let (r1, state4) ← skip_message_keys state3 header1.n
         match r1 with
         | core.result.Result.Ok _ =>
-          match state4.ckr with
-          | none =>
-            ok (core.result.Result.Err RatchetError.NoReceivingChain, state4)
-          | some ck =>
-            let o2 ← lift (U32.checked_add state4.nr 1#u32)
-            match o2 with
+          if header1.n < state4.nr
+          then ok (core.result.Result.Err RatchetError.OutOfOrder, state4)
+          else
+            match state4.ckr with
             | none =>
-              ok (core.result.Result.Err RatchetError.ChainExhausted, state4)
-            | some next_nr =>
-              let (ck2, mk) ← kdf_ck ck
-              let state5 ←
-                age_store { state4 with ckr := (some ck2), nr := next_nr }
-              ok (core.result.Result.Ok mk, state5)
+              ok (core.result.Result.Err RatchetError.NoReceivingChain, state4)
+            | some ck =>
+              let o2 ← lift (U32.checked_add state4.nr 1#u32)
+              match o2 with
+              | none =>
+                ok (core.result.Result.Err RatchetError.ChainExhausted, state4)
+              | some next_nr =>
+                let (ck2, mk) ← kdf_ck ck
+                let state5 ←
+                  age_store { state4 with ckr := (some ck2), nr := next_nr }
+                ok (core.result.Result.Ok mk, state5)
         | core.result.Result.Err e => ok (core.result.Result.Err e, state4)
       | core.result.Result.Err e => ok (core.result.Result.Err e, state2)
     else
@@ -2119,19 +2125,22 @@ def receive
         skip_message_keys { state1 with dhr_pub := o1 } header1.n
       match r with
       | core.result.Result.Ok _ =>
-        match state2.ckr with
-        | none =>
-          ok (core.result.Result.Err RatchetError.NoReceivingChain, state2)
-        | some ck =>
-          let o2 ← lift (U32.checked_add state2.nr 1#u32)
-          match o2 with
+        if header1.n < state2.nr
+        then ok (core.result.Result.Err RatchetError.OutOfOrder, state2)
+        else
+          match state2.ckr with
           | none =>
-            ok (core.result.Result.Err RatchetError.ChainExhausted, state2)
-          | some next_nr =>
-            let (ck2, mk) ← kdf_ck ck
-            let state3 ←
-              age_store { state2 with ckr := (some ck2), nr := next_nr }
-            ok (core.result.Result.Ok mk, state3)
+            ok (core.result.Result.Err RatchetError.NoReceivingChain, state2)
+          | some ck =>
+            let o2 ← lift (U32.checked_add state2.nr 1#u32)
+            match o2 with
+            | none =>
+              ok (core.result.Result.Err RatchetError.ChainExhausted, state2)
+            | some next_nr =>
+              let (ck2, mk) ← kdf_ck ck
+              let state3 ←
+                age_store { state2 with ckr := (some ck2), nr := next_nr }
+              ok (core.result.Result.Ok mk, state3)
       | core.result.Result.Err e => ok (core.result.Result.Err e, state2)
   | some mk =>
     let state2 ← age_store state1

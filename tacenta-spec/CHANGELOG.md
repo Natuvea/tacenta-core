@@ -6,6 +6,12 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- The decoders now enforce two of `protocol/message-format.md`'s refusals at
+  decode, in the model and in `tacenta-wire`: the initial-message decoder
+  refuses an `identity` or `ephemeral` whose first byte is not the `EncodeEC`
+  curve byte `0x05`, and the bundle decoder refuses a `kem_prekey_len` other
+  than 1,568 bytes. `CONSTANTS.md` has a row for that length, the ML-KEM-1024
+  encapsulation-key length.
 - `protocol/message-format.md`:
   - An "Authenticated encryption" section: AES-256-CBC with PKCS#7, then
     `HMAC-SHA256(mac_key, AD || ciphertext)` with the full 32-byte tag
@@ -137,6 +143,16 @@ is SemVer against the specified protocol (not the implementation).
   and the KEM key-pair and encapsulation-state lengths.
 
 ### Changed
+- `protocol/ratchet.md`, Sending and receiving: the classical ratchet now
+  refuses, itself, a message whose ratchet key equals `DHr`, whose number is
+  below `Nr` and whose key is not stored, as the page says. It used to take
+  such a message as the one at `Nr`: it derived that key, advanced the
+  receiving chain and counted a received message, and only the session's
+  AEAD then turned the message away, on a copy the session discarded. The
+  model's `receive` returns no result there, and the implementation returns
+  `OutOfOrder`, the error the sparse ratchet already returns in the
+  analogous case, with the state unchanged. The page's text is unchanged;
+  this records that the model and the implementation now match it.
 - `protocol/key-deletion.md`, `protocol/session-establishment.md`,
   `protocol/session-persistence.md` and `CONSTANTS.md`: the last-resort
   replay record no longer evicts, and `MAX_LAST_RESORT_SEEN` bounds it **per
