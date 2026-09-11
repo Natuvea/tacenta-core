@@ -789,8 +789,11 @@ longer need either bound; `advance_refines`, whose failure clause names
 `EpochOutOfOrder`, does need `hepoch`, and the proofs use both bounds to refute
 the exhaustion branches. Whether the two could be dropped from the top-level
 theorems has not been checked, and they are kept. `BraidT3.lean` keeps
-its `hepoch` where `BraidT1.lean` dropped it, and there the model's reason
-stands: `Model.Braid` still counts epochs in `Nat`. The Triple Ratchet's refinement keeps them too, through its sparse
+its `hepoch` where `BraidT1.lean` dropped it, on the same terms: it was kept
+because `Model.Braid` counted epochs in `Nat`, and the model now refuses the
+step onto epoch `u64::MAX` in transitions (5) and (13), as the code does.
+Whether `hepoch` could be dropped from `step_receive_refines` and
+`Braid.receive_refines` has not been checked. The Triple Ratchet's refinement keeps them too, through its sparse
 bundle, at the reserved ceiling's `epoch + 1 < u64::MAX`. On the three-leaf unit
 that bundle is proved from `UnitSpqrT3.lean`'s theorems, so a clause asking less
 than they need would not build. While the bundle was only assumed, on the Triple
@@ -1151,17 +1154,21 @@ the sparse ratchet's `advance` refuses the step to `epoch == u64::MAX`, the
 Braid's `step_receive` refuses the same in transitions (5) and (13), as
 `tacenta-spec/protocol/mlkem-braid.md` numbers them in "The state machine" --
 so that no state a crate's operations produce is one its own decoder refuses.
-The Braid's model reserves nothing; it counts in `Nat`, so its code stops one
-step before its model does. The classical and sparse ratchets' models used to
-reserve nothing either, and no longer do: they stop at the ceilings the pages
-state and the crates keep (`Model.State.maxEvents`, and the `ns` and `nr`
-refusals at `u32::MAX`; `Model.SparseRatchet.u64Max`, reserved as an epoch and
-refused past as a chain's counter), and the persistence vectors pin each. Their
+The three models used to reserve nothing, and no longer do: they stop at the
+ceilings the pages state and the crates keep (`Model.State.maxEvents`, and the
+`ns` and `nr` refusals at `u32::MAX`; `Model.SparseRatchet.u64Max`, reserved as
+an epoch and refused past as a chain's counter; `Model.Braid.u64Max`, the epoch
+transitions (5) and (13) refuse to step onto). The persistence vectors pin the
+two ratchets' ceilings. No vector pins the Braid's, because no vector file
+holds a Braid state: its crate tests it, and `Model.Braid.receive_epoch_lt`,
+`receive_advance_lt` and `receive_output_epoch_lt` state it of the model. The
 refinement theorems still ask for the step of headroom they asked for when the
 models did not stop (`events + 1 < u32::MAX`, `epoch + 1 < u64::MAX`): for the
 classical clock the agreement no longer needs it, and for the sparse epoch
 `advance_refines` reads the model's refusal as the mismatch refusal, while the
-top-level refinements may not need it. Dropping those premises is a
+top-level refinements may not need it. For the Braid, code and model both
+answer `Failed` at `epoch = u64::MAX - 1`, and the proofs use `hepoch` to rule
+that arm out rather than relate it; whether it is needed has not been checked. Dropping those premises is a
 restatement of the theorems not yet made. No
 `invariant()` can supply the step, because the state at the last unreserved value is an ordinary state
 the crate produces, decodes and goes on operating on. The headroom is
@@ -2140,9 +2147,11 @@ re-translation:
   of `u64::MAX` outright. `BraidT1.lean`'s `step_receive_no_panic`/
   `receive_no_panic` dropped their `hepoch` precondition as a result -- the
   ceiling is an outcome the theorems prove rather than a bound they assume.
-  `BraidT3.lean`'s `step_receive_refines`/`Braid.receive_refines` keep it,
-  because `Model.Braid` counts epochs in `Nat` and its `epoch + 1` keeps
-  counting where the real code fails closed.
+  `BraidT3.lean`'s `step_receive_refines`/`Braid.receive_refines` keep it.
+  They kept it because `Model.Braid` counted epochs in `Nat`, and its
+  `epoch + 1` kept counting where the real code fails closed; the model now
+  refuses the same steps (register item J-12), and whether the two theorems
+  hold without `hepoch` has not been checked.
 
   Those two sites now also **reserve** `u64::MAX`: transitions (5) and (13)
   (`tacenta-spec/protocol/mlkem-braid.md`, "The state machine") refuse the
@@ -2154,16 +2163,17 @@ re-translation:
   `checked_add` at `u64::MAX - 1` would have yielded. It is still **not**
   derivable from the Braid's `invariant()`, which bounds the epoch only from
   below (`epoch >= 1`), and it is one step short of the refinement's `hepoch`,
-  which is now `epoch + 1 < u64::MAX` -- the model advances at
-  `epoch = u64::MAX - 1` where the code answers `Failed` -- so `hepoch` stays
-  a hypothesis of both T3 theorems and stays with the caller.
+  which is now `epoch + 1 < u64::MAX` -- the proofs use it to rule out the
+  arm where, at `epoch = u64::MAX - 1`, the code and now the model answer
+  `Failed` -- so `hepoch` stays a hypothesis of both T3 theorems and stays
+  with the caller.
 
   The sparse ratchet's T1 has since followed the same path: `SpqrT1.lean`'s
   `advance_no_panic`, `maybe_advance_no_panic`, `send_no_panic` and
   `receive_no_panic` dropped `hepoch` and `hcounter`, the source's epoch and
   counter increments all being `checked_add` whose `None` arm returns
   `ChainExhausted`, and `SpqrT3.lean` keeps both. The model-side reason
-  `BraidT3.lean` still has, a model counting in `Nat`, no longer applies to
+  `BraidT3.lean` also had, a model counting in `Nat`, no longer applies to
   it: `Model.SparseRatchet` refuses at both ceilings, and whether the two
   bounds could now be dropped from `send_refines` and `receive_refines` has
   not been checked. Its `advance` reserves `u64::MAX`

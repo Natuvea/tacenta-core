@@ -1620,10 +1620,12 @@ two transitions that advance an epoch -- (5) and (13) -- refuse the step that
 would land on it rather than taking it, so that what the transitions produce
 and what the decoder accepts are the same set of states.
 
-The model counts epochs in `Nat` and has no ceiling, so it takes that step.
-The two lemmas below are what the refinement uses to place the real code on
-the side of the branch where both agree; `step_receive_refines`'s `hepoch`
-is what rules the other side out. -/
+The model reserves the same epoch (`Model.Braid.u64Max`): its (5) and (13)
+refuse the same step and go to `failed`. The two lemmas below are what the
+refinement uses to place the real code on the side of the branch where both
+advance, and `model_ceiling` places the model there; `step_receive_refines`'s
+`hepoch` is what rules the other side out. The proofs do not walk the
+refusing side, so `hepoch` stays. -/
 
 /-- The reserved epoch constant, as a `Nat`. `core.num.U64.MAX` is Aeneas'
 `UScalar.ofNat U64.rMax`, and `U64.rMax` is `U64.max` spelled as a literal
@@ -1642,19 +1644,28 @@ private theorem ne_u64MAX {i : Std.U64} (h : i.val < Std.U64.max) :
   rw [he, u64MAX_val] at h
   omega
 
+/-- `hepoch`, read on the model's side: a state whose epoch refines `e` and has
+a step of headroom below `u64::MAX` passes the model's ceiling guard. -/
+private theorem model_ceiling {i : Std.U64} {e : Nat} (he : i.val = e)
+    (h : i.val + 1 < Std.U64.max) : e + 1 < Model.Braid.u64Max := by
+  rw [← he, Model.Braid.u64Max_eq]
+  scalar_tac
+
 set_option maxHeartbeats 1000000 in
 /-- `step_receive` refines `Model.Braid.receive`. `self` is unused by the real
 function (it operates purely on the passed `state`), same as `step_send`.
 
 `hepoch` bounds the *successor* of the state's epoch, not the epoch itself.
-Transitions (5) and (13) advance an epoch, and both now refuse the step that
+Transitions (5) and (13) advance an epoch, and both refuse the step that
 would reach the reserved `u64::MAX`: at `epoch = u64::MAX - 1` the real code
-answers `Failed` where the model, counting in `Nat`, advances. That is one
-epoch lower than the point at which `checked_add` used to be the only
-divergence, so the hypothesis moved down with it. Every state a run can
-reach still satisfies `epoch < u64::MAX` -- the transitions keep it and
-`read_epoch` enforces it -- but `epoch + 1 < u64::MAX` is strictly more than
-that, and is the caller's premise, not a fact about reachable states. -/
+answers `Failed`. `Model.Braid.receive` now refuses the same step and answers
+`failed` too, so the two no longer part there. The hypothesis was introduced
+when they did, and is kept: the proof uses it to rule out the refusing arms
+on both sides rather than relating them, and whether the theorem holds
+without it has not been checked. Every state a run can reach satisfies
+`epoch < u64::MAX` -- the transitions keep it and `read_epoch` enforces it --
+but `epoch + 1 < u64::MAX` is strictly more than that, and is the caller's
+premise, not a fact about reachable states. -/
 theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     (hmac : BraidHmacAgrees) (hkdf : BraidHkdfAgrees)
     (hlens : KemLenAgrees K) (hvalek : ValidateEkAgrees K)
@@ -1944,6 +1955,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     obtain ⟨he, ha, hencr⟩ := hrel
     have hepoch1 : epoch1.val + 1 < Std.U64.max := by
       simpa [Tacenta.BraidT1.State.epoch_val] using hepoch
+    have hceilM : epoch' + 1 < Model.Braid.u64Max := model_ceiling he hepoch1
     unfold Braid.step_receive
     unfold State.epoch
     simp only [bind_tc_ok]
@@ -1951,9 +1963,9 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     -- successor `u64::MAX`, which is reserved. Below the ceiling (`hepoch`) the
     -- `checked_add` is `some` and the successor is not the reserved value, so
     -- both refusals are unreachable and the successor is the model's
-    -- `epoch + 1`; at or one below the ceiling the real code answers `Failed`
-    -- where the model's `Nat` keeps counting, which is why the refinement keeps
-    -- `hepoch`.
+    -- `epoch + 1`; the model's own ceiling guard passes too (`hceilM`). At or
+    -- one below the ceiling both answer `Failed`, an arm this proof does not
+    -- walk, which is why it keeps `hepoch`.
     have hcs := Std.U64.checked_add_bv_spec epoch1 1#u64
     rcases hchk : Std.U64.checked_add epoch1 1#u64 with _ | i
     · rw [hchk] at hcs; simp at hcs; scalar_tac
@@ -1968,7 +1980,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
         rw [hep] at h1; scalar_tac
       rw [if_pos hep]
       unfold Model.Braid.receive
-      simp only [hepM]
+      simp only [hepM, if_pos hceilM]
       split
       · refine ⟨trivial, ?_, ha⟩
         scalar_tac
@@ -1979,7 +1991,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
         scalar_tac
       rw [if_neg hep]
       unfold Model.Braid.receive
-      simp only
+      simp only [if_pos hceilM]
       split
       · rename_i hcond; exact absurd hcond (by simp [hepM])
       · exact ⟨trivial, he, ha, hencr⟩
@@ -2625,8 +2637,10 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                 have hdsize2 : (Model.Braid.Decoder.new
                     (Model.Braid.headerSize + Model.Braid.macSize)).size
                     = Model.Braid.headerSize + Model.Braid.macSize := rfl
+                have hceilM : epoch' + 1 < Model.Braid.u64Max :=
+                  model_ceiling he (by simpa [Tacenta.BraidT1.State.epoch_val] using hepoch)
                 unfold Model.Braid.receive
-                simp only [hepM, htyM, hdm, hMsome]
+                simp only [hepM, htyM, hdm, hMsome, if_pos hceilM]
                 split
                 · split
                   · refine ⟨⟨?_, ?_⟩, ?_, ?_, ?_, ?_⟩
@@ -2648,8 +2662,10 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
                   apply b1_post.mpr
                   rw [hs5, hmacslice]
                   exact heqv
+                have hceilM : epoch' + 1 < Model.Braid.u64Max :=
+                  model_ceiling he (by simpa [Tacenta.BraidT1.State.epoch_val] using hepoch)
                 unfold Model.Braid.receive
-                simp only [hepM, htyM, hdm, hMsome]
+                simp only [hepM, htyM, hdm, hMsome, if_pos hceilM]
                 split
                 · split
                   · rename_i hcond
