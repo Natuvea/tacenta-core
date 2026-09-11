@@ -37,7 +37,9 @@ Every message begins with a version byte and a type byte, so a receiver can tell
 what it is holding without relying on the session state. This matters: a peer
 that already has a session can still receive an initial message (a session reset,
 or a changed identity), and must recognise it as one rather than trying to
-decrypt it as a ratchet message.
+decrypt it as a ratchet message. What the existing session does with it, and
+what is left to the application, is stated in session-establishment.md,
+Receiving the initial message.
 
 ```
 type = 0x01   ratchet message
@@ -369,6 +371,11 @@ last-resort replay fingerprint are computed over bytes, and the ratchet keeps
 skipped keys by a header's ratchet public key and takes a Diffie-Hellman step
 when that key differs from `DHr` (ratchet.md). A second spelling of one key
 would give it a second identity in each of them.
+
+The rule is on what the wire's decoders accept. Which curve public keys a
+stored state must hold canonically, and what follows from a re-spelled one
+the readers accept, is stated in session-persistence.md (Session, Semantic
+rules).
 
 ## Key identifiers
 
