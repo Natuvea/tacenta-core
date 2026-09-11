@@ -133,8 +133,11 @@ def _advance(s: State, secret: bytes, secret_epoch: int) -> None:
     s.chains[secret_epoch] = _assign(s.direction, ck1, ck2)
     s.epoch = secret_epoch
     # Retiring old epochs: keep every e with E < e + EPOCHS_KEPT, discard the
-    # rest "including the skipped keys stored under them".
-    for e in [e for e in s.chains if not (s.epoch < e + K.EPOCHS_KEPT)]:
+    # rest "including the skipped keys stored under them". The sum saturates
+    # at u64::MAX, as session-persistence.md's rule states it; Retiring old
+    # epochs does not say so, and since the advance to u64::MAX is refused
+    # the two readings keep the same chains.
+    for e in [e for e in s.chains if not (s.epoch < min(e + K.EPOCHS_KEPT, K.U64_MAX))]:
         del s.chains[e]
     for k in [k for k in s.skipped if k[0] not in s.chains]:
         del s.skipped[k]

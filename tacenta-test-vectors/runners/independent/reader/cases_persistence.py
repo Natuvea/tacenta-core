@@ -8,7 +8,7 @@ from dataclasses import replace
 
 from _casekit import accepts, put, registry, rejects
 from tacenta_reader import constants as K
-from tacenta_reader import erasure, ratchet, spqr, triple, wire
+from tacenta_reader import erasure, kem_double, ratchet, spqr, triple, wire
 from tacenta_reader import persistence as P
 from tacenta_reader.curve25519 import x25519_public
 
@@ -20,6 +20,18 @@ MAL, WV, INC = P.Malformed, P.WrongVersion, P.Inconsistent
 
 def rnd(n):
     return bytes(R.getrandbits(8) for _ in range(n))
+
+
+def rkey():
+    """A random canonical curve public key: every stored curve key must be one
+    (session-persistence.md, Stored curve public keys; pass 5)."""
+    return (R.randrange(K.CURVE25519_P)).to_bytes(32, "little")
+
+
+def rkey_pair():
+    """A Braid key_pair whose header and ek_vector pass the load check in tags 1
+    to 4, in the KEM test double's layout (pass 5; GAPS-5.md G5-02)."""
+    return kem_double.ToyIncrementalKem(rnd(16)).generate()[0]
 
 
 # ------------------------------------------------------------ live fixtures
@@ -112,7 +124,7 @@ def _rs(**kw):
       f"{SP} Semantic rules of the leaf formats: Ratchet state")
 def _():
     s = BOB1.classical
-    full = {(rnd(32), i): (rnd(32), 0) for i in range(K.MAX_SKIPPED_STORE)}
+    full = {(rkey(), i): (rnd(32), 0) for i in range(K.MAX_SKIPPED_STORE)}
     accepts(P.ratchet_from_bytes, _rs(skipped=full))
     rejects(P.ratchet_from_bytes, _rs(skipped={**full, (b"\x01" * 32, 1): (b"\x00" * 32, 0)}), exc=MAL)
     accepts(P.ratchet_from_bytes, _rs(events=K.U32_MAX - 1))
@@ -207,6 +219,8 @@ def _():
     raw = _sp(5, {4: [_c(), _c()], 5: [_c(), _c()]})
     first = 1 + 32 + 8 + 1 + 4
     rejects(P.spqr_from_bytes, put(raw, first + 90, (4).to_bytes(8, "big")), exc=MAL)  # two entries share an epoch
+    # isolated (pass 5): two entries for the current epoch, which break no other rule once merged
+    rejects(P.spqr_from_bytes, put(raw, first, (5).to_bytes(8, "big")), exc=MAL)
     raw = _sp(5, {5: [_c(), _c()]}, {(5, 1): b"\x00" * 32, (5, 2): b"\x00" * 32})
     rejects(P.spqr_from_bytes, put(raw, len(raw) - 48, (5).to_bytes(8, "big") + (1).to_bytes(8, "big")), exc=MAL)
 
@@ -293,6 +307,9 @@ def braid_state(tag, epoch=3):
         return P.BraidState(tag)
     fields = {}
     for name in P.BRAID_STATES[tag][1]:
+        if name == "key_pair":
+            fields[name] = rkey_pair()
+            continue
         if name in P.RAW_FIELD_LEN:
             fields[name] = rnd(P.RAW_FIELD_LEN[name])
             continue
@@ -407,8 +424,11 @@ def _():
     rejects(P.session_from_bytes, put(no_pending, len(no_pending) - 2, 0x02), exc=MAL)
     tb = P.triple_to_bytes(ALICE_S.triple)
     rejects(P.session_from_bytes, put(raw, 5 + len(tb), 0xFF), exc=MAL)       # the braid's length prefix overruns
-    bad_triple = put(raw, 5 + 1 + 4, 0x02)                                     # ratchet_state's version byte
-    rejects(P.session_from_bytes, bad_triple, exc=WV)
+    # an inner reader's wrong version is malformed to the session: "a triple_state or braid that its own reader
+    # refuses, whatever that reader's reason" (pass 5; pass 4 asserted WrongVersion here)
+    for off in (5, 5 + 1 + 4, 5 + len(tb) + 4):                               # triple_state's, ratchet_state's, braid's version byte
+        e = rejects(P.session_from_bytes, put(raw, off, 0x02), exc=P.PersistError)
+        assert isinstance(e, MAL), f"offset {off}: refused as {type(e).__name__}, not malformed"
     pb = P._pending_bytes(ALICE_S.pending_initial)
     head = raw[:-(1 + 4 + len(pb) + 1)]
     leftover = head + b"\x01" + (len(pb) + 1).to_bytes(4, "big") + pb + b"\x00" + b"\x00"
@@ -468,7 +488,7 @@ def kem_pair(coeffs=None):
 
 
 def store(**kw):
-    base = dict(identity_public=rnd(32), signed_prekey_secret=rnd(32), signed_prekey_id=1, signed_prekey_sig=rnd(64),
+    base = dict(identity_public=rkey(), signed_prekey_secret=rnd(32), signed_prekey_id=1, signed_prekey_sig=rnd(64),
                 one_time=[(2, rnd(32)), (3, rnd(32))], kem_pair=kem_pair(), kem_id=4, kem_sig=rnd(64),
                 kem_one_time=[(5, kem_pair(), rnd(64)), (6, kem_pair(), rnd(64))], next_id=10,
                 seen=[(4, rnd(32)), (4, rnd(32))], previous_signed=None, previous_kem=None)

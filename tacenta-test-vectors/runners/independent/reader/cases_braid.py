@@ -405,7 +405,7 @@ class BadEkKem(ToyIncrementalKem):
         bad = byte_encode12(coeffs)
         rho = header[:32]
         header = rho + hashlib.sha3_256(bad + rho).digest()
-        return bad + key_pair[1536:], header, bad
+        return bad + header + key_pair[1600:], header, bad     # the double's layout: ek_vector || header || z (pass 5)
 
 
 @case("BR-11 ek_vector validation: a completed ek_vector whose hash is not the authenticated header's, or which fails the FIPS 203 modulus check though the hash matches, moves the encapsulating party to Failed, in Ct1Sampled and in Ct1Acknowledged",
