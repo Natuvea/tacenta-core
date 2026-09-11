@@ -386,13 +386,12 @@ can reach it.
 | Erasure decoder layout `size(8) \|\| needed(8) \|\| count(4) \|\| codeword[count]`, held codewords in arrival order, read back to the same decoder | Erasure coder sub-formats | `vectors/persistence/erasure-decoder-state.json`: fresh, partial, full, a repeat and an extra not held, a zero-length value |
 | Erasure decoder refusals and rules: `needed` other than `ceil(size / 32)`, `needed` above 65,536, values bounded as 64-bit before narrowing, a repeated index, more codewords than `needed`, a count the buffer does not hold, trailing bytes; and the widest decoder accepted | Erasure coder sub-formats; Semantic rules of the leaf formats, Erasure decoder | same file, `bytes` vectors |
 
-**Two readings these vectors decide.** The page leaves two things unstated
-(the independent reader's `GAPS-2.md`, G2-04): what `next` counts, and what
-order a decoder's codewords are written in. `Model.Erasure` takes `next` as
-the index the encoder issues next, and writes held codewords in arrival order;
-`tacenta-erasure` does the same, and the `partial`, `repeats-and-extras-not-held`
-and `last-index-next` vectors pin both. Until the page states them, these are
-the model's readings rather than the page's.
+**Two readings these vectors pin.** session-persistence.md, "Erasure coder
+sub-formats", states both (the independent reader's `GAPS-2.md`, G2-04):
+`next` is the index of the codeword the encoder issues next, and a decoder's
+codewords are written in the order each index first arrived. `Model.Erasure`
+and `tacenta-erasure` do the same, and the `partial`,
+`repeats-and-extras-not-held` and `last-index-next` vectors pin both.
 
 ### Not covered
 
