@@ -113,7 +113,12 @@ Each message carries a header and a ciphertext. The header is the sender's
 ratchet public key, `PN`, and `Ns`. The ciphertext is the AEAD output over the
 plaintext, with the serialized header bound in as associated data so it cannot
 be altered without detection. The exact header and ciphertext encodings are
-specified on the message-format page and pinned in the conformance manifest.
+specified on the message-format page, where under the Triple Ratchet this
+header travels inside the composite header. The encodings are ours, not the
+published specification's, and their values are recorded at tier `ours` in
+[CONSTANTS.md](../CONSTANTS.md), as the Derivations labels are; the
+model-generated vectors under `tacenta-test-vectors/vectors/serialization/` are
+normative examples of them.
 
 ## Sending and receiving
 
@@ -130,9 +135,10 @@ specified on the message-format page and pinned in the conformance manifest.
   advance the receiving chain once, increment `Nr`, decrypt, and discard the
   key.
 
-So message number `u32::MAX` is never used on a chain. The numbers skipped keys
-are stored under are range-checked the same way (`ChainExhausted`), a check the
-skip bounds keep from being reached.
+So message number `u32::MAX` is never used on a chain. Nor is a key ever stored
+under it: a skip stores keys numbered from `Nr` up to the header's `PN` or `N`,
+exclusive, and both are 32-bit fields, so every number a key is stored under is
+at most `u32::MAX - 1` and none can be out of range.
 
 A message whose ratchet key equals `DHr`, whose number `N` is below `Nr`, and
 whose key is not stored is not accepted: its key has already been used,
@@ -195,6 +201,19 @@ receives, and is deleted at the end of the last of them if it has not been
 does not authenticate, counts for nothing. The count stops at `u32::MAX - 1`,
 after which keys no longer age (session-persistence.md, Principles).
 
+**Storing a key for a pair already held replaces the held key**
+(key-deletion.md). A skip first deletes every stored key under the chain's
+ratchet key whose number is in the range it is about to store, `Nr` up to its
+bound, exclusive, and then stores the range's keys, in number order, after
+every key already in the store. So a replacing key is a new store in both
+respects that can be observed. It carries the count at the start of the
+receive that stored it, not the count of the key it replaced, so it expires
+as late as any other key that receive stored. And it is last in the store's
+order, which decides eviction ties and the persisted order
+(session-persistence.md, Ratchet state). A skip replaces a key only when a
+peer returns to a ratchet key it had left; a key stored under that ratchet key
+at a number outside the range is kept.
+
 ## Scope
 
 This page describes the Double Ratchet of Section 3, which is one of the two
@@ -252,6 +271,9 @@ property and `key-deletion.md` of the deletions forward secrecy rests on.
 - RFC 5869 (HKDF) and RFC 2104 (HMAC), referenced by the above for the
   derivations.
 
-Byte-level conventions that the published specification leaves open, and that a
-specific peer requires for wire interoperability, are determined under the
-interoperability research boundary and recorded in the conformance manifest.
+Byte-level conventions that the published specification leaves open -- the
+`info` strings and the header and ciphertext encodings -- are ours: their
+values are recorded at tier `ours` in [CONSTANTS.md](../CONSTANTS.md), and the
+encodings on the message-format page. Message-layer interoperability with
+another implementation is not attempted, so none of them was determined
+against a peer.

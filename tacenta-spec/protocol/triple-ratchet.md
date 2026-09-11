@@ -70,7 +70,12 @@ epoch and message number and the agreement's own epoch, message type and
 codeword (message-format.md).
 
 Receiving is the mirror: each half of the header goes to its own ratchet, each
-returns a message key, and the two are combined the same way.
+returns a message key, and the two are combined the same way. The Double
+Ratchet is given `dh`, `pn` and `n`. The sparse ratchet is given `pq_epoch`,
+which selects its receiving chain, `pq_n`, and any secret the agreement's
+receive returned; the epoch that receive returns selects nothing
+(sparse-pq-ratchet.md, Receiving). The agreement is given its own fields,
+`ag_epoch`, `ag_type` and the codeword.
 
 Both run the classical half first and the sparse half second, and neither
 leaves one half moved without the other:
