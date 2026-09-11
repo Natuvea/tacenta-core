@@ -182,9 +182,13 @@ and `Decoder`.
 | Every codeword after the `k`-th is ignored | The erasure code, Decoding | `erasure-decode.json` (`ignored-once-full`, `empty-value-ignores-codewords`) |
 | Fewer than `k` codewords are no value; a decoder for zero bytes holds the empty value | The erasure code, Decoding | `erasure-decode.json` (`one-short`, `nothing-arrived`, `empty-value`) |
 
-Not pinned: an encoder for a value longer than 65,536 chunks, which the text
-does not cover and `tacenta-erasure` caps; parity codewords of a zero-length
-value, for which "the polynomial of degree below `k`" has no points.
+Not pinned: an encoder for a value longer than 65,536 chunks, whose vector
+would be more than two megabytes. The text says such an encoder holds only the
+first 65,536 chunks (The erasure code, Codewords), `Model.Erasure` and
+`tacenta-erasure` both keep only those, and `Model.Erasure` proves the cap
+changes no codeword an encoder issues (`Encoder.new_issue_nextCodeword`).
+Parity codewords of a zero-length value, for which "the polynomial of degree
+below `k`" has no points, are not pinned either.
 
 ### Addition: the store's total bound
 
@@ -402,7 +406,11 @@ triple ratchet state, the Braid, the session, and the prekey store (v1 to v4),
 with their semantic rules. The model states none of them, so there is no
 oracle to generate vectors from, and they remain covered by `tacenta-core`'s
 round-trip and refusal tests and its fuzz targets. The encoder rule "at most
-65,536 chunks" is not pinned, since a vector for it is two megabytes.
+65,536 chunks" is not pinned, since a vector for it is two megabytes. In its
+place, `Model.Erasure` proves that every encoder `new` builds keeps the
+encoder's rules after any number of codewords (`Encoder.new_issue_keeps`) and
+that such an encoder is read back from the bytes it is written as
+(`Encoder.ofBytes_toBytes`).
 
 ## Interoperability with libsignal
 
