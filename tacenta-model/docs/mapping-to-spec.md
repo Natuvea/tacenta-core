@@ -43,10 +43,10 @@ keeps the code at its contract.
 | Spec section | Model definition | File |
 |---|---|---|
 | The erasure code, Chunks | `chunkCount`, `chunks`, `element` | `Model/Erasure.lean` |
-| The erasure code, Codewords | `codeword`, `Encoder.new`, `Encoder.advance`, `Encoder.nextCodeword` | `Model/Erasure.lean` |
+| The erasure code, Codewords | `codeword`, `Encoder.new` (at most the first 65,536 chunks), `Encoder.advance`, `Encoder.nextCodeword`; the cap changes no codeword issued: `Encoder.new_issue_nextCodeword` | `Model/Erasure.lean` |
 | The erasure code, Decoding | `Decoder.new`, `Decoder.add`, `Decoder.chunk`, `Decoder.message` | `Model/Erasure.lean` |
-| Erasure coder sub-formats | `Encoder.toBytes`/`ofBytes`, `Decoder.toBytes`/`ofBytes` | `Model/Erasure.lean` |
-| Semantic rules of the leaf formats, Erasure encoder and decoder | `Encoder.invariant`, `Decoder.invariant` | `Model/Erasure.lean` |
+| Erasure coder sub-formats | `Encoder.toBytes`/`ofBytes`, `Decoder.toBytes`/`ofBytes`; `Encoder.ofBytes_toBytes` | `Model/Erasure.lean` |
+| Semantic rules of the leaf formats, Erasure encoder and decoder | `Encoder.invariant`, `Decoder.invariant`; `Encoder.new_issue_keeps` | `Model/Erasure.lean` |
 
 The field arithmetic and the interpolation beneath it are `Model/Gf65536.lean`
 and `Model/Polynomial.lean` (`interp`).

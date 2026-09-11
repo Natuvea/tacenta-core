@@ -160,11 +160,39 @@ def receive_last_resort(store, message: InitialMessage, authenticate):
 
 
 def accept_repeated_initial(is_responder: bool, established_ephemeral: Optional[bytes],
+                            peer_identity_public: Optional[bytes],
                             message: InitialMessage) -> None:
-    """An initial message on an existing session is accepted only by a
-    responder's session and only if its `ephemeral` equals
-    `established_ephemeral` byte for byte; no other field is compared."""
+    """session-establishment.md, Receiving the initial message. A decoded
+    initial message on an existing session is accepted only if it is a
+    responder's session and both hold:
+    - "the message's ephemeral field equals, byte for byte, the ephemeral
+      field carried by the initial message that established the session
+      (established_ephemeral)";
+    - "the message's identity field equals, byte for byte, EncodeEC of the
+      peer's identity key the session holds (peer_identity_public)".
+    "Otherwise, and always on an initiator's session, it refuses the message
+    (NotARepeatedInitial)." kem_ciphertext and the three identifiers "are not
+    compared"."""
     if not is_responder or established_ephemeral is None:
         raise NotARepeatedInitial("not a responder's session")
     if bytes(message.ephemeral) != bytes(established_ephemeral):
         raise NotARepeatedInitial("ephemeral differs from established_ephemeral")
+    if peer_identity_public is None or bytes(message.identity) != encode_ec(bytes(peer_identity_public)):
+        raise NotARepeatedInitial("identity differs from EncodeEC(peer_identity_public)")
+
+
+def receive_repeated_initial(session, raw: bytes, decrypt_inner):
+    """The order the page gives for an initial message on an existing session:
+    "It must first decode" (a re-spelled identity or ephemeral is a decode
+    failure, wire.DecodeError), then the session's comparisons, and only then
+    "it decrypts the ratchet message inside".
+
+    `session` carries the persisted fields (session-persistence.md, Session):
+    `is_initiator` (the role read from established_ephemeral),
+    `established_ephemeral` and `peer_identity_public`. `decrypt_inner` takes
+    the ratchet message bytes and stands for the session's ordinary receive."""
+    from .wire import decode_initial
+    message = decode_initial(raw)
+    accept_repeated_initial(not session.is_initiator, session.established_ephemeral,
+                            session.peer_identity_public, message)
+    return decrypt_inner(message.ratchet_message)

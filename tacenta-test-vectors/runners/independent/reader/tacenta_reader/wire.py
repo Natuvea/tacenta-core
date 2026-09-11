@@ -89,29 +89,40 @@ def encode_ec(key: bytes) -> bytes:
 
 
 def check_curve_byte(encoded: bytes, what: str = "EncodeEC value") -> None:
-    """33 bytes with the EncodeEC curve byte first: the one check
-    message-format.md's initial-message decoder lists for identity and
-    ephemeral."""
+    """33 bytes with the EncodeEC curve byte first (message-format.md, Initial
+    message: "an identity or ephemeral whose first byte is not the EncodeEC
+    curve byte")."""
     if len(encoded) != K.ENCODED_EC_LEN:
         raise DecodeError(f"{what} is not 33 bytes")
     if encoded[0] != K.ENCODE_EC_BYTE:
         raise DecodeError(f"{what}: unrecognised EncodeEC curve byte 0x{encoded[0]:02x}")
 
 
+def check_curve_key(key: bytes, what: str = "curve public key") -> bytes:
+    """message-format.md, Curve public keys: "Read the 32 bytes as a 256-bit
+    little-endian integer: the key is accepted exactly when that value is below
+    p. ... A refused key is a decode failure." One test covers both refused
+    spellings, bit 255 set and a value at least p with bit 255 clear.
+
+    Applied by every decoder that reads a key a peer sends: the composite
+    header's dh, the bundle's identity_key, signed_prekey and present
+    one_time_prekey, and the initial message's identity and ephemeral (the
+    32 key bytes after the curve byte). GAPS-3.md G3-05 is closed by this text."""
+    if len(key) != K.EC_KEY_LEN:
+        raise DecodeError(f"{what} is not 32 bytes")
+    if int.from_bytes(key, "little") >= K.CURVE25519_P:
+        raise DecodeError(f"{what} is not the canonical encoding of a curve public key")
+    return bytes(key)
+
+
 def decode_ec(encoded: bytes) -> bytes:
     """DecodeEC (session-establishment.md): "a decoder that does not recognise
     the leading byte fails", and "DecodeEC accepts exactly one encoding of each
     key": it refuses a key whose top bit (bit 255) is set, and a key whose value
-    is at least p. Which layer applies this to an initial message's keys is
-    GAPS-3.md G3-05; this reader applies it at establishment
-    (pqxdh.handshake_keys), not in decode_initial."""
+    is at least p. The initial-message decoder applies the same rule, so
+    "DecodeEC never meets a key in either field that it would refuse"."""
     check_curve_byte(encoded)
-    key = bytes(encoded[1:])
-    if key[31] & 0x80:
-        raise DecodeError("EncodeEC key has bit 255 set")
-    if int.from_bytes(key, "little") >= K.CURVE25519_P:
-        raise DecodeError("EncodeEC key is not below p")
-    return key
+    return check_curve_key(bytes(encoded[1:]), "EncodeEC key")
 
 
 def encode_kem(key: bytes, key_len: int = K.MLKEM1024_EK_LEN) -> bytes:
@@ -177,7 +188,9 @@ def decode_composite_prefix(buf: bytes) -> Tuple[CompositeHeader, bytes]:
         raise DecodeError("ratchet message shorter than its framing and header")
     r = _Reader(buf)
     r.take(2, "framing")
-    dh = r.take(32, "dh")
+    # "It also rejects a dh that is not the canonical encoding of a curve
+    # public key (Curve public keys)"
+    dh = check_curve_key(r.take(32, "dh"), "dh")
     pn = r.uint(4, "pn")
     n = r.uint(4, "n")
     pq_epoch = r.uint(8, "pq_epoch")
@@ -275,8 +288,11 @@ def decode_initial(buf: bytes) -> InitialMessage:
 
     Refuses: shorter than the framing, unrecognised version, type other than
     0x02, input ending inside identity / ephemeral / kem_ciphertext_len / an
-    identifier, a kem_ciphertext_len running past the end, and an identity or
-    ephemeral whose first byte is not the EncodeEC curve byte.
+    identifier, a kem_ciphertext_len running past the end, an identity or
+    ephemeral whose first byte is not the EncodeEC curve byte, and an identity
+    or ephemeral "whose thirty-two key bytes are not the canonical encoding of
+    a curve public key". "Each is a decode failure like the others", so
+    "every key this decoder returns is one DecodeEC accepts".
 
     Does not validate ratchet_message ("it may be empty, or not a ratchet
     message at all"), does not look at identifier values, and does not check
@@ -291,6 +307,8 @@ def decode_initial(buf: bytes) -> InitialMessage:
     ephemeral = r.take(K.ENCODED_EC_LEN, "ephemeral")
     check_curve_byte(identity, "identity")
     check_curve_byte(ephemeral, "ephemeral")
+    check_curve_key(identity[1:], "identity key")
+    check_curve_key(ephemeral[1:], "ephemeral key")
     ct_len = r.uint(4, "kem_ciphertext_len")
     if ct_len > r.remaining():
         raise DecodeError("kem_ciphertext_len runs past the end of the input")
@@ -348,6 +366,12 @@ def decode_bundle(buf: bytes, kem_prekey_len: Optional[int] = K.MLKEM1024_EK_LEN
 
     The decoder does not compare the one-time prekey's presence with its
     identifier, and does not look at identifier values (G-07, G-08 closed).
+
+    "A decoder also refuses a bundle whose identity_key, signed_prekey or
+    present one_time_prekey is not the canonical encoding of a curve public
+    key (Curve public keys, below), as a decode failure. The padding behind an
+    absent one-time prekey is not a key, and the rule above already fixes it
+    to zeros."
     """
     buf = bytes(buf)
     _check_framing(buf, K.TYPE_BUNDLE, "prekey bundle")
@@ -370,12 +394,14 @@ def decode_bundle(buf: bytes, kem_prekey_len: Optional[int] = K.MLKEM1024_EK_LEN
     kem_id = r.uint(4, "kem_prekey_id")
     if r.remaining():
         raise DecodeError("trailing bytes after prekey bundle")
+    check_curve_key(identity_key, "identity_key")
+    check_curve_key(signed_prekey, "signed_prekey")
     if present == K.ABSENT:
         if otpk != bytes(32):
             raise DecodeError("absent one-time prekey with non-zero bytes")
         one_time = None
     elif present == K.PRESENT:
-        one_time = otpk
+        one_time = check_curve_key(otpk, "one_time_prekey")
     else:
         raise DecodeError(f"presence byte 0x{present:02x} is neither 0x00 nor 0x01")
     return PrekeyBundle(identity_key, signed_prekey, spk_sig, kem_prekey, kem_sig,

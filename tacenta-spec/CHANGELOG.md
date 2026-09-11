@@ -132,6 +132,18 @@ is SemVer against the specified protocol (not the implementation).
   reader, second pass (G2-07).
 
 ### Changed
+- `protocol/mlkem-braid.md`, "The erasure code", Codewords;
+  `protocol/session-persistence.md`, "Erasure coder sub-formats": an encoder
+  holds at most the first 65,536 chunks of its value. Over a value of more
+  than 65,536 chunks it holds `chunk_0` to `chunk_65535` and no others. The
+  page had left which chunks such an encoder holds unspecified, and the model
+  and the implementation differed. The implementation kept the first 65,536.
+  The model kept them all, so its encoder broke its own rule that an encoder
+  holds at most 65,536 chunks, and its reader refused what its writer wrote.
+  The implementation's cap is adopted. What an encoder issues is unchanged,
+  and the Braid encodes no such value, so nothing observable in the protocol
+  changes. The persisted encoder's `chunk[count]` is now described as the
+  chunks the encoder holds (register item J-7).
 - `protocol/message-format.md`, `protocol/session-establishment.md`: the
   initial-message decoder refuses an `identity` or `ephemeral` whose
   thirty-two key bytes are not the canonical encoding of a curve public key,
@@ -246,9 +258,9 @@ is SemVer against the specified protocol (not the implementation).
     indices run as they do for any other `k`.
   - A value of more than 65,536 chunks is not refused. Its encoder issues
     `chunk_0` to `chunk_65535` as indices 0 to 65,535 and then nothing, and a
-    decoder for it never completes. Which chunks such an encoder holds is not
-    specified: the implementation keeps the first 65,536 and the model keeps
-    them all, and nothing issued depends on the rest.
+    decoder for it never completes. Which chunks such an encoder holds was
+    left unspecified, since nothing issued depends on the rest; the entry
+    under Changed above now specifies the first 65,536 (J-7).
   - The Braid encodes neither, so neither is observable in the protocol.
 - `protocol/mlkem-braid.md`, "Receiving": `Ct1Acknowledged` takes transition
   (11) when the completed `ek_vector` validates, and stays while the decoder
