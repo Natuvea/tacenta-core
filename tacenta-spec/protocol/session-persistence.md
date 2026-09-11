@@ -205,8 +205,14 @@ decoder always sees exactly the slice it produced and nothing else:
   the KEM's header, first ciphertext half and encapsulation-key vector, raw.
 - `key_pair` (11,872 bytes) and `encaps` (2,592 bytes) are `tacenta-kem`'s
   incremental key pair and encapsulation state: each is its underlying bytes,
-  with no version byte and no structure this page relies on, and each reader
-  refuses any other length. Nothing else in either field is checked.
+  with no version byte and no layout this page defines, and each reader
+  refuses any other length. A `key_pair` holds, among the rest, the `header`
+  and `ek_vector` its party sends (mlkem-braid.md, The KEM split). The reader
+  checks those two, as the Braid's semantic rules below state, and nothing
+  else in `key_pair`. It checks nothing in `encaps` beyond its length: an
+  encapsulation state is derived from the encapsulation randomness and holds
+  no hash, and no copy of another value the state carries, to check it
+  against.
 - `hdr_enc`, `ek_enc`, `ct1_enc`, `ct2_enc` and `hdr_dec`, `ek_dec`, `ct1_dec`,
   `ct2_dec` are erasure encoders and decoders, in the formats below.
 
@@ -221,8 +227,9 @@ implementation is this:
 - **Tags it cannot import or export.** An implementation without that
   serialisation can carry `key_pair` and `encaps` only as opaque,
   length-checked bytes: it cannot decapsulate with the one or finish the
-  encapsulation the other holds. So it cannot import, and go on from, a Braid
-  in any state that carries one of them:
+  encapsulation the other holds, and it cannot find in `key_pair` the header
+  and `ek_vector` that this format's semantic rules check. So it cannot
+  import, and go on from, a Braid in any state that carries one of them:
   - `key_pair`: tags 1 (`KeysSampled`), 2 (`HeaderSent`), 3 (`Ct1Received`)
     and 4 (`EkSentCt1Received`);
   - `encaps`: tags 7 (`Ct1Sampled`), 8 (`EkReceivedCt1Sampled`) and 9
@@ -566,7 +573,13 @@ rule relates a stored key's number to its chain.
   and no receiving chain for the sender, neither for the receiver -- the sparse
   ratchet's `direction` is `A2b` exactly when that role is the sender's.
 - **Braid.** Every live state's `epoch` is at least 1, and every `header`,
-  `ct1` and `ek_vector` has the length given above. Every erasure coder
+  `ct1` and `ek_vector` has the length given above. In tags 1 to 4, the
+  `header` and `ek_vector` that `key_pair` holds pass the validation a
+  completed `ek_vector` passes against a received header (mlkem-braid.md, The
+  KEM split): `H(ek_vector || rho)` equals the header's `H(ek)`, which is FIPS
+  203 section 7.3's hash check made on the incremental key pair, whose
+  decapsulation uses that `H(ek)`; and `ek_vector` passes section 7.2's
+  modulus check. Every erasure coder
   satisfies its own rules below and is sized for the value it carries: the
   `hdr` coders for the header and a 32-byte MAC (96 bytes), the `ek` coders for
   1,536 bytes, the `ct1` coders for 1,408, and the `ct2` coders for the second

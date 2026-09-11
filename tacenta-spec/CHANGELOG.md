@@ -99,8 +99,7 @@ is SemVer against the specified protocol (not the implementation).
 - `protocol/session-persistence.md`, "Braid": the consequence of delegating the
   `key_pair` and `encaps` layouts to `libcrux-ml-kem`. An implementation
   without that serialisation cannot import or export tags 1-4 and 7-9, and can
-  move tags 0, 5, 6, 10 and 11 (G2-08). The reader checks nothing in either
-  field beyond its length.
+  move tags 0, 5, 6, 10 and 11 (G2-08).
 - `protocol/mlkem-braid.md` now states the ML-KEM Braid itself, where it
   used to defer to the published document. It is written as built:
   - "Parameters and derivations":
@@ -141,6 +140,19 @@ is SemVer against the specified protocol (not the implementation).
   reader, second pass (G2-07).
 
 ### Changed
+- `protocol/session-persistence.md`, "Braid": the reader refuses as malformed
+  a state in tags 1 to 4 whose `key_pair` holds a `header` and `ek_vector`
+  that fail the validation a completed `ek_vector` passes against a received
+  header (mlkem-braid.md, The KEM split). That is two checks. The first is the
+  hash check, `H(ek_vector || rho)` equal to the header's `H(ek)`, which is
+  FIPS 203 section 7.3's hash check made on the incremental key pair. The
+  second is section 7.2's modulus check on `ek_vector`. The page had said the
+  reader checks each KEM field's length and nothing else, so a stored key pair
+  with a wrong hash, or with a coefficient at or above q, imported and then
+  decapsulated to a wrong secret without an error. A key pair the library
+  generates passes both checks and is never changed, so no state the library
+  exports is refused. `encaps` is still checked only for its length: it holds
+  nothing to check it against (register item J-4).
 - `protocol/message-format.md`, `protocol/session-establishment.md`: the
   initial-message decoder refuses an `identity` or `ephemeral` whose
   thirty-two key bytes are not the canonical encoding of a curve public key,
