@@ -60,6 +60,7 @@ inputs; libsignal's source code is not an input to this project.
 | Skipped keys, MAX_SKIP | Skipped keys | out-of-order vector, `skipMessageKeys_growth`, reject vector |
 | Skipped store bound, MAX_SKIPPED_STORE | Skipped keys | `skipMessageKeys_store_bounded`, core store-bound test |
 | Session initialisation | Sending and receiving | all vectors (init_sender / init_receiver) |
+| Same-chain message below `Nr` with no stored key refused | Sending and receiving | same-chain-duplicate reject vector, `Model.Ratchet` examples (a duplicate after an in-order receive and after a stored-key receive is refused, the next message is still received), `receive_refines` (the model's refusal is part of what the Rust success case refines), core unit test `a_same_chain_duplicate_is_refused_and_changes_nothing` (`OutOfOrder`, state unchanged) |
 
 Vectors: `vectors/ratchet/double-ratchet.json` (`in-order-3`,
 `out-of-order-skip`, `bidirectional`, and `peer-revisits-ratchet-key`, in
@@ -67,7 +68,11 @@ which a peer returns to a ratchet key it had left and numbers a fresh chain
 from zero under a key already in the store) and
 `vectors/malformed-input/ratchet-reject.json`
 (`reject-too-many-skipped`, a header demanding more than `MAX_SKIP` skips,
-which the receiver must reject). Runner: `runners/rust/tests/ratchet.rs`.
+which the receiver must reject; and `reject-same-chain-duplicate`, a message
+received a second time on the chain the receiver holds, which it must reject
+rather than take as the message at `Nr`, followed by the next message, which
+it must still accept with the sender's key). Runner:
+`runners/rust/tests/ratchet.rs`.
 
 ### Excluded
 

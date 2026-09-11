@@ -124,7 +124,7 @@ run() {
 # The one shape a hand-written module may declare, in the form the waiver
 # exists for: named off a real parent in the same module, stating that a
 # compiled Boolean evaluation returned true, and mentioned by nothing. If this
-# case ever starts failing, the ten real orphans in the three-leaf unit are
+# case ever starts failing, the eleven real orphans in the three-leaf unit are
 # being refused and the build is broken, not tightened.
 run orphan-is-waived accept <<'EOF'
 theorem P : True := trivial

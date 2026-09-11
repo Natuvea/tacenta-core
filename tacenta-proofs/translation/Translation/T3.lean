@@ -1328,8 +1328,14 @@ theorem try_skipped_refines (hrm : Tacenta.T1.VecRemoveTotal)
 attribute [-step] Tacenta.T1.age_store_spec
 
 /-- The suffix both of `receive`'s ratchet paths share: skip forward to the
-message number, then take the chain-key step. Factoring it out is what keeps
-that proof from being written three times. -/
+message number, refuse a number the chain has already passed, then take the
+chain-key step. Factoring it out is what keeps that proof from being written
+three times.
+
+The refusal (`OutOfOrder`, ratchet.md, Sending and receiving) is an `Err` on
+the Rust side and a `none` on the model's, and the two agree on when it fires
+because the skip leaves `nr` related: so a success here is never the refused
+case, and the model's test is passed exactly when the Rust's is. -/
 theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.T1.VecRemoveTotal)
     [DerivedKeysModel] (st : State) (mst : Model.State.State) (hR : StateR st mst) (n : Std.U32)
     (hs : st.skipped.val.length + MAX_SKIP.val ≤ Usize.max)
@@ -1338,32 +1344,38 @@ theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.T1.VecRemoveTotal)
       let (r1, state4) ← skip_message_keys st n
       match r1 with
       | core.result.Result.Ok _ =>
-        match state4.ckr with
-        | none =>
-          ok (core.result.Result.Err RatchetError.NoReceivingChain, state4)
-        | some ck =>
-          let o2 ← lift (U32.checked_add state4.nr 1#u32)
-          match o2 with
+        if n < state4.nr
+        then ok (core.result.Result.Err RatchetError.OutOfOrder, state4)
+        else
+          match state4.ckr with
           | none =>
-            ok (core.result.Result.Err RatchetError.ChainExhausted, state4)
-          | some next_nr =>
-            let (ck2, mk) ← kdf_ck ck
-            let state5 ← age_store { state4 with ckr := some ck2, nr := next_nr }
-            ok (core.result.Result.Ok mk, state5)
+            ok (core.result.Result.Err RatchetError.NoReceivingChain, state4)
+          | some ck =>
+            let o2 ← lift (U32.checked_add state4.nr 1#u32)
+            match o2 with
+            | none =>
+              ok (core.result.Result.Err RatchetError.ChainExhausted, state4)
+            | some next_nr =>
+              let (ck2, mk) ← kdf_ck ck
+              let state5 ← age_store { state4 with ckr := some ck2, nr := next_nr }
+              ok (core.result.Result.Ok mk, state5)
       | core.result.Result.Err e => ok (core.result.Result.Err e, state4))
     ⦃ fun r => ∀ mk, r.1 = core.result.Result.Ok mk →
       ∃ m',
         (match Model.State.skipMessageKeys mst n.val with
          | none => none
          | some st2 =>
-           match st2.ckr with
-           | none => none
-           | some ck =>
-             some (Model.State.ageStore
-                     { st2 with
-                       ckr := some (Model.State.kdfCk ck).fst,
-                       nr := st2.nr + 1 },
-                   (Model.State.kdfCk ck).snd))
+           if n.val < st2.nr then
+             none
+           else
+             match st2.ckr with
+             | none => none
+             | some ck =>
+               some (Model.State.ageStore
+                       { st2 with
+                         ckr := some (Model.State.kdfCk ck).fst,
+                         nr := st2.nr + 1 },
+                     (Model.State.kdfCk ck).snd))
           = some (m', keyOf mk)
         ∧ StateR r.2 m' ⦄ := by
   have hht : Tacenta.T1.HmacTotal := h.total
@@ -1382,6 +1394,13 @@ theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.T1.VecRemoveTotal)
       have hc := hSR2.ckr
       rw [hck] at hc
       simpa using hc.symm
+    -- Past the refusal on the Rust side, so past it on the model's: the skip
+    -- left the two counters related.
+    have hnlt : ¬ n.val < m2.nr := by
+      intro hc
+      have hn2 := hSR2.nr
+      have hlt4 : n < state4.nr := by scalar_tac
+      exact absurd hlt4 (by assumption)
     have hnr : next_nr.val = m2.nr + 1 := by
       rw [ho] at o2_post
       simp only at o2_post
@@ -1411,12 +1430,14 @@ theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.T1.VecRemoveTotal)
     refine ⟨Model.State.ageStore
       { m2 with ckr := some (keyOf ck2), nr := m2.nr + 1 }, ?_, hSR5⟩
     · rw [hm2]
-      show (match m2.ckr with
+      show (if n.val < m2.nr then none else
+            match m2.ckr with
             | none => none
             | some ck' =>
               let p := Model.State.kdfCk ck'
               some (Model.State.ageStore
                       { m2 with ckr := some p.1, nr := m2.nr + 1 }, p.2)) = _
+      rw [if_neg hnlt]
       simp only [hmckr]
       rw [← ck2_post]
   · simp

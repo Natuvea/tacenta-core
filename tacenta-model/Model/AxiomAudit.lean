@@ -278,12 +278,13 @@ discharge the *same* obligation, the second reuses the first's axiom and the
 axiom named after the second is left declared and mentioned by nothing. That
 is not hypothetical here: the three-leaf translation unit
 (`Translation.TacentaTripleUnit`) puts all three leaves' types in one module,
-and seven string literals occur in more than one leaf's `Debug` body --
-`ChainExhausted`, `SkippedStoreFull`, `TooManySkipped`, `Malformed`,
-`TooShort`, `UnknownVersion` and `Header`. Aeneas's `toStr` takes a length
-bound `by decide +native` for each occurrence, and every occurrence after the
-first reuses the cached proof, so ten such orphans exist there. None exists in
-any module that holds one crate, where each literal occurs once.
+and eight string literals occur in more than one leaf's `Debug` body --
+`ChainExhausted`, `SkippedStoreFull`, `TooManySkipped`, `OutOfOrder`,
+`Malformed`, `TooShort`, `UnknownVersion` and `Header`. Aeneas's `toStr` takes
+a length bound `by decide +native` for each occurrence, and every occurrence
+after the first reuses the cached proof, so eleven such orphans exist there.
+None exists in any module that holds one crate, where each literal occurs
+once.
 
 An orphan is inert: no declaration reaches it, so it is in no theorem's
 `#print axioms` and can widen no trust base. The rule below therefore waives

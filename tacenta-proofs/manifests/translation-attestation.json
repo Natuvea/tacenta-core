@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "_note": "Written only by `tacenta-proofs/scripts/attest.py --refresh-translation`, immediately after `scripts/run-aeneas.sh` on the pinned toolchain, and compared against by every other mode. A green `attest.py --check` establishes that each generated Translation/Tacenta*.lean is a module run-aeneas.sh produces, is byte for byte the file recorded here, declares exactly the axioms recorded here (as text; no-sorry.sh compares the same record with what the axiom audit saw in the built environment), and that the Rust verified zone it was generated from, and the workspace inputs that shape every zone's extraction (Cargo.toml and its profiles, Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed to when this was written, as recorded by whoever ran the toolchain. Where the zone is assembled rather than written (tacenta-core/triple-unit, the three-leaf translation unit), the record carries an `assembly` field naming the script and the three leaf trees it was assembled from, with their hashes, and --check fails if any of them has moved since; assemble-triple-unit.sh --check is the separate question of whether the unit crate in the tree is what those leaves assemble to. It does not establish that the toolchain was run, or run honestly: that is checked by regenerating with run-aeneas.sh and diffing, which REPRODUCING.md describes.",
-  "generated_at_commit": "1cdcdb3234ac3ef21e15c9ef5a30224e216761df",
+  "generated_at_commit": "8c479fa8249286a4d91f55a2df7849d614077842",
   "aeneas": {
     "release": "nightly-2026.07.22-b1214ca",
     "commit": "b1214ca0a024e8121f41fe2b2ed15e26af02373b"
@@ -155,7 +155,7 @@
     },
     "tacenta-proofs/translation/Translation/TacentaRatchet.lean": {
       "module": "TacentaRatchet",
-      "sha256": "118e7f00be0882aa15cdce134f505187011e19f5d0451635e99072864a1fb7f3",
+      "sha256": "f12146ad49a28ff787f5657acb3b5cc26dc97b0ee32d43ad8013506634408911",
       "axioms": [
         "Array.Insts.ZeroizeZeroize.zeroize",
         "Pair.Insts.ZeroizeZeroize.zeroize",
@@ -174,7 +174,7 @@
         "zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop"
       ],
       "zone": "tacenta-core/ratchet",
-      "zone_sha256": "78122ceb7c458458943c938ccb96d4825e2955ace948254111a64dde88266a43",
+      "zone_sha256": "a27bf1925af492dc0963ac9b9c43d19a6d31b5d7211078eac767ba37e629e204",
       "workspace_sha256": "66e7ccaf9fcf301c7defdfd3d97d1b1be80ce2705e66913eabd0521fcb7f9fdf"
     },
     "tacenta-proofs/translation/Translation/TacentaSession.lean": {
@@ -219,7 +219,7 @@
     },
     "tacenta-proofs/translation/Translation/TacentaTripleUnit.lean": {
       "module": "TacentaTripleUnit",
-      "sha256": "f3eb785623cc0c9fe34f40faa36960141858abea5077cf31c8a4a0d29b7a5218",
+      "sha256": "1e941258e01ba6dbe2dfd451162e13ee4f03ab3fbc2f47ba0b579398e8f14f7c",
       "axioms": [
         "Array.Insts.ZeroizeZeroize.zeroize",
         "Pair.Insts.ZeroizeZeroize.zeroize",
@@ -248,7 +248,7 @@
         "script": "tacenta-proofs/scripts/assemble-triple-unit.sh",
         "script_sha256": "a0eab7a4e50df59d1f1aefdd5c9489419d5ffcb89109c35923edcc11a18954e5",
         "sources": {
-          "tacenta-core/ratchet": "78122ceb7c458458943c938ccb96d4825e2955ace948254111a64dde88266a43",
+          "tacenta-core/ratchet": "a27bf1925af492dc0963ac9b9c43d19a6d31b5d7211078eac767ba37e629e204",
           "tacenta-core/spqr": "0e06b29d5028de40a58c5db5fea96770965f2f36da8c8adc6a01fca79b4632b7",
           "tacenta-core/triple": "d3ca6b9e58174831c0cc059fae1c4d2851071d97048b3c02c61d10670352427a"
         }
@@ -256,14 +256,14 @@
     },
     "tacenta-proofs/translation/Translation/TacentaWire.lean": {
       "module": "TacentaWire",
-      "sha256": "8459929a4bd5caf85ce000be7a336ad4e9361810102affa045584682484aa260",
+      "sha256": "8f5b7b017577b10d0f60d016f14af2adac1f7dcb473c57da8dc41e013e930c7d",
       "axioms": [
         "core.option.Option.Insts.CoreCloneClone.clone",
         "core.option.Option.Insts.CoreCmpPartialEqOption.eq",
         "core.option.Option.Insts.CoreFmtDebug.fmt"
       ],
       "zone": "tacenta-core/wire",
-      "zone_sha256": "06c5efc04faa924f5228884d268ddb05414465bddcdedd5d1d3fced6360ac116",
+      "zone_sha256": "a996f9860f8ce8505aa86452cd23277a3383fabaa5b56732779037e213225c7e",
       "workspace_sha256": "66e7ccaf9fcf301c7defdfd3d97d1b1be80ce2705e66913eabd0521fcb7f9fdf"
     }
   }
