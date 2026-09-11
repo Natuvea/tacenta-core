@@ -17,7 +17,9 @@ is SemVer against the specified protocol (not the implementation).
     failure.
   - How identifier `0` is treated in each position.
   - Rejection's restraint is about what a peer learns.
-- `protocol/mlkem-braid.md`: the KEM split and `ek_vector` validation; the
+- `protocol/mlkem-braid.md`: the KEM split and `ek_vector` validation, with where
+  they depart from the published document (the header hash's input order, and
+  the added modulus check); the
   erasure code exactly (the GF(2^16) representation and reduction polynomial,
   chunking, systematic codewords, encoder exhaustion, first-copy-wins
   decoding); what a receive ignores; every transition to `Failed`; and, at the

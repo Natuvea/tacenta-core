@@ -96,6 +96,17 @@ ct2       = the ciphertext's last 160 bytes, the compressed v
   `ek_vector` passes the FIPS 203 section 7.2 modulus check,
   `ByteEncode12(ByteDecode12(ek_vector)) = ek_vector`.
 
+**This departs from the published document in two places.**
+- **The hash input order.** The document writes the header's hash as
+  `SHA3-256(ek_seed || ek_vector)`, seed first. What is computed here is FIPS
+  203's `H(ek)`, whose input is `ek_vector || rho`, with `rho` as the seed: the
+  same two parts in the other order, so the hashes differ. A peer that follows
+  the published notation literally computes a different header, and its
+  `ek_vector` fails this validation.
+- **The modulus check.** The document's integrity check is the hash alone. The
+  modulus check is added here: it refuses an `ek_vector` that matches the hash
+  but is not a valid FIPS 203 encoding.
+
 ## The erasure code
 
 **The field.** An element of GF(2^16) is a 16-bit value whose bit `n` is the
