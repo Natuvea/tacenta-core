@@ -107,6 +107,14 @@ impl Identity {
     /// KEM prekey is what a bundle falls back to once the one-time KEM prekeys
     /// run out, which happens when bundles are fetched faster than they are
     /// replenished (session-establishment.md, Keys).
+    ///
+    /// Identifiers stop before `u32::MAX`, as they do for `replenish`
+    /// (key-deletion.md). The most one-time prekeys of each kind the
+    /// identifier space can number is 2^31 - 2. A larger `one_time_count`
+    /// makes that many and leaves `next_id` at `u32::MAX`, where `replenish`
+    /// and the rotations add nothing. No store that size fits in memory, so
+    /// this never shortens a real store. It exists so that no count can wrap
+    /// the counter to zero and give a store duplicate identifiers.
     pub fn create_prekeys<R: RngCore + CryptoRng>(
         &self,
         one_time_count: usize,
@@ -114,40 +122,38 @@ impl Identity {
     ) -> PrekeyStore {
         // Identifiers start at one because zero is the absent-identifier
         // sentinel. The counter is returned in the store so that replenishment
-        // continues from here; see `PrekeyStore::next_id`.
-        let mut next_id: u32 = 1;
-        let mut fresh_id = || {
-            let id = next_id;
-            next_id += 1;
-            id
-        };
+        // continues from here; see `PrekeyStore::next_id`. They are worked out
+        // before any key is made, so the key generation below only takes them.
+        let numbering = PrekeyNumbering::for_count(one_time_count);
 
         let signed_prekey_secret = random_secret(rng);
-        let signed_prekey_id = fresh_id();
+        let signed_prekey_id = numbering.signed_prekey;
         let signed_prekey_pub = dh::PrivateKey::from_bytes(signed_prekey_secret).public_key();
         let signed_prekey_sig = self.sign(&encode_ec(&signed_prekey_pub), rng);
 
-        let one_time = (0..one_time_count)
-            .map(|_| (fresh_id(), random_secret(rng)))
+        let one_time = numbering
+            .one_time
+            .map(|id| (id, random_secret(rng)))
             .collect();
 
         let kem = kem::KeyPair::generate(rng);
-        let kem_id = fresh_id();
+        let kem_id = numbering.kem;
         let kem_sig = self.sign(&encode_kem(&kem.public_key()), rng);
 
         // Every KEM prekey is signed individually, unlike the one-time curve
         // prekeys, which are not signed at all. That asymmetry is the
         // specification's, not ours.
-        let kem_one_time = (0..one_time_count)
-            .map(|_| {
+        let kem_one_time = numbering
+            .kem_one_time
+            .map(|id| {
                 let pair = kem::KeyPair::generate(rng);
                 let sig = self.sign(&encode_kem(&pair.public_key()), rng);
-                (fresh_id(), pair, sig)
+                (id, pair, sig)
             })
             .collect();
 
         PrekeyStore {
-            next_id,
+            next_id: numbering.next_id,
             identity_public: self.public(),
             signed_prekey_secret,
             signed_prekey_id,
@@ -244,6 +250,63 @@ fn last_resort_fingerprint(decoded: &crate::serialization::DecodedInitial) -> [u
     crate::primitives::kdf::hmac_sha256(LAST_RESORT_HANDSHAKE_LABEL, &input)
 }
 
+/// The identifiers `create_prekeys` numbers a store with, in the order
+/// key-deletion.md gives: the signed prekey, the one-time curve prekeys, the
+/// last-resort KEM prekey, the one-time KEM prekeys, and the `next_id` left
+/// after them. Kept apart from the key generation so that the arithmetic at
+/// the end of the identifier space can be checked without making the keys.
+#[derive(Debug, PartialEq, Eq)]
+struct PrekeyNumbering {
+    signed_prekey: u32,
+    one_time: core::ops::Range<u32>,
+    kem: u32,
+    kem_one_time: core::ops::Range<u32>,
+    next_id: u32,
+}
+
+/// The most one-time prekeys of each kind `create_prekeys` makes, 2^31 - 2.
+/// This is the largest `n` whose numbering fits a `u32`: identifiers `1` to
+/// `2n + 2`, with `next_id` at `2n + 3`. At this `n`, `next_id` is `u32::MAX`,
+/// the point where `replenish` and the rotations stop, so `u32::MAX` is never
+/// issued.
+const MAX_CREATED_ONE_TIME: u32 = (u32::MAX - 3) / 2;
+
+impl PrekeyNumbering {
+    /// The numbering for `one_time_count` one-time prekeys of each kind, with
+    /// the count capped at `MAX_CREATED_ONE_TIME`.
+    fn for_count(one_time_count: usize) -> PrekeyNumbering {
+        let n = u32::try_from(one_time_count)
+            .unwrap_or(u32::MAX)
+            .min(MAX_CREATED_ONE_TIME);
+        // Under the cap `checked` is never `None`, and a test pins the cap as
+        // the largest count for which it is `Some`. The fallback is there so
+        // that a wrong cap would give a store with no one-time prekeys, never
+        // a panic or a wrapped identifier.
+        PrekeyNumbering::checked(n).unwrap_or(PrekeyNumbering {
+            signed_prekey: 1,
+            one_time: 2..2,
+            kem: 2,
+            kem_one_time: 3..3,
+            next_id: 3,
+        })
+    }
+
+    /// The numbering for exactly `n` one-time prekeys of each kind, or `None`
+    /// if `next_id` would pass the end of the identifier space.
+    fn checked(n: u32) -> Option<PrekeyNumbering> {
+        let kem = n.checked_add(2)?;
+        let kem_one_time_start = kem.checked_add(1)?;
+        let next_id = kem_one_time_start.checked_add(n)?;
+        Some(PrekeyNumbering {
+            signed_prekey: 1,
+            one_time: 2..kem,
+            kem,
+            kem_one_time: kem_one_time_start..next_id,
+            next_id,
+        })
+    }
+}
+
 fn random_secret<R: RngCore + CryptoRng>(rng: &mut R) -> [u8; 32] {
     let mut s = [0u8; 32];
     rng.fill_bytes(&mut s);
@@ -303,14 +366,18 @@ pub struct PrekeyStore {
     /// naming that identifier is served twice -- which is precisely what a
     /// one-time prekey exists to prevent.
     ///
-    /// Today nothing can produce a duplicate: `create_prekeys` numbers a whole
-    /// store in one pass and is the only thing that builds one. But one-time
-    /// keys are consumed and will need replenishing, and the obvious way to
-    /// write that is to call `create_prekeys` again and combine the results --
-    /// at which point the identifiers restart at one and collide. This field
-    /// exists so that replenishment has somewhere correct to continue from, and
-    /// so the requirement is visible to whoever writes it rather than
-    /// rediscovered.
+    /// Nothing produces a duplicate. `create_prekeys` numbers a whole store in
+    /// one pass, and `replenish`, `rotate_signed_prekey` and `rotate_kem` each
+    /// take their identifiers from this counter. The obvious other way to
+    /// refill a store is to call `create_prekeys` again and combine the
+    /// results, which restarts the identifiers at one so that they collide
+    /// (`two_stores_from_one_identity_collide_and_must_not_be_merged` pins
+    /// that). This field is what lets anything that adds keys continue the
+    /// sequence instead.
+    ///
+    /// The counter has an end. `u32::MAX` is never issued: `create_prekeys`
+    /// leaves the counter at most there, and `replenish` and the rotations add
+    /// nothing once it stands there (key-deletion.md).
     next_id: u32,
     /// The last-resort handshakes this store has already accepted: for each,
     /// the identifier of the last-resort KEM key it was made against and the
@@ -1440,7 +1507,16 @@ pub enum Error {
     /// The composition refused: either ratchet may be the reason, and the
     /// variant carries which.
     Triple(tacenta_triple::TripleError),
-    /// A prekey signature in the bundle did not verify.
+    /// A check on the handshake's keys refused, and the [`SessionError`] says
+    /// which. Either a prekey signature in the bundle did not verify
+    /// (`BadSignedPrekeySignature`, `BadKemPrekeySignature`), or a
+    /// Diffie-Hellman agreement was not contributory
+    /// (`NonContributoryAgreement`).
+    ///
+    /// The second can come from any receive, not only from establishment.
+    /// `decrypt` checks the ratchet public key on every incoming message and
+    /// refuses a low-order one with this variant, before the message is
+    /// authenticated.
     Handshake(SessionError),
     /// A KEM public key or ciphertext was malformed.
     Kem,
@@ -2998,6 +3074,90 @@ mod tests {
             ids.iter().all(|i| *i < store.next_id),
             "next_id must be past everything handed out"
         );
+    }
+
+    /// `create_prekeys` numbers a store as key-deletion.md gives, and stops at
+    /// the end of the identifier space the way `replenish` does: `u32::MAX` is
+    /// never issued, and no count wraps the counter.
+    ///
+    /// A store that reaches the end would hold four billion keys, so the
+    /// boundary is tested through the numbering, and through a store whose
+    /// counter is set to the end.
+    #[test]
+    fn create_prekeys_stops_at_the_end_of_the_identifier_space() {
+        use rand::SeedableRng;
+        let mut rng = rand::rngs::StdRng::seed_from_u64(12);
+        let id = Identity::generate(&mut rng);
+
+        // A small store takes exactly the numbering, which is the
+        // specification's for n = 2.
+        let two = PrekeyNumbering::for_count(2);
+        assert_eq!(
+            two,
+            PrekeyNumbering {
+                signed_prekey: 1,
+                one_time: 2..4,
+                kem: 4,
+                kem_one_time: 5..7,
+                next_id: 7,
+            }
+        );
+        let store = id.create_prekeys(2, &mut rng);
+        assert_eq!(store.signed_prekey_id, two.signed_prekey);
+        assert!(store.one_time.iter().map(|(k, _)| *k).eq(two.one_time));
+        assert_eq!(store.kem_id, two.kem);
+        assert!(
+            store
+                .kem_one_time
+                .iter()
+                .map(|(k, _, _)| *k)
+                .eq(two.kem_one_time)
+        );
+        assert_eq!(store.next_id, two.next_id);
+
+        // The largest count that fits issues identifiers up to u32::MAX - 1,
+        // contiguous and in order, and leaves next_id at u32::MAX.
+        assert_eq!(MAX_CREATED_ONE_TIME, (1u32 << 31) - 2);
+        let top = PrekeyNumbering::for_count(MAX_CREATED_ONE_TIME as usize);
+        assert_eq!(top.signed_prekey, 1);
+        assert_eq!(top.one_time.start, 2);
+        assert_eq!(top.one_time.len(), MAX_CREATED_ONE_TIME as usize);
+        assert_eq!(top.one_time.end, top.kem);
+        assert_eq!(top.kem_one_time.start, top.kem + 1);
+        assert_eq!(top.kem_one_time.len(), MAX_CREATED_ONE_TIME as usize);
+        assert_eq!(top.kem_one_time.clone().next_back(), Some(u32::MAX - 1));
+        assert_eq!(top.kem_one_time.end, top.next_id);
+        assert_eq!(top.next_id, u32::MAX);
+
+        // One more does not fit, so the cap is exactly the bound, and every
+        // count past it is numbered as the cap is.
+        assert_eq!(PrekeyNumbering::checked(MAX_CREATED_ONE_TIME + 1), None);
+        assert_eq!(
+            PrekeyNumbering::for_count(MAX_CREATED_ONE_TIME as usize + 1),
+            top
+        );
+        assert_eq!(PrekeyNumbering::for_count(usize::MAX), top);
+
+        // A store at that end is one the invariant and the reader accept, and
+        // nothing adds to it.
+        let mut store = id.create_prekeys(1, &mut rng);
+        store.kem_one_time[0].0 = u32::MAX - 1;
+        store.next_id = u32::MAX;
+        assert!(store.invariant());
+        let restored = PrekeyStore::from_bytes(&store.to_bytes())
+            .expect("a store whose next_id is u32::MAX reads back");
+        assert_eq!(restored.next_id, u32::MAX);
+
+        let before = store.to_bytes();
+        store.replenish(&id, 1, &mut rng);
+        store.rotate_signed_prekey(&id, &mut rng);
+        store.rotate_kem(&id, &mut rng);
+        assert_eq!(
+            &store.to_bytes()[..],
+            &before[..],
+            "a key was issued past the end of the identifier space"
+        );
+        assert_eq!(store.next_id, u32::MAX);
     }
 
     /// Two stores built from one identity number themselves identically.
