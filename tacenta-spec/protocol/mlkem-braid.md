@@ -4,18 +4,27 @@ The agreement the [sparse post-quantum ratchet](sparse-pq-ratchet.md) is
 instantiated with. It produces a sequence of post-quantum shared secrets, one
 per epoch, between two parties who can only exchange small messages.
 
-This page does not restate the protocol. The published ML-KEM Braid
-specification (Rolfe Schmidt, revision 1 dated 2025-02-21, last updated
-2025-09-26, pinned by SHA-256 in the conformance manifest) defines the
-incremental KEM interface (its section 1.2), chunking with erasure codes
-(section 1.3), the parameters, messages, internal authentication, state
-machine, transitions, and initialization (sections 2.2 through 2.6), and the
-security considerations (section 3). Read it for the protocol. This page
-records what this implementation fixes where the specification leaves a
-choice, specifies exactly what an implementation needs beyond it (the KEM
-split, the erasure code, what a receive ignores, and every way into
-`Failed`), and gives the properties of the composition that a caller needs to
-know.
+This page states the protocol as this implementation builds it:
+- its parameters and derivations, and the ratcheted authenticator;
+- the KEM split and the erasure code;
+- its messages and what they put on the wire;
+- the state machine, with its thirteen transitions numbered;
+- what a receive ignores, and every way into `Failed`.
+
+It is written from the published ML-KEM Braid specification (Rolfe Schmidt,
+revision 1 dated 2025-02-21, last updated 2025-09-26, pinned by SHA-256 in the
+conformance manifest). That document defines:
+- the sparse continuous key agreement interface (its section 1.1);
+- the incremental KEM interface (section 1.2) and chunking with erasure codes
+  (section 1.3);
+- the parameters, messages, internal authentication, state machine,
+  transitions and initialization (sections 2.2 through 2.6);
+- the security considerations (section 3).
+
+The transition numbers here are that document's. Where this page departs from
+it, the page says so. The protocol can be built from this page with FIPS 203,
+RFC 5869 and FIPS 180-4, and without that document. Section 3 is not
+restated; the properties a caller needs are given at the end.
 
 ## The shape, in one paragraph
 
@@ -40,24 +49,27 @@ a preshared secret, which for this implementation is the
   decoder performs are modelled in `Model/Gf65536.lean` and
   `Model/Polynomial.lean`; the delta property that decoding rests on is proved
   there, and the erasure recovery it implies is checked on an instance.
-- **MAC.** HMAC-SHA256. Epochs are unsigned 64-bit integers, big-endian on the
-  wire.
+- **MAC and epochs.** HMAC-SHA256, with its full 32-byte output. Epochs are
+  unsigned 64-bit integers. Wherever an epoch appears as bytes, on the wire or
+  in a derivation or MAC input, it is eight bytes big-endian. The
+  specification recommends all three and fixes none of them.
 - **Labels.** The four derivation suffixes the specification states are used
   verbatim and recorded at tier `fact` in [CONSTANTS.md](../CONSTANTS.md).
   `PROTOCOL_INFO`, whose shape the specification gives by example and whose
   value it leaves to the implementation, is `Tacenta_MLKEM1024_SHA-256`, tier
-  `ours`.
+  `ours`. Their bytes are under Parameters and derivations.
 - **Message types on the wire.** The specification's message-type set minus
   `Ct1Ack`, which this implementation never produces and its decoder
   rejects. The byte
   assignment of the remaining types is ours (`AgreementType` in
   [CONSTANTS.md](../CONSTANTS.md)).
 - **States.** The eleven live states of the specified machine plus a terminal
-  `Failed` state. Their stable numbering, `state_tag`, is recorded in
-  [CONSTANTS.md](../CONSTANTS.md) and is what persistence writes
-  ([session-persistence.md](session-persistence.md)).
+  `Failed` state (The state machine, below). Their stable numbering,
+  `state_tag`, is recorded in [CONSTANTS.md](../CONSTANTS.md) and is what
+  persistence writes ([session-persistence.md](session-persistence.md)).
 - **Verification failure is terminal.** The specification says to abandon the
-  session on a MAC failure. This implementation makes that unrepresentable
+  session on a MAC failure, and raises an error when `ek_vector` fails its
+  integrity check. This implementation makes that unrepresentable
   otherwise: a failed verification moves the Braid to `Failed`, and `Session`
   reports it through `agreement_failed()` until the session is re-established.
   The other ways into `Failed` are listed below under Failure.
@@ -65,6 +77,95 @@ a preshared secret, which for this implementation is the
   state expects is ignored, as the specification prescribes for an unreliable
   transport. Liveness under a peer that never sends the expected epoch is
   therefore a property of the layer above, not of the Braid.
+
+## Parameters and derivations
+
+**Sizes.** The KEM's values are those of The KEM split, below. `MAC_SIZE` is
+32. Two values carry a MAC appended, and the erasure code carries each of the
+four as a whole number of 32-byte chunks:
+
+```
+value                bytes   codewords needed
+header || MacHdr     96      3
+ek_vector            1,536   48
+ct1                  1,408   44
+ct2 || MacCt         192     6
+```
+
+**Bytes.** `ToBytes(e)` is the epoch `e` as eight bytes, big-endian.
+`PROTOCOL_INFO` and the four suffixes are ASCII, with no terminator:
+
+```
+PROTOCOL_INFO            "Tacenta_MLKEM1024_SHA-256"  25 bytes
+                         54 61 63 65 6e 74 61 5f 4d 4c 4b 45 4d 31 30 32
+                         34 5f 53 48 41 2d 32 35 36
+":SCKA Key"              3a 53 43 4b 41 20 4b 65 79                        9 bytes
+":Authenticator Update"  3a 41 75 74 68 65 6e 74 69 63 61 74 6f 72 20 55
+                         70 64 61 74 65                                    21 bytes
+":ekheader"              3a 65 6b 68 65 61 64 65 72                        9 bytes
+":ciphertext"            3a 63 69 70 68 65 72 74 65 78 74                  11 bytes
+```
+
+**The two derivations.** Each is HKDF (RFC 5869) with HMAC-SHA256. Its `info`
+is `PROTOCOL_INFO`, then a suffix, then `ToBytes(e)`, joined with nothing
+between them:
+
+```
+KDF_OK(K, e)       = HKDF-SHA256(salt = 32 zero bytes,
+                                 IKM  = K,
+                                 info = PROTOCOL_INFO || ":SCKA Key" || ToBytes(e),
+                                 L    = 32)
+
+KDF_AUTH(rk, u, e) = HKDF-SHA256(salt = rk,
+                                 IKM  = u,
+                                 info = PROTOCOL_INFO || ":Authenticator Update" || ToBytes(e),
+                                 L    = 64)
+```
+
+**The epoch key.** `K` is the 32-byte ML-KEM shared secret an epoch's
+encapsulation produces. The epoch's key is `KDF_OK(K, e)` for that epoch `e`.
+It is computed as soon as `K` is, at transitions (7) and (5). `K` itself is
+used for nothing else and is not kept.
+
+**The ratcheted authenticator.** Each party holds a `root_key` and a
+`mac_key`, 32 bytes each:
+
+```
+Init(e, s):     root_key = 32 zero bytes, then Update(e, s)
+Update(e, u):   out      = KDF_AUTH(root_key, u, e)
+                root_key = out[0..32]      -- the first 32 bytes
+                mac_key  = out[32..64]     -- the last 32 bytes
+MacHdr(e, hdr)  = HMAC-SHA256(mac_key, PROTOCOL_INFO || ":ekheader"   || ToBytes(e) || hdr)
+MacCt(e, ct)    = HMAC-SHA256(mac_key, PROTOCOL_INFO || ":ciphertext" || ToBytes(e) || ct)
+```
+
+- **Initialisation.** Both parties run `Init(1, SK)`. `SK` is the PQXDH shared
+  secret itself ([session-establishment.md](session-establishment.md)), not
+  either half of the Triple Ratchet's split of it
+  ([triple-ratchet.md](triple-ratchet.md), Initialisation). `Init` reads no
+  `mac_key`: its `Update` sets both keys.
+- **Update.** The authenticator is updated once per epoch on each side, with
+  the epoch key and not `K`: at (7) by the party that encapsulates, and at (5)
+  by the party that decapsulates. Nothing else updates it.
+- **The header MAC.** `hdr` is the 64-byte KEM header. The MAC is appended to
+  it by (1) and checked by the receive that completes the header in
+  `NoHeaderReceived`.
+- **The ciphertext MAC.** `ct` is `ct1 || ct2`, 1,568 bytes. The MAC is
+  appended to `ct2` when the encapsulation completes, at (9), (11) or (12). It
+  is checked by (5), after that transition's `Update`.
+- **Verification.** A receiver recomputes the MAC and compares all 32 bytes;
+  this implementation compares in constant time. Nothing is truncated. A
+  mismatch moves the Braid to `Failed` (Failure).
+
+The vectors `tacenta-test-vectors/vectors/post-quantum/braid.json` are
+examples of `KDF_OK`. The vectors `auth.json` are examples of one `Update`
+from a given `root_key`, output `root_key || mac_key`; its `from-zero` vector
+is `Init(1, s)`. No vector pins a MAC.
+
+**Where this reads the published document.** Its section 2.4 writes the epoch
+in the two MAC inputs bare, where its section 2.2 writes `ToBytes(epoch)` in
+the two derivations. Here the MAC inputs use `ToBytes` too. Its
+`Authenticator.Init` gives `mac_key` no value, as here.
 
 ## The KEM split
 
@@ -153,6 +254,240 @@ sum over m of   element_j(codeword at x_m)
 The value is the `k` chunks in order, truncated to `n` bytes. A decoder for
 zero bytes holds the empty value before any codeword arrives.
 
+## Messages
+
+A Braid message has three fields:
+- an epoch, an unsigned 64-bit integer;
+- a type;
+- at most one codeword (The erasure code), a 16-bit index and 32 bytes.
+
+```
+type       what the codeword is from      also says
+None       no codeword                    nothing
+Hdr        header || MacHdr
+Ek         ek_vector
+EkCt1Ack   ek_vector                      the sender holds all of ct1
+Ct1        ct1
+Ct2        ct2 || MacCt
+```
+
+The published document's section 2.3 has a seventh type, `Ct1Ack`: an
+acknowledgement of `ct1` with no codeword. No state here sends it. The
+acknowledgement always rides on an `ek_vector` codeword, because the sender
+never learns that `ek_vector` has arrived in full and so always has one to
+send. The wire has no byte for it (message-format.md).
+
+**On the wire.** Every ratchet message carries exactly one Braid message: the
+one the Braid's send produced in the same `encrypt`. It fills the composite
+header's last four fields (message-format.md, Ratchet message):
+
+```
+ag_epoch       = ToBytes(epoch)
+ag_type        = the type's byte (AgreementType, CONSTANTS.md)
+chunk_present  = 0x01 with a codeword, 0x00 without
+chunk_index    = the codeword's index, 2 bytes big-endian; zero without
+chunk          = the codeword's 32 bytes; zero without
+```
+
+A receive hands the Braid the message those four fields describe.
+
+## The state machine
+
+### States
+
+Every live state holds the epoch being negotiated and an authenticator. Five
+states belong to the party that, in the current epoch, generates the key pair
+and decapsulates: it sends the header and `ek_vector`. Six belong to the party
+that encapsulates: it waits for the header and sends `ct1` and `ct2`. The two
+swap at the end of every epoch.
+
+```
+tag  state                  side          holds, besides epoch and authenticator
+0    KeysUnsampled          key pair      nothing
+1    KeysSampled            key pair      key pair, header encoder
+2    HeaderSent             key pair      key pair, ct1 decoder, ek_vector encoder
+3    Ct1Received            key pair      key pair, ct1, ek_vector encoder
+4    EkSentCt1Received      key pair      key pair, ct1, ct2 decoder
+5    NoHeaderReceived       encapsulate   header decoder
+6    HeaderReceived         encapsulate   header, ek_vector decoder
+7    Ct1Sampled             encapsulate   header, encapsulation state, ct1,
+                                          ct1 encoder, ek_vector decoder
+8    EkReceivedCt1Sampled   encapsulate   encapsulation state, ct1, ek_vector,
+                                          ct1 encoder
+9    Ct1Acknowledged        encapsulate   header, encapsulation state, ct1,
+                                          ek_vector decoder
+10   Ct2Sampled             encapsulate   ct2 encoder
+11   Failed                 neither       nothing, not even an epoch
+```
+
+- The *encapsulation state* is what the first half of encapsulation keeps for
+  the second (The KEM split).
+- Each decoder is sized for its value: the header decoder for 96 bytes, the
+  `ct1` decoder for 1,408, the `ek_vector` decoder for 1,536 and the `ct2`
+  decoder for 192.
+- The tag is `state_tag` ([session-persistence.md](session-persistence.md)).
+
+### Initialisation
+
+Both parties start at epoch 1, with an authenticator from `Init(1, SK)`
+(Parameters and derivations).
+- The session's initiator, which sent the initial message, starts in
+  `KeysUnsampled`.
+- The responder starts in `NoHeaderReceived`, with an empty header decoder.
+
+### Sending
+
+A send produces exactly one message, stamped with the state's epoch. The
+message carries at most one codeword: the next index of the encoder the state
+sends from (The erasure code, Codewords).
+
+```
+state                  type       codeword                              transition
+KeysUnsampled          Hdr        index 0 of a new header encoder       (1)
+KeysSampled            Hdr        next index of the header encoder
+HeaderSent             Ek         next index of the ek_vector encoder
+Ct1Received            EkCt1Ack   next index of the ek_vector encoder
+EkSentCt1Received      None       none
+NoHeaderReceived       None       none
+HeaderReceived         Ct1        index 0 of a new ct1 encoder          (7)
+Ct1Sampled             Ct1        next index of the ct1 encoder
+EkReceivedCt1Sampled   Ct1        next index of the ct1 encoder
+Ct1Acknowledged        None       none
+Ct2Sampled             Ct2        next index of the ct2 encoder
+```
+
+- Only (1) and (7) change state on a send. Every other send advances its
+  encoder and nothing else.
+- `Ct1Received` sends from the `ek_vector` encoder that (2) started,
+  continuing its indices. `EkReceivedCt1Sampled` likewise continues the `ct1`
+  encoder that (7) started.
+- A state whose encoder is exhausted sends `None` with no codeword and does
+  not change (Encoder lifetime).
+- `Failed` puts nothing on the wire (Failure).
+
+The two sending transitions:
+
+- **(1)**, `KeysUnsampled`:
+  1. Generate a key pair (The KEM split), giving `header` (64 bytes) and
+     `ek_vector`.
+  2. Start an encoder over `header || MacHdr(epoch, header)`, 96 bytes.
+  3. Send its codeword 0 as `Hdr`, and go to `KeysSampled`.
+- **(7)**, `HeaderReceived`:
+  1. Run the first half of encapsulation on the stored `header`, giving the
+     encapsulation state, `ct1` and `K`.
+  2. Let `key = KDF_OK(K, epoch)`, then `Update(epoch, key)`.
+  3. Start an encoder over `ct1`, and send its codeword 0 as `Ct1`.
+  4. Output `(epoch, key)`, and go to `Ct1Sampled`.
+
+### Receiving
+
+In what follows:
+- "at its epoch" means the message's epoch equals the state's;
+- "with a codeword" means the message carries one;
+- to *collect* a codeword is to add it to the state's decoder, as The erasure
+  code, Decoding, describes, and stay in the state unless a transition
+  follows.
+
+The receiving transitions:
+
+- `KeysUnsampled` and `HeaderReceived` ignore every message.
+- `KeysSampled`, on `Ct1` at its epoch with a codeword, takes **(2)**. It starts
+  a `ct1` decoder holding that codeword and an encoder over `ek_vector`, and
+  goes to `HeaderSent`. One codeword cannot complete `ct1`.
+- `HeaderSent`, on `Ct1` at its epoch with a codeword, collects it. If the
+  decoder then holds all of `ct1`, it takes **(3)** to `Ct1Received`, keeping
+  `ct1` and the `ek_vector` encoder.
+- `Ct1Received`, on `Ct2` at its epoch with a codeword, takes **(4)**. It starts
+  a `ct2` decoder holding that codeword and goes to `EkSentCt1Received`.
+- `EkSentCt1Received`, on `Ct2` at its epoch with a codeword, collects it. If
+  the decoder then holds its 192 bytes, it runs the checks under Failure, and
+  then takes **(5)**:
+  1. Split the value into `ct2` (160 bytes) and `mac` (32).
+  2. Decapsulate `ct1 || ct2`, giving `K`.
+  3. Let `key = KDF_OK(K, epoch)`, then `Update(epoch, key)`.
+  4. If `MacCt(epoch, ct1 || ct2)` is not `mac`, go to `Failed` instead.
+  5. Otherwise output `(epoch, key)`. Go to `NoHeaderReceived` at `epoch + 1`,
+     with the updated authenticator and an empty header decoder.
+- `NoHeaderReceived`, on `Hdr` at its epoch with a codeword, collects it. If the
+  decoder then holds its 96 bytes, it splits them into `header` (64) and
+  `mac` (32).
+  - If `MacHdr(epoch, header)` is not `mac`, it goes to `Failed`.
+  - Otherwise it takes **(6)** to `HeaderReceived`, with `header` and an empty
+    `ek_vector` decoder.
+- `Ct1Sampled`, on `Ek` or `EkCt1Ack` at its epoch with a codeword, collects
+  it. Then:
+  - If the decoder now holds all of `ek_vector`, it validates it against
+    `header` (The KEM split); failing that, it goes to `Failed`. On `EkCt1Ack`
+    it takes **(9)**: complete the encapsulation. On `Ek` it takes **(10)** to
+    `EkReceivedCt1Sampled`, keeping the encapsulation state, `ct1`, the `ct1`
+    encoder and `ek_vector`.
+  - If not, on `EkCt1Ack` it takes **(8)** to `Ct1Acknowledged`, keeping the
+    decoder. On `Ek` it stays.
+- `Ct1Acknowledged`, on `EkCt1Ack` at its epoch with a codeword, collects it.
+  If the decoder then holds all of `ek_vector`, it validates it, going to
+  `Failed` on failure. Otherwise it takes **(11)**: complete the encapsulation.
+- `EkReceivedCt1Sampled`, on `EkCt1Ack` at its epoch, takes **(12)**: complete
+  the encapsulation.
+- `Ct2Sampled`, on a message of any type at `epoch + 1`, takes **(13)** to
+  `KeysUnsampled` at `epoch + 1`, with its authenticator. The message is not
+  otherwise read.
+
+Every other message leaves the state as it was (What a receive ignores).
+
+**Completing the encapsulation**, in (9), (11) and (12), does four things:
+1. It runs the second half of encapsulation on the encapsulation state and
+   `ek_vector`, giving `ct2` (160 bytes).
+2. It starts an encoder over `ct2 || MacCt(epoch, ct1 || ct2)`, 192 bytes.
+3. It goes to `Ct2Sampled`.
+4. It does not update the authenticator, since (7) already did.
+
+### What a send and a receive return
+
+A send returns its message, a *sending epoch* and an optional output. A
+receive returns a *receiving epoch* and an optional output. An output is an
+epoch and a 32-byte key. Only (7) and (5) produce one.
+
+- **A send's epoch** is the state's epoch less one: the latest epoch whose key
+  the peer is sure to hold once it has this message. A send never changes the
+  epoch. The value is 0 at epoch 1, and 0 from `Failed`.
+- **A receive's epoch** is the epoch of the state the receive leaves the Braid
+  in, less one. It is 0 when that state is `Failed`.
+
+**This departs from the published document at transition (5).**
+- The document computes a receive's epoch before any transition, except in
+  `Ct2Sampled`. A receive taking (5) there reports `epoch - 1`, which is the
+  sending epoch the `ct2` message was sent with. That is the document's
+  "epoch agreement" (its section 1.1).
+- Here the receive taking (5) reports `epoch`: the epoch just completed, the
+  same as its output's.
+- On every other receive, and at (13), the two agree.
+- `Session` does not use a receive's epoch (below), so nothing observable
+  depends on the difference.
+
+### When an epoch completes
+
+Each epoch's key is output once on each side, labelled with that epoch.
+1. The encapsulating party's send outputs it at (7).
+2. The other party's receive outputs it later, at (5).
+3. Each side updates its authenticator with the key at that transition. The
+   next epoch's MACs are therefore keyed by what this epoch produced.
+4. At (5) the decapsulating party moves to the next epoch, as the party that
+   waits for a header. It sends `None` stamped with the new epoch.
+5. The first message at that epoch to reach the encapsulating party takes
+   (13). That party moves to the next epoch, as the party that will generate
+   the key pair.
+
+### What the session does with them
+
+- **`encrypt`** runs the Braid's send before the Triple Ratchet. It hands the
+  sparse ratchet the sending epoch, as the epoch whose sending chain is
+  stepped, and any output, as the agreement's secret
+  ([sparse-pq-ratchet.md](sparse-pq-ratchet.md), Sending).
+- **`decrypt`** runs the Braid's receive first, and hands any output to the
+  sparse ratchet (Receiving). The receiving epoch is not used.
+- **Adoption.** A state either produces is adopted as Failure, below, and
+  [triple-ratchet.md](triple-ratchet.md), Sending and receiving, describe.
+
 ## What a receive ignores
 
 A state acts only on a message stamped with its own epoch (in `Ct2Sampled`,
@@ -170,10 +505,13 @@ unchanged. Within that:
 - In `Ct2Sampled`, transition (13) reads only the epoch: a message of any
   type stamped with the next epoch takes it.
 
+The published document's pseudocode adds a message's codeword to a decoder
+without asking whether it has one. The first rule above is this page's.
+
 ## Failure
 
-A MAC that does not verify moves the Braid to `Failed`. So does each of the
-following, and nothing else:
+A MAC that does not verify moves the Braid to `Failed` (The state machine,
+Receiving). So does each of the following, and nothing else:
 
 - key generation failing, on the send that would take transition (1), or the
   first half of encapsulation failing, on the send that would take (7);
@@ -192,6 +530,9 @@ following, and nothing else:
     because that state checks the ceiling before it looks at the message.
   No honest run reaches either epoch.
 
+In `EkSentCt1Received` the length check comes first, then the ceiling, and
+both come before decapsulation.
+
 The KEM library fails only on inputs or buffers of the wrong length, which no
 reachable state holds, so the KEM failures above are defensive.
 
@@ -207,7 +548,8 @@ the next one.
 ## Properties a caller must know
 
 **A Braid output is not a session key.** The epoch key is derived from the KEM
-shared secret and the epoch alone. The preshared secret seeds the ratcheted
+shared secret and the epoch alone (`KDF_OK`, Parameters and derivations). The
+preshared secret seeds the ratcheted
 authenticator and enters nothing else, so the epoch key carries no binding to
 the handshake or to the peers. That is what a key agreement produces, and it
 is safe only in composition: in the [Triple Ratchet](triple-ratchet.md) the
@@ -244,9 +586,17 @@ precondition and `CLAIMS.md` records it.
 
 - The published ML-KEM Braid specification (Rolfe Schmidt), **revision 1,
   2025-02-21, last updated 2025-09-26**, pinned by SHA-256 in
-  `tacenta-test-vectors/conformance-manifest.md`. It is authoritative for the
-  protocol; this page defers to it wherever the two could be read to differ.
+  `tacenta-test-vectors/conformance-manifest.md`:
+  - section 1.1 for the send and receive interface;
+  - sections 2.2 to 2.4 for the parameters, derivations, messages and the
+    ratcheted authenticator;
+  - section 2.5 for the states and the transition numbering this page keeps;
+  - section 2.6 for initialisation.
+
+  This page is written from it and states where it departs from it. Under
+  ADR-0006 this page, not that document, is what the tree implements.
 - Signal's published Double Ratchet specification, revision 4, section 5, for
   the sparse continuous key agreement interface this protocol instantiates
   ([sparse-pq-ratchet.md](sparse-pq-ratchet.md)).
 - FIPS 203 for ML-KEM.
+- RFC 5869 for HKDF, RFC 2104 for HMAC, and FIPS 180-4 for SHA-256.
