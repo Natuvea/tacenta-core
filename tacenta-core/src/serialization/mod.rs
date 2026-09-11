@@ -16,21 +16,14 @@ pub mod composite;
 
 use composite::encode_composite;
 
-// The version and message type bytes, the decode error, and the decoders for
-// both kinds of message live in `tacenta-wire`, so the translation covers them;
-// see `composite`. Re-exported here under their old paths.
+// The version and type bytes, the decode error, the decoders for both kinds of
+// message, and the prekey bundle's encoding live in `tacenta-wire`, so the
+// translation covers them; see `composite`. Re-exported here under their old
+// paths.
 pub use tacenta_wire::{
-    DecodeError, DecodedInitial, DecodedMessage, TYPE_INITIAL, TYPE_RATCHET, VERSION,
-    decode_initial, decode_message,
+    DecodeError, DecodedInitial, DecodedMessage, TYPE_BUNDLE, TYPE_INITIAL, TYPE_RATCHET, VERSION,
+    WireBundle, decode_bundle, decode_initial, decode_message, encode_bundle,
 };
-
-/// Type byte for a published prekey bundle.
-///
-/// A bundle is not a message and never travels as one, but it shares this
-/// module's version and type framing so that a decoder given the wrong bytes
-/// says so rather than misreading them. That is the same reason the two message
-/// types are distinguished, and the reason costs one byte.
-pub const TYPE_BUNDLE: u8 = 0x03;
 
 /// The identifier meaning "no prekey was used". **Wire-sensitive.**
 pub const ABSENT_ID: u32 = 0;
@@ -56,60 +49,6 @@ pub fn message_type(bytes: &[u8]) -> Option<MessageType> {
         [VERSION, TYPE_INITIAL, ..] => Some(MessageType::Initial),
         _ => None,
     }
-}
-
-/// Take `n` bytes from `at`, advancing `at`, and refuse anything that does not
-/// fit rather than computing an offset that cannot exist.
-///
-/// **The checked addition is the point of this function.** A decoder reads a
-/// four-byte length off the wire and casts it to `usize`. On a 64-bit target
-/// `at + n` cannot overflow, because `u32::MAX` plus a small offset is nowhere
-/// near the top of the range, and the length check catches it. On a 32-bit
-/// target it can: `u32::MAX as usize` plus any nonzero offset wraps, a debug
-/// build panics on the addition, and a release build wraps to a small number,
-/// passes the length check, and panics on the slice instead. The crate builds
-/// for `armv7-linux-androideabi`, so that target is not hypothetical.
-///
-/// The bundle decoder is the one decoder in this module that still needs it.
-/// `tacenta-wire`'s `span_end` is the same check in the shape the translation
-/// can step through, for the message decoders.
-/// The two cases report differently, and the difference is worth keeping: a
-/// fixed field that does not fit means the input is `TooShort`, while a length
-/// read off the wire that does not fit is a `LengthOverrun`. Overflow is
-/// reported as whatever the caller's case is, because a length too large to add
-/// is the same failure as one too large to fit.
-fn take_at<'a>(
-    bytes: &'a [u8],
-    at: &mut usize,
-    n: usize,
-    err: DecodeError,
-) -> Result<&'a [u8], DecodeError> {
-    let end = at.checked_add(n).ok_or(err)?;
-    if bytes.len() < end {
-        return Err(err);
-    }
-    let s = &bytes[*at..end];
-    *at = end;
-    Ok(s)
-}
-
-/// A field whose width the format fixes.
-fn take_fixed<'a>(bytes: &'a [u8], at: &mut usize, n: usize) -> Result<&'a [u8], DecodeError> {
-    take_at(bytes, at, n, DecodeError::TooShort)
-}
-
-/// A field whose width came off the wire, and is therefore an attacker's to
-/// choose.
-fn take_wire<'a>(bytes: &'a [u8], at: &mut usize, n: usize) -> Result<&'a [u8], DecodeError> {
-    take_at(bytes, at, n, DecodeError::LengthOverrun)
-}
-
-fn read_be32(bytes: &[u8], at: usize) -> Result<u32, DecodeError> {
-    let mut cursor = at;
-    let s = take_fixed(bytes, &mut cursor, 4)?;
-    let mut buf = [0u8; 4];
-    buf.copy_from_slice(s);
-    Ok(u32::from_be_bytes(buf))
 }
 
 /// Serialize a header: the ratchet public key, then the previous chain length
@@ -148,150 +87,6 @@ pub fn concat_ad(ad: &[u8], header: &composite::Composite) -> Vec<u8> {
     out.extend_from_slice(ad);
     out.extend_from_slice(&encoded);
     out
-}
-
-/// A prekey bundle's fields on the wire: public key material and the identifiers
-/// a recipient echoes back, all of it public.
-///
-/// Both the encoder's input and the decoder's output, so the round trip is
-/// stated on one type rather than between two. Clippy asked for this by
-/// objecting to a nine-argument encoder, and it was right for a better reason
-/// than argument count.
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct WireBundle {
-    pub identity_key: [u8; 32],
-    pub signed_prekey: [u8; 32],
-    pub signed_prekey_signature: [u8; 64],
-    pub kem_prekey: Vec<u8>,
-    pub kem_prekey_signature: [u8; 64],
-    pub one_time_prekey: Option<[u8; 32]>,
-    pub signed_prekey_id: u32,
-    pub one_time_prekey_id: u32,
-    pub kem_prekey_id: u32,
-}
-
-/// Serialize a published prekey bundle.
-///
-/// Every field is public key material or an identifier, so nothing here is
-/// secret and the encoding needs no protection beyond being unambiguous. It is
-/// unambiguous the same way the rest of this module is: fixed-width fields at
-/// fixed offsets, one length prefix for the only variable field, and a presence
-/// byte for the only optional one.
-///
-/// The KEM prekey is the sole variable-length field because its size depends on
-/// the parameter set. It is length-prefixed rather than assumed, so a bundle
-/// produced under one parameter set fails to decode under another instead of
-/// being read as a shorter key followed by rubbish.
-pub fn encode_bundle(b: &WireBundle) -> Vec<u8> {
-    let mut out = Vec::new();
-    out.push(VERSION);
-    out.push(TYPE_BUNDLE);
-    out.extend_from_slice(&b.identity_key);
-    out.extend_from_slice(&b.signed_prekey);
-    out.extend_from_slice(&b.signed_prekey_signature);
-    out.extend_from_slice(&(b.kem_prekey.len() as u32).to_be_bytes());
-    out.extend_from_slice(&b.kem_prekey);
-    out.extend_from_slice(&b.kem_prekey_signature);
-    // Fixed width either way: a presence byte and thirty-two bytes. Emitting
-    // the key only when present would save thirty-two bytes on a bundle of
-    // about seventeen hundred and make the encoding variable-length, which
-    // forces both sides to branch. The zeros are never read; the presence byte
-    // alone decides. This is what lets the round trip be *proved* in the model
-    // rather than sampled.
-    match &b.one_time_prekey {
-        None => {
-            out.push(0);
-            out.extend_from_slice(&[0u8; 32]);
-        }
-        Some(k) => {
-            out.push(1);
-            out.extend_from_slice(k);
-        }
-    }
-    out.extend_from_slice(&b.signed_prekey_id.to_be_bytes());
-    out.extend_from_slice(&b.one_time_prekey_id.to_be_bytes());
-    out.extend_from_slice(&b.kem_prekey_id.to_be_bytes());
-    out
-}
-
-/// Parse a published prekey bundle. The inverse of [`encode_bundle`].
-///
-/// Trailing bytes are rejected. A bundle is a whole object rather than a prefix
-/// of a stream, so anything after the last field means these are not the bytes
-/// they claim to be.
-pub fn decode_bundle(bytes: &[u8]) -> Result<WireBundle, DecodeError> {
-    if bytes.len() < 2 {
-        return Err(DecodeError::TooShort);
-    }
-    if bytes[0] != VERSION {
-        return Err(DecodeError::UnknownVersion);
-    }
-    if bytes[1] != TYPE_BUNDLE {
-        return Err(DecodeError::WrongType);
-    }
-    let mut at = 2;
-
-    let take = |at: &mut usize, n: usize| take_fixed(bytes, at, n);
-
-    let mut identity_key = [0u8; 32];
-    identity_key.copy_from_slice(take(&mut at, 32)?);
-    let mut signed_prekey = [0u8; 32];
-    signed_prekey.copy_from_slice(take(&mut at, 32)?);
-    let mut signed_prekey_signature = [0u8; 64];
-    signed_prekey_signature.copy_from_slice(take(&mut at, 64)?);
-
-    let kem_len = read_be32(bytes, at)? as usize;
-    at += 4;
-    let kem_prekey = take_wire(bytes, &mut at, kem_len)?.to_vec();
-
-    let mut kem_prekey_signature = [0u8; 64];
-    kem_prekey_signature.copy_from_slice(take(&mut at, 64)?);
-
-    // Absent means the whole field is zero, not merely that the flag is.
-    //
-    // Accepting any thirty-two bytes when the flag says absent would give one
-    // bundle 2^256 other accepted spellings. The composite header applies the
-    // same rule to its absent codeword; this is its sibling.
-    //
-    // It matters wherever a bundle is hashed, signed, cached or deduplicated:
-    // two byte strings that mean one bundle are two entries, two digests, and
-    // two chances for a cache to disagree with a verifier.
-    let present = take(&mut at, 1)?[0];
-    let mut key_bytes = [0u8; 32];
-    key_bytes.copy_from_slice(take(&mut at, 32)?);
-    let one_time_prekey = match present {
-        0 => {
-            if key_bytes != [0u8; 32] {
-                return Err(DecodeError::LengthOverrun);
-            }
-            None
-        }
-        1 => Some(key_bytes),
-        _ => return Err(DecodeError::WrongType),
-    };
-
-    let signed_prekey_id = read_be32(bytes, at)?;
-    at += 4;
-    let one_time_prekey_id = read_be32(bytes, at)?;
-    at += 4;
-    let kem_prekey_id = read_be32(bytes, at)?;
-    at += 4;
-
-    if at != bytes.len() {
-        return Err(DecodeError::LengthOverrun);
-    }
-
-    Ok(WireBundle {
-        identity_key,
-        signed_prekey,
-        signed_prekey_signature,
-        kem_prekey,
-        kem_prekey_signature,
-        one_time_prekey,
-        signed_prekey_id,
-        one_time_prekey_id,
-        kem_prekey_id,
-    })
 }
 
 /// Serialize an initial (prekey) message. `identity` and `ephemeral` are
@@ -458,45 +253,6 @@ mod tests {
         let at = 2 + 33 + 33;
         encoded[at..at + 4].copy_from_slice(&0xffff_u32.to_be_bytes());
         assert_eq!(decode_initial(&encoded), Err(DecodeError::LengthOverrun));
-    }
-
-    /// A length that cannot even be *added* to the cursor is refused, rather
-    /// than wrapping into a small number that passes the bounds check.
-    ///
-    /// The decoder tests above cannot reach this. They pass `u32::MAX`, which is
-    /// what an attacker can actually write on the wire, and on a 64-bit host
-    /// `u32::MAX + 66` is ordinary arithmetic caught by the length check. On a
-    /// 32-bit target the same input wraps: a debug build panics on the addition
-    /// and a release build wraps to a small number, passes the check, and panics
-    /// on the slice. This crate builds for `armv7-linux-androideabi`.
-    ///
-    /// So this test goes at the helper directly with a value that overflows on
-    /// every target, because the alternative is a test that only fails on
-    /// hardware the suite does not run on.
-    #[test]
-    fn a_length_that_cannot_be_added_is_refused_rather_than_wrapping() {
-        let bytes = [0u8; 8];
-
-        let mut at = 2;
-        assert_eq!(
-            take_wire(&bytes, &mut at, usize::MAX),
-            Err(DecodeError::LengthOverrun)
-        );
-        assert_eq!(at, 2, "a refused take must not advance the cursor");
-
-        let mut at = 2;
-        assert_eq!(
-            take_fixed(&bytes, &mut at, usize::MAX),
-            Err(DecodeError::TooShort)
-        );
-        assert_eq!(at, 2);
-
-        // The boundary itself: exactly enough to overflow by one.
-        let mut at = 1;
-        assert_eq!(
-            take_wire(&bytes, &mut at, usize::MAX),
-            Err(DecodeError::LengthOverrun)
-        );
     }
 
     /// The bundle decoder rejects the largest length the wire can carry, which

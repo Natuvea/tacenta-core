@@ -1,6 +1,7 @@
-//! The composite header on the wire, and the decoders every message a peer sends
-//! goes through first: `decode_message` for a ratchet message and
-//! `decode_initial` for an initial (prekey) message.
+//! The composite header on the wire, the decoders every message a peer sends
+//! goes through first (`decode_message` for a ratchet message and
+//! `decode_initial` for an initial (prekey) message), and the prekey bundle's
+//! encoding (`decode_bundle`).
 //!
 //! Written from tacenta-spec/protocol/triple-ratchet.md and the model in
 //! `Model.CompositeHeader`, whose round-trip is proved in
@@ -17,6 +18,10 @@
 //! it is translated and proved like the other verified zones. The root crate
 //! re-exports everything under `tacenta_core::serialization`, so no caller's path
 //! changed and neither did a byte on the wire.
+//!
+//! A published prekey bundle is decoded here too. It is not a message, but a
+//! sender decodes one fetched from a directory it does not control before any
+//! session exists, so it is as exposed as the messages are.
 //!
 //! One message of the composition carries three things besides its ciphertext:
 //! the Diffie-Hellman ratchet's header, the sparse ratchet's epoch and message
@@ -404,6 +409,186 @@ pub fn decode_initial(bytes: &[u8]) -> Result<DecodedInitial, DecodeError> {
     })
 }
 
+/// Type byte for a published prekey bundle. **Wire-sensitive.**
+///
+/// A bundle is not a message and never travels as one, but it shares the
+/// version and type framing so that a decoder given the wrong bytes says so
+/// rather than misreading them. That is the same reason the two message types
+/// are distinguished, and the reason costs one byte.
+pub const TYPE_BUNDLE: u8 = 0x03;
+
+/// Where a bundle's KEM prekey starts: the version and type bytes, the identity
+/// key (32), the signed prekey (32) and its signature (64), and the KEM prekey's
+/// four-byte length.
+const BUNDLE_KEM_AT: usize = 134;
+
+/// A prekey bundle's fields on the wire: public key material and the identifiers
+/// a recipient echoes back, all of it public.
+///
+/// Both the encoder's input and the decoder's output, so the round trip is
+/// stated on one type rather than between two. Clippy asked for this by
+/// objecting to a nine-argument encoder, and it was right for a better reason
+/// than argument count.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct WireBundle {
+    pub identity_key: [u8; 32],
+    pub signed_prekey: [u8; 32],
+    pub signed_prekey_signature: [u8; 64],
+    pub kem_prekey: Vec<u8>,
+    pub kem_prekey_signature: [u8; 64],
+    pub one_time_prekey: Option<[u8; 32]>,
+    pub signed_prekey_id: u32,
+    pub one_time_prekey_id: u32,
+    pub kem_prekey_id: u32,
+}
+
+/// Serialize a published prekey bundle.
+///
+/// Every field is public key material or an identifier, so nothing here is
+/// secret and the encoding needs no protection beyond being unambiguous. It is
+/// unambiguous the same way the rest of this module is: fixed-width fields at
+/// fixed offsets, one length prefix for the only variable field, and a presence
+/// byte for the only optional one.
+///
+/// The KEM prekey is the sole variable-length field because its size depends on
+/// the parameter set. It is length-prefixed rather than assumed, so a bundle
+/// produced under one parameter set fails to decode under another instead of
+/// being read as a shorter key followed by rubbish.
+pub fn encode_bundle(b: &WireBundle) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.push(VERSION);
+    out.push(TYPE_BUNDLE);
+    out.extend_from_slice(&b.identity_key);
+    out.extend_from_slice(&b.signed_prekey);
+    out.extend_from_slice(&b.signed_prekey_signature);
+    out.extend_from_slice(&(b.kem_prekey.len() as u32).to_be_bytes());
+    out.extend_from_slice(&b.kem_prekey);
+    out.extend_from_slice(&b.kem_prekey_signature);
+    // Fixed width either way: a presence byte and thirty-two bytes. Emitting
+    // the key only when present would save thirty-two bytes on a bundle of
+    // about seventeen hundred and make the encoding variable-length, which
+    // forces both sides to branch. The zeros are never read; the presence byte
+    // alone decides. This is what lets the round trip be *proved* in the model
+    // rather than sampled.
+    match &b.one_time_prekey {
+        None => {
+            out.push(0);
+            out.extend_from_slice(&[0u8; 32]);
+        }
+        Some(k) => {
+            out.push(1);
+            out.extend_from_slice(k);
+        }
+    }
+    out.extend_from_slice(&b.signed_prekey_id.to_be_bytes());
+    out.extend_from_slice(&b.one_time_prekey_id.to_be_bytes());
+    out.extend_from_slice(&b.kem_prekey_id.to_be_bytes());
+    out
+}
+
+/// The one-time prekey's field at `at`: a presence byte, then thirty-two bytes
+/// either way. The caller has already checked that all thirty-three fit.
+///
+/// A function of its own so that the decoder continues from one point. The
+/// translation copies whatever follows a branch into every branch that does not
+/// return early, so three outcomes decided inline would put the rest of the
+/// decoder, and every proof about it, in twice.
+fn one_time_prekey_at(bytes: &[u8], at: usize) -> Result<Option<[u8; 32]>, DecodeError> {
+    let present = bytes[at];
+    if present == 0x00 {
+        // Absent means the whole field is zero, not merely that the flag is.
+        //
+        // Accepting any thirty-two bytes when the flag says absent would give
+        // one bundle 2^256 other accepted spellings. The composite header
+        // applies the same rule to its absent codeword; this is its sibling.
+        //
+        // It matters wherever a bundle is hashed, signed, cached or
+        // deduplicated: two byte strings that mean one bundle are two entries,
+        // two digests, and two chances for a cache to disagree with a verifier.
+        if or_bytes(bytes, at + 1, 32) != 0 {
+            return Err(DecodeError::LengthOverrun);
+        }
+        Ok(None)
+    } else if present == 0x01 {
+        let mut key = [0u8; 32];
+        key.copy_from_slice(&bytes[at + 1..at + 33]);
+        Ok(Some(key))
+    } else {
+        Err(DecodeError::WrongType)
+    }
+}
+
+/// Parse a published prekey bundle. The inverse of [`encode_bundle`].
+///
+/// A sender runs this on bytes fetched from a directory it does not control,
+/// before any session exists, so a bundle is as exposed as a message is.
+///
+/// Trailing bytes are rejected. A bundle is a whole object rather than a prefix
+/// of a stream, so anything after the last field means these are not the bytes
+/// they claim to be.
+///
+/// A fixed-width field that does not fit is `TooShort`; the KEM prekey's length
+/// came off the wire, so a key that does not fit is `LengthOverrun`. Every field
+/// is bounded by `span_end` or the length check before anything is read.
+pub fn decode_bundle(bytes: &[u8]) -> Result<WireBundle, DecodeError> {
+    if bytes.len() < 2 {
+        return Err(DecodeError::TooShort);
+    }
+    if bytes[0] != VERSION {
+        return Err(DecodeError::UnknownVersion);
+    }
+    if bytes[1] != TYPE_BUNDLE {
+        return Err(DecodeError::WrongType);
+    }
+    if bytes.len() < BUNDLE_KEM_AT {
+        return Err(DecodeError::TooShort);
+    }
+    let kem_len = be32_at(bytes, 130) as usize;
+    let kem_end = match span_end(bytes, BUNDLE_KEM_AT, kem_len) {
+        Some(end) => end,
+        None => return Err(DecodeError::LengthOverrun),
+    };
+    let signature_end = match span_end(bytes, kem_end, 64) {
+        Some(end) => end,
+        None => return Err(DecodeError::TooShort),
+    };
+    // The presence byte and the thirty-two bytes after it.
+    let key_end = match span_end(bytes, signature_end, 33) {
+        Some(end) => end,
+        None => return Err(DecodeError::TooShort),
+    };
+    let one_time_prekey = match one_time_prekey_at(bytes, signature_end) {
+        Ok(key) => key,
+        Err(e) => return Err(e),
+    };
+    let ids_end = match span_end(bytes, key_end, 12) {
+        Some(end) => end,
+        None => return Err(DecodeError::TooShort),
+    };
+    if ids_end != bytes.len() {
+        return Err(DecodeError::LengthOverrun);
+    }
+    let mut identity_key = [0u8; 32];
+    identity_key.copy_from_slice(&bytes[2..34]);
+    let mut signed_prekey = [0u8; 32];
+    signed_prekey.copy_from_slice(&bytes[34..66]);
+    let mut signed_prekey_signature = [0u8; 64];
+    signed_prekey_signature.copy_from_slice(&bytes[66..130]);
+    let mut kem_prekey_signature = [0u8; 64];
+    kem_prekey_signature.copy_from_slice(&bytes[kem_end..signature_end]);
+    Ok(WireBundle {
+        identity_key,
+        signed_prekey,
+        signed_prekey_signature,
+        kem_prekey: bytes[BUNDLE_KEM_AT..kem_end].to_vec(),
+        kem_prekey_signature,
+        one_time_prekey,
+        signed_prekey_id: be32_at(bytes, key_end),
+        one_time_prekey_id: be32_at(bytes, key_end + 4),
+        kem_prekey_id: be32_at(bytes, key_end + 8),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -548,6 +733,27 @@ mod tests {
                 "presence byte {present:#04x} was accepted"
             );
         }
+    }
+
+    /// A span whose end cannot even be computed is refused, rather than wrapping
+    /// into a small number that passes the bounds check.
+    ///
+    /// The decoder tests cannot reach this. They pass `u32::MAX`, which is what an
+    /// attacker can actually write on the wire, and on a 64-bit host `u32::MAX`
+    /// plus an offset is ordinary arithmetic the length check catches. On a
+    /// 32-bit target the same input wraps: a debug build panics on the addition
+    /// and a release build wraps to a small number, passes the check, and panics
+    /// on the slice. So this goes at the helper directly, with a length that
+    /// overflows on every target.
+    #[test]
+    fn a_span_that_cannot_be_added_is_refused_rather_than_wrapping() {
+        let bytes = [0u8; 8];
+        assert_eq!(span_end(&bytes, 2, usize::MAX), None);
+        // The boundary itself: exactly enough to overflow by one.
+        assert_eq!(span_end(&bytes, 1, usize::MAX), None);
+        // And the ordinary cases either side of the end.
+        assert_eq!(span_end(&bytes, 2, 6), Some(8));
+        assert_eq!(span_end(&bytes, 2, 7), None);
     }
 
     /// Every accepted byte string re-encodes to itself.

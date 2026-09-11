@@ -244,6 +244,18 @@ def encodeOptionalKey : Option (List UInt8) → List UInt8
   | none => 0 :: List.replicate 32 0
   | some k => 1 :: k
 
+/-- The optional one-time prekey's presence byte and thirty-two bytes, decoded:
+    `some none` for absent, `some (some k)` for present, `none` for neither.
+
+    **Absent means the whole field is zero, not merely the flag.** Accepting any
+    thirty-two bytes behind a zero presence byte would give one bundle 2^256
+    other spellings (message-format.md, Prekey bundle). The composite header's
+    absent codeword follows the same rule. -/
+def decodeOptionalKey (presence keyBytes : List UInt8) : Option (Option (List UInt8)) :=
+  if presence == [0] then (if keyBytes.all (· == 0) then some none else none)
+  else if presence == [1] then some (some keyBytes)
+  else none
+
 /-- Encode a bundle.
 
     The KEM prekey is length-prefixed because its size depends on the parameter
@@ -277,10 +289,7 @@ def decodeBundle (bs : List UInt8) : Option Bundle :=
       -- so this reads them unconditionally and only then decides what they mean.
       let (presence, rest) ← take? 1 rest
       let (keyBytes, rest) ← take? 32 rest
-      let oneTimePrekey ←
-        if presence == [0] then some none
-        else if presence == [1] then some (some keyBytes)
-        else none
+      let oneTimePrekey ← decodeOptionalKey presence keyBytes
       let (signedPrekeyId, rest) ← readBe32 rest
       let (oneTimeId, rest) ← readBe32 rest
       let (kemPrekeyId, rest) ← readBe32 rest
@@ -307,6 +316,12 @@ example : decodeBundle (encodeBundle (sampleBundle (some (List.replicate 32 0x66
     = some (sampleBundle (some (List.replicate 32 0x66))) := by native_decide
 
 example : decodeBundle (encodeBundle (sampleBundle none)) = some (sampleBundle none) := by
+  native_decide
+
+/-- An absent one-time prekey over non-zero padding is not a bundle: the
+    presence byte alone does not make the field absent. -/
+example :
+    decodeBundle ((encodeBundle (sampleBundle none)).set (1811 - 12 - 32) 0x01) = none := by
   native_decide
 
 /-- A bundle is not a message, and a message is not a bundle. -/

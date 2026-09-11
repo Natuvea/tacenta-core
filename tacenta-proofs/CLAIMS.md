@@ -139,9 +139,10 @@ this section says in one place what is not proved.
   T1 and T3 below, and nothing on the live path calls it: outside its own
   directory it is referenced only by a fuzz target. The bytes a peer sends are
   parsed by `decode_message` and `decode_composite`, for a ratchet message, and
-  `decode_initial`, for a prekey message, which live in the `tacenta-wire` leaf
-  crate and are proved below (T1 and T3). So received bytes are parsed by proved
-  code for both kinds of message; what the session does with them afterwards is
+  `decode_initial`, for a prekey message, and a fetched prekey bundle by
+  `decode_bundle`; all four live in the `tacenta-wire` leaf crate and are proved
+  below (T1 and T3). So received bytes are parsed by proved code for both kinds
+  of message and for a bundle; what the session does with them afterwards is
   not translated.
 - **Which private key is agreed with which public key at a Diffie-Hellman
   ratchet step is decided outside every proof and every vector.** The
@@ -508,6 +509,10 @@ them, so this is the decoder the product runs.
   specification (`span_end_spec`: the end exactly when the field fits, nothing
   exactly when it does not, an overflowing addition included) is what bounds
   every later read. Same pinned base.
+- `decode_bundle_no_panic`: the same for `decode_bundle`, which decodes a
+  published prekey bundle. Its one optional field is decided by
+  `one_time_prekey_at` (`one_time_prekey_at_no_panic`) over thirty-three bytes
+  the decoder has already bounded. Same pinned base.
 
 ## Proved (tier T3, the ratchet-message decoder computes what the model says)
 
@@ -553,6 +558,38 @@ Against `Model.Messages.decodeInitial`.
 
 **What this does not give.** The same limit as above: what the session does
 with a decoded initial message is outside the translated surface.
+
+## Proved (tier T3, the prekey bundle decoder computes what the model says)
+
+Location: `Translation/WireBundleT3.lean`.
+
+Against `Model.Messages.decodeBundle`. `decode_bundle` has no caller inside the
+engine: an application calls it on a bundle it fetched, before any session
+exists.
+
+- `decode_bundle_refines`: for every byte string, `decode_bundle` returns `Ok`
+  exactly when the model returns `some`, with the same identity key, signed
+  prekey and signature, KEM prekey and signature, one-time prekey and three
+  identifiers, and `Err` exactly when the model returns `none`. No hypothesis.
+  Pinned to `propext`, `Classical.choice` and `Quot.sound` alone. Since the
+  model accepts one spelling of each bundle, so does the code.
+- `decodeBundle_cases`: the model's decoder by cases, the lemma the refinement
+  rewrites with. Too short for the framing, a wrong version or type byte, or too
+  short for the fixed prefix is `none`; otherwise the bundle is `some` exactly
+  when the input is as long as the KEM prekey's length says and the one-time
+  prekey's field is a valid spelling.
+- `one_time_prekey_at_spec`: the code's decision on the one-time prekey's
+  presence byte and thirty-two bytes is the model's `decodeOptionalKey`.
+
+**The model was looser than the code, and now is not.** Until this proof the
+model's `decodeBundle` accepted an absent one-time prekey over any thirty-two
+bytes, while `message-format.md` and the Rust decoder both require them to be
+zero, so the refinement could not have held. The model now refuses non-zero
+padding through `decodeOptionalKey`, and
+`Proofs.Serialization.decodeBundle_encodeBundle` still holds.
+
+**What this does not give.** What is done with a decoded bundle -- verifying its
+signatures and agreeing with its keys -- is outside the translated surface.
 
 ## Proved (tier T1, the sparse post-quantum ratchet's entry points cannot fail)
 
@@ -1267,8 +1304,9 @@ Location: `tacenta-proofs/translation/Translation/SessionT3.lean`,
   in the live `Session`
   send/receive path calls into it yet, which still uses the older fixed-width
   `tacenta_core::serialization` format. The decoders a peer's bytes actually
-  reach, `decode_message`, `decode_composite` and `decode_initial`, are
-  translated and proved (see the `tacenta-wire` sections). These proofs are what
+  reach, `decode_message`, `decode_composite` and `decode_initial`, and the
+  bundle decoder `decode_bundle`, are translated and proved (see the
+  `tacenta-wire` sections). These proofs are what
   such a claim would need on the protobuf parsing side, not the claim itself.
 
   **Still not proved.** Canonical emission and raw-byte fidelity -- items 6
