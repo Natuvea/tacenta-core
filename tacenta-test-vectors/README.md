@@ -70,6 +70,34 @@ of the page they pin, and message-format.md, Ratchet message, says how the
 composite-header vectors name theirs. The files below have layouts of their
 own, written down here. `schema/vector.schema.json` points here.
 
+### The decoders: `vectors/malformed-input/*-decode.json`
+
+The page is message-format.md: Ratchet message, Initial message, Prekey
+bundle, Curve public keys and Rejection.
+
+- **`encoding`**, the one input, is the bytes handed to the decoder, whole.
+  - In `composite-header-decode.json` it is a composite header alone, the
+    102 bytes of `composite` in Ratchet message, with nothing after it. The
+    page defines the ratchet-message decoder rather than a decoder of the
+    header on its own. These 102 bytes are also a whole ratchet message with
+    an empty `ciphertext`, which that decoder does not constrain, so it gives
+    each vector the same verdict. No vector has bytes after the header, so
+    none decides what a decoder of the header alone does with them.
+    `tacenta-wire`'s `decode_composite`, which the Rust runner calls, returns
+    them, as the ciphertext that follows.
+  - In `prekey-bundle-decode.json` it is a whole bundle (Prekey bundle), 1,811
+    bytes with ML-KEM-1024's `kem_prekey`.
+  - In `initial-message-decode.json` it is a whole initial message (Initial
+    message), 88 bytes: a two-byte `kem_ciphertext` and a two-byte
+    `ratchet_message`, neither of which that decoder checks.
+- **A valid vector carries `output`**, not `fields`. It is the re-encoding of
+  what the decoder returned: the header (and the bytes after it, of which
+  there are none), the bundle, or the initial message. Every accepted input is
+  canonical, so `output` equals `encoding`.
+- **An invalid vector's `encoding` is refused as a decode failure** (Curve
+  public keys: "A refused key is a decode failure"), and not as any other
+  refusal.
+
 ### The erasure code: `vectors/post-quantum/erasure-encode.json` and `erasure-decode.json`
 
 The page is mlkem-braid.md, The erasure code.
