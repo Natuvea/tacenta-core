@@ -304,6 +304,16 @@ pub const TYPE_INITIAL: u8 = 0x02;
 /// The width of an `EncodeEC` public key: a curve type byte and 32 bytes.
 const EC_LEN: usize = 33;
 
+/// The `EncodeEC` curve byte, the first byte of an initial message's `identity`
+/// and `ephemeral`. **Wire-sensitive** (tacenta-spec/CONSTANTS.md, `EncodeEC`
+/// type byte).
+///
+/// The same value as `tacenta_session::ENCODE_EC_CURVE25519`, repeated rather
+/// than imported, as `CHUNK_BYTES` is, because this crate has no dependencies.
+/// A key that does not begin with it is not an `EncodeEC` form, and
+/// `decode_initial` refuses it (message-format.md, Initial message).
+const ENCODE_EC_CURVE25519: u8 = 0x05;
+
 /// A decoded initial (prekey) message.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct DecodedInitial {
@@ -357,8 +367,11 @@ fn be32_at(bytes: &[u8], at: usize) -> u32 {
 ///
 /// A fixed-width field that does not fit is `TooShort`; the KEM ciphertext's
 /// length came off the wire, so a ciphertext that does not fit is
-/// `LengthOverrun`. Each field's end is computed by `span_end` before anything
-/// is read, and every read is at a position that check has already bounded.
+/// `LengthOverrun`. An `identity` or `ephemeral` whose first byte is not
+/// `ENCODE_EC_CURVE25519` is not an `EncodeEC` form and is `WrongType`,
+/// checked once both keys are bounded (message-format.md, Initial message).
+/// Each field's end is computed by `span_end` before anything is read, and
+/// every read is at a position that check has already bounded.
 pub fn decode_initial(bytes: &[u8]) -> Result<DecodedInitial, DecodeError> {
     if bytes.len() < 2 {
         return Err(DecodeError::TooShort);
@@ -377,6 +390,14 @@ pub fn decode_initial(bytes: &[u8]) -> Result<DecodedInitial, DecodeError> {
         Some(end) => end,
         None => return Err(DecodeError::TooShort),
     };
+    // Both keys are bounded, so each first byte is inside the input. A key
+    // without the curve byte is not an `EncodeEC` form, whatever follows it.
+    if bytes[2] != ENCODE_EC_CURVE25519 {
+        return Err(DecodeError::WrongType);
+    }
+    if bytes[identity_end] != ENCODE_EC_CURVE25519 {
+        return Err(DecodeError::WrongType);
+    }
     let kem_len_end = match span_end(bytes, ephemeral_end, 4) {
         Some(end) => end,
         None => return Err(DecodeError::TooShort),
@@ -421,6 +442,16 @@ pub const TYPE_BUNDLE: u8 = 0x03;
 /// key (32), the signed prekey (32) and its signature (64), and the KEM prekey's
 /// four-byte length.
 const BUNDLE_KEM_AT: usize = 134;
+
+/// The length a bundle's KEM prekey must have: the ML-KEM-1024
+/// encapsulation-key length, fixed by the FIPS 203 parameter set
+/// (tacenta-spec/CONSTANTS.md, Bundle KEM prekey length).
+///
+/// `decode_bundle` refuses any other length prefix as soon as it reads one,
+/// whether or not that many bytes follow (message-format.md, Prekey bundle).
+/// The prefix stays on the wire, so a bundle made under another parameter set
+/// is refused at its length rather than read as this one's key.
+const KEM_PREKEY_LEN: usize = 1568;
 
 /// A prekey bundle's fields on the wire: public key material and the identifiers
 /// a recipient echoes back, all of it public.
@@ -528,8 +559,9 @@ fn one_time_prekey_at(bytes: &[u8], at: usize) -> Result<Option<[u8; 32]>, Decod
 /// they claim to be.
 ///
 /// A fixed-width field that does not fit is `TooShort`; the KEM prekey's length
-/// came off the wire, so a key that does not fit is `LengthOverrun`. Every field
-/// is bounded by `span_end` or the length check before anything is read.
+/// came off the wire, so a length other than `KEM_PREKEY_LEN`, or a key that
+/// does not fit, is `LengthOverrun`. Every field is bounded by `span_end` or the
+/// length check before anything is read.
 pub fn decode_bundle(bytes: &[u8]) -> Result<WireBundle, DecodeError> {
     if bytes.len() < 2 {
         return Err(DecodeError::TooShort);
@@ -544,6 +576,9 @@ pub fn decode_bundle(bytes: &[u8]) -> Result<WireBundle, DecodeError> {
         return Err(DecodeError::TooShort);
     }
     let kem_len = be32_at(bytes, 130) as usize;
+    if kem_len != KEM_PREKEY_LEN {
+        return Err(DecodeError::LengthOverrun);
+    }
     let kem_end = match span_end(bytes, BUNDLE_KEM_AT, kem_len) {
         Some(end) => end,
         None => return Err(DecodeError::LengthOverrun),
@@ -754,6 +789,90 @@ mod tests {
         // And the ordinary cases either side of the end.
         assert_eq!(span_end(&bytes, 2, 6), Some(8));
         assert_eq!(span_end(&bytes, 2, 7), None);
+    }
+
+    /// An initial message with the given keys, an empty KEM ciphertext, three
+    /// identifiers and no ratchet message. Built by hand: the encoder lives in
+    /// the root crate.
+    fn initial_with(identity: [u8; EC_LEN], ephemeral: [u8; EC_LEN]) -> Vec<u8> {
+        let mut out = vec![VERSION, TYPE_INITIAL];
+        out.extend_from_slice(&identity);
+        out.extend_from_slice(&ephemeral);
+        out.extend_from_slice(&0u32.to_be_bytes());
+        out.extend_from_slice(&[0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3]);
+        out
+    }
+
+    fn ec_key(first: u8, fill: u8) -> [u8; EC_LEN] {
+        let mut k = [fill; EC_LEN];
+        k[0] = first;
+        k
+    }
+
+    /// A key without the `EncodeEC` curve byte is refused at decode, in either
+    /// position, although every length in the message is right.
+    #[test]
+    fn an_initial_key_without_the_curve_byte_is_refused() {
+        let good = ec_key(ENCODE_EC_CURVE25519, 0x0a);
+        let decoded = decode_initial(&initial_with(good, good)).unwrap();
+        assert_eq!(decoded.identity, good.to_vec());
+        assert_eq!(decoded.ephemeral, good.to_vec());
+
+        for bad in [0x00u8, 0x04, 0x06, 0x08, 0xff] {
+            let key = ec_key(bad, 0x0a);
+            assert_eq!(
+                decode_initial(&initial_with(key, good)),
+                Err(DecodeError::WrongType),
+                "an identity starting {bad:#04x} was accepted"
+            );
+            assert_eq!(
+                decode_initial(&initial_with(good, key)),
+                Err(DecodeError::WrongType),
+                "an ephemeral starting {bad:#04x} was accepted"
+            );
+        }
+    }
+
+    fn bundle_with_kem(kem_prekey: Vec<u8>) -> WireBundle {
+        WireBundle {
+            identity_key: [0x11; 32],
+            signed_prekey: [0x22; 32],
+            signed_prekey_signature: [0x33; 64],
+            kem_prekey,
+            kem_prekey_signature: [0x55; 64],
+            one_time_prekey: None,
+            signed_prekey_id: 7,
+            one_time_prekey_id: 0,
+            kem_prekey_id: 9,
+        }
+    }
+
+    /// A KEM prekey of any length but the encapsulation key's is refused,
+    /// even when its length prefix is honest about the bytes that follow.
+    #[test]
+    fn a_bundle_kem_prekey_of_the_wrong_length_is_refused() {
+        let good = bundle_with_kem(vec![0x44; KEM_PREKEY_LEN]);
+        assert_eq!(decode_bundle(&encode_bundle(&good)), Ok(good));
+
+        for len in [0, 1, KEM_PREKEY_LEN - 1, KEM_PREKEY_LEN + 1, 1184] {
+            assert_eq!(
+                decode_bundle(&encode_bundle(&bundle_with_kem(vec![0x44; len]))),
+                Err(DecodeError::LengthOverrun),
+                "a {len}-byte KEM prekey was accepted"
+            );
+        }
+    }
+
+    /// And a prefix that disagrees with a right-length key is refused on the
+    /// prefix, before the bytes are looked at.
+    #[test]
+    fn a_bundle_kem_length_prefix_other_than_the_key_length_is_refused() {
+        let canonical = encode_bundle(&bundle_with_kem(vec![0x44; KEM_PREKEY_LEN]));
+        for len in [KEM_PREKEY_LEN as u32 - 1, KEM_PREKEY_LEN as u32 + 1] {
+            let mut bytes = canonical.clone();
+            bytes[130..134].copy_from_slice(&len.to_be_bytes());
+            assert_eq!(decode_bundle(&bytes), Err(DecodeError::LengthOverrun));
+        }
     }
 
     /// Every accepted byte string re-encodes to itself.

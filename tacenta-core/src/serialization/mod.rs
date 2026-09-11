@@ -220,12 +220,20 @@ mod tests {
         );
     }
 
+    /// A 33-byte `EncodeEC` key: the curve byte, then 32 copies of `fill`.
+    /// `decode_initial` refuses a key without the curve byte.
+    fn ec_key(fill: u8) -> [u8; 33] {
+        let mut k = [fill; 33];
+        k[0] = 0x05;
+        k
+    }
+
     #[test]
     fn an_initial_message_round_trips() {
         let inner = encode_message(&message_header(), b"ciphertext");
         let encoded = encode_initial(
-            &[0x01; 33],
-            &[0x02; 33],
+            &ec_key(0x01),
+            &ec_key(0x02),
             b"kem-ciphertext",
             11,
             ABSENT_ID,
@@ -233,8 +241,8 @@ mod tests {
             &inner,
         );
         let decoded = decode_initial(&encoded).unwrap();
-        assert_eq!(decoded.identity, vec![0x01; 33]);
-        assert_eq!(decoded.ephemeral, vec![0x02; 33]);
+        assert_eq!(decoded.identity, ec_key(0x01).to_vec());
+        assert_eq!(decoded.ephemeral, ec_key(0x02).to_vec());
         assert_eq!(decoded.kem_ciphertext, b"kem-ciphertext");
         assert_eq!(decoded.signed_prekey_id, 11);
         assert_eq!(decoded.one_time_prekey_id, ABSENT_ID);
@@ -248,7 +256,7 @@ mod tests {
 
     #[test]
     fn a_kem_length_that_overruns_is_rejected() {
-        let mut encoded = encode_initial(&[0x01; 33], &[0x02; 33], b"kem", 1, 2, 3, b"");
+        let mut encoded = encode_initial(&ec_key(0x01), &ec_key(0x02), b"kem", 1, 2, 3, b"");
         // The KEM length sits after the version, the type, and the two curve keys.
         let at = 2 + 33 + 33;
         encoded[at..at + 4].copy_from_slice(&0xffff_u32.to_be_bytes());
@@ -268,7 +276,7 @@ mod tests {
     /// And so does the initial-message decoder, with the same value.
     #[test]
     fn an_initial_kem_length_of_u32_max_is_rejected() {
-        let mut encoded = encode_initial(&[0x01; 33], &[0x02; 33], b"kem", 1, 2, 3, b"");
+        let mut encoded = encode_initial(&ec_key(0x01), &ec_key(0x02), b"kem", 1, 2, 3, b"");
         let at = 2 + 33 + 33;
         encoded[at..at + 4].copy_from_slice(&u32::MAX.to_be_bytes());
         assert_eq!(decode_initial(&encoded), Err(DecodeError::LengthOverrun));

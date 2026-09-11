@@ -6,6 +6,12 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- The decoders now enforce two of `protocol/message-format.md`'s refusals at
+  decode, in the model and in `tacenta-wire`: the initial-message decoder
+  refuses an `identity` or `ephemeral` whose first byte is not the `EncodeEC`
+  curve byte `0x05`, and the bundle decoder refuses a `kem_prekey_len` other
+  than 1,568 bytes. `CONSTANTS.md` has a row for that length, the ML-KEM-1024
+  encapsulation-key length.
 - `protocol/message-format.md`:
   - An "Authenticated encryption" section: AES-256-CBC with PKCS#7, then
     `HMAC-SHA256(mac_key, AD || ciphertext)` with the full 32-byte tag

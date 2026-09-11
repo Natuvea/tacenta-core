@@ -1788,7 +1788,7 @@ live by substituting a reducible polynomial and watching it fail.
 The one thing still assumed is the reduction polynomial itself, which is ours
 rather than the specification's: the published document fixes the field and not
 which irreducible polynomial defines it, so it is wire-sensitive in the way the
-derivation labels are and is recorded in the conformance manifest.
+derivation labels are, and is recorded in tacenta-spec/CONSTANTS.md.
 
 The rule that governs the solver here is worth carrying to any future work
 with it: **it settles statements mentioning one product and none mentioning
