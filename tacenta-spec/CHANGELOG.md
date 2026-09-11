@@ -103,6 +103,31 @@ is SemVer against the specified protocol (not the implementation).
   `session-establishment.md` no longer says deniability is retained. No
   requirement states it, and nothing in this project establishes it
   (`threat-model/exclusions.md`, EX-12).
+- `security-properties/`: the model-level theorems the requirements cite are
+  recorded in `tacenta-proofs/CLAIMS.md`, and the requirements say where.
+  - REQ-AUTH-07, REQ-CONF-07, REQ-CONF-08, REQ-FS-01 and REQ-PCS-01 name the
+    CLAIMS.md section recording their theorems. They stay "proved,
+    model-level, against the symbolic attacker".
+  - So do the `StateConsistency`, `KeyErasure`, `MemorySafety` and
+    `SparseRatchetCorrectness` theorems that REQ-AUTH-11, REQ-CONF-04,
+    REQ-FS-02 and REQ-FS-04 cite beneath their status.
+  - Each page's "How the requirements are stated" no longer describes a
+    theorem cited without a CLAIMS.md record, since none is.
+  - `limitations.md`: LIM-02 is closed, and says by what. No requirement's
+    status changes.
+- `security-properties/authentication.md`, REQ-AUTH-02: the status names the
+  test that exercises the refusal. `limitations.md`: LIM-13 is closed, and the
+  status table no longer says the requirement has no test. It stays tested
+  only.
+- `security-properties/limitations.md`, LIM-11: states which types a static
+  test holds to erasing when dropped. They are the classical ratchet's `State`
+  and `SkippedKey`, the ML-KEM `KeyPair`, `Identity` and `PrekeyStore`. The
+  sparse ratchet's, the Braid's and the Triple Ratchet's types have no such
+  test. `forward-secrecy.md`, REQ-FS-03, no longer says those types erase
+  through derived destructors.
+- `security-properties/limitations.md`, LIM-05: names the test that runs a
+  session through a Diffie-Hellman step. It no longer reports that
+  `tacenta-proofs/CLAIMS.md` and `LIMITATIONS.md` call that test "being added".
 
 ## [0.2.0] - 2026-09-11
 

@@ -16,9 +16,7 @@ Each requirement has a statement and five entries:
 - **Rests on:** the assumptions (threat-model/assumptions.md).
 - **Status:** one of three.
   - *Proved* names the theorem, its tier and the section of
-    `tacenta-proofs/CLAIMS.md` that records it. A theorem that is
-    machine-checked but not recorded in CLAIMS.md is named with its file, and
-    marked as not in CLAIMS.md (limitations.md, LIM-02).
+    `tacenta-proofs/CLAIMS.md` that records it.
   - *Assumed* names the assumptions that carry it, and anything proved
     beneath it.
   - *Tested only* names the tests or vectors.
@@ -67,9 +65,14 @@ bundle whose identity key is any other, before encapsulating
 - **Holds against:** ADV-04, and ADV-01 substituting a bundle built around
   another identity key.
 - **Rests on:** ASM-14, for the key she names; ASM-19.
-- **Status: tested only, with no test yet.** `tacenta-core` makes the refusal
-  in `establish_initiator_for` (`UnexpectedIdentity`), and no test or vector in
-  the tree exercises it. A recorded gap (limitations.md, LIM-13).
+- **Status: tested only.** `tacenta-core` makes the refusal in
+  `establish_initiator_for` (`UnexpectedIdentity`).
+  `a_bundle_for_another_identity_than_the_named_one_is_refused_and_changes_nothing`
+  (`tacenta-core/tests/full_session.rs`) exercises it. It offers a bundle whose
+  prekey signatures verify under another identity key, and checks three things:
+  the refusal is `UnexpectedIdentity`; no randomness is drawn before it, so
+  nothing is encapsulated; and neither prekey store's bytes change. No vector
+  or proof covers it (limitations.md, LIM-13).
 - **Does not cover:** an initiator that names no key. `establish_initiator`
   accepts any identity key whose prekey signatures verify.
 
@@ -197,8 +200,8 @@ positions, are distinct.
 - **Rests on:** ASM-01, ASM-06, ASM-10, ASM-17.
 - **Status: proved, model-level, against the symbolic attacker.**
   `Properties.Authentication.ckAt_inj` and `Properties.Authentication.mkAt_inj`
-  (`tacenta-model/Properties/Authentication.lean`). Not in CLAIMS.md
-  (limitations.md, LIM-02).
+  (T2, CLAIMS.md, "Proved (tier T2, model-level security properties against
+  the symbolic attacker)").
 - **Does not cover:**
   - Bytes, as opposed to terms (ASM-10).
   - Sessions whose seeds coincide, which the model excludes by indexing them
@@ -310,7 +313,8 @@ A session accepts each ratchet message at most once.
   - The `Model.Ratchet` examples CLAIMS.md lists under "Evidence, not proof".
   - Proved beneath it, for the classical ratchet:
     - a stored key cannot be served twice:
-      `Proofs.KeyErasure.trySkipped_is_once` (model-level, not in CLAIMS.md);
+      `Proofs.KeyErasure.trySkipped_is_once` (T2, CLAIMS.md, "Proved (tier
+      T2, the models' skipped-key stores)");
     - the code's lookup does what the model's does: `try_skipped_refines` (T3,
       "Proved (tier T3, the classical Double Ratchet refines the model)").
   - No theorem states that the model refuses every repeat.

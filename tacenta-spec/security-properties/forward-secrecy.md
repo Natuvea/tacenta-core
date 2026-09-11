@@ -23,9 +23,7 @@ Each requirement has a statement and five entries:
 - **Rests on:** the assumptions (threat-model/assumptions.md).
 - **Status:** one of three.
   - *Proved* names the theorem, its tier and the section of
-    `tacenta-proofs/CLAIMS.md` that records it. A theorem that is
-    machine-checked but not recorded in CLAIMS.md is named with its file, and
-    marked as not in CLAIMS.md (limitations.md, LIM-02).
+    `tacenta-proofs/CLAIMS.md` that records it.
   - *Assumed* names the assumptions that carry it, and anything proved
     beneath it.
   - *Tested only* names the tests or vectors.
@@ -46,9 +44,9 @@ key, and no chain key, of any earlier step of that chain.
 - **Status: proved, model-level, against the symbolic attacker.**
   `Properties.ForwardSecrecy.past_message_keys_are_safe` and
   `Properties.ForwardSecrecy.past_chain_keys_are_safe`
-  (`tacenta-model/Properties/ForwardSecrecy.lean`). LIMITATIONS.md, "Forward
-  secrecy is proved, against a symbolic attacker", states what that means. Not
-  in CLAIMS.md (limitations.md, LIM-02).
+  (T2, CLAIMS.md, "Proved (tier T2, model-level security properties against
+  the symbolic attacker)"). LIMITATIONS.md, "Forward secrecy is proved, against
+  a symbolic attacker", states what that means.
 - **Does not cover:**
   - Later keys of the same chain. The adversary derives every one of them, and
     that is a theorem too (`Properties.ForwardSecrecy.future_message_keys_are_exposed`).
@@ -84,8 +82,8 @@ must be deleted, and when):
 
   The model's state holds one root key and one chain key per direction.
   Its lookup removes the key it returns
-  (`Proofs.KeyErasure.trySkipped_removes_the_entry`, model-level, not in
-  CLAIMS.md).
+  (`Proofs.KeyErasure.trySkipped_removes_the_entry`, T2, CLAIMS.md, "Proved
+  (tier T2, the models' skipped-key stores)").
 - **Does not cover:**
   - Erasure of the replaced bytes from memory (REQ-FS-03).
   - The Braid's secrets, and the handshake's.
@@ -122,9 +120,9 @@ deletable:
   - The translation ignores `Drop`, so no proof sees erasure (LIMITATIONS.md,
     "Secret deletion is partial").
 - **Does not cover:**
-  - The sparse ratchet's, the Triple Ratchet's and the Braid's types. They
-    erase through derived destructors that no test holds in place
-    (limitations.md, LIM-11).
+  - The sparse ratchet's, the Braid's and the Triple Ratchet's types. They
+    erase when dropped, and no test holds that in place (limitations.md,
+    LIM-11).
   - Copies the language, `libcrux-ml-kem` or the allocator make (ASM-09).
   - Persisted bytes (ASM-12).
   - When a caller rotates (ASM-11).
@@ -154,7 +152,7 @@ epochs):
     `skip_message_keys_refines` and `clear_old_epochs_refines` (T3, "Proved
     (tier T3, the sparse post-quantum ratchet's translated code refines the
     model)").
-  - Machine-checked and not in CLAIMS.md (limitations.md, LIM-02):
+  - T2, CLAIMS.md, "Proved (tier T2, the models' skipped-key stores)":
     - the model's ageing leaves no key `MAX_SKIPPED_AGE` or more receives old:
       `Proofs.KeyErasure.ageStore_drops_the_expired`;
     - the bound holds over any sequence of operations:

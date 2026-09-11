@@ -13,9 +13,7 @@ Each requirement has a statement and five entries:
 - **Rests on:** the assumptions (threat-model/assumptions.md).
 - **Status:** one of three.
   - *Proved* names the theorem, its tier and the section of
-    `tacenta-proofs/CLAIMS.md` that records it. A theorem that is
-    machine-checked but not recorded in CLAIMS.md is named with its file, and
-    marked as not in CLAIMS.md (limitations.md, LIM-02).
+    `tacenta-proofs/CLAIMS.md` that records it.
   - *Assumed* names the assumptions that carry it, and anything proved
     beneath it.
   - *Tested only* names the tests or vectors.
@@ -61,9 +59,9 @@ is not one step's property; it persists.
 - **Rests on:** ASM-01, ASM-02, ASM-05, ASM-10, ASM-13, ASM-17.
 - **Status: proved, model-level, against the symbolic attacker.**
   `Properties.PostCompromise.fresh_agreement_heals` and
-  `Properties.PostCompromise.fresh_agreement_heals_the_root`
-  (`tacenta-model/Properties/PostCompromise.lean`). Not in CLAIMS.md
-  (limitations.md, LIM-02).
+  `Properties.PostCompromise.fresh_agreement_heals_the_root` (T2, CLAIMS.md,
+  "Proved (tier T2, model-level security properties against the symbolic
+  attacker)").
 - **Does not cover:** what "What it needs" and "What is not proved", below,
   set out.
 
