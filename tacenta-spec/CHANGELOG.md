@@ -5,6 +5,31 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-11
+
+The second citable revision. It contains everything recorded above since 0.1.0.
+
+**What this revision specifies:**
+- **The ML-KEM Braid is stated in full:** parameters and derivations, its messages, the state machine with transitions (1) to (13) numbered on the page, and what a send and a receive return. The published document is cited as a source, not an authority, and where the tree departs from it, the page says so.
+- **Session establishment:**
+  - how the last-resort replay fingerprint is built;
+  - what the protocol requires of X25519, ML-KEM-1024 and AES-256-CBC, and what it leaves to them;
+  - the exact key path of the initial ciphertext;
+  - what follows a refused initial message.
+- **XEdDSA:** `identities-and-devices.md` specifies signing and states the verifier's accepted set as rules, not a library name.
+- **Canonical curve keys:** every curve public key a peer sends must be its canonical encoding, and is refused at decode. This covers the ratchet header, the prekey bundle and the initial message. A repeated initial message must match the peer's identity as well as its ephemeral key. Which stored curve keys must be canonical is stated as built.
+- **Persisted Braid state:** a stored Braid key pair must pass FIPS 203's hash and modulus checks when it is loaded.
+- **ADR-0007:** three behaviours are kept as built:
+  - the header's `pq_epoch` selects the receiving chain;
+  - the leaf readers enforce exactly their stated rules;
+  - a Braid receive taking transition (5) reports the epoch it completed.
+
+**How far the text is enough:** a reader written from this revision and the vectors alone, with no access to the implementation, the model or the proofs, passes 402 checks (`tacenta-test-vectors/runners/independent`). That covers every vector, including the erasure, protobuf, persistence, AEAD and decoder-edge vectors added since 0.1.0, and cases derived from the pages' sentences.
+
+**What remains** is recorded in its `GAPS-4.md`. Chiefly:
+- most persisted formats (the session, prekey store, ratchet states and Braid) are specified but not yet pinned by vectors;
+- simultaneous initiation and session replacement are left to the application.
+
 ### Added
 - `protocol/session-establishment.md`: `DecodeEC` accepts exactly one encoding
   of each curve key. It refuses a key whose bit 255 is set, and a key whose
