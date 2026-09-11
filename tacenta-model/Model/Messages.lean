@@ -58,6 +58,151 @@ def readBe32 : List UInt8 → Option (UInt32 × List UInt8)
 def take? (n : Nat) (bs : List UInt8) : Option (List UInt8 × List UInt8) :=
   if bs.length < n then none else some (bs.take n, bs.drop n)
 
+/-! ## Curve public keys
+
+A curve public key on the wire is thirty-two bytes, the little-endian
+u-coordinate of RFC 7748. X25519 ignores bit 255 and reduces a value at or above
+p, so several byte strings name one key, and every decoder accepts only the
+canonical one (message-format.md, Curve public keys). -/
+
+/-- p = 2^255 - 19, the prime of Curve25519's field (RFC 7748, section 4.1). -/
+def curveP : Nat := 2 ^ 255 - 19
+
+/-- A byte string read as a little-endian integer, every bit included. X25519
+    ignores bit 255 of a key; this does not, so a key with that bit set reads as
+    at least 2^255. -/
+def leValue : List UInt8 → Nat
+  | [] => 0
+  | b :: bs => b.toNat + 256 * leValue bs
+
+/-- Whether a curve public key is its canonical encoding: its bytes, read as a
+    little-endian integer, are below p. That one comparison refuses both other
+    spellings of a key: bit 255 set, which reads as at least 2^255, and a value
+    at least p with that bit clear. The decoders apply it to exactly thirty-two
+    bytes. -/
+def canonicalKey (k : List UInt8) : Bool :=
+  decide (leValue k < curveP)
+
+/-- `some ()` when `k` is a canonical curve public key, `none` otherwise. A
+    function of its own, bound in the decoders, for the reason `checkCurve`
+    is. -/
+def checkKey (k : List UInt8) : Option Unit :=
+  if canonicalKey k then some () else none
+
+theorem leValue_append (xs ys : List UInt8) :
+    leValue (xs ++ ys) = leValue xs + 256 ^ xs.length * leValue ys := by
+  induction xs with
+  | nil => simp [leValue]
+  | cons x xs ih =>
+    simp only [List.cons_append, leValue, ih, List.length_cons, Nat.pow_succ, Nat.mul_add]
+    rw [Nat.mul_assoc (256 ^ xs.length) 256, Nat.mul_left_comm 256 (256 ^ xs.length),
+      Nat.add_assoc]
+
+theorem leValue_lt (l : List UInt8) : leValue l < 256 ^ l.length := by
+  induction l with
+  | nil => simp [leValue]
+  | cons x xs ih =>
+    have hx := x.toNat_lt
+    simp only [leValue, List.length_cons, Nat.pow_succ]
+    omega
+
+/-- The value is the largest the length allows exactly when every byte is
+    `0xff`. -/
+theorem leValue_eq_max (l : List UInt8) :
+    leValue l = 256 ^ l.length - 1 ↔ ∀ x ∈ l, x.toNat = 255 := by
+  induction l with
+  | nil => simp [leValue]
+  | cons x xs ih =>
+    have hx := x.toNat_lt
+    have hv := leValue_lt xs
+    simp only [leValue, List.length_cons, Nat.pow_succ, List.mem_cons, forall_eq_or_imp, ← ih]
+    omega
+
+theorem all_range'_ff_iff (k : List UInt8) (h : k.length = 32) :
+    (List.range' 1 30).all (fun j => k[j]!.toNat == 255) = true ↔
+      ∀ x ∈ (k.drop 1).take 30, x.toNat = 255 := by
+  rw [List.all_eq_true]
+  constructor
+  · intro hall x hx
+    rw [List.mem_iff_getElem] at hx
+    obtain ⟨i, hi, rfl⟩ := hx
+    have hi' : i < 30 := by simp at hi; omega
+    have := hall (i + 1) (by simp [List.mem_range'_1]; omega)
+    simp only [beq_iff_eq] at this
+    simpa [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem (by omega : i + 1 < k.length),
+      Nat.add_comm] using this
+  · intro hall j hj
+    rw [List.mem_range'_1] at hj
+    have hmem : k[j]! ∈ (k.drop 1).take 30 := by
+      rw [List.mem_iff_getElem]
+      refine ⟨j - 1, by simp; omega, ?_⟩
+      simp [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem (by omega : j < k.length)]
+      congr 1; omega
+    simpa using hall _ hmem
+
+theorem split32 (k : List UInt8) (h : k.length = 32) :
+    k = [k[0]!] ++ ((k.drop 1).take 30 ++ [k[31]!]) := by
+  apply List.ext_getElem
+  · simp; omega
+  · intro i h1 h2
+    simp only [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem (by omega : 0 < k.length),
+      List.getElem?_eq_getElem (by omega : 31 < k.length), Option.getD_some]
+    rcases Nat.lt_or_ge i 1 with hi | hi
+    · have : i = 0 := by omega
+      subst this; simp
+    · rcases Nat.lt_or_ge i 31 with hj | hj
+      · rw [List.getElem_append_right (by simp; omega)]
+        rw [List.getElem_append_left (by simp; omega)]
+        simp; congr 1; omega
+      · have : i = 31 := by omega
+        subst this
+        rw [List.getElem_append_right (by simp)]
+        rw [List.getElem_append_right (by simp; omega)]
+        simp
+
+/-- **"Below p" is a test on three places in the key.** With bit 255 clear, a
+    thirty-two-byte value is at least p = 2^255 - 19 exactly when its last byte
+    is `0x7f`, the thirty bytes between are all `0xff`, and its first byte is at
+    least `0xed`. This is the form an implementation checks, and the form the
+    refinement proofs meet the code in. -/
+theorem canonicalKey_bytes (k : List UInt8) (h : k.length = 32) :
+    canonicalKey k = (decide (k[31]!.toNat < 128) &&
+      !(decide (k[31]!.toNat = 127) && (List.range' 1 30).all (fun j => k[j]!.toNat == 255)
+        && decide (237 ≤ k[0]!.toNat))) := by
+  have hmid : ((k.drop 1).take 30).length = 30 := by simp; omega
+  have hsplit : leValue k =
+      k[0]!.toNat + 256 * (leValue ((k.drop 1).take 30) + 256 ^ 30 * k[31]!.toNat) := by
+    have e := congrArg leValue (split32 k h)
+    rw [e, List.singleton_append, leValue, leValue_append, hmid]
+    simp [leValue]
+  have hM := leValue_lt ((k.drop 1).take 30)
+  rw [hmid] at hM
+  have hmax := leValue_eq_max ((k.drop 1).take 30)
+  rw [hmid] at hmax
+  have hall : (List.range' 1 30).all (fun j => k[j]!.toNat == 255)
+      = decide (leValue ((k.drop 1).take 30) = 256 ^ 30 - 1) := by
+    rw [Bool.eq_iff_iff, all_range'_ff_iff k h, decide_eq_true_eq, hmax]
+  have h0 := (k[0]!).toNat_lt
+  have h31 := (k[31]!).toNat_lt
+  rw [hall]
+  unfold canonicalKey curveP
+  rw [hsplit]
+  generalize leValue ((k.drop 1).take 30) = M at *
+  generalize (k[0]!).toNat = a at *
+  generalize (k[31]!).toNat = b at *
+  simp only [Nat.reducePow, Nat.reduceSub] at *
+  by_cases hb128 : b < 128 <;> by_cases hb127 : b = 127 <;>
+    by_cases hmax' : M = 1766847064778384329583297500742918515827483896875618958121606201292619775 <;>
+    by_cases ha : 237 ≤ a <;> simp [hb128, hb127, hmax', ha] <;> omega
+
+/-- The largest canonical key, p - 1, and the two refused spellings at the
+    boundary, p and 2^255 - 1. -/
+example : canonicalKey (0xec :: List.replicate 30 0xff ++ [0x7f]) = true := by decide
+example : canonicalKey (0xed :: List.replicate 30 0xff ++ [0x7f]) = false := by decide
+example : canonicalKey (0xff :: List.replicate 30 0xff ++ [0x7f]) = false := by decide
+/-- Bit 255 set on an otherwise small key. -/
+example : canonicalKey (List.replicate 31 0x11 ++ [0x91]) = false := by decide
+
 /-! A ratchet message -- the composite header, then the AEAD output -- is modelled
 in `Model.CompositeHeader` (`encodeMessage`, `decodeMessage`), which imports this
 module. The Double Ratchet's forty-byte header on its own is not a message
@@ -247,10 +392,13 @@ def encodeOptionalKey : Option (List UInt8) → List UInt8
     **Absent means the whole field is zero, not merely the flag.** Accepting any
     thirty-two bytes behind a zero presence byte would give one bundle 2^256
     other spellings (message-format.md, Prekey bundle). The composite header's
-    absent codeword follows the same rule. -/
+    absent codeword follows the same rule.
+
+    **Present means a canonical key.** A present key that is not its canonical
+    encoding is refused (message-format.md, Curve public keys). -/
 def decodeOptionalKey (presence keyBytes : List UInt8) : Option (Option (List UInt8)) :=
   if presence == [0] then (if keyBytes.all (· == 0) then some none else none)
-  else if presence == [1] then some (some keyBytes)
+  else if presence == [1] then (if canonicalKey keyBytes then some (some keyBytes) else none)
   else none
 
 /-- Encode a bundle.
@@ -279,7 +427,13 @@ def checkKemLen (n : UInt32) : Option Unit :=
 
     Trailing bytes are rejected: a bundle is a whole object rather than a prefix
     of a stream, so a decoder that ignored what followed would accept two
-    different byte strings as the same bundle. -/
+    different byte strings as the same bundle.
+
+    Every curve key is refused unless it is its canonical encoding
+    (message-format.md, Curve public keys): the one-time prekey inside
+    `decodeOptionalKey`, and the identity key and signed prekey once the whole
+    bundle has been read. Where a refusal is checked does not change what is
+    refused. -/
 def decodeBundle (bs : List UInt8) : Option Bundle :=
   match bs with
   | v :: t :: rest =>
@@ -300,6 +454,8 @@ def decodeBundle (bs : List UInt8) : Option Bundle :=
       let (signedPrekeyId, rest) ← readBe32 rest
       let (oneTimeId, rest) ← readBe32 rest
       let (kemPrekeyId, rest) ← readBe32 rest
+      checkKey identityKey
+      checkKey signedPrekey
       if rest.isEmpty then
         pure { identityKey, signedPrekey, signedPrekeySig, kemPrekey,
                kemPrekeySig, oneTimePrekey, signedPrekeyId, oneTimeId,
@@ -341,6 +497,36 @@ example :
 example :
     decodeBundle (encodeBundle { sampleBundle none with kemPrekey := List.replicate 1569 0x44 })
       = none := by
+  native_decide
+
+/-- p = 2^255 - 19 as a key, the refused spelling of zero. -/
+private def keyP : List UInt8 := 0xed :: List.replicate 30 0xff ++ [0x7f]
+
+/-- p - 1, the largest canonical key. -/
+private def keyPMinusOne : List UInt8 := 0xec :: List.replicate 30 0xff ++ [0x7f]
+
+/-- The sample identity key with bit 255 set: the same key, spelled again. -/
+private def keyHigh : List UInt8 := List.replicate 31 0x11 ++ [0x91]
+
+/-- A re-spelled key in any of a bundle's three positions is not a bundle
+    (message-format.md, Curve public keys). -/
+example :
+    decodeBundle (encodeBundle { sampleBundle none with identityKey := keyHigh }) = none := by
+  native_decide
+
+example :
+    decodeBundle (encodeBundle { sampleBundle none with signedPrekey := keyP }) = none := by
+  native_decide
+
+example : decodeBundle (encodeBundle (sampleBundle (some keyP))) = none := by
+  native_decide
+
+/-- The largest canonical key is accepted in every position. -/
+example :
+    decodeBundle (encodeBundle { sampleBundle (some keyPMinusOne) with
+        identityKey := keyPMinusOne, signedPrekey := keyPMinusOne })
+      = some { sampleBundle (some keyPMinusOne) with
+        identityKey := keyPMinusOne, signedPrekey := keyPMinusOne } := by
   native_decide
 
 end Model.Messages

@@ -185,7 +185,9 @@ p. An honest key generator never produces either, so no honest key is refused.
 The requirement is message-format.md's single-encoding principle applied to curve
 keys. It matters wherever a value is identified by its bytes rather than by the
 key they name: a second spelling of the same key would otherwise give the same
-value a second identity.
+value a second identity. The curve keys a prekey bundle and a ratchet message
+carry raw, without the curve byte, are held to the same rule by their decoders
+(message-format.md, Curve public keys).
 `Proofs.SessionEstablishment` proves the recoverability from the fixed width and
 gives the counterexample that shows it fails without it; the core pins the width
 in a test.
@@ -363,21 +365,25 @@ depends on that choice.
 - **Agreement.** `DH(PK1, PK2)` is `X25519(k1, u2)` (RFC 7748, section 5), 32
   bytes. A non-contributory output is refused (Notation). RFC 7748, section
   6.1, describes that check and leaves it to the protocol.
-- **Decoding a peer's key is left to X25519 only where no rule on this page
-  applies.** RFC 7748, section 5, has X25519 ignore bit 255 of a u-coordinate
-  and accept a value at or above p, reducing it. Which keys reach X25519 with
-  that behaviour depends on how they arrive:
-  - Keys in `EncodeEC` form, an initial message's `identity` and `ephemeral`,
-    are checked by `DecodeEC` first. It refuses both spellings, so the masking
-    and reduction never apply to them.
-  - The bundle's identity key must pass the same check when its signatures are
-    verified (identities-and-devices.md, Verifying a signature).
-  - The bundle's signed prekey and one-time prekey, and the composite header's
-    `dh` (message-format.md), are 32 raw bytes and reach X25519 as received.
-    A second spelling of one of them names the same key, and nothing gains a
-    second identity from it: a signed prekey's signature covers its bytes, the
-    composite header is authenticated as associated data, and a re-spelled
-    one-time prekey gives the same `DH4` and so the same `SK`.
+- **Decoding a peer's key is not left to X25519.** RFC 7748, section 5, has
+  X25519 ignore bit 255 of a u-coordinate and accept a value at or above p,
+  reducing it. No key a peer sends reaches X25519 in either form: every curve
+  public key is refused unless it is the canonical encoding, a value below p
+  with bit 255 clear, before it is used.
+  - An initial message's `identity` and `ephemeral`, in `EncodeEC` form, are
+    checked by `DecodeEC` (Sending the initial message).
+  - A prekey bundle's `identity_key`, `signed_prekey` and `one_time_prekey`,
+    and a composite header's `dh`, are checked by the decoders that read them
+    (message-format.md, Curve public keys). A bundle with a re-spelled key, or
+    a ratchet message with a re-spelled `dh`, does not decode.
+  - The bundle's identity key meets the check a second time when its
+    signatures are verified (identities-and-devices.md, Verifying a signature,
+    step 1), which applies to whatever key a signature is verified under.
+
+  So the masking and the reduction never apply to a peer's key, and the byte
+  string that identifies a key, in a signature, the associated data, a
+  fingerprint or the skipped-key store, is the only one that names it. An
+  honest key generator never produces a refused form.
 - **Left to the library:** the Montgomery ladder, the field arithmetic, and
   computing in time independent of the private key. Any implementation that
   follows RFC 7748, section 5, computes the same bytes from the same inputs.

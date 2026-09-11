@@ -287,6 +287,12 @@ theorem readBe16_none (l : List UInt8) (h : l.length < 2) : readBe16 l = none :=
   | [], _ | [_], _ => rfl
   | _ :: _ :: _, h => simp only [List.length_cons] at h; omega
 
+/-- A check that returns nothing but whether it passed is `none` after it when
+what follows it is. -/
+theorem bind_unit_none {β : Type} (x : Option Unit) (f : Unit → Option β) (h : f () = none) :
+    x.bind f = none := by
+  cases x <;> simp [h]
+
 /-- **A list shorter than a header decodes to nothing.** -/
 theorem decode_short (l : List UInt8) (h : l.length < 102) : decode l = none := by
   match l, h with
@@ -303,6 +309,8 @@ theorem decode_short (l : List UInt8) (h : l.length < 102) : decode l = none := 
     by_cases h1 : rest.length < 32
     · simp [take?_none _ _ h1]
     rw [take?_of_length 32 rest (by omega)]; simp only [Option.bind_some]
+    -- Whether the ratchet key is canonical does not matter: the header is short.
+    apply bind_unit_none
     by_cases h2 : rest.length < 36
     · rw [readBe32_none _ (by simp; omega)]; rfl
     rw [readBe32_of_length _ (by simp; omega)]; simp only [Option.bind_some, List.drop_drop]
@@ -339,6 +347,7 @@ header's fixed offsets. -/
 def decodeLong (l : List UInt8) : Option (Model.CompositeHeader.Composite × List UInt8) :=
   if l[0]! != Model.Messages.version then none
   else if l[1]! != Model.Messages.typeRatchet then none
+  else if !Model.Messages.canonicalKey ((l.drop 2).take 32) then none
   else (decodeAgreementType l[66]!).bind fun a =>
     let hdr : Option Model.CompositeHeader.Codeword → Model.CompositeHeader.Composite := fun chunk =>
       { dh := (l.drop 2).take 32
@@ -368,6 +377,19 @@ theorem decode_long (l : List UInt8) (h : 102 ≤ l.length) : decode l = decodeL
     have hr : 100 ≤ rest.length := by simp at h; omega
     conv_lhs => simp only [decode]
     simp only [take?_of_length 32 rest (by omega), Option.bind_eq_bind, Option.bind_some]
+    -- The ratchet key: a key that is not canonical is nothing on both sides.
+    by_cases hk : Model.Messages.canonicalKey (rest.take 32) = true
+    swap
+    · have hck : Model.Messages.checkKey (rest.take 32) = none := by
+        simp only [Model.Messages.checkKey]
+        rw [if_neg hk]
+      rw [hck]
+      simp [decodeLong, hk]
+    have hck : Model.Messages.checkKey (rest.take 32) = some () := by
+      simp only [Model.Messages.checkKey]
+      rw [if_pos hk]
+    rw [hck]
+    simp only [Option.bind_some]
     rw [readBe32_of_length _ (by simp; omega)]
     simp only [Option.bind_some]
     rw [readBe32_of_length _ (by simp; omega)]
@@ -384,7 +406,7 @@ theorem decode_long (l : List UInt8) (h : 102 ≤ l.length) : decode l = decodeL
     simp only [Option.bind_some, List.drop_drop]
     rw [take?_of_length chunkBytes _ (by simp [chunkBytes]; omega)]
     simp only [Option.bind_some, List.drop_drop, decodeLong, chunkBytes]
-    simp
+    simp [hk]
 
 end
 
@@ -522,6 +544,55 @@ theorem bytesOf_drop_take (l : List Std.U8) (a b : Nat) :
 theorem bytesOf_drop (l : List Std.U8) (a : Nat) : (bytesOf l).drop a = bytesOf (l.drop a) := by
   simp [bytesOf, List.map_drop]
 
+/-- **The model's canonicity is the code's.** The model says a curve key is
+canonical when its bytes, read as a little-endian integer, are below p
+(`Model.Messages.canonicalKey`, message-format.md, Curve public keys); the code
+checks a byte pattern (`Tacenta.WireT1.canonicalX25519`). On the thirty-two bytes
+of an array they agree: `Model.Messages.canonicalKey_bytes` turns the comparison
+into the pattern, and what is left is carrying the bytes across the boundary. -/
+theorem canonicalKey_bytesOf (k : Std.Array Std.U8 32#usize) :
+    Model.Messages.canonicalKey (bytesOf k.val) = Tacenta.WireT1.canonicalX25519 k := by
+  have hl : k.val.length = 32 := by simp
+  have hb : ∀ j, j < 32 → (bytesOf k.val)[j]!.toNat = (k.val[j]!).val := by
+    intro j hj
+    rw [bytesOf_getElem! _ _ (by omega), byteOf_toNat]
+    simp [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem (by omega : j < k.val.length)]
+  have hall : (List.range' 1 30).all (fun j => (bytesOf k.val)[j]!.toNat == 255)
+      = Tacenta.WireT1.allFFFrom k 1 := by
+    unfold Tacenta.WireT1.allFFFrom
+    rw [Bool.eq_iff_iff, List.all_eq_true, List.all_eq_true]
+    constructor
+    · intro h j hj
+      have hj' := List.mem_range'_1.mp hj
+      rw [← hb j (by omega)]
+      exact h j (List.mem_range'_1.mpr (by omega))
+    · intro h j hj
+      have hj' := List.mem_range'_1.mp hj
+      rw [hb j (by omega)]
+      exact h j (List.mem_range'_1.mpr (by omega))
+  have h127 : decide ((k.val[31]!).val = 127) = decide (k.val[31]! = 127#u8) := by
+    rw [decide_eq_decide]
+    constructor
+    · intro h
+      exact UScalar.eq_of_val_eq (by simpa using h)
+    · intro h
+      rw [h]
+      rfl
+  rw [Model.Messages.canonicalKey_bytes _ (by simp), hb 31 (by omega), hb 0 (by omega), hall, h127]
+  rfl
+
+/-- The same, for the thirty-two bytes at `p` that the code copied into `k`. -/
+theorem canonicalKey_at (l : List Std.U8) (p : Nat) (k : Std.Array Std.U8 32#usize)
+    (hk : k.val = (l.drop p).take 32) :
+    Model.Messages.canonicalKey (((bytesOf l).drop p).take 32) = Tacenta.WireT1.canonicalX25519 k := by
+  rw [bytesOf_drop_take, ← hk, canonicalKey_bytesOf]
+
+theorem not_eq_true_of_eq_false' {x : Bool} (h : ¬ x = true) : (!x) = true := by
+  simpa using h
+
+theorem not_not_eq_true_of_eq_true {x : Bool} (h : x = true) : ¬ (!x) = true := by
+  simp [h]
+
 /-- "Every byte of the codeword field is zero", in the model's list form and the
 code's indexed form. -/
 theorem all_zero_iff (l : List Std.U8) (h : 102 ≤ l.length) :
@@ -610,7 +681,23 @@ theorem decode_composite_refines (bytes : Slice Std.U8) :
     | (rw [if_pos (by assumption)])
     | (rw [if_neg (by assumption), if_pos (by assumption)])
     | skip
-  all_goals (rw [if_neg (by assumption), if_neg (by assumption), ← o_post])
+  -- the ratchet key: the code's check is the model's, refused on both sides
+  -- or accepted on both
+  all_goals (
+    have hdhk : (Array.from_slice (Array.repeat 32#usize 0#u8) s2).val = (bytes.val.drop 2).take 32 := by
+      rw [Array.from_slice_val _ _ (by simp [s1_post1, List.slice]; omega), s1_post1]; rfl
+    rw [canonicalKey_at _ 2 _ hdhk])
+  -- A key the code refuses: the check's result is a hypothesis of the branch,
+  -- named by its type, since other hypotheses have the same `¬ _ = true` shape.
+  all_goals first
+    | (rw [if_neg (by assumption), if_neg (by assumption),
+        if_pos (not_eq_true_of_eq_false' (by assumption : ¬ Tacenta.WireT1.canonicalX25519
+          (Array.from_slice (Array.repeat 32#usize 0#u8) s2) = true))])
+    | (have hkt : Tacenta.WireT1.canonicalX25519
+          (Array.from_slice (Array.repeat 32#usize 0#u8) s2) = true := by
+         rw [← b_post]
+       rw [if_neg (by assumption), if_neg (by assumption), hkt, Bool.not_true,
+         if_neg Bool.false_ne_true, ← o_post])
   all_goals (simp only [Option.map, Option.bind_some, byteOf_beq_one, byteOf_beq_zero])
   all_goals first | rfl | skip
   all_goals (simp only [bne_iff_ne, ne_eq, not_not, beq_iff_eq] at *)

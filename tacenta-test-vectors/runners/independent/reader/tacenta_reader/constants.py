@@ -75,6 +75,18 @@ PQXDH_F = b"\xff" * 32
 APP_SIGNATURE_LABEL = b"tacenta:application-signature:v1"
 APP_SIGNATURE_PREFIX = APP_SIGNATURE_LABEL + b"\xff"
 
+# mlkem-braid.md, Parameters and derivations: the two MAC suffixes, with bytes
+# given on the page (the other two are BRAID_SCKA_KEY and BRAID_AUTH_UPDATE)
+BRAID_EKHEADER = b":ekheader"
+BRAID_CIPHERTEXT = b":ciphertext"
+
+# session-establishment.md, The fingerprint; CONSTANTS.md
+# LAST_RESORT_HANDSHAKE_LABEL: 32 ASCII bytes, no terminator
+LAST_RESORT_HANDSHAKE_LABEL = b"tacenta last-resort handshake v1"
+
+# session-establishment.md, DecodeEC: "a key whose value is at least p"
+CURVE25519_P = (1 << 255) - 19
+
 # --- Bounds, CONSTANTS.md "Bounds"
 MAX_SKIP = 1000
 MAX_SKIPPED_STORE = 2000

@@ -14,8 +14,8 @@ Two kinds live here:
   NIST examples are checked against the model at build time. Format:
   `schema/vector.schema.json`.
 - **Protocol vectors**, generated from the model by `regenerate-vectors.sh`
-  (all but the malformed-input file, whose `source` field says it is
-  hand-authored) and checked against tacenta-core:
+  (all but `malformed-input/ratchet-reject.json`, whose `source` field says it
+  is hand-authored) and checked against tacenta-core:
   - `vectors/ratchet/`: Double Ratchet scenarios, replayed by
     `runners/rust/tests/ratchet.rs`. Format: `schema/ratchet-vector.schema.json`.
   - `vectors/session-establishment/`: PQXDH shared secrets, checked by
@@ -41,10 +41,21 @@ Two kinds live here:
     IV so that the cipher's input is one of that standard's blocks. The files'
     `source` field says so, and the conformance manifest says what follows
     from it.
-  - `vectors/malformed-input/`: inputs the ratchet must reject, checked by
-    `runners/rust/tests/ratchet.rs`. Hand-authored, not model output: the
-    file pins a rejection rule the specification states (`MAX_SKIP`), not
-    bytes the model produced, and its `source` field says so.
+  - `vectors/malformed-input/`: inputs that must be refused, in two kinds of
+    file, each file's `source` field saying which.
+    - `ratchet-reject.json`: inputs the ratchet must reject, checked by
+      `runners/rust/tests/ratchet.rs`. Hand-authored, not model output: the
+      file pins a rejection rule the specification states (`MAX_SKIP`), not
+      bytes the model produced.
+    - `composite-header-decode.json` and `prekey-bundle-decode.json`: whole
+      encodings given to the composite header's and the prekey bundle's
+      decoders, a curve key in each position either reads. Each key is
+      accepted in its canonical spelling and refused with bit 255 set or with
+      p = 2^255 - 19 added (message-format.md, Curve public keys). Generated
+      from the model's decoders, which give every vector its `result`; an
+      accepted vector's `output` is the re-encoding of what its input decodes
+      to. Checked by `runners/rust/tests/malformed_input.rs`. Format:
+      `schema/vector.schema.json`.
 
 `conformance-manifest.md` records exactly which specifications, revisions, and
 components the vectors cover, and what is excluded. Peer interoperability is
@@ -106,7 +117,8 @@ no small-order refusal), on every vector where that oracle is defined
 (`u < p`, an Edwards image, `s < l`), which includes the four small-order-`A`
 vectors: those are the inputs on which a transcription that negates the
 scalar rather than the point gives the wrong verdict, and the second oracle
-is what catches it. And the malformed-input file is hand-authored, as above.
+is what catches it. And `malformed-input/ratchet-reject.json` is
+hand-authored, as above.
 
 ## Status
 

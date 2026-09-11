@@ -1,0 +1,40 @@
+//! Check tacenta-core's decoders against the model-generated decoder files under
+//! vectors/malformed-input: each accepts a curve key in its canonical spelling
+//! and refuses it re-spelled, in every position it reads one (message-format.md,
+//! Curve public keys). The Double Ratchet scenario file in the same directory
+//! is replayed by `tests/ratchet.rs`.
+
+use std::path::Path;
+
+#[test]
+fn malformed_input_decoder_vectors_pass() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../vectors/malformed-input");
+    let files = tacenta_vectors_rust::load_dir(&dir).expect("load malformed-input vectors");
+
+    let mut total = 0;
+    let mut refused = 0;
+    for file in &files {
+        total += tacenta_vectors_rust::check_file(file)
+            .unwrap_or_else(|e| panic!("{}: {e}", file.algorithm));
+        refused += file
+            .vectors
+            .iter()
+            .filter(|v| v.result == "invalid")
+            .count();
+    }
+
+    // Both decoders, not one: the composite header's dh (two re-spellings) and
+    // the bundle's three keys (two each).
+    let mut algorithms: Vec<&str> = files.iter().map(|f| f.algorithm.as_str()).collect();
+    algorithms.sort_unstable();
+    assert_eq!(
+        algorithms,
+        ["composite-header-decode", "prekey-bundle-decode"],
+        "expected both decoder files"
+    );
+    assert!(refused >= 8, "checked {refused} refusals, expected 8");
+    eprintln!(
+        "checked {total} malformed-input decoder vectors, {refused} of them refusals, in {} files",
+        files.len()
+    );
+}

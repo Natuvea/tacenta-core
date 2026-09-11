@@ -11,11 +11,12 @@ refusal, not a decode failure) and the repeated-initial-message rule
 (Receiving the initial message).
 """
 
+from dataclasses import replace
 from typing import Optional
 
 from . import constants as K
-from .kdf import hkdf_sha256
-from .wire import InitialMessage, encode_ec
+from .kdf import hkdf_sha256, hmac_sha256
+from .wire import InitialMessage, decode_ec, encode_ec
 
 
 class KemCiphertextRefused(Exception):
@@ -65,11 +66,97 @@ def responder_agreements(ikb_priv: bytes, spkb_priv: bytes, opkb_priv: Optional[
     return dh1, dh2, dh3, dh4
 
 
+class KemPrekeyRefused(Exception):
+    """The bundle's KEM prekey fails FIPS 203 section 7.2's input checks."""
+
+
+def check_kem_prekey(ek: bytes, ek_len: int = K.MLKEM1024_EK_LEN) -> None:
+    """session-establishment.md, Primitives, ML-KEM-1024, Validating the
+    encapsulation key: before encapsulating, the key is 1,568 bytes and
+    ByteEncode12(ByteDecode12(ek[0:1536])) equals ek[0:1536]; "Alice refuses a
+    bundle whose key fails either check"."""
+    from .persistence import _modulus_ok
+    if len(ek) != ek_len:
+        raise KemPrekeyRefused(f"KEM prekey is {len(ek)} bytes, not {ek_len}")
+    if not _modulus_ok(bytes(ek[:1536])):
+        raise KemPrekeyRefused("KEM prekey fails the FIPS 203 modulus check")
+
+
 def check_kem_ciphertext(kem_ciphertext: bytes, ct_len: int = K.MLKEM1024_CT_LEN) -> None:
     """The recipient refuses the initial message at decapsulation, before any
     secret is derived, when the ciphertext is not the KEM's ciphertext length."""
     if len(kem_ciphertext) != ct_len:
         raise KemCiphertextRefused(f"KEM ciphertext is {len(kem_ciphertext)} bytes, not {ct_len}")
+
+
+# ------------------------------------------ the last-resort replay record
+# session-establishment.md, Replay, and "The fingerprint"; key-deletion.md;
+# session-persistence.md, Prekey store (`seen`). Closes GAPS.md G-26.
+
+class ReplayedLastResort(Exception):
+    pass
+
+
+class LastResortRecordFull(Exception):
+    pass
+
+
+def handshake_keys(message: InitialMessage):
+    """"A handshake is accepted only if DecodeEC accepts both identity and
+    ephemeral". Returns (IKA, EKA) as raw keys."""
+    return decode_ec(message.identity), decode_ec(message.ephemeral)
+
+
+def last_resort_fingerprint(message: InitialMessage) -> bytes:
+    """input = u32(33) || identity || u32(33) || ephemeral
+              || u32(len(kem_ciphertext)) || kem_ciphertext
+              || one_time_prekey_id (4) || kem_prekey_id (4)
+    fingerprint = HMAC-SHA256(key = LAST_RESORT_HANDSHAKE_LABEL, data = input)"""
+    for name, v in (("identity", message.identity), ("ephemeral", message.ephemeral)):
+        if len(v) != K.ENCODED_EC_LEN:
+            raise ValueError(f"{name} keeps its curve byte and is 33 bytes")
+
+    def u32(n):
+        return n.to_bytes(4, "big")
+
+    data = (u32(33) + bytes(message.identity) + u32(33) + bytes(message.ephemeral)
+            + u32(len(message.kem_ciphertext)) + bytes(message.kem_ciphertext)
+            + u32(message.one_time_prekey_id) + u32(message.kem_prekey_id))
+    return hmac_sha256(K.LAST_RESORT_HANDSHAKE_LABEL, data)
+
+
+def on_last_resort_path(store, kem_prekey_id: int) -> bool:
+    """"its kem_prekey_id names Bob's current last-resort KEM prekey or the one
+    the last rotation retired"."""
+    return kem_prekey_id == store.kem_id or (store.previous_kem is not None and kem_prekey_id == store.previous_kem[1])
+
+
+def check_last_resort(store, message: InitialMessage) -> Optional[bytes]:
+    """Before decapsulation. Refuses a fingerprint any entry holds, whatever its
+    tag (ReplayedLastResort), and a new handshake naming a key whose budget is
+    spent (LastResortRecordFull); changes nothing. Returns the fingerprint to
+    record once the initial ciphertext authenticates, or None off the path."""
+    handshake_keys(message)
+    if not on_last_resort_path(store, message.kem_prekey_id):
+        return None
+    fp = last_resort_fingerprint(message)
+    if any(f == fp for _, f in store.seen):
+        raise ReplayedLastResort("a record entry holds this fingerprint")
+    if sum(1 for k, _ in store.seen if k == message.kem_prekey_id) >= K.MAX_LAST_RESORT_SEEN:
+        raise LastResortRecordFull("the budget of the key this handshake names is spent")
+    return fp
+
+
+def receive_last_resort(store, message: InitialMessage, authenticate):
+    """The order the page fixes. `authenticate` stands for decapsulating,
+    deriving SK and decrypting the initial ciphertext; it raises on failure.
+    The entry, tagged with kem_prekey_id, is added only once it returns.
+    Returns (store, authenticate's result)."""
+    fp = check_last_resort(store, message)
+    result = authenticate()
+    if fp is None:
+        return store, result
+    return replace(store, seen=list(store.seen) + [(message.kem_prekey_id, fp)]), result
 
 
 def accept_repeated_initial(is_responder: bool, established_ephemeral: Optional[bytes],
