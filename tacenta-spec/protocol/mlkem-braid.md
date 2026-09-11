@@ -453,7 +453,8 @@ epoch and a 32-byte key. Only (7) and (5) produce one.
 - **A receive's epoch** is the epoch of the state the receive leaves the Braid
   in, less one. It is 0 when that state is `Failed`.
 
-**This departs from the published document at transition (5).**
+**This departs from the published document at transition (5), and ADR-0007
+keeps the departure.**
 - The document computes a receive's epoch before any transition, except in
   `Ct2Sampled`. A receive taking (5) there reports `epoch - 1`, which is the
   sending epoch the `ct2` message was sent with. That is the document's

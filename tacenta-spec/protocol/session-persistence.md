@@ -545,7 +545,7 @@ that keeps them all.
 
 The rules are not a description of the states the operations produce. A state
 can keep every rule and still be one no operation produces, and the reader
-accepts it. Two examples. A ratchet state may have `nr` above zero and no
+accepts it (ADR-0007). Two examples. A ratchet state may have `nr` above zero and no
 receiving chain, or `ns` above zero and no sending chain, because no rule
 constrains `ns`, `nr` or `pn`. A sparse ratchet state may hold a stored key
 numbered 0, or numbered at or past its epoch's receiving counter, because no

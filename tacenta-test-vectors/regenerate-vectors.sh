@@ -5,13 +5,17 @@
 # commit the result; `tooling/ci.sh` and the public `proofs` CI job run this
 # and fail on a difference between the model and the committed files.
 #
-# Fifteen files, all under vectors/: the Double Ratchet scenarios, the PQXDH
+# Twenty-three files, all under vectors/: the Double Ratchet scenarios, the PQXDH
 # shared secrets, the message and initial-message encodings, the nine
-# post-quantum derivation files, and the two decoder files under
-# malformed-input/. The primitive vectors under vectors/primitives/ are not
-# regenerated: they are standards' known answers, plus one project-generated
-# XEdDSA file, and none of them comes from the model. Nor is
-# malformed-input/ratchet-reject.json, which is hand-authored.
+# post-quantum derivation files and the two erasure-code files beside them, the
+# erasure coders' two persisted formats, the protobuf profile's two readers,
+# the AEAD's two directions, and the two decoder files under malformed-input/.
+# The AEAD files take their AES-256 block values from NIST SP 800-38A, since
+# the model has no AES; their `source` field says so. The primitive vectors
+# under vectors/primitives/ are not regenerated: they are standards' known
+# answers, plus one project-generated XEdDSA file, and none of them comes from
+# the model. Nor is malformed-input/ratchet-reject.json, which is
+# hand-authored.
 #
 # Needs the Lean toolchain the model pins (`tacenta-model/lean-toolchain`,
 # installed through elan) and a built model: `lake build` there compiles the
@@ -47,8 +51,20 @@ generate initial       "$here/vectors/serialization/initial-message.json"
 
 # The post-quantum derivations. The five crates below them were transcribed by
 # hand from these Lean models, and these vectors are what pin the transcription.
-for a in gf inv interp spqr braid auth triple split composite; do
+for a in gf inv interp spqr braid auth triple split composite erasure-encode erasure-decode; do
   generate "$a" "$here/vectors/post-quantum/$a.json"
+done
+
+# The erasure coders' persisted formats (session-persistence.md), the bounded
+# protobuf profile (protobuf-profile.md), and the AEAD (message-format.md).
+for a in erasure-encoder-state erasure-decoder-state; do
+  generate "$a" "$here/vectors/persistence/$a.json"
+done
+for a in protobuf-ratchet-body protobuf-prekey-envelope; do
+  generate "$a" "$here/vectors/protobuf/$a.json"
+done
+for a in aead-encrypt aead-decrypt; do
+  generate "$a" "$here/vectors/aead/$a.json"
 done
 
 # The decoders' refusal of a re-spelled curve key (message-format.md, Curve

@@ -164,8 +164,8 @@ differ. A `pq_epoch` naming an epoch whose chains the state holds, but not the
 one the sender used, yields a key the message does not authenticate under, so
 nothing is adopted (triple-ratchet.md, Sending and receiving).
 
-**This departs from the published specification, and the departure is not yet
-decided.** There the header carries the agreement's message and the message
+**This departs from the published specification, and ADR-0007 keeps the
+departure.** There the header carries the agreement's message and the message
 number but no epoch, and the receive looks up the chain by the epoch the
 agreement returns (Double Ratchet revision 4, §5.6; §6.5 builds the composite
 header the same way). Here the header carries the sending epoch as

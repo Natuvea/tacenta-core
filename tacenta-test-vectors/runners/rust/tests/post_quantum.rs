@@ -24,7 +24,9 @@ fn post_quantum_vectors_pass() {
     }
 
     // A floor over the committed post-quantum vector files; more files add to it.
-    assert!(total >= 41, "checked {total} post-quantum vectors");
+    // Forty-one derivation vectors, and twenty-one for the erasure code above
+    // the field (six encoder streams, fifteen decoders).
+    assert!(total >= 62, "checked {total} post-quantum vectors");
     eprintln!(
         "checked {total} post-quantum vectors across {} files",
         files.len()
