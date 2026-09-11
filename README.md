@@ -6,6 +6,16 @@ proofs over its verified zone.
 
 ## What this is
 
+**The specification is the product.** [tacenta-spec](tacenta-spec/) defines
+the protocol, its wire and storage formats, and the rules a reader enforces.
+[tacenta-model](tacenta-model/) states the same definition formally, and the
+protocol vectors it generates are normative examples of it.
+[tacenta-core](tacenta-core/) is one implementation of that specification,
+the project's own. Where the implementation and the specification disagree,
+the implementation is wrong until the specification is amended, and a change
+to anything the specification defines is made to the specification first
+([ADR-0006](tacenta-spec/decisions/ADR-0006-specification-is-normative.md)).
+
 The cryptographic foundation behind [Tacenta](https://tacenta.com), built to
 stand on its own. It is
 protocol, cryptography, and their verification, nothing else: no product
@@ -60,13 +70,15 @@ README and that document ever disagree, that document is right.
 ## Components
 
 - **[tacenta-spec](tacenta-spec/)**, the protocol and security specification,
-  written as prose.
-- **[tacenta-model](tacenta-model/)**, the executable, formal model.
+  written as prose: the normative definition.
+- **[tacenta-model](tacenta-model/)**, the executable, formal statement of the
+  same specification, and the source of the protocol vectors.
 - **[tacenta-proofs](tacenta-proofs/)**, the Lean proofs and a reproducible
   verification environment.
 - **[tacenta-test-vectors](tacenta-test-vectors/)**, interoperability vectors
   and conformance tests.
-- **[tacenta-core](tacenta-core/)**, the Rust cryptographic implementation.
+- **[tacenta-core](tacenta-core/)**, one implementation of the specification,
+  in Rust.
 
 ## Status
 

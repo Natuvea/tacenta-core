@@ -30,6 +30,29 @@ is SemVer against the specified protocol (not the implementation).
   implementation. Eviction order is specified; batch size is
   implementation-defined. A delayed message whose key was evicted can no
   longer be decrypted.
+- `protocol/protobuf-profile.md`: the bounded protobuf profile for the external
+  ratchet message body and prekey envelope, restated from `Model.Protobuf`. It
+  covers:
+  - the four bounds;
+  - minimal, five-byte, 32-bit varints;
+  - tags limited to fields 1 to 15 and wire types 0 and 2;
+  - length-delimited fields;
+  - the two field tables: all five ratchet body fields are required, and
+    envelope field 1 is the only optional field;
+  - free field order, with re-encoding not required to reproduce the input;
+  - no validation inside fields;
+  - refusal categories as implementation-defined.
+  The page states that the engine's own `Session` path does not use the
+  profile. `CONSTANTS.md` now gives the profile's field numbers and limits as
+  values, replacing "see implementation", and records that no external
+  message version byte is handled here.
+- `protocol/error-handling.md`, previously a scaffold, now says what the
+  protocol requires of a refusal and what it leaves to an implementation.
+  - Required: every refusal a page states; decode failure kept distinct from
+    authentication failure; the persistence refusal kinds; and the conditions
+    the pages name for a caller to act on.
+  - Left to an implementation: its error types, their names, which variant
+    reports a refusal, and the order of checks, unless a page fixes one.
 - `protocol/group-messaging.md`: what has been published about group
   messaging, and what each item covers. No Signal specification covers
   groups:
@@ -74,6 +97,20 @@ is SemVer against the specified protocol (not the implementation).
   `MAX_LAST_RESORT_SEEN`, the sparse ratchet's `PROTOCOL_INFO`, and the
   classical ratchet's two derivation labels; the prekey-store version row
   now states what is written and what is read.
+- `README.md`: a "Normative status" section. This specification is
+  normative; implementations, `tacenta-core` included, are not; a change to
+  anything it defines lands here first; and a scaffold page's topic is
+  unspecified rather than defined by the code (ADR-0006).
+- `protocol/session-persistence.md`:
+  - the Braid's persisted fields for each of its twelve state tags, with each
+    field's length or sub-format, and what the Braid's reader refuses;
+  - the erasure encoder's and decoder's sub-formats, with the bounds a reader
+    applies before narrowing a 64-bit size;
+  - "Semantic rules of the leaf formats": the rules the ratchet, sparse
+    ratchet, triple ratchet, Braid and erasure readers enforce, which the
+    page had left to each crate's `invariant`.
+  `CONSTANTS.md`: rows for `MAX_CODEWORDS`, the Braid's KEM field lengths,
+  and the KEM key-pair and encapsulation-state lengths.
 
 ### Changed
 - `protocol/key-deletion.md`, `protocol/session-establishment.md`,
@@ -146,6 +183,39 @@ is SemVer against the specified protocol (not the implementation).
   `tacenta-proofs/CLAIMS.md`, as this directory's README says to; ADR-0001
   notes that the pages it cites are scaffolds.
 
+### Fixed
+A read of every written page against the model and the code, 2026-09. No byte
+value, width, offset, label, derivation or bound was wrong. These statements
+were:
+- `protocol/session-establishment.md`:
+  - `SK` is expanded by a key derivation, not split in two, and the §7.1 it
+    cited is the Double Ratchet specification's;
+  - `CT` is kept and resent with every message until one from the responder
+    decrypts, not deleted after sending;
+  - the initiator's refusals besides signatures, and the last-resort
+    fingerprint's identifiers, are now named.
+- `protocol/key-deletion.md`: the stale "growing buffer" limitation, the
+  inconsistent timing figures, and a garbled clause.
+- `protocol/message-format.md`:
+  - the decoder does have a loop, a fixed-width padding check;
+  - a field running to the end of its message has no length prefix;
+  - the ratchet-message decoder's other refusals are listed, with the note
+    that `ag_type` is not tied to the presence byte.
+- `protocol/post-compromise-security.md`: the guarantee is narrowed to the
+  next chain key and root key, which is what the theorems prove.
+- `protocol/sparse-pq-ratchet.md` and `protocol/triple-ratchet.md`: the
+  sparse ratchet's derivation parameters, which chain key each direction
+  sends on, message numbering from one, the reserved final epoch, and the
+  composite header's epoch fields.
+- `protocol/session-persistence.md`: the semantic rules it promised, the
+  non-canonical refusal, count versus length, version annotations, and the
+  sub-formats having no version byte.
+- `CONSTANTS.md`: `ABSENT_ID` and the wire presence byte had no entry.
+- The model (`tacenta-model`), which states this specification formally,
+  described a ratchet message as the Double Ratchet's forty-byte header
+  alone, a format `protocol/message-format.md` does not accept. It now follows
+  the composite header.
+
 ### Backfilled
 Entries this log omitted when the pages landed, recorded here so the log is
 complete rather than restarted:
@@ -207,6 +277,12 @@ complete rather than restarted:
   specification warns about explicitly. We have had to build exactly that
   mechanism for the Double Ratchet; there is no reason to import the problem
   here in order to reuse the solution.
+- **This specification is the product, and implementations conform to it**
+  (`decisions/ADR-0006-specification-is-normative.md`). The written pages and
+  `CONSTANTS.md` are normative. The model states them formally, and its
+  vectors are normative examples. `tacenta-core` is one implementation and is
+  not normative. Changes land here first. The specification's sufficiency is
+  to be tested by a reader written from it and the vectors alone.
 
 ### Note
 **Specified and implemented.** The Triple Ratchet and the Braid are integrated
