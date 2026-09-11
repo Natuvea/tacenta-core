@@ -6,6 +6,11 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `decisions/ADR-0008-assurance-expectations.md`: the practices the
+  project holds itself to, the definition of done, and assurance levels per
+  component. `ASSURANCE.md` at the repository root records where each practice
+  and component stands. A decision about how the work is done, not about the
+  protocol.
 - `threat-model/`: the threat model, written and normative. All four pages were
   scaffolds.
   - `assets.md`: twelve assets, AS-01 to AS-12. Nine are secrets: plaintexts,
@@ -50,21 +55,6 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
-- `decisions/ADR-0006-specification-is-normative.md`, point 1: `threat-model/`
-  is normative, with `protocol/` and `security-properties/`, and the page
-  records the amendment with its date. Every security requirement is stated
-  against the threat model's assets, adversaries and assumptions, and the
-  README already listed it among the normative pages.
-- `README.md`: the status paragraph names the written threat-model and
-  security-property pages, and the protocol pages still scaffolds.
-  `threat-model/` is listed among the normative pages, since every security
-  requirement is stated against its adversaries and assumptions.
-- `protocol/ratchet.md`, `protocol/session-establishment.md`: each "Security
-  properties" section points to the requirements. They had pointed to
-  `tacenta-proofs/CLAIMS.md` in place of scaffold pages.
-  `session-establishment.md` no longer says deniability is retained. No
-  requirement states it, and nothing in this project establishes it
-  (`threat-model/exclusions.md`, EX-12).
 - `protocol/session-persistence.md`, `protocol/session-establishment.md`,
   `protocol/message-format.md`: every curve public key a stored state holds
   must be canonical, and each reader refuses a state that holds one spelled
@@ -91,6 +81,28 @@ is SemVer against the specified protocol (not the implementation).
     matters only for a bundle that reaches her another way.
   - "Receiving the initial message" says `peer_identity_public` is canonical
     in every session a reader accepts.
+- `protocol/session-persistence.md`, Rejection: a buffer too short to be read
+  that also carries an unknown version byte may be refused either as short or
+  malformed or as a wrong version, and which is left to the implementation,
+  as error-handling.md leaves the order of checks. The page had named both
+  refusals without saying which such a buffer gets, and the model and
+  `tacenta-core` answer differently. The vectors pin neither. Register item
+  J-11.
+- `decisions/ADR-0006-specification-is-normative.md`, point 1: `threat-model/`
+  is normative, with `protocol/` and `security-properties/`, and the page
+  records the amendment with its date. Every security requirement is stated
+  against the threat model's assets, adversaries and assumptions, and the
+  README already listed it among the normative pages.
+- `README.md`: the status paragraph names the written threat-model and
+  security-property pages, and the protocol pages still scaffolds.
+  `threat-model/` is listed among the normative pages, since every security
+  requirement is stated against its adversaries and assumptions.
+- `protocol/ratchet.md`, `protocol/session-establishment.md`: each "Security
+  properties" section points to the requirements. They had pointed to
+  `tacenta-proofs/CLAIMS.md` in place of scaffold pages.
+  `session-establishment.md` no longer says deniability is retained. No
+  requirement states it, and nothing in this project establishes it
+  (`threat-model/exclusions.md`, EX-12).
 
 ## [0.2.0] - 2026-09-11
 

@@ -98,6 +98,21 @@ receives can age a store out deliberately; that peer can already fill it, and
 the alternative is keys that never expire at all. -/
 def maxSkippedAge : Nat := 1000
 
+/-- `u32::MAX`, the ceiling of the ratchet's 32-bit counters. A send at
+    `ns = u32Max` and a receive that would step past `nr = u32Max` are refused
+    (ratchet.md, Sending and receiving: `ChainExhausted`), so message number
+    `u32::MAX` is never used on a chain. -/
+def u32Max : Nat := 2 ^ 32 - 1
+
+/-- Where the received-message clock stops: `u32::MAX - 1`. `u32::MAX` is
+    reserved, a value no operation gives the clock, which is what lets a stored
+    state's reader refuse it (ratchet.md, Skipped keys; session-persistence.md,
+    Principles). -/
+def maxEvents : Nat := u32Max - 1
+
+theorem u32Max_eq : u32Max = 4294967295 := rfl
+theorem maxEvents_eq : maxEvents = 4294967294 := rfl
+
 /-- KDF_CK (ratchet.md): advance a chain key one step, yielding
     (next chain key, message key). `HMAC(ck, 0x01)` is the message key and
     `HMAC(ck, 0x02)` the next chain key. -/
@@ -162,12 +177,29 @@ def skipMessageKeys (st : State) (upto : Nat) : Option State :=
     `maxSkippedAge` (ratchet.md, Skipped keys; key-deletion.md).
 
     Applied once per accepted receive, at the end, so a key stored during that
-    same receive is one message old rather than zero. -/
+    same receive is one message old rather than zero.
+
+    The count stops at `maxEvents`, `u32::MAX - 1`: from there a receive leaves
+    it where it is, and a key's age, measured against it, no longer grows. -/
 def ageStore (st : State) : State :=
-  let now := st.events + 1
+  let now := min (st.events + 1) maxEvents
   { st with
     events := now,
     skipped := st.skipped.filter fun e => decide (now - e.2.2.1 < maxSkippedAge) }
+
+/-- Below its stop the clock counts one. -/
+theorem ageStore_events_of_room (st : State) (h : st.events + 1 < u32Max) :
+    (ageStore st).events = st.events + 1 :=
+  Nat.min_eq_left (by unfold maxEvents; omega)
+
+/-- At or past its stop the clock stays at `maxEvents`. -/
+theorem ageStore_events_at_stop (st : State) (h : maxEvents ≤ st.events + 1) :
+    (ageStore st).events = maxEvents :=
+  Nat.min_eq_right h
+
+/-- The clock never reaches `u32::MAX`, whatever it held before. -/
+theorem ageStore_events_lt (st : State) : (ageStore st).events < u32Max :=
+  Nat.lt_of_le_of_lt (Nat.min_le_right _ _) (by decide)
 
 /-- Storing skipped keys does not touch the store's clock. Needed where a later
 step has to know the counter still has room: nothing between the two moves it,

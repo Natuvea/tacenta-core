@@ -903,10 +903,11 @@ state installed at that epoch would have every one of its entries, the one
 just installed included, retired by `clear_old_epochs`'s own
 `epoch < p.0.saturating_add(EPOCHS_KEPT)` window, leaving `chains == []`,
 which the crate's `invariant` rejects and its decoder therefore refuses
-forever. So `advance` returns `ChainExhausted` there instead. The model has
-no such reservation -- it counts epochs in `Nat`, where nothing is reserved --
-so at `epoch = u64::MAX - 1` the model advances where the code refuses, and
-the correspondence below is simply false at that one epoch. `hepoch` names
+forever. So `advance` returns `ChainExhausted` there instead. The model
+reserves the same epoch (sparse-pq-ratchet.md, Sending) and refuses the same
+step, but with `none`, which the statement below reads as the mismatch
+refusal, `EpochOutOfOrder`; at `epoch = u64::MAX - 1` the two refuse with
+different errors, so the statement as written is false there. `hepoch` names
 it: `s.epoch.val + 1 < Std.U64.max` is exactly "the next epoch is not the
 reserved one, nor past it".
 
@@ -935,10 +936,10 @@ theorem advance_refines (hkr : SpqrHkdfAgrees) (hz96 : ZeroizingRoundTrips96)
   -- `hepoch` is exactly the hypothesis that excludes both, the overflow one
   -- because `s.epoch.val + 1 < Std.U64.max` bounds `s.epoch` below the top,
   -- and the reservation because it bounds the successor below it too. So
-  -- both exhaustion arms are *refuted* rather than refined, which is the
-  -- honest shape -- the model counts in unbounded naturals and has neither a
-  -- saturated counter nor a reserved epoch to refine against. Binding the
-  -- successor as `i` keeps the two branches below untouched.
+  -- both exhaustion arms are *refuted* rather than refined: the model's own
+  -- reservation refuses with `none`, which this statement reads as
+  -- `EpochOutOfOrder`, so refuting them is what keeps the statement true.
+  -- Binding the successor as `i` keeps the two branches below untouched.
   rcases hadd : s.epoch.checked_add 1#u64 with _ | i
   · exfalso
     have hspec := U64.checked_add_bv_spec s.epoch 1#u64
@@ -978,7 +979,11 @@ theorem advance_refines (hkr : SpqrHkdfAgrees) (hz96 : ZeroizingRoundTrips96)
     have hcond : out.key_epoch.val = m.epoch + 1 := by
       rw [← hrel.epoch, heq]
       exact hi
-    simp only [Model.SparseRatchet.advance, outputOf, if_pos hcond]
+    -- The successor is below the reserved epoch, so the model's ceiling passes.
+    have hceil : m.epoch + 1 < Model.SparseRatchet.u64Max := by
+      rw [← hrel.epoch, Model.SparseRatchet.u64Max_eq]
+      scalar_tac
+    simp only [Model.SparseRatchet.advance, outputOf, if_pos (And.intro hcond hceil)]
     step with kdf_rk_refines hkr hz96 s.rk out.key
     have hrk : keyOf rk = (Model.SparseRatchet.kdfRk m.rk (keyOf out.key)).1 := by
       rw [← hrel.rk]; exact congrArg Prod.fst rk_post
@@ -1208,8 +1213,12 @@ theorem send_refines (hkr : SpqrHkdfAgrees)
         -- branch is refuted by `hnval` just above, which is what `hcounter`
         -- was carried for: a chain whose counter is already at the maximum
         -- cannot be reached from a state satisfying the theorem's hypotheses.
-        -- The model counts in unbounded naturals, so there is nothing there for
-        -- exhaustion to refine against, and refutation is the right shape.
+        -- The model refuses that send too (its `u64Max` guard); refuting the
+        -- branch rather than relating the two refusals keeps the statement as
+        -- it was.
+        have hnlt : ch.n.val < Model.SparseRatchet.u64Max := by
+          rw [Model.SparseRatchet.u64Max_eq]
+          scalar_tac
         rcases hadd : r.n.checked_add 1#u64 with _ | n
         · exfalso
           have hspec := U64.checked_add_bv_spec r.n 1#u64
@@ -1257,10 +1266,10 @@ theorem send_refines (hkr : SpqrHkdfAgrees)
             · rw [hout] at hsc
               simp only [Option.some.injEq] at hsc
               simp [Model.SparseRatchet.send, hsc, hfindeq, chainOf, chainsOf,
-                r_post, hnval2, hnexteq, hmkeq, hcss, o2_post, cs1_post]
+                r_post, hnval2, hnexteq, hmkeq, hcss, o2_post, cs1_post, hnlt]
             · rw [hout] at hsc
               simp [Model.SparseRatchet.send, hsc, hfindeq, chainOf, chainsOf,
-                r_post, hnval2, hnexteq, hmkeq, hcss, o2_post, cs1_post]
+                r_post, hnval2, hnexteq, hmkeq, hcss, o2_post, cs1_post, hnlt]
           · exact self2_post
         · intro e he; injection he
 
@@ -2031,10 +2040,15 @@ what let the internal proofs reach the specific chain each needs the bound
 for. `SpqrT1.lean`'s `send_no_panic`/`receive_no_panic` no longer carry
 `hepoch` or `hcounter` at all: every epoch and counter increment is a
 `checked_add` whose `None` arm returns `ChainExhausted`, an outcome those
-proofs walk. This file keeps both, for the model's reason rather than the
-code's -- `Model.SparseRatchet` counts in `Nat`, so at the ceiling the real
-code's `ChainExhausted` has nothing to refine against, exactly as
-`BraidT3.lean` keeps its `hepoch` where `BraidT1.lean` dropped it. See
+proofs walk. This file keeps both. They were kept because `Model.SparseRatchet`
+counted in `Nat`, so at the ceiling the real code's `ChainExhausted` had
+nothing to refine against. The model now refuses at both ceilings.
+`send_refines` and `receive_refines` take any error in their failure clauses,
+so they may no longer need either bound; `advance_refines`, whose failure
+clause names `EpochOutOfOrder`, does need `hepoch`, and the proofs use both to
+refute the exhaustion branches. Whether the two could be dropped from the
+top-level theorems has not been checked, and they are kept, as `BraidT3.lean`
+keeps its `hepoch` where `BraidT1.lean` dropped it. See
 `LIMITATIONS.md`.
 
 **`hepoch` is now `epoch + 1 < u64::MAX`, one step tighter than the
@@ -2044,9 +2058,9 @@ refusal beside the `checked_add`: it declines the step that would reach
 `epoch < p.0.saturating_add(EPOCHS_KEPT)` and at `u64::MAX` that window
 retires every entry including the one just installed, leaving a state whose
 own `invariant` is false and whose own decoder would refuse it forever. The
-model reserves nothing, so it advances at `epoch = u64::MAX - 1` where the
-code now returns `ChainExhausted`, and the correspondence is false at that
-one epoch -- not weakened by naming it, but false without. The tightened
+model reserves the same epoch, but refuses with `none`, which `advance_refines`
+reads as the mismatch refusal, so at `epoch = u64::MAX - 1` that theorem's
+correspondence is false -- not weakened by naming it, but false without. The tightened
 bound is the smallest hypothesis that names exactly it, and it is stated on
 `advance_refines` and carried unchanged through `maybe_advance_refines`,
 `send_refines` and `receive_refines`; no second hypothesis was added.

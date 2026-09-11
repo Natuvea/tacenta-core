@@ -417,8 +417,8 @@ clause is unconditional (`SpqrAgreesFor`, backed by `UnitSpqrT3.lean`'s own
 `hcounter`-guarded `send_refines`), but the classical ratchet's is not:
 `UnitT3.lean`'s own `send_refines` proves the model-failure correspondence only
 for `RatchetError.NoSendingChain`, not for `ChainExhausted` (the real `u32`
-send counter wrapping), because `Model.Ratchet.send` counts in `Nat` and so
-has no failure mode to correspond to that overflow. `RatchetAgreesFor`
+send counter wrapping), because that theorem states no clause for it, though
+`Model.Ratchet.send` now refuses at `ns = u32::MAX` too. `RatchetAgreesFor`
 states exactly that -- `NoSendingChain` only -- rather than an unrestricted
 `∀ e`.
 The theorem's stated postcondition below is scoped to match: it only claims

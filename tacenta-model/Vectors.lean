@@ -30,6 +30,7 @@ import Model.Braid
 import Model.TripleRatchet
 import Model.CompositeHeader
 import Model.Erasure
+import Model.PersistedState
 import Model.Protobuf
 
 open Model.State
@@ -1036,6 +1037,535 @@ def erasureDecoderFile (_ : Unit) : String :=
       decoderBytesVector "count-beyond-the-buffer" "a count the buffer does not hold" (replaceAt (storedDecoder 100 4 cw) 19 0x03),
       decoderBytesVector "trailing-byte" "one byte after the last codeword" (storedDecoder 100 4 cw ++ [0x00]) ]
 
+/-! ### The ratchets' persisted states (`Model.PersistedState`)
+
+A state's stored bytes are either the result of operations the vector lists,
+run from a fresh state or from stored bytes the reader accepts, or bytes
+offered to the reader. The generator writes an operations vector only if the
+model accepts every operation and the state it reaches reads back to itself,
+with the bytes of that state read back beside it; and it writes a bytes vector
+only if the model's reader gives it the result the vector records, for a
+refusal the refusal too. -/
+
+/-- The name a vector gives a refusal: session-persistence.md, Rejection's
+    "wrong version" and "short or malformed". -/
+def refusalName : Model.PersistedState.Refusal → String
+  | .wrongVersion => "wrong-version"
+  | .shortOrMalformed => "short-or-malformed"
+
+/-- A refused stored-state vector: its bytes, and the refusal. -/
+def refusedStateVector (id comment : String) (bs : List UInt8)
+    (r : Model.PersistedState.Refusal) : String :=
+  vectorHead id comment ++ "\"result\": \"invalid\", \"refusal\": \"" ++ refusalName r ++
+    "\", \"inputs\": " ++ jsonObject [("bytes", toHex bs)] ++ " }"
+
+/-- Operations whose last step is refused at a counter's ceiling: the inputs,
+    and the refusal, counter exhaustion (ratchet.md, Sending and receiving;
+    sparse-pq-ratchet.md, Sending and Receiving). -/
+def refusedOpsVector (id comment : String) (inputs : List (String × List UInt8)) : String :=
+  vectorHead id comment ++ "\"result\": \"invalid\", \"refusal\": \"counter-exhaustion\", \"inputs\": " ++
+    jsonObject (inputs.map fun p => (p.1, toHex p.2)) ++ " }"
+
+/-- Stored bytes offered to a reader: accepted, with the fields `fieldsOf`
+    names, when `expect` is `none`; refused with `expect` otherwise. -/
+@[never_extract]
+def storedStateVector {σ : Type}
+    (reader : List UInt8 → Except Model.PersistedState.Refusal σ)
+    (fieldsOf : σ → List (String × List UInt8)) (id comment : String) (bs : List UInt8)
+    (expect : Option Model.PersistedState.Refusal) : Except String String :=
+  match reader bs, expect with
+  | .ok st, none => .ok (fieldsVector id comment "bytes" bs (some (fieldsOf st)))
+  | .error r, some r' =>
+    if r = r' then .ok (refusedStateVector id comment bs r)
+    else .error ("genvectors: the model's reader refuses " ++ id ++
+      " as " ++ refusalName r ++ ", not as the vector records")
+  | _, _ => .error ("genvectors: the model's reader does not give " ++ id ++
+      " the result the vector records")
+
+-- `u32Max` and `u64Max`, the largest values the formats' counters hold, are
+-- the model's own: `Model.State.u32Max` and `Model.SparseRatchet.u64Max`.
+open Model.SparseRatchet (u64Max)
+
+/-! #### The classical ratchet's state -/
+
+/-- One operation on a classical ratchet state. -/
+inductive RatchetStep where
+  | send
+  | receive (h : Header) (dhRecv dhSend newPub : Key)
+
+/-- `00` for a send; `01`, then the header's `dh(32) || pn(4) || n(4)`, then
+    `dh_recv(32) || dh_send(32) || new_pub(32)`, for a receive. -/
+def RatchetStep.bytes : RatchetStep → List UInt8
+  | .send => [0x00]
+  | .receive h r d np => [0x01] ++ h.dh ++ beN 4 h.pn ++ beN 4 h.n ++ r ++ d ++ np
+
+/-- The state after the steps, or `none` if the model refuses one. -/
+def runRatchet (st : State) : List RatchetStep → Option State
+  | [] => some st
+  | .send :: rest =>
+    match send st with
+    | some (st', _, _) => runRatchet st' rest
+    | none => none
+  | .receive h r d np :: rest =>
+    match receive st h r d np with
+    | some (st', _) => runRatchet st' rest
+    | none => none
+
+/-- Where a classical ratchet vector's operations start. -/
+inductive RatchetStart where
+  | initiator
+  | responder
+  | stored (st : State)
+
+def RatchetStart.state : RatchetStart → State
+  | .initiator => initSender sk aPub bPub dhAB .tacenta
+  | .responder => initReceiver sk bPub .tacenta
+  | .stored st => st
+
+def RatchetStart.inputs : RatchetStart → List (String × List UInt8)
+  | .initiator => [("role", [0x00]), ("sk", sk), ("our_pub", aPub), ("peer_pub", bPub), ("dh_out", dhAB)]
+  | .responder => [("role", [0x01]), ("sk", sk), ("our_pub", bPub)]
+  | .stored st => [("start", Model.PersistedState.RatchetState.toBytes st)]
+
+/-- The fields an accepted classical ratchet state holds, as the vectors name
+    them: an absent key is left out, every integer is its field's big-endian
+    bytes, and `skipped` is the stored keys laid out back to back. -/
+def ratchetFields (st : State) : List (String × List UInt8) :=
+  [("dhs_pub", st.dhsPub)] ++ st.dhrPub.toList.map (("dhr_pub", ·)) ++ [("rk", st.rk)] ++
+    st.cks.toList.map (("cks", ·)) ++ st.ckr.toList.map (("ckr", ·)) ++
+    [("ns", beN 4 st.ns), ("nr", beN 4 st.nr), ("pn", beN 4 st.pn), ("events", beN 4 st.events),
+     ("labels", [Model.PersistedState.RatchetState.labelsByte st.labels]),
+     ("skipped", (st.skipped.map Model.PersistedState.RatchetState.entryBytes).flatten)]
+
+@[never_extract]
+def ratchetStored (id comment : String) (bs : List UInt8)
+    (expect : Option Model.PersistedState.Refusal) : Except String String :=
+  storedStateVector Model.PersistedState.RatchetState.ofBytes ratchetFields id comment bs expect
+
+def ratchetReadsBack (st : State) : Bool :=
+  Model.PersistedState.readsBackTo
+    (Model.PersistedState.RatchetState.ofBytes (Model.PersistedState.RatchetState.toBytes st)) st
+
+/-- A state built by operations, and its stored bytes read back. -/
+@[never_extract]
+def ratchetOps (id comment : String) (start : RatchetStart) (steps : List RatchetStep) :
+    Except String (List String) :=
+  let startOk := match start with
+    | .stored st => ratchetReadsBack st
+    | _ => true
+  match runRatchet start.state steps with
+  | none => .error ("genvectors: " ++ id ++ ": the model refuses an operation the vector lists")
+  | some st =>
+    if startOk && ratchetReadsBack st then do
+      let bs := Model.PersistedState.RatchetState.toBytes st
+      let back ← ratchetStored (id ++ "-read-back") ("the stored bytes of " ++ id ++ ", read back") bs none
+      pure [answerVector id comment
+        (start.inputs ++ [("steps", (steps.map RatchetStep.bytes).flatten)]) (some bs), back]
+    else .error ("genvectors: " ++ id ++ ": a stored state does not read back to itself")
+
+/-- Operations whose last step the model refuses at a counter's ceiling. The
+    generator writes one only if the start reads back, the model takes every
+    step before the last and refuses the last, and `atCeiling` holds of the
+    state the last is refused from, so that the refusal is the ceiling's. -/
+@[never_extract]
+def ratchetRefused (id comment : String) (start : RatchetStart) (steps : List RatchetStep)
+    (last : RatchetStep) (atCeiling : State → Bool) : Except String String :=
+  let startOk := match start with
+    | .stored st => ratchetReadsBack st
+    | _ => true
+  match runRatchet start.state steps with
+  | none => .error ("genvectors: " ++ id ++ ": the model refuses a step before the last")
+  | some st =>
+    if !startOk then
+      .error ("genvectors: " ++ id ++ ": a stored state does not read back to itself")
+    else if (runRatchet st [last]).isSome then
+      .error ("genvectors: " ++ id ++ ": the model takes the step the vector refuses")
+    else if !atCeiling st then
+      .error ("genvectors: " ++ id ++ ": the refused step is not at a counter's ceiling")
+    else
+      .ok (refusedOpsVector id comment
+        (start.inputs ++ [("steps", ((steps ++ [last]).map RatchetStep.bytes).flatten)]))
+
+/-- The messages the classical vectors pass between the two parties: Alice's
+    first three, Bob's reply once he has taken the first, and Alice's first on
+    her second chain once she has taken the reply. -/
+structure RatchetScript where
+  h0 : Header
+  h1 : Header
+  h2 : Header
+  r0 : Header
+  h3 : Header
+
+def ratchetScript : Option RatchetScript := do
+  let (a1, h0, _) ← send (initSender sk aPub bPub dhAB .tacenta)
+  let (a2, h1, _) ← send a1
+  let (a3, h2, _) ← send a2
+  let (b1, _) ← receive (initReceiver sk bPub .tacenta) h0 dhAB dhSendB bPub2
+  let (_, r0, _) ← send b1
+  let (a4, _) ← receive a3 r0 (mockDh aPub bPub2) (mockDh aPub2 bPub2) aPub2
+  let (_, h3, _) ← send a4
+  pure { h0, h1, h2, r0, h3 }
+
+/-- A state that `runRatchet` reaches, or the generator's refusal. -/
+def reachRatchet (what : String) (start : RatchetStart) (steps : List RatchetStep) :
+    Except String State :=
+  match runRatchet start.state steps with
+  | some st => .ok st
+  | none => .error ("genvectors: the model refuses the steps to " ++ what)
+
+@[never_extract]
+def ratchetStateFile (_ : Unit) : Except String String := do
+  let some s := ratchetScript
+    | throw "genvectors: the model refuses the classical ratchet's script"
+  let first := RatchetStep.receive s.h0 dhAB dhSendB bPub2
+  let thirdFirst := RatchetStep.receive s.h2 dhAB dhSendB bPub2
+  let same (h : Header) := RatchetStep.receive h zero zero zero
+  let replied := RatchetStep.receive s.r0 (mockDh aPub bPub2) (mockDh aPub2 bPub2) aPub2
+  let secondChain := RatchetStep.receive s.h3 (mockDh bPub2 aPub2) (mockDh bPub3 aPub2) bPub3
+  let answered ← reachRatchet "a responder's first receive" .responder [first]
+  let withStore ← reachRatchet "a responder's stored keys" .responder [thirdFirst]
+  let fresh := RatchetStart.responder.state
+  let e0 := withStore.skipped.getD 0 (zero, 0, 0, zero)
+  let clockStart : State :=
+    { withStore with events := u32Max - 2,
+                     skipped := withStore.skipped.map fun e => (e.1, e.2.1, u32Max - 2, e.2.2.2) }
+  let clockStop : State :=
+    { withStore with events := u32Max - 1,
+                     skipped := withStore.skipped.map fun e => (e.1, e.2.1, u32Max - 1, e.2.2.2) }
+  let ops ← [
+    ratchetOps "fresh-initiator"
+      "init_sender: a sending chain and the peer's ratchet key, nothing stored" .initiator [],
+    ratchetOps "fresh-responder"
+      "init_receiver: no chain and no peer ratchet key" .responder [],
+    ratchetOps "initiator-after-three-sends"
+      "three sends on the first chain: ns is 3" .initiator [.send, .send, .send],
+    ratchetOps "responder-after-a-receive"
+      "the first receive takes the Diffie-Hellman step: both chains, the peer's key, one event" .responder [first],
+    ratchetOps "responder-stores-skipped-keys"
+      "the third message first: keys 0 and 1 stored under the peer's key at stored_at 0" .responder [thirdFirst],
+    ratchetOps "responder-uses-a-stored-key"
+      "then the first message, from the store: key 1 is left and events is 2" .responder [thirdFirst, same s.h0],
+    ratchetOps "initiator-after-a-reply"
+      "three sends, the reply taken with a Diffie-Hellman step, and a send on the new chain: pn is 3" .initiator
+      [.send, .send, .send, replied, .send],
+    ratchetOps "responder-stores-across-a-step"
+      "the first message, a reply, then the initiator's second chain with pn 3: keys 1 and 2 of the old chain are stored at the step, and key 1 is then used" .responder
+      [first, .send, secondChain, same s.h1],
+    ratchetOps "clock-reaches-its-stop"
+      "from events u32::MAX - 2, a receive from the store: events reaches u32::MAX - 1 and the other key, stored at u32::MAX - 2, is kept"
+      (.stored clockStart) [same s.h0],
+    ratchetOps "send-counter-reaches-u32-max"
+      "from ns u32::MAX - 1, a send: ns is u32::MAX, which no rule constrains"
+      (.stored { RatchetStart.initiator.state with ns := u32Max - 1 }) [.send],
+    ratchetOps "receive-counter-reaches-u32-max"
+      "from nr u32::MAX - 1, the message numbered u32::MAX - 1: nr is u32::MAX"
+      (.stored { answered with nr := u32Max - 1 })
+      [same { dh := aPub, pn := 0, n := u32Max - 1 }],
+    ratchetOps "clock-stays-at-its-stop"
+      "from events u32::MAX - 1, the clock's stop, a receive from the store: events stays u32::MAX - 1, and the other key, stored at u32::MAX - 1, is kept"
+      (.stored clockStop) [same s.h0],
+    ratchetOps "clock-stays-at-its-stop-on-the-chain"
+      "from events u32::MAX - 1, the next message on the chain: events stays u32::MAX - 1"
+      (.stored { answered with events := u32Max - 1 }) [same s.h1]
+  ].mapM id
+  let refusals ← [
+    ratchetRefused "send-at-u32-max-refused"
+      "from ns u32::MAX, a send: refused as counter exhaustion (ChainExhausted), since message number u32::MAX is never used"
+      (.stored { RatchetStart.initiator.state with ns := u32Max }) [] .send
+      (fun st => st.cks.isSome && st.ns == u32Max),
+    ratchetRefused "receive-at-nr-u32-max-refused"
+      "from nr u32::MAX, the message numbered u32::MAX on the same chain: refused as counter exhaustion (ChainExhausted)"
+      (.stored { answered with nr := u32Max }) [] (same { dh := aPub, pn := 0, n := u32Max })
+      (fun st => st.ckr.isSome && st.nr == u32Max)
+  ].mapM id
+  let respBytes := Model.PersistedState.RatchetState.toBytes answered
+  let freshBytes := Model.PersistedState.RatchetState.toBytes fresh
+  let storeBytes := Model.PersistedState.RatchetState.toBytes withStore
+  let enc (st : State) := Model.PersistedState.RatchetState.toBytes st
+  let withEntry0 (e : Key × Nat × Nat × Key) : State :=
+    { withStore with skipped := e :: withStore.skipped.drop 1 }
+  let bytesVectors ← [
+    ratchetStored "every-key-the-largest-canonical"
+      "p - 1, the largest canonical key, as dhs_pub, dhr_pub and each stored key's dh: accepted"
+      (enc { withStore with dhsPub := pMinusOne, dhrPub := some pMinusOne,
+                            skipped := withStore.skipped.map fun e => (pMinusOne, e.2) }) none,
+    ratchetStored "counters-with-no-chains"
+      "ns 5, nr 7 and pn 3 with no chain: no rule constrains them (ADR-0007)"
+      (enc { fresh with ns := 5, nr := 7, pn := 3 }) none,
+    ratchetStored "stored-at-equal-to-events"
+      "a stored key's stored_at equal to events: accepted" (enc { withStore with events := 0 }) none,
+    ratchetStored "stored-keys-in-any-order"
+      "stored keys out of the order they were stored, and one with the same n under another ratchet key: accepted, in the order read"
+      (enc { withStore with skipped := withStore.skipped.reverse ++ [(bPub3, 1, 0, fill 0x5c)] }) none,
+    ratchetStored "empty" "no bytes" [] (some .shortOrMalformed),
+    ratchetStored "version-zero" "a first byte of 0x00" (replaceAt respBytes 0 0x00) (some .wrongVersion),
+    ratchetStored "version-two" "a first byte of 0x02" (replaceAt respBytes 0 0x02) (some .wrongVersion),
+    ratchetStored "shorter-than-the-fixed-fields" "184 bytes of a fresh responder's 185"
+      (freshBytes.take 184) (some .shortOrMalformed),
+    ratchetStored "dhr-presence-tag-two" "dhr_pub_present 0x02" (replaceAt respBytes 33 0x02) (some .shortOrMalformed),
+    ratchetStored "cks-presence-tag-two" "cks_present 0x02" (replaceAt respBytes 98 0x02) (some .shortOrMalformed),
+    ratchetStored "ckr-presence-tag-ff" "ckr_present 0xff" (replaceAt respBytes 131 0xff) (some .shortOrMalformed),
+    ratchetStored "absent-dhr-not-zeroed" "dhr_pub absent, its last byte 0x01" (replaceAt freshBytes 65 0x01) (some .shortOrMalformed),
+    ratchetStored "absent-cks-not-zeroed" "cks absent, its first byte 0x01" (replaceAt freshBytes 99 0x01) (some .shortOrMalformed),
+    ratchetStored "absent-ckr-not-zeroed" "ckr absent, a byte inside it 0x80" (replaceAt freshBytes 150 0x80) (some .shortOrMalformed),
+    ratchetStored "labels-tag-one" "a labels tag that names no variant" (replaceAt respBytes 180 0x01) (some .shortOrMalformed),
+    ratchetStored "count-beyond-the-buffer" "skipped_count 3 with two entries" (replaceAt storeBytes 184 0x03) (some .shortOrMalformed),
+    ratchetStored "count-short-of-the-buffer" "skipped_count 1 with two entries: bytes after the last" (replaceAt storeBytes 184 0x01) (some .shortOrMalformed),
+    ratchetStored "trailing-byte" "one byte after the last stored key" (storeBytes ++ [0x00]) (some .shortOrMalformed),
+    ratchetStored "entry-cut-short" "the last stored key one byte short" (storeBytes.take (storeBytes.length - 1)) (some .shortOrMalformed),
+    ratchetStored "store-over-its-bound" "2001 stored keys: the store holds at most MAX_SKIPPED_STORE (2000)"
+      (enc { withStore with skipped := (List.range 2001).map fun i => (aPub, i, 0, fill 0x5c) }) (some .shortOrMalformed),
+    ratchetStored "clock-at-u32-max" "events u32::MAX: the clock is below it"
+      (enc { answered with events := u32Max }) (some .shortOrMalformed),
+    ratchetStored "stored-after-the-clock" "a stored key's stored_at one past events"
+      (enc (withEntry0 (e0.1, e0.2.1, 2, e0.2.2.2))) (some .shortOrMalformed),
+    ratchetStored "two-keys-one-pair" "two stored keys under one ratchet key and message number"
+      (enc { withStore with skipped := [e0, (e0.1, e0.2.1, e0.2.2.1, fill 0x5c)] }) (some .shortOrMalformed),
+    ratchetStored "receiving-chain-without-a-sending-chain" "ckr present and cks absent"
+      (enc { answered with cks := none }) (some .shortOrMalformed),
+    ratchetStored "receiving-chain-without-a-peer-key" "ckr present and dhr_pub absent"
+      (enc { answered with dhrPub := none }) (some .shortOrMalformed),
+    ratchetStored "dhs-pub-with-bit-255-set" "dhs_pub with bit 255 set: the same key to X25519"
+      (enc { answered with dhsPub := withBit255 answered.dhsPub }) (some .shortOrMalformed),
+    ratchetStored "dhs-pub-plus-p" "dhs_pub the key 9 spelled as 9 + p"
+      (enc { answered with dhsPub := plusP nine }) (some .shortOrMalformed),
+    ratchetStored "dhs-pub-equal-to-p" "dhs_pub exactly p, the key 0 to X25519"
+      (enc { answered with dhsPub := pItself }) (some .shortOrMalformed),
+    ratchetStored "dhr-pub-with-bit-255-set" "dhr_pub with bit 255 set"
+      (enc { answered with dhrPub := answered.dhrPub.map withBit255 }) (some .shortOrMalformed),
+    ratchetStored "dhr-pub-plus-p" "dhr_pub the key 9 spelled as 9 + p"
+      (enc { answered with dhrPub := some (plusP nine) }) (some .shortOrMalformed),
+    ratchetStored "dhr-pub-equal-to-p" "dhr_pub exactly p"
+      (enc { answered with dhrPub := some pItself }) (some .shortOrMalformed),
+    ratchetStored "stored-dh-with-bit-255-set" "a stored key's dh with bit 255 set"
+      (enc (withEntry0 (withBit255 e0.1, e0.2))) (some .shortOrMalformed),
+    ratchetStored "stored-dh-plus-p" "a stored key's dh the key 9 spelled as 9 + p"
+      (enc (withEntry0 (plusP nine, e0.2))) (some .shortOrMalformed),
+    ratchetStored "stored-dh-equal-to-p" "a stored key's dh exactly p"
+      (enc (withEntry0 (pItself, e0.2))) (some .shortOrMalformed)
+  ].mapM id
+  pure ("{\n" ++
+    "  \"schema_version\": 1,\n" ++
+    "  \"algorithm\": \"ratchet-state\",\n" ++
+    "  \"source\": \"generated by tacenta-model Vectors.lean (lake exe genvectors ratchet-state), from Model.PersistedState.RatchetState and Model.Ratchet; Diffie-Hellman outputs are the generator's symmetric stand-in, not X25519, and the generator writes no vector whose result the model does not give\",\n" ++
+    "  \"vectors\": [\n" ++
+    String.intercalate ",\n" (ops.flatten ++ refusals ++ bytesVectors) ++
+    "\n  ]\n}")
+
+/-! #### The sparse ratchet's state -/
+
+/-- One operation on a sparse ratchet state. -/
+inductive SparseStep where
+  | send (epoch : Nat) (out : Option Model.SparseRatchet.Output)
+  | receive (epoch : Nat) (out : Option Model.SparseRatchet.Output) (n : Nat)
+
+/-- `output_present(1) || output_epoch(8) || output_key(32)`, zeroed when
+    absent. -/
+def sparseOutputBytes : Option Model.SparseRatchet.Output → List UInt8
+  | none => List.replicate 41 0
+  | some o => [0x01] ++ beN 8 o.keyEpoch ++ o.key
+
+/-- `op(1) || epoch(8) || output`, `op` `00` for a send and `01` for a
+    receive, which is followed by the message number `n(8)`. -/
+def SparseStep.bytes : SparseStep → List UInt8
+  | .send e o => [0x00] ++ beN 8 e ++ sparseOutputBytes o
+  | .receive e o n => [0x01] ++ beN 8 e ++ sparseOutputBytes o ++ beN 8 n
+
+def runSparse (st : Model.SparseRatchet.State) : List SparseStep → Option Model.SparseRatchet.State
+  | [] => some st
+  | .send e o :: rest =>
+    match Model.SparseRatchet.send st e o with
+    | some (st', _, _) => runSparse st' rest
+    | none => none
+  | .receive e o n :: rest =>
+    match Model.SparseRatchet.receive st e o n with
+    | some (st', _) => runSparse st' rest
+    | none => none
+
+inductive SparseStart where
+  | alice
+  | bob
+  | stored (st : Model.SparseRatchet.State)
+
+def SparseStart.state : SparseStart → Model.SparseRatchet.State
+  | .alice => Model.SparseRatchet.initAlice sk
+  | .bob => Model.SparseRatchet.initBob sk
+  | .stored st => st
+
+def SparseStart.inputs : SparseStart → List (String × List UInt8)
+  | .alice => [("direction", [0x00]), ("sk", sk)]
+  | .bob => [("direction", [0x01]), ("sk", sk)]
+  | .stored st => [("start", Model.PersistedState.SparseState.toBytes st)]
+
+/-- The fields an accepted sparse ratchet state holds: `chains` and `skipped`
+    are their entries laid out back to back. -/
+def sparseFields (st : Model.SparseRatchet.State) : List (String × List UInt8) :=
+  [("rk", st.rk), ("epoch", beN 8 st.epoch),
+   ("direction", [Model.PersistedState.SparseState.directionByte st.direction]),
+   ("chains", (st.chains.map Model.PersistedState.SparseState.chainsEntryBytes).flatten),
+   ("skipped", (st.skipped.map Model.PersistedState.SparseState.skippedBytes).flatten)]
+
+@[never_extract]
+def sparseStored (id comment : String) (bs : List UInt8)
+    (expect : Option Model.PersistedState.Refusal) : Except String String :=
+  storedStateVector Model.PersistedState.SparseState.ofBytes sparseFields id comment bs expect
+
+def sparseReadsBack (st : Model.SparseRatchet.State) : Bool :=
+  Model.PersistedState.readsBackTo
+    (Model.PersistedState.SparseState.ofBytes (Model.PersistedState.SparseState.toBytes st)) st
+
+@[never_extract]
+def sparseOps (id comment : String) (start : SparseStart) (steps : List SparseStep) :
+    Except String (List String) :=
+  let startOk := match start with
+    | .stored st => sparseReadsBack st
+    | _ => true
+  match runSparse start.state steps with
+  | none => .error ("genvectors: " ++ id ++ ": the model refuses an operation the vector lists")
+  | some st =>
+    if startOk && sparseReadsBack st then do
+      let bs := Model.PersistedState.SparseState.toBytes st
+      let back ← sparseStored (id ++ "-read-back") ("the stored bytes of " ++ id ++ ", read back") bs none
+      pure [answerVector id comment
+        (start.inputs ++ [("steps", (steps.map SparseStep.bytes).flatten)]) (some bs), back]
+    else .error ("genvectors: " ++ id ++ ": a stored state does not read back to itself")
+
+/-- Operations whose last step the model refuses at a counter's ceiling, as
+    `ratchetRefused` writes them for the classical ratchet. -/
+@[never_extract]
+def sparseRefused (id comment : String) (start : SparseStart) (steps : List SparseStep)
+    (last : SparseStep) (atCeiling : Model.SparseRatchet.State → Bool) : Except String String :=
+  let startOk := match start with
+    | .stored st => sparseReadsBack st
+    | _ => true
+  match runSparse start.state steps with
+  | none => .error ("genvectors: " ++ id ++ ": the model refuses a step before the last")
+  | some st =>
+    if !startOk then
+      .error ("genvectors: " ++ id ++ ": a stored state does not read back to itself")
+    else if (runSparse st [last]).isSome then
+      .error ("genvectors: " ++ id ++ ": the model takes the step the vector refuses")
+    else if !atCeiling st then
+      .error ("genvectors: " ++ id ++ ": the refused step is not at a counter's ceiling")
+    else
+      .ok (refusedOpsVector id comment
+        (start.inputs ++ [("steps", ((steps ++ [last]).map SparseStep.bytes).flatten)]))
+
+def reachSparse (what : String) (start : SparseStart) (steps : List SparseStep) :
+    Except String Model.SparseRatchet.State :=
+  match runSparse start.state steps with
+  | some st => .ok st
+  | none => .error ("genvectors: the model refuses the steps to " ++ what)
+
+@[never_extract]
+def sparseRatchetStateFile (_ : Unit) : Except String String := do
+  let out (e : Nat) (b : UInt8) : Option Model.SparseRatchet.Output := some { keyEpoch := e, key := fill b }
+  let alice := SparseStart.alice.state
+  let bob := SparseStart.bob.state
+  let cs := (alice.chains.getD 0 (0, default)).2
+  let bobCs := (bob.chains.getD 0 (0, default)).2
+  let withChain (st : Model.SparseRatchet.State) (f : Model.SparseRatchet.Chain → Model.SparseRatchet.Chain)
+      (sendSide : Bool) : Model.SparseRatchet.State :=
+    { st with chains := st.chains.map fun p =>
+        (p.1, if sendSide then { p.2 with send := p.2.send.map f } else { p.2 with receive := p.2.receive.map f }) }
+  let bobStore ← reachSparse "Bob's stored keys" .bob [.receive 0 none 3]
+  let ops ← [
+    sparseOps "fresh-alice" "init with direction A2b: epoch 0's two chains, nothing stored" .alice [],
+    sparseOps "fresh-bob" "init with direction B2a: the same chain keys, assigned the other way" .bob [],
+    sparseOps "alice-after-two-sends" "two sends on epoch 0: its sending chain's n is 2" .alice
+      [.send 0 none, .send 0 none],
+    sparseOps "bob-stores-skipped-keys" "message 3 first: keys 1 and 2 of epoch 0 stored" .bob [.receive 0 none 3],
+    sparseOps "bob-uses-a-stored-key" "then message 1, from the store" .bob [.receive 0 none 3, .receive 0 none 1],
+    sparseOps "alice-opens-an-epoch"
+      "a send carrying epoch 1's secret, on epoch 0: both epochs' chains, epoch 0's entry rewritten last" .alice
+      [.send 0 (out 1 0xa1)],
+    sparseOps "bob-follows-into-the-epoch" "that message received, then a send on epoch 1" .bob
+      [.receive 0 (out 1 0xa1) 1, .send 1 none],
+    sparseOps "bob-retires-an-epoch-with-its-keys"
+      "keys 1 and 2 of epoch 0 stored, then epochs 1 and 2 opened: epoch 0's chains and keys are retired" .bob
+      [.receive 0 none 3, .receive 0 (out 1 0xa1) 4, .receive 1 (out 2 0xa2) 1],
+    sparseOps "epoch-reaches-one-below-the-ceiling"
+      "from epoch u64::MAX - 2, a receive carrying epoch u64::MAX - 1's secret: the window's sum saturates, and epochs u64::MAX - 2 and u64::MAX - 1 are kept"
+      (.stored { bob with epoch := u64Max - 2, chains := [(u64Max - 3, bobCs), (u64Max - 2, bobCs)] })
+      [.receive (u64Max - 2) (out (u64Max - 1) 0xa3) 1],
+    sparseOps "send-counter-reaches-u64-max" "from a sending chain at n u64::MAX - 1, a send: message number u64::MAX is usable"
+      (.stored (withChain alice (fun c => { c with n := u64Max - 1 }) true)) [.send 0 none],
+    sparseOps "receive-counter-reaches-u64-max" "from a receiving chain at n u64::MAX - 1, message u64::MAX"
+      (.stored (withChain bob (fun c => { c with n := u64Max - 1 }) false)) [.receive 0 none u64Max]
+  ].mapM id
+  let counterAt (st : Model.SparseRatchet.State) (e : Nat) (sendSide : Bool) : Option Nat :=
+    (Model.SparseRatchet.findChains st e).bind fun c =>
+      (if sendSide then c.send else c.receive).map (·.n)
+  let refusals ← [
+    sparseRefused "advance-onto-u64-max-refused"
+      "from epoch u64::MAX - 1, a receive carrying epoch u64::MAX's secret: refused as counter exhaustion (ChainExhausted), since epoch u64::MAX is reserved"
+      (.stored { bob with epoch := u64Max - 1, chains := [(u64Max - 2, bobCs), (u64Max - 1, bobCs)] })
+      [] (.receive (u64Max - 1) (out u64Max 0xa4) 1) (fun st => st.epoch + 1 == u64Max),
+    sparseRefused "send-past-u64-max-refused"
+      "from a sending chain at n u64::MAX, a send: refused as counter exhaustion (ChainExhausted)"
+      (.stored (withChain alice (fun c => { c with n := u64Max }) true)) [] (.send 0 none)
+      (fun st => counterAt st 0 true == some u64Max),
+    sparseRefused "receive-past-u64-max-refused"
+      "from a receiving chain at n u64::MAX, message u64::MAX: refused as counter exhaustion (ChainExhausted)"
+      (.stored (withChain bob (fun c => { c with n := u64Max }) false)) [] (.receive 0 none u64Max)
+      (fun st => counterAt st 0 false == some u64Max)
+  ].mapM id
+  let enc (st : Model.SparseRatchet.State) := Model.PersistedState.SparseState.toBytes st
+  let aliceBytes := enc alice
+  let storeBytes := enc bobStore
+  let absentSend : Model.SparseRatchet.State :=
+    { alice with chains := [(0, { cs with send := none })] }
+  let absentBytes := enc absentSend
+  let key (b : UInt8) := fill b
+  let bytesVectors ← [
+    sparseStored "absent-chain-accepted" "a chain whose presence byte is 0x00, zeroed: accepted, though no operation produces one"
+      absentBytes none,
+    sparseStored "stored-key-numbered-zero" "a stored key numbered 0: no rule relates a key's number to its chain (ADR-0007)"
+      (enc { bobStore with skipped := [(0, 0, key 0x5c)] }) none,
+    sparseStored "stored-key-past-its-counter" "a stored key numbered 9 on a receiving chain at 3: accepted (ADR-0007)"
+      (enc { bobStore with skipped := [(0, 9, key 0x5c)] }) none,
+    sparseStored "stored-keys-in-any-order" "stored keys newest first: accepted, in the order read"
+      (enc { bobStore with skipped := bobStore.skipped.reverse }) none,
+    sparseStored "empty" "no bytes" [] (some .shortOrMalformed),
+    sparseStored "version-zero" "a first byte of 0x00" (replaceAt aliceBytes 0 0x00) (some .wrongVersion),
+    sparseStored "version-two" "a first byte of 0x02" (replaceAt aliceBytes 0 0x02) (some .wrongVersion),
+    sparseStored "shorter-than-the-prefix" "45 bytes: the version, rk, epoch and direction, and three bytes of chains_count"
+      (aliceBytes.take 45) (some .shortOrMalformed),
+    sparseStored "direction-tag-two" "a direction tag of 0x02" (replaceAt aliceBytes 41 0x02) (some .shortOrMalformed),
+    sparseStored "send-presence-tag-two" "a send chain presence byte of 0x02" (replaceAt aliceBytes 54 0x02) (some .shortOrMalformed),
+    sparseStored "receive-presence-tag-ff" "a receive chain presence byte of 0xff" (replaceAt aliceBytes 95 0xff) (some .shortOrMalformed),
+    sparseStored "absent-chain-ck-not-zeroed" "an absent chain whose ck has a byte 0x01" (replaceAt absentBytes 55 0x01) (some .shortOrMalformed),
+    sparseStored "absent-chain-n-not-zeroed" "an absent chain whose n is 1" (replaceAt absentBytes 94 0x01) (some .shortOrMalformed),
+    sparseStored "chains-count-beyond-the-buffer" "chains_count 2 with one entry" (replaceAt aliceBytes 45 0x02) (some .shortOrMalformed),
+    sparseStored "skipped-count-beyond-the-buffer" "skipped_count 3 with two entries"
+      (replaceAt storeBytes 139 0x03) (some .shortOrMalformed),
+    sparseStored "no-skipped-count" "the bytes end after the chains" (aliceBytes.take 136) (some .shortOrMalformed),
+    sparseStored "trailing-byte" "one byte after the last stored key" (storeBytes ++ [0x00]) (some .shortOrMalformed),
+    sparseStored "store-over-its-bound" "2001 stored keys: the store holds at most MAX_SKIPPED_STORE (2000)"
+      (enc { bobStore with skipped := (List.range 2001).map fun i => (0, i + 1, key 0x5c) }) (some .shortOrMalformed),
+    sparseStored "chains-epoch-after-the-current" "an entry for epoch 1 at epoch 0"
+      (enc { alice with chains := [(0, cs), (1, cs)] }) (some .shortOrMalformed),
+    sparseStored "chains-epoch-outside-the-window" "an entry for epoch 0 at epoch 2: 2 is not below 0 + EPOCHS_KEPT"
+      (enc { alice with epoch := 2, chains := [(0, cs), (2, cs)] }) (some .shortOrMalformed),
+    sparseStored "two-entries-one-epoch" "two entries for epoch 0"
+      (enc { alice with chains := [(0, cs), (0, cs)] }) (some .shortOrMalformed),
+    sparseStored "current-epoch-without-an-entry" "epoch 1 with an entry for epoch 0 only"
+      (enc { alice with epoch := 1 }) (some .shortOrMalformed),
+    sparseStored "stored-key-epoch-without-an-entry" "a stored key under epoch 1 with an entry for epoch 0 only"
+      (enc { bobStore with skipped := [(1, 1, key 0x5c)] }) (some .shortOrMalformed),
+    sparseStored "two-stored-keys-one-pair" "two stored keys for epoch 0, message 1"
+      (enc { bobStore with skipped := [(0, 1, key 0x5c), (0, 1, key 0x5d)] }) (some .shortOrMalformed),
+    sparseStored "epoch-at-the-ceiling" "epoch u64::MAX with its own entry: u64::MAX is not below the saturated u64::MAX + EPOCHS_KEPT"
+      (enc { alice with epoch := u64Max, chains := [(u64Max, cs)] }) (some .shortOrMalformed)
+  ].mapM id
+  pure ("{\n" ++
+    "  \"schema_version\": 1,\n" ++
+    "  \"algorithm\": \"sparse-ratchet-state\",\n" ++
+    "  \"source\": \"generated by tacenta-model Vectors.lean (lake exe genvectors sparse-ratchet-state), from Model.PersistedState.SparseState and Model.SparseRatchet; the agreement's outputs are fixed byte strings, and the generator writes no vector whose result the model does not give\",\n" ++
+    "  \"vectors\": [\n" ++
+    String.intercalate ",\n" (ops.flatten ++ refusals ++ bytesVectors) ++
+    "\n  ]\n}")
+
 /-! ### The bounded protobuf profile (`Model.Protobuf`) -/
 
 def pbLd (field : Nat) (v : List UInt8) : List UInt8 :=
@@ -1340,6 +1870,10 @@ def main (args : List String) : IO Unit :=
     IO.println (Vectors.erasureEncoderFile ())
   else if args.contains "erasure-decoder-state" then
     IO.println (Vectors.erasureDecoderFile ())
+  else if args.contains "ratchet-state" then
+    Vectors.printOrFail (Vectors.ratchetStateFile ())
+  else if args.contains "sparse-ratchet-state" then
+    Vectors.printOrFail (Vectors.sparseRatchetStateFile ())
   else if args.contains "protobuf-ratchet-body" then
     IO.println (Vectors.ratchetBodyFile ())
   else if args.contains "protobuf-prekey-envelope" then

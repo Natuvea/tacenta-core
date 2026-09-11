@@ -36,7 +36,7 @@
           "result": {
             "enum": ["valid", "invalid"],
             "default": "valid",
-            "description": "Whether the operation is expected to succeed. A valid vector carries output or fields. An invalid vector carries neither, and its input must be refused (in the three decoder files under vectors/malformed-input/, as a decode failure), with one exception: in vectors/post-quantum/erasure-decode.json, invalid means that the decoder, offered the listed codewords, holds no value, which is not a refusal (tacenta-test-vectors/README.md, Vector layouts)."
+            "description": "Whether the operation is expected to succeed. A valid vector carries output or fields. An invalid vector carries neither, and its input must be refused (in the three decoder files under vectors/malformed-input/, as a decode failure; in the persisted-state files, with the refusal it names), with one exception: in vectors/post-quantum/erasure-decode.json, invalid means that the decoder, offered the listed codewords, holds no value, which is not a refusal (tacenta-test-vectors/README.md, Vector layouts)."
           },
           "inputs": {
             "type": "object",
@@ -50,6 +50,10 @@
             "type": "string",
             "pattern": "^[0-9a-f]*$",
             "description": "Expected output for a valid vector, lowercase hex. For the files tacenta-test-vectors/README.md, Vector layouts, describes, that section says what the output is."
+          },
+          "refusal": {
+            "enum": ["wrong-version", "short-or-malformed", "counter-exhaustion"],
+            "description": "Carried only by an invalid vector, in vectors/persistence/ratchet-state.json and sparse-ratchet-state.json, where every invalid vector carries one. For stored bytes offered to a reader: which of the two refusals tacenta-spec/protocol/session-persistence.md, Rejection, names the reader gives the input. wrong-version is an unrecognised version; short-or-malformed is everything else a leaf reader refuses, a state its semantic rules exclude included. For operations whose last step is refused: counter-exhaustion, the refusal ratchet.md (Sending and receiving) and sparse-pq-ratchet.md (Sending, Receiving) give a step past a counter's ceiling (ChainExhausted)."
           },
           "fields": {
             "type": "object",

@@ -405,14 +405,12 @@ theorem message_keys_refines (h : HkdfAgrees) (hz : ZeroizingRoundTrips80)
 
 /-! ## Sending refines the model's send
 
-The two disagree in one place, and it is worth naming rather than hiding. The
-model counts messages in `Nat` and so can always send; the Rust counts in `u32`
-and reports `ChainExhausted` when the counter would wrap. That case has no
-model counterpart, so the statement below relates the two where they can be
-related: a successful send agrees with the model, and the "no sending chain"
-refusal agrees with the model's `none`. The exhaustion case is the finite-width
-boundary showing through, not a defect, and it is left out of the correspondence
-deliberately. -/
+Both refuse a send at `ns = u32::MAX` (ratchet.md, Sending and receiving): the
+Rust reports `ChainExhausted`, and the model returns `none`. The statement below
+relates a successful send to the model's, and the "no sending chain" refusal to
+the model's `none`. It does not state that `ChainExhausted` is the model's
+`none` too, though that now holds; the correspondence is left at the two
+clauses the Triple Ratchet's bundle composes. -/
 
 theorem send_refines (h : HmacAgrees) (s : State) (m : Model.State.State)
     (hR : StateR s m) :
@@ -433,6 +431,11 @@ theorem send_refines (h : HmacAgrees) (s : State) (m : Model.State.State)
       have hm : m.cks = some (keyOf ck) := by rw [← hcks, hc]; simp
       have hspec := U32.checked_add_bv_spec s.ns 1#u32
       rw [hadd] at hspec
+      -- The counter had room, so the model's ceiling does not refuse either.
+      have hmns : m.ns < Model.State.u32Max := by
+        rw [Model.State.u32Max_eq]
+        simp only at hspec
+        scalar_tac
       simp_all [Model.Ratchet.send, Model.State.kdfCk]
       exact ⟨⟨hdhs, hdhr, hrk, by simp_all, hckr, by simp_all, hnr, hpn, hskip,
               hev, by simp_all⟩,
@@ -961,17 +964,16 @@ theorem age_store_loop_refines (hrm : Tacenta.T1.VecRemoveTotal)
   · simpa using hinv
 
 /-- Ageing the store refines the model's, given the counter has room for the
-step. The bound is the finite-width boundary, and the core now stops one short
-of it: the saturating step is clamped to `MAX_EVENTS`, one below `u32::MAX`, so
-that a state the crate exports still satisfies its own `invariant`'s
-`events < u32::MAX` rather than being refused by its own decoder forever. The
-model counts in the naturals and neither saturates nor clamps, so the two part
-company at the clamp and not only at the ceiling: from `events = MAX_EVENTS` the
-core's clock stands still while the model's moves on. The precondition therefore
-asks room for the increment -- `events + 1 < U32.max`, which is
-`events < MAX_EVENTS` -- and not merely for the value, and that is exactly the
-region where the two agree. Below it the clamp never fires and `now` is the
-saturating step itself. -/
+step. The core stops one short of the `u32` ceiling: the saturating step is
+clamped to `MAX_EVENTS`, one below `u32::MAX`, so that a state the crate exports
+still satisfies its own `invariant`'s `events < u32::MAX` rather than being
+refused by its own decoder forever. The model's clock stops at the same value
+(`Model.State.maxEvents`, ratchet.md, Skipped keys), so the two now agree at the
+stop as well. The precondition -- `events + 1 < U32.max`, which is
+`events < MAX_EVENTS` -- dates from when the model's clock did not stop and the
+two parted company there; it is no longer what the agreement needs, and is kept
+so the statement, and every theorem composed with it, is unchanged. Below it the
+clamp never fires and `now` is the saturating step itself. -/
 theorem age_store_refines (hrm : Tacenta.T1.VecRemoveTotal)
     (s : State) (m : Model.State.State) (hR : StateR s m)
     (hroom : s.events.val + 1 < U32.max) :
@@ -996,12 +998,17 @@ theorem age_store_refines (hrm : Tacenta.T1.VecRemoveTotal)
   simp only [bind_tc_ok, if_neg hne]
   have hl := age_store_loop_refines hrm (core.num.U32.saturating_add s.events 1#u32)
     _ s.skipped 0#usize rfl
+  -- Below the stop the model's clock is the step too.
+  have hmin : min (m.events + 1) Model.State.maxEvents = m.events + 1 := by
+    apply Nat.min_eq_left
+    rw [Model.State.maxEvents_eq]
+    scalar_tac
   step*
   refine ⟨hdhs, hdhr, hrk, hcks, hckr, hns, hnr, hpn, ?_, ?_, hlab⟩
-  · simp only [Model.State.ageStore]
+  · simp only [Model.State.ageStore, hmin]
     rw [← hskip]
     simp_all [keepFresh_eta]
-  · simpa [Model.State.ageStore] using hnow
+  · simpa [Model.State.ageStore, hmin] using hnow
 
 theorem skip_message_keys_refines (h : HmacAgrees)
     (hrm : Tacenta.T1.VecRemoveTotal) [DerivedKeysModel] (s : State)
@@ -1371,11 +1378,14 @@ theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.T1.VecRemoveTotal)
              match st2.ckr with
              | none => none
              | some ck =>
-               some (Model.State.ageStore
-                       { st2 with
-                         ckr := some (Model.State.kdfCk ck).fst,
-                         nr := st2.nr + 1 },
-                     (Model.State.kdfCk ck).snd))
+               if st2.nr < Model.State.u32Max then
+                 some (Model.State.ageStore
+                         { st2 with
+                           ckr := some (Model.State.kdfCk ck).fst,
+                           nr := st2.nr + 1 },
+                       (Model.State.kdfCk ck).snd)
+               else
+                 none)
           = some (m', keyOf mk)
         ∧ StateR r.2 m' ⦄ := by
   have hht : Tacenta.T1.HmacTotal := h.total
@@ -1406,6 +1416,10 @@ theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.T1.VecRemoveTotal)
       simp only at o2_post
       have hn2 := hSR2.nr
       omega
+    -- The counter had room on the Rust side, so the model's ceiling passes.
+    have hnrlt : m2.nr < Model.State.u32Max := by
+      rw [Model.State.u32Max_eq]
+      scalar_tac
     -- The state before ageing already refines; ageing is then a step both sides
     -- take, and the counter has room because nothing between has moved it.
     have hpre : StateR { state4 with ckr := some ck2, nr := next_nr }
@@ -1434,11 +1448,15 @@ theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.T1.VecRemoveTotal)
             match m2.ckr with
             | none => none
             | some ck' =>
-              let p := Model.State.kdfCk ck'
-              some (Model.State.ageStore
-                      { m2 with ckr := some p.1, nr := m2.nr + 1 }, p.2)) = _
+              if m2.nr < Model.State.u32Max then
+                let p := Model.State.kdfCk ck'
+                some (Model.State.ageStore
+                        { m2 with ckr := some p.1, nr := m2.nr + 1 }, p.2)
+              else
+                none) = _
       rw [if_neg hnlt]
       simp only [hmckr]
+      rw [if_pos hnrlt]
       rw [← ck2_post]
   · simp
 
@@ -1667,18 +1685,21 @@ travel in between the chain derivation and the store -- and the third for an
 operation Aeneas does not model.
 
 And the **finite-width boundary shows through** wherever the Rust counts in
-`u32` and the model in `Nat`. Sending can report `ChainExhausted` where the
-model simply continues; `receive` carries a store-size precondition, the store's
+`u32` and the model in `Nat`. The model now stops where the pages
+say -- both refuse a send at `ns = u32::MAX` and a receive past
+`nr = u32::MAX`, and both clocks stop at `MAX_EVENTS` -- though `send_refines`
+relates only the `NoSendingChain` refusal; `receive` carries a store-size precondition, the store's
 length plus `MAX_SKIP`, which holds at either platform width; and expiry means
-`receive` also requires the store's clock to have room for the step, because the
-core's counter stops and the model's does not. The stop is now one below the
+`receive` also requires the store's clock to have room for the step, a premise stated
+when the core's counter stopped and the model's did not; the model's now stops
+at the same value, and the premise is kept. The stop is now one below the
 ceiling rather than at it: `age_store` clamps the saturating step to
 `MAX_EVENTS`, so that a state the crate exports still satisfies its own
 `invariant`'s `events < u32::MAX` instead of being refused by its own decoder
 for the rest of the session. That clamp is why `hroom` reads
 `events + 1 < U32.max` and not `events < U32.max`: at `events = MAX_EVENTS` the
-two sides genuinely disagree, the core holding its clock still while the model's
-advances, and the refinement is stated where they agree. It also means the
+two sides disagreed, the core holding its clock still while the model's
+advanced, and the refinement is still stated below that value. It also means the
 crate's own `events < u32::MAX` is now *preserved* by `age_store` rather than
 merely assumed by it -- true of the state afterwards for any state at all --
 which is one clause of `invariant` that no longer has to be carried in by hand;
