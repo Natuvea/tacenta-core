@@ -5,6 +5,43 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-11
+
+The first citable revision. It contains everything recorded above that was under
+Unreleased until now.
+
+The specification is normative (ADR-0006):
+- the written pages and `CONSTANTS.md` define the protocol;
+- the model states them formally;
+- `tacenta-core` is one implementation of them.
+
+**Written:**
+- PQXDH session establishment;
+- the Double Ratchet, the Sparse Post-Quantum Ratchet and the Triple Ratchet;
+- the ML-KEM Braid and its erasure code;
+- the message format and its authenticated encryption;
+- the bounded protobuf profile;
+- session persistence;
+- key deletion;
+- error handling;
+- the identity key and application signatures.
+
+**Scaffolds, and so unspecified:** devices, group messaging, and the
+security-property pages, whose claims are in `tacenta-proofs/CLAIMS.md`.
+
+**How far the text is enough:** a reader written from this text and the
+vectors alone, with no access to the implementation, the model or the proofs,
+passes all 79 vectors and 145 refusal and boundary cases drawn from the pages'
+sentences (`tacenta-test-vectors/runners/independent`).
+
+What that reader could not build from the text is recorded in its `GAPS-2.md`:
+- chiefly the Braid's state machine, epoch key derivation and authenticator,
+  which still come from the published ML-KEM Braid document;
+- a set of smaller wording gaps.
+
+Closing those is the work for the next minor revision. This release closes the
+reader's G-01, "No citable spec revision".
+
 ### Added
 - The decoders now enforce two of `protocol/message-format.md`'s refusals at
   decode, in the model and in `tacenta-wire`: the initial-message decoder
