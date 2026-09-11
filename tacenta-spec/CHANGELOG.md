@@ -6,6 +6,30 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `protocol/message-format.md`:
+  - An "Authenticated encryption" section: AES-256-CBC with PKCS#7, then
+    `HMAC-SHA256(mac_key, AD || ciphertext)` with the full 32-byte tag
+    appended. The tag is checked before decryption, and every refusal is one
+    authentication failure.
+  - The initial-message decoder's refusals, including an `identity` or
+    `ephemeral` without the `EncodeEC` curve byte.
+  - A bundle's KEM prekey length other than the KEM's key length is a decode
+    failure.
+  - How identifier `0` is treated in each position.
+  - Rejection's restraint is about what a peer learns.
+- `protocol/mlkem-braid.md`: the KEM split and `ek_vector` validation, with where
+  they depart from the published document (the header hash's input order, and
+  the added modulus check); the
+  erasure code exactly (the GF(2^16) representation and reduction polynomial,
+  chunking, systematic codewords, encoder exhaustion, first-copy-wins
+  decoding); what a receive ignores; every transition to `Failed`; and, at the
+  epoch ceiling, the step onto `u64::MAX` is refused, and in `Ct2Sampled` at
+  `u64::MAX - 1` so is any received message.
+- `CONSTANTS.md`: the GF(2^16) reduction polynomial `0x1100B`. The
+  presence-byte row now says where an absent field keeps its full width.
+- `protocol/session-persistence.md`: the principle on the Braid's states now
+  says the tag identifies the state and callers cannot construct or inspect
+  one.
 - `protocol/ratchet.md`, `protocol/sparse-pq-ratchet.md`,
   `protocol/triple-ratchet.md`, `protocol/session-persistence.md`,
   `protocol/key-deletion.md`, `CONSTANTS.md`: the ratchet behaviour the pages
