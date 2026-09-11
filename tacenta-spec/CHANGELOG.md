@@ -173,6 +173,10 @@ is SemVer against the specified protocol (not the implementation).
   - `CONSTANTS.md`: rows for the application signature label and the
     `kem_pair` layout. `README.md`: the status paragraph names
     identities-and-devices.md as partly written.
+- `protocol/key-deletion.md`: the bound on `create_prekeys` at the end of the
+  identifier space. A count above `2^31 - 2` makes `2^31 - 2` one-time
+  prekeys of each kind and leaves `next_id` at `u32::MAX`. `u32::MAX` is never
+  issued, and no identifier wraps or repeats.
 
 ### Changed
 - `protocol/ratchet.md`, Sending and receiving: the classical ratchet now
