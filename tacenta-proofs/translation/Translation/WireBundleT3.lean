@@ -41,16 +41,18 @@ prekey's length, read at offset 128. -/
 def decodeBundleRest (rest : List UInt8) : Option Bundle :=
   if rest.length = 241 + be32At rest 128 then
     (decodeOptionalKey ((rest.drop (196 + be32At rest 128)).take 1)
-        ((rest.drop (197 + be32At rest 128)).take 32)).bind fun oneTimePrekey => some
-      { identityKey := rest.take 32
-        signedPrekey := (rest.drop 32).take 32
-        signedPrekeySig := (rest.drop 64).take 64
-        kemPrekey := (rest.drop 132).take (be32At rest 128)
-        kemPrekeySig := (rest.drop (132 + be32At rest 128)).take 64
-        oneTimePrekey
-        signedPrekeyId := UInt32.ofNat (be32At rest (229 + be32At rest 128))
-        oneTimeId := UInt32.ofNat (be32At rest (233 + be32At rest 128))
-        kemPrekeyId := UInt32.ofNat (be32At rest (237 + be32At rest 128)) }
+        ((rest.drop (197 + be32At rest 128)).take 32)).bind fun oneTimePrekey =>
+      if (canonicalKey (rest.take 32) && canonicalKey ((rest.drop 32).take 32)) = true then some
+        { identityKey := rest.take 32
+          signedPrekey := (rest.drop 32).take 32
+          signedPrekeySig := (rest.drop 64).take 64
+          kemPrekey := (rest.drop 132).take (be32At rest 128)
+          kemPrekeySig := (rest.drop (132 + be32At rest 128)).take 64
+          oneTimePrekey
+          signedPrekeyId := UInt32.ofNat (be32At rest (229 + be32At rest 128))
+          oneTimeId := UInt32.ofNat (be32At rest (233 + be32At rest 128))
+          kemPrekeyId := UInt32.ofNat (be32At rest (237 + be32At rest 128)) }
+      else none
   else none
 
 theorem take_one_drop (l : List UInt8) (n : Nat) (h : n < l.length) : (l.drop n).take 1 = [l[n]!] := by
@@ -68,7 +70,10 @@ theorem bundle_wrong_vt (v t : UInt8) (rest : List UInt8) (hvt : (v != version |
 
 theorem bundle_short_rest (v t : UInt8) (rest : List UInt8) (hvt : ¬(v != version || t != typeBundle) = true)
     (h : rest.length < 132) : decodeBundle (v :: t :: rest) = none := by
-  simp only [decodeBundle, hvt, if_false, Option.bind_eq_bind, Bool.false_eq_true]
+  -- The decoder's two key checks take its unfolding past `simp`'s default step
+  -- budget here; the same call with a larger budget, and nothing else changed.
+  simp (config := { maxSteps := 4000000 }) only
+    [decodeBundle, hvt, if_false, Option.bind_eq_bind, Bool.false_eq_true]
   by_cases h1 : rest.length < 32
   · rw [bind_take_none _ _ _ h1]
   rw [bind_take 32 rest _ (by omega)]
@@ -83,13 +88,23 @@ theorem bundle_short_rest (v t : UInt8) (rest : List UInt8) (hvt : ¬(v != versi
 theorem be32At_drop (l : List UInt8) (n k : Nat) : be32At (l.drop n) k = be32At l (n + k) := by
   simp only [be32At, getElem!_drop', Nat.add_assoc]
 
-/-- The three identifiers and the end of the input, stated once for abstract
-lists and an abstract one-time prekey decision. Stepping through them inside the
-decoder's own term, under the binder the one-time prekey introduces, leaves the
-kernel definitional unfolding to do on the byte sums; stated here, there is
-nothing to unfold, and the decoder's proof uses it as a first-order rewrite. -/
+/-- The identity key's and signed prekey's checks, bound in turn: what follows
+them exactly when both keys are canonical, and nothing otherwise. -/
+theorem bind_checkKeys {β : Type} (ik sp : List UInt8) (v : Option β) :
+    ((checkKey ik).bind fun _ => (checkKey sp).bind fun _ => v) =
+      if (canonicalKey ik && canonicalKey sp) = true then v else none := by
+  unfold checkKey
+  cases canonicalKey ik <;> cases canonicalKey sp <;> rfl
+
+/-- The three identifiers, the two key checks and the end of the input, stated
+once for abstract lists and an abstract one-time prekey decision. Stepping
+through them inside the decoder's own term, under the binder the one-time
+prekey introduces, leaves the kernel definitional unfolding to do on the byte
+sums; stated here, there is nothing to unfold, and the decoder's proof uses it
+as a first-order rewrite. -/
 theorem bundle_tail (x : Option (Option (List UInt8))) (r ik sp ss kp ks : List UInt8) :
     (x.bind fun a => (readBe32 r).bind fun b => (readBe32 b.2).bind fun c => (readBe32 c.2).bind fun d =>
+        (checkKey ik).bind fun _ => (checkKey sp).bind fun _ =>
         if d.2.isEmpty then
           pure ({ identityKey := ik
                   signedPrekey := sp
@@ -102,16 +117,18 @@ theorem bundle_tail (x : Option (Option (List UInt8))) (r ik sp ss kp ks : List 
                   kemPrekeyId := d.1 } : Bundle)
         else none)
       = if r.length = 12 then
-          x.bind fun a => some
-            { identityKey := ik
-              signedPrekey := sp
-              signedPrekeySig := ss
-              kemPrekey := kp
-              kemPrekeySig := ks
-              oneTimePrekey := a
-              signedPrekeyId := UInt32.ofNat (be32At r 0)
-              oneTimeId := UInt32.ofNat (be32At r 4)
-              kemPrekeyId := UInt32.ofNat (be32At r 8) }
+          x.bind fun a =>
+            if (canonicalKey ik && canonicalKey sp) = true then some
+              { identityKey := ik
+                signedPrekey := sp
+                signedPrekeySig := ss
+                kemPrekey := kp
+                kemPrekeySig := ks
+                oneTimePrekey := a
+                signedPrekeyId := UInt32.ofNat (be32At r 0)
+                oneTimeId := UInt32.ofNat (be32At r 4)
+                kemPrekeyId := UInt32.ofNat (be32At r 8) }
+            else none
         else none := by
   cases x with
   | none => simp only [Option.bind_none, ite_self]
@@ -127,9 +144,10 @@ theorem bundle_tail (x : Option (Option (List UInt8))) (r ik sp ss kp ks : List 
     · rw [bind_readBe32_none _ _ (by simp; omega), if_neg (by omega)]
     rw [bind_readBe32 _ _ (by simp; omega)]
     simp only [List.drop_drop, be32At_drop, pure, Nat.reduceAdd, Nat.add_zero]
+    rw [bind_checkKeys]
     by_cases h4 : r.length = 12
-    · rw [if_pos (by simp; omega), if_pos h4]
-    · rw [if_neg (by simp; omega), if_neg h4]
+    · rw [if_pos (show (List.drop 12 r).isEmpty = true by simp; omega), if_pos h4]
+    · rw [if_neg (show ¬(List.drop 12 r).isEmpty = true by simp; omega), if_neg h4, ite_self]
 
 /-- Binding the KEM prekey length check on the one length it accepts: the
 continuation, stated for an abstract continuation like `bind_take`. -/
@@ -150,7 +168,8 @@ theorem bundle_long_rest (v t : UInt8) (rest : List UInt8) (hvt : ¬(v != versio
   have hKlt := be32At_lt rest 128
   have hofnat : (UInt32.ofNat (be32At rest 128)).toNat = be32At rest 128 := by
     rw [UInt32.toNat_ofNat', Nat.mod_eq_of_lt hKlt]
-  simp only [decodeBundle, hvt, Option.bind_eq_bind, Bool.false_eq_true, if_false]
+  simp (config := { maxSteps := 4000000 }) only
+    [decodeBundle, hvt, Option.bind_eq_bind, Bool.false_eq_true, if_false]
   rw [bind_take 32 rest _ (by omega)]
   rw [bind_take 32 _ _ (by simp; omega)]
   rw [bind_take 64 _ _ (by simp; omega)]
@@ -193,7 +212,8 @@ theorem bundle_bad_kem_len (v t : UInt8) (rest : List UInt8)
   have hKlt := be32At_lt rest 128
   have hofnat : (UInt32.ofNat (be32At rest 128)).toNat = be32At rest 128 := by
     rw [UInt32.toNat_ofNat', Nat.mod_eq_of_lt hKlt]
-  simp only [decodeBundle, hvt, Option.bind_eq_bind, Bool.false_eq_true, if_false]
+  simp (config := { maxSteps := 4000000 }) only
+    [decodeBundle, hvt, Option.bind_eq_bind, Bool.false_eq_true, if_false]
   rw [bind_take 32 rest _ (by omega)]
   rw [bind_take 32 _ _ (by simp; omega)]
   rw [bind_take 64 _ _ (by simp; omega)]
@@ -335,18 +355,25 @@ theorem one_time_prekey_at_spec (bytes : Slice Std.U8) (at1 : Usize) (h : at1.va
     simp only [hp0, beq_self_eq_true, if_true, hall, Option.map]
   -- the copy's two lengths agree
   on_goal 1 => simp_all [Slice.length, Array.repeat]
-  -- a presence byte of one: present, and the key is the thirty-two bytes after it
-  on_goal 1 =>
-    have hp0 : ¬present = 0#u8 := by assumption
-    have hp1 : present = 1#u8 := by assumption
-    have hkey : (to_slice_mut_back s2).val = (bytes.val.drop (at1.val + 1)).take 32 := by
-      rw [s_post2, s2_post, Array.from_slice_val _ _ (by simp [s1_post1, List.slice, i_post, i1_post]; omega),
-        s1_post1, i_post, i1_post]
-      simp [List.slice]
-    have h0f : (present == 0#u8) = false := by simpa using hp0
-    have h1t : (present == 1#u8) = true := by simpa using hp1
-    simp only [h0f, h1t, Bool.false_eq_true, if_false, if_true, Option.map, hkey,
-      bytesOf, List.map_take, List.map_drop]
+  -- a presence byte of one: the key is the thirty-two bytes after it, present
+  -- when it is a canonical curve key and refused when it is not, on both sides
+  all_goals first
+    | (have hp0 : ¬present = 0#u8 := by assumption
+       have hp1 : present = 1#u8 := by assumption
+       have hkey : (to_slice_mut_back s2).val = (bytes.val.drop (at1.val + 1)).take 32 := by
+         rw [s_post2, s2_post, Array.from_slice_val _ _ (by simp [s1_post1, List.slice, i_post, i1_post]; omega),
+           s1_post1, i_post, i1_post]
+         simp [List.slice]
+       have h0f : (present == 0#u8) = false := by simpa using hp0
+       have h1t : (present == 1#u8) = true := by simpa using hp1
+       rw [canonicalKey_at _ (at1.val + 1) _ hkey, ← b_post]
+       first
+         | (have hb : b = true := by assumption
+            simp only [h0f, h1t, hb, Bool.false_eq_true, if_false, if_true, Option.map, hkey,
+              bytesOf, List.map_take, List.map_drop])
+         | (have hb : b = false := by simpa using (by assumption : ¬ b = true)
+            simp only [h0f, h1t, hb, Bool.false_eq_true, if_false, if_true]))
+    | skip
   -- any other presence byte: refused
   on_goal 1 =>
     have hp0 : ¬present = 0#u8 := by assumption
@@ -415,6 +442,43 @@ theorem decode_bundle_refines (bytes : Slice Std.U8) :
     unfold decodeBundleRest
     rw [List.length_drop, bytesOf_length, hK])
   all_goals first | (rw [if_neg (by omega)]) | skip
+  -- an identity key or signed prekey that is not a canonical curve key: refused
+  -- on both sides. The branch's hypothesis is named by its type, since others
+  -- have the same `¬ _ = true` shape.
+  all_goals first
+    | (have hne : ¬(end4 != bytes.len) = true := by assumption
+       have heq : end4.val = bytes.length := by
+         simp only [bne_iff_ne, ne_eq, not_not] at hne
+         rw [hne]; simp
+       have he1 : end1.val = 134 + i4.val := o_post.1
+       have he2 : end2.val = 198 + i4.val := by omega
+       have hlen : (↑bytes : List Std.U8).length - 2 = 241 + i4.val := by omega
+       have hid : (Array.from_slice (Array.repeat 32#usize 0#u8) s2).val = (bytes.val.drop 2).take 32 := by
+         rw [Array.from_slice_val _ _ (by simp [s1_post1, List.slice]; omega), s1_post1]
+         simp [List.slice]
+       have hsp : (Array.from_slice (Array.repeat 32#usize 0#u8) s5).val = (bytes.val.drop 34).take 32 := by
+         rw [Array.from_slice_val _ _ (by simp [s4_post1, List.slice]; omega), s4_post1]
+         simp [List.slice]
+       have e : ((bytesOf bytes.val).drop 2).drop 32 = (bytesOf bytes.val).drop 34 := by
+         rw [drop_drop2]
+       have hkeys : (canonicalKey (((bytesOf bytes.val).drop 2).take 32) &&
+           canonicalKey ((((bytesOf bytes.val).drop 2).drop 32).take 32)) = false := by
+         rw [e, canonicalKey_at _ 2 _ hid, canonicalKey_at _ 34 _ hsp]
+         first
+           | (rw [show Tacenta.WireT1.canonicalX25519 (Array.from_slice (Array.repeat 32#usize 0#u8) s2) = false by
+                simpa using (by assumption : ¬ Tacenta.WireT1.canonicalX25519
+                  (Array.from_slice (Array.repeat 32#usize 0#u8) s2) = true)]
+              rfl)
+           | (rw [show Tacenta.WireT1.canonicalX25519 (Array.from_slice (Array.repeat 32#usize 0#u8) s5) = false by
+                simpa using (by assumption : ¬ Tacenta.WireT1.canonicalX25519
+                  (Array.from_slice (Array.repeat 32#usize 0#u8) s5) = true)]
+              simp)
+       rw [if_pos hlen, drop_drop2 _ 2 (196 + i4.val), drop_drop2 _ 2 (197 + i4.val),
+         show 2 + (196 + i4.val) = end2.val by omega, show 2 + (197 + i4.val) = end2.val + 1 by omega]
+       have hr := r_post
+       try simp only at hr
+       rw [hr, Option.bind_some, if_neg (by rw [hkeys]; exact Bool.false_ne_true)])
+    | skip
   -- the input does not end where the identifiers do
   on_goal 1 =>
     have hne : (end4 != bytes.len) = true := by assumption
@@ -436,7 +500,20 @@ theorem decode_bundle_refines (bytes : Slice Std.U8) :
       show 2 + (196 + i4.val) = end2.val by omega, show 2 + (197 + i4.val) = end2.val + 1 by omega]
     have hr := r_post
     try simp only at hr
-    rw [hr, Option.bind_some, Option.some.injEq]
+    -- both keys passed the code's check, so they are canonical to the model
+    have hid : (Array.from_slice (Array.repeat 32#usize 0#u8) s2).val = (bytes.val.drop 2).take 32 := by
+      rw [Array.from_slice_val _ _ (by simp [s1_post1, List.slice]; omega), s1_post1]
+      simp [List.slice]
+    have hsp : (Array.from_slice (Array.repeat 32#usize 0#u8) s5).val = (bytes.val.drop 34).take 32 := by
+      rw [Array.from_slice_val _ _ (by simp [s4_post1, List.slice]; omega), s4_post1]
+      simp [List.slice]
+    have e : ((bytesOf bytes.val).drop 2).drop 32 = (bytesOf bytes.val).drop 34 := by
+      rw [drop_drop2]
+    have hkeys : (canonicalKey (((bytesOf bytes.val).drop 2).take 32) &&
+        canonicalKey ((((bytesOf bytes.val).drop 2).drop 32).take 32)) = true := by
+      rw [e, canonicalKey_at _ 2 _ hid, canonicalKey_at _ 34 _ hsp, ← b_post, ← b1_post]
+      rfl
+    rw [hr, Option.bind_some, if_pos hkeys, Option.some.injEq]
     unfold bundleOf
     rw [Bundle.mk.injEq]
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩

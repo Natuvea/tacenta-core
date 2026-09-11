@@ -183,6 +183,9 @@ pub fn encode_composite(h: &Composite) -> Vec<u8> {
 ///
 /// Trailing bytes are returned rather than rejected, because a message is a
 /// header followed by its ciphertext.
+///
+/// A `dh` that is not its canonical encoding is `WrongType`
+/// (`is_canonical_x25519`; message-format.md, Curve public keys).
 pub fn decode_composite(bytes: &[u8]) -> Result<(Composite, &[u8]), DecodeError> {
     if bytes.len() < COMPOSITE_LEN {
         return Err(DecodeError::TooShort);
@@ -195,6 +198,13 @@ pub fn decode_composite(bytes: &[u8]) -> Result<(Composite, &[u8]), DecodeError>
     }
     let mut dh = [0u8; 32];
     dh.copy_from_slice(&bytes[2..34]);
+    // A ratchet key is accepted only as its canonical encoding
+    // (message-format.md, Curve public keys). It is refused as not the type of
+    // value this field holds, as `decode_initial` refuses a key without its
+    // curve byte.
+    if !is_canonical_x25519(&dh) {
+        return Err(DecodeError::WrongType);
+    }
     let pn = u32::from_be_bytes([bytes[34], bytes[35], bytes[36], bytes[37]]);
     let n = u32::from_be_bytes([bytes[38], bytes[39], bytes[40], bytes[41]]);
     let pq_epoch = be64_at(bytes, 42);
@@ -249,6 +259,35 @@ pub fn decode_composite(bytes: &[u8]) -> Result<(Composite, &[u8]), DecodeError>
         },
         &bytes[COMPOSITE_LEN..],
     ))
+}
+
+/// Whether `k` is the one encoding of its X25519 public key: bit 255 clear, and
+/// the little-endian value below p = 2^255 - 19 (message-format.md, Curve
+/// public keys).
+///
+/// X25519 ignores bit 255 and reduces modulo p, so without this check more
+/// than one byte string names the same key, and every key a peer sends has one
+/// accepted spelling. With bit 255 clear, the value reaches p only when the
+/// last byte is `0x7f`, the thirty bytes between are all `0xff`, and the first
+/// byte is at least `0xed`.
+///
+/// The same function as `tacenta_session::is_canonical_x25519`, repeated
+/// rather than imported, as `CHUNK_BYTES` is, because this crate has no
+/// dependencies. The loop has no early exit, the same shape as the session
+/// crate's and as `or_bytes`, so the translation sees a single path through it.
+fn is_canonical_x25519(k: &[u8; 32]) -> bool {
+    if k[31] >= 0x80 {
+        return false;
+    }
+    let mut middle_all_ff = true;
+    let mut i = 1;
+    while i < 31 {
+        if k[i] != 0xff {
+            middle_all_ff = false;
+        }
+        i += 1;
+    }
+    !(k[31] == 0x7f && middle_all_ff && k[0] >= 0xed)
 }
 
 /// Every byte of `bytes[from..from + len]` ORed together: zero exactly when the
@@ -543,7 +582,13 @@ fn one_time_prekey_at(bytes: &[u8], at: usize) -> Result<Option<[u8; 32]>, Decod
     } else if present == 0x01 {
         let mut key = [0u8; 32];
         key.copy_from_slice(&bytes[at + 1..at + 33]);
-        Ok(Some(key))
+        // A present key is accepted only as its canonical encoding
+        // (message-format.md, Curve public keys).
+        if is_canonical_x25519(&key) {
+            Ok(Some(key))
+        } else {
+            Err(DecodeError::WrongType)
+        }
     } else {
         Err(DecodeError::WrongType)
     }
@@ -561,7 +606,9 @@ fn one_time_prekey_at(bytes: &[u8], at: usize) -> Result<Option<[u8; 32]>, Decod
 /// A fixed-width field that does not fit is `TooShort`; the KEM prekey's length
 /// came off the wire, so a length other than `KEM_PREKEY_LEN`, or a key that
 /// does not fit, is `LengthOverrun`. Every field is bounded by `span_end` or the
-/// length check before anything is read.
+/// length check before anything is read. An `identity_key`, `signed_prekey` or
+/// present `one_time_prekey` that is not its canonical encoding is `WrongType`
+/// (`is_canonical_x25519`; message-format.md, Curve public keys).
 pub fn decode_bundle(bytes: &[u8]) -> Result<WireBundle, DecodeError> {
     if bytes.len() < 2 {
         return Err(DecodeError::TooShort);
@@ -607,6 +654,15 @@ pub fn decode_bundle(bytes: &[u8]) -> Result<WireBundle, DecodeError> {
     identity_key.copy_from_slice(&bytes[2..34]);
     let mut signed_prekey = [0u8; 32];
     signed_prekey.copy_from_slice(&bytes[34..66]);
+    // Both keys are accepted only as their canonical encodings
+    // (message-format.md, Curve public keys); the one-time prekey was checked
+    // by `one_time_prekey_at`.
+    if !is_canonical_x25519(&identity_key) {
+        return Err(DecodeError::WrongType);
+    }
+    if !is_canonical_x25519(&signed_prekey) {
+        return Err(DecodeError::WrongType);
+    }
     let mut signed_prekey_signature = [0u8; 64];
     signed_prekey_signature.copy_from_slice(&bytes[66..130]);
     let mut kem_prekey_signature = [0u8; 64];
@@ -630,7 +686,7 @@ mod tests {
 
     fn sample() -> Composite {
         Composite {
-            dh: [0xaa; 32],
+            dh: [0x5a; 32],
             pn: 7,
             n: 9,
             pq_epoch: 3,
@@ -872,6 +928,144 @@ mod tests {
             let mut bytes = canonical.clone();
             bytes[130..134].copy_from_slice(&len.to_be_bytes());
             assert_eq!(decode_bundle(&bytes), Err(DecodeError::LengthOverrun));
+        }
+    }
+
+    /// p = 2^255 - 19, little-endian.
+    fn p() -> [u8; 32] {
+        let mut p = [0xffu8; 32];
+        p[0] = 0xed;
+        p[31] = 0x7f;
+        p
+    }
+
+    /// The key forms the canonicity rule turns on, each with whether it is a
+    /// key's canonical encoding (message-format.md, Curve public keys).
+    fn key_forms() -> [([u8; 32], bool, &'static str); 6] {
+        let mut high = [0x5au8; 32];
+        high[31] |= 0x80;
+        let mut top = [0xffu8; 32];
+        top[31] = 0x7f;
+        let mut p_minus_one = p();
+        p_minus_one[0] = 0xec;
+        // p's pattern with one of the thirty middle bytes one lower: below p.
+        let mut off = p();
+        off[15] = 0xfe;
+        [
+            (high, false, "bit 255 set"),
+            (p(), false, "p"),
+            (top, false, "2^255 - 1"),
+            (p_minus_one, true, "p - 1"),
+            ([0u8; 32], true, "zero"),
+            (off, true, "one byte off p's pattern"),
+        ]
+    }
+
+    /// The little-endian value compared with p from the top byte down, written
+    /// out as a reference for the check's byte pattern.
+    fn below_p(k: &[u8; 32]) -> bool {
+        let p = p();
+        for i in (0..32).rev() {
+            if k[i] != p[i] {
+                return k[i] < p[i];
+            }
+        }
+        false
+    }
+
+    #[test]
+    fn the_canonicity_check_accepts_exactly_the_values_below_p() {
+        for (key, canonical, what) in key_forms() {
+            assert_eq!(is_canonical_x25519(&key), canonical, "{what}");
+            assert_eq!(
+                below_p(&key),
+                canonical,
+                "the reference disagrees on {what}"
+            );
+        }
+        // Every byte of p moved up or down by one and by 0x80, so each byte
+        // of the pattern is shown to matter.
+        for i in 0..32 {
+            for delta in [0x01u8, 0x80] {
+                for k in [p(), p_with(i, delta, true), p_with(i, delta, false)] {
+                    assert_eq!(is_canonical_x25519(&k), below_p(&k), "{k:02x?}");
+                }
+            }
+        }
+    }
+
+    fn p_with(i: usize, delta: u8, up: bool) -> [u8; 32] {
+        let mut k = p();
+        k[i] = if up {
+            k[i].wrapping_add(delta)
+        } else {
+            k[i].wrapping_sub(delta)
+        };
+        k
+    }
+
+    /// A composite header's `dh` decodes only as a canonical key, and a
+    /// re-spelled one is a decode failure.
+    #[test]
+    fn a_header_dh_is_accepted_only_as_its_canonical_encoding() {
+        for (key, canonical, what) in key_forms() {
+            for h in [sample(), sample_no_chunk()] {
+                let h = Composite { dh: key, ..h };
+                let bytes = encode_composite(&h);
+                if canonical {
+                    assert_eq!(decode_composite(&bytes), Ok((h, &[][..])), "{what}");
+                } else {
+                    assert_eq!(
+                        decode_composite(&bytes),
+                        Err(DecodeError::WrongType),
+                        "a dh that is {what} was accepted"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Each of a bundle's three curve keys decodes only as a canonical key.
+    #[test]
+    fn every_bundle_key_is_accepted_only_as_its_canonical_encoding() {
+        let good = bundle_with_kem(vec![0x44; KEM_PREKEY_LEN]);
+        for (key, canonical, what) in key_forms() {
+            let placed = [
+                (
+                    "identity_key",
+                    WireBundle {
+                        identity_key: key,
+                        ..good.clone()
+                    },
+                ),
+                (
+                    "signed_prekey",
+                    WireBundle {
+                        signed_prekey: key,
+                        ..good.clone()
+                    },
+                ),
+                (
+                    "one_time_prekey",
+                    WireBundle {
+                        one_time_prekey: Some(key),
+                        one_time_prekey_id: 8,
+                        ..good.clone()
+                    },
+                ),
+            ];
+            for (position, b) in placed {
+                let got = decode_bundle(&encode_bundle(&b));
+                if canonical {
+                    assert_eq!(got, Ok(b), "{position}: {what}");
+                } else {
+                    assert_eq!(
+                        got,
+                        Err(DecodeError::WrongType),
+                        "a {position} that is {what} was accepted"
+                    );
+                }
+            }
         }
     }
 

@@ -366,8 +366,12 @@ Location: `Proofs/RatchetCorrectness.lean` covers the ratchet; the encoding is i
 - `decode_encode`: **the round trip.** Decoding an encoded ratchet message --
   the composite header, then the ciphertext (message-format.md) -- returns
   exactly that header and that ciphertext, for every header whose curve key is
-  thirty-two bytes and whose codeword, if present, is a full chunk, and for
-  every ciphertext. It is `decode_encode_composite` read at the message's own
+  thirty-two bytes and its canonical encoding (`Model.Messages.canonicalKey`,
+  message-format.md, Curve public keys) and whose codeword, if present, is a
+  full chunk, and for every ciphertext. The canonical-key hypothesis was added
+  in 2026-09, when the decoder began refusing any other spelling of the key;
+  without it the theorem would be false. It is `decode_encode_composite` read
+  at the message's own
   type. Until 2026-09 this theorem was stated about the model's own encoding
   of the Double Ratchet's forty-byte header alone, a format the specification
   does not accept; the model's message functions and this statement now follow
@@ -434,7 +438,12 @@ Location: `tacenta-proofs/Proofs/Serialization.lean`.
 
 - `decode_encode_composite`: decoding an encoded composite header returns the
   header and whatever followed it, for every header whose curve key is
-  thirty-two bytes and whose codeword, if it has one, is a full chunk.
+  thirty-two bytes and its canonical encoding, and whose codeword, if it has
+  one, is a full chunk. `Proofs.Serialization.decodeBundle_encodeBundle` is
+  the bundle's round trip, for every bundle whose three curve keys are
+  canonical, beside its length hypotheses. Both canonical-key hypotheses came
+  with the decoders' refusal of a re-spelled key (message-format.md, Curve
+  public keys).
 
   **This is not the same as the parse being unambiguous.** The theorem quantifies over
   headers and asks about bytes the encoder produced, so it says nothing about
@@ -540,13 +549,24 @@ them, so this is the decoder the product runs.
   published prekey bundle. Its one optional field is decided by
   `one_time_prekey_at` (`one_time_prekey_at_no_panic`) over thirty-three bytes
   the decoder has already bounded. Same pinned base.
+- `is_canonical_x25519_spec`: the check `decode_composite` and `decode_bundle`
+  apply to every curve key they read (message-format.md, Curve public keys)
+  computes exactly `canonicalX25519`: bit 255 clear, and not the pattern of a
+  value of at least p = 2^255 - 19. The check's value is proved, not only that
+  it returns, because the refinements below need it. The function and these
+  lemmas repeat `tacenta-session`'s (`Translation/SessionT1.lean`), since the
+  wire crate has no dependencies.
 
 ## Proved (tier T3, the ratchet-message decoder computes what the model says)
 
 Location: `Translation/WireT3.lean`.
 
 Against `Model.CompositeHeader.decode`, the model's decoder for the composite
-header, which applies the same "exactly one spelling" rules as the code.
+header, which applies the same "exactly one spelling" rules as the code. Its
+`dh` among them: the model refuses a ratchet key whose bytes, read as a
+little-endian integer, are not below p (`Model.Messages.canonicalKey`), and
+`Model.Messages.canonicalKey_bytes` shows that comparison is the byte pattern
+the code checks.
 
 - `decode_composite_refines`: for every byte string, `decode_composite`
   returns `Ok` exactly when the model returns `some`, with the same header
@@ -606,10 +626,12 @@ exists.
   rewrites with. Too short for the framing, a wrong version or type byte, too
   short for the fixed prefix, or a KEM prekey length other than 1,568 bytes
   (the ML-KEM-1024 encapsulation-key length) is `none`; otherwise the bundle is
-  `some` exactly when the input is as long as the KEM prekey's length says and
-  the one-time prekey's field is a valid spelling.
+  `some` exactly when the input is as long as the KEM prekey's length says,
+  the one-time prekey's field is a valid spelling, and the identity key and
+  signed prekey are canonical curve keys.
 - `one_time_prekey_at_spec`: the code's decision on the one-time prekey's
-  presence byte and thirty-two bytes is the model's `decodeOptionalKey`.
+  presence byte and thirty-two bytes is the model's `decodeOptionalKey`, which
+  refuses a present key that is not canonical.
 
 **The model was looser than the code, and now is not.** Until this proof the
 model's `decodeBundle` accepted an absent one-time prekey over any thirty-two
