@@ -80,6 +80,12 @@ info: 'Model.Braid.send_reports' depends on axioms: [propext, Quot.sound]
 #guard_msgs in
 #print axioms Model.Braid.send_reports
 
+/--
+info: 'Model.Braid.receive_reports' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.Braid.receive_reports
+
 /- The classical Double Ratchet's functional properties: the chain-derivation
    length and contents, and the two bounds on the skipped-key store. `CLAIMS.md`
    says these rest on `propext` and `Quot.sound` alone; these pins are what make
