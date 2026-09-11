@@ -72,8 +72,8 @@ theorem trySkipped_events (st : State) (header : Header) (r : State × Key)
   · injection h with h'; subst h'; rfl
   · exact absurd h (by simp)
 
-/-- Receive (ratchet.md): try a stored skipped key; otherwise, on an unseen
-    ratchet key, skip the remainder of the old receiving chain up to `header.pn`
+/-- Receive (ratchet.md): try a stored skipped key; otherwise, on a ratchet key
+    other than `DHr` (or no `DHr`), skip the old receiving chain up to `header.pn`
     and take a DH ratchet step; then skip up to `header.n` on the current chain
     and derive the message key at `header.n`. DH outputs and the fresh sending
     key are supplied by the caller; they are ignored on a same-chain message.

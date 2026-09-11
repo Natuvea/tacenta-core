@@ -998,8 +998,8 @@ fn try_skipped(state: &mut State, header: &Header) -> Option<Key> {
     None
 }
 
-/// Receive (ratchet.md): try a stored skipped key; otherwise, on an unseen
-/// ratchet key, skip the remainder of the old receiving chain up to `header.pn`
+/// Receive (ratchet.md): try a stored skipped key; otherwise, on a ratchet key
+/// other than `DHr` (or no `DHr`), skip the old receiving chain up to `header.pn`
 /// and take a DH ratchet step; then skip up to `header.n` on the current chain
 /// and derive the message key at `header.n`. DH outputs and the fresh sending
 /// key are ignored on a same-chain message.
