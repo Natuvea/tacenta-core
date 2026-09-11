@@ -50,6 +50,11 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- `decisions/ADR-0006-specification-is-normative.md`, point 1: `threat-model/`
+  is normative, with `protocol/` and `security-properties/`, and the page
+  records the amendment with its date. Every security requirement is stated
+  against the threat model's assets, adversaries and assumptions, and the
+  README already listed it among the normative pages.
 - `README.md`: the status paragraph names the written threat-model and
   security-property pages, and the protocol pages still scaffolds.
   `threat-model/` is listed among the normative pages, since every security
