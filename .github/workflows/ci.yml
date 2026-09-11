@@ -345,6 +345,8 @@ jobs:
       # behind by a leaf edit fails here. It needs no Charon, Aeneas or Lean,
       # so it belongs in this job beside the other source-level checks.
       - run: sh tacenta-proofs/scripts/assemble-triple-unit.sh --check
+      # The Braid-and-erasure unit, `tacenta-core/braid-unit`, likewise.
+      - run: sh tacenta-proofs/scripts/assemble-braid-unit.sh --check
       - run: bash tacenta-proofs/scripts/port-unit-proofs.sh --check
       - run: bash tooling/check-labels.sh
       - run: python3 tooling/check_authentication_boundary.py

@@ -28,6 +28,12 @@
 # with its leaves rather than over opaque axioms. It is the only translation of
 # the Triple Ratchet, and the Triple's T1 and T3 proofs are about it. Read that
 # script's header for what the unit is and, just as importantly, what it is not.
+#
+# A ninth, `tacenta-core/braid-unit`, is assembled the same way by
+# `scripts/assemble-braid-unit.sh`: the ML-KEM Braid and its erasure codec as one
+# crate, so that the Braid translates over the codec's bodies rather than
+# twenty-three opaque axioms. Nothing is proved about it yet; the Braid's
+# proofs are still about its own translation (see LIMITATIONS.md).
 set -eu
 # **The pin, and it must match the verification workflow.** Keeping the
 # release name here rather than only in the workflow is what makes a local run
@@ -68,6 +74,8 @@ core="$here/../tacenta-core"
 # beforehand if it were not.
 echo "run-aeneas: assembling the three-leaf translation unit"
 sh "$here/scripts/assemble-triple-unit.sh"
+echo "run-aeneas: assembling the Braid-and-erasure translation unit"
+sh "$here/scripts/assemble-braid-unit.sh"
 out="$here/Generated/aeneas-output"
 # Stage the results where the translation lake package builds them (see
 # tacenta-proofs/translation/lakefile.toml).
@@ -171,6 +179,16 @@ translate braid tacenta-braid tacenta_braid.llbc TacentaBraid
 # neither by the root module nor by `Translation/AxiomAudit.lean`;
 # `Translation/AxiomAuditTripleUnit.lean` walks it.
 translate triple-unit tacenta-triple-unit tacenta_triple_unit.llbc TacentaTripleUnit
+
+# The Braid and its erasure codec, compiled as one crate by
+# `scripts/assemble-braid-unit.sh`: the Braid over the codec's bodies, where the
+# Braid's own translation sees the codec as twenty-three opaque axioms. Its
+# axioms are the Braid's less the codec's, plus the two library functions the
+# codec's bodies reach (`Vec::truncate`, `usize::div_ceil`), which the erasure
+# crate's own translation declares too; the KEM stays opaque. Like the
+# three-leaf unit it has an audit module of its own,
+# `Translation/AxiomAuditBraidUnit.lean`. Nothing is proved about it yet.
+translate braid-unit tacenta-braid-unit tacenta_braid_unit.llbc TacentaBraidUnit
 
 echo "run-aeneas: next, record what was just generated:"
 echo "run-aeneas:   python3 tacenta-proofs/scripts/attest.py --refresh-translation"

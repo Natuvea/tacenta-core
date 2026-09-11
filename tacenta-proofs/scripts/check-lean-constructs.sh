@@ -205,6 +205,8 @@ ALLOW = {
     # The three-leaf translation unit, which cannot share an environment with
     # the rest of the translation.
     "tacenta-proofs/translation/Translation/AxiomAuditTripleUnit.lean": [AUDIT_CALL],
+    # The Braid-and-erasure translation unit, for the same reason.
+    "tacenta-proofs/translation/Translation/AxiomAuditBraidUnit.lean": [AUDIT_CALL],
     "tacenta-model/Model/AxiomAudit.lean": [
         "import Lean",
         "open Lean",

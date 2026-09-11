@@ -23,7 +23,10 @@
 # the leaf crates', and `LABELS.md` can say every domain-separation string is
 # in one place.
 #
-# **One directory is left out, and it is the only one.** `tacenta-core/triple-unit`
+# **Two directories are left out, and they are the only ones.** `tacenta-core/braid-unit`
+# is generated from the Braid and its erasure codec by `assemble-braid-unit.sh` and
+# carries the Braid's `lib.rs` a second time; everything below about
+# `tacenta-core/triple-unit` applies to it unchanged. `tacenta-core/triple-unit`
 # is generated, not written: `tacenta-proofs/scripts/assemble-triple-unit.sh`
 # assembles the Triple Ratchet and both inner ratchets into one crate so Charon
 # can translate the composition together with its leaves. Its
@@ -51,6 +54,7 @@ scan_dirs=()
 for d in tacenta-core/src tacenta-core/*/src; do
   case "$d" in
     tacenta-core/triple-unit/src) continue ;;
+    tacenta-core/braid-unit/src) continue ;;
   esac
   [ -d "$d" ] && scan_dirs+=("$d")
 done

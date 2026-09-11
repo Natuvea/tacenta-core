@@ -184,7 +184,9 @@ this section says in one place what is not proved.
   `decode_chain`, `decode_chains_entry` and `decode_skipped_entry`, and
   `Translation/ErasureCodecT1.lean` for `tacenta-erasure`'s `Encoder` and
   `Decoder` (see the three "persistence codec" sections). Every other codec
-  named above still has no T1 theorem.
+  named above still has no T1 theorem. The Braid-and-erasure translation
+  unit, `tacenta-core/braid-unit`, is translated and audited and carries no
+  theorem of any kind yet (`LIMITATIONS.md`).
   `LIMITATIONS.md` says the same where each crate is discussed.
 - **T3 carries a third hypothesis besides the two it names.** Besides "modulo
   KDF agreement" and "excluding where `u32` and `Nat` part company", every

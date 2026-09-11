@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "_note": "Written only by `tacenta-proofs/scripts/attest.py --refresh-translation`, immediately after `scripts/run-aeneas.sh` on the pinned toolchain, and compared against by every other mode. A green `attest.py --check` establishes that each generated Translation/Tacenta*.lean is a module run-aeneas.sh produces, is byte for byte the file recorded here, declares exactly the axioms recorded here (as text; no-sorry.sh compares the same record with what the axiom audit saw in the built environment), and that the Rust verified zone it was generated from, and the workspace inputs that shape every zone's extraction (Cargo.toml and its profiles, Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed to when this was written, as recorded by whoever ran the toolchain. Where the zone is assembled rather than written (tacenta-core/triple-unit, the three-leaf translation unit), the record carries an `assembly` field naming the script and the three leaf trees it was assembled from, with their hashes, and --check fails if any of them has moved since; assemble-triple-unit.sh --check is the separate question of whether the unit crate in the tree is what those leaves assemble to. It does not establish that the toolchain was run, or run honestly: that is checked by regenerating with run-aeneas.sh and diffing, which REPRODUCING.md describes.",
-  "generated_at_commit": "a79889a4854723b3087a3724750d7721c395c791",
+  "generated_at_commit": "2183ca994bf291d18a5f31c71a6868b8d4765645",
   "aeneas": {
     "release": "nightly-2026.07.22-b1214ca",
     "commit": "b1214ca0a024e8121f41fe2b2ed15e26af02373b"
@@ -75,7 +75,64 @@
       ],
       "zone": "tacenta-core/braid",
       "zone_sha256": "bca55e72eab8d184144327004ed4b5fa03b0d9742a60402bd78058e7042da7b1",
-      "workspace_sha256": "0830ee43ef8d3f50a90db49789584d30033ba87637c43856f46cd127731f0f13"
+      "workspace_sha256": "e7a362fdd513c8feacbbb7a7ae8156e8b9dc6b350a407d9b7cbb8945cf488bd0"
+    },
+    "tacenta-proofs/translation/Translation/TacentaBraidUnit.lean": {
+      "module": "TacentaBraidUnit",
+      "sha256": "7f5f9b6f2e62a200244177fc9a7a5a1e890a1d8a67b1e25ee95378cfed8f8e37",
+      "axioms": [
+        "Array.Insts.ZeroizeZeroize.zeroize",
+        "alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize",
+        "alloc.vec.Vec.truncate",
+        "core.num.Usize.div_ceil",
+        "core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get",
+        "core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut",
+        "core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked",
+        "core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut",
+        "core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index",
+        "core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut",
+        "core.option.Option.Insts.CoreCloneClone.clone",
+        "core.option.Option.Insts.CoreCmpPartialEqOption.eq",
+        "core.option.Option.Insts.CoreFmtDebug.fmt",
+        "rand_core_1.error.Error",
+        "tacenta_kdf.hkdf_sha256",
+        "tacenta_kdf.hmac_sha256",
+        "tacenta_kem.CT1_LEN",
+        "tacenta_kem.CT2_LEN",
+        "tacenta_kem.EK_VECTOR_LEN",
+        "tacenta_kem.EncapsState",
+        "tacenta_kem.EncapsState.Insts.CoreCloneClone.clone",
+        "tacenta_kem.EncapsState.from_bytes",
+        "tacenta_kem.EncapsState.to_bytes",
+        "tacenta_kem.HEADER_LEN",
+        "tacenta_kem.IncrementalKeyPair",
+        "tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone",
+        "tacenta_kem.IncrementalKeyPair.decapsulate",
+        "tacenta_kem.IncrementalKeyPair.ek_vector",
+        "tacenta_kem.IncrementalKeyPair.from_bytes",
+        "tacenta_kem.IncrementalKeyPair.generate",
+        "tacenta_kem.IncrementalKeyPair.header",
+        "tacenta_kem.IncrementalKeyPair.to_bytes",
+        "tacenta_kem.encapsulate1",
+        "tacenta_kem.encapsulate2",
+        "tacenta_kem.validate_ek",
+        "zeroize.Zeroize.Blanket.zeroize",
+        "zeroize.Zeroizing",
+        "zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref",
+        "zeroize.Zeroizing.new",
+        "zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop"
+      ],
+      "zone": "tacenta-core/braid-unit",
+      "zone_sha256": "b840b7639b320c0d00bbb5930924b89b78c1045f54232ae370ecf1013736d144",
+      "workspace_sha256": "e7a362fdd513c8feacbbb7a7ae8156e8b9dc6b350a407d9b7cbb8945cf488bd0",
+      "assembly": {
+        "script": "tacenta-proofs/scripts/assemble-braid-unit.sh",
+        "script_sha256": "c95c7d9fef7a2fb6e1eba9bf37600bf5313a602f78a556a85aef23d2ad35a729",
+        "sources": {
+          "tacenta-core/braid": "bca55e72eab8d184144327004ed4b5fa03b0d9742a60402bd78058e7042da7b1",
+          "tacenta-core/erasure": "b64836573f059e49eef9ae01cb1627342a6100d921fb3caeaed1f9b443c8c1d0"
+        }
+      }
     },
     "tacenta-proofs/translation/Translation/TacentaErasure.lean": {
       "module": "TacentaErasure",
@@ -86,7 +143,7 @@
       ],
       "zone": "tacenta-core/erasure",
       "zone_sha256": "b64836573f059e49eef9ae01cb1627342a6100d921fb3caeaed1f9b443c8c1d0",
-      "workspace_sha256": "0830ee43ef8d3f50a90db49789584d30033ba87637c43856f46cd127731f0f13"
+      "workspace_sha256": "e7a362fdd513c8feacbbb7a7ae8156e8b9dc6b350a407d9b7cbb8945cf488bd0"
     },
     "tacenta-proofs/translation/Translation/TacentaProtobuf.lean": {
       "module": "TacentaProtobuf",
@@ -94,7 +151,7 @@
       "axioms": [],
       "zone": "tacenta-core/protobuf",
       "zone_sha256": "839815a4a8324a10cf295f83be2f32c212a7451308470a436ade4daf75606ee9",
-      "workspace_sha256": "0830ee43ef8d3f50a90db49789584d30033ba87637c43856f46cd127731f0f13"
+      "workspace_sha256": "e7a362fdd513c8feacbbb7a7ae8156e8b9dc6b350a407d9b7cbb8945cf488bd0"
     },
     "tacenta-proofs/translation/Translation/TacentaRatchet.lean": {
       "module": "TacentaRatchet",
@@ -118,7 +175,7 @@
       ],
       "zone": "tacenta-core/ratchet",
       "zone_sha256": "78122ceb7c458458943c938ccb96d4825e2955ace948254111a64dde88266a43",
-      "workspace_sha256": "0830ee43ef8d3f50a90db49789584d30033ba87637c43856f46cd127731f0f13"
+      "workspace_sha256": "e7a362fdd513c8feacbbb7a7ae8156e8b9dc6b350a407d9b7cbb8945cf488bd0"
     },
     "tacenta-proofs/translation/Translation/TacentaSession.lean": {
       "module": "TacentaSession",
@@ -134,7 +191,7 @@
       ],
       "zone": "tacenta-core/session",
       "zone_sha256": "afda348304a4756d2b3c60c269a4bc6445debf6f2a8d2bcff71986a1c5d22139",
-      "workspace_sha256": "0830ee43ef8d3f50a90db49789584d30033ba87637c43856f46cd127731f0f13"
+      "workspace_sha256": "e7a362fdd513c8feacbbb7a7ae8156e8b9dc6b350a407d9b7cbb8945cf488bd0"
     },
     "tacenta-proofs/translation/Translation/TacentaSpqr.lean": {
       "module": "TacentaSpqr",
@@ -158,7 +215,7 @@
       ],
       "zone": "tacenta-core/spqr",
       "zone_sha256": "c102a22a0cdba8b0ec142c54b1950715fb18cdfb7996bf5ea3b4bae6241b0d91",
-      "workspace_sha256": "0830ee43ef8d3f50a90db49789584d30033ba87637c43856f46cd127731f0f13"
+      "workspace_sha256": "e7a362fdd513c8feacbbb7a7ae8156e8b9dc6b350a407d9b7cbb8945cf488bd0"
     },
     "tacenta-proofs/translation/Translation/TacentaTripleUnit.lean": {
       "module": "TacentaTripleUnit",
@@ -186,7 +243,7 @@
       ],
       "zone": "tacenta-core/triple-unit",
       "zone_sha256": "9bc2ee1ce3558c2c2801b1d94262c630a8adcc42ccbb81666a70b98a87ee68ff",
-      "workspace_sha256": "0830ee43ef8d3f50a90db49789584d30033ba87637c43856f46cd127731f0f13",
+      "workspace_sha256": "e7a362fdd513c8feacbbb7a7ae8156e8b9dc6b350a407d9b7cbb8945cf488bd0",
       "assembly": {
         "script": "tacenta-proofs/scripts/assemble-triple-unit.sh",
         "script_sha256": "a0eab7a4e50df59d1f1aefdd5c9489419d5ffcb89109c35923edcc11a18954e5",
@@ -207,7 +264,7 @@
       ],
       "zone": "tacenta-core/wire",
       "zone_sha256": "a56a03780ec92e5662548e1eb819fdc69244056c55db5ac8afc867daed2cd5e5",
-      "workspace_sha256": "0830ee43ef8d3f50a90db49789584d30033ba87637c43856f46cd127731f0f13"
+      "workspace_sha256": "e7a362fdd513c8feacbbb7a7ae8156e8b9dc6b350a407d9b7cbb8945cf488bd0"
     }
   }
 }
