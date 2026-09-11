@@ -229,8 +229,10 @@ info: 'Properties.Authentication.no_cross_session_message' depends on axioms: [p
 #print axioms Properties.Authentication.no_cross_session_message
 
 /- The classical ratchet model's transitions: what each moves and what it
-   leaves alone. `ageStore_preserves_the_rest` is proved by `rfl` and rests on
-   no axiom, so `#print axioms` prints no list for it and it has no pin here. -/
+   leaves alone. `ageStore_preserves_the_rest` is proved by `rfl`, and
+   `#print axioms` reported no axiom for it when this was written. It has no
+   pin here, because the pin shape records a list of axioms, so nothing in the
+   build holds that. -/
 
 /--
 info: 'Properties.StateConsistency.send_none_iff' depends on axioms: [propext, Quot.sound]

@@ -565,9 +565,11 @@ impl Braid {
     /// `*epoch < u64::MAX` to the ten arms that carry one would record that
     /// here, but it would still not give the T3 precondition, which asks for
     /// `epoch + 1 < u64::MAX`: the refinement stops one step below the
-    /// reservation, because the model counts in `Nat` and keeps going where
-    /// the two advancing transitions refuse. That step is the caller's, and
-    /// a question for the proofs rather than for the decoder.
+    /// reservation. `Model.Braid` reserves the same epoch and refuses the
+    /// same steps (`Model.Braid.u64Max`), so that premise is kept from
+    /// before the model stopped, and whether it could now be dropped has not
+    /// been checked. That step is the caller's, and a question for the
+    /// proofs rather than for the decoder.
     pub fn invariant(&self) -> bool {
         match &self.state {
             State::KeysUnsampled { epoch, .. } => *epoch >= 1,
