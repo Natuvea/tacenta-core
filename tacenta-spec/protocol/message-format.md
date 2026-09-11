@@ -228,6 +228,12 @@ all. It is decoded, and refused if it does not decode, only when the recipient
 decrypts it as a ratchet message. Nor does the decoder look at the identifier
 values; Key identifiers, below, says how each is treated.
 
+The decoder does not check `kem_ciphertext`'s length either. Decapsulation
+refuses a ciphertext that is not the KEM's ciphertext length, 1,568 bytes for
+ML-KEM-1024, and the recipient refuses the initial message at that point. The
+refusal is not a decode failure. It comes before any secret is derived and
+changes nothing.
+
 ## Prekey bundle
 
 What a party publishes and a sender fetches before opening a session: public
