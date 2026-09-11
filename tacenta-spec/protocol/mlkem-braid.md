@@ -243,14 +243,17 @@ codeword, and never issues an index twice. Once it has issued index 65,535 it
 issues nothing more (Encoder lifetime, below). This holds for every `k`,
 including 0.
 
-An encoder over a value of more than 65,536 chunks (more than 2,097,152 bytes)
-is not refused. Every index it issues is below `k`, so it issues `chunk_0` to
-`chunk_65535` as indices 0 to 65,535 and then nothing: no chunk after
-`chunk_65535` is sent, and no codeword is computed from the polynomials. A
-decoder for such a value needs more codewords at distinct indices than there
-are 16-bit indices, and never completes. Which chunks such an encoder holds is
-not specified, since nothing it issues depends on those after `chunk_65535`; a
-stored encoder holding more than 65,536 is refused (session-persistence.md).
+An encoder holds at most the first 65,536 chunks of its value: all `k` of them
+when `k` is at most 65,536, and `chunk_0` to `chunk_65535` otherwise. An
+encoder over a value of more than 65,536 chunks (more than 2,097,152 bytes) is
+not refused. It holds `chunk_0` to `chunk_65535` and no chunk after them.
+Every index it issues is below 65,536 and so below `k`, so it issues those
+chunks as indices 0 to 65,535 and then nothing: no chunk after `chunk_65535`
+is sent, and no codeword is computed from the polynomials. What it issues is
+what it would issue if it held every chunk. A decoder for such a value needs
+more codewords at distinct indices than there are 16-bit indices, and never
+completes. Since no encoder holds more than 65,536 chunks, every encoder can
+be stored; a stored encoder holding more is refused (session-persistence.md).
 
 The Braid encodes neither a value of zero bytes nor one of more than 65,536
 chunks (Chunks, above), so neither case is observable in the protocol.
