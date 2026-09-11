@@ -5,6 +5,34 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+### Changed
+- `protocol/session-persistence.md`, `protocol/session-establishment.md`,
+  `protocol/message-format.md`: every curve public key a stored state holds
+  must be canonical, and each reader refuses a state that holds one spelled
+  any other way. The page had said, as built, that only
+  `established_ephemeral` and the session's `dhs_pub` were refused (G4-02, in
+  0.2.0). Register item J-8.
+  - The session's semantic rules require `our_identity_public`,
+    `peer_identity_public` and `pending_initial`'s `ephemeral_public` to be
+    canonical, refused as inconsistent.
+  - The ratchet state's semantic rules require `dhs_pub`, a present `dhr_pub`
+    and each skipped entry's `dh` to be canonical, refused as malformed. A
+    session holding one is refused as malformed by its `triple_state`'s
+    reader, a re-spelled `dhs_pub` included, which the page had said was
+    refused as inconsistent.
+  - The prekey store's semantic rules require `identity_public` to be
+    canonical, refused as malformed, in all four versions.
+  - The sparse ratchet state and the Braid hold no curve public key.
+  - "What follows" from each accepted re-spelling is replaced by why a stored
+    key is refused: inside the ratchet state a second spelling gives one key a
+    second identity, since `DHr` and skipped keys are matched by bytes.
+  - For no honest state to be refused, the initiator refuses a bundle whose
+    identity key, signed prekey or one-time curve prekey is not canonical
+    before she uses it. The bundle decoder already refuses one, so this
+    matters only for a bundle that reaches her another way.
+  - "Receiving the initial message" says `peer_identity_public` is canonical
+    in every session a reader accepts.
+
 ## [0.2.0] - 2026-09-11
 
 The second citable revision. It contains everything recorded above since 0.1.0.

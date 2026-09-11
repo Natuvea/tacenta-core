@@ -383,6 +383,15 @@ rather than here.
   matched against `established_ephemeral` byte for byte, so an
   `established_ephemeral` whose key is re-spelled would refuse every genuine
   repeat (`NotARepeatedInitial`).
+- **Every curve public key the session stores is canonical**:
+  `our_identity_public`, `peer_identity_public` and, when `pending_initial` is
+  present, its `ephemeral_public` are each the canonical encoding of a curve
+  public key (message-format.md, Curve public keys), as `established_ephemeral`'s
+  key is by the rule above. Each is used as its bytes: the associated data and
+  a repeat's `identity` are compared with `EncodeEC` of the two identities, the
+  key the session reports as the peer's is `peer_identity_public`, and every
+  repeat of the initial message carries `our_identity_public` and
+  `ephemeral_public`, which the peer's decoder refuses in any other spelling.
 - **Each half satisfies its own crate's invariant**: the Triple Ratchet's,
   which covers both ratchets, and the Braid's. Their decoders refuse on
   these already, so at import this is a second reading: a half that breaks
@@ -390,55 +399,46 @@ rather than here.
   reached.
 
 **Stored curve public keys.** message-format.md's canonical-key rule (Curve
-public keys) governs what a decoder of the wire accepts. The stored formats
-hold curve public keys too, and their readers hold only some of them to that
-rule. Every such key a party's own operations store is canonical: a key that
-came from a peer passed a decoder, and a key computed from a private key is
-X25519's output, which RFC 7748, section 5, encodes as a value below p with
-bit 255 clear. As built:
+public keys) governs what a decoder of the wire accepts, and the stored
+formats hold every curve public key they carry to the same rule. A reader
+refuses a state that holds one spelled any other way:
 
-- **Refused as inconsistent.** An `established_ephemeral` whose key is
-  re-spelled breaks the shape rule above. A re-spelled `dhs_pub`, the
-  classical ratchet's own public key, breaks the first rule, because the
-  public key computed from `ratchet_private` is canonical and so is never the
-  re-spelled bytes. The ratchet state's own reader does not check `dhs_pub`
-  (Semantic rules of the leaf formats); the session's rule does.
-- **Accepted.** No rule requires any other stored curve public key to be
-  canonical, and a reader accepts a state that holds a re-spelled one:
-  - the session's `peer_identity_public` and `our_identity_public`. The
-    associated-data rule compares `identity_ad` with `EncodeEC` of the two
-    stored keys byte for byte, so a key re-spelled on its own is refused as
-    inconsistent. A key re-spelled together with its copy inside
-    `identity_ad` keeps every rule;
-  - `pending_initial`'s `ephemeral_public`;
-  - the classical ratchet state's `dhr_pub` and each skipped entry's `dh`;
-  - the prekey store's `identity_public`.
+- **Refused as inconsistent**, by the session's rules above:
+  `our_identity_public`, `peer_identity_public` and `pending_initial`'s
+  `ephemeral_public`, by the rule on the curve public keys the session stores,
+  and `established_ephemeral`, by its shape rule.
+- **Refused as malformed**, by a leaf format's or the prekey store's own
+  rules: the classical ratchet state's `dhs_pub`, `dhr_pub` and each skipped
+  entry's `dh` (Semantic rules of the leaf formats), and the prekey store's
+  `identity_public` (Prekey store, Semantic rules). A session whose
+  `triple_state` holds such a key is refused as malformed, because the
+  `triple_state`'s own reader refuses it before the session's rules are
+  reached. That includes a re-spelled `dhs_pub`, which would otherwise break
+  the rule that `ratchet_private` is its private half.
 
-What follows from each accepted re-spelling, as built:
+The sparse ratchet state and the Braid hold no curve public key. The one holds
+a root key, chain keys and message keys, the other the ML-KEM Braid's KEM
+material and its authenticator's keys, so neither format has such a rule.
 
-- **`peer_identity_public` or `our_identity_public`**, with `identity_ad`
-  re-spelled to match: `identity_ad` is not the one the peer computes, so no
-  message authenticates in either direction. With `peer_identity_public`
-  re-spelled, a genuine repeat of the initial message is also refused
-  (`NotARepeatedInitial`), and the key the session reports as the peer's is
-  the re-spelled bytes. With `our_identity_public` re-spelled on an unanswered
-  initiator, every repeat of the initial message carries the re-spelled
-  `identity`, and the peer's decoder refuses it.
-- **`pending_initial`'s `ephemeral_public`**: every repeat of the initial
-  message carries it, and the peer's initial-message decoder refuses each one
-  as a decode failure.
-- **`dhr_pub`**: no further message under the peer's current ratchet key is
-  read. Until the peer's next ratchet key arrives, each such message differs
-  from `DHr` byte for byte, so the ratchet takes a Diffie-Hellman step for it
-  (ratchet.md), and the message does not authenticate and changes nothing. A
-  message under the peer's next ratchet key is received as usual, but the keys
-  that step skips on the earlier chain are stored under the re-spelled bytes,
-  and no header matches them.
-- **A skipped entry's `dh`**: no header matches it, so the message its key was
-  stored for is not read.
-- **The prekey store's `identity_public`**: every bundle the store publishes
-  carries it, and a peer refuses the bundle, whose decoder refuses the key as a
-  decode failure (message-format.md, Prekey bundle).
+A re-spelled stored key cannot come from a peer, whose keys pass a decoder,
+only from corrupted or edited storage. It is refused because a stored key is
+used as its bytes. Inside the ratchet state a second spelling gives one key a
+second identity: a header's `dh` is compared with `DHr` byte for byte, and a
+skipped key is found by its `dh` bytes (ratchet.md), so a message under the key
+would take a Diffie-Hellman step it should not, or miss the key stored for it.
+Outside it, a re-spelled key no longer matches what it is compared with or
+sent to: the associated data, a repeat's `identity`, and the peer's decoders,
+which refuse every repeat of the initial message and every bundle that carries
+it.
+
+No state the operations produce is refused. Every curve public key a party's
+own operations store is canonical: a key that came from a peer passed a
+decoder or, for a prekey bundle, the initiator's own check
+(session-establishment.md, Sending the initial message), and a key computed
+from a private key is X25519's output, which RFC 7748, section 5, encodes as a
+value below p with bit 255 clear. The leaf crates' operations store the keys
+their caller hands them, and the session hands them keys of those two kinds
+only.
 
 The same predicate holds after every operation: `tacenta-core`'s tests
 drive an honest pair through some fifty Braid epochs, restarting one side
@@ -563,8 +563,9 @@ and those three versions are read on the semantic rules alone.
 
 Last, over the decoded store, the reader refuses as malformed any store for
 which `PrekeyStore::invariant` is false. The rules are the identifier
-namespace and the record's shape, which `create_prekeys` establishes, every
-operation preserves, and no field-by-field read sees; they apply to all four
+namespace, the record's shape and the identity key's encoding, which
+`create_prekeys` establishes, every operation preserves, and no field-by-field
+read sees; they apply to all four
 versions, the untagged ones having had their entries tagged with the current
 key first.
 
@@ -598,10 +599,10 @@ key first.
   writer never emits anything else. (The count is also refused before it
   sizes anything, as noted above; the rule here is over what was read, which
   is the only point at which the tags can be counted by.)
-
-No rule requires `identity_public` to be canonical, and the reader accepts a
-store whose `identity_public` is re-spelled. Session, Semantic rules, says what
-follows.
+- **`identity_public` is canonical**: the canonical encoding of a curve public
+  key (message-format.md, Curve public keys). Every bundle the store publishes
+  carries it, and a peer's bundle decoder refuses it in any other spelling
+  (Session, Semantic rules, Stored curve public keys).
 
 ## Semantic rules of the leaf formats
 
@@ -618,16 +619,18 @@ constrains `ns`, `nr` or `pn`. A sparse ratchet state may hold a stored key
 numbered 0, or numbered at or past its epoch's receiving counter, because no
 rule relates a stored key's number to its chain.
 
-No rule of a leaf format requires a curve public key to be canonical, so the
-ratchet state's reader accepts a `dhs_pub`, a `dhr_pub` or a skipped entry's
-`dh` whose key is re-spelled. Session, Semantic rules, says which of them the
-session's rules refuse and what follows from the others.
+The classical ratchet state is the one leaf format that holds curve public
+keys, and its rules hold each to message-format.md's canonical-key rule (Curve
+public keys). The sparse ratchet state and the Braid hold none (Session,
+Semantic rules, Stored curve public keys).
 
 - **Ratchet state.** The skipped store holds at most `MAX_SKIPPED_STORE` keys;
   the received-message clock `events` is below `u32::MAX`; no stored key's
   `stored_at` is later than `events`; no two stored keys share a ratchet key
-  and message number; and a receiving chain key is present only if a sending
-  chain key and the peer's ratchet public key are.
+  and message number; a receiving chain key is present only if a sending
+  chain key and the peer's ratchet public key are; and `dhs_pub`, `dhr_pub`
+  when present, and every stored key's `dh` are each the canonical encoding
+  of a curve public key.
 - **Sparse ratchet state.** The skipped store holds at most
   `MAX_SKIPPED_STORE` keys; every chains entry's epoch `e` satisfies
   `e <= epoch < e + EPOCHS_KEPT`, the sum saturating; no two entries share an

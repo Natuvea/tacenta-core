@@ -19,6 +19,101 @@ namespace Tacenta.T1
 
 open tacenta_ratchet
 
+/-! ## The canonicity check on a stored curve key
+
+`is_canonical_x25519` decides whether thirty-two bytes are a curve key's
+canonical encoding (message-format.md, Curve public keys). `State::invariant`
+applies it to every curve public key the state holds, and so `from_bytes`
+refuses a state holding one spelled any other way (session-persistence.md,
+Semantic rules of the leaf formats). It is the same function as
+`tacenta-session`'s and `tacenta-wire`'s, repeated because this crate depends
+on nothing but the key derivation, and these are `Translation.SessionT1`'s and
+`Translation.WireT1`'s lemmas about it restated against this crate's
+translation: the check's value is proved, not only that it returns, because
+`ImportInv` characterises the invariant by its value. -/
+
+theorem array32_length (a : Array U8 32#usize) : a.val.length = 32 := by
+  simp
+
+/-- Whether every byte of `k` from index `i` up to, not including, thirty-one is
+`0xff`: what the canonicity check's loop computes from its cursor onward. -/
+def allFFFrom (k : Array U8 32#usize) (i : Nat) : Bool :=
+  (List.range' i (31 - i)).all (fun j => (k.val[j]!).val == 255)
+
+theorem allFFFrom_step (k : Array U8 32#usize) (i : Nat) (h : i < 31) :
+    allFFFrom k i = (((k.val[i]!).val == 255) && allFFFrom k (i + 1)) := by
+  unfold allFFFrom
+  have hn : 31 - i = (31 - (i + 1)) + 1 := by omega
+  rw [hn, List.range'_succ]
+  simp [List.all_cons]
+
+theorem allFFFrom_end (k : Array U8 32#usize) : allFFFrom k 31 = true := by
+  simp [allFFFrom]
+
+/-- The predicate `is_canonical_x25519` decides: bit 255 clear, and not the
+pattern of a value at least p = 2^255 - 19, which is a last byte of `0x7f`,
+thirty bytes of `0xff`, and a first byte of at least `0xed`. -/
+def canonicalX25519 (k : Array U8 32#usize) : Bool :=
+  decide ((k.val[31]!).val < 128) &&
+    !(decide (k.val[31]! = 127#u8) && allFFFrom k 1 && decide (237 ≤ (k.val[0]!).val))
+
+/-- The canonicity check's loop returns the flag it was given, cleared if any
+byte from its cursor up to thirty-one is not `0xff`. -/
+theorem is_canonical_x25519_loop_spec (k : Array U8 32#usize) (b : Bool) (i : Usize)
+    (hi : i.val ≤ 31) :
+    is_canonical_x25519_loop k b i ⦃ fun r => r = (b && allFFFrom k i.val) ⦄ := by
+  unfold is_canonical_x25519_loop
+  apply loop.spec_decr_nat
+    (measure := fun x => 31 - (Prod.snd x).val)
+    (inv := fun x => (Prod.snd x).val ≤ 31 ∧
+      ((Prod.fst x) && allFFFrom k (Prod.snd x).val) = (b && allFFFrom k i.val))
+  · rintro ⟨b1, j⟩ ⟨hj, hacc⟩
+    simp only at hj hacc ⊢
+    simp only [is_canonical_x25519_loop.body]
+    by_cases hlt : j.val < 31
+    · have hb : j.val < k.val.length := by rw [array32_length k]; omega
+      have hstep := allFFFrom_step k j.val hlt
+      simp only [getElem!_pos k.val j.val hb] at hstep
+      -- The byte under the cursor decides whether the flag survives, and the
+      -- tail from the next index carries the rest of the conjunction.
+      by_cases hff : (k.val[j.val]'hb).val = 255
+      · have h2 : allFFFrom k j.val = allFFFrom k (j.val + 1) := by simp [hstep, hff]
+        rw [h2] at hacc
+        step*
+        all_goals (try split)
+        all_goals (try step*)
+      · have h2 : allFFFrom k j.val = false := by simp [hstep, hff]
+        rw [h2, Bool.and_false] at hacc
+        step*
+        all_goals (try split)
+        all_goals (try step*)
+        all_goals (try simp_all)
+        all_goals (try scalar_tac)
+    · have hj31 : j.val = 31 := by omega
+      rw [hj31, allFFFrom_end, Bool.and_true] at hacc
+      step*
+  · exact ⟨hi, rfl⟩
+
+/-- The canonicity check computes exactly `canonicalX25519`. -/
+@[step]
+theorem is_canonical_x25519_spec (k : Array U8 32#usize) :
+    is_canonical_x25519 k ⦃ fun r => r = canonicalX25519 k ⦄ := by
+  unfold is_canonical_x25519 canonicalX25519
+  have h31 : 31 < k.val.length := by rw [array32_length k]; omega
+  have h0 : 0 < k.val.length := by rw [array32_length k]; omega
+  simp only [getElem!_pos k.val 31 h31, getElem!_pos k.val 0 h0]
+  have hl := is_canonical_x25519_loop_spec k true 1#usize (by simp)
+  simp only [Bool.true_and] at hl
+  by_cases h128 : (k.val[31]'h31).val < 128
+  · by_cases h127 : k.val[31]'h31 = 127#u8
+    · all_goals repeat' (first | simp only [WP.spec_ok] | (step with hl) | step | split)
+      all_goals (try simp_all)
+    · all_goals repeat' (first | simp only [WP.spec_ok] | (step with hl) | step | split)
+      all_goals (try simp_all)
+      all_goals (try scalar_tac)
+  · all_goals repeat' (first | simp only [WP.spec_ok] | (step with hl) | step | split)
+    all_goals (try simp_all)
+
 /-- The trusted boundary: the opaque HMAC primitive returns a value on every
 input. It wraps a vetted implementation that cannot fail, but the translation
 cannot see inside it, so the fact is stated here and used explicitly. -/

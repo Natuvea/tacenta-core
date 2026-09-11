@@ -184,7 +184,11 @@ pub fn encode_kem(pk: &[u8]) -> Vec<u8> {
 ///
 /// The loop has no early exit, the same shape as the decoders' loops, so the
 /// translation sees a single path through it.
-fn is_canonical_x25519(k: &Key) -> bool {
+///
+/// Public so that `tacenta-core`'s session and prekey-store readers hold the
+/// curve public keys they store to the same rule with this function rather
+/// than a copy (session-persistence.md, Stored curve public keys).
+pub fn is_canonical_x25519(k: &Key) -> bool {
     if k[31] >= 0x80 {
         return false;
     }

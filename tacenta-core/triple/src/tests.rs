@@ -7,7 +7,9 @@ use super::*;
 const SK: &[u8] = &[0x01; 32];
 const A_PUB: Key = [0x0a; 32];
 const B_PUB: Key = [0x0b; 32];
-const B2_PUB: Key = [0xb2; 32];
+// Canonical, as every stored ratchet key must be: with bit 255 set, as
+// `[0xb2; 32]` had, the state it is stored in would not import.
+const B2_PUB: Key = [0x2b; 32];
 const DH_AB: Key = [0xab; 32];
 const DH_B2A: Key = [0xba; 32];
 

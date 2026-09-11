@@ -17,7 +17,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use super::{
     PreKeyBundle, SessionError, associated_data, decode_ec, encode_ec, encode_kem,
-    initiator_shared_secret, responder_shared_secret,
+    initiator_shared_secret, is_canonical_key, responder_shared_secret,
 };
 use tacenta_spqr::{Direction, SpqrError};
 use tacenta_triple::TripleError;
@@ -1403,7 +1403,15 @@ impl PrekeyStore {
     ///   wipes the key; and `to_bytes` never writes anything else. A file
     ///   whose entries exceed one key's budget is refused here, which is the
     ///   only place the tags are available to count by.
+    /// - **The identity key is canonical** (session-persistence.md, Stored
+    ///   curve public keys). Every bundle the store publishes carries it, and
+    ///   a peer's bundle decoder refuses any other spelling. `create_prekeys`
+    ///   takes it from the identity's secret, so X25519 computed it, and no
+    ///   operation changes it.
     pub fn invariant(&self) -> bool {
+        if !is_canonical_key(&self.identity_public) {
+            return false;
+        }
         let previous_signed_id = self.previous_signed_prekey.as_ref().map(|(_, id, _)| *id);
         let previous_kem_id = self.previous_kem.as_ref().map(|(_, id, _)| *id);
 
@@ -1770,6 +1778,22 @@ pub fn establish_initiator_for<R: RngCore + CryptoRng>(
     // than left to look like a network fault (CR-17).
     if bundle.one_time_prekey.is_some() != (their_bundle.one_time_prekey_id != ABSENT_ID) {
         return Err(Error::InconsistentBundle);
+    }
+    // Every curve public key in the bundle is its canonical encoding
+    // (session-establishment.md, Sending the initial message). `decode_bundle`
+    // already refuses any other, but a `PublishedBundle` can be built without
+    // it, and the session stores the identity key and the signed prekey:
+    // accepted re-spelled, they would make a session its own reader refuses
+    // (session-persistence.md, Stored curve public keys).
+    let one_time_canonical = match &bundle.one_time_prekey {
+        None => true,
+        Some(k) => is_canonical_key(k),
+    };
+    if !is_canonical_key(&bundle.identity_key)
+        || !is_canonical_key(&bundle.signed_prekey)
+        || !one_time_canonical
+    {
+        return Err(Error::BadEncoding);
     }
     // PQXDH §3.3 verifies the bundle's signatures before anything else, and
     // so does this, rather than spending a KEM encapsulation against a prekey
@@ -2763,6 +2787,30 @@ impl Session {
         }
         if let Some(e) = &self.established_ephemeral {
             if decode_ec(e).is_none() {
+                return false;
+            }
+        }
+
+        // (h) Every curve public key the session stores is its canonical
+        // encoding, as (f) holds the established ephemeral's to
+        // (session-persistence.md, Stored curve public keys). Each is used as
+        // its bytes: (c) compares the associated data with `EncodeEC` of the
+        // two identities, a repeat's `identity` is compared with the peer's,
+        // `peer_identity()` reports it, and every repeat of the initial
+        // message carries our identity and the pending ephemeral, which the
+        // peer's decoder refuses in any other spelling. Every constructor
+        // stores keys X25519 computed, keys a decoder accepted, or a bundle's
+        // keys, which `establish_initiator_for` checks. The ratchet's own
+        // keys are its crate's invariant's, reached through (g). Lettered
+        // after (g), which was there first, and checked before it because
+        // (g) is the function's last expression.
+        if !is_canonical_key(&self.our_identity_public)
+            || !is_canonical_key(&self.peer_identity_public)
+        {
+            return false;
+        }
+        if let Some(p) = &self.pending_initial {
+            if !is_canonical_key(&p.ephemeral_public) {
                 return false;
             }
         }

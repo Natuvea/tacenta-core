@@ -372,10 +372,9 @@ skipped keys by a header's ratchet public key and takes a Diffie-Hellman step
 when that key differs from `DHr` (ratchet.md). A second spelling of one key
 would give it a second identity in each of them.
 
-The rule is on what the wire's decoders accept. Which curve public keys a
-stored state must hold canonically, and what follows from a re-spelled one
-the readers accept, is stated in session-persistence.md (Session, Semantic
-rules).
+The rule is on what the wire's decoders accept. The stored formats hold every
+curve public key they carry to the same rule, and session-persistence.md
+(Session, Semantic rules) says which reader refuses each and as what.
 
 ## Key identifiers
 
