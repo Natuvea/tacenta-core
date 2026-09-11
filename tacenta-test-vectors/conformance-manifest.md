@@ -393,13 +393,19 @@ can reach it.
 
 - **Specification:** tacenta-spec/protocol/session-persistence.md. Entirely
   ours; nothing here is wire-sensitive.
-- **Oracle:** tacenta-model (`Model.Erasure`: `Encoder.toBytes`/`ofBytes` and
-  `Decoder.toBytes`/`ofBytes`). Runner: `runners/rust/tests/persistence.rs`,
-  against `tacenta-erasure`'s `to_bytes`/`from_bytes`.
-- **Layout:** `README.md`, Vector layouts. A vector either builds the coder by
-  operations (`message` and a 32-bit `issued`, or a 32-bit `size` and
+- **Oracle:** tacenta-model: `Model.Erasure` (`Encoder.toBytes`/`ofBytes` and
+  `Decoder.toBytes`/`ofBytes`) and `Model.PersistedState`
+  (`RatchetState.toBytes`/`ofBytes` and `SparseState.toBytes`/`ofBytes`, over
+  the states `Model.Ratchet` and `Model.SparseRatchet` run on). Runner:
+  `runners/rust/tests/persistence.rs`, against `tacenta-erasure`'s,
+  `tacenta-ratchet`'s and `tacenta-spqr`'s `to_bytes`/`from_bytes`.
+- **Layout:** `README.md`, Vector layouts. An erasure vector either builds the
+  coder by operations (`message` and a 32-bit `issued`, or a 32-bit `size` and
   `codewords`) and gives its stored bytes as `output`, or offers stored `bytes`
-  to the reader.
+  to the reader. A ratchet-state vector either replays `steps` from a new state
+  or from stored `start` bytes and gives the stored bytes as `output`, or
+  offers stored `bytes` to the reader, which accepts them with `fields` or
+  refuses them with the `refusal` the vector names.
 
 ### Covered
 
@@ -409,6 +415,25 @@ can reach it.
 | Erasure encoder refusals and rules: `exhausted` only `0x00`/`0x01`, and only at `next = 65535`; a count the buffer does not hold; trailing bytes; a short buffer | Erasure coder sub-formats; Semantic rules of the leaf formats, Erasure encoder | same file, `bytes` vectors |
 | Erasure decoder layout `size(8) \|\| needed(8) \|\| count(4) \|\| codeword[count]`, held codewords in arrival order, read back to the same decoder | Erasure coder sub-formats | `vectors/persistence/erasure-decoder-state.json`: fresh, partial, full, a repeat and an extra not held, a zero-length value |
 | Erasure decoder refusals and rules: `needed` other than `ceil(size / 32)`, `needed` above 65,536, values bounded as 64-bit before narrowing, a repeated index, more codewords than `needed`, a count the buffer does not hold, trailing bytes; and the widest decoder accepted | Erasure coder sub-formats; Semantic rules of the leaf formats, Erasure decoder | same file, `bytes` vectors |
+| Ratchet state layout, written by operations and read back: optional keys zeroed when absent, the stored keys in the store's order | Ratchet state | `vectors/persistence/ratchet-state.json`: a new initiator and responder; three sends; a first receive and its Diffie-Hellman step; keys stored for an early message, then one of them used; a reply taken and a send on the new chain; keys stored across a Diffie-Hellman step; the clock reaching `u32::MAX - 1`; `ns` and `nr` reaching `u32::MAX`; each beside its bytes read back, with `fields` |
+| Ratchet state accepted edges | Semantic rules of the leaf formats, Ratchet state; ADR-0007 | same file: p - 1 as every curve key, `ns`, `nr` and `pn` with no chain, `stored_at` equal to `events`, stored keys in any order |
+| Ratchet state refusals, each with its refusal | Ratchet state; Semantic rules of the leaf formats, Ratchet state; Stored curve public keys; Rejection | same file: version bytes `0x00` and `0x02` (`wrong-version`); and, `short-or-malformed`, no bytes, a buffer short of the fixed fields, a presence tag other than `0x00` or `0x01` on each optional key, each absent key not zeroed, a `labels` tag of `0x01`, a count beyond the buffer and short of it, a trailing byte, a stored key cut short, 2,001 stored keys, `events` at `u32::MAX`, a `stored_at` after `events`, two stored keys for one pair, `ckr` without `cks` and without `dhr_pub`, and `dhs_pub`, `dhr_pub` and a stored key's `dh` each re-spelled with bit 255 set, as 9 + p and as p |
+| Sparse ratchet state layout, written by operations and read back: chains in the order last replaced, stored keys oldest first | Sparse ratchet state | `vectors/persistence/sparse-ratchet-state.json`: a new `A2b` and `B2a` state; two sends; keys stored for an early message, then one used; a send that opens an epoch; a receive into that epoch and a send on it; an epoch retired with its stored keys; the epoch reaching `u64::MAX - 1`, the window's sum saturating; a sending and a receiving chain's counter reaching `u64::MAX`; each beside its bytes read back, with `fields` |
+| Sparse ratchet state accepted edges | Sparse ratchet state; Semantic rules of the leaf formats, Sparse ratchet state; ADR-0007 | same file: an absent chain, zeroed; a stored key numbered 0; a stored key past its chain's counter; stored keys in any order |
+| Sparse ratchet state refusals, each with its refusal | Sparse ratchet state; Semantic rules of the leaf formats, Sparse ratchet state; Rejection | same file: version bytes `0x00` and `0x02` (`wrong-version`); and, `short-or-malformed`, no bytes, a buffer short of the prefix, a `direction` tag of `0x02`, chain presence bytes `0x02` and `0xff`, an absent chain whose `ck` or `n` is not zeroed, a chains count and a skipped count beyond the buffer, no skipped count, a trailing byte, 2,001 stored keys, a chains epoch after the current one and one outside the window, two entries for one epoch, the current epoch without an entry, a stored key's epoch without one, two stored keys for one pair, and epoch `u64::MAX` |
+
+**How the runner builds the ratchets' states.** Neither `tacenta-ratchet` nor
+`tacenta-spqr` exposes a state's fields or compares two states outside its own
+tests, so the runner replays each vector's `steps` on the crate, from the same
+new state or from the vector's `start` bytes, and compares the state it
+reaches by the bytes it writes; then reads those bytes back and writes them
+again. A `bytes` vector is read: an accepted one must be written back as the
+same bytes, its `fields` laid out as the page lays them out must be those
+bytes, and what the crate's accessors show (the sending public key, `ns`,
+`nr`, the stored-key count, which chains are present; the epoch, the direction,
+each epoch's receiving counter) must agree with the fields. A refused one must
+be refused with the vector's refusal: `UnknownVersion` is `wrong-version`, and
+`TooShort` and `Malformed` are `short-or-malformed`.
 
 **Two readings these vectors pin.** session-persistence.md, "Erasure coder
 sub-formats", states both (the independent reader's `GAPS-2.md`, G2-04):
@@ -419,11 +444,28 @@ and `tacenta-erasure` do the same, and the `partial`,
 
 ### Not covered
 
-Every other persisted format: the ratchet state, the sparse ratchet state, the
-triple ratchet state, the Braid, the session, and the prekey store (v1 to v4),
-with their semantic rules. The model states none of them, so there is no
-oracle to generate vectors from, and they remain covered by `tacenta-core`'s
-round-trip and refusal tests and its fuzz targets. The encoder rule "at most
+Every other persisted format: the triple ratchet state, the Braid, the
+session, and the prekey store (v1 to v4), with their semantic rules. The model
+states none of them, so there is no oracle to generate vectors from, and they
+remain covered by `tacenta-core`'s round-trip and refusal tests and its fuzz
+targets.
+
+Three points of the two ratchets' states. A buffer too short for its fixed
+fields whose version byte is not `0x01`: the page does not say which refusal
+it gets, `Model.PersistedState` reads the version byte first, and both crates
+check the length first, so no vector has one. A store of exactly 2,000 keys,
+the accepted side of `MAX_SKIPPED_STORE`: its vector would be about 290
+kilobytes, and the refused side is pinned. And every step past a ceiling the
+pages state (`ChainExhausted` on `ns`, `nr` or a sparse chain's `n` at its
+maximum, the clock staying at `u32::MAX - 1`, the refused advance to epoch
+`u64::MAX`): the model's operations count in the naturals and do not state
+those refusals, so the operations vectors stop at the ceilings. In place of a
+vector for every state, `Model.PersistedState` proves that a state that keeps
+the rules and fits its fields reads back from the bytes it is written as
+(`RatchetState.ofBytes_toBytes`, `SparseState.ofBytes_toBytes`), and that a
+state either reader accepts keeps the rules, fits its fields and is written as
+exactly the bytes it was read from (`RatchetState.ofBytes_ok`,
+`SparseState.ofBytes_ok`). The encoder rule "at most
 65,536 chunks" is not pinned, since a vector for it is two megabytes. In its
 place, `Model.Erasure` proves that every encoder `new` builds keeps the
 encoder's rules after any number of codewords (`Encoder.new_issue_keeps`) and
@@ -481,8 +523,8 @@ Sender keys and multi-device are not yet scheduled and have no vectors. Session
 establishment: see the PQXDH section above for what the vectors reach and what
 core tests cover instead. Malformed-input handling is covered by vectors for
 the ratchet's skip bound, the decoders' refusal of a re-spelled curve key,
-the AEAD's refusals, the protobuf profile's refusals and the erasure coders'
-stored-state refusals; the broader cases (truncated headers, length overruns,
+the AEAD's refusals, the protobuf profile's refusals, and the erasure coders'
+and the two ratchets' stored-state refusals; the broader cases (truncated headers, length overruns,
 the bundle's presence rule, the other persisted formats) are covered by core
 tests and by the fuzz targets rather than by files in this directory.
 Interoperability against a libsignal-based peer is bundle-layer scope: the

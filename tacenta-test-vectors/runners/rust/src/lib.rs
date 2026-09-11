@@ -33,6 +33,11 @@ pub struct Vector {
     /// carried in place of `output` (schema/vector.schema.json).
     #[serde(default)]
     pub fields: Option<BTreeMap<String, String>>,
+    /// Which refusal a persisted-state reader gives an invalid vector's input
+    /// (session-persistence.md, Rejection): `wrong-version` or
+    /// `short-or-malformed`.
+    #[serde(default)]
+    pub refusal: Option<String>,
 }
 
 fn valid() -> String {
@@ -375,6 +380,11 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
         // (session-persistence.md, Erasure coder sub-formats).
         "erasure-encoder-state" => check_encoder_state(v),
         "erasure-decoder-state" => check_decoder_state(v),
+        // The two ratchets' persisted states, their readers' semantic rules
+        // and the refusal each reader gives (session-persistence.md, Ratchet
+        // state, Sparse ratchet state, Semantic rules of the leaf formats).
+        "ratchet-state" => check_ratchet_state(v),
+        "sparse-ratchet-state" => check_sparse_ratchet_state(v),
         // The bounded protobuf profile's two readers (protobuf-profile.md).
         "protobuf-ratchet-body" => check_ratchet_body(v),
         "protobuf-prekey-envelope" => check_prekey_envelope(v),
@@ -539,6 +549,361 @@ fn check_decoder_state(v: &Vector) -> Result<(), String> {
     let back = Decoder::from_bytes(&stored).ok_or("the reader refuses what the writer wrote")?;
     if back != dec || back.message() != dec.message() {
         return Err("read back a different decoder".to_string());
+    }
+    Ok(())
+}
+
+/// The refusal an invalid persisted-state vector names, against the one the
+/// reader gave.
+fn refusal_is(v: &Vector, got: &str) -> Result<(), String> {
+    match v.refusal.as_deref() {
+        Some(want) if want == got => Ok(()),
+        Some(want) => Err(format!("refused as {got}, where the vector says {want}")),
+        None => Err("an invalid persisted-state vector names its refusal".to_string()),
+    }
+}
+
+/// A vector's `fields` value by name, as bytes, or `None` when the vector
+/// leaves the field out.
+fn field(v: &Vector, name: &str) -> Result<Option<Vec<u8>>, String> {
+    let fields = v
+        .fields
+        .as_ref()
+        .ok_or("a valid stored-state vector carries fields")?;
+    fields
+        .get(name)
+        .map(|h| hex::decode(h).map_err(|e| format!("bad hex for field {name}: {e}")))
+        .transpose()
+}
+
+fn required_field(v: &Vector, name: &str) -> Result<Vec<u8>, String> {
+    field(v, name)?.ok_or_else(|| format!("the vector has no field {name}"))
+}
+
+/// The names a vector's `fields` may use, and no others.
+fn fields_named(v: &Vector, names: &[&str]) -> Result<(), String> {
+    let fields = v
+        .fields
+        .as_ref()
+        .ok_or("a valid stored-state vector carries fields")?;
+    match fields.keys().find(|k| !names.contains(&k.as_str())) {
+        Some(extra) => Err(format!(
+            "the vector names {extra}, which the format has not"
+        )),
+        None => Ok(()),
+    }
+}
+
+/// A 32-byte key with the format's presence byte in front: `0x01` and the
+/// key, or `0x00` and 32 zero bytes when the vector leaves it out.
+fn optional_key(v: &Vector, name: &str) -> Result<Vec<u8>, String> {
+    Ok(match field(v, name)? {
+        Some(k) if k.len() == 32 => [&[0x01][..], &k].concat(),
+        Some(k) => return Err(format!("field {name}: expected 32 bytes, got {}", k.len())),
+        None => [0u8; 33].to_vec(),
+    })
+}
+
+/// A run of entries of `width` bytes, and their count as four big-endian
+/// bytes.
+fn counted(entries: &[u8], width: usize) -> Result<[u8; 4], String> {
+    if !entries.len().is_multiple_of(width) {
+        return Err(format!(
+            "{} bytes is not a whole number of {width}-byte entries",
+            entries.len()
+        ));
+    }
+    u32::try_from(entries.len() / width)
+        .map(u32::to_be_bytes)
+        .map_err(|_| "too many entries".to_string())
+}
+
+/// A ratchet-state vector's steps, replayed on `state`: `0x00` is a send,
+/// and `0x01` a receive followed by the header's `dh(32) || pn(4) || n(4)`
+/// and the step's `dh_recv(32) || dh_send(32) || new_pub(32)`.
+fn replay_ratchet_steps(
+    state: &mut tacenta_core::ratchet::State,
+    steps: &[u8],
+) -> Result<(), String> {
+    use tacenta_core::ratchet;
+    let mut at = 0;
+    let mut i = 0;
+    while at < steps.len() {
+        match steps[at] {
+            0x00 => {
+                ratchet::send(state).map_err(|e| format!("step {i}: send refused: {e:?}"))?;
+                at += 1;
+            }
+            0x01 => {
+                let r = steps
+                    .get(at + 1..at + 137)
+                    .ok_or_else(|| format!("step {i}: a receive step cut short"))?;
+                let header = ratchet::Header {
+                    dh: array32(&r[0..32])?,
+                    pn: be32(&r[32..36])?,
+                    n: be32(&r[36..40])?,
+                };
+                ratchet::receive(
+                    state,
+                    &header,
+                    &array32(&r[40..72])?,
+                    &array32(&r[72..104])?,
+                    array32(&r[104..136])?,
+                )
+                .map_err(|e| format!("step {i}: receive refused: {e:?}"))?;
+                at += 137;
+            }
+            other => return Err(format!("step {i}: unknown operation {other:#04x}")),
+        }
+        i += 1;
+    }
+    Ok(())
+}
+
+/// A classical ratchet state's stored bytes. Either built by operations --
+/// from `role` (`00` the initiator, `init_sender`, with `sk`, `our_pub`,
+/// `peer_pub` and `dh_out`; `01` the responder, `init_receiver`, with `sk` and
+/// `our_pub`) or from `start`, stored bytes the reader accepts, then `steps`
+/// -- and then written, which must give `output`, and read back and written
+/// again, which must give it too. Or offered as `bytes` to the reader, which
+/// accepts them with `fields` or refuses them with `refusal`.
+fn check_ratchet_state(v: &Vector) -> Result<(), String> {
+    use tacenta_core::ratchet::{self, RatchetDecodeError, State};
+    if v.inputs.contains_key("bytes") {
+        let stored = input(v, "bytes")?;
+        return match (expects_success(v)?, State::from_bytes(&stored)) {
+            (true, Ok(state)) => {
+                eq(&state.to_bytes(), &stored)?;
+                ratchet_fields_agree(v, &state, &stored)
+            }
+            (true, Err(e)) => Err(format!("refused ({e:?}) stored bytes the vector accepts")),
+            (false, Ok(_)) => Err("accepted stored bytes the vector refuses".to_string()),
+            (false, Err(e)) => refusal_is(
+                v,
+                match e {
+                    RatchetDecodeError::UnknownVersion => "wrong-version",
+                    RatchetDecodeError::TooShort | RatchetDecodeError::Malformed => {
+                        "short-or-malformed"
+                    }
+                },
+            ),
+        };
+    }
+    let mut state = if v.inputs.contains_key("start") {
+        State::from_bytes(&input(v, "start")?)
+            .map_err(|e| format!("refused ({e:?}) the start state the vector gives"))?
+    } else {
+        let sk = array32(&input(v, "sk")?)?;
+        let our_pub = array32(&input(v, "our_pub")?)?;
+        match input(v, "role")?.as_slice() {
+            [0x00] => ratchet::init_sender(
+                &sk,
+                our_pub,
+                array32(&input(v, "peer_pub")?)?,
+                &array32(&input(v, "dh_out")?)?,
+                ratchet::LabelSet::Tacenta,
+            ),
+            [0x01] => ratchet::init_receiver(&sk, our_pub, ratchet::LabelSet::Tacenta),
+            other => return Err(format!("unknown role {}", hex::encode(other))),
+        }
+    };
+    replay_ratchet_steps(&mut state, &input(v, "steps")?)?;
+    let stored = state.to_bytes();
+    eq(&stored, &bytes(&v.output)?)?;
+    let back = State::from_bytes(&stored)
+        .map_err(|e| format!("the reader refuses ({e:?}) what the writer wrote"))?;
+    eq(&back.to_bytes(), &stored)
+}
+
+/// An accepted ratchet state against the vector's `fields`: the fields laid
+/// out as the format lays them out are the stored bytes, and what the state's
+/// accessors show agrees with them.
+fn ratchet_fields_agree(
+    v: &Vector,
+    state: &tacenta_core::ratchet::State,
+    stored: &[u8],
+) -> Result<(), String> {
+    fields_named(
+        v,
+        &[
+            "dhs_pub", "dhr_pub", "rk", "cks", "ckr", "ns", "nr", "pn", "events", "labels",
+            "skipped",
+        ],
+    )?;
+    let skipped = required_field(v, "skipped")?;
+    let laid_out = [
+        &[0x01][..],
+        &required_field(v, "dhs_pub")?,
+        &optional_key(v, "dhr_pub")?,
+        &required_field(v, "rk")?,
+        &optional_key(v, "cks")?,
+        &optional_key(v, "ckr")?,
+        &required_field(v, "ns")?,
+        &required_field(v, "nr")?,
+        &required_field(v, "pn")?,
+        &required_field(v, "events")?,
+        &required_field(v, "labels")?,
+        &counted(&skipped, 72)?,
+        &skipped,
+    ]
+    .concat();
+    eq(&laid_out, stored).map_err(|e| format!("fields laid out: {e}"))?;
+    eq(&state.sending_public(), &required_field(v, "dhs_pub")?)?;
+    eq(&state.send_count().to_be_bytes(), &required_field(v, "ns")?)?;
+    eq(
+        &state.receive_count().to_be_bytes(),
+        &required_field(v, "nr")?,
+    )?;
+    if state.skipped_len() != skipped.len() / 72 {
+        return Err(format!(
+            "holds {} stored keys, the vector {}",
+            state.skipped_len(),
+            skipped.len() / 72
+        ));
+    }
+    let shape = match (field(v, "cks")?.is_some(), field(v, "ckr")?.is_some()) {
+        (true, false) => Some(true),
+        (false, false) => Some(false),
+        _ => None,
+    };
+    if state.started_as_sender() != shape {
+        return Err("the chains present differ from the vector's".to_string());
+    }
+    Ok(())
+}
+
+/// A sparse-ratchet-state vector's steps, replayed on `state`. Each is
+/// `op(1) || epoch(8) || output_present(1) || output_epoch(8) ||
+/// output_key(32)`, the output zeroed when absent, and a receive (`op` `01`)
+/// is followed by the message number `n(8)`; a send's `op` is `00`.
+fn replay_sparse_steps(state: &mut tacenta_spqr::State, steps: &[u8]) -> Result<(), String> {
+    use tacenta_spqr::Output;
+    let mut at = 0;
+    let mut i = 0;
+    while at < steps.len() {
+        let r = steps
+            .get(at..at + 50)
+            .ok_or_else(|| format!("step {i}: cut short"))?;
+        let epoch = be64(&r[1..9])?;
+        let out = match r[9] {
+            0x00 => None,
+            0x01 => Some(Output::new(be64(&r[10..18])?, array32(&r[18..50])?)),
+            other => return Err(format!("step {i}: output presence {other:#04x}")),
+        };
+        match r[0] {
+            0x00 => {
+                state
+                    .send(epoch, out.as_ref())
+                    .map_err(|e| format!("step {i}: send refused: {e:?}"))?;
+                at += 50;
+            }
+            0x01 => {
+                let n = be64(
+                    steps
+                        .get(at + 50..at + 58)
+                        .ok_or_else(|| format!("step {i}: a receive step cut short"))?,
+                )?;
+                state
+                    .receive(epoch, out.as_ref(), n)
+                    .map_err(|e| format!("step {i}: receive refused: {e:?}"))?;
+                at += 58;
+            }
+            other => return Err(format!("step {i}: unknown operation {other:#04x}")),
+        }
+        i += 1;
+    }
+    Ok(())
+}
+
+/// A sparse ratchet state's stored bytes, the same two ways as
+/// `check_ratchet_state`: built from `direction` (`00` `A2b`, `01` `B2a`) and
+/// `sk`, or from `start`, then `steps`; or offered as `bytes`.
+fn check_sparse_ratchet_state(v: &Vector) -> Result<(), String> {
+    use tacenta_spqr::{Direction, SpqrDecodeError, State};
+    if v.inputs.contains_key("bytes") {
+        let stored = input(v, "bytes")?;
+        return match (expects_success(v)?, State::from_bytes(&stored)) {
+            (true, Ok(state)) => {
+                eq(&state.to_bytes(), &stored)?;
+                sparse_fields_agree(v, &state, &stored)
+            }
+            (true, Err(e)) => Err(format!("refused ({e:?}) stored bytes the vector accepts")),
+            (false, Ok(_)) => Err("accepted stored bytes the vector refuses".to_string()),
+            (false, Err(e)) => refusal_is(
+                v,
+                match e {
+                    SpqrDecodeError::UnknownVersion => "wrong-version",
+                    SpqrDecodeError::TooShort | SpqrDecodeError::Malformed => "short-or-malformed",
+                },
+            ),
+        };
+    }
+    let mut state = if v.inputs.contains_key("start") {
+        State::from_bytes(&input(v, "start")?)
+            .map_err(|e| format!("refused ({e:?}) the start state the vector gives"))?
+    } else {
+        let sk = input(v, "sk")?;
+        match input(v, "direction")?.as_slice() {
+            [0x00] => State::init(&sk, Direction::A2b),
+            [0x01] => State::init(&sk, Direction::B2a),
+            other => return Err(format!("unknown direction {}", hex::encode(other))),
+        }
+    };
+    replay_sparse_steps(&mut state, &input(v, "steps")?)?;
+    let stored = state.to_bytes();
+    eq(&stored, &bytes(&v.output)?)?;
+    let back = State::from_bytes(&stored)
+        .map_err(|e| format!("the reader refuses ({e:?}) what the writer wrote"))?;
+    eq(&back.to_bytes(), &stored)
+}
+
+/// An accepted sparse ratchet state against the vector's `fields`, as
+/// `ratchet_fields_agree` does for the classical one.
+fn sparse_fields_agree(
+    v: &Vector,
+    state: &tacenta_spqr::State,
+    stored: &[u8],
+) -> Result<(), String> {
+    use tacenta_spqr::Direction;
+    fields_named(v, &["rk", "epoch", "direction", "chains", "skipped"])?;
+    let chains = required_field(v, "chains")?;
+    let skipped = required_field(v, "skipped")?;
+    let laid_out = [
+        &[0x01][..],
+        &required_field(v, "rk")?,
+        &required_field(v, "epoch")?,
+        &required_field(v, "direction")?,
+        &counted(&chains, 90)?,
+        &chains,
+        &counted(&skipped, 48)?,
+        &skipped,
+    ]
+    .concat();
+    eq(&laid_out, stored).map_err(|e| format!("fields laid out: {e}"))?;
+    eq(&state.epoch().to_be_bytes(), &required_field(v, "epoch")?)?;
+    let direction = match state.direction() {
+        Direction::A2b => 0x00,
+        Direction::B2a => 0x01,
+    };
+    eq(&[direction], &required_field(v, "direction")?)?;
+    if state.skipped_len() != skipped.len() / 48 {
+        return Err(format!(
+            "holds {} stored keys, the vector {}",
+            state.skipped_len(),
+            skipped.len() / 48
+        ));
+    }
+    for entry in chains.chunks(90) {
+        let epoch = be64(&entry[0..8])?;
+        let receive = &entry[49..90];
+        let want = (receive[0] == 0x01)
+            .then(|| be64(&receive[33..41]))
+            .transpose()?;
+        if state.receive_count(epoch) != want {
+            return Err(format!(
+                "epoch {epoch}'s receiving chain differs from the vector's"
+            ));
+        }
     }
     Ok(())
 }

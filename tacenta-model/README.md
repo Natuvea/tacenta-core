@@ -29,14 +29,22 @@ time, and the ratchet carries build-time self-consistency checks.
   the trusted boundary, and why the split is sound.
 - `docs/mapping-to-spec.md`: each model definition mapped to its spec section.
 
-Status: everything the engine runs is modelled. Beyond the Double Ratchet slice the model now carries PQXDH session establishment
+Status: everything the engine runs is modelled. Beyond the Double Ratchet slice
+the model now carries PQXDH session establishment
 (`Model/SessionEstablishment.lean`), the sparse post-quantum ratchet
 (`Model/SparseRatchet.lean`), the ML-KEM Braid and the field and polynomial
 theory beneath it (`Model/Braid.lean`, `Model/Gf65536.lean`,
 `Model/Polynomial.lean`), the erasure code's bytes and its coders' persisted
-formats (`Model/Erasure.lean`, which the vectors are generated from and
-nothing else imports), the Triple Ratchet (`Model/Triple.lean`,
-`Model/TripleRatchet.lean`), the composite header, and a protobuf profile.
+formats (`Model/Erasure.lean`), the classical and sparse ratchets' persisted
+states with their readers and the rules the readers enforce
+(`Model/PersistedState.lean`, which proves that each format reads back what it
+writes and that each reader accepts only what it writes), the Triple Ratchet
+(`Model/Triple.lean`, `Model/TripleRatchet.lean`), the composite header, and a
+protobuf profile. The vectors are generated from the two persistence modules,
+and apart from the vector generator and the axiom audit only
+`Model/PersistedState.lean` imports the erasure module. The Triple Ratchet's,
+the Braid's, the session's and the prekey store's persisted formats are not yet
+modelled.
 
 Two are still scaffolds and are named rather than left to be discovered:
 `Model/MultiDevice.lean` is five lines, and there is no sender-keys model at all.
