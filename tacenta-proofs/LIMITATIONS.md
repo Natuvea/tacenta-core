@@ -1021,19 +1021,6 @@ respectively is, the original), hypotheses of `Braid.receive_refines` and
 `State.clone_refines`. Each is the same shape of boundary fact as the KDF
 agreements.
 
-**One reporting mismatch between the model and the code is recorded rather
-than patched.** The model states only `receive_reports_le : (receive K st
-msg).1 ≤ st.epoch`, an inequality. On a MAC-mismatch transition specifically,
-that leading component preserves the pre-failure epoch, while the real
-`Braid.receive` reports the epoch of the state it actually lands in --
-`State::Failed`, whose epoch is a fixed zero -- so the two disagree whenever
-a mismatch occurs above epoch one. `Braid.receive_refines` is stated and
-proved against the state the real code actually reports from, not the
-model's own leading `Nat`, which is why the model needed only the weaker
-inequality to begin with. See `BraidT3.lean`'s own header on
-`Braid.receive_refines` and `CLAIMS.md`'s braid T3 entry for the full
-account.
-
 **An assumption is per translated crate, not per operation.** `VecRemoveTotal`
 is listed once below. There are two:
 each translation unit declares its own opaque `alloc.vec.Vec.remove`, so the

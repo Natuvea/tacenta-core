@@ -291,6 +291,10 @@ were:
   described a ratchet message as the Double Ratchet's forty-byte header
   alone, a format `protocol/message-format.md` does not accept. It now follows
   the composite header.
+- The model's Braid reported, on a receive that moves it to `Failed` (a MAC
+  that does not verify, or an `ek_vector` that fails the header hash), the
+  epoch before the one it failed at. It now reports epoch 0, as
+  `protocol/mlkem-braid.md` ("Failure") and the implementation do.
 
 ### Backfilled
 Entries this log omitted when the pages landed, recorded here so the log is
