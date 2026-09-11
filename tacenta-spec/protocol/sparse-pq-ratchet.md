@@ -100,8 +100,8 @@ Concretely, each is HKDF-SHA256 whose `info` is `PROTOCOL_INFO` immediately
 followed by its own suffix, with no separator: `Tacenta SPQRChain Start` for
 initialisation, `Tacenta SPQRRoot` for the root step and `Tacenta SPQRChain` for
 the chain step (CONSTANTS.md; `tacenta-core/LABELS.md`). Initialisation takes
-an all-zero salt and the shared secret as input and yields ninety-six bytes:
-the root key, then the first and second chain keys. The root step takes the
+a 32-byte all-zero salt and the shared secret as input and yields ninety-six
+bytes: the root key, then the first and second chain keys. The root step takes the
 current root key as salt and the agreement's secret as input and yields the
 same three in the same order. The chain step takes the chain key as salt and
 the message number as eight big-endian bytes as input and yields sixty-four
@@ -153,7 +153,27 @@ message key came from, and the message number (message-format.md).
 ## Receiving
 
 The mirror, with one addition. The agreement's message is handed to it; if a
-secret comes back, the root key advances exactly as above.
+secret comes back, the root key advances exactly as above, and the secret's
+own epoch is the one that advance checks and opens.
+
+The message is received on the chain of the epoch the header names, its
+`pq_epoch`, and under the header's `pq_n` (message-format.md). The epoch the
+agreement's receive returns is not used: it selects no chain and is not
+compared with `pq_epoch`, and a message is not refused because the two
+differ. A `pq_epoch` naming an epoch whose chains the state holds, but not the
+one the sender used, yields a key the message does not authenticate under, so
+nothing is adopted (triple-ratchet.md, Sending and receiving).
+
+**This departs from the published specification, and the departure is not yet
+decided.** There the header carries the agreement's message and the message
+number but no epoch, and the receive looks up the chain by the epoch the
+agreement returns (Double Ratchet revision 4, §5.6; §6.5 builds the composite
+header the same way). Here the header carries the sending epoch as
+`pq_epoch`, and the chain is looked up by that. Where the agreement keeps its
+guarantee the two are the same epoch. They differ on the message whose receipt
+fails the agreement: its receive returns epoch 0 (mlkem-braid.md, Failure),
+and the message is still received under its `pq_epoch`. This page records the
+behaviour as built.
 
 Then, before deriving anything, the store of skipped keys is consulted for this
 epoch and number. If a key is there it is used and **removed**. That is the
@@ -170,6 +190,14 @@ number. A message naming an epoch the state holds no chains for is refused
 (`NoChain`). A message whose number is not past the chain's counter and whose
 key is not stored is refused as out of order (`OutOfOrder`), or as counter
 exhaustion (`ChainExhausted`) once the counter is `u64::MAX`.
+
+Stepping forward deletes any key stored for the epoch under a number it is
+about to store, then stores the keys it passes, in number order, after every
+key already in the store. No operation leaves a key stored at a number past
+its chain's counter, so this replaces a key only in a state read from storage,
+which the reader accepts (session-persistence.md, Semantic rules of the leaf
+formats). Where it does, the replacing key is last in the order eviction takes
+keys in.
 
 A send or receive that is refused may already have folded the agreement's
 secret in. A caller therefore runs each on a copy of the state and treats a

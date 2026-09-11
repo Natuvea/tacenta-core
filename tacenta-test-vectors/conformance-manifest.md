@@ -59,7 +59,7 @@ inputs; libsignal's source code is not an input to this project.
 | Diffie-Hellman ratchet | The Diffie-Hellman ratchet | bidirectional and peer-revisits-ratchet-key vectors |
 | Skipped keys, MAX_SKIP | Skipped keys | out-of-order vector, `skipMessageKeys_growth`, reject vector |
 | Skipped store bound, MAX_SKIPPED_STORE | Skipped keys | `skipMessageKeys_store_bounded`, core store-bound test |
-| Session initialisation | Sending and receiving | all vectors (init_sender / init_receiver) |
+| Initialisation, both roles | Initialisation | all vectors (init_sender / init_receiver) |
 | Same-chain message below `Nr` with no stored key refused | Sending and receiving | same-chain-duplicate reject vector, `Model.Ratchet` examples (a duplicate after an in-order receive and after a stored-key receive is refused, the next message is still received), `receive_refines` (the model's refusal is part of what the Rust success case refines), core unit test `a_same_chain_duplicate_is_refused_and_changes_nothing` (`OutOfOrder`, state unchanged) |
 
 Vectors: `vectors/ratchet/double-ratchet.json` (`in-order-3`,

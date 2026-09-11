@@ -120,6 +120,19 @@ codeword only for the message type it is expecting. The header is authenticated
 as associated data either way (below), so a codeword cannot be added or removed
 in transit.
 
+The vectors for this encoding (`tacenta-test-vectors/vectors/serialization/message-encoding.json`
+and `tacenta-test-vectors/vectors/post-quantum/composite.json`) give the header
+as named inputs, each the bytes of one field as encoded above, and the encoding
+as `output`. Every input is named for its field except one: **the input
+`chunk_data` is the field `chunk`**. The input `ciphertext`, in
+`message-encoding.json` only, is the `ciphertext` field. The codeword's three
+fields are three inputs, but they are one optional value and not independent
+ones. `chunk_present` is the presence byte. When it is `01` the codeword is
+present, with index `chunk_index` (two bytes, big-endian) and 32 bytes
+`chunk_data`. When it is `00` the codeword is absent, and `chunk_index` and
+`chunk_data` are its padding: all zero bytes, since the decoder refuses
+anything else. No vector gives any other combination.
+
 ## Associated data
 
 The Double Ratchet specification requires that the associated data given to the
@@ -162,6 +175,25 @@ tag        = HMAC-SHA256(mac_key, AD || ciphertext)   -- 32 bytes
 output     = ciphertext || tag
 ```
 
+`enc_key`, `mac_key` and `iv` are bytes 0 to 31, 32 to 63 and 64 to 79 of the
+expansion's 80-byte output, in that order. `AES-256-CBC-Encrypt` is the Cipher
+Block Chaining mode of NIST SP 800-38A, section 6.2, over the AES-256 block
+cipher of FIPS 197, with `iv` as the initialisation vector. With `padded` cut
+into 16-byte blocks `P_1` to `P_n`:
+
+```
+C_0        = iv
+C_i        = AES-256(enc_key, P_i XOR C_(i-1))          -- i = 1 .. n
+ciphertext = C_1 || ... || C_n
+```
+
+Decryption is `P_i = AES-256-Inverse(enc_key, C_i) XOR C_(i-1)`, again with
+`C_0 = iv`. The IV is not sent: it is not prepended to `ciphertext`, and no
+header field carries it, because both sides derive it. Each message key is used
+for one message (ratchet.md), so each `(enc_key, iv)` pair encrypts one
+plaintext, and an IV derived from a secret is unpredictable to anyone without
+the message key, which is what SP 800-38A, Appendix C, asks of a CBC IV.
+
 A plaintext that is already a whole number of blocks gains a full block of
 padding, so `ciphertext` is a nonzero multiple of 16 bytes and `output` is at
 least 48 bytes. The HMAC input is `AD` then `ciphertext`, back to back, with
@@ -187,9 +219,26 @@ length. The failure is the same whichever step refused, so a padding refusal
 cannot be told from a tag refusal, and nothing is decrypted until the tag has
 verified.
 
-`tacenta-core` takes AES-256, CBC and PKCS#7 padding from libraries
-(RustCrypto's `aes` and `cbc`). This section, not those libraries, defines the
-behaviour an implementation must have.
+**What is left to the primitives, and what is not.** The algorithms are
+standard:
+
+- the AES-256 block cipher (FIPS 197);
+- CBC chaining (SP 800-38A, section 6.2);
+- the padding above, which is the PKCS#7 scheme of RFC 5652, section 6.3;
+- HMAC (RFC 2104) over SHA-256 (FIPS 180-4).
+
+This section fixes every choice those algorithms leave open: the key and IV
+and where they come from, the padding and its check, the tag's input and
+length, and the order of the receiver's steps. Any conforming implementation of
+them produces the same `output` and refuses the same inputs. Beyond the
+algorithms, one requirement falls on the implementation itself: the tag
+comparison in step 2 runs in constant time. The padding check needs no such
+care, because it is reached only after a tag has verified.
+
+`tacenta-core` takes AES-256, CBC and PKCS#7 padding from RustCrypto's `aes`
+and `cbc`, and HMAC-SHA256 from `hmac` and `sha2`. Those libraries are one
+implementation of these standards; this section, not they, defines the
+behaviour.
 
 ## Initial message
 
@@ -340,3 +389,10 @@ pair parse uniquely) and the published PQXDH specification revision 3 (the
 initial message's contents, and that it be encoded unambiguously). The concrete
 encodings are ours, for the reasons given above, and are not derived from any
 other implementation.
+
+The authenticated encryption's primitives come from these standards:
+
+- FIPS 197, for AES;
+- NIST SP 800-38A, section 6.2, for CBC, and Appendix C, for its IV;
+- RFC 5652, section 6.3, for the padding;
+- RFC 2104, for HMAC, and FIPS 180-4, for SHA-256.
