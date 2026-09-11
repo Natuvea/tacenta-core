@@ -13,11 +13,13 @@ computes the protocol key schedule to exact bytes, so protocol-level test vector
 are generated from it rather than from the implementation checking itself.
 
 Build with `lake build`, on the Lean toolchain `lean-toolchain` names
-(installed through elan). That builds the model, the properties, and the
-vector generator `genvectors`, so a change that breaks the generator fails
-here rather than at the next regeneration;
-`../tacenta-test-vectors/regenerate-vectors.sh` runs the generator and says
-which files it writes. The derivations are anchored to standard known-answer
+(installed through elan). That builds the model, the properties, the vector
+generator `genvectors` and the differential harness `difftest`, so a change
+that breaks either executable fails here rather than at the next regeneration
+or the next run; `../tacenta-test-vectors/regenerate-vectors.sh` runs the
+generator and says which files it writes, and `Difftest.lean` says what the
+harness reads and prints (`../tacenta-test-vectors/README.md`, Differential
+testing against the model). The derivations are anchored to standard known-answer
 values (NIST for SHA-256, RFC 4231 for HMAC, RFC 5869 for HKDF) checked at build
 time, and the ratchet carries build-time self-consistency checks.
 

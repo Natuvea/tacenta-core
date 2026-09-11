@@ -17,3 +17,10 @@ lean_lib «Properties» where
 @[default_target]
 lean_exe genvectors where
   root := `Vectors
+
+-- The model's half of the differential harness, a default target for the same
+-- reason: a model change that breaks it fails the model build rather than
+-- waiting for the Rust side to find it. See `Difftest.lean`.
+@[default_target]
+lean_exe difftest where
+  root := `Difftest
