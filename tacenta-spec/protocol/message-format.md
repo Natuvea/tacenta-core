@@ -79,6 +79,8 @@ All counters are big-endian. The composite header is **102 bytes**, framing
 included, so a ratchet message is 102 bytes plus the ciphertext. `ciphertext`
 is the AEAD output, which already carries its authentication tag, and runs to
 the end of the message; it is not length-prefixed because nothing follows it.
+The decoder places no constraint on its length or contents: the AEAD checks
+both (Authenticated encryption, below).
 
 `ag_type` names what the agreement's message carries, and its six values are
 the ML-KEM Braid specification's members minus one:
@@ -144,6 +146,47 @@ The composite header is fixed width, so with the length of `ad` recorded the
 pair parses uniquely. For a session established by PQXDH, `ad` is the
 associated data that page defines, binding both identity keys.
 
+## Authenticated encryption
+
+The AEAD is AES-256-CBC with PKCS#7 padding, followed by HMAC-SHA256 over the
+associated data and the ciphertext (encrypt-then-MAC). Its keys are the output
+of the message-key expansion (ratchet.md, Derivations): an AES-256 key
+`enc_key`, an HMAC-SHA256 key `mac_key`, and a 16-byte `iv`. `AD` below is
+`CONCAT(ad, header)` from the section above.
+
+```
+p          = 16 - (len(plaintext) mod 16)             -- 1 to 16
+padded     = plaintext || p bytes, each of value p
+ciphertext = AES-256-CBC-Encrypt(enc_key, iv, padded)
+tag        = HMAC-SHA256(mac_key, AD || ciphertext)   -- 32 bytes
+output     = ciphertext || tag
+```
+
+A plaintext that is already a whole number of blocks gains a full block of
+padding, so `ciphertext` is a nonzero multiple of 16 bytes and `output` is at
+least 48 bytes. The HMAC input is `AD` then `ciphertext`, back to back, with
+no length field for either: the length prefix `CONCAT` writes is what makes
+the split unique. The tag is the full HMAC output, not truncated
+(CONSTANTS.md). `output` is the ratchet message's `ciphertext` field.
+
+A receiver holding `input` and `AD`:
+
+1. refuses an `input` shorter than 32 bytes;
+2. takes the last 32 bytes as `tag` and the rest as `ciphertext`, and refuses
+   unless `HMAC-SHA256(mac_key, AD || ciphertext)` equals `tag`, compared in
+   constant time;
+3. only then decrypts: it refuses a `ciphertext` that is empty or whose length
+   is not a multiple of 16, decrypts it with AES-256-CBC under `enc_key` and
+   `iv`, and refuses unless the last byte `p` of the result is between 1 and
+   16 and the last `p` bytes all equal `p`;
+4. returns the result without its last `p` bytes.
+
+Every refusal is an authentication failure, and none is a decode failure: the
+ratchet-message decoder has already accepted the ciphertext whatever its
+length. The failure is the same whichever step refused, so a padding refusal
+cannot be told from a tag refusal, and nothing is decrypted until the tag has
+verified.
+
 ## Initial message
 
 The first message to a party carries what they need to complete the handshake,
@@ -171,6 +214,26 @@ keys.
 no one-time curve prekey. The recipient must treat that as "no one-time prekey
 was used" rather than as an identifier to look up.
 
+A decoder refuses an initial message shorter than its two framing bytes, an
+unrecognised version, a type byte other than `0x02`, input that ends inside
+`identity`, `ephemeral`, `kem_ciphertext_len` or any of the three
+identifiers, and a `kem_ciphertext_len` that runs past the end of the input.
+It also refuses an `identity` or `ephemeral` whose first byte is not the
+`EncodeEC` curve byte (session-establishment.md), since neither is then an
+`EncodeEC` form; that is a decode failure like the others.
+
+Everything after `kem_prekey_id` is `ratchet_message`, and the initial-message
+decoder does not validate it: it may be empty, or not a ratchet message at
+all. It is decoded, and refused if it does not decode, only when the recipient
+decrypts it as a ratchet message. Nor does the decoder look at the identifier
+values; Key identifiers, below, says how each is treated.
+
+The decoder does not check `kem_ciphertext`'s length either. Decapsulation
+refuses a ciphertext that is not the KEM's ciphertext length, 1,568 bytes for
+ML-KEM-1024, and the recipient refuses the initial message at that point. The
+refusal is not a decode failure. It comes before any secret is derived and
+changes nothing.
+
 ## Prekey bundle
 
 What a party publishes and a sender fetches before opening a session: public
@@ -197,7 +260,9 @@ re-tags the key it reads before checking. `kem_prekey` is the KEM's own
 encapsulation key, 1,568 bytes for ML-KEM-1024, and is the one variable-length
 field; it is length-prefixed rather than assumed so a bundle produced under
 one parameter set fails to decode under another instead of being read as a
-shorter key followed by rubbish. A bundle is 1,811 bytes with that KEM.
+shorter key followed by rubbish. So a decoder refuses a `kem_prekey_len` other
+than the encapsulation-key length of the KEM it expects, as a decode failure.
+A bundle is 1,811 bytes with that KEM.
 
 The one-time curve prekey is the one optional field, and it is encoded the
 way the ratchet message encodes its optional codeword: a presence byte, then
@@ -206,8 +271,10 @@ bytes must be zero and a decoder refuses anything else, so that one bundle
 has one spelling; a presence byte other than `0x00` or `0x01` is refused too.
 `one_time_prekey_id` is the absent identifier when the key is absent, and a
 bundle in which the two disagree about presence is refused by the initiator
-before any agreement is computed. Trailing bytes are rejected: a bundle is a
-whole object, not a prefix of a stream.
+before any agreement is computed. The decoder does not compare the two: such
+a bundle decodes, and the initiator's session establishment is what refuses
+it, as an inconsistent bundle rather than a decode failure. Trailing bytes
+are rejected: a bundle is a whole object, not a prefix of a stream.
 
 ## Key identifiers
 
@@ -219,6 +286,14 @@ The value `0` is reserved to mean **absent** and is never assigned to a real
 prekey. That gives the initial message a fixed shape whether or not a one-time
 prekey was used, which avoids an optional field and the ambiguity that would come
 with it.
+
+Neither decoder looks at an identifier's value, so `0` decodes in every
+position. In the `one_time_prekey_id` position it means no one-time curve
+prekey. In the `signed_prekey_id` and `kem_prekey_id` positions it names no
+prekey, since none is ever assigned it: an initiator does not check for it in
+a bundle and echoes it, and the recipient refuses the initial message as
+naming a prekey it does not hold, the same refusal as for any other unknown
+identifier.
 
 ## Wire-sensitive values
 
@@ -248,7 +323,10 @@ a message too short for its fixed fields; a length prefix that overruns the
 input; trailing bytes after a message that should have ended; and any encoding
 that is not the canonical one. Rejection is a decode failure, distinct from an
 authentication failure, and neither reveals more than that the message was not
-acceptable.
+acceptable. That restraint is about what a peer learns from a refusal. It does
+not constrain the error types an implementation reports to its own caller,
+which may be as specific as is useful (error-handling.md), beyond the AEAD's
+one rule above that a padding refusal and a tag refusal are the same failure.
 
 ## Sources
 

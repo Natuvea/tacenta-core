@@ -53,12 +53,12 @@ pub const MAX_VARINT_BYTES: usize = 5;
 /// attacker where it stopped.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ProtoError {
-    /// Longer than `MAX_MESSAGE_LEN`, or a length inside runs past the end.
+    /// Over `MAX_MESSAGE_LEN`, a length past the end, too many fields, or bytes left.
     TooLong,
-    /// Ended in the middle of something.
+    /// Ended inside a varint, or a required field never appeared.
     Truncated,
-    /// A varint longer than `MAX_VARINT_BYTES`, or one with a non-minimal
-    /// encoding.
+    /// A varint longer than `MAX_VARINT_BYTES`, not minimally encoded, or with a
+    /// value that does not fit 32 bits.
     BadVarint,
     /// A wire type or field number outside the profile.
     NotInProfile,
@@ -642,7 +642,7 @@ pub fn wire_code(wire: WireType) -> u32 {
     }
 }
 
-/// Emit a tag: the field number times eight, plus the wire type.
+/// Emit a tag: field times eight plus wire type. The field is not range-checked.
 pub fn encode_tag(bytes: Vec<u8>, field: u32, wire: WireType) -> Result<Vec<u8>, ProtoError> {
     let w = wire_code(wire);
     match field.checked_mul(8) {
@@ -766,8 +766,8 @@ pub fn encode_ratchet_body(body: &RatchetBody) -> Result<Vec<u8>, ProtoError> {
 
 /// Emit the protobuf region of a prekey envelope.
 ///
-/// Fields ascending, the order the external interoperability profile emits,
-/// so that re-encoding a received envelope reproduces it. Field 1 is emitted
+/// Fields ascending, as the external profile emits them; re-encoding reproduces
+/// only an ascending input, since a reader takes any order. Field 1 is emitted
 /// **only when present**: a bundle with no one-time prekey produces a message
 /// with the field omitted entirely rather than set to zero, as the external
 /// profile does, and a zero would be a different byte string carrying a claim
@@ -1031,8 +1031,8 @@ pub fn parse_ratchet_body(bytes: Vec<u8>) -> Result<RatchetBody, ProtoError> {
         return Err(e);
     }
 
-    // Anything left is either a sixth field or a truncation, and neither is a
-    // message of this profile.
+    // Unreachable once the loop ends without an error (a sixth field is refused
+    // inside it), and kept so the format's rule is stated where it is enforced.
     if st.reader.remaining() > 0 {
         return Err(ProtoError::TooLong);
     }

@@ -46,9 +46,10 @@ def maxU32 : Nat := 4294967295
 /-! ## Varints
 
 Base-128, little-endian, minimally encoded. The minimality requirement is the
-part with content: without it one value has many spellings, and this profile's
-authenticator covers exact bytes, so a second spelling is a second message that
-means the same thing. -/
+part with content: without it one value has many spellings. It makes each varint,
+and so each tag and length, canonical. It does not make a message canonical:
+field order is free, so one body has many spellings, and anything that
+authenticates these bytes has to do so over the bytes received. -/
 
 /-- Decode a varint from the front of `bs`, with `factor` the place value of the
     next byte and `acc` the value accumulated so far.
@@ -92,9 +93,9 @@ def varint (bs : List UInt8) : Option (Nat × List UInt8) :=
 
 /-! ## Emitting a varint
 
-The inverse direction, and the reason it exists is not symmetry. This profile's
-authenticator covers exact bytes, so what matters is that the accepted byte
-strings are *exactly* the ones this emits. A round trip -- `decode (encode v) =
+The inverse direction, and the reason it exists is not symmetry. What matters
+is that the accepted varint byte strings are *exactly* the ones this emits, so a
+varint has one spelling. A round trip -- `decode (encode v) =
 v` -- says nothing about that: it constrains what the encoder produces and says
 nothing at all about what the decoder accepts. The theorem below goes the other
 way. -/
@@ -108,7 +109,9 @@ theorem byte_high (t : UInt8) (h : 128 ≤ t.toNat) :
   simp [UInt8.toNat_add, UInt8.toNat_ofNat]
   omega
 
-/-- Emit a varint, minimally, base 128 little-endian. -/
+/-- Emit a varint, minimally, base 128 little-endian. Correct for values below
+    2^35, the most five bytes carry; above that it ends on a continuation byte.
+    It is only applied to values `varint` accepted, which are at most `maxU32`. -/
 def encodeVarintFrom : Nat → Nat → List UInt8
   | 0, _ => []
   | fuel + 1, v =>
@@ -432,7 +435,11 @@ def initial (bs : List UInt8) : ParseState :=
 /-- Parse the protobuf region of a ratchet message.
 
     Three refusals after the loop, and each is a policy rather than a detail.
-    Bytes left over mean a sixth field or a truncation. A missing field is
+    Bytes left over cannot remain once the loop ends unrefused: every field it
+    accepts carries a distinct number from one to five, so a sixth field, like a
+    truncated one, is refused inside the loop. The check states the format's
+    rule rather than a reachable case, and the same holds for the envelope and
+    for the `maxFields` bound on both. A missing field is
     refused rather than defaulted, because a default is a value nobody sent.
     Field *order* is not among them: the external profile's emitted order is a
     property of the encoder, not of the format. -/
@@ -702,10 +709,9 @@ The cost is real and is a compatibility risk rather than a security one. If the
 external profile gains a field, this profile stops accepting those messages and
 says so; compatibility is claimed by version (ADR-0004).
 
-**Duplicate fields.** Not modelled at this level because they are a property
-of a message, not of a field, and belong with the message-level parsing that
-reads these primitives; the Rust refuses a duplicate field number and bounds
-the field count by `MAX_FIELDS` at the message level. -/
+**Nothing is absent for duplicate fields.** A repeated field number is refused
+by `admit`, through `seen`, in the message-level parsing below, which is also
+where the field count is bounded by `maxFields`; the Rust does the same. -/
 
 /-! ## Why the accumulation is bounded
 

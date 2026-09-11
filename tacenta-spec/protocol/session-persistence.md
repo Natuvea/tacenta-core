@@ -35,9 +35,12 @@ interoperating with anyone.
   encoding only its own fields. `Session::export`/`import` composes these
   rather than reaching into any of their internals, so each format can change
   size or shape without the others' code changing.
-- **No new abstraction leak.** The Braid's eleven live internal states are
-  not named or exposed by this format: it can only be exported and imported
-  whole, the same restriction callers already have on a live `Braid`.
+- **No new abstraction leak.** The format's `state_tag` identifies which of
+  the Braid's twelve states was saved, and the Braid section below names all
+  of them, but the API exposes no more than it did: a caller can read the tag
+  (`Braid::state_tag`) and cannot construct a state or read its contents. A
+  Braid is exported and imported only whole, the same restriction callers
+  already have on a live `Braid`.
 - **Validated, not only parsed.** A decoder that reads every field
   correctly can still hand back a state no constructor builds: a ratchet
   private key beside a public key that is not its own, an epoch pair the
@@ -117,6 +120,13 @@ reason: a fixed-width optional field is provably canonical, a variable-width
 one only tested. `labels` is a one-byte tag naming the `LabelSet` variant
 (`0x00` today, for the sole `Tacenta` set).
 
+Every integer is big-endian: `ns`, `nr`, `pn`, `events`, `skipped_count`, and
+each entry's `n` and `stored_at`. The `skipped` entries are written in the
+store's order, which is the order the keys were stored. That order is
+meaningful, since eviction breaks ties between equal `stored_at` values by it
+(ratchet.md, Skipped keys), but the reader accepts the entries in any order and
+keeps the order it read.
+
 ## Sparse ratchet state
 
 ```
@@ -131,6 +141,21 @@ skipped = epoch(8) || n(8) || key(32)
 ```
 
 `direction` is a one-byte tag (`0x00` `A2b`, `0x01` `B2a`).
+
+Every integer is big-endian: `epoch`, `chains_count`, `skipped_count`, each
+`epoch_key` and chain `n`, and each stored key's `epoch` and `n`.
+
+The `chains` entries are written in the order their epochs' chains were last
+replaced, most recent last: an advance opens an entry, and a send, or a
+receive that steps a chain, rewrites it. That order carries no meaning, and
+the reader accepts any. The `skipped` entries are written in the order the keys
+were stored, oldest first, and that order is meaningful: it is the order
+eviction takes them in (sparse-pq-ratchet.md). The reader accepts any order and
+keeps the order it read.
+
+A chain whose presence byte is `0x00` is absent. The reader accepts it, though
+no operation produces one: retiring an epoch removes its whole entry. An
+operation that needs an absent chain is refused (`ChainRetired`).
 
 ## Braid
 

@@ -1400,11 +1400,11 @@ Location: `tacenta-proofs/translation/Translation/SessionT3.lean`,
   before this one is a build fact rather than an expectation.
 
   **Not the same as an end-to-end claim from wire bytes to a ratchet
-  decision.** `tacenta-protobuf` is still called only by its own crate and by
-  interoperability tests that are not part of this public tree; nothing
-  in the live `Session`
-  send/receive path calls into it yet, which still uses the older fixed-width
-  `tacenta_core::serialization` format. The decoders a peer's bytes actually
+  decision.** Outside its own crate, `tacenta-protobuf` is referenced in this
+  tree only by a fuzz target, and nothing on the live `Session` send/receive
+  path calls it: that path parses a peer's bytes in the fixed-width format
+  message-format.md specifies, not in this profile. The
+  decoders a peer's bytes actually
   reach, `decode_message`, `decode_composite` and `decode_initial`, and the
   bundle decoder `decode_bundle`, are translated and proved (see the
   `tacenta-wire` sections). These proofs are what
