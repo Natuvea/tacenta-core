@@ -47,9 +47,10 @@ Two kinds live here:
       `runners/rust/tests/ratchet.rs`. Hand-authored, not model output: the
       file pins a rejection rule the specification states (`MAX_SKIP`), not
       bytes the model produced.
-    - `composite-header-decode.json` and `prekey-bundle-decode.json`: whole
-      encodings given to the composite header's and the prekey bundle's
-      decoders, a curve key in each position either reads. Each key is
+    - `composite-header-decode.json`, `prekey-bundle-decode.json` and
+      `initial-message-decode.json`: whole encodings given to the composite
+      header's, the prekey bundle's and the initial message's decoders, a
+      curve key in each position each of them reads. Each key is
       accepted in its canonical spelling and refused with bit 255 set or with
       p = 2^255 - 19 added (message-format.md, Curve public keys). Generated
       from the model's decoders, which give every vector its `result`; an

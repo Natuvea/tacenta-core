@@ -23,16 +23,21 @@ fn malformed_input_decoder_vectors_pass() {
             .count();
     }
 
-    // Both decoders, not one: the composite header's dh (two re-spellings) and
-    // the bundle's three keys (two each).
+    // All three decoders, not some: the composite header's dh (two
+    // re-spellings), the bundle's three keys (two each), and the initial
+    // message's identity and ephemeral (two each).
     let mut algorithms: Vec<&str> = files.iter().map(|f| f.algorithm.as_str()).collect();
     algorithms.sort_unstable();
     assert_eq!(
         algorithms,
-        ["composite-header-decode", "prekey-bundle-decode"],
-        "expected both decoder files"
+        [
+            "composite-header-decode",
+            "initial-message-decode",
+            "prekey-bundle-decode"
+        ],
+        "expected all three decoder files"
     );
-    assert!(refused >= 8, "checked {refused} refusals, expected 8");
+    assert!(refused >= 12, "checked {refused} refusals, expected 12");
     eprintln!(
         "checked {total} malformed-input decoder vectors, {refused} of them refusals, in {} files",
         files.len()
