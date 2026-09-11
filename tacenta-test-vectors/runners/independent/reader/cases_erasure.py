@@ -198,6 +198,28 @@ def _():
     rejects(persistence.encoder_from_bytes, raw, exc=persistence.PersistError)
 
 
+@case("EC-13 which chunks an encoder over more than 65,536 chunks holds: chunk_0 to chunk_65535 and no chunk after them; its stored form's count is 65,536 and its chunks are those, in order; it reads back to the same encoder, which issues the same next codeword, before and after issuing; what it issues is what it would issue if it held every chunk",
+      f"{EC} Codewords: An encoder holds at most the first 65,536 chunks of its value ... It holds chunk_0 to chunk_65535 and no chunk after them ... What it issues is what it would issue if it held every chunk; session-persistence.md Erasure coder sub-formats: every chunk of the value, or the first 65,536 of a longer one")
+def _():
+    from tacenta_reader import persistence
+    n = 65538 * 32 - 7
+    value = b"".join(i.to_bytes(4, "big") for i in range(-(-n // 4)))[:n]
+    chunks = erasure.to_chunks(value)
+    e = accepts(erasure.Encoder.for_value, value)
+    assert len(chunks) == 65538 and e.chunks == chunks[:65536]
+    for issued in (0, 3):
+        for _ in range(issued):
+            e.issue()
+        raw = persistence.encoder_to_bytes(e)
+        assert raw[3:7] == (65536).to_bytes(4, "big") and raw[7:] == b"".join(chunks[:65536])
+        back = accepts(persistence.encoder_from_bytes, raw)
+        assert back == e
+        expected = e.next
+        assert back.issue() == (expected, chunks[expected]) == e.issue()
+        e = back
+    rejects(erasure.Encoder, chunks[:65537], exc=ValueError)
+
+
 @case("EC-10 index and chunk widths: an index outside 16 bits or a chunk not 32 bytes is not a codeword",
       f"{EC} Codewords: A codeword is a 16-bit index i ... and 32 bytes")
 def _():

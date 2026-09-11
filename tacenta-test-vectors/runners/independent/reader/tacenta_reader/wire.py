@@ -115,6 +115,14 @@ def check_curve_key(key: bytes, what: str = "curve public key") -> bytes:
     return bytes(key)
 
 
+def is_canonical_curve_key(key: bytes) -> bool:
+    """The same rule as check_curve_key, as a predicate, for the readers of the
+    stored formats and the initiator's own bundle check (pass 5):
+    session-persistence.md, Session, Semantic rules, "Stored curve public
+    keys"; session-establishment.md, Sending the initial message."""
+    return len(key) == K.EC_KEY_LEN and int.from_bytes(key, "little") < K.CURVE25519_P
+
+
 def decode_ec(encoded: bytes) -> bytes:
     """DecodeEC (session-establishment.md): "a decoder that does not recognise
     the leading byte fails", and "DecodeEC accepts exactly one encoding of each
@@ -420,7 +428,18 @@ def initiator_check_bundle(b: PrekeyBundle,
     disagreement. Identifier 0 in the signed or KEM prekey position is not
     checked: "an initiator does not check for it in a bundle and echoes it"
     (message-format.md, Key identifiers).
+
+    Pass 5: "She also refuses a bundle before encapsulating when ... its
+    identity key, signed prekey or one-time curve prekey is not the canonical
+    encoding of a curve public key ... The check is for a bundle that reaches
+    her some other way". The page names no refusal kind; this reader reports
+    BundleRefused, as for the other refusals in the same sentence. The order
+    against the signature checks is not fixed (error-handling.md).
     """
+    for what, key in (("identity key", b.identity_key), ("signed prekey", b.signed_prekey),
+                      ("one-time curve prekey", b.one_time_prekey)):
+        if key is not None and not is_canonical_curve_key(key):
+            raise BundleRefused(f"the bundle's {what} is not the canonical encoding of a curve public key")
     if expected_identity is not None and bytes(expected_identity) != b.identity_key:
         raise BundleRefused("identity key is not the one the initiator set out to reach")
     has_key = b.one_time_prekey is not None

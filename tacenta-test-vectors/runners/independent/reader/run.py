@@ -435,6 +435,218 @@ def h_decoder_state(v):
         raise Fail("the read-back decoder differs from the one written")
 
 
+# ------------------------------------------- the ratchets' persisted states (pass 5)
+# tacenta-test-vectors/README.md, Vector layouts, "The ratchets' persisted
+# states"; vector.schema.json, `refusal`; session-persistence.md: Ratchet
+# state, Sparse ratchet state, Semantic rules of the leaf formats, Stored curve
+# public keys, Rejection. ratchet.md and sparse-pq-ratchet.md for the
+# operations.
+
+_CURRENT = {"doc": None}
+
+
+def _refusal_kind(e):
+    """session-persistence.md, Rejection: "distinguishing wrong version from
+    short or malformed". A leaf reader has no other kind."""
+    if isinstance(e, persistence.WrongVersion):
+        return "wrong-version"
+    if isinstance(e, persistence.Malformed):
+        return "short-or-malformed"
+    return type(e).__name__
+
+
+def _stored_state_vector(v, reader, writer, fields_of):
+    """A `bytes` vector. Valid: the state read has the vector's `fields`, names
+    and values, and is written back as the same bytes. Invalid: refused with the
+    refusal the vector names."""
+    i = v["inputs"]
+    if set(i) != {"bytes"}:
+        raise Fail(f"vector: a stored-bytes vector has inputs {sorted(i)}")
+    data = bx(i["bytes"])
+    if _invalid(v):
+        want = v.get("refusal")
+        if want not in ("wrong-version", "short-or-malformed"):
+            raise Fail(f"vector: stored bytes with refusal {want!r}")
+        try:
+            reader(data)
+        except persistence.PersistError as e:
+            got = _refusal_kind(e)
+            if got != want:
+                raise Fail(f"refused as {got}, the vector names {want}: {e}")
+            return
+        raise Fail(f"stored bytes accepted; expected {want}")
+    if "refusal" in v:
+        raise Fail("vector: a valid vector carries a refusal")
+    s = reader(data)
+    got = fields_of(s)
+    if got != v["fields"]:
+        names = sorted(set(got) ^ set(v["fields"]))
+        wrong = sorted(k for k in set(got) & set(v["fields"]) if got[k] != v["fields"][k])
+        raise Fail(f"fields differ: names only on one side {names}, values differ {wrong}")
+    check(i["bytes"], writer(s), "written back")
+
+
+def _built_state_vector(v, state, apply_ops, writer, reader, refused):
+    """A built-by-operations vector. Every operation but an invalid vector's
+    last is accepted; that last one is refused as counter-exhaustion. A valid
+    vector's state is written as `output`, `output` reads back to a state
+    written as `output` again, and a `-read-back` vector beside it offers
+    `output` as its bytes."""
+    invalid = _invalid(v)
+    if invalid and v.get("refusal") != "counter-exhaustion":
+        raise Fail(f"vector: an operations vector with refusal {v.get('refusal')!r}")
+    ops = apply_ops
+    for idx, op in enumerate(ops):
+        try:
+            state = op(state)
+        except refused as e:
+            if invalid and idx == len(ops) - 1:
+                if _counter_exhaustion(e):
+                    return
+                raise Fail(f"last step refused as {type(e).__name__}, not as counter exhaustion: {e}")
+            raise Fail(f"step {idx} refused: {type(e).__name__}: {e}")
+    if invalid:
+        raise Fail("every step accepted; the vector's last step must be refused")
+    out = writer(state)
+    check(v["output"], out, "state reached")
+    check(v["output"], writer(reader(out)), "output read back and written again")
+    doc = _CURRENT["doc"]
+    if doc is not None:
+        sib = [w for w in doc["vectors"] if w["id"] == v["id"] + "-read-back"]
+        if len(sib) != 1 or sib[0]["inputs"].get("bytes") != v["output"]:
+            raise Fail("no -read-back vector beside it whose bytes are its output")
+
+
+def _counter_exhaustion(e):
+    # ratchet.md, Sending and receiving, and sparse-pq-ratchet.md, Sending and
+    # Receiving: "counter exhaustion (ChainExhausted)"
+    return isinstance(e, (ratchet.ChainExhausted, spqr.ChainExhausted))
+
+
+def _u(b):
+    return int.from_bytes(b, "big")
+
+
+def _ratchet_ops(raw):
+    """`00` a send; `01` a receive, then dh(32) || pn(4) || n(4), then
+    dh_recv(32) || dh_send(32) || new_pub(32)."""
+    ops, k = [], 0
+    while k < len(raw):
+        code = raw[k]
+        k += 1
+        if code == 0x00:
+            ops.append(lambda s: ratchet.send(s)[0])
+            continue
+        if code != 0x01 or len(raw) - k < 136:
+            raise Fail(f"vector: steps byte {k - 1} is not a send or a whole receive")
+        f = raw[k:k + 136]
+        k += 136
+        hdr = ratchet.Header(f[:32], _u(f[32:36]), _u(f[36:40]))
+        dh_recv, dh_send, new_pub = f[40:72], f[72:104], f[104:136]
+
+        def receive(s, hdr=hdr, dh_recv=dh_recv, dh_send=dh_send, new_pub=new_pub):
+            s2, _, stepped = ratchet.receive(s, hdr, lambda header_dh: (dh_recv, new_pub, dh_send))
+            # "which a receive uses only when it takes a Diffie-Hellman step and
+            # which are zero where it does not"
+            if stepped == (dh_recv + dh_send + new_pub == bytes(96)):
+                raise Fail(f"Diffie-Hellman step taken={stepped}, but the vector's values say otherwise")
+            return s2
+        ops.append(receive)
+    return ops
+
+
+def _ratchet_fields(s):
+    """README: dhs_pub, dhr_pub, rk, cks, ckr, ns, nr, pn, events, labels and
+    skipped; an optional key read as absent left out."""
+    f = {"dhs_pub": s.dhs_pub.hex()}
+    if s.dhr is not None:
+        f["dhr_pub"] = s.dhr.hex()
+    f["rk"] = s.rk.hex()
+    if s.cks is not None:
+        f["cks"] = s.cks.hex()
+    if s.ckr is not None:
+        f["ckr"] = s.ckr.hex()
+    for name in ("ns", "nr", "pn", "events"):
+        f[name] = getattr(s, name).to_bytes(4, "big").hex()
+    f["labels"] = bytes([s.labels]).hex()
+    f["skipped"] = b"".join(dh + n.to_bytes(4, "big") + at.to_bytes(4, "big") + key
+                            for (dh, n), (key, at) in s.skipped.items()).hex()
+    return f
+
+
+def h_ratchet_state(v):
+    i = v["inputs"]
+    if "steps" not in i:
+        return _stored_state_vector(v, persistence.ratchet_from_bytes, persistence.ratchet_to_bytes, _ratchet_fields)
+    if "start" in i:
+        state = persistence.ratchet_from_bytes(bx(i["start"]))    # "stored bytes the reader accepts"
+    elif i.get("role") == "00":
+        # ratchet.md, Initialisation: the party that sends first, from sk, our_pub, peer_pub and dh_out
+        state = ratchet.init_initiator(bx(i["sk"]), bx(i["our_pub"]), bx(i["peer_pub"]), bx(i["dh_out"]))
+    elif i.get("role") == "01":
+        state = ratchet.init_responder(bx(i["sk"]), bx(i["our_pub"]))
+    else:
+        raise Fail(f"vector: no start and role {i.get('role')!r}")
+    _built_state_vector(v, state, _ratchet_ops(bx(i["steps"])), persistence.ratchet_to_bytes,
+                        persistence.ratchet_from_bytes, ratchet.RatchetError)
+
+
+def _sparse_ops(raw):
+    """op(1) || epoch(8) || output_present(1) || output_epoch(8) ||
+    output_key(32), and a receive's n(8) after; `00` sends on epoch's chain, `01`
+    receives on it."""
+    ops, k = [], 0
+    while k < len(raw):
+        if len(raw) - k < 50:
+            raise Fail("vector: a truncated sparse operation")
+        code, epoch, present = raw[k], _u(raw[k + 1:k + 9]), raw[k + 9]
+        out_epoch, out_key = _u(raw[k + 10:k + 18]), raw[k + 18:k + 50]
+        k += 50
+        if present not in (0, 1) or (present == 0 and (out_epoch or out_key != bytes(32))):
+            raise Fail("vector: output_present 00 with non-zero output, or another byte")
+        secret, secret_epoch = (out_key, out_epoch) if present else (None, None)
+        if code == 0x00:
+            ops.append(lambda s, e=epoch, x=secret, xe=secret_epoch: spqr.send(s, e, x, xe)[0])
+        elif code == 0x01:
+            if len(raw) - k < 8:
+                raise Fail("vector: a receive without its n")
+            n = _u(raw[k:k + 8])
+            k += 8
+            ops.append(lambda s, e=epoch, n=n, x=secret, xe=secret_epoch: spqr.receive(s, e, n, x, xe)[0])
+        else:
+            raise Fail(f"vector: sparse op byte {code:#04x}")
+    return ops
+
+
+def _sparse_fields(s):
+    """README: rk, epoch, direction, chains and skipped, the entries in the order
+    read, laid out as the page lays out chains and skipped."""
+    return {
+        "rk": s.rk.hex(),
+        "epoch": s.epoch.to_bytes(8, "big").hex(),
+        "direction": bytes([s.direction]).hex(),
+        "chains": b"".join(e.to_bytes(8, "big") + persistence._chain_bytes(send) + persistence._chain_bytes(recv)
+                           for e, (send, recv) in s.chains.items()).hex(),
+        "skipped": b"".join(e.to_bytes(8, "big") + n.to_bytes(8, "big") + key
+                            for (e, n), key in s.skipped.items()).hex(),
+    }
+
+
+def h_sparse_state(v):
+    i = v["inputs"]
+    if "steps" not in i:
+        return _stored_state_vector(v, persistence.spqr_from_bytes, persistence.spqr_to_bytes, _sparse_fields)
+    if "start" in i:
+        state = persistence.spqr_from_bytes(bx(i["start"]))
+    elif i.get("direction") in ("00", "01"):
+        # sparse-pq-ratchet.md, Initialisation: 00 A2b, 01 B2a
+        state = spqr.init(bx(i["sk"]), int(i["direction"], 16))
+    else:
+        raise Fail(f"vector: no start and direction {i.get('direction')!r}")
+    _built_state_vector(v, state, _sparse_ops(bx(i["steps"])), persistence.spqr_to_bytes,
+                        persistence.spqr_from_bytes, spqr.SpqrError)
+
+
 # ------------------------------------------------------------ protobuf profile
 # protobuf-profile.md names fields in camelCase; the vectors' `fields` use the
 # same names in snake_case, which the page does not say (G3-03). The mapping
@@ -554,6 +766,8 @@ HANDLERS = {
     "composite-header-decode": h_composite_decode,
     "prekey-bundle-decode": h_bundle_decode,
     "initial-message-decode": h_initial_decode,
+    "ratchet-state": h_ratchet_state,
+    "sparse-ratchet-state": h_sparse_state,
 }
 
 
@@ -578,6 +792,7 @@ def run_vectors(totals):
             counts["FAIL"] += 1
             continue
         handler = HANDLERS.get(doc.get("algorithm"))
+        _CURRENT["doc"] = doc
         for v in doc["vectors"]:
             label = f"{rel} :: {v['id']}"
             if handler is None:
@@ -613,6 +828,7 @@ CASE_MODULES = [
     "cases_identity",     # identities-and-devices.md, repeated initial message, XEdDSA rules, DecodeEC, fingerprint
     "cases_braid",        # mlkem-braid.md: derivations, authenticator, state machine, failure, session
     "cases_curvekeys",    # message-format.md Curve public keys; the repeated initial message over a live session (pass 4)
+    "cases_stored",       # stored curve keys, Rejection's short-and-unknown buffer, the Braid key pair, inductive ceilings (pass 5)
 ]
 
 
