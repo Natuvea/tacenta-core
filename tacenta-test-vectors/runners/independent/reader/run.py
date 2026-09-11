@@ -147,6 +147,58 @@ def h_initial(v):
         raise Fail(f"decode: {back} != inputs")
 
 
+# ------------------------------------- decoders' curve-key refusals (pass 4)
+# message-format.md, Curve public keys. Each file's `source` says "an accepted
+# vector's output is the re-encoding of the header [bundle, initial message]
+# it decodes to". The input `encoding` is the bytes handed to the decoder
+# (GAPS-4.md G4-01). An invalid vector must be refused, and "A refused key is
+# a decode failure", so the refusal must be wire.DecodeError and nothing else.
+
+def _decoder_vector(v, decode, encode, also=None):
+    enc = bx(v["inputs"]["encoding"])
+    if _invalid(v):
+        try:
+            decode(enc)
+        except wire.DecodeError:
+            return
+        except Exception as e:  # noqa: BLE001
+            raise Fail(f"refused, but not as a decode failure: {type(e).__name__}: {e}")
+        raise Fail("accepted; expected a decode failure")
+    got = decode(enc)
+    check(v["output"], encode(got), "re-encoding")
+    if also:
+        also(got, enc)
+
+
+def h_composite_decode(v):
+    """The composite header alone, as composite.json and CONCAT use it. A
+    102-byte input is also a ratchet message with an empty ciphertext, and the
+    ratchet-message decoder must agree (G4-01)."""
+    def agree(h, enc):
+        back, ct = wire.decode_ratchet_message(enc)
+        if back != h or ct != b"":
+            raise Fail("the ratchet-message decoder disagrees with the header decoder")
+    _decoder_vector(v, wire.decode_composite, wire.encode_composite, agree)
+    if _invalid(v):
+        try:
+            wire.decode_ratchet_message(bx(v["inputs"]["encoding"]))
+        except wire.DecodeError:
+            return
+        raise Fail("the ratchet-message decoder accepted what the header decoder refuses")
+
+
+def h_bundle_decode(v):
+    _decoder_vector(v, wire.decode_bundle, wire.encode_bundle)
+
+
+def h_initial_decode(v):
+    """"every key this decoder returns is one DecodeEC accepts"."""
+    def decode_ec_accepts(m, enc):
+        wire.decode_ec(m.identity)
+        wire.decode_ec(m.ephemeral)
+    _decoder_vector(v, wire.decode_initial, wire.encode_initial, decode_ec_accepts)
+
+
 # --------------------------------------------------------------- ratchet
 
 def h_double_ratchet(v):
@@ -357,9 +409,14 @@ def h_encoder_state(v):
     back = persistence.encoder_from_bytes(out)
     if back != enc:
         raise Fail(f"read back {back}, wrote {enc}")
-    if enc.chunks:   # a zero-chunk encoder's codewords are unstated (G3-02)
-        if copy.deepcopy(enc).issue() != back.issue():
-            raise Fail("the read-back encoder issues a different next codeword")
+    # A zero-chunk encoder's codewords are now stated: "every codeword of an
+    # encoder for zero bytes is 32 zero bytes" (mlkem-braid.md, Codewords;
+    # GAPS-3.md G3-02, closed), so this comparison runs for every vector.
+    nxt = copy.deepcopy(enc).issue()
+    if nxt != back.issue():
+        raise Fail("the read-back encoder issues a different next codeword")
+    if not enc.chunks and nxt is not None and nxt[1] != bytes(32):
+        raise Fail("an encoder for zero bytes issued a non-zero codeword")
 
 
 def h_decoder_state(v):
@@ -494,6 +551,9 @@ HANDLERS = {
     "protobuf-prekey-envelope": h_pb_envelope,
     "aead-encrypt": h_aead_encrypt,
     "aead-decrypt": h_aead_decrypt,
+    "composite-header-decode": h_composite_decode,
+    "prekey-bundle-decode": h_bundle_decode,
+    "initial-message-decode": h_initial_decode,
 }
 
 
@@ -552,6 +612,7 @@ CASE_MODULES = [
     "cases_protobuf",     # protobuf-profile.md
     "cases_identity",     # identities-and-devices.md, repeated initial message, XEdDSA rules, DecodeEC, fingerprint
     "cases_braid",        # mlkem-braid.md: derivations, authenticator, state machine, failure, session
+    "cases_curvekeys",    # message-format.md Curve public keys; the repeated initial message over a live session (pass 4)
 ]
 
 

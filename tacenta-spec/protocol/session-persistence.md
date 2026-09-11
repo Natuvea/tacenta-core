@@ -267,8 +267,9 @@ entry is read, and bytes left after the last entry are refused. Neither
 format has a version byte: they appear only inside the Braid's, which
 versions them (CONSTANTS.md).
 
-In the encoder, `chunk[count]` are the value's chunks, `chunk_0` to
-`chunk_(count-1)` in order (mlkem-braid.md, The erasure code). `next` is the
+In the encoder, `chunk[count]` are the chunks the encoder holds, the value's
+`chunk_0` to `chunk_(count-1)` in order: every chunk of the value, or the first
+65,536 of a longer one (mlkem-braid.md, The erasure code). `next` is the
 index of the codeword the encoder issues next: 0 for a new encoder, and one
 more after each codeword it issues. Issuing index 65,535 instead sets
 `exhausted` to `0x01` and leaves `next` at 65,535, and an exhausted encoder

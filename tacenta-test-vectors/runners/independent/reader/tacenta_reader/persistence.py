@@ -307,6 +307,12 @@ def triple_from_bytes(buf: bytes) -> TripleState:
 # ================================================= erasure coder sub-formats
 
 def encoder_to_bytes(e: erasure.Encoder) -> bytes:
+    if len(e.chunks) > K.MAX_CODEWORDS:
+        # mlkem-braid.md, Codewords: which chunks a live encoder over more
+        # than 65,536 chunks holds "is not specified", and "a stored encoder
+        # holding more than 65,536 is refused". This reader holds them all, so
+        # it does not write one its own reader would refuse.
+        raise ValueError("an encoder over more than 65,536 chunks is not written")
     return (_be(e.next, 2) + bytes([1 if e.exhausted else 0]) + _be(len(e.chunks), 4)
             + b"".join(e.chunks))
 

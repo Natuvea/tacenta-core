@@ -83,9 +83,10 @@ theorem codeword_systematic (cs : List Bytes) (i : Nat) (h : i < cs.length) :
 
 /-! ## The encoder
 
-It issues indices 0, 1, 2 and so on, never one twice, and once it has issued
-index 65,535 it issues nothing more. `next` is the index it issues next;
-`exhausted` records that the last index has gone, and `next` stays there. -/
+It holds at most the first 65,536 chunks of its value. It issues indices 0, 1,
+2 and so on, never one twice, and once it has issued index 65,535 it issues
+nothing more. `next` is the index it issues next; `exhausted` records that the
+last index has gone, and `next` stays there. -/
 
 structure Encoder where
   chunks : List Bytes
@@ -93,7 +94,12 @@ structure Encoder where
   exhausted : Bool
   deriving Repr, DecidableEq, Inhabited
 
-def Encoder.new (m : Bytes) : Encoder := ⟨Model.Erasure.chunks m, 0, false⟩
+/-- A new encoder holds the value's chunks, at most the first 65,536 of them
+    (mlkem-braid.md, The erasure code, Codewords). Every index it issues is below
+    65,536, so no codeword depends on a chunk past the cap
+    (`Encoder.new_issue_nextCodeword`), and the cap is what keeps a new encoder
+    within its own rules (`Encoder.new_issue_keeps`). -/
+def Encoder.new (m : Bytes) : Encoder := ⟨(Model.Erasure.chunks m).take maxCodewords, 0, false⟩
 
 /-- The index the next codeword takes and the encoder after it, without the
     codeword's bytes, so that the lifetime can be run to its end cheaply. -/
@@ -242,6 +248,155 @@ def Decoder.ofBytes (bs : Bytes) : Option Decoder := do
   if decide (needed ≤ maxCodewords) && decide (size ≤ maxCodewords * chunkBytes)
       && rest.isEmpty && d.invariant
   then some d else none
+
+/-! ## What the encoder's cap keeps
+
+An encoder holds at most the first 65,536 chunks of its value. So every encoder
+`new` builds, after any number of codewords, keeps the encoder's rules, is read
+back by `ofBytes` from what `toBytes` writes, and issues what it would issue if
+it held every chunk. Without the cap, an encoder over a value of more than
+65,536 chunks broke the first two and not the third. -/
+
+/-- Every chunk of a value is 32 bytes. -/
+theorem chunks_length (m : Bytes) : ∀ c ∈ chunks m, c.length = chunkBytes := by
+  intro c hc
+  simp only [chunks, List.mem_map, List.mem_range] at hc
+  obtain ⟨t, -, rfl⟩ := hc
+  simp only [List.length_append, List.length_take, List.length_replicate, List.length_drop]
+  omega
+
+theorem Encoder.new_invariant (m : Bytes) : (Encoder.new m).invariant = true := by
+  simp [Encoder.invariant, Encoder.new, Nat.min_le_left]
+
+/-- One codeword keeps the encoder's rules, its chunks, and `next` at most the
+    last index; and the index it takes is below 65,536. -/
+theorem Encoder.advance_keeps {e : Encoder} {p : Nat × Encoder}
+    (hinv : e.invariant = true) (hnext : e.next ≤ lastIndex) (ha : e.advance = some p) :
+    p.2.invariant = true ∧ p.2.next ≤ lastIndex ∧ p.2.chunks = e.chunks ∧
+      p.1 < maxCodewords := by
+  unfold Encoder.advance at ha
+  by_cases hx : e.exhausted = true
+  · simp [hx] at ha
+  · by_cases hn : e.next = lastIndex
+    · simp only [hx, hn, Bool.false_eq_true, if_false, if_true, Option.some.injEq] at ha
+      subst ha
+      simp_all [Encoder.invariant, lastIndex, maxCodewords]
+    · simp only [hx, hn, Bool.false_eq_true, if_false, Option.some.injEq] at ha
+      subst ha
+      simp_all [Encoder.invariant, lastIndex, maxCodewords] <;> omega
+
+/-- So do any number of codewords. -/
+theorem Encoder.issue_keeps (n : Nat) {e : Encoder}
+    (hinv : e.invariant = true) (hnext : e.next ≤ lastIndex) :
+    (e.issue n).invariant = true ∧ (e.issue n).next ≤ lastIndex ∧
+      (e.issue n).chunks = e.chunks := by
+  induction n generalizing e with
+  | zero => exact ⟨hinv, hnext, rfl⟩
+  | succ n ih =>
+    simp only [Encoder.issue]
+    split
+    · exact ⟨hinv, hnext, rfl⟩
+    · rename_i p hp
+      obtain ⟨h1, h2, h3, -⟩ := Encoder.advance_keeps hinv hnext hp
+      obtain ⟨k1, k2, k3⟩ := ih h1 h2
+      exact ⟨k1, k2, k3.trans h3⟩
+
+/-- An encoder `new` builds, after any number of codewords, keeps the encoder's
+    rules and holds the value's first 65,536 chunks at most. -/
+theorem Encoder.new_issue_keeps (m : Bytes) (n : Nat) :
+    ((Encoder.new m).issue n).invariant = true ∧
+      ((Encoder.new m).issue n).next ≤ lastIndex ∧
+      ((Encoder.new m).issue n).chunks = (Model.Erasure.chunks m).take maxCodewords :=
+  Encoder.issue_keeps n (Encoder.new_invariant m) (by simp [Encoder.new])
+
+/-- At an index below 65,536, the codeword over a value's first 65,536 chunks is
+    the codeword over all of them. -/
+theorem codeword_take_maxCodewords (cs : List Bytes) {i : Nat} (hi : i < maxCodewords) :
+    codeword (cs.take maxCodewords) i = codeword cs i := by
+  by_cases hc : cs.length ≤ maxCodewords
+  · rw [List.take_of_length_le hc]
+  · have h1 : i < (cs.take maxCodewords).length := by
+      simp only [List.length_take]; omega
+    rw [codeword_systematic _ _ h1, codeword_systematic _ _ (by omega)]
+    simp [List.getD_eq_getElem?_getD, hi]
+
+/-- The cap changes nothing an encoder issues: after any number of codewords, a
+    new encoder's next codeword is the one over every chunk of its value. -/
+theorem Encoder.new_issue_nextCodeword (m : Bytes) (n : Nat) :
+    ((Encoder.new m).issue n).nextCodeword =
+      ((Encoder.new m).issue n).advance.map
+        fun p => ((p.1, codeword (Model.Erasure.chunks m) p.1), p.2) := by
+  obtain ⟨hinv, hnext, hchunks⟩ := Encoder.new_issue_keeps m n
+  unfold Encoder.nextCodeword
+  cases ha : ((Encoder.new m).issue n).advance with
+  | none => simp
+  | some p =>
+    obtain ⟨-, -, -, hi⟩ := Encoder.advance_keeps hinv hnext ha
+    simp [hchunks, codeword_take_maxCodewords _ hi]
+
+/-- `width` big-endian bytes read back from any accumulator. -/
+theorem foldl_be (width n acc : Nat) :
+    (be width n).foldl (fun acc b => acc * 256 + b.toNat) acc =
+      acc * 256 ^ width + n % 256 ^ width := by
+  induction width generalizing acc with
+  | zero => simp [be, Nat.mod_one]
+  | succ w ih =>
+    have hbe : be (w + 1) n = UInt8.ofNat (n / 256 ^ w % 256) :: be w n := by
+      simp [be, List.range_succ]
+    rw [hbe, List.foldl_cons, ih, Nat.mod_pow_succ]
+    simp only [UInt8.toNat_ofNat', Nat.reducePow, Nat.mod_mod, Nat.pow_succ,
+      Nat.mul_add, Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm]
+    omega
+
+theorem readBe_append (bs rest : Bytes) :
+    readBe bs.length (bs ++ rest) =
+      some (bs.foldl (fun acc b => acc * 256 + b.toNat) 0, rest) := by
+  simp [readBe]
+
+theorem readBe_be (width n : Nat) (rest : Bytes) (h : n < 256 ^ width) :
+    readBe width (be width n ++ rest) = some (n, rest) := by
+  have := readBe_append (be width n) rest
+  rw [be_length] at this
+  rw [this, foldl_be, Nat.zero_mul, Nat.zero_add, Nat.mod_eq_of_lt h]
+where
+  be_length : (be width n).length = width := by simp [be]
+
+theorem takeChunks_flatten (cs : List Bytes) (rest : Bytes)
+    (h : ∀ c ∈ cs, c.length = chunkBytes) :
+    takeChunks cs.length (cs.flatten ++ rest) = some (cs, rest) := by
+  induction cs with
+  | nil => simp [takeChunks]
+  | cons c cs ih =>
+    have hc : c.length = chunkBytes := h c (by simp)
+    have ih' := ih (fun c' hc' => h c' (by simp [hc']))
+    simp only [List.length_cons, List.flatten_cons, List.append_assoc, takeChunks]
+    rw [if_neg (by simp [hc]), List.drop_left' hc, ih', List.take_left' hc]
+
+/-- An encoder that keeps its rules, with `next` at most the last index and
+    32-byte chunks, is read back from the bytes it is written as. -/
+theorem Encoder.ofBytes_toBytes (e : Encoder) (hinv : e.invariant = true)
+    (hnext : e.next ≤ lastIndex) (hc : ∀ c ∈ e.chunks, c.length = chunkBytes) :
+    Encoder.ofBytes e.toBytes = some e := by
+  have hlen : e.chunks.length ≤ maxCodewords := by
+    simp only [Encoder.invariant, Bool.and_eq_true, decide_eq_true_eq] at hinv
+    exact hinv.1
+  have h2 : e.next < 256 ^ 2 := by simp only [lastIndex] at hnext; omega
+  have h4 : e.chunks.length < 256 ^ 4 := by simp only [maxCodewords] at hlen; omega
+  have h1 : (if e.exhausted then 1 else 0 : Nat) < 256 ^ 1 := by split <;> omega
+  have hflag : ([if e.exhausted then 1 else 0] : Bytes) = be 1 (if e.exhausted then 1 else 0) := by
+    cases e.exhausted <;> rfl
+  simp only [Encoder.toBytes, Encoder.ofBytes, List.append_assoc, hflag]
+  rw [readBe_be 2 _ _ h2, Option.bind_eq_bind]
+  simp only [Option.bind_some]
+  rw [readBe_be 1 _ _ h1]
+  simp only [Option.bind_some]
+  rw [readBe_be 4 _ _ h4]
+  simp only [Option.bind_some]
+  have := takeChunks_flatten e.chunks [] hc
+  rw [List.append_nil] at this
+  rw [this]
+  obtain ⟨cs, nx, ex⟩ := e
+  cases ex <;> simp_all
 
 /-! ## Build-time checks
 

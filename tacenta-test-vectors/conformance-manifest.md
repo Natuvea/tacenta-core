@@ -169,22 +169,29 @@ it names the route in each case.
 Specification: `tacenta-spec/protocol/mlkem-braid.md`, The erasure code. Model:
 `Model.Erasure`, over `Model.Gf65536` and `Model.Polynomial`. Runner:
 `runners/rust/tests/post_quantum.rs`, against `tacenta-erasure`'s `Encoder`
-and `Decoder`.
+and `Decoder`. The two files' layouts are in `README.md`, Vector layouts:
+`indices` a run of 16-bit indices, `codewords` a run of `index(2) || chunk(32)`,
+an encode `output` the listed codewords' 32 bytes back to back, and `size` and
+`stream_length` 32-bit. In `erasure-decode.json` alone, `result: invalid` is a
+decoder that holds no value after the listed codewords, not a refusal.
 
 | Component | Spec section | Covered by |
 |---|---|---|
 | Chunks: 16 big-endian elements each, `k = ceil(n / 32)`, the last padded with zero bytes | The erasure code, Chunks | `erasure-encode.json` (`one-chunk-padded`, `last-chunk-padded`), `erasure-decode.json` (`short-value-truncated`) |
 | Systematic codewords `i < k` are the chunks | The erasure code, Codewords | every `erasure-encode.json` vector; `erasure-decode.json` `systematic-in-order` |
 | Parity codewords `i >= k`: `P_j(i)` through the chunks | The erasure code, Codewords | `erasure-encode.json`: values of three, four, six and 48 chunks (the Braid's header with MAC, `ct2` with MAC and `ek_vector` sizes), at indices up to 4,096 |
+| An encoder for zero bytes: `k = 0`, every codeword 32 zero bytes, and indices 0 to 65,535 issued as for any other `k` | The erasure code, Codewords | `erasure-encode.json` `zero-length-value` (indices 0, 1, 2 and 65,535; `stream_length` 65,536) |
 | The encoder issues indices in order, once each, and nothing after 65,535 | The erasure code, Codewords; Encoder lifetime | `erasure-encode.json` (the runner checks every issued index), `stream-exhaustion` (`stream_length` 65,536) |
 | Decoding from any `k` codewords, in any order, at any indices | The erasure code, Decoding | `erasure-decode.json` (`parity-only`, `mixed-out-of-order`, `far-indices`, `ek-vector-two-chunks-lost`) |
 | First copy at an index wins, whatever a later one holds; a held chunk `t` is taken as it is | The erasure code, Decoding | `erasure-decode.json` (`later-copy-ignored`, `first-copy-wins-though-corrupt`, `held-chunk-taken-as-it-is`, `repeats-do-not-count`) |
 | Every codeword after the `k`-th is ignored | The erasure code, Decoding | `erasure-decode.json` (`ignored-once-full`, `empty-value-ignores-codewords`) |
 | Fewer than `k` codewords are no value; a decoder for zero bytes holds the empty value | The erasure code, Decoding | `erasure-decode.json` (`one-short`, `nothing-arrived`, `empty-value`) |
 
-Not pinned: an encoder for a value longer than 65,536 chunks, which the text
-does not cover and `tacenta-erasure` caps; parity codewords of a zero-length
-value, for which "the polynomial of degree below `k`" has no points.
+Not pinned: an encoder for a value longer than 65,536 chunks, whose vector
+would be more than two megabytes. The text says such an encoder holds only the
+first 65,536 chunks (The erasure code, Codewords), `Model.Erasure` and
+`tacenta-erasure` both keep only those, and `Model.Erasure` proves the cap
+changes no codeword an encoder issues (`Encoder.new_issue_nextCodeword`).
 
 ### Addition: the store's total bound
 
@@ -312,6 +319,12 @@ Runners: `runners/rust/tests/serialization.rs`, `runners/rust/tests/aead.rs`
 for the AEAD, and `runners/rust/tests/malformed_input.rs` for the three decoder
 files.
 
+**The AEAD vectors' `ad` is the section's `AD`.** The input named `ad` in both
+AEAD files is the whole associated data HMAC-SHA256 covers, what the section
+calls `AD`, and not the `ad` from which `AD = CONCAT(ad, header)` is built. A
+runner applies no `CONCAT` to it; in `session-associated-data` it is already
+`len(ad) || ad || composite header` (`README.md`, Vector layouts).
+
 **Where the AEAD vectors' bytes come from.** The model has no AES, so these
 two files are neither model output alone nor a published vector alone. The
 generator (`Vectors.lean`, `lake exe genvectors aead-encrypt` and
@@ -349,7 +362,10 @@ Vectors: `vectors/protobuf/protobuf-ratchet-body.json` and
 `protobuf-prekey-envelope.json`. An accepted region carries `fields`, the
 values it decodes to, integers as four big-endian bytes; a refused one carries
 `result: invalid`. The runner checks the names as well as the values, so an
-absent `prekey_id` must decode as absent.
+absent `prekey_id` must decode as absent. The vectors spell in snake_case the
+field names the page spells in camelCase, so `prekey_id` is the page's
+`prekeyId`; `README.md`, Vector layouts, and the schema's `fields` description
+map every name.
 
 ### Covered
 
@@ -378,6 +394,10 @@ can reach it.
 - **Oracle:** tacenta-model (`Model.Erasure`: `Encoder.toBytes`/`ofBytes` and
   `Decoder.toBytes`/`ofBytes`). Runner: `runners/rust/tests/persistence.rs`,
   against `tacenta-erasure`'s `to_bytes`/`from_bytes`.
+- **Layout:** `README.md`, Vector layouts. A vector either builds the coder by
+  operations (`message` and a 32-bit `issued`, or a 32-bit `size` and
+  `codewords`) and gives its stored bytes as `output`, or offers stored `bytes`
+  to the reader.
 
 ### Covered
 
@@ -402,7 +422,11 @@ triple ratchet state, the Braid, the session, and the prekey store (v1 to v4),
 with their semantic rules. The model states none of them, so there is no
 oracle to generate vectors from, and they remain covered by `tacenta-core`'s
 round-trip and refusal tests and its fuzz targets. The encoder rule "at most
-65,536 chunks" is not pinned, since a vector for it is two megabytes.
+65,536 chunks" is not pinned, since a vector for it is two megabytes. In its
+place, `Model.Erasure` proves that every encoder `new` builds keeps the
+encoder's rules after any number of codewords (`Encoder.new_issue_keeps`) and
+that such an encoder is read back from the bytes it is written as
+(`Encoder.ofBytes_toBytes`).
 
 ## Interoperability with libsignal
 
@@ -436,7 +460,7 @@ thing in every row.
 | X25519 | RFC 7748 | `vectors/primitives/x25519.json` | tacenta-core |
 | AES-256 | NIST SP 800-38A, F.1.5 (ECB-AES256) and F.2.5 (CBC-AES256) | no file of its own: the block values are embedded in `vectors/aead/` (Message format, above) | tacenta-core's AEAD, through `aead::encrypt` and `aead::decrypt` |
 | Ed25519 | RFC 8032 | `vectors/primitives/ed25519.json` | `ed25519-dalek`, the trusted-boundary crate `xeddsa::verify` calls; tacenta-core exposes no Ed25519 API of its own, so the runner checks the crate directly at the version its lockfile pins |
-| XEdDSA | project-generated | `vectors/primitives/xeddsa.json` | tacenta-core: three signing vectors, signed under a fixed nonce and verified; thirteen verify-only vectors at the edges of the accepted set (`s + l`, `s >= 2^253`, the sign bit, small-order `A` and `R`, non-canonical `R` and `u`, `u = p - 1`), each refused or accepted as its `result` says, with a per-vector comment stating whether XEdDSA Revision 1's `xeddsa_verify` accepts the same input, held to a transcription of that pseudocode by a test in `primitives/xeddsa.rs`, which in turn holds the transcription to ed25519-dalek's non-strict `verify` on every vector where both are defined, the four small-order-`A` vectors among them |
+| XEdDSA | project-generated | `vectors/primitives/xeddsa.json` | tacenta-core: three signing vectors, signed under a fixed nonce and verified; seventeen verify-only vectors at the edges of the accepted set (`s + l`, `s >= 2^253`, the sign bit, small-order `A` with `R` the identity, small-order `A` with an `R` not of small order and an equation that holds, which only rule 3 of identities-and-devices.md, Verifying a signature, refuses (`rule-3-only`, checked by the same crate test), small-order `R`, non-canonical `R` and `u`, `u = p - 1`), each refused or accepted as its `result` says, with a per-vector comment stating whether XEdDSA Revision 1's `xeddsa_verify` accepts the same input, held to a transcription of that pseudocode by a test in `primitives/xeddsa.rs`, which in turn holds the transcription to ed25519-dalek's non-strict `verify` on every vector where both are defined, the eight small-order-`A` vectors among them |
 
 **XEdDSA has no published known-answer vectors**: the specification carries
 none. The signing vectors are this implementation's own output for a fixed

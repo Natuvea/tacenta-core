@@ -45,8 +45,9 @@ and are not recorded here.
   checked against the equation), while the sign-bit convention in
   CONSTANTS.md widens it in the other direction; every signature this
   implementation produces is in both sets (`xeddsa.rs`). The edges of the
-  accepted set are pinned by thirteen verify-only vectors in
-  `tacenta-test-vectors/vectors/primitives/xeddsa.json`, each carrying
+  accepted set are pinned by seventeen verify-only vectors in
+  `tacenta-test-vectors/vectors/primitives/xeddsa.json`, four of which only
+  the small-order refusal on `A` refuses, each carrying
   Revision 1's own verdict, which a transcription of the specification's
   pseudocode in the crate's tests checks against every vector; the
   transcription is itself cross-checked against ed25519-dalek's non-strict
