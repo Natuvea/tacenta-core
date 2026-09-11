@@ -6,6 +6,30 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `protocol/ratchet.md`, `protocol/sparse-pq-ratchet.md`,
+  `protocol/triple-ratchet.md`, `protocol/session-persistence.md`,
+  `protocol/key-deletion.md`, `CONSTANTS.md`: the ratchet behaviour the pages
+  did not state, as built.
+  - The Double Ratchet's initialisation for both roles, its 80-byte
+    message-key expansion, when a DH step triggers, the separate `MAX_SKIP`
+    check on the skip to `PN`, the no-chain refusals and counter ceilings,
+    and the exact expiry boundary (a skipped key serves the next
+    `MAX_SKIPPED_AGE - 1` accepted receives).
+  - The sparse ratchet's send counter and chain choice, its counter ceiling,
+    refusals, retention rule, and `info` joining with no separator.
+  - The Triple Ratchet's split parameters and order, and its commit rules:
+    classical half first, send on a copy, and receive yielding a candidate
+    adopted only after authentication. Its 32-byte combination is expanded
+    by the message-key expansion rather than being the encryption key.
+  - Big-endian integers and meaningful entry order in the two ratchet state
+    formats.
+- **Decided:** a message that would push a skipped-key store past
+  `MAX_SKIPPED_STORE` is not refused. The receiver evicts the store's oldest
+  keys on a working copy and retries, adopting the copy only if the message
+  authenticates. This amends the earlier refuse rule to match the
+  implementation. Eviction order is specified; batch size is
+  implementation-defined. A delayed message whose key was evicted can no
+  longer be decrypted.
 - `protocol/protobuf-profile.md`: the bounded protobuf profile for the external
   ratchet message body and prekey envelope, restated from `Model.Protobuf`. It
   covers:

@@ -117,6 +117,13 @@ reason: a fixed-width optional field is provably canonical, a variable-width
 one only tested. `labels` is a one-byte tag naming the `LabelSet` variant
 (`0x00` today, for the sole `Tacenta` set).
 
+Every integer is big-endian: `ns`, `nr`, `pn`, `events`, `skipped_count`, and
+each entry's `n` and `stored_at`. The `skipped` entries are written in the
+store's order, which is the order the keys were stored. That order is
+meaningful, since eviction breaks ties between equal `stored_at` values by it
+(ratchet.md, Skipped keys), but the reader accepts the entries in any order and
+keeps the order it read.
+
 ## Sparse ratchet state
 
 ```
@@ -131,6 +138,21 @@ skipped = epoch(8) || n(8) || key(32)
 ```
 
 `direction` is a one-byte tag (`0x00` `A2b`, `0x01` `B2a`).
+
+Every integer is big-endian: `epoch`, `chains_count`, `skipped_count`, each
+`epoch_key` and chain `n`, and each stored key's `epoch` and `n`.
+
+The `chains` entries are written in the order their epochs' chains were last
+replaced, most recent last: an advance opens an entry, and a send, or a
+receive that steps a chain, rewrites it. That order carries no meaning, and
+the reader accepts any. The `skipped` entries are written in the order the keys
+were stored, oldest first, and that order is meaningful: it is the order
+eviction takes them in (sparse-pq-ratchet.md). The reader accepts any order and
+keeps the order it read.
+
+A chain whose presence byte is `0x00` is absent. The reader accepts it, though
+no operation produces one: retiring an epoch removes its whole entry. An
+operation that needs an absent chain is refused (`ChainRetired`).
 
 ## Braid
 
