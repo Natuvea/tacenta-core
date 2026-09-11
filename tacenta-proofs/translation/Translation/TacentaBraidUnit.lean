@@ -2303,7 +2303,7 @@ def tacenta_erasure.Decoder.to_bytes
   ok out4
 
 /-- [tacenta_braid_unit::tacenta_erasure::{tacenta_braid_unit::tacenta_erasure::Decoder}::from_bytes]: loop body 0:
-    Source: 'braid-unit/src/../../erasure/src/lib.rs', lines 747:8-761:9
+    Source: 'braid-unit/src/../../erasure/src/lib.rs', lines 763:8-777:9
     Visibility: public -/
 @[rust_loop_body]
 def tacenta_erasure.Decoder.from_bytes_loop.body
@@ -2350,7 +2350,7 @@ def tacenta_erasure.Decoder.from_bytes_loop.body
       ok (cont (iter1, pos1, have2, ok1))
 
 /-- [tacenta_braid_unit::tacenta_erasure::{tacenta_braid_unit::tacenta_erasure::Decoder}::from_bytes]: loop 0:
-    Source: 'braid-unit/src/../../erasure/src/lib.rs', lines 747:8-761:9
+    Source: 'braid-unit/src/../../erasure/src/lib.rs', lines 763:8-777:9
     Visibility: public -/
 @[rust_loop]
 def tacenta_erasure.Decoder.from_bytes_loop
@@ -2366,7 +2366,7 @@ def tacenta_erasure.Decoder.from_bytes_loop
     (iter, pos, have1, ok1)
 
 /-- [tacenta_braid_unit::tacenta_erasure::{tacenta_braid_unit::tacenta_erasure::Decoder}::from_bytes]:
-    Source: 'braid-unit/src/../../erasure/src/lib.rs', lines 724:4-782:5
+    Source: 'braid-unit/src/../../erasure/src/lib.rs', lines 724:4-798:5
     Visibility: public -/
 def tacenta_erasure.Decoder.from_bytes
   (bytes : Slice Std.U8) : Result (Option tacenta_erasure.Decoder) := do
@@ -2383,8 +2383,7 @@ def tacenta_erasure.Decoder.from_bytes
         Std.U8) bytes { start := 0#usize, «end» := 8#usize }
     let s2 ← core.slice.Slice.copy_from_slice core.marker.CopyU8 s s1
     let size_bytes1 := to_slice_mut_back s2
-    let i3 ← lift (core.num.U64.from_be_bytes size_bytes1)
-    let size ← lift (UScalar.cast .Usize i3)
+    let size_wide ← lift (core.num.U64.from_be_bytes size_bytes1)
     let needed_bytes := Array.repeat 8#usize 0#u8
     let (s3, to_slice_mut_back1) ← lift (Array.to_slice_mut needed_bytes)
     let s4 ←
@@ -2392,40 +2391,51 @@ def tacenta_erasure.Decoder.from_bytes
         Std.U8) bytes { start := 8#usize, «end» := 16#usize }
     let s5 ← core.slice.Slice.copy_from_slice core.marker.CopyU8 s3 s4
     let needed_bytes1 := to_slice_mut_back1 s5
-    let i4 ← lift (core.num.U64.from_be_bytes needed_bytes1)
-    let needed ← lift (UScalar.cast .Usize i4)
-    let count_bytes := Array.repeat 4#usize 0#u8
-    let (s6, to_slice_mut_back2) ← lift (Array.to_slice_mut count_bytes)
-    let s7 ←
-      core.slice.index.Slice.index (core.slice.index.SliceIndexRangeUsizeSlice
-        Std.U8) bytes { start := 16#usize, «end» := 20#usize }
-    let s8 ← core.slice.Slice.copy_from_slice core.marker.CopyU8 s6 s7
-    let count_bytes1 := to_slice_mut_back2 s8
-    let i5 ← lift (core.num.U32.from_be_bytes count_bytes1)
-    let count ← lift (UScalar.cast .Usize i5)
-    let i6 := Slice.len bytes
-    let i7 ← 2#usize + tacenta_erasure.CHUNK_BYTES
-    let i8 ← i6 / i7
-    if count > i8
+    let needed_wide ← lift (core.num.U64.from_be_bytes needed_bytes1)
+    let i3 ← lift (UScalar.cast .U64 tacenta_erasure.MAX_CODEWORDS)
+    if needed_wide > i3
     then ok none
     else
-      let (pos, have1, ok1) ←
-        tacenta_erasure.Decoder.from_bytes_loop i7
-          { start := 0#usize, «end» := count } bytes 20#usize
-          (alloc.vec.Vec.new tacenta_erasure.Chunk) true
-      if ok1
-      then
-        let i9 := Slice.len bytes
-        if pos != i9
+      let i4 ← tacenta_erasure.MAX_CODEWORDS * tacenta_erasure.CHUNK_BYTES
+      let i5 ← lift (UScalar.cast .U64 i4)
+      if size_wide > i5
+      then ok none
+      else
+        let size ← lift (UScalar.cast .Usize size_wide)
+        let needed ← lift (UScalar.cast .Usize needed_wide)
+        let count_bytes := Array.repeat 4#usize 0#u8
+        let (s6, to_slice_mut_back2) ← lift (Array.to_slice_mut count_bytes)
+        let s7 ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes
+            { start := 16#usize, «end» := 20#usize }
+        let s8 ← core.slice.Slice.copy_from_slice core.marker.CopyU8 s6 s7
+        let count_bytes1 := to_slice_mut_back2 s8
+        let i6 ← lift (core.num.U32.from_be_bytes count_bytes1)
+        let count ← lift (UScalar.cast .Usize i6)
+        let i7 := Slice.len bytes
+        let i8 ← 2#usize + tacenta_erasure.CHUNK_BYTES
+        let i9 ← i7 / i8
+        if count > i9
         then ok none
         else
-          let b ←
-            tacenta_erasure.Decoder.invariant
-              { size, needed, «have» := have1 }
-          if b
-          then ok (some { size, needed, «have» := have1 })
+          let (pos, have1, ok1) ←
+            tacenta_erasure.Decoder.from_bytes_loop i8
+              { start := 0#usize, «end» := count } bytes 20#usize
+              (alloc.vec.Vec.new tacenta_erasure.Chunk) true
+          if ok1
+          then
+            let i10 := Slice.len bytes
+            if pos != i10
+            then ok none
+            else
+              let b ←
+                tacenta_erasure.Decoder.invariant
+                  { size, needed, «have» := have1 }
+              if b
+              then ok (some { size, needed, «have» := have1 })
+              else ok none
           else ok none
-      else ok none
 
 /-- [tacenta_braid_unit::tacenta_braid::MAC_LEN]
     Source: 'braid-unit/src/tacenta_braid.rs', lines 79:0-79:30

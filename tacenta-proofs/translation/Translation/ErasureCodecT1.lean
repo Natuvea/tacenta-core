@@ -151,6 +151,10 @@ theorem decoder_from_bytes_no_panic (hdc : DivCeilTotal) (bytes : Slice U8)
   simp only [CHUNK_BYTES]
   all_goals repeat' (first | simp only [WP.spec_ok] | step | (step with dec_invariant_no_panic hdc) | split)
   all_goals (try simp_all [Slice.length, Array.repeat])
+  -- The `u64` bound on a stored `size` is `MAX_CODEWORDS * CHUNK_BYTES`, a
+  -- `usize` product; `MAX_CODEWORDS` is irreducible, so unfold it to show the
+  -- product fits.
+  all_goals (try (simp only [MAX_CODEWORDS]; scalar_tac))
 
 
 /-! ## Encoding -/
