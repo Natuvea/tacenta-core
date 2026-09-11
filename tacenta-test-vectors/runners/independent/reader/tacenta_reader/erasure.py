@@ -88,8 +88,12 @@ class Encoder:
         for c in chunks:
             if len(c) != K.CHUNK_BYTES:
                 raise ValueError("a chunk is 32 bytes")
-        if len(chunks) > K.MAX_CODEWORDS:
-            raise ValueError("more chunks than MAX_CODEWORDS")
+        # mlkem-braid.md, Codewords: "An encoder over a value of more than
+        # 65,536 chunks ... is not refused. Every index it issues is below k".
+        # "Which chunks such an encoder holds is not specified"; this reader
+        # holds them all. The stored form's bound is the persistence reader's
+        # (session-persistence.md), not this constructor's. (GAPS-3.md G3-02,
+        # closed by the text; pass 3 refused here.)
         self.chunks = [bytes(c) for c in chunks]
         self.next = next_index
         self.exhausted = exhausted
@@ -143,6 +147,9 @@ class Decoder:
         self.needed = chunk_count(size)
         self.held: List[Tuple[int, bytes]] = [(int(i), bytes(d)) for i, d in (held or [])]
 
+    def __deepcopy__(self, memo):
+        return Decoder(self.size, list(self.held))
+
     def __eq__(self, other):
         return (isinstance(other, Decoder) and self.size == other.size
                 and self.needed == other.needed and self.held == other.held)
@@ -156,9 +163,13 @@ class Decoder:
             raise ValueError("a codeword is a 16-bit index and 32 bytes")
         if len(self.held) >= self.needed:
             return False                       # holds k: every further one ignored
-        if any(i == index for i, _ in self.held):
+        seen = getattr(self, "_seen", None)
+        if seen is None or len(seen) != len(self.held):
+            seen = self._seen = {i for i, _ in self.held}
+        if index in seen:
             return False                       # first copy wins
         self.held.append((index, bytes(data)))
+        seen.add(index)
         return True
 
     def complete(self) -> bool:
