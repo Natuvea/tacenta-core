@@ -35,7 +35,27 @@ fn valid() -> String {
     "valid".to_string()
 }
 
-/// Load every `*.json` vector file in `dir`.
+/// A vector file's `algorithm`, read before the file is parsed as either shape.
+///
+/// `vectors/malformed-input/` holds both: a Double Ratchet scenario file and
+/// known-answer decoder files. Each loader takes its own shape from a directory
+/// and leaves the other to its loader, and a file with no `algorithm` is an
+/// error in both rather than a file neither loads.
+fn algorithm_of(text: &str, path: &Path) -> Result<String, String> {
+    let value: serde_json::Value =
+        serde_json::from_str(text).map_err(|e| format!("{}: {e}", path.display()))?;
+    value
+        .get("algorithm")
+        .and_then(|a| a.as_str())
+        .map(str::to_string)
+        .ok_or_else(|| format!("{}: no algorithm", path.display()))
+}
+
+/// The one scenario algorithm; every other file is a known-answer file.
+const SCENARIO_ALGORITHM: &str = "double-ratchet";
+
+/// Load every known-answer `*.json` vector file in `dir`, leaving any scenario
+/// file to `load_ratchet_dir`.
 pub fn load_dir(dir: &Path) -> Result<Vec<VectorFile>, String> {
     let mut files = Vec::new();
     let entries = fs::read_dir(dir).map_err(|e| format!("read {}: {e}", dir.display()))?;
@@ -43,6 +63,9 @@ pub fn load_dir(dir: &Path) -> Result<Vec<VectorFile>, String> {
         let path = entry.map_err(|e| e.to_string())?.path();
         if path.extension().and_then(|e| e.to_str()) == Some("json") {
             let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            if algorithm_of(&text, &path)? == SCENARIO_ALGORITHM {
+                continue;
+            }
             let file: VectorFile =
                 serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
             files.push(file);
@@ -298,7 +321,41 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
             }
             Ok(())
         }
+        // The decoders' verdicts on whole encodings, a curve key re-spelled in
+        // each position among them (message-format.md, Curve public keys): an
+        // accepted encoding re-encodes to `output`, and a refused one is refused.
+        "composite-header-decode" => {
+            use tacenta_core::serialization::composite as c;
+            let encoding = input(v, "encoding")?;
+            decoder_verdict(v, c::decode_composite(&encoding), |(h, rest)| {
+                [c::encode_composite(&h).as_slice(), rest].concat()
+            })
+        }
+        "prekey-bundle-decode" => {
+            use tacenta_core::serialization;
+            let encoding = input(v, "encoding")?;
+            decoder_verdict(v, serialization::decode_bundle(&encoding), |b| {
+                serialization::encode_bundle(&b)
+            })
+        }
         other => Err(format!("no runner for algorithm {other}")),
+    }
+}
+
+/// A decoder's answer against a vector's `result`: a valid vector's input is
+/// accepted and what it decodes to re-encodes to `output`, and an invalid
+/// vector's input is refused, whichever refusal the implementation reports.
+fn decoder_verdict<T, E: std::fmt::Debug>(
+    v: &Vector,
+    decoded: Result<T, E>,
+    reencode: impl FnOnce(T) -> Vec<u8>,
+) -> Result<(), String> {
+    match (v.result.as_str(), decoded) {
+        ("valid", Ok(value)) => eq(&reencode(value), &bytes(&v.output)?),
+        ("valid", Err(e)) => Err(format!("refused an encoding the model accepts: {e:?}")),
+        ("invalid", Ok(_)) => Err("accepted an encoding the model refuses".to_string()),
+        ("invalid", Err(_)) => Ok(()),
+        (other, _) => Err(format!("unknown result {other}")),
     }
 }
 
@@ -491,7 +548,8 @@ pub struct MessageKeysJson {
     pub iv: String,
 }
 
-/// Load every `*.json` ratchet vector file in `dir`.
+/// Load every `*.json` ratchet scenario file in `dir`, leaving any known-answer
+/// file to `load_dir`.
 pub fn load_ratchet_dir(dir: &Path) -> Result<Vec<RatchetFile>, String> {
     let mut files = Vec::new();
     let entries = fs::read_dir(dir).map_err(|e| format!("read {}: {e}", dir.display()))?;
@@ -499,6 +557,9 @@ pub fn load_ratchet_dir(dir: &Path) -> Result<Vec<RatchetFile>, String> {
         let path = entry.map_err(|e| e.to_string())?.path();
         if path.extension().and_then(|e| e.to_str()) == Some("json") {
             let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            if algorithm_of(&text, &path)? != SCENARIO_ALGORITHM {
+                continue;
+            }
             let file: RatchetFile =
                 serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
             files.push(file);
