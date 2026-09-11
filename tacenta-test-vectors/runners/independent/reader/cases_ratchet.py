@@ -225,3 +225,28 @@ def _():
     assert list(b.chains) == [1, 0]
     b = spqr.receive(b, 0, 1)[0]                   # a stored-key receive steps no chain: order unchanged
     assert list(b.chains) == [1, 0]
+
+
+@case("CR-18 sparse replacement (G2-01, closed): stepping forward deletes a key stored for the epoch under a number it is about to store, then stores the range in number order after every key already held; the replacing key is last, eviction takes the others first, and the bound counts the resulting size",
+      f"{SP} Receiving: Stepping forward deletes any key stored for the epoch under a number it is about to store, then stores the keys it passes, in number order, after every key already in the store; {SPS} Semantic rules of the leaf formats (ADR-0007)")
+def _():
+    from tacenta_reader import persistence
+    _, b = _pair()
+    old3, keep9 = b"\x33" * 32, b"\x99" * 32
+    b.skipped[(0, 3)] = old3
+    b.skipped[(0, 9)] = keep9
+    b = persistence.spqr_from_bytes(persistence.spqr_to_bytes(b))     # only a stored state holds such keys
+    b2, _ = accepts(spqr.receive, b, 0, 5)
+    assert list(b2.skipped) == [(0, 9), (0, 1), (0, 2), (0, 3), (0, 4)]
+    assert b2.skipped[(0, 3)] != old3 and b2.skipped[(0, 9)] == keep9
+    assert list(spqr.evict(b2, 1).skipped) == [(0, 1), (0, 2), (0, 3), (0, 4)]
+    _, c = _pair()
+    c.skipped[(0, 3)] = old3
+    c.skipped[(0, 4)] = old3
+    for i in range(K.MAX_SKIPPED_STORE - 5):
+        c.skipped[(0, 10000 + i)] = keep9
+    c2, _ = accepts(spqr.receive, c, 0, 6)                            # 5 numbers, 2 replaced: 1997 + 3
+    assert len(c2.skipped) == K.MAX_SKIPPED_STORE
+    c.skipped[(0, 20000)] = keep9
+    e = rejects(spqr.receive, c, 0, 6, exc=spqr.SkippedStoreFull)
+    assert e.shortfall == 1
