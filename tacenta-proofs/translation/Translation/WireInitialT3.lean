@@ -12,12 +12,15 @@ and trailing ratchet message, and `Err` exactly when the model returns `none`.
 ## The model, by cases
 
 The model decodes with a chain of `take?` and `readBe32`, the KEM ciphertext's
-length read off the wire in the middle, and the two keys' curve bytes checked
-once both keys are taken. `decodeInitial_cases` puts it in the shape the code
-has: too short, a wrong version or type byte, no room for the two keys, a key
-whose first byte is not the curve byte, or no room for the length is `none`, and
-otherwise the message is `decodeInitialRest` of the bytes after the framing, one
-expression over fixed offsets and that length.
+length read off the wire in the middle, and the two keys' curve bytes and then
+their thirty-two key bytes checked once both keys are taken. `decodeInitial_cases`
+puts it in the shape the code has: too short, a wrong version or type byte, no
+room for the two keys, a key whose first byte is not the curve byte, an identity
+or an ephemeral whose key bytes are not a canonical curve key, or no room for the
+length is `none`, and otherwise the message is `decodeInitialRest` of the bytes
+after the framing, one expression over fixed offsets and that length. The
+refinement meets the code's canonicity check on the bytes it copied with
+`Tacenta.WireT3.canonicalKey_at`.
 
 **How the chain is unfolded, because the obvious way fails.** Rewriting the
 chain with `Option.bind_some`, or any lemma proved by `rfl`, leaves the kernel to
@@ -138,8 +141,41 @@ theorem bind_checkCurve_of_none {β : Type} (k : List UInt8) (f : Unit → Optio
   · exact hf
   · rfl
 
+/-- Binding the canonical-key check on a canonical key: the continuation. Stated
+for an abstract continuation, like `bind_checkCurve`. -/
+theorem bind_checkKey {β : Type} (k : List UInt8) (f : Unit → Option β)
+    (hk : canonicalKey k = true) : (checkKey k).bind f = f () := by
+  unfold checkKey
+  rw [if_pos hk]; rfl
+
+/-- Binding it on a key that is not canonical: nothing. -/
+theorem bind_checkKey_none {β : Type} (k : List UInt8) (f : Unit → Option β)
+    (hk : canonicalKey k = false) : (checkKey k).bind f = none := by
+  unfold checkKey
+  rw [if_neg (by rw [hk]; exact Bool.false_ne_true)]; rfl
+
+/-- A continuation that is nothing is nothing after the canonical-key check too. -/
+theorem bind_checkKey_of_none {β : Type} (k : List UInt8) (f : Unit → Option β)
+    (hf : f () = none) : (checkKey k).bind f = none := by
+  unfold checkKey
+  split
+  · exact hf
+  · rfl
+
+/-- The identity's key bytes, the thirty-two after its curve byte, as the model
+binds them and at their offset in the bytes after the framing. -/
+theorem identity_key_eq (rest : List UInt8) : (rest.take 33).drop 1 = (rest.drop 1).take 32 := by
+  simp [List.drop_take]
+
+/-- The same for the ephemeral's, at offset 34. -/
+theorem ephemeral_key_eq (rest : List UInt8) :
+    ((rest.drop 33).take 33).drop 1 = (rest.drop 34).take 32 := by
+  simp [List.drop_take, List.drop_drop]
+
 theorem long_rest (v t : UInt8) (rest : List UInt8) (hvt : ¬(v != version || t != typeInitial) = true)
     (hc : ¬(rest[0]! != ecCurveByte || rest[33]! != ecCurveByte) = true)
+    (hk1 : canonicalKey ((rest.drop 1).take 32) = true)
+    (hk2 : canonicalKey ((rest.drop 34).take 32) = true)
     (h3 : ¬ rest.length < 70) :
     decodeInitial (v :: t :: rest) = decodeInitialRest rest := by
   have hKlt := be32At_lt rest 66
@@ -151,6 +187,8 @@ theorem long_rest (v t : UInt8) (rest : List UInt8) (hvt : ¬(v != version || t 
   rw [bind_take 33 _ _ (by simp; omega)]
   rw [bind_checkCurve _ _ _ (head?_take_eq rest 33 (by omega) (by omega)) hc.1]
   rw [bind_checkCurve _ _ _ (head?_drop_take_eq rest 33 33 (by omega) (by omega)) hc.2]
+  rw [bind_checkKey ((rest.take 33).drop 1) _ (by rw [identity_key_eq]; exact hk1)]
+  rw [bind_checkKey (((rest.drop 33).take 33).drop 1) _ (by rw [ephemeral_key_eq]; exact hk2)]
   rw [bind_readBe32 _ _ (by simp; omega)]
   simp only [List.drop_drop, Nat.reduceAdd, be32At_drop0, hofnat, Bool.false_eq_true, if_false]
   unfold decodeInitialRest
@@ -184,6 +222,8 @@ theorem short_rest (v t : UInt8) (rest : List UInt8) (hvt : ¬(v != version || t
   rw [bind_take 33 _ _ (by simp; omega)]
   apply bind_checkCurve_of_none
   apply bind_checkCurve_of_none
+  apply bind_checkKey_of_none
+  apply bind_checkKey_of_none
   exact bind_readBe32_none _ _ (by simp; omega)
 
 /-- Both keys fit and one of them does not begin with the curve byte: nothing. -/
@@ -199,6 +239,24 @@ theorem bad_curve (v t : UInt8) (rest : List UInt8) (hvt : ¬(v != version || t 
   · apply bind_checkCurve_of_none
     exact bind_checkCurve_none _ _ _ (head?_drop_take_eq rest 33 33 (by omega) (by omega)) hc
 
+/-- Both keys fit and begin with the curve byte, and one of them is not a
+canonical curve key: nothing. -/
+theorem bad_key (v t : UInt8) (rest : List UInt8) (hvt : ¬(v != version || t != typeInitial) = true)
+    (h : 66 ≤ rest.length) (hc : ¬(rest[0]! != ecCurveByte || rest[33]! != ecCurveByte) = true)
+    (hk : canonicalKey ((rest.drop 1).take 32) = false ∨
+      canonicalKey ((rest.drop 34).take 32) = false) :
+    decodeInitial (v :: t :: rest) = none := by
+  simp only [Bool.or_eq_true, not_or, bne_iff_ne, ne_eq, not_not] at hc
+  simp only [decodeInitial, hvt, if_false, Option.bind_eq_bind, Bool.false_eq_true]
+  rw [bind_take 33 rest _ (by omega)]
+  rw [bind_take 33 _ _ (by simp; omega)]
+  rw [bind_checkCurve _ _ _ (head?_take_eq rest 33 (by omega) (by omega)) hc.1]
+  rw [bind_checkCurve _ _ _ (head?_drop_take_eq rest 33 33 (by omega) (by omega)) hc.2]
+  rcases hk with hk | hk
+  · exact bind_checkKey_none ((rest.take 33).drop 1) _ (by rw [identity_key_eq]; exact hk)
+  · apply bind_checkKey_of_none
+    exact bind_checkKey_none (((rest.drop 33).take 33).drop 1) _ (by rw [ephemeral_key_eq]; exact hk)
+
 /-- The model's version or type check fails: nothing. -/
 theorem wrong_vt (v t : UInt8) (rest : List UInt8) (hvt : (v != version || t != typeInitial) = true) :
     decodeInitial (v :: t :: rest) = none := by
@@ -206,14 +264,18 @@ theorem wrong_vt (v t : UInt8) (rest : List UInt8) (hvt : (v != version || t != 
 
 /-- **The model's initial-message decoder, by cases**, in the order the code
 checks: too short, a wrong version or type byte, no room for the two keys, a key
-whose first byte is not the curve byte, or no room for the ciphertext length is
-`none`; otherwise it is `decodeInitialRest` on the bytes after the framing. -/
+whose first byte is not the curve byte, an identity or an ephemeral whose
+thirty-two key bytes are not a canonical curve key, or no room for the
+ciphertext length is `none`; otherwise it is `decodeInitialRest` on the bytes
+after the framing. -/
 theorem decodeInitial_cases (l : List UInt8) :
     decodeInitial l =
       if l.length < 2 then none
       else if (l[0]! != version || l[1]! != typeInitial) = true then none
       else if l.length < 68 then none
       else if (l[2]! != ecCurveByte || l[35]! != ecCurveByte) = true then none
+      else if canonicalKey ((l.drop 3).take 32) = false then none
+      else if canonicalKey ((l.drop 36).take 32) = false then none
       else if l.length < 72 then none
       else decodeInitialRest (l.drop 2) := by
   match l with
@@ -225,9 +287,11 @@ theorem decodeInitial_cases (l : List UInt8) :
     have h1 : (v :: t :: rest)[1]! = t := rfl
     have h2 : (v :: t :: rest)[2]! = rest[0]! := rfl
     have h35 : (v :: t :: rest)[35]! = rest[33]! := rfl
+    have hk3 : ((v :: t :: rest).drop 3).take 32 = (rest.drop 1).take 32 := rfl
+    have hk36 : ((v :: t :: rest).drop 36).take 32 = (rest.drop 34).take 32 := rfl
     have hd : (v :: t :: rest).drop 2 = rest := rfl
     have hl : (v :: t :: rest).length = rest.length + 2 := rfl
-    rw [if_neg hlen, h0, h1, h2, h35, hd, hl]
+    rw [if_neg hlen, h0, h1, h2, h35, hk3, hk36, hd, hl]
     by_cases hvt : (v != version || t != typeInitial) = true
     · rw [if_pos hvt, wrong_vt v t rest hvt]
     rw [if_neg hvt]
@@ -237,9 +301,16 @@ theorem decodeInitial_cases (l : List UInt8) :
     by_cases hc : (rest[0]! != ecCurveByte || rest[33]! != ecCurveByte) = true
     · rw [if_pos hc, bad_curve v t rest hvt (by omega) hc]
     rw [if_neg hc]
+    by_cases hk1 : canonicalKey ((rest.drop 1).take 32) = false
+    · rw [if_pos hk1, bad_key v t rest hvt (by omega) hc (Or.inl hk1)]
+    rw [if_neg hk1]
+    by_cases hk2 : canonicalKey ((rest.drop 34).take 32) = false
+    · rw [if_pos hk2, bad_key v t rest hvt (by omega) hc (Or.inr hk2)]
+    rw [if_neg hk2]
     by_cases h3 : rest.length < 70
     · rw [if_pos (by omega), short_rest v t rest hvt h3]
-    rw [if_neg (by omega), long_rest v t rest hvt hc h3]
+    rw [if_neg (by omega),
+      long_rest v t rest hvt hc (by simpa using hk1) (by simpa using hk2) h3]
 
 /-! ## The code's decoder against the model's -/
 
@@ -307,12 +378,17 @@ theorem be32_at_spec (bytes : Slice Std.U8) (at1 : Usize) (h : at1.val + 4 ≤ b
     List.getElem?_eq_getElem (by omega : at1.val + 2 < bytes.val.length),
     List.getElem?_eq_getElem hl, Option.getD_some]
 
-set_option maxHeartbeats 1000000 in
+set_option maxHeartbeats 2000000 in
 /-- **The translated decoder computes what the model says, on every byte string.**
 
 An `Ok` carries exactly the keys, ciphertext, identifiers and ratchet message
 `Model.Messages.decodeInitial` returns; an `Err` is exactly the model's `none`.
-No hypothesis, and kernel-only. -/
+No hypothesis, and kernel-only.
+
+The two key copies the canonicity checks read add two refusal goals, and two
+zero-filled arrays to the context of every goal after them, which takes the
+proof past a million heartbeats, as the bundle decoder's four copies take its
+proof. -/
 theorem decode_initial_refines (bytes : Slice Std.U8) :
     decode_initial bytes ⦃ fun r => match r with
       | core.result.Result.Ok d => decodeInitial (bytesOf bytes.val) = some (initialOf d)
@@ -321,6 +397,14 @@ theorem decode_initial_refines (bytes : Slice Std.U8) :
   -- Unfolded first, so that the two curve-byte reads are bounded by numbers.
   simp only [EC_LEN]
   step*
+  -- Each key copy's source and destination have the same length: what the two
+  -- `span_end` checks bounded, once their results are substituted
+  -- (`decode_initial_no_panic` closes the same goals).
+  all_goals first
+    | (show Slice.length _ = Slice.length _
+       subst_vars
+       simp_all [Slice.length, Array.repeat])
+    | skip
   all_goals (rw [decodeInitial_cases]; simp only [bytesOf_length])
   all_goals first | (rw [if_pos (by scalar_tac)]) | skip
   all_goals (
@@ -349,14 +433,40 @@ theorem decode_initial_refines (bytes : Slice Std.U8) :
     | (rw [if_pos (by rw [Bool.or_eq_true]; exact Or.inr (by assumption))])
     | skip
   all_goals (rw [if_neg (by rw [Bool.or_eq_true, not_or]; exact ⟨by assumption, by assumption⟩)])
+  -- a key that is not a canonical curve key: the code's check on the bytes it
+  -- copied is the model's on the same offsets, refused on both sides or
+  -- accepted on both. The identity's key first, copied from offset 3 as `s2`.
+  -- A refusal's hypothesis is named by its type, since others have the same
+  -- `¬ _ = true` shape.
+  all_goals (
+    have hidk : (Array.from_slice (Array.repeat 32#usize 0#u8) s2).val = (bytes.val.drop 3).take 32 := by
+      rw [Array.from_slice_val _ _ (by simp [s1_post1, List.slice, hend1]; omega), s1_post1]
+      simp [List.slice, hend1]
+    rw [canonicalKey_at _ 3 _ hidk])
+  all_goals first
+    | (rw [if_pos (by simpa using (by assumption : ¬ Tacenta.WireT1.canonicalX25519
+          (Array.from_slice (Array.repeat 32#usize 0#u8) s2) = true))])
+    | (rw [if_neg (by rw [← b_post]; decide)])
+  -- then the ephemeral's, copied from one past the identity's end as `s5`
+  all_goals (
+    have hend2k : end2.val = 68 := by scalar_tac
+    have hephk : (Array.from_slice (Array.repeat 32#usize 0#u8) s5).val = (bytes.val.drop 36).take 32 := by
+      rw [Array.from_slice_val _ _ (by simp [s4_post1, List.slice, i5_post, hend1, hend2k]; omega),
+        s4_post1]
+      simp [List.slice, i5_post, hend1, hend2k]
+    rw [canonicalKey_at _ 36 _ hephk])
+  all_goals first
+    | (rw [if_pos (by simpa using (by assumption : ¬ Tacenta.WireT1.canonicalX25519
+          (Array.from_slice (Array.repeat 32#usize 0#u8) s5) = true))])
+    | (rw [if_neg (by rw [← b1_post]; decide)])
   -- a field end past the input before offset 72: the model's second short branch
   all_goals first | (rw [if_pos (by scalar_tac)]) | skip
   all_goals (
     rw [if_neg (by scalar_tac)]
     have hend2 : end2.val = 68 := by scalar_tac
-    simp only [hend2] at i5_post
-    have hK : be32At ((bytesOf bytes.val).drop 2) 66 = i5.val := by
-      rw [be32At_bytesOf_drop2, i5_post]
+    simp only [hend2] at i6_post
+    have hK : be32At ((bytesOf bytes.val).drop 2) 66 = i6.val := by
+      rw [be32At_bytesOf_drop2, i6_post]
     unfold decodeInitialRest
     simp only [List.length_drop, bytesOf_length, hK])
   -- the ciphertext or an identifier does not fit: the model's third short branch
@@ -365,17 +475,17 @@ theorem decode_initial_refines (bytes : Slice Std.U8) :
   rw [if_neg (by scalar_tac)]
   have hend1 : end1.val = 35 := by scalar_tac
   have hend3 : end3.val = 72 := by scalar_tac
-  have hend4 : end4.val = 72 + i5.val := by scalar_tac
-  have hend5 : end5.val = 76 + i5.val := by scalar_tac
-  have hend6 : end6.val = 80 + i5.val := by scalar_tac
-  have hend7 : end7.val = 84 + i5.val := by scalar_tac
+  have hend4 : end4.val = 72 + i6.val := by scalar_tac
+  have hend5 : end5.val = 76 + i6.val := by scalar_tac
+  have hend6 : end6.val = 80 + i6.val := by scalar_tac
+  have hend7 : end7.val = 84 + i6.val := by scalar_tac
   simp only [Option.some.injEq, initialOf]
-  rw [be32At_bytesOf_drop2' _ _ end4.val (by omega), ← i6_post,
-    be32At_bytesOf_drop2' _ _ end5.val (by omega), ← i7_post,
-    be32At_bytesOf_drop2' _ _ end6.val (by omega), ← i8_post]
-  simp only [s_post1, s1_post1, s2_post1, s3_post1, List.slice, hend1, hend2, hend3, hend4, hend7,
+  rw [be32At_bytesOf_drop2' _ _ end4.val (by omega), ← i7_post,
+    be32At_bytesOf_drop2' _ _ end5.val (by omega), ← i8_post,
+    be32At_bytesOf_drop2' _ _ end6.val (by omega), ← i9_post]
+  simp only [s6_post1, s7_post1, s8_post1, s9_post1, List.slice, hend1, hend2, hend3, hend4, hend7,
     List.drop_drop, bytesOf_drop, Nat.reduceAdd, Nat.reduceSub, Nat.add_sub_cancel_left]
-  rw [show 2 + (82 + i5.val) = 84 + i5.val by omega]
+  rw [show 2 + (82 + i6.val) = 84 + i6.val by omega]
   simp only [bytesOf, List.map_take]
 
 -- The axiom audit, enforced rather than asserted: the refinement rests on the

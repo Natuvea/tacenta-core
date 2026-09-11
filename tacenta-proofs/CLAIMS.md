@@ -544,13 +544,15 @@ them, so this is the decoder the product runs.
   prekey message. Each field's end is computed by `span_end`, whose full
   specification (`span_end_spec`: the end exactly when the field fits, nothing
   exactly when it does not, an overflowing addition included) is what bounds
-  every later read. Same pinned base.
+  every later read, the thirty-two key bytes each canonicity check copies
+  among them. Same pinned base.
 - `decode_bundle_no_panic`: the same for `decode_bundle`, which decodes a
   published prekey bundle. Its one optional field is decided by
   `one_time_prekey_at` (`one_time_prekey_at_no_panic`) over thirty-three bytes
   the decoder has already bounded. Same pinned base.
-- `is_canonical_x25519_spec`: the check `decode_composite` and `decode_bundle`
-  apply to every curve key they read (message-format.md, Curve public keys)
+- `is_canonical_x25519_spec`: the check `decode_composite`, `decode_initial`
+  and `decode_bundle` apply to every curve key they read (message-format.md,
+  Curve public keys)
   computes exactly `canonicalX25519`: bit 255 clear, and not the pattern of a
   value of at least p = 2^255 - 19. The check's value is proved, not only that
   it returns, because the refinements below need it. The function and these
@@ -591,19 +593,26 @@ the translated surface (`tacenta-core/src/sessions`).
 
 Location: `Translation/WireInitialT3.lean`.
 
-Against `Model.Messages.decodeInitial`.
+Against `Model.Messages.decodeInitial`, which refuses an `identity` or
+`ephemeral` whose thirty-two key bytes are not a canonical curve key
+(`Model.Messages.canonicalKey`; message-format.md, Initial message), as the
+composite header's and the bundle's decoders refuse theirs.
 
 - `decode_initial_refines`: for every byte string, `decode_initial` returns
   `Ok` exactly when the model returns `some`, with the same identity and
   ephemeral keys, KEM ciphertext, three prekey identifiers and trailing ratchet
   message, and `Err` exactly when the model returns `none`. No hypothesis.
-  Pinned to `propext`, `Classical.choice` and `Quot.sound` alone.
+  Pinned to `propext`, `Classical.choice` and `Quot.sound` alone. So the code
+  refuses a re-spelled key in either position exactly when the model does.
 - `decodeInitial_cases`: the model's decoder by cases, the lemma the refinement
   rewrites with. Too short, a wrong version or type byte, no room for the two
   keys, an `identity` or `ephemeral` whose first byte is not the `EncodeEC`
-  curve byte `0x05`, or no room for the ciphertext length is `none`; otherwise
-  the decoded message is one expression over fixed offsets and the ciphertext
-  length read at offset 68.
+  curve byte `0x05`, an `identity` whose key bytes (offsets 3 to 34) or an
+  `ephemeral` whose key bytes (offsets 36 to 67) are not a canonical curve key,
+  or no room for the ciphertext length is `none`; otherwise the decoded message
+  is one expression over fixed offsets and the ciphertext length read at
+  offset 68. The code's check meets the model's through
+  `WireT3.canonicalKey_at`.
 
 **What this does not give.** The same limit as above: what the session does
 with a decoded initial message is outside the translated surface.

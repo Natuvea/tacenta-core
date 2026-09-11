@@ -1540,8 +1540,10 @@ pub enum Error {
     /// The AEAD did not authenticate.
     Aead,
     /// An initial message arrived on an established session and is not a repeat
-    /// of the one that established it. Opening a session is
-    /// `establish_responder`'s job, and doing it here would discard this one.
+    /// of the one that established it: the session is not a responder's, or
+    /// the message's `ephemeral` or `identity` is not the session's. Opening a
+    /// session is `establish_responder`'s job, and doing it here would discard
+    /// this one.
     NotARepeatedInitial,
     /// A last-resort handshake this store has already accepted arrived again.
     ///
@@ -2101,6 +2103,17 @@ impl Session {
     /// initial message from a different establishment is refused here, because
     /// opening a session is `establish_responder`'s job and doing it
     /// inside an existing one would discard the session in place.
+    ///
+    /// A repeat is recognised by the two wrapper fields the session holds
+    /// (session-establishment.md, Receiving the initial message): `ephemeral`
+    /// must equal `established_ephemeral` and `identity` must equal the
+    /// `EncodeEC` of the peer's identity key, each byte for byte. The decoder
+    /// has already refused a re-spelled key in either field, and a key has one
+    /// canonical encoding, so a genuine repeat matches and nothing else that
+    /// names another key does. `kem_ciphertext` and the three identifiers are
+    /// not compared, since the session keeps none of them, and nothing reads
+    /// them: the inner message authenticates under this session's keys and
+    /// associated data, and the ratchet refuses one it has already accepted.
     pub fn decrypt<R: RngCore + CryptoRng>(
         &mut self,
         message: &[u8],
@@ -2110,7 +2123,12 @@ impl Session {
             Some(MessageType::Initial) => {
                 let decoded = decode_initial(message).map_err(Error::Decode)?;
                 match self.established_ephemeral.as_ref() {
-                    Some(e) if *e == decoded.ephemeral => decoded.message,
+                    Some(e)
+                        if *e == decoded.ephemeral
+                            && decoded.identity == encode_ec(&self.peer_identity_public) =>
+                    {
+                        decoded.message
+                    }
                     _ => return Err(Error::NotARepeatedInitial),
                 }
             }

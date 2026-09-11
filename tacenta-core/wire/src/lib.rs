@@ -409,8 +409,10 @@ fn be32_at(bytes: &[u8], at: usize) -> u32 {
 /// `LengthOverrun`. An `identity` or `ephemeral` whose first byte is not
 /// `ENCODE_EC_CURVE25519` is not an `EncodeEC` form and is `WrongType`,
 /// checked once both keys are bounded (message-format.md, Initial message).
-/// Each field's end is computed by `span_end` before anything is read, and
-/// every read is at a position that check has already bounded.
+/// So is one whose thirty-two key bytes are not their canonical encoding
+/// (`is_canonical_x25519`; message-format.md, Curve public keys), checked after
+/// both curve bytes. Each field's end is computed by `span_end` before anything
+/// is read, and every read is at a position that check has already bounded.
 pub fn decode_initial(bytes: &[u8]) -> Result<DecodedInitial, DecodeError> {
     if bytes.len() < 2 {
         return Err(DecodeError::TooShort);
@@ -435,6 +437,21 @@ pub fn decode_initial(bytes: &[u8]) -> Result<DecodedInitial, DecodeError> {
         return Err(DecodeError::WrongType);
     }
     if bytes[identity_end] != ENCODE_EC_CURVE25519 {
+        return Err(DecodeError::WrongType);
+    }
+    // Each key's thirty-two bytes after its curve byte are accepted only as
+    // their canonical encoding (message-format.md, Initial message; Curve
+    // public keys), refused as `WrongType` like a key without its curve byte.
+    // Checked here, so a re-spelled key is a decode failure on a new session
+    // and on a repeat alike, and `decode_ec` never meets one.
+    let mut identity_key = [0u8; 32];
+    identity_key.copy_from_slice(&bytes[3..identity_end]);
+    if !is_canonical_x25519(&identity_key) {
+        return Err(DecodeError::WrongType);
+    }
+    let mut ephemeral_key = [0u8; 32];
+    ephemeral_key.copy_from_slice(&bytes[identity_end + 1..ephemeral_end]);
+    if !is_canonical_x25519(&ephemeral_key) {
         return Err(DecodeError::WrongType);
     }
     let kem_len_end = match span_end(bytes, ephemeral_end, 4) {
@@ -1019,6 +1036,39 @@ mod tests {
                         decode_composite(&bytes),
                         Err(DecodeError::WrongType),
                         "a dh that is {what} was accepted"
+                    );
+                }
+            }
+        }
+    }
+
+    /// An `EncodeEC` key: the curve byte, then `key`.
+    fn ec_of(key: [u8; 32]) -> [u8; EC_LEN] {
+        let mut k = [ENCODE_EC_CURVE25519; EC_LEN];
+        k[1..].copy_from_slice(&key);
+        k
+    }
+
+    /// Each of an initial message's two keys decodes only as a canonical key.
+    /// A re-spelled one is a decode failure although its curve byte is right.
+    #[test]
+    fn every_initial_key_is_accepted_only_as_its_canonical_encoding() {
+        let good = ec_key(ENCODE_EC_CURVE25519, 0x0a);
+        for (key, canonical, what) in key_forms() {
+            let key = ec_of(key);
+            for (position, identity, ephemeral) in
+                [("identity", key, good), ("ephemeral", good, key)]
+            {
+                let got = decode_initial(&initial_with(identity, ephemeral));
+                if canonical {
+                    let decoded = got.unwrap_or_else(|e| panic!("{position}: {what}: {e:?}"));
+                    assert_eq!(decoded.identity, identity.to_vec(), "{position}: {what}");
+                    assert_eq!(decoded.ephemeral, ephemeral.to_vec(), "{position}: {what}");
+                } else {
+                    assert_eq!(
+                        got,
+                        Err(DecodeError::WrongType),
+                        "an {position} that is {what} was accepted"
                     );
                 }
             }

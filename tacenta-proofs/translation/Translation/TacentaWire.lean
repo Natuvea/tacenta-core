@@ -1131,7 +1131,7 @@ def be32_at (bytes : Slice Std.U8) (at1 : Std.Usize) : Result Std.U32 := do
   ok (core.num.U32.from_be_bytes (Array.make 4#usize [ i, i2, i4, i6 ]))
 
 /-- [tacenta_wire::decode_initial]:
-    Source: 'wire/src/lib.rs', lines 414:0-470:1
+    Source: 'wire/src/lib.rs', lines 416:0-487:1
     Visibility: public -/
 def decode_initial
   (bytes : Slice Std.U8) :
@@ -1165,85 +1165,117 @@ def decode_initial
               if i4 != ENCODE_EC_CURVE25519
               then ok (core.result.Result.Err DecodeError.WrongType)
               else
-                let o2 ← span_end bytes end2 4#usize
-                match o2 with
-                | none => ok (core.result.Result.Err DecodeError.TooShort)
-                | some end3 =>
-                  let i5 ← be32_at bytes end2
-                  let kem_len ← lift (UScalar.cast .Usize i5)
-                  let o3 ← span_end bytes end3 kem_len
-                  match o3 with
-                  | none =>
-                    ok (core.result.Result.Err DecodeError.LengthOverrun)
-                  | some end4 =>
-                    let o4 ← span_end bytes end4 4#usize
-                    match o4 with
+                let identity_key := Array.repeat 32#usize 0#u8
+                let (s, to_slice_mut_back) ←
+                  lift (Array.to_slice_mut identity_key)
+                let s1 ←
+                  core.slice.index.Slice.index
+                    (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes
+                    { start := 3#usize, «end» := end1 }
+                let s2 ←
+                  core.slice.Slice.copy_from_slice core.marker.CopyU8 s s1
+                let identity_key1 := to_slice_mut_back s2
+                let b ← is_canonical_x25519 identity_key1
+                if b
+                then
+                  let ephemeral_key := Array.repeat 32#usize 0#u8
+                  let (s3, to_slice_mut_back1) ←
+                    lift (Array.to_slice_mut ephemeral_key)
+                  let i5 ← end1 + 1#usize
+                  let s4 ←
+                    core.slice.index.Slice.index
+                      (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) bytes
+                      { start := i5, «end» := end2 }
+                  let s5 ←
+                    core.slice.Slice.copy_from_slice core.marker.CopyU8 s3 s4
+                  let ephemeral_key1 := to_slice_mut_back1 s5
+                  let b1 ← is_canonical_x25519 ephemeral_key1
+                  if b1
+                  then
+                    let o2 ← span_end bytes end2 4#usize
+                    match o2 with
                     | none => ok (core.result.Result.Err DecodeError.TooShort)
-                    | some end5 =>
-                      let o5 ← span_end bytes end5 4#usize
-                      match o5 with
+                    | some end3 =>
+                      let i6 ← be32_at bytes end2
+                      let kem_len ← lift (UScalar.cast .Usize i6)
+                      let o3 ← span_end bytes end3 kem_len
+                      match o3 with
                       | none =>
-                        ok (core.result.Result.Err DecodeError.TooShort)
-                      | some end6 =>
-                        let o6 ← span_end bytes end6 4#usize
-                        match o6 with
+                        ok (core.result.Result.Err DecodeError.LengthOverrun)
+                      | some end4 =>
+                        let o4 ← span_end bytes end4 4#usize
+                        match o4 with
                         | none =>
                           ok (core.result.Result.Err DecodeError.TooShort)
-                        | some end7 =>
-                          let s ←
-                            core.slice.index.Slice.index
-                              (core.slice.index.SliceIndexRangeUsizeSlice
-                              Std.U8) bytes
-                              { start := 2#usize, «end» := end1 }
-                          let v ←
-                            alloc.slice.Slice.to_vec core.clone.CloneU8 s
-                          let s1 ←
-                            core.slice.index.Slice.index
-                              (core.slice.index.SliceIndexRangeUsizeSlice
-                              Std.U8) bytes { start := end1, «end» := end2 }
-                          let v1 ←
-                            alloc.slice.Slice.to_vec core.clone.CloneU8 s1
-                          let s2 ←
-                            core.slice.index.Slice.index
-                              (core.slice.index.SliceIndexRangeUsizeSlice
-                              Std.U8) bytes { start := end3, «end» := end4 }
-                          let v2 ←
-                            alloc.slice.Slice.to_vec core.clone.CloneU8 s2
-                          let i6 ← be32_at bytes end4
-                          let i7 ← be32_at bytes end5
-                          let i8 ← be32_at bytes end6
-                          let s3 ←
-                            core.slice.index.Slice.index
-                              (core.slice.index.SliceIndexRangeFromUsizeSlice
-                              Std.U8) bytes { start := end7 }
-                          let v3 ←
-                            alloc.slice.Slice.to_vec core.clone.CloneU8 s3
-                          ok (core.result.Result.Ok
-                            {
-                              identity := v,
-                              ephemeral := v1,
-                              kem_ciphertext := v2,
-                              signed_prekey_id := i6,
-                              one_time_prekey_id := i7,
-                              kem_prekey_id := i8,
-                              message := v3
-                            })
+                        | some end5 =>
+                          let o5 ← span_end bytes end5 4#usize
+                          match o5 with
+                          | none =>
+                            ok (core.result.Result.Err DecodeError.TooShort)
+                          | some end6 =>
+                            let o6 ← span_end bytes end6 4#usize
+                            match o6 with
+                            | none =>
+                              ok (core.result.Result.Err DecodeError.TooShort)
+                            | some end7 =>
+                              let s6 ←
+                                core.slice.index.Slice.index
+                                  (core.slice.index.SliceIndexRangeUsizeSlice
+                                  Std.U8) bytes
+                                  { start := 2#usize, «end» := end1 }
+                              let v ←
+                                alloc.slice.Slice.to_vec core.clone.CloneU8 s6
+                              let s7 ←
+                                core.slice.index.Slice.index
+                                  (core.slice.index.SliceIndexRangeUsizeSlice
+                                  Std.U8) bytes
+                                  { start := end1, «end» := end2 }
+                              let v1 ←
+                                alloc.slice.Slice.to_vec core.clone.CloneU8 s7
+                              let s8 ←
+                                core.slice.index.Slice.index
+                                  (core.slice.index.SliceIndexRangeUsizeSlice
+                                  Std.U8) bytes
+                                  { start := end3, «end» := end4 }
+                              let v2 ←
+                                alloc.slice.Slice.to_vec core.clone.CloneU8 s8
+                              let i7 ← be32_at bytes end4
+                              let i8 ← be32_at bytes end5
+                              let i9 ← be32_at bytes end6
+                              let s9 ←
+                                core.slice.index.Slice.index
+                                  (core.slice.index.SliceIndexRangeFromUsizeSlice
+                                  Std.U8) bytes { start := end7 }
+                              let v3 ←
+                                alloc.slice.Slice.to_vec core.clone.CloneU8 s9
+                              ok (core.result.Result.Ok
+                                {
+                                  identity := v,
+                                  ephemeral := v1,
+                                  kem_ciphertext := v2,
+                                  signed_prekey_id := i7,
+                                  one_time_prekey_id := i8,
+                                  kem_prekey_id := i9,
+                                  message := v3
+                                })
+                  else ok (core.result.Result.Err DecodeError.WrongType)
+                else ok (core.result.Result.Err DecodeError.WrongType)
 
 /-- [tacenta_wire::TYPE_BUNDLE]
-    Source: 'wire/src/lib.rs', lines 478:0-478:33
+    Source: 'wire/src/lib.rs', lines 495:0-495:33
     Visibility: public -/
 @[global_simps, irreducible] def TYPE_BUNDLE : Std.U8 := 3#u8
 
 /-- [tacenta_wire::BUNDLE_KEM_AT]
-    Source: 'wire/src/lib.rs', lines 483:0-483:33 -/
+    Source: 'wire/src/lib.rs', lines 500:0-500:33 -/
 @[global_simps, irreducible] def BUNDLE_KEM_AT : Std.Usize := 134#usize
 
 /-- [tacenta_wire::KEM_PREKEY_LEN]
-    Source: 'wire/src/lib.rs', lines 493:0-493:35 -/
+    Source: 'wire/src/lib.rs', lines 510:0-510:35 -/
 @[global_simps, irreducible] def KEM_PREKEY_LEN : Std.Usize := 1568#usize
 
 /-- [tacenta_wire::WireBundle]
-    Source: 'wire/src/lib.rs', lines 503:0-513:1
+    Source: 'wire/src/lib.rs', lines 520:0-530:1
     Visibility: public -/
 structure WireBundle where
   identity_key : Array Std.U8 32#usize
@@ -1257,7 +1289,7 @@ structure WireBundle where
   kem_prekey_id : Std.U32
 
 /-- [tacenta_wire::{impl core::clone::Clone for tacenta_wire::WireBundle}::clone]:
-    Source: 'wire/src/lib.rs', lines 502:9-502:14
+    Source: 'wire/src/lib.rs', lines 519:9-519:14
     Visibility: public -/
 def WireBundle.Insts.CoreCloneClone.clone
   (self : WireBundle) : Result WireBundle := do
@@ -1288,21 +1320,21 @@ def WireBundle.Insts.CoreCloneClone.clone
     }
 
 /-- Trait implementation: [tacenta_wire::{impl core::clone::Clone for tacenta_wire::WireBundle}]
-    Source: 'wire/src/lib.rs', lines 502:9-502:14 -/
+    Source: 'wire/src/lib.rs', lines 519:9-519:14 -/
 @[reducible]
 def WireBundle.Insts.CoreCloneClone : core.clone.Clone WireBundle := {
   clone := WireBundle.Insts.CoreCloneClone.clone
 }
 
 /-- Trait implementation: [tacenta_wire::{impl core::marker::StructuralPartialEq for tacenta_wire::WireBundle}]
-    Source: 'wire/src/lib.rs', lines 502:16-502:25 -/
+    Source: 'wire/src/lib.rs', lines 519:16-519:25 -/
 @[reducible]
 def WireBundle.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq WireBundle := {
 }
 
 /-- [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::WireBundle> for tacenta_wire::WireBundle}::eq]:
-    Source: 'wire/src/lib.rs', lines 502:16-502:25
+    Source: 'wire/src/lib.rs', lines 519:16-519:25
     Visibility: public -/
 def WireBundle.Insts.CoreCmpPartialEqWireBundle.eq
   (self : WireBundle) (other : WireBundle) : Result Bool := do
@@ -1351,7 +1383,7 @@ def WireBundle.Insts.CoreCmpPartialEqWireBundle.eq
   else ok false
 
 /-- Trait implementation: [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::WireBundle> for tacenta_wire::WireBundle}]
-    Source: 'wire/src/lib.rs', lines 502:16-502:25 -/
+    Source: 'wire/src/lib.rs', lines 519:16-519:25 -/
 @[reducible]
 def WireBundle.Insts.CoreCmpPartialEqWireBundle : core.cmp.PartialEq WireBundle
   WireBundle := {
@@ -1359,14 +1391,14 @@ def WireBundle.Insts.CoreCmpPartialEqWireBundle : core.cmp.PartialEq WireBundle
 }
 
 /-- [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::WireBundle}::assert_fields_are_eq]:
-    Source: 'wire/src/lib.rs', lines 502:27-502:29
+    Source: 'wire/src/lib.rs', lines 519:27-519:29
     Visibility: public -/
 def WireBundle.Insts.CoreCmpEq.assert_fields_are_eq
   (self : WireBundle) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::WireBundle}]
-    Source: 'wire/src/lib.rs', lines 502:27-502:29 -/
+    Source: 'wire/src/lib.rs', lines 519:27-519:29 -/
 @[reducible]
 def WireBundle.Insts.CoreCmpEq : core.cmp.Eq WireBundle := {
   partialEqInst := WireBundle.Insts.CoreCmpPartialEqWireBundle
@@ -1374,7 +1406,7 @@ def WireBundle.Insts.CoreCmpEq : core.cmp.Eq WireBundle := {
 }
 
 /-- [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::WireBundle}::fmt]:
-    Source: 'wire/src/lib.rs', lines 502:31-502:36
+    Source: 'wire/src/lib.rs', lines 519:31-519:36
     Visibility: public -/
 def WireBundle.Insts.CoreFmtDebug.fmt
   (self : WireBundle) (f : core.fmt.Formatter) :
@@ -1416,14 +1448,14 @@ def WireBundle.Insts.CoreFmtDebug.fmt
   core.fmt.Formatter.debug_struct_fields_finish f (toStr "WireBundle") s values
 
 /-- Trait implementation: [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::WireBundle}]
-    Source: 'wire/src/lib.rs', lines 502:31-502:36 -/
+    Source: 'wire/src/lib.rs', lines 519:31-519:36 -/
 @[reducible]
 def WireBundle.Insts.CoreFmtDebug : core.fmt.Debug WireBundle := {
   fmt := WireBundle.Insts.CoreFmtDebug.fmt
 }
 
 /-- [tacenta_wire::encode_bundle]:
-    Source: 'wire/src/lib.rs', lines 527:0-557:1
+    Source: 'wire/src/lib.rs', lines 544:0-574:1
     Visibility: public -/
 def encode_bundle (b : WireBundle) : Result (alloc.vec.Vec Std.U8) := do
   let out ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U8) VERSION
@@ -1467,7 +1499,7 @@ def encode_bundle (b : WireBundle) : Result (alloc.vec.Vec Std.U8) := do
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out10 s8
 
 /-- [tacenta_wire::one_time_prekey_at]:
-    Source: 'wire/src/lib.rs', lines 566:0-595:1 -/
+    Source: 'wire/src/lib.rs', lines 583:0-612:1 -/
 def one_time_prekey_at
   (bytes : Slice Std.U8) (at1 : Std.Usize) :
   Result (core.result.Result (Option (Array Std.U8 32#usize)) DecodeError)
@@ -1500,7 +1532,7 @@ def one_time_prekey_at
     else ok (core.result.Result.Err DecodeError.WrongType)
 
 /-- [tacenta_wire::decode_bundle]:
-    Source: 'wire/src/lib.rs', lines 612:0-681:1
+    Source: 'wire/src/lib.rs', lines 629:0-698:1
     Visibility: public -/
 def decode_bundle
   (bytes : Slice Std.U8) :
