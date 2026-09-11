@@ -161,6 +161,43 @@ def _():
     assert e.issue() is None and e.issue() is None
 
 
+@case("EC-11 an encoder for zero bytes: every codeword is 32 zero bytes, its indices run 0, 1, 2 as for any k, and it issues nothing after index 65,535",
+      f"{EC} Codewords: For k = 0 there are no points and the sum has no terms, so every codeword of an encoder for zero bytes is 32 zero bytes ... This holds for every k, including 0")
+def _():
+    e = erasure.Encoder.for_value(b"")
+    assert e.chunks == []
+    assert [e.issue() for _ in range(3)] == [(0, bytes(32)), (1, bytes(32)), (2, bytes(32))]
+    assert all(e.codeword(i) == bytes(32) for i in (3, 100, 0xFFFF))
+    e = erasure.Encoder([], next_index=K.U16_MAX - 1)
+    assert e.issue() == (K.U16_MAX - 1, bytes(32)) and e.issue() == (K.U16_MAX, bytes(32))
+    assert e.exhausted and e.issue() is None
+
+
+@case("EC-12 an encoder over more than 65,536 chunks is not refused: it issues chunk_0 to chunk_65535 as indices 0 to 65,535 and then nothing; a decoder for such a value never completes; a stored encoder holding more than 65,536 chunks is refused",
+      f"{EC} Codewords: An encoder over a value of more than 65,536 chunks (more than 2,097,152 bytes) is not refused ...; session-persistence.md Erasure coder sub-formats")
+def _():
+    from tacenta_reader import persistence
+    n = 65537 * 32 - 5
+    value = b"".join(i.to_bytes(4, "big") for i in range(-(-n // 4)))[:n]
+    e = accepts(erasure.Encoder.for_value, value)
+    chunks = erasure.to_chunks(value)
+    assert len(chunks) == 65537
+    d = erasure.Decoder(n)
+    issued = 0
+    while True:
+        cw = e.issue()
+        if cw is None:
+            break
+        i, data = cw
+        assert i == issued and data == chunks[i], i        # each is chunk_i: none computed from the polynomials
+        assert d.receive(i, data)
+        issued += 1
+    assert issued == 65536 and e.exhausted and e.issue() is None
+    assert not d.complete() and d.value() is None           # needs 65,537 distinct 16-bit indices
+    raw = (0).to_bytes(2, "big") + b"\x00" + (65537).to_bytes(4, "big") + b"".join(chunks)
+    rejects(persistence.encoder_from_bytes, raw, exc=persistence.PersistError)
+
+
 @case("EC-10 index and chunk widths: an index outside 16 bits or a chunk not 32 bytes is not a codeword",
       f"{EC} Codewords: A codeword is a 16-bit index i ... and 32 bytes")
 def _():
