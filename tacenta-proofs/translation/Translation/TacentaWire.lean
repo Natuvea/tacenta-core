@@ -906,8 +906,12 @@ def decode_message
     Source: 'wire/src/lib.rs', lines 305:0-305:25 -/
 @[global_simps, irreducible] def EC_LEN : Std.Usize := 33#usize
 
+/-- [tacenta_wire::ENCODE_EC_CURVE25519]
+    Source: 'wire/src/lib.rs', lines 315:0-315:38 -/
+@[global_simps, irreducible] def ENCODE_EC_CURVE25519 : Std.U8 := 5#u8
+
 /-- [tacenta_wire::DecodedInitial]
-    Source: 'wire/src/lib.rs', lines 309:0-317:1
+    Source: 'wire/src/lib.rs', lines 319:0-327:1
     Visibility: public -/
 structure DecodedInitial where
   identity : alloc.vec.Vec Std.U8
@@ -919,7 +923,7 @@ structure DecodedInitial where
   message : alloc.vec.Vec Std.U8
 
 /-- [tacenta_wire::{impl core::clone::Clone for tacenta_wire::DecodedInitial}::clone]:
-    Source: 'wire/src/lib.rs', lines 308:9-308:14
+    Source: 'wire/src/lib.rs', lines 318:9-318:14
     Visibility: public -/
 def DecodedInitial.Insts.CoreCloneClone.clone
   (self : DecodedInitial) : Result DecodedInitial := do
@@ -942,21 +946,21 @@ def DecodedInitial.Insts.CoreCloneClone.clone
     }
 
 /-- Trait implementation: [tacenta_wire::{impl core::clone::Clone for tacenta_wire::DecodedInitial}]
-    Source: 'wire/src/lib.rs', lines 308:9-308:14 -/
+    Source: 'wire/src/lib.rs', lines 318:9-318:14 -/
 @[reducible]
 def DecodedInitial.Insts.CoreCloneClone : core.clone.Clone DecodedInitial := {
   clone := DecodedInitial.Insts.CoreCloneClone.clone
 }
 
 /-- Trait implementation: [tacenta_wire::{impl core::marker::StructuralPartialEq for tacenta_wire::DecodedInitial}]
-    Source: 'wire/src/lib.rs', lines 308:16-308:25 -/
+    Source: 'wire/src/lib.rs', lines 318:16-318:25 -/
 @[reducible]
 def DecodedInitial.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq DecodedInitial := {
 }
 
 /-- [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::DecodedInitial> for tacenta_wire::DecodedInitial}::eq]:
-    Source: 'wire/src/lib.rs', lines 308:16-308:25
+    Source: 'wire/src/lib.rs', lines 318:16-318:25
     Visibility: public -/
 def DecodedInitial.Insts.CoreCmpPartialEqDecodedInitial.eq
   (self : DecodedInitial) (other : DecodedInitial) : Result Bool := do
@@ -991,7 +995,7 @@ def DecodedInitial.Insts.CoreCmpPartialEqDecodedInitial.eq
   else ok false
 
 /-- Trait implementation: [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::DecodedInitial> for tacenta_wire::DecodedInitial}]
-    Source: 'wire/src/lib.rs', lines 308:16-308:25 -/
+    Source: 'wire/src/lib.rs', lines 318:16-318:25 -/
 @[reducible]
 def DecodedInitial.Insts.CoreCmpPartialEqDecodedInitial : core.cmp.PartialEq
   DecodedInitial DecodedInitial := {
@@ -999,14 +1003,14 @@ def DecodedInitial.Insts.CoreCmpPartialEqDecodedInitial : core.cmp.PartialEq
 }
 
 /-- [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::DecodedInitial}::assert_fields_are_eq]:
-    Source: 'wire/src/lib.rs', lines 308:27-308:29
+    Source: 'wire/src/lib.rs', lines 318:27-318:29
     Visibility: public -/
 def DecodedInitial.Insts.CoreCmpEq.assert_fields_are_eq
   (self : DecodedInitial) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::DecodedInitial}]
-    Source: 'wire/src/lib.rs', lines 308:27-308:29 -/
+    Source: 'wire/src/lib.rs', lines 318:27-318:29 -/
 @[reducible]
 def DecodedInitial.Insts.CoreCmpEq : core.cmp.Eq DecodedInitial := {
   partialEqInst := DecodedInitial.Insts.CoreCmpPartialEqDecodedInitial
@@ -1014,7 +1018,7 @@ def DecodedInitial.Insts.CoreCmpEq : core.cmp.Eq DecodedInitial := {
 }
 
 /-- [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::DecodedInitial}::fmt]:
-    Source: 'wire/src/lib.rs', lines 308:31-308:36
+    Source: 'wire/src/lib.rs', lines 318:31-318:36
     Visibility: public -/
 def DecodedInitial.Insts.CoreFmtDebug.fmt
   (self : DecodedInitial) (f : core.fmt.Formatter) :
@@ -1043,14 +1047,14 @@ def DecodedInitial.Insts.CoreFmtDebug.fmt
     values
 
 /-- Trait implementation: [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::DecodedInitial}]
-    Source: 'wire/src/lib.rs', lines 308:31-308:36 -/
+    Source: 'wire/src/lib.rs', lines 318:31-318:36 -/
 @[reducible]
 def DecodedInitial.Insts.CoreFmtDebug : core.fmt.Debug DecodedInitial := {
   fmt := DecodedInitial.Insts.CoreFmtDebug.fmt
 }
 
 /-- [tacenta_wire::span_end]:
-    Source: 'wire/src/lib.rs', lines 336:0-347:1 -/
+    Source: 'wire/src/lib.rs', lines 346:0-357:1 -/
 def span_end
   (bytes : Slice Std.U8) (at1 : Std.Usize) (n : Std.Usize) :
   Result (Option Std.Usize)
@@ -1064,7 +1068,7 @@ def span_end
                  else ok none
 
 /-- [tacenta_wire::be32_at]:
-    Source: 'wire/src/lib.rs', lines 350:0-352:1 -/
+    Source: 'wire/src/lib.rs', lines 360:0-362:1 -/
 def be32_at (bytes : Slice Std.U8) (at1 : Std.Usize) : Result Std.U32 := do
   let i ← Slice.index_usize bytes at1
   let i1 ← at1 + 1#usize
@@ -1076,7 +1080,7 @@ def be32_at (bytes : Slice Std.U8) (at1 : Std.Usize) : Result Std.U32 := do
   ok (core.num.U32.from_be_bytes (Array.make 4#usize [ i, i2, i4, i6 ]))
 
 /-- [tacenta_wire::decode_initial]:
-    Source: 'wire/src/lib.rs', lines 362:0-410:1
+    Source: 'wire/src/lib.rs', lines 375:0-431:1
     Visibility: public -/
 def decode_initial
   (bytes : Slice Std.U8) :
@@ -1102,73 +1106,93 @@ def decode_initial
           match o1 with
           | none => ok (core.result.Result.Err DecodeError.TooShort)
           | some end2 =>
-            let o2 ← span_end bytes end2 4#usize
-            match o2 with
-            | none => ok (core.result.Result.Err DecodeError.TooShort)
-            | some end3 =>
-              let i3 ← be32_at bytes end2
-              let kem_len ← lift (UScalar.cast .Usize i3)
-              let o3 ← span_end bytes end3 kem_len
-              match o3 with
-              | none => ok (core.result.Result.Err DecodeError.LengthOverrun)
-              | some end4 =>
-                let o4 ← span_end bytes end4 4#usize
-                match o4 with
+            let i3 ← Slice.index_usize bytes 2#usize
+            if i3 != ENCODE_EC_CURVE25519
+            then ok (core.result.Result.Err DecodeError.WrongType)
+            else
+              let i4 ← Slice.index_usize bytes end1
+              if i4 != ENCODE_EC_CURVE25519
+              then ok (core.result.Result.Err DecodeError.WrongType)
+              else
+                let o2 ← span_end bytes end2 4#usize
+                match o2 with
                 | none => ok (core.result.Result.Err DecodeError.TooShort)
-                | some end5 =>
-                  let o5 ← span_end bytes end5 4#usize
-                  match o5 with
-                  | none => ok (core.result.Result.Err DecodeError.TooShort)
-                  | some end6 =>
-                    let o6 ← span_end bytes end6 4#usize
-                    match o6 with
+                | some end3 =>
+                  let i5 ← be32_at bytes end2
+                  let kem_len ← lift (UScalar.cast .Usize i5)
+                  let o3 ← span_end bytes end3 kem_len
+                  match o3 with
+                  | none =>
+                    ok (core.result.Result.Err DecodeError.LengthOverrun)
+                  | some end4 =>
+                    let o4 ← span_end bytes end4 4#usize
+                    match o4 with
                     | none => ok (core.result.Result.Err DecodeError.TooShort)
-                    | some end7 =>
-                      let s ←
-                        core.slice.index.Slice.index
-                          (core.slice.index.SliceIndexRangeUsizeSlice Std.U8)
-                          bytes { start := 2#usize, «end» := end1 }
-                      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 s
-                      let s1 ←
-                        core.slice.index.Slice.index
-                          (core.slice.index.SliceIndexRangeUsizeSlice Std.U8)
-                          bytes { start := end1, «end» := end2 }
-                      let v1 ← alloc.slice.Slice.to_vec core.clone.CloneU8 s1
-                      let s2 ←
-                        core.slice.index.Slice.index
-                          (core.slice.index.SliceIndexRangeUsizeSlice Std.U8)
-                          bytes { start := end3, «end» := end4 }
-                      let v2 ← alloc.slice.Slice.to_vec core.clone.CloneU8 s2
-                      let i4 ← be32_at bytes end4
-                      let i5 ← be32_at bytes end5
-                      let i6 ← be32_at bytes end6
-                      let s3 ←
-                        core.slice.index.Slice.index
-                          (core.slice.index.SliceIndexRangeFromUsizeSlice
-                          Std.U8) bytes { start := end7 }
-                      let v3 ← alloc.slice.Slice.to_vec core.clone.CloneU8 s3
-                      ok (core.result.Result.Ok
-                        {
-                          identity := v,
-                          ephemeral := v1,
-                          kem_ciphertext := v2,
-                          signed_prekey_id := i4,
-                          one_time_prekey_id := i5,
-                          kem_prekey_id := i6,
-                          message := v3
-                        })
+                    | some end5 =>
+                      let o5 ← span_end bytes end5 4#usize
+                      match o5 with
+                      | none =>
+                        ok (core.result.Result.Err DecodeError.TooShort)
+                      | some end6 =>
+                        let o6 ← span_end bytes end6 4#usize
+                        match o6 with
+                        | none =>
+                          ok (core.result.Result.Err DecodeError.TooShort)
+                        | some end7 =>
+                          let s ←
+                            core.slice.index.Slice.index
+                              (core.slice.index.SliceIndexRangeUsizeSlice
+                              Std.U8) bytes
+                              { start := 2#usize, «end» := end1 }
+                          let v ←
+                            alloc.slice.Slice.to_vec core.clone.CloneU8 s
+                          let s1 ←
+                            core.slice.index.Slice.index
+                              (core.slice.index.SliceIndexRangeUsizeSlice
+                              Std.U8) bytes { start := end1, «end» := end2 }
+                          let v1 ←
+                            alloc.slice.Slice.to_vec core.clone.CloneU8 s1
+                          let s2 ←
+                            core.slice.index.Slice.index
+                              (core.slice.index.SliceIndexRangeUsizeSlice
+                              Std.U8) bytes { start := end3, «end» := end4 }
+                          let v2 ←
+                            alloc.slice.Slice.to_vec core.clone.CloneU8 s2
+                          let i6 ← be32_at bytes end4
+                          let i7 ← be32_at bytes end5
+                          let i8 ← be32_at bytes end6
+                          let s3 ←
+                            core.slice.index.Slice.index
+                              (core.slice.index.SliceIndexRangeFromUsizeSlice
+                              Std.U8) bytes { start := end7 }
+                          let v3 ←
+                            alloc.slice.Slice.to_vec core.clone.CloneU8 s3
+                          ok (core.result.Result.Ok
+                            {
+                              identity := v,
+                              ephemeral := v1,
+                              kem_ciphertext := v2,
+                              signed_prekey_id := i6,
+                              one_time_prekey_id := i7,
+                              kem_prekey_id := i8,
+                              message := v3
+                            })
 
 /-- [tacenta_wire::TYPE_BUNDLE]
-    Source: 'wire/src/lib.rs', lines 418:0-418:33
+    Source: 'wire/src/lib.rs', lines 439:0-439:33
     Visibility: public -/
 @[global_simps, irreducible] def TYPE_BUNDLE : Std.U8 := 3#u8
 
 /-- [tacenta_wire::BUNDLE_KEM_AT]
-    Source: 'wire/src/lib.rs', lines 423:0-423:33 -/
+    Source: 'wire/src/lib.rs', lines 444:0-444:33 -/
 @[global_simps, irreducible] def BUNDLE_KEM_AT : Std.Usize := 134#usize
 
+/-- [tacenta_wire::KEM_PREKEY_LEN]
+    Source: 'wire/src/lib.rs', lines 454:0-454:35 -/
+@[global_simps, irreducible] def KEM_PREKEY_LEN : Std.Usize := 1568#usize
+
 /-- [tacenta_wire::WireBundle]
-    Source: 'wire/src/lib.rs', lines 433:0-443:1
+    Source: 'wire/src/lib.rs', lines 464:0-474:1
     Visibility: public -/
 structure WireBundle where
   identity_key : Array Std.U8 32#usize
@@ -1182,7 +1206,7 @@ structure WireBundle where
   kem_prekey_id : Std.U32
 
 /-- [tacenta_wire::{impl core::clone::Clone for tacenta_wire::WireBundle}::clone]:
-    Source: 'wire/src/lib.rs', lines 432:9-432:14
+    Source: 'wire/src/lib.rs', lines 463:9-463:14
     Visibility: public -/
 def WireBundle.Insts.CoreCloneClone.clone
   (self : WireBundle) : Result WireBundle := do
@@ -1213,21 +1237,21 @@ def WireBundle.Insts.CoreCloneClone.clone
     }
 
 /-- Trait implementation: [tacenta_wire::{impl core::clone::Clone for tacenta_wire::WireBundle}]
-    Source: 'wire/src/lib.rs', lines 432:9-432:14 -/
+    Source: 'wire/src/lib.rs', lines 463:9-463:14 -/
 @[reducible]
 def WireBundle.Insts.CoreCloneClone : core.clone.Clone WireBundle := {
   clone := WireBundle.Insts.CoreCloneClone.clone
 }
 
 /-- Trait implementation: [tacenta_wire::{impl core::marker::StructuralPartialEq for tacenta_wire::WireBundle}]
-    Source: 'wire/src/lib.rs', lines 432:16-432:25 -/
+    Source: 'wire/src/lib.rs', lines 463:16-463:25 -/
 @[reducible]
 def WireBundle.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq WireBundle := {
 }
 
 /-- [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::WireBundle> for tacenta_wire::WireBundle}::eq]:
-    Source: 'wire/src/lib.rs', lines 432:16-432:25
+    Source: 'wire/src/lib.rs', lines 463:16-463:25
     Visibility: public -/
 def WireBundle.Insts.CoreCmpPartialEqWireBundle.eq
   (self : WireBundle) (other : WireBundle) : Result Bool := do
@@ -1276,7 +1300,7 @@ def WireBundle.Insts.CoreCmpPartialEqWireBundle.eq
   else ok false
 
 /-- Trait implementation: [tacenta_wire::{impl core::cmp::PartialEq<tacenta_wire::WireBundle> for tacenta_wire::WireBundle}]
-    Source: 'wire/src/lib.rs', lines 432:16-432:25 -/
+    Source: 'wire/src/lib.rs', lines 463:16-463:25 -/
 @[reducible]
 def WireBundle.Insts.CoreCmpPartialEqWireBundle : core.cmp.PartialEq WireBundle
   WireBundle := {
@@ -1284,14 +1308,14 @@ def WireBundle.Insts.CoreCmpPartialEqWireBundle : core.cmp.PartialEq WireBundle
 }
 
 /-- [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::WireBundle}::assert_fields_are_eq]:
-    Source: 'wire/src/lib.rs', lines 432:27-432:29
+    Source: 'wire/src/lib.rs', lines 463:27-463:29
     Visibility: public -/
 def WireBundle.Insts.CoreCmpEq.assert_fields_are_eq
   (self : WireBundle) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_wire::{impl core::cmp::Eq for tacenta_wire::WireBundle}]
-    Source: 'wire/src/lib.rs', lines 432:27-432:29 -/
+    Source: 'wire/src/lib.rs', lines 463:27-463:29 -/
 @[reducible]
 def WireBundle.Insts.CoreCmpEq : core.cmp.Eq WireBundle := {
   partialEqInst := WireBundle.Insts.CoreCmpPartialEqWireBundle
@@ -1299,7 +1323,7 @@ def WireBundle.Insts.CoreCmpEq : core.cmp.Eq WireBundle := {
 }
 
 /-- [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::WireBundle}::fmt]:
-    Source: 'wire/src/lib.rs', lines 432:31-432:36
+    Source: 'wire/src/lib.rs', lines 463:31-463:36
     Visibility: public -/
 def WireBundle.Insts.CoreFmtDebug.fmt
   (self : WireBundle) (f : core.fmt.Formatter) :
@@ -1341,14 +1365,14 @@ def WireBundle.Insts.CoreFmtDebug.fmt
   core.fmt.Formatter.debug_struct_fields_finish f (toStr "WireBundle") s values
 
 /-- Trait implementation: [tacenta_wire::{impl core::fmt::Debug for tacenta_wire::WireBundle}]
-    Source: 'wire/src/lib.rs', lines 432:31-432:36 -/
+    Source: 'wire/src/lib.rs', lines 463:31-463:36 -/
 @[reducible]
 def WireBundle.Insts.CoreFmtDebug : core.fmt.Debug WireBundle := {
   fmt := WireBundle.Insts.CoreFmtDebug.fmt
 }
 
 /-- [tacenta_wire::encode_bundle]:
-    Source: 'wire/src/lib.rs', lines 457:0-487:1
+    Source: 'wire/src/lib.rs', lines 488:0-518:1
     Visibility: public -/
 def encode_bundle (b : WireBundle) : Result (alloc.vec.Vec Std.U8) := do
   let out ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U8) VERSION
@@ -1392,7 +1416,7 @@ def encode_bundle (b : WireBundle) : Result (alloc.vec.Vec Std.U8) := do
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out10 s8
 
 /-- [tacenta_wire::one_time_prekey_at]:
-    Source: 'wire/src/lib.rs', lines 496:0-519:1 -/
+    Source: 'wire/src/lib.rs', lines 527:0-550:1 -/
 def one_time_prekey_at
   (bytes : Slice Std.U8) (at1 : Std.Usize) :
   Result (core.result.Result (Option (Array Std.U8 32#usize)) DecodeError)
@@ -1422,7 +1446,7 @@ def one_time_prekey_at
     else ok (core.result.Result.Err DecodeError.WrongType)
 
 /-- [tacenta_wire::decode_bundle]:
-    Source: 'wire/src/lib.rs', lines 533:0-590:1
+    Source: 'wire/src/lib.rs', lines 565:0-625:1
     Visibility: public -/
 def decode_bundle
   (bytes : Slice Std.U8) :
@@ -1446,95 +1470,101 @@ def decode_bundle
         else
           let i4 ← be32_at bytes 130#usize
           let kem_len ← lift (UScalar.cast .Usize i4)
-          let o ← span_end bytes BUNDLE_KEM_AT kem_len
-          match o with
-          | none => ok (core.result.Result.Err DecodeError.LengthOverrun)
-          | some end1 =>
-            let o1 ← span_end bytes end1 64#usize
-            match o1 with
-            | none => ok (core.result.Result.Err DecodeError.TooShort)
-            | some end2 =>
-              let o2 ← span_end bytes end2 33#usize
-              match o2 with
+          if kem_len != KEM_PREKEY_LEN
+          then ok (core.result.Result.Err DecodeError.LengthOverrun)
+          else
+            let o ← span_end bytes BUNDLE_KEM_AT kem_len
+            match o with
+            | none => ok (core.result.Result.Err DecodeError.LengthOverrun)
+            | some end1 =>
+              let o1 ← span_end bytes end1 64#usize
+              match o1 with
               | none => ok (core.result.Result.Err DecodeError.TooShort)
-              | some end3 =>
-                let r ← one_time_prekey_at bytes end2
-                match r with
-                | core.result.Result.Ok key =>
-                  let o3 ← span_end bytes end3 12#usize
-                  match o3 with
-                  | none => ok (core.result.Result.Err DecodeError.TooShort)
-                  | some end4 =>
-                    let i5 := Slice.len bytes
-                    if end4 != i5
-                    then ok (core.result.Result.Err DecodeError.LengthOverrun)
-                    else
-                      let identity_key := Array.repeat 32#usize 0#u8
-                      let (s, to_slice_mut_back) ←
-                        lift (Array.to_slice_mut identity_key)
-                      let s1 ←
-                        core.slice.index.Slice.index
-                          (core.slice.index.SliceIndexRangeUsizeSlice Std.U8)
-                          bytes { start := 2#usize, «end» := 34#usize }
-                      let s2 ←
-                        core.slice.Slice.copy_from_slice core.marker.CopyU8 s
-                          s1
-                      let signed_prekey := Array.repeat 32#usize 0#u8
-                      let (s3, to_slice_mut_back1) ←
-                        lift (Array.to_slice_mut signed_prekey)
-                      let s4 ←
-                        core.slice.index.Slice.index
-                          (core.slice.index.SliceIndexRangeUsizeSlice Std.U8)
-                          bytes { start := 34#usize, «end» := 66#usize }
-                      let s5 ←
-                        core.slice.Slice.copy_from_slice core.marker.CopyU8 s3
-                          s4
-                      let signed_prekey_signature := Array.repeat 64#usize 0#u8
-                      let (s6, to_slice_mut_back2) ←
-                        lift (Array.to_slice_mut signed_prekey_signature)
-                      let s7 ←
-                        core.slice.index.Slice.index
-                          (core.slice.index.SliceIndexRangeUsizeSlice Std.U8)
-                          bytes { start := 66#usize, «end» := 130#usize }
-                      let s8 ←
-                        core.slice.Slice.copy_from_slice core.marker.CopyU8 s6
-                          s7
-                      let kem_prekey_signature := Array.repeat 64#usize 0#u8
-                      let (s9, to_slice_mut_back3) ←
-                        lift (Array.to_slice_mut kem_prekey_signature)
-                      let s10 ←
-                        core.slice.index.Slice.index
-                          (core.slice.index.SliceIndexRangeUsizeSlice Std.U8)
-                          bytes { start := end1, «end» := end2 }
-                      let s11 ←
-                        core.slice.Slice.copy_from_slice core.marker.CopyU8 s9
-                          s10
-                      let identity_key1 := to_slice_mut_back s2
-                      let signed_prekey1 := to_slice_mut_back1 s5
-                      let signed_prekey_signature1 := to_slice_mut_back2 s8
-                      let s12 ←
-                        core.slice.index.Slice.index
-                          (core.slice.index.SliceIndexRangeUsizeSlice Std.U8)
-                          bytes { start := BUNDLE_KEM_AT, «end» := end1 }
-                      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 s12
-                      let kem_prekey_signature1 := to_slice_mut_back3 s11
-                      let i6 ← be32_at bytes end3
-                      let i7 ← end3 + 4#usize
-                      let i8 ← be32_at bytes i7
-                      let i9 ← end3 + 8#usize
-                      let i10 ← be32_at bytes i9
-                      ok (core.result.Result.Ok
-                        {
-                          identity_key := identity_key1,
-                          signed_prekey := signed_prekey1,
-                          signed_prekey_signature := signed_prekey_signature1,
-                          kem_prekey := v,
-                          kem_prekey_signature := kem_prekey_signature1,
-                          one_time_prekey := key,
-                          signed_prekey_id := i6,
-                          one_time_prekey_id := i8,
-                          kem_prekey_id := i10
-                        })
-                | core.result.Result.Err e => ok (core.result.Result.Err e)
+              | some end2 =>
+                let o2 ← span_end bytes end2 33#usize
+                match o2 with
+                | none => ok (core.result.Result.Err DecodeError.TooShort)
+                | some end3 =>
+                  let r ← one_time_prekey_at bytes end2
+                  match r with
+                  | core.result.Result.Ok key =>
+                    let o3 ← span_end bytes end3 12#usize
+                    match o3 with
+                    | none => ok (core.result.Result.Err DecodeError.TooShort)
+                    | some end4 =>
+                      let i5 := Slice.len bytes
+                      if end4 != i5
+                      then
+                        ok (core.result.Result.Err DecodeError.LengthOverrun)
+                      else
+                        let identity_key := Array.repeat 32#usize 0#u8
+                        let (s, to_slice_mut_back) ←
+                          lift (Array.to_slice_mut identity_key)
+                        let s1 ←
+                          core.slice.index.Slice.index
+                            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8)
+                            bytes { start := 2#usize, «end» := 34#usize }
+                        let s2 ←
+                          core.slice.Slice.copy_from_slice core.marker.CopyU8 s
+                            s1
+                        let signed_prekey := Array.repeat 32#usize 0#u8
+                        let (s3, to_slice_mut_back1) ←
+                          lift (Array.to_slice_mut signed_prekey)
+                        let s4 ←
+                          core.slice.index.Slice.index
+                            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8)
+                            bytes { start := 34#usize, «end» := 66#usize }
+                        let s5 ←
+                          core.slice.Slice.copy_from_slice core.marker.CopyU8
+                            s3 s4
+                        let signed_prekey_signature :=
+                          Array.repeat 64#usize 0#u8
+                        let (s6, to_slice_mut_back2) ←
+                          lift (Array.to_slice_mut signed_prekey_signature)
+                        let s7 ←
+                          core.slice.index.Slice.index
+                            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8)
+                            bytes { start := 66#usize, «end» := 130#usize }
+                        let s8 ←
+                          core.slice.Slice.copy_from_slice core.marker.CopyU8
+                            s6 s7
+                        let kem_prekey_signature := Array.repeat 64#usize 0#u8
+                        let (s9, to_slice_mut_back3) ←
+                          lift (Array.to_slice_mut kem_prekey_signature)
+                        let s10 ←
+                          core.slice.index.Slice.index
+                            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8)
+                            bytes { start := end1, «end» := end2 }
+                        let s11 ←
+                          core.slice.Slice.copy_from_slice core.marker.CopyU8
+                            s9 s10
+                        let identity_key1 := to_slice_mut_back s2
+                        let signed_prekey1 := to_slice_mut_back1 s5
+                        let signed_prekey_signature1 := to_slice_mut_back2 s8
+                        let s12 ←
+                          core.slice.index.Slice.index
+                            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8)
+                            bytes { start := BUNDLE_KEM_AT, «end» := end1 }
+                        let v ←
+                          alloc.slice.Slice.to_vec core.clone.CloneU8 s12
+                        let kem_prekey_signature1 := to_slice_mut_back3 s11
+                        let i6 ← be32_at bytes end3
+                        let i7 ← end3 + 4#usize
+                        let i8 ← be32_at bytes i7
+                        let i9 ← end3 + 8#usize
+                        let i10 ← be32_at bytes i9
+                        ok (core.result.Result.Ok
+                          {
+                            identity_key := identity_key1,
+                            signed_prekey := signed_prekey1,
+                            signed_prekey_signature := signed_prekey_signature1,
+                            kem_prekey := v,
+                            kem_prekey_signature := kem_prekey_signature1,
+                            one_time_prekey := key,
+                            signed_prekey_id := i6,
+                            one_time_prekey_id := i8,
+                            kem_prekey_id := i10
+                          })
+                  | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 end tacenta_wire

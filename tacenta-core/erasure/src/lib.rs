@@ -1,7 +1,7 @@
 //! tacenta-erasure: Reed-Solomon erasure coding over GF(2^16).
 //!
-//! Written from tacenta-spec/protocol/mlkem-braid.md, which recommends this
-//! code with a `w`-byte chunk carrying `w/2` field elements, and from the
+//! Written from tacenta-spec/protocol/mlkem-braid.md ("The erasure code": 16
+//! field elements per 32-byte chunk, polynomial in CONSTANTS.md), and from the
 //! executable model in tacenta-model (`Model.Gf65536`, `Model.Polynomial`).
 //!
 //! The ML-KEM Braid needs to send values of one and a half kilobytes through a
