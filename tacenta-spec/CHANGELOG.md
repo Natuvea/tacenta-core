@@ -124,6 +124,12 @@ is SemVer against the specified protocol (not the implementation).
 - `CONSTANTS.md`: rows for the Braid's MAC length, its epoch encoding, the
   layout of its `info` strings and MAC inputs, its derivation salts and
   lengths, its authenticator's initial state, and its preshared secret.
+- `decisions/ADR-0007-behaviours-kept-as-built.md`: three behaviours the pages
+  recorded as built and undecided are kept. The header's `pq_epoch` selects
+  the sparse ratchet's receiving chain; the leaf readers enforce exactly their
+  stated rules; a Braid receive taking transition (5) reports the epoch it
+  completed. `sparse-pq-ratchet.md`, `session-persistence.md` and
+  `mlkem-braid.md` cite the record where each is stated.
 
 ### Changed
 - `protocol/session-persistence.md`: the "Validated, not only parsed"
