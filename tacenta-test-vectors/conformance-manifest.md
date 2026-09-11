@@ -274,12 +274,14 @@ Runner: `runners/rust/tests/session_establishment.rs`.
 ### Also covered, outside this directory
 
 The initial-message encoding and the prekey-bundle encoding are specified in
-`tacenta-spec/protocol/message-format.md` (Initial message; Prekey bundle);
-the former has vectors under the Message format section below, the latter a
-core round-trip test. Key identifiers, one-time-key consumption after
-authentication, replenishment, the last-resort replay record, and signed and
-KEM prekey rotation are specified in `key-deletion.md` and covered by core
-tests; the prekey store's persisted layout is in `session-persistence.md`
+`tacenta-spec/protocol/message-format.md` (Initial message; Prekey bundle).
+Both have vectors under the Message format section below
+(`initial-message.json` and `initial-message-decode.json`;
+`prekey-bundle-decode.json`), and core round-trip tests. Key identifiers,
+one-time-key consumption after authentication, replenishment, the last-resort
+replay record, and signed and KEM prekey rotation are specified in
+`key-deletion.md` and covered by core tests; the prekey store's persisted
+layout is in `session-persistence.md`
 (Prekey store).
 
 ### Not yet covered
