@@ -6,6 +6,22 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `protocol/protobuf-profile.md`: the bounded protobuf profile for the external
+  ratchet message body and prekey envelope, restated from `Model.Protobuf`. It
+  covers:
+  - the four bounds;
+  - minimal, five-byte, 32-bit varints;
+  - tags limited to fields 1 to 15 and wire types 0 and 2;
+  - length-delimited fields;
+  - the two field tables: all five ratchet body fields are required, and
+    envelope field 1 is the only optional field;
+  - free field order, with re-encoding not required to reproduce the input;
+  - no validation inside fields;
+  - refusal categories as implementation-defined.
+  The page states that the engine's own `Session` path does not use the
+  profile. `CONSTANTS.md` now gives the profile's field numbers and limits as
+  values, replacing "see implementation", and records that no external
+  message version byte is handled here.
 - `protocol/error-handling.md`, previously a scaffold, now says what the
   protocol requires of a refusal and what it leaves to an implementation.
   - Required: every refusal a page states; decode failure kept distinct from
