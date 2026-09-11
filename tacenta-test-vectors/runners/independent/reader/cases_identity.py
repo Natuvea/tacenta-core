@@ -48,20 +48,28 @@ def _():
     assert curve25519.x25519(SECRET, peer) == curve25519.x25519(bytes(clamped), peer)
 
 
-@case("SE-01 a repeated initial message is accepted only by a responder's session and only if ephemeral matches established_ephemeral byte for byte",
-      f"{SE} Receiving the initial message: accepts it only if it is a responder's session and the message's ephemeral field equals ... (NotARepeatedInitial)")
+@case("SE-01 a repeated initial message is accepted only by a responder's session and only if both ephemeral equals established_ephemeral and identity equals EncodeEC(peer_identity_public), byte for byte; either alone is refused; an initiator's session refuses even a matching one; kem_ciphertext and the three identifiers are not compared",
+      f"{SE} Receiving the initial message: The session then accepts it only if it is a responder's session and both of these hold ... Otherwise, and always on an initiator's session, it refuses the message (NotARepeatedInitial); The other fields ... are not compared")
 def _():
+    peer = b"\x0a" * 32
     eph = b"\x05" + b"\x0b" * 32
-    m = wire.InitialMessage(identity=b"\x05" + b"\x0a" * 32, ephemeral=eph, kem_ciphertext=b"\x01" * 1568,
+    m = wire.InitialMessage(identity=b"\x05" + peer, ephemeral=eph, kem_ciphertext=b"\x01" * 1568,
                             signed_prekey_id=1, one_time_prekey_id=2, kem_prekey_id=3, ratchet_message=b"")
-    accepts(pqxdh.accept_repeated_initial, True, eph, m)
-    # no other field is compared
-    other = wire.InitialMessage(identity=b"\x05" + b"\x77" * 32, ephemeral=eph, kem_ciphertext=b"",
+    accepts(pqxdh.accept_repeated_initial, True, eph, peer, m)
+    # "The other fields, kem_ciphertext and the three identifiers, are not compared"
+    other = wire.InitialMessage(identity=b"\x05" + peer, ephemeral=eph, kem_ciphertext=b"",
                                 signed_prekey_id=9, one_time_prekey_id=0, kem_prekey_id=9, ratchet_message=b"zz")
-    accepts(pqxdh.accept_repeated_initial, True, eph, other)
-    rejects(pqxdh.accept_repeated_initial, True, b"\x05" + b"\x0c" * 32, m, exc=pqxdh.NotARepeatedInitial)
-    rejects(pqxdh.accept_repeated_initial, False, None, m, exc=pqxdh.NotARepeatedInitial)
-    rejects(pqxdh.accept_repeated_initial, False, eph, m, exc=pqxdh.NotARepeatedInitial)
+    accepts(pqxdh.accept_repeated_initial, True, eph, peer, other)
+    # ephemeral matches, identity does not (the pass-3 rule accepted this)
+    rejects(pqxdh.accept_repeated_initial, True, eph, peer, wire.InitialMessage(**{**m.__dict__, "identity": b"\x05" + b"\x77" * 32}),
+            exc=pqxdh.NotARepeatedInitial)
+    # identity matches, ephemeral does not
+    rejects(pqxdh.accept_repeated_initial, True, b"\x05" + b"\x0c" * 32, peer, m, exc=pqxdh.NotARepeatedInitial)
+    # identity is compared with EncodeEC of the held key, not with the raw 32 bytes
+    rejects(pqxdh.accept_repeated_initial, True, eph, b"\x77" * 32, m, exc=pqxdh.NotARepeatedInitial)
+    # "always on an initiator's session", even when both fields match
+    rejects(pqxdh.accept_repeated_initial, False, None, peer, m, exc=pqxdh.NotARepeatedInitial)
+    rejects(pqxdh.accept_repeated_initial, False, eph, peer, m, exc=pqxdh.NotARepeatedInitial)
 
 
 @case("SE-02 non-contributory means all 32 output bytes zero; every low-order input gives it and a normal key does not",
@@ -91,25 +99,47 @@ def _():
     for key in (PUB, bytes(31) + b"\x7f"[:0] + b"\x00", (P - 1).to_bytes(32, "little")):
         assert wire.decode_ec(b"\x05" + key) == key
     rejects(wire.decode_ec, b"\x05" + PUB[:31] + bytes([PUB[31] | 0x80]), exc=wire.DecodeError)
-    # G3-05: the initial-message decoder lists only the curve byte; the handshake applies DecodeEC
-    m = wire.InitialMessage(identity=b"\x05" + (int.from_bytes(PUB, "little") + P).to_bytes(32, "little"),
-                            ephemeral=b"\x05" + PUB, kem_ciphertext=bytes(1568), signed_prekey_id=1,
-                            one_time_prekey_id=0, kem_prekey_id=2, ratchet_message=b"")
-    if int.from_bytes(PUB, "little") + P < 2 ** 256:
-        assert accepts(wire.decode_initial, wire.encode_initial(m)) == m
-        rejects(pqxdh.handshake_keys, m, exc=wire.DecodeError)
+    # G3-05, now closed: "The initial-message decoder applies the same rule to identity and
+    # ephemeral before anything reads them, and refuses a re-spelled one as a decode failure
+    # ..., so DecodeEC never meets a key in either field that it would refuse."
+    respelled = (int.from_bytes(PUB, "little") + P).to_bytes(32, "little") if int.from_bytes(PUB, "little") + P < 2 ** 256 \
+        else PUB[:31] + bytes([PUB[31] | 0x80])
+    m = wire.InitialMessage(identity=b"\x05" + respelled, ephemeral=b"\x05" + PUB, kem_ciphertext=bytes(1568),
+                            signed_prekey_id=1, one_time_prekey_id=0, kem_prekey_id=2, ratchet_message=b"")
+    rejects(wire.decode_initial, wire.encode_initial(m), exc=wire.DecodeError)
+    good = wire.encode_initial(wire.InitialMessage(**{**m.__dict__, "identity": b"\x05" + PUB}))
+    for off in list(range(2, 70)):
+        for x in (0x80, 0x7F, 0xFF):
+            raw = bytearray(good)
+            raw[off] ^= x
+            try:
+                got = wire.decode_initial(bytes(raw))
+            except wire.DecodeError:
+                continue
+            accepts(pqxdh.handshake_keys, got)
 
 
-@case("SE-04 X25519 as RFC 7748 leaves it: a public key is X25519(k, 9) of the stored, unclamped secret; a raw 32-byte peer key reaches X25519 as received, so bit 255 set, or p added to a small u, names the same key and gives the same output",
-      f"{SE} Primitives, and what is left to them: X25519 (RFC 7748), Public keys; Decoding a peer's key is left to X25519 only where no rule on this page applies")
+@case("SE-04 X25519 itself masks bit 255 and reduces a value at or above p (RFC 7748), so bit 255 set, or 9 + p, gives X25519's output for the canonical key; decoding a peer's key is not left to it: the same spellings are refused, as decode failures, in a bundle's signed prekey, a composite header's dh and an initial message's ephemeral, so none reaches X25519",
+      f"{SE} Primitives, and what is left to them: X25519 (RFC 7748), Public keys; Decoding a peer's key is not left to X25519 ... does not decode")
 def _():
     nine = (9).to_bytes(32, "little")
     assert curve25519.x25519(SECRET, nine) == PUB == curve25519.x25519_public(SECRET)
     peer = curve25519.x25519_public(b"\x77" * 32)
-    respelled = peer[:31] + bytes([peer[31] | 0x80])
-    assert curve25519.x25519(SECRET, respelled) == curve25519.x25519(SECRET, peer)
-    assert curve25519.x25519(SECRET, (9 + P).to_bytes(32, "little")) == curve25519.x25519(SECRET, nine)
-    rejects(wire.decode_ec, b"\x05" + respelled, exc=wire.DecodeError)   # the EncodeEC form is refused instead
+    bit255 = peer[:31] + bytes([peer[31] | 0x80])
+    plus_p = (9 + P).to_bytes(32, "little")
+    assert curve25519.x25519(SECRET, bit255) == curve25519.x25519(SECRET, peer)
+    assert curve25519.x25519(SECRET, plus_p) == curve25519.x25519(SECRET, nine)
+    import negative_cases as NC
+    for canonical, other in ((peer, bit255), (nine, plus_p)):
+        bundle = wire.encode_bundle(NC.signed_bundle(signed_prekey=canonical))
+        accepts(wire.decode_bundle, bundle)
+        rejects(wire.decode_bundle, wire.encode_bundle(NC.signed_bundle(signed_prekey=other)), exc=wire.DecodeError)
+        accepts(wire.decode_ratchet_message, wire.encode_ratchet_message(NC.header(dh=canonical), b""))
+        rejects(wire.decode_ratchet_message, wire.encode_ratchet_message(NC.header(dh=other), b""), exc=wire.DecodeError)
+        im = wire.InitialMessage(identity=b"\x05" + PUB, ephemeral=b"\x05" + other, kem_ciphertext=b"",
+                                 signed_prekey_id=1, one_time_prekey_id=0, kem_prekey_id=2, ratchet_message=b"")
+        rejects(wire.decode_initial, wire.encode_initial(im), exc=wire.DecodeError)
+        rejects(wire.decode_ec, b"\x05" + other, exc=wire.DecodeError)
 
 
 @case("SE-05 before encapsulating, the bundle's KEM prekey must be 1,568 bytes and pass ByteEncode12(ByteDecode12(ek[0:1536])) = ek[0:1536]; a key failing either is refused",
@@ -380,11 +410,16 @@ def replace_msg(m, **kw):
     return _replace(m, **kw)
 
 
-@case("LR-06 the curve-key inputs are the canonical encodings: a captured handshake with identity or ephemeral re-spelled (bit 255 set, or p added) is refused before it is fingerprinted, and never recorded",
-      f"{FP}: The curve-key inputs are the canonical encodings")
+@case("LR-06 the curve-key inputs are the canonical encodings: a captured handshake re-sent with identity or ephemeral re-spelled (bit 255 set, or p added) would have a fingerprint of its own, but it does not decode, so it is never fingerprinted, decrypted or recorded; establishment's DecodeEC still refuses such a key if handed one",
+      f"{FP}: The curve-key inputs are the canonical encodings ... That message does not decode, so it is never fingerprinted or recorded; message-format.md Initial message")
 def _():
     m = lr_message()
     s, _ = pqxdh.receive_last_resort(lr_store(), m, Authenticated())
+
+    def arrive(store, raw, auth):
+        return pqxdh.receive_last_resort(store, wire.decode_initial(raw), auth)   # a message must decode first
+
+    rejects(arrive, s, wire.encode_initial(m), Authenticated(), exc=pqxdh.ReplayedLastResort)
     respelled = []
     for field in ("identity", "ephemeral"):
         raw = getattr(m, field)[1:]
@@ -392,12 +427,13 @@ def _():
         respelled.append(replace_msg(m, **{field: b"\x05" + raw[:31] + bytes([raw[31] | 0x80])}))
         if u + P < 2 ** 256:
             respelled.append(replace_msg(m, **{field: b"\x05" + (u + P).to_bytes(32, "little")}))
-    assert len(respelled) >= 2
+    assert len(respelled) >= 3
     for r in respelled:
         assert pqxdh.last_resort_fingerprint(r) != pqxdh.last_resort_fingerprint(m)
         auth = Authenticated()
-        rejects(pqxdh.receive_last_resort, s, r, auth, exc=wire.DecodeError)
+        rejects(arrive, s, wire.encode_initial(r), auth, exc=wire.DecodeError)
         assert auth.calls == 0
+        rejects(pqxdh.handshake_keys, r, exc=wire.DecodeError)
     assert len(s.seen) == 1
 
 
