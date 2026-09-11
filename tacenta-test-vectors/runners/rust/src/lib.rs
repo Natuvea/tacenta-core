@@ -340,8 +340,9 @@ fn erasure_codewords(bytes: &[u8]) -> Result<Vec<tacenta_erasure::Chunk>, String
             bytes.len()
         ));
     }
-    bytes
-        .chunks_exact(2 + CHUNK_BYTES)
+    let (codewords, _rest) = bytes.as_chunks::<{ 2 + CHUNK_BYTES }>();
+    codewords
+        .iter()
         .map(|c| {
             Ok(Chunk {
                 index: u16::from_be_bytes([c[0], c[1]]),
