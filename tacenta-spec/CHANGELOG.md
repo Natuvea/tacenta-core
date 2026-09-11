@@ -5,6 +5,59 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+### Changed
+- `protocol/session-persistence.md`, `protocol/session-establishment.md`,
+  `protocol/message-format.md`: every curve public key a stored state holds
+  must be canonical, and each reader refuses a state that holds one spelled
+  any other way. The page had said, as built, that only
+  `established_ephemeral` and the session's `dhs_pub` were refused (G4-02, in
+  0.2.0). Register item J-8.
+  - The session's semantic rules require `our_identity_public`,
+    `peer_identity_public` and `pending_initial`'s `ephemeral_public` to be
+    canonical, refused as inconsistent.
+  - The ratchet state's semantic rules require `dhs_pub`, a present `dhr_pub`
+    and each skipped entry's `dh` to be canonical, refused as malformed. A
+    session holding one is refused as malformed by its `triple_state`'s
+    reader, a re-spelled `dhs_pub` included, which the page had said was
+    refused as inconsistent.
+  - The prekey store's semantic rules require `identity_public` to be
+    canonical, refused as malformed, in all four versions.
+  - The sparse ratchet state and the Braid hold no curve public key.
+  - "What follows" from each accepted re-spelling is replaced by why a stored
+    key is refused: inside the ratchet state a second spelling gives one key a
+    second identity, since `DHr` and skipped keys are matched by bytes.
+  - For no honest state to be refused, the initiator refuses a bundle whose
+    identity key, signed prekey or one-time curve prekey is not canonical
+    before she uses it. The bundle decoder already refuses one, so this
+    matters only for a bundle that reaches her another way.
+  - "Receiving the initial message" says `peer_identity_public` is canonical
+    in every session a reader accepts.
+
+## [0.2.0] - 2026-09-11
+
+The second citable revision. It contains everything recorded above since 0.1.0.
+
+**What this revision specifies:**
+- **The ML-KEM Braid is stated in full:** parameters and derivations, its messages, the state machine with transitions (1) to (13) numbered on the page, and what a send and a receive return. The published document is cited as a source, not an authority, and where the tree departs from it, the page says so.
+- **Session establishment:**
+  - how the last-resort replay fingerprint is built;
+  - what the protocol requires of X25519, ML-KEM-1024 and AES-256-CBC, and what it leaves to them;
+  - the exact key path of the initial ciphertext;
+  - what follows a refused initial message.
+- **XEdDSA:** `identities-and-devices.md` specifies signing and states the verifier's accepted set as rules, not a library name.
+- **Canonical curve keys:** every curve public key a peer sends must be its canonical encoding, and is refused at decode. This covers the ratchet header, the prekey bundle and the initial message. A repeated initial message must match the peer's identity as well as its ephemeral key. Which stored curve keys must be canonical is stated as built.
+- **Persisted Braid state:** a stored Braid key pair must pass FIPS 203's hash and modulus checks when it is loaded.
+- **ADR-0007:** three behaviours are kept as built:
+  - the header's `pq_epoch` selects the receiving chain;
+  - the leaf readers enforce exactly their stated rules;
+  - a Braid receive taking transition (5) reports the epoch it completed.
+
+**How far the text is enough:** a reader written from this revision and the vectors alone, with no access to the implementation, the model or the proofs, passes 402 checks (`tacenta-test-vectors/runners/independent`). That covers every vector, including the erasure, protobuf, persistence, AEAD and decoder-edge vectors added since 0.1.0, and cases derived from the pages' sentences.
+
+**What remains** is recorded in its `GAPS-4.md`. Chiefly:
+- most persisted formats (the session, prekey store, ratchet states and Braid) are specified but not yet pinned by vectors;
+- simultaneous initiation and session replacement are left to the application.
+
 ### Added
 - `protocol/session-establishment.md`: `DecodeEC` accepts exactly one encoding
   of each curve key. It refuses a key whose bit 255 is set, and a key whose
@@ -131,32 +184,6 @@ is SemVer against the specified protocol (not the implementation).
   reader, second pass (G2-07).
 
 ### Changed
-- `protocol/session-persistence.md`, `protocol/session-establishment.md`,
-  `protocol/message-format.md`: every curve public key a stored state holds
-  must be canonical, and each reader refuses a state that holds one spelled
-  any other way. The page had said, as built, that only
-  `established_ephemeral` and the session's `dhs_pub` were refused (G4-02,
-  below). Register item J-8.
-  - The session's semantic rules require `our_identity_public`,
-    `peer_identity_public` and `pending_initial`'s `ephemeral_public` to be
-    canonical, refused as inconsistent.
-  - The ratchet state's semantic rules require `dhs_pub`, a present `dhr_pub`
-    and each skipped entry's `dh` to be canonical, refused as malformed. A
-    session holding one is refused as malformed by its `triple_state`'s
-    reader, a re-spelled `dhs_pub` included, which the page had said was
-    refused as inconsistent.
-  - The prekey store's semantic rules require `identity_public` to be
-    canonical, refused as malformed, in all four versions.
-  - The sparse ratchet state and the Braid hold no curve public key.
-  - "What follows" from each accepted re-spelling is replaced by why a stored
-    key is refused: inside the ratchet state a second spelling gives one key a
-    second identity, since `DHr` and skipped keys are matched by bytes.
-  - For no honest state to be refused, the initiator refuses a bundle whose
-    identity key, signed prekey or one-time curve prekey is not canonical
-    before she uses it. The bundle decoder already refuses one, so this
-    matters only for a bundle that reaches her another way.
-  - "Receiving the initial message" says `peer_identity_public` is canonical
-    in every session a reader accepts.
 - `protocol/session-persistence.md`, "Braid": the reader refuses as malformed
   a state in tags 1 to 4 whose `key_pair` holds a `header` and `ek_vector`
   that fail the validation a completed `ek_vector` passes against a received
@@ -248,10 +275,19 @@ is SemVer against the specified protocol (not the implementation).
       here.
 - `protocol/session-persistence.md`, `protocol/session-establishment.md`,
   `protocol/message-format.md`: which stored curve public keys must be
-  canonical, as built. Independent reader, fourth pass (G4-02). The session's
-  shape rule for `established_ephemeral` is that `DecodeEC` accepts it, so a
-  re-spelled key there is refused as inconsistent. The J-8 entry above extends
-  the rule to every stored curve public key.
+  canonical, as built. Independent reader, fourth pass (G4-02).
+  - The session's shape rule for `established_ephemeral` is that `DecodeEC`
+    accepts it, so a re-spelled key there is refused as inconsistent. A
+    re-spelled `dhs_pub` is refused as inconsistent because it is not the
+    public key of `ratchet_private`, which is canonical.
+  - No rule requires `peer_identity_public`, `our_identity_public`,
+    `pending_initial`'s `ephemeral_public`, the ratchet state's `dhr_pub`, a
+    skipped entry's `dh`, or the prekey store's `identity_public` to be
+    canonical, and the readers accept each of them re-spelled. The page says
+    what follows from each.
+  - "Receiving the initial message" no longer says a repeat is compared
+    against canonical encodings in every session: a session read with a
+    re-spelled `peer_identity_public` refuses every repeat.
 - `protocol/session-establishment.md`, `protocol/error-handling.md`,
   `protocol/message-format.md`: what follows `NotARepeatedInitial`, as built.
   Independent reader, fourth pass (G4-04).
