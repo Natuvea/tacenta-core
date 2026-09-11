@@ -64,8 +64,8 @@ pub const MAX_SKIPPED_STORE: usize = 2000;
 /// it in ordinary use.
 pub const EPOCHS_KEPT: u64 = 2;
 
-/// `PROTOCOL_INFO` and the three suffixes. Wire-sensitive, recorded in the
-/// conformance manifest rather than settled here.
+/// `PROTOCOL_INFO` and the three suffixes: `"Chain Start"` is the specification's,
+/// the rest are ours (CONSTANTS.md), and none is wire-sensitive.
 ///
 /// The suffixes are appended to `PROTOCOL_INFO` with no separator, unlike the
 /// Braid's, which carry a leading `:`; both spellings are frozen in

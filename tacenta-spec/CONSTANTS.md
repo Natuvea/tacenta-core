@@ -25,8 +25,10 @@ verification), and **ours** (free choices, authorised by nobody but us).
 | **Our own** `VERSION` | `0x01` | ours | Our wire format, not libsignal's. Free choice. |
 | **Our own** `TYPE_RATCHET` / `TYPE_INITIAL` / `TYPE_BUNDLE` | `0x01` / `0x02` / `0x03` | ours | Free choice. |
 | **Our own** AEAD tag length | 32 bytes | ours | The full HMAC-SHA256 output, not truncated (`primitives/aead.rs`). See the note below on MAC truncation. |
-| **Our own** `AgreementType` bytes | `None` `0x00`, `Hdr` `0x01`, `Ek` `0x02`, `EkCt1Ack` `0x03`, `Ct1` `0x04`, `Ct2` `0x05` | ours | Our composite header's tagging of the Braid message. The *set* of members is the ML-KEM Braid specification's, minus `Ct1Ack` which no state produces (`serialization/composite.rs`); the byte assignment is a free choice. |
-| **Our own** `CHUNK_BYTES` | 32 | ours | The erasure codeword size, chosen here and repeated in `serialization/composite.rs` so the wire format does not depend on a crate the serializer otherwise need not know. |
+| **Our own** `AgreementType` bytes | `None` `0x00`, `Hdr` `0x01`, `Ek` `0x02`, `EkCt1Ack` `0x03`, `Ct1` `0x04`, `Ct2` `0x05` | ours | Our composite header's tagging of the Braid message. The *set* of members is the ML-KEM Braid specification's, minus `Ct1Ack` which no state produces (`wire/src/lib.rs`, re-exported by `serialization/composite.rs`); the byte assignment is a free choice. |
+| **Our own** `CHUNK_BYTES` | 32 | ours | The erasure codeword size, chosen here and repeated in `wire/src/lib.rs` so the wire format does not depend on a crate the wire decoders otherwise need not know. |
+| **Our own** presence byte | `0x00` absent / `0x01` present | ours | The composite header's `chunk_present` and the prekey bundle's `one_time_prekey_present` (message-format.md), each followed by its field's full width whether present or not. The storage formats below use the same convention. Free choice. |
+| **Our own** `ABSENT_ID` | `0` | ours | The prekey identifier meaning "no prekey was used" in an initial message (message-format.md, Key identifiers). Prekey stores number identifiers from one, so zero is never assigned to a real prekey (`serialization/mod.rs`, `sessions/lifecycle.rs`). Free choice. |
 
 **On MAC truncation.** This engine truncates nothing: `primitives/aead.rs`
 appends the full 32-byte HMAC-SHA256 tag. The Double Ratchet specification
@@ -69,7 +71,7 @@ disk is emitted.
 | `PREKEY_STORE_VERSION` | `0x04` written; `0x03`, `0x02` and `0x01` accepted on read | ours | The prekey store's own format, at the session layer (`sessions/lifecycle.rs`). v4 tags each last-resort replay-record entry with the KEM key it was made against; v3 added the retired prekeys a rotation keeps; v2 added the replay record; v1 is the original. A v2 or v3 store's untagged replay-record entries read back tagged with the current key, the conservative reading; a v1 store has no record and reads back with nothing remembered; a v1 or v2 store reads back with nothing retired, which is what it recorded (session-persistence.md, Prekey store). |
 | `SESSION_VERSION` | `0x01` | ours | `Session::export`'s format, same file. |
 | `Braid` `state_tag` | 0-11 | ours | The stable numbering `Braid::state_tag` already reported before persistence existed: eleven live states in declaration order, then `Failed` at 11. Free choice, and deliberately not an abstraction leak -- the tag is all a caller sees. |
-| Presence tag | `0x00` absent / `0x01` present | ours | Used for every optional fixed-width field. Free choice; the fixed width is the canonicity argument, not the tag value. |
+| Presence tag | `0x00` absent / `0x01` present | ours | Used for every optional fixed-width field in these formats, as the wire's presence byte is above. Free choice; the fixed width is the canonicity argument, not the tag value. |
 | `Direction` tag (spqr) | `0x00` `A2b`, `0x01` `B2a` | ours | Free choice. |
 | `LabelSet` tag (ratchet) | `0x00` (`Tacenta`) | ours | One live variant today. Free choice. |
 | `tacenta-kem` and `tacenta-erasure` sub-formats | no version byte | ours | Deliberate: these appear only length-prefixed inside the Braid's format, so the Braid's own `STATE_VERSION` versions them. A second version byte would imply an independent compatibility story they do not have. |

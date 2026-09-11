@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "_note": "Written only by `tacenta-proofs/scripts/attest.py --refresh-translation`, immediately after `scripts/run-aeneas.sh` on the pinned toolchain, and compared against by every other mode. A green `attest.py --check` establishes that each generated Translation/Tacenta*.lean is a module run-aeneas.sh produces, is byte for byte the file recorded here, declares exactly the axioms recorded here (as text; no-sorry.sh compares the same record with what the axiom audit saw in the built environment), and that the Rust verified zone it was generated from, and the workspace inputs that shape every zone's extraction (Cargo.toml and its profiles, Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed to when this was written, as recorded by whoever ran the toolchain. Where the zone is assembled rather than written (tacenta-core/triple-unit, the three-leaf translation unit), the record carries an `assembly` field naming the script and the three leaf trees it was assembled from, with their hashes, and --check fails if any of them has moved since; assemble-triple-unit.sh --check is the separate question of whether the unit crate in the tree is what those leaves assemble to. It does not establish that the toolchain was run, or run honestly: that is checked by regenerating with run-aeneas.sh and diffing, which REPRODUCING.md describes.",
-  "generated_at_commit": "2183ca994bf291d18a5f31c71a6868b8d4765645",
+  "generated_at_commit": "860c9652c51c1531f3e695a389351f7685a4b79e",
   "aeneas": {
     "release": "nightly-2026.07.22-b1214ca",
     "commit": "b1214ca0a024e8121f41fe2b2ed15e26af02373b"
@@ -190,7 +190,7 @@
         "zeroize.Zeroizing.new"
       ],
       "zone": "tacenta-core/session",
-      "zone_sha256": "afda348304a4756d2b3c60c269a4bc6445debf6f2a8d2bcff71986a1c5d22139",
+      "zone_sha256": "e33d65e307a6261e807bc11c1cc720f038f4e67bbb28cdd7f964fc150775a924",
       "workspace_sha256": "e7a362fdd513c8feacbbb7a7ae8156e8b9dc6b350a407d9b7cbb8945cf488bd0"
     },
     "tacenta-proofs/translation/Translation/TacentaSpqr.lean": {
@@ -214,7 +214,7 @@
         "zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop"
       ],
       "zone": "tacenta-core/spqr",
-      "zone_sha256": "c102a22a0cdba8b0ec142c54b1950715fb18cdfb7996bf5ea3b4bae6241b0d91",
+      "zone_sha256": "0e06b29d5028de40a58c5db5fea96770965f2f36da8c8adc6a01fca79b4632b7",
       "workspace_sha256": "e7a362fdd513c8feacbbb7a7ae8156e8b9dc6b350a407d9b7cbb8945cf488bd0"
     },
     "tacenta-proofs/translation/Translation/TacentaTripleUnit.lean": {
@@ -242,15 +242,15 @@
         "zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop"
       ],
       "zone": "tacenta-core/triple-unit",
-      "zone_sha256": "9bc2ee1ce3558c2c2801b1d94262c630a8adcc42ccbb81666a70b98a87ee68ff",
+      "zone_sha256": "64bb6a6b9a9906fa0cb64122fa95d2511c12ad29ae680c86f68b0dca303edda1",
       "workspace_sha256": "e7a362fdd513c8feacbbb7a7ae8156e8b9dc6b350a407d9b7cbb8945cf488bd0",
       "assembly": {
         "script": "tacenta-proofs/scripts/assemble-triple-unit.sh",
         "script_sha256": "a0eab7a4e50df59d1f1aefdd5c9489419d5ffcb89109c35923edcc11a18954e5",
         "sources": {
           "tacenta-core/ratchet": "78122ceb7c458458943c938ccb96d4825e2955ace948254111a64dde88266a43",
-          "tacenta-core/spqr": "c102a22a0cdba8b0ec142c54b1950715fb18cdfb7996bf5ea3b4bae6241b0d91",
-          "tacenta-core/triple": "0f50c0c13aa4e483038460638a3ff510bdf2b50de655fe23d159d4b4a0588239"
+          "tacenta-core/spqr": "0e06b29d5028de40a58c5db5fea96770965f2f36da8c8adc6a01fca79b4632b7",
+          "tacenta-core/triple": "d3ca6b9e58174831c0cc059fae1c4d2851071d97048b3c02c61d10670352427a"
         }
       }
     },
@@ -263,7 +263,7 @@
         "core.option.Option.Insts.CoreFmtDebug.fmt"
       ],
       "zone": "tacenta-core/wire",
-      "zone_sha256": "a56a03780ec92e5662548e1eb819fdc69244056c55db5ac8afc867daed2cd5e5",
+      "zone_sha256": "a996f9860f8ce8505aa86452cd23277a3383fabaa5b56732779037e213225c7e",
       "workspace_sha256": "e7a362fdd513c8feacbbb7a7ae8156e8b9dc6b350a407d9b7cbb8945cf488bd0"
     }
   }

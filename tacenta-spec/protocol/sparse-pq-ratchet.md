@@ -96,6 +96,15 @@ derivation from anywhere else in the system.
 - **The chain step** takes a chain key and the message number, and yields the
   next chain key and a message key.
 
+Concretely, each is HKDF-SHA256 with `PROTOCOL_INFO` followed by its own suffix
+as `info` (CONSTANTS.md). Initialisation takes an all-zero salt and the shared
+secret as input and yields ninety-six bytes: the root key, then the first and
+second chain keys. The root step takes the current root key as salt and the
+agreement's secret as input and yields the same three in the same order. The
+chain step takes the chain key as salt and the message number as eight
+big-endian bytes as input and yields sixty-four bytes: the next chain key, then
+the message key.
+
 The chain step differs from the Double Ratchet's in taking the *counter* as an
 input rather than a fixed constant. That is a real difference and not a
 presentational one: it binds each message key to its position in the chain.
@@ -109,7 +118,11 @@ produces two parties who agree on every derivation and can decrypt nothing, so
 the direction flag exists precisely to make the asymmetry explicit rather than
 implicit in the order of two variables.
 
-Both start at epoch zero with one pair of chains.
+A party in direction `A2b` sends on the first chain key and receives on the
+second; a party in `B2a` does the reverse. Both start at epoch zero with one
+pair of chains, and a chain numbers its messages from one: a message numbered
+zero is refused as out of order. (The Double Ratchet's chains number from
+zero.)
 
 ## Sending
 
@@ -118,11 +131,14 @@ advances first: the root key absorbs the secret, both chain keys are derived
 from it, they are assigned according to direction, and a fresh pair of chains is
 placed in the table under the new epoch. The specification requires the new
 epoch to be exactly one past the current one, so a gap is an error rather than
-something to accommodate.
+something to accommodate. The ratchet also refuses to advance to epoch
+`u64::MAX`, which its own retention window would read as covering nothing, and
+reports it as counter exhaustion (session-persistence.md).
 
 Then, whether or not the ratchet advanced, the sending chain for the epoch the
 agreement named is stepped once, and the resulting message key encrypts. The
-header carries the agreement's message and the message number.
+header carries the agreement's message, the epoch the message key came from,
+and the message number (message-format.md).
 
 ## Receiving
 
@@ -149,9 +165,9 @@ size, so the store is bounded independently of how many messages are skipped
 within an epoch. Epochs are sparse by design, so one may span a great many
 messages.
 
-The Double Ratchet is bounded here with a cap on the store's total size. The
-same cap applies here, for the same reason, and a request that would exceed it
-is refused. `Proofs.SparseRatchetCorrectness` proves
+The Double Ratchet caps its store's total size ([ratchet.md](ratchet.md),
+Skipped keys). The same cap applies here, for the same reason, and a request
+that would exceed it is refused. `Proofs.SparseRatchetCorrectness` proves
 the bound holds rather than checking it at sample points.
 
 ## Retiring old epochs

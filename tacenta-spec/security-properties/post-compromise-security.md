@@ -18,8 +18,9 @@ the old root key and not the new agreement cannot follow.
 
 ## What the guarantee is
 
-**An attacker who took a party's root key cannot derive the keys of the next
-epoch, provided it did not also take that epoch's agreement output.**
+**An attacker who took a party's root key cannot derive the next epoch's chain
+key or its next root key, provided it did not also take that epoch's agreement
+output.**
 
 Proved in `Properties.PostCompromise`, against the symbolic attacker described
 in `Model.Adversary`. The argument is the arity of the rule: deriving the new
@@ -45,6 +46,11 @@ messages pass before recovery is a property of the conversation rather than of
 the protocol, and this page does not promise a bound.
 
 ## What is not proved
+
+**An attacker holding more than the root key.** The theorems give the attacker
+exactly the root key. One that also holds other material from the session -- a
+chain key, a stored skipped key -- is not what they are about, and this page
+does not claim they cover it.
 
 **The fidelity assumption.** The attacker is symbolic: it derives keys only by
 the rules given, and the rules mirror the key schedule with none that runs a

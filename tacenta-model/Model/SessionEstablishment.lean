@@ -25,8 +25,8 @@ def fPrefix : List UInt8 := List.replicate 32 0xFF
 
 /-- The KDF `info`: the application string, the curve, the hash, and the KEM
     joined by underscores, so a secret derived under one parameter set cannot
-    collide with another. The application string itself is wire-sensitive and is
-    pinned in the conformance manifest; this model label keeps the model
+    collide with another. The application string itself is a free choice at tier
+    `ours` (CONSTANTS.md), not wire-sensitive; this model label keeps the model
     self-consistent (see the note in Model.State on the ratchet's labels). -/
 def skInfo : List UInt8 :=
   -- "Tacenta_CURVE25519_SHA-256_ML-KEM-1024"

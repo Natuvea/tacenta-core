@@ -40,8 +40,8 @@ pub type Key = [u8; 32];
 const F_PREFIX: [u8; 32] = [0xFF; 32];
 
 /// The KDF `info`: the application string, the curve, the hash, and the KEM
-/// joined by underscores. The application string is wire-sensitive and pinned in
-/// the conformance manifest; this matches the model's label.
+/// joined by underscores. The application string is a free choice at tier `ours`
+/// (CONSTANTS.md), not wire-sensitive; this matches the model's label.
 const SK_INFO: &[u8] = b"Tacenta_CURVE25519_SHA-256_ML-KEM-1024";
 
 /// Leading byte identifying curve25519 in `EncodeEC`.

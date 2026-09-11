@@ -269,7 +269,7 @@ this implementation; the client's expectations of the server are stated in
 
 | Component | Covered by |
 |---|---|
-| Ratchet message encoding | `vectors/serialization/message-encoding.json`, and `decode_encode` (round-trip proof) |
+| Ratchet message encoding | `vectors/serialization/message-encoding.json`, and `decode_encode_composite` (round-trip proof of the composite header) |
 | Header encoding | same |
 | `CONCAT(ad, header)` uniqueness | core and model tests: two splits of the same bytes differ |
 | Initial (prekey) message encoding | `vectors/serialization/initial-message.json`, generated from the model, and a core round-trip test |

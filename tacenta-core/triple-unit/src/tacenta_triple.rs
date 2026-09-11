@@ -69,8 +69,8 @@ use zeroize::{Zeroize, Zeroizing};
 pub use tacenta_ratchet::{Header as DrHeader, Key, LabelSet, RatchetError};
 pub use tacenta_spqr::{Direction, Output, SpqrError};
 
-/// `PROTOCOL_INFO` for the combination and the split. Wire-sensitive, recorded
-/// in the conformance manifest rather than settled here.
+/// `PROTOCOL_INFO` for the combination and the split. A free choice at tier
+/// `ours` (CONSTANTS.md), not wire-sensitive.
 /// `TR_PROTOCOL_INFO` in the specification's terms: the protocol and its
 /// parameters, in the shape the published examples use.
 ///
@@ -144,9 +144,9 @@ pub fn split_secret(sk: &[u8]) -> (Key, Key) {
 
 /// Derive the encryption key from the two message keys.
 ///
-/// A derivation over the concatenation, under a constant naming the protocol.
-/// The concatenation is unambiguous for free: both inputs are exactly
-/// thirty-two bytes, so no two distinct pairs present the same bytes.
+/// A derivation with the post-quantum key as salt and the classical key as
+/// input, under a constant naming the protocol, so two distinct pairs are two
+/// distinct inputs by construction and there is no concatenation to parse.
 pub fn combine(mk_classical: &Key, mk_pq: &Key) -> Key {
     // Salt is the post-quantum key, IKM the classical one, per §7.2 of the
     // published Double Ratchet specification. The inversion is the same one

@@ -1,8 +1,8 @@
 //! serialization: the wire encoding.
 //!
 //! This module follows tacenta-spec/protocol/message-format.md and the model in
-//! tacenta-model (`Model.Messages`). The round-trip
-//! property is proved in tacenta-proofs (`Proofs.Serialization.decode_encode`)
+//! tacenta-model (`Model.Messages`, `Model.CompositeHeader`). The header's round
+//! trip is proved in tacenta-proofs (`Proofs.Serialization.decode_encode_composite`)
 //! rather than only sampled here.
 //!
 //! Encodings are canonical: exactly one valid spelling of a message, and a

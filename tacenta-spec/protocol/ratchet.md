@@ -113,7 +113,9 @@ Two separate bounds keep this from exhausting memory, and both are required:
   rejected. The published specification requires this directly, stating that
   `MKSKIPPED` raises if too many elements are stored.
 
-Both are security parameters recorded with the implementation.
+Both are security parameters recorded with the implementation. Stored keys
+also expire once they have outlived a fixed number of received messages
+(`MAX_SKIPPED_AGE` in CONSTANTS.md; key-deletion.md).
 
 ## Scope
 
