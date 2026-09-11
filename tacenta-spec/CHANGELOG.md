@@ -11,6 +11,72 @@ is SemVer against the specified protocol (not the implementation).
   value is at least p = 2^255 - 19. This is message-format.md's
   single-encoding principle applied to curve keys, which X25519 alone does
   not enforce. An honest key generator produces neither form.
+- `protocol/ratchet.md`, `protocol/sparse-pq-ratchet.md`,
+  `protocol/key-deletion.md`, `protocol/session-persistence.md`: what
+  replacing a stored skipped key does, as built. A skip deletes the stored
+  keys in the range it re-derives, then appends the new ones, in number
+  order, at the end of the store. So a replacing key carries the count of the
+  receive that stored it, not the replaced key's, and is last in the store's
+  order, which decides eviction ties and the persisted order. In the sparse
+  ratchet only a state read from storage can hold a key to replace. The model
+  and the implementation agree. Independent reader, second pass (G2-01).
+- `protocol/sparse-pq-ratchet.md`, `protocol/triple-ratchet.md`: the header's
+  `pq_epoch` selects the sparse ratchet's receiving chain, and `pq_n` is the
+  message number. The epoch the agreement's receive returns is not used and
+  is not compared with `pq_epoch`; a returned secret's own epoch is still the
+  one the advance checks. The model's receive takes no returned epoch, and the
+  implementation discards it. This departs from Double Ratchet revision 4,
+  §5.6, whose header carries no epoch and whose receive uses the returned
+  one. The page says so and leaves the departure undecided. Independent
+  reader, second pass (G2-07).
+- `protocol/session-persistence.md`:
+  - The erasure encoder's `next` is the index it issues next, left at 65,535
+    once `exhausted`, and its chunks are the value's in order. The decoder's
+    `size` is the value's length and `needed` its chunk count. Its codewords
+    are written in the order each index first arrived, an order that carries
+    no meaning and is kept on read (G2-04).
+  - The session reader refuses as malformed a presence byte outside
+    `0x00`/`0x01`, a `pending_initial` without its layout, and a
+    `triple_state` or `braid` its own reader refuses. Each is refused before
+    the re-encode check, so none is reported as non-canonical or inconsistent
+    (G2-05).
+  - The ratchet and sparse ratchet readers refuse as malformed a presence tag
+    outside `0x00`/`0x01`, an absent key or chain that is not zeroed, and an
+    unknown `labels` or `direction` tag. These were implied only by the
+    Canonical principle (G2-06).
+- `protocol/message-format.md`: how the composite-header vectors name its
+  fields. The input `chunk_data` is the field `chunk`, and `chunk_present`,
+  `chunk_index` and `chunk_data` together encode one optional codeword, with
+  all-zero padding when it is absent. The `inputs` description in
+  `tacenta-test-vectors/schema/vector.schema.json` points there. No vector
+  field is renamed. Independent reader (G-09).
+
+### Changed
+- `protocol/session-persistence.md`: the "Validated, not only parsed"
+  principle no longer reads as refusing every state no constructor builds.
+  Each type's `invariant` is the set of relations its operations and their
+  proofs rely on. Each list of semantic rules is complete, and a state that
+  keeps every rule is accepted even where no operation produces it. The leaf
+  formats' section names such states the readers accept: a ratchet state with
+  `nr` or `ns` above zero and no chain for it, and a sparse ratchet state with
+  a stored key numbered 0, or at or past its chain's counter. This is what
+  the readers do. The session's rule that each half satisfies its own rules
+  now says a half that breaks them is refused as malformed by its own reader
+  first. Independent reader, second pass (G2-12).
+
+### Fixed
+- `protocol/ratchet.md`: the Message format and Sources sections said the
+  header and ciphertext encodings and the byte-level conventions were pinned
+  in the conformance manifest, determined under the interoperability research
+  boundary. They are ours, recorded in `CONSTANTS.md` and on
+  message-format.md, and no peer determined them. The conformance manifest
+  credits the ratchet's initialisation to the Initialisation section rather
+  than to Sending and receiving (G2-03).
+- `protocol/ratchet.md`: "range-checked the same way" for the numbers skipped
+  keys are stored under. Every such number is below the header's 32-bit `PN`
+  or `N`, so it is at most `u32::MAX - 1` and none is out of range (G2-10).
+- `protocol/sparse-pq-ratchet.md`: the initialisation salt is 32 zero bytes,
+  as in the model and the implementation (G2-11).
 
 ## [0.1.0] - 2026-09-11
 
