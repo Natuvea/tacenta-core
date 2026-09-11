@@ -120,9 +120,34 @@ theorem decode_initial_no_panic (bytes : Slice U8) :
   unfold decode_initial
   step*
 
--- The axiom audit, enforced rather than asserted: both entry points rest on the
+/-! ## The prekey bundle decoder
+
+`decode_bundle` bounds its fixed prefix with one length check and every later
+field with `span_end`, so its totality is the same argument again. The one
+optional field is decided by `one_time_prekey_at`, over thirty-three bytes its
+caller has already bounded. -/
+
+/-- Deciding the one-time prekey's field cannot fail when its thirty-three bytes
+are inside the input. -/
+@[step]
+theorem one_time_prekey_at_no_panic (bytes : Slice U8) (at1 : Usize) (h : at1.val + 33 ≤ bytes.length) :
+    one_time_prekey_at bytes at1 ⦃ fun _ => True ⦄ := by
+  unfold one_time_prekey_at
+  step*
+  all_goals simp_all [Slice.length, Array.repeat]
+
+/-- **Decoding a prekey bundle cannot fail, for every byte string.** -/
+@[step]
+theorem decode_bundle_no_panic (bytes : Slice U8) :
+    decode_bundle bytes ⦃ fun _ => True ⦄ := by
+  unfold decode_bundle
+  simp only [BUNDLE_KEM_AT]
+  step*
+  all_goals simp_all [Slice.length, Array.repeat]
+
+-- The axiom audit, enforced rather than asserted: every entry point rests on the
 -- kernel's three axioms and nothing else. The decoder calls no opaque operation,
--- so no boundary assumption and no `native_decide` reaches either. A proof that
+-- so no boundary assumption and no `native_decide` reaches any of them. A proof that
 -- starts trusting something new fails here.
 /-- info: 'Tacenta.WireT1.decode_composite_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
@@ -135,5 +160,9 @@ theorem decode_initial_no_panic (bytes : Slice U8) :
 /-- info: 'Tacenta.WireT1.decode_initial_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Tacenta.WireT1.decode_initial_no_panic
+
+/-- info: 'Tacenta.WireT1.decode_bundle_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Tacenta.WireT1.decode_bundle_no_panic
 
 end Tacenta.WireT1

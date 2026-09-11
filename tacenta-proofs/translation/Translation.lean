@@ -19,6 +19,7 @@ import Translation.TacentaWire
 import Translation.WireT1
 import Translation.WireT3
 import Translation.WireInitialT3
+import Translation.WireBundleT3
 -- The post-quantum stack, on the session's send and receive path. The
 -- classical half is under `T1`.
 import Translation.TacentaSpqr

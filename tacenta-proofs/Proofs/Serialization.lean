@@ -115,7 +115,7 @@ theorem decodeBundle_encodeBundle (b : Bundle)
     rw [take?_append 32 (List.replicate 32 0) _ (by simp)]
     -- The presence byte is checked before the identifiers are read, so reduce
     -- that decision before stepping past them.
-    simp only [beq_self_eq_true, if_true, readBe32_be32, readBe32_be32_nil]
+    simp only [decodeOptionalKey, beq_self_eq_true, if_true, readBe32_be32, readBe32_be32_nil]
     simp [← hone]
   | some k =>
     have hk : k.length = 32 := hot k (by simp [hone])
@@ -123,7 +123,7 @@ theorem decodeBundle_encodeBundle (b : Bundle)
     rw [take?_one_cons]
     simp only
     rw [take?_append 32 k _ hk]
-    simp only [beq_self_eq_true, if_true, readBe32_be32, readBe32_be32_nil]
+    simp only [decodeOptionalKey, beq_self_eq_true, if_true, readBe32_be32, readBe32_be32_nil]
     simp [← hone]
 
 /-! ## The composite header round-trips

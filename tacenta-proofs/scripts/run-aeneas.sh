@@ -122,16 +122,17 @@ translate erasure tacenta-erasure tacenta_erasure.llbc TacentaErasure
 # rather than after a trusted parser -- but it does not yet. Today
 # `tacenta-protobuf` has no caller outside its own crate and the fuzz target:
 # the bytes a peer sends are parsed by `decode_message` and `decode_composite`,
-# for a ratchet message, and `decode_initial`, for a prekey message, all three
-# translated below as `tacenta-wire`. So what the protobuf proofs establish is a
+# for a ratchet message, and `decode_initial`, for a prekey message, and a
+# fetched prekey bundle by `decode_bundle`, all four translated below as
+# `tacenta-wire`. So what the protobuf proofs establish is a
 # verified reader that the live path does not use; CLAIMS.md and LIMITATIONS.md
 # say the same. If this stops translating,
 # that decision reopens rather than the crate quietly moving out.
 translate protobuf tacenta-protobuf tacenta_protobuf.llbc TacentaProtobuf
-# The message decoders, `decode_composite`, `decode_message` and `decode_initial`:
-# the first code the bytes a peer sends reach on the live receive path, moved out
-# of the root crate's `serialization` module into a leaf crate so that they are
-# translated.
+# The wire decoders, `decode_composite`, `decode_message`, `decode_initial` and
+# `decode_bundle`: the first code the bytes a peer sends, or a fetched bundle,
+# reach, moved out of the root crate's `serialization` module into a leaf crate
+# so that they are translated.
 translate wire tacenta-wire tacenta_wire.llbc TacentaWire
 
 # The post-quantum stack, on the shipping path since the triple-ratchet

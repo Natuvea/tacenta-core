@@ -220,7 +220,8 @@ fn every_decoder_is_covered() {
     let sources = [
         root.join("src/serialization/mod.rs"),
         root.join("src/serialization/composite.rs"),
-        // `decode_composite` and `decode_message` live in the `tacenta-wire`
+        // `decode_composite`, `decode_message`, `decode_initial` and
+        // `decode_bundle` live in the `tacenta-wire`
         // leaf crate, re-exported by `serialization`; the sweep reads their
         // source where it is.
         root.join("wire/src/lib.rs"),
