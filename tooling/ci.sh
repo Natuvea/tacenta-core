@@ -41,6 +41,12 @@ bash tooling/check-workflows.sh
 # loosened by mistake fails this gate rather than the next reader.
 bash tooling/tests/run-check-workflows-cases.sh
 
+# Every commit this branch adds on top of origin/main is signed off by its
+# author (CONTRIBUTING.md, Developer Certificate of Origin). In CI the
+# `sign-off` job runs the same script against the pull request's base branch.
+echo "== Commits on top of origin/main are signed off =="
+bash tooling/check-signoff.sh origin/main
+
 # The property: nothing durable moves on a message before its authenticator
 # verifies. This does not detect a violation directly; it detects the shape
 # that carries one and requires an argument on file for each instance.

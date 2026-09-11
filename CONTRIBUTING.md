@@ -11,8 +11,15 @@ licence. Add a line to each commit message:
 
     Signed-off-by: Your Name <you@example.com>
 
-`git commit -s` adds it for you. Pull requests whose commits are not signed off
-cannot be merged.
+`git commit -s` adds it for you, and `git rebase --signoff origin/main` adds it
+to commits already made. The trailer must name the commit's author exactly.
+
+`tooling/check-signoff.sh` enforces this. It runs as the `sign-off` job on
+every pull request, which fails if any commit the pull request adds is not
+signed off by its author, and as a step of `tooling/ci.sh` against
+`origin/main`. Merge commits are not checked. Pull requests whose commits are
+not signed off cannot be merged. The check covers only commits added on top of
+main, and the commits on main from before it was introduced carry no sign-off.
 
 ## Licence of contributions
 

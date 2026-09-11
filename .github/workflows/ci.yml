@@ -362,3 +362,22 @@ jobs:
       # not that the translation was regenerated on this run.
       - name: Claims and attestations cover what ships
         run: python3 tacenta-proofs/scripts/attest.py --check
+
+  # Every commit a pull request adds is signed off by its author under the
+  # Developer Certificate of Origin (CONTRIBUTING.md). Only pull requests: a
+  # push to main carries commits that were checked as a pull request, and the
+  # history from before this check has no sign-off. The full history is fetched
+  # so the base branch is there to compare against. The base branch name is
+  # passed through the environment, not interpolated into the script.
+  sign-off:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Every added commit is signed off by its author
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: bash tooling/check-signoff.sh "origin/${BASE_REF}"

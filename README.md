@@ -112,7 +112,8 @@ One command runs the gate: `bash tooling/ci.sh`. The public CI
 request, split into jobs so a failure names its cause. The gate is: the
 workflow, proof-hygiene, label, vector-schema and authentication-boundary
 checks under `tooling/` (with the workflow checker held to its own case files
-under `tooling/tests/`); the Lean
+under `tooling/tests/`); the sign-off check, which reads the commits a branch
+or pull request adds on top of main (CONTRIBUTING.md); the Lean
 model build and the model-layer proofs with
 their `sorry` scan; the attestation check; the committed vectors regenerated
 from the model and compared; the Rust crates (format, lint, tests,
