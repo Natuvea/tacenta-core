@@ -132,4 +132,8 @@ theorem decode_initial_no_panic (bytes : Slice U8) :
 #guard_msgs in
 #print axioms Tacenta.WireT1.decode_message_no_panic
 
+/-- info: 'Tacenta.WireT1.decode_initial_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Tacenta.WireT1.decode_initial_no_panic
+
 end Tacenta.WireT1
