@@ -504,7 +504,11 @@ theorem send_refines {α : tacenta_ratchet.State → Model.State.State}
       · intro hdr mk hcon; injection hcon
       · intro e' he' hcov; trivial
   · step*
-    rcases e with _ | _ | _ | _ | _
+    -- One arm per `RatchetError` variant, in declaration order: `TooManySkipped`,
+    -- `SkippedStoreFull`, `NoSendingChain` (the one the model also refuses),
+    -- `NoReceivingChain`, `OutOfOrder`, `ChainExhausted`. Every arm but the third
+    -- is outside the failure clause, so it closes the same way.
+    rcases e with _ | _ | _ | _ | _ | _
     · refine ⟨?_, ?_⟩
       · intro hdr mk hcon; injection hcon
       · intro e' he' hcov
@@ -526,6 +530,13 @@ theorem send_refines {α : tacenta_ratchet.State → Model.State.State}
       refine ⟨?_, ?_⟩
       · intro hdr mk hcon; injection hcon
       · intro e' he' hcov; trivial
+    · refine ⟨?_, ?_⟩
+      · intro hdr mk hcon; injection hcon
+      · intro e' he' hcov
+        injection he' with heq
+        rcases hcov with hcov | ⟨e'', hcov⟩
+        · rw [← heq] at hcov; injection hcov with hcov; injection hcov
+        · rw [← heq] at hcov; injection hcov
     · refine ⟨?_, ?_⟩
       · intro hdr mk hcon; injection hcon
       · intro e' he' hcov

@@ -94,7 +94,7 @@ Braid, the session, the erasure coder and the parser are pinned under
 `native_decide` reaching one of them fails the build.
 
 **The generated translation carries compiler-trust axioms of its own**,
-ninety-three on the current generation. Aeneas's `toStr` discharges its
+a hundred and sixty-two on the current generation. Aeneas's `toStr` discharges its
 string-length bound with `by decide +native`, so every generated `Debug`
 `fmt` body (one per error and header type) adds axioms named
 `<fmt>._native.decide.ax_*`, each stating `decide (s.toByteArray.size ≤
@@ -109,10 +109,10 @@ auxiliary the elaborator splits out of a `fmt` body) and prints them apart
 from the externals, as `audit-native:` lines in the translation build log,
 so the count is visible rather than folded in.
 
-Ten of the ninety-three meet every part of that rule except the last, and
-the audit waives it for them. All ten are in the three-leaf translation unit
+Eleven of the hundred and sixty-two meet every part of that rule except the last, and
+the audit waives it for them. All eleven are in the three-leaf translation unit
 described under "The three-leaf translation unit" below, which puts all three
-leaves' types in one module. Seven string literals occur in more than one
+leaves' types in one module. Eight string literals occur in more than one
 leaf's `Debug` body, `decide +native` caches its result by statement, and the
 second and third occurrence of a literal reuse the first's proof -- leaving the
 axiom named after each later declaration declared and reached by nothing. The
@@ -1736,9 +1736,9 @@ bundles discharged. What that does and does not buy:
   bundle drift checker were deleted after 2a89a7f. The comparisons above with
   `TripleT3.send_refines` were measured before that.
 
-**The ten waived compiler-trust axioms are here.** Putting all three leaves'
-types in one module makes seven string literals occur more than once across
-their `Debug` bodies, and `decide +native` caches by statement, so ten of the
+**The eleven waived compiler-trust axioms are here.** Putting all three leaves'
+types in one module makes eight string literals occur more than once across
+their `Debug` bodies, and `decide +native` caches by statement, so eleven of the
 axioms it names are left declared and reached by nothing. The axiom audit
 waives its "the parent applies it" requirement for them; "The proofs are
 trusted by evaluation, not only by the kernel" above states the waiver and its
