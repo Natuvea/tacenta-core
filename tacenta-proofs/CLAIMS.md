@@ -176,8 +176,12 @@ this section says in one place what is not proved.
   theorem-free -- they have the constructor theorem described in "Proved: what
   a decoded state satisfies", which says what a state they return satisfies.
   That is not a T1 theorem: it says nothing about whether they can panic, only
-  what is true of a state when they do return one. Every other codec named
-  above still has no theorem of any kind.
+  what is true of a state when they do return one. The classical ratchet's
+  pair is the exception since `Translation/RatchetCodecT1.lean`: its
+  `from_bytes` and `to_bytes`, with `read_key`, `read_u32`,
+  `read_optional_key` and `decode_skipped_entry`, are proved panic-free (see
+  "Proved (tier T1, the Double Ratchet's persistence codec cannot fail)").
+  Every other codec named above still has no T1 theorem.
   `LIMITATIONS.md` says the same where each crate is discussed.
 - **T3 carries a third hypothesis besides the two it names.** Besides "modulo
   KDF agreement" and "excluding where `u32` and `Nat` part company", every
@@ -687,6 +691,36 @@ Location: `tacenta-proofs/translation/Translation/BraidT1.lean`.
 - `Braid.send_no_panic` and `Braid.receive_no_panic` are pinned under
   `#guard_msgs` at the end of the file, to the kernel's three axioms and the
   crate's opaque constants; no `native_decide` reaches either.
+
+## Proved (tier T1, the Double Ratchet's persistence codec cannot fail)
+
+Location: `Translation/RatchetCodecT1.lean`.
+
+`State::to_bytes` writes what a storage layer keeps, and `State::from_bytes`
+parses it back after a restart and hands the ratchet a state to run on.
+
+- `from_bytes_no_panic`: every byte string decodes to `Ok` or `Err` and never
+  to a failure, under one precondition, `bytes.length + 72 ≤ Usize.max`. The
+  skipped-key loop computes where the next 72-byte entry would end before it
+  compares that end with the input, and Aeneas models a slice as anything up
+  to `Usize.max` long. A Rust slice is at most `isize::MAX` bytes, so every
+  buffer a caller can pass meets it; it is a constant beside `Usize.max`, not
+  another type's maximum, so it forces nothing to zero on a 32-bit target.
+  Pinned to `propext`, `Classical.choice` and `Quot.sound` alone.
+- `to_bytes_no_panic`: encoding cannot fail when the buffer -- 185 bytes plus
+  72 per skipped key -- fits a `usize`, under `ZeroizingVecTotal`: the
+  `zeroize` crate's `Zeroizing::new` returns on a byte vector, the same kind of
+  assumption as `ZeroizingTotal` above. Its pinned base adds the wrapper's
+  opaque declarations and nothing else.
+- `to_bytes_no_panic_of_inv`: the size precondition discharged for every state
+  satisfying `ImportInv`'s `Inv`, whose store holds at most `MAX_SKIPPED_STORE`
+  (2000) keys, so every state `from_bytes` returns can be written back. Same
+  pinned base.
+
+**Not covered.** The codecs of `tacenta-spqr`, `tacenta-braid`,
+`tacenta-triple` and `tacenta-erasure` still have no T1 theorem, and neither
+function here has a round-trip or refinement theorem: this says they return,
+not what they return.
 
 ## Proved: what a decoded state satisfies
 

@@ -5,6 +5,7 @@ import Translation.BraidT3
 import Translation.PreconditionShapes
 import Translation.Satisfiability
 import Translation.ImportInv
+import Translation.RatchetCodecT1
 import Translation.ErasureWitness
 import Translation.KemWitness
 
