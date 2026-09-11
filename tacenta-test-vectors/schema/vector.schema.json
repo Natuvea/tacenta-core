@@ -40,7 +40,7 @@
           },
           "inputs": {
             "type": "object",
-            "description": "Named inputs, each a lowercase hex string.",
+            "description": "Named inputs, each a lowercase hex string. Where a file's inputs are the fields of a format a protocol page specifies, each input is that field's encoded bytes, and the page says where an input's name differs from its field's. For the composite header (vectors/serialization/message-encoding.json and vectors/post-quantum/composite.json), tacenta-spec/protocol/message-format.md, Ratchet message, says that the input chunk_data is the field chunk, and that chunk_present, chunk_index and chunk_data together encode one optional codeword: when chunk_present is 00, the other two are its all-zero padding.",
             "additionalProperties": {
               "type": "string",
               "pattern": "^[0-9a-f]*$"
