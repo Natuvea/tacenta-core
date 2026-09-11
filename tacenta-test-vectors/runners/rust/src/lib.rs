@@ -351,6 +351,21 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
                 serialization::encode_bundle(&b)
             })
         }
+        "initial-message-decode" => {
+            use tacenta_core::serialization;
+            let encoding = input(v, "encoding")?;
+            decoder_verdict(v, serialization::decode_initial(&encoding), |d| {
+                serialization::encode_initial(
+                    &d.identity,
+                    &d.ephemeral,
+                    &d.kem_ciphertext,
+                    d.signed_prekey_id,
+                    d.one_time_prekey_id,
+                    d.kem_prekey_id,
+                    &d.message,
+                )
+            })
+        }
         // The erasure code above the field: chunking, the systematic and
         // parity codewords, the stream's end, and decoding from what arrived,
         // first copy winning (mlkem-braid.md, The erasure code).

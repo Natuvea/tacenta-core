@@ -141,6 +141,23 @@ is SemVer against the specified protocol (not the implementation).
   reader, second pass (G2-07).
 
 ### Changed
+- `protocol/message-format.md`, `protocol/session-establishment.md`: the
+  initial-message decoder refuses an `identity` or `ephemeral` whose
+  thirty-two key bytes are not the canonical encoding of a curve public key,
+  as a decode failure, as the prekey bundle's and ratchet message's decoders
+  refuse theirs. The pages had said the decoder checks only the curve byte and
+  `DecodeEC` checks the key bytes later, which left open where a re-spelled
+  key is refused, and let a repeated initial message on an established
+  session with a re-spelled `identity` be accepted. A repeated initial message
+  now also requires `identity` to equal, byte for byte, `EncodeEC` of the
+  peer identity key the session holds (`peer_identity_public`), besides
+  `ephemeral` equalling `established_ephemeral`. The session already holds
+  that key, so no persisted format changes. "Receiving the initial message"
+  says which fields a repeat compares, that `kem_ciphertext` and the three
+  identifiers are not compared, and why that is safe: the inner message
+  authenticates under the session's own keys, its associated data comes from
+  session state, and the ratchet refuses a duplicate. Independent reader,
+  third pass (G3-05).
 - `protocol/message-format.md`, `protocol/session-establishment.md`: every
   curve public key a peer sends is refused unless it is the canonical
   encoding, its 32 bytes read as a little-endian integer below

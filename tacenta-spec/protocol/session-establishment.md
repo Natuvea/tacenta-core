@@ -185,9 +185,12 @@ p. An honest key generator never produces either, so no honest key is refused.
 The requirement is message-format.md's single-encoding principle applied to curve
 keys. It matters wherever a value is identified by its bytes rather than by the
 key they name: a second spelling of the same key would otherwise give the same
-value a second identity. The curve keys a prekey bundle and a ratchet message
-carry raw, without the curve byte, are held to the same rule by their decoders
-(message-format.md, Curve public keys).
+value a second identity. The initial-message decoder applies the same rule to
+`identity` and `ephemeral` before anything reads them, and refuses a re-spelled
+one as a decode failure (message-format.md, Initial message), so `DecodeEC`
+never meets a key in either field that it would refuse. The curve keys a
+prekey bundle and a ratchet message carry raw, without the curve byte, are held
+to the same rule by their decoders (message-format.md, Curve public keys).
 `Proofs.SessionEstablishment` proves the recoverability from the fixed width and
 gives the counterexample that shows it fails without it; the core pins the width
 in a test.
@@ -230,13 +233,40 @@ If decryption fails he aborts and deletes `SK`. On success he deletes `CT` and
 any one-time prekey private keys that were used.
 
 An initial message can also arrive on a session that already exists, since
-Alice repeats it until Bob answers. It does not establish again. The session
-accepts it only if it is a responder's session and the message's `ephemeral`
-field equals, byte for byte, the `ephemeral` field carried by the initial
-message that established the session (`established_ephemeral`,
-session-persistence.md); no other field is compared. It then decrypts the
-ratchet message inside. Otherwise, and always on an initiator's session, it
-refuses the message (`NotARepeatedInitial`).
+Alice repeats it until Bob answers. It does not establish again. It must first
+decode, so a message whose `identity` or `ephemeral` is re-spelled is refused
+as a decode failure (message-format.md, Initial message). The session then
+accepts it only if it is a responder's session and both of these hold:
+
+- the message's `ephemeral` field equals, byte for byte, the `ephemeral` field
+  carried by the initial message that established the session
+  (`established_ephemeral`, session-persistence.md);
+- the message's `identity` field equals, byte for byte, `EncodeEC` of the
+  peer's identity key the session holds (`peer_identity_public`,
+  session-persistence.md), which is `IKA` as the establishing message carried
+  it.
+
+It then decrypts the ratchet message inside. Otherwise, and always on an
+initiator's session, it refuses the message (`NotARepeatedInitial`). Both
+comparisons are against canonical encodings, and a key has one, so neither
+field of a genuine repeat can be spelled another way and still match.
+
+The other fields, `kem_ciphertext` and the three identifiers, are not
+compared: the session keeps none of them, and keeping them would change its
+persisted format. Ignoring them is safe, because none of them reaches what the
+session does with the message:
+
+- the ratchet message inside must authenticate under the session's own keys,
+  which no field of the wrapper changes;
+- its associated data comes from the session's state, `AD` as established and
+  the ratchet message's own header, and not from the wrapper;
+- the ratchet refuses a message it has already accepted, so a wrapper around a
+  message already read yields nothing.
+
+So a repeat whose `kem_ciphertext` or identifiers differ from the establishing
+message's, around a ratchet message the session has not read, yields that
+message's plaintext once, as the unaltered repeat would, and changes nothing
+else.
 
 ## Replay, and why the ratchet must follow
 
@@ -327,13 +357,14 @@ entry counts against and which rotation drops it. Bob adds the fingerprint,
 tagged with `kem_prekey_id`, only once the initial ciphertext has
 authenticated.
 
-**The curve-key inputs are the canonical encodings.** A handshake is accepted
-only if `DecodeEC` accepts both `identity` and `ephemeral` (Sending the initial
-message), and `DecodeEC` accepts one encoding of each key. So every fingerprint
-in the record is over the encodings `DecodeEC` accepted. Suppose a captured
-message's `identity` or `ephemeral` is spelled another way, with bit 255 set or
-with p added to its value. That message is refused and never recorded, rather
-than fingerprinted afresh and accepted as a handshake Bob has not seen.
+**The curve-key inputs are the canonical encodings.** An initial message
+decodes only if both `identity` and `ephemeral` are canonical (message-format.md,
+Initial message), the rule `DecodeEC` states (Sending the initial message), and
+each key has one canonical encoding. So every fingerprint in the record is over
+canonical encodings. Suppose a captured message's `identity` or `ephemeral` is
+spelled another way, with bit 255 set or with p added to its value. That
+message does not decode, so it is never fingerprinted or recorded, rather than
+fingerprinted afresh and accepted as a handshake Bob has not seen.
 
 `CT` and the identifiers need no such rule:
 
@@ -371,16 +402,18 @@ depends on that choice.
   public key is refused unless it is the canonical encoding, a value below p
   with bit 255 clear, before it is used.
   - An initial message's `identity` and `ephemeral`, in `EncodeEC` form, are
-    checked by `DecodeEC` (Sending the initial message).
+    checked by the initial-message decoder (message-format.md, Initial
+    message), under the rule `DecodeEC` states (Sending the initial message).
   - A prekey bundle's `identity_key`, `signed_prekey` and `one_time_prekey`,
     and a composite header's `dh`, are checked by the decoders that read them
-    (message-format.md, Curve public keys). A bundle with a re-spelled key, or
-    a ratchet message with a re-spelled `dh`, does not decode.
+    (message-format.md, Curve public keys).
   - The bundle's identity key meets the check a second time when its
     signatures are verified (identities-and-devices.md, Verifying a signature,
     step 1), which applies to whatever key a signature is verified under.
 
-  So the masking and the reduction never apply to a peer's key, and the byte
+  An initial message with a re-spelled `identity` or `ephemeral`, a bundle
+  with a re-spelled key, or a ratchet message with a re-spelled `dh`, does not
+  decode. So the masking and the reduction never apply to a peer's key, and the byte
   string that identifies a key, in a signature, the associated data, a
   fingerprint or the skipped-key store, is the only one that names it. An
   honest key generator never produces a refused form.

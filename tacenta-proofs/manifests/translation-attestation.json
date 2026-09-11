@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "_note": "Written only by `tacenta-proofs/scripts/attest.py --refresh-translation`, immediately after `scripts/run-aeneas.sh` on the pinned toolchain, and compared against by every other mode. A green `attest.py --check` establishes that each generated Translation/Tacenta*.lean is a module run-aeneas.sh produces, is byte for byte the file recorded here, declares exactly the axioms recorded here (as text; no-sorry.sh compares the same record with what the axiom audit saw in the built environment), and that the Rust verified zone it was generated from, and the workspace inputs that shape every zone's extraction (Cargo.toml and its profiles, Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed to when this was written, as recorded by whoever ran the toolchain. Where the zone is assembled rather than written (tacenta-core/triple-unit, the three-leaf translation unit), the record carries an `assembly` field naming the script and the three leaf trees it was assembled from, with their hashes, and --check fails if any of them has moved since; assemble-triple-unit.sh --check is the separate question of whether the unit crate in the tree is what those leaves assemble to. It does not establish that the toolchain was run, or run honestly: that is checked by regenerating with run-aeneas.sh and diffing, which REPRODUCING.md describes.",
-  "generated_at_commit": "da06bff14081fdbf4fe27dcdf9b4efe72ec2c42e",
+  "generated_at_commit": "db6eeb40330be9b2dd6782422bcfc7152661a501",
   "aeneas": {
     "release": "nightly-2026.07.22-b1214ca",
     "commit": "b1214ca0a024e8121f41fe2b2ed15e26af02373b"
@@ -256,14 +256,14 @@
     },
     "tacenta-proofs/translation/Translation/TacentaWire.lean": {
       "module": "TacentaWire",
-      "sha256": "f38baaec51c0cdbb51b11f87810981045567c0ed21f020659175f1c581b57dd2",
+      "sha256": "646bce56a8fcbac1068e3e64aa407e7e51d83be436c876fe2208c749fa4f6db8",
       "axioms": [
         "core.option.Option.Insts.CoreCloneClone.clone",
         "core.option.Option.Insts.CoreCmpPartialEqOption.eq",
         "core.option.Option.Insts.CoreFmtDebug.fmt"
       ],
       "zone": "tacenta-core/wire",
-      "zone_sha256": "58163241849c285d8f0aad8d999a02215ba82f4fc1a092c59663a6f06283b19f",
+      "zone_sha256": "65a7272da73d7f6b74efaf4241d59da1297db2d95e356742dd260854a392a99e",
       "workspace_sha256": "465c78dd6f6c60e5daf4840cebf9a53a585d9ec7e766ff4db8383d3773252620"
     }
   }

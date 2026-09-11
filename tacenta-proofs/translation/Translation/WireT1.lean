@@ -208,13 +208,19 @@ theorem be32_at_no_panic (bytes : Slice U8) (at1 : Usize) (h : at1.val + 4 ≤ b
 
 The two curve-byte reads, at offset 2 and at the identity's end, are bounded by
 the two keys' `span_end` checks; `EC_LEN` is unfolded first so that those
-bounds are numbers `step*` can use. -/
+bounds are numbers `step*` can use. The same checks bound the two thirty-two-byte
+copies the canonicity checks read, `bytes[3..35]` and `bytes[36..68]`, and what
+is left after `step*` is that each copy's source and destination have the same
+length, which the `span_end` postconditions give. -/
 @[step]
 theorem decode_initial_no_panic (bytes : Slice U8) :
     decode_initial bytes ⦃ fun _ => True ⦄ := by
   unfold decode_initial
   simp only [EC_LEN]
   step*
+  -- The `span_end` results are named by `o = some end1` and `o1 = some end2`;
+  -- substituting them lets their postconditions give the ends' values.
+  all_goals (subst_vars; simp_all [Slice.length, Array.repeat])
 
 /-! ## The prekey bundle decoder
 

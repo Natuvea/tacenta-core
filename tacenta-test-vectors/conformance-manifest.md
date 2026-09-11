@@ -302,14 +302,14 @@ this implementation; the client's expectations of the server are stated in
 | Ratchet message encoding | `vectors/serialization/message-encoding.json`, and `decode_encode_composite` (round-trip proof of the composite header) |
 | Header encoding | same |
 | `CONCAT(ad, header)` uniqueness | core and model tests: two splits of the same bytes differ |
-| Initial (prekey) message encoding | `vectors/serialization/initial-message.json`, generated from the model, and a core round-trip test |
+| Initial (prekey) message encoding | `vectors/serialization/initial-message.json`, generated from the model; `vectors/malformed-input/initial-message-decode.json`, generated from the model's `decodeInitial` (two accepted messages, and the refusals in the row below); and a core round-trip test |
 | Prekey bundle encoding (message-format.md, Prekey bundle) | `vectors/malformed-input/prekey-bundle-decode.json`, generated from the model's `decodeBundle` (two accepted bundles, and the refusals in the row below), and core round-trip and rejection tests |
-| Curve public keys refused unless canonical (message-format.md, Curve public keys): the composite header's `dh`, the bundle's `identity_key`, `signed_prekey` and `one_time_prekey` | `vectors/malformed-input/composite-header-decode.json` and `prekey-bundle-decode.json`, generated from the model's decoders: each key accepted in its canonical spelling and at p - 1, refused with bit 255 set and as 9 + p; `decode_composite_refines` and `decode_bundle_refines` (the code refuses exactly what the model refuses); core unit and integration tests |
+| Curve public keys refused unless canonical (message-format.md, Curve public keys): the composite header's `dh`, the bundle's `identity_key`, `signed_prekey` and `one_time_prekey`, and the initial message's `identity` and `ephemeral` | `vectors/malformed-input/composite-header-decode.json`, `prekey-bundle-decode.json` and `initial-message-decode.json`, generated from the model's decoders: each key accepted in its canonical spelling and at p - 1, refused with bit 255 set and as 9 + p; `decode_composite_refines`, `decode_bundle_refines` and `decode_initial_refines` (the code refuses exactly what the model refuses); core unit and integration tests |
 | Rejection of unknown version, truncation, and length overrun | core tests |
 | Authenticated encryption (message-format.md, Authenticated encryption): PKCS#7 padding, `ciphertext \|\| HMAC-SHA256(mac_key, AD \|\| ciphertext)`, and the receiver's four steps | `vectors/aead/aead-encrypt.json` (padding of 16, 15 and 1 bytes; `AD` empty, short, and a `CONCAT(ad, header)`), `vectors/aead/aead-decrypt.json` (three accepted inputs; refusals at step 1, at step 2 for an altered tag, an altered ciphertext and other associated data, at step 3 for an empty and a partial-block ciphertext under a valid tag, and for a padding byte of 0, of 17, of 2 over a 3, and of 16 over fifteen other bytes); runner `runners/rust/tests/aead.rs`, which also requires every refusal to be the one `DecryptError` |
 
 Runners: `runners/rust/tests/serialization.rs`, `runners/rust/tests/aead.rs`
-for the AEAD, and `runners/rust/tests/malformed_input.rs` for the two decoder
+for the AEAD, and `runners/rust/tests/malformed_input.rs` for the three decoder
 files.
 
 **Where the AEAD vectors' bytes come from.** The model has no AES, so these
