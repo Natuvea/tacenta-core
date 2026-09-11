@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "_note": "Written only by `tacenta-proofs/scripts/attest.py --refresh-translation`, immediately after `scripts/run-aeneas.sh` on the pinned toolchain, and compared against by every other mode. A green `attest.py --check` establishes that each generated Translation/Tacenta*.lean is a module run-aeneas.sh produces, is byte for byte the file recorded here, declares exactly the axioms recorded here (as text; no-sorry.sh compares the same record with what the axiom audit saw in the built environment), and that the Rust verified zone it was generated from, and the workspace inputs that shape every zone's extraction (Cargo.toml and its profiles, Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed to when this was written, as recorded by whoever ran the toolchain. Where the zone is assembled rather than written (tacenta-core/triple-unit, the three-leaf translation unit), the record carries an `assembly` field naming the script and the three leaf trees it was assembled from, with their hashes, and --check fails if any of them has moved since; assemble-triple-unit.sh --check is the separate question of whether the unit crate in the tree is what those leaves assemble to. It does not establish that the toolchain was run, or run honestly: that is checked by regenerating with run-aeneas.sh and diffing, which REPRODUCING.md describes.",
-  "generated_at_commit": "244a7e96ce6f12a1a6c255618e95b6c6d4517d83",
+  "generated_at_commit": "85630bf79c456223f12876f614b15ab601d670db",
   "aeneas": {
     "release": "nightly-2026.07.22-b1214ca",
     "commit": "b1214ca0a024e8121f41fe2b2ed15e26af02373b"
@@ -174,7 +174,7 @@
         "zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop"
       ],
       "zone": "tacenta-core/ratchet",
-      "zone_sha256": "a27bf1925af492dc0963ac9b9c43d19a6d31b5d7211078eac767ba37e629e204",
+      "zone_sha256": "be08c66c8992e9db9fddf455f0796ef677db5e0efb0c2ef631ea4dbefdc23e6e",
       "workspace_sha256": "465c78dd6f6c60e5daf4840cebf9a53a585d9ec7e766ff4db8383d3773252620"
     },
     "tacenta-proofs/translation/Translation/TacentaSession.lean": {
@@ -248,7 +248,7 @@
         "script": "tacenta-proofs/scripts/assemble-triple-unit.sh",
         "script_sha256": "a0eab7a4e50df59d1f1aefdd5c9489419d5ffcb89109c35923edcc11a18954e5",
         "sources": {
-          "tacenta-core/ratchet": "a27bf1925af492dc0963ac9b9c43d19a6d31b5d7211078eac767ba37e629e204",
+          "tacenta-core/ratchet": "be08c66c8992e9db9fddf455f0796ef677db5e0efb0c2ef631ea4dbefdc23e6e",
           "tacenta-core/spqr": "b2c8bdc22103a13152768a1c284121e760062c99eb692025bc4f5e5cf1348343",
           "tacenta-core/triple": "0eb9709f20d0d28ce1d832dbfff54bfd4a5dd72baac9d62a16b2fbd31df86480"
         }
