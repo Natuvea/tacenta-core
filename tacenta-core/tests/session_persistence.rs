@@ -136,3 +136,35 @@ fn import_rejects_trailing_bytes() {
         Err(SessionDecodeError::Malformed)
     ));
 }
+
+/// A session whose Braid holds a key pair with a wrong header hash is refused
+/// as malformed. The Braid's own reader refuses the key pair
+/// (session-persistence.md, Braid; register item J-4), and the session reader
+/// reports a half its own reader refuses as malformed, before the re-encode
+/// check.
+#[test]
+fn import_rejects_a_braid_key_pair_whose_hash_is_not_its_own() {
+    let mut r = rng(106);
+    let (alice, _bob, _first) = establish(&mut r);
+    let mut bytes = alice.export().to_vec();
+    assert!(Session::import(&bytes).is_ok(), "the honest export imports");
+
+    // session = version(1) || len(4) || triple_state || len(4) || braid || ...
+    let triple_len = u32::from_be_bytes(bytes[1..5].try_into().unwrap()) as usize;
+    let braid = 1 + 4 + triple_len + 4;
+    // The Braid's version and tag, then its epoch and authenticator. In tags
+    // 1 to 4 the key pair comes next, behind its own length prefix.
+    let tag = bytes[braid + 1];
+    assert!(
+        (1..=4).contains(&tag),
+        "an initiator that has sent holds a key pair; tag {tag}"
+    );
+    let key_pair = braid + 2 + 8 + 64 + 4;
+    // The header's hash is bytes 32 to 63 of the key pair; the braid crate's
+    // tests read that offset from the library rather than assume it.
+    bytes[key_pair + 32] ^= 0x01;
+    assert!(matches!(
+        Session::import(&bytes),
+        Err(SessionDecodeError::Malformed)
+    ));
+}

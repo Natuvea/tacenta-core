@@ -1545,7 +1545,10 @@ What a reader has to grant:
   the encoding to check it against, so it cannot be validated from the bytes
   alone, and neither `validate_ek`, nor `IncrementalKeyPair::from_bytes`
   (which checks only its input's length), nor `ValidateEkAgrees` says
-  anything about it. A stored key pair whose private half has been altered
+  anything about it. The Braid's reader applies `validate_ek` to a stored
+  key pair's own header and `ek_vector` (`Braid::invariant`, register item
+  J-4), so a stored pair's public half is checked at import; its private
+  half still is not. A stored key pair whose private half has been altered
   passes every check made and fails only at decapsulation.
 - **The model's `Decoder.message` returns the empty message for a decoder
   sized for zero bytes**, as the real decoder does; returning `none` there
