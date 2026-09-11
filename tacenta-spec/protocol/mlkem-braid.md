@@ -235,9 +235,25 @@ P_j(x) = sum over t of   element_j(chunk_t)
                        * product over s != t of (x + s) / (t + s)
 ```
 
+For `k = 0` there are no points and the sum has no terms, so every codeword of
+an encoder for zero bytes is 32 zero bytes.
+
 An encoder issues indices 0, 1, 2 and so on, one per message that carries a
 codeword, and never issues an index twice. Once it has issued index 65,535 it
-issues nothing more (Encoder lifetime, below).
+issues nothing more (Encoder lifetime, below). This holds for every `k`,
+including 0.
+
+An encoder over a value of more than 65,536 chunks (more than 2,097,152 bytes)
+is not refused. Every index it issues is below `k`, so it issues `chunk_0` to
+`chunk_65535` as indices 0 to 65,535 and then nothing: no chunk after
+`chunk_65535` is sent, and no codeword is computed from the polynomials. A
+decoder for such a value needs more codewords at distinct indices than there
+are 16-bit indices, and never completes. Which chunks such an encoder holds is
+not specified, since nothing it issues depends on those after `chunk_65535`; a
+stored encoder holding more than 65,536 is refused (session-persistence.md).
+
+The Braid encodes neither a value of zero bytes nor one of more than 65,536
+chunks (Chunks, above), so neither case is observable in the protocol.
 
 **Decoding.** The receiver knows `n`, and so `k`, before any codeword
 arrives. It keeps the first codeword it receives at each index; a later one
@@ -424,8 +440,11 @@ The receiving transitions:
   - If not, on `EkCt1Ack` it takes **(8)** to `Ct1Acknowledged`, keeping the
     decoder. On `Ek` it stays.
 - `Ct1Acknowledged`, on `EkCt1Ack` at its epoch with a codeword, collects it.
-  If the decoder then holds all of `ek_vector`, it validates it, going to
-  `Failed` on failure. Otherwise it takes **(11)**: complete the encapsulation.
+  Then:
+  - If the decoder now holds all of `ek_vector`, it validates it against
+    `header` (The KEM split); failing that, it goes to `Failed`. If it is
+    valid, it takes **(11)**: complete the encapsulation.
+  - If not, it stays.
 - `EkReceivedCt1Sampled`, on `EkCt1Ack` at its epoch, takes **(12)**: complete
   the encapsulation.
 - `Ct2Sampled`, on a message of any type at `epoch + 1`, takes **(13)** to

@@ -18,7 +18,8 @@ agreement beneath it), triple-ratchet.md (their composition), message-format.md,
 key-deletion.md, and session-persistence.md; post-compromise-security.md is the
 one written security-property page. group-messaging.md is an outline ahead of
 the code, and that work is not yet scheduled. identities-and-devices.md is
-partly written: it specifies the identity key's secret and application
+partly written: it specifies the identity key's secret, how that key signs
+(XEdDSA) and how a verifier checks a signature against it, and application
 signatures, and devices remain a scaffold. Every other page in protocol/,
 threat-model/ and security-properties/ is a scaffold -- a title and a one-line
 scope, marked "Status: scaffold" -- kept as the table of contents for what is

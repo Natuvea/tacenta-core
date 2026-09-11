@@ -43,8 +43,12 @@ Diffie-Hellman.
 The boundary offers two operations. **Sending** returns a message to carry, the
 latest epoch the receiver is guaranteed to know once it has processed that
 message, and *optionally* a new secret together with the epoch that secret
-belongs to. **Receiving** takes such a message and returns the epoch the sender
-was working in, and again optionally a new secret and its epoch.
+belongs to. **Receiving** takes such a message and returns an epoch, and again
+optionally a new secret and its epoch. The ML-KEM Braid's receive returns the
+epoch of the state it leaves the Braid in, less one, so a receive that
+completes an epoch returns that epoch, the same as its secret's
+(mlkem-braid.md, What a send and a receive return; ADR-0007). This ratchet does
+not use the returned epoch (Receiving, below).
 
 Two things follow from that shape and both matter:
 
