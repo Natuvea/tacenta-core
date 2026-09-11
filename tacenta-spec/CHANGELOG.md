@@ -27,7 +27,7 @@ is SemVer against the specified protocol (not the implementation).
   one the advance checks. The model's receive takes no returned epoch, and the
   implementation discards it. This departs from Double Ratchet revision 4,
   §5.6, whose header carries no epoch and whose receive uses the returned
-  one. The page says so and leaves the departure undecided. Independent
+  one. The page says so, and ADR-0007 keeps the departure. Independent
   reader, second pass (G2-07).
 - `protocol/session-persistence.md`:
   - The erasure encoder's `next` is the index it issues next, left at 65,535
@@ -178,6 +178,30 @@ is SemVer against the specified protocol (not the implementation).
   or `N`, so it is at most `u32::MAX - 1` and none is out of range (G2-10).
 - `protocol/sparse-pq-ratchet.md`: the initialisation salt is 32 zero bytes,
   as in the model and the implementation (G2-11).
+- `protocol/mlkem-braid.md`, "The erasure code", Codewords: the encoder's two
+  edges, as built. Independent reader, third pass (G3-02).
+  - For `k = 0` the sum has no terms, so every codeword is 32 zero bytes. The
+    indices run as they do for any other `k`.
+  - A value of more than 65,536 chunks is not refused. Its encoder issues
+    `chunk_0` to `chunk_65535` as indices 0 to 65,535 and then nothing, and a
+    decoder for it never completes. Which chunks such an encoder holds is not
+    specified: the implementation keeps the first 65,536 and the model keeps
+    them all, and nothing issued depends on the rest.
+  - The Braid encodes neither, so neither is observable in the protocol.
+- `protocol/mlkem-braid.md`, "Receiving": `Ct1Acknowledged` takes transition
+  (11) when the completed `ek_vector` validates, and stays while the decoder
+  is short. Its bullet now has the same shape as `Ct1Sampled`'s; the
+  "Otherwise" it replaces could be read as following a failed validation
+  (G3-06).
+- `protocol/sparse-pq-ratchet.md`, "What this ratchet assumes underneath it":
+  receiving no longer returns "the epoch the sender was working in". The
+  ML-KEM Braid returns the epoch of the state its receive leaves it in, less
+  one, which at transition (5) is the epoch just completed, as mlkem-braid.md
+  and ADR-0007 say. The ratchet does not use the value (G3-08).
+- `README.md`, Status: identities-and-devices.md specifies signing and
+  verifying as well as the identity key's secret and application signatures.
+  The G2-07 entry above says ADR-0007 keeps the departure, where it said the
+  departure was undecided (G3-07).
 
 ## [0.1.0] - 2026-09-11
 

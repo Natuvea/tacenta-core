@@ -1130,10 +1130,11 @@ of headroom left.** The reason is the same in all three crates and is not a
 weakness of the proofs. Each crate reserves the top value of the counter it
 steps -- the classical ratchet's clock clamps at `MAX_EVENTS = u32::MAX - 1`,
 the sparse ratchet's `advance` refuses the step to `epoch == u64::MAX`, the
-Braid's `step_receive` refuses the same in transitions (5) and (13) -- so that
-no state a crate's operations produce is one its own decoder refuses. The
-models reserve nothing; they count in `Nat`. So the code stops one step before
-the model does, the refinement theorems ask for that step
+Braid's `step_receive` refuses the same in transitions (5) and (13), as
+`tacenta-spec/protocol/mlkem-braid.md` numbers them in "The state machine" --
+so that no state a crate's operations produce is one its own decoder refuses.
+The models reserve nothing; they count in `Nat`. So the code stops one step
+before the model does, the refinement theorems ask for that step
 (`events + 1 < u32::MAX`, `epoch + 1 < u64::MAX`), and no `invariant()` can
 supply it, because the state at the last unreserved value is an ordinary state
 the crate produces, decodes and goes on operating on. The headroom is
@@ -2113,7 +2114,8 @@ re-translation:
   counting where the real code fails closed.
 
   Those two sites now also **reserve** `u64::MAX`: transitions (5) and (13)
-  refuse the step that would land on it rather than taking it, so what the
+  (`tacenta-spec/protocol/mlkem-braid.md`, "The state machine") refuse the
+  step that would land on it rather than taking it, so what the
   transitions produce and what `read_epoch` accepts are the same set of
   states. That closes the last part of this entry that was only "in
   principle": `epoch < u64::MAX` is now a property of every state a run of the
