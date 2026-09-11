@@ -173,8 +173,35 @@ pub fn encode_kem(pk: &[u8]) -> Vec<u8> {
     out
 }
 
+/// Whether `k` is the one encoding of its X25519 public key: the top bit of the
+/// last byte clear, and the little-endian value below p = 2^255 - 19.
+///
+/// X25519 ignores bit 255 and reduces modulo p, so without this check two byte
+/// strings name the same key, and `DecodeEC` promises one encoding per key
+/// (session-establishment.md). With bit 255 clear, the value reaches p only when
+/// the last byte is `0x7f`, the thirty bytes between are all `0xff`, and the
+/// first byte is at least `0xed`.
+///
+/// The loop has no early exit, the same shape as the decoders' loops, so the
+/// translation sees a single path through it.
+fn is_canonical_x25519(k: &Key) -> bool {
+    if k[31] >= 0x80 {
+        return false;
+    }
+    let mut middle_all_ff = true;
+    let mut i = 1;
+    while i < 31 {
+        if k[i] != 0xff {
+            middle_all_ff = false;
+        }
+        i += 1;
+    }
+    !(k[31] == 0x7f && middle_all_ff && k[0] >= 0xed)
+}
+
 /// `DecodeEC`: read a curve public key back from its `EncodeEC` form, or `None`
-/// if the bytes are not one.
+/// if the bytes are not one. A key that is not its own canonical encoding is not
+/// one (`is_canonical_x25519`).
 pub fn decode_ec(bytes: &[u8]) -> Option<Key> {
     if bytes.len() == ENCODE_EC_LEN && bytes[0] == ENCODE_EC_CURVE25519 {
         let mut k = [0u8; 32];
@@ -186,7 +213,11 @@ pub fn decode_ec(bytes: &[u8]) -> Option<Key> {
             k[i] = bytes[i + 1];
             i += 1;
         }
-        Some(k)
+        if is_canonical_x25519(&k) {
+            Some(k)
+        } else {
+            None
+        }
     } else {
         None
     }
@@ -208,6 +239,34 @@ mod tests {
     fn encode_ec_round_trips() {
         let k: Key = [0x5a; 32];
         assert_eq!(decode_ec(&encode_ec(&k)), Some(k));
+    }
+
+    #[test]
+    fn decode_ec_refuses_a_second_spelling_of_a_key() {
+        // Bit 255 set on an otherwise ordinary key.
+        let k: Key = [0x5a; 32];
+        let mut high = encode_ec(&k);
+        high[32] |= 0x80;
+        assert_eq!(decode_ec(&high), None, "bit 255 set");
+
+        // p = 2^255 - 19 itself, and the largest value with bit 255 clear.
+        let mut p: Key = [0xff; 32];
+        p[0] = 0xed;
+        p[31] = 0x7f;
+        assert_eq!(decode_ec(&encode_ec(&p)), None, "p is not below p");
+        let mut top: Key = [0xff; 32];
+        top[31] = 0x7f;
+        assert_eq!(decode_ec(&encode_ec(&top)), None, "2^255 - 1");
+
+        // p - 1 is the largest canonical value and zero the smallest, and a key
+        // one byte off the pattern of p is canonical.
+        let mut below = p;
+        below[0] = 0xec;
+        assert_eq!(decode_ec(&encode_ec(&below)), Some(below), "p - 1");
+        assert_eq!(decode_ec(&encode_ec(&[0u8; 32])), Some([0u8; 32]), "zero");
+        let mut near = p;
+        near[15] = 0xfe;
+        assert_eq!(decode_ec(&encode_ec(&near)), Some(near), "off the pattern");
     }
 
     #[test]

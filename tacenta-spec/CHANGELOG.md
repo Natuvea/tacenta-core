@@ -6,6 +6,11 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `protocol/session-establishment.md`: `DecodeEC` accepts exactly one encoding
+  of each curve key. It refuses a key whose bit 255 is set, and a key whose
+  value is at least p = 2^255 - 19. This is message-format.md's
+  single-encoding principle applied to curve keys, which X25519 alone does
+  not enforce. An honest key generator produces neither form.
 - `protocol/session-persistence.md`: a "Validated, not only parsed"
   principle and, per format, the semantic rules the reader refuses on after
   the field-by-field read: for the session, the ratchet private key matching

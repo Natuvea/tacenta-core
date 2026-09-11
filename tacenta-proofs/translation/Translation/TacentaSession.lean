@@ -281,8 +281,57 @@ def encode_kem (pk : Slice Std.U8) : Result (alloc.vec.Vec Std.U8) := do
     alloc.vec.Vec.push (alloc.vec.Vec.new Std.U8) ENCODE_KEM_ML_KEM_1024
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out pk
 
+/-- [tacenta_session::is_canonical_x25519]: loop body 0:
+    Source: 'session/src/lib.rs', lines 193:4-198:5 -/
+@[rust_loop_body]
+def is_canonical_x25519_loop.body
+  (k : Array Std.U8 32#usize) (middle_all_ff : Bool) (i : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if i < 31#usize
+  then
+    let i1 ← Array.index_usize k i
+    let middle_all_ff1 ← if i1 != 255#u8
+                           then ok false
+                           else ok middle_all_ff
+    let i2 ← i + 1#usize
+    ok (cont (middle_all_ff1, i2))
+  else ok (done middle_all_ff)
+
+/-- [tacenta_session::is_canonical_x25519]: loop 0:
+    Source: 'session/src/lib.rs', lines 193:4-198:5 -/
+@[rust_loop]
+def is_canonical_x25519_loop
+  (k : Array Std.U8 32#usize) (middle_all_ff : Bool) (i : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (middle_all_ff1, i1) => is_canonical_x25519_loop.body k middle_all_ff1
+      i1)
+    (middle_all_ff, i)
+
+/-- [tacenta_session::is_canonical_x25519]:
+    Source: 'session/src/lib.rs', lines 187:0-200:1 -/
+def is_canonical_x25519 (k : Array Std.U8 32#usize) : Result Bool := do
+  let i ← Array.index_usize k 31#usize
+  if i >= 128#u8
+  then ok false
+  else
+    let middle_all_ff ← is_canonical_x25519_loop k true 1#usize
+    let i1 ← Array.index_usize k 31#usize
+    let b ←
+      if i1 = 127#u8
+      then
+        if middle_all_ff
+        then do
+             let i2 ← Array.index_usize k 0#usize
+             ok (i2 >= 237#u8)
+        else ok false
+      else ok false
+    ok (¬ b)
+
 /-- [tacenta_session::decode_ec]: loop body 0:
-    Source: 'session/src/lib.rs', lines 185:8-188:9
+    Source: 'session/src/lib.rs', lines 212:8-215:9
     Visibility: public -/
 @[rust_loop_body]
 def decode_ec_loop.body
@@ -299,7 +348,7 @@ def decode_ec_loop.body
   else ok (done k)
 
 /-- [tacenta_session::decode_ec]: loop 0:
-    Source: 'session/src/lib.rs', lines 185:8-188:9
+    Source: 'session/src/lib.rs', lines 212:8-215:9
     Visibility: public -/
 @[rust_loop]
 def decode_ec_loop
@@ -311,7 +360,7 @@ def decode_ec_loop
     (k, i)
 
 /-- [tacenta_session::decode_ec]:
-    Source: 'session/src/lib.rs', lines 178:0-193:1
+    Source: 'session/src/lib.rs', lines 205:0-224:1
     Visibility: public -/
 def decode_ec
   (bytes : Slice Std.U8) : Result (Option (Array Std.U8 32#usize)) := do
@@ -323,7 +372,10 @@ def decode_ec
     then
       let k := Array.repeat 32#usize 0#u8
       let k1 ← decode_ec_loop bytes k 0#usize
-      ok (some k1)
+      let b ← is_canonical_x25519 k1
+      if b
+      then ok (some k1)
+      else ok none
     else ok none
   else ok none
 

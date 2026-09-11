@@ -343,7 +343,13 @@ Location: `Translation/SessionT3.lean`, with panic-freedom in
   `SessionT1.HkdfTotal` beneath it carries `N.val ≤ 8160` like the others.)
 - `km_refines_none`, `km_refines_some`, `associated_data_refines`,
   `associated_data_with_kem_refines`: assumption-free, settled by structure.
-- `decode_ec_after_encode_ec`: reading an encoding back gives what was encoded.
+- `decode_ec_after_encode_ec`: when reading an encoding back succeeds, it gives
+  what was encoded. It can refuse: `decode_ec` accepts only a key's canonical
+  encoding (session-establishment.md, `DecodeEC`).
+- `is_canonical_x25519_spec`: the canonicity check `decode_ec` applies computes
+  exactly `canonicalX25519`, which holds when bit 255 is clear and the bytes are
+  not the pattern of a value of at least p = 2^255 - 19. The check's value is
+  proved, not only that it returns.
 - Every function in the session zone is proven panic-free, with the value it
   produces rather than only that it returned.
 

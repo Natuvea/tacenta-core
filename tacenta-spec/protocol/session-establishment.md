@@ -169,6 +169,17 @@ thirty-two byte key, which is what makes the concatenation safe.
 
 This is a requirement on the encoder, not on `AD`, and it is stated here because
 nothing in the shape of `AD` reveals that it depends on one.
+
+**`DecodeEC` accepts exactly one encoding of each key.** The thirty-two key
+bytes are the little-endian u-coordinate of RFC 7748, and X25519 ignores the top
+bit of the last byte and reduces modulo p = 2^255 - 19. So, read loosely, several
+byte strings name the same key. `DecodeEC` refuses every one but the canonical
+encoding: a key whose top bit (bit 255) is set, and a key whose value is at least
+p. An honest key generator never produces either, so no honest key is refused.
+The requirement is message-format.md's single-encoding principle applied to curve
+keys. It matters wherever a value is identified by its bytes rather than by the
+key they name: a second spelling of the same key would otherwise give the same
+value a second identity.
 `Proofs.SessionEstablishment` proves the recoverability from the fixed width and
 gives the counterexample that shows it fails without it; the core pins the width
 in a test.
