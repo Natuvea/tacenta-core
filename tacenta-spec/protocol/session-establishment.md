@@ -128,9 +128,14 @@ prekeys and later compromise `IKB` to recover the secret, which would defeat
 forward secrecy.
 
 She also refuses a bundle before encapsulating when its identity key is not the
-one she set out to reach (when she names one), or when its one-time curve
-prekey and that prekey's identifier disagree about whether one is present
-(message-format.md). Both sides refuse a Diffie-Hellman output that is not
+one she set out to reach (when she names one), when its one-time curve prekey
+and that prekey's identifier disagree about whether one is present
+(message-format.md), or when its identity key, signed prekey or one-time curve
+prekey is not the canonical encoding of a curve public key (message-format.md,
+Curve public keys). A bundle the bundle decoder returned never holds such a
+key. The check is for a bundle that reaches her some other way, and it keeps
+every curve public key her session stores canonical (session-persistence.md,
+Session, Semantic rules). Both sides refuse a Diffie-Hellman output that is not
 contributory, which a low-order public key produces.
 
 She then generates `EKA`, encapsulates `(CT, SS) = PQKEM-ENC(PQPKB)`, and
@@ -248,14 +253,12 @@ accepts it only if it is a responder's session and both of these hold:
 
 It then decrypts the ratchet message inside. Otherwise, and always on an
 initiator's session, it refuses the message (`NotARepeatedInitial`). The
-message's two fields are canonical encodings, since it decoded. So is
-`established_ephemeral` in every session a reader accepts, and
-`peer_identity_public` in every session establishment builds, since it is the
-key the establishing message's decoder accepted. A key has one canonical
+message's two fields are canonical encodings, since it decoded. So are
+`established_ephemeral` and `peer_identity_public`, in every session
+establishment builds and in every session a reader accepts
+(session-persistence.md, Session, Semantic rules). A key has one canonical
 encoding, so neither field of a genuine repeat can be spelled another way and
-still match. The session reader does not require `peer_identity_public` to be
-canonical, though, and a session read from storage with a re-spelled one
-refuses every repeat (session-persistence.md, Session, Semantic rules).
+still match.
 
 The other fields, `kem_ciphertext` and the three identifiers, are not
 compared: the session keeps none of them, and keeping them would change its
@@ -457,7 +460,8 @@ depends on that choice.
     message), under the rule `DecodeEC` states (Sending the initial message).
   - A prekey bundle's `identity_key`, `signed_prekey` and `one_time_prekey`,
     and a composite header's `dh`, are checked by the decoders that read them
-    (message-format.md, Curve public keys).
+    (message-format.md, Curve public keys). Alice checks a bundle's three
+    again before she uses it (Sending the initial message).
   - The bundle's identity key meets the check a second time when its
     signatures are verified (identities-and-devices.md, Verifying a signature,
     step 1), which applies to whatever key a signature is verified under.
