@@ -47,9 +47,10 @@ interoperating with anyone.
   some later message, the first two for good. So each type carries an
   `invariant`, the relations between its fields that its constructors
   establish and its operations preserve, and its decoder calls it last and
-  refuses on it. The rules for the session and the prekey store are listed
-  below, under "Semantic rules"; the leaf formats' rules are each crate's own
-  `invariant`, which this page does not yet restate. They are checked as an inductive invariant: the tests and the fuzz
+  refuses on it. The rules are listed below: for the session and the prekey
+  store under each format's "Semantic rules", and for the leaf formats under
+  "Semantic rules of the leaf formats". They are checked as an inductive
+  invariant: the tests and the fuzz
   targets in `tacenta-core` assert the predicate after every operation, not
   only at import.
 - **Being inductive constrains the operations, not only the predicates.** A
@@ -134,19 +135,63 @@ skipped = epoch(8) || n(8) || key(32)
 ## Braid
 
 ```
-braid = version(1) || state_tag(1) || fields...
+braid = version(1) || state_tag(1) || fields
+
+epoch = 8 bytes, big-endian
+auth  = root_key(32) || mac_key(32)
+
+state_tag  state                  fields
+0          KeysUnsampled          epoch || auth
+1          KeysSampled            epoch || auth || key_pair || hdr_enc
+2          HeaderSent             epoch || auth || key_pair || ct1_dec || ek_enc
+3          Ct1Received            epoch || auth || key_pair || ct1 || ek_enc
+4          EkSentCt1Received      epoch || auth || key_pair || ct1 || ct2_dec
+5          NoHeaderReceived       epoch || auth || hdr_dec
+6          HeaderReceived         epoch || auth || header || ek_dec
+7          Ct1Sampled             epoch || auth || header || encaps || ct1 || ct1_enc || ek_dec
+8          EkReceivedCt1Sampled   epoch || auth || encaps || ct1 || ek_vector || ct1_enc
+9          Ct1Acknowledged        epoch || auth || header || encaps || ct1 || ek_dec
+10         Ct2Sampled             epoch || auth || ct2_enc
+11         Failed                 (nothing)
 ```
 
 `state_tag` is the same stable 0-11 numbering `Braid::state_tag` already
 reports (`mlkem-braid.md`'s eleven live states, plus `Failed`, for twelve
-tags in total). Each tag's fields
-are that state's own, in declaration order; every variable-length field
-(`Vec<u8>`, and each sub-format's own encoding: the KEM key pair, the
-erasure codec's encoder/decoder state, the encapsulation state) is wrapped
-`len(4) || bytes`, so a sub-format's own decoder always sees exactly the
-slice it produced and nothing else. `Auth` (the Ratcheted Authenticator) is
-its two 32-byte keys back to back, 64 bytes, no presence tag: every live
-state carries one. `Failed` carries no fields at all.
+tags in total). `auth` is the Ratcheted Authenticator's two keys back to
+back, with no presence tag: every live state carries one.
+
+Every field after `auth` is written `len(4) || bytes`, so a sub-format's own
+decoder always sees exactly the slice it produced and nothing else:
+
+- `header` (64 bytes), `ct1` (1,408 bytes) and `ek_vector` (1,536 bytes) are
+  the KEM's header, first ciphertext half and encapsulation-key vector, raw.
+- `key_pair` (11,872 bytes) and `encaps` (2,592 bytes) are `tacenta-kem`'s
+  incremental key pair and encapsulation state: each is its underlying bytes,
+  with no version byte and no structure this page relies on, and each reader
+  refuses any other length.
+- `hdr_enc`, `ek_enc`, `ct1_enc`, `ct2_enc` and `hdr_dec`, `ek_dec`, `ct1_dec`,
+  `ct2_dec` are erasure encoders and decoders, in the formats below.
+
+A reader refuses a tag above 11, a stored `epoch` of `u64::MAX` (see the
+principles above), and any bytes left after the last field.
+
+### Erasure coder sub-formats
+
+```
+encoder  = next(2) || exhausted(1) || count(4) || chunk(32)[count]
+decoder  = size(8) || needed(8) || count(4) || codeword[count]
+codeword = index(2) || chunk(32)
+```
+
+All integers are big-endian. `exhausted` is `0x00` or `0x01` and nothing else.
+`size` and `needed` are 64-bit on every platform, so a state moves between
+word sizes. A reader refuses a `needed` above 65,536 or a `size` above
+2,097,152 (65,536 chunks of 32 bytes) before narrowing either to its own word
+size, so a 32-bit reader never keeps the low half of a value a 64-bit reader
+would refuse. A count larger than the buffer could hold is refused before any
+entry is read, and bytes left after the last entry are refused. Neither
+format has a version byte: they appear only inside the Braid's, which
+versions them (CONSTANTS.md).
 
 ## Triple ratchet state
 
@@ -362,14 +407,46 @@ key first.
   sizes anything, as noted above; the rule here is over what was read, which
   is the only point at which the tags can be counted by.)
 
+## Semantic rules of the leaf formats
+
+Each leaf format's reader, having read every field, refuses as malformed a
+state its crate's `invariant` is false of. The rules are these.
+
+- **Ratchet state.** The skipped store holds at most `MAX_SKIPPED_STORE` keys;
+  the received-message clock `events` is below `u32::MAX`; no stored key's
+  `stored_at` is later than `events`; no two stored keys share a ratchet key
+  and message number; and a receiving chain key is present only if a sending
+  chain key and the peer's ratchet public key are.
+- **Sparse ratchet state.** The skipped store holds at most
+  `MAX_SKIPPED_STORE` keys; every chains entry's epoch `e` satisfies
+  `e <= epoch < e + EPOCHS_KEPT`, the sum saturating; no two entries share an
+  epoch; the current `epoch` has an entry; every stored key's epoch has an
+  entry; and no two stored keys share an epoch and message number.
+- **Triple ratchet state.** Both ratchets satisfy their own rules; and while
+  the classical ratchet still shows the role it started in -- a sending chain
+  and no receiving chain for the sender, neither for the receiver -- the sparse
+  ratchet's `direction` is `A2b` exactly when that role is the sender's.
+- **Braid.** Every live state's `epoch` is at least 1, and every `header`,
+  `ct1` and `ek_vector` has the length given above. Every erasure coder
+  satisfies its own rules below and is sized for the value it carries: the
+  `hdr` coders for the header and a 32-byte MAC (96 bytes), the `ek` coders for
+  1,536 bytes, the `ct1` coders for 1,408, and the `ct2` coders for the second
+  ciphertext half and a MAC (192 bytes). An encoder is sized for `n` bytes when
+  it holds `ceil(n / 32)` chunks, and a decoder when its `size` is `n`. `Failed`
+  is always accepted.
+- **Erasure encoder.** It holds at most `MAX_CODEWORDS` (65,536) chunks, and it
+  is `exhausted` only when `next` is `u16::MAX`.
+- **Erasure decoder.** `needed` is `ceil(size / 32)` and at most 65,536; it
+  holds at most `needed` codewords; and no two share an index.
+
 ## Rejection
 
 A decoder rejects, the same way message-format.md's does: an unrecognised
 version, a buffer too short for its fixed fields or a declared length that
 overruns the input, and trailing bytes after a value that should have
 ended; and, having read every field, a state its type's `invariant` is
-false of (the semantic rules above; the leaf formats' own predicates are
-each crate's to state). Each of the formats above carries its own error
+false of (the semantic rules above). Each of the formats above
+carries its own error
 type, distinguishing "wrong version" from "short or malformed" where a
 caller might act on the difference (refuse to start vs. treat as corrupt),
 the session and the prekey store distinguish "non-canonical" from both,
