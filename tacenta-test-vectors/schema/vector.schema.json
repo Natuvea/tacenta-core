@@ -52,8 +52,8 @@
             "description": "Expected output for a valid vector, lowercase hex. For the files tacenta-test-vectors/README.md, Vector layouts, describes, that section says what the output is."
           },
           "refusal": {
-            "enum": ["wrong-version", "short-or-malformed"],
-            "description": "For an invalid vector of a persisted-state reader (vectors/persistence/ratchet-state.json and sparse-ratchet-state.json, where every invalid vector carries one): which of the two refusals tacenta-spec/protocol/session-persistence.md, Rejection, names the reader gives the input. wrong-version is an unrecognised version; short-or-malformed is everything else a leaf reader refuses, a state its semantic rules exclude included. Carried only by an invalid vector."
+            "enum": ["wrong-version", "short-or-malformed", "counter-exhaustion"],
+            "description": "Carried only by an invalid vector, in vectors/persistence/ratchet-state.json and sparse-ratchet-state.json, where every invalid vector carries one. For stored bytes offered to a reader: which of the two refusals tacenta-spec/protocol/session-persistence.md, Rejection, names the reader gives the input. wrong-version is an unrecognised version; short-or-malformed is everything else a leaf reader refuses, a state its semantic rules exclude included. For operations whose last step is refused: counter-exhaustion, the refusal ratchet.md (Sending and receiving) and sparse-pq-ratchet.md (Sending, Receiving) give a step past a counter's ceiling (ChainExhausted)."
           },
           "fields": {
             "type": "object",

@@ -33,9 +33,11 @@ pub struct Vector {
     /// carried in place of `output` (schema/vector.schema.json).
     #[serde(default)]
     pub fields: Option<BTreeMap<String, String>>,
-    /// Which refusal a persisted-state reader gives an invalid vector's input
-    /// (session-persistence.md, Rejection): `wrong-version` or
-    /// `short-or-malformed`.
+    /// Which refusal an invalid persisted-state vector names: for stored
+    /// bytes, the one the reader gives (session-persistence.md, Rejection),
+    /// `wrong-version` or `short-or-malformed`; for operations whose last step
+    /// is refused, `counter-exhaustion` (ratchet.md, Sending and receiving;
+    /// sparse-pq-ratchet.md, Sending and Receiving).
     #[serde(default)]
     pub refusal: Option<String>,
 }
@@ -618,21 +620,71 @@ fn counted(entries: &[u8], width: usize) -> Result<[u8; 4], String> {
         .map_err(|_| "too many entries".to_string())
 }
 
+/// Where a vector's steps, replayed, ended: every step taken, or the step at
+/// `index` refused, with the name a vector gives the refusal and whether it
+/// was the last step.
+enum Replayed {
+    Taken,
+    Refused {
+        index: usize,
+        last: bool,
+        refusal: String,
+    },
+}
+
+/// A replay against the vector's `result`: a valid vector's steps are all
+/// taken, and an invalid vector's are taken up to the last, which is refused
+/// with the refusal the vector names. `Ok(true)` when the state reached is to
+/// be written and checked; an invalid vector reaches no state to check.
+fn replay_verdict(v: &Vector, replayed: Replayed) -> Result<bool, String> {
+    match (expects_success(v)?, replayed) {
+        (true, Replayed::Taken) => Ok(true),
+        (true, Replayed::Refused { index, refusal, .. }) => {
+            Err(format!("step {index}: refused ({refusal})"))
+        }
+        (false, Replayed::Taken) => {
+            Err("every step was taken, where the vector says the last is refused".to_string())
+        }
+        (
+            false,
+            Replayed::Refused {
+                index,
+                last: false,
+                refusal,
+            },
+        ) => Err(format!(
+            "step {index}: refused ({refusal}) before the last step"
+        )),
+        (false, Replayed::Refused { refusal, .. }) => refusal_is(v, &refusal).map(|()| false),
+    }
+}
+
+/// The name a vector gives a refused operation of the classical ratchet:
+/// `ChainExhausted` is `counter-exhaustion`. No vector names any other, so
+/// any other is reported as the error.
+fn ratchet_refusal(e: &tacenta_core::ratchet::RatchetError) -> String {
+    match e {
+        tacenta_core::ratchet::RatchetError::ChainExhausted => "counter-exhaustion".to_string(),
+        other => format!("{other:?}"),
+    }
+}
+
 /// A ratchet-state vector's steps, replayed on `state`: `0x00` is a send,
 /// and `0x01` a receive followed by the header's `dh(32) || pn(4) || n(4)`
-/// and the step's `dh_recv(32) || dh_send(32) || new_pub(32)`.
+/// and the step's `dh_recv(32) || dh_send(32) || new_pub(32)`. The replay
+/// stops at the first step the crate refuses.
 fn replay_ratchet_steps(
     state: &mut tacenta_core::ratchet::State,
     steps: &[u8],
-) -> Result<(), String> {
+) -> Result<Replayed, String> {
     use tacenta_core::ratchet;
     let mut at = 0;
     let mut i = 0;
     while at < steps.len() {
-        match steps[at] {
+        let taken = match steps[at] {
             0x00 => {
-                ratchet::send(state).map_err(|e| format!("step {i}: send refused: {e:?}"))?;
                 at += 1;
+                ratchet::send(state).map(|_| ())
             }
             0x01 => {
                 let r = steps
@@ -643,6 +695,7 @@ fn replay_ratchet_steps(
                     pn: be32(&r[32..36])?,
                     n: be32(&r[36..40])?,
                 };
+                at += 137;
                 ratchet::receive(
                     state,
                     &header,
@@ -650,14 +703,20 @@ fn replay_ratchet_steps(
                     &array32(&r[72..104])?,
                     array32(&r[104..136])?,
                 )
-                .map_err(|e| format!("step {i}: receive refused: {e:?}"))?;
-                at += 137;
+                .map(|_| ())
             }
             other => return Err(format!("step {i}: unknown operation {other:#04x}")),
+        };
+        if let Err(e) = taken {
+            return Ok(Replayed::Refused {
+                index: i,
+                last: at == steps.len(),
+                refusal: ratchet_refusal(&e),
+            });
         }
         i += 1;
     }
-    Ok(())
+    Ok(Replayed::Taken)
 }
 
 /// A classical ratchet state's stored bytes. Either built by operations --
@@ -665,7 +724,8 @@ fn replay_ratchet_steps(
 /// `peer_pub` and `dh_out`; `01` the responder, `init_receiver`, with `sk` and
 /// `our_pub`) or from `start`, stored bytes the reader accepts, then `steps`
 /// -- and then written, which must give `output`, and read back and written
-/// again, which must give it too. Or offered as `bytes` to the reader, which
+/// again, which must give it too; or, for an invalid vector, with the last
+/// step refused with its `refusal`. Or offered as `bytes` to the reader, which
 /// accepts them with `fields` or refuses them with `refusal`.
 fn check_ratchet_state(v: &Vector) -> Result<(), String> {
     use tacenta_core::ratchet::{self, RatchetDecodeError, State};
@@ -707,7 +767,9 @@ fn check_ratchet_state(v: &Vector) -> Result<(), String> {
             other => return Err(format!("unknown role {}", hex::encode(other))),
         }
     };
-    replay_ratchet_steps(&mut state, &input(v, "steps")?)?;
+    if !replay_verdict(v, replay_ratchet_steps(&mut state, &input(v, "steps")?)?)? {
+        return Ok(());
+    }
     let stored = state.to_bytes();
     eq(&stored, &bytes(&v.output)?)?;
     let back = State::from_bytes(&stored)
@@ -775,9 +837,11 @@ fn ratchet_fields_agree(
 /// A sparse-ratchet-state vector's steps, replayed on `state`. Each is
 /// `op(1) || epoch(8) || output_present(1) || output_epoch(8) ||
 /// output_key(32)`, the output zeroed when absent, and a receive (`op` `01`)
-/// is followed by the message number `n(8)`; a send's `op` is `00`.
-fn replay_sparse_steps(state: &mut tacenta_spqr::State, steps: &[u8]) -> Result<(), String> {
-    use tacenta_spqr::Output;
+/// is followed by the message number `n(8)`; a send's `op` is `00`. The replay
+/// stops at the first step the crate refuses, and `ChainExhausted` is named
+/// `counter-exhaustion`, as for the classical ratchet.
+fn replay_sparse_steps(state: &mut tacenta_spqr::State, steps: &[u8]) -> Result<Replayed, String> {
+    use tacenta_spqr::{Output, SpqrError};
     let mut at = 0;
     let mut i = 0;
     while at < steps.len() {
@@ -790,12 +854,10 @@ fn replay_sparse_steps(state: &mut tacenta_spqr::State, steps: &[u8]) -> Result<
             0x01 => Some(Output::new(be64(&r[10..18])?, array32(&r[18..50])?)),
             other => return Err(format!("step {i}: output presence {other:#04x}")),
         };
-        match r[0] {
+        let taken = match r[0] {
             0x00 => {
-                state
-                    .send(epoch, out.as_ref())
-                    .map_err(|e| format!("step {i}: send refused: {e:?}"))?;
                 at += 50;
+                state.send(epoch, out.as_ref()).map(|_| ())
             }
             0x01 => {
                 let n = be64(
@@ -803,16 +865,24 @@ fn replay_sparse_steps(state: &mut tacenta_spqr::State, steps: &[u8]) -> Result<
                         .get(at + 50..at + 58)
                         .ok_or_else(|| format!("step {i}: a receive step cut short"))?,
                 )?;
-                state
-                    .receive(epoch, out.as_ref(), n)
-                    .map_err(|e| format!("step {i}: receive refused: {e:?}"))?;
                 at += 58;
+                state.receive(epoch, out.as_ref(), n).map(|_| ())
             }
             other => return Err(format!("step {i}: unknown operation {other:#04x}")),
+        };
+        if let Err(e) = taken {
+            return Ok(Replayed::Refused {
+                index: i,
+                last: at == steps.len(),
+                refusal: match e {
+                    SpqrError::ChainExhausted => "counter-exhaustion".to_string(),
+                    other => format!("{other:?}"),
+                },
+            });
         }
         i += 1;
     }
-    Ok(())
+    Ok(Replayed::Taken)
 }
 
 /// A sparse ratchet state's stored bytes, the same two ways as
@@ -849,7 +919,9 @@ fn check_sparse_ratchet_state(v: &Vector) -> Result<(), String> {
             other => return Err(format!("unknown direction {}", hex::encode(other))),
         }
     };
-    replay_sparse_steps(&mut state, &input(v, "steps")?)?;
+    if !replay_verdict(v, replay_sparse_steps(&mut state, &input(v, "steps")?)?)? {
+        return Ok(());
+    }
     let stored = state.to_bytes();
     eq(&stored, &bytes(&v.output)?)?;
     let back = State::from_bytes(&stored)

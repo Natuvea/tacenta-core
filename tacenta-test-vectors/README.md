@@ -164,7 +164,11 @@ vector has one of two shapes.
       for `A2b` and `01` for `B2a`, from `sk` (sparse-pq-ratchet.md,
       Initialisation).
   - `steps` is the operations in order, back to back. It is empty when there
-    are none, and every operation in it is accepted.
+    are none. In a valid vector every operation in it is accepted. In an
+    invalid vector every operation but the last is accepted and the last is
+    refused, and its `refusal` is `counter-exhaustion`: a step past a
+    counter's ceiling (ratchet.md, Sending and receiving; sparse-pq-ratchet.md,
+    Sending and Receiving).
     - In `ratchet-state.json`, `00` is a send. `01` is a receive, followed by
       the header's `dh(32) || pn(4) || n(4)`, then `dh_recv(32) ||
       dh_send(32) || new_pub(32)`. Those three are `DH(DHs, header key)`,
@@ -178,12 +182,13 @@ vector has one of two shapes.
       chain and `01` receives on it (sparse-pq-ratchet.md, Sending and
       Receiving). The output is the agreement's secret and its epoch, or
       `output_present` `00` and zeros when the agreement gave none.
-  - `output` is the stored bytes of the state reached. A runner must write
+  - In a valid vector, `output` is the stored bytes of the state reached. A
+    runner must write
     that state as `output`, and read `output` back to a state it writes as
     `output` again.
 - **Stored bytes**, when the one input is `bytes`: a stored state offered to
   the reader.
-  - Each built-by-operations vector has one of these beside it, whose id is
+  - Each valid built-by-operations vector has one of these beside it, whose id is
     its own with `-read-back` added and whose `bytes` are its `output`.
   - A valid vector carries `fields`, the values the reader read. An accepted
     input is canonical, so the state read is written back as `bytes`.
@@ -202,7 +207,7 @@ vector has one of two shapes.
     `short-or-malformed` is every other refusal, a state that breaks a
     semantic rule included.
 
-Three things no vector here pins.
+Two things no vector here pins.
 
 - **A short buffer with another version.** A buffer too short for its fixed
   fields that also has a version byte other than `0x01` may be refused as
@@ -213,13 +218,6 @@ Three things no vector here pins.
 - **A store of exactly `MAX_SKIPPED_STORE` keys.** 2,001 keys are refused in
   both files, but the accepted side of the bound is not pinned, since its
   vector would be about 290 kilobytes.
-- **A step past a counter's ceiling.** The operations vectors stop at the
-  ceilings the pages state: the classical ratchet's clock at `u32::MAX - 1`,
-  `ns` and `nr` at `u32::MAX`, a sparse chain's counter at `u64::MAX`, and the
-  sparse ratchet's epoch at `u64::MAX - 1`. The next step is refused
-  (ratchet.md, Sending and receiving; sparse-pq-ratchet.md, Sending), but the
-  model's operations count in the naturals and do not refuse it.
-
 ### The protobuf profile: `vectors/protobuf/`
 
 The page is protobuf-profile.md.
