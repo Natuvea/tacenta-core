@@ -176,6 +176,7 @@ and `Decoder`.
 | Chunks: 16 big-endian elements each, `k = ceil(n / 32)`, the last padded with zero bytes | The erasure code, Chunks | `erasure-encode.json` (`one-chunk-padded`, `last-chunk-padded`), `erasure-decode.json` (`short-value-truncated`) |
 | Systematic codewords `i < k` are the chunks | The erasure code, Codewords | every `erasure-encode.json` vector; `erasure-decode.json` `systematic-in-order` |
 | Parity codewords `i >= k`: `P_j(i)` through the chunks | The erasure code, Codewords | `erasure-encode.json`: values of three, four, six and 48 chunks (the Braid's header with MAC, `ct2` with MAC and `ek_vector` sizes), at indices up to 4,096 |
+| An encoder for zero bytes: `k = 0`, every codeword 32 zero bytes, and indices 0 to 65,535 issued as for any other `k` | The erasure code, Codewords | `erasure-encode.json` `zero-length-value` (indices 0, 1, 2 and 65,535; `stream_length` 65,536) |
 | The encoder issues indices in order, once each, and nothing after 65,535 | The erasure code, Codewords; Encoder lifetime | `erasure-encode.json` (the runner checks every issued index), `stream-exhaustion` (`stream_length` 65,536) |
 | Decoding from any `k` codewords, in any order, at any indices | The erasure code, Decoding | `erasure-decode.json` (`parity-only`, `mixed-out-of-order`, `far-indices`, `ek-vector-two-chunks-lost`) |
 | First copy at an index wins, whatever a later one holds; a held chunk `t` is taken as it is | The erasure code, Decoding | `erasure-decode.json` (`later-copy-ignored`, `first-copy-wins-though-corrupt`, `held-chunk-taken-as-it-is`, `repeats-do-not-count`) |
@@ -187,8 +188,6 @@ would be more than two megabytes. The text says such an encoder holds only the
 first 65,536 chunks (The erasure code, Codewords), `Model.Erasure` and
 `tacenta-erasure` both keep only those, and `Model.Erasure` proves the cap
 changes no codeword an encoder issues (`Encoder.new_issue_nextCodeword`).
-Parity codewords of a zero-length value, for which "the polynomial of degree
-below `k`" has no points, are not pinned either.
 
 ### Addition: the store's total bound
 

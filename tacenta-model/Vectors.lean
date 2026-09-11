@@ -876,7 +876,10 @@ def erasureEncodeFile (_ : Unit) : String :=
         m1536 [46, 47, 48, 1000] false,
       erasureEncodeVector "stream-exhaustion"
         "the stream issues indices 0 to 65535, one codeword each, and nothing after; stream_length is how many it issues in all"
-        m32 [0, 1, 65534, 65535] true ]
+        m32 [0, 1, 65534, 65535] true,
+      erasureEncodeVector "zero-length-value"
+        "a value of zero bytes is zero chunks, so the polynomials have no points and every codeword is 32 zero bytes; the stream still issues indices 0 to 65535, one codeword each, and nothing after"
+        [] [0, 1, 2, 65535] true ]
 
 @[never_extract]
 def erasureDecodeVector (id comment : String) (size : Nat)
