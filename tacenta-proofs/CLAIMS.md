@@ -262,7 +262,10 @@ operation carries it to the model's operation.
 - `receive_refines`: a successful `receive`, given the two agreement outputs
   and the fresh ratchet key as bytes, returns the key `Model.Ratchet.receive`
   returns and a state still related, across the skipped-key hit, the
-  same-chain path and the Diffie-Hellman ratchet path. Under `HmacAgrees`,
+  same-chain path and the Diffie-Hellman ratchet path. The model refuses a
+  same-chain message numbered below `nr` whose key is not stored, so a
+  successful Rust `receive` is never such a message (the Rust returns
+  `OutOfOrder` there). Under `HmacAgrees`,
   `HkdfAgrees` (stated under RFC 5869's `N.val ≤ 8160`, discharged at the
   64- and 80-byte literals), `ZeroizingRoundTrips`, `VecRemoveTotal`
   (stated under `i.val < v.val.length`, discharged from each scan's own loop
@@ -1758,7 +1761,9 @@ kernel proof.
 - Primitive known-answer values: SHA-256 (NIST), HMAC-SHA256 (RFC 4231),
   HKDF-SHA256 (RFC 5869), in both tacenta-model and tacenta-core.
 - Ratchet self-consistency: in-order, out-of-order, and bidirectional agreement,
-  in tacenta-model `Model.Ratchet`.
+  and the refusal of a message delivered a second time on the chain already
+  held (after an in-order receive and after a stored-key receive) with the
+  next message still received, in tacenta-model `Model.Ratchet`.
 - Model-to-core conformance: the ratchet vectors generated from the model,
   replayed against tacenta-core by the Rust runner in tacenta-test-vectors,
   including on every step the expansion of the message key into the AEAD

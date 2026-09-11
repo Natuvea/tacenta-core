@@ -281,6 +281,11 @@ pub enum RatchetError {
     NoSendingChain,
     /// There is no receiving chain after stepping, so a receive is not possible.
     NoReceivingChain,
+    /// The header names the current receiving chain at a number below `nr`, and
+    /// no key for it is stored: that key has already been used, expired or
+    /// evicted, so the message cannot be decrypted. Refused here rather than
+    /// answered with the key at `nr`, which would belong to a different message.
+    OutOfOrder,
     /// The chain's message counter would exceed its range (2^32 messages on one
     /// chain). Returned rather than overflowing, which keeps the counter
     /// arithmetic panic-free without an unprovable bound assumption.
@@ -999,6 +1004,13 @@ fn try_skipped(state: &mut State, header: &Header) -> Option<Key> {
 /// and derive the message key at `header.n`. DH outputs and the fresh sending
 /// key are ignored on a same-chain message.
 ///
+/// **A same-chain message below `nr` with no stored key is refused with
+/// `OutOfOrder`** (ratchet.md, Sending and receiving): its key has already
+/// been used, expired or evicted. The check sits after the skip, which has
+/// nothing to do in that case and leaves the state alone, and before the chain
+/// step, so the refusal changes nothing. After a DH step `nr` is zero, so it
+/// only ever fires on the chain already held.
+///
 /// **On `Err` the state may already have moved.** On an unseen ratchet key the
 /// old chain is skipped and the DH step taken -- new root key, new sending
 /// key, counters reset -- before the skip on the new chain can still refuse;
@@ -1036,6 +1048,9 @@ pub fn receive(
     }
     if let Err(e) = skip_message_keys(state, header.n) {
         return Err(e);
+    }
+    if header.n < state.nr {
+        return Err(RatchetError::OutOfOrder);
     }
     match state.ckr {
         None => Err(RatchetError::NoReceivingChain),
@@ -1164,6 +1179,48 @@ mod tests {
         let mk0_recv = receive(&mut sb, &h0, &DH_AB, &DH_B2A, B2_PUB).unwrap();
         assert_eq!(mk0_send, mk0_recv);
         assert_eq!(mk1_send, mk1_recv);
+    }
+
+    /// A message delivered twice on the chain already held is refused with
+    /// `OutOfOrder`, both after an in-order receive and after its key was taken
+    /// from the store, and the refusal leaves the state exactly as it was. The
+    /// next message is then received with the sender's key. The same cases are
+    /// checked against the model in `Model.Ratchet`.
+    #[test]
+    fn a_same_chain_duplicate_is_refused_and_changes_nothing() {
+        let mut sa = init_sender(&SK, A_PUB, B_PUB, &DH_AB, LabelSet::Tacenta);
+        let (h0, _) = send(&mut sa).unwrap();
+        let (h1, _) = send(&mut sa).unwrap();
+        let (h2, mk2_send) = send(&mut sa).unwrap();
+        let mut sb = init_receiver(&SK, B_PUB, LabelSet::Tacenta);
+
+        // In order, then again.
+        receive(&mut sb, &h0, &DH_AB, &DH_B2A, B2_PUB).unwrap();
+        let before = sb.clone();
+        assert_eq!(
+            receive(&mut sb, &h0, &DH_AB, &DH_B2A, B2_PUB),
+            Err(RatchetError::OutOfOrder)
+        );
+        assert!(sb == before, "a refused duplicate moves nothing");
+
+        // Skipped over by h2 and taken from the store, then again.
+        let mk2_recv = receive(&mut sb, &h2, &DH_AB, &DH_B2A, B2_PUB).unwrap();
+        assert_eq!(mk2_send, mk2_recv);
+        receive(&mut sb, &h1, &DH_AB, &DH_B2A, B2_PUB).unwrap();
+        let before = sb.clone();
+        assert_eq!(
+            receive(&mut sb, &h1, &DH_AB, &DH_B2A, B2_PUB),
+            Err(RatchetError::OutOfOrder)
+        );
+        assert!(sb == before, "a refused duplicate moves nothing");
+
+        // The chain carries on at `nr`.
+        let (h3, mk3_send) = send(&mut sa).unwrap();
+        assert_eq!(
+            receive(&mut sb, &h3, &DH_AB, &DH_B2A, B2_PUB).unwrap(),
+            mk3_send
+        );
+        assert_eq!(sb.receive_count(), 4);
     }
 
     #[test]
