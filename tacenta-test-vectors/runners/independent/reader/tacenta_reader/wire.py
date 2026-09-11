@@ -88,14 +88,30 @@ def encode_ec(key: bytes) -> bytes:
     return bytes([K.ENCODE_EC_BYTE]) + _fixed(key, K.EC_KEY_LEN, "curve key")
 
 
-def decode_ec(encoded: bytes) -> bytes:
-    # session-establishment.md: "a decoder that does not recognise the
-    # leading byte fails"; EncodeEC is fixed at 33 bytes.
+def check_curve_byte(encoded: bytes, what: str = "EncodeEC value") -> None:
+    """33 bytes with the EncodeEC curve byte first: the one check
+    message-format.md's initial-message decoder lists for identity and
+    ephemeral."""
     if len(encoded) != K.ENCODED_EC_LEN:
-        raise DecodeError("EncodeEC value is not 33 bytes")
+        raise DecodeError(f"{what} is not 33 bytes")
     if encoded[0] != K.ENCODE_EC_BYTE:
-        raise DecodeError(f"unrecognised EncodeEC curve byte 0x{encoded[0]:02x}")
-    return bytes(encoded[1:])
+        raise DecodeError(f"{what}: unrecognised EncodeEC curve byte 0x{encoded[0]:02x}")
+
+
+def decode_ec(encoded: bytes) -> bytes:
+    """DecodeEC (session-establishment.md): "a decoder that does not recognise
+    the leading byte fails", and "DecodeEC accepts exactly one encoding of each
+    key": it refuses a key whose top bit (bit 255) is set, and a key whose value
+    is at least p. Which layer applies this to an initial message's keys is
+    GAPS-3.md G3-05; this reader applies it at establishment
+    (pqxdh.handshake_keys), not in decode_initial."""
+    check_curve_byte(encoded)
+    key = bytes(encoded[1:])
+    if key[31] & 0x80:
+        raise DecodeError("EncodeEC key has bit 255 set")
+    if int.from_bytes(key, "little") >= K.CURVE25519_P:
+        raise DecodeError("EncodeEC key is not below p")
+    return key
 
 
 def encode_kem(key: bytes, key_len: int = K.MLKEM1024_EK_LEN) -> bytes:
@@ -239,9 +255,9 @@ class InitialMessage:
 def encode_initial(m: InitialMessage) -> bytes:
     for name, v in (("identity", m.identity), ("ephemeral", m.ephemeral)):
         try:
-            decode_ec(v)
+            check_curve_byte(v, name)
         except DecodeError as e:
-            raise EncodeError(f"{name}: {e}")
+            raise EncodeError(str(e))
     # session-persistence.md: encode_initial "length-prefixes whatever it is
     # given" -- no check on kem_ciphertext's length or on ratchet_message.
     out = bytearray([K.VERSION, K.TYPE_INITIAL])
@@ -273,8 +289,8 @@ def decode_initial(buf: bytes) -> InitialMessage:
     r.take(2, "framing")
     identity = r.take(K.ENCODED_EC_LEN, "identity")
     ephemeral = r.take(K.ENCODED_EC_LEN, "ephemeral")
-    decode_ec(identity)
-    decode_ec(ephemeral)
+    check_curve_byte(identity, "identity")
+    check_curve_byte(ephemeral, "ephemeral")
     ct_len = r.uint(4, "kem_ciphertext_len")
     if ct_len > r.remaining():
         raise DecodeError("kem_ciphertext_len runs past the end of the input")

@@ -160,3 +160,18 @@ def _():
         assert calls == [1]
     finally:
         aead._cbc_decrypt = real
+
+
+@case("AE-12 enc_key, mac_key and iv are bytes 0-31, 32-63 and 64-79 of the 80-byte message-key expansion, in that order; the IV is not sent, so the output is exactly ciphertext || tag",
+      f"{MF}: enc_key, mac_key and iv are bytes 0 to 31, 32 to 63 and 64 to 79 of the expansion's 80-byte output, in that order ... The IV is not sent")
+def _():
+    from tacenta_reader.kdf import hkdf_sha256
+    mk = bytes(range(32))
+    out80 = hkdf_sha256(bytes(32), mk, K.MK_INFO, 80)
+    enc, mac, iv = out80[:32], out80[32:64], out80[64:80]
+    for pt in (b"", b"x" * 15, b"y" * 16, b"z" * 33):
+        sealed = aead.seal(mk, AD, pt)
+        assert sealed == aead.encrypt(enc, mac, iv, AD, pt)
+        assert len(sealed) == 16 * (len(pt) // 16 + 1) + K.AEAD_TAG_LEN
+        assert sealed[-32:] == hmac_sha256(mac, AD + sealed[:-32])
+        assert iv not in sealed[:16] and aead.decrypt(enc, mac, iv, AD, sealed) == pt

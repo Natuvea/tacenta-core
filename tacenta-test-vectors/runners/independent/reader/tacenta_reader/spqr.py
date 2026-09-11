@@ -182,9 +182,17 @@ def receive(state: State, msg_epoch: int, n: int, secret: Optional[bytes] = None
     to_skip = n - 1 - chain.n
     if to_skip > K.MAX_SKIP:
         raise TooManySkipped(f"header demands {to_skip} skips")
-    over = len(s.skipped) + to_skip - K.MAX_SKIPPED_STORE
+    numbers = range(chain.n + 1, n)
+    fresh = sum(1 for m in numbers if (msg_epoch, m) not in s.skipped)
+    over = len(s.skipped) + fresh - K.MAX_SKIPPED_STORE
     if over > 0:
         raise SkippedStoreFull(over)
+    # sparse-pq-ratchet.md, Receiving: "Stepping forward deletes any key stored
+    # for the epoch under a number it is about to store, then stores the keys it
+    # passes, in number order, after every key already in the store" (GAPS-2.md
+    # G2-01, closed). A dict assignment to a held key would keep its old place.
+    for m in numbers:
+        s.skipped.pop((msg_epoch, m), None)
     while chain.n + 1 < n:
         chain.n += 1
         chain.ck, skipped_mk = kdf_chain(chain.ck, chain.n)
