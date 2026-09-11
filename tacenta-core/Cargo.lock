@@ -1108,7 +1108,6 @@ dependencies = [
  "tacenta-erasure",
  "tacenta-kdf",
  "tacenta-kem",
- "tacenta-protobuf",
  "tacenta-ratchet",
  "tacenta-session",
  "tacenta-spqr",

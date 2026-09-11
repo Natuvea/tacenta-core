@@ -99,6 +99,13 @@ bash tooling/check-labels.sh
 echo "== Vector files validate against their schemas =="
 python3 tooling/check-vectors.py
 
+# A second reader of the same vectors, written from tacenta-spec and the
+# vectors alone and never from tacenta-core or tacenta-model (ADR-0006). What
+# it cannot reproduce, or a refusal the specification states that it cannot
+# confirm, is a question about the specification, not about this runner.
+echo "== Independent reader: the specification and the vectors only =="
+python3 tacenta-test-vectors/runners/independent/reader/run.py | tail -n 22
+
 echo "== Lean: build the model =="
 
 ( cd tacenta-model && lake build )

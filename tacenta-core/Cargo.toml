@@ -62,8 +62,6 @@ publish = false
 tacenta-ratchet = { path = "ratchet" }
 tacenta-session = { path = "session" }
 tacenta-kdf = { path = "kdf" }
-# The bounded wire-format reader, a verified zone in its own right.
-tacenta-protobuf = { path = "protobuf" }
 # The composite header and the ratchet-message decoder, a verified zone: the
 # first code a peer's bytes reach. Re-exported by `serialization`.
 tacenta-wire = { path = "wire" }

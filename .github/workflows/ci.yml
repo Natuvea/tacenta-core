@@ -158,6 +158,9 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - run: cargo test --locked --workspace
+      # The independent reader, written from tacenta-spec and the vectors alone
+      # (ADR-0006). Standard library only, so it needs no setup step.
+      - run: python3 ../independent/reader/run.py | tail -n 22
 
   # Known advisories against tacenta-core's dependency graph. Fails on a
   # vulnerability; warnings (unmaintained, yanked) are printed and do not

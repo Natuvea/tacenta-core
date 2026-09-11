@@ -34,8 +34,8 @@ side by side and independent. Neither knows about the other.
 This is the property that makes the composition tractable for us, and it is
 worth saying plainly. **The Double Ratchet is unchanged.** Its state, its
 derivations, its skipped-key handling, and everything proved about it carry over
-untouched. What changes is only that its output is no longer the encryption key
-but one of two inputs to one.
+untouched. What changes is only that its message key is no longer expanded
+into the encryption key itself but is one of two inputs to the key that is.
 
 ## Initialisation
 
@@ -43,6 +43,13 @@ Both ratchets are initialised from the session establishment described on the
 session-establishment page, but each needs its **own** thirty-two byte secret,
 and the handshake produces one. So the shared secret is expanded into two by a
 key derivation, and each ratchet is initialised from its own half.
+
+The expansion is HKDF-SHA256 with a 32-byte zero salt, `SK` as input keying
+material and `SPLIT_INFO` as `info` (CONSTANTS.md), producing 64 bytes. The
+first 32 initialise the Double Ratchet ([ratchet.md](ratchet.md),
+Initialisation) and the last 32 the sparse ratchet, in direction `A2b` for the
+initiator and `B2a` for the responder
+([sparse-pq-ratchet.md](sparse-pq-ratchet.md), Initialisation).
 
 This is the single change the composition forces on the handshake, and it is
 small: the derivation gains an expansion step and the two halves go to different
@@ -55,14 +62,35 @@ does without the composition.
 
 ## Sending and receiving
 
-Sending asks each ratchet for a message key, combines the two into the
-encryption key, and builds a header carrying **both** ratchets' headers: the
-Diffie-Hellman ratchet's public key, previous chain length, and message number,
-alongside the sparse ratchet's epoch and message number and the agreement's own
-epoch, message type and codeword (message-format.md).
+Sending asks each ratchet for a message key, combines the two (below) into the
+key that the message-key expansion turns into the encryption key, and builds a
+header carrying **both** ratchets' headers: the Diffie-Hellman ratchet's public
+key, previous chain length, and message number, alongside the sparse ratchet's
+epoch and message number and the agreement's own epoch, message type and
+codeword (message-format.md).
 
 Receiving is the mirror: each half of the header goes to its own ratchet, each
 returns a message key, and the two are combined the same way.
+
+Both run the classical half first and the sparse half second, and neither
+leaves one half moved without the other:
+
+- **A send runs on a copy** of the state and adopts it only once both halves
+  have produced their keys. A refusal from either half changes neither.
+- **A receive yields a candidate** state along with the key, and changes
+  nothing itself. The candidate is adopted only once the message has
+  authenticated under that key. If either half refuses, or the message does
+  not authenticate, the candidate is discarded, and with it every change it
+  carried: keys used, stored, expired or evicted, and any Diffie-Hellman step.
+
+In both, the session adopts the agreement's next state at the same moment, and
+on a receive the ratchet private key a Diffie-Hellman step generated.
+
+The copy is what the leaf ratchets require of their callers. Either may have
+moved when it returns an error -- the Double Ratchet having stored keys and
+taken its Diffie-Hellman step, the sparse ratchet having folded in the
+agreement's secret, before a later check refuses -- so a state that returned
+an error is spent and is not kept.
 
 The specification requires the composite header to be parsed unambiguously. That
 is a requirement on the encoding, not on the ratchets, and it lands on the
@@ -102,8 +130,8 @@ shape never depends on a value it has just read. The whole header is a hundred
 and two bytes against the Double Ratchet's forty-two, which is the bandwidth
 cost this page names below in the abstract and this is the number. Both figures
 include the two-byte version-and-type prefix, so they are comparable: 2 + 40 for
-the classical header (`HEADER_LEN`), 2 + 100 for the composite
-(`COMPOSITE_LEN`).
+the classical header, whose `HEADER_LEN` is the 40 without the prefix, and
+2 + 100 for the composite, whose `COMPOSITE_LEN` is the 102 with it.
 
 ## What the combination must be
 
@@ -120,6 +148,11 @@ We follow §7.2's parameters. §6.3's definition alone would also be met by
 concatenating both keys into the derivation's input, and a recommendation is
 not a mandate, but following one costs nothing here and departing from one
 would need a reason we do not have.
+
+The combination's output is thirty-two bytes, the length of a Double Ratchet
+message key, and it takes that key's place: the message-key expansion
+([ratchet.md](ratchet.md), Derivations) turns it into the AES-256 key, the
+HMAC-SHA256 key and the IV the AEAD uses. It is not itself the encryption key.
 
 Note the salt and IKM are the other way round from the way they read. That
 inversion is the same one `KDF_RK` has, and it is easy to write backwards.
