@@ -88,6 +88,8 @@ the session zone, `tacenta-spqr`, `tacenta-braid`, `tacenta-triple`,
 its decoder has T1 and no refinement). The post-quantum ratchet is in the
 session path, and sessions and prekey stores serialize.
 `tacenta-proofs/CLAIMS.md` records exactly what is and is not proven.
+`ASSURANCE.md` records where the project stands against the expectations in
+ADR-0008, component by component, and what comes next.
 
 ## Verify it yourself
 
