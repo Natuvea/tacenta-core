@@ -4,6 +4,12 @@
 
 Accepted.
 
+Amended 2026-09-11: `threat-model/` is added to what is normative (point 1).
+When the threat model and the security properties were written, every
+security requirement came to be stated against the threat model's assets,
+adversaries and assumptions, so a requirement cannot be normative unless those
+are too.
+
 ## Context
 
 `tacenta-spec/README.md` has always called the specification the source that
@@ -32,8 +38,9 @@ implementations, and what it promises ends up being whatever that code does.
 ## Decision
 
 1. **What is normative.** The written pages of `tacenta-spec` (under
-   `protocol/` and `security-properties/`, with `CONSTANTS.md`) define the
-   protocol, its formats and its rules. `tacenta-model` states the same
+   `protocol/`, `threat-model/` and `security-properties/`, with
+   `CONSTANTS.md`) define the protocol, its formats, its rules and the
+   security it is required to provide. `tacenta-model` states the same
    definition formally. The protocol vectors it generates in
    `tacenta-test-vectors` are normative examples of it. `tacenta-core` is one
    implementation of the specification. It is not normative, and nothing is

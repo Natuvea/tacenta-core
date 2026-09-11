@@ -539,12 +539,16 @@ provenance; the conformance manifest tracks vector coverage.
 Mutual authentication comes from `DH1` and `DH2` and rests on the discrete log
 problem, not on the KEM. Forward secrecy comes from `DH3`, `DH4`, and `SS`, and
 from deleting ephemeral and one-time private keys once used. Resistance to
-harvest-now-decrypt-later comes from `SS`. Deniability is retained: neither party
-gets a publishable proof of the conversation. The security-properties pages
-that would state these with their assumptions are scaffolds apart from
-post-compromise security; until they are written, `tacenta-proofs/CLAIMS.md`
-records what is established about session establishment and
-`tacenta-proofs/LIMITATIONS.md` what is not.
+harvest-now-decrypt-later comes from `SS`. These are stated as numbered
+requirements in security-properties/, each with the assumptions it rests on and
+its status:
+- authentication.md: REQ-AUTH-01 to REQ-AUTH-04, REQ-AUTH-10 and REQ-AUTH-12;
+- confidentiality.md: REQ-CONF-03 and REQ-CONF-06;
+- forward-secrecy.md: REQ-FS-05.
+
+The published specification also discusses deniability. This specification
+states no requirement about it, and nothing in this project establishes it
+(threat-model/exclusions.md, EX-12).
 
 ## Sources
 

@@ -11,6 +11,48 @@ is SemVer against the specified protocol (not the implementation).
   component. `ASSURANCE.md` at the repository root records where each practice
   and component stands. A decision about how the work is done, not about the
   protocol.
+- `threat-model/`: the threat model, written and normative. All four pages were
+  scaffolds.
+  - `assets.md`: twelve assets, AS-01 to AS-12. Nine are secrets: plaintexts,
+    the identity secret, prekey secrets, handshake secrets, the three
+    ratchets' secrets, per-message keys and persisted state. Three are
+    properties: the authenticity of a conversation, the authenticity of
+    published keys, and state integrity against unauthenticated input.
+  - `adversaries.md`: six adversaries, ADV-01 to ADV-06. They are the network;
+    compromise of a party's state at a point in time; a future quantum
+    adversary recording traffic; a malicious directory; a writer of the
+    persisted store, outside this specification under ADR-0007; and a malicious
+    peer. Each says what it can do and how the proofs represent it. The only
+    adversary in any proof is the symbolic attacker of `Model.Adversary`.
+  - `assumptions.md`: nineteen assumptions, ASM-01 to ASM-19, each naming the
+    requirements and proofs that rely on it.
+    - ASM-01 to ASM-14 are about the world: randomness, the primitives and the
+      libraries trusted for them, constant time, erasure, the symbolic model's
+      fidelity, the clock, storage, the network and key authenticity.
+    - ASM-15 to ASM-19 are about the evidence: the platform, the translation
+      toolchain, the Lean kernel and proofs checked by evaluation, the proofs'
+      boundary hypotheses, and the untranslated session layer.
+  - `exclusions.md`: fourteen exclusions, EX-01 to EX-14. Among them are
+    metadata, endpoint compromise beyond a point in time, denial of service
+    beyond the stated bounds, group messaging and devices (unspecified), a
+    store writer, side channels beyond what is assumed, and deniability.
+- `security-properties/`: the security properties as 32 numbered requirements.
+  Each gives its statement, what it protects, the adversaries it holds against,
+  the assumptions it rests on, its status and what it does not cover. 12 are
+  proved, 9 assumed and 11 tested only.
+  - `authentication.md`: REQ-AUTH-01 to REQ-AUTH-14.
+  - `confidentiality.md`: REQ-CONF-01 to REQ-CONF-09.
+  - `forward-secrecy.md`: REQ-FS-01 to REQ-FS-06.
+  - `post-compromise-security.md`: REQ-PCS-01 to REQ-PCS-03. The page's existing
+    account becomes REQ-PCS-01's, and its Sources point to the forward-secrecy
+    page.
+  - `limitations.md`: the gaps, LIM-01 to LIM-22, with a status table. Three of
+    them:
+    - five proved requirements rest on model-level theorems that
+      `tacenta-proofs/CLAIMS.md` does not record (LIM-02);
+    - REQ-AUTH-02 has no test (LIM-13);
+    - tests hold erasure in place only for the classical ratchet's state, the
+      KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
 - `protocol/session-persistence.md`, `protocol/session-establishment.md`,
@@ -46,6 +88,21 @@ is SemVer against the specified protocol (not the implementation).
   refusals without saying which such a buffer gets, and the model and
   `tacenta-core` answer differently. The vectors pin neither. Register item
   J-11.
+- `decisions/ADR-0006-specification-is-normative.md`, point 1: `threat-model/`
+  is normative, with `protocol/` and `security-properties/`, and the page
+  records the amendment with its date. Every security requirement is stated
+  against the threat model's assets, adversaries and assumptions, and the
+  README already listed it among the normative pages.
+- `README.md`: the status paragraph names the written threat-model and
+  security-property pages, and the protocol pages still scaffolds.
+  `threat-model/` is listed among the normative pages, since every security
+  requirement is stated against its adversaries and assumptions.
+- `protocol/ratchet.md`, `protocol/session-establishment.md`: each "Security
+  properties" section points to the requirements. They had pointed to
+  `tacenta-proofs/CLAIMS.md` in place of scaffold pages.
+  `session-establishment.md` no longer says deniability is retained. No
+  requirement states it, and nothing in this project establishes it
+  (`threat-model/exclusions.md`, EX-12).
 
 ## [0.2.0] - 2026-09-11
 
