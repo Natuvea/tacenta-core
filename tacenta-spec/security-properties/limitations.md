@@ -12,15 +12,15 @@ Nothing here narrows a requirement; it says how far the evidence for one goes.
 ## How the requirements stand
 
 Of the 32 requirements:
-- **12 are proved.** Five of them are proved in the model against a symbolic
-  attacker, and are not recorded in CLAIMS.md (LIM-01, LIM-02).
+- **12 are proved.** Five of them are proved in the model, against the symbolic
+  attacker (LIM-01).
 - **9 are assumed.**
-- **11 are tested only.** One of them has no test yet (LIM-13).
+- **11 are tested only.**
 
 | Requirement | Status |
 |---|---|
 | REQ-AUTH-01: prekey signatures are verified before use | Tested only |
-| REQ-AUTH-02: a named identity is enforced | Tested only, no test yet |
+| REQ-AUTH-02: a named identity is enforced | Tested only |
 | REQ-AUTH-03: the shared secret binds both identities | Assumed |
 | REQ-AUTH-04: the associated data determines both identities | Proved (T2, T3) |
 | REQ-AUTH-05: every message's associated data covers the whole header | Tested only |
@@ -45,7 +45,7 @@ Of the 32 requirements:
 | REQ-FS-01: a chain key does not reveal the chain's past | Proved, model-level, symbolic |
 | REQ-FS-02: spent keys are replaced in the state | Proved (T3) |
 | REQ-FS-03: spent secrets are erased from memory | Tested only |
-| REQ-FS-04: stored keys are bounded and expire | Proved (T2, T3) |
+| REQ-FS-04: stored keys are bounded and expire | Proved (T2, T3), except the store bound across a session |
 | REQ-FS-05: the handshake is forward secret once a prekey secret is gone | Assumed |
 | REQ-FS-06: replaced chains stay secret | Assumed |
 | REQ-PCS-01: a fresh agreement heals the classical ratchet | Proved, model-level, symbolic |
@@ -62,21 +62,28 @@ Against a real attacker they hold only if the idealisation is sound (ASM-10).
 Nothing in this project proves that. See LIMITATIONS.md, "Forward secrecy is
 proved, against a symbolic attacker" and "Not yet proven".
 
-### LIM-02: model-level theorems not recorded in CLAIMS.md
+### LIM-02: model-level theorems not recorded in CLAIMS.md (closed)
 
-Several theorems cited as proved are kernel-checked by the build.
-`scripts/no-sorry.sh` builds and audits the model package, `Properties/`
-included, and the `Proofs/` package. The theorems are these:
+Closed on 2026-09-11. The requirements cite model-level theorems in eight
+files, which the build kernel-checks:
 - in `tacenta-model/Properties/`: `Authentication`, `ForwardSecrecy`,
   `PostCompromise`, `Secrecy` and `StateConsistency`;
 - in `tacenta-proofs/Proofs/`: `KeyErasure`, `MemorySafety` and
   `SparseRatchetCorrectness`.
 
-None of them is recorded in CLAIMS.md. That ledger says the four security
-properties are deliberately absent. No `#guard_msgs` pin fixes their axiom
-bases, and `attest.py --check` does not check their names. So the
-requirements' citations of them were checked by hand. Tracing them through
-CLAIMS.md is not yet possible.
+CLAIMS.md did not record them, no `#guard_msgs` pin fixed their axiom bases,
+and `attest.py --check` did not check their names. CLAIMS.md now records what
+each of their theorems states, with its hypotheses, in three sections:
+- "Proved (tier T2, model-level security properties against the symbolic
+  attacker)";
+- "Proved (tier T2, the classical ratchet model's counters and transitions)";
+- "Proved (tier T2, the models' skipped-key stores)".
+
+`Proofs/TrustedBase.lean` pins the axioms of every theorem those sections
+name but one, and `attest.py --check` checks every name. The exception is
+`Properties.StateConsistency.ageStore_preserves_the_rest`, which rests on no
+axiom and has no pin. Recording the theorems makes them no stronger: LIM-01
+and LIM-03 still say how far they reach.
 
 ### LIM-03: one chain or one step, not a session
 
@@ -111,10 +118,10 @@ Several behaviours live there and are tested only:
 - deleting one-time prekeys, and keeping the last-resort record (REQ-AUTH-12);
 - refusing after the agreement fails (REQ-AUTH-14).
 
-CLAIMS.md and LIMITATIONS.md say a session-level test of the key pairing "is
-being added". `a_session_dh_step_pairs_the_old_key_with_the_peers_new_key`
-exists, and checks the pairing by running a session rather than against a model
-scenario.
+The key pairing is checked by
+`a_session_dh_step_pairs_the_old_key_with_the_peers_new_key`
+(`tacenta-core/tests/handshake_to_ratchet.rs`). It runs a real session through
+a step. It does not check the session against a model scenario.
 
 ### LIM-06: primitives and boundary hypotheses
 
@@ -195,12 +202,23 @@ REQ-FS-03 rests on erasure the proofs cannot see (ASM-09), and it is partial:
   `from_bytes`;
 - persisted bytes.
 
-A compile-time test holds erasure in place for three places only: the
-classical ratchet's `State`, the KEM `KeyPair`, and `Identity` with
-`PrekeyStore`. The sparse ratchet's, the Triple Ratchet's and the Braid's types
-erase through derived destructors that no test holds in place. LIMITATIONS.md,
-"Secret deletion is partial", describes the guard as "a static check per
-crate", which is more than the tree has.
+A static test fails to build if a type loses the `ZeroizeOnDrop` marker. Three
+such tests exist, for five types:
+- the classical ratchet's `State` and `SkippedKey`;
+- the ML-KEM `KeyPair`;
+- `Identity` and `PrekeyStore`.
+
+Each checks the marker, not what the destructor wipes. `KeyPair` and
+`PrekeyStore` implement the marker by hand.
+
+No such test covers the other types that hold secrets:
+- the sparse ratchet's `State`, `Chain`, `Skipped` and `Output`;
+- the Braid's `Auth` and `Output`, and the KEM state it holds;
+- the Triple Ratchet's `State`, which has no destructor of its own and erases
+  through the two ratchet states it holds.
+
+They erase when dropped, and their derives and destructors could be removed
+without any build failing. See LIMITATIONS.md, "Secret deletion is partial".
 
 ### LIM-12: constant time is assumed, and measured in part
 
@@ -214,11 +232,22 @@ REQ-CONF-09 rests on ASM-08.
 
 See LIMITATIONS.md, "Constant-time behaviour is assumed, not proven".
 
-### LIM-13: a requirement with no test
+### LIM-13: a requirement with no test (closed)
 
-REQ-AUTH-02 is stated by session-establishment.md and made by
-`establish_initiator_for`. No test or vector in the tree exercises the refusal
+Closed on 2026-09-11. REQ-AUTH-02 is stated by session-establishment.md and
+made by `establish_initiator_for`. No test or vector exercised its refusal
 (`UnexpectedIdentity`).
+
+`a_bundle_for_another_identity_than_the_named_one_is_refused_and_changes_nothing`
+(`tacenta-core/tests/full_session.rs`) now does. It checks that:
+- a bundle whose signatures verify under another identity key is refused;
+- no randomness is drawn before the refusal.
+
+It also asserts that neither prekey store's bytes change. That holds by
+construction rather than by the check: `establish_initiator_for` takes no
+prekey store, so the assertion cannot fail.
+
+REQ-AUTH-02 remains tested only. No vector or proof covers it.
 
 ### LIM-14: no proof about cost
 

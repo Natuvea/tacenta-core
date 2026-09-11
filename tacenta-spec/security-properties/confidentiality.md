@@ -15,9 +15,7 @@ Each requirement has a statement and five entries:
 - **Rests on:** the assumptions (threat-model/assumptions.md).
 - **Status:** one of three.
   - *Proved* names the theorem, its tier and the section of
-    `tacenta-proofs/CLAIMS.md` that records it. A theorem that is
-    machine-checked but not recorded in CLAIMS.md is named with its file, and
-    marked as not in CLAIMS.md (limitations.md, LIM-02).
+    `tacenta-proofs/CLAIMS.md` that records it.
   - *Assumed* names the assumptions that carry it, and anything proved
     beneath it.
   - *Tested only* names the tests or vectors.
@@ -128,8 +126,8 @@ No `enc_key` and `iv` pair encrypts more than one plaintext.
 - **Rests on:** ASM-05, ASM-12, ASM-19.
 - **Status: assumed (ASM-05, ASM-12).** Proved beneath it:
   - a send advances `Ns` by one:
-    `Properties.StateConsistency.send_advances_ns` (model-level, not in
-    CLAIMS.md);
+    `Properties.StateConsistency.send_advances_ns` (T2, CLAIMS.md, "Proved
+    (tier T2, the classical ratchet model's counters and transitions)");
   - the classical and sparse sends refine their models: `send_refines` (T3, in
     the two sections REQ-CONF-02 names);
   - message keys at distinct positions are distinct terms (REQ-AUTH-07).
@@ -189,9 +187,9 @@ later, and not the chain key it came from.
 - **Rests on:** ASM-05, ASM-10, ASM-17.
 - **Status: proved, model-level, against the symbolic attacker.**
   `Properties.Secrecy.message_keys_are_independent` and
-  `Properties.Secrecy.a_message_key_does_not_expose_its_chain`
-  (`tacenta-model/Properties/Secrecy.lean`). Not in CLAIMS.md
-  (limitations.md, LIM-02).
+  `Properties.Secrecy.a_message_key_does_not_expose_its_chain` (T2, CLAIMS.md,
+  "Proved (tier T2, model-level security properties against the symbolic
+  attacker)").
 - **Does not cover:**
   - Bytes, as opposed to terms (ASM-10).
   - The plaintext that key opens.
@@ -210,9 +208,8 @@ message key, of a session seeded differently.
 - **Rests on:** ASM-01, ASM-10, ASM-17.
 - **Status: proved, model-level, against the symbolic attacker.**
   `Properties.Authentication.no_cross_session_chain` and
-  `Properties.Authentication.no_cross_session_message`
-  (`tacenta-model/Properties/Authentication.lean`). Not in CLAIMS.md
-  (limitations.md, LIM-02).
+  `Properties.Authentication.no_cross_session_message` (T2, CLAIMS.md, "Proved
+  (tier T2, model-level security properties against the symbolic attacker)").
 - **Does not cover:**
   - What sessions share: a party's identity secret and its signed and
     last-resort prekeys (AS-02, AS-03), whose compromise reaches every session

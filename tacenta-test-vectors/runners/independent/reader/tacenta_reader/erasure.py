@@ -88,12 +88,13 @@ class Encoder:
         for c in chunks:
             if len(c) != K.CHUNK_BYTES:
                 raise ValueError("a chunk is 32 bytes")
-        # mlkem-braid.md, Codewords: "An encoder over a value of more than
-        # 65,536 chunks ... is not refused. Every index it issues is below k".
-        # "Which chunks such an encoder holds is not specified"; this reader
-        # holds them all. The stored form's bound is the persistence reader's
-        # (session-persistence.md), not this constructor's. (GAPS-3.md G3-02,
-        # closed by the text; pass 3 refused here.)
+        # mlkem-braid.md, Codewords (pass 5): "An encoder holds at most the
+        # first 65,536 chunks of its value: all k of them when k is at most
+        # 65,536, and chunk_0 to chunk_65535 otherwise." So no encoder holds
+        # more; for_value keeps only those. Pass 4 held every chunk, because
+        # the text then left which chunks unspecified (GAPS-4.md).
+        if len(chunks) > K.MAX_CODEWORDS:
+            raise ValueError("an encoder holds at most the first 65,536 chunks of its value")
         self.chunks = [bytes(c) for c in chunks]
         self.next = next_index
         self.exhausted = exhausted
@@ -102,7 +103,9 @@ class Encoder:
 
     @classmethod
     def for_value(cls, value: bytes) -> "Encoder":
-        return cls(to_chunks(value))
+        """"An encoder over a value of more than 65,536 chunks ... is not
+        refused. It holds chunk_0 to chunk_65535 and no chunk after them.\""""
+        return cls(to_chunks(value)[:K.MAX_CODEWORDS])
 
     def __eq__(self, other):
         return (isinstance(other, Encoder) and self.chunks == other.chunks

@@ -95,7 +95,10 @@ def _():
     for key in (NC.SPK_PUB, NINE):
         for s in spellings(key):
             b = replace(base, signed_prekey=s, signed_prekey_signature=curve25519.xeddsa_sign(NC.IK_PRIV, wire.encode_ec(s), z))
-            accepts(wire.initiator_check_bundle, b)                   # its signature does not refuse it: only the decoder does
+            assert curve25519.xeddsa_verify(NC.IK_PUB, wire.encode_ec(s), b.signed_prekey_signature) is not None
+            # its signature does not refuse it. Pass 4 had the initiator accept it; from pass 5 she refuses it
+            # herself as well (session-establishment.md, Sending the initial message; SK-07)
+            rejects(wire.initiator_check_bundle, b, exc=wire.BundleRefused)
             rejects(wire.decode_bundle, wire.encode_bundle(b), exc=wire.DecodeError)
     for key in (NC.IK_PUB, NINE):
         for s in spellings(key):

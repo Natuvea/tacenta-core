@@ -50,6 +50,14 @@ import Model.SparseRatchet
 import Model.TripleRatchet
 import Proofs.RatchetCorrectness
 import Proofs.Serialization
+import Properties.Authentication
+import Properties.ForwardSecrecy
+import Properties.PostCompromise
+import Properties.Secrecy
+import Properties.StateConsistency
+import Proofs.KeyErasure
+import Proofs.MemorySafety
+import Proofs.SparseRatchetCorrectness
 
 namespace Proofs.TrustedBase
 
@@ -148,6 +156,247 @@ info: 'Proofs.RatchetCorrectness.skipMessageKeys_store_bounded' depends on axiom
 -/
 #guard_msgs in
 #print axioms Proofs.RatchetCorrectness.skipMessageKeys_store_bounded
+
+/- The four security properties, against the symbolic attacker of
+   `Model.Adversary`. `CLAIMS.md` records what each states and the
+   assumption behind all of them: that the attacker's rules are the only way
+   to derive a key, which no proof here reaches. -/
+
+/--
+info: 'Properties.ForwardSecrecy.past_message_keys_are_safe' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Properties.ForwardSecrecy.past_message_keys_are_safe
+
+/--
+info: 'Properties.ForwardSecrecy.past_chain_keys_are_safe' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Properties.ForwardSecrecy.past_chain_keys_are_safe
+
+/--
+info: 'Properties.ForwardSecrecy.future_message_keys_are_exposed' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Properties.ForwardSecrecy.future_message_keys_are_exposed
+
+/--
+info: 'Properties.Secrecy.message_keys_are_independent' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Properties.Secrecy.message_keys_are_independent
+
+/--
+info: 'Properties.Secrecy.a_message_key_does_not_expose_its_chain' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Properties.Secrecy.a_message_key_does_not_expose_its_chain
+
+/--
+info: 'Properties.PostCompromise.fresh_agreement_heals' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Properties.PostCompromise.fresh_agreement_heals
+
+/--
+info: 'Properties.PostCompromise.fresh_agreement_heals_the_root' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Properties.PostCompromise.fresh_agreement_heals_the_root
+
+/--
+info: 'Properties.Authentication.ckAt_inj' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Properties.Authentication.ckAt_inj
+
+/--
+info: 'Properties.Authentication.mkAt_inj' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Properties.Authentication.mkAt_inj
+
+/--
+info: 'Properties.Authentication.no_cross_session_chain' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Properties.Authentication.no_cross_session_chain
+
+/--
+info: 'Properties.Authentication.no_cross_session_message' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Properties.Authentication.no_cross_session_message
+
+/- The classical ratchet model's transitions: what each moves and what it
+   leaves alone. `ageStore_preserves_the_rest` is proved by `rfl` and rests on
+   no axiom, so `#print axioms` prints no list for it and it has no pin here. -/
+
+/--
+info: 'Properties.StateConsistency.send_none_iff' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Properties.StateConsistency.send_none_iff
+
+/--
+info: 'Properties.StateConsistency.send_advances_ns' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Properties.StateConsistency.send_advances_ns
+
+/--
+info: 'Properties.StateConsistency.send_header_is_pre_state' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Properties.StateConsistency.send_header_is_pre_state
+
+/--
+info: 'Properties.StateConsistency.send_preserves_the_rest' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Properties.StateConsistency.send_preserves_the_rest
+
+/--
+info: 'Properties.StateConsistency.dhRatchet_resets_counters' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Properties.StateConsistency.dhRatchet_resets_counters
+
+/--
+info: 'Properties.StateConsistency.dhRatchet_takes_header_key' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Properties.StateConsistency.dhRatchet_takes_header_key
+
+/--
+info: 'Properties.StateConsistency.skipMessageKeys_nr_monotone' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Properties.StateConsistency.skipMessageKeys_nr_monotone
+
+/--
+info: 'Properties.StateConsistency.skipMessageKeys_preserves_sending' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Properties.StateConsistency.skipMessageKeys_preserves_sending
+
+/--
+info: 'Properties.StateConsistency.ageStore_counts_one' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Properties.StateConsistency.ageStore_counts_one
+
+/--
+info: 'Properties.StateConsistency.ageStore_stays_at_stop' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Properties.StateConsistency.ageStore_stays_at_stop
+
+/--
+info: 'Properties.StateConsistency.trySkipped_preserves_counters' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Properties.StateConsistency.trySkipped_preserves_counters
+
+/- The skipped-key stores in the model: what leaves the classical store, how
+   far it grows over any sequence of steps, and what the sparse ratchet's
+   skipped batches contain and how far one skip grows its store. -/
+
+/--
+info: 'Proofs.KeyErasure.trySkipped_removes_the_entry' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.KeyErasure.trySkipped_removes_the_entry
+
+/--
+info: 'Proofs.KeyErasure.trySkipped_is_once' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.KeyErasure.trySkipped_is_once
+
+/--
+info: 'Proofs.KeyErasure.ageStore_drops_the_expired' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Proofs.KeyErasure.ageStore_drops_the_expired
+
+/--
+info: 'Proofs.KeyErasure.ageStore_only_removes' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Proofs.KeyErasure.ageStore_only_removes
+
+/--
+info: 'Proofs.MemorySafety.step_preserves_bound' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.MemorySafety.step_preserves_bound
+
+/--
+info: 'Proofs.MemorySafety.reachable_stays_bounded' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.MemorySafety.reachable_stays_bounded
+
+/--
+info: 'Proofs.MemorySafety.a_session_stays_bounded' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.MemorySafety.a_session_stays_bounded
+
+/--
+info: 'Proofs.SparseRatchetCorrectness.deriveInto_length' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.SparseRatchetCorrectness.deriveInto_length
+
+/--
+info: 'Proofs.SparseRatchetCorrectness.deriveInto_num_gt' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.SparseRatchetCorrectness.deriveInto_num_gt
+
+/--
+info: 'Proofs.SparseRatchetCorrectness.deriveInto_num_le' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.SparseRatchetCorrectness.deriveInto_num_le
+
+/--
+info: 'Proofs.SparseRatchetCorrectness.deriveInto_nodup' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.SparseRatchetCorrectness.deriveInto_nodup
+
+/--
+info: 'Proofs.SparseRatchetCorrectness.deriveInto_get' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.SparseRatchetCorrectness.deriveInto_get
+
+/--
+info: 'Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded
+
+/--
+info: 'Proofs.SparseRatchetCorrectness.clearOldEpochs_store_le' depends on axioms: [propext]
+-/
+#guard_msgs in
+#print axioms Proofs.SparseRatchetCorrectness.clearOldEpochs_store_le
+
+/--
+info: 'Proofs.SparseRatchetCorrectness.trySkipped_store_lt' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.SparseRatchetCorrectness.trySkipped_store_lt
+
+/--
+info: 'Proofs.SparseRatchetCorrectness.skipMessageKeys_preserves_map' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Proofs.SparseRatchetCorrectness.skipMessageKeys_preserves_map
 
 /- The Triple Ratchet's separation is not a proof obligation, and it is worth
    recording why rather than leaving the absence unexplained.

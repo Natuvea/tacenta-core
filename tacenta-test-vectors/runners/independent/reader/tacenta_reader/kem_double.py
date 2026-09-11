@@ -19,11 +19,27 @@ The key pair and the encapsulation state are this double's own layouts,
 padded to CONSTANTS.md's lengths (11,872 and 2,592 bytes) so the persisted
 Braid format can be exercised. They are not the library layouts
 session-persistence.md delegates to (GAPS-2.md G2-08).
+
+Pass 5. session-persistence.md, Braid: "A key_pair holds, among the rest, the
+header and ek_vector its party sends", and the reader checks those two in tags
+1 to 4. The page does not say where they are (the layout is delegated), so the
+double now holds both explicitly, `ek_vector (1536) || header (64) || z (32)`,
+and decapsulation uses the H(ek) the stored header carries, as the page says
+the incremental key pair's does. `key_pair_view` is where the persistence
+reader finds them in this double. It stands in for the library layout
+(GAPS-5.md G5-02).
 """
 
 import hashlib
 
 from . import constants as K
+
+
+def key_pair_view(key_pair: bytes):
+    """(header, ek_vector) as this double's key_pair holds them. Not the
+    library layout, which session-persistence.md delegates (GAPS-5.md G5-02)."""
+    kp = bytes(key_pair)
+    return kp[K.BRAID_EK_VECTOR_LEN:K.BRAID_EK_VECTOR_LEN + K.BRAID_HEADER_LEN], kp[:K.BRAID_EK_VECTOR_LEN]
 
 
 class KemFailure(Exception):
@@ -66,7 +82,7 @@ class ToyIncrementalKem:
         rho = self._random(32)
         z = self._random(32)
         header = rho + hashlib.sha3_256(ek_vector + rho).digest()
-        key_pair = (ek_vector + rho + z).ljust(K.BRAID_KEY_PAIR_LEN, b"\x00")
+        key_pair = (ek_vector + header + z).ljust(K.BRAID_KEY_PAIR_LEN, b"\x00")
         return key_pair, header, ek_vector
 
     @staticmethod
@@ -94,9 +110,11 @@ class ToyIncrementalKem:
     def decaps(self, key_pair, ct1, ct2):
         if "decaps" in self.fail_on:
             raise KemFailure("decapsulation failed")
-        ek_vector, rho, z = key_pair[:1536], key_pair[1536:1568], key_pair[1568:1600]
+        header, ek_vector = key_pair_view(key_pair)
+        z = key_pair[1600:1632]
+        rho, h_ek = header[:32], header[32:64]
         m = _xor(ct2[:32], _shake(b"toy pad", ek_vector, ct1, n=32))
-        g = hashlib.sha3_512(m + hashlib.sha3_256(ek_vector + rho).digest()).digest()
+        g = hashlib.sha3_512(m + h_ek).digest()
         k, r = g[:32], g[32:]
         if ct1 == _shake(b"toy ct1", r, rho, n=K.BRAID_CT1_LEN) and ct2[32:] == _shake(b"toy tag", m, ek_vector, n=128):
             return k

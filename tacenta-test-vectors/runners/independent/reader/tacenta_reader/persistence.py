@@ -10,21 +10,37 @@ WrongVersion, Malformed (short, overrun, trailing, a leaf format's invariant,
 the prekey store's semantic rules), NonCanonical (session and prekey store
 re-encode check), Inconsistent (session semantic rules).
 
-There are no vectors for any of these formats (GAPS-2.md, vector gaps).
+Vectors exist for the erasure sub-formats and, from pass 5, the ratchet and
+sparse ratchet states (vectors/persistence/). The triple ratchet state, the
+Braid, the session and the prekey store have none.
 
-The Braid's `key_pair` (11,872 bytes) and `encaps` (2,592 bytes) are opaque:
-"each is its underlying bytes, with no version byte and no structure this page
-relies on, and each reader refuses any other length".
+The Braid's `key_pair` (11,872 bytes) and `encaps` (2,592 bytes) are the
+delegated library serialisations. `encaps` is checked for length only. From
+pass 5 the header and ek_vector a `key_pair` holds are checked in tags 1 to 4;
+where they are inside it is not stated, so this reader finds them with the KEM
+test double's `key_pair_view` (GAPS-5.md G5-02).
+
+Pass 5, stored curve public keys (session-persistence.md, Session, Semantic
+rules, "Stored curve public keys"): the ratchet state's dhs_pub, dhr_pub and
+each skipped dh are refused as malformed; the session's our_identity_public,
+peer_identity_public, pending_initial's ephemeral_public and
+established_ephemeral's key as inconsistent; the prekey store's
+identity_public as malformed, in all four versions.
 """
 
 import hashlib
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from . import constants as K
-from . import erasure, ratchet, spqr
+from . import erasure, kem_double, ratchet, spqr
 from .curve25519 import x25519_public
-from .wire import encode_ec
+from .wire import encode_ec, is_canonical_curve_key
+
+# Where a Braid key_pair holds the header and ek_vector its party sends
+# (session-persistence.md, Braid). The layout is delegated to the KEM library;
+# the default is the test double's (GAPS-5.md G5-02).
+KEY_PAIR_VIEW: Callable[[bytes], Tuple[bytes, bytes]] = kem_double.key_pair_view
 
 
 class PersistError(Exception):
@@ -146,6 +162,14 @@ def ratchet_invariant(s: ratchet.State, entries: List[Tuple[bytes, int, int]]) -
         return "two stored keys share a ratchet key and message number"
     if s.ckr is not None and (s.cks is None or s.dhr is None):
         return "receiving chain key without sending chain key and peer ratchet key"
+    # "and dhs_pub, dhr_pub when present, and every stored key's dh are each the
+    # canonical encoding of a curve public key" (pass 5)
+    if not is_canonical_curve_key(s.dhs_pub):
+        return "dhs_pub is not the canonical encoding of a curve public key"
+    if s.dhr is not None and not is_canonical_curve_key(s.dhr):
+        return "dhr_pub is not the canonical encoding of a curve public key"
+    if any(not is_canonical_curve_key(dh) for dh, _, _ in entries):
+        return "a stored key's dh is not the canonical encoding of a curve public key"
     return None
 
 
@@ -307,12 +331,10 @@ def triple_from_bytes(buf: bytes) -> TripleState:
 # ================================================= erasure coder sub-formats
 
 def encoder_to_bytes(e: erasure.Encoder) -> bytes:
-    if len(e.chunks) > K.MAX_CODEWORDS:
-        # mlkem-braid.md, Codewords: which chunks a live encoder over more
-        # than 65,536 chunks holds "is not specified", and "a stored encoder
-        # holding more than 65,536 is refused". This reader holds them all, so
-        # it does not write one its own reader would refuse.
-        raise ValueError("an encoder over more than 65,536 chunks is not written")
+    # "chunk[count] are the chunks the encoder holds ... every chunk of the
+    # value, or the first 65,536 of a longer one" (pass 5). No encoder holds
+    # more (erasure.Encoder), so every encoder is written.
+    assert len(e.chunks) <= K.MAX_CODEWORDS
     return (_be(e.next, 2) + bytes([1 if e.exhausted else 0]) + _be(len(e.chunks), 4)
             + b"".join(e.chunks))
 
@@ -442,6 +464,18 @@ def braid_invariant(b: BraidState) -> Optional[str]:
             return f"{name} holds {len(v.chunks)} chunks, not sized for {n} bytes"
         if name.endswith("_dec") and v.size != n:
             return f"{name} has size {v.size}, not {n}"
+    # "In tags 1 to 4, the header and ek_vector that key_pair holds pass the
+    # validation a completed ek_vector passes against a received header
+    # (mlkem-braid.md, The KEM split): H(ek_vector || rho) equals the header's
+    # H(ek) ... and ek_vector passes section 7.2's modulus check." (pass 5)
+    kp = b.fields.get("key_pair")
+    if 1 <= b.tag <= 4 and kp is not None and len(kp) == K.BRAID_KEY_PAIR_LEN:
+        header, ek_vector = KEY_PAIR_VIEW(kp)
+        rho, h_ek = header[:32], header[32:64]
+        if hashlib.sha3_256(ek_vector + rho).digest() != h_ek:
+            return "the ek_vector key_pair holds does not hash to the header's H(ek)"
+        if not _modulus_ok(ek_vector):
+            return "the ek_vector key_pair holds fails the FIPS 203 modulus check"
     return None
 
 
@@ -557,6 +591,17 @@ def session_semantic(s: SessionState) -> Optional[str]:
     ee = s.established_ephemeral
     if ee is not None and (len(ee) != K.ENCODED_EC_LEN or ee[0] != K.ENCODE_EC_BYTE):
         return "established_ephemeral is not an EncodeEC value"
+    # "33 bytes, the curve byte first, then the canonical encoding of a curve
+    # public key" (the shape rule, pass 5)
+    if ee is not None and not is_canonical_curve_key(ee[1:]):
+        return "established_ephemeral's key is not the canonical encoding of a curve public key"
+    # "Every curve public key the session stores is canonical" (pass 5)
+    if not is_canonical_curve_key(s.our_identity_public):
+        return "our_identity_public is not the canonical encoding of a curve public key"
+    if not is_canonical_curve_key(s.peer_identity_public):
+        return "peer_identity_public is not the canonical encoding of a curve public key"
+    if s.pending_initial is not None and not is_canonical_curve_key(s.pending_initial.ephemeral_public):
+        return "pending_initial's ephemeral_public is not the canonical encoding of a curve public key"
     for problem in (triple_invariant(t), braid_invariant(b)):
         if problem:
             return problem
@@ -568,8 +613,16 @@ def session_from_bytes(buf: bytes) -> SessionState:
     _version(buf, {K.SESSION_VERSION}, "session")
     r = _Reader(buf)
     r.take(1, "version")
-    triple = triple_from_bytes(r.prefixed("triple_state"))
-    braid = braid_from_bytes(r.prefixed("braid"))
+    # "The reader refuses each of the following as malformed ... of the
+    # short-or-malformed kind (Rejection): a triple_state or braid that its own
+    # reader refuses, whatever that reader's reason, its semantic rules
+    # included". So an inner wrong version is malformed here. (Pass 5; this
+    # reader had passed the inner refusal through, and PS-16 asserted that.)
+    try:
+        triple = triple_from_bytes(r.prefixed("triple_state"))
+        braid = braid_from_bytes(r.prefixed("braid"))
+    except (WrongVersion, Malformed) as e:
+        raise Malformed(f"session: a half its own reader refuses: {type(e).__name__}: {e}") from e
     ratchet_private = r.take(32, "ratchet_private")
     identity_ad = r.prefixed("identity_ad")
     ours = r.take(32, "our_identity_public")
@@ -689,6 +742,9 @@ def prekey_store_semantic(p: PrekeyStore) -> Optional[str]:
         return "a key has more than MAX_LAST_RESORT_SEEN record entries"
     if len({fp for _, fp in p.seen}) != len(p.seen):
         return "a fingerprint appears twice"
+    # "identity_public is canonical" (pass 5), in all four versions
+    if not is_canonical_curve_key(p.identity_public):
+        return "identity_public is not the canonical encoding of a curve public key"
     return None
 
 

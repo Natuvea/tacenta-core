@@ -13,9 +13,7 @@ Each requirement has a statement and five entries:
 - **Rests on:** the assumptions (threat-model/assumptions.md).
 - **Status:** one of three.
   - *Proved* names the theorem, its tier and the section of
-    `tacenta-proofs/CLAIMS.md` that records it. A theorem that is
-    machine-checked but not recorded in CLAIMS.md is named with its file, and
-    marked as not in CLAIMS.md (limitations.md, LIM-02).
+    `tacenta-proofs/CLAIMS.md` that records it.
   - *Assumed* names the assumptions that carry it, and anything proved
     beneath it.
   - *Tested only* names the tests or vectors.
@@ -52,8 +50,11 @@ a leaf, and a leaf is available only to an attacker that took it. Nothing
 subtler happens, which is as it should be. The security is that the protocol
 requires two things and the attacker has one.
 
-The new root key is equally out of reach, so the epoch after that is too. Healing
-is not one step's property; it persists.
+The new root key is out of reach for the same reason, which is a second theorem
+about the same step. Both are about one step. Whether healing carries to the
+step after it -- to the root key that root step derives, or to the sending chain
+`dhRatchet` derives second, from the intermediate root key and the other
+agreement output -- is not proved.
 
 - **Protects:** AS-01, AS-05, AS-08.
 - **Holds against:** ADV-02 taking a root key, then ADV-01, provided it does
@@ -61,9 +62,9 @@ is not one step's property; it persists.
 - **Rests on:** ASM-01, ASM-02, ASM-05, ASM-10, ASM-13, ASM-17.
 - **Status: proved, model-level, against the symbolic attacker.**
   `Properties.PostCompromise.fresh_agreement_heals` and
-  `Properties.PostCompromise.fresh_agreement_heals_the_root`
-  (`tacenta-model/Properties/PostCompromise.lean`). Not in CLAIMS.md
-  (limitations.md, LIM-02).
+  `Properties.PostCompromise.fresh_agreement_heals_the_root` (T2, CLAIMS.md,
+  "Proved (tier T2, model-level security properties against the symbolic
+  attacker)").
 - **Does not cover:** what "What it needs" and "What is not proved", below,
   set out.
 

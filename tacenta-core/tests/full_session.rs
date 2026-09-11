@@ -4,8 +4,11 @@
 //! establish-and-message interface, which is the surface an interoperability
 //! harness drives.
 
-use rand::SeedableRng;
-use tacenta_core::sessions::{self, Session, establish_initiator, establish_responder};
+use rand::{RngCore, SeedableRng};
+use tacenta_core::sessions::{
+    self, LifecycleError, Session, establish_initiator, establish_initiator_for,
+    establish_responder,
+};
 
 fn rng(seed: u64) -> rand::rngs::StdRng {
     rand::rngs::StdRng::seed_from_u64(seed)
@@ -543,4 +546,57 @@ fn the_multi_use_bundle_serves_when_the_pool_is_empty() {
     let (_bob, plaintext) =
         establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
     assert_eq!(plaintext, b"hello");
+}
+
+/// A named identity is enforced (session-establishment.md, Sending the initial
+/// message; REQ-AUTH-02). The adversary is a directory that serves a substitute
+/// for Bob's bundle: one Mallory published, whose prekey signatures verify under
+/// Mallory's own identity key, so a caller that names no identity accepts it.
+/// Alice names Bob's identity key, and `establish_initiator_for` must refuse the
+/// substitute with `UnexpectedIdentity`. Without the identity check the
+/// substitute establishes, and this test fails.
+///
+/// The refusal comes before encapsulating: the random generator is not drawn
+/// from, so no ephemeral key and no encapsulation were made. And nothing durable
+/// changes. The call borrows no prekey store, and both stores still write the
+/// bytes they wrote before; then the bundle for the identity Alice named
+/// establishes, and Bob accepts her initial message.
+#[test]
+fn a_bundle_for_another_identity_than_the_named_one_is_refused_and_changes_nothing() {
+    let mut r = rng(43);
+    let alice_id = sessions::Identity::generate(&mut r);
+    let bob_id = sessions::Identity::generate(&mut r);
+    let mallory_id = sessions::Identity::generate(&mut r);
+    let mut bob_prekeys = bob_id.create_prekeys(4, &mut r);
+    let mallory_prekeys = mallory_id.create_prekeys(4, &mut r);
+    assert_ne!(bob_id.public(), mallory_id.public());
+
+    let bob_bundle = bob_prekeys.publish();
+    let substitute = mallory_prekeys.publish();
+    let bob_store_before = bob_prekeys.to_bytes().to_vec();
+    let mallory_store_before = mallory_prekeys.to_bytes().to_vec();
+
+    // The substitute is well formed: only the named identity refuses it.
+    let mut spare = r.clone();
+    assert!(establish_initiator(&alice_id, &substitute, &mut spare).is_ok());
+
+    let mut untouched = r.clone();
+    assert_eq!(
+        establish_initiator_for(&alice_id, &substitute, &bob_id.public(), &mut r).err(),
+        Some(LifecycleError::UnexpectedIdentity)
+    );
+    assert_eq!(
+        r.next_u64(),
+        untouched.next_u64(),
+        "the refusal must come before any randomness is drawn"
+    );
+    assert_eq!(bob_prekeys.to_bytes().to_vec(), bob_store_before);
+    assert_eq!(mallory_prekeys.to_bytes().to_vec(), mallory_store_before);
+
+    let mut alice =
+        establish_initiator_for(&alice_id, &bob_bundle, &bob_id.public(), &mut r).unwrap();
+    let initial = alice.encrypt(b"hello bob", &mut r).unwrap();
+    let (_bob, plaintext) =
+        establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
+    assert_eq!(plaintext, b"hello bob");
 }

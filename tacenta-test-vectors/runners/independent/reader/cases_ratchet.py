@@ -59,14 +59,15 @@ def _():
 @case("CR-03 the clock stops at u32::MAX - 1, after which keys no longer age",
       f"{RM} Skipped keys: The count stops at u32::MAX - 1, after which keys no longer age")
 def _():
+    stop = 2 ** 32 - 2                            # "stops at u32::MAX - 1", written out, not read from constants (pass 5)
     b, _, _ = _recv(_bob(), K1, 0, 0)
-    b.events = K.MAX_EVENTS - 1
-    b, _, _ = _recv(b, K1, 0, 2)                  # stores (K1, 1) at count MAX_EVENTS - 1
-    assert b.events == K.MAX_EVENTS
-    b, _, _ = _recv(b, K1, 0, 4)                  # stores (K1, 3) at count MAX_EVENTS
+    b.events = stop - 1
+    b, _, _ = _recv(b, K1, 0, 2)                  # stores (K1, 1) at count stop - 1
+    assert b.events == stop
+    b, _, _ = _recv(b, K1, 0, 4)                  # stores (K1, 3) at count stop
     for n in range(5, 5 + K.MAX_SKIPPED_AGE + 5):
         b, _, _ = _recv(b, K1, 0, n)
-        assert b.events == K.MAX_EVENTS
+        assert b.events == stop
     assert (K1, 3) in b.skipped, "a key stored at the ceiling aged"
     assert (K1, 1) in b.skipped, "age stops at 1 once the count stops"
 

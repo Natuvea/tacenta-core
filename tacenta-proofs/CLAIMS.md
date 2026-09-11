@@ -29,8 +29,9 @@ this section says in one place what is not proved.
   by checking the crate's own `invariant()`, and
   `Translation/ImportInv.lean` proves that a state the translated `from_bytes`
   returns satisfies that invariant and that the invariant yields the
-  preconditions -- the classical ratchet's `hs` (given one platform-width
-  fact) and `hone`; the sparse ratchet's `hroom`, `hskiproom` and `hone`; the
+  preconditions -- the classical ratchet's `hs` (whose constant part,
+  `MAX_SKIPPED_STORE + MAX_SKIP ≤ usize::MAX`, `Ratchet.store_plus_skip_fits`
+  proves at both platform widths) and `hone`; the sparse ratchet's `hroom`, `hskiproom` and `hone`; the
   Braid's `ct1_bounded`. See "Proved: what a decoded state satisfies" for the
   exact statements. What is **not** closed: `T3.receive_refines`'s `hroom`,
   `SpqrT3.receive_refines`'s `hepoch`, `hcb`, `hsb`, `hnewb` and `hcounter`,
@@ -152,10 +153,13 @@ this section says in one place what is not proved.
   which is neither translated nor modelled. `Model.Ratchet.receive`, the
   refinement theorem and the ratchet vectors all take the two agreement
   outputs as opaque bytes, so a swap in the orchestration would pass every
-  proof, every vector and `attest`. By inspection the code pairs them
-  correctly; a session-level test that drives `Session` against a model
-  scenario is being added so that this is checked by running rather than by
-  reading.
+  proof, every vector and `attest`. The pairing is tested, not proved:
+  `a_session_dh_step_pairs_the_old_key_with_the_peers_new_key`
+  (`tacenta-core/tests/handshake_to_ratchet.rs`) runs a real `Session` through
+  a step. A message sent under the peer's new ratchet key decrypts only if the
+  receiving chain was seeded from the old key pair with that key, and the
+  test checks that it does and that the sending public key changes at the
+  step. It checks the session by running it, not against a model scenario.
 - **Translated is not proved.** Every verified-zone crate carries
   persistence codecs and a few accessors that the translation contains and
   no T1 or T3 theorem names: `from_bytes`, `to_bytes`
@@ -239,6 +243,198 @@ in `Proofs/TrustedBase.lean`, so the build fails if one starts resting on
   memory-safety invariant: a per-chain bound alone does not bound the store,
   because every Diffie-Hellman ratchet step starts a fresh chain, so a peer that
   repeatedly ratchets and skips would otherwise grow it without limit.
+
+## Proved (tier T2, model-level security properties against the symbolic attacker)
+
+Location: `tacenta-model/Properties/ForwardSecrecy.lean`,
+`tacenta-model/Properties/Secrecy.lean`,
+`tacenta-model/Properties/PostCompromise.lean` and
+`tacenta-model/Properties/Authentication.lean`, against the attacker defined in
+`tacenta-model/Model/Adversary.lean`.
+
+**The attacker is symbolic.** In `Model.Adversary` a key is a term of `Sym`
+that records how it was derived: `seed i`, a session's starting secret;
+`dhOut i`, an agreement output; `chain ck` and `msg ck`, the next chain key and
+the message key of `ck`; and `rootNext rk dh` and `chainOf rk dh`, the root key
+and the chain key a root step derives. Two terms are equal only when they were
+built the same way. `Knows held k` says the attacker derives `k` from the terms
+`held` accepts, by one rule per derivation: it runs a chain forward, reads a
+message key off a chain key, and takes a root step only when it knows both the
+root key and the agreement output. No rule runs a derivation backwards.
+
+What every theorem in this section rests on, besides its own hypotheses:
+- **The fidelity assumption.** Against bytes these hold only if the key
+  derivation is one-way and collision-resistant, so that the attacker learns
+  nothing except by the rules above. Nothing in this repository proves that.
+  `LIMITATIONS.md`, "Forward secrecy is proved, against a symbolic attacker",
+  records it, and `tacenta-spec/threat-model/assumptions.md` states it as
+  ASM-10.
+- **The terms are not related to `Model.State`.** That `Sym`'s constructors
+  mirror the model's `kdfCk` and `kdfRk` is by reading, not a theorem. Nothing
+  relates `ckAt` below to a chain key a `Model.Ratchet` state holds, so these
+  are statements about one chain or one root step, not about a session.
+- **The attacker holds one term.** Every statement gives the attacker's
+  holdings as `(· = t)` for a single term `t`. None speaks about an attacker
+  holding two keys.
+- **The classical ratchet only.** No term models the sparse ratchet, the Braid
+  or the combination of message keys.
+- **Not unforgeability.** No theorem here takes or proves that a ciphertext
+  verifying under a key was made by a holder of that key.
+  `Properties.Authentication`'s closing note names it as the premise
+  authentication rests on.
+
+`ckAt s n` is the chain key after `n` steps of the chain seeded by session `s`
+(`seed s`, then `chain` applied `n` times), and `mkAt s n` is `msg (ckAt s n)`;
+both are defined in `Properties.ForwardSecrecy`.
+
+- `Properties.ForwardSecrecy.past_message_keys_are_safe`: for `m < n`, an
+  attacker holding `ckAt s n` does not know `mkAt s m`.
+- `Properties.ForwardSecrecy.past_chain_keys_are_safe`: for `m < n`, an
+  attacker holding `ckAt s n` does not know `ckAt s m`.
+- `Properties.ForwardSecrecy.future_message_keys_are_exposed`: an attacker
+  holding `ckAt s n` knows `mkAt s (n + k)`, for every `k`. The chain's future
+  is not protected, and this says so as a theorem.
+- `Properties.Secrecy.message_keys_are_independent`: for `n ≠ m`, an attacker
+  holding `mkAt s n` does not know `mkAt s m`.
+- `Properties.Secrecy.a_message_key_does_not_expose_its_chain`: an attacker
+  holding `mkAt s n` does not know `ckAt s m`, for any `m`.
+- `Properties.PostCompromise.fresh_agreement_heals`: for any term `rk` and any
+  `i` with `rk ≠ dhOut i`, an attacker holding `rk` does not know
+  `chainOf rk (dhOut i)`. The hypothesis is that the one term the attacker
+  holds is not that agreement output. The model has no private keys, so an
+  attacker holding the ratchet private key behind the output is outside it.
+- `Properties.PostCompromise.fresh_agreement_heals_the_root`: under the same
+  hypothesis, it does not know `rootNext rk (dhOut i)`.
+- `Properties.Authentication.ckAt_inj`: `ckAt s n = ckAt t m` implies `s = t`
+  and `n = m`. A statement about terms, with no attacker in it.
+- `Properties.Authentication.mkAt_inj`: the same for `mkAt`.
+- `Properties.Authentication.no_cross_session_chain`: for `s ≠ t`, an attacker
+  holding `ckAt s n` does not know `ckAt t m`.
+- `Properties.Authentication.no_cross_session_message`: for `s ≠ t`, an attacker
+  holding `ckAt s n` does not know `mkAt t m`.
+
+Each is pinned under `#guard_msgs` in `Proofs/TrustedBase.lean`.
+`future_message_keys_are_exposed`, the two `Secrecy` theorems and the four
+`Authentication` theorems rest on `propext` alone; `past_message_keys_are_safe`,
+`past_chain_keys_are_safe` and the two `PostCompromise` theorems on `propext`
+and `Quot.sound`. No `native_decide` or `bv_decide` reaches any of them.
+
+## Proved (tier T2, the classical ratchet model's counters and transitions)
+
+Location: `tacenta-model/Properties/StateConsistency.lean`, about
+`Model.Ratchet` and `Model.State`. There is no attacker here: each theorem is a
+fact about one of the model's transitions. `dhRatchet`, `skipMessageKeys`,
+`ageStore` and `trySkipped` are steps `Model.Ratchet.receive` composes; no
+theorem in this section is about `receive` itself.
+
+- `Properties.StateConsistency.send_none_iff`: `send st` is `none` exactly
+  when `st` has no sending chain or `ns` is at least `u32::MAX`.
+- `Properties.StateConsistency.send_advances_ns`: a send that succeeds sets
+  `ns` to `ns + 1`.
+- `Properties.StateConsistency.send_header_is_pre_state`: its header carries
+  the `ns`, `pn` and `dhsPub` of the state before the send.
+- `Properties.StateConsistency.send_preserves_the_rest`: it leaves `nr`, `pn`,
+  the root key, the receiving chain, the skipped store, both ratchet public
+  keys and the clock as they were.
+- `Properties.StateConsistency.dhRatchet_resets_counters`: `dhRatchet`, for any
+  header, any agreement outputs and any new sending public key, sets `pn` to
+  the old `ns`, and `ns` and `nr` to zero.
+- `Properties.StateConsistency.dhRatchet_takes_header_key`: under the same
+  quantification, it sets `dhrPub` to `some` of the header's key and leaves the
+  skipped store and the clock as they were.
+- `Properties.StateConsistency.skipMessageKeys_nr_monotone`: a skip that
+  succeeds leaves `nr` no lower than it was.
+- `Properties.StateConsistency.skipMessageKeys_preserves_sending`: it leaves
+  `ns`, the sending chain and `pn` as they were.
+- `Properties.StateConsistency.ageStore_counts_one`: given
+  `events + 1 < u32::MAX`, `ageStore` sets `events` to `events + 1`.
+- `Properties.StateConsistency.ageStore_stays_at_stop`: given
+  `events = maxEvents`, which is `u32::MAX - 1`, `ageStore` leaves `events` as
+  it was.
+- `Properties.StateConsistency.ageStore_preserves_the_rest`: `ageStore` leaves
+  `ns`, `nr`, the root key, both chains and `pn` as they were.
+- `Properties.StateConsistency.trySkipped_preserves_counters`: taking a stored
+  key leaves `ns`, `nr`, both chains and the clock as they were.
+
+All but one are pinned under `#guard_msgs` in `Proofs/TrustedBase.lean`, on
+`propext` and `Quot.sound`, except `trySkipped_preserves_counters`, on
+`propext` alone. `ageStore_preserves_the_rest` is proved by `rfl`, and
+`#print axioms` reported no axiom for it when this was written. It has no pin,
+so nothing in the build holds that: the pin shape `attest.py` reads records a
+list of axioms.
+
+## Proved (tier T2, the models' skipped-key stores)
+
+Location: `Proofs/KeyErasure.lean` and `Proofs/MemorySafety.lean`, about
+`Model.Ratchet` and `Model.State`, and `Proofs/SparseRatchetCorrectness.lean`,
+about `Model.SparseRatchet`.
+
+**What leaves the classical store.** Removal from the model's state. Whether
+the bytes are overwritten in memory is not in the model, and `LIMITATIONS.md`,
+"Secret deletion is partial", covers it.
+
+- `Proofs.KeyErasure.trySkipped_removes_the_entry`: after `trySkipped st h`
+  returns a key, no entry of the store it returns matches the header's ratchet
+  key and message number.
+- `Proofs.KeyErasure.trySkipped_is_once`: so `trySkipped` with the same header,
+  on the state the first call returned, is `none`.
+- `Proofs.KeyErasure.ageStore_drops_the_expired`: every entry left after
+  `ageStore st` has an age below `maxSkippedAge`. The age is the clock after the
+  step minus the count stored with the entry, subtracted as `Nat`, so an entry
+  whose stored count is ahead of the clock has age zero.
+- `Proofs.KeyErasure.ageStore_only_removes`: every entry left after
+  `ageStore st` was in `st`'s store.
+
+**How far the classical store grows.** `Proofs.MemorySafety.Step` relates a
+state to the state one of five transitions returns: a `skipMessageKeys` that
+succeeds, a `trySkipped` that succeeds, `ageStore`, a `send` that succeeds, and
+`dhRatchet` with any header, any agreement outputs and any new sending public
+key. `Reachable` is any finite
+sequence of them. `Model.Ratchet.receive` is not a `Step`, and no theorem here
+says that the state it returns is `Reachable` from its input.
+
+- `Proofs.MemorySafety.step_preserves_bound`: a `Step` from a state whose store
+  holds at most `maxSkippedStore` keys reaches a state whose store does too.
+- `Proofs.MemorySafety.reachable_stays_bounded`: so does every state
+  `Reachable` from such a state.
+- `Proofs.MemorySafety.a_session_stays_bounded`: every state `Reachable` from
+  `initReceiver sk pub labels` holds at most `maxSkippedStore` keys. The start
+  is the receiver's initial state; none of these theorems starts from
+  `initSender`.
+
+**The sparse ratchet's store.** `skipMessageKeys.deriveInto` is the recursion
+`Model.SparseRatchet.skipMessageKeys` uses to derive a skipped batch.
+`keyAt ck start i` is defined as the message half of
+`kdfCk (chainAfter ck start i) (start + 1 + i)`, where `chainAfter` advances the
+chain key `i` times from `ck`. That this is the key an in-order
+`Model.SparseRatchet.receive` derives at that offset is true by reading the two
+definitions; no theorem relates `keyAt` to `receive`.
+
+- `Proofs.SparseRatchetCorrectness.deriveInto_length`: a batch of `c` steps
+  holds exactly `c` keys.
+- `Proofs.SparseRatchetCorrectness.deriveInto_num_gt`,
+  `Proofs.SparseRatchetCorrectness.deriveInto_num_le`: every key in it is
+  numbered above `start` and at most `start + c`.
+- `Proofs.SparseRatchetCorrectness.deriveInto_nodup`: no two keys in it share a
+  number.
+- `Proofs.SparseRatchetCorrectness.deriveInto_get`: for `i < c`, its `i`-th
+  entry is numbered `start + 1 + i` and holds `keyAt ck start i`.
+- `Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded`: a skip that
+  succeeds leaves the store holding at most the larger of its previous size
+  and `maxSkippedStore`, with no premise on the store it started from. This is
+  one skip. None of these theorems carries the bound across the sparse
+  ratchet's `send`, `receive` or `advance`, or over a sequence of operations.
+- `Proofs.SparseRatchetCorrectness.clearOldEpochs_store_le`: retiring old
+  epochs never lengthens the store.
+- `Proofs.SparseRatchetCorrectness.trySkipped_store_lt`: taking a stored key
+  never lengthens it. Despite the name, the statement is `≤`.
+- `Proofs.SparseRatchetCorrectness.skipMessageKeys_preserves_map`: a skip that
+  succeeds, on a store in which no two entries share an epoch and a message
+  number (`StoreIsMap`), leaves a store of which that is still true.
+
+Each is pinned under `#guard_msgs` in `Proofs/TrustedBase.lean`, on `propext`
+and `Quot.sound`, except `ageStore_drops_the_expired`, `ageStore_only_removes`
+and `clearOldEpochs_store_le`, on `propext` alone.
 
 ## Proved (tier T3, the classical Double Ratchet refines the model)
 
@@ -1338,9 +1534,11 @@ translated crate against a model read off the same crate, which is less
 independence than the other tiers have: they establish that the composition does
 what its own small, spec-derived description says, not a second, independently
 written account of it. `tacenta-model/docs/mapping-to-spec.md` records the same.
-The four security properties in `tacenta-model/Properties/` are deliberately
-absent from this ledger; `LIMITATIONS.md` ("Forward secrecy is proved, against a
-symbolic attacker") says how little they cover.
+None of the security properties recorded under "Proved (tier T2, model-level
+security properties against the symbolic attacker)" is about `Model.Triple`:
+they speak about one classical chain or one root step, as terms, and
+`LIMITATIONS.md` ("Forward secrecy is proved, against a symbolic attacker")
+says how little they cover.
 
 - `Tacenta.UnitTripleT3.ratchet_agrees_for`: the classical bundle holds at the
   abstraction `UnitT3.StateR` determines, from `UnitT3.lean`'s refinements under
