@@ -198,9 +198,13 @@ changes no codeword an encoder issues (`Encoder.new_issue_nextCodeword`).
 The published algorithm bounds one skip request against `MAX_SKIP` and retires
 whole epochs. This implementation additionally caps the store's total size, the
 same cap the Double Ratchet uses here, so the store is bounded independently of
-how many messages are skipped within an epoch;
-`Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded` proves it holds.
-Recorded here because it is an addition to the specification.
+how many messages are skipped within an epoch.
+`Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded` proves it of
+one skip: a skip that succeeds leaves the store no longer than the larger of
+its previous length and `MAX_SKIPPED_STORE`. No theorem carries the bound
+across this ratchet's `send`, `receive` or `advance`, or across a sequence of
+them, so over a session the evidence is the vectors and the tests described
+next. Recorded here because it is an addition to the specification.
 
 `tacenta-spqr` demonstrates both halves of this in Rust. Three requests on a
 single chain in a single epoch, each inside the per-call bound, reach the cap and
