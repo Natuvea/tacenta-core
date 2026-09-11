@@ -70,16 +70,14 @@ which no byte string can be shown to satisfy from inside this translation.
 * It is about a leaf crate's own persistence format. The session layer above
   these crates is untranslated, so nothing here says what a session's
   `from_bytes` establishes.
-* Two hypotheses are carried rather than proved, both named and both satisfied
-  by the real Rust:
-  - a platform-width fact for the ratchet's `hs`
-    (`MAX_SKIPPED_STORE + u32::MAX ≤ usize::MAX`, true on a 64-bit target and
-    exactly the condition `T1.lean`'s own docstring records), passed as an
-    explicit argument rather than assumed globally, and
-  - `Tacenta.BraidT1.Ct1LenTotal` for the Braid, which is not new: it is the
-    existing hypothesis `BraidT1` already uses, and it says
-    `tacenta_kem::CT1_LEN` returns a value at most 4096. The real constant is
-    1408 (`braid/src/lib.rs` says so where `ct1_bounded` is motivated).
+* One hypothesis is carried rather than proved, named and satisfied by the
+  real Rust: `Tacenta.BraidT1.Ct1LenTotal` for the Braid, which is not new: it
+  is the existing hypothesis `BraidT1` already uses, and it says
+  `tacenta_kem::CT1_LEN` returns a value at most 4096. The real constant is
+  1408 (`braid/src/lib.rs` says so where `ct1_bounded` is motivated). The
+  ratchet's `hs` takes no platform-width argument: its constant part,
+  `MAX_SKIPPED_STORE + MAX_SKIP ≤ usize::MAX`, is proved at either width by
+  `store_plus_skip_fits` below.
 * **A step of counter headroom is carried too, and it is not a fact of every
   state.** Each of these three crates reserves the top value of the counter it
   steps, so that no state its operations produce is one its own decoder
