@@ -718,7 +718,7 @@ mod tests {
         // subgroup. For a small-order `A` the specification's subtraction
         // accepts when `h` is a multiple of `A`'s order and the scalar form when
         // `l - h` is, and with `l = 5 (mod 8)` those are different sets. The
-        // four small-order-`A` vectors sit exactly on that difference, which is
+        // small-order-`A` vectors sit exactly on that difference, which is
         // what the second oracle below is for.
         let s = Scalar::from_bytes_mod_order(*s_bytes);
         let rcheck = EdwardsPoint::mul_base(&s) - a * h;
@@ -741,7 +741,7 @@ mod tests {
     /// compresses, and compares bytes; `verify_strict` is the one that adds the
     /// small-order refusals, `verify` has none. So on every input where both
     /// are defined -- `u < p`, `A = convert_mont(u)` on the curve, `s < l` --
-    /// the two must agree, and the four small-order-`A` vectors are inside
+    /// the two must agree, and the small-order-`A` vectors are all inside
     /// that set. Returns `None` where dalek's preconditions are not met and
     /// the comparison says nothing (`s >= l`, `u >= p`, or no Edwards image).
     fn dalek_nonstrict_verify(u: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> Option<bool> {
@@ -773,7 +773,7 @@ mod tests {
     /// The transcription is itself held to a second oracle it shares no code
     /// with, ed25519-dalek's non-strict `verify` (`dalek_nonstrict_verify`):
     /// wherever that oracle is defined the two verdicts must be equal, and
-    /// the four small-order-`A` vectors must be among the inputs compared.
+    /// every small-order-`A` vector must be among the inputs compared.
     /// That is the check that would have caught a transcription computing
     /// `(l - h) * A` instead of `-(h * A)`, which agrees with the
     /// specification on every prime-order key and disagrees on exactly these.
@@ -796,6 +796,7 @@ mod tests {
                 .unwrap_or_else(|_| panic!("input {key} is hex"))
         };
         let mut verify_only = 0;
+        let mut rule_3_only = 0;
         let mut accepted_by_revision_1 = 0;
         let mut cross_checked = 0;
         // The transcription against the second oracle, wherever the second is
@@ -866,12 +867,40 @@ mod tests {
                 "{id}: `result` disagrees with verify"
             );
             accepted_by_revision_1 += usize::from(got);
+            // A `rule-3-only` vector is refused by rule 3 of
+            // identities-and-devices.md, Verifying a signature (`A` is not of
+            // small order), and by no other rule: `u` is canonical with an
+            // Edwards image, the sign bit is clear, `s < l`, the equation holds
+            // without the cofactor (the second oracle accepts it), and `R` is
+            // not of small order. So a verifier missing rule 3 accepts it,
+            // which the other small-order-`A` vectors, with `R` the identity,
+            // cannot show.
+            if id.contains("rule-3-only") {
+                assert_eq!(signature[63] >> 7, 0, "{id}: A must carry sign 0");
+                assert_eq!(
+                    dalek_nonstrict_verify(&u, &message, &signature),
+                    Some(true),
+                    "{id}: every rule but the small-order refusals must pass"
+                );
+                let a = MontgomeryPoint(u).to_edwards(0).expect("an Edwards image");
+                assert!(a.is_small_order(), "{id}: A must be of small order");
+                let r_bytes: [u8; 32] = signature[..32].try_into().unwrap();
+                let r = curve25519_dalek::edwards::CompressedEdwardsY(r_bytes)
+                    .decompress()
+                    .expect("R decompresses");
+                assert!(!r.is_small_order(), "{id}: R must not be of small order");
+                rule_3_only += 1;
+            }
         }
         // The file pins both directions: inputs Revision 1 accepts and this
         // verifier refuses, and one it refuses that this verifier accepts.
         assert!(
-            verify_only >= 13,
-            "expected the thirteen verify-only vectors, found {verify_only}"
+            verify_only >= 17,
+            "expected the seventeen verify-only vectors, found {verify_only}"
+        );
+        assert!(
+            rule_3_only >= 4,
+            "expected four vectors only rule 3 refuses, found {rule_3_only}"
         );
         assert!(
             accepted_by_revision_1 >= 1,
@@ -881,13 +910,13 @@ mod tests {
             accepted_by_revision_1 < verify_only,
             "no vector shows where Revision 1 is narrower"
         );
-        // Three signing vectors, the four small-order-A vectors, the
+        // Three signing vectors, the eight small-order-A vectors, the
         // small-order-R one and its non-canonical twin all have u < p, an
         // Edwards image and s < l, so the second oracle is defined on at
-        // least nine inputs.
+        // least thirteen inputs.
         assert!(
-            cross_checked >= 9,
-            "the second oracle compared only {cross_checked} vectors; expected at least nine"
+            cross_checked >= 13,
+            "the second oracle compared only {cross_checked} vectors; expected at least thirteen"
         );
     }
 }

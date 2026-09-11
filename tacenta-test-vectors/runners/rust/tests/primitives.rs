@@ -14,8 +14,8 @@ fn primitive_vectors_pass() {
             .unwrap_or_else(|e| panic!("{}: {e}", file.algorithm));
     }
 
-    // hkdf (2) + hmac (2) + x25519 (2) + ed25519 (2) + xeddsa (3 signing + 13 verify-only).
-    assert!(total >= 24, "checked {total} primitive vectors");
+    // hkdf (2) + hmac (2) + x25519 (2) + ed25519 (2) + xeddsa (3 signing + 17 verify-only).
+    assert!(total >= 28, "checked {total} primitive vectors");
     eprintln!(
         "checked {total} primitive vectors across {} files",
         files.len()

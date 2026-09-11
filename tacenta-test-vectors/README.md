@@ -103,12 +103,18 @@ under a different nonce, and a different key over an empty message) are
 this implementation's output. The runner re-signs each with its recorded
 nonce and compares, then verifies the result through ed25519-dalek's strict
 verify, which is the check against an independent implementation; the
-file's `source` field states the same. The remaining thirteen are
+file's `source` field states the same. The remaining seventeen are
 verify-only (`public`, `message`, `signature`, and a `result`): they pin the
 edges of the accepted set, where `verify` differs from XEdDSA Revision 1 by
 design -- narrower on `s` (`s < l`, not `s < 2^253`) and on small-order `R`
 or `A`, wider on the sign bit the interoperability profile carries in
-`signature[63]`, and in agreement on non-canonical encodings. Each such
+`signature[63]`, and in agreement on non-canonical encodings. Four of the
+eight small-order-`A` vectors use `R` the identity and `s = 0`, which rule 6
+of identities-and-devices.md, Verifying a signature, refuses too. The other
+four, whose ids contain `rule-3-only`, pair the same keys with an `R` that is
+not of small order, `s < l` and an equation that holds, so rule 3 (`A` is
+not of small order) is the only rule that refuses them. Like the rest of the
+verify-only vectors, they are computed rather than model-generated. Each such
 comment opens with `Revision 1 accepts:` or `Revision 1 rejects:`, and a
 test in tacenta-core runs a transcription of the specification's own
 `xeddsa_verify` over the file so that column is checked, not asserted. The
