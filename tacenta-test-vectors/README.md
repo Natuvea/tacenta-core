@@ -222,7 +222,7 @@ test in tacenta-core runs a transcription of the specification's own
 transcription is in turn held to a second oracle it shares no code with,
 ed25519-dalek's non-strict `verify` (the same equation without the cofactor,
 no small-order refusal), on every vector where that oracle is defined
-(`u < p`, an Edwards image, `s < l`), which includes the four small-order-`A`
+(`u < p`, an Edwards image, `s < l`), which includes the eight small-order-`A`
 vectors: those are the inputs on which a transcription that negates the
 scalar rather than the point gives the wrong verdict, and the second oracle
 is what catches it. And `malformed-input/ratchet-reject.json` is
