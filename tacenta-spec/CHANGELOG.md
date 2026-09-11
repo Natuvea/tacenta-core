@@ -101,6 +101,29 @@ is SemVer against the specified protocol (not the implementation).
   without that serialisation cannot import or export tags 1-4 and 7-9, and can
   move tags 0, 5, 6, 10 and 11 (G2-08). The reader checks nothing in either
   field beyond its length.
+- `protocol/mlkem-braid.md` now states the ML-KEM Braid itself, where it
+  used to defer to the published document. It is written as built:
+  - "Parameters and derivations":
+    - the sizes of the values the Braid sends, and `ToBytes` as eight
+      big-endian bytes;
+    - the bytes of `PROTOCOL_INFO` and the four suffixes;
+    - the epoch key `KDF_OK`: HKDF-SHA256 with a 32-byte zero salt, the KEM
+      shared secret as input, `PROTOCOL_INFO || ":SCKA Key" ||
+      ToBytes(epoch)` as `info`, and 32 bytes out;
+    - the ratcheted authenticator: `Init(1, SK)` from a zero root key, with
+      `SK` the PQXDH output itself; each update's 64-byte HKDF output, split
+      into root key then MAC key; and the `:ekheader` and `:ciphertext` MAC
+      inputs;
+    - when each is computed and checked.
+  - "Messages": the fields, the six types, and what a Braid message puts in
+    the composite header.
+  - "The state machine": initialisation; the eleven states with what each
+    holds; what each state sends; the thirteen transitions, numbered on the
+    page; what a send and a receive return; when an epoch completes; and what
+    `Session` does with the results.
+- `CONSTANTS.md`: rows for the Braid's MAC length, its epoch encoding, the
+  layout of its `info` strings and MAC inputs, its derivation salts and
+  lengths, its authenticator's initial state, and its preshared secret.
 
 ### Changed
 - `protocol/session-persistence.md`: the "Validated, not only parsed"
@@ -124,6 +147,17 @@ is SemVer against the specified protocol (not the implementation).
   library function (`verify_strict`). It points to the rules in
   `protocol/identities-and-devices.md` (G-28). The row for the KEM key pair and
   encapsulation state lengths names the import consequence.
+- `protocol/mlkem-braid.md`:
+  - "What a receive ignores" and "Failure" cite transitions numbered on the
+    page itself.
+  - The published document is cited as the source this page is written from,
+    no longer as authoritative over it (ADR-0006).
+  - The page records two more places where the tree reads or departs from
+    that document:
+    - a receive that completes an epoch, at transition (5), reports that
+      epoch, where the document reports the one before;
+    - the epoch in the two MAC inputs, written bare there, is `ToBytes(epoch)`
+      here.
 
 ### Fixed
 - `protocol/ratchet.md`: the Message format and Sources sections said the
