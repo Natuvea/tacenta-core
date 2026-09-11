@@ -35,9 +35,12 @@ interoperating with anyone.
   encoding only its own fields. `Session::export`/`import` composes these
   rather than reaching into any of their internals, so each format can change
   size or shape without the others' code changing.
-- **No new abstraction leak.** The Braid's eleven live internal states are
-  not named or exposed by this format: it can only be exported and imported
-  whole, the same restriction callers already have on a live `Braid`.
+- **No new abstraction leak.** The format's `state_tag` identifies which of
+  the Braid's twelve states was saved, and the Braid section below names all
+  of them, but the API exposes no more than it did: a caller can read the tag
+  (`Braid::state_tag`) and cannot construct a state or read its contents. A
+  Braid is exported and imported only whole, the same restriction callers
+  already have on a live `Braid`.
 - **Validated, not only parsed.** A decoder that reads every field
   correctly can still hand back a state no constructor builds: a ratchet
   private key beside a public key that is not its own, an epoch pair the

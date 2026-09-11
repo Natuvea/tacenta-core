@@ -44,8 +44,9 @@ def size : Nat := 65536
     GF(2^16) and does not fix which irreducible polynomial defines it. Two
     implementations that choose differently compute different products and
     cannot decode each other's chunks, so this is wire-sensitive in exactly the
-    way the derivation labels are, and is recorded in the conformance manifest
-    rather than settled here. -/
+    way the derivation labels are, and is recorded in
+    `tacenta-spec/CONSTANTS.md` and specified in
+    `tacenta-spec/protocol/mlkem-braid.md` rather than settled here. -/
 def reducer : Nat := 0x1100B
 
 /-- The reduction's low sixteen bits, which is what a carry-out folds back in:
