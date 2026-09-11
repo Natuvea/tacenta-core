@@ -6,6 +6,13 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `protocol/error-handling.md`, previously a scaffold, now says what the
+  protocol requires of a refusal and what it leaves to an implementation.
+  - Required: every refusal a page states; decode failure kept distinct from
+    authentication failure; the persistence refusal kinds; and the conditions
+    the pages name for a caller to act on.
+  - Left to an implementation: its error types, their names, which variant
+    reports a refusal, and the order of checks, unless a page fixes one.
 - `protocol/group-messaging.md`: what has been published about group
   messaging, and what each item covers. No Signal specification covers
   groups:
