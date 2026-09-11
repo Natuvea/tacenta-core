@@ -49,10 +49,15 @@ interoperating with anyone.
   principle above does not see it, and none fails at import -- each fails on
   some later message, the first two for good. So each type carries an
   `invariant`, the relations between its fields that its constructors
-  establish and its operations preserve, and its decoder calls it last and
-  refuses on it. The rules are listed below: for the session and the prekey
+  establish, its operations preserve, and the operations and their proofs
+  rely on, and its decoder calls it last and refuses on it. An `invariant` is
+  not a description of every reachable state: a state can satisfy it and
+  still be one no constructor builds, and the reader accepts that state. The
+  rules are listed below: for the session and the prekey
   store under each format's "Semantic rules", and for the leaf formats under
-  "Semantic rules of the leaf formats". They are checked as an inductive
+  "Semantic rules of the leaf formats". Each list is complete: a reader
+  refuses a state that breaks a listed rule, and no other state, on
+  semantic grounds. The rules are checked as an inductive
   invariant: the tests and the fuzz
   targets in `tacenta-core` assert the predicate after every operation, not
   only at import.
@@ -118,11 +123,16 @@ followed by its full 32-byte width regardless, zeroed when absent -- the same
 choice message-format.md's associated-data length prefix makes for the same
 reason: a fixed-width optional field is provably canonical, a variable-width
 one only tested. `labels` is a one-byte tag naming the `LabelSet` variant
-(`0x00` today, for the sole `Tacenta` set).
+(`0x00` today, for the sole `Tacenta` set). The reader refuses as malformed a
+presence tag other than `0x00` or `0x01`, an absent key whose 32 bytes are not
+all zero, and a `labels` tag that names no variant (today, any value but
+`0x00`).
 
 Every integer is big-endian: `ns`, `nr`, `pn`, `events`, `skipped_count`, and
 each entry's `n` and `stored_at`. The `skipped` entries are written in the
-store's order, which is the order the keys were stored. That order is
+store's order, which is the order the keys were stored; a key that replaced
+one already held counts as stored when it replaced it (ratchet.md, Skipped
+keys). That order is
 meaningful, since eviction breaks ties between equal `stored_at` values by it
 (ratchet.md, Skipped keys), but the reader accepts the entries in any order and
 keeps the order it read.
@@ -155,7 +165,10 @@ keeps the order it read.
 
 A chain whose presence byte is `0x00` is absent. The reader accepts it, though
 no operation produces one: retiring an epoch removes its whole entry. An
-operation that needs an absent chain is refused (`ChainRetired`).
+operation that needs an absent chain is refused (`ChainRetired`). The reader
+refuses as malformed a `direction` tag other than `0x00` or `0x01`, a chain
+presence byte other than `0x00` or `0x01`, and an absent chain whose `ck` and
+`n` bytes are not all zero.
 
 ## Braid
 
@@ -247,6 +260,20 @@ entry is read, and bytes left after the last entry are refused. Neither
 format has a version byte: they appear only inside the Braid's, which
 versions them (CONSTANTS.md).
 
+In the encoder, `chunk[count]` are the value's chunks, `chunk_0` to
+`chunk_(count-1)` in order (mlkem-braid.md, The erasure code). `next` is the
+index of the codeword the encoder issues next: 0 for a new encoder, and one
+more after each codeword it issues. Issuing index 65,535 instead sets
+`exhausted` to `0x01` and leaves `next` at 65,535, and an exhausted encoder
+issues nothing more (mlkem-braid.md, Codewords).
+
+In the decoder, `size` is the value's length `n` in bytes, `needed` is its
+chunk count `k`, and `codeword[count]` are the codewords the decoder holds,
+each as its index and its 32 bytes. They are written in the order the decoder
+kept them, which is the order in which each index first arrived. That order
+carries no meaning, since the decoded value does not depend on it. The reader
+accepts any order and keeps the order it read.
+
 ## Triple ratchet state
 
 ```
@@ -285,6 +312,15 @@ enforces that invariant at the type level. `pending_initial` and
 `established_ephemeral` are each a presence byte followed by a
 length-prefixed field when present, and nothing (not even the length
 prefix) when absent.
+
+The reader refuses each of the following as *malformed*
+(`SessionDecodeError::Malformed`), of the short-or-malformed kind (Rejection):
+a `triple_state` or `braid` that its own reader refuses, whatever that
+reader's reason, its semantic rules included; a `pending_initial_present` or
+`established_ephemeral_present` byte other than `0x00` or `0x01`; a
+`pending_initial` that is not the layout above; and bytes left after the last
+field. These are field-by-field refusals, made before the re-encode check
+below, so none of them is reported as non-canonical or inconsistent.
 
 ### Semantic rules
 
@@ -337,7 +373,9 @@ rather than here.
   matched against `established_ephemeral` byte for byte.
 - **Each half satisfies its own crate's invariant**: the Triple Ratchet's,
   which covers both ratchets, and the Braid's. Their decoders refuse on
-  these already, so at import this is a second reading.
+  these already, so at import this is a second reading: a half that breaks
+  them is refused as malformed by its own reader, above, before this rule is
+  reached.
 
 The same predicate holds after every operation: `tacenta-core`'s tests
 drive an honest pair through some fifty Braid epochs, restarting one side
@@ -501,7 +539,17 @@ key first.
 ## Semantic rules of the leaf formats
 
 Each leaf format's reader, having read every field, refuses as malformed a
-state its crate's `invariant` is false of. The rules are these.
+state its crate's `invariant` is false of. The rules are these, and they are
+all of them: a reader refuses a state that breaks one, and accepts every state
+that keeps them all.
+
+The rules are not a description of the states the operations produce. A state
+can keep every rule and still be one no operation produces, and the reader
+accepts it. Two examples. A ratchet state may have `nr` above zero and no
+receiving chain, or `ns` above zero and no sending chain, because no rule
+constrains `ns`, `nr` or `pn`. A sparse ratchet state may hold a stored key
+numbered 0, or numbered at or past its epoch's receiving counter, because no
+rule relates a stored key's number to its chain.
 
 - **Ratchet state.** The skipped store holds at most `MAX_SKIPPED_STORE` keys;
   the received-message clock `events` is below `u32::MAX`; no stored key's

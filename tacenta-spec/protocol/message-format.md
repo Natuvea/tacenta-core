@@ -120,6 +120,19 @@ codeword only for the message type it is expecting. The header is authenticated
 as associated data either way (below), so a codeword cannot be added or removed
 in transit.
 
+The vectors for this encoding (`tacenta-test-vectors/vectors/serialization/message-encoding.json`
+and `tacenta-test-vectors/vectors/post-quantum/composite.json`) give the header
+as named inputs, each the bytes of one field as encoded above, and the encoding
+as `output`. Every input is named for its field except one: **the input
+`chunk_data` is the field `chunk`**. The input `ciphertext`, in
+`message-encoding.json` only, is the `ciphertext` field. The codeword's three
+fields are three inputs, but they are one optional value and not independent
+ones. `chunk_present` is the presence byte. When it is `01` the codeword is
+present, with index `chunk_index` (two bytes, big-endian) and 32 bytes
+`chunk_data`. When it is `00` the codeword is absent, and `chunk_index` and
+`chunk_data` are its padding: all zero bytes, since the decoder refuses
+anything else. No vector gives any other combination.
+
 ## Associated data
 
 The Double Ratchet specification requires that the associated data given to the
