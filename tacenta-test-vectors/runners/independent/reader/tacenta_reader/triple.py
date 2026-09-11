@@ -14,11 +14,13 @@
 - `decrypt_with_eviction`: ratchet.md / sparse-pq-ratchet.md, "A full store
   makes room rather than refusing the message".
 
-The agreement (the ML-KEM Braid) is a boundary here, as it is on
-sparse-pq-ratchet.md: the Braid's state machine is defined only by the
-published document mlkem-braid.md defers to, which is not in the tree
-(GAPS.md G-21..G-23, still open). `NullAgreement` and `ScriptedAgreement`
-are test doubles for that boundary, not the Braid.
+The agreement is a boundary here, as it is on sparse-pq-ratchet.md.
+mlkem-braid.md now states the Braid (GAPS-3.md: G-21 narrowed, G-22 and G-23
+closed), and braid.BraidAgreement puts it behind this boundary.
+`NullAgreement` and `ScriptedAgreement` remain test doubles.
+
+mlkem-braid.md, What the session does with them: "encrypt runs the Braid's
+send before the Triple Ratchet", and "decrypt runs the Braid's receive first".
 """
 
 from dataclasses import dataclass, replace
@@ -131,8 +133,8 @@ def init_responder(sk: bytes, ad: bytes, signed_prekey_private: bytes, agreement
 
 def encrypt(party: Party, agreement, plaintext: bytes) -> Tuple[Party, bytes]:
     """A send runs on a copy and adopts it only once both halves have produced keys."""
-    classical, dr_hdr, mk_ec = ratchet.send(party.classical)
     ag = agreement.send(party.agreement_state)
+    classical, dr_hdr, mk_ec = ratchet.send(party.classical)
     sparse, epoch, pq_n, mk_pq = spqr.send(party.sparse, ag.epoch, ag.secret, ag.secret_epoch)
     header = wire.CompositeHeader(dh=dr_hdr.dh, pn=dr_hdr.pn, n=dr_hdr.n, pq_epoch=epoch, pq_n=pq_n,
                                   ag_epoch=ag.ag_epoch, ag_type=ag.ag_type, codeword=ag.codeword)
@@ -154,10 +156,10 @@ def decrypt(party: Party, agreement, message: bytes, fresh_private: bytes) -> Tu
     header, ciphertext = wire.decode_ratchet_message(message)
     dh_current, dh_fresh = check_contributory(party.ratchet_private, fresh_private, header.dh)
     fresh_pub = x25519_public(fresh_private)
+    ag = agreement.receive(party.agreement_state, header)
     classical, mk_ec, stepped = ratchet.receive(
         party.classical, ratchet.Header(header.dh, header.pn, header.n),
         lambda _dh: (dh_current, fresh_pub, dh_fresh))
-    ag = agreement.receive(party.agreement_state, header)
     sparse, mk_pq = spqr.receive(party.sparse, header.pq_epoch, header.pq_n, ag.secret, ag.secret_epoch)
     header_bytes = bytes(message[:K.COMPOSITE_LEN])
     plaintext = aead.open_(combine(mk_ec, mk_pq), wire.concat_ad(party.ad, header_bytes), ciphertext)

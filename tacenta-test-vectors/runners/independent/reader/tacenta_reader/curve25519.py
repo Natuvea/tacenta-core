@@ -206,9 +206,11 @@ _HASH1_PREFIX = b"\xfe" + b"\xff" * 31  # 2^256 - 1 - 1, little-endian
 
 
 def xeddsa_sign(k: bytes, msg: bytes, z: bytes) -> bytes:
-    """XEdDSA revision 1 xeddsa_sign. k is the X25519 private key; it is
-    clamped (decodeScalar25519) before use, which the tacenta spec does not
-    state (GAPS.md G-27)."""
+    """identities-and-devices.md, Signing: k = clamp(secret) mod q; E = kB;
+    A = encode(E) with bit 255 cleared; a = k, or q - k when E's sign is 1;
+    r = SHA-512(0xFE || 31 x 0xFF || a || M || Z) mod q; R = encode(rB);
+    h = SHA-512(R || A || M) mod q; s = r + h a mod q. (The clamp was GAPS.md
+    G-27; now stated.)"""
     if len(z) != 64:
         raise ValueError("Z is 64 bytes")
     scalar = _decode_scalar25519(k)
@@ -232,10 +234,16 @@ def xeddsa_verify(u_bytes: bytes, msg: bytes, sig: bytes) -> Optional[bytes]:
     """Verify under a Montgomery public key; return the compressed Edwards key
     it verified under, or None.
 
-    Accepted set, as tacenta-spec states it (CONSTANTS.md "XEdDSA signature
-    sign bit"; ADR-0002 Consequences): u < p; the Edwards sign is the top bit
-    of signature[63]; s < l (not s < 2^253); small-order A and small-order R
-    refused outright; R compared as bytes.
+    identities-and-devices.md, Verifying a signature (GAPS.md G-28, now
+    stated as six rules; the order of checks is not fixed):
+    1. u canonical: bit 255 clear and below p (both are u >= p here);
+    2. u != p - 1 and y = (u - 1)/(u + 1) is on the curve; A has sign b, the
+       top bit of signature[63];
+    3. A not of small order (x = 0 is small order whatever b);
+    4. s, the last 32 bytes with bit 255 cleared, below q;
+    5. encode(sB - hA) equals R byte for byte, h = SHA-512(R || enc(A) || M);
+    6. R's point not of small order.
+    No step multiplies by the cofactor.
     """
     if len(u_bytes) != 32 or len(sig) != 64:
         return None

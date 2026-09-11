@@ -15,7 +15,10 @@ CLEANROOM = os.path.dirname(HERE)
 VECTORS = os.path.join(CLEANROOM, "..", "..", "vectors")
 sys.path.insert(0, HERE)
 
-from tacenta_reader import braid, curve25519, gf65536, pqxdh, ratchet, spqr, triple, wire  # noqa: E402
+import copy  # noqa: E402
+import re  # noqa: E402
+
+from tacenta_reader import aead, braid, curve25519, erasure, gf65536, persistence, pqxdh, protobuf, ratchet, spqr, triple, wire  # noqa: E402
 from tacenta_reader.kdf import hkdf_sha256, hmac_sha256  # noqa: E402
 
 bx = bytes.fromhex
@@ -113,6 +116,11 @@ def h_composite(v):
     back = wire.decode_composite(bx(v["output"]))
     if back != h:
         raise Fail(f"decode: {back} != inputs")
+    # mlkem-braid.md, Messages, On the wire: the last four fields are one Braid message
+    m = braid.message_from_header(back)
+    if wire.CompositeHeader(back.dh, back.pn, back.n, back.pq_epoch, back.pq_n, **braid.header_fields(m)) != h:
+        raise Fail("the Braid message does not give back the header's agreement fields")
+    check(v["inputs"]["ag_epoch"], braid.to_bytes(m.epoch), "ag_epoch as ToBytes(epoch)")
 
 
 def h_message_encoding(v):
@@ -211,14 +219,21 @@ def h_split(v):
 
 
 def h_braid(v):
+    """mlkem-braid.md, Parameters and derivations: KDF_OK (G-22, now stated)."""
     i = v["inputs"]
-    check(v["output"], braid.kdf_epoch_key(bx(i["ss"]), int(i["epoch"], 16)))
+    check(v["output"], braid.kdf_ok(bx(i["ss"]), int(i["epoch"], 16)))
 
 
 def h_auth(v):
+    """One Update from a given root_key, output root_key || mac_key; "its
+    from-zero vector is Init(1, s)" (G-23, now stated)."""
     i = v["inputs"]
-    rk, mac = braid.auth_update(bx(i["root"]), bx(i["key"]), int(i["epoch"], 16))
+    root, key, epoch = bx(i["root"]), bx(i["key"]), int(i["epoch"], 16)
+    rk, mac = braid.auth_update(root, key, epoch)
     check(v["output"], rk + mac, "root_key || mac_key")
+    if root == bytes(32):
+        a = braid.Auth.init(epoch, key)
+        check(v["output"], a.root_key + a.mac_key, "Init(e, s)")
 
 
 def h_gf_mul(v):
@@ -240,6 +255,218 @@ def h_interp(v):
     check(v["output"], got.to_bytes(2, "big"))
 
 
+# ------------------------------------------------- erasure code (GAPS-3.md G3-01)
+# The layouts of these files' inputs are not stated in the tree. Read as:
+# `indices` a run of 16-bit big-endian indices; `codewords` a run of
+# index(2) || chunk(32), the persisted decoder's `codeword` layout
+# (session-persistence.md); an encode `output` the listed codewords' 32 bytes
+# back to back; `size`, `issued` and `stream_length` 32-bit big-endian.
+
+def _u16s(h):
+    b = bx(h)
+    if len(b) % 2:
+        raise Fail("vector: indices is not a run of 16-bit values")
+    return [int.from_bytes(b[k:k + 2], "big") for k in range(0, len(b), 2)]
+
+
+def _codeword_run(h):
+    b = bx(h)
+    if len(b) % 34:
+        raise Fail("vector: codewords is not a run of index(2) || chunk(32)")
+    return [(int.from_bytes(b[k:k + 2], "big"), b[k + 2:k + 34]) for k in range(0, len(b), 34)]
+
+
+def _invalid(v):
+    return v.get("result", "valid") == "invalid"
+
+
+def h_erasure_encode(v):
+    """mlkem-braid.md, The erasure code: Chunks, Codewords; Encoder lifetime.
+    Every issued index is checked to be the next one; with stream_length the
+    stream is run until it issues nothing."""
+    i = v["inputs"]
+    enc = erasure.Encoder.for_value(bx(i["message"]))
+    wanted = _u16s(i["indices"])
+    total = int(i["stream_length"], 16) if "stream_length" in i else None
+    got, issued = {}, 0
+    while total is not None or issued <= max(wanted):
+        cw = enc.issue()
+        if cw is None:
+            break
+        idx, data = cw
+        if idx != issued:
+            raise Fail(f"the encoder issued index {idx} where {issued} was next")
+        if data != enc.codeword(idx):
+            raise Fail(f"issued codeword {idx} differs from the codeword definition")
+        if idx in wanted:
+            got[idx] = data
+        issued += 1
+    if total is not None:
+        if issued != total:
+            raise Fail(f"stream issued {issued} codewords, vector says {total}")
+        if enc.issue() is not None:
+            raise Fail("an exhausted encoder issued again")
+    missing = [x for x in wanted if x not in got]
+    if missing:
+        raise Fail(f"indices never issued: {missing[:4]}")
+    check(v["output"], b"".join(got[x] for x in wanted), "codewords")
+
+
+def h_erasure_decode(v):
+    """mlkem-braid.md, The erasure code, Decoding. The file's `source` says a
+    vector with no output is a decoder that holds no value (G3-01)."""
+    i = v["inputs"]
+    d = erasure.Decoder(int(i["size"], 16))
+    for idx, data in _codeword_run(i["codewords"]):
+        d.receive(idx, data)
+    value = d.value()
+    if _invalid(v):
+        if value is not None:
+            raise Fail("decoder holds a value; the vector says it holds none")
+        return
+    if value is None:
+        raise Fail("decoder holds no value")
+    check(v["output"], value, "value")
+
+
+def _state_bytes_vector(v, reader, writer):
+    """A `bytes` vector: read the stored state; a valid one reads back to the
+    bytes given, an invalid one is refused (session-persistence.md, Rejection)."""
+    data = bx(v["inputs"]["bytes"])
+    if _invalid(v):
+        try:
+            reader(data)
+        except persistence.PersistError:
+            return
+        raise Fail("stored bytes accepted; expected a refusal")
+    check(v["output"], writer(reader(data)), "re-encoding")
+
+
+def h_encoder_state(v):
+    """session-persistence.md, Erasure coder sub-formats; Semantic rules of the
+    leaf formats, Erasure encoder."""
+    i = v["inputs"]
+    if "bytes" in i:
+        return _state_bytes_vector(v, persistence.encoder_from_bytes, persistence.encoder_to_bytes)
+    enc = erasure.Encoder.for_value(bx(i["message"]))
+    for _ in range(int(i["issued"], 16)):
+        if enc.issue() is None:
+            raise Fail("encoder exhausted before the vector's issued count")
+    out = persistence.encoder_to_bytes(enc)
+    check(v["output"], out, "encoder bytes")
+    back = persistence.encoder_from_bytes(out)
+    if back != enc:
+        raise Fail(f"read back {back}, wrote {enc}")
+    if enc.chunks:   # a zero-chunk encoder's codewords are unstated (G3-02)
+        if copy.deepcopy(enc).issue() != back.issue():
+            raise Fail("the read-back encoder issues a different next codeword")
+
+
+def h_decoder_state(v):
+    """session-persistence.md, Erasure coder sub-formats; Semantic rules of the
+    leaf formats, Erasure decoder."""
+    i = v["inputs"]
+    if "bytes" in i:
+        return _state_bytes_vector(v, persistence.decoder_from_bytes, persistence.decoder_to_bytes)
+    d = erasure.Decoder(int(i["size"], 16))
+    for idx, data in _codeword_run(i["codewords"]):
+        d.receive(idx, data)
+    out = persistence.decoder_to_bytes(d)
+    check(v["output"], out, "decoder bytes")
+    back = persistence.decoder_from_bytes(out)
+    if back != d or back.value() != d.value():
+        raise Fail("the read-back decoder differs from the one written")
+
+
+# ------------------------------------------------------------ protobuf profile
+# protobuf-profile.md names fields in camelCase; the vectors' `fields` use the
+# same names in snake_case, which the page does not say (G3-03). The mapping
+# below is mechanical; names must match exactly, so an absent prekeyId must be
+# absent. Integers are four big-endian bytes (vector.schema.json, `fields`).
+
+def _snake(name):
+    return re.sub(r"([A-Z])", r"_\1", name).lower()
+
+
+def _protobuf(v, parse):
+    region = bx(v["inputs"]["region"])
+    if _invalid(v):
+        try:
+            parse(region)
+        except protobuf.ProtobufRefused:
+            return
+        raise Fail("region accepted; expected a refusal")
+    got = parse(region)
+    fields = {_snake(k): (val.to_bytes(4, "big").hex() if isinstance(val, int) else bytes(val).hex())
+              for k, val in got.items()}
+    if fields != v["fields"]:
+        names = sorted(set(fields) ^ set(v["fields"]))
+        wrong = sorted(k for k in set(fields) & set(v["fields"]) if fields[k] != v["fields"][k])
+        raise Fail(f"fields differ: names only on one side {names}, values differ {wrong}")
+
+
+def h_pb_body(v):
+    _protobuf(v, protobuf.parse_ratchet_body)
+
+
+def h_pb_envelope(v):
+    _protobuf(v, protobuf.parse_prekey_envelope)
+
+
+# ------------------------------------------------------------------------ AEAD
+# message-format.md, Authenticated encryption. The input `ad` is the page's
+# `AD`, the whole associated data (CONCAT(ad, header) for a session), not its
+# `ad` (G3-04).
+
+def _aead_keys(i):
+    return bx(i["enc_key"]), bx(i["mac_key"]), bx(i["iv"])
+
+
+def _concat_cross_check(ad_bytes):
+    """When the input's comment says it is CONCAT(ad, header), check it parses so."""
+    n = int.from_bytes(ad_bytes[:4], "big")
+    if 4 + n + wire.K.COMPOSITE_LEN != len(ad_bytes):
+        raise Fail("AD does not parse as len(ad) || ad || composite header")
+    wire.decode_composite(ad_bytes[4 + n:])
+
+
+def h_aead_encrypt(v):
+    i = v["inputs"]
+    enc, mac, iv = _aead_keys(i)
+    if "CONCAT" in v.get("comment", ""):
+        _concat_cross_check(bx(i["ad"]))
+    out = aead.encrypt(enc, mac, iv, bx(i["ad"]), bx(i["plaintext"]))
+    check(v["output"], out, "output")
+    if aead.decrypt(enc, mac, iv, bx(i["ad"]), out) != bx(i["plaintext"]):
+        raise Fail("the output does not decrypt to the plaintext")
+
+
+def h_aead_decrypt(v):
+    i = v["inputs"]
+    enc, mac, iv = _aead_keys(i)
+    ad, data = bx(i["ad"]), bx(i["input"])
+    if "CONCAT" in v.get("comment", ""):
+        _concat_cross_check(ad)
+    calls = []
+    real = aead._cbc_decrypt
+    aead._cbc_decrypt = lambda *a: calls.append(1) or real(*a)
+    try:
+        try:
+            got = aead.decrypt(enc, mac, iv, ad, data)
+        except aead.AuthenticationFailure:
+            if not _invalid(v):
+                raise Fail("refused; expected the plaintext")
+            tag_ok = len(data) >= 32 and hmac_sha256(mac, ad + data[:-32]) == data[-32:]
+            if calls and not tag_ok:
+                raise Fail("decrypted before the tag verified")
+            return
+    finally:
+        aead._cbc_decrypt = real
+    if _invalid(v):
+        raise Fail("accepted; expected the one authentication failure")
+    check(v["output"], got, "plaintext")
+
+
 HANDLERS = {
     "hmac-sha256": h_hmac,
     "hkdf-sha256": h_hkdf,
@@ -259,6 +486,14 @@ HANDLERS = {
     "gf65536-mul": h_gf_mul,
     "gf65536-inv": h_gf_inv,
     "polynomial-interp": h_interp,
+    "erasure-encode": h_erasure_encode,
+    "erasure-decode": h_erasure_decode,
+    "erasure-encoder-state": h_encoder_state,
+    "erasure-decoder-state": h_decoder_state,
+    "protobuf-ratchet-body": h_pb_body,
+    "protobuf-prekey-envelope": h_pb_envelope,
+    "aead-encrypt": h_aead_encrypt,
+    "aead-decrypt": h_aead_decrypt,
 }
 
 
@@ -315,7 +550,8 @@ CASE_MODULES = [
     "cases_erasure",      # GF(2^16) erasure code
     "cases_persistence",  # session-persistence.md formats
     "cases_protobuf",     # protobuf-profile.md
-    "cases_identity",     # identities-and-devices.md, repeated initial message
+    "cases_identity",     # identities-and-devices.md, repeated initial message, XEdDSA rules, DecodeEC, fingerprint
+    "cases_braid",        # mlkem-braid.md: derivations, authenticator, state machine, failure, session
 ]
 
 
