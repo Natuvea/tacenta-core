@@ -21,6 +21,7 @@ verification), and **ours** (free choices, authorised by nobody but us).
 | `EncodeEC` type byte | `0x05` | nominated | External interoperability profile, determined by black-box observation of a pinned build (ADR-0003). |
 | `EncodeKEM` type byte | `0x08` | nominated | External interoperability profile, determined by black-box observation of a pinned build (ADR-0003). |
 | PQXDH KEM parameter set | ML-KEM-1024 | fact | Published PQXDH specification. |
+| Bundle KEM prekey length | 1,568 bytes | fact | The ML-KEM-1024 encapsulation-key length, fixed by the FIPS 203 parameter set. A bundle's `kem_prekey_len` must equal it, and a decoder refuses any other value as a decode failure (message-format.md, Prekey bundle). |
 | External message version and field profile | see implementation | nominated | Determined by black-box observation of a pinned build (ADR-0003). |
 | **Our own** `VERSION` | `0x01` | ours | Our wire format, not libsignal's. Free choice. |
 | **Our own** `TYPE_RATCHET` / `TYPE_INITIAL` / `TYPE_BUNDLE` | `0x01` / `0x02` / `0x03` | ours | Free choice. |
