@@ -16,7 +16,7 @@ Last assessed: 2026-09-11.
 | 2 | Explicit assumptions | Partial | `CLAIMS.md` opens with what is not proved. `LIMITATIONS.md` lists what is trusted, and the axiom audit pins the theorems. `threat-model/*` and four of the five `security-properties/*` pages are scaffolds. | Write the threat model and the assumptions. |
 | 3 | Small trusted base | Good | No `unsafe`, and `forbid(unsafe_code)` in every crate. No FFI in the core. Trusted: libcrux, the dalek curves, the Aeneas translation, and proofs checked by evaluation. | Keep it; review any addition. |
 | 4 | Model separate from implementation | Good | The Lean model, its translation, and T3 refinement for the ratchets, Braid, decoders and PQXDH derivation. Vectors pin the rest. Session orchestration is outside the verified zones. | Persisted-format models, phases 2 and 3. |
-| 5 | Invariants, not examples | Partial | T1 panic-freedom, T3 refinement, decoded-state invariants, and forward secrecy and post-compromise security against a symbolic attacker. The model's counters were found unbounded (being fixed). The invariants are not catalogued as requirements. | Catalogue the invariants with the requirements. |
+| 5 | Invariants, not examples | Partial | T1 panic-freedom, T3 refinement, decoded-state invariants, and forward secrecy and post-compromise security against a symbolic attacker. The models of the classical ratchet, the sparse ratchet and the Braid stop at the counter ceilings the pages state; their refinements still ask for a step of headroom below them. The invariants are not catalogued as requirements. | Catalogue the invariants with the requirements. |
 | 6 | Verification in CI | Strong | Lean builds, the `sorry` scan, kernel replay, translation attestation, vectors current with the model, the independent reader. | Keep it. |
 | 7 | Reviewed normative changes | Gap, being addressed | One maintainer. Branch protection on `main` is off by decision while the project has one maintainer. Specification and model changes were merged on green checks with no recorded review. | ADR-0008 rule 7: every normative change carries a recorded review before merging on green. |
 | 8 | Traceability | Partial | `CLAIMS.md` maps theorems to claims, the conformance manifest maps sections to vectors, and `mapping-to-spec.md` maps the model to the specification. No requirements layer or requirement IDs. | Numbered requirements, traced through theorems, code and tests, with a CI check. |
@@ -63,6 +63,6 @@ A summary by component. A tick means the component has that kind of evidence, no
 3. **Traceability:** requirement IDs in `CLAIMS.md`, the conformance manifest and the tests, with a CI check that every requirement has a property and a test.
 4. **Differential testing:** generated operation sequences through `tacenta-model` and `tacenta-core`, comparing outputs, refusals and persisted bytes.
 5. **Model and formats:**
-   - the model's counter ceilings (in progress);
+   - the model's counter ceilings: the classical ratchet, sparse ratchet and Braid models stop at them; whether the refinements' step of headroom can be dropped has not been checked;
    - persisted formats phase 2 (Triple, Braid) and phase 3 (session, prekey store).
 6. **Types and state:** validated newtypes at the decoder boundary, and an explicit session state machine, done step by step.

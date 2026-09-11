@@ -85,6 +85,18 @@ clock at `u32::MAX - 1` (`Model.State.maxEvents`);
 `Model.SparseRatchet.advance_epoch_lt` and `Model.SparseRatchet.send_number_le`,
 and the persistence vectors pin each ceiling.
 
+The Braid's model stops at the epoch ceiling mlkem-braid.md (Failure) and
+session-persistence.md (Principles) state, though the model states no Braid
+stored format: `Model.Braid.receive` refuses, in transitions (5) and (13), the
+step onto epoch `u64::MAX` and goes to `failed` (`Model.Braid.u64Max`). In
+`EkSentCt1Received` it refuses when `ct2` completes, before decapsulating; in
+`Ct2Sampled`, before reading the message. The range lemmas are
+`Model.Braid.receive_epoch_lt`, `Model.Braid.receive_advance_lt` and
+`Model.Braid.receive_output_epoch_lt`, and the two refusals are
+`Model.Braid.receive_ct2Sampled_at_ceiling` and
+`Model.Braid.receive_ekSentCt1Received_at_ceiling`. No vector pins this
+ceiling, because no vector file holds a Braid state.
+
 ## Scope held to the spec
 
 The spec's Scope section excludes the header-encryption variant of the Double
