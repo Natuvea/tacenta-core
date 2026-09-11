@@ -3,8 +3,10 @@
 mlkem-braid.md defers to the published ML-KEM Braid specification for the
 protocol and restates none of the derivations; the spec tree carries only the
 suffix literals and PROTOCOL_INFO. The constructions below are hypotheses
-(GAPS.md G-22, G-23), confirmed by braid.json and auth.json. The Braid state
-machine, the header/ciphertext MACs and the KEM are not implemented.
+(GAPS.md G-22, G-23; still open in GAPS-2.md), confirmed by braid.json and
+auth.json. The Braid state machine, the header/ciphertext MACs and the KEM
+are not implemented; the erasure code is (erasure.py), and the Braid's
+persisted layout is (persistence.py).
 """
 
 from typing import Tuple

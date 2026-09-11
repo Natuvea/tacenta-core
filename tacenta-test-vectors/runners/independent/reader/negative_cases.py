@@ -268,8 +268,8 @@ def _():
     rejects(wire.decode_initial, put(INITIAL, OFF_CT_LEN, (total - 72 - 11).to_bytes(4, "big")))
 
 
-@case("IM-05 identity or ephemeral with an unrecognised curve byte (incl. the KEM byte)",
-      f"{SE} Parameters: a decoder that does not recognise the leading byte fails (G-05)")
+@case("IM-05 identity or ephemeral with an unrecognised curve byte (incl. the KEM byte) is a decode failure",
+      f"{MF} Initial message: It also refuses an identity or ephemeral whose first byte is not the EncodeEC curve byte")
 def _():
     for b in (0x00, 0x08, 0xFF):
         rejects(wire.decode_initial, put(INITIAL, OFF_IDENTITY, b))
@@ -285,18 +285,53 @@ def _():
 
 @case("IM-07 the embedded ratchet message still decodes on its own", f"{MF} Initial message: so it still decodes on its own")
 def _():
-    m = wire.decode_initial(INITIAL, validate_ratchet_message=True)
+    m = wire.decode_initial(INITIAL)
     h, ct = wire.decode_ratchet_message(m.ratchet_message)
     assert ct == b"\xde\xad\xbe\xef"
 
 
-@case("IM-08 strict mode refuses an embedded ratchet message that does not decode (hypothesis, G-04)",
-      f"{MF} Initial message: ratchet_message is a complete ratchet message")
+@case("IM-08 the initial decoder does not validate ratchet_message: empty or not a ratchet message decodes; decoding it as one is refused later",
+      f"{MF} Initial message: the initial-message decoder does not validate it: it may be empty, or not a ratchet message at all")
 def _():
-    bad = INITIAL[:-len(MSG)] + put(MSG, OFF_AG_TYPE, 0x06)
-    accepts(wire.decode_initial, bad)  # default (vector-compatible) reading
-    rejects(wire.decode_initial, bad, validate_ratchet_message=True)
-    rejects(wire.decode_initial, INITIAL[:-len(MSG)] + b"\xde\xad", validate_ratchet_message=True)
+    prefix = INITIAL[:-len(MSG)]
+    for tail in (b"", b"\xde\xad", put(MSG, OFF_AG_TYPE, 0x06), MSG[:50]):
+        m = accepts(wire.decode_initial, prefix + tail)
+        assert m.ratchet_message == tail
+        if tail:
+            rejects(wire.decode_ratchet_message, m.ratchet_message)
+    rejects(wire.decode_ratchet_message, b"")
+
+
+@case("IM-09 kem_ciphertext length is not checked at decode; decapsulation's length refusal is not a decode failure",
+      f"{MF} Initial message: The decoder does not check kem_ciphertext's length either ... The refusal is not a decode failure")
+def _():
+    from tacenta_reader import pqxdh
+    for n in (0, 2, 1567, 1568, 1569, 4000):
+        raw = wire.encode_initial(wire.InitialMessage(
+            identity=b"\x05" + b"\x0a" * 32, ephemeral=b"\x05" + b"\x0b" * 32,
+            kem_ciphertext=b"\xc3" * n, signed_prekey_id=3, one_time_prekey_id=0,
+            kem_prekey_id=5, ratchet_message=MSG))
+        m = accepts(wire.decode_initial, raw)
+        if n == K.MLKEM1024_CT_LEN:
+            accepts(pqxdh.check_kem_ciphertext, m.kem_ciphertext)
+        else:
+            rejects(pqxdh.check_kem_ciphertext, m.kem_ciphertext, exc=pqxdh.KemCiphertextRefused)
+            try:
+                pqxdh.check_kem_ciphertext(m.kem_ciphertext)
+            except DecodeError:
+                raise AssertionError("length refusal reported as a decode failure")
+            except pqxdh.KemCiphertextRefused:
+                pass
+
+
+@case("IM-10 identifier 0 decodes in every position of an initial message",
+      f"{MF} Key identifiers: Neither decoder looks at an identifier's value, so 0 decodes in every position")
+def _():
+    base = 2 + 33 + 33 + 4 + 2   # identifiers start after the 2-byte ciphertext
+    raw = put(INITIAL, base, bytes(12))
+    m = accepts(wire.decode_initial, raw)
+    assert (m.signed_prekey_id, m.one_time_prekey_id, m.kem_prekey_id) == (0, 0, 0)
+    assert not m.one_time_prekey_used
 
 
 # ========================================================= prekey bundle
@@ -352,13 +387,23 @@ def _():
     rejects(wire.decode_bundle, put(bundle_bytes(), OFF_KEM_LEN, (1568 + 200).to_bytes(4, "big")), kem_prekey_len=None)
 
 
-@case("PB-08 a well-formed bundle with a 1,184-byte (ML-KEM-768-sized) key fails to decode under ML-KEM-1024 (hypothesis, G-06)",
-      f"{MF} Prekey bundle: fails to decode under another")
+@case("PB-08 a bundle whose kem_prekey_len is not 1,568 (1,184 and 1,569) is a decode failure under ML-KEM-1024",
+      f"{MF} Prekey bundle: a decoder refuses a kem_prekey_len other than the encapsulation-key length of the KEM it expects")
 def _():
-    b = signed_bundle(kem_prekey=KEM_PK[:1184])
-    raw = wire.encode_bundle(b, kem_prekey_len=None)
-    rejects(wire.decode_bundle, raw)
-    assert wire.decode_bundle(raw, kem_prekey_len=None).kem_prekey == KEM_PK[:1184]
+    for key in (KEM_PK[:1184], KEM_PK + b"\x00"):
+        b = signed_bundle(kem_prekey=key)
+        raw = wire.encode_bundle(b, kem_prekey_len=None)
+        rejects(wire.decode_bundle, raw)
+        assert wire.decode_bundle(raw, kem_prekey_len=None).kem_prekey == key
+
+
+@case("PB-15 identifier 0 in the signed and KEM prekey positions decodes, and the initiator does not refuse it",
+      f"{MF} Key identifiers: an initiator does not check for it in a bundle and echoes it")
+def _():
+    b = signed_bundle(True, signed_prekey_id=0, kem_prekey_id=0)
+    got = accepts(wire.decode_bundle, wire.encode_bundle(b))
+    assert (got.signed_prekey_id, got.kem_prekey_id) == (0, 0)
+    accepts(wire.initiator_check_bundle, got, expected_identity=IK_PUB)
 
 
 @case("PB-09 initiator accepts a correctly signed bundle", f"{SE} Sending the initial message: Alice verifies every signature")
@@ -439,7 +484,7 @@ def _():
 # ============================================================== ratchet
 
 def _bob():
-    return ratchet.init_receiver(b"\x01" * 32, b"\x0b" * 32)
+    return ratchet.init_responder(b"\x01" * 32, b"\x0b" * 32)
 
 
 def _dh(tag):
@@ -451,71 +496,81 @@ def _dh(tag):
 K1, K2, K3 = b"\x1a" * 32, b"\x2a" * 32, b"\x3a" * 32
 
 
+def _recv(state, dh, pn, n, tag):
+    s, mk, _ = ratchet.receive(state, ratchet.Header(dh, pn, n), _dh(tag))
+    return s, mk
+
+
 @case("DR-01 MAX_SKIP boundary on the receiving chain: 1000 skips accepted, 1001 rejected",
-      f"{RM} Skipped keys: A header demanding more than this is rejected")
+      f"{RM} Skipped keys: A header demanding more than this is rejected (TooManySkipped)")
 def _():
-    bob = _bob()
-    accepts(ratchet.ratchet_decrypt, bob, ratchet.Header(K1, 0, 1000), _dh(1))
+    bob, _ = accepts(_recv, _bob(), K1, 0, 1000, 1)
     assert len(bob.skipped) == 1000
-    rejects(ratchet.ratchet_decrypt, _bob(), ratchet.Header(K1, 0, 1001), _dh(1), exc=ratchet.RatchetError)
+    rejects(_recv, _bob(), K1, 0, 1001, 1, exc=ratchet.TooManySkipped)
 
 
-@case("DR-02 MAX_SKIP applies to the previous chain via PN", f"{RM} DH ratchet step 1: Store any skipped message keys ... up to the header's counts")
+@case("DR-02 MAX_SKIP applies to the skip to PN on its own when there is a receiving chain",
+      f"{RM} The Diffie-Hellman ratchet, step 1: store its skipped message keys from Nr up to the header's PN")
 def _():
-    bob = _bob()
-    ratchet.ratchet_decrypt(bob, ratchet.Header(K1, 0, 0), _dh(1))
-    rejects(ratchet.ratchet_decrypt, bob, ratchet.Header(K2, 1002, 0), _dh(2), exc=ratchet.RatchetError)
-    accepts(ratchet.ratchet_decrypt, bob, ratchet.Header(K2, 1001, 0), _dh(2))
-    assert len(bob.skipped) == 1000
+    bob, _ = _recv(_bob(), K1, 0, 0, 1)
+    rejects(_recv, bob, K2, 1002, 0, 2, exc=ratchet.TooManySkipped)
+    bob2, _ = accepts(_recv, bob, K2, 1001, 0, 2)
+    assert len(bob2.skipped) == 1000
 
 
-@case("DR-03 MAX_SKIPPED_STORE: a step that would push the store past 2000 is rejected",
-      f"{RM} Skipped keys: A step that would push the store past this bound is rejected")
+@case("DR-03 MAX_SKIPPED_STORE: a skip that would push the store past 2000 is refused by the ratchet (SkippedStoreFull)",
+      f"{RM} Skipped keys: A skip that would push the store past this bound is refused by the ratchet")
 def _():
-    bob = _bob()
-    ratchet.ratchet_decrypt(bob, ratchet.Header(K1, 0, 1000), _dh(1))
-    ratchet.ratchet_decrypt(bob, ratchet.Header(K2, 1001, 1000), _dh(2))
+    bob, _ = _recv(_bob(), K1, 0, 1000, 1)
+    bob, _ = _recv(bob, K2, 1001, 1000, 2)
     assert len(bob.skipped) == 2000
     before = bob.clone()
-    rejects(ratchet.ratchet_decrypt, bob, ratchet.Header(K3, 1001, 1), _dh(3), exc=ratchet.RatchetError)
-    assert bob.__dict__ == before.__dict__, "rejected step changed the state (G-15)"
-    accepts(ratchet.ratchet_decrypt, bob, ratchet.Header(K3, 1001, 0), _dh(3))
+    rejects(_recv, bob, K3, 1001, 1, 3, exc=ratchet.SkippedStoreFull)
+    assert bob.__dict__ == before.__dict__, "caller's state moved"
+    accepts(_recv, bob, K3, 1001, 0, 3)
 
 
-@case("DR-04 a skipped key is used once and removed", f"{RM} Sending and receiving: if the message matches a stored skipped key, use and remove it")
+@case("DR-04 a skipped key is used once and removed", f"{RM} Sending and receiving: match a stored skipped key, use and remove it")
 def _():
-    bob = _bob()
-    ratchet.ratchet_decrypt(bob, ratchet.Header(K1, 0, 2), _dh(1))
-    ratchet.ratchet_decrypt(bob, ratchet.Header(K1, 0, 0), _dh(1))
+    bob, _ = _recv(_bob(), K1, 0, 2, 1)
+    bob, _ = _recv(bob, K1, 0, 0, 1)
     assert (K1, 0) not in bob.skipped
-    rejects(ratchet.ratchet_decrypt, bob, ratchet.Header(K1, 0, 0), _dh(1), exc=ratchet.RatchetError)
+    rejects(_recv, bob, K1, 0, 0, 1, exc=ratchet.OutOfOrder)
 
 
-@case("DR-05 a receiver with no sending chain cannot send (reader policy, G-15)", f"{RM} State: CKs, CKr ... either possibly empty")
+@case("DR-05 a responder cannot send before it has received (NoSendingChain)",
+      f"{RM} Initialisation: The responder cannot send until it has received; Sending: refused ... (NoSendingChain)")
 def _():
-    rejects(ratchet.ratchet_encrypt, _bob(), exc=ratchet.RatchetError)
+    rejects(ratchet.send, _bob(), exc=ratchet.NoSendingChain)
 
 
-@case("DR-06 skipped keys expire after MAX_SKIPPED_AGE received messages (boundary is a hypothesis, G-16)",
-      f"{RM} Skipped keys: Stored keys also expire once they have outlived a fixed number of received messages")
+@case("DR-06 exact expiry: a key stored in one receive serves the next MAX_SKIPPED_AGE - 1 accepted receives and is deleted at the end of the last",
+      f"{RM} Skipped keys: every stored key whose age ... is at least MAX_SKIPPED_AGE is deleted")
 def _():
-    bob = _bob()
-    ratchet.ratchet_decrypt(bob, ratchet.Header(K1, 0, 2), _dh(1))  # stores 0, 1
-    for n in range(3, 3 + K.MAX_SKIPPED_AGE - 1):
-        ratchet.ratchet_decrypt(bob, ratchet.Header(K1, 0, n), _dh(1))
-    assert (K1, 0) in bob.skipped, "expired too early"
-    ratchet.ratchet_decrypt(bob, ratchet.Header(K1, 0, 2 + K.MAX_SKIPPED_AGE), _dh(1))
-    assert (K1, 0) not in bob.skipped, "not expired"
+    bob, _ = _recv(_bob(), K1, 0, 2, 1)             # R0 stores (K1,0), (K1,1) at count 0; count -> 1
+    assert bob.skipped[(K1, 0)][1] == 0 and bob.events == 1
+    for n in range(3, 3 + K.MAX_SKIPPED_AGE - 2):   # R1..R998
+        bob, _ = _recv(bob, K1, 0, n, 1)
+    assert bob.events == K.MAX_SKIPPED_AGE - 1
+    assert (K1, 0) in bob.skipped and (K1, 1) in bob.skipped, "expired too early"
+    # R999, the last receive allowed to use a key stored in R0, uses (K1, 0) ...
+    used, mk = accepts(_recv, bob, K1, 0, 0, 1)
+    assert (K1, 0) not in used.skipped
+    # ... and at its end (K1, 1) reaches age 1000 and is deleted.
+    assert (K1, 1) not in used.skipped and used.events == K.MAX_SKIPPED_AGE
+    # An ordinary receive in the same position deletes both.
+    other, _ = _recv(bob, K1, 0, 3 + K.MAX_SKIPPED_AGE - 2, 1)
+    assert not any(k[0] == K1 and k[1] in (0, 1) for k in other.skipped)
 
 
-@case("DR-07 sender and receiver agree across DH steps (X25519 end to end)", f"{RM} The Diffie-Hellman ratchet")
+@case("DR-07 sender and receiver agree across DH steps (X25519 end to end)", f"{RM} The Diffie-Hellman ratchet; Initialisation")
 def _():
     a_priv, b_priv = b"\xa1" * 32, b"\xb2" * 32
     a_pub, b_pub = curve25519.x25519_public(a_priv), curve25519.x25519_public(b_priv)
     sk = b"\x42" * 32
     keys = {a_pub: a_priv, b_pub: b_priv}
-    alice = ratchet.init_sender(sk, a_pub, b_pub, curve25519.x25519(a_priv, b_pub))
-    bob = ratchet.init_receiver(sk, b_pub)
+    parties = {"a": ratchet.init_initiator(sk, a_pub, b_pub, curve25519.x25519(a_priv, b_pub)),
+               "b": ratchet.init_responder(sk, b_pub)}
     counter = [0]
 
     def real_step(state):
@@ -528,9 +583,10 @@ def _():
                     curve25519.x25519(new_priv, header_dh))
         return step
 
-    for sender, receiver in ((alice, bob), (alice, bob), (bob, alice), (alice, bob), (bob, alice), (bob, alice)):
-        h, mk = ratchet.ratchet_encrypt(sender)
-        assert ratchet.ratchet_decrypt(receiver, h, real_step(receiver)) == mk
+    for snd, rcv in (("a", "b"), ("a", "b"), ("b", "a"), ("a", "b"), ("b", "a"), ("b", "a")):
+        parties[snd], h, mk = ratchet.send(parties[snd])
+        parties[rcv], got, _ = ratchet.receive(parties[rcv], h, real_step(parties[rcv]))
+        assert got == mk
 
 
 # ======================================================== sparse ratchet
@@ -539,31 +595,31 @@ def _pair(sk=b"\x07" * 32):
     return spqr.init(sk, spqr.A2B), spqr.init(sk, spqr.B2A)
 
 
-@case("SP-01 a message numbered zero is refused", f"{SP} Initialisation: a message numbered zero is refused as out of order")
+@case("SP-01 a message numbered zero is refused as out of order", f"{SP} Initialisation: a message numbered zero is refused as out of order")
 def _():
     _, b = _pair()
-    rejects(spqr.receive, b, 0, 0, exc=spqr.SpqrError)
+    rejects(spqr.receive, b, 0, 0, exc=spqr.OutOfOrder)
 
 
 @case("SP-02 A2b and B2a assign the chain pair oppositely and agree; same direction does not",
       f"{SP} Initialisation: The two sides then assign that pair oppositely")
 def _():
     a, b = _pair()
-    e, n, mk = spqr.send(a, 0)
-    assert (e, n) == (0, 1)
-    assert spqr.receive(b, e, n) == mk
-    e, n, mk = spqr.send(b, 0)
-    assert spqr.receive(a, e, n) == mk
+    a, e, n, mk = spqr.send(a, 0)
+    assert (e, n) == (0, 1), "a chain's first message is number one"
+    b, got = spqr.receive(b, e, n)
+    assert got == mk
+    b, e, n, mk = spqr.send(b, 0)
+    assert spqr.receive(a, e, n)[1] == mk
     a2 = spqr.init(b"\x07" * 32, spqr.A2B)
-    a3 = spqr.init(b"\x07" * 32, spqr.A2B)
-    e, n, mk = spqr.send(a2, 0)
-    assert spqr.receive(a3, e, n) != mk
+    _, e, n, mk = spqr.send(a2, 0)
+    assert spqr.receive(spqr.init(b"\x07" * 32, spqr.A2B), e, n)[1] != mk
 
 
 @case("SP-03 an epoch gap is refused", f"{SP} Sending: a gap is an error rather than something to accommodate")
 def _():
     a, _ = _pair()
-    rejects(spqr.send, a, 0, b"\x99" * 32, 2, exc=spqr.SpqrError)
+    rejects(spqr.send, a, 0, b"\x99" * 32, 2, exc=spqr.EpochGap)
 
 
 @case("SP-04 advancing to epoch u64::MAX is refused as counter exhaustion", f"{SP} Sending: refuses to advance to epoch u64::MAX")
@@ -578,39 +634,55 @@ def _():
 @case("SP-05 MAX_SKIP: 1000 skips accepted, 1001 rejected", f"{SP} Receiving: a header demanding more than the permitted number of skips is rejected")
 def _():
     _, b = _pair()
-    rejects(spqr.receive, b, 0, 1002, exc=spqr.SpqrError)
-    accepts(spqr.receive, b, 0, 1001)
-    assert len(b.skipped) == 1000
+    rejects(spqr.receive, b, 0, 1002, exc=spqr.TooManySkipped)
+    b2, _ = accepts(spqr.receive, b, 0, 1001)
+    assert len(b2.skipped) == 1000
 
 
 @case("SP-06 stored key used once; out-of-order within an epoch", f"{SP} Receiving: If a key is there it is used and removed")
 def _():
     a, b = _pair()
-    sent = [spqr.send(a, 0) for _ in range(3)]
-    assert spqr.receive(b, 0, 3) == sent[2][2]
-    assert spqr.receive(b, 0, 1) == sent[0][2]
-    rejects(spqr.receive, b, 0, 1, exc=spqr.SpqrError)
-    assert spqr.receive(b, 0, 2) == sent[1][2]
+    sent = []
+    for _ in range(3):
+        a, e, n, mk = spqr.send(a, 0)
+        sent.append(mk)
+    b, got = spqr.receive(b, 0, 3)
+    assert got == sent[2]
+    b, got = spqr.receive(b, 0, 1)
+    assert got == sent[0]
+    rejects(spqr.receive, b, 0, 1, exc=spqr.OutOfOrder)
+    assert spqr.receive(b, 0, 2)[1] == sent[1]
 
 
-@case("SP-07 epochs advance on both sides; retired epochs and their skipped keys are discarded",
-      f"{SP} Retiring old epochs: discards the rest, including the skipped keys stored under them")
+@case("SP-07 epochs advance on both sides; retired epochs and their skipped keys are discarded (NoChain)",
+      f"{SP} Retiring old epochs: keeps ... every epoch e with E < e + EPOCHS_KEPT and discards the rest")
 def _():
     a, b = _pair()
     s1, s2 = b"\x31" * 32, b"\x32" * 32
-    old = [spqr.send(a, 0) for _ in range(2)]
-    spqr.receive(b, 0, 2)  # stores (0, 1)
-    e, n, mk = spqr.send(a, 1, s1, 1)
-    assert spqr.receive(b, e, n, s1, 1) == mk
-    e, n, mk = spqr.send(b, 1)
-    assert spqr.receive(a, e, n) == mk
-    assert (0, 1) in b.skipped and spqr.receive(b, 0, 1) == old[0][2]  # epoch 0 still kept
-    more = [spqr.send(a, 0) for _ in range(2)]                           # numbers 3, 4
-    assert spqr.receive(b, 0, 4) == more[1][2]                           # stores (0, 3)
-    e, n, mk = spqr.send(a, 2, s2, 2)
-    assert spqr.receive(b, e, n, s2, 2) == mk
+    old = []
+    for _ in range(2):
+        a, e, n, mk = spqr.send(a, 0)
+        old.append(mk)
+    b, _ = spqr.receive(b, 0, 2)                                   # stores (0, 1)
+    a, e, n, mk = spqr.send(a, 0, s1, 1)                            # sent on the epoch before
+    assert (e, n) == (0, 3) and a.epoch == 1
+    b, got = spqr.receive(b, e, n, s1, 1)
+    assert got == mk
+    b, e, n, mk = spqr.send(b, 1)
+    a, got = spqr.receive(a, e, n)
+    assert got == mk
+    assert (0, 1) in b.skipped and spqr.receive(b, 0, 1)[1] == old[0]  # epoch 0 still kept
+    more = []
+    for _ in range(2):
+        a, e, n, mk = spqr.send(a, 0)                               # numbers 4, 5
+        more.append(mk)
+    b, got = spqr.receive(b, 0, 5)                                  # stores (0, 4)
+    assert got == more[1]
+    a, e, n, mk = spqr.send(a, 1, s2, 2)
+    b, got = spqr.receive(b, e, n, s2, 2)
+    assert got == mk
     assert 0 not in b.chains and all(k[0] != 0 for k in b.skipped)
-    rejects(spqr.receive, b, 0, 5, exc=spqr.SpqrError)
+    rejects(spqr.receive, b, 0, 4, exc=spqr.NoChain)
 
 
 # ================================================================ field
