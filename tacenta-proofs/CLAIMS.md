@@ -334,15 +334,16 @@ theorem in this section is about `receive` itself.
 - `Properties.StateConsistency.send_advances_ns`: a send that succeeds sets
   `ns` to `ns + 1`.
 - `Properties.StateConsistency.send_header_is_pre_state`: its header carries
-  the `ns`, `pn` and `dhs_pub` of the state before the send.
+  the `ns`, `pn` and `dhsPub` of the state before the send.
 - `Properties.StateConsistency.send_preserves_the_rest`: it leaves `nr`, `pn`,
   the root key, the receiving chain, the skipped store, both ratchet public
   keys and the clock as they were.
 - `Properties.StateConsistency.dhRatchet_resets_counters`: `dhRatchet`, for any
-  header and any agreement outputs, sets `pn` to the old `ns`, and `ns` and
-  `nr` to zero.
-- `Properties.StateConsistency.dhRatchet_takes_header_key`: it sets `dhr_pub`
-  to the header's key and leaves the skipped store and the clock as they were.
+  header, any agreement outputs and any new sending public key, sets `pn` to
+  the old `ns`, and `ns` and `nr` to zero.
+- `Properties.StateConsistency.dhRatchet_takes_header_key`: under the same
+  quantification, it sets `dhrPub` to `some` of the header's key and leaves the
+  skipped store and the clock as they were.
 - `Properties.StateConsistency.skipMessageKeys_nr_monotone`: a skip that
   succeeds leaves `nr` no lower than it was.
 - `Properties.StateConsistency.skipMessageKeys_preserves_sending`: it leaves
@@ -359,9 +360,10 @@ theorem in this section is about `receive` itself.
 
 All but one are pinned under `#guard_msgs` in `Proofs/TrustedBase.lean`, on
 `propext` and `Quot.sound`, except `trySkipped_preserves_counters`, on
-`propext` alone. `ageStore_preserves_the_rest` is proved by `rfl` and
-`#print axioms` reports no axiom for it, so it has no pin: the pin shape
-`attest.py` reads records a list of axioms.
+`propext` alone. `ageStore_preserves_the_rest` is proved by `rfl`, and
+`#print axioms` reported no axiom for it when this was written. It has no pin,
+so nothing in the build holds that: the pin shape `attest.py` reads records a
+list of axioms.
 
 ## Proved (tier T2, the models' skipped-key stores)
 
@@ -388,7 +390,8 @@ the bytes are overwritten in memory is not in the model, and `LIMITATIONS.md`,
 **How far the classical store grows.** `Proofs.MemorySafety.Step` relates a
 state to the state one of five transitions returns: a `skipMessageKeys` that
 succeeds, a `trySkipped` that succeeds, `ageStore`, a `send` that succeeds, and
-`dhRatchet` with any header and agreement outputs. `Reachable` is any finite
+`dhRatchet` with any header, any agreement outputs and any new sending public
+key. `Reachable` is any finite
 sequence of them. `Model.Ratchet.receive` is not a `Step`, and no theorem here
 says that the state it returns is `Reachable` from its input.
 
@@ -403,8 +406,11 @@ says that the state it returns is `Reachable` from its input.
 
 **The sparse ratchet's store.** `skipMessageKeys.deriveInto` is the recursion
 `Model.SparseRatchet.skipMessageKeys` uses to derive a skipped batch.
-`keyAt ck start i` is the message key an in-order receive derives at offset
-`i`, walking the chain forward from `ck` (`chainAfter`).
+`keyAt ck start i` is defined as the message half of
+`kdfCk (chainAfter ck start i) (start + 1 + i)`, where `chainAfter` advances the
+chain key `i` times from `ck`. That this is the key an in-order
+`Model.SparseRatchet.receive` derives at that offset is true by reading the two
+definitions; no theorem relates `keyAt` to `receive`.
 
 - `Proofs.SparseRatchetCorrectness.deriveInto_length`: a batch of `c` steps
   holds exactly `c` keys.

@@ -141,7 +141,13 @@ epochs):
 - **Protects:** AS-05, AS-06.
 - **Holds against:** ADV-02, and ADV-06 inducing a party to store keys.
 - **Rests on:** ASM-11, ASM-15, ASM-16, ASM-17, ASM-18.
-- **Status: proved (T2 and T3).**
+- **Status: proved (T2 and T3), except the store bound across a session.** The
+  second bullet of the statement, that each store holds at most
+  `MAX_SKIPPED_STORE` keys, is proved for single operations, and for the
+  classical store over finite sequences of the five transitions
+  `Proofs.MemorySafety.Step` names. No theorem carries it across
+  `Model.Ratchet.receive` or across the sparse ratchet's operations, so for a
+  whole session the bound is tested only. The other three bullets are proved.
   - The skip bounds: `skipMessageKeys_growth` and
     `skipMessageKeys_store_bounded` (T2, CLAIMS.md, "Proved (tier T2,
     functional properties of the model)").
@@ -155,11 +161,24 @@ epochs):
   - T2, CLAIMS.md, "Proved (tier T2, the models' skipped-key stores)":
     - the model's ageing leaves no key `MAX_SKIPPED_AGE` or more receives old:
       `Proofs.KeyErasure.ageStore_drops_the_expired`;
-    - the bound holds over any sequence of operations:
-      `Proofs.MemorySafety.reachable_stays_bounded`;
-    - the sparse ratchet's store bound:
+    - the classical bound survives any finite sequence of the five transitions
+      `Proofs.MemorySafety.Step` names -- a `skipMessageKeys` that succeeds, a
+      `trySkipped` that succeeds, `ageStore`, a `send` that succeeds, and
+      `dhRatchet` -- starting from a state already within the bound:
+      `Proofs.MemorySafety.reachable_stays_bounded`. From a fresh receiver
+      state that premise is discharged:
+      `Proofs.MemorySafety.a_session_stays_bounded`;
+    - the sparse ratchet's store bound, for one skip: a skip that succeeds
+      leaves the store no longer than the larger of its previous length and
+      `MAX_SKIPPED_STORE`:
       `Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded`.
 - **Does not cover:**
+  - The bound across `Model.Ratchet.receive`. A receive is not a
+    `Proofs.MemorySafety.Step`, and no theorem says the state it returns is
+    `Reachable` from the state it was given.
+  - The bound across the sparse ratchet's `send`, `receive` or `advance`, or
+    across any sequence of them. Each of its store theorems is about one
+    operation.
   - A stored key taken before it is used, expired or evicted. That exposure is
     the price of out-of-order delivery.
   - The count's last step. `age_store_refines` needs a step of room, and once

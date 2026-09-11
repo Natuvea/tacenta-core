@@ -45,7 +45,7 @@ Of the 32 requirements:
 | REQ-FS-01: a chain key does not reveal the chain's past | Proved, model-level, symbolic |
 | REQ-FS-02: spent keys are replaced in the state | Proved (T3) |
 | REQ-FS-03: spent secrets are erased from memory | Tested only |
-| REQ-FS-04: stored keys are bounded and expire | Proved (T2, T3) |
+| REQ-FS-04: stored keys are bounded and expire | Proved (T2, T3), except the store bound across a session |
 | REQ-FS-05: the handshake is forward secret once a prekey secret is gone | Assumed |
 | REQ-FS-06: replaced chains stay secret | Assumed |
 | REQ-PCS-01: a fresh agreement heals the classical ratchet | Proved, model-level, symbolic |
@@ -241,8 +241,11 @@ made by `establish_initiator_for`. No test or vector exercised its refusal
 `a_bundle_for_another_identity_than_the_named_one_is_refused_and_changes_nothing`
 (`tacenta-core/tests/full_session.rs`) now does. It checks that:
 - a bundle whose signatures verify under another identity key is refused;
-- no randomness is drawn before the refusal;
-- neither prekey store's bytes change.
+- no randomness is drawn before the refusal.
+
+It also asserts that neither prekey store's bytes change. That holds by
+construction rather than by the check: `establish_initiator_for` takes no
+prekey store, so the assertion cannot fail.
 
 REQ-AUTH-02 remains tested only. No vector or proof covers it.
 

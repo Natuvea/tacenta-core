@@ -69,10 +69,12 @@ bundle whose identity key is any other, before encapsulating
   `establish_initiator_for` (`UnexpectedIdentity`).
   `a_bundle_for_another_identity_than_the_named_one_is_refused_and_changes_nothing`
   (`tacenta-core/tests/full_session.rs`) exercises it. It offers a bundle whose
-  prekey signatures verify under another identity key, and checks three things:
-  the refusal is `UnexpectedIdentity`; no randomness is drawn before it, so
-  nothing is encapsulated; and neither prekey store's bytes change. No vector
-  or proof covers it (limitations.md, LIM-13).
+  prekey signatures verify under another identity key, and checks two things:
+  the refusal is `UnexpectedIdentity`; and no randomness is drawn before it, so
+  nothing is encapsulated. It also asserts that neither prekey store's bytes
+  change, which holds by construction rather than by the check, since
+  `establish_initiator_for` takes no prekey store. No vector or proof covers it
+  (limitations.md, LIM-13).
 - **Does not cover:** an initiator that names no key. `establish_initiator`
   accepts any identity key whose prekey signatures verify.
 

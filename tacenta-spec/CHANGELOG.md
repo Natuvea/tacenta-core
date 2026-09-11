@@ -128,6 +128,31 @@ is SemVer against the specified protocol (not the implementation).
 - `security-properties/limitations.md`, LIM-05: names the test that runs a
   session through a Diffie-Hellman step. It no longer reports that
   `tacenta-proofs/CLAIMS.md` and `LIMITATIONS.md` call that test "being added".
+- `security-properties/forward-secrecy.md`, REQ-FS-04: the wording overstated
+  the theorems it cites. "The bound holds over any sequence of operations" is
+  not what `Proofs.MemorySafety.reachable_stays_bounded` says: it covers finite
+  sequences of the five transitions `Proofs.MemorySafety.Step` names, from a
+  state already within the bound, and `Model.Ratchet.receive` is not one of
+  them. The sparse citation,
+  `Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded`, is one skip.
+  Both citations now say what the theorems state, "Does not cover" names the
+  bound across `Model.Ratchet.receive` and across the sparse ratchet's `send`,
+  `receive` and `advance`, and the status is qualified: the statement's second
+  bullet, that each store holds at most `MAX_SKIPPED_STORE` keys, is not proved
+  across a session. `limitations.md`'s status table follows.
+- `security-properties/post-compromise-security.md`, REQ-PCS-01: the page
+  overstated the two theorems it cites. "Healing is not one step's property; it
+  persists" is not what `Properties.PostCompromise.fresh_agreement_heals` and
+  `fresh_agreement_heals_the_root` say: each is about a single step. The page
+  now says so, and says that carrying healing to the following root step, or to
+  the sending chain `dhRatchet` derives second, is not proved.
+- `security-properties/limitations.md`, LIM-13, and
+  `security-properties/authentication.md`, REQ-AUTH-02: the description of
+  `a_bundle_for_another_identity_than_the_named_one_is_refused_and_changes_nothing`
+  overstated the test by listing "neither prekey store's bytes change" among
+  the things it checks. `establish_initiator_for` takes no prekey store, so
+  that assertion cannot fail. Both pages now say the stores are unchanged by
+  construction.
 
 ## [0.2.0] - 2026-09-11
 

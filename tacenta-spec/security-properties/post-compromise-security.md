@@ -50,8 +50,11 @@ a leaf, and a leaf is available only to an attacker that took it. Nothing
 subtler happens, which is as it should be. The security is that the protocol
 requires two things and the attacker has one.
 
-The new root key is equally out of reach, so the epoch after that is too. Healing
-is not one step's property; it persists.
+The new root key is out of reach for the same reason, which is a second theorem
+about the same step. Both are about one step. Whether healing carries to the
+step after it -- to the root key that root step derives, or to the sending chain
+`dhRatchet` derives second, from the intermediate root key and the other
+agreement output -- is not proved.
 
 - **Protects:** AS-01, AS-05, AS-08.
 - **Holds against:** ADV-02 taking a root key, then ADV-01, provided it does

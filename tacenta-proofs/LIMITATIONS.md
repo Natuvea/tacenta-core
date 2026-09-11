@@ -37,8 +37,9 @@ Braid's epoch accounting, the classical ratchet's five T2 theorems, the field
 and interpolation results, the composite header, and the model-level theorems
 of `Properties/` and of `Proofs.KeyErasure`, `Proofs.MemorySafety` and
 `Proofs.SparseRatchetCorrectness` that `CLAIMS.md` names (all but
-`Properties.StateConsistency.ageStore_preserves_the_rest`, which rests on no
-axiom and has no pin). `Translation.T1` and
+`Properties.StateConsistency.ageStore_preserves_the_rest`, for which
+`#print axioms` reported no axiom when this was written; it has no pin, so
+nothing in the build holds that). `Translation.T1` and
 `Translation.T3` do the same for the classical ratchet's T1 and T3 headline
 theorems (`send_refines`, `receive_refines`, `message_keys_refines`),
 `Translation.SessionT1`/`SessionT3` for the session's,
@@ -608,8 +609,9 @@ from it. This holds here by delegation and discipline, not by proof.
 `Properties.ForwardSecrecy` proves that an attacker who takes a party's chain key
 cannot derive any earlier message key. It is worth stating precisely, including
 what it is not. `CLAIMS.md`, "Proved (tier T2, model-level security properties
-against the symbolic attacker)", records each theorem this section discusses,
-with its hypotheses and its pinned axioms.
+against the symbolic attacker)", records each `Properties/` theorem this section
+discusses, with its hypotheses and its pinned axioms. `Proofs.SessionEstablishment`,
+which this section also names, is recorded in its own section there.
 
 **It is against a symbolic attacker.** In `Model.Adversary` a key is a term
 recording how it was derived, not the bytes it evaluates to, and the attacker
@@ -639,9 +641,11 @@ stated so that the theorem above is not read for more than it says.
 
 **Post-compromise security is proved too**, against the same attacker and with
 the same assumption: having taken a party's root key, an attacker cannot derive
-the next epoch's keys unless it also took that epoch's agreement output. The
-argument is the arity of the rule -- the derivation needs both halves, and an
-agreement output is a leaf available only to whoever took it.
+the chain key and the root key the next root step derives, unless it also took
+that epoch's agreement output. The argument is the arity of the rule -- the
+derivation needs both halves, and an agreement output is a leaf available only
+to whoever took it. Both theorems are about that one step; neither carries to
+the step after it.
 
 It carries one condition that is the condition rather than a detail. An attacker
 holding a *ratchet private key* computes the agreement output itself and nothing
@@ -665,8 +669,9 @@ says so.** That a ciphertext verifying under a key was made by someone holding
 that key is assumed, not proved, and cannot be proved in a symbolic model: it is
 the premise. What is proved is the protocol's contribution given that premise --
 that the key doing the authenticating is bound to one session and one position,
-and unavailable outside it. Sessions never share a key, and an attacker who takes
-a whole session learns nothing in another. Without that, unforgeability would
+and unavailable outside it. Sessions never share a key, and an attacker holding
+one chain key of a session derives no chain key and no message key of a session
+seeded differently. Without that, unforgeability would
 hold and authentication would still fail, because a message made for one
 conversation would verify in another.
 
