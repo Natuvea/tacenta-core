@@ -252,9 +252,13 @@ def checkCurve (k : List UInt8) : Option Unit :=
 
     The identity and ephemeral keys are 33 bytes each: a curve type byte and the
     public key. Either one whose first byte is not `ecCurveByte` is not an
-    `EncodeEC` form, and the message is refused (message-format.md, Initial
-    message). The KEM ciphertext is length-prefixed because its size depends on
-    the KEM, so it cannot be read positionally. -/
+    `EncodeEC` form, and either one whose thirty-two key bytes are not a
+    canonical curve public key (`checkKey`) is a re-spelled key. The message is
+    refused in both cases (message-format.md, Initial message; Curve public
+    keys). The curve bytes are checked first, then the key bytes, the order the
+    implementation checks them in; every refusal is `none`, so the order changes
+    nothing the decoder returns. The KEM ciphertext is length-prefixed because
+    its size depends on the KEM, so it cannot be read positionally. -/
 def decodeInitial (bs : List UInt8) : Option Initial :=
   match bs with
   | v :: t :: rest =>
@@ -264,6 +268,8 @@ def decodeInitial (bs : List UInt8) : Option Initial :=
       let (ephemeral, rest) ← take? 33 rest
       checkCurve identity
       checkCurve ephemeral
+      checkKey (identity.drop 1)
+      checkKey (ephemeral.drop 1)
       let (ctLen, rest) ← readBe32 rest
       let (kemCiphertext, rest) ← take? ctLen.toNat rest
       let (signedPrekeyId, rest) ← readBe32 rest
@@ -337,6 +343,28 @@ example :
 example :
     decodeInitial (encodeInitial (ecCurveByte :: List.replicate 32 0x0a)
       (0x00 :: List.replicate 32 0x0b) [0xc0, 0xde] 3 4 5 [0xde, 0xad]) = none := by
+  native_decide
+
+/-- An identity whose key bytes are re-spelled, bit 255 set on an otherwise
+    canonical key, is refused although its curve byte is right. -/
+example :
+    decodeInitial (encodeInitial (ecCurveByte :: (List.replicate 31 0x0a ++ [0x8a]))
+      (ecCurveByte :: List.replicate 32 0x0b) [0xc0, 0xde] 3 4 5 [0xde, 0xad]) = none := by
+  native_decide
+
+/-- An ephemeral whose key bytes are p, bit 255 clear and the value not below p,
+    is refused too. -/
+example :
+    decodeInitial (encodeInitial (ecCurveByte :: List.replicate 32 0x0a)
+      (ecCurveByte :: (0xed :: List.replicate 30 0xff ++ [0x7f])) [0xc0, 0xde] 3 4 5
+      [0xde, 0xad]) = none := by
+  native_decide
+
+/-- p - 1, the largest canonical key, is accepted in both positions. -/
+example :
+    (decodeInitial (encodeInitial (ecCurveByte :: (0xec :: List.replicate 30 0xff ++ [0x7f]))
+      (ecCurveByte :: (0xec :: List.replicate 30 0xff ++ [0x7f])) [0xc0, 0xde] 3 4 5
+      [0xde, 0xad])).isSome = true := by
   native_decide
 
 /-- The associated-data pair parses uniquely. -/
