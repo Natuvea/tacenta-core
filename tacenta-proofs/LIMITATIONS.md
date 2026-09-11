@@ -34,7 +34,11 @@ nodes, so the erasure code's correctness runs through that axiom.
 `Proofs.TrustedBase` prints the axioms of the load-bearing theorems under
 `#guard_msgs`, so a proof that starts trusting something new fails there: the
 Braid's epoch accounting, the classical ratchet's five T2 theorems, the field
-and interpolation results, and the composite header. `Translation.T1` and
+and interpolation results, the composite header, and the model-level theorems
+of `Properties/` and of `Proofs.KeyErasure`, `Proofs.MemorySafety` and
+`Proofs.SparseRatchetCorrectness` that `CLAIMS.md` names (all but
+`Properties.StateConsistency.ageStore_preserves_the_rest`, which rests on no
+axiom and has no pin). `Translation.T1` and
 `Translation.T3` do the same for the classical ratchet's T1 and T3 headline
 theorems (`send_refines`, `receive_refines`, `message_keys_refines`),
 `Translation.SessionT1`/`SessionT3` for the session's,
@@ -313,10 +317,22 @@ Four things are not erased, and they are the honest remainder:
 
 **None of it is proved.** Charon and Aeneas ignore `Drop` entirely, so the
 generated Lean is byte for byte identical with and without every destructor
-above, and no T1 or T3 theorem says anything about erasure. What guards it is a
-static check per crate that fails the build if the property is removed -- a much
-weaker instrument than the proofs standing next to it, and it should not be
-mistaken for them. The Double Ratchet specification's own secure-deletion
+above, and no T1 or T3 theorem says anything about erasure. What guards part
+of it is a static test that fails to build if a type loses the
+`zeroize::ZeroizeOnDrop` marker, and there are three, for five types: the
+classical ratchet's `State` and `SkippedKey` (`the_state_erases_when_dropped`,
+`tacenta-core/ratchet/src/lib.rs`), the ML-KEM `KeyPair`
+(`the_key_pair_erases_when_dropped`, `tacenta-core/src/primitives/kem.rs`), and
+`Identity` and `PrekeyStore` (`the_identity_and_the_prekey_store_erase_when_dropped`,
+`tacenta-core/src/sessions/lifecycle.rs`). Each checks the marker, not what the
+destructor wipes, and `KeyPair` and `PrekeyStore` implement the marker by hand.
+Nothing holds the rest in place: the sparse ratchet's `State` (whose root key a
+hand-written `Drop` wipes), `Chain`, `Skipped` and `Output`; the Braid's `Auth`
+and `Output`, and the KEM state it holds in `Zeroizing` buffers; and the Triple
+Ratchet's `State`, which has no destructor of its own and erases through the two
+ratchet states it holds. Their derives and destructors could be removed without
+any build failing. Where a test exists it is a much weaker instrument than the
+proofs standing next to it, and it should not be mistaken for them. The Double Ratchet specification's own secure-deletion
 section notes that recovering deleted data is platform-dependent and outside its
 scope; the same caveat applies here. Treat forward secrecy as resting on the key
 schedule, not on guaranteed erasure of every in-memory copy.
@@ -591,7 +607,9 @@ from it. This holds here by delegation and discipline, not by proof.
 
 `Properties.ForwardSecrecy` proves that an attacker who takes a party's chain key
 cannot derive any earlier message key. It is worth stating precisely, including
-what it is not.
+what it is not. `CLAIMS.md`, "Proved (tier T2, model-level security properties
+against the symbolic attacker)", records each theorem this section discusses,
+with its hypotheses and its pinned axioms.
 
 **It is against a symbolic attacker.** In `Model.Adversary` a key is a term
 recording how it was derived, not the bytes it evaluates to, and the attacker
@@ -1207,9 +1225,13 @@ decoder accepts anything at all is the Rust round-trip tests.
   for the sending chain, as the specification requires) is made in
   `tacenta-core/src/sessions/lifecycle.rs`, which is neither translated nor
   modelled, so a swap there would pass every proof, every vector and
-  `attest`. By inspection the pairing is right; a session-level test that
-  drives `Session` against a model scenario is being added so that it is
-  checked by running rather than by reading.
+  `attest`. The pairing is tested, not proved:
+  `a_session_dh_step_pairs_the_old_key_with_the_peers_new_key`
+  (`tacenta-core/tests/handshake_to_ratchet.rs`) runs a real `Session` through
+  a step and checks that a message sent under the peer's new key decrypts,
+  which it does only if the receiving chain was seeded from the old key pair
+  with that key, and that the sending public key changes at the step. It
+  checks the session by running it, not against a model scenario.
 - `tacenta-core/session` (`tacenta-session`): the PQXDH derivation. T1, T2, T3.
 - `tacenta-core/erasure` (`tacenta-erasure`): Reed-Solomon over GF(2^16).
   Translates with no gap, and **T1 complete for the coding functions**: the
