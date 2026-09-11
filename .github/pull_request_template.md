@@ -35,7 +35,7 @@ For the affected component (levels in `ASSURANCE.md`):
 
 ## Review
 
-- [ ] This changes `tacenta-spec`, `tacenta-model`, or the proofs' trusted base, and is merged by the maintainer after reading it (ADR-0008, rule 7).
+- [ ] This changes `tacenta-spec`, `tacenta-model`, or the proofs' trusted base, and its review is recorded on this pull request before it merges on green checks (ADR-0008, rule 7).
 
 ## Test plan
 

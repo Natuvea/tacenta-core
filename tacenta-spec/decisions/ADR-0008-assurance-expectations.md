@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed.
+Accepted.
 
 ## Context
 
@@ -84,12 +84,15 @@ Two facts shape what is realistic here:
    - vectors out of date with the model;
    - a failing independent reader.
 
-7. **Normative changes are merged by the maintainer, after reading them.**
+7. **Normative changes are reviewed before they merge.**
    - **Scope:** changes to `tacenta-spec`, `tacenta-model`, or the proofs'
      trusted base (axioms, the trusted-base lists, `CLAIMS.md`,
      `LIMITATIONS.md`).
-   - **Automation:** it may prepare such a change and run its checks, but does
-     not merge it.
+   - **Review:** such a change is reviewed against this record before it is
+     merged. The maintainer reviews it, or delegates the review.
+   - **The record:** the review is written on the pull request and says what
+     was checked.
+   - **Merging:** only on green checks.
    - **The independent reader:** its passes are an adversarial second reading
      of sufficiency, not a substitute for this review.
    - **When a second reviewer joins:** required code-owner review replaces this
@@ -145,7 +148,8 @@ A component's level is lowered only by a recorded decision.
 
 ## Consequences
 
-- **Slower merges:** normative pull requests wait for the maintainer.
+- **Recorded reviews:** every normative pull request carries a written review
+  before it merges.
 - **Writing comes first:** the threat model, the assumptions and the security
   properties must be written before claims can be traced to them.
 - **`ASSURANCE.md` is kept current:** the status of each practice, component
