@@ -274,12 +274,14 @@ Runner: `runners/rust/tests/session_establishment.rs`.
 ### Also covered, outside this directory
 
 The initial-message encoding and the prekey-bundle encoding are specified in
-`tacenta-spec/protocol/message-format.md` (Initial message; Prekey bundle);
-the former has vectors under the Message format section below, the latter a
-core round-trip test. Key identifiers, one-time-key consumption after
-authentication, replenishment, the last-resort replay record, and signed and
-KEM prekey rotation are specified in `key-deletion.md` and covered by core
-tests; the prekey store's persisted layout is in `session-persistence.md`
+`tacenta-spec/protocol/message-format.md` (Initial message; Prekey bundle).
+Both have vectors under the Message format section below
+(`initial-message.json` and `initial-message-decode.json`;
+`prekey-bundle-decode.json`), and core round-trip tests. Key identifiers,
+one-time-key consumption after authentication, replenishment, the last-resort
+replay record, and signed and KEM prekey rotation are specified in
+`key-deletion.md` and covered by core tests; the prekey store's persisted
+layout is in `session-persistence.md`
 (Prekey store).
 
 ### Not yet covered
@@ -311,7 +313,7 @@ this implementation; the client's expectations of the server are stated in
 | `CONCAT(ad, header)` uniqueness | core and model tests: two splits of the same bytes differ |
 | Initial (prekey) message encoding | `vectors/serialization/initial-message.json`, generated from the model; `vectors/malformed-input/initial-message-decode.json`, generated from the model's `decodeInitial` (two accepted messages, and the refusals in the row below); and a core round-trip test |
 | Prekey bundle encoding (message-format.md, Prekey bundle) | `vectors/malformed-input/prekey-bundle-decode.json`, generated from the model's `decodeBundle` (two accepted bundles, and the refusals in the row below), and core round-trip and rejection tests |
-| Curve public keys refused unless canonical (message-format.md, Curve public keys): the composite header's `dh`, the bundle's `identity_key`, `signed_prekey` and `one_time_prekey`, and the initial message's `identity` and `ephemeral` | `vectors/malformed-input/composite-header-decode.json`, `prekey-bundle-decode.json` and `initial-message-decode.json`, generated from the model's decoders: each key accepted in its canonical spelling and at p - 1, refused with bit 255 set and as 9 + p; `decode_composite_refines`, `decode_bundle_refines` and `decode_initial_refines` (the code refuses exactly what the model refuses); core unit and integration tests |
+| Curve public keys refused unless canonical (message-format.md, Curve public keys): the composite header's `dh`, the bundle's `identity_key`, `signed_prekey` and `one_time_prekey`, and the initial message's `identity` and `ephemeral` | `vectors/malformed-input/composite-header-decode.json`, `prekey-bundle-decode.json` and `initial-message-decode.json`, generated from the model's decoders: each key accepted in its canonical spelling and at p - 1, refused with bit 255 set, as 9 + p and as p itself; `decode_composite_refines`, `decode_bundle_refines` and `decode_initial_refines` (the code refuses exactly what the model refuses); core unit and integration tests |
 | Rejection of unknown version, truncation, and length overrun | core tests |
 | Authenticated encryption (message-format.md, Authenticated encryption): PKCS#7 padding, `ciphertext \|\| HMAC-SHA256(mac_key, AD \|\| ciphertext)`, and the receiver's four steps | `vectors/aead/aead-encrypt.json` (padding of 16, 15 and 1 bytes; `AD` empty, short, and a `CONCAT(ad, header)`), `vectors/aead/aead-decrypt.json` (three accepted inputs; refusals at step 1, at step 2 for an altered tag, an altered ciphertext and other associated data, at step 3 for an empty and a partial-block ciphertext under a valid tag, and for a padding byte of 0, of 17, of 2 over a 3, and of 16 over fifteen other bytes); runner `runners/rust/tests/aead.rs`, which also requires every refusal to be the one `DecryptError` |
 

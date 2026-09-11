@@ -601,6 +601,11 @@ def nine : Key := 9 :: List.replicate 31 0
 /-- p - 1, the largest canonical key. -/
 def pMinusOne : Key := leBytes (Model.Messages.curveP - 1) 32
 
+/-- p itself, the key 0 to X25519: the smallest value a decoder refuses with
+    bit 255 clear, and the one a decoder that refuses only values above p
+    accepts. -/
+def pItself : Key := leBytes Model.Messages.curveP 32
+
 /-- One decoder vector: the encoding in; for an accepted one, the re-encoding of
     what it decoded to out, and for a refused one, `result: invalid`. -/
 def decodeVector (id comment : String) (encoding : List UInt8)
@@ -641,7 +646,10 @@ def compositeDecodeFile (_ : Unit) : Except String String := do
       { compA with dh := withBit255 compA.dh } false,
     compositeDecodeVector "dh-plus-p"
       "the key 9 spelled as 9 + p, bit 255 clear and the value at least p, is refused"
-      { compA with dh := plusP nine } false].mapM id
+      { compA with dh := plusP nine } false,
+    compositeDecodeVector "dh-equal-to-p"
+      "p itself, the key 0 to X25519 and the smallest value at least p, is refused"
+      { compA with dh := pItself } false].mapM id
   pure ("{\n" ++
     "  \"schema_version\": 1,\n" ++
     "  \"algorithm\": \"composite-header-decode\",\n" ++
@@ -690,18 +698,27 @@ def bundleDecodeFile (_ : Unit) : Except String String := do
     bundleDecodeVector "identity-key-plus-p"
       "identity_key the key 9 spelled as 9 + p: refused"
       { bundleBase with identityKey := plusP nine } false,
+    bundleDecodeVector "identity-key-equal-to-p"
+      "identity_key exactly p, the key 0 to X25519: refused"
+      { bundleBase with identityKey := pItself } false,
     bundleDecodeVector "signed-prekey-with-bit-255-set"
       "the every-key-canonical signed_prekey with bit 255 set: refused"
       { bundleBase with signedPrekey := withBit255 bundleBase.signedPrekey } false,
     bundleDecodeVector "signed-prekey-plus-p"
       "signed_prekey the key 9 spelled as 9 + p: refused"
       { bundleBase with signedPrekey := plusP nine } false,
+    bundleDecodeVector "signed-prekey-equal-to-p"
+      "signed_prekey exactly p, the key 0 to X25519: refused"
+      { bundleBase with signedPrekey := pItself } false,
     bundleDecodeVector "one-time-prekey-with-bit-255-set"
       "the every-key-canonical one_time_prekey with bit 255 set: refused"
       { bundleBase with oneTimePrekey := some (withBit255 (fill 0x66)) } false,
     bundleDecodeVector "one-time-prekey-plus-p"
       "one_time_prekey the key 9 spelled as 9 + p: refused"
-      { bundleBase with oneTimePrekey := some (plusP nine) } false].mapM id
+      { bundleBase with oneTimePrekey := some (plusP nine) } false,
+    bundleDecodeVector "one-time-prekey-equal-to-p"
+      "one_time_prekey exactly p, the key 0 to X25519: refused"
+      { bundleBase with oneTimePrekey := some pItself } false].mapM id
   pure ("{\n" ++
     "  \"schema_version\": 1,\n" ++
     "  \"algorithm\": \"prekey-bundle-decode\",\n" ++
@@ -746,12 +763,18 @@ def initialDecodeFile (_ : Unit) : Except String String := do
     initialDecodeVector "identity-plus-p"
       "identity the curve byte and the key 9 spelled as 9 + p: refused"
       (ecForm (plusP nine)) (ecForm (fill 0x0b)) false,
+    initialDecodeVector "identity-equal-to-p"
+      "identity the curve byte and exactly p, the key 0 to X25519: refused"
+      (ecForm pItself) (ecForm (fill 0x0b)) false,
     initialDecodeVector "ephemeral-with-bit-255-set"
       "the every-key-canonical ephemeral's key with bit 255 set, its curve byte unchanged: refused"
       (ecForm (fill 0x0a)) (ecForm (withBit255 (fill 0x0b))) false,
     initialDecodeVector "ephemeral-plus-p"
       "ephemeral the curve byte and the key 9 spelled as 9 + p: refused"
-      (ecForm (fill 0x0a)) (ecForm (plusP nine)) false].mapM id
+      (ecForm (fill 0x0a)) (ecForm (plusP nine)) false,
+    initialDecodeVector "ephemeral-equal-to-p"
+      "ephemeral the curve byte and exactly p, the key 0 to X25519: refused"
+      (ecForm (fill 0x0a)) (ecForm pItself) false].mapM id
   pure ("{\n" ++
     "  \"schema_version\": 1,\n" ++
     "  \"algorithm\": \"initial-message-decode\",\n" ++
