@@ -51,12 +51,12 @@ Two kinds live here:
       `initial-message-decode.json`: whole encodings given to the composite
       header's, the prekey bundle's and the initial message's decoders, a
       curve key in each position each of them reads. Each key is
-      accepted in its canonical spelling and refused with bit 255 set or with
-      p = 2^255 - 19 added (message-format.md, Curve public keys). Generated
-      from the model's decoders, which give every vector its `result`; an
-      accepted vector's `output` is the re-encoding of what its input decodes
-      to. Checked by `runners/rust/tests/malformed_input.rs`. Format:
-      `schema/vector.schema.json`.
+      accepted in its canonical spelling and as p - 1, and refused with bit 255
+      set, with p = 2^255 - 19 added, and as p itself (message-format.md, Curve
+      public keys). Generated from the model's decoders, which give every
+      vector its `result`; an accepted vector's `output` is the re-encoding of
+      what its input decodes to. Checked by
+      `runners/rust/tests/malformed_input.rs`. Layout: Vector layouts, below.
 
 `conformance-manifest.md` records exactly which specifications, revisions, and
 components the vectors cover, and what is excluded. Peer interoperability is
