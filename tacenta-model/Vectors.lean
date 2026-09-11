@@ -1075,9 +1075,9 @@ def storedStateVector {σ : Type}
   | _, _ => .error ("genvectors: the model's reader does not give " ++ id ++
       " the result the vector records")
 
-/-- `2^32 - 1` and `2^64 - 1`, the largest values the formats' counters hold. -/
-def u32Max : Nat := 2 ^ 32 - 1
-def u64Max : Nat := 2 ^ 64 - 1
+-- `u32Max` and `u64Max`, the largest values the formats' counters hold, are
+-- the model's own: `Model.State.u32Max` and `Model.SparseRatchet.u64Max`.
+open Model.SparseRatchet (u64Max)
 
 /-! #### The classical ratchet's state -/
 

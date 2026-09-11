@@ -32,14 +32,19 @@ def initReceiver (sk ourPub : Key) (labels : LabelSet) : State :=
     labels := labels }
 
 /-- Send (ratchet.md): advance the sending chain and produce the header and the
-    message key. `none` when there is no sending chain yet. -/
+    message key. `none` when there is no sending chain yet, and when `ns` is
+    `u32::MAX` (`ChainExhausted`): the counter is 32 bits and message number
+    `u32::MAX` is never used. -/
 def send (st : State) : Option (State × Header × Key) :=
   match st.cks with
   | none => none
   | some ck =>
-    let (ck', mk) := kdfCk ck
-    let header : Header := { dh := st.dhsPub, pn := st.pn, n := st.ns }
-    some ({ st with cks := some ck', ns := st.ns + 1 }, header, mk)
+    if st.ns < u32Max then
+      let (ck', mk) := kdfCk ck
+      let header : Header := { dh := st.dhsPub, pn := st.pn, n := st.ns }
+      some ({ st with cks := some ck', ns := st.ns + 1 }, header, mk)
+    else
+      none
 
 /-- A Diffie-Hellman ratchet step (ratchet.md). `dhOutRecv = DH(DHs.priv,
     header.dh)` seeds the new receiving chain; `dhOutSend = DH(newDhs.priv,
@@ -83,7 +88,10 @@ theorem trySkipped_events (st : State) (header : Header) (r : State × Key)
     the key at `nr` in its place would advance the chain on a message that
     cannot be the one at `nr`. The skip before the check leaves the state alone
     in that case, since it has nothing to skip, and after a DH step `nr` is
-    zero, so the check can only fire on a same-chain message. -/
+    zero, so the check can only fire on a same-chain message.
+
+    A receive that would step the chain with `nr` already at `u32::MAX` is
+    refused too (`ChainExhausted`), so `nr` never passes `u32::MAX`. -/
 def receive (st : State) (header : Header) (dhOutRecv dhOutSend newDhsPub : Key) :
     Option (State × Key) :=
   match trySkipped st header with
@@ -108,8 +116,42 @@ def receive (st : State) (header : Header) (dhOutRecv dhOutSend newDhsPub : Key)
           match st2.ckr with
           | none => none
           | some ck =>
-            let (ck', mk) := kdfCk ck
-            some (ageStore { st2 with ckr := some ck', nr := st2.nr + 1 }, mk)
+            if st2.nr < u32Max then
+              let (ck', mk) := kdfCk ck
+              some (ageStore { st2 with ckr := some ck', nr := st2.nr + 1 }, mk)
+            else
+              none
+
+/-! ## The counters stay inside their 32 bits
+
+What the ceilings buy: no state the operations produce holds a counter its
+stored format cannot write or its reader refuses. -/
+
+/-- A send leaves `ns` at most `u32::MAX`. -/
+theorem send_ns_le (st : State) (r : State × Header × Key) (h : send st = some r) :
+    r.1.ns ≤ u32Max := by
+  unfold send at h
+  repeat' split at h
+  all_goals first
+    | (simp only [Option.some.injEq] at h; subst h; simp only; omega)
+    | simp at h
+
+/-- A send at `ns = u32::MAX` is refused. -/
+theorem send_at_ceiling (st : State) (h : u32Max ≤ st.ns) : send st = none := by
+  unfold send
+  split
+  · rfl
+  · rw [if_neg (by omega)]
+
+/-- Every accepted receive leaves the clock below `u32::MAX`: it ends by ageing
+    the store, and ageing stops the clock at `u32::MAX - 1`. -/
+theorem receive_events_lt (st : State) (header : Header) (a b c : Key) (r : State × Key)
+    (h : receive st header a b c = some r) : r.1.events < u32Max := by
+  unfold receive at h
+  repeat' split at h
+  all_goals first
+    | (simp only [Option.some.injEq] at h; subst h; exact ageStore_events_lt _)
+    | simp at h
 
 -- Self-consistency checks. Fixed byte strings stand in for the keys and DH
 -- outputs; DH symmetry is honoured by giving both parties the same shared
@@ -210,6 +252,25 @@ example :
       let (_, h1, ak1) ← send sa2
       let (_, bk1) ← receive sb2 h1 dhA2B2 dhB3A2 bPub3
       pure (ak0 == bk0 && br0 == ar0 && ak1 == bk1)) = some true := by
+  native_decide
+
+/-- The ceilings (ratchet.md, Sending and receiving; Skipped keys): a send at
+    `ns = u32::MAX - 1` is taken and the one at `u32::MAX` refused; a receive
+    that would step past `nr = u32::MAX` is refused; and from the clock's stop,
+    `u32::MAX - 1`, an accepted receive leaves the clock where it is. -/
+example :
+    (do
+      let stA := initSender sk aPub bPub dhAB .tacenta
+      let (stA1, _, _) ← send { stA with ns := u32Max - 1 }
+      let stB := initReceiver sk bPub .tacenta
+      let (_, header0, _) ← send stA
+      let (stB1, _) ← receive stB header0 dhAB dhB2A b2Pub
+      let atStop ← receive { stB1 with events := maxEvents }
+        { dh := aPub, pn := 0, n := 1 } dhAB dhB2A b2Pub
+      pure (stA1.ns == u32Max, (send stA1).isNone,
+        (receive { stB1 with nr := u32Max } { dh := aPub, pn := 0, n := u32Max }
+          dhAB dhB2A b2Pub).isNone,
+        atStop.1.events == maxEvents)) = some (true, true, true, true) := by
   native_decide
 
 end Model.Ratchet

@@ -86,10 +86,12 @@ which no byte string can be shown to satisfy from inside this translation.
   refuses: the ratchet's clock clamps at `MAX_EVENTS = u32::MAX - 1`, the
   sparse ratchet's `advance` refuses the step to `epoch == u64::MAX`, and the
   Braid's `step_receive` refuses the same in transitions (5) and (13). The
-  models reserve nothing -- they count in `Nat` -- so at the last unreserved
-  value the two sides genuinely disagree, and the refinement theorems now ask
-  for one step of headroom (`events + 1 < u32::MAX`, `epoch + 1 < u64::MAX`)
-  where they used to ask for the plain ceiling bound. A parked ratchet clock
+  classical and sparse ratchets' models now reserve the same values
+  (`Model.State.maxEvents`, `Model.SparseRatchet.u64Max`); `Model.Braid` still
+  counts in `Nat` and reserves nothing. The refinement theorems ask for one
+  step of headroom (`events + 1 < u32::MAX`, `epoch + 1 < u64::MAX`), which for
+  the two ratchets dates from when their models reserved nothing and is kept
+  so that the statements are unchanged. A parked ratchet clock
   and a sparse ratchet at `epoch = u64::MAX - 1` are ordinary states: they
   satisfy the `invariant`, they decode, and their crates go on operating on
   them. So no `invariant` can supply that step, and none is asked to; the
@@ -715,10 +717,11 @@ theorem inv_gives_store_bound (s : State) (hi : Inv s) :
 /-- `Inv` → the clock clause: the store's clock is below the `u32` ceiling.
 
 **This is one step short of `T3.receive_refines`'s `hroom`, and stays that
-way.** The refinement asks `events + 1 < u32::MAX`, because `age_store` clamps
-the clock at `MAX_EVENTS = u32::MAX - 1` while the model counts in `Nat`: at
-the parked value the core holds its clock still and the model's advances, so
-the two disagree and the refinement is stated where they agree. The
+way.** The refinement asks `events + 1 < u32::MAX`, a premise stated when the
+model's clock did not stop: at the parked value, `MAX_EVENTS = u32::MAX - 1`,
+the core held its clock still and the model's advanced. The model's clock now
+stops at the same value (`Model.State.maxEvents`), so the two agree there too;
+the premise is kept, and the refinement is still stated below it. The
 `invariant` cannot close that step and must not be asked to. A parked clock is
 a state the crate's own operations produce, so a clause `events < MAX_EVENTS`
 would refuse a state the crate exports -- exactly the defect the clamp
@@ -775,9 +778,9 @@ a global assumption, so a reader sees what is being asked.
 
 `hclock_unparked` is the step of headroom `T3.receive_refines`'s `hroom` now
 asks for. `age_store` clamps the clock at `MAX_EVENTS = u32::MAX - 1` so that
-`invariant`'s clock clause is inductive, and the model counts in `Nat` with
-nothing reserved; at the parked value the correspondence is false, so the
-refinement is stated one step below it. `Inv` reaches `events < u32::MAX` and
+`invariant`'s clock clause is inductive. The model's clock now stops at the
+same value, so the correspondence no longer fails at the parked value, but the
+refinement is still stated one step below it. `Inv` reaches `events < u32::MAX` and
 no further (`inv_gives_clock_room`), and it cannot be strengthened: a parked
 clock is a state this crate's operations produce and its decoder accepts. The
 premise is a real restriction and is named as one -- it excludes exactly the
@@ -1189,8 +1192,10 @@ into it.** That premise is now `epoch + 1 < u64::MAX`, one step tighter:
 `advance` refuses the step that would install `u64::MAX`, because
 `clear_old_epochs`'s window would retire every chain at that epoch including
 the one just opened, leaving a state this crate's own decoder refuses. The
-model reserves nothing and advances there, so the correspondence is false at
-`epoch = u64::MAX - 1`. `Inv` admits that state -- a chain at its own epoch,
+model now refuses there too. `receive_refines`'s failure clause takes any
+error, so its correspondence may hold there, but `advance_refines`, on which
+its proof rests, names `EpochOutOfOrder` and fails at `epoch = u64::MAX - 1`;
+whether `hepoch` could be dropped from `receive_refines` has not been checked. `Inv` admits that state -- a chain at its own epoch,
 inside the window, every clause satisfied -- so the gap is in the predicate
 and not in how this lemma is stated. `hepoch` therefore joins `hcb`, `hsb`,
 `hnewb` and `hcounter` on the carried list; see `decoded_receive_no_panic`

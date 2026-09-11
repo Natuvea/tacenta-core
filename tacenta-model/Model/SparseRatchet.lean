@@ -145,6 +145,15 @@ def maxSkippedStore : Nat := Model.State.maxSkippedStore
     without a separate policy. -/
 def epochsKept : Nat := 2
 
+/-- `u64::MAX`, the ceiling of the epoch and of every chain's counter. The
+    epoch is reserved there: an advance onto it is refused. A chain's counter
+    reaches it, and the send after that is refused (sparse-pq-ratchet.md,
+    Sending; session-persistence.md, Principles). Both refusals are counter
+    exhaustion (`ChainExhausted`). -/
+def u64Max : Nat := 2 ^ 64 - 1
+
+theorem u64Max_eq : u64Max = 18446744073709551615 := rfl
+
 /-! ## Lookups
 
 Named rather than inlined, because every operation below needs them and because
@@ -190,9 +199,13 @@ def clearOldEpochs (st : State) (current : Nat) : State :=
 
     `none` when the epoch is not exactly one past the current one. The
     specification asserts that it is; an assertion in a specification is a
-    rejection in an implementation, so it is one here. -/
+    rejection in an implementation, so it is one here.
+
+    `none` too when the new epoch would be `u64::MAX`, which is reserved: the
+    retention window, its sum saturating, reads that epoch as covering nothing
+    and would retire the chains just opened. -/
 def advance (st : State) (out : Output) : Option State :=
-  if out.keyEpoch = st.epoch + 1 then
+  if out.keyEpoch = st.epoch + 1 ∧ st.epoch + 1 < u64Max then
     let d := kdfRk st.rk out.key
     let cks := match st.direction with | .a2b => d.2.1 | .b2a => d.2.2
     let ckr := match st.direction with | .a2b => d.2.2 | .b2a => d.2.1
@@ -211,7 +224,8 @@ def advance (st : State) (out : Output) : Option State :=
 
     `none` when the agreement's secret does not follow the current epoch, or
     when there is no sending chain for that epoch, which happens if it has been
-    retired. -/
+    retired, and when the chain's counter is already `u64::MAX`: message
+    number `u64::MAX` is usable and the send after it is refused. -/
 def send (st : State) (sendingEpoch : Nat) (out : Option Output) :
     Option (State × Nat × Key) :=
   match (match out with | none => some st | some o => advance st o) with
@@ -223,10 +237,35 @@ def send (st : State) (sendingEpoch : Nat) (out : Option Output) :
       match cs.send with
       | none => none
       | some ch =>
-        let stepped := kdfCk ch.ck (ch.n + 1)
-        some (setChains st1 sendingEpoch
-                { cs with send := some { ck := stepped.1, n := ch.n + 1 } },
-              ch.n + 1, stepped.2)
+        if ch.n < u64Max then
+          let stepped := kdfCk ch.ck (ch.n + 1)
+          some (setChains st1 sendingEpoch
+                  { cs with send := some { ck := stepped.1, n := ch.n + 1 } },
+                ch.n + 1, stepped.2)
+        else
+          none
+
+/-- An advance leaves the epoch below `u64::MAX`. -/
+theorem advance_epoch_lt (st : State) (out : Output) (st' : State)
+    (h : advance st out = some st') : st'.epoch < u64Max := by
+  unfold advance at h
+  split at h
+  · rename_i hc
+    injection h with h
+    subst h
+    simp only [clearOldEpochs, setChains]
+    omega
+  · simp at h
+
+/-- A send's message number, which is the chain's new counter, is at most
+    `u64::MAX`. -/
+theorem send_number_le (st : State) (e : Nat) (out : Option Output)
+    (r : State × Nat × Key) (h : send st e out = some r) : r.2.1 ≤ u64Max := by
+  unfold send at h
+  repeat' split at h
+  all_goals first
+    | (simp only [Option.some.injEq] at h; subst h; simp only; omega)
+    | simp at h
 
 /-! ## Receiving -/
 
@@ -407,6 +446,21 @@ example :
       let b2 ← skipMessageKeys b1 0 1800
       pure (b2.skipped.length, (skipMessageKeys b2 0 2700).isSome))
     = some (1800, false) := by
+  native_decide
+
+/-- The ceilings: from epoch `u64::MAX - 2` the advance to `u64::MAX - 1` is
+    taken and the one to `u64::MAX` refused; a chain at `u64::MAX - 1` sends
+    message `u64::MAX`, and the send after it is refused. -/
+example :
+    let hi : State := { initAlice sk with epoch := u64Max - 2,
+                                          chains := [(u64Max - 2, (initAlice sk).chains.head!.2)] }
+    let full : State := { initAlice sk with
+      chains := [(0, { send := some { ck := sk, n := u64Max - 1 }, receive := none })] }
+    ((advance hi { keyEpoch := u64Max - 1, key := sk }).map (·.epoch) = some (u64Max - 1))
+      ∧ ((advance hi { keyEpoch := u64Max - 1, key := sk }).bind
+          (fun s => advance s { keyEpoch := u64Max, key := sk })).isNone
+      ∧ ((send full 0 none).map (·.2.1) = some u64Max)
+      ∧ ((send full 0 none).bind (fun r => send r.1 0 none)).isNone := by
   native_decide
 
 end Model.SparseRatchet

@@ -27,15 +27,25 @@ open Model.State Model.Ratchet
 The simplest transition, and the one the others are measured against: one step
 of the sending chain, one message number, nothing else. -/
 
-/-- Sending fails exactly when there is no sending chain, and for no other
-reason. A party that has not yet taken its first ratchet step has none. -/
-theorem send_none_iff (st : State) : send st = none ↔ st.cks = none := by
-  constructor
-  · intro h
-    cases hc : st.cks with
-    | none => rfl
-    | some ck => rw [send, hc] at h; exact absurd h (by simp)
-  · intro h; rw [send, h]
+/-- Sending fails exactly when there is no sending chain, or when the sending
+counter is at its ceiling, `u32::MAX` (ratchet.md, Sending and receiving:
+`ChainExhausted`), and for no other reason. A party that has not yet taken its
+first ratchet step has no sending chain. -/
+theorem send_none_iff (st : State) :
+    send st = none ↔ st.cks = none ∨ u32Max ≤ st.ns := by
+  unfold send
+  split
+  · rename_i hc
+    simp [hc]
+  · rename_i ck hc
+    rw [hc]
+    split
+    · rename_i hn
+      simp only [reduceCtorEq, false_or]
+      exact ⟨fun h => absurd h (by simp), fun h => absurd h (by omega)⟩
+    · rename_i hn
+      simp only [reduceCtorEq, false_or, true_iff]
+      omega
 
 /-- A send advances the message number by exactly one. -/
 theorem send_advances_ns (st st' : State) (h : Header) (mk : Key)
@@ -43,11 +53,13 @@ theorem send_advances_ns (st st' : State) (h : Header) (mk : Key)
   unfold send at hs
   split at hs
   · exact absurd hs (by simp)
-  · -- The result is a triple, so the equality has to be split before the
-    -- components can be substituted.
-    simp only [Option.some.injEq, Prod.mk.injEq] at hs
-    obtain ⟨rfl, -, -⟩ := hs
-    rfl
+  · split at hs
+    · -- The result is a triple, so the equality has to be split before the
+      -- components can be substituted.
+      simp only [Option.some.injEq, Prod.mk.injEq] at hs
+      obtain ⟨rfl, -, -⟩ := hs
+      rfl
+    · exact absurd hs (by simp)
 
 /-- The header carries the position *before* the step, not after.
 
@@ -59,9 +71,11 @@ theorem send_header_is_pre_state (st st' : State) (h : Header) (mk : Key)
   unfold send at hs
   split at hs
   · exact absurd hs (by simp)
-  · simp only [Option.some.injEq, Prod.mk.injEq] at hs
-    obtain ⟨-, rfl, -⟩ := hs
-    exact ⟨rfl, rfl, rfl⟩
+  · split at hs
+    · simp only [Option.some.injEq, Prod.mk.injEq] at hs
+      obtain ⟨-, rfl, -⟩ := hs
+      exact ⟨rfl, rfl, rfl⟩
+    · exact absurd hs (by simp)
 
 /-- Sending touches the sending chain and the message number, and nothing else.
 
@@ -75,9 +89,11 @@ theorem send_preserves_the_rest (st st' : State) (h : Header) (mk : Key)
   unfold send at hs
   split at hs
   · exact absurd hs (by simp)
-  · simp only [Option.some.injEq, Prod.mk.injEq] at hs
-    obtain ⟨rfl, -, -⟩ := hs
-    exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  · split at hs
+    · simp only [Option.some.injEq, Prod.mk.injEq] at hs
+      obtain ⟨rfl, -, -⟩ := hs
+      exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+    · exact absurd hs (by simp)
 
 /-! ## The Diffie-Hellman step
 
@@ -149,8 +165,17 @@ Every accepted receive counts one message, whichever path it took. That count is
 what the store's expiry is measured in, so a path that forgot to count would let
 keys outlive their interval. -/
 
-/-- Ageing the store counts exactly one message. -/
-theorem ageStore_counts_one (st : State) : (ageStore st).events = st.events + 1 := rfl
+/-- Ageing the store counts exactly one message, while the clock has room below
+its stop. -/
+theorem ageStore_counts_one (st : State) (h : st.events + 1 < u32Max) :
+    (ageStore st).events = st.events + 1 :=
+  ageStore_events_of_room st h
+
+/-- At its stop, `u32::MAX - 1`, the clock stays where it is (ratchet.md, Skipped
+keys): an accepted receive there counts nothing further. -/
+theorem ageStore_stays_at_stop (st : State) (h : st.events = maxEvents) :
+    (ageStore st).events = st.events := by
+  rw [ageStore_events_at_stop st (by omega), h]
 
 /-- Ageing touches the clock and the store, and nothing else: not the chains,
 not the counters, not the root key. -/
