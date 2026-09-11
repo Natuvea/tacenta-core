@@ -1077,6 +1077,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tacenta-braid-unit"
+version = "0.0.0"
+dependencies = [
+ "rand_core 0.6.4",
+ "tacenta-kdf",
+ "tacenta-kem",
+ "zeroize",
+]
+
+[[package]]
 name = "tacenta-core"
 version = "0.0.0"
 dependencies = [

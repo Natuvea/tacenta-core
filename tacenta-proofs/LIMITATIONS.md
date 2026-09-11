@@ -1744,6 +1744,33 @@ waives its "the parent applies it" requirement for them; "The proofs are
 trusted by evaluation, not only by the kernel" above states the waiver and its
 bound.
 
+
+### The Braid-and-erasure translation unit is a ninth zone, translated and not yet proved about
+
+`tacenta-core/braid-unit` is the ML-KEM Braid and its erasure codec compiled as
+one crate, assembled by `scripts/assemble-braid-unit.sh` the way the three-leaf
+unit is: the erasure leaf loaded with `#[path]`, the Braid's `lib.rs` copied
+with one inserted `use crate::tacenta_erasure;`, and the unit held to its
+leaves by `--check` and by `attest.py`. What the section above says about the
+crate boundary as a gap applies to it unchanged, and it ships to nobody.
+
+**What it is for.** In the Braid's own translation the erasure codec's types
+and operations are twenty-three opaque axioms, and the Braid's proofs assume
+them: seven totality assumptions in `BraidT1.lean`, and `ErasureAgrees` and
+`ErasureCloneAgrees` in `BraidT3.lean`. In the unit they are definitions. Its
+translation declares no erasure axiom; in their place are two library
+functions the codec's bodies reach, `Vec::truncate` and `usize::div_ceil`, which
+the erasure crate's own translation declares too. The KEM stays opaque, since
+it is a trusted primitive zone rather than a verified one.
+
+**What is proved about it: nothing yet.** The unit is translated with no
+`sorry`, and `Translation/AxiomAuditBraidUnit.lean` audits its axioms, but no
+theorem is stated about its constants. The Braid's T1 and T3 are still the
+standalone ones, over the opaque codec, and every assumption named above is
+still an assumption. Porting those proofs to the unit, so that the erasure
+crate's own theorems discharge them, is what the unit is for and has not been
+done.
+
 ## The erasure coding's field is proved
 
 `Model.Gf65536` implements GF(2^16), which the post-quantum agreement's chunking

@@ -1,0 +1,29 @@
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Written by tacenta-proofs/scripts/assemble-braid-unit.sh from the two
+# leaf crates. Edit the leaves; run the script. An edit here is undone by
+# the next run and refused by `assemble-braid-unit.sh --check`, which
+# tooling/ci.sh runs, and by `attest.py --check`, which holds this crate
+# to the hashes of the script and of both leaf trees.
+
+[package]
+name = "tacenta-braid-unit"
+license = "Apache-2.0"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.87"
+description = "The ML-KEM Braid and its erasure codec compiled as one crate, so Charon translates the Braid with the codec's bodies rather than over opaque axioms. Generated; not shipped."
+publish = false
+
+[dependencies]
+tacenta-kdf = { path = "../kdf" }
+tacenta-kem = { path = "../kem" }
+zeroize = { version = "1", features = ["derive"] }
+rand_core = "0.6"
+
+[features]
+conformance = []
+
+[lib]
+test = false
+doctest = false

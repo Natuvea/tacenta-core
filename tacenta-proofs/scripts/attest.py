@@ -90,6 +90,7 @@ VERIFIED_ZONES = [
     "tacenta-core/braid",
     "tacenta-core/triple",
     "tacenta-core/triple-unit",
+    "tacenta-core/braid-unit",
 ]
 
 # Verified zones that are *assembled*, and what from.
@@ -115,6 +116,13 @@ ASSEMBLED_ZONES = {
             "tacenta-core/ratchet",
             "tacenta-core/spqr",
             "tacenta-core/triple",
+        ],
+    },
+    "tacenta-core/braid-unit": {
+        "script": "tacenta-proofs/scripts/assemble-braid-unit.sh",
+        "sources": [
+            "tacenta-core/braid",
+            "tacenta-core/erasure",
         ],
     },
 }

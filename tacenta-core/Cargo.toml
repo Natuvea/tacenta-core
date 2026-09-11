@@ -1,5 +1,5 @@
 [workspace]
-members = ["ratchet", "session", "kdf", "erasure", "kem", "braid", "spqr", "triple", "protobuf", "wire", "triple-unit"]
+members = ["ratchet", "session", "kdf", "erasure", "kem", "braid", "spqr", "triple", "protobuf", "wire", "triple-unit", "braid-unit"]
 
 # `triple-unit` is generated, not written: `tacenta-proofs/scripts/assemble-triple-unit.sh`
 # assembles the Triple Ratchet and both inner ratchets into one crate so that
@@ -8,6 +8,10 @@ members = ["ratchet", "session", "kdf", "erasure", "kem", "braid", "spqr", "trip
 # Nothing links against it and it is never published; it is a member so that it
 # resolves against this lockfile and compiles under the profiles below, which is
 # what makes its translation the leaves' compilation rather than a second one.
+#
+# `braid-unit` is generated the same way, by `assemble-braid-unit.sh`, from the Braid
+# and its erasure codec, so that the Braid translates over the codec's bodies
+# rather than twenty-three opaque axioms.
 
 # Overflow checks stay on in release builds, for every crate in the workspace.
 # A length computation that wraps in release is exactly the class of bug this
