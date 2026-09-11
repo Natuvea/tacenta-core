@@ -72,11 +72,18 @@ theorem trySkipped_events (st : State) (header : Header) (r : State × Key)
   · injection h with h'; subst h'; rfl
   · exact absurd h (by simp)
 
-/-- Receive (ratchet.md): try a stored skipped key; otherwise, on an unseen
-    ratchet key, skip the remainder of the old receiving chain up to `header.pn`
+/-- Receive (ratchet.md): try a stored skipped key; otherwise, on a ratchet key
+    other than `DHr` (or no `DHr`), skip the old receiving chain up to `header.pn`
     and take a DH ratchet step; then skip up to `header.n` on the current chain
     and derive the message key at `header.n`. DH outputs and the fresh sending
-    key are supplied by the caller; they are ignored on a same-chain message. -/
+    key are supplied by the caller; they are ignored on a same-chain message.
+
+    A message on the current chain numbered below `nr` whose key is not stored
+    is refused: its key has already been used, expired or evicted, and deriving
+    the key at `nr` in its place would advance the chain on a message that
+    cannot be the one at `nr`. The skip before the check leaves the state alone
+    in that case, since it has nothing to skip, and after a DH step `nr` is
+    zero, so the check can only fire on a same-chain message. -/
 def receive (st : State) (header : Header) (dhOutRecv dhOutSend newDhsPub : Key) :
     Option (State × Key) :=
   match trySkipped st header with
@@ -95,11 +102,14 @@ def receive (st : State) (header : Header) (dhOutRecv dhOutSend newDhsPub : Key)
       match skipMessageKeys st1 header.n with
       | none => none
       | some st2 =>
-        match st2.ckr with
-        | none => none
-        | some ck =>
-          let (ck', mk) := kdfCk ck
-          some (ageStore { st2 with ckr := some ck', nr := st2.nr + 1 }, mk)
+        if header.n < st2.nr then
+          none
+        else
+          match st2.ckr with
+          | none => none
+          | some ck =>
+            let (ck', mk) := kdfCk ck
+            some (ageStore { st2 with ckr := some ck', nr := st2.nr + 1 }, mk)
 
 -- Self-consistency checks. Fixed byte strings stand in for the keys and DH
 -- outputs; DH symmetry is honoured by giving both parties the same shared
@@ -135,6 +145,47 @@ example :
       let (stB1, mk1Recv) ← receive stB header1 dhAB dhB2A b2Pub
       let (_, mk0Recv) ← receive stB1 header0 dhAB dhB2A b2Pub
       pure (mk0Send == mk0Recv && mk1Send == mk1Recv)) = some true := by
+  native_decide
+
+/-- A duplicate is refused: B receives A's first message, then the same message
+    again. Its ratchet key is the one B holds, its number is below `nr`, and its
+    key is not stored, so the second delivery is not accepted rather than taken
+    as the message at `nr` (ratchet.md, Sending and receiving). -/
+example :
+    (do
+      let stA := initSender sk aPub bPub dhAB .tacenta
+      let (_, header0, _) ← send stA
+      let stB := initReceiver sk bPub .tacenta
+      let (stB1, _) ← receive stB header0 dhAB dhB2A b2Pub
+      pure (receive stB1 header0 dhAB dhB2A b2Pub).isNone) = some true := by
+  native_decide
+
+/-- A duplicate of a message taken from the store is refused too: once its key
+    has been used and removed, the message is below `nr` with nothing stored. -/
+example :
+    (do
+      let stA := initSender sk aPub bPub dhAB .tacenta
+      let (stA1, header0, _) ← send stA
+      let (_, header1, _) ← send stA1
+      let stB := initReceiver sk bPub .tacenta
+      let (stB1, _) ← receive stB header1 dhAB dhB2A b2Pub
+      let (stB2, _) ← receive stB1 header0 dhAB dhB2A b2Pub
+      pure (receive stB2 header0 dhAB dhB2A b2Pub).isNone) = some true := by
+  native_decide
+
+/-- The refusal costs the chain nothing: after a duplicate of the first message is
+    refused, A's next message, numbered exactly `nr`, is still received with A's
+    key. -/
+example :
+    (do
+      let stA := initSender sk aPub bPub dhAB .tacenta
+      let (stA1, header0, _) ← send stA
+      let (_, header1, mk1Send) ← send stA1
+      let stB := initReceiver sk bPub .tacenta
+      let (stB1, _) ← receive stB header0 dhAB dhB2A b2Pub
+      let refused := (receive stB1 header0 dhAB dhB2A b2Pub).isNone
+      let (_, mk1Recv) ← receive stB1 header1 dhAB dhB2A b2Pub
+      pure (refused && mk1Send == mk1Recv)) = some true := by
   native_decide
 
 private def aPub2 : Key := List.replicate 32 0x1a

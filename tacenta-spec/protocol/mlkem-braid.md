@@ -201,6 +201,8 @@ wire: it refuses `encrypt` and `decrypt` with `AgreementFailed` once the Braid
 has failed, and when a send is what fails, it keeps the failed state and
 refuses that send too. A receive's move to `Failed`, like any other
 transition, is adopted only once the message carrying it has authenticated.
+That message is accepted and its plaintext returned; the refusals begin with
+the next one.
 
 ## Properties a caller must know
 

@@ -1,16 +1,30 @@
-"""PQXDH shared secret, from tacenta-spec/protocol/session-establishment.md.
+"""PQXDH, from tacenta-spec/protocol/session-establishment.md.
 
 KDF(KM) = HKDF-SHA256(salt = 32 zero bytes, ikm = F || KM, info = SK_INFO, 32)
 KM = DH1 || DH2 || DH3 [|| DH4] || SS
 
-The KEM (ML-KEM-1024) is not implemented; SS is an input.
+A DH output is non-contributory "when all 32 of its bytes are zero" and is
+refused wherever one is computed (Notation). The KEM (ML-KEM-1024) is not
+implemented; SS is an input. Also here: the responder's refusal of a KEM
+ciphertext of the wrong length (message-format.md, Initial message: a
+refusal, not a decode failure) and the repeated-initial-message rule
+(Receiving the initial message).
 """
 
 from typing import Optional
 
 from . import constants as K
 from .kdf import hkdf_sha256
-from .wire import encode_ec
+from .wire import InitialMessage, encode_ec
+
+
+class KemCiphertextRefused(Exception):
+    """"Decapsulation refuses a ciphertext that is not the KEM's ciphertext
+    length ... The refusal is not a decode failure." """
+
+
+class NotARepeatedInitial(Exception):
+    pass
 
 
 def kdf(km: bytes) -> bytes:
@@ -49,3 +63,21 @@ def responder_agreements(ikb_priv: bytes, spkb_priv: bytes, opkb_priv: Optional[
     dh3 = x25519_contributory(spkb_priv, eka_pub)
     dh4 = x25519_contributory(opkb_priv, eka_pub) if opkb_priv is not None else None
     return dh1, dh2, dh3, dh4
+
+
+def check_kem_ciphertext(kem_ciphertext: bytes, ct_len: int = K.MLKEM1024_CT_LEN) -> None:
+    """The recipient refuses the initial message at decapsulation, before any
+    secret is derived, when the ciphertext is not the KEM's ciphertext length."""
+    if len(kem_ciphertext) != ct_len:
+        raise KemCiphertextRefused(f"KEM ciphertext is {len(kem_ciphertext)} bytes, not {ct_len}")
+
+
+def accept_repeated_initial(is_responder: bool, established_ephemeral: Optional[bytes],
+                            message: InitialMessage) -> None:
+    """An initial message on an existing session is accepted only by a
+    responder's session and only if its `ephemeral` equals
+    `established_ephemeral` byte for byte; no other field is compared."""
+    if not is_responder or established_ephemeral is None:
+        raise NotARepeatedInitial("not a responder's session")
+    if bytes(message.ephemeral) != bytes(established_ephemeral):
+        raise NotARepeatedInitial("ephemeral differs from established_ephemeral")

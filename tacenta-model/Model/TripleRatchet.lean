@@ -98,7 +98,8 @@ is the input keying material. Section 6.3's definition is looser -- a derivation
 keyed by the concatenation of the two secrets would also meet it -- so this is
 the recommended construction rather than merely a permitted one. -/
 
-/-- The encryption key.
+/-- The combined message key, which the message-key expansion turns into the
+    AEAD's keys (ratchet.md, Derivations).
 
     Salt is the post-quantum key, IKM the classical one, per §7.2. The
     inversion is the same one `KDF_RK` has and is easy to get backwards. -/

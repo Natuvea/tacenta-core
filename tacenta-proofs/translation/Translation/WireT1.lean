@@ -113,11 +113,16 @@ theorem be32_at_no_panic (bytes : Slice U8) (at1 : Usize) (h : at1.val + 4 ≤ b
   unfold be32_at
   step*
 
-/-- **Decoding an initial message cannot fail, for every byte string.** -/
+/-- **Decoding an initial message cannot fail, for every byte string.**
+
+The two curve-byte reads, at offset 2 and at the identity's end, are bounded by
+the two keys' `span_end` checks; `EC_LEN` is unfolded first so that those
+bounds are numbers `step*` can use. -/
 @[step]
 theorem decode_initial_no_panic (bytes : Slice U8) :
     decode_initial bytes ⦃ fun _ => True ⦄ := by
   unfold decode_initial
+  simp only [EC_LEN]
   step*
 
 /-! ## The prekey bundle decoder

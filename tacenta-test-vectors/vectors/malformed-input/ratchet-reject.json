@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "algorithm": "double-ratchet",
-  "source": "hand-authored: the MAX_SKIP rejection rule (ratchet.md, Skipped keys). Not a model-byte oracle; a spec rejection.",
+  "source": "hand-authored: the MAX_SKIP rejection rule (ratchet.md, Skipped keys) and the refusal of a same-chain message below Nr whose key is not stored (ratchet.md, Sending and receiving). Not a model-byte oracle; spec rejections. The accepted steps of reject-same-chain-duplicate reuse the model-generated keys of in-order-3 in vectors/ratchet/double-ratchet.json.",
   "vectors": [
     {
       "id": "reject-too-many-skipped",
@@ -25,6 +25,67 @@
           "dh_recv": "abababababababababababababababababababababababababababababababab",
           "dh_send": "0000000000000000000000000000000000000000000000000000000000000000",
           "new_pub": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b"
+        }
+      ]
+    },
+    {
+      "id": "reject-same-chain-duplicate",
+      "comment": "a message delivered a second time on the chain the receiver holds -- ratchet key equal to DHr, number below Nr, key not stored -- is rejected rather than taken as the message at Nr, and the next message is then received with the sender's key",
+      "init": {
+        "sk": "0101010101010101010101010101010101010101010101010101010101010101",
+        "alice_pub": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+        "bob_pub": "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+        "dh_ab": "cfdfcbc7bddad79f64457059b7332192adfe709d296919f4b319b8665fad9056"
+      },
+      "steps": [
+        {
+          "actor": "alice",
+          "op": "send",
+          "mk": "80a5f4dc8f3a1105121e1526990481466cbc520101851faf15482a64830b06ec"
+        },
+        {
+          "actor": "alice",
+          "op": "send",
+          "mk": "d9cc68862cdc36994a805bca77719a0b1105b1857659848d8a095190d9b6af0e"
+        },
+        {
+          "actor": "bob",
+          "op": "receive",
+          "header": {
+            "dh": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+            "pn": 0,
+            "n": 0
+          },
+          "dh_recv": "cfdfcbc7bddad79f64457059b7332192adfe709d296919f4b319b8665fad9056",
+          "dh_send": "6a785b4344bf7d77f09d6731257384121cfff4d5a527eb43bcfbb8c4efeddb57",
+          "new_pub": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b",
+          "mk": "80a5f4dc8f3a1105121e1526990481466cbc520101851faf15482a64830b06ec"
+        },
+        {
+          "actor": "bob",
+          "op": "receive",
+          "expect": "reject",
+          "header": {
+            "dh": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+            "pn": 0,
+            "n": 0
+          },
+          "dh_recv": "0000000000000000000000000000000000000000000000000000000000000000",
+          "dh_send": "0000000000000000000000000000000000000000000000000000000000000000",
+          "new_pub": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        {
+          "actor": "bob",
+          "op": "receive",
+          "header": {
+            "dh": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+            "pn": 0,
+            "n": 1
+          },
+          "dh_recv": "0000000000000000000000000000000000000000000000000000000000000000",
+          "dh_send": "0000000000000000000000000000000000000000000000000000000000000000",
+          "new_pub": "0000000000000000000000000000000000000000000000000000000000000000",
+          "mk": "d9cc68862cdc36994a805bca77719a0b1105b1857659848d8a095190d9b6af0e"
         }
       ]
     }

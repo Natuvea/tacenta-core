@@ -93,6 +93,79 @@ fn a_tampered_message_is_rejected() {
     assert!(bob.decrypt(&m, &mut r).is_err());
 }
 
+/// The message whose receipt fails the Braid still returns its plaintext, and
+/// the refusals begin with the next one (mlkem-braid.md, "Failure").
+///
+/// The setup is `a_failed_agreement_refuses_further_use`'s, in
+/// `src/sessions/lifecycle.rs`. That test puts Bob's Braid in `Failed`
+/// directly. This one reaches `Failed` through a receive, which is the only
+/// way to show what that receive returns. Bob's saved Braid has one bit of its
+/// MAC key flipped, so when Alice's header completes on his side its MAC does
+/// not verify and his Braid fails. The message carrying the last header chunk
+/// still authenticates, because the message keys come from the ratchets and
+/// the Braid's MAC key is not among their inputs.
+#[test]
+fn the_message_that_fails_the_agreement_still_returns_its_plaintext() {
+    let mut r = rng(11);
+    let alice_id = sessions::Identity::generate(&mut r);
+    let bob_id = sessions::Identity::generate(&mut r);
+    let mut bob_prekeys = bob_id.create_prekeys(2, &mut r);
+    let bundle = bob_prekeys.publish();
+    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let initial = alice.encrypt(b"hello", &mut r).unwrap();
+    let (bob, first) = establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
+    assert_eq!(first, b"hello");
+    assert!(!bob.agreement_failed());
+
+    // session-persistence.md: a session is version(1) || len(4) || triple ||
+    // len(4) || braid || ..., and a live Braid is version(1) || state_tag(1)
+    // || epoch(8) || root_key(32) || mac_key(32) || ....
+    let mut saved = bob.export().to_vec();
+    let triple_len = u32::from_be_bytes(saved[1..5].try_into().unwrap()) as usize;
+    let braid = 1 + 4 + triple_len + 4;
+    assert_eq!(
+        saved[braid + 1],
+        5,
+        "Bob holds part of Alice's header (NoHeaderReceived)"
+    );
+    saved[braid + 2 + 8 + 32] ^= 0x01;
+    let mut bob = Session::import(&saved).expect("no import check covers the MAC key's value");
+    assert!(!bob.agreement_failed());
+
+    // The header is three chunks, and the initial message carried the first,
+    // so the second message after it completes the header. Each message up
+    // to and including that one authenticates and returns its plaintext.
+    let mut failed_on = None;
+    for i in 0..4u8 {
+        let plaintext = [b'm', i];
+        let message = alice.encrypt(&plaintext, &mut r).unwrap();
+        let received = bob
+            .decrypt(&message, &mut r)
+            .expect("a message before the refusals begin is accepted");
+        assert_eq!(received, plaintext);
+        if bob.agreement_failed() {
+            failed_on = Some(i);
+            break;
+        }
+    }
+    assert_eq!(
+        failed_on,
+        Some(1),
+        "the Braid must fail on the message that completes the header"
+    );
+
+    // The refusals begin with the next message, in both directions.
+    assert!(matches!(
+        bob.encrypt(b"after", &mut r),
+        Err(sessions::LifecycleError::AgreementFailed)
+    ));
+    let next = alice.encrypt(b"next", &mut r).unwrap();
+    assert!(matches!(
+        bob.decrypt(&next, &mut r),
+        Err(sessions::LifecycleError::AgreementFailed)
+    ));
+}
+
 /// One-time KEM prekeys are handed out in preference to the last-resort key,
 /// and each is deleted as it is used. Establishing more sessions than there are
 /// one-time keys must keep working: the bundle falls back to the last-resort

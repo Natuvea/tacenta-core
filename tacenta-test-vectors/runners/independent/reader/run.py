@@ -305,21 +305,37 @@ def run_vectors(totals):
                 counts["PASS"] += 1
 
 
+# Derived cases, one module per area. Each module exposes CASES as
+# (id, citation, callable); none has a vector behind it unless it says so.
+CASE_MODULES = [
+    "negative_cases",     # wire formats, bundle, PQXDH, ratchet and sparse ratchet basics, field
+    "cases_ratchet",      # Double Ratchet and sparse ratchet additions (ceilings, eviction, expiry)
+    "cases_triple",       # Triple Ratchet commit rules, non-contributory check, eviction retry
+    "cases_aead",         # AES-256-CBC + HMAC-SHA256 AEAD
+    "cases_erasure",      # GF(2^16) erasure code
+    "cases_persistence",  # session-persistence.md formats
+    "cases_protobuf",     # protobuf-profile.md
+    "cases_identity",     # identities-and-devices.md, repeated initial message
+]
+
+
 def run_negative(totals):
-    import negative_cases
-    counts = totals.setdefault("negative_cases.py (derived from spec text)", OrderedDict(PASS=0, FAIL=0, SKIP=0))
-    for cid, cite, fn in negative_cases.CASES:
-        try:
-            fn()
-        except AssertionError as e:
-            print(f"FAIL  negative :: {cid}: {e}  [{cite}]")
-            counts["FAIL"] += 1
-        except Exception as e:
-            print(f"FAIL  negative :: {cid}: {type(e).__name__}: {e}  [{cite}]")
-            counts["FAIL"] += 1
-        else:
-            print(f"PASS  negative :: {cid}")
-            counts["PASS"] += 1
+    import importlib
+    for name in CASE_MODULES:
+        module = importlib.import_module(name)
+        counts = totals.setdefault(f"{name}.py (derived from spec text)", OrderedDict(PASS=0, FAIL=0, SKIP=0))
+        for cid, cite, fn in module.CASES:
+            try:
+                fn()
+            except AssertionError as e:
+                print(f"FAIL  negative :: {cid}: {e}  [{cite}]")
+                counts["FAIL"] += 1
+            except Exception as e:
+                print(f"FAIL  negative :: {cid}: {type(e).__name__}: {e}  [{cite}]")
+                counts["FAIL"] += 1
+            else:
+                print(f"PASS  negative :: {cid}")
+                counts["PASS"] += 1
 
 
 def main():
@@ -329,10 +345,15 @@ def main():
     print()
     print(f"{'file':58} {'pass':>5} {'fail':>5} {'skip':>5}")
     grand = OrderedDict(PASS=0, FAIL=0, SKIP=0)
+    sub = {"vectors": OrderedDict(PASS=0, FAIL=0, SKIP=0), "negative": OrderedDict(PASS=0, FAIL=0, SKIP=0)}
     for rel, c in totals.items():
         print(f"{rel:58} {c['PASS']:5} {c['FAIL']:5} {c['SKIP']:5}")
+        part = sub["negative"] if rel.endswith("(derived from spec text)") else sub["vectors"]
         for k in grand:
             grand[k] += c[k]
+            part[k] += c[k]
+    for label, c in (("vectors subtotal", sub["vectors"]), ("derived cases subtotal", sub["negative"])):
+        print(f"{label:58} {c['PASS']:5} {c['FAIL']:5} {c['SKIP']:5}")
     print(f"{'TOTAL':58} {grand['PASS']:5} {grand['FAIL']:5} {grand['SKIP']:5}")
     return 1 if grand["FAIL"] else 0
 

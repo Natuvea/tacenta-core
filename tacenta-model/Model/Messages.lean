@@ -34,6 +34,15 @@ def typeBundle : UInt8 := 0x03
 /-- The identifier meaning "no prekey was used". Wire-sensitive. -/
 def absentId : UInt32 := 0
 
+/-- The `EncodeEC` curve byte, the first byte of an initial message's `identity`
+    and `ephemeral`. Wire-sensitive (CONSTANTS.md, `EncodeEC` type byte). -/
+def ecCurveByte : UInt8 := 0x05
+
+/-- The length a bundle's KEM prekey must have: the ML-KEM-1024
+    encapsulation-key length, 1,568 bytes (FIPS 203; CONSTANTS.md, Bundle KEM
+    prekey length). -/
+def kemPrekeyLen : Nat := 1568
+
 /-- A 32-bit value as four big-endian bytes. -/
 def be32 (n : UInt32) : List UInt8 :=
   [(n >>> 24).toUInt8, (n >>> 16).toUInt8, (n >>> 8).toUInt8, n.toUInt8]
@@ -84,11 +93,22 @@ structure Initial where
   ratchetMessage : List UInt8
   deriving Repr, Inhabited, DecidableEq
 
+/-- `some ()` when `k` begins with the `EncodeEC` curve byte, `none` otherwise
+    (the empty list included).
+
+    A function of its own, bound in `decodeInitial`, rather than an `if` written
+    inline in its `do` block: an inline `if` there becomes a join point, and the
+    proofs' rewriting cannot see through one. -/
+def checkCurve (k : List UInt8) : Option Unit :=
+  if k.head? = some ecCurveByte then some () else none
+
 /-- Decode an initial message, or `none` if the input is not a canonical
     encoding.
 
     The identity and ephemeral keys are 33 bytes each: a curve type byte and the
-    public key. The KEM ciphertext is length-prefixed because its size depends on
+    public key. Either one whose first byte is not `ecCurveByte` is not an
+    `EncodeEC` form, and the message is refused (message-format.md, Initial
+    message). The KEM ciphertext is length-prefixed because its size depends on
     the KEM, so it cannot be read positionally. -/
 def decodeInitial (bs : List UInt8) : Option Initial :=
   match bs with
@@ -97,6 +117,8 @@ def decodeInitial (bs : List UInt8) : Option Initial :=
     else do
       let (identity, rest) ← take? 33 rest
       let (ephemeral, rest) ← take? 33 rest
+      checkCurve identity
+      checkCurve ephemeral
       let (ctLen, rest) ← readBe32 rest
       let (kemCiphertext, rest) ← take? ctLen.toNat rest
       let (signedPrekeyId, rest) ← readBe32 rest
@@ -155,8 +177,21 @@ example :
     truncated, which is what stops a length prefix being a parsing oracle. -/
 example :
     decodeInitial (version :: typeInitial
-      :: (List.replicate 33 0x0a ++ List.replicate 33 0x0b ++ be32 99
-          ++ [0xc0, 0xde])) = none := by
+      :: ((ecCurveByte :: List.replicate 32 0x0a) ++ (ecCurveByte :: List.replicate 32 0x0b)
+          ++ be32 99 ++ [0xc0, 0xde])) = none := by
+  native_decide
+
+/-- An identity whose first byte is not the curve byte is not an `EncodeEC`
+    form, and the message is refused although every length in it is right. -/
+example :
+    decodeInitial (encodeInitial (0x06 :: List.replicate 32 0x0a)
+      (ecCurveByte :: List.replicate 32 0x0b) [0xc0, 0xde] 3 4 5 [0xde, 0xad]) = none := by
+  native_decide
+
+/-- The same for the ephemeral. -/
+example :
+    decodeInitial (encodeInitial (ecCurveByte :: List.replicate 32 0x0a)
+      (0x00 :: List.replicate 32 0x0b) [0xc0, 0xde] 3 4 5 [0xde, 0xad]) = none := by
   native_decide
 
 /-- The associated-data pair parses uniquely. -/
@@ -231,7 +266,16 @@ def encodeBundle (b : Bundle) : List UInt8 :=
       ++ encodeOptionalKey b.oneTimePrekey
       ++ be32 b.signedPrekeyId ++ be32 b.oneTimeId ++ be32 b.kemPrekeyId)
 
+/-- `some ()` when a KEM prekey length read off the wire is `kemPrekeyLen`,
+    `none` otherwise. A function of its own for the reason `checkCurve` is. -/
+def checkKemLen (n : UInt32) : Option Unit :=
+  if n.toNat = kemPrekeyLen then some () else none
+
 /-- Decode a bundle, or `none` if the input is not a canonical encoding.
+
+    A KEM prekey length other than `kemPrekeyLen` is refused as soon as it is
+    read, whether or not that many bytes follow (message-format.md, Prekey
+    bundle).
 
     Trailing bytes are rejected: a bundle is a whole object rather than a prefix
     of a stream, so a decoder that ignored what followed would accept two
@@ -245,6 +289,7 @@ def decodeBundle (bs : List UInt8) : Option Bundle :=
       let (signedPrekey, rest) ← take? 32 rest
       let (signedPrekeySig, rest) ← take? 64 rest
       let (kemLen, rest) ← readBe32 rest
+      checkKemLen kemLen
       let (kemPrekey, rest) ← take? kemLen.toNat rest
       let (kemPrekeySig, rest) ← take? 64 rest
       -- Fixed layout: the presence byte and thirty-two bytes are always there,
@@ -284,6 +329,18 @@ example : decodeBundle (encodeBundle (sampleBundle none)) = some (sampleBundle n
     presence byte alone does not make the field absent. -/
 example :
     decodeBundle ((encodeBundle (sampleBundle none)).set (1811 - 12 - 32) 0x01) = none := by
+  native_decide
+
+/-- A KEM prekey that is not 1,568 bytes is not a bundle, even when its length
+    prefix is honest about the bytes that follow: one byte short, and one over. -/
+example :
+    decodeBundle (encodeBundle { sampleBundle none with kemPrekey := List.replicate 1567 0x44 })
+      = none := by
+  native_decide
+
+example :
+    decodeBundle (encodeBundle { sampleBundle none with kemPrekey := List.replicate 1569 0x44 })
+      = none := by
   native_decide
 
 end Model.Messages

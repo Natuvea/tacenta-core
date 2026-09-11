@@ -194,6 +194,28 @@ deleting them after an interval, triggered by a timer or by counting events.
   anything, which makes the collision impossible rather than merely avoided,
   and a test pins that the identifiers a store hands out never repeat across a
   replenishment.
+
+  `create_prekeys` with `n` one-time prekeys of each kind numbers the store in
+  one pass: the signed prekey `1`, the one-time curve prekeys `2` to `n + 1`,
+  the last-resort KEM prekey `n + 2`, and the one-time KEM prekeys `n + 3` to
+  `2n + 2`, leaving `next_id` at `2n + 3`. `replenish` with `count` adds `count`
+  one-time curve prekeys and then `count` one-time KEM prekeys, each taking
+  `next_id` as its identifier and advancing it by one. Once `next_id` stands at
+  `u32::MAX` it adds nothing further and keeps what it has added: `u32::MAX` is
+  never issued as an identifier, and a `replenish` that stops among the curve
+  prekeys adds no KEM prekeys.
+
+  `create_prekeys` stops at the same end. The largest `n` its numbering holds
+  is `2^31 - 2` (2,147,483,646), which issues identifiers up to `u32::MAX - 1`
+  and leaves `next_id` at `u32::MAX`. Asked for more, `create_prekeys` makes
+  `2^31 - 2` one-time prekeys of each kind, numbered as above, and reports
+  nothing. So `u32::MAX` is never issued, and no identifier wraps to zero or
+  repeats. The two one-time sets stay the same size, and the signed prekey and
+  the last-resort KEM prekey always have identifiers. `replenish` and both
+  rotations add nothing to the store it returns. A store that large cannot be
+  held in memory, so the bound never limits a real store. It exists so that no
+  count, however large, can number a store in a way the store's reader
+  (session-persistence.md) would refuse.
 - **A replayed last-resort handshake is refused, and the record that refuses
   it never evicts.** A one-time KEM prekey defends itself by being deleted on
   use, so replaying a message that names one fails. The last-resort key is

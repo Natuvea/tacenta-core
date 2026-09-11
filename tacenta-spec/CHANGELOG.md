@@ -11,6 +11,51 @@ is SemVer against the specified protocol (not the implementation).
   value is at least p = 2^255 - 19. This is message-format.md's
   single-encoding principle applied to curve keys, which X25519 alone does
   not enforce. An honest key generator produces neither form.
+
+## [0.1.0] - 2026-09-11
+
+The first citable revision. It contains everything recorded above that was under
+Unreleased until now.
+
+The specification is normative (ADR-0006):
+- the written pages and `CONSTANTS.md` define the protocol;
+- the model states them formally;
+- `tacenta-core` is one implementation of them.
+
+**Written:**
+- PQXDH session establishment;
+- the Double Ratchet, the Sparse Post-Quantum Ratchet and the Triple Ratchet;
+- the ML-KEM Braid and its erasure code;
+- the message format and its authenticated encryption;
+- the bounded protobuf profile;
+- session persistence;
+- key deletion;
+- error handling;
+- the identity key and application signatures.
+
+**Scaffolds, and so unspecified:** devices, group messaging, and the
+security-property pages, whose claims are in `tacenta-proofs/CLAIMS.md`.
+
+**How far the text is enough:** a reader written from this text and the
+vectors alone, with no access to the implementation, the model or the proofs,
+passes all 79 vectors and 145 refusal and boundary cases drawn from the pages'
+sentences (`tacenta-test-vectors/runners/independent`).
+
+What that reader could not build from the text is recorded in its `GAPS-2.md`:
+- chiefly the Braid's state machine, epoch key derivation and authenticator,
+  which still come from the published ML-KEM Braid document;
+- a set of smaller wording gaps.
+
+Closing those is the work for the next minor revision. This release closes the
+reader's G-01, "No citable spec revision".
+
+### Added
+- The decoders now enforce two of `protocol/message-format.md`'s refusals at
+  decode, in the model and in `tacenta-wire`: the initial-message decoder
+  refuses an `identity` or `ephemeral` whose first byte is not the `EncodeEC`
+  curve byte `0x05`, and the bundle decoder refuses a `kem_prekey_len` other
+  than 1,568 bytes. `CONSTANTS.md` has a row for that length, the ML-KEM-1024
+  encapsulation-key length.
 - `protocol/message-format.md`:
   - An "Authenticated encryption" section: AES-256-CBC with PKCS#7, then
     `HMAC-SHA256(mac_key, AD || ciphertext)` with the full 32-byte tag
@@ -140,8 +185,54 @@ is SemVer against the specified protocol (not the implementation).
     page had left to each crate's `invariant`.
   `CONSTANTS.md`: rows for `MAX_CODEWORDS`, the Braid's KEM field lengths,
   and the KEM key-pair and encapsulation-state lengths.
+- Session-layer and prekey-store behaviour the pages did not state, as built:
+  - `protocol/identities-and-devices.md`, previously a scaffold, now covers
+    the identity key's secret and application signatures. The secret is 32
+    bytes, exported and imported as they are, and serves as both the X25519
+    private scalar and the XEdDSA private key. An application signature is
+    XEdDSA under the identity key over
+    `"tacenta:application-signature:v1" || 0xFF || message`. Devices remain a
+    scaffold.
+  - `protocol/session-establishment.md`: a non-contributory Diffie-Hellman
+    output is an all-zero one, the X25519 library's definition. A repeated
+    initial message on an existing session is accepted only by a responder's
+    session, and only if its `ephemeral` equals `established_ephemeral` byte
+    for byte; otherwise it is refused (`NotARepeatedInitial`).
+  - `protocol/triple-ratchet.md`: every receive refuses a header whose
+    ratchet public key gives a non-contributory output under the current or
+    the freshly generated ratchet private key. The check runs before either
+    ratchet runs and before authentication.
+  - `protocol/mlkem-braid.md`: the message whose receipt fails the Braid is
+    still accepted and its plaintext returned.
+  - `protocol/session-persistence.md`: the prekey store's `kem_pair` layout
+    (`dk` then `ek`, 4,736 bytes) and the four checks its reader makes,
+    replacing "opaque". Also, what the one-time lists' order means and how
+    `publish`, `publish_one_time_batch` and `publish_multi_use` choose from
+    them. The session's role rule now says the Braid's half is skipped once
+    the Braid has failed.
+  - `protocol/key-deletion.md`: how `create_prekeys` numbers identifiers, and
+    how `replenish` stops at the end of the identifier space.
+  - `protocol/message-format.md`: the implementation takes AES, CBC and
+    PKCS#7 from libraries, and this page defines the behaviour.
+  - `CONSTANTS.md`: rows for the application signature label and the
+    `kem_pair` layout. `README.md`: the status paragraph names
+    identities-and-devices.md as partly written.
+- `protocol/key-deletion.md`: the bound on `create_prekeys` at the end of the
+  identifier space. A count above `2^31 - 2` makes `2^31 - 2` one-time
+  prekeys of each kind and leaves `next_id` at `u32::MAX`. `u32::MAX` is never
+  issued, and no identifier wraps or repeats.
 
 ### Changed
+- `protocol/ratchet.md`, Sending and receiving: the classical ratchet now
+  refuses, itself, a message whose ratchet key equals `DHr`, whose number is
+  below `Nr` and whose key is not stored, as the page says. It used to take
+  such a message as the one at `Nr`: it derived that key, advanced the
+  receiving chain and counted a received message, and only the session's
+  AEAD then turned the message away, on a copy the session discarded. The
+  model's `receive` returns no result there, and the implementation returns
+  `OutOfOrder`, the error the sparse ratchet already returns in the
+  analogous case, with the state unchanged. The page's text is unchanged;
+  this records that the model and the implementation now match it.
 - `protocol/key-deletion.md`, `protocol/session-establishment.md`,
   `protocol/session-persistence.md` and `CONSTANTS.md`: the last-resort
   replay record no longer evicts, and `MAX_LAST_RESORT_SEEN` bounds it **per
@@ -244,6 +335,10 @@ were:
   described a ratchet message as the Double Ratchet's forty-byte header
   alone, a format `protocol/message-format.md` does not accept. It now follows
   the composite header.
+- The model's Braid reported, on a receive that moves it to `Failed` (a MAC
+  that does not verify, or an `ek_vector` that fails the header hash), the
+  epoch before the one it failed at. It now reports epoch 0, as
+  `protocol/mlkem-braid.md` ("Failure") and the implementation do.
 
 ### Backfilled
 Entries this log omitted when the pages landed, recorded here so the log is

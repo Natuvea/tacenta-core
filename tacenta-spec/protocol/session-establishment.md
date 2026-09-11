@@ -56,6 +56,10 @@ not recognise the leading byte fails.
 
 - `X || Y` is concatenation.
 - `DH(PK1, PK2)` is the X25519 shared secret between the two key pairs.
+- A `DH` output is *non-contributory* when all 32 of its bytes are zero. This
+  is the X25519 library's definition (`was_contributory` in `x25519-dalek`),
+  adopted here as the rule. A non-contributory output is refused wherever one
+  is computed.
 - `Sig(PK, M, Z)` is an XEdDSA signature over `M` by `PK`'s private key, using
   64 bytes of randomness `Z`, verifying under `PK`.
 - `KDF(KM)` is 32 bytes of HKDF output using `hash`, with input keying material
@@ -199,6 +203,15 @@ keys, recovers `SS = PQKEM-DEC(PQPKB, CT)`, repeats the same DH and KDF
 computations, and deletes the DH outputs and `SS`. He rebuilds `AD` and decrypts.
 If decryption fails he aborts and deletes `SK`. On success he deletes `CT` and
 any one-time prekey private keys that were used.
+
+An initial message can also arrive on a session that already exists, since
+Alice repeats it until Bob answers. It does not establish again. The session
+accepts it only if it is a responder's session and the message's `ephemeral`
+field equals, byte for byte, the `ephemeral` field carried by the initial
+message that established the session (`established_ephemeral`,
+session-persistence.md); no other field is compared. It then decrypts the
+ratchet message inside. Otherwise, and always on an initiator's session, it
+refuses the message (`NotARepeatedInitial`).
 
 ## Replay, and why the ratchet must follow
 

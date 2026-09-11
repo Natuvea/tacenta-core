@@ -114,7 +114,9 @@ theorem Decoder.message_length (d : Decoder) (bytes : Bytes)
 structure Kem where
   /-- Randomness in, `(dk, ek_seed, ek_vector)` out. -/
   keyGen  : Nat → Bytes × Bytes × Bytes
-  /-- `SHA3-256(ek_seed || ek_vector)`. -/
+  /-- The header hash: FIPS 203 `H(ek)`, which is `SHA3-256(ek_vector || ek_seed)`,
+      taken here as `hashEk ek_seed ek_vector`. The published Braid document writes
+      its input as `ek_seed || ek_vector` (mlkem-braid.md, The KEM split). -/
   hashEk  : Bytes → Bytes → Bytes
   /-- Randomness in, then from the header alone:
       `(encaps_secret, ct1, shared_secret)`. Encapsulation draws fresh
@@ -318,6 +320,8 @@ def send (K : Kem) (rand : Nat) : BraidState → Option Msg × Nat × Option Out
     let (chunk, enc') := enc.nextChunk
     let st := BraidState.ct2Sampled epoch auth enc'
     (some ⟨epoch, .ct2, some chunk⟩, st.epoch - 1, none, st)
+  -- No message here, where the implementation builds an empty one that `Session`
+  -- never puts on the wire (mlkem-braid.md "Failure"): not observably different.
   | .failed => (none, 0, none, .failed)
 
 /-! ## Receiving -/
@@ -380,7 +384,9 @@ def receive (K : Kem) (st : BraidState) (msg : Msg) : Nat × Option Output × Br
             let st' := BraidState.noHeaderReceived (epoch + 1) auth'
               (Decoder.new (headerSize + macSize))
             (st'.epoch - 1, some ⟨st'.epoch - 1, ss⟩, st')
-          else (epoch - 1, none, .failed)
+          -- A receive that fails reports epoch 0, as every receive from `Failed`
+          -- does (mlkem-braid.md "Failure"), not the epoch it failed at.
+          else (0, none, .failed)
         | Option.none => stay (.ekSentCt1Received epoch auth dk ct1 d)
       | Option.none => stay st
     else stay st
@@ -397,7 +403,7 @@ def receive (K : Kem) (st : BraidState) (msg : Msg) : Nat × Option Output × Br
             -- Transition (6)
             stay (.headerReceived epoch auth (hdr.take 32) (hdr.drop 32)
                    (Decoder.new K.ekSize))
-          else (epoch - 1, none, .failed)
+          else (0, none, .failed)
         | Option.none => stay (.noHeaderReceived epoch auth d)
       | Option.none => stay st
     else stay st
@@ -410,7 +416,7 @@ def receive (K : Kem) (st : BraidState) (msg : Msg) : Nat × Option Output × Br
         let acked := msg.type == .ekCt1Ack
         match d.message with
         | some ekVector =>
-          if K.hashEk ekSeed ekVector != hek then (epoch - 1, none, .failed)
+          if K.hashEk ekSeed ekVector != hek then (0, none, .failed)
           else if acked then
             -- Transition (9): both events in one message
             stay (finishEncaps K epoch auth es ct1 ekSeed ekVector)
@@ -436,7 +442,7 @@ def receive (K : Kem) (st : BraidState) (msg : Msg) : Nat × Option Output × Br
         let d := ekDec.addChunk c
         match d.message with
         | some ekVector =>
-          if K.hashEk ekSeed ekVector != hek then (epoch - 1, none, .failed)
+          if K.hashEk ekSeed ekVector != hek then (0, none, .failed)
           else
             -- Transition (11)
             stay (finishEncaps K epoch auth es ct1 ekSeed ekVector)
@@ -498,6 +504,14 @@ theorem receive_output_epoch (K : Kem) (st : BraidState) (msg : Msg) (o : Output
   cases st <;> simp only [receive] <;> repeat' split
   all_goals (simp +zetaDelta [BraidState.epoch]; try omega)
   all_goals (rintro rfl; rfl)
+
+/-- The epoch a `Receive` reports is the one before the state it lands in, on
+every branch. A receive that fails lands in `Failed`, whose epoch is 0, and
+reports 0 (mlkem-braid.md "Failure"). -/
+theorem receive_reports (K : Kem) (st : BraidState) (msg : Msg) :
+    (receive K st msg).1 = (receive K st msg).2.2.epoch - 1 := by
+  cases st <;> simp only [receive] <;> repeat' split
+  all_goals (simp [BraidState.epoch, finishEncaps])
 
 /-- The epoch a `Receive` reports is never one the state has not reached. -/
 theorem receive_reports_le (K : Kem) (st : BraidState) (msg : Msg) :
