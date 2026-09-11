@@ -36,7 +36,7 @@
           "result": {
             "enum": ["valid", "invalid"],
             "default": "valid",
-            "description": "Whether the operation is expected to succeed. Invalid vectors carry no output and must be rejected."
+            "description": "Whether the operation is expected to succeed. Invalid vectors carry neither output nor fields and must be rejected."
           },
           "inputs": {
             "type": "object",
@@ -50,6 +50,14 @@
             "type": "string",
             "pattern": "^[0-9a-f]*$",
             "description": "Expected output for a valid vector, lowercase hex."
+          },
+          "fields": {
+            "type": "object",
+            "description": "For a valid vector of a decoder: the named values the input decodes to, each a lowercase hex string, an integer as its big-endian bytes. Carried instead of output. A value the decoder reports absent is left out, and a runner must check that the names match as well as the values.",
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^[0-9a-f]*$"
+            }
           }
         }
       }

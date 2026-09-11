@@ -33,6 +33,24 @@ The primitives the spec's Derivations section composes are computed concretely i
 the standard vectors the spec's Sources cite. Diffie-Hellman agreement and the
 AEAD are held at the trusted boundary; see `abstraction-boundary.md`.
 
+## The erasure code
+
+Source pages: `tacenta-spec/protocol/mlkem-braid.md` and
+`tacenta-spec/protocol/session-persistence.md`. `Model/Erasure.lean` is
+imported by the vector generator and the axiom audit only; `Model/Braid.lean`
+keeps the code at its contract.
+
+| Spec section | Model definition | File |
+|---|---|---|
+| The erasure code, Chunks | `chunkCount`, `chunks`, `element` | `Model/Erasure.lean` |
+| The erasure code, Codewords | `codeword`, `Encoder.new`, `Encoder.advance`, `Encoder.nextCodeword` | `Model/Erasure.lean` |
+| The erasure code, Decoding | `Decoder.new`, `Decoder.add`, `Decoder.chunk`, `Decoder.message` | `Model/Erasure.lean` |
+| Erasure coder sub-formats | `Encoder.toBytes`/`ofBytes`, `Decoder.toBytes`/`ofBytes` | `Model/Erasure.lean` |
+| Semantic rules of the leaf formats, Erasure encoder and decoder | `Encoder.invariant`, `Decoder.invariant` | `Model/Erasure.lean` |
+
+The field arithmetic and the interpolation beneath it are `Model/Gf65536.lean`
+and `Model/Polynomial.lean` (`interp`).
+
 ## Scope held to the spec
 
 The spec's Scope section excludes the header-encryption variant of the Double

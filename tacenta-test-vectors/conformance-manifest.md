@@ -115,8 +115,9 @@ it must still accept with the sender's key). Runner:
   ML-KEM Braid specification (Rolfe Schmidt), **revision 1, 2025-02-21, last
   updated 2025-09-26**. Both archived and pinned by SHA-256.
 - **Oracle:** `tacenta-model` (`Model.SparseRatchet`) for the ratchet,
-  (`Model.Braid`) for the agreement, and (`Model.Gf65536`, `Model.Polynomial`)
-  for the field and the interpolation the erasure code performs, and
+  (`Model.Braid`) for the agreement, (`Model.Gf65536`, `Model.Polynomial`)
+  for the field and the interpolation the erasure code performs,
+  (`Model.Erasure`) for the erasure code above them, and
   (`Model.TripleRatchet`) for the Triple Ratchet, the smallest layer.
 
 ### Covered
@@ -130,6 +131,8 @@ destroyed.
 The derivations are pinned to the models by vectors under
 `vectors/post-quantum/`: field multiplication and inversion, interpolation, the
 sparse ratchet's chain step, and the Braid's epoch key and authenticator ratchet.
+The erasure code above the field is pinned the same way, by
+`erasure-encode.json` and `erasure-decode.json` (below).
 That covers the class of transcription error these vectors exist to catch: a
 constant such as the Braid's `PROTOCOL_INFO` that differed between the model
 and the implementation would change every MAC and every epoch key with it, and
@@ -157,9 +160,31 @@ it names the route in each case.
 | Incremental ML-KEM interface | Braid §1.2.1 | a boundary in the model, with the one law it must satisfy; wrapped from libcrux in `primitives::kem_incremental`, with the size mapping asserted by test |
 | GF(2^16) arithmetic | Braid §2.2 | modelled and proved a field (`Model.Gf65536`); implementation pinned by vectors |
 | Polynomial interpolation over that field | Braid §2.2 | modelled, delta property and unisolvence both proved (`Model.Polynomial`); implementation pinned by vectors |
-| Reed-Solomon erasure coding | Braid §2.2 | implemented (`tacenta-erasure`), systematic by evaluation; **recovery of lost symbols proved** (`Model.Polynomial.unisolvence`); translates with no gap, **T1 complete**, every function proved panic-free under two named boundary assumptions. **T3 covers the field arithmetic only** (`ErasureT3.lean`: `add`, `clmul`, `reduce`, `mul` each refine `Model.Gf65536` for every input, not just the thirty-eight sampled points). `interpolate`, the chunk helpers, and both encoder/decoder entry points have T1 and no refinement, so `Model.Polynomial`'s recovery theorems stay statements about a Lean definition. Above that, the crate enters `BraidT3.lean` as the `ErasureAgrees` boundary assumption |
+| Reed-Solomon erasure coding | Braid §2.2 | implemented (`tacenta-erasure`), systematic by evaluation; **recovery of lost symbols proved** (`Model.Polynomial.unisolvence`); translates with no gap, **T1 complete**, every function proved panic-free under two named boundary assumptions. **T3 covers the field arithmetic only** (`ErasureT3.lean`: `add`, `clmul`, `reduce`, `mul` each refine `Model.Gf65536` for every input, not just the thirty-eight sampled points). `interpolate`, the chunk helpers, and both encoder/decoder entry points have T1 and no refinement, so `Model.Polynomial`'s recovery theorems stay statements about a Lean definition. Above that, the crate enters `BraidT3.lean` as the `ErasureAgrees` boundary assumption. **The code's bytes are pinned by vectors, not by refinement**: `Model.Erasure` states chunking, the systematic and parity codewords, the encoder's lifetime and first-copy-wins decoding byte for byte over `Model.Polynomial.interp`, and the vectors below check the crate against it on the sampled inputs |
 | `KDF_HYBRID` and the composite header | §6.3, §6.5 | modelled (`Model.TripleRatchet`, `Model.CompositeHeader`); `KDF_HYBRID` implemented (`tacenta-triple`), pinned by vectors, and **T3-refined** (`UnitTripleT3.lean`, on the three-leaf translation unit). The header encoding is modelled, its round-trip proved, implemented (`serialization::composite`) and pinned by vectors. **No unambiguous-concatenation theorem is claimed or needed**: §7.2's parameters pass the two keys as *salt* and *IKM* rather than as one concatenated input, so distinct pairs are distinct inputs by construction and there is nothing to prove |
 | Expanding the handshake secret into two | §7.1 | modelled (`Model.TripleRatchet.splitSecret`, both halves proved thirty-two bytes), implemented (`tacenta_triple::split_secret`), and **T3-refined** (`split_secret_refines`). Driven live: `Session` splits the PQXDH output and initialises both ratchets from the halves |
+
+#### The erasure code, by vector
+
+Specification: `tacenta-spec/protocol/mlkem-braid.md`, The erasure code. Model:
+`Model.Erasure`, over `Model.Gf65536` and `Model.Polynomial`. Runner:
+`runners/rust/tests/post_quantum.rs`, against `tacenta-erasure`'s `Encoder`
+and `Decoder`.
+
+| Component | Spec section | Covered by |
+|---|---|---|
+| Chunks: 16 big-endian elements each, `k = ceil(n / 32)`, the last padded with zero bytes | The erasure code, Chunks | `erasure-encode.json` (`one-chunk-padded`, `last-chunk-padded`), `erasure-decode.json` (`short-value-truncated`) |
+| Systematic codewords `i < k` are the chunks | The erasure code, Codewords | every `erasure-encode.json` vector; `erasure-decode.json` `systematic-in-order` |
+| Parity codewords `i >= k`: `P_j(i)` through the chunks | The erasure code, Codewords | `erasure-encode.json`: values of three, four, six and 48 chunks (the Braid's header with MAC, `ct2` with MAC and `ek_vector` sizes), at indices up to 4,096 |
+| The encoder issues indices in order, once each, and nothing after 65,535 | The erasure code, Codewords; Encoder lifetime | `erasure-encode.json` (the runner checks every issued index), `stream-exhaustion` (`stream_length` 65,536) |
+| Decoding from any `k` codewords, in any order, at any indices | The erasure code, Decoding | `erasure-decode.json` (`parity-only`, `mixed-out-of-order`, `far-indices`, `ek-vector-two-chunks-lost`) |
+| First copy at an index wins, whatever a later one holds; a held chunk `t` is taken as it is | The erasure code, Decoding | `erasure-decode.json` (`later-copy-ignored`, `first-copy-wins-though-corrupt`, `held-chunk-taken-as-it-is`, `repeats-do-not-count`) |
+| Every codeword after the `k`-th is ignored | The erasure code, Decoding | `erasure-decode.json` (`ignored-once-full`, `empty-value-ignores-codewords`) |
+| Fewer than `k` codewords are no value; a decoder for zero bytes holds the empty value | The erasure code, Decoding | `erasure-decode.json` (`one-short`, `nothing-arrived`, `empty-value`) |
+
+Not pinned: an encoder for a value longer than 65,536 chunks, which the text
+does not cover and `tacenta-erasure` caps; parity codewords of a zero-length
+value, for which "the polynomial of degree below `k`" has no points.
 
 ### Addition: the store's total bound
 
@@ -280,8 +305,25 @@ this implementation; the client's expectations of the server are stated in
 | Initial (prekey) message encoding | `vectors/serialization/initial-message.json`, generated from the model, and a core round-trip test |
 | Prekey bundle encoding (message-format.md, Prekey bundle) | core round-trip and rejection tests; no vectors, since the model does not encode bundles |
 | Rejection of unknown version, truncation, and length overrun | core tests |
+| Authenticated encryption (message-format.md, Authenticated encryption): PKCS#7 padding, `ciphertext \|\| HMAC-SHA256(mac_key, AD \|\| ciphertext)`, and the receiver's four steps | `vectors/aead/aead-encrypt.json` (padding of 16, 15 and 1 bytes; `AD` empty, short, and a `CONCAT(ad, header)`), `vectors/aead/aead-decrypt.json` (three accepted inputs; refusals at step 1, at step 2 for an altered tag, an altered ciphertext and other associated data, at step 3 for an empty and a partial-block ciphertext under a valid tag, and for a padding byte of 0, of 17, of 2 over a 3, and of 16 over fifteen other bytes); runner `runners/rust/tests/aead.rs`, which also requires every refusal to be the one `DecryptError` |
 
-Runner: `runners/rust/tests/serialization.rs`.
+Runners: `runners/rust/tests/serialization.rs`, and `runners/rust/tests/aead.rs`
+for the AEAD.
+
+**Where the AEAD vectors' bytes come from.** The model has no AES, so these
+two files are neither model output alone nor a published vector alone. The
+generator (`Vectors.lean`, `lake exe genvectors aead-encrypt` and
+`aead-decrypt`) computes the padding, the tag (with `Model.Kdf.hmac`) and the
+receiver's decision from the section's text, and takes every AES-256 block
+value from NIST SP 800-38A under that standard's key: the four ECB-AES256
+pairs of F.1.5 and the CBC-AES256 chain of F.2.5. Each IV is chosen so the
+cipher's input is one of those blocks, and a block outside that table fails the
+file rather than being computed. Each file's `source` field says so. Two
+consequences follow. The keys are the standard's, not an output of the
+message-key expansion, so the expansion is pinned by the ratchet vectors'
+`message_keys` and not here. And a whole-block plaintext, whose padding needs
+a second enciphered block the standard does not list, has no encrypt vector;
+the padding of 16 is pinned by the empty plaintext instead.
 
 ### Determined elsewhere
 
@@ -291,6 +333,75 @@ and the core. The `EncodeEC` and `EncodeKEM` leading bytes are the values that
 must match a peer at the bundle layer, and `tacenta-spec/CONSTANTS.md` records
 their provenance. Message-layer interoperability with any other implementation
 is not claimed, and this is recorded rather than implied.
+
+## Protobuf profile
+
+- **Specification:** tacenta-spec/protocol/protobuf-profile.md. The field
+  numbers and wire types are tier `nominated` (CONSTANTS.md); the bounds and
+  refusal policies are ours.
+- **Oracle:** tacenta-model (`Model.Protobuf`, `parseRatchetBody` and
+  `parsePrekeyBody`). Runner: `runners/rust/tests/protobuf.rs`, against
+  `tacenta-protobuf`'s `parse_ratchet_body` and `parse_prekey_body`.
+
+Vectors: `vectors/protobuf/protobuf-ratchet-body.json` and
+`protobuf-prekey-envelope.json`. An accepted region carries `fields`, the
+values it decodes to, integers as four big-endian bytes; a refused one carries
+`result: invalid`. The runner checks the names as well as the values, so an
+absent `prekey_id` must decode as absent.
+
+### Covered
+
+| Component | Spec section | Covered by |
+|---|---|---|
+| `maxMessageLen`: 16,384 bytes accepted, 16,385 refused | Bounds | `at-the-length-bound`, `over-the-length-bound` in both files |
+| Varints: minimal, at most five bytes, at most `2^32 - 1`, not cut off | Varints | ratchet body: `widest-varints`, `non-minimal-varint`, `non-minimal-length`, `six-byte-varint`, `varint-over-32-bits`, `varint-truncated`; envelope: `registration-id-over-32-bits` |
+| Tags: field 0 and fields above 15 refused, wire types other than 0 and 2 refused, a multi-byte tag refused | Tags | `field-zero`, `field-sixteen`, `wire-type-one`, `wire-type-five`, `non-minimal-tag` |
+| Length-delimited fields: a zero length accepted, a length past the region refused | Length-delimited fields | `empty-values-and-zero-counters`, `empty-values-and-zero-identifiers`, `length-overruns-the-region` |
+| A repeated field refused; an undefined number or the other wire type refused; leftover bytes refused | Fields in a message | `repeated-counter`, `repeated-after-all-five`, `repeated-prekey-id`, `field-six`, `field-nine`, `field-fifteen`, `counter-length-delimited`, `ciphertext-varint`, `prekey-id-length-delimited`, `kem-varint`, `trailing-zero-byte` |
+| Ratchet message body: all five fields required | Ratchet message body | `missing-pq`, `empty-region` |
+| Prekey envelope: field 1 optional, absent distinct from 0; fields 2 to 8 required; `message` not parsed | Prekey envelope | `prekey-id-absent`, `prekey-id-zero`, `missing-kem`, `missing-registration-id`, `inner-message-not-parsed` |
+| Field order is free | Field order and canonicality | `descending-order`, `interleaved-order`, `shuffled-order` |
+
+### Not covered
+
+The encoders (`encode_ratchet_body`, `encode_prekey_body`): the model defines
+none and the page fixes no emission order. The `maxFields` bound is never the
+limit reached for these two message types (Fields in a message), so no vector
+can reach it.
+
+## Session persistence
+
+- **Specification:** tacenta-spec/protocol/session-persistence.md. Entirely
+  ours; nothing here is wire-sensitive.
+- **Oracle:** tacenta-model (`Model.Erasure`: `Encoder.toBytes`/`ofBytes` and
+  `Decoder.toBytes`/`ofBytes`). Runner: `runners/rust/tests/persistence.rs`,
+  against `tacenta-erasure`'s `to_bytes`/`from_bytes`.
+
+### Covered
+
+| Component | Spec section | Covered by |
+|---|---|---|
+| Erasure encoder layout `next(2) \|\| exhausted(1) \|\| count(4) \|\| chunk(32)[count]`, written by operations and read back to the same encoder, which issues the same next codeword | Erasure coder sub-formats | `vectors/persistence/erasure-encoder-state.json`: fresh, two and six codewords issued, a zero-length value, 65,535 issued (`next` at the last index) and 65,536 (`exhausted`) |
+| Erasure encoder refusals and rules: `exhausted` only `0x00`/`0x01`, and only at `next = 65535`; a count the buffer does not hold; trailing bytes; a short buffer | Erasure coder sub-formats; Semantic rules of the leaf formats, Erasure encoder | same file, `bytes` vectors |
+| Erasure decoder layout `size(8) \|\| needed(8) \|\| count(4) \|\| codeword[count]`, held codewords in arrival order, read back to the same decoder | Erasure coder sub-formats | `vectors/persistence/erasure-decoder-state.json`: fresh, partial, full, a repeat and an extra not held, a zero-length value |
+| Erasure decoder refusals and rules: `needed` other than `ceil(size / 32)`, `needed` above 65,536, values bounded as 64-bit before narrowing, a repeated index, more codewords than `needed`, a count the buffer does not hold, trailing bytes; and the widest decoder accepted | Erasure coder sub-formats; Semantic rules of the leaf formats, Erasure decoder | same file, `bytes` vectors |
+
+**Two readings these vectors decide.** The page leaves two things unstated
+(the independent reader's `GAPS-2.md`, G2-04): what `next` counts, and what
+order a decoder's codewords are written in. `Model.Erasure` takes `next` as
+the index the encoder issues next, and writes held codewords in arrival order;
+`tacenta-erasure` does the same, and the `partial`, `repeats-and-extras-not-held`
+and `last-index-next` vectors pin both. Until the page states them, these are
+the model's readings rather than the page's.
+
+### Not covered
+
+Every other persisted format: the ratchet state, the sparse ratchet state, the
+triple ratchet state, the Braid, the session, and the prekey store (v1 to v4),
+with their semantic rules. The model states none of them, so there is no
+oracle to generate vectors from, and they remain covered by `tacenta-core`'s
+round-trip and refusal tests and its fuzz targets. The encoder rule "at most
+65,536 chunks" is not pinned, since a vector for it is two megabytes.
 
 ## Interoperability with libsignal
 
@@ -322,6 +433,7 @@ thing in every row.
 | HMAC-SHA256 | RFC 4231 | `vectors/primitives/hmac-sha256.json` | tacenta-core |
 | HKDF-SHA256 | RFC 5869 | `vectors/primitives/hkdf-sha256.json` | tacenta-core |
 | X25519 | RFC 7748 | `vectors/primitives/x25519.json` | tacenta-core |
+| AES-256 | NIST SP 800-38A, F.1.5 (ECB-AES256) and F.2.5 (CBC-AES256) | no file of its own: the block values are embedded in `vectors/aead/` (Message format, above) | tacenta-core's AEAD, through `aead::encrypt` and `aead::decrypt` |
 | Ed25519 | RFC 8032 | `vectors/primitives/ed25519.json` | `ed25519-dalek`, the trusted-boundary crate `xeddsa::verify` calls; tacenta-core exposes no Ed25519 API of its own, so the runner checks the crate directly at the version its lockfile pins |
 | XEdDSA | project-generated | `vectors/primitives/xeddsa.json` | tacenta-core: three signing vectors, signed under a fixed nonce and verified; thirteen verify-only vectors at the edges of the accepted set (`s + l`, `s >= 2^253`, the sign bit, small-order `A` and `R`, non-canonical `R` and `u`, `u = p - 1`), each refused or accepted as its `result` says, with a per-vector comment stating whether XEdDSA Revision 1's `xeddsa_verify` accepts the same input, held to a transcription of that pseudocode by a test in `primitives/xeddsa.rs`, which in turn holds the transcription to ed25519-dalek's non-strict `verify` on every vector where both are defined, the four small-order-`A` vectors among them |
 
@@ -341,9 +453,11 @@ ends, and on which side of each edge Revision 1 stands.
 Sender keys and multi-device are not yet scheduled and have no vectors. Session
 establishment: see the PQXDH section above for what the vectors reach and what
 core tests cover instead. Malformed-input handling is covered by vectors for
-the ratchet's skip bound; the broader cases (bad decryption, truncated
-headers, length overruns, the bundle's presence rule) are covered by core
-tests and by the fuzz targets rather than by files in this directory.
+the ratchet's skip bound, the AEAD's refusals, the protobuf profile's
+refusals and the erasure coders' stored-state refusals; the broader cases
+(truncated headers, length overruns, the bundle's presence rule, the other
+persisted formats) are covered by core tests and by the fuzz targets rather
+than by files in this directory.
 Interoperability against a libsignal-based peer is bundle-layer scope: the
 harness contract is defined (the neutral adapter API, the black-box boundary,
 and claim-by-version discipline) and session establishment is implemented;

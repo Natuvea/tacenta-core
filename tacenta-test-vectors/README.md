@@ -22,9 +22,25 @@ Two kinds live here:
     `runners/rust/tests/session_establishment.rs`. Format:
     `schema/vector.schema.json`.
   - `vectors/post-quantum/`: the field, interpolation, sparse-ratchet, Braid
-    and Triple Ratchet derivations, checked by `runners/rust/tests/post_quantum.rs`.
+    and Triple Ratchet derivations, and the erasure code above the field
+    (`erasure-encode.json`, `erasure-decode.json`, from `Model.Erasure`),
+    checked by `runners/rust/tests/post_quantum.rs`.
   - `vectors/serialization/`: message and initial-message encodings, checked
     by `runners/rust/tests/serialization.rs`.
+  - `vectors/protobuf/`: the bounded protobuf profile's two readers, accepted
+    regions with the `fields` they decode to and refused regions, checked by
+    `runners/rust/tests/protobuf.rs`.
+  - `vectors/persistence/`: the erasure encoder's and decoder's persisted
+    formats, the only persisted formats the model states, with the stored
+    bytes their readers refuse; checked by `runners/rust/tests/persistence.rs`.
+  - `vectors/aead/`: the authenticated encryption, both directions, with its
+    refusals, checked by `runners/rust/tests/aead.rs`. Generated like the
+    others, but the model has no AES: the generator computes the padding, the
+    tag (with the model's HMAC) and the receiver's steps, and takes every
+    AES-256 block value from NIST SP 800-38A (F.1.5 and F.2.5), choosing each
+    IV so that the cipher's input is one of that standard's blocks. The files'
+    `source` field says so, and the conformance manifest says what follows
+    from it.
   - `vectors/malformed-input/`: inputs the ratchet must reject, checked by
     `runners/rust/tests/ratchet.rs`. Hand-authored, not model output: the
     file pins a rejection rule the specification states (`MAX_SKIP`), not
@@ -95,9 +111,16 @@ is what catches it. And the malformed-input file is hand-authored, as above.
 ## Status
 
 Primitives, the Double Ratchet, PQXDH session establishment, the post-quantum
-derivations, serialization, and malformed input all have vectors; see the
-directory list above and `conformance-manifest.md` for exactly what each
-covers and what it excludes.
+derivations, the erasure code, serialization, the protobuf profile, the
+AEAD, the erasure coders' persisted formats, and malformed input all have
+vectors; see the directory list above and `conformance-manifest.md` for
+exactly what each covers and what it excludes. The other persisted formats
+(ratchet, sparse ratchet, triple ratchet, Braid, session, prekey store) have
+none, because the model states none of them.
+
+Files with refusals mark them `result: invalid`. A decoder's accepted vector
+may carry `fields`, the named values its input decodes to, in place of
+`output` (`schema/vector.schema.json`).
 
 What the vectors still do not cover is the **state machines**: nothing drives
 the Braid or the sparse ratchet through a scenario the way the Double Ratchet's
