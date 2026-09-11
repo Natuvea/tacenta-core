@@ -17,7 +17,8 @@ What can be proved about them is narrower than what the composition needs, and
 the line matters. That `combine` cannot be inverted from one input is a property
 of HKDF, and HKDF is a trusted primitive here as everywhere else. What is *not* a
 cryptographic assumption, and what the specification explicitly claims is free, is
-that the concatenation fed to it is unambiguous. That is proved below.
+that the two inputs cannot be confused. That is structural, as the note below
+says, rather than proved.
 
 The distinction is the whole point. If the encoding were ambiguous, two different
 pairs of message keys would present the same bytes to the derivation and produce
@@ -35,8 +36,8 @@ open Model.State (Key)
 
 /-! ## Labels
 
-Wire-sensitive, recorded in the conformance manifest rather than settled here,
-and matching `tacenta-triple`. -/
+Free choices at tier `ours` (CONSTANTS.md), not wire-sensitive, and matching
+`tacenta-triple`. -/
 
 /-- `TR_PROTOCOL_INFO`: "Tacenta_CURVE25519_SHA-256_MLKEM1024" as bytes.
 

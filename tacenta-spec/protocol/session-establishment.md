@@ -6,8 +6,9 @@ specification named in Sources, and it is the reference the Lean model and the
 Rust implementation are both written against.
 
 **What consumes `SK` is the Triple Ratchet, not the Double Ratchet alone.**
-`Session` splits `SK` into two thirty-two byte halves with `split_secret`
-([triple-ratchet.md](triple-ratchet.md) §7.1) and starts one ratchet from each,
+`Session` expands `SK` with a key derivation into two thirty-two byte secrets
+(`split_secret`; [triple-ratchet.md](triple-ratchet.md), Initialisation) and
+starts one ratchet from each,
 and it initialises the ML-KEM Braid's authenticator from `SK` directly
 ([mlkem-braid.md](mlkem-braid.md)). Nothing on this page changes as a result --
 PQXDH still produces one secret and this page still specifies how -- but a
@@ -120,6 +121,12 @@ optional: without the prekey signature a malicious server could serve forged
 prekeys and later compromise `IKB` to recover the secret, which would defeat
 forward secrecy.
 
+She also refuses a bundle before encapsulating when its identity key is not the
+one she set out to reach (when she names one), or when its one-time curve
+prekey and that prekey's identifier disagree about whether one is present
+(message-format.md). Both sides refuse a Diffie-Hellman output that is not
+contributory, which a low-order public key produces.
+
 She then generates `EKA`, encapsulates `(CT, SS) = PQKEM-ENC(PQPKB)`, and
 computes:
 
@@ -147,7 +154,10 @@ AD = EncodeEC(IKA) || EncodeEC(IKB)
 ```
 
 If the chosen KEM does not already bind the public key into the ciphertext,
-`EncodeKEM(PQPKB)` must be appended to `AD` as well.
+`EncodeKEM(PQPKB)` must be appended to `AD` as well. This implementation does
+not append it. That relies on ML-KEM-1024 binding its encapsulation key into
+the shared secret, and this page records the reliance as an open question
+rather than settling it.
 
 **`EncodeEC` must be fixed-width, and this is where that requirement lives.**
 `AD` is a bare concatenation with no separator and no length prefix, so the two
@@ -166,7 +176,10 @@ in a test.
 Alice sends `IKA`, `EKA`, `CT`, identifiers naming which prekeys she used, and an
 initial ciphertext encrypted under `SK` (or a key derived from it) with `AD` as
 associated data. The message must be encoded unambiguously so the recipient
-cannot confuse one field for another. Alice then deletes `CT`.
+cannot confuse one field for another. `CT` is public, and Alice keeps it: the
+session sends the initial message's fields again with every message until one
+from Bob decrypts, and only then drops them (session-persistence.md,
+`pending_initial`).
 
 ## Receiving the initial message
 
@@ -196,8 +209,8 @@ message of an apparently fresh session. Nothing leaks, but the message is
 delivered twice.
 
 Bob therefore keeps a **record of last-resort handshakes he has already
-accepted** -- a fingerprint over `IKA`, `EKA`, `CT` and the two prekey
-identifiers, the fields that vary per handshake among those that determine
+accepted** -- a fingerprint over `IKA`, `EKA`, `CT`, the one-time curve
+prekey identifier and the KEM prekey identifier, the fields that vary per handshake among those that determine
 `SK` (the signed prekey identifier also determines `SK`, but is bound by `SK`
 itself and omitted), tagged with the last-resort KEM key the handshake was
 made against -- and refuses a repeat. The record is

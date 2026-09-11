@@ -22,7 +22,7 @@ decoder's shape does not depend on a value it has just read.
 ## What it costs
 
 A hundred and two bytes of header per message, against the Double Ratchet's
-forty-one. The specification's own page says the composition costs bandwidth and
+forty-two. The specification's own page says the composition costs bandwidth and
 that the sparse agreement exists to keep it affordable; this is the number.
 -/
 import Std.Tactic.BVDecide
@@ -171,9 +171,9 @@ def decode (bs : List UInt8) : Option (Composite × List UInt8) := do
         -- The presence byte is a flag, so only its two values are accepted, and
         -- absent means the whole field is zero rather than only the flag. The
         -- Rust decoder applies the same rule, so a header has exactly one
-        -- accepted spelling. `decode_encode` cannot see that on its own:
-        -- it only ever asks about bytes the encoder produced. `encode_decode`
-        -- below asks the other direction, which is the one canonicality is.
+        -- accepted spelling. A round-trip theorem cannot see that on its own:
+        -- it only ever asks about bytes the encoder produced. The other
+        -- direction, the one canonicality is, is not yet proved (triple-ratchet.md).
         let agChunk ←
           if present == 0x01 then some (some { index := idx, data := data })
           else if present == 0x00 then

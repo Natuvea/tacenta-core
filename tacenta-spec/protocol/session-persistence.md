@@ -20,8 +20,12 @@ interoperating with anyone.
   gives: a decoder that accepts more than one spelling of the same value, or
   has to guess where a variable-length field ends, is a decoder with a bug
   waiting in it. Every variable-length field here carries an explicit
-  four-byte big-endian length ahead of it.
-- **Versioned**, with its own version byte per format, in a namespace
+  four-byte big-endian length ahead of it, and every list a four-byte
+  big-endian count of its entries.
+- **Versioned**, with its own version byte per format (the KEM's and the
+  erasure codec's sub-formats, which appear only length-prefixed inside the
+  Braid's, have none: the Braid's version byte versions them, CONSTANTS.md),
+  in a namespace
   separate from any on-the-wire message version (message-format.md). A
   session-persistence version change and a wire-format version change are
   unrelated events, and conflating their numbering would make one look like
@@ -43,8 +47,9 @@ interoperating with anyone.
   some later message, the first two for good. So each type carries an
   `invariant`, the relations between its fields that its constructors
   establish and its operations preserve, and its decoder calls it last and
-  refuses on it. The rules are listed per format below, under "Semantic
-  rules". They are checked as an inductive invariant: the tests and the fuzz
+  refuses on it. The rules for the session and the prekey store are listed
+  below, under "Semantic rules"; the leaf formats' rules are each crate's own
+  `invariant`, which this page does not yet restate. They are checked as an inductive invariant: the tests and the fuzz
   targets in `tacenta-core` assert the predicate after every operation, not
   only at import.
 - **Being inductive constrains the operations, not only the predicates.** A
@@ -164,8 +169,8 @@ session = version(1)
        || len(4) || identity_ad
        || our_identity_public(32)
        || peer_identity_public(32)
-       || pending_initial_present(1) || len(4) || pending_initial
-       || established_ephemeral_present(1) || len(4) || established_ephemeral
+       || pending_initial_present(1) || len(4) || pending_initial             -- len and field only when present
+       || established_ephemeral_present(1) || len(4) || established_ephemeral -- len and field only when present
 
 pending_initial = ephemeral_public(32)
                 || len(4) || kem_ciphertext
@@ -184,8 +189,9 @@ prefix) when absent.
 
 ### Semantic rules
 
-Having decoded and re-encoded (the canonicality check, below), the reader
-refuses the session as *inconsistent* -- `SessionDecodeError::Inconsistent`
+Having decoded, and re-encoded to check that the input is canonical -- refused
+as *non-canonical* (`SessionDecodeError::NonCanonical`) otherwise, as the
+prekey store's check below is -- the reader refuses the session as *inconsistent* -- `SessionDecodeError::Inconsistent`
 in `tacenta-core`, a variant distinct from malformed and from non-canonical
 -- unless every one of the following holds. Each is a relation between
 fields that no field-by-field read sees, and each, accepted, fails later
@@ -256,8 +262,8 @@ prekey_store = version(1)
             || kem_one_time_count(4) || kem_one_time[kem_one_time_count]
             || next_id(4)
             || seen_count(4) || seen[seen_count]                          -- v2 and later
-            || previous_signed_present(1) || previous_signed              -- v3
-            || previous_kem_present(1) || previous_kem                    -- v3
+            || previous_signed_present(1) || previous_signed              -- v3 and later
+            || previous_kem_present(1) || previous_kem                    -- v3 and later
 
 one_time        = id(4) || secret(32)
 kem_one_time    = id(4) || len(4) || kem_pair || sig(64)
@@ -366,7 +372,8 @@ false of (the semantic rules above; the leaf formats' own predicates are
 each crate's to state). Each of the formats above carries its own error
 type, distinguishing "wrong version" from "short or malformed" where a
 caller might act on the difference (refuse to start vs. treat as corrupt),
-and the session distinguishes "inconsistent" from both, since a stored
+the session and the prekey store distinguish "non-canonical" from both,
+and the session distinguishes "inconsistent" as well, since a stored
 session that is well-formed and canonical but cannot go on is the one case
 a storage layer could plausibly have written itself -- but none of them
 promises more than that the bytes were unacceptable, the same restraint

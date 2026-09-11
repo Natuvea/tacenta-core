@@ -21,4 +21,4 @@ details required for interoperability will be determined by black-box research
 under the interoperability boundary (see the decision records), never from
 another implementation's source. Each fact will cite what it derives from.
 
-Status: scaffold. To be written in M4.
+Status: scaffold. Not yet scheduled.

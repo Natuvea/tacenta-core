@@ -58,7 +58,8 @@ does without the composition.
 Sending asks each ratchet for a message key, combines the two into the
 encryption key, and builds a header carrying **both** ratchets' headers: the
 Diffie-Hellman ratchet's public key, previous chain length, and message number,
-alongside the agreement's message data and its own message number.
+alongside the sparse ratchet's epoch and message number and the agreement's own
+epoch, message type and codeword (message-format.md).
 
 Receiving is the mirror: each half of the header goes to its own ratchet, each
 returns a message key, and the two are combined the same way.

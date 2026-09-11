@@ -99,14 +99,10 @@ deleting them after an interval, triggered by a timer or by counting events.
 - Long-lived private keys are zeroed when dropped, by the underlying curve and
   signing crates. So are the buffers that concentrate secrets during a
   derivation: the expansion buffers inside the key derivations, and the
-  concatenation the handshake feeds to the KDF. The last of those has a
-  qualification: the concatenation is built by appending to a growing buffer,
-  and only the allocation alive at the end is wiped. The smaller blocks the
-  buffer moved through as it grew are handed back to the allocator as they
-  were, which is the "copies the allocator makes" case
-  `tacenta-proofs/LIMITATIONS.md` describes. The session crate is a
-  translated zone, so sizing that buffer up front is a change to the
-  generated Lean and waits for the next re-translation window.
+  concatenation the handshake feeds to the KDF. That concatenation, and the
+  prefixed input built from it, are each sized for their widest case before
+  anything is appended, so no smaller allocation holding part of the secret is
+  handed back to the allocator unwiped along the way.
 - The skipped store is bounded twice over, per chain and in total, and it is a
   map: storing a key for a pair already held replaces it rather than
   accumulating, so a superseded key cannot linger unreachable behind a newer
@@ -221,7 +217,7 @@ deleting them after an interval, triggered by a timer or by counting events.
   the public bundle can complete a last-resort handshake under a fresh
   identity in well under a millisecond on a current laptop, so 1024 of them
   evicted a chosen
-  victim's fingerprint in about two seconds, after which the captured message
+  victim's fingerprint in well under a second, after which the captured message
   replayed. What the bound measures now is how many distinct last-resort
   handshakes one key has accepted over its lifetime, not how many arrived
   recently. A key's entries leave the record when the key is wiped, which is
@@ -237,8 +233,8 @@ deleting them after an interval, triggered by a timer or by counting events.
   it, so the next handshake to arrive is counted against a clean budget while
   the retired key keeps its entries and keeps refusing their replays. The
   relief is real but brief against a peer who is filling the record on
-  purpose: the new bundle is the one they fetch too, and at about a
-  cost the fresh budget is spent again in a fraction of a second, so rotation
+  purpose: the new bundle is the one they fetch too, and at that cost the
+  fresh budget is spent again in a fraction of a second, so rotation
   opens a window rather than closing one. No benchmark in the tree pins those
   figures; what matters is the order of magnitude, which is that the work is
   cheap for whoever is doing it.

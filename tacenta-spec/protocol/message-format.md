@@ -19,11 +19,15 @@ edit rather than a rewrite.
   rejects anything else rather than accepting a second spelling, so a message
   cannot be re-encoded into a different byte string that still authenticates.
 - **Unambiguous.** Every variable-length field is length-prefixed, so a decoder
-  never has to guess where a field ends.
+  never has to guess where a field ends. The one exception is a field that runs
+  to the end of its message -- a ratchet message's ciphertext, and the complete
+  ratchet message an initial message ends with -- which needs no prefix because
+  nothing follows it.
 - **Fixed width where possible.** Counters are fixed-width big-endian rather
   than variable-length integers. This costs a few bytes and buys a decoder with
-  no loops, which keeps it inside the subset the Charon and Aeneas translation
-  models.
+  no loop whose length depends on a value it has read (the one loop, over an
+  absent field's zero padding, has a fixed width), which keeps it inside the
+  subset the Charon and Aeneas translation models.
 - **Versioned.** Every message starts with a version byte, so the format can
   change without ambiguity about which rules apply.
 
@@ -104,7 +108,15 @@ message carrying no codeword and buys a canonical parse, since no field's
 position depends on a value already read.
 
 A decoder rejects a message shorter than its framing and header, and rejects an
-unrecognised version or an unexpected type byte.
+unrecognised version or an unexpected type byte. It also rejects an `ag_type`
+outside the six values above, a presence byte other than `0x00` or `0x01`, and
+an absent codeword whose index or chunk bytes are not all zero.
+
+Nothing in the encoding ties `ag_type` to the presence byte. A codeword carried
+with a type that takes none decodes, and the agreement ignores it: it reads a
+codeword only for the message type it is expecting. The header is authenticated
+as associated data either way (below), so a codeword cannot be added or removed
+in transit.
 
 ## Associated data
 
