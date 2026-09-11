@@ -1127,10 +1127,11 @@ return one -- and it is about the *leaf crate's* persistence format. The
 session layer that calls these codecs, in `tacenta-core/src/sessions`, is not
 translated, so nothing here says what a session restored from disk satisfies.
 `to_bytes`, the entry decoders and the length helpers still have no theorem of
-any kind, as do the codecs of the other four crates, with one exception:
-`Translation/RatchetCodecT1.lean` proves `tacenta-ratchet`'s `from_bytes` and
-`to_bytes` panic-free, the first under a slice-length precondition every Rust
-slice meets and the second under `ZeroizingVecTotal`.
+any kind, as do the codecs of the other four crates, with two exceptions:
+`Translation/RatchetCodecT1.lean` and `Translation/SpqrCodecT1.lean` prove
+`tacenta-ratchet`'s and `tacenta-spqr`'s `from_bytes` and `to_bytes`
+panic-free, each decoder under a slice-length precondition every Rust slice
+meets and each encoder under its crate's `ZeroizingVecTotal`.
 
 **How far it reaches, in one line: a decoded state is panic-free
 unconditionally; it refines the model provided the relevant counter has a step

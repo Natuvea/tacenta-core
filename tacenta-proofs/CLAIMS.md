@@ -176,12 +176,14 @@ this section says in one place what is not proved.
   theorem-free -- they have the constructor theorem described in "Proved: what
   a decoded state satisfies", which says what a state they return satisfies.
   That is not a T1 theorem: it says nothing about whether they can panic, only
-  what is true of a state when they do return one. The classical ratchet's
-  pair is the exception since `Translation/RatchetCodecT1.lean`: its
-  `from_bytes` and `to_bytes`, with `read_key`, `read_u32`,
-  `read_optional_key` and `decode_skipped_entry`, are proved panic-free (see
-  "Proved (tier T1, the Double Ratchet's persistence codec cannot fail)").
-  Every other codec named above still has no T1 theorem.
+  what is true of a state when they do return one. Two crates' pairs are the
+  exception. `Translation/RatchetCodecT1.lean` proves `tacenta-ratchet`'s
+  `from_bytes` and `to_bytes` panic-free, with `read_key`, `read_u32`,
+  `read_optional_key` and `decode_skipped_entry`, and
+  `Translation/SpqrCodecT1.lean` does the same for `tacenta-spqr`'s, with
+  `decode_chain`, `decode_chains_entry` and `decode_skipped_entry` (see the two
+  "persistence codec cannot fail" sections). Every other codec named above
+  still has no T1 theorem.
   `LIMITATIONS.md` says the same where each crate is discussed.
 - **T3 carries a third hypothesis besides the two it names.** Besides "modulo
   KDF agreement" and "excluding where `u32` and `Nat` part company", every
@@ -717,10 +719,31 @@ parses it back after a restart and hands the ratchet a state to run on.
   (2000) keys, so every state `from_bytes` returns can be written back. Same
   pinned base.
 
-**Not covered.** The codecs of `tacenta-spqr`, `tacenta-braid`,
-`tacenta-triple` and `tacenta-erasure` still have no T1 theorem, and neither
-function here has a round-trip or refinement theorem: this says they return,
-not what they return.
+**Not covered.** The codecs of `tacenta-braid`, `tacenta-triple` and
+`tacenta-erasure` still have no T1 theorem (`tacenta-spqr`'s has, below), and
+neither function here has a round-trip or refinement theorem: this says they
+return, not what they return.
+
+## Proved (tier T1, the sparse post-quantum ratchet's persistence codec cannot fail)
+
+Location: `Translation/SpqrCodecT1.lean`.
+
+- `from_bytes_no_panic`: every byte string decodes to `Ok` or `Err` and never
+  to a failure, under `bytes.length + 90 ≤ Usize.max`, for the classical
+  ratchet's reason: the chains loop computes where the next 90-byte entry would
+  end before it compares that end with the input. Every Rust slice meets it.
+  Pinned to `propext`, `Classical.choice` and `Quot.sound` alone.
+- `to_bytes_no_panic`: encoding cannot fail when the buffer -- 50 bytes plus
+  90 per chains entry and 48 per skipped key -- fits a `usize`, under this
+  crate's own `ZeroizingVecTotal`. The encoder ends by asserting the buffer is
+  as long as `encoded_len` said, so the proof shows every write adds exactly
+  what `encoded_len` counts, and the assertion cannot fire. Its pinned base
+  adds the wrapper's opaque declarations and nothing else.
+- `to_bytes_no_panic_of_inv`: the size precondition discharged for every state
+  satisfying `ImportInv`'s `Inv`, which holds at most two chains entries
+  (`inv_gives_chains_len`) and 2000 skipped keys. Same pinned base.
+
+**Not covered.** This codec has no round-trip or refinement theorem either.
 
 ## Proved: what a decoded state satisfies
 
