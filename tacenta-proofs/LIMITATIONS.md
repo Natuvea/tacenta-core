@@ -1132,6 +1132,10 @@ any kind, as do the codecs of the other four crates, with two exceptions:
 `tacenta-ratchet`'s and `tacenta-spqr`'s `from_bytes` and `to_bytes`
 panic-free, each decoder under a slice-length precondition every Rust slice
 meets and each encoder under its crate's `ZeroizingVecTotal`.
+`Translation/ErasureCodecT1.lean` does the same for `tacenta-erasure`'s
+`Encoder` and `Decoder` codecs -- the erasure crate's own translation; in the
+Braid's translation these functions are opaque declarations the proof does not
+reach -- with the decoder also under `DivCeilTotal`.
 
 **How far it reaches, in one line: a decoded state is panic-free
 unconditionally; it refines the model provided the relevant counter has a step

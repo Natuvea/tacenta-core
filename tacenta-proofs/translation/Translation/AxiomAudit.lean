@@ -7,6 +7,7 @@ import Translation.Satisfiability
 import Translation.ImportInv
 import Translation.RatchetCodecT1
 import Translation.SpqrCodecT1
+import Translation.ErasureCodecT1
 import Translation.ErasureWitness
 import Translation.KemWitness
 

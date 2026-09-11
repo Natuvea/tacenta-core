@@ -176,14 +176,15 @@ this section says in one place what is not proved.
   theorem-free -- they have the constructor theorem described in "Proved: what
   a decoded state satisfies", which says what a state they return satisfies.
   That is not a T1 theorem: it says nothing about whether they can panic, only
-  what is true of a state when they do return one. Two crates' pairs are the
-  exception. `Translation/RatchetCodecT1.lean` proves `tacenta-ratchet`'s
+  what is true of a state when they do return one. Three crates' codecs are
+  the exception. `Translation/RatchetCodecT1.lean` proves `tacenta-ratchet`'s
   `from_bytes` and `to_bytes` panic-free, with `read_key`, `read_u32`,
   `read_optional_key` and `decode_skipped_entry`, and
   `Translation/SpqrCodecT1.lean` does the same for `tacenta-spqr`'s, with
-  `decode_chain`, `decode_chains_entry` and `decode_skipped_entry` (see the two
-  "persistence codec cannot fail" sections). Every other codec named above
-  still has no T1 theorem.
+  `decode_chain`, `decode_chains_entry` and `decode_skipped_entry`, and
+  `Translation/ErasureCodecT1.lean` for `tacenta-erasure`'s `Encoder` and
+  `Decoder` (see the three "persistence codec" sections). Every other codec
+  named above still has no T1 theorem.
   `LIMITATIONS.md` says the same where each crate is discussed.
 - **T3 carries a third hypothesis besides the two it names.** Besides "modulo
   KDF agreement" and "excluding where `u32` and `Nat` part company", every
@@ -719,8 +720,8 @@ parses it back after a restart and hands the ratchet a state to run on.
   (2000) keys, so every state `from_bytes` returns can be written back. Same
   pinned base.
 
-**Not covered.** The codecs of `tacenta-braid`, `tacenta-triple` and
-`tacenta-erasure` still have no T1 theorem (`tacenta-spqr`'s has, below), and
+**Not covered.** The codecs of `tacenta-braid` and `tacenta-triple` still have
+no T1 theorem (`tacenta-spqr`'s and `tacenta-erasure`'s have, below), and
 neither function here has a round-trip or refinement theorem: this says they
 return, not what they return.
 
@@ -744,6 +745,35 @@ Location: `Translation/SpqrCodecT1.lean`.
   (`inv_gives_chains_len`) and 2000 skipped keys. Same pinned base.
 
 **Not covered.** This codec has no round-trip or refinement theorem either.
+
+## Proved (tier T1, the erasure coder's persistence codecs cannot fail)
+
+Location: `Translation/ErasureCodecT1.lean`.
+
+`tacenta-erasure`'s `Encoder` and `Decoder` each persist a stream in progress
+through a `to_bytes`/`from_bytes` pair, which the Braid calls.
+
+- `encoder_from_bytes_no_panic`, `decoder_from_bytes_no_panic`: every byte
+  string decodes to `Some` or `None`, under `bytes.length + 32 ≤ Usize.max`
+  and `bytes.length + 34 ≤ Usize.max` respectively; each loop computes where
+  the next entry would end before comparing it with the input. The decoder's
+  final `invariant` reaches `usize::div_ceil`, which the translation cannot see
+  inside, so it takes `ErasureT1`'s `DivCeilTotal` and its pin lists
+  `core.num.Usize.div_ceil`. The encoder's is pinned to the kernel's three
+  axioms alone.
+- `encoder_to_bytes_no_panic`, `decoder_to_bytes_no_panic`: encoding cannot
+  fail when the buffer -- 7 bytes plus 32 per chunk, and 20 plus 34 per
+  codeword -- fits a `usize`. Each ends by asserting the buffer is as long as
+  `encoded_len` said, and the proof shows the assertion cannot fire. Neither
+  wraps its buffer in `Zeroizing`, so no `zeroize` assumption appears; both are
+  pinned to the kernel's three axioms alone.
+
+**Not covered.** These are the erasure crate's own translation. In the Braid's
+translation the same four functions are opaque declarations (listed among its
+externals in `translation-attestation.json`), so nothing proved here reaches
+the Braid's calls to them, and the Braid's own codec has no T1 theorem. There
+is no round-trip or refinement theorem, and the encoders' size preconditions
+are not discharged from `invariant` here.
 
 ## Proved: what a decoded state satisfies
 
