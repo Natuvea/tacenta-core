@@ -72,6 +72,8 @@ def _check_framing(buf: bytes, expected_type: int, what: str) -> None:
     # byte; a decoder rejects an unrecognised version or an unexpected type,
     # and should reject a wrong object "on the type byte rather than on a
     # length mismatch further in" -- so framing is checked before lengths.
+    # error-handling.md leaves the order of checks to an implementation
+    # (GAPS.md G-03, closed); this order is this reader's choice.
     if len(buf) < 2:
         raise DecodeError(f"{what}: input too short for framing")
     if buf[0] != K.VERSION:
@@ -234,17 +236,14 @@ class InitialMessage:
         return self.one_time_prekey_id != K.ABSENT_ID
 
 
-def encode_initial(m: InitialMessage, validate_ratchet_message: bool = False) -> bytes:
+def encode_initial(m: InitialMessage) -> bytes:
     for name, v in (("identity", m.identity), ("ephemeral", m.ephemeral)):
         try:
             decode_ec(v)
         except DecodeError as e:
             raise EncodeError(f"{name}: {e}")
-    if validate_ratchet_message:
-        try:
-            decode_ratchet_message(m.ratchet_message)
-        except DecodeError as e:
-            raise EncodeError(f"ratchet_message: {e}")
+    # session-persistence.md: encode_initial "length-prefixes whatever it is
+    # given" -- no check on kem_ciphertext's length or on ratchet_message.
     out = bytearray([K.VERSION, K.TYPE_INITIAL])
     out += m.identity + m.ephemeral
     out += _be(len(m.kem_ciphertext), 4, "kem_ciphertext_len") + bytes(m.kem_ciphertext)
@@ -255,12 +254,18 @@ def encode_initial(m: InitialMessage, validate_ratchet_message: bool = False) ->
     return bytes(out)
 
 
-def decode_initial(buf: bytes, validate_ratchet_message: bool = False) -> InitialMessage:
-    """Decode an initial message.
+def decode_initial(buf: bytes) -> InitialMessage:
+    """Decode an initial message (message-format.md, Initial message).
 
-    validate_ratchet_message=False is the default because the vectors'
-    ratchet_message fields ("dead", "00") are not ratchet messages; the spec
-    does not say whether the initial decoder checks them (GAPS.md G-04).
+    Refuses: shorter than the framing, unrecognised version, type other than
+    0x02, input ending inside identity / ephemeral / kem_ciphertext_len / an
+    identifier, a kem_ciphertext_len running past the end, and an identity or
+    ephemeral whose first byte is not the EncodeEC curve byte.
+
+    Does not validate ratchet_message ("it may be empty, or not a ratchet
+    message at all"), does not look at identifier values, and does not check
+    kem_ciphertext's length (decapsulation does: pqxdh.check_kem_ciphertext).
+    (Formerly GAPS.md G-04, G-05, G-08; now stated.)
     """
     buf = bytes(buf)
     _check_framing(buf, K.TYPE_INITIAL, "initial message")
@@ -268,19 +273,16 @@ def decode_initial(buf: bytes, validate_ratchet_message: bool = False) -> Initia
     r.take(2, "framing")
     identity = r.take(K.ENCODED_EC_LEN, "identity")
     ephemeral = r.take(K.ENCODED_EC_LEN, "ephemeral")
-    # EncodeEC leading-byte refusal (session-establishment.md), GAPS.md G-05.
     decode_ec(identity)
     decode_ec(ephemeral)
     ct_len = r.uint(4, "kem_ciphertext_len")
-    if ct_len > r.remaining() or r.remaining() - ct_len < 12:
-        raise DecodeError("kem_ciphertext_len overruns the input")
+    if ct_len > r.remaining():
+        raise DecodeError("kem_ciphertext_len runs past the end of the input")
     kem_ciphertext = r.take(ct_len, "kem_ciphertext")
     spk_id = r.uint(4, "signed_prekey_id")
     otpk_id = r.uint(4, "one_time_prekey_id")
     kem_id = r.uint(4, "kem_prekey_id")
     ratchet_message = r.rest()
-    if validate_ratchet_message:
-        decode_ratchet_message(ratchet_message)
     return InitialMessage(identity, ephemeral, kem_ciphertext, spk_id, otpk_id,
                           kem_id, ratchet_message)
 
@@ -322,10 +324,14 @@ def encode_bundle(b: PrekeyBundle, kem_prekey_len: Optional[int] = K.MLKEM1024_E
 def decode_bundle(buf: bytes, kem_prekey_len: Optional[int] = K.MLKEM1024_EK_LEN) -> PrekeyBundle:
     """Decode a prekey bundle.
 
-    kem_prekey_len: the parameter set's encapsulation-key length. The spec
-    says a bundle "produced under one parameter set fails to decode under
-    another"; enforcing the expected length is how this reader realises that
-    sentence (GAPS.md G-06). Pass None to accept any length.
+    kem_prekey_len: the encapsulation-key length of the KEM the decoder
+    expects. "A decoder refuses a kem_prekey_len other than the
+    encapsulation-key length of the KEM it expects, as a decode failure"
+    (message-format.md, Prekey bundle; formerly GAPS.md G-06). None disables
+    the check and exists only so tests can build a mismatched bundle.
+
+    The decoder does not compare the one-time prekey's presence with its
+    identifier, and does not look at identifier values (G-07, G-08 closed).
     """
     buf = bytes(buf)
     _check_framing(buf, K.TYPE_BUNDLE, "prekey bundle")
@@ -369,7 +375,9 @@ def initiator_check_bundle(b: PrekeyBundle,
     session-establishment.md, Sending the initial message: verify every
     signature (over the tagged forms, message-format.md), refuse an identity
     that is not the one named, refuse a one-time prekey / identifier presence
-    disagreement.
+    disagreement. Identifier 0 in the signed or KEM prekey position is not
+    checked: "an initiator does not check for it in a bundle and echoes it"
+    (message-format.md, Key identifiers).
     """
     if expected_identity is not None and bytes(expected_identity) != b.identity_key:
         raise BundleRefused("identity key is not the one the initiator set out to reach")
