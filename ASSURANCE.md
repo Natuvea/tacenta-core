@@ -18,7 +18,7 @@ Last assessed: 2026-09-11.
 | 4 | Model separate from implementation | Good | The Lean model, its translation, and T3 refinement for the ratchets, Braid, decoders and PQXDH derivation. Vectors pin the rest. Session orchestration is outside the verified zones. | Persisted-format models, phases 2 and 3. |
 | 5 | Invariants, not examples | Partial | T1 panic-freedom, T3 refinement, decoded-state invariants, and forward secrecy and post-compromise security against a symbolic attacker. The model's counters were found unbounded (being fixed). The invariants are not catalogued as requirements. | Catalogue the invariants with the requirements. |
 | 6 | Verification in CI | Strong | Lean builds, the `sorry` scan, kernel replay, translation attestation, vectors current with the model, the independent reader. | Keep it. |
-| 7 | Reviewed normative changes | Gap, being addressed | One maintainer, and no branch protection on `main`. Specification and model changes were merged on green checks with no recorded review. | ADR-0008 rule 7: every normative change carries a recorded review before merging on green. Branch protection requiring pull requests and green checks. |
+| 7 | Reviewed normative changes | Gap, being addressed | One maintainer. Branch protection on `main` is off by decision while the project has one maintainer. Specification and model changes were merged on green checks with no recorded review. | ADR-0008 rule 7: every normative change carries a recorded review before merging on green. |
 | 8 | Traceability | Partial | `CLAIMS.md` maps theorems to claims, the conformance manifest maps sections to vectors, and `mapping-to-spec.md` maps the model to the specification. No requirements layer or requirement IDs. | Numbered requirements, traced through theorems, code and tests, with a CI check. |
 | 9 | Differential testing | Partial | Model-generated vectors are checked against the Rust. An independent reader, written from the specification alone, checks every vector. No generated inputs are run through both the model and the Rust. | A model-versus-Rust harness on generated operation sequences. |
 | 10 | Fuzzing and property tests | Good | Six cargo-fuzz targets, proptest, the constant-time disassembly check, `cargo audit`, MSRV and 32-bit builds. | Keep it. |
@@ -58,7 +58,7 @@ A summary by component. A tick means the component has that kind of evidence, no
 1. **Reviewed normative changes:**
    - record ADR-0008;
    - every normative pull request carries a recorded review before it merges on green;
-   - the maintainer enables branch protection on `main`, requiring pull requests and green checks.
+   - branch protection on `main` stays off while the project has one maintainer, and is revisited when a second joins.
 2. **Assumptions and requirements:** write the threat model (assets, adversaries, assumptions, exclusions), and restate the security properties as numbered requirements.
 3. **Traceability:** requirement IDs in `CLAIMS.md`, the conformance manifest and the tests, with a CI check that every requirement has a property and a test.
 4. **Differential testing:** generated operation sequences through `tacenta-model` and `tacenta-core`, comparing outputs, refusals and persisted bytes.
