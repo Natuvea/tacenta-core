@@ -250,11 +250,13 @@ What this page describes is what runs -- it is not *all* of what runs.
 
 Forward secrecy comes from discarding each message key and each superseded chain
 key. Post-compromise security comes from the Diffie-Hellman ratchet reseeding
-the root key from fresh agreements. Post-compromise security is stated with its
-assumptions and limits on the post-compromise-security page; the
-forward-secrecy page is still a scaffold, and until it is written
-`tacenta-proofs/CLAIMS.md` is the record of what is established about either
-property and `key-deletion.md` of the deletions forward secrecy rests on.
+the root key from fresh agreements. Both are stated as numbered requirements.
+Each requirement names the adversaries it holds against and the assumptions it
+rests on, and says whether it is proved, assumed or tested only. They are
+REQ-FS-01 to REQ-FS-06 in security-properties/forward-secrecy.md, and
+REQ-PCS-01 to REQ-PCS-03 in security-properties/post-compromise-security.md.
+`key-deletion.md` gives the deletions forward secrecy rests on, and
+`tacenta-proofs/CLAIMS.md` is the record of what is proved.
 
 ## Sources
 

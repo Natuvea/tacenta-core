@@ -15,13 +15,19 @@ Status: eight written protocol pages cover everything the engine runs:
 session-establishment.md (PQXDH), ratchet.md (the classical Double Ratchet),
 sparse-pq-ratchet.md and mlkem-braid.md (the post-quantum ratchet and the
 agreement beneath it), triple-ratchet.md (their composition), message-format.md,
-key-deletion.md, and session-persistence.md; post-compromise-security.md is the
-one written security-property page. group-messaging.md is an outline ahead of
+key-deletion.md, and session-persistence.md. error-handling.md states what a
+refusal requires, and protobuf-profile.md specifies a protobuf profile that the
+engine's own send and receive path does not use. The threat model is written:
+threat-model/ numbers the assets, adversaries, assumptions and exclusions. So
+are the security properties: security-properties/ states authentication,
+confidentiality, forward secrecy and post-compromise security as numbered
+requirements, each marked proved, assumed or tested only, and its
+limitations.md lists the known gaps. group-messaging.md is an outline ahead of
 the code, and that work is not yet scheduled. identities-and-devices.md is
 partly written: it specifies the identity key's secret, how that key signs
 (XEdDSA) and how a verifier checks a signature against it, and application
-signatures, and devices remain a scaffold. Every other page in protocol/,
-threat-model/ and security-properties/ is a scaffold -- a title and a one-line
+signatures, and devices remain a scaffold. key-registration.md,
+multi-device.md and terminology.md are scaffolds -- a title and a one-line
 scope, marked "Status: scaffold" -- kept as the table of contents for what is
 still to be written. Until a scaffold is written, its topic is unspecified:
 what the implementation does there is neither a precedent for this
@@ -40,8 +46,10 @@ implementation.
 This specification is the product, and `tacenta-core` is one implementation
 of it ([ADR-0006](decisions/ADR-0006-specification-is-normative.md)).
 
-- **Normative:** the written pages under `protocol/` and
-  `security-properties/`, and `CONSTANTS.md`. `tacenta-model` states the same
+- **Normative:** the written pages under `protocol/`, `threat-model/` and
+  `security-properties/`, and `CONSTANTS.md`. The threat model is included
+  because every security requirement is stated against its adversaries and
+  assumptions. `tacenta-model` states the same
   definition formally, and the protocol vectors it generates are normative
   examples of it. The decision records say why; they are not themselves the
   protocol.
