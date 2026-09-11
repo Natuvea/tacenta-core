@@ -17,8 +17,8 @@
 //!
 //! ## Run both, encrypt with neither
 //!
-//! Each ratchet is asked only for a message key. The key that actually encrypts
-//! is derived from the pair. An attacker must break the elliptic-curve
+//! Each ratchet is asked only for a message key. The key the AEAD's keys are
+//! expanded from is derived from the pair. An attacker must break the elliptic-curve
 //! assumptions *and* the post-quantum ones; breaking either alone yields one
 //! input and nothing else.
 //!
@@ -142,7 +142,7 @@ pub fn split_secret(sk: &[u8]) -> (Key, Key) {
     (ec, pq)
 }
 
-/// Derive the encryption key from the two message keys.
+/// Derive the message key the AEAD's keys are expanded from, from the two keys.
 ///
 /// A derivation with the post-quantum key as salt and the classical key as
 /// input, under a constant naming the protocol, so two distinct pairs are two
@@ -333,7 +333,7 @@ impl State {
         self.classical.invariant() && self.post_quantum.invariant() && roles_agree
     }
 
-    /// Produce a header and the key that encrypts this message.
+    /// Produce a header and the message key this message's AEAD keys come from.
     ///
     /// `sending_epoch` and `output` come from the agreement beneath: the epoch
     /// both parties are known to hold, and its secret on the message where one

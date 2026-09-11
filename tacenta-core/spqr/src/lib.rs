@@ -118,7 +118,7 @@ pub enum SpqrError {
     EpochOutOfOrder,
     /// No chains for that epoch: either never opened, or retired.
     NoChain,
-    /// The chain in that direction has been retired.
+    /// The chain in that direction is absent, which only an imported state holds.
     ChainRetired,
     /// The message number asks to skip more than [`MAX_SKIP`] on one chain.
     TooManySkipped,
@@ -162,8 +162,8 @@ struct Chain {
     n: u64,
 }
 
-/// A chain is `None` when retired, which the specification distinguishes from a
-/// chain that has produced no keys.
+/// A chain is `None` only in an imported state: retiring an epoch removes its
+/// whole entry, which is `NoChain` (sparse-pq-ratchet.md, session-persistence.md).
 #[derive(Clone, Default)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 struct Chains {

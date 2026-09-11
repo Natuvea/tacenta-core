@@ -114,7 +114,9 @@ theorem Decoder.message_length (d : Decoder) (bytes : Bytes)
 structure Kem where
   /-- Randomness in, `(dk, ek_seed, ek_vector)` out. -/
   keyGen  : Nat → Bytes × Bytes × Bytes
-  /-- `SHA3-256(ek_seed || ek_vector)`. -/
+  /-- The header hash: FIPS 203 `H(ek)`, which is `SHA3-256(ek_vector || ek_seed)`,
+      taken here as `hashEk ek_seed ek_vector`. The published Braid document writes
+      its input as `ek_seed || ek_vector` (mlkem-braid.md, The KEM split). -/
   hashEk  : Bytes → Bytes → Bytes
   /-- Randomness in, then from the header alone:
       `(encaps_secret, ct1, shared_secret)`. Encapsulation draws fresh

@@ -93,8 +93,8 @@ structure Chain where
   n  : Nat
   deriving Repr, Inhabited, DecidableEq
 
-/-- A chain is set to `none` when it is retired, which the specification
-    distinguishes from a chain that has produced no keys. -/
+/-- A chain is `none` only in an imported state: retiring an epoch removes its
+    whole entry (sparse-pq-ratchet.md, session-persistence.md). -/
 structure Chains where
   send    : Option Chain
   receive : Option Chain
