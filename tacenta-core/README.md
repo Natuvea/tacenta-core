@@ -1,7 +1,12 @@
 # tacenta-core
 
-The Rust cryptographic implementation: an independent implementation of the
-same published protocols that libsignal implements.
+One implementation of the Tacenta specification (`../tacenta-spec`), in
+Rust. The specification is normative and this crate is not: where the two
+disagree, this crate is wrong until the specification is amended, and a
+behaviour change starts in the specification
+(`../tacenta-spec/decisions/ADR-0006-specification-is-normative.md`). The
+specification builds on the same published protocols that libsignal
+implements, so this is also an independent implementation of those.
 
 Implemented clean-room from ../tacenta-spec and ../tacenta-model, never from
 libsignal's source. Cryptography only: no product coupling, usable by any

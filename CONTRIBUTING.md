@@ -26,6 +26,25 @@ Do not paste code, interface definitions, or other material from third-party
 implementations of the protocols this project targets. Work from the published
 specifications. See the clean-room boundary recorded in the decision records.
 
+## Specification first
+
+The specification in `tacenta-spec` is the product, and `tacenta-core` is one
+implementation of it
+(`tacenta-spec/decisions/ADR-0006-specification-is-normative.md`). So:
+
+- A change to anything the specification defines -- bytes emitted or
+  accepted, a refusal, a constant, a derivation, a bound, a rule over
+  persisted state -- changes the specification first. Its commit comes
+  before the code's in the same pull request, with an entry in
+  `tacenta-spec/CHANGELOG.md`, and the model and vectors follow it.
+- Code that disagrees with the specification is a bug in the code. If it is
+  the specification that should change, change it first, as above; do not
+  change the code and describe it afterwards.
+- Behaviour the specification does not define is a finding: specify it, or
+  remove it.
+- A pull request says which specification text its change implements. The
+  pull-request template asks.
+
 ## Building and checking
 
 The README's "Building and checking" section lists the prerequisites and the
