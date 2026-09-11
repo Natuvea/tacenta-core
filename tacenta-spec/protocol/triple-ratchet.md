@@ -86,6 +86,15 @@ leaves one half moved without the other:
 In both, the session adopts the agreement's next state at the same moment, and
 on a receive the ratchet private key a Diffie-Hellman step generated.
 
+Every receive computes two Diffie-Hellman outputs with the header's
+ratchet public key: one under the current ratchet private key, and one under
+the freshly generated private key a step would adopt. If either is not
+contributory (session-establishment.md, Notation), the message is refused and
+nothing changes. The check runs whether or not the message would take a step,
+before either ratchet runs and before the tag is checked. It covers the ratchet
+message inside an initial message, where the current ratchet private key is
+the signed prekey's.
+
 The copy is what the leaf ratchets require of their callers. Either may have
 moved when it returns an error -- the Double Ratchet having stored keys and
 taken its Diffie-Hellman step, the sparse ratchet having folded in the

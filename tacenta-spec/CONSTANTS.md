@@ -61,6 +61,7 @@ a peer's constant does not belong in them.
 |---|---|---|---|
 | XEdDSA signature sign bit | top bit of `signature[63]` | nominated | External interoperability profile, determined by black-box observation of a pinned build (ADR-0003); one of the intentional differences from XEdDSA Revision 1, the one that widens the accepted set; `verify` also narrows it through `verify_strict` (see `xeddsa.rs`). The accepted set's edges in both directions are pinned by the verify-only vectors in `tacenta-test-vectors/vectors/primitives/xeddsa.json`. |
 | Signed-prekey signature input | the *tagged* key form (33-byte `EncodeEC`, 1,569-byte `EncodeKEM`) | nominated | External interoperability profile, determined by black-box observation of a pinned build (ADR-0003). |
+| Application signature label | `"tacenta:application-signature:v1"` then `0xFF`: 33 bytes | ours | Prefixed to the message an application signs under the identity key (`sessions/mod.rs`, `APPLICATION_SIGNING_LABEL`; `Identity::sign_message`, `verify_under_identity`; identities-and-devices.md, Application signatures). Registered in `tacenta-core/LABELS.md`. Free choice. |
 
 ## Storage formats
 
@@ -80,6 +81,7 @@ disk is emitted.
 | `LabelSet` tag (ratchet) | `0x00` (`Tacenta`) | ours | One live variant today. Free choice. |
 | Braid KEM field lengths | `header` 64, `ek_vector` 1,536, `ct1` 1,408, `ct2` 160 bytes | fact | ML-KEM-1024's encapsulation key and ciphertext, split into the parts the incremental KEM sends separately (`kem/src/lib.rs`, `HEADER_LEN`, `EK_VECTOR_LEN`, `CT1_LEN`, `CT2_LEN`); `ct1` and `ct2` together are the 1,568-byte ciphertext. The persisted Braid refuses any other length (session-persistence.md, Braid). |
 | KEM key pair and encapsulation state lengths | 11,872 and 2,592 bytes | ours | The incremental ML-KEM library's own serialisations, persisted as they are (`kem/src/lib.rs`, `inc::key_pair_len`, `inc::encaps_state_len`). Choosing the library chose these; a library change that altered either would need a new Braid `STATE_VERSION`, since the reader refuses any other length. |
+| Prekey store `kem_pair` layout | `dk` 3,168 bytes then `ek` 1,568 bytes: 4,736 bytes | ours | An ML-KEM-1024 key pair as the prekey store persists it (`primitives/kem.rs`, `KeyPair::to_bytes`, `KeyPair::from_bytes`). The two lengths are FIPS 203's; the order, private half first, is a free choice. The reader refuses any other length (session-persistence.md, Prekey store). |
 | `tacenta-kem` and `tacenta-erasure` sub-formats | no version byte | ours | Deliberate: these appear only length-prefixed inside the Braid's format, so the Braid's own `STATE_VERSION` versions them. A second version byte would imply an independent compatibility story they do not have. |
 
 ## Values this engine does not emit or accept

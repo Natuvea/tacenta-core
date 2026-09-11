@@ -17,7 +17,9 @@ sparse-pq-ratchet.md and mlkem-braid.md (the post-quantum ratchet and the
 agreement beneath it), triple-ratchet.md (their composition), message-format.md,
 key-deletion.md, and session-persistence.md; post-compromise-security.md is the
 one written security-property page. group-messaging.md is an outline ahead of
-the code, and that work is not yet scheduled. Every other page in protocol/,
+the code, and that work is not yet scheduled. identities-and-devices.md is
+partly written: it specifies the identity key's secret and application
+signatures, and devices remain a scaffold. Every other page in protocol/,
 threat-model/ and security-properties/ is a scaffold -- a title and a one-line
 scope, marked "Status: scaffold" -- kept as the table of contents for what is
 still to be written. Until a scaffold is written, its topic is unspecified:

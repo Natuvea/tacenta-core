@@ -141,6 +141,38 @@ is SemVer against the specified protocol (not the implementation).
     page had left to each crate's `invariant`.
   `CONSTANTS.md`: rows for `MAX_CODEWORDS`, the Braid's KEM field lengths,
   and the KEM key-pair and encapsulation-state lengths.
+- Session-layer and prekey-store behaviour the pages did not state, as built:
+  - `protocol/identities-and-devices.md`, previously a scaffold, now covers
+    the identity key's secret and application signatures. The secret is 32
+    bytes, exported and imported as they are, and serves as both the X25519
+    private scalar and the XEdDSA private key. An application signature is
+    XEdDSA under the identity key over
+    `"tacenta:application-signature:v1" || 0xFF || message`. Devices remain a
+    scaffold.
+  - `protocol/session-establishment.md`: a non-contributory Diffie-Hellman
+    output is an all-zero one, the X25519 library's definition. A repeated
+    initial message on an existing session is accepted only by a responder's
+    session, and only if its `ephemeral` equals `established_ephemeral` byte
+    for byte; otherwise it is refused (`NotARepeatedInitial`).
+  - `protocol/triple-ratchet.md`: every receive refuses a header whose
+    ratchet public key gives a non-contributory output under the current or
+    the freshly generated ratchet private key. The check runs before either
+    ratchet runs and before authentication.
+  - `protocol/mlkem-braid.md`: the message whose receipt fails the Braid is
+    still accepted and its plaintext returned.
+  - `protocol/session-persistence.md`: the prekey store's `kem_pair` layout
+    (`dk` then `ek`, 4,736 bytes) and the four checks its reader makes,
+    replacing "opaque". Also, what the one-time lists' order means and how
+    `publish`, `publish_one_time_batch` and `publish_multi_use` choose from
+    them. The session's role rule now says the Braid's half is skipped once
+    the Braid has failed.
+  - `protocol/key-deletion.md`: how `create_prekeys` numbers identifiers, and
+    how `replenish` stops at the end of the identifier space.
+  - `protocol/message-format.md`: the implementation takes AES, CBC and
+    PKCS#7 from libraries, and this page defines the behaviour.
+  - `CONSTANTS.md`: rows for the application signature label and the
+    `kem_pair` layout. `README.md`: the status paragraph names
+    identities-and-devices.md as partly written.
 
 ### Changed
 - `protocol/ratchet.md`, Sending and receiving: the classical ratchet now
