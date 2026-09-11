@@ -567,9 +567,11 @@ Against `Model.Messages.decodeInitial`.
   message, and `Err` exactly when the model returns `none`. No hypothesis.
   Pinned to `propext`, `Classical.choice` and `Quot.sound` alone.
 - `decodeInitial_cases`: the model's decoder by cases, the lemma the refinement
-  rewrites with. Too short, a wrong version or type byte, or no room for the two
-  keys and the ciphertext length is `none`; otherwise the decoded message is one
-  expression over fixed offsets and the ciphertext length read at offset 68.
+  rewrites with. Too short, a wrong version or type byte, no room for the two
+  keys, an `identity` or `ephemeral` whose first byte is not the `EncodeEC`
+  curve byte `0x05`, or no room for the ciphertext length is `none`; otherwise
+  the decoded message is one expression over fixed offsets and the ciphertext
+  length read at offset 68.
 
 **What this does not give.** The same limit as above: what the session does
 with a decoded initial message is outside the translated surface.
@@ -589,10 +591,11 @@ exists.
   Pinned to `propext`, `Classical.choice` and `Quot.sound` alone. Since the
   model accepts one spelling of each bundle, so does the code.
 - `decodeBundle_cases`: the model's decoder by cases, the lemma the refinement
-  rewrites with. Too short for the framing, a wrong version or type byte, or too
-  short for the fixed prefix is `none`; otherwise the bundle is `some` exactly
-  when the input is as long as the KEM prekey's length says and the one-time
-  prekey's field is a valid spelling.
+  rewrites with. Too short for the framing, a wrong version or type byte, too
+  short for the fixed prefix, or a KEM prekey length other than 1,568 bytes
+  (the ML-KEM-1024 encapsulation-key length) is `none`; otherwise the bundle is
+  `some` exactly when the input is as long as the KEM prekey's length says and
+  the one-time prekey's field is a valid spelling.
 - `one_time_prekey_at_spec`: the code's decision on the one-time prekey's
   presence byte and thirty-two bytes is the model's `decodeOptionalKey`.
 

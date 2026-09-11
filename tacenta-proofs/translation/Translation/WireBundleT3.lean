@@ -16,7 +16,8 @@ The model decodes with a chain of `take?` and `readBe32`, the KEM prekey's
 length read off the wire in the middle. Every way the chain fails is `none`, so
 the order the code checks things in does not matter to the result, and
 `decodeBundle_cases` puts the model in the simplest shape that says so: too
-short for the fixed prefix, a wrong version or type byte, or otherwise
+short for the fixed prefix, a wrong version or type byte, a KEM prekey length
+other than `kemPrekeyLen`, or otherwise
 `decodeBundleRest` of the bytes after the framing, which is `some` exactly when
 the length is the one the KEM prekey's length implies and the one-time prekey's
 field is a valid spelling (`decodeOptionalKey`). The chain is unfolded with the
@@ -130,8 +131,21 @@ theorem bundle_tail (x : Option (Option (List UInt8))) (r ik sp ss kp ks : List 
     · rw [if_pos (by simp; omega), if_pos h4]
     · rw [if_neg (by simp; omega), if_neg h4]
 
+/-- Binding the KEM prekey length check on the one length it accepts: the
+continuation, stated for an abstract continuation like `bind_take`. -/
+theorem bind_checkKemLen {β : Type} (n : UInt32) (f : Unit → Option β)
+    (h : n.toNat = kemPrekeyLen) : (checkKemLen n).bind f = f () := by
+  unfold checkKemLen
+  rw [if_pos h]; rfl
+
+/-- Binding it on any other length: nothing. -/
+theorem bind_checkKemLen_none {β : Type} (n : UInt32) (f : Unit → Option β)
+    (h : n.toNat ≠ kemPrekeyLen) : (checkKemLen n).bind f = none := by
+  unfold checkKemLen
+  rw [if_neg h]; rfl
+
 theorem bundle_long_rest (v t : UInt8) (rest : List UInt8) (hvt : ¬(v != version || t != typeBundle) = true)
-    (h0 : ¬ rest.length < 132) :
+    (h0 : ¬ rest.length < 132) (hkem : be32At rest 128 = kemPrekeyLen) :
     decodeBundle (v :: t :: rest) = decodeBundleRest rest := by
   have hKlt := be32At_lt rest 128
   have hofnat : (UInt32.ofNat (be32At rest 128)).toNat = be32At rest 128 := by
@@ -142,6 +156,7 @@ theorem bundle_long_rest (v t : UInt8) (rest : List UInt8) (hvt : ¬(v != versio
   rw [bind_take 64 _ _ (by simp; omega)]
   rw [bind_readBe32 _ _ (by simp; omega)]
   simp only [List.drop_drop, Nat.reduceAdd, be32At_drop0, hofnat]
+  rw [bind_checkKemLen (UInt32.ofNat (be32At rest 128)) _ (by rw [hofnat]; exact hkem)]
   unfold decodeBundleRest
   by_cases hk : rest.length < 132 + be32At rest 128
   · rw [bind_take_none _ _ _ (by simp; omega), if_neg (by omega)]
@@ -169,15 +184,33 @@ theorem bundle_long_rest (v t : UInt8) (rest : List UInt8) (hvt : ¬(v != versio
   · rw [if_pos (by omega), if_pos hlen]
   · rw [if_neg (by omega), if_neg hlen]
 
+/-- The fixed prefix is there and the KEM prekey length read at offset 128 is not
+`kemPrekeyLen`: nothing, whatever follows. -/
+theorem bundle_bad_kem_len (v t : UInt8) (rest : List UInt8)
+    (hvt : ¬(v != version || t != typeBundle) = true)
+    (h0 : ¬ rest.length < 132) (hkem : ¬ be32At rest 128 = kemPrekeyLen) :
+    decodeBundle (v :: t :: rest) = none := by
+  have hKlt := be32At_lt rest 128
+  have hofnat : (UInt32.ofNat (be32At rest 128)).toNat = be32At rest 128 := by
+    rw [UInt32.toNat_ofNat', Nat.mod_eq_of_lt hKlt]
+  simp only [decodeBundle, hvt, Option.bind_eq_bind, Bool.false_eq_true, if_false]
+  rw [bind_take 32 rest _ (by omega)]
+  rw [bind_take 32 _ _ (by simp; omega)]
+  rw [bind_take 64 _ _ (by simp; omega)]
+  rw [bind_readBe32 _ _ (by simp; omega)]
+  simp only [List.drop_drop, Nat.reduceAdd, be32At_drop0]
+  rw [bind_checkKemLen_none (UInt32.ofNat (be32At rest 128)) _ (by rw [hofnat]; exact hkem)]
+
 /-- **The model's bundle decoder, by cases**, in the order the code checks: too
-short for the framing, a wrong version or type byte, or too short for the fixed
-prefix is `none`; otherwise it is `decodeBundleRest` on the bytes after the
-framing. -/
+short for the framing, a wrong version or type byte, too short for the fixed
+prefix, or a KEM prekey length other than `kemPrekeyLen` is `none`; otherwise it
+is `decodeBundleRest` on the bytes after the framing. -/
 theorem decodeBundle_cases (l : List UInt8) :
     decodeBundle l =
       if l.length < 2 then none
       else if (l[0]! != version || l[1]! != typeBundle) = true then none
       else if l.length < 134 then none
+      else if be32At (l.drop 2) 128 ≠ kemPrekeyLen then none
       else decodeBundleRest (l.drop 2) := by
   match l with
   | [] => rfl
@@ -194,7 +227,10 @@ theorem decodeBundle_cases (l : List UInt8) :
     rw [if_neg hvt]
     by_cases h3 : rest.length < 132
     · rw [if_pos (by omega), bundle_short_rest v t rest hvt h3]
-    rw [if_neg (by omega), bundle_long_rest v t rest hvt h3]
+    rw [if_neg (by omega)]
+    by_cases hkem : be32At rest 128 = kemPrekeyLen
+    · rw [if_neg (not_not_intro hkem), bundle_long_rest v t rest hvt h3 hkem]
+    · rw [if_pos hkem, bundle_bad_kem_len v t rest hvt h3 hkem]
 
 /-! ## The code's decoder against the model's -/
 
@@ -216,6 +252,23 @@ def bundleOf (b : WireBundle) : Bundle :=
 
 @[simp] theorem byteOf_type_bundle : byteOf TYPE_BUNDLE = typeBundle := by
   simp [TYPE_BUNDLE, byteOf, typeBundle]
+
+theorem kem_prekey_len_val : KEM_PREKEY_LEN.val = kemPrekeyLen := by
+  simp [KEM_PREKEY_LEN, kemPrekeyLen]
+
+/-- The code refuses the KEM prekey length it read: it is not the model's. -/
+theorem kem_len_ne (x : Std.U32) (h : (UScalar.cast UScalarTy.Usize x != KEM_PREKEY_LEN) = true) :
+    x.val ≠ kemPrekeyLen := by
+  intro hx
+  apply bne_iff_ne.mp h
+  apply UScalar.eq_of_val_eq
+  rw [cast_u32_usize_val, hx, kem_prekey_len_val]
+
+/-- The code accepts it: it is the model's. -/
+theorem kem_len_eq (x : Std.U32) (h : ¬(UScalar.cast UScalarTy.Usize x != KEM_PREKEY_LEN) = true) :
+    x.val = kemPrekeyLen := by
+  rw [bne_iff_ne, ne_eq, not_not] at h
+  rw [← cast_u32_usize_val x, h, kem_prekey_len_val]
 
 /-- "Every byte of the thirty-two at `p` is zero", in the model's list form and
 the code's indexed form. -/
@@ -307,7 +360,7 @@ theorem drop_drop2 (l : List UInt8) (a b : Nat) : (l.drop a).drop b = l.drop (a 
   simp [List.drop_drop]
 
 set_option maxRecDepth 16384 in
-set_option maxHeartbeats 1000000 in
+set_option maxHeartbeats 2000000 in
 /-- **The translated decoder computes what the model says, on every byte string.**
 
 An `Ok` carries exactly the keys, signatures, KEM prekey, one-time prekey and
@@ -321,7 +374,11 @@ later goal's context, and its preprocessing exhausts the heartbeat budget on
 them. The length facts come from `span_end`'s postconditions by `omega` and
 `assumption` instead. The model side is rewritten with `rw`, never `simp`,
 under the one-time prekey's binder, for the kernel reason given in the module
-header. -/
+header.
+
+The KEM prekey length check adds a refusal goal, and a hypothesis to every goal
+after it, which takes the proof past a million heartbeats; two million is
+enough. -/
 theorem decode_bundle_refines (bytes : Slice Std.U8) :
     decode_bundle bytes ⦃ fun r => match r with
       | core.result.Result.Ok b => decodeBundle (bytesOf bytes.val) = some (bundleOf b)
@@ -349,6 +406,12 @@ theorem decode_bundle_refines (bytes : Slice Std.U8) :
   all_goals (
     have hK : be32At ((bytesOf bytes.val).drop 2) 128 = i4.val := by
       rw [be32At_bytesOf_drop2, i4_post]
+    rw [hK])
+  -- a KEM prekey length other than the encapsulation key's: refused on both sides
+  all_goals first
+    | (rw [if_pos (kem_len_ne i4 (by assumption))])
+    | (rw [if_neg (fun h => h (kem_len_eq i4 (by assumption)))])
+  all_goals (
     unfold decodeBundleRest
     rw [List.length_drop, bytesOf_length, hK])
   all_goals first | (rw [if_neg (by omega)]) | skip

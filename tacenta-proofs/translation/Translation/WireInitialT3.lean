@@ -12,11 +12,12 @@ and trailing ratchet message, and `Err` exactly when the model returns `none`.
 ## The model, by cases
 
 The model decodes with a chain of `take?` and `readBe32`, the KEM ciphertext's
-length read off the wire in the middle. `decodeInitial_cases` puts it in the
-shape the code has: too short, a wrong version or type byte, or no room for the
-two keys and the length is `none`, and otherwise the message is
-`decodeInitialRest` of the bytes after the framing, one expression over fixed
-offsets and that length.
+length read off the wire in the middle, and the two keys' curve bytes checked
+once both keys are taken. `decodeInitial_cases` puts it in the shape the code
+has: too short, a wrong version or type byte, no room for the two keys, a key
+whose first byte is not the curve byte, or no room for the length is `none`, and
+otherwise the message is `decodeInitialRest` of the bytes after the framing, one
+expression over fixed offsets and that length.
 
 **How the chain is unfolded, because the obvious way fails.** Rewriting the
 chain with `Option.bind_some`, or any lemma proved by `rfl`, leaves the kernel to
@@ -99,15 +100,57 @@ theorem bind_readBe32_none {β : Type} (l : List UInt8) (f : UInt32 × List UInt
 theorem be32At_drop0 (l : List UInt8) (n : Nat) : be32At (l.drop n) 0 = be32At l n := by
   simp only [be32At, getElem!_drop', Nat.add_zero]
 
+/-- The first byte of a prefix of a non-empty list. -/
+theorem head?_take_eq (l : List UInt8) (n : Nat) (hn : 0 < n) (h : 0 < l.length) :
+    (l.take n).head? = some l[0]! := by
+  cases l with
+  | nil => simp at h
+  | cons a tl =>
+    cases n with
+    | zero => omega
+    | succ n => rfl
+
+/-- The first byte of a field at offset `m`. -/
+theorem head?_drop_take_eq (l : List UInt8) (m n : Nat) (hn : 0 < n) (h : m < l.length) :
+    ((l.drop m).take n).head? = some l[m]! := by
+  rw [head?_take_eq _ _ hn (by simp; omega), getElem!_drop', Nat.add_zero]
+
+/-- Binding the curve check on a key whose first byte is the curve byte: the
+continuation. Stated for an abstract continuation, like `bind_take`, so that the
+kernel has no definitional unfolding to do where it is used. -/
+theorem bind_checkCurve {β : Type} (k : List UInt8) (b : UInt8) (f : Unit → Option β)
+    (hk : k.head? = some b) (hb : b = ecCurveByte) : (checkCurve k).bind f = f () := by
+  unfold checkCurve
+  rw [hk, hb, if_pos rfl]; rfl
+
+/-- Binding the curve check on a key whose first byte is anything else: nothing. -/
+theorem bind_checkCurve_none {β : Type} (k : List UInt8) (b : UInt8) (f : Unit → Option β)
+    (hk : k.head? = some b) (hb : b ≠ ecCurveByte) : (checkCurve k).bind f = none := by
+  unfold checkCurve
+  rw [hk, if_neg (fun h => hb (Option.some.inj h))]; rfl
+
+/-- A continuation that is nothing is nothing after the curve check too,
+whichever way the check goes. -/
+theorem bind_checkCurve_of_none {β : Type} (k : List UInt8) (f : Unit → Option β)
+    (hf : f () = none) : (checkCurve k).bind f = none := by
+  unfold checkCurve
+  split
+  · exact hf
+  · rfl
+
 theorem long_rest (v t : UInt8) (rest : List UInt8) (hvt : ¬(v != version || t != typeInitial) = true)
+    (hc : ¬(rest[0]! != ecCurveByte || rest[33]! != ecCurveByte) = true)
     (h3 : ¬ rest.length < 70) :
     decodeInitial (v :: t :: rest) = decodeInitialRest rest := by
   have hKlt := be32At_lt rest 66
   have hofnat : (UInt32.ofNat (be32At rest 66)).toNat = be32At rest 66 := by
     rw [UInt32.toNat_ofNat', Nat.mod_eq_of_lt hKlt]
+  simp only [Bool.or_eq_true, not_or, bne_iff_ne, ne_eq, not_not] at hc
   simp only [decodeInitial, hvt, Option.bind_eq_bind]
   rw [bind_take 33 rest _ (by omega)]
   rw [bind_take 33 _ _ (by simp; omega)]
+  rw [bind_checkCurve _ _ _ (head?_take_eq rest 33 (by omega) (by omega)) hc.1]
+  rw [bind_checkCurve _ _ _ (head?_drop_take_eq rest 33 33 (by omega) (by omega)) hc.2]
   rw [bind_readBe32 _ _ (by simp; omega)]
   simp only [List.drop_drop, Nat.reduceAdd, be32At_drop0, hofnat, Bool.false_eq_true, if_false]
   unfold decodeInitialRest
@@ -129,7 +172,7 @@ theorem long_rest (v t : UInt8) (rest : List UInt8) (hvt : ¬(v != version || t 
     show 78 + be32At rest 66 + 4 = 82 + be32At rest 66 by omega]
 
 /-- A header too short to hold the two keys and the ciphertext length decodes to
-nothing. -/
+nothing, whatever the keys' first bytes are. -/
 theorem short_rest (v t : UInt8) (rest : List UInt8) (hvt : ¬(v != version || t != typeInitial) = true)
     (h3 : rest.length < 70) : decodeInitial (v :: t :: rest) = none := by
   simp only [decodeInitial, hvt, if_false, Option.bind_eq_bind, Bool.false_eq_true]
@@ -139,20 +182,38 @@ theorem short_rest (v t : UInt8) (rest : List UInt8) (hvt : ¬(v != version || t
   by_cases h2 : rest.length < 66
   · rw [bind_take_none _ _ _ (by simp; omega)]
   rw [bind_take 33 _ _ (by simp; omega)]
-  rw [bind_readBe32_none _ _ (by simp; omega)]
+  apply bind_checkCurve_of_none
+  apply bind_checkCurve_of_none
+  exact bind_readBe32_none _ _ (by simp; omega)
+
+/-- Both keys fit and one of them does not begin with the curve byte: nothing. -/
+theorem bad_curve (v t : UInt8) (rest : List UInt8) (hvt : ¬(v != version || t != typeInitial) = true)
+    (h : 66 ≤ rest.length) (hc : (rest[0]! != ecCurveByte || rest[33]! != ecCurveByte) = true) :
+    decodeInitial (v :: t :: rest) = none := by
+  simp only [Bool.or_eq_true, bne_iff_ne] at hc
+  simp only [decodeInitial, hvt, if_false, Option.bind_eq_bind, Bool.false_eq_true]
+  rw [bind_take 33 rest _ (by omega)]
+  rw [bind_take 33 _ _ (by simp; omega)]
+  rcases hc with hc | hc
+  · rw [bind_checkCurve_none _ _ _ (head?_take_eq rest 33 (by omega) (by omega)) hc]
+  · apply bind_checkCurve_of_none
+    exact bind_checkCurve_none _ _ _ (head?_drop_take_eq rest 33 33 (by omega) (by omega)) hc
 
 /-- The model's version or type check fails: nothing. -/
 theorem wrong_vt (v t : UInt8) (rest : List UInt8) (hvt : (v != version || t != typeInitial) = true) :
     decodeInitial (v :: t :: rest) = none := by
   simp only [decodeInitial, hvt, if_true]
 
-/-- **The model's initial-message decoder, by cases.** Too short, a wrong
-version or type byte, or no room for the two keys and the ciphertext length is
+/-- **The model's initial-message decoder, by cases**, in the order the code
+checks: too short, a wrong version or type byte, no room for the two keys, a key
+whose first byte is not the curve byte, or no room for the ciphertext length is
 `none`; otherwise it is `decodeInitialRest` on the bytes after the framing. -/
 theorem decodeInitial_cases (l : List UInt8) :
     decodeInitial l =
       if l.length < 2 then none
       else if (l[0]! != version || l[1]! != typeInitial) = true then none
+      else if l.length < 68 then none
+      else if (l[2]! != ecCurveByte || l[35]! != ecCurveByte) = true then none
       else if l.length < 72 then none
       else decodeInitialRest (l.drop 2) := by
   match l with
@@ -162,15 +223,23 @@ theorem decodeInitial_cases (l : List UInt8) :
     have hlen : ¬ (v :: t :: rest).length < 2 := by simp
     have h0 : (v :: t :: rest)[0]! = v := rfl
     have h1 : (v :: t :: rest)[1]! = t := rfl
+    have h2 : (v :: t :: rest)[2]! = rest[0]! := rfl
+    have h35 : (v :: t :: rest)[35]! = rest[33]! := rfl
     have hd : (v :: t :: rest).drop 2 = rest := rfl
     have hl : (v :: t :: rest).length = rest.length + 2 := rfl
-    rw [if_neg hlen, h0, h1, hd, hl]
+    rw [if_neg hlen, h0, h1, h2, h35, hd, hl]
     by_cases hvt : (v != version || t != typeInitial) = true
     · rw [if_pos hvt, wrong_vt v t rest hvt]
     rw [if_neg hvt]
+    by_cases h66 : rest.length < 66
+    · rw [if_pos (by omega), short_rest v t rest hvt (by omega)]
+    rw [if_neg (by omega)]
+    by_cases hc : (rest[0]! != ecCurveByte || rest[33]! != ecCurveByte) = true
+    · rw [if_pos hc, bad_curve v t rest hvt (by omega) hc]
+    rw [if_neg hc]
     by_cases h3 : rest.length < 70
     · rw [if_pos (by omega), short_rest v t rest hvt h3]
-    rw [if_neg (by omega), long_rest v t rest hvt h3]
+    rw [if_neg (by omega), long_rest v t rest hvt hc h3]
 
 /-! ## The code's decoder against the model's -/
 
@@ -187,6 +256,9 @@ def initialOf (d : DecodedInitial) : Initial :=
 
 @[simp] theorem byteOf_type_initial : byteOf TYPE_INITIAL = typeInitial := by
   simp [TYPE_INITIAL, byteOf, typeInitial]
+
+@[simp] theorem byteOf_ec_curve : byteOf ENCODE_EC_CURVE25519 = ecCurveByte := by
+  simp [ENCODE_EC_CURVE25519, byteOf, ecCurveByte]
 
 theorem bne_byteOf' (x y : Std.U8) : (byteOf x != byteOf y) = (x != y) := by
   rw [Bool.eq_iff_iff, bne_iff_ne, bne_iff_ne]
@@ -246,6 +318,8 @@ theorem decode_initial_refines (bytes : Slice Std.U8) :
       | core.result.Result.Ok d => decodeInitial (bytesOf bytes.val) = some (initialOf d)
       | core.result.Result.Err _ => decodeInitial (bytesOf bytes.val) = none ⦄ := by
   unfold decode_initial
+  -- Unfolded first, so that the two curve-byte reads are bounded by numbers.
+  simp only [EC_LEN]
   step*
   all_goals (rw [decodeInitial_cases]; simp only [bytesOf_length])
   all_goals first | (rw [if_pos (by scalar_tac)]) | skip
@@ -259,34 +333,49 @@ theorem decode_initial_refines (bytes : Slice Std.U8) :
     | (rw [if_pos (by rw [Bool.or_eq_true]; exact Or.inr (by assumption))])
     | skip
   all_goals (rw [if_neg (by rw [Bool.or_eq_true, not_or]; exact ⟨by assumption, by assumption⟩)])
-  all_goals (simp only [ec_len_val, cast_u32_usize_val] at *)
-  -- a field end past the input before offset 72: the model's short branch
+  all_goals (try simp only [cast_u32_usize_val] at *)
+  -- no room for the two keys: the model's first short branch
+  all_goals first | (rw [if_pos (by scalar_tac)]) | skip
+  all_goals (rw [if_neg (by scalar_tac)])
+  -- a key without the curve byte. The code reads the ephemeral's at the
+  -- identity's end and the model at offset 35, so that offset is named first.
+  all_goals (
+    have hend1 : end1.val = 35 := by scalar_tac
+    have hkeys : end1.val + 33 ≤ bytes.val.length := by scalar_tac
+    rw [show (35 : Nat) = end1.val from hend1.symm]
+    simp (disch := omega) only [bytesOf_getElem!, ← byteOf_ec_curve, bne_byteOf'])
+  all_goals first
+    | (rw [if_pos (by rw [Bool.or_eq_true]; exact Or.inl (by assumption))])
+    | (rw [if_pos (by rw [Bool.or_eq_true]; exact Or.inr (by assumption))])
+    | skip
+  all_goals (rw [if_neg (by rw [Bool.or_eq_true, not_or]; exact ⟨by assumption, by assumption⟩)])
+  -- a field end past the input before offset 72: the model's second short branch
   all_goals first | (rw [if_pos (by scalar_tac)]) | skip
   all_goals (
     rw [if_neg (by scalar_tac)]
     have hend2 : end2.val = 68 := by scalar_tac
-    simp only [hend2] at i3_post
-    have hK : be32At ((bytesOf bytes.val).drop 2) 66 = i3.val := by
-      rw [be32At_bytesOf_drop2, i3_post]
+    simp only [hend2] at i5_post
+    have hK : be32At ((bytesOf bytes.val).drop 2) 66 = i5.val := by
+      rw [be32At_bytesOf_drop2, i5_post]
     unfold decodeInitialRest
     simp only [List.length_drop, bytesOf_length, hK])
-  -- the ciphertext or an identifier does not fit: the model's second short branch
+  -- the ciphertext or an identifier does not fit: the model's third short branch
   all_goals first | (rw [if_pos (by scalar_tac)]) | skip
   -- success: every field is the model's
   rw [if_neg (by scalar_tac)]
   have hend1 : end1.val = 35 := by scalar_tac
   have hend3 : end3.val = 72 := by scalar_tac
-  have hend4 : end4.val = 72 + i3.val := by scalar_tac
-  have hend5 : end5.val = 76 + i3.val := by scalar_tac
-  have hend6 : end6.val = 80 + i3.val := by scalar_tac
-  have hend7 : end7.val = 84 + i3.val := by scalar_tac
+  have hend4 : end4.val = 72 + i5.val := by scalar_tac
+  have hend5 : end5.val = 76 + i5.val := by scalar_tac
+  have hend6 : end6.val = 80 + i5.val := by scalar_tac
+  have hend7 : end7.val = 84 + i5.val := by scalar_tac
   simp only [Option.some.injEq, initialOf]
-  rw [be32At_bytesOf_drop2' _ _ end4.val (by omega), ← i4_post,
-    be32At_bytesOf_drop2' _ _ end5.val (by omega), ← i5_post,
-    be32At_bytesOf_drop2' _ _ end6.val (by omega), ← i6_post]
+  rw [be32At_bytesOf_drop2' _ _ end4.val (by omega), ← i6_post,
+    be32At_bytesOf_drop2' _ _ end5.val (by omega), ← i7_post,
+    be32At_bytesOf_drop2' _ _ end6.val (by omega), ← i8_post]
   simp only [s_post1, s1_post1, s2_post1, s3_post1, List.slice, hend1, hend2, hend3, hend4, hend7,
     List.drop_drop, bytesOf_drop, Nat.reduceAdd, Nat.reduceSub, Nat.add_sub_cancel_left]
-  rw [show 2 + (82 + i3.val) = 84 + i3.val by omega]
+  rw [show 2 + (82 + i5.val) = 84 + i5.val by omega]
   simp only [bytesOf, List.map_take]
 
 -- The axiom audit, enforced rather than asserted: the refinement rests on the
