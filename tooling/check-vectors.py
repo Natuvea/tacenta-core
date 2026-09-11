@@ -28,10 +28,11 @@ subset of JSON Schema the two schemas use (`type`, `required`, `properties`,
 keyword added to a schema without support here fails loudly rather than
 being silently ignored.
 
-Beyond the schema, four rules the schemas state in prose and this enforces:
+Beyond the schema, five rules the schemas state in prose and this enforces:
 vector `id`s are unique within a file; in a known-answer file exactly one of
 `output` and `fields` is present when `result` is `valid`, and neither when it
-is `invalid`; in a scenario file an ok step
+is `invalid`; a `refusal` is carried only by an invalid vector; in a scenario
+file an ok step
 carries `mk` while a reject step carries neither `mk` nor `message_keys`
 (the runner would fail an ok step without `mk`, and a reject step's key is
 never checked, so one that carries it is claiming a check that does not
@@ -269,6 +270,9 @@ def main():
                 if not valid and answers:
                     problems.append("%s.vectors[%d] (%s): an invalid vector carries "
                                     "no `output` and no `fields`" % (rel, i, vid))
+                if valid and "refusal" in v:
+                    problems.append("%s.vectors[%d] (%s): a `refusal` is carried only "
+                                    "by an invalid vector" % (rel, i, vid))
             checked += 1
 
     if problems:

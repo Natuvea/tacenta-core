@@ -30,9 +30,14 @@ Two kinds live here:
   - `vectors/protobuf/`: the bounded protobuf profile's two readers, accepted
     regions with the `fields` they decode to and refused regions, checked by
     `runners/rust/tests/protobuf.rs`.
-  - `vectors/persistence/`: the erasure encoder's and decoder's persisted
-    formats, the only persisted formats the model states, with the stored
-    bytes their readers refuse; checked by `runners/rust/tests/persistence.rs`.
+  - `vectors/persistence/`: the persisted formats the model states, with the
+    stored bytes their readers refuse: the erasure encoder's and decoder's
+    (`erasure-encoder-state.json`, `erasure-decoder-state.json`, from
+    `Model.Erasure`), and the classical and sparse ratchets' states
+    (`ratchet-state.json`, `sparse-ratchet-state.json`, from
+    `Model.PersistedState`), whose refused vectors also name the refusal.
+    Checked by `runners/rust/tests/persistence.rs`. Layout: Vector layouts,
+    below.
   - `vectors/aead/`: the authenticated encryption, both directions, with its
     refusals, checked by `runners/rust/tests/aead.rs`. Generated like the
     others, but the model has no AES: the generator computes the padding, the
@@ -123,7 +128,7 @@ The page is mlkem-braid.md, The erasure code.
     is rejected. This is the one file in which `result: invalid` does not mean
     that the input must be refused.
 
-### The erasure coders' persisted formats: `vectors/persistence/`
+### The erasure coders' persisted formats: `vectors/persistence/erasure-*-state.json`
 
 The page is session-persistence.md, Erasure coder sub-formats and Semantic
 rules of the leaf formats. A vector has one of two shapes.
@@ -140,6 +145,78 @@ rules of the leaf formats. A vector has one of two shapes.
 - **Stored bytes**, when the one input is `bytes`: a stored coder offered to the
   reader. A valid vector's `output` is what the reader read, written back. An
   invalid vector's bytes are refused.
+
+### The ratchets' persisted states: `vectors/persistence/ratchet-state.json` and `sparse-ratchet-state.json`
+
+The page is session-persistence.md: Ratchet state, Sparse ratchet state,
+Semantic rules of the leaf formats, Stored curve public keys and Rejection. A
+vector has one of two shapes.
+
+- **Built by operations**, when the inputs include `steps`.
+  - The operations start from a new state, or from `start`, stored bytes the
+    reader accepts.
+    - In `ratchet-state.json` a new state is named by `role`. `00` is the party
+      that sends first (ratchet.md, Initialisation), from `sk`, `our_pub`,
+      `peer_pub` and `dh_out`, the value of `DH(DHs, DHr)`. `01` is the party
+      that receives first, from `sk` and `our_pub`. Both derive under the one
+      label set, `labels` `0x00`.
+    - In `sparse-ratchet-state.json` a new state is named by `direction`, `00`
+      for `A2b` and `01` for `B2a`, from `sk` (sparse-pq-ratchet.md,
+      Initialisation).
+  - `steps` is the operations in order, back to back. It is empty when there
+    are none, and every operation in it is accepted.
+    - In `ratchet-state.json`, `00` is a send. `01` is a receive, followed by
+      the header's `dh(32) || pn(4) || n(4)`, then `dh_recv(32) ||
+      dh_send(32) || new_pub(32)`. Those three are `DH(DHs, header key)`,
+      `DH(new DHs, header key)` and the new `DHs` public key, which a receive
+      uses only when it takes a Diffie-Hellman step and which are zero where
+      it does not. The Diffie-Hellman values are the generator's symmetric
+      stand-in, not X25519, as in `vectors/ratchet/`.
+    - In `sparse-ratchet-state.json`, each operation is `op(1) || epoch(8) ||
+      output_present(1) || output_epoch(8) || output_key(32)`, and a receive
+      has the message number `n(8)` after that. `op` `00` sends on `epoch`'s
+      chain and `01` receives on it (sparse-pq-ratchet.md, Sending and
+      Receiving). The output is the agreement's secret and its epoch, or
+      `output_present` `00` and zeros when the agreement gave none.
+  - `output` is the stored bytes of the state reached. A runner must write
+    that state as `output`, and read `output` back to a state it writes as
+    `output` again.
+- **Stored bytes**, when the one input is `bytes`: a stored state offered to
+  the reader.
+  - Each built-by-operations vector has one of these beside it, whose id is
+    its own with `-read-back` added and whose `bytes` are its `output`.
+  - A valid vector carries `fields`, the values the reader read. An accepted
+    input is canonical, so the state read is written back as `bytes`.
+  - In `ratchet-state.json` the fields are `dhs_pub`, `dhr_pub`, `rk`, `cks`,
+    `ckr`, `ns`, `nr`, `pn`, `events`, `labels` and `skipped`, each named as
+    on the page. An optional key read as absent is left out. An integer is its
+    field's big-endian bytes, and `labels` is its tag byte. `skipped` is the
+    stored keys in the order read, each `dh(32) || n(4) || stored_at(4) ||
+    key(32)`, back to back, and empty when there are none.
+  - In `sparse-ratchet-state.json` the fields are `rk`, `epoch`, `direction`,
+    `chains` and `skipped`. `direction` is its tag byte. `chains` and
+    `skipped` are the entries in the order read, laid out as the page lays out
+    `chains` and `skipped` and back to back.
+  - An invalid vector's bytes are refused, and its `refusal` names the refusal
+    (Rejection). `wrong-version` is a version byte other than `0x01`.
+    `short-or-malformed` is every other refusal, a state that breaks a
+    semantic rule included.
+
+Three things no vector here pins.
+
+- **A short buffer with another version.** The page does not say which
+  refusal a buffer gets that is too short for its fixed fields and also has a
+  version byte other than `0x01`. `Model.PersistedState` reads the version
+  byte first and `tacenta-core` checks the length first.
+- **A store of exactly `MAX_SKIPPED_STORE` keys.** 2,001 keys are refused in
+  both files, but the accepted side of the bound is not pinned, since its
+  vector would be about 290 kilobytes.
+- **A step past a counter's ceiling.** The operations vectors stop at the
+  ceilings the pages state: the classical ratchet's clock at `u32::MAX - 1`,
+  `ns` and `nr` at `u32::MAX`, a sparse chain's counter at `u64::MAX`, and the
+  sparse ratchet's epoch at `u64::MAX - 1`. The next step is refused
+  (ratchet.md, Sending and receiving; sparse-pq-ratchet.md, Sending), but the
+  model's operations count in the naturals and do not refuse it.
 
 ### The protobuf profile: `vectors/protobuf/`
 
@@ -260,15 +337,17 @@ hand-authored, as above.
 
 Primitives, the Double Ratchet, PQXDH session establishment, the post-quantum
 derivations, the erasure code, serialization, the protobuf profile, the
-AEAD, the erasure coders' persisted formats, and malformed input all have
-vectors; see the directory list above and `conformance-manifest.md` for
-exactly what each covers and what it excludes. The other persisted formats
-(ratchet, sparse ratchet, triple ratchet, Braid, session, prekey store) have
-none, because the model states none of them.
+AEAD, the erasure coders' persisted formats, the classical and sparse
+ratchets' persisted states, and malformed input all have vectors; see the
+directory list above and `conformance-manifest.md` for exactly what each
+covers and what it excludes. The other persisted formats (triple ratchet,
+Braid, session, prekey store) have none, because the model states none of
+them.
 
 Files with refusals mark them `result: invalid`. The one exception is
 `erasure-decode.json`, whose invalid vectors are decoders that hold no value
-rather than refusals (Vector layouts, above). A decoder's accepted vector
+rather than refusals (Vector layouts, above). In the two ratchet-state files
+an invalid vector also names its `refusal`. A decoder's accepted vector
 may carry `fields`, the named values its input decodes to, in place of
 `output` (`schema/vector.schema.json`).
 
