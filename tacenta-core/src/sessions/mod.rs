@@ -47,6 +47,14 @@ pub fn decode_ec(bytes: &[u8]) -> Option<dh::PublicKeyBytes> {
     tacenta_session::decode_ec(bytes).map(dh::PublicKeyBytes::from_bytes)
 }
 
+/// Whether a curve public key is its canonical encoding (message-format.md,
+/// Curve public keys): the leaf crate's check, which `decode_ec` applies, over
+/// a key already held rather than read from the wire. For the readers and the
+/// bundle check that hold stored and handed-in keys to the same rule.
+pub(crate) fn is_canonical_key(pk: &dh::PublicKeyBytes) -> bool {
+    tacenta_session::is_canonical_x25519(pk.as_bytes())
+}
+
 /// `EncodeKEM`: the KEM byte followed by the public key.
 ///
 /// Public, like the curve pair above, because a caller composing a bundle has

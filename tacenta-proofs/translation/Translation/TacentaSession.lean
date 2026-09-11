@@ -282,7 +282,8 @@ def encode_kem (pk : Slice Std.U8) : Result (alloc.vec.Vec Std.U8) := do
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out pk
 
 /-- [tacenta_session::is_canonical_x25519]: loop body 0:
-    Source: 'session/src/lib.rs', lines 193:4-198:5 -/
+    Source: 'session/src/lib.rs', lines 197:4-202:5
+    Visibility: public -/
 @[rust_loop_body]
 def is_canonical_x25519_loop.body
   (k : Array Std.U8 32#usize) (middle_all_ff : Bool) (i : Std.Usize) :
@@ -299,7 +300,8 @@ def is_canonical_x25519_loop.body
   else ok (done middle_all_ff)
 
 /-- [tacenta_session::is_canonical_x25519]: loop 0:
-    Source: 'session/src/lib.rs', lines 193:4-198:5 -/
+    Source: 'session/src/lib.rs', lines 197:4-202:5
+    Visibility: public -/
 @[rust_loop]
 def is_canonical_x25519_loop
   (k : Array Std.U8 32#usize) (middle_all_ff : Bool) (i : Std.Usize) :
@@ -311,7 +313,8 @@ def is_canonical_x25519_loop
     (middle_all_ff, i)
 
 /-- [tacenta_session::is_canonical_x25519]:
-    Source: 'session/src/lib.rs', lines 187:0-200:1 -/
+    Source: 'session/src/lib.rs', lines 191:0-204:1
+    Visibility: public -/
 def is_canonical_x25519 (k : Array Std.U8 32#usize) : Result Bool := do
   let i ← Array.index_usize k 31#usize
   if i >= 128#u8
@@ -331,7 +334,7 @@ def is_canonical_x25519 (k : Array Std.U8 32#usize) : Result Bool := do
     ok (¬ b)
 
 /-- [tacenta_session::decode_ec]: loop body 0:
-    Source: 'session/src/lib.rs', lines 212:8-215:9
+    Source: 'session/src/lib.rs', lines 216:8-219:9
     Visibility: public -/
 @[rust_loop_body]
 def decode_ec_loop.body
@@ -348,7 +351,7 @@ def decode_ec_loop.body
   else ok (done k)
 
 /-- [tacenta_session::decode_ec]: loop 0:
-    Source: 'session/src/lib.rs', lines 212:8-215:9
+    Source: 'session/src/lib.rs', lines 216:8-219:9
     Visibility: public -/
 @[rust_loop]
 def decode_ec_loop
@@ -360,7 +363,7 @@ def decode_ec_loop
     (k, i)
 
 /-- [tacenta_session::decode_ec]:
-    Source: 'session/src/lib.rs', lines 205:0-224:1
+    Source: 'session/src/lib.rs', lines 209:0-228:1
     Visibility: public -/
 def decode_ec
   (bytes : Slice Std.U8) : Result (Option (Array Std.U8 32#usize)) := do

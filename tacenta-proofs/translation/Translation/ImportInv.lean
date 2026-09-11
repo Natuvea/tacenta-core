@@ -217,17 +217,28 @@ theorem array_eq_eq {N : Std.Usize} (a b : Array Std.U8 N) :
 
 /-! # `tacenta-ratchet`
 
-`State::invariant` (ratchet/src/lib.rs) is five clauses, grouped here exactly
+`State::invariant` (ratchet/src/lib.rs) is six clauses, grouped here exactly
 as the comment above the Rust function groups them and as `CLAIMS.md` repeats
 them: the store is at most `MAX_SKIPPED_STORE`, the clock is below
 `u32::MAX`, no stored entry is ahead of the clock, no two entries share
-`(dh, n)`, and the chains are present in the order the operations open them.
-The first two are read straight off the final `if` chain, the middle two are
-what the two nested index loops compute into `store_ok`, and the last is the
-`matches!` the translation sees as `chains_ok`. -/
+`(dh, n)`, the chains are present in the order the operations open them, and
+every curve public key the state holds is canonical. The first two are read
+straight off the final `if` chain; the middle two, and the canonicity of each
+stored entry's `dh`, are what the two nested index loops compute into
+`store_ok`; the fifth is the `matches!` the translation sees as `chains_ok`;
+and the canonicity of `dhs_pub` and `dhr_pub` is `keys_ok`, computed after the
+loops by `is_canonical_x25519`, whose value `Tacenta.T1.is_canonical_x25519_spec`
+proves. -/
 namespace Ratchet
 
 open tacenta_ratchet
+
+/-- The canonicity check as an equation, the form the invariant's proofs
+rewrite with. -/
+theorem canonical_eq (k : Array Std.U8 32#usize) :
+    is_canonical_x25519 k = ok (Tacenta.T1.canonicalX25519 k) := by
+  obtain ⟨r, hr, hre⟩ := Std.WP.spec_imp_exists (Tacenta.T1.is_canonical_x25519_spec k)
+  rw [hr, hre]
 
 /-- The inner loop's per-pair test, as the Bool the translation computes:
 two entries collide when both their `dh` and their `n` agree. -/
@@ -278,17 +289,19 @@ theorem invariant_inner_eq (v : alloc.vec.Vec SkippedKey) (i : Std.Usize)
 
 /-- What the two loops compute, defined by structural recursion on the store in
 exactly the order the loops visit it: for each entry, it is not ahead of the
-clock, no later entry collides with it, and the rest of the store is good. -/
+clock, its `dh` is canonical, no later entry collides with it, and the rest of
+the store is good. -/
 def storeOk : List SkippedKey → Std.U32 → Bool
   | [], _ => true
   | a :: rest, ev =>
-      decide (a.stored_at.val ≤ ev.val) && rest.all (notDup a) && storeOk rest ev
+      decide (a.stored_at.val ≤ ev.val) && Tacenta.T1.canonicalX25519 a.dh
+        && rest.all (notDup a) && storeOk rest ev
 
-/-- The outer loop. It returns the five state fields it was reading unchanged,
+/-- The outer loop. It returns the six state fields it was reading unchanged,
 and `store_ok` conjoined with `storeOk` of the suffix still to scan. -/
 theorem invariant_outer_spec (self : State) (b : Bool) (i : Std.Usize) :
     State.invariant_loop0 self b i ⦃ fun r =>
-      r = (self.dhr_pub, self.cks, self.ckr, self.skipped, self.events,
+      r = (self.dhs_pub, self.dhr_pub, self.cks, self.ckr, self.skipped, self.events,
         (b && storeOk (self.skipped.val.drop i.val) self.events)) ⦄ := by
   unfold State.invariant_loop0
   apply loop.spec_decr_nat
@@ -308,6 +321,10 @@ theorem invariant_outer_spec (self : State) (b : Bool) (i : Std.Usize) :
         · rw [if_neg h, decide_eq_true (by scalar_tac : sk.stored_at.val ≤ self.events.val)]
           simp
       rw [hif]
+      simp only [bind_tc_ok, canonical_eq]
+      rw [show ∀ (x P : Bool), (if P = true then (ok x : Result Bool) else ok false)
+            = ok (x && P) from fun x P => by cases P <;> simp]
+      simp only [bind_tc_ok]
       step*
       rw [invariant_inner_eq self.skipped i' hlt]
       step*
@@ -329,17 +346,26 @@ def chainsOk (s : State) : Bool :=
   | none => true
   | some _ => s.cks.isSome && s.dhr_pub.isSome
 
+/-- The `keys_ok` arm: the state's own ratchet public key, and the peer's when
+present, are canonical. -/
+def keysOk (s : State) : Bool :=
+  Tacenta.T1.canonicalX25519 s.dhs_pub &&
+    match s.dhr_pub with
+    | none => true
+    | some k => Tacenta.T1.canonicalX25519 k
+
 /-- The whole predicate as the Bool the translated `invariant` returns. -/
 def InvB (s : State) : Bool :=
   decide (s.skipped.val.length ≤ MAX_SKIPPED_STORE.val)
     && decide (s.events.val < Std.U32.max)
     && storeOk s.skipped.val s.events
     && chainsOk s
+    && keysOk s
 
 /-- The outer loop as an equation. -/
 theorem invariant_outer_eq (self : State) (b : Bool) (i : Std.Usize) :
     State.invariant_loop0 self b i
-      = ok (self.dhr_pub, self.cks, self.ckr, self.skipped, self.events,
+      = ok (self.dhs_pub, self.dhr_pub, self.cks, self.ckr, self.skipped, self.events,
         (b && storeOk (self.skipped.val.drop i.val) self.events)) := by
   obtain ⟨r, hr, hre⟩ := Std.WP.spec_imp_exists (invariant_outer_spec self b i)
   rw [hr, hre]
@@ -351,8 +377,9 @@ theorem invariant_eq (s : State) : State.invariant s = ok (InvB s) := by
   have h : State.invariant s ⦃ fun r => r = InvB s ⦄ := by
     unfold State.invariant
     rw [invariant_outer_eq s true 0#usize]
+    simp only [canonical_eq]
     step*
-    simp only [InvB, chainsOk, Bool.true_and]
+    simp only [InvB, chainsOk, keysOk, Bool.true_and]
     rcases s.ckr with _ | ck <;> rcases s.cks with _ | ck1 <;> rcases s.dhr_pub with _ | dp <;>
       simp only [bind_tc_ok, Option.isSome_none, Option.isSome_some, Bool.and_false,
         Bool.and_true] <;>
@@ -369,11 +396,15 @@ structure Inv (s : State) : Prop where
   fresh : ∀ e ∈ s.skipped.val, e.stored_at.val ≤ s.events.val
   store_map : s.skipped.val.Pairwise (fun a t => ¬ (a.dh = t.dh ∧ a.n = t.n))
   chains : s.ckr.isSome = true → s.cks.isSome = true ∧ s.dhr_pub.isSome = true
+  dhs_canonical : Tacenta.T1.canonicalX25519 s.dhs_pub = true
+  dhr_canonical : ∀ k, s.dhr_pub = some k → Tacenta.T1.canonicalX25519 k = true
+  store_canonical : ∀ e ∈ s.skipped.val, Tacenta.T1.canonicalX25519 e.dh = true
 
 /-- The store flag, as the two propositions it stands for. -/
 theorem storeOk_iff (L : List SkippedKey) (ev : Std.U32) :
     storeOk L ev = true ↔
       ((∀ e ∈ L, e.stored_at.val ≤ ev.val) ∧
+        (∀ e ∈ L, Tacenta.T1.canonicalX25519 e.dh = true) ∧
         L.Pairwise (fun a t => ¬ (a.dh = t.dh ∧ a.n = t.n))) := by
   induction L with
   | nil => simp [storeOk]
@@ -382,13 +413,13 @@ theorem storeOk_iff (L : List SkippedKey) (ev : Std.U32) :
       Bool.not_eq_true', Bool.and_eq_false_imp, List.pairwise_cons, List.mem_cons,
       forall_eq_or_imp, ih]
     constructor
-    · rintro ⟨⟨ha, hnd⟩, hfresh, hp⟩
-      refine ⟨⟨ha, hfresh⟩, ?_, hp⟩
+    · rintro ⟨⟨⟨ha, hc⟩, hnd⟩, hfresh, hcan, hp⟩
+      refine ⟨⟨ha, hfresh⟩, ⟨hc, hcan⟩, ?_, hp⟩
       intro t ht ⟨hdh, hn⟩
       have := hnd t ht
       simp_all
-    · rintro ⟨⟨ha, hfresh⟩, hnd, hp⟩
-      refine ⟨⟨ha, ?_⟩, hfresh, hp⟩
+    · rintro ⟨⟨ha, hfresh⟩, ⟨hc, hcan⟩, hnd, hp⟩
+      refine ⟨⟨⟨ha, hc⟩, ?_⟩, hfresh, hcan, hp⟩
       intro t ht
       have := hnd t ht
       simp_all
@@ -397,20 +428,26 @@ theorem storeOk_iff (L : List SkippedKey) (ev : Std.U32) :
 `Inv`.** -/
 theorem invariant_true_iff (s : State) : State.invariant s = ok true ↔ Inv s := by
   rw [invariant_eq]
-  simp only [ok.injEq, InvB, Bool.and_eq_true, decide_eq_true_eq, chainsOk, storeOk_iff]
+  simp only [ok.injEq, InvB, Bool.and_eq_true, decide_eq_true_eq, chainsOk, keysOk,
+    storeOk_iff]
   constructor
-  · rintro ⟨⟨⟨hb, hr⟩, hfresh, hp⟩, hc⟩
-    refine ⟨hb, hr, hfresh, hp, ?_⟩
-    intro hckr
-    rcases hckr' : s.ckr with _ | ck
-    · simp [hckr'] at hckr
-    · rw [hckr'] at hc; simpa using hc
-  · rintro ⟨hb, hr, hfresh, hp, hc⟩
-    refine ⟨⟨⟨hb, hr⟩, hfresh, hp⟩, ?_⟩
-    rcases hckr' : s.ckr with _ | ck
-    · simp
-    · have := hc (by simp [hckr'])
-      simp [this.1, this.2]
+  · rintro ⟨⟨⟨⟨hb, hr⟩, hfresh, hcan, hp⟩, hc⟩, hdhs, hdhr⟩
+    refine ⟨hb, hr, hfresh, hp, ?_, hdhs, ?_, hcan⟩
+    · intro hckr
+      rcases hckr' : s.ckr with _ | ck
+      · simp [hckr'] at hckr
+      · rw [hckr'] at hc; simpa using hc
+    · intro k hk
+      rw [hk] at hdhr; simpa using hdhr
+  · rintro ⟨hb, hr, hfresh, hp, hc, hdhs, hdhr, hcan⟩
+    refine ⟨⟨⟨⟨hb, hr⟩, hfresh, hcan, hp⟩, ?_⟩, hdhs, ?_⟩
+    · rcases hckr' : s.ckr with _ | ck
+      · simp
+      · have := hc (by simp [hckr'])
+        simp [this.1, this.2]
+    · rcases hdr : s.dhr_pub with _ | k
+      · simp
+      · simpa using hdhr k hdr
 
 /-- **A state the translated `from_bytes` returns satisfies `Inv`.** No
 assumption of any kind: the hypothesis is that the decoder returned, so every
@@ -464,8 +501,8 @@ set_option maxRecDepth 100000
 
 /-- The 185 bytes: version `1`; `dhs_pub`; `dhr_pub` present; `rk`; `cks`
 present; `ckr` present; `ns`, `nr`, `pn` and `events` all zero; the label
-byte; a zero skipped-key count. Every key is all-zero, which no clause of the
-invariant constrains. -/
+byte; a zero skipped-key count. Every key is all-zero. The invariant's one
+clause about keys asks `dhs_pub` and `dhr_pub` to be canonical, and zero is. -/
 def witnessList : List Std.U8 :=
   1#u8 :: (List.replicate 32 0#u8 ++ 1#u8 :: (List.replicate 32 0#u8 ++
     (List.replicate 32 0#u8 ++ 1#u8 :: (List.replicate 32 0#u8 ++
@@ -484,21 +521,34 @@ def witnessBytes : Slice Std.U8 :=
 
 @[local simp] theorem witnessBytes_len : Slice.len witnessBytes = 185#usize := rfl
 
-/-- `read_key` returns whenever 32 bytes remain. Its value is not needed: no
-clause of `Inv` looks at a key. -/
+/-- `read_key` over thirty-two zero bytes is the zero key. Its value is needed:
+the invariant asks `dhs_pub` and `dhr_pub` to be canonical, so the proof below
+has to know which key was read. -/
 @[local step]
-theorem read_key_returns (v : Slice Std.U8) (pos : Std.Usize)
-    (hlen : pos.val + 32 ≤ v.length) : read_key v pos ⦃ fun _ => True ⦄ := by
+theorem read_key_of_zeros (v : Slice Std.U8) (pos : Std.Usize)
+    (hlen : pos.val + 32 ≤ v.length)
+    (hz : List.slice pos.val (pos.val + 32) v.val = List.replicate 32 0#u8) :
+    read_key v pos ⦃ fun r => r = Std.Array.repeat 32#usize 0#u8 ⦄ := by
   unfold read_key
   step*
-  scalar_tac
+  · scalar_tac
+  · have h32 : s2.val = List.replicate 32 0#u8 := by
+      rw [s2_post, s1_post1, i_post]; exact hz
+    have h5 : (Std.Array.repeat 32#usize 0#u8).from_slice s2
+        = Std.Array.repeat 32#usize 0#u8 := by
+      apply Subtype.ext
+      rw [Std.Array.from_slice_val _ _ (by rw [h32]; rfl)]
+      rw [h32]; rfl
+    rw [s_post2, h5]
 
-/-- `read_optional_key` on a `1` tag: the present branch, a `read_key` and no
-loop. -/
+/-- `read_optional_key` on a `1` tag over thirty-two zero bytes: the present
+branch, a `read_key` and no loop, giving the zero key. -/
 @[local step]
 theorem read_optional_key_present (v : Slice Std.U8) (pos : Std.Usize)
-    (hlen : pos.val + 33 ≤ v.length) (htag : v.val[pos.val]? = some 1#u8) :
-    read_optional_key v pos ⦃ fun r => ∃ k, r = core.result.Result.Ok (some k) ⦄ := by
+    (hlen : pos.val + 33 ≤ v.length) (htag : v.val[pos.val]? = some 1#u8)
+    (hz : List.slice (pos.val + 1) (pos.val + 33) v.val = List.replicate 32 0#u8) :
+    read_optional_key v pos ⦃ fun r =>
+      r = core.result.Result.Ok (some (Std.Array.repeat 32#usize 0#u8)) ⦄ := by
   unfold read_optional_key
   rw [slice_index_eq v pos 1#u8 htag]
   simp only [bind_tc_ok]
@@ -568,6 +618,10 @@ theorem skipped_encoded_len_eq : SkippedKey.ENCODED_LEN = ok 72#usize := by
 
 theorem label_byte_zero : LabelSet.from_byte 0#u8 = ok (some LabelSet.Tacenta) := rfl
 
+/-- The zero key is canonical: bit 255 clear, and its last byte is not `0x7f`. -/
+theorem canonical_zeros : Tacenta.T1.canonicalX25519 (Std.Array.repeat 32#usize 0#u8) = true := by
+  decide
+
 set_option maxHeartbeats 1000000 in
 /-- **The translated `from_bytes` accepts `witnessBytes`.** -/
 theorem from_bytes_accepts_witness :
@@ -610,7 +664,14 @@ theorem from_bytes_accepts_witness :
       split
       · simp
       · exfalso
-        simp_all [InvB, chainsOk, storeOk, MAX_SKIPPED_STORE, Std.U32.max_eq]
+        -- The label byte's facts would have `simp_all` rewrite the zero byte
+        -- as `witnessList[180]`, inside the keys as well, where
+        -- `canonical_zeros` no longer matches. Nothing below needs them.
+        try clear i4_post
+        try clear hi4
+        try clear hq
+        simp_all [InvB, chainsOk, storeOk, keysOk, canonical_zeros, MAX_SKIPPED_STORE,
+          Std.U32.max_eq]
   obtain ⟨r, hr, hre⟩ := Std.WP.spec_imp_exists h
   obtain ⟨s, rfl⟩ := hre
   exact ⟨s, hr⟩

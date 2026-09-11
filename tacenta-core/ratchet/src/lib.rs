@@ -360,7 +360,16 @@ impl State {
     /// - the chains are present in the order the operations open them.
     ///   `init_sender` opens the sending chain, and only `dh_ratchet` opens a
     ///   receiving one, setting the peer key and both chains at once; so a
-    ///   receiving chain implies a sending chain and a peer key.
+    ///   receiving chain implies a sending chain and a peer key;
+    /// - every curve public key the state holds -- `dhs_pub`, `dhr_pub` when
+    ///   present, and each stored key's `dh` -- is its canonical encoding
+    ///   (`is_canonical_x25519`; session-persistence.md, Stored curve public
+    ///   keys). A header's `dh` is compared with `dhr_pub` and with the store's
+    ///   entries byte for byte, so a second spelling of one key would be a
+    ///   second key here. The operations store the keys their caller hands
+    ///   them, so this clause is inductive exactly when the caller hands them
+    ///   canonical keys, as the session does: every key it passes was decoded
+    ///   from the wire, checked from a bundle, or computed by X25519.
     ///
     /// Not constrained: `ns`, `nr` and `pn`. A saturated counter is a state
     /// an honest run reaches, and `send` and `receive` refuse it with
@@ -373,6 +382,9 @@ impl State {
         let mut i = 0;
         while i < self.skipped.len() {
             if self.skipped[i].stored_at > self.events {
+                store_ok = false;
+            }
+            if !is_canonical_x25519(&self.skipped[i].dh) {
                 store_ok = false;
             }
             let mut j = i + 1;
@@ -392,8 +404,45 @@ impl State {
             None => true,
             Some(_) => matches!((self.cks, self.dhr_pub), (Some(_), Some(_))),
         };
-        self.skipped.len() <= MAX_SKIPPED_STORE && self.events < u32::MAX && store_ok && chains_ok
+        let keys_ok = is_canonical_x25519(&self.dhs_pub)
+            && match &self.dhr_pub {
+                None => true,
+                Some(k) => is_canonical_x25519(k),
+            };
+        self.skipped.len() <= MAX_SKIPPED_STORE
+            && self.events < u32::MAX
+            && store_ok
+            && chains_ok
+            && keys_ok
     }
+}
+
+/// Whether `k` is the one encoding of its X25519 public key: bit 255 clear, and
+/// the little-endian value below p = 2^255 - 19 (message-format.md, Curve
+/// public keys).
+///
+/// X25519 ignores bit 255 and reduces modulo p, so without this check more
+/// than one byte string names the same key. With bit 255 clear, the value
+/// reaches p only when the last byte is `0x7f`, the thirty bytes between are
+/// all `0xff`, and the first byte is at least `0xed`.
+///
+/// The same function as `tacenta_session::is_canonical_x25519` and
+/// `tacenta_wire`'s, repeated rather than imported because this crate depends
+/// on nothing but the key derivation. The loop has no early exit, the same
+/// shape as theirs, so the translation sees a single path through it.
+fn is_canonical_x25519(k: &Key) -> bool {
+    if k[31] >= 0x80 {
+        return false;
+    }
+    let mut middle_all_ff = true;
+    let mut i = 1;
+    while i < 31 {
+        if k[i] != 0xff {
+            middle_all_ff = false;
+        }
+        i += 1;
+    }
+    !(k[31] == 0x7f && middle_all_ff && k[0] >= 0xed)
 }
 
 /// This crate's own persistence-format version (`State::to_bytes`/
@@ -1694,5 +1743,71 @@ mod tests {
             State::from_bytes(&bytes),
             Err(RatchetDecodeError::Malformed)
         );
+    }
+
+    /// The two other spellings of a canonical key `k`: bit 255 set, and
+    /// `k + p` with p = 2^255 - 19. Both name the key `k` does, since X25519
+    /// ignores bit 255 and reduces modulo p.
+    fn respellings(k: &Key) -> [Key; 2] {
+        let mut p = [0xffu8; 32];
+        p[0] = 0xed;
+        p[31] = 0x7f;
+        let mut high = *k;
+        high[31] |= 0x80;
+        let mut plus_p = [0u8; 32];
+        let mut carry = 0u16;
+        let mut i = 0;
+        while i < 32 {
+            let sum = u16::from(k[i]) + u16::from(p[i]) + carry;
+            plus_p[i] = sum.to_le_bytes()[0];
+            carry = sum >> 8;
+            i += 1;
+        }
+        assert_eq!(carry, 0, "a canonical key is below p, so adding p fits");
+        [high, plus_p]
+    }
+
+    /// Every curve public key the state holds must be canonical
+    /// (session-persistence.md, Semantic rules of the leaf formats): the
+    /// sending key, the peer's key, and a stored key's `dh`. Each re-spelled
+    /// both ways is refused as malformed, and the state as exported imports.
+    #[test]
+    fn from_bytes_refuses_a_respelled_curve_public_key() {
+        let mut sa = init_sender(&SK, A_PUB, B_PUB, &DH_AB, LabelSet::Tacenta);
+        let mut sb = init_receiver(&SK, B_PUB, LabelSet::Tacenta);
+        send(&mut sa).unwrap();
+        let (h1, _) = send(&mut sa).unwrap();
+        // Out of order, so the first message's key is stored under A's key.
+        receive(&mut sb, &h1, &DH_AB, &DH_B2A, B2_PUB).unwrap();
+        assert_eq!(sb.dhs_pub, B2_PUB);
+        assert_eq!(sb.dhr_pub, Some(A_PUB));
+        assert_eq!(sb.skipped.len(), 1);
+        assert_eq!(sb.skipped[0].dh, A_PUB);
+
+        let bytes = sb.to_bytes().to_vec();
+        assert!(
+            State::from_bytes(&bytes).is_ok(),
+            "the honest state imports"
+        );
+
+        // `dhs_pub` after the version byte, `dhr_pub` after its presence
+        // byte, and the first stored key's `dh` at the start of its entry.
+        for (at, what) in [
+            (1, "dhs_pub"),
+            (34, "dhr_pub"),
+            (FIXED_LEN, "a stored key's dh"),
+        ] {
+            let mut honest = [0u8; 32];
+            honest.copy_from_slice(&bytes[at..at + 32]);
+            for key in respellings(&honest) {
+                let mut respelled = bytes.clone();
+                respelled[at..at + 32].copy_from_slice(&key);
+                assert_eq!(
+                    State::from_bytes(&respelled),
+                    Err(RatchetDecodeError::Malformed),
+                    "a re-spelled {what}"
+                );
+            }
+        }
     }
 }

@@ -28,7 +28,8 @@ use tacenta_triple::{DrHeader, Header, Key, LabelSet, Output, State};
 const SK: &[u8] = &[0x01; 32];
 const A_PUB: Key = [0x0a; 32];
 const B_PUB: Key = [0x0b; 32];
-const NEW_PUB: Key = [0xb2; 32];
+// Canonical, as every key the session hands the ratchet is.
+const NEW_PUB: Key = [0x2b; 32];
 const DH_AB: Key = [0xab; 32];
 const DH_B2A: Key = [0xba; 32];
 
@@ -66,6 +67,14 @@ fn header_at(bytes: &[u8]) -> (Header, Option<Output>) {
     )
 }
 
+/// Whether a ratchet key is its canonical encoding: bit 255 clear, and the
+/// little-endian value below p = 2^255 - 19. With bit 255 clear the value
+/// reaches p only as `0x7f`, thirty `0xff` bytes and a first byte of at least
+/// `0xed`.
+fn canonical(k: &Key) -> bool {
+    k[31] < 0x80 && !(k[31] == 0x7f && k[1..31].iter().all(|b| *b == 0xff) && k[0] >= 0xed)
+}
+
 fuzz_target!(|data: &[u8]| {
     let Some(role) = data.first() else {
         return;
@@ -86,6 +95,13 @@ fuzz_target!(|data: &[u8]| {
     while pos + STRIDE <= data.len() {
         let (header, output) = header_at(&data[pos..pos + STRIDE]);
         pos += STRIDE;
+        // The composite header's decoder refuses a ratchet key that is not its
+        // canonical encoding (message-format.md, Curve public keys), so no such
+        // key reaches the Triple Ratchet, and a state holding one breaks the
+        // classical ratchet's invariant. Skipped here, as the decoder would.
+        if !canonical(&header.dr.dh) {
+            continue;
+        }
 
         if let Ok((next, _key)) = state.receive(&header, &DH_AB, &DH_B2A, NEW_PUB, output.as_ref())
         {

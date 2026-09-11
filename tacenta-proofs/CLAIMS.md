@@ -457,6 +457,15 @@ Location: `tacenta-proofs/translation/Translation/T1.lean` and
 
 - `kdf_ck_no_panic`: the chain-key step `kdf_ck` cannot panic. Its axiom base is
   pinned in `T1.lean` alongside `send_no_panic` and `receive_no_panic`.
+- `Tacenta.T1.is_canonical_x25519_spec`: the canonicity check
+  `State::invariant` applies to every curve public key the ratchet state holds
+  (session-persistence.md, Stored curve public keys) computes exactly
+  `canonicalX25519`: bit 255 clear, and not the pattern of a value of at least
+  p = 2^255 - 19. The check's value is proved, not only that it returns,
+  because `ImportInv` characterises the invariant by its value. The function
+  and these lemmas repeat `tacenta-session`'s (`Translation/SessionT1.lean`)
+  and `tacenta-wire`'s, since this crate depends on nothing but the key
+  derivation.
 - `send_no_panic`: sending on the classical ratchet cannot panic; the
   `ChainExhausted` refusal at the `u32` counter's limit is a returned error,
   not a failure. Pinned with the other two.
@@ -896,10 +905,16 @@ this file in substance:
 
 ### `tacenta-ratchet` -- complete
 
-`Inv` mirrors `State::invariant`'s five clauses on the translated state: the
+`Inv` mirrors `State::invariant`'s six clauses on the translated state: the
 store is at most `MAX_SKIPPED_STORE`, `events` is below `u32::MAX`, no stored
 entry's `stored_at` is ahead of `events`, the store is pairwise distinct on
-`(dh, n)`, and a receiving chain implies a sending chain and a peer key.
+`(dh, n)`, a receiving chain implies a sending chain and a peer key, and every
+curve public key the state holds -- `dhs_pub`, `dhr_pub` when present, and
+each stored entry's `dh` -- is canonical (`dhs_canonical`, `dhr_canonical`,
+`store_canonical`; session-persistence.md, Stored curve public keys). The last
+clause was added in 2026-09 with the rule; the invariant's value on it is
+`Tacenta.T1.canonicalX25519`, which `Tacenta.T1.is_canonical_x25519_spec` proves
+the check computes, and `Ratchet.canonical_eq` restates as an equation.
 
 - `Ratchet.invariant_eq : State.invariant s = ok (InvB s)` -- the translated
   Bool-valued `invariant` is total and computes an explicit Bool, on every
@@ -948,7 +963,8 @@ entry's `stored_at` is ahead of `events`, the store is pairwise distinct on
 - `Ratchet.from_bytes_accepts_witness`: `∃ s, State.from_bytes witnessBytes =
   ok (Ok s)` -- the translated decoder accepts a concrete 185-byte string
   (`witnessBytes`: version byte, four keys with each `Option` tag present,
-  four zero counters, the label byte, a zero skipped-key count). Axioms:
+  four zero counters, the label byte, a zero skipped-key count; every key is
+  zero, which is canonical, as the invariant's key clause asks). Axioms:
   `propext`, `Classical.choice`, `Quot.sound`, pinned. The concrete byte
   reads are `decide` on a list literal, so this is kernel work and not
   `native_decide`'s compiler trust.
@@ -1095,6 +1111,9 @@ in CI, so the copies cannot drift from the originals in either direction.
 
 - `Tacenta.UnitT1.kdf_ck_no_panic`: `kdf_ck` compiled inside the unit cannot
   panic.
+- `Tacenta.UnitT1.is_canonical_x25519_spec`: the classical ratchet's canonicity
+  check compiled inside the unit computes exactly `canonicalX25519`, as its
+  leaf twin does.
 - `Tacenta.UnitT1.send_no_panic`: likewise for the classical ratchet's send.
 - `Tacenta.UnitT1.receive_no_panic`: likewise for receive, under exactly the
   hypotheses the leaf theorem takes.

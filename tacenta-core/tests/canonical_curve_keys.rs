@@ -275,3 +275,255 @@ fn a_ratchet_message_with_a_respelled_ratchet_key_is_refused_at_decode() {
         assert_eq!(decode_message(&respelled), Err(DecodeError::WrongType));
     }
 }
+
+/// Every curve public key a stored state holds is canonical too
+/// (session-persistence.md, Stored curve public keys). Each test takes an
+/// honest export, checks that it imports, re-spells one stored key both ways in
+/// place, and checks that the reader refuses it with the kind the page names.
+mod stored_keys {
+    use super::respellings;
+    use rand::SeedableRng;
+    use tacenta_core::primitives::dh::PublicKeyBytes;
+    use tacenta_core::sessions::{
+        Identity, LifecycleError, PrekeyStore, PrekeyStoreDecodeError, Session, SessionDecodeError,
+        establish_initiator, establish_responder,
+    };
+
+    /// Where the classical ratchet state starts in a session export: after the
+    /// session's version byte and `triple_state`'s length, then
+    /// `triple_state`'s own version byte and the ratchet state's length.
+    const RATCHET_STATE: usize = 1 + 4 + 1 + 4;
+
+    /// The ratchet state's fixed fields, 185 bytes, after which its stored
+    /// keys start, each with its `dh` first (session-persistence.md, Ratchet
+    /// state). The count is the four bytes before them.
+    const RATCHET_FIXED: usize = 185;
+
+    fn u32_at(bytes: &[u8], at: usize) -> usize {
+        u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap()) as usize
+    }
+
+    fn key_at(bytes: &[u8], at: usize) -> [u8; 32] {
+        bytes[at..at + 32].try_into().unwrap()
+    }
+
+    /// Offsets in a session export (session-persistence.md, Session).
+    struct Offsets {
+        identity_ad: usize,
+        our_identity: usize,
+        peer_identity: usize,
+        /// `pending_initial`'s bytes, which start with its `ephemeral_public`.
+        pending: Option<usize>,
+    }
+
+    fn offsets(bytes: &[u8]) -> Offsets {
+        assert_eq!(bytes[0], 0x01, "session format version");
+        let mut pos = 1;
+        pos += 4 + u32_at(bytes, pos); // triple_state
+        pos += 4 + u32_at(bytes, pos); // braid
+        pos += 32; // ratchet_private
+        assert_eq!(u32_at(bytes, pos), 66, "two EncodeEC values");
+        let identity_ad = pos + 4;
+        pos = identity_ad + 66;
+        let pending = match bytes[pos + 64] {
+            0x00 => None,
+            0x01 => Some(pos + 64 + 1 + 4),
+            other => panic!("presence byte {other:#04x}"),
+        };
+        Offsets {
+            identity_ad,
+            our_identity: pos,
+            peer_identity: pos + 32,
+            pending,
+        }
+    }
+
+    fn import_error(bytes: &[u8]) -> Option<SessionDecodeError> {
+        Session::import(bytes).err()
+    }
+
+    /// An initiator that has sent its initial message and not been answered,
+    /// and the responder that established from it.
+    fn pair(seed: u64) -> (Session, Session) {
+        let mut r = rand::rngs::StdRng::seed_from_u64(seed);
+        let bob = Identity::generate(&mut r);
+        let mut store = bob.create_prekeys(1, &mut r);
+        let bundle = store.publish();
+        let alice = Identity::generate(&mut r);
+        let mut initiator = establish_initiator(&alice, &bundle, &mut r).unwrap();
+        let first = initiator.encrypt(b"first", &mut r).unwrap();
+        let (responder, _) = establish_responder(&bob, &mut store, &first, &mut r).unwrap();
+        (initiator, responder)
+    }
+
+    /// `our_identity_public` and `peer_identity_public`, in both roles. A key
+    /// re-spelled on its own also breaks the associated-data rule; re-spelled
+    /// together with its copy inside `identity_ad`, it breaks only the rule on
+    /// stored curve public keys. Both are inconsistent.
+    #[test]
+    fn a_session_holding_a_respelled_identity_key_is_refused_as_inconsistent() {
+        let (initiator, responder) = pair(41);
+        for (session, role) in [(&initiator, "initiator"), (&responder, "responder")] {
+            let bytes = session.export().to_vec();
+            assert!(Session::import(&bytes).is_ok(), "the honest {role} imports");
+            let o = offsets(&bytes);
+            for (at, which) in [(o.our_identity, "our"), (o.peer_identity, "peer")] {
+                let honest = key_at(&bytes, at);
+                // The same key inside `identity_ad`, after its curve byte.
+                let copy = [o.identity_ad + 1, o.identity_ad + 34]
+                    .into_iter()
+                    .find(|c| key_at(&bytes, *c) == honest)
+                    .expect("identity_ad holds both identities");
+                for key in respellings(&honest) {
+                    let mut alone = bytes.clone();
+                    alone[at..at + 32].copy_from_slice(&key);
+                    let mut with_ad = alone.clone();
+                    with_ad[copy..copy + 32].copy_from_slice(&key);
+                    for (crafted, how) in [(alone, "alone"), (with_ad, "with identity_ad")] {
+                        assert_eq!(
+                            import_error(&crafted),
+                            Some(SessionDecodeError::Inconsistent),
+                            "{role}: {which} identity re-spelled {how}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// `pending_initial`'s `ephemeral_public`, on an unanswered initiator.
+    #[test]
+    fn a_pending_initial_message_with_a_respelled_ephemeral_is_refused_as_inconsistent() {
+        let (initiator, _) = pair(43);
+        let bytes = initiator.export().to_vec();
+        assert!(
+            Session::import(&bytes).is_ok(),
+            "the honest initiator imports"
+        );
+        let at = offsets(&bytes)
+            .pending
+            .expect("an unanswered initiator holds its initial message");
+        for key in respellings(&key_at(&bytes, at)) {
+            let mut respelled = bytes.clone();
+            respelled[at..at + 32].copy_from_slice(&key);
+            assert_eq!(
+                import_error(&respelled),
+                Some(SessionDecodeError::Inconsistent),
+                "a re-spelled pending ephemeral"
+            );
+        }
+    }
+
+    /// The classical ratchet state's `dhs_pub`, `dhr_pub` and a stored key's
+    /// `dh`, inside a session. The ratchet state's own reader refuses each, so
+    /// the session reports its `triple_state` as malformed; for `dhs_pub` that
+    /// comes before the rule on `ratchet_private`.
+    #[test]
+    fn a_session_whose_ratchet_state_holds_a_respelled_key_is_refused_as_malformed() {
+        let mut r = rand::rngs::StdRng::seed_from_u64(47);
+        let bob = Identity::generate(&mut r);
+        let mut store = bob.create_prekeys(1, &mut r);
+        let bundle = store.publish();
+        let alice = Identity::generate(&mut r);
+        let mut initiator = establish_initiator(&alice, &bundle, &mut r).unwrap();
+        let first = initiator.encrypt(b"first", &mut r).unwrap();
+        let (mut responder, _) = establish_responder(&bob, &mut store, &first, &mut r).unwrap();
+        let _second = initiator.encrypt(b"second", &mut r).unwrap();
+        let third = initiator.encrypt(b"third", &mut r).unwrap();
+        // Out of order, so the second message's key is stored.
+        assert_eq!(responder.decrypt(&third, &mut r).unwrap(), b"third");
+
+        let bytes = responder.export().to_vec();
+        assert!(
+            Session::import(&bytes).is_ok(),
+            "the honest responder imports"
+        );
+        assert_eq!(bytes[RATCHET_STATE], 0x01, "ratchet state format version");
+        assert_eq!(bytes[RATCHET_STATE + 33], 0x01, "dhr_pub is present");
+        assert!(
+            u32_at(&bytes, RATCHET_STATE + RATCHET_FIXED - 4) >= 1,
+            "a key is stored"
+        );
+
+        for (at, what) in [
+            (RATCHET_STATE + 1, "dhs_pub"),
+            (RATCHET_STATE + 34, "dhr_pub"),
+            (RATCHET_STATE + RATCHET_FIXED, "a stored key's dh"),
+        ] {
+            for key in respellings(&key_at(&bytes, at)) {
+                let mut respelled = bytes.clone();
+                respelled[at..at + 32].copy_from_slice(&key);
+                assert_eq!(
+                    import_error(&respelled),
+                    Some(SessionDecodeError::Malformed),
+                    "a re-spelled {what}"
+                );
+            }
+        }
+    }
+
+    /// The prekey store's `identity_public`, which follows its version byte.
+    #[test]
+    fn a_prekey_store_with_a_respelled_identity_key_is_refused_as_malformed() {
+        let mut r = rand::rngs::StdRng::seed_from_u64(53);
+        let bob = Identity::generate(&mut r);
+        let store = bob.create_prekeys(2, &mut r);
+        let bytes = store.to_bytes().to_vec();
+        assert!(
+            PrekeyStore::from_bytes(&bytes).is_ok(),
+            "the honest store imports"
+        );
+        assert_eq!(key_at(&bytes, 1), *bob.public().as_bytes());
+        for key in respellings(&key_at(&bytes, 1)) {
+            let mut respelled = bytes.clone();
+            respelled[1..33].copy_from_slice(&key);
+            assert!(
+                matches!(
+                    PrekeyStore::from_bytes(&respelled),
+                    Err(PrekeyStoreDecodeError::Malformed)
+                ),
+                "a re-spelled identity key"
+            );
+        }
+    }
+
+    /// A bundle that did not come through `decode_bundle`, with one of its
+    /// three curve keys re-spelled, is refused before anything uses it
+    /// (session-establishment.md, Sending the initial message). Otherwise the
+    /// session would store the key, and its own reader would refuse the
+    /// session.
+    #[test]
+    fn a_bundle_built_with_a_respelled_curve_key_is_refused_before_it_is_used() {
+        let mut r = rand::rngs::StdRng::seed_from_u64(59);
+        let bob = Identity::generate(&mut r);
+        let store = bob.create_prekeys(1, &mut r);
+        let alice = Identity::generate(&mut r);
+        let honest = store.publish().bundle;
+        let one_time = honest
+            .one_time_prekey
+            .expect("the store holds a one-time prekey");
+        for (which, k) in [
+            (0, honest.identity_key),
+            (1, honest.signed_prekey),
+            (2, one_time),
+        ] {
+            for key in respellings(k.as_bytes()) {
+                let key = PublicKeyBytes::from_bytes(key);
+                let mut published = store.publish();
+                match which {
+                    0 => published.bundle.identity_key = key,
+                    1 => published.bundle.signed_prekey = key,
+                    _ => published.bundle.one_time_prekey = Some(key),
+                }
+                assert!(
+                    matches!(
+                        establish_initiator(&alice, &published, &mut r),
+                        Err(LifecycleError::BadEncoding)
+                    ),
+                    "bundle key {which} re-spelled"
+                );
+            }
+        }
+        assert!(establish_initiator(&alice, &store.publish(), &mut r).is_ok());
+    }
+}
