@@ -534,6 +534,19 @@ impl Braid {
     /// makes the first non-systematic send pay for a quadratic weight
     /// computation over a count the file chose (CR-14, CR-21).
     ///
+    /// The key pair the four header-sending states hold passes
+    /// [`key_pair_valid`]: the check a completed `ek_vector` passes against
+    /// its header, made on the pair's own two public parts. `generate`
+    /// produces such a pair and nothing changes one, so every state this
+    /// crate builds keeps the clause. A stored pair that breaks it -- a
+    /// header hash that is not the hash of the pair's own encapsulation key,
+    /// or an `ek_vector` coefficient at or above q -- decapsulates, by
+    /// implicit rejection, to a secret the peer does not hold, and the epoch
+    /// then ends in `Failed` at the ciphertext MAC rather than at import
+    /// (session-persistence.md, register item J-4). The rest of the pair,
+    /// its secret half included, has nothing this crate can check it
+    /// against, and neither has an `EncapsState`; neither is checked.
+    ///
     /// The `ct1` clause is the one `BraidT1`'s `State.ct1_bounded` carries
     /// into `step_receive`, stated exactly rather than as its bound:
     /// `CT1_LEN` is 1408, within the 4096 it asks for.
@@ -558,11 +571,17 @@ impl Braid {
     pub fn invariant(&self) -> bool {
         match &self.state {
             State::KeysUnsampled { epoch, .. } => *epoch >= 1,
-            State::KeysSampled { epoch, hdr_enc, .. } => {
-                *epoch >= 1 && hdr_enc.invariant() && encoder_sized(hdr_enc, HEADER_LEN + MAC_LEN)
+            State::KeysSampled {
+                epoch, kp, hdr_enc, ..
+            } => {
+                *epoch >= 1
+                    && hdr_enc.invariant()
+                    && encoder_sized(hdr_enc, HEADER_LEN + MAC_LEN)
+                    && key_pair_valid(kp)
             }
             State::HeaderSent {
                 epoch,
+                kp,
                 ct1_dec,
                 ek_enc,
                 ..
@@ -572,17 +591,24 @@ impl Braid {
                     && decoder_sized(ct1_dec, CT1_LEN)
                     && ek_enc.invariant()
                     && encoder_sized(ek_enc, EK_VECTOR_LEN)
+                    && key_pair_valid(kp)
             }
             State::Ct1Received {
-                epoch, ct1, ek_enc, ..
+                epoch,
+                kp,
+                ct1,
+                ek_enc,
+                ..
             } => {
                 *epoch >= 1
                     && ct1.len() == CT1_LEN
                     && ek_enc.invariant()
                     && encoder_sized(ek_enc, EK_VECTOR_LEN)
+                    && key_pair_valid(kp)
             }
             State::EkSentCt1Received {
                 epoch,
+                kp,
                 ct1,
                 ct2_dec,
                 ..
@@ -591,6 +617,7 @@ impl Braid {
                     && ct1.len() == CT1_LEN
                     && ct2_dec.invariant()
                     && decoder_sized(ct2_dec, CT2_LEN + MAC_LEN)
+                    && key_pair_valid(kp)
             }
             State::NoHeaderReceived { epoch, hdr_dec, .. } => {
                 *epoch >= 1 && hdr_dec.invariant() && decoder_sized(hdr_dec, HEADER_LEN + MAC_LEN)
@@ -1843,6 +1870,25 @@ fn encoder_sized(enc: &Encoder, len: usize) -> bool {
 
 fn decoder_sized(dec: &Decoder, len: usize) -> bool {
     dec.size() == len
+}
+
+/// Whether a stored key pair's own header and encapsulation-key vector pass
+/// the check a completed `ek_vector` passes against a received header: the
+/// header's `H(ek)` is the hash of `ek_vector || rho`, which is FIPS 203
+/// section 7.3's hash check made on the incremental key pair, whose
+/// decapsulation uses that hash; and every coefficient of `ek_vector` is
+/// below q, section 7.2's modulus check (session-persistence.md, Braid).
+///
+/// `validate_ek` belongs to the trusted boundary (`tacenta-kem`, over
+/// libcrux's `validate_pk_bytes`), and reaches the translation as the same
+/// opaque declaration `step_receive` already calls, as do `header` and
+/// `ek_vector`, so this check adds no declaration to it. What it covers is
+/// the pair's public half and nothing more; `Braid::invariant` says what is
+/// left.
+fn key_pair_valid(kp: &IncrementalKeyPair) -> bool {
+    let header = kp.header();
+    let ek_vector = kp.ek_vector();
+    validate_ek(&header, &ek_vector)
 }
 
 /// Decode one state variant's fields (everything after the tag byte),
