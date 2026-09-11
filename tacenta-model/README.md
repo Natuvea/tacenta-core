@@ -2,8 +2,13 @@
 
 Executable / formal mathematical model.
 
-The formal model of the protocol (Lean), against which the proofs are stated and
-the implementation is shown to refine. The model is also the vector oracle: it
+The formal statement of the specification (Lean): the same definition as
+`../tacenta-spec`'s prose, against which the proofs are stated and the
+implementation is shown to refine. It belongs to the specification, not to
+the implementation. Where it and the prose disagree, the specification is
+defective and both are fixed
+(`../tacenta-spec/decisions/ADR-0006-specification-is-normative.md`).
+The model is also the vector oracle: it
 computes the protocol key schedule to exact bytes, so protocol-level test vectors
 are generated from it rather than from the implementation checking itself.
 
