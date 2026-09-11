@@ -10,6 +10,10 @@ identifier. So a file can pass the runner and still be one the schema forbids,
 and the next language runner, written to the schema, would be the one to find
 out. This makes the schema binding.
 
+(In a known-answer file a decoder's valid vector may carry `fields`, the named
+values its input decodes to, in place of `output`; the rule below counts
+either as the answer.)
+
 Two schemas, chosen by the file's `algorithm` field: `double-ratchet` files
 are scripted scenarios (`schema/ratchet-vector.schema.json`); everything else
 is a known-answer file (`schema/vector.schema.json`). The schemas' `$id`
@@ -25,8 +29,9 @@ keyword added to a schema without support here fails loudly rather than
 being silently ignored.
 
 Beyond the schema, four rules the schemas state in prose and this enforces:
-vector `id`s are unique within a file; in a known-answer file `output` is
-present exactly when `result` is `valid`; in a scenario file an ok step
+vector `id`s are unique within a file; in a known-answer file exactly one of
+`output` and `fields` is present when `result` is `valid`, and neither when it
+is `invalid`; in a scenario file an ok step
 carries `mk` while a reject step carries neither `mk` nor `message_keys`
 (the runner would fail an ok step without `mk`, and a reject step's key is
 never checked, so one that carries it is claiming a check that does not
@@ -256,12 +261,14 @@ def main():
                 check_steps(rel, i, v, problems)
             else:
                 valid = v.get("result", "valid") == "valid"
-                if valid and "output" not in v:
-                    problems.append("%s.vectors[%d] (%s): a valid vector needs an "
-                                    "`output`" % (rel, i, vid))
-                if not valid and "output" in v:
+                answers = [k for k in ("output", "fields") if k in v]
+                if valid and len(answers) != 1:
+                    problems.append("%s.vectors[%d] (%s): a valid vector needs "
+                                    "exactly one of `output` and `fields`"
+                                    % (rel, i, vid))
+                if not valid and answers:
                     problems.append("%s.vectors[%d] (%s): an invalid vector carries "
-                                    "no `output`" % (rel, i, vid))
+                                    "no `output` and no `fields`" % (rel, i, vid))
             checked += 1
 
     if problems:

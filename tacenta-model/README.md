@@ -33,7 +33,9 @@ Status: everything the engine runs is modelled. Beyond the Double Ratchet slice 
 (`Model/SessionEstablishment.lean`), the sparse post-quantum ratchet
 (`Model/SparseRatchet.lean`), the ML-KEM Braid and the field and polynomial
 theory beneath it (`Model/Braid.lean`, `Model/Gf65536.lean`,
-`Model/Polynomial.lean`), the Triple Ratchet (`Model/Triple.lean`,
+`Model/Polynomial.lean`), the erasure code's bytes and its coders' persisted
+formats (`Model/Erasure.lean`, which the vectors are generated from and
+nothing else imports), the Triple Ratchet (`Model/Triple.lean`,
 `Model/TripleRatchet.lean`), the composite header, and a protobuf profile.
 
 Two are still scaffolds and are named rather than left to be discovered:

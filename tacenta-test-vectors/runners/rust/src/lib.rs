@@ -29,10 +29,23 @@ pub struct Vector {
     pub inputs: BTreeMap<String, String>,
     #[serde(default)]
     pub output: String,
+    /// A decoder's answer: the named values an accepted input decodes to,
+    /// carried in place of `output` (schema/vector.schema.json).
+    #[serde(default)]
+    pub fields: Option<BTreeMap<String, String>>,
 }
 
 fn valid() -> String {
     "valid".to_string()
+}
+
+/// Whether the vector expects the operation to succeed.
+fn expects_success(v: &Vector) -> Result<bool, String> {
+    match v.result.as_str() {
+        "valid" => Ok(true),
+        "invalid" => Ok(false),
+        unknown => Err(format!("unknown result {unknown}")),
+    }
 }
 
 /// Load every `*.json` vector file in `dir`.
@@ -298,7 +311,297 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
             }
             Ok(())
         }
+        // The erasure code above the field: chunking, the systematic and
+        // parity codewords, the stream's end, and decoding from what arrived,
+        // first copy winning (mlkem-braid.md, The erasure code).
+        "erasure-encode" => check_erasure_encode(v),
+        "erasure-decode" => check_erasure_decode(v),
+        // The two coders' persisted formats and the rules their readers apply
+        // (session-persistence.md, Erasure coder sub-formats).
+        "erasure-encoder-state" => check_encoder_state(v),
+        "erasure-decoder-state" => check_decoder_state(v),
+        // The bounded protobuf profile's two readers (protobuf-profile.md).
+        "protobuf-ratchet-body" => check_ratchet_body(v),
+        "protobuf-prekey-envelope" => check_prekey_envelope(v),
+        // The AEAD (message-format.md, Authenticated encryption).
+        "aead-encrypt" => check_aead_encrypt(v),
+        "aead-decrypt" => check_aead_decrypt(v),
         other => Err(format!("no runner for algorithm {other}")),
+    }
+}
+
+/// A run of codewords as the vectors write them: `index(2) || chunk(32)`
+/// each, in the order they arrive.
+fn erasure_codewords(bytes: &[u8]) -> Result<Vec<tacenta_erasure::Chunk>, String> {
+    use tacenta_erasure::{CHUNK_BYTES, Chunk};
+    if !bytes.len().is_multiple_of(2 + CHUNK_BYTES) {
+        return Err(format!(
+            "codewords: {} bytes is not a whole number of codewords",
+            bytes.len()
+        ));
+    }
+    let (codewords, _rest) = bytes.as_chunks::<{ 2 + CHUNK_BYTES }>();
+    codewords
+        .iter()
+        .map(|c| {
+            Ok(Chunk {
+                index: u16::from_be_bytes([c[0], c[1]]),
+                data: c[2..].try_into().map_err(|_| "codeword data".to_string())?,
+            })
+        })
+        .collect()
+}
+
+/// A fresh encoder's codewords at the listed indices. The encoder is run from
+/// index 0, and each codeword it issues must carry the next index; with
+/// `stream_length`, it is then run to its end and must issue exactly that
+/// many in all.
+fn check_erasure_encode(v: &Vector) -> Result<(), String> {
+    use tacenta_erasure::Encoder;
+    let message = input(v, "message")?;
+    let indices = bv16s(&input(v, "indices")?)?;
+    let last = indices.iter().copied().max().ok_or("no indices")?;
+    let mut enc = Encoder::new(&message);
+    let mut issued = Vec::with_capacity(usize::from(last) + 1);
+    for expected in 0..=last {
+        let chunk = enc
+            .next_chunk()
+            .ok_or_else(|| format!("the stream ended before index {expected}"))?;
+        if chunk.index != expected {
+            return Err(format!(
+                "issued index {} where {expected} was next",
+                chunk.index
+            ));
+        }
+        issued.push(chunk.data);
+    }
+    let got: Vec<u8> = indices
+        .iter()
+        .flat_map(|&i| issued[usize::from(i)])
+        .collect();
+    eq(&got, &bytes(&v.output)?)?;
+    if v.inputs.contains_key("stream_length") {
+        let want = be32(&input(v, "stream_length")?)? as usize;
+        let mut total = issued.len();
+        while enc.next_chunk().is_some() {
+            total += 1;
+        }
+        if total != want {
+            return Err(format!("the stream issued {total} codewords, not {want}"));
+        }
+    }
+    Ok(())
+}
+
+/// A decoder for `size` bytes offered the listed codewords in order: the
+/// value, or no value for an invalid vector.
+fn check_erasure_decode(v: &Vector) -> Result<(), String> {
+    use tacenta_erasure::Decoder;
+    let size = be32(&input(v, "size")?)? as usize;
+    let mut dec = Decoder::new(size);
+    for c in erasure_codewords(&input(v, "codewords")?)? {
+        dec.add_chunk(c);
+    }
+    match (expects_success(v)?, dec.message()) {
+        (true, Some(m)) => eq(&m, &bytes(&v.output)?),
+        (true, None) => Err("the decoder holds no value; the vector has one".to_string()),
+        (false, None) if !dec.has_message() => Ok(()),
+        (false, _) => Err("the decoder holds a value; the vector has none".to_string()),
+    }
+}
+
+/// An encoder's stored bytes. Either built by operations (`message`,
+/// `issued`) and then written, read back to the same encoder, and continued
+/// to the same next codeword; or offered as `bytes` to the reader, which
+/// accepts them, writing back the output, or refuses them.
+fn check_encoder_state(v: &Vector) -> Result<(), String> {
+    use tacenta_erasure::Encoder;
+    if v.inputs.contains_key("bytes") {
+        let stored = input(v, "bytes")?;
+        return match (expects_success(v)?, Encoder::from_bytes(&stored)) {
+            (true, Some(e)) => eq(&e.to_bytes(), &bytes(&v.output)?),
+            (true, None) => Err("refused stored bytes the vector accepts".to_string()),
+            (false, None) => Ok(()),
+            (false, Some(_)) => Err("accepted stored bytes the vector refuses".to_string()),
+        };
+    }
+    let message = input(v, "message")?;
+    let issued = be32(&input(v, "issued")?)?;
+    let mut enc = Encoder::new(&message);
+    for i in 0..issued {
+        enc.next_chunk()
+            .ok_or_else(|| format!("the stream ended after {i} codewords"))?;
+    }
+    let stored = enc.to_bytes();
+    eq(&stored, &bytes(&v.output)?)?;
+    let mut back =
+        Encoder::from_bytes(&stored).ok_or("the reader refuses what the writer wrote")?;
+    if back != enc {
+        return Err("read back a different encoder".to_string());
+    }
+    if back.next_chunk() != enc.next_chunk() {
+        return Err("the encoder read back issues a different next codeword".to_string());
+    }
+    Ok(())
+}
+
+/// A decoder's stored bytes, the same two ways as `check_encoder_state`; a
+/// decoder built by operations, read back, must still reach the same value.
+fn check_decoder_state(v: &Vector) -> Result<(), String> {
+    use tacenta_erasure::Decoder;
+    if v.inputs.contains_key("bytes") {
+        let stored = input(v, "bytes")?;
+        return match (expects_success(v)?, Decoder::from_bytes(&stored)) {
+            (true, Some(d)) => eq(&d.to_bytes(), &bytes(&v.output)?),
+            (true, None) => Err("refused stored bytes the vector accepts".to_string()),
+            (false, None) => Ok(()),
+            (false, Some(_)) => Err("accepted stored bytes the vector refuses".to_string()),
+        };
+    }
+    let size = be32(&input(v, "size")?)? as usize;
+    let mut dec = Decoder::new(size);
+    for c in erasure_codewords(&input(v, "codewords")?)? {
+        dec.add_chunk(c);
+    }
+    let stored = dec.to_bytes();
+    eq(&stored, &bytes(&v.output)?)?;
+    let back = Decoder::from_bytes(&stored).ok_or("the reader refuses what the writer wrote")?;
+    if back != dec || back.message() != dec.message() {
+        return Err("read back a different decoder".to_string());
+    }
+    Ok(())
+}
+
+/// The decoded values against the vector's `fields`: the same names, and the
+/// same bytes. A value decoded as absent (`None`) must be absent from the
+/// vector, and the vector may name nothing that was not decoded.
+fn fields_eq(v: &Vector, got: &[(&str, Option<Vec<u8>>)]) -> Result<(), String> {
+    let want = v
+        .fields
+        .as_ref()
+        .ok_or("a valid decoder vector carries fields")?;
+    for (name, value) in got {
+        match (value, want.get(*name)) {
+            (Some(g), Some(w)) => eq(g, &bytes(w)?).map_err(|e| format!("{name}: {e}"))?,
+            (None, None) => {}
+            (Some(_), None) => {
+                return Err(format!("decoded {name}, which the vector does not have"));
+            }
+            (None, Some(_)) => {
+                return Err(format!("the vector has {name}, which was not decoded"));
+            }
+        }
+    }
+    match want.keys().find(|k| !got.iter().any(|(n, _)| n == k)) {
+        Some(extra) => Err(format!(
+            "the vector names {extra}, which no decoder field is"
+        )),
+        None => Ok(()),
+    }
+}
+
+fn check_ratchet_body(v: &Vector) -> Result<(), String> {
+    let region = input(v, "region")?;
+    match (
+        expects_success(v)?,
+        tacenta_protobuf::parse_ratchet_body(region),
+    ) {
+        (true, Ok(b)) => fields_eq(
+            v,
+            &[
+                ("ratchet_key", Some(b.ratchet_key)),
+                ("counter", Some(b.counter.to_be_bytes().to_vec())),
+                (
+                    "previous_counter",
+                    Some(b.previous_counter.to_be_bytes().to_vec()),
+                ),
+                ("ciphertext", Some(b.ciphertext)),
+                ("pq", Some(b.pq)),
+            ],
+        ),
+        (true, Err(e)) => Err(format!("refused ({e:?}) a region the vector accepts")),
+        (false, Err(_)) => Ok(()),
+        (false, Ok(_)) => Err("accepted a region the vector refuses".to_string()),
+    }
+}
+
+fn check_prekey_envelope(v: &Vector) -> Result<(), String> {
+    let region = input(v, "region")?;
+    match (
+        expects_success(v)?,
+        tacenta_protobuf::parse_prekey_body(region),
+    ) {
+        (true, Ok(b)) => fields_eq(
+            v,
+            &[
+                ("prekey_id", b.prekey_id.map(|i| i.to_be_bytes().to_vec())),
+                ("base_key", Some(b.base_key)),
+                ("identity_key", Some(b.identity_key)),
+                ("message", Some(b.message)),
+                (
+                    "registration_id",
+                    Some(b.registration_id.to_be_bytes().to_vec()),
+                ),
+                (
+                    "signed_prekey_id",
+                    Some(b.signed_prekey_id.to_be_bytes().to_vec()),
+                ),
+                ("pq_prekey_id", Some(b.pq_prekey_id.to_be_bytes().to_vec())),
+                ("kem", Some(b.kem)),
+            ],
+        ),
+        (true, Err(e)) => Err(format!("refused ({e:?}) a region the vector accepts")),
+        (false, Err(_)) => Ok(()),
+        (false, Ok(_)) => Err("accepted a region the vector refuses".to_string()),
+    }
+}
+
+/// The AEAD key, the MAC key and the IV.
+type AeadKeys = ([u8; 32], [u8; 32], [u8; 16]);
+
+/// The AEAD's three keys, in the shape the message-key expansion hands them
+/// over.
+fn aead_keys(v: &Vector) -> Result<AeadKeys, String> {
+    let iv: [u8; 16] = input(v, "iv")?
+        .try_into()
+        .map_err(|_| "expected a 16-byte iv".to_string())?;
+    Ok((
+        array32(&input(v, "enc_key")?)?,
+        array32(&input(v, "mac_key")?)?,
+        iv,
+    ))
+}
+
+/// `ciphertext || tag` for the plaintext and associated data, which must then
+/// decrypt back to the plaintext.
+fn check_aead_encrypt(v: &Vector) -> Result<(), String> {
+    use tacenta_core::primitives::aead;
+    let (enc, mac, iv) = aead_keys(v)?;
+    let ad = input(v, "ad")?;
+    let plaintext = input(v, "plaintext")?;
+    let out = aead::encrypt(&enc, &mac, &iv, &plaintext, &ad);
+    eq(&out, &bytes(&v.output)?)?;
+    let back = aead::decrypt(&enc, &mac, &iv, &out, &ad)
+        .map_err(|_| "refused its own ciphertext".to_string())?;
+    eq(&back, &plaintext)
+}
+
+/// The receiver: the plaintext, or a refusal. The implementation has one
+/// refusal, `DecryptError`, so every invalid vector ends in the same error by
+/// construction, which is what the section asks for.
+fn check_aead_decrypt(v: &Vector) -> Result<(), String> {
+    use tacenta_core::primitives::aead;
+    let (enc, mac, iv) = aead_keys(v)?;
+    let ad = input(v, "ad")?;
+    let received = input(v, "input")?;
+    match (
+        expects_success(v)?,
+        aead::decrypt(&enc, &mac, &iv, &received, &ad),
+    ) {
+        (true, Ok(plaintext)) => eq(&plaintext, &bytes(&v.output)?),
+        (true, Err(_)) => Err("refused an input the vector accepts".to_string()),
+        (false, Err(aead::DecryptError)) => Ok(()),
+        (false, Ok(_)) => Err("accepted an input the vector refuses".to_string()),
     }
 }
 

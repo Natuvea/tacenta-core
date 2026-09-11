@@ -2,6 +2,7 @@ import Model.AxiomAudit
 import Model.Adversary
 import Model.Braid
 import Model.CompositeHeader
+import Model.Erasure
 import Model.Gf65536
 import Model.Kdf
 import Model.Messages
