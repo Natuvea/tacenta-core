@@ -153,6 +153,15 @@ is SemVer against the specified protocol (not the implementation).
   the things it checks. `establish_initiator_for` takes no prekey store, so
   that assertion cannot fail. Both pages now say the stores are unchanged by
   construction.
+- `protocol/sparse-pq-ratchet.md`, The store also has a total bound: the page
+  said `Proofs.SparseRatchetCorrectness` "proves the bound holds rather than
+  checking it at sample points". The theorem it means,
+  `skipMessageKeys_store_bounded`, is one skip: a skip that succeeds leaves the
+  store no longer than the larger of its previous length and
+  `MAX_SKIPPED_STORE`. No theorem carries the bound across this ratchet's
+  sending, receiving or advancing, or across a sequence of them. The page now
+  names the theorem, says what it proves, and says that over a session the
+  bound is tested rather than proved (register item J-14).
 
 ## [0.2.0] - 2026-09-11
 

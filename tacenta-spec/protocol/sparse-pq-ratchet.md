@@ -220,8 +220,11 @@ messages.
 The Double Ratchet caps its store's total size ([ratchet.md](ratchet.md),
 Skipped keys). The same cap applies here, for the same reason, and a request
 that would exceed it is refused by the ratchet (`SkippedStoreFull`).
-`Proofs.SparseRatchetCorrectness` proves the bound holds rather than checking
-it at sample points.
+`Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded` proves this of
+one skip: a skip that succeeds leaves the store no longer than the larger of
+its previous length and `MAX_SKIPPED_STORE`. No theorem carries the bound
+across this ratchet's sending, receiving or advancing, or across a sequence of
+them, so over a session the bound is tested rather than proved.
 
 The receiver then makes room as the Double Ratchet's does (ratchet.md, Skipped
 keys): it evicts keys from this store, the one stored first going first
