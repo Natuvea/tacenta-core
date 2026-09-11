@@ -5,6 +5,13 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+### Added
+- `decisions/ADR-0008-assurance-expectations.md` (proposed): the practices the
+  project holds itself to, the definition of done, and assurance levels per
+  component. `ASSURANCE.md` at the repository root records where each practice
+  and component stands. A decision about how the work is done, not about the
+  protocol.
+
 ### Changed
 - `protocol/session-persistence.md`, `protocol/session-establishment.md`,
   `protocol/message-format.md`: every curve public key a stored state holds
