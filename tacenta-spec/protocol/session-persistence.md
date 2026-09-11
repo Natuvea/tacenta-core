@@ -678,6 +678,19 @@ message-format.md's rejection section takes for a different reason: there,
 because revealing more helps an attacker; here, because there is no finer
 recovery a storage layer can attempt either way.
 
+**A short buffer with an unknown version may be refused as either.** A
+buffer too short to be read -- shorter than the fixed fields of the version
+the reader reads -- whose version byte is also one the reader does not
+recognise fails two checks at once. This page fixes no order between them,
+so a reader may refuse such a buffer as short or malformed or as a wrong
+version, and which of the two it reports is left to the implementation
+(error-handling.md, What is left to an implementation). Either is a
+conforming refusal; accepting the buffer is not. An empty buffer has no
+version byte and is short. The vectors pin neither refusal: no vector offers
+a reader a buffer that is both too short and wrongly versioned, so a reader
+that reads the version byte first and one that checks the length first pass
+the same vectors.
+
 ## Sources
 
 Unlike every other page in this directory, this format has no published

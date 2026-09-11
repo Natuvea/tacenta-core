@@ -17,6 +17,16 @@ natural numbers and the formats write them in four or eight bytes, so a state
 is written faithfully only when every value fits its field and every key is 32
 bytes (`RatchetState.Fits`, `SparseState.Fits`).
 
+The operations stop at the ceilings the pages state, so the counters they step
+stay inside the fields and the rules: a send leaves `ns` at most `u32::MAX`
+(`Model.Ratchet.send_ns_le`), every accepted receive leaves `events` below it
+(`Model.Ratchet.receive_events_lt`), an advance leaves the sparse epoch below
+`u64::MAX` (`Model.SparseRatchet.advance_epoch_lt`), and a sparse send's new
+counter is at most `u64::MAX` (`Model.SparseRatchet.send_number_le`). That the
+reader accepts every state the operations produce, in full, is not stated
+here: it would also need the key lengths the derivations give, the
+canonicality of the curve keys a caller supplies, and the store staying a map.
+
 What is proved, for each format: a state that keeps the rules and fits its
 fields is read back from the bytes it is written as (`ofBytes_toBytes`); and a
 state the reader returns keeps the rules, fits its fields, and is written as
@@ -329,9 +339,6 @@ namespace RatchetState
 
 open Model.State
 
-/-- `u32::MAX`, the value the received-message clock never holds. -/
-def u32Max : Nat := 2 ^ 32 - 1
-
 /-- An optional key: a presence byte, `0x00` absent or `0x01` present, and the
     key's full 32 bytes either way, zeroed when absent. -/
 def optKeyBytes : Option Key → Bytes
@@ -636,10 +643,7 @@ namespace SparseState
 open Model.SparseRatchet
 open Model.State (Key)
 
-/-- `u64::MAX`, where the window's saturating sum stops. -/
-def u64Max : Nat := 2 ^ 64 - 1
-
-/-- `a + b`, saturating at `u64::MAX`. -/
+/-- `a + b`, saturating at `u64::MAX` (`Model.SparseRatchet.u64Max`). -/
 def satAdd (a b : Nat) : Nat := min (a + b) u64Max
 
 /-- `direction`: `0x00` `A2b`, `0x01` `B2a`. -/

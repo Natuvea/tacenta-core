@@ -68,13 +68,15 @@ theorem trySkipped_is_once (st : State) (h : Header) (r : State × Key)
 /-! ## Expiry removes what it claims to
 
 The store's other exit. Ageing drops every entry past the cap, so a key that has
-outlived the interval is not merely unreachable but absent. -/
+outlived the interval is not merely unreachable but absent. A key's age is the
+new count minus the count stored with it (ratchet.md, Skipped keys), and the new
+count is the clock after the step, which stops at `u32::MAX - 1`. -/
 
 theorem ageStore_drops_the_expired (st : State) :
     ∀ e ∈ (ageStore st).skipped,
-      st.events + 1 - e.2.2.1 < Model.State.maxSkippedAge := by
+      (ageStore st).events - e.2.2.1 < Model.State.maxSkippedAge := by
   intro e he
-  simp only [ageStore, List.mem_filter, decide_eq_true_eq] at he
+  simp only [ageStore, List.mem_filter, decide_eq_true_eq] at he ⊢
   exact he.2
 
 /-- And ageing never adds. Together with the above, the store after a step holds

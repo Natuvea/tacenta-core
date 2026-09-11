@@ -75,17 +75,18 @@ theorem step_preserves_bound {st st' : State}
       exact Nat.le_trans (List.length_filter_le _ _) h
     · exact absurd ht (by simp)
   | aged =>
-    have := List.length_filter_le
-      (fun e : Key × Nat × Nat × Key =>
-        decide (st.events + 1 - e.2.2.1 < maxSkippedAge)) st.skipped
-    simpa [ageStore] using Nat.le_trans this h
+    -- Ageing filters the store, and a filter never grows a list.
+    simp only [ageStore]
+    exact Nat.le_trans (List.length_filter_le _ _) h
   | sent hsd =>
     unfold send at hsd
     split at hsd
     · exact absurd hsd (by simp)
-    · simp only [Option.some.injEq, Prod.mk.injEq] at hsd
-      obtain ⟨rfl, -, -⟩ := hsd
-      exact h
+    · split at hsd
+      · simp only [Option.some.injEq, Prod.mk.injEq] at hsd
+        obtain ⟨rfl, -, -⟩ := hsd
+        exact h
+      · exact absurd hsd (by simp)
   | ratcheted => exact h
 
 /-- **So it survives any sequence.** Whatever a peer does, in whatever order and
@@ -115,10 +116,11 @@ keys are keys and the counters are counters. That is true by inspection of the
 structure rather than by a theorem, and it is worth saying only because a reader
 may wonder why the store gets all the attention.
 
-**Counters can still run out.** They count in the naturals here and in `u32` in
-the core, and that difference is the finite-width boundary recorded in
-`LIMITATIONS.md`. It is not a memory-safety question but it is the other way a
-long-lived session ends badly.
+**Counters can still run out.** The model's operations refuse a step past a
+counter's ceiling, as the core does (ratchet.md, Sending and receiving;
+`Model.Ratchet.send_ns_le`, `Model.Ratchet.receive_events_lt`), so a chain whose
+counter reaches its ceiling goes no further. It is not a memory-safety question
+but it is the other way a long-lived session ends badly.
 
 **Nothing here is about the implementation.** No panic and no out-of-bounds
 access is T1, in another package, against the translated Rust. -/

@@ -72,6 +72,61 @@ fn persistence_vectors_pass() {
             invalid.len()
         );
     }
+    // The counters' ceilings (ratchet.md, Sending and receiving and Skipped
+    // keys; sparse-pq-ratchet.md, Sending and Receiving; session-persistence.md,
+    // Principles). `check_file` above has already replayed each of these on
+    // `tacenta-ratchet` and `tacenta-spqr`: the clock staying at its stop
+    // written as the model writes it, and each step past a ceiling refused
+    // with `ChainExhausted`. This holds the files to carrying them, so a
+    // regeneration that dropped one fails here rather than passing on fewer.
+    let ceilings: [(&str, &[&str], &[&str]); 2] = [
+        (
+            "ratchet-state",
+            &[
+                "clock-stays-at-its-stop",
+                "clock-stays-at-its-stop-on-the-chain",
+            ],
+            &["send-at-u32-max-refused", "receive-at-nr-u32-max-refused"],
+        ),
+        (
+            "sparse-ratchet-state",
+            &[],
+            &[
+                "advance-onto-u64-max-refused",
+                "send-past-u64-max-refused",
+                "receive-past-u64-max-refused",
+            ],
+        ),
+    ];
+    for (algorithm, stays, refused) in ceilings {
+        let file = files
+            .iter()
+            .find(|f| f.algorithm == algorithm)
+            .expect("the file is loaded");
+        let vector = |id: &str| {
+            file.vectors
+                .iter()
+                .find(|v| v.id == id)
+                .unwrap_or_else(|| panic!("{algorithm}: no vector {id}"))
+        };
+        for id in stays {
+            let v = vector(id);
+            assert!(
+                v.result == "valid" && v.inputs.contains_key("steps"),
+                "{algorithm}: {id} is operations the model and the crate both take"
+            );
+        }
+        for id in refused {
+            let v = vector(id);
+            assert!(
+                v.result == "invalid"
+                    && v.inputs.contains_key("steps")
+                    && v.refusal.as_deref() == Some("counter-exhaustion"),
+                "{algorithm}: {id} is operations whose last step is refused as counter exhaustion"
+            );
+        }
+    }
+
     eprintln!(
         "checked {total} persistence vectors in {} files",
         files.len()

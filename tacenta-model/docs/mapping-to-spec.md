@@ -68,14 +68,22 @@ with no field added.
 | Rejection: "wrong version" and "short or malformed" | `Refusal` | `Model/PersistedState.lean` |
 | Principles, Canonical and length-prefixed; Validated, not only parsed | `RatchetState.ofBytes_toBytes`, `SparseState.ofBytes_toBytes` (a state that keeps the rules and fits its fields reads back from its bytes); `RatchetState.ofBytes_ok`, `SparseState.ofBytes_ok` (a state a reader accepts keeps the rules, fits its fields, and is written as the bytes it was read from) | `Model/PersistedState.lean` |
 
-Two points the model decides and the page does not, so no vector depends on
-them. A buffer too short for its fixed fields whose version byte is not `0x01`
-is refused as a wrong version, because the reader reads the version byte
-first. And the model's operations count in the naturals, so they do not refuse
-the steps past the ceilings ratchet.md and sparse-pq-ratchet.md state (`ns`,
-`nr` and a sparse chain's `n` at their maximum, the clock's stop at
-`u32::MAX - 1`, the advance to epoch `u64::MAX`); the vectors stop at those
-ceilings.
+One point the page leaves to the implementation, so no vector depends on it.
+A buffer too short for its fixed fields whose version byte is not `0x01` is
+refused as a wrong version, because the reader reads the version byte first
+(session-persistence.md, Rejection, allows either refusal).
+
+The operations stop at the ceilings ratchet.md and sparse-pq-ratchet.md state,
+so no state they produce holds a counter its format cannot write:
+`Model.Ratchet.send` refuses at `ns = u32::MAX` and `Model.Ratchet.receive`
+past `nr = u32::MAX` (`Model.State.u32Max`); `Model.State.ageStore` stops the
+clock at `u32::MAX - 1` (`Model.State.maxEvents`);
+`Model.SparseRatchet.advance` refuses the step onto epoch `u64::MAX` and
+`Model.SparseRatchet.send` a send past a chain's counter at `u64::MAX`
+(`Model.SparseRatchet.u64Max`). The range lemmas are
+`Model.Ratchet.send_ns_le`, `Model.Ratchet.receive_events_lt`,
+`Model.SparseRatchet.advance_epoch_lt` and `Model.SparseRatchet.send_number_le`,
+and the persistence vectors pin each ceiling.
 
 ## Scope held to the spec
 

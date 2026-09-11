@@ -1059,6 +1059,13 @@ def refusedStateVector (id comment : String) (bs : List UInt8)
   vectorHead id comment ++ "\"result\": \"invalid\", \"refusal\": \"" ++ refusalName r ++
     "\", \"inputs\": " ++ jsonObject [("bytes", toHex bs)] ++ " }"
 
+/-- Operations whose last step is refused at a counter's ceiling: the inputs,
+    and the refusal, counter exhaustion (ratchet.md, Sending and receiving;
+    sparse-pq-ratchet.md, Sending and Receiving). -/
+def refusedOpsVector (id comment : String) (inputs : List (String × List UInt8)) : String :=
+  vectorHead id comment ++ "\"result\": \"invalid\", \"refusal\": \"counter-exhaustion\", \"inputs\": " ++
+    jsonObject (inputs.map fun p => (p.1, toHex p.2)) ++ " }"
+
 /-- Stored bytes offered to a reader: accepted, with the fields `fieldsOf`
     names, when `expect` is `none`; refused with `expect` otherwise. -/
 @[never_extract]
@@ -1075,9 +1082,9 @@ def storedStateVector {σ : Type}
   | _, _ => .error ("genvectors: the model's reader does not give " ++ id ++
       " the result the vector records")
 
-/-- `2^32 - 1` and `2^64 - 1`, the largest values the formats' counters hold. -/
-def u32Max : Nat := 2 ^ 32 - 1
-def u64Max : Nat := 2 ^ 64 - 1
+-- `u32Max` and `u64Max`, the largest values the formats' counters hold, are
+-- the model's own: `Model.State.u32Max` and `Model.SparseRatchet.u64Max`.
+open Model.SparseRatchet (u64Max)
 
 /-! #### The classical ratchet's state -/
 
@@ -1156,6 +1163,29 @@ def ratchetOps (id comment : String) (start : RatchetStart) (steps : List Ratche
         (start.inputs ++ [("steps", (steps.map RatchetStep.bytes).flatten)]) (some bs), back]
     else .error ("genvectors: " ++ id ++ ": a stored state does not read back to itself")
 
+/-- Operations whose last step the model refuses at a counter's ceiling. The
+    generator writes one only if the start reads back, the model takes every
+    step before the last and refuses the last, and `atCeiling` holds of the
+    state the last is refused from, so that the refusal is the ceiling's. -/
+@[never_extract]
+def ratchetRefused (id comment : String) (start : RatchetStart) (steps : List RatchetStep)
+    (last : RatchetStep) (atCeiling : State → Bool) : Except String String :=
+  let startOk := match start with
+    | .stored st => ratchetReadsBack st
+    | _ => true
+  match runRatchet start.state steps with
+  | none => .error ("genvectors: " ++ id ++ ": the model refuses a step before the last")
+  | some st =>
+    if !startOk then
+      .error ("genvectors: " ++ id ++ ": a stored state does not read back to itself")
+    else if (runRatchet st [last]).isSome then
+      .error ("genvectors: " ++ id ++ ": the model takes the step the vector refuses")
+    else if !atCeiling st then
+      .error ("genvectors: " ++ id ++ ": the refused step is not at a counter's ceiling")
+    else
+      .ok (refusedOpsVector id comment
+        (start.inputs ++ [("steps", ((steps ++ [last]).map RatchetStep.bytes).flatten)]))
+
 /-- The messages the classical vectors pass between the two parties: Alice's
     first three, Bob's reply once he has taken the first, and Alice's first on
     her second chain once she has taken the reply. -/
@@ -1199,6 +1229,9 @@ def ratchetStateFile (_ : Unit) : Except String String := do
   let clockStart : State :=
     { withStore with events := u32Max - 2,
                      skipped := withStore.skipped.map fun e => (e.1, e.2.1, u32Max - 2, e.2.2.2) }
+  let clockStop : State :=
+    { withStore with events := u32Max - 1,
+                     skipped := withStore.skipped.map fun e => (e.1, e.2.1, u32Max - 1, e.2.2.2) }
   let ops ← [
     ratchetOps "fresh-initiator"
       "init_sender: a sending chain and the peer's ratchet key, nothing stored" .initiator [],
@@ -1227,7 +1260,23 @@ def ratchetStateFile (_ : Unit) : Except String String := do
     ratchetOps "receive-counter-reaches-u32-max"
       "from nr u32::MAX - 1, the message numbered u32::MAX - 1: nr is u32::MAX"
       (.stored { answered with nr := u32Max - 1 })
-      [same { dh := aPub, pn := 0, n := u32Max - 1 }]
+      [same { dh := aPub, pn := 0, n := u32Max - 1 }],
+    ratchetOps "clock-stays-at-its-stop"
+      "from events u32::MAX - 1, the clock's stop, a receive from the store: events stays u32::MAX - 1, and the other key, stored at u32::MAX - 1, is kept"
+      (.stored clockStop) [same s.h0],
+    ratchetOps "clock-stays-at-its-stop-on-the-chain"
+      "from events u32::MAX - 1, the next message on the chain: events stays u32::MAX - 1"
+      (.stored { answered with events := u32Max - 1 }) [same s.h1]
+  ].mapM id
+  let refusals ← [
+    ratchetRefused "send-at-u32-max-refused"
+      "from ns u32::MAX, a send: refused as counter exhaustion (ChainExhausted), since message number u32::MAX is never used"
+      (.stored { RatchetStart.initiator.state with ns := u32Max }) [] .send
+      (fun st => st.cks.isSome && st.ns == u32Max),
+    ratchetRefused "receive-at-nr-u32-max-refused"
+      "from nr u32::MAX, the message numbered u32::MAX on the same chain: refused as counter exhaustion (ChainExhausted)"
+      (.stored { answered with nr := u32Max }) [] (same { dh := aPub, pn := 0, n := u32Max })
+      (fun st => st.ckr.isSome && st.nr == u32Max)
   ].mapM id
   let respBytes := Model.PersistedState.RatchetState.toBytes answered
   let freshBytes := Model.PersistedState.RatchetState.toBytes fresh
@@ -1300,7 +1349,7 @@ def ratchetStateFile (_ : Unit) : Except String String := do
     "  \"algorithm\": \"ratchet-state\",\n" ++
     "  \"source\": \"generated by tacenta-model Vectors.lean (lake exe genvectors ratchet-state), from Model.PersistedState.RatchetState and Model.Ratchet; Diffie-Hellman outputs are the generator's symmetric stand-in, not X25519, and the generator writes no vector whose result the model does not give\",\n" ++
     "  \"vectors\": [\n" ++
-    String.intercalate ",\n" (ops.flatten ++ bytesVectors) ++
+    String.intercalate ",\n" (ops.flatten ++ refusals ++ bytesVectors) ++
     "\n  ]\n}")
 
 /-! #### The sparse ratchet's state -/
@@ -1381,6 +1430,27 @@ def sparseOps (id comment : String) (start : SparseStart) (steps : List SparseSt
         (start.inputs ++ [("steps", (steps.map SparseStep.bytes).flatten)]) (some bs), back]
     else .error ("genvectors: " ++ id ++ ": a stored state does not read back to itself")
 
+/-- Operations whose last step the model refuses at a counter's ceiling, as
+    `ratchetRefused` writes them for the classical ratchet. -/
+@[never_extract]
+def sparseRefused (id comment : String) (start : SparseStart) (steps : List SparseStep)
+    (last : SparseStep) (atCeiling : Model.SparseRatchet.State → Bool) : Except String String :=
+  let startOk := match start with
+    | .stored st => sparseReadsBack st
+    | _ => true
+  match runSparse start.state steps with
+  | none => .error ("genvectors: " ++ id ++ ": the model refuses a step before the last")
+  | some st =>
+    if !startOk then
+      .error ("genvectors: " ++ id ++ ": a stored state does not read back to itself")
+    else if (runSparse st [last]).isSome then
+      .error ("genvectors: " ++ id ++ ": the model takes the step the vector refuses")
+    else if !atCeiling st then
+      .error ("genvectors: " ++ id ++ ": the refused step is not at a counter's ceiling")
+    else
+      .ok (refusedOpsVector id comment
+        (start.inputs ++ [("steps", ((steps ++ [last]).map SparseStep.bytes).flatten)]))
+
 def reachSparse (what : String) (start : SparseStart) (steps : List SparseStep) :
     Except String Model.SparseRatchet.State :=
   match runSparse start.state steps with
@@ -1422,6 +1492,23 @@ def sparseRatchetStateFile (_ : Unit) : Except String String := do
       (.stored (withChain alice (fun c => { c with n := u64Max - 1 }) true)) [.send 0 none],
     sparseOps "receive-counter-reaches-u64-max" "from a receiving chain at n u64::MAX - 1, message u64::MAX"
       (.stored (withChain bob (fun c => { c with n := u64Max - 1 }) false)) [.receive 0 none u64Max]
+  ].mapM id
+  let counterAt (st : Model.SparseRatchet.State) (e : Nat) (sendSide : Bool) : Option Nat :=
+    (Model.SparseRatchet.findChains st e).bind fun c =>
+      (if sendSide then c.send else c.receive).map (·.n)
+  let refusals ← [
+    sparseRefused "advance-onto-u64-max-refused"
+      "from epoch u64::MAX - 1, a receive carrying epoch u64::MAX's secret: refused as counter exhaustion (ChainExhausted), since epoch u64::MAX is reserved"
+      (.stored { bob with epoch := u64Max - 1, chains := [(u64Max - 2, bobCs), (u64Max - 1, bobCs)] })
+      [] (.receive (u64Max - 1) (out u64Max 0xa4) 1) (fun st => st.epoch + 1 == u64Max),
+    sparseRefused "send-past-u64-max-refused"
+      "from a sending chain at n u64::MAX, a send: refused as counter exhaustion (ChainExhausted)"
+      (.stored (withChain alice (fun c => { c with n := u64Max }) true)) [] (.send 0 none)
+      (fun st => counterAt st 0 true == some u64Max),
+    sparseRefused "receive-past-u64-max-refused"
+      "from a receiving chain at n u64::MAX, message u64::MAX: refused as counter exhaustion (ChainExhausted)"
+      (.stored (withChain bob (fun c => { c with n := u64Max }) false)) [] (.receive 0 none u64Max)
+      (fun st => counterAt st 0 false == some u64Max)
   ].mapM id
   let enc (st : Model.SparseRatchet.State) := Model.PersistedState.SparseState.toBytes st
   let aliceBytes := enc alice
@@ -1476,7 +1563,7 @@ def sparseRatchetStateFile (_ : Unit) : Except String String := do
     "  \"algorithm\": \"sparse-ratchet-state\",\n" ++
     "  \"source\": \"generated by tacenta-model Vectors.lean (lake exe genvectors sparse-ratchet-state), from Model.PersistedState.SparseState and Model.SparseRatchet; the agreement's outputs are fixed byte strings, and the generator writes no vector whose result the model does not give\",\n" ++
     "  \"vectors\": [\n" ++
-    String.intercalate ",\n" (ops.flatten ++ bytesVectors) ++
+    String.intercalate ",\n" (ops.flatten ++ refusals ++ bytesVectors) ++
     "\n  ]\n}")
 
 /-! ### The bounded protobuf profile (`Model.Protobuf`) -/

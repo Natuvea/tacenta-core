@@ -213,10 +213,11 @@ one chain rather than against many.
 ### Addition: reserved counter ceilings
 
 Three of the crates reserve the top value of a counter the published algorithms
-leave unreserved, and the models -- which count in `Nat` -- have no notion of a
-reserved counter value at all. Recorded here for the same reason the store's
-total bound is: it is this implementation's addition, and it is a deliberate
-divergence from the model rather than a discrepancy to be fixed.
+leave unreserved. The pages state the reservations, and so do the classical and
+sparse ratchets' models (`Model.State.maxEvents`, `Model.SparseRatchet.u64Max`);
+`Model.Braid` counts in `Nat` and has no notion of a reserved counter value.
+Recorded here for the same reason the store's total bound is: it is this
+implementation's addition to the published algorithms.
 
 - `tacenta-ratchet`'s skipped-key clock stops at `MAX_EVENTS = u32::MAX - 1`:
   `age_store` clamps the saturating step there rather than reaching `u32::MAX`.
@@ -229,13 +230,16 @@ divergence from the model rather than a discrepancy to be fixed.
 In each case the reservation makes the crate's own `invariant()` clause
 inductive: `from_bytes` then refuses only states the operations cannot build,
 rather than refusing a state the crate itself could export and never import
-again. The models reserve nothing and keep counting, so the refinement
-theorems are stated one step below the ceiling
+again. The refinement theorems are stated one step below the ceiling
 (`tacenta-proofs/CLAIMS.md` and `LIMITATIONS.md` carry the exact
-preconditions). No vector drives a counter anywhere near these values; the
-divergence is established by the crates' own tests
-(`the_clock_stops_one_below_its_ceiling`, `the_epoch_ceiling_is_unreachable`,
-`the_epoch_ceiling_is_out_of_reach`) and by the proofs, not by this directory.
+preconditions): for the Braid because its model keeps counting, and for the
+two ratchets as a premise kept from before their models stopped. The persistence
+vectors drive the two ratchets' counters to these values and past them, and
+`tacenta-ratchet` and `tacenta-spqr` are checked on them; the Braid's
+reservation is established by its crate's tests
+(`the_epoch_ceiling_is_out_of_reach`) and by the proofs, not by this directory.
+The ratchets' own tests (`the_clock_stops_one_below_its_ceiling`,
+`the_epoch_ceiling_is_unreachable`) pin theirs too.
 
 ### Determined elsewhere
 
@@ -418,9 +422,11 @@ can reach it.
 | Ratchet state layout, written by operations and read back: optional keys zeroed when absent, the stored keys in the store's order | Ratchet state | `vectors/persistence/ratchet-state.json`: a new initiator and responder; three sends; a first receive and its Diffie-Hellman step; keys stored for an early message, then one of them used; a reply taken and a send on the new chain; keys stored across a Diffie-Hellman step; the clock reaching `u32::MAX - 1`; `ns` and `nr` reaching `u32::MAX`; each beside its bytes read back, with `fields` |
 | Ratchet state accepted edges | Semantic rules of the leaf formats, Ratchet state; ADR-0007 | same file: p - 1 as every curve key, `ns`, `nr` and `pn` with no chain, `stored_at` equal to `events`, stored keys in any order |
 | Ratchet state refusals, each with its refusal | Ratchet state; Semantic rules of the leaf formats, Ratchet state; Stored curve public keys; Rejection | same file: version bytes `0x00` and `0x02` (`wrong-version`); and, `short-or-malformed`, no bytes, a buffer short of the fixed fields, a presence tag other than `0x00` or `0x01` on each optional key, each absent key not zeroed, a `labels` tag of `0x01`, a count beyond the buffer and short of it, a trailing byte, a stored key cut short, 2,001 stored keys, `events` at `u32::MAX`, a `stored_at` after `events`, two stored keys for one pair, `ckr` without `cks` and without `dhr_pub`, and `dhs_pub`, `dhr_pub` and a stored key's `dh` each re-spelled with bit 255 set, as 9 + p and as p |
+| Ratchet state counter ceilings, by operations: the clock stays at its stop, and a step past `ns` or `nr` at `u32::MAX` is refused as `counter-exhaustion` | ratchet.md, Sending and receiving and Skipped keys; session-persistence.md, Principles | same file: from `events` at `u32::MAX - 1`, a receive from the store and one on the chain, `events` staying at `u32::MAX - 1`; from `ns` at `u32::MAX`, a send; from `nr` at `u32::MAX`, the message numbered `u32::MAX` |
 | Sparse ratchet state layout, written by operations and read back: chains in the order last replaced, stored keys oldest first | Sparse ratchet state | `vectors/persistence/sparse-ratchet-state.json`: a new `A2b` and `B2a` state; two sends; keys stored for an early message, then one used; a send that opens an epoch; a receive into that epoch and a send on it; an epoch retired with its stored keys; the epoch reaching `u64::MAX - 1`, the window's sum saturating; a sending and a receiving chain's counter reaching `u64::MAX`; each beside its bytes read back, with `fields` |
 | Sparse ratchet state accepted edges | Sparse ratchet state; Semantic rules of the leaf formats, Sparse ratchet state; ADR-0007 | same file: an absent chain, zeroed; a stored key numbered 0; a stored key past its chain's counter; stored keys in any order |
 | Sparse ratchet state refusals, each with its refusal | Sparse ratchet state; Semantic rules of the leaf formats, Sparse ratchet state; Rejection | same file: version bytes `0x00` and `0x02` (`wrong-version`); and, `short-or-malformed`, no bytes, a buffer short of the prefix, a `direction` tag of `0x02`, chain presence bytes `0x02` and `0xff`, an absent chain whose `ck` or `n` is not zeroed, a chains count and a skipped count beyond the buffer, no skipped count, a trailing byte, 2,001 stored keys, a chains epoch after the current one and one outside the window, two entries for one epoch, the current epoch without an entry, a stored key's epoch without one, two stored keys for one pair, and epoch `u64::MAX` |
+| Sparse ratchet state counter ceilings, by operations: the advance onto epoch `u64::MAX`, and a step past a chain's counter at `u64::MAX`, each refused as `counter-exhaustion` | sparse-pq-ratchet.md, Sending and Receiving; session-persistence.md, Principles | same file: from epoch `u64::MAX - 1`, a receive carrying epoch `u64::MAX`'s secret; from a sending chain at `u64::MAX`, a send; from a receiving chain at `u64::MAX`, message `u64::MAX` |
 
 **How the runner builds the ratchets' states.** Neither `tacenta-ratchet` nor
 `tacenta-spqr` exposes a state's fields or compares two states outside its own
@@ -433,7 +439,9 @@ bytes, and what the crate's accessors show (the sending public key, `ns`,
 `nr`, the stored-key count, which chains are present; the epoch, the direction,
 each epoch's receiving counter) must agree with the fields. A refused one must
 be refused with the vector's refusal: `UnknownVersion` is `wrong-version`, and
-`TooShort` and `Malformed` are `short-or-malformed`.
+`TooShort` and `Malformed` are `short-or-malformed`. An invalid operations
+vector's steps are replayed up to the last, which the crate must refuse with
+`ChainExhausted`, the vector's `counter-exhaustion`.
 
 **Two readings these vectors pin.** session-persistence.md, "Erasure coder
 sub-formats", states both (the independent reader's `GAPS-2.md`, G2-04):
@@ -450,16 +458,13 @@ states none of them, so there is no oracle to generate vectors from, and they
 remain covered by `tacenta-core`'s round-trip and refusal tests and its fuzz
 targets.
 
-Three points of the two ratchets' states. A buffer too short for its fixed
-fields whose version byte is not `0x01`: the page does not say which refusal
-it gets, `Model.PersistedState` reads the version byte first, and both crates
-check the length first, so no vector has one. A store of exactly 2,000 keys,
-the accepted side of `MAX_SKIPPED_STORE`: its vector would be about 290
-kilobytes, and the refused side is pinned. And every step past a ceiling the
-pages state (`ChainExhausted` on `ns`, `nr` or a sparse chain's `n` at its
-maximum, the clock staying at `u32::MAX - 1`, the refused advance to epoch
-`u64::MAX`): the model's operations count in the naturals and do not state
-those refusals, so the operations vectors stop at the ceilings. In place of a
+Two points of the two ratchets' states. A buffer too short for its fixed
+fields whose version byte is not `0x01`: the page leaves its refusal to the
+implementation (session-persistence.md, Rejection), `Model.PersistedState`
+reads the version byte first and both crates check the length first, and no
+vector has one. And a store of exactly 2,000 keys, the accepted side of
+`MAX_SKIPPED_STORE`: its vector would be about 290 kilobytes, and the refused
+side is pinned. In place of a
 vector for every state, `Model.PersistedState` proves that a state that keeps
 the rules and fits its fields reads back from the bytes it is written as
 (`RatchetState.ofBytes_toBytes`, `SparseState.ofBytes_toBytes`), and that a

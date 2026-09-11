@@ -39,6 +39,13 @@ is SemVer against the specified protocol (not the implementation).
     matters only for a bundle that reaches her another way.
   - "Receiving the initial message" says `peer_identity_public` is canonical
     in every session a reader accepts.
+- `protocol/session-persistence.md`, Rejection: a buffer too short to be read
+  that also carries an unknown version byte may be refused either as short or
+  malformed or as a wrong version, and which is left to the implementation,
+  as error-handling.md leaves the order of checks. The page had named both
+  refusals without saying which such a buffer gets, and the model and
+  `tacenta-core` answer differently. The vectors pin neither. Register item
+  J-11.
 
 ## [0.2.0] - 2026-09-11
 

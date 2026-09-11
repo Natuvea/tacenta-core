@@ -49,11 +49,14 @@ this section says in one place what is not proved.
   clock clamps at `MAX_EVENTS = u32::MAX - 1`, the sparse ratchet's `advance`
   refuses the step to `epoch == u64::MAX`, the Braid's `step_receive` refuses
   the same in transitions (5) and (13) -- so that no state a crate's own
-  operations produce is one its own decoder refuses. The models reserve
-  nothing: they count in `Nat`. So at the last unreserved value the code stops
-  and the model goes on, and the refinement theorems ask for one step of
-  headroom (`events + 1 < u32::MAX`, `epoch + 1 < u64::MAX`) where they used
-  to ask for the plain ceiling bound. No `invariant()` can supply that step,
+  operations produce is one its own decoder refuses. The classical and
+  sparse ratchets' models now reserve the same values and refuse the same
+  steps, as the pages state; `Model.Braid` still counts in `Nat`, so at the
+  last unreserved value its code stops and its model goes on. The refinement
+  theorems ask for one step of headroom (`events + 1 < u32::MAX`,
+  `epoch + 1 < u64::MAX`); for the two ratchets that premise is kept from
+  before their models reserved anything, and whether it could now be
+  dropped has not been checked. No `invariant()` can supply that step,
   because the state at the last unreserved value is an ordinary state the
   crate produces, decodes and goes on operating on; a clause excluding it
   would refuse a state the crate exports, which is the defect the reservation
@@ -255,8 +258,8 @@ operation carries it to the model's operation.
 - `send_refines`: a successful `send` returns a header and a message key that
   `Model.Ratchet.send` also returns, with the new state still related, and
   the `NoSendingChain` refusal is exactly the model's `none`. The `u32`
-  counter wrapping (`ChainExhausted`) has no model counterpart and is left
-  out of the correspondence deliberately. **Modulo `HmacAgrees`**; pinned
+  counter's exhaustion (`ChainExhausted`) is refused by the model too, at
+  `ns = u32::MAX`, but the statement does not relate the two refusals. **Modulo `HmacAgrees`**; pinned
   base `propext`, `Classical.choice`, `Quot.sound` and the opaque
   `tacenta_kdf.hmac_sha256`.
 - `receive_refines`: a successful `receive`, given the two agreement outputs
@@ -272,9 +275,9 @@ operation carries it to the model's operation.
   guard) and `DerivedKeysModel` (the T1 section says what it is), the `hone`
   at-most-one hypothesis named in "what is not proved", a store-size
   precondition (`hs`) and a step of room in the expiry clock
-  (`hroom : events + 1 < U32.max`, one step below the `u32` ceiling because
-  `age_store` clamps the clock at `MAX_EVENTS = u32::MAX - 1` while the model
-  counts in `Nat`); it says nothing about the failure branches. Pinned base: the kernel's three axioms and
+  (`hroom : events + 1 < U32.max`, one step below the `u32` ceiling, a premise
+  from when `age_store` clamped the clock at `MAX_EVENTS = u32::MAX - 1` and
+  the model's clock did not stop; it now stops there too); it says nothing about the failure branches. Pinned base: the kernel's three axioms and
   eleven opaque externals (`hkdf_sha256`, `hmac_sha256`, five declarations of
   the `zeroize` wrapper including `deref_mut`, the array, pair and `Vec`
   `Zeroize` instances, and `Vec::remove`), and no `native_decide`.
@@ -673,8 +676,8 @@ batch); none is unconditional totality. None carries an epoch or counter
 bound any more: every epoch and per-chain counter increment in the source
 is a `checked_add` whose `None` arm returns `ChainExhausted`, and the proofs
 walk that arm as a value, as `BraidT1.lean`'s did after CR-03; the
-refinement in `SpqrT3.lean` keeps `hepoch`/`hcounter` for the model's
-reason (it counts in `Nat`), as that section says.
+refinement in `SpqrT3.lean` keeps `hepoch`/`hcounter`, as that section
+says.
 
 - `advance_no_panic`: the sparse post-quantum ratchet's DH-style epoch advance
   cannot panic.
@@ -875,8 +878,10 @@ operation, and that is open work.
 
 **What is not claimed: a step of counter headroom.** The three crates reserve
 the top value of the counter each steps, so that no state their operations
-produce is one their own decoder refuses; the models count in `Nat` and
-reserve nothing. The refinement theorems are therefore stated one step below
+produce is one their own decoder refuses; the Braid's model counts in `Nat` and
+reserves nothing, and the two ratchets' models reserve the same values but
+their refinements keep the premise from before they did. The refinement
+theorems are stated one step below
 the ceiling -- `T3.receive_refines`'s `hroom` is `events + 1 < u32::MAX`,
 `SpqrT3`'s and `BraidT3`'s `hepoch` is `epoch + 1 < u64::MAX`, and
 the Triple Ratchet's refinement on the unit passes the same two premises
@@ -1346,8 +1351,9 @@ literally.
   failure case, and the failure case is not symmetric: it holds for every
   post-quantum error and, on the classical side, only for `NoSendingChain`,
   because `T3.lean`'s own `send_refines` proves the model-failure correspondence
-  for that error and no other -- `ChainExhausted`, the real `u32` send counter
-  wrapping, has no counterpart in a model that counts in `Nat`.
+  for that error and no other -- `ChainExhausted`, the real `u32` send counter's
+  exhaustion, which the model now refuses too but which that theorem does not
+  relate to the model's `none`.
 - `Tacenta.UnitTripleT3.receive_refines`: likewise for `receive`, success case
   only, because `T3.lean`'s `receive_refines` carries no failure-branch fact to
   compose one from.
@@ -1761,13 +1767,15 @@ Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
   requirements, not the code's: `SpqrT1.lean`'s `send_no_panic`/
   `receive_no_panic` no longer carry either, every epoch and counter
   increment being a `checked_add` whose `None` arm returns `ChainExhausted`,
-  while `Model.SparseRatchet` counts in `Nat` and has nothing for that arm
-  to refine against -- the same reason `BraidT3.lean` keeps its `hepoch`.
+  and `Model.SparseRatchet` now refuses at those ceilings too, so the two may
+  no longer be needed here; that has not been checked, and they are kept.
+  `BraidT3.lean` keeps its `hepoch` because `Model.Braid` has no such refusal
+  at all.
   `hepoch` is `epoch + 1 < U64.max`, a step of headroom rather than the plain
   ceiling bound: `advance` reserves `u64::MAX` and returns `ChainExhausted`
   rather than opening chains under an epoch its own retention window would
-  immediately retire, so the model advances at `epoch = u64::MAX - 1` where
-  the code refuses. `u64::MAX - 1` is otherwise a fully usable epoch, so what
+  immediately retire, and the model refuses the same step with `none`, so at
+  `epoch = u64::MAX - 1` the two refusals differ. `u64::MAX - 1` is otherwise a fully usable epoch, so what
   the reservation costs these theorems is one step of lookahead and not a
   state they can no longer speak about.
 - **Axiom base:** beyond `propext`, `Classical.choice`, `Quot.sound`, and the
