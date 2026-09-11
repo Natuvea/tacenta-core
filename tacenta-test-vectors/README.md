@@ -204,10 +204,12 @@ vector has one of two shapes.
 
 Three things no vector here pins.
 
-- **A short buffer with another version.** The page does not say which
-  refusal a buffer gets that is too short for its fixed fields and also has a
-  version byte other than `0x01`. `Model.PersistedState` reads the version
-  byte first and `tacenta-core` checks the length first.
+- **A short buffer with another version.** A buffer too short for its fixed
+  fields that also has a version byte other than `0x01` may be refused as
+  either, and which is left to the implementation (session-persistence.md,
+  Rejection). `Model.PersistedState` reads the version byte first and
+  `tacenta-core` checks the length first; both conform, and no vector here
+  offers such a buffer.
 - **A store of exactly `MAX_SKIPPED_STORE` keys.** 2,001 keys are refused in
   both files, but the accepted side of the bound is not pinned, since its
   vector would be about 290 kilobytes.
