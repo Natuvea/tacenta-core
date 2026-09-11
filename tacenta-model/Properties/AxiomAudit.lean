@@ -7,6 +7,7 @@ import Model.Gf65536
 import Model.Kdf
 import Model.Messages
 import Model.MultiDevice
+import Model.PersistedState
 import Model.Polynomial
 import Model.Protobuf
 import Model.Ratchet

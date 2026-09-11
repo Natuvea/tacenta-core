@@ -37,8 +37,9 @@ AEAD are held at the trusted boundary; see `abstraction-boundary.md`.
 
 Source pages: `tacenta-spec/protocol/mlkem-braid.md` and
 `tacenta-spec/protocol/session-persistence.md`. `Model/Erasure.lean` is
-imported by the vector generator and the axiom audit only; `Model/Braid.lean`
-keeps the code at its contract.
+imported by the vector generator, the axiom audit and
+`Model/PersistedState.lean`, which reads integers with it;
+`Model/Braid.lean` keeps the code at its contract.
 
 | Spec section | Model definition | File |
 |---|---|---|
@@ -50,6 +51,31 @@ keeps the code at its contract.
 
 The field arithmetic and the interpolation beneath it are `Model/Gf65536.lean`
 and `Model/Polynomial.lean` (`interp`).
+
+## The ratchets' persisted states
+
+Source page: `tacenta-spec/protocol/session-persistence.md`.
+`Model/PersistedState.lean` is imported by the vector generator and the axiom
+audit only. Its states are `Model/State.lean`'s and `Model/SparseRatchet.lean`'s,
+with no field added.
+
+| Spec section | Model definition | File |
+|---|---|---|
+| Ratchet state | `RatchetState.toBytes`, `RatchetState.ofBytes`, `optKeyBytes`/`readOptKey`, `labelsByte`/`readLabels`, `entryBytes`/`readEntry` | `Model/PersistedState.lean` |
+| Sparse ratchet state | `SparseState.toBytes`, `SparseState.ofBytes`, `directionByte`/`readDirection`, `chainBytes`/`readChain`, `chainsEntryBytes`/`readChainsEntry`, `skippedBytes`/`readSkipped` | `Model/PersistedState.lean` |
+| Semantic rules of the leaf formats, Ratchet state; Stored curve public keys | `RatchetState.invariant`, `RatchetState.keysCanonical` (with `Model.Messages.canonicalKey`) | `Model/PersistedState.lean` |
+| Semantic rules of the leaf formats, Sparse ratchet state | `SparseState.invariant`, `SparseState.satAdd` | `Model/PersistedState.lean` |
+| Rejection: "wrong version" and "short or malformed" | `Refusal` | `Model/PersistedState.lean` |
+| Principles, Canonical and length-prefixed; Validated, not only parsed | `RatchetState.ofBytes_toBytes`, `SparseState.ofBytes_toBytes` (a state that keeps the rules and fits its fields reads back from its bytes); `RatchetState.ofBytes_ok`, `SparseState.ofBytes_ok` (a state a reader accepts keeps the rules, fits its fields, and is written as the bytes it was read from) | `Model/PersistedState.lean` |
+
+Two points the model decides and the page does not, so no vector depends on
+them. A buffer too short for its fixed fields whose version byte is not `0x01`
+is refused as a wrong version, because the reader reads the version byte
+first. And the model's operations count in the naturals, so they do not refuse
+the steps past the ceilings ratchet.md and sparse-pq-ratchet.md state (`ns`,
+`nr` and a sparse chain's `n` at their maximum, the clock's stop at
+`u32::MAX - 1`, the advance to epoch `u64::MAX`); the vectors stop at those
+ceilings.
 
 ## Scope held to the spec
 
