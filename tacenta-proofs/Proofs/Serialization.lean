@@ -64,17 +64,22 @@ theorem readBe32_be32_nil (n : UInt32) : readBe32 (be32 n) = some (n, []) := by
 /-- Decoding an encoded bundle returns exactly the bundle encoded.
 
 The hypotheses are the format's own requirements rather than conveniences: a key
-that is not thirty-two bytes is not a key this encoding carries, and a KEM
-prekey that is not `kemPrekeyLen` bytes, the ML-KEM-1024 encapsulation-key
-length, is one the decoder refuses (message-format.md, Prekey bundle). Stating
-the theorem without them would make it false, not more general. -/
+that is not thirty-two bytes is not a key this encoding carries, a curve key
+that is not its canonical encoding is one the decoder refuses
+(message-format.md, Curve public keys), and a KEM prekey that is not
+`kemPrekeyLen` bytes, the ML-KEM-1024 encapsulation-key length, is one the
+decoder refuses too (message-format.md, Prekey bundle). Stating the theorem
+without them would make it false, not more general. -/
 theorem decodeBundle_encodeBundle (b : Bundle)
     (hid : b.identityKey.length = 32)
     (hsp : b.signedPrekey.length = 32)
     (hss : b.signedPrekeySig.length = 64)
     (hks : b.kemPrekeySig.length = 64)
     (hot : ∀ k ∈ b.oneTimePrekey, k.length = 32)
-    (hkem : b.kemPrekey.length = kemPrekeyLen) :
+    (hkem : b.kemPrekey.length = kemPrekeyLen)
+    (hidc : canonicalKey b.identityKey = true)
+    (hspc : canonicalKey b.signedPrekey = true)
+    (hotc : ∀ k ∈ b.oneTimePrekey, canonicalKey k = true) :
     decodeBundle (encodeBundle b) = some b := by
   simp only [encodeBundle, decodeBundle, bne_self_eq_false, Bool.or_self,
     Bool.false_eq_true, if_false, List.append_assoc]
@@ -110,15 +115,16 @@ theorem decodeBundle_encodeBundle (b : Bundle)
     -- The presence byte is checked before the identifiers are read, so reduce
     -- that decision before stepping past them.
     simp only [decodeOptionalKey, beq_self_eq_true, if_true, readBe32_be32, readBe32_be32_nil]
-    simp [← hone]
+    simp [← hone, checkKey, hidc, hspc]
   | some k =>
     have hk : k.length = 32 := hot k (by simp [hone])
+    have hkc : canonicalKey k = true := hotc k (by simp [hone])
     simp only [encodeOptionalKey, List.cons_append]
     rw [take?_one_cons]
     simp only
     rw [take?_append 32 k _ hk]
-    simp only [decodeOptionalKey, beq_self_eq_true, if_true, readBe32_be32, readBe32_be32_nil]
-    simp [← hone]
+    simp only [decodeOptionalKey, beq_self_eq_true, if_true, readBe32_be32, readBe32_be32_nil, hkc]
+    simp [← hone, checkKey, hidc, hspc]
 
 /-! ## The composite header round-trips
 
@@ -136,18 +142,26 @@ That is the fourth encoding in this repository where fixed width is chosen
 for the proof's sake and pays for itself immediately. -/
 
 /-- Encoding a composite header and decoding it returns the header and whatever
-followed it, for every header whose curve key is thirty-two bytes and whose
-codeword, if it has one, is a full chunk. -/
+followed it, for every header whose curve key is thirty-two bytes and its
+canonical encoding, and whose codeword, if it has one, is a full chunk. A
+ratchet key in any other spelling is one the decoder refuses
+(message-format.md, Curve public keys). -/
 theorem decode_encode_composite (h : Composite)
     (rest : List UInt8)
     (hdh : h.dh.length = 32)
+    (hdhc : canonicalKey h.dh = true)
     (hchunk : ∀ c, h.agChunk = some c → c.data.length = chunkBytes) :
     decode (encode h ++ rest) = some (h, rest) := by
   obtain ⟨dh, pn, n, pqE, pqN, agE, agT, agC⟩ := h
   simp only [encode, decode, List.cons_append, List.append_assoc, List.nil_append,
     bne_self_eq_false, Bool.false_eq_true, if_false]
   rw [take?_append 32 dh _ hdh]
+  have hck : checkKey dh = some () := by
+    simp only [checkKey]
+    rw [if_pos hdhc]
   simp only [Option.bind_eq_bind, Option.bind]
+  rw [hck]
+  simp only
   rw [readBe32_be32]
   simp only
   rw [readBe32_be32]
@@ -176,15 +190,17 @@ theorem decode_encode_composite (h : Composite)
 
 /-- **Round trip.** Decoding an encoded ratchet message -- the composite header,
     then the ciphertext -- returns exactly that header and that ciphertext, for
-    every header whose curve key is thirty-two bytes and whose codeword, if it
-    has one, is a full chunk, and for every ciphertext. The message is the
-    header with the ciphertext as the bytes that follow it, so this is
-    `decode_encode_composite` read at the message's own type. -/
+    every header whose curve key is thirty-two bytes and its canonical
+    encoding, and whose codeword, if it has one, is a full chunk, and for every
+    ciphertext. The message is the header with the ciphertext as the bytes that
+    follow it, so this is `decode_encode_composite` read at the message's own
+    type. -/
 theorem decode_encode (h : Composite) (ct : List UInt8)
     (hdh : h.dh.length = 32)
+    (hdhc : canonicalKey h.dh = true)
     (hchunk : ∀ c, h.agChunk = some c → c.data.length = chunkBytes) :
     Model.CompositeHeader.decodeMessage (Model.CompositeHeader.encodeMessage h ct)
       = some (h, ct) :=
-  decode_encode_composite h ct hdh hchunk
+  decode_encode_composite h ct hdh hdhc hchunk
 
 end Proofs.Serialization
