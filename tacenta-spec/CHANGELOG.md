@@ -6,6 +6,19 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `protocol/group-messaging.md`: what has been published about group
+  messaging, and what each item covers. No Signal specification covers
+  groups:
+  - Signal's own 2014 description is pairwise fan-out.
+  - The Private Group System covers membership privacy against the server,
+    not message encryption.
+  - Sender keys are described publicly only by WhatsApp's encryption white
+    paper and by academic analysis.
+  Also added: provenance rules for the page (no mechanism detail is `fact` on
+  Signal's authority), and three open questions for a decision record when
+  the work is scheduled: sender keys or fan-out, membership privacy against
+  the server, and post-quantum signatures and credentials. The page remains
+  a scaffold.
 - `protocol/session-persistence.md`: a "Validated, not only parsed"
   principle and, per format, the semantic rules the reader refuses on after
   the field-by-field read: for the session, the ratchet private key matching
