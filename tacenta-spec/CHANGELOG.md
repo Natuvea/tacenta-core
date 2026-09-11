@@ -23,7 +23,8 @@ is SemVer against the specified protocol (not the implementation).
   erasure code exactly (the GF(2^16) representation and reduction polynomial,
   chunking, systematic codewords, encoder exhaustion, first-copy-wins
   decoding); what a receive ignores; every transition to `Failed`; and, at the
-  epoch ceiling, only the step onto `u64::MAX` is refused.
+  epoch ceiling, the step onto `u64::MAX` is refused, and in `Ct2Sampled` at
+  `u64::MAX - 1` so is any received message.
 - `CONSTANTS.md`: the GF(2^16) reduction polynomial `0x1100B`. The
   presence-byte row now says where an absent field keeps its full width.
 - `protocol/session-persistence.md`: the principle on the Braid's states now

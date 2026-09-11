@@ -184,11 +184,13 @@ following, and nothing else:
   yields that length, so this is a check that cannot fire;
 - a completed `ek_vector` that fails validation against the authenticated
   header (The KEM split), in `Ct1Sampled` or `Ct1Acknowledged`;
-- the step that would move the epoch to `u64::MAX`, which is reserved
-  (session-persistence.md): completing `ct2` in `EkSentCt1Received` at epoch
-  `u64::MAX - 1`, or, in `Ct2Sampled` at epoch `u64::MAX - 1`, a message
-  stamped `u64::MAX`. Every other message in those states is handled or
-  ignored as at any other epoch.
+- reaching the reserved epoch `u64::MAX` (session-persistence.md), at epoch
+  `u64::MAX - 1`:
+  - in `EkSentCt1Received`, completing `ct2` fails, and every other message
+    is handled as at any other epoch;
+  - in `Ct2Sampled`, any received message fails, whatever its epoch or type,
+    because that state checks the ceiling before it looks at the message.
+  No honest run reaches either epoch.
 
 The KEM library fails only on inputs or buffers of the wrong length, which no
 reachable state holds, so the KEM failures above are defensive.
