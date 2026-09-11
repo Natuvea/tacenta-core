@@ -110,9 +110,10 @@ message carrying no codeword and buys a canonical parse, since no field's
 position depends on a value already read.
 
 A decoder rejects a message shorter than its framing and header, and rejects an
-unrecognised version or an unexpected type byte. It also rejects an `ag_type`
-outside the six values above, a presence byte other than `0x00` or `0x01`, and
-an absent codeword whose index or chunk bytes are not all zero.
+unrecognised version or an unexpected type byte. It also rejects a `dh` that is
+not the canonical encoding of a curve public key (Curve public keys, below), an
+`ag_type` outside the six values above, a presence byte other than `0x00` or
+`0x01`, and an absent codeword whose index or chunk bytes are not all zero.
 
 Nothing in the encoding ties `ag_type` to the presence byte. A codeword carried
 with a type that takes none decodes, and the agreement ignores it: it reads a
@@ -329,6 +330,40 @@ a bundle decodes, and the initiator's session establishment is what refuses
 it, as an inconsistent bundle rather than a decode failure. Trailing bytes
 are rejected: a bundle is a whole object, not a prefix of a stream.
 
+A decoder also refuses a bundle whose `identity_key`, `signed_prekey` or
+present `one_time_prekey` is not the canonical encoding of a curve public key
+(Curve public keys, below), as a decode failure. The padding behind an absent
+one-time prekey is not a key, and the rule above already fixes it to zeros.
+
+## Curve public keys
+
+A curve public key on the wire is 32 bytes, the little-endian u-coordinate of
+RFC 7748, section 5. X25519 ignores bit 255 of those bytes and reduces a value
+at or above p = 2^255 - 19, so, read loosely, several byte strings name one
+key. A decoder accepts only the canonical one. Read the 32 bytes as a 256-bit
+little-endian integer: the key is accepted exactly when that value is below p.
+That refuses both other spellings, a key whose bit 255 is set and a key whose
+value with bit 255 clear is at least p. An honest key generator produces
+neither, so no honest key is refused. A refused key is a decode failure.
+
+The rule covers every curve public key a peer sends:
+
+- a ratchet message's `dh` (Ratchet message);
+- a prekey bundle's `identity_key`, `signed_prekey` and, when present,
+  `one_time_prekey` (Prekey bundle);
+- an initial message's `identity` and `ephemeral`. These are `EncodeEC` forms,
+  and the initial-message decoder above checks only their curve byte;
+  `DecodeEC` applies this rule to their key bytes before either is used
+  (session-establishment.md).
+
+This is the Canonical principle applied to curve keys, which X25519 alone does
+not enforce. A key's bytes serve as its identity in several places: a
+signature covers a signed prekey's bytes, the associated data and the
+last-resort replay fingerprint are computed over bytes, and the ratchet keeps
+skipped keys by a header's ratchet public key and takes a Diffie-Hellman step
+when that key differs from `DHr` (ratchet.md). A second spelling of one key
+would give it a second identity in each of them.
+
 ## Key identifiers
 
 An identifier names one of a party's prekeys on their own device. It is a 4-byte
@@ -374,7 +409,8 @@ implying compatibility.
 A decoder rejects, rather than accepting and repairing: an unrecognised version;
 a message too short for its fixed fields; a length prefix that overruns the
 input; trailing bytes after a message that should have ended; and any encoding
-that is not the canonical one. Rejection is a decode failure, distinct from an
+that is not the canonical one, a curve public key's included (Curve public
+keys). Rejection is a decode failure, distinct from an
 authentication failure, and neither reveals more than that the message was not
 acceptable. That restraint is about what a peer learns from a refusal. It does
 not constrain the error types an implementation reports to its own caller,

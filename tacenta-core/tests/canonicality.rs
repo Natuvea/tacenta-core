@@ -114,7 +114,7 @@ fn decode_composite_is_canonical() {
         }),
     ] {
         let h = Composite {
-            dh: [0xaa; 32],
+            dh: [0x5a; 32],
             pn: 7,
             n: 9,
             pq_epoch: 3,

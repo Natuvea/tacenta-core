@@ -158,6 +158,9 @@ def decode (bs : List UInt8) : Option (Composite × List UInt8) := do
     else if t != Model.Messages.typeRatchet then Option.none
     else do
       let (dh, r1) ← Model.Messages.take? 32 rest
+      -- The ratchet key is refused unless it is its canonical encoding
+      -- (message-format.md, Curve public keys).
+      Model.Messages.checkKey dh
       let (pn, r2) ← Model.Messages.readBe32 r1
       let (n, r3) ← Model.Messages.readBe32 r2
       let (pqEpoch, r4) ← readBe64 r3
@@ -192,7 +195,7 @@ belongs beside it rather than here; these say the two halves agree on values
 before that is written. -/
 
 private def sample : Composite :=
-  { dh := List.replicate 32 0xaa, pn := 7, n := 9,
+  { dh := List.replicate 32 0x5a, pn := 7, n := 9,
     pqEpoch := 3, pqN := 11, agEpoch := 3, agType := .ct1,
     agChunk := some { index := 5, data := List.replicate chunkBytes 0xcd } }
 
@@ -221,6 +224,22 @@ example : decode (0x02 :: (encode sample).drop 1) = Option.none := by native_dec
 
 /-- A truncated header is refused rather than read short. -/
 example : decode ((encode sample).take (size - 1)) = Option.none := by native_decide
+
+/-- A ratchet key spelled any way but its canonical one is refused
+    (message-format.md, Curve public keys): the sample's key with bit 255 set,
+    and p = 2^255 - 19, which names the key zero. -/
+example : decode (encode { sample with dh := List.replicate 31 0x5a ++ [0xda] }) = Option.none := by
+  native_decide
+
+example :
+    decode (encode { sample with dh := 0xed :: List.replicate 30 0xff ++ [0x7f] }) = Option.none := by
+  native_decide
+
+/-- p - 1, the largest canonical key, is accepted. -/
+example :
+    decode (encode { sample with dh := 0xec :: List.replicate 30 0xff ++ [0x7f] })
+      = some ({ sample with dh := 0xec :: List.replicate 30 0xff ++ [0x7f] }, []) := by
+  native_decide
 
 /-! ## The ratchet message
 

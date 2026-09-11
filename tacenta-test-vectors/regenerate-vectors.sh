@@ -5,16 +5,17 @@
 # commit the result; `tooling/ci.sh` and the public `proofs` CI job run this
 # and fail on a difference between the model and the committed files.
 #
-# Twenty-one files, all under vectors/: the Double Ratchet scenarios, the PQXDH
+# Twenty-three files, all under vectors/: the Double Ratchet scenarios, the PQXDH
 # shared secrets, the message and initial-message encodings, the nine
 # post-quantum derivation files and the two erasure-code files beside them, the
 # erasure coders' two persisted formats, the protobuf profile's two readers,
-# and the AEAD's two directions. The AEAD files take their AES-256 block
-# values from NIST SP 800-38A, since the model has no AES; their `source`
-# field says so. The primitive vectors under
-# vectors/primitives/ are not regenerated: they are standards' known answers,
-# plus one project-generated XEdDSA file, and none of them comes from the
-# model.
+# the AEAD's two directions, and the two decoder files under malformed-input/.
+# The AEAD files take their AES-256 block values from NIST SP 800-38A, since
+# the model has no AES; their `source` field says so. The primitive vectors
+# under vectors/primitives/ are not regenerated: they are standards' known
+# answers, plus one project-generated XEdDSA file, and none of them comes from
+# the model. Nor is malformed-input/ratchet-reject.json, which is
+# hand-authored.
 #
 # Needs the Lean toolchain the model pins (`tacenta-model/lean-toolchain`,
 # installed through elan) and a built model: `lake build` there compiles the
@@ -65,3 +66,8 @@ done
 for a in aead-encrypt aead-decrypt; do
   generate "$a" "$here/vectors/aead/$a.json"
 done
+
+# The decoders' refusal of a re-spelled curve key (message-format.md, Curve
+# public keys), with the canonical spellings they accept.
+generate composite-decode "$here/vectors/malformed-input/composite-header-decode.json"
+generate bundle-decode    "$here/vectors/malformed-input/prekey-bundle-decode.json"

@@ -25,6 +25,18 @@ fn sample_composite() -> Composite {
         }),
     }
 }
+
+/// A canonical curve key made from arbitrary bytes: bit 255 cleared, and bit
+/// 254 cleared as well when the rest would be at least p = 2^255 - 19. A decoder
+/// accepts a key in no other spelling (message-format.md, Curve public keys).
+fn canonical_key(mut k: [u8; 32]) -> [u8; 32] {
+    k[31] &= 0x7f;
+    if k[31] == 0x7f && k[1..31].iter().all(|b| *b == 0xff) && k[0] >= 0xed {
+        k[31] = 0x3f;
+    }
+    k
+}
+
 use tacenta_core::serialization::{
     concat_ad, decode_initial, decode_message, encode_message, message_type,
 };
@@ -128,7 +140,8 @@ proptest! {
     }
 
     /// Any well-formed ratchet message round-trips: decoding an encoding returns
-    /// exactly what went in, for every key, counter pair, and ciphertext.
+    /// exactly what went in, for every canonical key, counter pair, and
+    /// ciphertext.
     #[test]
     fn message_round_trips(
         dh in prop::array::uniform32(any::<u8>()),
@@ -146,7 +159,7 @@ proptest! {
         // a message carries it now and a property that only ever exercised the
         // classical fields would say nothing about the half that was added.
         let header = Composite {
-            dh,
+            dh: canonical_key(dh),
             pn,
             n,
             pq_epoch,
@@ -163,6 +176,20 @@ proptest! {
         let decoded = decode_message(&encoded).expect("a well-formed message decodes");
         prop_assert_eq!(decoded.header, header);
         prop_assert_eq!(decoded.ciphertext, ciphertext);
+    }
+
+    /// A ratchet key with bit 255 set is a second spelling of a key, and the
+    /// message carrying it never decodes, whatever the rest of the key and the
+    /// ciphertext are.
+    #[test]
+    fn a_respelled_ratchet_key_never_decodes(
+        dh in prop::array::uniform32(any::<u8>()),
+        ciphertext in prop::collection::vec(any::<u8>(), 0..64),
+    ) {
+        let mut dh = dh;
+        dh[31] |= 0x80;
+        let header = Composite { dh, ..sample_composite() };
+        prop_assert!(decode_message(&encode_message(&header, &ciphertext)).is_err());
     }
 
     /// Truncating a valid message anywhere never panics and never decodes: a

@@ -303,12 +303,14 @@ this implementation; the client's expectations of the server are stated in
 | Header encoding | same |
 | `CONCAT(ad, header)` uniqueness | core and model tests: two splits of the same bytes differ |
 | Initial (prekey) message encoding | `vectors/serialization/initial-message.json`, generated from the model, and a core round-trip test |
-| Prekey bundle encoding (message-format.md, Prekey bundle) | core round-trip and rejection tests; no vectors, since the model does not encode bundles |
+| Prekey bundle encoding (message-format.md, Prekey bundle) | `vectors/malformed-input/prekey-bundle-decode.json`, generated from the model's `decodeBundle` (two accepted bundles, and the refusals in the row below), and core round-trip and rejection tests |
+| Curve public keys refused unless canonical (message-format.md, Curve public keys): the composite header's `dh`, the bundle's `identity_key`, `signed_prekey` and `one_time_prekey` | `vectors/malformed-input/composite-header-decode.json` and `prekey-bundle-decode.json`, generated from the model's decoders: each key accepted in its canonical spelling and at p - 1, refused with bit 255 set and as 9 + p; `decode_composite_refines` and `decode_bundle_refines` (the code refuses exactly what the model refuses); core unit and integration tests |
 | Rejection of unknown version, truncation, and length overrun | core tests |
 | Authenticated encryption (message-format.md, Authenticated encryption): PKCS#7 padding, `ciphertext \|\| HMAC-SHA256(mac_key, AD \|\| ciphertext)`, and the receiver's four steps | `vectors/aead/aead-encrypt.json` (padding of 16, 15 and 1 bytes; `AD` empty, short, and a `CONCAT(ad, header)`), `vectors/aead/aead-decrypt.json` (three accepted inputs; refusals at step 1, at step 2 for an altered tag, an altered ciphertext and other associated data, at step 3 for an empty and a partial-block ciphertext under a valid tag, and for a padding byte of 0, of 17, of 2 over a 3, and of 16 over fifteen other bytes); runner `runners/rust/tests/aead.rs`, which also requires every refusal to be the one `DecryptError` |
 
-Runners: `runners/rust/tests/serialization.rs`, and `runners/rust/tests/aead.rs`
-for the AEAD.
+Runners: `runners/rust/tests/serialization.rs`, `runners/rust/tests/aead.rs`
+for the AEAD, and `runners/rust/tests/malformed_input.rs` for the two decoder
+files.
 
 **Where the AEAD vectors' bytes come from.** The model has no AES, so these
 two files are neither model output alone nor a published vector alone. The
@@ -452,11 +454,11 @@ ends, and on which side of each edge Revision 1 stands.
 Sender keys and multi-device are not yet scheduled and have no vectors. Session
 establishment: see the PQXDH section above for what the vectors reach and what
 core tests cover instead. Malformed-input handling is covered by vectors for
-the ratchet's skip bound, the AEAD's refusals, the protobuf profile's
-refusals and the erasure coders' stored-state refusals; the broader cases
-(truncated headers, length overruns, the bundle's presence rule, the other
-persisted formats) are covered by core tests and by the fuzz targets rather
-than by files in this directory.
+the ratchet's skip bound, the decoders' refusal of a re-spelled curve key,
+the AEAD's refusals, the protobuf profile's refusals and the erasure coders'
+stored-state refusals; the broader cases (truncated headers, length overruns,
+the bundle's presence rule, the other persisted formats) are covered by core
+tests and by the fuzz targets rather than by files in this directory.
 Interoperability against a libsignal-based peer is bundle-layer scope: the
 harness contract is defined (the neutral adapter API, the black-box boundary,
 and claim-by-version discipline) and session establishment is implemented;

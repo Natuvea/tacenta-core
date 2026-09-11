@@ -132,6 +132,21 @@ is SemVer against the specified protocol (not the implementation).
   `mlkem-braid.md` cite the record where each is stated.
 
 ### Changed
+- `protocol/message-format.md`, `protocol/session-establishment.md`: every
+  curve public key a peer sends is refused unless it is the canonical
+  encoding, its 32 bytes read as a little-endian integer below
+  p = 2^255 - 19. This extends `DecodeEC`'s rule to the keys the wire carries
+  raw: a prekey bundle's `identity_key`, `signed_prekey` and present
+  `one_time_prekey`, and a ratchet message's `dh`. Each decoder refuses a
+  re-spelled key as a decode failure. A new section of message-format.md,
+  "Curve public keys", states the rule once and lists every position. The
+  Primitives section of session-establishment.md no longer says those keys
+  reach X25519 as received. The bundle's identity key was already held to the
+  rule when its signatures are verified (identities-and-devices.md, Verifying
+  a signature), and still is. Defence in depth: a key's bytes are its identity
+  in the signatures, the associated data, the replay fingerprint and the
+  skipped-key store, and an honest key generator produces no refused form
+  (register item J-3).
 - `protocol/session-persistence.md`: the "Validated, not only parsed"
   principle no longer reads as refusing every state no constructor builds.
   Each type's `invariant` is the set of relations its operations and their
