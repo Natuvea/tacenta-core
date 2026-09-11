@@ -237,7 +237,9 @@ deleting them after an interval, triggered by a timer or by counting events.
   determine `SK` (the signed prekey identifier, which also determines `SK`,
   is bound by `SK` itself and omitted), tagged with the identifier of the
   last-resort KEM key the handshake was made against, and refuses a repeat
-  (`ReplayedLastResort`). **The record is bounded per key
+  (`ReplayedLastResort`). The fingerprint's construction, and why its
+  curve-key inputs have one encoding each, is stated once, in
+  session-establishment.md, "The fingerprint". **The record is bounded per key
   lifetime, and it fails closed.** It holds at most `MAX_LAST_RESORT_SEEN`
   entries *for each* last-resort KEM key that can still decrypt -- the current
   key and the one the last rotation retired, so at most two full budgets in

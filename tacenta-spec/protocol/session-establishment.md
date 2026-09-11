@@ -61,7 +61,9 @@ not recognise the leading byte fails.
   adopted here as the rule. A non-contributory output is refused wherever one
   is computed.
 - `Sig(PK, M, Z)` is an XEdDSA signature over `M` by `PK`'s private key, using
-  64 bytes of randomness `Z`, verifying under `PK`.
+  64 bytes of randomness `Z`, verifying under `PK`. How it is made and which
+  signatures verify are stated in identities-and-devices.md (Signing;
+  Verifying a signature).
 - `KDF(KM)` is 32 bytes of HKDF output using `hash`, with input keying material
   `F || KM`, an all-zero salt the length of the hash output, and an `info` string
   described below. `F` is 32 bytes of `0xFF` for curve25519. `F` exists for
@@ -189,9 +191,30 @@ gives the counterexample that shows it fails without it; the core pins the width
 in a test.
 
 Alice sends `IKA`, `EKA`, `CT`, identifiers naming which prekeys she used, and an
-initial ciphertext encrypted under `SK` (or a key derived from it) with `AD` as
-associated data. The message must be encoded unambiguously so the recipient
-cannot confuse one field for another. `CT` is public, and Alice keeps it: the
+initial ciphertext. The message must be encoded unambiguously so the recipient
+cannot confuse one field for another.
+
+The initial ciphertext is the session's first ratchet message. Nothing is
+encrypted under `SK` itself. The key comes from `SK` by this path:
+
+1. `SK` is split into two 32-byte halves (triple-ratchet.md, Initialisation).
+2. The first half is the Double Ratchet's `SK`. As the party that sends first,
+   Alice generates a ratchet key pair `DHs` and derives
+   `(RK, CKs) = KDF_RK(first half, DH(DHs, SPKB))` (ratchet.md,
+   Initialisation). `KDF_CK(CKs)` gives the classical message key.
+3. The second half initialises the sparse ratchet in direction `A2b`
+   (sparse-pq-ratchet.md, Initialisation), and its first send gives the
+   post-quantum message key.
+4. The two message keys are combined into 32 bytes (triple-ratchet.md, What
+   the combination must be).
+5. The message-key expansion turns those 32 bytes into `enc_key`, `mac_key` and
+   `iv` (ratchet.md, Derivations).
+6. The AEAD encrypts under them (message-format.md, Authenticated encryption),
+   with `CONCAT(AD, composite header)` as associated data (message-format.md,
+   Associated data). `AD` is the value above.
+
+The ML-KEM Braid's authenticator is also initialised from `SK` (mlkem-braid.md),
+but it keys no encryption. `CT` is public, and Alice keeps it: the
 session sends the initial message's fields again with every message until one
 from Bob decrypts, and only then drops them (session-persistence.md,
 `pending_initial`).
@@ -260,6 +283,145 @@ specification asks for, not a claim about it; `key-deletion.md` states what a
 spent budget costs, why rotation buys a window rather than a reset, and which
 accessor reports the room left.
 
+### The fingerprint
+
+A handshake is on the last-resort path when its `kem_prekey_id` names Bob's
+current last-resort KEM prekey or the one the last rotation retired. Its
+fingerprint is 32 bytes: HMAC-SHA256, keyed with a fixed label, over the
+handshake fields of the initial message (message-format.md, Initial message).
+
+```
+input       = u32(33)                  || identity         -- EncodeEC(IKA)
+           || u32(33)                  || ephemeral        -- EncodeEC(EKA)
+           || u32(len(kem_ciphertext)) || kem_ciphertext   -- CT
+           || one_time_prekey_id (4)
+           || kem_prekey_id (4)
+fingerprint = HMAC-SHA256(key = LAST_RESORT_HANDSHAKE_LABEL, data = input)
+```
+
+The input is built as follows:
+
+- **Integers.** `u32(n)` and both identifiers are 4 bytes, big-endian.
+- **Fields.** Each field is the bytes the initial message carries, in the
+  order shown. `identity` and `ephemeral` keep their curve byte and are 33
+  bytes each. `kem_ciphertext` is prefixed with its own length, the value of
+  the message's `kem_ciphertext_len`. `one_time_prekey_id` is written as
+  carried: `0` when no one-time curve prekey was used.
+- **The key.** `LAST_RESORT_HANDSHAKE_LABEL` is the 32 ASCII bytes
+  `tacenta last-resort handshake v1`, with no terminator (CONSTANTS.md). It is
+  HMAC's key and is not secret: nothing in the fingerprint is. HMAC is used as
+  a keyed hash, so that a fingerprint cannot equal any other digest computed
+  over overlapping bytes.
+- **What is left out.** `signed_prekey_id` and the ratchet message are not
+  inputs. The ratchet message is authenticated under keys derived from `SK`,
+  so nobody who cannot already derive `SK` can vary it. Leaving it out also
+  means that re-framing a captured message does not give it a new
+  fingerprint.
+
+Bob computes the fingerprint before he decapsulates. He refuses the message
+(`ReplayedLastResort`) if any entry in the record holds that fingerprint,
+whatever key the entry is tagged with. The tag decides only which budget an
+entry counts against and which rotation drops it. Bob adds the fingerprint,
+tagged with `kem_prekey_id`, only once the initial ciphertext has
+authenticated.
+
+**The curve-key inputs are the canonical encodings.** A handshake is accepted
+only if `DecodeEC` accepts both `identity` and `ephemeral` (Sending the initial
+message), and `DecodeEC` accepts one encoding of each key. So every fingerprint
+in the record is over the encodings `DecodeEC` accepted. Suppose a captured
+message's `identity` or `ephemeral` is spelled another way, with bit 255 set or
+with p added to its value. That message is refused and never recorded, rather
+than fingerprinted afresh and accepted as a handshake Bob has not seen.
+
+`CT` and the identifiers need no such rule:
+
+- Decapsulation re-encrypts and compares the result with the ciphertext byte
+  for byte (FIPS 203, Algorithm 18). Any other ciphertext yields the
+  implicit-rejection secret, and so does not authenticate.
+- The identifiers are fixed-width integers, with one spelling each.
+
+## Primitives, and what is left to them
+
+This page composes X25519, ML-KEM-1024, HKDF-SHA256 and XEdDSA. XEdDSA is
+specified in identities-and-devices.md, and HKDF is RFC 5869's, as Notation
+says. For X25519 and ML-KEM-1024, this section states what the protocol
+requires and what it leaves to the standard. Whatever a standard leaves open
+is left to the library that implements it. `tacenta-core` takes X25519 from
+`x25519-dalek` and ML-KEM-1024 from `libcrux-ml-kem`, and nothing below
+depends on that choice.
+
+### X25519 (RFC 7748)
+
+- **Private keys.** A curve private key is 32 bytes. It is generated as 32
+  random bytes and stored as generated, unclamped. Each use clamps it as RFC
+  7748, section 5, `decodeScalar25519`, does: it clears the low three bits of
+  byte 0, clears the top bit of byte 31, and sets the bit below that. This
+  holds for the identity key (identities-and-devices.md), the signed and
+  one-time prekeys, the ephemeral key and every ratchet key pair.
+- **Public keys.** A public key is `X25519(k, 9)`: 32 bytes, the little-endian
+  u-coordinate.
+- **Agreement.** `DH(PK1, PK2)` is `X25519(k1, u2)` (RFC 7748, section 5), 32
+  bytes. A non-contributory output is refused (Notation). RFC 7748, section
+  6.1, describes that check and leaves it to the protocol.
+- **Decoding a peer's key is left to X25519 only where no rule on this page
+  applies.** RFC 7748, section 5, has X25519 ignore bit 255 of a u-coordinate
+  and accept a value at or above p, reducing it. Which keys reach X25519 with
+  that behaviour depends on how they arrive:
+  - Keys in `EncodeEC` form, an initial message's `identity` and `ephemeral`,
+    are checked by `DecodeEC` first. It refuses both spellings, so the masking
+    and reduction never apply to them.
+  - The bundle's identity key must pass the same check when its signatures are
+    verified (identities-and-devices.md, Verifying a signature).
+  - The bundle's signed prekey and one-time prekey, and the composite header's
+    `dh` (message-format.md), are 32 raw bytes and reach X25519 as received.
+    A second spelling of one of them names the same key, and nothing gains a
+    second identity from it: a signed prekey's signature covers its bytes, the
+    composite header is authenticated as associated data, and a re-spelled
+    one-time prekey gives the same `DH4` and so the same `SK`.
+- **Left to the library:** the Montgomery ladder, the field arithmetic, and
+  computing in time independent of the private key. Any implementation that
+  follows RFC 7748, section 5, computes the same bytes from the same inputs.
+
+### ML-KEM-1024 (FIPS 203)
+
+- **Key generation.** A KEM prekey pair is generated from 64 random bytes
+  `d || z` by `ML-KEM.KeyGen_internal(d, z)` (FIPS 203, Algorithm 16). The
+  result is a 1,568-byte encapsulation key `ek` and a 3,168-byte decapsulation
+  key `dk`. The prekey store persists both in FIPS 203's layout
+  (session-persistence.md, Prekey store).
+- **Validating the encapsulation key.** Before encapsulating, `PQKEM-ENC(PK)`
+  applies FIPS 203 section 7.2's input checks to the bundle's KEM prekey:
+  - its length is 1,568 bytes, which the bundle decoder already requires
+    (message-format.md, Prekey bundle);
+  - `ByteEncode12(ByteDecode12(ek[0:1536]))` equals `ek[0:1536]`.
+
+  Alice refuses a bundle whose key fails either check. She has then computed no
+  agreement and sent nothing.
+- **Encapsulation** draws 32 random bytes `m` and runs
+  `ML-KEM.Encaps_internal(ek, m)` (Algorithm 17). That is `ML-KEM.Encaps`, with
+  `m` taken from the caller's random source. It produces a 1,568-byte `CT` and
+  a 32-byte `SS`.
+- **Decapsulation** refuses a `CT` of any length other than 1,568 bytes
+  (message-format.md, Initial message), then runs
+  `ML-KEM.Decaps_internal(dk, CT)` (Algorithm 18).
+  - **Implicit rejection is kept.** A ciphertext that does not re-encrypt to
+    itself yields the pseudorandom `J(z || CT)`, not an error, so `PQKEM-DEC`
+    never fails on a ciphertext of the right length. A wrong `CT` surfaces as
+    the initial ciphertext failing to authenticate, which is where PQXDH
+    expects a failed handshake to surface.
+  - **The hash check is made at load.** Section 7.3's hash check on `dk` is
+    made when a stored key pair is read (session-persistence.md, Prekey store),
+    not at each decapsulation. A pair the store generated itself is valid by
+    construction.
+- **The Braid.** The ML-KEM Braid uses the incremental form of the same
+  algorithms, with the same randomness sizes (mlkem-braid.md, The KEM split).
+- **Left to the library:** the algorithms' internals (sampling, the NTT,
+  compression, SHA3-256, SHA3-512 and SHAKE) and constant-time execution. Any
+  FIPS 203 implementation computes the same `ek`, `dk`, `CT` and `SS` from the
+  same random bytes. The one thing another implementation cannot take from
+  FIPS 203 is the Braid's persisted key pair and encapsulation state
+  (session-persistence.md, Braid).
+
 ## Byte-level conventions
 
 The published specification deliberately leaves the application `info` string,
@@ -299,8 +461,14 @@ records what is established about session establishment and
 - Signal's published X3DH specification (Moxie Marlinspike; Trevor Perrin,
   editor), **revision 1, 2016-11-04**, for the four Diffie-Hellman computations
   PQXDH extends and the replay discussion.
-- The XEdDSA specification, revision 1, for the prekey signatures.
+- The XEdDSA specification, revision 1, 2016-10-20, for the prekey signatures
+  (identities-and-devices.md).
 - RFC 5869 (HKDF), referenced by the above for the derivation.
+- RFC 7748, sections 5 and 6.1, for X25519: scalar clamping, u-coordinate
+  decoding, and the all-zero output check.
+- FIPS 203 (ML-KEM), Algorithms 16 to 18 and sections 7.2 and 7.3, for key
+  generation, encapsulation, decapsulation with implicit rejection, and the
+  input checks.
 
 Both archived copies are pinned by SHA-256 alongside the other references, so
 the implemented revision is fixed.

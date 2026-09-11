@@ -206,9 +206,38 @@ decoder always sees exactly the slice it produced and nothing else:
 - `key_pair` (11,872 bytes) and `encaps` (2,592 bytes) are `tacenta-kem`'s
   incremental key pair and encapsulation state: each is its underlying bytes,
   with no version byte and no structure this page relies on, and each reader
-  refuses any other length.
+  refuses any other length. Nothing else in either field is checked.
 - `hdr_enc`, `ek_enc`, `ct1_enc`, `ct2_enc` and `hdr_dec`, `ek_dec`, `ct1_dec`,
   `ct2_dec` are erasure encoders and decoders, in the formats below.
+
+**`key_pair` and `encaps` are delegated, and that limits which states move
+between implementations.** Their layouts are the incremental interface's
+serialisations in `libcrux-ml-kem` 0.0.10 (CONSTANTS.md, "KEM key pair and
+encapsulation state lengths"). This page does not define them. Neither does
+FIPS 203, which has no incremental form, or the ML-KEM Braid document. This is
+a deliberate delegation (ADR-0006, point 5), and the consequence for another
+implementation is this:
+
+- **Tags it cannot import or export.** An implementation without that
+  serialisation can carry `key_pair` and `encaps` only as opaque,
+  length-checked bytes: it cannot decapsulate with the one or finish the
+  encapsulation the other holds. So it cannot import, and go on from, a Braid
+  in any state that carries one of them:
+  - `key_pair`: tags 1 (`KeysSampled`), 2 (`HeaderSent`), 3 (`Ct1Received`)
+    and 4 (`EkSentCt1Received`);
+  - `encaps`: tags 7 (`Ct1Sampled`), 8 (`EkReceivedCt1Sampled`) and 9
+    (`Ct1Acknowledged`).
+
+  Nor can it write a state with those tags that this format's reader would
+  import and that goes on correctly.
+- **Tags it can move.** Tags 0 (`KeysUnsampled`), 5 (`NoHeaderReceived`), 6
+  (`HeaderReceived`), 10 (`Ct2Sampled`) and 11 (`Failed`) carry neither field.
+  This page defines them completely, so another implementation can import
+  and export them, and a session whose Braid is in one of them.
+- **When a session can move.** A session can move between implementations only
+  while its Braid is in one of those five states.
+
+A library change that alters either layout needs a new Braid `STATE_VERSION`.
 
 A reader refuses a tag above 11, a stored `epoch` of `u64::MAX` (see the
 principles above), and any bytes left after the last field.
@@ -398,7 +427,9 @@ is exactly 4,736 bytes; `ek` passes the FIPS 203 section 7.2 modulus check;
 else in `dk` is checked. `next_id` is the
 identifier the next key added to the store will take, so that replenishment
 continues the sequence rather than restarting it (key-deletion.md). `seen`
-is the record of spent last-resort handshakes, oldest first; from v4 each
+is the record of spent last-resort handshakes, oldest first, each
+`fingerprint` constructed as session-establishment.md, "The fingerprint",
+states; from v4 each
 entry carries the identifier of the last-resort KEM key the handshake was
 made against, which is `kem_id` or the identifier inside `previous_kem`,
 and which is what lets a rotation drop a wiped key's entries

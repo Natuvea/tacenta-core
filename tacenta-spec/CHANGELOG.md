@@ -50,6 +50,57 @@ is SemVer against the specified protocol (not the implementation).
   all-zero padding when it is absent. The `inputs` description in
   `tacenta-test-vectors/schema/vector.schema.json` points there. No vector
   field is renamed. Independent reader (G-09).
+- `protocol/session-establishment.md`, "The fingerprint": the last-resort
+  replay fingerprint's construction (reader gap G-26).
+  - It is HMAC-SHA256 keyed with the 32-byte label
+    `tacenta last-resort handshake v1`. The input is the initial message's
+    `identity`, `ephemeral` and `kem_ciphertext`, each prefixed with a 4-byte
+    big-endian length, then `one_time_prekey_id` and `kem_prekey_id`, 4 bytes
+    each, big-endian.
+  - It is computed before decapsulation, matched against every entry whatever
+    its tag, and recorded only once the initial ciphertext authenticates.
+  - Its curve-key inputs are the canonical encodings `DecodeEC` accepted. This
+    is the property security advisory GHSA-cgvw-9r5f-xrxp turned on: a
+    re-spelled key gave a captured last-resort first contact a second
+    fingerprint.
+  - `CONSTANTS.md` has a row for the label. `protocol/key-deletion.md` and
+    `protocol/session-persistence.md` point to the construction rather than
+    repeat it.
+- `protocol/session-establishment.md`, "Primitives, and what is left to them":
+  what the protocol requires of X25519 and ML-KEM-1024, and what it leaves to
+  RFC 7748, FIPS 203 and the libraries (register item D-3).
+  - **X25519:** unclamped storage, `decodeScalar25519` clamping at each use,
+    and which peer keys reach RFC 7748's masking and reduction of the
+    u-coordinate.
+  - **ML-KEM-1024:** the section 7.2 encapsulation-key check with the
+    bundle's refusal, the 64-byte key-generation and 32-byte encapsulation
+    randomness, implicit rejection kept on decapsulation, and the section 7.3
+    hash check made when a store is read.
+- `protocol/message-format.md`, "Authenticated encryption": CBC is defined
+  (NIST SP 800-38A, section 6.2). `enc_key`, `mac_key` and `iv` are bytes 0-31,
+  32-63 and 64-79 of the 80-byte message-key expansion, and the IV is not sent.
+  A delegation paragraph names FIPS 197, SP 800-38A, RFC 5652 section 6.3,
+  RFC 2104 and FIPS 180-4, and says that nothing observable is left to the
+  libraries (G2-02, D-3).
+- `protocol/identities-and-devices.md`, "Signing": XEdDSA clamps the 32-byte
+  identity secret as X25519 does before `calculate_key_pair`. The page gives
+  the whole signing computation, and says why the clamp is needed for `A` to
+  be the published key (G-27). `CONSTANTS.md` has a row for the `hash_1`
+  prefix.
+- `protocol/identities-and-devices.md`, "Verifying a signature": the verifier's
+  accepted set as six rules, and where it departs from XEdDSA revision 1 in
+  each direction (G-28):
+  - a canonical `u` with a point on the curve;
+  - the signature's top bit as the sign of `A`;
+  - `A` not of small order;
+  - `s` below the group order;
+  - `R` equal byte for byte to the encoding of `sB - hA`;
+  - `R`'s point not of small order.
+- `protocol/session-persistence.md`, "Braid": the consequence of delegating the
+  `key_pair` and `encaps` layouts to `libcrux-ml-kem`. An implementation
+  without that serialisation cannot import or export tags 1-4 and 7-9, and can
+  move tags 0, 5, 6, 10 and 11 (G2-08). The reader checks nothing in either
+  field beyond its length.
 
 ### Changed
 - `protocol/session-persistence.md`: the "Validated, not only parsed"
@@ -63,6 +114,16 @@ is SemVer against the specified protocol (not the implementation).
   the readers do. The session's rule that each half satisfies its own rules
   now says a half that breaks them is refused as malformed by its own reader
   first. Independent reader, second pass (G2-12).
+- `protocol/session-establishment.md`, "Sending the initial message": the
+  initial ciphertext's key is stated as the path it takes from `SK`, instead of
+  "under `SK` (or a key derived from it)" (G2-09). The path runs through the
+  split, the Double Ratchet's initialisation and first chain step, the sparse
+  ratchet's first send, the combination, the message-key expansion, and the
+  AEAD with `CONCAT(AD, composite header)`.
+- `CONSTANTS.md`: the XEdDSA sign-bit row no longer describes the verifier by a
+  library function (`verify_strict`). It points to the rules in
+  `protocol/identities-and-devices.md` (G-28). The row for the KEM key pair and
+  encapsulation state lengths names the import consequence.
 
 ### Fixed
 - `protocol/ratchet.md`: the Message format and Sources sections said the
