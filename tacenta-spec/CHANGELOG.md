@@ -20,15 +20,6 @@ is SemVer against the specified protocol (not the implementation).
   order, which decides eviction ties and the persisted order. In the sparse
   ratchet only a state read from storage can hold a key to replace. The model
   and the implementation agree. Independent reader, second pass (G2-01).
-- `protocol/sparse-pq-ratchet.md`, `protocol/triple-ratchet.md`: the header's
-  `pq_epoch` selects the sparse ratchet's receiving chain, and `pq_n` is the
-  message number. The epoch the agreement's receive returns is not used and
-  is not compared with `pq_epoch`; a returned secret's own epoch is still the
-  one the advance checks. The model's receive takes no returned epoch, and the
-  implementation discards it. This departs from Double Ratchet revision 4,
-  §5.6, whose header carries no epoch and whose receive uses the returned
-  one. The page says so and leaves the departure undecided. Independent
-  reader, second pass (G2-07).
 - `protocol/session-persistence.md`:
   - The erasure encoder's `next` is the index it issues next, left at 65,535
     once `exhausted`, and its chunks are the value's in order. The decoder's
@@ -205,6 +196,36 @@ is SemVer against the specified protocol (not the implementation).
       epoch, where the document reports the one before;
     - the epoch in the two MAC inputs, written bare there, is `ToBytes(epoch)`
       here.
+- `protocol/session-persistence.md`, `protocol/session-establishment.md`,
+  `protocol/message-format.md`: which stored curve public keys must be
+  canonical, as built. Independent reader, fourth pass (G4-02).
+  - The session's shape rule for `established_ephemeral` is that `DecodeEC`
+    accepts it, so a re-spelled key there is refused as inconsistent. A
+    re-spelled `dhs_pub` is refused as inconsistent because it is not the
+    public key of `ratchet_private`, which is canonical.
+  - No rule requires `peer_identity_public`, `our_identity_public`,
+    `pending_initial`'s `ephemeral_public`, the ratchet state's `dhr_pub`, a
+    skipped entry's `dh`, or the prekey store's `identity_public` to be
+    canonical, and the readers accept each of them re-spelled. The page says
+    what follows from each.
+  - "Receiving the initial message" no longer says a repeat is compared
+    against canonical encodings in every session: a session read with a
+    re-spelled `peer_identity_public` refuses every repeat.
+- `protocol/session-establishment.md`, `protocol/error-handling.md`,
+  `protocol/message-format.md`: what follows `NotARepeatedInitial`, as built.
+  Independent reader, fourth pass (G4-04).
+  - The refusal changes nothing, and the session neither establishes a new
+    session nor replaces itself.
+  - Establishing a new session from the message is the recipient's decision,
+    taken as on first receipt. `tacenta-core` provides `establish_responder`
+    for it and relates the new session to no other. A repeat of a message
+    that already established a session does not establish a second one.
+  - For a session reset, a changed identity and simultaneous initiation, the
+    specification requires the refusal and leaves the rest to the
+    application. After simultaneous initiation, if both sides establish from
+    the message they refused, each party holds two sessions, which pair
+    across.
+  - error-handling.md lists the refusal among the conditions a caller acts on.
 
 ### Fixed
 - `protocol/ratchet.md`: the Message format and Sources sections said the

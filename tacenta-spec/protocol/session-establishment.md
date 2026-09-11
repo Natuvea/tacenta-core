@@ -247,9 +247,15 @@ accepts it only if it is a responder's session and both of these hold:
   it.
 
 It then decrypts the ratchet message inside. Otherwise, and always on an
-initiator's session, it refuses the message (`NotARepeatedInitial`). Both
-comparisons are against canonical encodings, and a key has one, so neither
-field of a genuine repeat can be spelled another way and still match.
+initiator's session, it refuses the message (`NotARepeatedInitial`). The
+message's two fields are canonical encodings, since it decoded. So is
+`established_ephemeral` in every session a reader accepts, and
+`peer_identity_public` in every session establishment builds, since it is the
+key the establishing message's decoder accepted. A key has one canonical
+encoding, so neither field of a genuine repeat can be spelled another way and
+still match. The session reader does not require `peer_identity_public` to be
+canonical, though, and a session read from storage with a re-spelled one
+refuses every repeat (session-persistence.md, Session, Semantic rules).
 
 The other fields, `kem_ciphertext` and the three identifiers, are not
 compared: the session keeps none of them, and keeping them would change its
@@ -267,6 +273,51 @@ So a repeat whose `kem_ciphertext` or identifiers differ from the establishing
 message's, around a ratchet message the session has not read, yields that
 message's plaintext once, as the unaltered repeat would, and changes nothing
 else.
+
+**A refused initial message changes nothing.** Neither refusal, the decode
+failure or `NotARepeatedInitial`, changes the session. The session does not
+establish a new session from the message, and does not replace itself with
+one. What happens next is the recipient's decision, not the session's:
+
+- **Establishing afresh.** The recipient can establish a new session from the
+  message as on first receipt, above. The message is then taken on its own:
+  the prekeys it names must still be held, the one-time prekeys it used are
+  deleted once it authenticates, and on the last-resort path it is
+  fingerprinted and recorded (Replay, below). `tacenta-core` provides this as
+  `establish_responder`, which takes the party's identity, its prekey store
+  and the message, and returns a new session and the first plaintext.
+- **No relation between the sessions.** `tacenta-core` keeps no record of the
+  sessions a party holds. It does not relate the new session to the one that
+  refused the message, and does not change that one: both go on working, each
+  with its own peer. Keeping one, the other or both, or dropping the message,
+  is left to the application.
+- **A repeat does not establish twice.** Against the store its establishment
+  left, a repeat of a message that already established a session does not
+  establish a second one. The one-time KEM prekey it named has been deleted,
+  or, on the last-resort path, its fingerprint is in the record.
+
+For the two cases message-format.md names (Message type), and for
+simultaneous initiation, the specification requires the refusal and nothing
+after it:
+
+- **A session reset, or a changed identity.** A peer that starts a new session
+  with a party that still holds one sends an initial message with a new
+  `ephemeral`, and, after a changed identity, a new `identity`. The existing
+  session refuses it (`NotARepeatedInitial`). A session established from it
+  holds the identity key the message carried, and `tacenta-core` reports that
+  key (`Session::peer_identity`) for the application to compare with the one
+  it holds for the contact. Whether the new session replaces the old one is
+  the application's decision.
+- **Simultaneous initiation.** Two parties that each establish a session from
+  the other's bundle, before either receives the other's initial message, both
+  hold an initiator's session. Each refuses the other's initial message
+  (`NotARepeatedInitial`). If each then establishes a responder's session from
+  the message it refused, each holds two sessions with the other, and they
+  pair across: one party's initiator's session with the other's responder's
+  session, and the other way round. A message sent on one session is read only
+  on the session it is paired with, and the recipient's other session refuses
+  it. Neither the specification nor `tacenta-core` chooses between the two
+  pairs. Settling on one is left to the application.
 
 ## Replay, and why the ratchet must follow
 
