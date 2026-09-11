@@ -88,6 +88,38 @@ theorem decode_message_no_panic (bytes : Slice U8) :
   step*
   all_goals (obtain ⟨header, rest⟩ := p; step*)
 
+/-! ## The initial (prekey) message decoder
+
+`decode_initial` computes each field's end with `span_end` before reading
+anything, and every read is at a position that check has bounded. So its
+totality is `span_end`'s specification, stated in full here because the
+refinement needs both of its outcomes. -/
+
+/-- `span_end` returns where the span ends exactly when it fits, and nothing
+exactly when it does not. An addition that would overflow `usize` does not fit
+either, since no slice is that long. -/
+@[step]
+theorem span_end_spec (bytes : Slice U8) (at1 n : Usize) :
+    span_end bytes at1 n ⦃ o => match o with
+      | none => bytes.length < at1.val + n.val
+      | some e => e.val = at1.val + n.val ∧ e.val ≤ bytes.length ⦄ := by
+  unfold span_end
+  step*
+
+/-- Four big-endian bytes cannot fail to read when they are inside the input. -/
+@[step]
+theorem be32_at_no_panic (bytes : Slice U8) (at1 : Usize) (h : at1.val + 4 ≤ bytes.length) :
+    be32_at bytes at1 ⦃ fun _ => True ⦄ := by
+  unfold be32_at
+  step*
+
+/-- **Decoding an initial message cannot fail, for every byte string.** -/
+@[step]
+theorem decode_initial_no_panic (bytes : Slice U8) :
+    decode_initial bytes ⦃ fun _ => True ⦄ := by
+  unfold decode_initial
+  step*
+
 -- The axiom audit, enforced rather than asserted: both entry points rest on the
 -- kernel's three axioms and nothing else. The decoder calls no opaque operation,
 -- so no boundary assumption and no `native_decide` reaches either. A proof that
@@ -99,5 +131,9 @@ theorem decode_message_no_panic (bytes : Slice U8) :
 /-- info: 'Tacenta.WireT1.decode_message_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Tacenta.WireT1.decode_message_no_panic
+
+/-- info: 'Tacenta.WireT1.decode_initial_no_panic' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Tacenta.WireT1.decode_initial_no_panic
 
 end Tacenta.WireT1

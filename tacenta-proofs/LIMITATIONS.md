@@ -1299,17 +1299,16 @@ decoder accepts anything at all is the Rust round-trip tests.
   `tacenta-protobuf` is referenced only by the `protobuf_bodies` fuzz target.
   The decoders a peer's bytes actually reach are `decode_message` and
   `decode_composite`, for a ratchet message, and `decode_initial`, for a
-  prekey message. The first two now live in the `tacenta-wire` leaf crate,
-  which the root crate's `serialization` module re-exports, and they are
-  translated and proved: `Translation/WireT1.lean` shows they cannot fail on any
-  byte string, and `Translation/WireT3.lean` that `decode_composite` returns
-  exactly what `Model.CompositeHeader.decode` returns, kernel-only. So for a
-  ratchet message, what is parsed out of the bytes it arrived as is proved to
-  be what the model parses; what the session then does with the parsed header
-  is not translated.
-  `decode_initial` is still in the root crate, untranslated and without a
-  theorem, so a prekey message's parsing is not covered, and the protobuf
-  crate's T1 and T3 remain a verified reader the product does not use.
+  prekey message. All three live in the `tacenta-wire` leaf crate, which the
+  root crate's `serialization` module re-exports, and they are translated and
+  proved: `Translation/WireT1.lean` shows they cannot fail on any byte string,
+  `Translation/WireT3.lean` that `decode_composite` returns exactly what
+  `Model.CompositeHeader.decode` returns, and `Translation/WireInitialT3.lean`
+  that `decode_initial` returns exactly what `Model.Messages.decodeInitial`
+  returns, all kernel-only. So for both kinds of message, what is parsed out of
+  the bytes it arrived as is proved to be what the model parses; what the
+  session then does with the parsed message is not translated, and the
+  protobuf crate's T1 and T3 remain a verified reader the product does not use.
 
   **Why the parser state is one struct and the loop body one call, because
   it is the transferable part.** Charon joins the branches of an `if`/`else`

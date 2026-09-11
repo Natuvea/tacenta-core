@@ -1,5 +1,6 @@
-//! The composite header on the wire, and the decoder every ratchet message a
-//! peer sends goes through first.
+//! The composite header on the wire, and the decoders every message a peer sends
+//! goes through first: `decode_message` for a ratchet message and
+//! `decode_initial` for an initial (prekey) message.
 //!
 //! Written from tacenta-spec/protocol/triple-ratchet.md and the model in
 //! `Model.CompositeHeader`, whose round-trip is proved in
@@ -290,6 +291,117 @@ pub fn decode_message(bytes: &[u8]) -> Result<DecodedMessage, DecodeError> {
         }),
         Err(e) => Err(e),
     }
+}
+
+/// Message type: an initial (prekey) message. **Wire-sensitive.**
+pub const TYPE_INITIAL: u8 = 0x02;
+
+/// The width of an `EncodeEC` public key: a curve type byte and 32 bytes.
+const EC_LEN: usize = 33;
+
+/// A decoded initial (prekey) message.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct DecodedInitial {
+    pub identity: Vec<u8>,
+    pub ephemeral: Vec<u8>,
+    pub kem_ciphertext: Vec<u8>,
+    pub signed_prekey_id: u32,
+    pub one_time_prekey_id: u32,
+    pub kem_prekey_id: u32,
+    pub message: Vec<u8>,
+}
+
+/// Where the `n` bytes starting at `at` end, if they fit inside `bytes`, and
+/// nothing otherwise.
+///
+/// **The checked addition is the point of this function.** A decoder reads a
+/// four-byte length off the wire and casts it to `usize`. On a 64-bit target
+/// `at + n` cannot overflow, because `u32::MAX` plus a small offset is nowhere
+/// near the top of the range, and the length check catches it. On a 32-bit
+/// target it can: `u32::MAX as usize` plus any nonzero offset wraps, a debug
+/// build panics on the addition, and a release build wraps to a small number,
+/// passes the length check, and panics on the slice instead. The crate builds
+/// for `armv7-linux-androideabi`, so that target is not hypothetical. An
+/// addition that overflows is refused the same way as a field that does not
+/// fit, because a length too large to add is the same failure as one too large
+/// to fit.
+// Spelled as a `match` rather than `checked_add(n).filter(..)`, which is what
+// clippy asks for: the translation does not model closures.
+#[allow(clippy::manual_filter)]
+fn span_end(bytes: &[u8], at: usize, n: usize) -> Option<usize> {
+    match at.checked_add(n) {
+        Some(end) => {
+            if end <= bytes.len() {
+                Some(end)
+            } else {
+                None
+            }
+        }
+        None => None,
+    }
+}
+
+/// Four big-endian bytes at `at`. The caller has already checked they fit.
+fn be32_at(bytes: &[u8], at: usize) -> u32 {
+    u32::from_be_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]])
+}
+
+/// Parse an initial (prekey) message. `identity` and `ephemeral` are 33 bytes
+/// each (a type byte and a curve public key); the KEM ciphertext is
+/// length-prefixed; then three prekey identifiers; then the ratchet message.
+///
+/// A fixed-width field that does not fit is `TooShort`; the KEM ciphertext's
+/// length came off the wire, so a ciphertext that does not fit is
+/// `LengthOverrun`. Each field's end is computed by `span_end` before anything
+/// is read, and every read is at a position that check has already bounded.
+pub fn decode_initial(bytes: &[u8]) -> Result<DecodedInitial, DecodeError> {
+    if bytes.len() < 2 {
+        return Err(DecodeError::TooShort);
+    }
+    if bytes[0] != VERSION {
+        return Err(DecodeError::UnknownVersion);
+    }
+    if bytes[1] != TYPE_INITIAL {
+        return Err(DecodeError::WrongType);
+    }
+    let identity_end = match span_end(bytes, 2, EC_LEN) {
+        Some(end) => end,
+        None => return Err(DecodeError::TooShort),
+    };
+    let ephemeral_end = match span_end(bytes, identity_end, EC_LEN) {
+        Some(end) => end,
+        None => return Err(DecodeError::TooShort),
+    };
+    let kem_len_end = match span_end(bytes, ephemeral_end, 4) {
+        Some(end) => end,
+        None => return Err(DecodeError::TooShort),
+    };
+    let kem_len = be32_at(bytes, ephemeral_end) as usize;
+    let kem_end = match span_end(bytes, kem_len_end, kem_len) {
+        Some(end) => end,
+        None => return Err(DecodeError::LengthOverrun),
+    };
+    let signed_prekey_end = match span_end(bytes, kem_end, 4) {
+        Some(end) => end,
+        None => return Err(DecodeError::TooShort),
+    };
+    let one_time_prekey_end = match span_end(bytes, signed_prekey_end, 4) {
+        Some(end) => end,
+        None => return Err(DecodeError::TooShort),
+    };
+    let kem_prekey_end = match span_end(bytes, one_time_prekey_end, 4) {
+        Some(end) => end,
+        None => return Err(DecodeError::TooShort),
+    };
+    Ok(DecodedInitial {
+        identity: bytes[2..identity_end].to_vec(),
+        ephemeral: bytes[identity_end..ephemeral_end].to_vec(),
+        kem_ciphertext: bytes[kem_len_end..kem_end].to_vec(),
+        signed_prekey_id: be32_at(bytes, kem_end),
+        one_time_prekey_id: be32_at(bytes, signed_prekey_end),
+        kem_prekey_id: be32_at(bytes, one_time_prekey_end),
+        message: bytes[kem_prekey_end..].to_vec(),
+    })
 }
 
 #[cfg(test)]

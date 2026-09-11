@@ -16,14 +16,13 @@ pub mod composite;
 
 use composite::encode_composite;
 
-// The version and ratchet type bytes, the decode error, and the ratchet-message
-// decoder live in `tacenta-wire` with the composite header they frame, so the
-// translation covers them; see `composite`. Re-exported here under their old
-// paths.
-pub use tacenta_wire::{DecodeError, DecodedMessage, TYPE_RATCHET, VERSION, decode_message};
-
-/// Message type: an initial (prekey) message. **Wire-sensitive.**
-pub const TYPE_INITIAL: u8 = 0x02;
+// The version and message type bytes, the decode error, and the decoders for
+// both kinds of message live in `tacenta-wire`, so the translation covers them;
+// see `composite`. Re-exported here under their old paths.
+pub use tacenta_wire::{
+    DecodeError, DecodedInitial, DecodedMessage, TYPE_INITIAL, TYPE_RATCHET, VERSION,
+    decode_initial, decode_message,
+};
 
 /// Type byte for a published prekey bundle.
 ///
@@ -59,18 +58,6 @@ pub fn message_type(bytes: &[u8]) -> Option<MessageType> {
     }
 }
 
-/// A decoded initial (prekey) message.
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct DecodedInitial {
-    pub identity: Vec<u8>,
-    pub ephemeral: Vec<u8>,
-    pub kem_ciphertext: Vec<u8>,
-    pub signed_prekey_id: u32,
-    pub one_time_prekey_id: u32,
-    pub kem_prekey_id: u32,
-    pub message: Vec<u8>,
-}
-
 /// Take `n` bytes from `at`, advancing `at`, and refuse anything that does not
 /// fit rather than computing an offset that cannot exist.
 ///
@@ -83,9 +70,9 @@ pub struct DecodedInitial {
 /// passes the length check, and panics on the slice instead. The crate builds
 /// for `armv7-linux-androideabi`, so that target is not hypothetical.
 ///
-/// Every length that came off the wire goes through here. Two decoders need
-/// the same check, which is the argument for one function over two
-/// expressions.
+/// The bundle decoder is the one decoder in this module that still needs it.
+/// `tacenta-wire`'s `span_end` is the same check in the shape the translation
+/// can step through, for the message decoders.
 /// The two cases report differently, and the difference is worth keeping: a
 /// fixed field that does not fit means the input is `TooShort`, while a length
 /// read off the wire that does not fit is a `LengthOverrun`. Overflow is
@@ -330,45 +317,6 @@ pub fn encode_initial(
     out.extend_from_slice(&kem_prekey_id.to_be_bytes());
     out.extend_from_slice(message);
     out
-}
-
-/// Parse an initial (prekey) message. `identity` and `ephemeral` are 33 bytes
-/// each (a type byte and a curve public key).
-pub fn decode_initial(bytes: &[u8]) -> Result<DecodedInitial, DecodeError> {
-    const EC_LEN: usize = 33;
-    if bytes.len() < 2 {
-        return Err(DecodeError::TooShort);
-    }
-    if bytes[0] != VERSION {
-        return Err(DecodeError::UnknownVersion);
-    }
-    if bytes[1] != TYPE_INITIAL {
-        return Err(DecodeError::WrongType);
-    }
-    let mut at = 2;
-    let identity = take_fixed(bytes, &mut at, EC_LEN)?.to_vec();
-    let ephemeral = take_fixed(bytes, &mut at, EC_LEN)?.to_vec();
-
-    let kem_len = read_be32(bytes, at)? as usize;
-    at += 4;
-    let kem_ciphertext = take_wire(bytes, &mut at, kem_len)?.to_vec();
-
-    let signed_prekey_id = read_be32(bytes, at)?;
-    at += 4;
-    let one_time_prekey_id = read_be32(bytes, at)?;
-    at += 4;
-    let kem_prekey_id = read_be32(bytes, at)?;
-    at += 4;
-
-    Ok(DecodedInitial {
-        identity,
-        ephemeral,
-        kem_ciphertext,
-        signed_prekey_id,
-        one_time_prekey_id,
-        kem_prekey_id,
-        message: bytes[at..].to_vec(),
-    })
 }
 
 #[cfg(test)]
