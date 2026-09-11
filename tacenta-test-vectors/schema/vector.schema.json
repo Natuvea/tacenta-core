@@ -36,11 +36,11 @@
           "result": {
             "enum": ["valid", "invalid"],
             "default": "valid",
-            "description": "Whether the operation is expected to succeed. Invalid vectors carry neither output nor fields and must be rejected."
+            "description": "Whether the operation is expected to succeed. A valid vector carries output or fields. An invalid vector carries neither, and its input must be refused, with one exception: in vectors/post-quantum/erasure-decode.json, invalid means that the decoder, offered the listed codewords, holds no value, which is not a refusal (tacenta-test-vectors/README.md, Vector layouts)."
           },
           "inputs": {
             "type": "object",
-            "description": "Named inputs, each a lowercase hex string. Where a file's inputs are the fields of a format a protocol page specifies, each input is that field's encoded bytes, and the page says where an input's name differs from its field's. For the composite header (vectors/serialization/message-encoding.json and vectors/post-quantum/composite.json), tacenta-spec/protocol/message-format.md, Ratchet message, says that the input chunk_data is the field chunk, and that chunk_present, chunk_index and chunk_data together encode one optional codeword: when chunk_present is 00, the other two are its all-zero padding.",
+            "description": "Named inputs, each a lowercase hex string. Where a file's inputs are the fields of a format a protocol page specifies, each input is that field's encoded bytes, and the page says where an input's name differs from its field's. For the composite header (vectors/serialization/message-encoding.json and vectors/post-quantum/composite.json), tacenta-spec/protocol/message-format.md, Ratchet message, says that the input chunk_data is the field chunk, and that chunk_present, chunk_index and chunk_data together encode one optional codeword: when chunk_present is 00, the other two are its all-zero padding. The inputs and outputs of the erasure-code, persistence, protobuf and AEAD files are laid out in tacenta-test-vectors/README.md, Vector layouts. In the AEAD files (vectors/aead/), the input ad is what message-format.md, Authenticated encryption, calls AD: the whole associated data given to HMAC-SHA256, which for a ratchet message is already CONCAT(ad, header). A runner does not apply CONCAT to it.",
             "additionalProperties": {
               "type": "string",
               "pattern": "^[0-9a-f]*$"
@@ -49,11 +49,11 @@
           "output": {
             "type": "string",
             "pattern": "^[0-9a-f]*$",
-            "description": "Expected output for a valid vector, lowercase hex."
+            "description": "Expected output for a valid vector, lowercase hex. For the files tacenta-test-vectors/README.md, Vector layouts, describes, that section says what the output is."
           },
           "fields": {
             "type": "object",
-            "description": "For a valid vector of a decoder: the named values the input decodes to, each a lowercase hex string, an integer as its big-endian bytes. Carried instead of output. A value the decoder reports absent is left out, and a runner must check that the names match as well as the values.",
+            "description": "For a valid vector of a decoder: the named values the input decodes to, each a lowercase hex string, an integer as its big-endian bytes. Carried instead of output. A value the decoder reports absent is left out, and a runner must check that the names match as well as the values. The protobuf files (vectors/protobuf/) spell field names in snake_case where tacenta-spec/protocol/protobuf-profile.md spells them in camelCase: ratchet_key is ratchetKey, previous_counter is previousCounter, prekey_id is prekeyId, base_key is baseKey, identity_key is identityKey, registration_id is registrationId, signed_prekey_id is signedPrekeyId, and pq_prekey_id is pqPrekeyId. counter, ciphertext, pq, message and kem are spelled the same in both. Names are compared in the vectors' spelling.",
             "additionalProperties": {
               "type": "string",
               "pattern": "^[0-9a-f]*$"

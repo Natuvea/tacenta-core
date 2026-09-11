@@ -169,7 +169,11 @@ it names the route in each case.
 Specification: `tacenta-spec/protocol/mlkem-braid.md`, The erasure code. Model:
 `Model.Erasure`, over `Model.Gf65536` and `Model.Polynomial`. Runner:
 `runners/rust/tests/post_quantum.rs`, against `tacenta-erasure`'s `Encoder`
-and `Decoder`.
+and `Decoder`. The two files' layouts are in `README.md`, Vector layouts:
+`indices` a run of 16-bit indices, `codewords` a run of `index(2) || chunk(32)`,
+an encode `output` the listed codewords' 32 bytes back to back, and `size` and
+`stream_length` 32-bit. In `erasure-decode.json` alone, `result: invalid` is a
+decoder that holds no value after the listed codewords, not a refusal.
 
 | Component | Spec section | Covered by |
 |---|---|---|
@@ -315,6 +319,12 @@ Runners: `runners/rust/tests/serialization.rs`, `runners/rust/tests/aead.rs`
 for the AEAD, and `runners/rust/tests/malformed_input.rs` for the three decoder
 files.
 
+**The AEAD vectors' `ad` is the section's `AD`.** The input named `ad` in both
+AEAD files is the whole associated data HMAC-SHA256 covers, what the section
+calls `AD`, and not the `ad` from which `AD = CONCAT(ad, header)` is built. A
+runner applies no `CONCAT` to it; in `session-associated-data` it is already
+`len(ad) || ad || composite header` (`README.md`, Vector layouts).
+
 **Where the AEAD vectors' bytes come from.** The model has no AES, so these
 two files are neither model output alone nor a published vector alone. The
 generator (`Vectors.lean`, `lake exe genvectors aead-encrypt` and
@@ -352,7 +362,10 @@ Vectors: `vectors/protobuf/protobuf-ratchet-body.json` and
 `protobuf-prekey-envelope.json`. An accepted region carries `fields`, the
 values it decodes to, integers as four big-endian bytes; a refused one carries
 `result: invalid`. The runner checks the names as well as the values, so an
-absent `prekey_id` must decode as absent.
+absent `prekey_id` must decode as absent. The vectors spell in snake_case the
+field names the page spells in camelCase, so `prekey_id` is the page's
+`prekeyId`; `README.md`, Vector layouts, and the schema's `fields` description
+map every name.
 
 ### Covered
 
@@ -381,6 +394,10 @@ can reach it.
 - **Oracle:** tacenta-model (`Model.Erasure`: `Encoder.toBytes`/`ofBytes` and
   `Decoder.toBytes`/`ofBytes`). Runner: `runners/rust/tests/persistence.rs`,
   against `tacenta-erasure`'s `to_bytes`/`from_bytes`.
+- **Layout:** `README.md`, Vector layouts. A vector either builds the coder by
+  operations (`message` and a 32-bit `issued`, or a 32-bit `size` and
+  `codewords`) and gives its stored bytes as `output`, or offers stored `bytes`
+  to the reader.
 
 ### Covered
 

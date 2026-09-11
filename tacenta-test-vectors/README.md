@@ -62,6 +62,107 @@ Two kinds live here:
 components the vectors cover, and what is excluded. Peer interoperability is
 scoped to the bundle layer, and the manifest says what that means.
 
+## Vector layouts
+
+Every byte string is lowercase hex, and every integer is written as big-endian
+bytes. Most known-answer files name their inputs for the fields or parameters
+of the page they pin, and message-format.md, Ratchet message, says how the
+composite-header vectors name theirs. The files below have layouts of their
+own, written down here. `schema/vector.schema.json` points here.
+
+### The erasure code: `vectors/post-quantum/erasure-encode.json` and `erasure-decode.json`
+
+The page is mlkem-braid.md, The erasure code.
+
+- **`erasure-encode.json`.**
+  - `message` is the value, whole.
+  - `indices` is a run of 16-bit indices, two bytes each. A new encoder over
+    `message` is run from index 0, and must issue each index in turn, up to the
+    largest one listed.
+  - `output` is the 32 bytes of the codeword at each listed index, in the order
+    listed and back to back, with no index in front of each.
+  - `stream_length`, when present, is a 32-bit count. The encoder is run to its
+    end and must issue exactly that many codewords in all.
+- **`erasure-decode.json`.**
+  - `size` is the value's length `n` in bytes, as a 32-bit integer.
+  - `codewords` is a run of codewords, each `index(2) || chunk(32)`. This is the
+    persisted decoder's `codeword` layout (session-persistence.md, Erasure
+    coder sub-formats). They are offered, in the order listed, to a new decoder
+    for `size` bytes.
+  - A valid vector's `output` is the value the decoder then holds.
+  - **An invalid vector is a decoder that holds no value** after those
+    codewords, because it holds fewer than `k`. That is not a refusal: nothing
+    is rejected. This is the one file in which `result: invalid` does not mean
+    that the input must be refused.
+
+### The erasure coders' persisted formats: `vectors/persistence/`
+
+The page is session-persistence.md, Erasure coder sub-formats and Semantic
+rules of the leaf formats. A vector has one of two shapes.
+
+- **Built by operations**, when the inputs are not `bytes`.
+  - In `erasure-encoder-state.json`, `message` and `issued`, a 32-bit count: a
+    new encoder over `message` issues that many codewords.
+  - In `erasure-decoder-state.json`, `size`, 32-bit, and `codewords`, laid out
+    as in `erasure-decode.json`: a new decoder for `size` bytes is offered those
+    codewords in order.
+  - `output` is the stored bytes of the coder so built. A reader must read them
+    back to the same coder, and an encoder read back must issue the same next
+    codeword.
+- **Stored bytes**, when the one input is `bytes`: a stored coder offered to the
+  reader. A valid vector's `output` is what the reader read, written back. An
+  invalid vector's bytes are refused.
+
+### The protobuf profile: `vectors/protobuf/`
+
+The page is protobuf-profile.md.
+
+- `region` is the protobuf region given to the reader: a ratchet message body's
+  in `protobuf-ratchet-body.json`, and a prekey envelope's in
+  `protobuf-prekey-envelope.json`.
+- A valid vector carries `fields`, the values the region decodes to. A
+  length-delimited field is its bytes, and a varint field is four big-endian
+  bytes. A field decoded as absent is left out, and only `prekey_id` can be.
+- An invalid vector's region is refused.
+- Names are compared exactly, as well as values.
+
+The vectors spell field names in snake_case, and the page in camelCase:
+
+| Vector field | Page field | File |
+|---|---|---|
+| `ratchet_key` | `ratchetKey` | ratchet body |
+| `counter` | `counter` | ratchet body |
+| `previous_counter` | `previousCounter` | ratchet body |
+| `ciphertext` | `ciphertext` | ratchet body |
+| `pq` | `pq` | ratchet body |
+| `prekey_id` | `prekeyId` | prekey envelope |
+| `base_key` | `baseKey` | prekey envelope |
+| `identity_key` | `identityKey` | prekey envelope |
+| `message` | `message` | prekey envelope |
+| `registration_id` | `registrationId` | prekey envelope |
+| `signed_prekey_id` | `signedPrekeyId` | prekey envelope |
+| `pq_prekey_id` | `pqPrekeyId` | prekey envelope |
+| `kem` | `kem` | prekey envelope |
+
+### The AEAD: `vectors/aead/`
+
+The page is message-format.md, Authenticated encryption.
+
+- `enc_key` (32 bytes), `mac_key` (32 bytes) and `iv` (16 bytes) are the
+  section's keys.
+- **The input `ad` is the section's `AD`**: the whole associated data that
+  HMAC-SHA256 covers ahead of the ciphertext. It is not the application's `ad`
+  from which `AD = CONCAT(ad, header)` is built, so a runner gives it to the
+  AEAD as it is and applies no `CONCAT`. Where a vector's `AD` is a
+  `CONCAT(ad, header)`, as in `aead-decrypt.json` `session-associated-data`,
+  its comment says so, and the input is already `len(ad) || ad || composite
+  header`.
+- In `aead-encrypt.json`, `plaintext` is encrypted, and `output` is
+  `ciphertext || tag`.
+- In `aead-decrypt.json`, `input` is what the receiver holds,
+  `ciphertext || tag`. A valid vector's `output` is the plaintext, and an
+  invalid vector's input is refused.
+
 ## Checking the vectors
 
 The runner is a Rust crate that loads every file and drives tacenta-core
@@ -137,7 +238,9 @@ exactly what each covers and what it excludes. The other persisted formats
 (ratchet, sparse ratchet, triple ratchet, Braid, session, prekey store) have
 none, because the model states none of them.
 
-Files with refusals mark them `result: invalid`. A decoder's accepted vector
+Files with refusals mark them `result: invalid`. The one exception is
+`erasure-decode.json`, whose invalid vectors are decoders that hold no value
+rather than refusals (Vector layouts, above). A decoder's accepted vector
 may carry `fields`, the named values its input decodes to, in place of
 `output` (`schema/vector.schema.json`).
 
