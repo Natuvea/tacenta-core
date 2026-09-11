@@ -64,16 +64,17 @@ theorem readBe32_be32_nil (n : UInt32) : readBe32 (be32 n) = some (n, []) := by
 /-- Decoding an encoded bundle returns exactly the bundle encoded.
 
 The hypotheses are the format's own requirements rather than conveniences: a key
-that is not thirty-two bytes is not a key this encoding carries, and the length
-prefix travels through a `u32`, so it comes back unchanged only below that
-width. Stating the theorem without them would make it false, not more general. -/
+that is not thirty-two bytes is not a key this encoding carries, and a KEM
+prekey that is not `kemPrekeyLen` bytes, the ML-KEM-1024 encapsulation-key
+length, is one the decoder refuses (message-format.md, Prekey bundle). Stating
+the theorem without them would make it false, not more general. -/
 theorem decodeBundle_encodeBundle (b : Bundle)
     (hid : b.identityKey.length = 32)
     (hsp : b.signedPrekey.length = 32)
     (hss : b.signedPrekeySig.length = 64)
     (hks : b.kemPrekeySig.length = 64)
     (hot : ∀ k ∈ b.oneTimePrekey, k.length = 32)
-    (hkem : b.kemPrekey.length < 2 ^ 32) :
+    (hkem : b.kemPrekey.length = kemPrekeyLen) :
     decodeBundle (encodeBundle b) = some b := by
   simp only [encodeBundle, decodeBundle, bne_self_eq_false, Bool.or_self,
     Bool.false_eq_true, if_false, List.append_assoc]
@@ -85,11 +86,15 @@ theorem decodeBundle_encodeBundle (b : Bundle)
   simp only
   rw [readBe32_be32]
   simp only
+  -- The length fits a `u32`, so it comes back unchanged, and it is the one
+  -- length the decoder accepts.
   have hround : (UInt32.ofNat b.kemPrekey.length).toNat = b.kemPrekey.length := by
-    first
-      | omega
-      | simp [Nat.mod_eq_of_lt hkem]
-      | (rw [UInt32.toNat_ofNat]; exact Nat.mod_eq_of_lt hkem)
+    rw [hkem]; rfl
+  have hcheck : checkKemLen (UInt32.ofNat b.kemPrekey.length) = some () := by
+    unfold checkKemLen
+    rw [hround, if_pos hkem]
+  rw [hcheck]
+  simp only
   rw [hround, take?_append b.kemPrekey.length b.kemPrekey _ rfl]
   simp only
   rw [take?_append 64 b.kemPrekeySig _ hks]

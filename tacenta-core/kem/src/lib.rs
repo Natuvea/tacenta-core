@@ -23,7 +23,7 @@
 //! | `ek_vector` | `pk2` | 1536 |
 //! | `ct1` | `Ciphertext1` | 1408 |
 //! | `ct2` | `Ciphertext2` | 160 |
-//! | `SHA3-256(ek_seed \|\| ek_vector) == hek` | `validate_pk_bytes` | |
+//! | `SHA3-256(ek_vector \|\| ek_seed) == hek`, then the modulus check | `validate_pk_bytes` | |
 //!
 //! The last row is worth dwelling on. The Braid has the responder check the
 //! `ek_vector` it eventually receives against the hash inside the header it
@@ -229,7 +229,7 @@ pub fn encapsulate2(state: &EncapsState, ek_vector: &[u8]) -> Result<Vec<u8>, Ke
 
 /// Whether `ek_vector` is the one the header committed to.
 ///
-/// This is the specification's `SHA3-256(ek_seed || ek_vector) == hek`.
+/// FIPS 203 `H(ek)`, `SHA3-256(ek_vector || ek_seed) == hek`, then the section 7.2 modulus check.
 pub fn validate_ek(header: &[u8], ek_vector: &[u8]) -> bool {
     inc::validate_pk_bytes(header, ek_vector).is_ok()
 }
