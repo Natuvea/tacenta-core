@@ -48,8 +48,13 @@ theorem fresh_agreement_heals (rk : Sym) (i : Nat) (hne : rk ≠ .dhOut i) :
     subst hs
     exact hne (reaches_dhOut_inv hr)
 
-/-- The new root key is out of reach for the same reason, so the epoch after
-that one is too. Healing is not a single step's property; it persists. -/
+/-- The new root key is out of reach for the same reason. This is a second
+theorem about the same step rather than a second step: it and
+`fresh_agreement_heals` both carry `rk ≠ .dhOut i` about the one
+Diffie-Hellman step. Whether healing carries to the step after it -- to the
+root key that root step derives, or to the sending chain `dhRatchet` derives
+second, from the intermediate root key and the other agreement output -- is
+not proved. -/
 theorem fresh_agreement_heals_the_root (rk : Sym) (i : Nat) (hne : rk ≠ .dhOut i) :
     ¬ Knows (· = rk) (.rootNext rk (.dhOut i)) := by
   intro hk
