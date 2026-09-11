@@ -354,10 +354,16 @@ Location: `Proofs/RatchetCorrectness.lean` covers the ratchet; the encoding is i
 
 - `readBe32_be32`: reading four big-endian bytes inverts writing them, for every
   one of the 2^32 values, discharged by `bv_decide`.
-- `decode_encode`: **the round trip.** Decoding an encoded ratchet message
-  returns exactly what was encoded, for every ratchet key of the right length,
-  every pair of counters, and every ciphertext. This is the property a
-  round-trip test can only sample.
+- `decode_encode`: **the round trip.** Decoding an encoded ratchet message --
+  the composite header, then the ciphertext (message-format.md) -- returns
+  exactly that header and that ciphertext, for every header whose curve key is
+  thirty-two bytes and whose codeword, if present, is a full chunk, and for
+  every ciphertext. It is `decode_encode_composite` read at the message's own
+  type. Until 2026-09 this theorem was stated about the model's own encoding
+  of the Double Ratchet's forty-byte header alone, a format the specification
+  does not accept; the model's message functions and this statement now follow
+  the composite header. This is the property a round-trip test can only
+  sample.
 
 These two rest on a weaker base than the ratchet theorems: `propext`,
 `Classical.choice`, `Quot.sound`, and a `bv_decide` reflection axiom (the

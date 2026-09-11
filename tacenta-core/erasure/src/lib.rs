@@ -727,10 +727,26 @@ impl Decoder {
         }
         let mut size_bytes = [0u8; 8];
         size_bytes.copy_from_slice(&bytes[0..8]);
-        let size = u64::from_be_bytes(size_bytes) as usize;
+        let size_wide = u64::from_be_bytes(size_bytes);
         let mut needed_bytes = [0u8; 8];
         needed_bytes.copy_from_slice(&bytes[8..16]);
-        let needed = u64::from_be_bytes(needed_bytes) as usize;
+        let needed_wide = u64::from_be_bytes(needed_bytes);
+
+        // **Both are bounded as `u64`, before either is narrowed to `usize`.**
+        // `invariant` below caps `needed` and ties `size` to it, but it asks
+        // that of the narrowed values, and on a 32-bit target `as usize` keeps
+        // only the low half. A stored size of 2^32 + 96 with 2^32 + 3 needed
+        // would narrow to 96 and 3, satisfy the invariant, and restore a
+        // decoder that re-encodes to other bytes: a second spelling of one
+        // state, which the Braid's format promises not to have. The bounds are
+        // the largest values the invariant admits -- `MAX_CODEWORDS` chunks,
+        // each `CHUNK_BYTES` long -- so they refuse nothing it accepts on any
+        // platform, and below them both casts are exact.
+        if needed_wide > MAX_CODEWORDS as u64 || size_wide > (MAX_CODEWORDS * CHUNK_BYTES) as u64 {
+            return None;
+        }
+        let size = size_wide as usize;
+        let needed = needed_wide as usize;
         let mut count_bytes = [0u8; 4];
         count_bytes.copy_from_slice(&bytes[16..20]);
         let count = u32::from_be_bytes(count_bytes) as usize;
@@ -810,6 +826,32 @@ mod decode_bounds_tests {
         let mut widest_decoder = vec![0u8; 20];
         widest_decoder[16..20].copy_from_slice(&u32::MAX.to_be_bytes());
         assert!(Decoder::from_bytes(&widest_decoder).is_none());
+    }
+
+    /// A stored decoder whose `size` and `needed` would satisfy `invariant`
+    /// only after losing their high halves is refused, on every platform.
+    /// Before the `u64` bound, a 32-bit target narrowed these to 96 and 3,
+    /// restored the decoder, and re-encoded it to different bytes. The CI's
+    /// 32-bit job only compiles, so this pins the shape where it runs.
+    #[test]
+    fn a_decoder_that_fits_only_after_narrowing_is_refused() {
+        let decoder = |size: u64, needed: u64| {
+            let mut bytes = vec![0u8; 20];
+            bytes[0..8].copy_from_slice(&size.to_be_bytes());
+            bytes[8..16].copy_from_slice(&needed.to_be_bytes());
+            bytes
+        };
+        let high = 1u64 << 32;
+        assert!(Decoder::from_bytes(&decoder(high + 96, high + 3)).is_none());
+        assert!(Decoder::from_bytes(&decoder(96, high + 3)).is_none());
+        assert!(Decoder::from_bytes(&decoder(high + 96, 3)).is_none());
+
+        // The low halves alone restore, and so does the largest decoder the
+        // field can carry, which sits exactly on both bounds.
+        assert!(Decoder::from_bytes(&decoder(96, 3)).is_some());
+        let widest = (MAX_CODEWORDS * CHUNK_BYTES) as u64;
+        assert!(Decoder::from_bytes(&decoder(widest, MAX_CODEWORDS as u64)).is_some());
+        assert!(Decoder::from_bytes(&decoder(widest + 1, MAX_CODEWORDS as u64)).is_none());
     }
 
     /// A stored encoder declaring one chunk more than the field has nodes is

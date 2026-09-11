@@ -222,4 +222,39 @@ example : decode (0x02 :: (encode sample).drop 1) = Option.none := by native_dec
 /-- A truncated header is refused rather than read short. -/
 example : decode ((encode sample).take (size - 1)) = Option.none := by native_decide
 
+/-! ## The ratchet message
+
+A ratchet message is the composite header followed by the AEAD output, which
+runs to the end of the message and so carries no length prefix
+(message-format.md, Ratchet message). -/
+
+/-- Encode a ratchet message: the composite header, then the ciphertext. -/
+def encodeMessage (h : Composite) (ciphertext : List UInt8) : List UInt8 :=
+  encode h ++ ciphertext
+
+/-- Decode a ratchet message into its header and the ciphertext after it, or
+    `none` if the input does not begin with a canonical header. -/
+def decodeMessage (bs : List UInt8) : Option (Composite × List UInt8) :=
+  decode bs
+
+example : decodeMessage (encodeMessage sample [0xde, 0xad]) = some (sample, [0xde, 0xad]) := by
+  native_decide
+
+/-- An initial message's type byte is not accepted as a ratchet message, which is
+    what lets a receiver tell the two apart on the wire. -/
+example :
+    decodeMessage (Model.Messages.version :: Model.Messages.typeInitial :: (encode sample).drop 2)
+      = Option.none := by
+  native_decide
+
+/-- A bundle's type byte is not a ratchet message's either, and a ratchet message
+    is not a bundle. -/
+example :
+    decodeMessage (Model.Messages.version :: Model.Messages.typeBundle :: (encode sample).drop 2)
+      = Option.none := by
+  native_decide
+
+example : Model.Messages.decodeBundle (encodeMessage sample [0xff]) = Option.none := by
+  native_decide
+
 end Model.CompositeHeader

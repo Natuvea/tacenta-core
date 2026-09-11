@@ -4,7 +4,7 @@ Proofs.Serialization: the wire encoding round-trips (proof tier T2).
 The headline theorem is that decoding an encoded message returns exactly what was
 encoded. That is the property a format most needs and a test can only sample: a
 round-trip test checks the messages it happens to try, while this covers every
-ratchet key, every pair of counters, and every ciphertext.
+composite header and every ciphertext.
 
 The bit-level step (reading four big-endian bytes inverts writing them) is
 discharged by `bv_decide`, which settles it for all 2^32 values rather than the
@@ -36,17 +36,6 @@ theorem take?_append (n : Nat) (xs ys : List UInt8) (h : xs.length = n) :
   have hlen : ¬ ((xs ++ ys).length < n) := by
     simp [List.length_append, h]
   rw [if_neg hlen, List.take_left' h, List.drop_left' h]
-
-/-- **Round trip.** Decoding an encoded ratchet message returns exactly what was
-    encoded, for every ratchet key of the right length, every pair of counters,
-    and every ciphertext. -/
-theorem decode_encode (dh : Key) (pn n : UInt32) (ct : List UInt8)
-    (hdh : dh.length = 32) :
-    decodeMessage (encodeMessage dh pn n ct) = some (dh, pn, n, ct) := by
-  simp only [encodeMessage, encodeHeader, decodeMessage, bne_self_eq_false,
-    Bool.or_self, Bool.false_eq_true, if_false, List.append_assoc]
-  rw [take?_append 32 dh _ hdh]
-  simp [readBe32_be32]
 
 /-! ## Bundles round-trip too
 
@@ -178,5 +167,19 @@ theorem decode_encode_composite (h : Composite)
     simp only
     rw [take?_append chunkBytes c.data _ hc]
     simp [decode_encode_agreementType]
+
+
+/-- **Round trip.** Decoding an encoded ratchet message -- the composite header,
+    then the ciphertext -- returns exactly that header and that ciphertext, for
+    every header whose curve key is thirty-two bytes and whose codeword, if it
+    has one, is a full chunk, and for every ciphertext. The message is the
+    header with the ciphertext as the bytes that follow it, so this is
+    `decode_encode_composite` read at the message's own type. -/
+theorem decode_encode (h : Composite) (ct : List UInt8)
+    (hdh : h.dh.length = 32)
+    (hchunk : ∀ c, h.agChunk = some c → c.data.length = chunkBytes) :
+    Model.CompositeHeader.decodeMessage (Model.CompositeHeader.encodeMessage h ct)
+      = some (h, ct) :=
+  decode_encode_composite h ct hdh hchunk
 
 end Proofs.Serialization

@@ -49,27 +49,10 @@ def readBe32 : List UInt8 → Option (UInt32 × List UInt8)
 def take? (n : Nat) (bs : List UInt8) : Option (List UInt8 × List UInt8) :=
   if bs.length < n then none else some (bs.take n, bs.drop n)
 
-/-- Encode a header: the ratchet public key, then the previous chain length and
-    the message number, each four bytes big-endian. -/
-def encodeHeader (dh : Key) (pn n : UInt32) : List UInt8 :=
-  dh ++ be32 pn ++ be32 n
-
-/-- Encode a ratchet message: version, type, header, then the AEAD output. -/
-def encodeMessage (dh : Key) (pn n : UInt32) (ciphertext : List UInt8) : List UInt8 :=
-  version :: typeRatchet :: (encodeHeader dh pn n ++ ciphertext)
-
-/-- Decode a ratchet message. Returns the ratchet public key, the two counters,
-    and the ciphertext, or `none` if the input is not a canonical encoding. -/
-def decodeMessage (bs : List UInt8) : Option (Key × UInt32 × UInt32 × List UInt8) :=
-  match bs with
-  | v :: t :: rest =>
-    if v != version || t != typeRatchet then none
-    else do
-      let (dh, rest) ← take? 32 rest
-      let (pn, rest) ← readBe32 rest
-      let (n, rest) ← readBe32 rest
-      pure (dh, pn, n, rest)
-  | _ => none
+/-! A ratchet message -- the composite header, then the AEAD output -- is modelled
+in `Model.CompositeHeader` (`encodeMessage`, `decodeMessage`), which imports this
+module. The Double Ratchet's forty-byte header on its own is not a message
+(message-format.md, Ratchet message), and nothing here models one. -/
 
 /-- Encode an initial (prekey) message: version, type, the initiator's identity
     and ephemeral keys in `EncodeEC` form, the length-prefixed KEM ciphertext,
@@ -138,23 +121,6 @@ def splitAd (bs : List UInt8) : Option (List UInt8 × List UInt8) := do
 
 -- Build-time checks.
 
-/-- A message round-trips: decoding an encoding gives back what went in. -/
-example :
-    decodeMessage (encodeMessage (List.replicate 32 0x0a) 7 9 [0xde, 0xad])
-      = some (List.replicate 32 0x0a, 7, 9, [0xde, 0xad]) := by
-  native_decide
-
-/-- A wrong version byte is rejected rather than parsed. -/
-example :
-    decodeMessage (0x00 :: typeRatchet :: (List.replicate 32 0x0a ++ be32 7 ++ be32 9)) = none := by
-  native_decide
-
-/-- An initial message's type byte is not accepted as a ratchet message, which is
-    what lets a receiver tell the two apart on the wire. -/
-example :
-    decodeMessage (version :: typeInitial :: (List.replicate 32 0x0a ++ be32 7 ++ be32 9)) = none := by
-  native_decide
-
 /-- An initial message round-trips, with a one-time prekey named. -/
 example :
     decodeInitial (encodeInitial (0x05 :: List.replicate 32 0x0a)
@@ -191,10 +157,6 @@ example :
     decodeInitial (version :: typeInitial
       :: (List.replicate 33 0x0a ++ List.replicate 33 0x0b ++ be32 99
           ++ [0xc0, 0xde])) = none := by
-  native_decide
-
-/-- A truncated message is rejected. -/
-example : decodeMessage (version :: typeRatchet :: List.replicate 20 0x0a) = none := by
   native_decide
 
 /-- The associated-data pair parses uniquely. -/
@@ -322,12 +284,6 @@ example : decodeBundle (encodeBundle (sampleBundle none)) = some (sampleBundle n
     presence byte alone does not make the field absent. -/
 example :
     decodeBundle ((encodeBundle (sampleBundle none)).set (1811 - 12 - 32) 0x01) = none := by
-  native_decide
-
-/-- A bundle is not a message, and a message is not a bundle. -/
-example : decodeMessage (encodeBundle (sampleBundle none)) = none := by native_decide
-
-example : decodeBundle (encodeMessage (List.replicate 32 0xaa) 1 2 [0xff]) = none := by
   native_decide
 
 end Model.Messages
