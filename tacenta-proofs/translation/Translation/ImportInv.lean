@@ -84,12 +84,12 @@ which no byte string can be shown to satisfy from inside this translation.
   refuses: the ratchet's clock clamps at `MAX_EVENTS = u32::MAX - 1`, the
   sparse ratchet's `advance` refuses the step to `epoch == u64::MAX`, and the
   Braid's `step_receive` refuses the same in transitions (5) and (13). The
-  classical and sparse ratchets' models now reserve the same values
-  (`Model.State.maxEvents`, `Model.SparseRatchet.u64Max`); `Model.Braid` still
-  counts in `Nat` and reserves nothing. The refinement theorems ask for one
-  step of headroom (`events + 1 < u32::MAX`, `epoch + 1 < u64::MAX`), which for
-  the two ratchets dates from when their models reserved nothing and is kept
-  so that the statements are unchanged. A parked ratchet clock
+  three models now reserve the same values (`Model.State.maxEvents`,
+  `Model.SparseRatchet.u64Max`, `Model.Braid.u64Max`). The refinement theorems
+  ask for one step of headroom (`events + 1 < u32::MAX`,
+  `epoch + 1 < u64::MAX`), which dates from when the models reserved nothing
+  and is kept so that the statements are unchanged; whether it could now be
+  dropped has not been checked. A parked ratchet clock
   and a sparse ratchet at `epoch = u64::MAX - 1` are ordinary states: they
   satisfy the `invariant`, they decode, and their crates go on operating on
   them. So no `invariant` can supply that step, and none is asked to; the
@@ -1397,7 +1397,9 @@ also asks for `hepoch`, which the Rust `invariant` does not check -- it checks
 
 `hepoch` now reads `epoch + 1 < u64::MAX`, a step of headroom rather than the
 plain ceiling bound: transitions (5) and (13) refuse the step that would reach
-the reserved `u64::MAX`, while `Model.Braid` counts in `Nat` and takes it. So
+the reserved `u64::MAX`. `Model.Braid` now refuses it too; the premise dates
+from when the model took that step, and whether `step_receive_refines` holds
+without it has not been checked. So
 `epoch < u64::MAX` has become a property of every state a run reaches -- the
 transitions keep it and `read_epoch` refuses it on the way in, which is what
 makes the decoder's refusal a consistency check rather than a policy -- but it

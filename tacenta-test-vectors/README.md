@@ -354,7 +354,9 @@ may carry `fields`, the named values its input decodes to, in place of
 What the vectors still do not cover is the **state machines**: nothing drives
 the Braid or the sparse ratchet through a scenario the way the Double Ratchet's
 vectors do. That gap is closed by proof rather than by this directory (T1 and
-T3 on each crate), which the conformance manifest states in those terms.
+T3 on each crate), which the conformance manifest states in those terms. So no
+vector pins the Braid's epoch ceiling, which `Model.Braid` states and
+`tacenta-braid` keeps: no vector file holds a Braid state.
 Sender keys are not yet scheduled.
 
 ## Trademarks and non-affiliation

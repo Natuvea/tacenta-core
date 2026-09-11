@@ -94,6 +94,34 @@ info: 'Model.Braid.receive_reports' depends on axioms: [propext, Quot.sound]
 #guard_msgs in
 #print axioms Model.Braid.receive_reports
 
+/- The Braid's reserved epoch: a receive keeps a state below `u64::MAX`, an
+   advancing receive lands below it, and a key a receive outputs is labelled
+   at most `u64::MAX - 2`. -/
+
+/--
+info: 'Model.Braid.receive_epoch_lt' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.Braid.receive_epoch_lt
+
+/--
+info: 'Model.Braid.receive_advance_lt' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.Braid.receive_advance_lt
+
+/--
+info: 'Model.Braid.receive_output_epoch_lt' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.Braid.receive_output_epoch_lt
+
+/--
+info: 'Model.Braid.receive_ct2Sampled_at_ceiling' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms Model.Braid.receive_ct2Sampled_at_ceiling
+
 /- The classical Double Ratchet's functional properties: the chain-derivation
    length and contents, and the two bounds on the skipped-key store. `CLAIMS.md`
    says these rest on `propext` and `Quot.sound` alone; these pins are what make

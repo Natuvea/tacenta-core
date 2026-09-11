@@ -50,14 +50,12 @@ this section says in one place what is not proved.
   clock clamps at `MAX_EVENTS = u32::MAX - 1`, the sparse ratchet's `advance`
   refuses the step to `epoch == u64::MAX`, the Braid's `step_receive` refuses
   the same in transitions (5) and (13) -- so that no state a crate's own
-  operations produce is one its own decoder refuses. The classical and
-  sparse ratchets' models now reserve the same values and refuse the same
-  steps, as the pages state; `Model.Braid` still counts in `Nat`, so at the
-  last unreserved value its code stops and its model goes on. The refinement
-  theorems ask for one step of headroom (`events + 1 < u32::MAX`,
-  `epoch + 1 < u64::MAX`); for the two ratchets that premise is kept from
-  before their models reserved anything, and whether it could now be
-  dropped has not been checked. No `invariant()` can supply that step,
+  operations produce is one its own decoder refuses. The three models now
+  reserve the same values and refuse the same steps, as the pages state. The
+  refinement theorems ask for one step of headroom (`events + 1 < u32::MAX`,
+  `epoch + 1 < u64::MAX`); for all three that premise is kept from before
+  their models reserved anything, and whether it could now be dropped has not
+  been checked. No `invariant()` can supply that step,
   because the state at the last unreserved value is an ordinary state the
   crate produces, decodes and goes on operating on; a clause excluding it
   would refuse a state the crate exports, which is the defect the reservation
@@ -602,6 +600,23 @@ The calculation on which both sides must agree exactly, and it rests on
 - `receive_reports`: and the epoch a `Receive` reports is the one before the
   state it lands in, on every branch. A receive that fails lands in `Failed`,
   whose epoch is 0, and reports 0, as mlkem-braid.md's Failure section says.
+- `receive_epoch_lt`: a receive from a state whose epoch is below `u64::MAX`
+  (`u64Max`) leaves the Braid below it. A send never changes the epoch
+  (`send_epoch`), so no run from such a state reaches `u64::MAX`, the epoch
+  session-persistence.md's reader refuses.
+- `receive_advance_lt`: a receive that advances the epoch leaves it below
+  `u64::MAX`, from any state. Transitions (5) and (13) refuse the step onto it
+  and go to `Failed`, as mlkem-braid.md's Failure section says.
+- `receive_output_epoch_lt`: an epoch whose key a receive outputs is at most
+  `u64::MAX - 2`, so epoch `u64::MAX - 1` is never completed on the side that
+  decapsulates, as session-persistence.md's Principles say.
+- `receive_ct2Sampled_at_ceiling`: at an epoch whose successor is not below
+  `u64::MAX`, `Ct2Sampled` goes to `Failed` on any message, before reading it.
+- `receive_ekSentCt1Received_at_ceiling`: at such an epoch,
+  `EkSentCt1Received` goes to `Failed` when a `Ct2` codeword at its epoch
+  completes `ct2`, before decapsulating. This one is not on the kernel alone:
+  `#print axioms` gives `propext`, `Classical.choice` and `Quot.sound`, and it
+  is not pinned.
 
 ## Proved (tier T2, the field the erasure code is defined over)
 
@@ -1074,9 +1089,8 @@ operation, and that is open work.
 
 **What is not claimed: a step of counter headroom.** The three crates reserve
 the top value of the counter each steps, so that no state their operations
-produce is one their own decoder refuses; the Braid's model counts in `Nat` and
-reserves nothing, and the two ratchets' models reserve the same values but
-their refinements keep the premise from before they did. The refinement
+produce is one their own decoder refuses; their models reserve the same values,
+but the refinements keep the premise from before they did. The refinement
 theorems are stated one step below
 the ceiling -- `T3.receive_refines`'s `hroom` is `events + 1 < u32::MAX`,
 `SpqrT3`'s and `BraidT3`'s `hepoch` is `epoch + 1 < u64::MAX`, and
@@ -1826,14 +1840,17 @@ What a reader has to grant:
   an attacker's own input: every branch it proves is a shape
   of message a remote peer chooses. Both keep the precondition `hepoch`
   (`State.epoch_val _ + 1 < U64.max`) that `BraidT1.lean`'s
-  `step_receive_no_panic`/`receive_no_panic` dropped with CR-03, and for a
-  reason that is the model's rather than the code's: `Model.Braid` counts
-  epochs in `Nat`, so where the real code stops the model's `epoch + 1` keeps
-  counting. The premise is a step of headroom rather than the plain ceiling
-  bound, because `u64::MAX` is now a **reserved** epoch: transitions (5) and
-  (13) refuse the step that would land on it rather than taking it, so at
-  `epoch = u64::MAX - 1` the code answers `Failed` and the model advances, and
-  the refinement is stated one step below that. `epoch < u64::MAX` is thereby
+  `step_receive_no_panic`/`receive_no_panic` dropped with CR-03. It was kept
+  for a reason that was the model's rather than the code's: `Model.Braid`
+  counted epochs in `Nat`, so where the real code stopped the model's
+  `epoch + 1` kept counting. The model now stops there too
+  (`Model.Braid.u64Max`), and the proofs still use `hepoch` to rule out the
+  refusing arms rather than relating them; whether the two theorems hold
+  without it has not been checked. The premise is a step of headroom rather
+  than the plain ceiling bound, because `u64::MAX` is a **reserved** epoch:
+  transitions (5) and (13) refuse the step that would land on it rather than
+  taking it, so at `epoch = u64::MAX - 1` the code and the model both answer
+  `Failed`, and the refinement is stated one step below that. `epoch < u64::MAX` is thereby
   a property of every state a run reaches, not only of every state
   `from_bytes` admits -- the transitions keep it and `read_epoch` refuses it
   on the way in, so the ceiling is not constructible by any sequence of
@@ -1967,8 +1984,9 @@ Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
   increment being a `checked_add` whose `None` arm returns `ChainExhausted`,
   and `Model.SparseRatchet` now refuses at those ceilings too, so the two may
   no longer be needed here; that has not been checked, and they are kept.
-  `BraidT3.lean` keeps its `hepoch` because `Model.Braid` has no such refusal
-  at all.
+  `BraidT3.lean` keeps its `hepoch` on the same terms: `Model.Braid` now
+  refuses at its epoch ceiling too, and whether that `hepoch` could be
+  dropped has not been checked either.
   `hepoch` is `epoch + 1 < U64.max`, a step of headroom rather than the plain
   ceiling bound: `advance` reserves `u64::MAX` and returns `ChainExhausted`
   rather than opening chains under an epoch its own retention window would

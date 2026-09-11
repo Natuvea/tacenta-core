@@ -155,7 +155,7 @@ it names the route in each case.
 | Skipped keys match in-order keys | §5.6 | proved (`deriveInto_get`) |
 | Store bounded in total | this implementation's addition | modelled, proved, and implemented |
 | Retiring old epochs | §5.7 | modelled, main-text approach; implemented |
-| ML-KEM Braid state machine | Braid §2.5 | modelled (`Model.Braid`), epoch labelling proved; implemented (`tacenta-braid`) and reaching agreement against real ML-KEM; **T1 and T3 both complete** (`BraidT1.lean`, `BraidT3.lean`). One invariant is still assumed rather than proved: `ct1_bounded`, a size cap on the KEM ciphertext, which `step_send` maintains but no theorem yet says so -- see `tacenta-proofs/CLAIMS.md`. Not driven by vectors |
+| ML-KEM Braid state machine | Braid §2.5 | modelled (`Model.Braid`), epoch labelling proved, and the epoch ceiling stated and its ranges proved; implemented (`tacenta-braid`) and reaching agreement against real ML-KEM; **T1 and T3 both complete** (`BraidT1.lean`, `BraidT3.lean`). One invariant is still assumed rather than proved: `ct1_bounded`, a size cap on the KEM ciphertext, which `step_send` maintains but no theorem yet says so -- see `tacenta-proofs/CLAIMS.md`. Not driven by vectors |
 | Ratcheted Authenticator | Braid §2.4 | modelled and computed byte for byte; implemented in `tacenta-braid`; update step pinned by vectors |
 | Incremental ML-KEM interface | Braid §1.2.1 | a boundary in the model, with the one law it must satisfy; wrapped from libcrux in `primitives::kem_incremental`, with the size mapping asserted by test |
 | GF(2^16) arithmetic | Braid §2.2 | modelled and proved a field (`Model.Gf65536`); implementation pinned by vectors |
@@ -213,9 +213,8 @@ one chain rather than against many.
 ### Addition: reserved counter ceilings
 
 Three of the crates reserve the top value of a counter the published algorithms
-leave unreserved. The pages state the reservations, and so do the classical and
-sparse ratchets' models (`Model.State.maxEvents`, `Model.SparseRatchet.u64Max`);
-`Model.Braid` counts in `Nat` and has no notion of a reserved counter value.
+leave unreserved. The pages state the reservations, and so do the three models
+(`Model.State.maxEvents`, `Model.SparseRatchet.u64Max`, `Model.Braid.u64Max`).
 Recorded here for the same reason the store's total bound is: it is this
 implementation's addition to the published algorithms.
 
@@ -232,12 +231,13 @@ inductive: `from_bytes` then refuses only states the operations cannot build,
 rather than refusing a state the crate itself could export and never import
 again. The refinement theorems are stated one step below the ceiling
 (`tacenta-proofs/CLAIMS.md` and `LIMITATIONS.md` carry the exact
-preconditions): for the Braid because its model keeps counting, and for the
-two ratchets as a premise kept from before their models stopped. The persistence
+preconditions), as a premise kept from before the models stopped. The persistence
 vectors drive the two ratchets' counters to these values and past them, and
-`tacenta-ratchet` and `tacenta-spqr` are checked on them; the Braid's
-reservation is established by its crate's tests
-(`the_epoch_ceiling_is_out_of_reach`) and by the proofs, not by this directory.
+`tacenta-ratchet` and `tacenta-spqr` are checked on them. The Braid's
+reservation is tested by its crate (`the_epoch_ceiling_is_out_of_reach`) and
+stated and proved of its model (`Model.Braid.receive_epoch_lt`,
+`receive_advance_lt`, `receive_output_epoch_lt`), and no vector here pins it:
+no vector file holds a Braid state or drives the Braid's state machine.
 The ratchets' own tests (`the_clock_stops_one_below_its_ceiling`,
 `the_epoch_ceiling_is_unreachable`) pin theirs too.
 

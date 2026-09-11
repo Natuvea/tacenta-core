@@ -260,6 +260,17 @@ structure Output where
   key      : Key
   deriving Repr, DecidableEq, Inhabited
 
+/-- `u64::MAX`, the epoch the Braid reserves. Epochs are unsigned 64-bit
+    integers (mlkem-braid.md, Parameters and derivations), and a stored epoch
+    of `u64::MAX` is refused (session-persistence.md, ML-KEM Braid state). So
+    the two transitions that advance an epoch, (5) and (13), refuse the step
+    that would land on it and go to `Failed` instead (mlkem-braid.md,
+    Failure; session-persistence.md, Principles). No state they produce holds
+    an epoch the format's reader refuses. -/
+def u64Max : Nat := 2 ^ 64 - 1
+
+theorem u64Max_eq : u64Max = 18446744073709551615 := rfl
+
 /-! ## Sending
 
 Every `Send` reports `sending_epoch`, the latest epoch both parties are known to
@@ -373,19 +384,24 @@ def receive (K : Kem) (st : BraidState) (msg : Msg) : Nat × Option Output × Br
         let d := ct2Dec.addChunk c
         match d.message with
         | some ct2WithMac =>
-          let ct2 := ct2WithMac.take K.ct2Size
-          let mac := ct2WithMac.drop K.ct2Size
-          let ss := kdfOk (K.decaps dk ct1 ct2) epoch
-          -- The authenticator ratchets before the MAC is checked, because the
-          -- MAC key is what the ratchet produces. A failure is terminal.
-          let auth' := auth.update epoch ss
-          if auth'.macCt epoch (ct1 ++ ct2) == mac then
-            -- Transition (5)
-            let st' := BraidState.noHeaderReceived (epoch + 1) auth'
-              (Decoder.new (headerSize + macSize))
-            (st'.epoch - 1, some ⟨st'.epoch - 1, ss⟩, st')
-          -- A receive that fails reports epoch 0, as every receive from `Failed`
-          -- does (mlkem-braid.md "Failure"), not the epoch it failed at.
+          -- The ceiling comes after the completed value and before
+          -- decapsulation (mlkem-braid.md, Failure): at epoch `u64::MAX - 1`
+          -- the step to `u64::MAX` is refused, so completing `ct2` fails.
+          if epoch + 1 < u64Max then
+            let ct2 := ct2WithMac.take K.ct2Size
+            let mac := ct2WithMac.drop K.ct2Size
+            let ss := kdfOk (K.decaps dk ct1 ct2) epoch
+            -- The authenticator ratchets before the MAC is checked, because the
+            -- MAC key is what the ratchet produces. A failure is terminal.
+            let auth' := auth.update epoch ss
+            if auth'.macCt epoch (ct1 ++ ct2) == mac then
+              -- Transition (5)
+              let st' := BraidState.noHeaderReceived (epoch + 1) auth'
+                (Decoder.new (headerSize + macSize))
+              (st'.epoch - 1, some ⟨st'.epoch - 1, ss⟩, st')
+            -- A receive that fails reports epoch 0, as every receive from `Failed`
+            -- does (mlkem-braid.md "Failure"), not the epoch it failed at.
+            else (0, none, .failed)
           else (0, none, .failed)
         | Option.none => stay (.ekSentCt1Received epoch auth dk ct1 d)
       | Option.none => stay st
@@ -450,10 +466,15 @@ def receive (K : Kem) (st : BraidState) (msg : Msg) : Nat × Option Output × Br
       | Option.none => stay st
     else stay st
   | .ct2Sampled epoch auth _ =>
-    if msg.epoch == epoch + 1 then
-      -- Transition (13)
-      stay (.keysUnsampled (epoch + 1) auth)
-    else stay st
+    -- The ceiling is checked before the message is read (mlkem-braid.md,
+    -- Failure): at epoch `u64::MAX - 1` every message fails, whatever its
+    -- epoch or type, because the step it could take would land on `u64::MAX`.
+    if epoch + 1 < u64Max then
+      if msg.epoch == epoch + 1 then
+        -- Transition (13)
+        stay (.keysUnsampled (epoch + 1) auth)
+      else stay st
+    else (0, none, .failed)
   | .failed => (0, none, .failed)
 
 /-! ## Initialisation -/
@@ -518,6 +539,60 @@ theorem receive_reports_le (K : Kem) (st : BraidState) (msg : Msg) :
     (receive K st msg).1 ≤ st.epoch := by
   cases st <;> simp only [receive] <;> repeat' split
   all_goals (simp [BraidState.epoch, finishEncaps]; try omega)
+
+/-! ### The reserved epoch
+
+What stopping at `u64Max` buys, stated as ranges. A send never changes the
+epoch (`send_epoch`), so these are about receives. -/
+
+/-- A receive from a state below the reserved epoch leaves the Braid below it.
+With `send_epoch`, no run from a state below `u64::MAX` reaches it. -/
+theorem receive_epoch_lt (K : Kem) (st : BraidState) (msg : Msg)
+    (h : st.epoch < u64Max) : (receive K st msg).2.2.epoch < u64Max := by
+  cases st <;> simp only [receive] <;> repeat' split
+  all_goals (simp only [BraidState.epoch, finishEncaps] at h ⊢; try omega)
+  all_goals (simp only [u64Max]; omega)
+
+/-- A receive that advances the epoch leaves it below `u64::MAX`, from any
+state: transitions (5) and (13) refuse the step onto it. -/
+theorem receive_advance_lt (K : Kem) (st : BraidState) (msg : Msg)
+    (h : (receive K st msg).2.2.epoch = st.epoch + 1) :
+    (receive K st msg).2.2.epoch < u64Max := by
+  revert h
+  cases st <;> simp only [receive] <;> repeat' split
+  all_goals (simp only [BraidState.epoch, finishEncaps]; omega)
+
+/-- An epoch whose key a receive outputs is at most `u64::MAX - 2`. The
+receive that outputs it, transition (5), is also the one that advances, so
+epoch `u64::MAX - 1` can be entered and never completed on the side that
+decapsulates (mlkem-braid.md, Failure; session-persistence.md, Principles). -/
+theorem receive_output_epoch_lt (K : Kem) (st : BraidState) (msg : Msg) (o : Output)
+    (h : (receive K st msg).2.1 = some o) : o.keyEpoch + 1 < u64Max := by
+  revert h
+  cases st <;> simp only [receive] <;> repeat' split
+  all_goals (simp only [BraidState.epoch, reduceCtorEq, false_imp_iff,
+    Option.some.injEq]; try omega)
+  all_goals (rintro rfl; first | omega | (dsimp only; omega))
+
+/-- At or past the last unreserved epoch, `Ct2Sampled` fails on any message,
+before reading it. -/
+theorem receive_ct2Sampled_at_ceiling (K : Kem) (epoch : Nat) (auth : Auth)
+    (enc : Encoder) (msg : Msg) (h : u64Max ≤ epoch + 1) :
+    receive K (.ct2Sampled epoch auth enc) msg = (0, none, .failed) := by
+  simp only [receive]
+  rw [if_neg (by omega)]
+
+/-- At or past the last unreserved epoch, `EkSentCt1Received` fails when a
+codeword completes `ct2`, before decapsulating; a message that completes
+nothing is handled as at any other epoch. -/
+theorem receive_ekSentCt1Received_at_ceiling (K : Kem) (epoch : Nat) (auth : Auth)
+    (dk ct1 : Bytes) (ct2Dec : Decoder) (msg : Msg) (c : Chunk) (v : Bytes)
+    (hepoch : msg.epoch = epoch) (htype : msg.type = .ct2) (hdata : msg.data = some c)
+    (hdone : (ct2Dec.addChunk c).message = some v) (h : u64Max ≤ epoch + 1) :
+    receive K (.ekSentCt1Received epoch auth dk ct1 ct2Dec) msg = (0, none, .failed) := by
+  simp only [receive, hepoch, htype, hdata, hdone, beq_self_eq_true, Bool.and_self,
+    ↓reduceIte]
+  rw [if_neg (by omega)]
 
 /-- Failure is terminal: nothing leaves it and it emits nothing. -/
 theorem failed_send (K : Kem) (r : Nat) :
@@ -601,6 +676,35 @@ example :
     let s := runSim toyKem 8 (List.replicate 32 42)
     (match s.alice with | .failed => false | _ => true) &&
     (match s.bob with | .failed => false | _ => true) = true := by
+  native_decide
+
+/-- The ceiling, driven through the real MAC. Epoch `u64::MAX - 2` completes at
+transition (5) with its key labelled `u64::MAX - 2` and moves to `u64::MAX - 1`;
+the same completion at `u64::MAX - 1` fails. From `Ct2Sampled`, epoch
+`u64::MAX - 2` takes (13) onto `u64::MAX - 1`, and at `u64::MAX - 1` a message
+fails. -/
+example :
+    let K := toyKem
+    let sk := List.replicate 32 42
+    let a := Auth.init 1 sk
+    let dk := List.replicate 32 5
+    let ct1 := List.replicate 64 7
+    let ct2 := List.replicate 32 9
+    let completeAt := fun (e : Nat) =>
+      let framed := ct2 ++ (a.update e (kdfOk dk e)).macCt e (ct1 ++ ct2)
+      let dec := (Decoder.new (K.ct2Size + macSize)).addChunk ⟨framed, 0⟩
+      receive K (.ekSentCt1Received e a dk ct1 dec) ⟨e, .ct2, some ⟨framed, 1⟩⟩
+    let below := completeAt (u64Max - 2)
+    let at_ := completeAt (u64Max - 1)
+    let swapBelow := receive K (.ct2Sampled (u64Max - 2) a (encode [])) ⟨u64Max - 1, .none, none⟩
+    let swapAt := receive K (.ct2Sampled (u64Max - 1) a (encode [])) ⟨u64Max, .none, none⟩
+    (below.2.1.map (·.keyEpoch) == some (u64Max - 2)) &&
+    (below.2.2.epoch == u64Max - 1) &&
+    (match below.2.2 with | .noHeaderReceived _ _ _ => true | _ => false) &&
+    (at_.2.1.isNone) &&
+    (match at_.2.2 with | .failed => true | _ => false) &&
+    (match swapBelow.2.2 with | .keysUnsampled e _ => e == u64Max - 1 | _ => false) &&
+    (match swapAt.2.2 with | .failed => true | _ => false) = true := by
   native_decide
 
 end Model.Braid
