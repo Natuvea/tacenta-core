@@ -28,32 +28,53 @@ Each party keeps:
   tell how many keys to skip.
 - `MKSKIPPED`: message keys for messages that arrived out of order, kept by
   `(ratchet public key, message number)` up to a bounded count.
+- The count of accepted receives, by which stored keys expire; each key in
+  `MKSKIPPED` carries the count at which it was stored (Skipped keys).
 
 ## Derivations
 
 The published specification fixes the algorithms below and leaves the
-`info` byte strings application-specific. Those strings, and any other
-byte-level convention needed to interoperate with a specific peer, are pinned in
-the conformance manifest rather than here, and where the published
-specification does not give them they are determined by black-box research under
-the interoperability boundary (see the decision records), never from another
-implementation's source.
+`info` byte strings application-specific. Ours are free choices, recorded at
+tier `ours` in [CONSTANTS.md](../CONSTANTS.md): `RK_INFO` (`Tacenta RK`) and
+`MK_INFO` (`Tacenta MK`). Message-layer interoperability with another
+implementation is not attempted, so there is no peer's value for them to
+match.
 
 - **`KDF_RK(rk, dh_out)`**: root key derivation. HKDF-SHA256 with the salt set
-  to `rk`, input keying material `dh_out` (a Diffie-Hellman output), and an
-  application `info`, producing 64 bytes split into a new `RK` (first 32) and a
-  chain key (next 32).
+  to `rk`, input keying material `dh_out` (a Diffie-Hellman output), and `info`
+  `RK_INFO`, producing 64 bytes split into a new `RK` (first 32) and a chain
+  key (next 32).
 - **`KDF_CK(ck)`**: chain step. `HMAC-SHA256(ck, 0x01)` is the message key, and
   `HMAC-SHA256(ck, 0x02)` is the next chain key. The chain key advances one step
   per message and the previous chain key is discarded.
 - **Message-key expansion**: the 32-byte message key is expanded by HKDF-SHA256,
-  with a zero-filled salt and an application `info`, into an AES-256 key, an
-  HMAC-SHA256 key, and a 16-byte IV, which the AEAD (see message-format) then
-  uses.
+  with a 32-byte zero salt, the message key as input keying material, and
+  `info` `MK_INFO`, into 80 bytes: an AES-256 key (first 32), an HMAC-SHA256
+  key (next 32), and a 16-byte IV (last 16), which the AEAD (see
+  message-format) then uses.
 
 The primitives themselves are implemented at the trusted boundary and named
 in the proofs' trusted base (`tacenta-proofs/CLAIMS.md`); this page composes
 them.
+
+## Initialisation
+
+Session establishment leaves both parties holding the same 32-byte secret
+`SK`, which under the Triple Ratchet is the classical half of the split secret
+(triple-ratchet.md, Initialisation), and leaves the party that sends first
+holding the other party's signed prekey. The two roles start differently:
+
+- **The party that sends first** (the initiator) generates a fresh ratchet key
+  pair as `DHs`, sets `DHr` to the peer's signed prekey, and derives
+  `(RK, CKs) = KDF_RK(SK, DH(DHs, DHr))`. It has no receiving chain.
+- **The party that receives first** (the responder) sets `RK = SK` and `DHs` to
+  its signed prekey key pair. It has neither chain, and `DHr` is absent.
+
+Both start with `Ns`, `Nr`, `PN` and the count of accepted receives at zero,
+and nothing stored. The responder cannot send until it has received: its first
+receive finds `DHr` absent and takes a Diffie-Hellman step, whose receiving
+chain comes from `KDF_RK(SK, DH(signed prekey, header key))`, the derivation
+that gave the initiator its sending chain.
 
 ## The symmetric-key ratchet
 
@@ -65,10 +86,14 @@ discarded, which is what makes past messages unrecoverable from present state.
 ## The Diffie-Hellman ratchet
 
 A message header carries the sender's current ratchet public key. When a party
-receives a header whose ratchet key it has not seen, it takes a DH ratchet step:
+receives a header that matches no stored key and whose ratchet key differs from
+`DHr`, or `DHr` is absent, it takes a DH ratchet step. The comparison is with
+`DHr` alone, so a header returning to an earlier ratchet key steps too.
 
-1. Store any skipped message keys from the current receiving chain up to the
-   header's counts (see Skipped keys).
+1. If there is a receiving chain, store its skipped message keys from `Nr` up
+   to the header's `PN`, exclusive (see Skipped keys). This skip is checked
+   against `MAX_SKIP` on its own, before the step, and not together with the
+   skip on the new chain that follows; the store's total bound covers both.
 2. Derive a new receiving chain: `(RK, CKr) = KDF_RK(RK, DH(DHs, header key))`,
    set `DHr` to the header key, reset `Nr`, and record `PN = Ns`, `Ns = 0`.
 3. Generate a fresh `DHs`, and derive a new sending chain:
@@ -77,6 +102,10 @@ receives a header whose ratchet key it has not seen, it takes a DH ratchet step:
 Because each step folds a fresh Diffie-Hellman output into the root key, an
 attacker who learns the state stops being able to derive keys once both parties
 have stepped, which is post-compromise security.
+
+A header whose ratchet key equals `DHr` while there is no receiving chain is
+refused (`NoReceivingChain`). Only the party that sent first holds that state,
+before its first receive, while `DHr` is still the peer's signed prekey.
 
 ## Message format
 
@@ -88,13 +117,33 @@ specified on the message-format page and pinned in the conformance manifest.
 
 ## Sending and receiving
 
-- **Send**: `(CKs, mk) = KDF_CK(CKs)`; header is `(DHs.public, PN, Ns)`;
-  increment `Ns`; output the header and the AEAD encryption of the plaintext
-  under `mk` with the header as associated data.
-- **Receive**: if the message matches a stored skipped key, use and remove it.
-  Otherwise, if the header's ratchet key differs from `DHr`, take a DH ratchet
-  step. Then skip and store keys up to the header's message number, advance the
-  receiving chain to that number, decrypt, and discard the key.
+- **Send**: refused, before anything changes, if there is no sending chain
+  (`NoSendingChain`) or `Ns` is `u32::MAX` (`ChainExhausted`). Otherwise
+  `(CKs, mk) = KDF_CK(CKs)`; header is `(DHs.public, PN, Ns)`; increment `Ns`;
+  output the header and the AEAD encryption of the plaintext under `mk` with
+  the header as associated data.
+- **Receive**: if the header's ratchet key and message number `N` match a
+  stored skipped key, use and remove it. Otherwise, if the header's ratchet key
+  differs from `DHr`, or `DHr` is absent, take a DH ratchet step. Then skip and
+  store keys from `Nr` up to `N`, exclusive; refuse if there is no receiving
+  chain (`NoReceivingChain`) or `Nr` is now `u32::MAX` (`ChainExhausted`);
+  advance the receiving chain once, increment `Nr`, decrypt, and discard the
+  key.
+
+So message number `u32::MAX` is never used on a chain. The numbers skipped keys
+are stored under are range-checked the same way (`ChainExhausted`), a check the
+skip bounds keep from being reached.
+
+A message whose ratchet key equals `DHr`, whose number `N` is below `Nr`, and
+whose key is not stored is not accepted: its key has already been used,
+expired, or evicted.
+
+**A refused receive may already have moved the state.** Keys on the old chain
+may have been stored, and the Diffie-Hellman step taken, before a later check
+refuses. A caller therefore runs a receive on a copy of the state and treats a
+state that returned an error as spent. The Triple Ratchet and the session do
+exactly that; their commit rules are on triple-ratchet.md, Sending and
+receiving.
 
 ## Skipped keys
 
@@ -105,17 +154,46 @@ intervening message keys in `MKSKIPPED`, so a later arrival still decrypts.
 Two separate bounds keep this from exhausting memory, and both are required:
 
 - **`MAX_SKIP`**, the most keys that may be skipped in a *single chain*. A header
-  demanding more than this is rejected.
+  demanding more than this is rejected (`TooManySkipped`). The skip to `PN` on
+  the old chain and the skip to `N` on the new one are checked against it
+  separately, so one message may store up to twice `MAX_SKIP` keys.
 - **`MAX_SKIPPED_STORE`**, the most keys the store may hold *in total*. Because
   each Diffie-Hellman ratchet step starts a fresh chain, a per-chain bound alone
   does not bound the store: a peer that repeatedly ratchets and skips would grow
-  it without limit. A step that would push the store past this bound is
-  rejected. The published specification requires this directly, stating that
-  `MKSKIPPED` raises if too many elements are stored.
+  it without limit. A skip that would push the store past this bound is refused
+  by the ratchet (`SkippedStoreFull`). The published specification requires
+  this directly, stating that `MKSKIPPED` raises if too many elements are
+  stored. The receiver does not stop there: it makes room, below.
 
-Both are security parameters recorded with the implementation. Stored keys
-also expire once they have outlived a fixed number of received messages
-(`MAX_SKIPPED_AGE` in CONSTANTS.md; key-deletion.md).
+Both are security parameters recorded with the implementation.
+
+**A full store makes room rather than refusing the message.** When a received
+message is refused only because a store would pass `MAX_SKIPPED_STORE`, the
+receiver (`Session::decrypt`) evicts that store's oldest keys and tries the
+message again, on a working copy of the state that it adopts only if the
+message then authenticates. It repeats until the message is accepted or refused
+for another reason, and refuses it if the store is already empty. Oldest here
+means the smallest stored count, ties going to the key stored first; the sparse
+ratchet's store evicts the key stored first (sparse-pq-ratchet.md). How many
+keys each attempt evicts is implementation-defined: this implementation starts
+from the shortfall the header implies, where the state gives one, and doubles
+on each further attempt. **The eviction is this implementation's addition**;
+the published specification says only that the store raises. Its cost is that
+a delayed message whose key was evicted can no longer be decrypted. A forged
+header evicts nothing, since nothing is adopted without authentication, but a
+peer holding the session can evict by skipping ahead, as it can already fill
+the store.
+
+Stored keys also expire. At the end of every accepted receive, after the
+stored-key lookup, the count of accepted receives is incremented and every
+stored key whose age -- the new count minus the count stored with it -- is at
+least `MAX_SKIPPED_AGE` is deleted. The count stored with a key is the count at
+the start of the receive that stored it. So a key stored during one accepted
+receive can still be used by any of the next `MAX_SKIPPED_AGE - 1` accepted
+receives, and is deleted at the end of the last of them if it has not been
+(CONSTANTS.md; key-deletion.md). A receive that is refused, or whose message
+does not authenticate, counts for nothing. The count stops at `u32::MAX - 1`,
+after which keys no longer age (session-persistence.md, Principles).
 
 ## Scope
 
@@ -144,8 +222,9 @@ triple-ratchet.md, and both ship: `Session` holds a `tacenta_triple::State` and
 a `tacenta_braid::Braid` and drives them as one transaction, and the composite
 header carries the agreement's message on every send. **Nothing on this page
 changes as a result**: the Triple Ratchet composes this ratchet unaltered, and
-its only effect here is that a message key derived by this ratchet becomes one
-of two inputs to the encryption key rather than the encryption key itself.
+its only effect here is that a message key derived by this ratchet is combined
+with the sparse ratchet's before the message-key expansion, rather than being
+expanded itself.
 What this page describes is what runs -- it is not *all* of what runs.
 
 ## Security properties

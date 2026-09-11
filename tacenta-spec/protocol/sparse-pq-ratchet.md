@@ -96,14 +96,16 @@ derivation from anywhere else in the system.
 - **The chain step** takes a chain key and the message number, and yields the
   next chain key and a message key.
 
-Concretely, each is HKDF-SHA256 with `PROTOCOL_INFO` followed by its own suffix
-as `info` (CONSTANTS.md). Initialisation takes an all-zero salt and the shared
-secret as input and yields ninety-six bytes: the root key, then the first and
-second chain keys. The root step takes the current root key as salt and the
-agreement's secret as input and yields the same three in the same order. The
-chain step takes the chain key as salt and the message number as eight
-big-endian bytes as input and yields sixty-four bytes: the next chain key, then
-the message key.
+Concretely, each is HKDF-SHA256 whose `info` is `PROTOCOL_INFO` immediately
+followed by its own suffix, with no separator: `Tacenta SPQRChain Start` for
+initialisation, `Tacenta SPQRRoot` for the root step and `Tacenta SPQRChain` for
+the chain step (CONSTANTS.md; `tacenta-core/LABELS.md`). Initialisation takes
+an all-zero salt and the shared secret as input and yields ninety-six bytes:
+the root key, then the first and second chain keys. The root step takes the
+current root key as salt and the agreement's secret as input and yields the
+same three in the same order. The chain step takes the chain key as salt and
+the message number as eight big-endian bytes as input and yields sixty-four
+bytes: the next chain key, then the message key.
 
 The chain step differs from the Double Ratchet's in taking the *counter* as an
 input rather than a fixed constant. That is a real difference and not a
@@ -135,10 +137,18 @@ something to accommodate. The ratchet also refuses to advance to epoch
 `u64::MAX`, which its own retention window would read as covering nothing, and
 reports it as counter exhaustion (session-persistence.md).
 
-Then, whether or not the ratchet advanced, the sending chain for the epoch the
-agreement named is stepped once, and the resulting message key encrypts. The
-header carries the agreement's message, the epoch the message key came from,
-and the message number (message-format.md).
+Then, whether or not the ratchet advanced, the sending chain of the epoch the
+agreement named is stepped once. That is the epoch the receiver is guaranteed
+to know, which can be one behind the latest: the message carrying the secret
+that opens an epoch is itself sent on the epoch before. The chain's counter is
+incremented, and its new value is both the chain step's input and the message
+number, so a chain's first message is number one. A send naming an epoch the
+state holds no chains for is refused (`NoChain`). The counter is 64-bit:
+message number `u64::MAX` is usable, and the send after it is refused as
+counter exhaustion (`ChainExhausted`). The resulting message key is this
+ratchet's input to the Triple Ratchet's combination, not the encryption key
+(triple-ratchet.md). The header carries the agreement's message, the epoch the
+message key came from, and the message number (message-format.md).
 
 ## Receiving
 
@@ -147,14 +157,24 @@ secret comes back, the root key advances exactly as above.
 
 Then, before deriving anything, the store of skipped keys is consulted for this
 epoch and number. If a key is there it is used and **removed**. That is the
-only path by which a stored key is consumed, and removing it is what makes it
-one-use.
+only path by which a stored key is used, and removing it is what makes it
+one-use. A stored key is otherwise deleted only when its epoch is retired, or
+when it is evicted to make room (below).
 
-Otherwise the receiving chain for the named epoch is stepped forward to the
-message's number, storing every key it passes, and then once more to produce the
-key for the message itself. Stepping forward is bounded: a header demanding more
-than the permitted number of skips is rejected rather than served, so a peer
-cannot induce unbounded work by claiming a distant message number.
+Otherwise the receiving chain for the named epoch is stepped forward to one
+before the message's number, storing every key it passes, and then once more to
+produce the key for the message itself. Stepping forward is bounded: a header
+demanding more than the permitted number of skips is rejected rather than
+served, so a peer cannot induce unbounded work by claiming a distant message
+number. A message naming an epoch the state holds no chains for is refused
+(`NoChain`). A message whose number is not past the chain's counter and whose
+key is not stored is refused as out of order (`OutOfOrder`), or as counter
+exhaustion (`ChainExhausted`) once the counter is `u64::MAX`.
+
+A send or receive that is refused may already have folded the agreement's
+secret in. A caller therefore runs each on a copy of the state and treats a
+state that returned an error as spent; the Triple Ratchet's commit rules are on
+triple-ratchet.md, Sending and receiving.
 
 ### The store also has a total bound
 
@@ -167,8 +187,15 @@ messages.
 
 The Double Ratchet caps its store's total size ([ratchet.md](ratchet.md),
 Skipped keys). The same cap applies here, for the same reason, and a request
-that would exceed it is refused. `Proofs.SparseRatchetCorrectness` proves
-the bound holds rather than checking it at sample points.
+that would exceed it is refused by the ratchet (`SkippedStoreFull`).
+`Proofs.SparseRatchetCorrectness` proves the bound holds rather than checking
+it at sample points.
+
+The receiver then makes room as the Double Ratchet's does (ratchet.md, Skipped
+keys): it evicts keys from this store, the one stored first going first
+whatever its epoch, and retries on a working copy that it adopts only if the
+message authenticates. A delayed message whose key was evicted can no longer be
+decrypted. Like the cap, the eviction is this implementation's addition.
 
 ## Retiring old epochs
 
@@ -177,6 +204,11 @@ The ratchet keeps chains for a bounded number of epochs and discards the rest,
 that this limits how far out of order a message may arrive and still be
 decryptable, and equally explicit about who that suits: deployments where
 messages are often dropped but rarely arrive very late.
+
+When the ratchet advances to epoch `E` it keeps the chains and stored keys of
+every epoch `e` with `E < e + EPOCHS_KEPT` and discards the rest; with
+`EPOCHS_KEPT` at 2 (CONSTANTS.md) that is `E` and `E - 1`. Nothing else retires
+an epoch, and a message naming a retired epoch is refused (`NoChain`).
 
 The specification offers a second approach, mirroring the Double Ratchet's:
 carry the previous chain's length in the header and use it to seal that chain

@@ -28,7 +28,7 @@ left to be inferred from the classical case.
 | A chain key | the next chain key is derived from it |
 | A root key | the next root key is derived from it |
 | A ratchet private key | a Diffie-Hellman step has produced a new one |
-| A skipped message key | its message arrives, or the store's policy expires it |
+| A skipped message key | its message arrives, the store's policy expires it, or it is evicted to make room |
 
 Each message is encrypted under a key used once, which is the point of the
 symmetric-key ratchet: the key can go as soon as it has done its work. The old
@@ -40,14 +40,15 @@ chain key goes with it, because the new chain key has already been derived.
 | --- | --- |
 | A sparse-ratchet chain key | the next chain key is derived from it |
 | A sparse-ratchet root key | the next root key is derived from it |
-| A sparse-ratchet skipped key | its message arrives, or its epoch is retired |
+| A sparse-ratchet skipped key | its message arrives, its epoch is retired, or it is evicted to make room |
 | A Braid decapsulation key | the encapsulation it was sampled for completes |
 | The Braid's authenticator keys | the authenticator is updated for the next epoch |
 | A Braid agreement output | the ratchet above has consumed it |
 
 The shapes match the classical ratchet's, with one structural difference worth
 naming: the sparse ratchet retires whole *epochs* rather than expiring
-individual keys on a counter, so its skipped store empties in blocks. The
+individual keys on a counter, so its skipped store empties in blocks, apart from
+the eviction that makes room when it is full. The
 `EPOCHS_KEPT` bound is the policy choice there, in the same sense the classical
 expiry interval is one.
 
@@ -106,7 +107,10 @@ deleting them after an interval, triggered by a timer or by counting events.
 - The skipped store is bounded twice over, per chain and in total, and it is a
   map: storing a key for a pair already held replaces it rather than
   accumulating, so a superseded key cannot linger unreachable behind a newer
-  one.
+  one. At the total bound a message that needs room is not refused: the
+  oldest stored keys are evicted, on a copy adopted only if the message
+  authenticates, and a delayed message whose key was evicted is lost
+  (ratchet.md, Skipped keys).
 - A one-time prekey, curve or KEM, is removed from the store once the initial
   message that names it has authenticated, and not before. Naming a prekey is
   free to anyone who fetched the bundle, so a store that deleted on the way in
@@ -156,11 +160,14 @@ deleting them after an interval, triggered by a timer or by counting events.
   erasing wrappers for the life of the derivation and wiped when it returns,
   at both the encapsulating and the decapsulating side.
 - **Skipped keys are expired, by counting received messages.** A stored key is
-  deleted once it has outlived a fixed number of them. Nothing in the ratchet
-  can read a clock, so the source document's "a timer, or by counting events"
-  resolves to counting: the state carries the count, each stored key carries the
-  count at which it was stored, and every accepted receive ages the store and
-  drops what has expired. The boundary is pinned on both sides, in the model and
+  deleted at the end of the accepted receive that makes it `MAX_SKIPPED_AGE`
+  receives old, counting the receive that stored it, so it can still be used
+  by any of the next `MAX_SKIPPED_AGE - 1` (ratchet.md, Skipped keys). Nothing
+  in the ratchet can read a clock, so the source document's "a timer, or by
+  counting events" resolves to counting: the state carries the count, each
+  stored key carries the count at which it was stored, and every accepted
+  receive, after looking up a stored key, ages the store and drops what has
+  expired. The boundary is pinned on both sides, in the model and
   in the core, so a change to one that is not made to the other fails a test.
 
   Two things travel with it. The interval is a **policy choice**, not something
