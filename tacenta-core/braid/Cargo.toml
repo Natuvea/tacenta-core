@@ -20,6 +20,11 @@ rand_core = "0.6"
 
 [dev-dependencies]
 rand = "0.8"
+# SHA3-256, for the tests that store a key pair whose `ek_vector` has been
+# edited and whose header hash has been recomputed to match it, so that the
+# refusal they pin is the modulus check's and not the hash check's. Already in
+# the lockfile, at this version, as a dependency of libcrux-ml-kem.
+libcrux-sha3 = "0.0.10"
 
 [features]
 # `Auth::from_root` and `Auth::keys` plant and read the authenticator's root

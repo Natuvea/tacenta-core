@@ -46,7 +46,9 @@ parsers, the encoder and all nine refinement theorems.
 classical ratchet's two non-vacuity pins, which are kernel-only; and
 separately the Braid's `from_bytes_establishes_inv` and each of the four
 `decoded_*` corollaries, which are not -- the Braid's reaches the opaque
-erasure and KEM decoders, and a corollary carries the boundary axioms of the
+erasure and KEM decoders and, through its `invariant`'s key-pair clause, the
+KEM's `header`, `ek_vector` and `validate_ek`, and a corollary carries the
+boundary axioms of the
 `receive` theorem it composes with, the sparse ratchet's carrying a
 compiler-trust axiom too. `Translation.SpqrT1`/`SpqrT3` pin the sparse
 ratchet's `send` and `receive`, for panic-freedom and for refinement, and
@@ -1010,10 +1012,20 @@ public key and says nothing about the decapsulation key stored beside it. The
 private half is **not verified anywhere in this tree, and about half of it
 cannot be**: the secret polynomial vector carries no redundancy in the
 encoding to check it against, so no amount of decoding validates it, and
-`IncrementalKeyPair::from_bytes` checks only its input's length (above). A
-stored key pair whose private half has been altered passes every check that
-is made and fails only when decapsulation produces the wrong secret. Nothing
-in `BraidT3.lean` -- `ValidateEkAgrees` included -- states otherwise.
+`IncrementalKeyPair::from_bytes` checks only its input's length (above). The
+Braid's reader does apply `validate_ek` to a stored pair (register item J-4):
+`Braid::invariant`, which `Braid::from_bytes` refuses on, requires in the four
+states that hold a pair that the pair's own header and `ek_vector` pass it.
+So a stored pair whose header hash is not the hash of its own encapsulation
+key, or whose `ek_vector` has a coefficient at or above q, is refused as
+malformed at import. That reaches the public half again and nothing more, and
+it trusts libcrux's `validate_pk_bytes` to accept every pair libcrux
+generates: were it to refuse one, the reader would refuse a state this crate
+exported. Nothing proves that; the crate's tests check it after every step of
+the negotiations they run. A stored key pair whose private half has been
+altered still passes every check that is made and fails only when
+decapsulation produces the wrong secret. Nothing in `BraidT3.lean` --
+`ValidateEkAgrees` included -- states otherwise.
 
 Two more sit beside it in `BraidT3.lean`: `KemCloneAgrees` and
 `ErasureCloneAgrees` (a clone of an opaque KEM or erasure value behaves as,

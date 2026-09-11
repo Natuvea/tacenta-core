@@ -864,21 +864,17 @@ fn the_epoch_ceiling_is_out_of_reach() {
     assert!(Braid::from_bytes(&a.to_bytes()).is_ok());
 }
 
-/// Every restored variable-length field and every restored coder is held to
-/// the size its state implies (CR-21, CR-14). Each tag's encoding is taken
-/// from a real negotiation, then one field is resized and the decode must
-/// answer `Malformed` rather than a state that will fail on its next chunk.
-#[test]
-fn from_bytes_refuses_a_field_of_the_wrong_length() {
-    let mut r = rng(31);
+/// One encoding of each live tag, indexed by tag, collected over a few epochs
+/// of a real negotiation and from both sides.
+///
+/// Two messages in three from `b` are dropped: under strict alternation the
+/// acknowledgement always rides on the first `ek_vector` chunk, so
+/// `EkReceivedCt1Sampled` (tag 8), where the vector completes before the
+/// acknowledgement, is reached only when the other side's `ct1` chunks are
+/// being lost. The roles swap each epoch, so the loss reaches both.
+fn one_encoding_per_live_tag(seed: u64) -> Vec<Option<Zeroizing<Vec<u8>>>> {
+    let mut r = rng(seed);
     let mut p = Pair::new(b"a preshared secret from the handshake");
-
-    // Collect one encoding per live tag over a few epochs, from both sides.
-    // Two messages in three from `b` are dropped: under strict alternation
-    // the acknowledgement always rides on the first `ek_vector` chunk, so
-    // `EkReceivedCt1Sampled` (tag 8), where the vector completes before the
-    // acknowledgement, is reached only when the other side's `ct1` chunks
-    // are being lost. The roles swap each epoch, so the loss reaches both.
     let mut samples: Vec<Option<Zeroizing<Vec<u8>>>> = vec![None; 11];
     let mut i = 0usize;
     while i < 1500 {
@@ -901,6 +897,185 @@ fn from_bytes_refuses_a_field_of_the_wrong_length() {
         i += 1;
     }
     assert!(!p.a.failed() && !p.b.failed());
+    samples
+}
+
+/// The byte range of the key pair in an encoding of tags 1 to 4: the first
+/// length-prefixed field after the version, the tag, the epoch and the
+/// authenticator.
+///
+/// Its header and `ek_vector` are checked against what `IncrementalKeyPair`
+/// reports for those bytes, so the offsets the edits below use are read from
+/// the library rather than assumed of a layout the specification delegates.
+fn key_pair_range(bytes: &[u8]) -> core::ops::Range<usize> {
+    let at = 2 + 8 + 64;
+    let (field, _) = take_len_prefixed(bytes, at).expect("well-formed sample");
+    let kp = IncrementalKeyPair::from_bytes(field).expect("a key pair");
+    assert_eq!(&field[..HEADER_LEN], kp.header().as_slice());
+    assert_eq!(
+        &field[HEADER_LEN..HEADER_LEN + EK_VECTOR_LEN],
+        kp.ek_vector().as_slice()
+    );
+    at + 4..at + 4 + field.len()
+}
+
+/// Write `value` as the first coefficient of an encoded vector. FIPS 203's
+/// `ByteEncode12` packs coefficient 0 into all of byte 0 and the low four bits
+/// of byte 1.
+fn set_first_coefficient(ek_vector: &mut [u8], value: u16) {
+    ek_vector[0] = (value & 0xff) as u8;
+    ek_vector[1] = (ek_vector[1] & 0xf0) | ((value >> 8) & 0x0f) as u8;
+}
+
+/// Recompute the hash in a key pair's header over the pair's own `ek_vector`:
+/// `H(ek) = SHA3-256(ek_vector || rho)`, with `rho` the header's first 32
+/// bytes (mlkem-braid.md, The KEM split).
+fn rehash_key_pair(kp: &mut [u8]) {
+    let mut ek = Vec::with_capacity(EK_VECTOR_LEN + 32);
+    ek.extend_from_slice(&kp[HEADER_LEN..HEADER_LEN + EK_VECTOR_LEN]);
+    ek.extend_from_slice(&kp[..32]);
+    let hash = libcrux_sha3::sha256(&ek);
+    kp[32..HEADER_LEN].copy_from_slice(&hash);
+}
+
+/// A stored key pair whose header hash is not the hash of its own
+/// encapsulation key is refused, in each of the four states that hold one
+/// (session-persistence.md, Braid; register item J-4).
+///
+/// This is FIPS 203 section 7.3's hash check made on the incremental key
+/// pair. Before it, such a state restored and decapsulated, by implicit
+/// rejection, to a secret the peer did not hold. Editing `rho` breaks the
+/// same relation from the other side, so it is refused too.
+#[test]
+fn from_bytes_refuses_a_key_pair_whose_hash_is_not_its_own() {
+    let samples = one_encoding_per_live_tag(31);
+    for (tag, sample) in samples.iter().enumerate().take(5).skip(1) {
+        let bytes = sample.as_ref().expect("every live tag is sampled");
+        let kp = key_pair_range(bytes);
+
+        let mut wrong_hash = bytes.to_vec();
+        wrong_hash[kp.start + 32] ^= 0x01;
+        assert!(
+            matches!(
+                Braid::from_bytes(&wrong_hash),
+                Err(BraidDecodeError::Malformed)
+            ),
+            "tag {tag}: a key pair with a wrong hash was restored"
+        );
+
+        let mut wrong_rho = bytes.to_vec();
+        wrong_rho[kp.start] ^= 0x01;
+        assert!(
+            matches!(
+                Braid::from_bytes(&wrong_rho),
+                Err(BraidDecodeError::Malformed)
+            ),
+            "tag {tag}: a key pair whose rho no longer matches its hash was restored"
+        );
+
+        assert!(
+            Braid::from_bytes(bytes).is_ok(),
+            "tag {tag}: the honest sample does not restore"
+        );
+    }
+}
+
+/// A stored key pair whose `ek_vector` has a coefficient at or above q is
+/// refused even when its header hash has been recomputed to match, so the
+/// refusal is FIPS 203 section 7.2's modulus check rather than the hash
+/// check (session-persistence.md, Braid; register item J-4).
+///
+/// The same edit to a value below q, with the hash recomputed, restores: the
+/// recomputation is correct, and a well-formed pair is not refused for
+/// differing from the one the negotiation generated, which the page does not
+/// ask the reader to notice.
+#[test]
+fn from_bytes_refuses_a_key_pair_with_a_coefficient_at_or_above_q() {
+    let samples = one_encoding_per_live_tag(31);
+    for (tag, sample) in samples.iter().enumerate().take(5).skip(1) {
+        let bytes = sample.as_ref().expect("every live tag is sampled");
+        let kp = key_pair_range(bytes);
+
+        // Recomputing the hash of an honest pair changes nothing.
+        let mut same = bytes.to_vec();
+        rehash_key_pair(&mut same[kp.clone()]);
+        assert_eq!(
+            same.as_slice(),
+            bytes.as_slice(),
+            "tag {tag}: the recomputed hash is not the stored one"
+        );
+
+        for (value, refused) in [(3329u16, true), (4095, true), (3328, false), (0, false)] {
+            let mut edited = bytes.to_vec();
+            set_first_coefficient(&mut edited[kp.start + HEADER_LEN..kp.end], value);
+            rehash_key_pair(&mut edited[kp.clone()]);
+            let restored = Braid::from_bytes(&edited);
+            if refused {
+                assert!(
+                    matches!(restored, Err(BraidDecodeError::Malformed)),
+                    "tag {tag}: a coefficient of {value} with its hash was restored"
+                );
+            } else {
+                assert!(
+                    restored.is_ok(),
+                    "tag {tag}: a coefficient of {value} with its hash was refused"
+                );
+            }
+        }
+    }
+}
+
+/// The width of the check, pinned from the other side: nothing in a key pair
+/// past its header and `ek_vector` is checked, and nothing inside an
+/// encapsulation state, so a state edited there still restores.
+///
+/// Here so session-persistence.md's "nothing else" is a checked statement,
+/// and so a change that does check more fails here and has to update the
+/// page.
+#[test]
+fn from_bytes_does_not_check_a_key_pairs_private_part_or_an_encapsulation_state() {
+    let samples = one_encoding_per_live_tag(31);
+    for (tag, sample) in samples.iter().enumerate().take(5).skip(1) {
+        let bytes = sample.as_ref().expect("every live tag is sampled");
+        let kp = key_pair_range(bytes);
+        let mut edited = bytes.to_vec();
+        edited[kp.start + HEADER_LEN + EK_VECTOR_LEN + 100] ^= 0x01;
+        assert!(
+            Braid::from_bytes(&edited).is_ok(),
+            "tag {tag}: an edit past the key pair's public half was refused"
+        );
+    }
+
+    // `encaps` is the second field in tags 7 and 9, after `header`, and the
+    // first in tag 8.
+    for (tag, index) in [(7usize, 1usize), (8, 0), (9, 1)] {
+        let bytes = samples[tag].as_ref().expect("every live tag is sampled");
+        let mut pos = 2 + 8 + 64;
+        for _ in 0..index {
+            let (_, next) = take_len_prefixed(bytes, pos).expect("well-formed sample");
+            pos = next;
+        }
+        let (field, _) = take_len_prefixed(bytes, pos).expect("well-formed sample");
+        assert!(
+            EncapsState::from_bytes(field).is_ok() && field.len() != HEADER_LEN,
+            "tag {tag}: field {index} is not the encapsulation state"
+        );
+        let mut edited = bytes.to_vec();
+        edited[pos + 4 + 100] ^= 0x01;
+        assert!(
+            Braid::from_bytes(&edited).is_ok(),
+            "tag {tag}: an edit inside the encapsulation state was refused"
+        );
+    }
+}
+
+/// Every restored variable-length field and every restored coder is held to
+/// the size its state implies (CR-21, CR-14). Each tag's encoding is taken
+/// from a real negotiation, then one field is resized and the decode must
+/// answer `Malformed` rather than a state that will fail on its next chunk.
+#[test]
+fn from_bytes_refuses_a_field_of_the_wrong_length() {
+    let samples = one_encoding_per_live_tag(31);
 
     // Walk each encoding's length-prefixed fields after the fixed prefix
     // (version, tag, epoch, auth) and, one at a time, shrink each by one

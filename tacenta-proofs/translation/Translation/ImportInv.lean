@@ -1367,8 +1367,9 @@ axioms and on nothing else: no opaque primitive, no compiler trust, and no
 assumption about our own code. That is a statement about those five theorems.
 The Braid's `from_bytes_establishes_inv` pulls in the KEM constants and the
 erasure coders, which are what the translated Braid calls and cannot see
-inside; that list is pinned so a new one fails here rather than passing
-unnoticed.
+inside -- among them the key pair's `header` and `ek_vector` and the KEM's
+`validate_ek`, which the `invariant`'s key-pair clause calls; that list is
+pinned so a new one fails here rather than passing unnoticed.
 
 **The end-to-end half is different, and is pinned separately.** Each
 `decoded_*` corollary composes one of those theorems with a `receive` theorem
@@ -1434,6 +1435,7 @@ info: 'Tacenta.ImportInv.Braid.from_bytes_establishes_inv' depends on axioms: [p
  tacenta_braid.tacenta_kem.EncapsState,
  tacenta_braid.tacenta_kem.HEADER_LEN,
  tacenta_braid.tacenta_kem.IncrementalKeyPair,
+ tacenta_braid.tacenta_kem.validate_ek,
  tacenta_braid.tacenta_erasure.Decoder.from_bytes,
  tacenta_braid.tacenta_erasure.Decoder.invariant,
  tacenta_braid.tacenta_erasure.Decoder.size,
@@ -1441,7 +1443,9 @@ info: 'Tacenta.ImportInv.Braid.from_bytes_establishes_inv' depends on axioms: [p
  tacenta_braid.tacenta_erasure.Encoder.invariant,
  tacenta_braid.tacenta_erasure.Encoder.needed,
  tacenta_braid.tacenta_kem.EncapsState.from_bytes,
- tacenta_braid.tacenta_kem.IncrementalKeyPair.from_bytes]
+ tacenta_braid.tacenta_kem.IncrementalKeyPair.ek_vector,
+ tacenta_braid.tacenta_kem.IncrementalKeyPair.from_bytes,
+ tacenta_braid.tacenta_kem.IncrementalKeyPair.header]
 -/
 #guard_msgs in
 #print axioms Tacenta.ImportInv.Braid.from_bytes_establishes_inv
@@ -1541,6 +1545,7 @@ info: 'Tacenta.ImportInv.Braid.decoded_receive_no_panic' depends on axioms: [pro
  tacenta_braid.tacenta_kem.IncrementalKeyPair.decapsulate,
  tacenta_braid.tacenta_kem.IncrementalKeyPair.ek_vector,
  tacenta_braid.tacenta_kem.IncrementalKeyPair.from_bytes,
+ tacenta_braid.tacenta_kem.IncrementalKeyPair.header,
  tacenta_braid.zeroize.Zeroizing.new,
  tacenta_braid.Array.Insts.ZeroizeZeroize.zeroize,
  tacenta_braid.zeroize.Zeroize.Blanket.zeroize,
