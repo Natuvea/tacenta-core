@@ -283,6 +283,90 @@ and the rule that a valid vector carries an output:
 
 Both run in the public CI and in `tooling/ci.sh`.
 
+## Differential testing against the model
+
+Every vector is a case someone chose. Beside them, a harness runs *generated*
+operation sequences through `tacenta-model` and `tacenta-core` and compares
+them step by step, so that a disagreement nobody thought to write down still
+shows up (ADR-0008, practice 9). It has two halves:
+
+- `tacenta-model/Difftest.lean`, which `lake build` compiles as
+  `lake exe difftest`. It reads a start and a list of operations and prints,
+  after the start and after every step, whether the model took or refused the
+  step and the bytes `Model.PersistedState` writes the state as. It chooses
+  nothing and checks nothing.
+- `runners/rust/tests/differential.rs`, which generates the sequences from a
+  seed, blind to what either side will answer, sends them to that executable,
+  replays the same operations on `tacenta-ratchet` and `tacenta-spqr`, and
+  compares the two transcripts.
+
+The operations are encoded exactly as the `steps` input of the two
+ratchet-state files above, so a sequence here means what a sequence there
+means. A start is either initialisation parameters, which each side runs its
+own initialisation on, or stored bytes both sides read: a counter at its
+ceiling cannot be walked to, so the near-ceiling sequences start from bytes
+the harness assembles from the layout in `session-persistence.md` rather than
+from either implementation.
+
+**What it compares**, at every step of every sequence:
+
+- the outcome, taken or refused;
+- the stored bytes of the state the step left, a refused step included. The
+  model's operations leave the state alone when they refuse, and both crates
+  document that a state which returned `Err` is spent and the caller works on a
+  copy, so the harness replays on a copy and restores it. A skipped key not
+  erased, or erased a message early, is a difference in these bytes;
+- the export-and-import check, at every step rather than at chosen ones: each
+  side reads back the bytes it has just written, and the two must agree on
+  whether the reader accepts them and on which refusal it gives if not;
+- the refusal kind, `wrong-version` against `short-or-malformed`, on the
+  corrupted buffers made from each sequence's final state;
+- counter exhaustion: a step `tacenta-core` refuses as `ChainExhausted` must be
+  one the model refuses with the counter at its ceiling. The converse is not
+  asserted and does not hold, since a receive at `nr = u32::MAX` numbered below
+  it is out of order on both sides rather than exhaustion.
+
+**What it does not compare.**
+
+- **Message keys.** The harness compares states, not the keys an operation
+  returns; `vectors/ratchet/double-ratchet.json` pins those.
+- **The Braid, the Triple Ratchet, the session and the prekey store.** The
+  model states no stored format for them, so there is nothing to compare
+  states by, and no generated sequence drives them.
+- **The store's total bound.** Reaching `MAX_SKIPPED_STORE` means deriving
+  thousands of message keys in the model's Lean SHA-256 and then reading a
+  state holding them back at every later step. The refused side of the bound
+  is pinned by the `store-over-its-bound` vectors instead. The per-chain bound
+  is driven: the step past `MAX_SKIP` in every run, and `MAX_SKIP` itself in
+  the long run below.
+- **The one refusal the specification leaves open.** A buffer too short for
+  its fixed fields whose version byte is not `0x01` may be refused as either
+  (session-persistence.md, Rejection), so the harness accepts both spellings
+  for that buffer and no other.
+
+Running it needs the model built, as regenerating the vectors does:
+
+    (cd tacenta-model && lake build)
+    (cd tacenta-test-vectors/runners/rust && cargo test --locked --test differential -- --nocapture)
+
+The bounded run, which `tooling/ci.sh` and the CI vectors job run, is 48
+sequences per ratchet of up to 20 operations each from a fixed seed: 1,920
+steps and 384 corrupted imports, about ten seconds. The seed and the sequence
+count are printed, so a failure is reproducible, and a failing seed prints the
+shortest sequence that still disagrees along with both sides' bytes. A longer
+run is
+
+    TACENTA_DIFF_SEQUENCES=2000 TACENTA_DIFF_LONG=1 cargo test --release --test differential -- --nocapture
+
+where `TACENTA_DIFF_SEED` picks another seed and `TACENTA_DIFF_LONG=1` adds the
+sequences that skip the whole of `MAX_SKIP`, which are minutes rather than
+seconds and so are left out of the gate.
+
+**A disagreement is a finding.** The model is normative (ADR-0006), so where
+the two sides differ the harness reports the minimal sequence and the bytes,
+and the difference is settled by a specification decision rather than by
+editing whichever side is easier to change.
+
 ## Regenerating the protocol vectors
 
 The model is the oracle. The protocol vector files are its byte output, so
@@ -351,13 +435,16 @@ an invalid vector also names its `refusal`. A decoder's accepted vector
 may carry `fields`, the named values its input decodes to, in place of
 `output` (`schema/vector.schema.json`).
 
-What the vectors still do not cover is the **state machines**: nothing drives
-the Braid or the sparse ratchet through a scenario the way the Double Ratchet's
-vectors do. That gap is closed by proof rather than by this directory (T1 and
-T3 on each crate), which the conformance manifest states in those terms. So no
-vector pins the Braid's epoch ceiling, which `Model.Braid` states and
-`tacenta-braid` keeps: no vector file holds a Braid state.
-Sender keys are not yet scheduled.
+What the **vector files** still do not cover is the **state machines**: no
+vector drives the Braid or the sparse ratchet through a scenario the way the
+Double Ratchet's vectors do. For the two ratchets that gap is now covered by
+the differential harness above as well as by proof, since it drives both
+through generated sequences and compares every step against the model; for all
+three crates it is covered by proof (T1 and T3 on each), which the conformance
+manifest states in those terms. The Braid has neither: no vector file holds a
+Braid state and no generated sequence drives it, so its epoch ceiling, which
+`Model.Braid` states and `tacenta-braid` keeps, is pinned by neither and rests
+on the proofs and the crate's own tests. Sender keys are not yet scheduled.
 
 ## Trademarks and non-affiliation
 
