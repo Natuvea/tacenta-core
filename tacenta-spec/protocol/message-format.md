@@ -187,6 +187,10 @@ length. The failure is the same whichever step refused, so a padding refusal
 cannot be told from a tag refusal, and nothing is decrypted until the tag has
 verified.
 
+`tacenta-core` takes AES-256, CBC and PKCS#7 padding from libraries
+(RustCrypto's `aes` and `cbc`). This section, not those libraries, defines the
+behaviour an implementation must have.
+
 ## Initial message
 
 The first message to a party carries what they need to complete the handshake,

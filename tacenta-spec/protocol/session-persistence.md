@@ -293,9 +293,11 @@ rather than here.
   swap each epoch, so at epoch `e` the session's initiator is the
   header-sending side (tags 0 to 4) exactly when `e` is odd -- and must
   match the session's; so must the sparse ratchet's `direction`, `A2b` for
-  the initiator. The classical ratchet shows its role only until its first
-  Diffie-Hellman step, and the Triple Ratchet's own invariant checks it
-  against the sparse ratchet's while it can.
+  the initiator. A failed Braid (tag 11) has no role, so for it the Braid's
+  half of this rule is not checked and the `direction` half still is. The
+  classical ratchet shows its role only until its first Diffie-Hellman step,
+  and the Triple Ratchet's own invariant checks it against the sparse
+  ratchet's while it can.
 - **An unanswered initiator is not also a responder**: `pending_initial`
   present implies `established_ephemeral` absent.
 - **The optional fields have their shape**: `pending_initial`'s
@@ -343,8 +345,19 @@ previous_signed = secret(32) || id(4) || sig(64)      -- only when present
 previous_kem    = len(4) || kem_pair || id(4) || sig(64)   -- only when present
 ```
 
-`kem_pair` is `kem::KeyPair`'s own encoding, opaque here and length-prefixed
-wherever it appears, as the Braid format treats it. `next_id` is the
+`kem_pair` is an ML-KEM-1024 key pair (FIPS 203), the decapsulation key first,
+length-prefixed wherever it appears:
+
+```
+kem_pair = dk(3,168) || ek(1,568)                         -- 4,736 bytes
+dk       = dk_pke(1,536) || ek(1,568) || h(32) || z(32)   -- FIPS 203's layout
+```
+
+The reader refuses a `kem_pair` as malformed unless all four hold: its length
+is exactly 4,736 bytes; `ek` passes the FIPS 203 section 7.2 modulus check;
+`dk` passes the FIPS 203 section 7.3 hash check, `h` equal to `H` over the
+`ek` inside `dk`; and the `ek` inside `dk` equals `ek` byte for byte. Nothing
+else in `dk` is checked. `next_id` is the
 identifier the next key added to the store will take, so that replenishment
 continues the sequence rather than restarting it (key-deletion.md). `seen`
 is the record of spent last-resort handshakes, oldest first; from v4 each
@@ -361,6 +374,28 @@ one budget for v2 and v3, whose untagged entries all read back under
 last-resort KEM prekey the most recent rotation retired, each behind a
 presence byte and, like the session's `pending_initial`, followed by
 nothing at all when absent.
+
+**The one-time lists' order is meaningful.** `one_time` and `kem_one_time` are
+written in the store's order, and the reader keeps the order it read.
+`create_prekeys` builds each list in ascending identifier order, and
+`replenish` appends to the end. Consuming an entry moves the list's last entry
+into its place and removes the last position, so after a consumption the order
+is no longer identifier order. The order decides what a bundle names:
+
+- `publish` names the last entry of `one_time`, or no one-time curve prekey
+  (identifier `0`) when that list is empty; and the last entry of
+  `kem_one_time`, or the last-resort KEM prekey when that list is empty. The
+  two choices are independent, and every call returns the same bundle until a
+  message consumes what it names.
+- `publish_one_time_batch` returns one bundle per pair of entries taken from
+  the ends of both lists together -- the last of each, then the second to last
+  of each, and so on -- as many as the shorter list holds. Each names both
+  one-time prekeys.
+- `publish_multi_use` names no one-time curve prekey (identifier `0`) and the
+  last-resort KEM prekey.
+
+Every bundle names the current signed prekey and, when it names the
+last-resort KEM prekey, the current one; never a key a rotation retired.
 
 **Four versions are read; one is written.** The writer always emits `0x04`.
 The reader also accepts `0x03`, the format before the record was tagged by
