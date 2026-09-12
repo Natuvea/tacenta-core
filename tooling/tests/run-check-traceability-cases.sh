@@ -14,7 +14,7 @@ make_case() {
   mkdir -p "$dst/tacenta-spec"
   cp -R "$root/tacenta-spec/security-properties" "$dst/tacenta-spec/"
   cp -R "$root/tacenta-spec/threat-model" "$dst/tacenta-spec/"
-  mkdir -p "$dst/tacenta-core/src/sessions" "$dst/tacenta-core/src/primitives" "$dst/tacenta-core/wire/src"
+  mkdir -p "$dst/tacenta-core/src/sessions" "$dst/tacenta-core/src/primitives" "$dst/tacenta-core/wire/src" "$dst/tacenta-core/ratchet/src"
   mkdir -p "$dst/tacenta-core/tests"
   mkdir -p "$dst/tacenta-model/Properties"
   mkdir -p "$dst/tacenta-proofs/Proofs" "$dst/tacenta-proofs/translation/Translation"
@@ -23,14 +23,20 @@ make_case() {
   cp "$root/tacenta-core/src/sessions/lifecycle.rs" "$dst/tacenta-core/src/sessions/lifecycle.rs"
   cp "$root/tacenta-core/src/primitives/aead.rs" "$dst/tacenta-core/src/primitives/aead.rs"
   cp "$root/tacenta-core/src/primitives/xeddsa.rs" "$dst/tacenta-core/src/primitives/xeddsa.rs"
+  cp "$root/tacenta-core/src/primitives/dh.rs" "$dst/tacenta-core/src/primitives/dh.rs"
   cp "$root/tacenta-core/wire/src/lib.rs" "$dst/tacenta-core/wire/src/lib.rs"
+  cp "$root/tacenta-core/ratchet/src/lib.rs" "$dst/tacenta-core/ratchet/src/lib.rs"
   cp "$root/tacenta-core/tests/full_session.rs" "$dst/tacenta-core/tests/full_session.rs"
+  cp "$root/tacenta-core/tests/agreement_and_bounds.rs" "$dst/tacenta-core/tests/agreement_and_bounds.rs"
+  cp "$root/tacenta-core/tests/replay_record.rs" "$dst/tacenta-core/tests/replay_record.rs"
   cp "$root/tacenta-core/tests/fuzz.rs" "$dst/tacenta-core/tests/fuzz.rs"
   cp "$root/tacenta-core/tests/canonical_curve_keys.rs" "$dst/tacenta-core/tests/canonical_curve_keys.rs"
   cp "$root/tacenta-core/tests/canonicality.rs" "$dst/tacenta-core/tests/canonicality.rs"
   cp "$root/tacenta-model/Properties/Authentication.lean" "$dst/tacenta-model/Properties/Authentication.lean"
   cp "$root/tacenta-proofs/Proofs/SessionEstablishment.lean" "$dst/tacenta-proofs/Proofs/SessionEstablishment.lean"
+  cp "$root/tacenta-proofs/Proofs/KeyErasure.lean" "$dst/tacenta-proofs/Proofs/KeyErasure.lean"
   cp "$root/tacenta-proofs/translation/Translation/SessionT3.lean" "$dst/tacenta-proofs/translation/Translation/SessionT3.lean"
+  cp "$root/tacenta-proofs/translation/Translation/T3.lean" "$dst/tacenta-proofs/translation/Translation/T3.lean"
   cp "$root/tacenta-proofs/translation/Translation/WireT3.lean" "$dst/tacenta-proofs/translation/Translation/WireT3.lean"
   cp "$root/tacenta-proofs/translation/Translation/WireInitialT3.lean" "$dst/tacenta-proofs/translation/Translation/WireInitialT3.lean"
   cp "$root/tacenta-proofs/translation/Translation/WireBundleT3.lean" "$dst/tacenta-proofs/translation/Translation/WireBundleT3.lean"
@@ -41,6 +47,7 @@ make_case() {
   cp "$root/tacenta-test-vectors/vectors/malformed-input/composite-header-decode.json" "$dst/tacenta-test-vectors/vectors/malformed-input/composite-header-decode.json"
   cp "$root/tacenta-test-vectors/vectors/malformed-input/initial-message-decode.json" "$dst/tacenta-test-vectors/vectors/malformed-input/initial-message-decode.json"
   cp "$root/tacenta-test-vectors/vectors/malformed-input/prekey-bundle-decode.json" "$dst/tacenta-test-vectors/vectors/malformed-input/prekey-bundle-decode.json"
+  cp "$root/tacenta-test-vectors/vectors/malformed-input/ratchet-reject.json" "$dst/tacenta-test-vectors/vectors/malformed-input/ratchet-reject.json"
 }
 
 expect_fail() {
@@ -92,7 +99,8 @@ python3 - "$work/bad-theorem-reference/tacenta-spec/security-properties/evidence
 import json, pathlib, sys
 path = pathlib.Path(sys.argv[1])
 data = json.loads(path.read_text())
-data["requirements"][0]["model_properties"][0]["theorem"] = "associatedData_missing"
+entry = next(req for req in data["requirements"] if req["id"] == "REQ-AUTH-04")
+entry["model_properties"][0]["theorem"] = "associatedData_missing"
 path.write_text(json.dumps(data, indent=2) + "\n")
 PY
 expect_fail "bad-theorem-reference" "theorem associatedData_missing not found"
@@ -102,7 +110,8 @@ python3 - "$work/bad-vector-case/tacenta-spec/security-properties/evidence-index
 import json, pathlib, sys
 path = pathlib.Path(sys.argv[1])
 data = json.loads(path.read_text())
-data["requirements"][1]["vectors"][0]["case_ids"][0] = "missing-xeddsa-case"
+entry = next(req for req in data["requirements"] if req["id"] == "REQ-AUTH-01")
+entry["vectors"][0]["case_ids"][0] = "missing-xeddsa-case"
 path.write_text(json.dumps(data, indent=2) + "\n")
 PY
 expect_fail "bad-vector-case" "vector case missing-xeddsa-case not found"
@@ -112,7 +121,8 @@ python3 - "$work/unknown-missing-evidence-reference/tacenta-spec/security-proper
 import json, pathlib, sys
 path = pathlib.Path(sys.argv[1])
 data = json.loads(path.read_text())
-data["requirements"][2]["missing_evidence"][0]["references"] = ["LIM-99"]
+entry = next(req for req in data["requirements"] if req["id"] == "REQ-AUTH-03")
+entry["missing_evidence"][0]["references"] = ["LIM-99"]
 path.write_text(json.dumps(data, indent=2) + "\n")
 PY
 expect_fail "unknown-missing-evidence-reference" "missing_evidence cites unknown reference LIM-99"
@@ -122,7 +132,8 @@ python3 - "$work/missing-required-field/tacenta-spec/security-properties/evidenc
 import json, pathlib, sys
 path = pathlib.Path(sys.argv[1])
 data = json.loads(path.read_text())
-del data["requirements"][0]["property"]
+entry = next(req for req in data["requirements"] if req["id"] == "REQ-AUTH-04")
+del entry["property"]
 path.write_text(json.dumps(data, indent=2) + "\n")
 PY
 expect_fail "missing-required-field" "evidence entry missing required field property"
@@ -132,7 +143,8 @@ python3 - "$work/missing-coverage/tacenta-spec/security-properties/evidence-inde
 import json, pathlib, sys
 path = pathlib.Path(sys.argv[1])
 data = json.loads(path.read_text())
-del data["requirements"][0]["model_properties"][0]["coverage"]
+entry = next(req for req in data["requirements"] if req["id"] == "REQ-AUTH-04")
+del entry["model_properties"][0]["coverage"]
 path.write_text(json.dumps(data, indent=2) + "\n")
 PY
 expect_fail "missing-coverage" "model property in tacenta-proofs/Proofs/SessionEstablishment.lean has no coverage"
@@ -142,7 +154,8 @@ python3 - "$work/non-list-evidence-field/tacenta-spec/security-properties/eviden
 import json, pathlib, sys
 path = pathlib.Path(sys.argv[1])
 data = json.loads(path.read_text())
-data["requirements"][0]["tests"] = {}
+entry = next(req for req in data["requirements"] if req["id"] == "REQ-AUTH-04")
+entry["tests"] = {}
 path.write_text(json.dumps(data, indent=2) + "\n")
 PY
 expect_fail "non-list-evidence-field" "evidence field tests must be a list"

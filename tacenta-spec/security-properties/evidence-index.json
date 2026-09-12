@@ -680,6 +680,281 @@
           ]
         }
       ]
+    },
+    {
+      "id": "REQ-AUTH-10",
+      "source": "tacenta-spec/security-properties/authentication.md#REQ-AUTH-10",
+      "property": "Agreement outputs of 32 zero bytes are refused in the handshake and on every ratchet receive, and the refusal changes nothing durable.",
+      "status": "tested only",
+      "assumptions": [
+        "ASM-02",
+        "ASM-19"
+      ],
+      "limitations": [],
+      "implementation": [
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "establish_initiator"
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "establish_responder"
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "decrypt"
+        },
+        {
+          "path": "tacenta-core/src/primitives/dh.rs",
+          "symbol": "agree"
+        }
+      ],
+      "model_properties": [],
+      "claims": [],
+      "vectors": [],
+      "tests": [
+        {
+          "path": "tacenta-core/tests/agreement_and_bounds.rs",
+          "name": "establish_initiator_refuses_a_low_order_bundle_key",
+          "coverage": "Full-session initiator establishment refuses a low-order bundle key as non-contributory."
+        },
+        {
+          "path": "tacenta-core/tests/agreement_and_bounds.rs",
+          "name": "establish_responder_refuses_a_low_order_initiator_key_and_changes_nothing",
+          "coverage": "Responder establishment refuses a low-order initiator key and leaves the prekey store unchanged."
+        },
+        {
+          "path": "tacenta-core/tests/agreement_and_bounds.rs",
+          "name": "decrypt_refuses_a_low_order_ratchet_header_and_changes_nothing",
+          "coverage": "Ratchet receive refuses a low-order ratchet public key and leaves session state unchanged."
+        },
+        {
+          "path": "tacenta-core/src/primitives/dh.rs",
+          "name": "low_order_peer_keys_are_rejected",
+          "coverage": "Primitive-level test that low-order peer public keys do not produce an accepted agreement."
+        }
+      ],
+      "missing_evidence": [
+        {
+          "kind": "proof",
+          "reason": "The session-layer non-contributory refusal paths are tested but remain outside the current translated proof boundary.",
+          "references": [
+            "ASM-19"
+          ]
+        },
+        {
+          "kind": "adversary-scope",
+          "reason": "The requirement explicitly excludes contributory outputs known to an attacker that holds the corresponding private key.",
+          "references": [
+            "ADV-02"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-AUTH-11",
+      "source": "tacenta-spec/security-properties/authentication.md#REQ-AUTH-11",
+      "property": "A session accepts each ratchet message at most once: skipped keys are removed on use, stale current-chain messages without stored keys are refused, and sparse-ratchet stored keys are one-use.",
+      "status": "tested only",
+      "assumptions": [
+        "ASM-19"
+      ],
+      "limitations": [],
+      "implementation": [
+        {
+          "path": "tacenta-core/ratchet/src/lib.rs",
+          "symbol": "decrypt"
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "decrypt"
+        }
+      ],
+      "model_properties": [
+        {
+          "path": "tacenta-proofs/Proofs/KeyErasure.lean",
+          "theorem": "trySkipped_is_once",
+          "coverage": "T2 proof that looking up the same skipped-key header a second time cannot return the key again."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/T3.lean",
+          "theorem": "try_skipped_refines",
+          "coverage": "T3 refinement proof that the classical ratchet implementation's skipped-key lookup matches the model lookup."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, the models' skipped-key stores)",
+          "references": [
+            "Proofs.KeyErasure.trySkipped_is_once"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the classical Double Ratchet refines the model)",
+          "references": [
+            "try_skipped_refines"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Evidence, not proof",
+          "references": [
+            "Model.Ratchet"
+          ]
+        }
+      ],
+      "vectors": [
+        {
+          "path": "tacenta-test-vectors/vectors/malformed-input/ratchet-reject.json",
+          "case_ids": [
+            "reject-same-chain-duplicate"
+          ],
+          "coverage": "Pins refusal of a same-chain duplicate message whose key is no longer stored."
+        }
+      ],
+      "tests": [
+        {
+          "path": "tacenta-core/ratchet/src/lib.rs",
+          "name": "a_same_chain_duplicate_is_refused_and_changes_nothing",
+          "coverage": "Classical ratchet test that a duplicate current-chain message is refused and leaves state unchanged."
+        }
+      ],
+      "missing_evidence": [
+        {
+          "kind": "proof",
+          "reason": "The cited proofs cover skipped-key one-use behavior, but no theorem states that every repeated ratchet message is refused across the whole session layer.",
+          "references": [
+            "ASM-19"
+          ]
+        },
+        {
+          "kind": "scope",
+          "reason": "Initial-message replay is covered separately by REQ-AUTH-12.",
+          "references": [
+            "REQ-AUTH-12"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-AUTH-12",
+      "source": "tacenta-spec/security-properties/authentication.md#REQ-AUTH-12",
+      "property": "A captured initial message does not establish a second session, and the established session does not accept it again as a new message.",
+      "status": "tested only",
+      "assumptions": [
+        "ASM-07",
+        "ASM-12",
+        "ASM-19"
+      ],
+      "limitations": [
+        "LIM-19"
+      ],
+      "implementation": [
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "establish_responder"
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "last_resort_fingerprint"
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "PrekeyStore"
+        }
+      ],
+      "model_properties": [],
+      "claims": [],
+      "vectors": [],
+      "tests": [
+        {
+          "path": "tacenta-core/tests/full_session.rs",
+          "name": "a_replayed_initial_message_is_rejected",
+          "coverage": "A one-time KEM prekey consumed by an initial message cannot serve the same message again."
+        },
+        {
+          "path": "tacenta-core/tests/full_session.rs",
+          "name": "a_last_resort_handshake_cannot_be_replayed",
+          "coverage": "A last-resort initial message is fingerprinted after authentication and refused on replay."
+        },
+        {
+          "path": "tacenta-core/tests/full_session.rs",
+          "name": "a_different_peer_on_the_last_resort_key_is_unaffected",
+          "coverage": "The last-resort replay record refuses the replayed handshake without blocking an unrelated peer."
+        },
+        {
+          "path": "tacenta-core/tests/full_session.rs",
+          "name": "an_unrelated_initial_message_does_not_take_over_a_session",
+          "coverage": "An established responder session refuses an initial message for another peer/session."
+        },
+        {
+          "path": "tacenta-core/tests/full_session.rs",
+          "name": "the_replay_record_survives_persistence",
+          "coverage": "Replay-record state survives store serialization and import."
+        },
+        {
+          "path": "tacenta-core/tests/agreement_and_bounds.rs",
+          "name": "a_full_last_resort_budget_refuses_new_handshakes_and_still_refuses_replays",
+          "coverage": "A full last-resort replay budget fails closed while preserving refusals for already recorded replays."
+        },
+        {
+          "path": "tacenta-core/tests/agreement_and_bounds.rs",
+          "name": "one_rotation_gives_the_new_key_a_full_budget_and_keeps_the_old_refusals",
+          "coverage": "Last-resort replay records follow the key they protect across rotation."
+        },
+        {
+          "path": "tacenta-core/tests/replay_record.rs",
+          "name": "the_record_follows_its_key_through_rotation_and_leaves_when_it_is_wiped",
+          "coverage": "Replay-record entries stay with live keys through rotation and leave when the protected key is wiped."
+        },
+        {
+          "path": "tacenta-core/tests/replay_record.rs",
+          "name": "a_v3_entry_made_under_the_retired_key_still_refuses_its_replay",
+          "coverage": "Imported older replay-record entries still refuse replays against the retired key they protect."
+        },
+        {
+          "path": "tacenta-core/tests/replay_record.rs",
+          "name": "from_bytes_refuses_a_repeated_fingerprint",
+          "coverage": "Prekey-store import refuses repeated replay-record fingerprints."
+        },
+        {
+          "path": "tacenta-core/tests/canonical_curve_keys.rs",
+          "name": "a_last_resort_first_contact_with_a_respelled_ephemeral_is_refused",
+          "coverage": "A respelled last-resort initial message cannot evade the replay and canonicality checks."
+        },
+        {
+          "path": "tacenta-core/tests/canonical_curve_keys.rs",
+          "name": "a_repeated_initial_message_must_carry_the_sessions_peer_identity",
+          "coverage": "A repeated initial message must still match the responder session's peer identity."
+        }
+      ],
+      "missing_evidence": [
+        {
+          "kind": "proof",
+          "reason": "Initial-message replay handling and replay-record mutation are tested but remain outside the translated session-layer proof boundary.",
+          "references": [
+            "ASM-19"
+          ]
+        },
+        {
+          "kind": "storage-assumption",
+          "reason": "A store rolled back before the replay record was written or written out of order can invalidate the tested durable-state story.",
+          "references": [
+            "ASM-12",
+            "EX-07"
+          ]
+        },
+        {
+          "kind": "intentional-fail-closed-limit",
+          "reason": "Honest last-resort handshakes can be refused once the per-key replay-record budget is spent.",
+          "references": [
+            "EX-03",
+            "LIM-19"
+          ]
+        }
+      ]
     }
   ]
 }
