@@ -2135,20 +2135,30 @@ that assembly possible.
   translation it needs is in place, and it depends on the same Mathlib-backed
   Lean environment as T1. The vectors generated from the model give byte-level
   conformance evidence across the boundary it does not close.
-- **The Braid's model accepts stored states `tacenta-braid` refuses, in tags 1
-  to 4, and this is deliberate.** `session-persistence.md` requires the
-  `header` and `ek_vector` inside a stored `key_pair` to pass the KEM split's
-  validation. Where those sit inside the field's 11,872 bytes is the KEM
+- **The Braid's model states less than `tacenta-braid` checks, in tags 1 to 4,
+  and both conform.** `session-persistence.md` requires the `header` and
+  `ek_vector` inside a stored `key_pair` to pass the KEM split's validation,
+  and scopes that clause to an implementation that knows the KEM key pair's
+  layout. Where those two sit inside the field's 11,872 bytes is the KEM
   library's layout, which the page does not define and ADR-0006, point 5,
-  delegates. So `Model.PersistedState.BraidState` checks that field's length
-  and nothing inside it, and for those four tags it is weaker than the crate.
-  The gap is contained rather than hidden: no accepted vector in
-  `braid-state.json` carries one of those tags, `runners/rust/tests/persistence.rs`
-  asserts that, and the differential harness offers those tags only at a length
-  both sides refuse. Whether the page should state the positions, scope the rule
-  to implementations using that library, or drop the check is an open decision
-  (the independent reader's `GAPS-5.md`, G5-02). Every other rule of the Braid's
-  stored format, and the whole of the triple ratchet state's, is modelled.
+  delegates. `Model.PersistedState.BraidState` checks that field's length and
+  accepts it, which is what the page asks of a reader outside the scope;
+  `tacenta-braid` has the layout and checks the content as well. So this is no
+  longer a gap between the model and the specification. What stays true, and
+  is the reason this entry remains: the model does not state the clause, and
+  `tacenta-braid` refuses stored states in those four tags that the model
+  accepts.
+  **No vector can pin the clause.** A stored state whose key pair fails it is
+  refused by a reader inside the scope and accepted by one outside, and both
+  are conforming, so no single verdict is right for every implementation. The
+  part every implementation must apply, the field's length, is pinned
+  (`key-pair-wrong-length`). The consequence is contained rather than hidden:
+  no accepted vector in `braid-state.json` carries one of those tags,
+  `runners/rust/tests/persistence.rs` asserts that, and the differential
+  harness offers those tags only at a length both sides refuse. Every other
+  rule of the Braid's stored format, and the whole of the triple ratchet
+  state's, is modelled. The scoping is what closed the independent reader's
+  `GAPS-5.md`, G5-02.
 
 - The security properties are formalised against a symbolic attacker and not
   against a computational one, which the forward-secrecy section above states in
