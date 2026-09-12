@@ -95,7 +95,7 @@ against that code unchanged.
 
 ## 1. The earlier gaps
 
-Counts for the gaps `GAPS-6.md` left open: **4 CLOSED, 10 STILL OPEN, 1
+Counts for the gaps `GAPS-6.md` left open: **5 CLOSED, 9 STILL OPEN, 1
 NARROWED.** Those gaps are G5-02 to G5-10, G4-01 and G6-01 to G6-05.
 
 The gaps recorded as closed before are still closed: G-01 to G-28, G2-01 to
@@ -118,7 +118,7 @@ vector, and all pass.
 | G5-09 The classical ratchet at `Nr = u32::MAX`, for a message numbered below it | STILL OPEN | ratchet.md, Sending and receiving, is unchanged, and fixes no order between the two refusals where sparse-pq-ratchet.md does. The reader still gives the stale refusal first. |
 | G5-10 REQ-AUTH-11 does not cite the rule that refuses a replay onto a chain the receiver has left | STILL OPEN | `security-properties/authentication.md` REQ-AUTH-11 is unchanged. TM-02 still checks the requirement over a live Triple Ratchet session and finds the sparse half's out-of-order refusal doing the work. |
 | G4-01 A decoder of the composite header alone, and its trailing bytes | **CLOSED** | message-format.md now defines standalone composite-header decoding as accepting exactly the 102-byte header and refusing trailing bytes. `composite-header-decode.json` adds `trailing-byte`; RM-14 and the vector handlers check the standalone refusal while leaving ratchet-message ciphertext parsing unchanged. |
-| G6-01 The two persistence files' `sk` input is the same word for two different secrets | STILL OPEN | `tacenta-test-vectors/README.md`, "The ratchets' persisted states" and "The Triple Ratchet's state", are unchanged, and still use `sk` for the Double Ratchet's already-split secret in one file and the unsplit `SK` in the other. |
+| G6-01 The two persistence files' `sk` input is the same word for two different secrets | **CLOSED** | `tacenta-test-vectors/README.md`, "The ratchets' persisted states" and "The Triple Ratchet's state", now says the two ratchet-state files use already split per-ratchet initial root secrets, while `triple-ratchet-state.json` uses the unsplit Triple Ratchet shared secret. |
 | G6-03 Whether a Braid operations vector's `output` must read back is not stated | STILL OPEN | The README's "The Braid's state" still says only "`output` is the stored bytes of the state reached", where "The ratchets' persisted states" states the read-back obligation and the `-read-back` sibling. The two `ct2-sampled-*` vectors still have no sibling. The reader still applies the obligation; a reader that did not would also pass. |
 | G6-05 A Braid step's absent codeword has no zeroing rule | STILL OPEN | The README's step layout is unchanged and still does not say that an absent codeword's index and chunk are zero, nor point at the page that says it of the wire. |
 

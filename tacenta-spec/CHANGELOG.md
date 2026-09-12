@@ -222,6 +222,10 @@ is SemVer against the specified protocol (not the implementation).
   In particular, `p - 1` is canonical as a curve public key but cannot verify a
   stored signature because XEdDSA verification refuses it before Edwards
   conversion. Gap item G7-05 is closed as a wording-only reader finding.
+- `tacenta-test-vectors/README.md`: the persisted ratchet vector layouts now
+  distinguish the already split per-ratchet `sk` inputs from the unsplit Triple
+  Ratchet `sk` input. Gap item G6-01 is closed without renaming stable vector
+  fields.
 - `protocol/ratchet.md`, Sending and receiving: the classical receive boundary
   where `Nr = u32::MAX` and an unstored same-chain message has a lower number
   now deliberately permits either stale/out-of-order or `ChainExhausted`. The

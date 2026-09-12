@@ -162,11 +162,14 @@ vector has one of two shapes.
     - In `ratchet-state.json` a new state is named by `role`. `00` is the party
       that sends first (ratchet.md, Initialisation), from `sk`, `our_pub`,
       `peer_pub` and `dh_out`, the value of `DH(DHs, DHr)`. `01` is the party
-      that receives first, from `sk` and `our_pub`. Both derive under the one
-      label set, `labels` `0x00`.
+      that receives first, from `sk` and `our_pub`. Here `sk` is the Double
+      Ratchet's already split initial root secret, the input its own
+      Initialisation section calls `SK`; it is not the unsplit Triple Ratchet
+      secret. Both derive under the one label set, `labels` `0x00`.
     - In `sparse-ratchet-state.json` a new state is named by `direction`, `00`
       for `A2b` and `01` for `B2a`, from `sk` (sparse-pq-ratchet.md,
-      Initialisation).
+      Initialisation). Here `sk` is likewise the Sparse Ratchet's already split
+      initial root secret.
   - `steps` is the operations in order, back to back. It is empty when there
     are none. In a valid vector every operation in it is accepted. In an
     invalid vector every operation but the last is accepted and the last is
@@ -233,7 +236,9 @@ ratchets' above.
   named by `role`, `00` the party that sends first and `01` the party that
   receives first, from `sk` and `our_pub` (and, for `00`, `peer_pub` and
   `dh_out`); or the operations start from `start`, stored bytes the reader
-  accepts. `steps` is the operations back to back:
+  accepts. Here `sk` is the unsplit Triple Ratchet shared secret; the Triple
+  Ratchet initialisation splits it into the classical and sparse half secrets
+  before either half is initialised. `steps` is the operations back to back:
   - `00` is a send, followed by `sending_epoch(8)` and the agreement's output;
   - `01` is a receive, followed by the classical header's `dh(32) || pn(4) ||
     n(4)`, the step's `dh_recv(32) || dh_send(32) || new_pub(32)`, the sparse
