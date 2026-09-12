@@ -43,8 +43,9 @@ script="$root/tooling/check-precondition-shapes.py"
 # and fail-missing-* cases go red if the two lists drift apart.
 dirs=(tacenta-model/Model tacenta-model/Properties tacenta-proofs/Proofs
       tacenta-proofs/translation/Translation)
-roots=(tacenta-model/Vectors.lean tacenta-model/lakefile.lean
-       tacenta-proofs/lakefile.lean tacenta-proofs/translation/Translation.lean)
+roots=(tacenta-model/Vectors.lean tacenta-model/Difftest.lean
+       tacenta-model/lakefile.lean tacenta-proofs/lakefile.lean
+       tacenta-proofs/translation/Translation.lean)
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT

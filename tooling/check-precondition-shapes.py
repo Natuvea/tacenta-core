@@ -205,6 +205,7 @@ SCAN_DIRS = [
 # The packages that declare their modules by glob have no root file.
 SCAN_FILES = [
     "tacenta-model/Vectors.lean",
+    "tacenta-model/Difftest.lean",
     "tacenta-model/lakefile.lean",
     "tacenta-proofs/lakefile.lean",
     "tacenta-proofs/translation/Translation.lean",
