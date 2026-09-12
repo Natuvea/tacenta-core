@@ -131,6 +131,47 @@ def init_responder(sk: bytes, ad: bytes, signed_prekey_private: bytes, agreement
     return Party(classical, spqr.init(s_half, spqr.B2A), bytes(signed_prekey_private), agreement_state, bytes(ad))
 
 
+# ------------------------- the two ratchets alone, without AEAD or agreement
+# triple-ratchet.md, Initialisation and Sending and receiving. The Triple
+# Ratchet's own state is the two ratchets side by side
+# (session-persistence.md, Triple ratchet state); these are its operations with
+# the agreement's results handed in, which is the shape
+# `vectors/persistence/triple-ratchet-state.json` drives (pass 6).
+
+def init_halves(role: int, sk: bytes, our_pub: bytes, peer_pub: Optional[bytes] = None,
+                dh_out: Optional[bytes] = None) -> Tuple[ratchet.State, spqr.State]:
+    """"the shared secret is expanded into two ... The first 32 initialise the
+    Double Ratchet and the last 32 the sparse ratchet, in direction A2b for the
+    initiator and B2a for the responder." Role 0 sends first, role 1 receives
+    first (ratchet.md, Initialisation)."""
+    c_half, s_half = split_secret(sk)
+    if role == 0:
+        return ratchet.init_initiator(c_half, our_pub, peer_pub, dh_out), spqr.init(s_half, spqr.A2B)
+    if role == 1:
+        return ratchet.init_responder(c_half, our_pub), spqr.init(s_half, spqr.B2A)
+    raise ValueError("a role is 0 (sends first) or 1 (receives first)")
+
+
+def halves_send(classical: ratchet.State, sparse: spqr.State, sending_epoch: int,
+                secret: Optional[bytes], secret_epoch: Optional[int]):
+    """"Both run the classical half first and the sparse half second." A send
+    asks each ratchet for a message key; the agreement's sending epoch and any
+    output go to the sparse half (sparse-pq-ratchet.md, Sending)."""
+    c = ratchet.send(classical)[0]
+    s = spqr.send(sparse, sending_epoch, secret, secret_epoch)[0]
+    return c, s
+
+
+def halves_receive(classical: ratchet.State, sparse: spqr.State, header: ratchet.Header,
+                   dh_recv: bytes, dh_send: bytes, new_pub: bytes, pq_epoch: int, pq_n: int,
+                   secret: Optional[bytes], secret_epoch: Optional[int]):
+    """"each half of the header goes to its own ratchet". The classical half is
+    given dh, pn and n; the sparse half pq_epoch, pq_n and any secret."""
+    c = ratchet.receive(classical, header, lambda _dh: (dh_recv, new_pub, dh_send))[0]
+    s = spqr.receive(sparse, pq_epoch, pq_n, secret, secret_epoch)[0]
+    return c, s
+
+
 def encrypt(party: Party, agreement, plaintext: bytes) -> Tuple[Party, bytes]:
     """A send runs on a copy and adopts it only once both halves have produced keys."""
     ag = agreement.send(party.agreement_state)

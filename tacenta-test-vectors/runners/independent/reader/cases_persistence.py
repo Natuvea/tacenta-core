@@ -242,8 +242,39 @@ def _():
     raw = P.triple_to_bytes(P.TripleState(BOB1.classical, BOB1.sparse))
     rejects(P.triple_from_bytes, raw + b"\x00", exc=MAL)
     rejects(P.triple_from_bytes, put(raw, 1, (0xFFFF).to_bytes(4, "big")), exc=MAL)
-    rejects(P.triple_from_bytes, put(raw, 5, 0x07), exc=WV)
     rejects(P.triple_from_bytes, put(raw, 0, 0x02), exc=WV)
+
+
+@case("PS-24 triple ratchet state: only its own first byte is a wrong version; every other refusal, a half whose own version byte its reader does not recognise included, is short or malformed and not passed through",
+      f"{SP} Triple ratchet state: The reader refuses as a wrong version a first byte other than 0x01, and as short or malformed everything else it refuses ... An unrecognised version inside a half is one of those reasons, and it is not passed through")
+def _():
+    t = P.TripleState(BOB1.classical, BOB1.sparse)
+    raw = P.triple_to_bytes(t)
+    rb = P.ratchet_to_bytes(t.classical)
+    inner_ratchet, inner_spqr = 5, 5 + len(rb) + 4
+    assert raw[inner_ratchet] == 0x01 and raw[inner_spqr] == 0x01
+    for off in (inner_ratchet, inner_spqr):
+        for v in (0x00, 0x02, 0xFF):
+            # each half's own reader gives a wrong version here; this format gives malformed
+            half = P.ratchet_from_bytes if off == inner_ratchet else P.spqr_from_bytes
+            body = rb if off == inner_ratchet else P.spqr_to_bytes(t.sparse)
+            rejects(half, put(body, 0, v), exc=WV)
+            e = rejects(P.triple_from_bytes, put(raw, off, v), exc=P.PersistError)
+            assert isinstance(e, MAL) and not isinstance(e, WV), \
+                f"an inner version {v:#04x} was reported as {type(e).__name__}"
+    # a half its own reader refuses for any other reason is the same refusal here
+    labels = 1 + 32 + 33 + 32 + 33 + 33 + 16          # the ratchet state's labels tag
+    assert rb[labels] == 0x00
+    rejects(P.ratchet_from_bytes, put(rb, labels, 0x01), exc=MAL)
+    rejects(P.triple_from_bytes, put(raw, 5 + labels, 0x01), exc=MAL)
+    # and the length prefix, trailing bytes and the semantic rule, all malformed
+    rejects(P.triple_from_bytes, put(raw, 1, (len(rb) + 1).to_bytes(4, "big")), exc=MAL)
+    rejects(P.triple_from_bytes, raw[:1 + 4 + len(rb)], exc=MAL)
+    rejects(P.triple_from_bytes, raw + b"\x00", exc=MAL)
+    rejects(P.triple_from_bytes, P.triple_to_bytes(P.TripleState(ALICE0.classical, _with_dir(ALICE0.sparse, spqr.B2A))), exc=MAL)
+    # the one wrong version this format gives is its own first byte
+    for v in (0x00, 0x02, 0xFF):
+        rejects(P.triple_from_bytes, put(raw, 0, v), exc=WV)
 
 
 def _with_dir(s, d):

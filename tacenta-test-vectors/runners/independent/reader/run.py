@@ -647,6 +647,148 @@ def h_sparse_state(v):
                         persistence.spqr_from_bytes, spqr.SpqrError)
 
 
+# ------------------------- the Triple Ratchet's and the Braid's states (pass 6)
+# tacenta-test-vectors/README.md, Vector layouts, "The Triple Ratchet's state"
+# and "The Braid's state"; session-persistence.md: Triple ratchet state, Braid,
+# Semantic rules of the leaf formats, Rejection. triple-ratchet.md,
+# Initialisation and Sending and receiving, for the operations; mlkem-braid.md,
+# Messages and Receiving, for a received Braid message.
+
+_OUTPUT_LEN = 1 + 8 + 32
+
+
+def _agreement_output(blob):
+    """"An output is output_present(1) || output_epoch(8) || output_key(32),
+    zeroed when absent, as in sparse-ratchet-state.json.\""""
+    present, epoch, key = blob[0], _u(blob[1:9]), blob[9:41]
+    if present not in (0, 1) or (present == 0 and (epoch or key != bytes(32))):
+        raise Fail("vector: output_present 00 with non-zero output, or another byte")
+    return (key, epoch) if present else (None, None)
+
+
+def _triple_ops(raw):
+    """`00` a send, then sending_epoch(8) and the output; `01` a receive, then
+    dh(32) || pn(4) || n(4), dh_recv(32) || dh_send(32) || new_pub(32),
+    epoch(8) || pq_n(8), and the output."""
+    ops, k = [], 0
+    while k < len(raw):
+        code = raw[k]
+        k += 1
+        if code == 0x00:
+            if len(raw) - k < 8 + _OUTPUT_LEN:
+                raise Fail("vector: a truncated triple send")
+            epoch = _u(raw[k:k + 8])
+            secret, secret_epoch = _agreement_output(raw[k + 8:k + 8 + _OUTPUT_LEN])
+            k += 8 + _OUTPUT_LEN
+
+            def send(t, e=epoch, x=secret, xe=secret_epoch):
+                c, s = triple.halves_send(t.classical, t.sparse, e, x, xe)
+                return persistence.TripleState(c, s)
+            ops.append(send)
+            continue
+        if code != 0x01 or len(raw) - k < 40 + 96 + 16 + _OUTPUT_LEN:
+            raise Fail(f"vector: steps byte {k - 1} is not a send or a whole receive")
+        f = raw[k:k + 40 + 96 + 16 + _OUTPUT_LEN]
+        k += len(f)
+        hdr = ratchet.Header(f[:32], _u(f[32:36]), _u(f[36:40]))
+        dh_recv, dh_send, new_pub = f[40:72], f[72:104], f[104:136]
+        pq_epoch, pq_n = _u(f[136:144]), _u(f[144:152])
+        secret, secret_epoch = _agreement_output(f[152:])
+
+        def receive(t, hdr=hdr, dh_recv=dh_recv, dh_send=dh_send, new_pub=new_pub,
+                    pq_epoch=pq_epoch, pq_n=pq_n, x=secret, xe=secret_epoch):
+            c, s = triple.halves_receive(t.classical, t.sparse, hdr, dh_recv, dh_send, new_pub,
+                                         pq_epoch, pq_n, x, xe)
+            return persistence.TripleState(c, s)
+        ops.append(receive)
+    return ops
+
+
+def _triple_fields(t):
+    """README: `classical` and `post_quantum`, each half's own stored bytes."""
+    return {"classical": persistence.ratchet_to_bytes(t.classical).hex(),
+            "post_quantum": persistence.spqr_to_bytes(t.sparse).hex()}
+
+
+def h_triple_state(v):
+    i = v["inputs"]
+    if "steps" not in i:
+        if not _invalid(v):
+            # "laid out as version || len(4) || classical || len(4) || post_quantum
+            # they are the input"
+            c, q = bx(v["fields"]["classical"]), bx(v["fields"]["post_quantum"])
+            laid = (bytes([0x01]) + len(c).to_bytes(4, "big") + c
+                    + len(q).to_bytes(4, "big") + q)
+            check(i["bytes"], laid, "the two halves laid out")
+        return _stored_state_vector(v, persistence.triple_from_bytes, persistence.triple_to_bytes,
+                                    _triple_fields)
+    if "start" in i:
+        state = persistence.triple_from_bytes(bx(i["start"]))
+    elif i.get("role") in ("00", "01"):
+        role = int(i["role"], 16)
+        peer = bx(i["peer_pub"]) if "peer_pub" in i else None
+        dh_out = bx(i["dh_out"]) if "dh_out" in i else None
+        state = persistence.TripleState(*triple.init_halves(role, bx(i["sk"]), bx(i["our_pub"]), peer, dh_out))
+    else:
+        raise Fail(f"vector: no start and role {i.get('role')!r}")
+    _built_state_vector(v, state, _triple_ops(bx(i["steps"])), persistence.triple_to_bytes,
+                        persistence.triple_from_bytes, (ratchet.RatchetError, spqr.SpqrError))
+
+
+_BRAID_STEP_LEN = 8 + 1 + 1 + 2 + 32
+
+
+def _braid_steps(raw):
+    """"Each step is one received Braid message, epoch(8) || type(1) ||
+    chunk_present(1) || chunk_index(2) || chunk(32), the type byte being
+    AgreementType's.\""""
+    msgs = []
+    for k in range(0, len(raw), _BRAID_STEP_LEN):
+        f = raw[k:k + _BRAID_STEP_LEN]
+        if len(f) != _BRAID_STEP_LEN:
+            raise Fail("vector: a truncated Braid message")
+        present, index, chunk = f[9], _u(f[10:12]), f[12:]
+        if present not in (0, 1) or (present == 0 and (index or chunk != bytes(32))):
+            raise Fail("vector: absent codeword with non-zero index or chunk, or another presence byte")
+        msgs.append(braid.Message(_u(f[:8]), f[8], (index, chunk) if present else None))
+    return msgs
+
+
+def _braid_fields(b):
+    """README: `state_tag`, and for every live state `epoch`, `auth` and
+    `fields`, the tag's own fields each len(4) || bytes, back to back."""
+    raw = persistence.braid_to_bytes(b)
+    f = {"state_tag": raw[1:2].hex()}
+    if b.tag != braid.FAILED:
+        f.update(epoch=raw[2:10].hex(), auth=raw[10:74].hex(), fields=raw[74:].hex())
+    return f
+
+
+def h_braid_state(v):
+    i = v["inputs"]
+    if "steps" not in i:
+        if not _invalid(v):
+            # "laid out as version || state_tag || epoch || auth || fields they
+            # are the input"; Failed carries only state_tag
+            fl = v["fields"]
+            laid = bytes([0x01]) + bx(fl["state_tag"])
+            if "epoch" in fl:
+                laid += bx(fl["epoch"]) + bx(fl["auth"]) + bx(fl["fields"])
+            check(i["bytes"], laid, "the tag's fields laid out")
+        return _stored_state_vector(v, persistence.braid_from_bytes, persistence.braid_to_bytes,
+                                    _braid_fields)
+    if _invalid(v):
+        raise Fail("vector: an operations vector in this file with result invalid")
+    # "the state machine is reached only from Ct2Sampled, whose two transitions
+    # read the stored epoch and the message and nothing else", so no KEM is used.
+    state = braid.from_persisted(persistence.braid_from_bytes(bx(i["start"])))
+    for m in _braid_steps(bx(i["steps"])):
+        state = braid.receive(state, m, None).state
+    out = braid.export(state)
+    check(v["output"], out, "state reached")
+    check(v["output"], braid.export(braid.import_(out)), "output read back and written again")
+
+
 # ------------------------------------------------------------ protobuf profile
 # protobuf-profile.md names fields in camelCase; the vectors' `fields` use the
 # same names in snake_case, which the page does not say (G3-03). The mapping
@@ -768,6 +910,8 @@ HANDLERS = {
     "initial-message-decode": h_initial_decode,
     "ratchet-state": h_ratchet_state,
     "sparse-ratchet-state": h_sparse_state,
+    "triple-ratchet-state": h_triple_state,
+    "braid-state": h_braid_state,
 }
 
 
