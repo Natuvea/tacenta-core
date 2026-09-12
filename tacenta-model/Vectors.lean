@@ -1566,6 +1566,368 @@ def sparseRatchetStateFile (_ : Unit) : Except String String := do
     String.intercalate ",\n" (ops.flatten ++ refusals ++ bytesVectors) ++
     "\n  ]\n}")
 
+/-! #### The Triple Ratchet's state
+
+The composition of the two states above, each length-prefixed. Its own rule is
+the one only the composition can state: while the classical ratchet still
+shows the role it started in, the sparse ratchet's `direction` agrees with
+it. -/
+
+/-- One operation on a Triple Ratchet state. -/
+inductive TripleStep where
+  | send (sendingEpoch : Nat) (out : Option Model.SparseRatchet.Output)
+  | receive (h : Model.Triple.Header) (dhRecv dhSend newPub : Key)
+      (out : Option Model.SparseRatchet.Output)
+
+/-- `00` a send, with the epoch it sends on and the agreement's output; `01` a
+    receive, with the classical header's `dh(32) || pn(4) || n(4)`, the step's
+    `dh_recv(32) || dh_send(32) || new_pub(32)`, the sparse half's
+    `epoch(8) || pq_n(8)`, and the output last. An output is
+    `output_present(1) || output_epoch(8) || output_key(32)`, zeroed when
+    absent, as in `sparse-ratchet-state.json`. -/
+def TripleStep.bytes : TripleStep → List UInt8
+  | .send e o => [0x00] ++ beN 8 e ++ sparseOutputBytes o
+  | .receive h r d np o =>
+    [0x01] ++ h.dr.dh ++ beN 4 h.dr.pn ++ beN 4 h.dr.n ++ r ++ d ++ np
+      ++ beN 8 h.epoch ++ beN 8 h.pqN ++ sparseOutputBytes o
+
+def runTriple (st : Model.Triple.State) : List TripleStep → Option Model.Triple.State
+  | [] => some st
+  | .send e o :: rest =>
+    match Model.Triple.send st e o with
+    | some (st', _, _) => runTriple st' rest
+    | none => none
+  | .receive h r d np o :: rest =>
+    match Model.Triple.receive st h r d np o with
+    | some (st', _) => runTriple st' rest
+    | none => none
+
+inductive TripleStart where
+  | initiator
+  | responder
+  | stored (st : Model.Triple.State)
+
+def TripleStart.state : TripleStart → Model.Triple.State
+  | .initiator => Model.Triple.initAlice sk aPub bPub dhAB .tacenta
+  | .responder => Model.Triple.initBob sk bPub .tacenta
+  | .stored st => st
+
+def TripleStart.inputs : TripleStart → List (String × List UInt8)
+  | .initiator =>
+    [("role", [0x00]), ("sk", sk), ("our_pub", aPub), ("peer_pub", bPub), ("dh_out", dhAB)]
+  | .responder => [("role", [0x01]), ("sk", sk), ("our_pub", bPub)]
+  | .stored st => [("start", Model.PersistedState.TripleState.toBytes st)]
+
+/-- The fields an accepted Triple Ratchet state holds: each half's own stored
+    bytes, which is all this format carries. -/
+def tripleFields (st : Model.Triple.State) : List (String × List UInt8) :=
+  [("classical", Model.PersistedState.RatchetState.toBytes st.classical),
+   ("post_quantum", Model.PersistedState.SparseState.toBytes st.postQuantum)]
+
+@[never_extract]
+def tripleStored (id comment : String) (bs : List UInt8)
+    (expect : Option Model.PersistedState.Refusal) : Except String String :=
+  storedStateVector Model.PersistedState.TripleState.ofBytes tripleFields id comment bs expect
+
+def tripleReadsBack (st : Model.Triple.State) : Bool :=
+  Model.PersistedState.readsBackTo
+    (Model.PersistedState.TripleState.ofBytes (Model.PersistedState.TripleState.toBytes st)) st
+
+@[never_extract]
+def tripleOps (id comment : String) (start : TripleStart) (steps : List TripleStep) :
+    Except String (List String) :=
+  let startOk := match start with
+    | .stored st => tripleReadsBack st
+    | _ => true
+  match runTriple start.state steps with
+  | none => .error ("genvectors: " ++ id ++ ": the model refuses an operation the vector lists")
+  | some st =>
+    if startOk && tripleReadsBack st then do
+      let bs := Model.PersistedState.TripleState.toBytes st
+      let back ← tripleStored (id ++ "-read-back")
+        ("the stored bytes of " ++ id ++ ", read back") bs none
+      pure [answerVector id comment
+        (start.inputs ++ [("steps", (steps.map TripleStep.bytes).flatten)]) (some bs), back]
+    else .error ("genvectors: " ++ id ++ ": a stored state does not read back to itself")
+
+@[never_extract]
+def tripleStateFile (_ : Unit) : Except String String := do
+  let alice := TripleStart.initiator.state
+  let bob := TripleStart.responder.state
+  let some (_, h0, _) := Model.Triple.send alice 0 Option.none
+    | throw "genvectors: the model refuses the Triple Ratchet's opening send"
+  let firstReceive := TripleStep.receive h0 dhAB dhSendB bPub2 Option.none
+  let ops ← [
+    tripleOps "fresh-initiator"
+      "init_alice: the classical half's sending chain and the sparse half's A2b direction, which is the role the two agree on" .initiator [],
+    tripleOps "fresh-responder"
+      "init_bob: neither classical chain and the sparse half's B2a direction" .responder [],
+    tripleOps "initiator-after-a-send"
+      "one send on epoch 0: both halves step, and the classical half still shows the sender's role" .initiator
+      [.send 0 Option.none],
+    tripleOps "responder-after-a-receive"
+      "the initiator's first message: the classical half takes its Diffie-Hellman step, after which it shows no role and the rule holds vacuously" .responder
+      [firstReceive]
+  ].mapM id
+  let aliceBytes := Model.PersistedState.TripleState.toBytes alice
+  let classicalLen := (Model.PersistedState.RatchetState.toBytes alice.classical).length
+  -- The inner spqr_state's version byte: the outer version, the first length,
+  -- the classical half, and the second length.
+  let sparseVersionAt := 1 + 4 + classicalLen + 4
+  let mixed : Model.Triple.State :=
+    { classical := alice.classical, postQuantum := bob.postQuantum }
+  let bytesVectors ← [
+    tripleStored "empty" "no bytes" [] (some .shortOrMalformed),
+    tripleStored "version-zero" "a first byte of 0x00" (replaceAt aliceBytes 0 0x00)
+      (some .wrongVersion),
+    tripleStored "version-two" "a first byte of 0x02" (replaceAt aliceBytes 0 0x02)
+      (some .wrongVersion),
+    tripleStored "classical-half-with-an-unknown-version"
+      "the ratchet_state's own version byte is 0x02: short or malformed, not a wrong version, since this format's version namespace is its own"
+      (replaceAt aliceBytes 5 0x02) (some .shortOrMalformed),
+    tripleStored "sparse-half-with-an-unknown-version"
+      "the spqr_state's own version byte is 0x02: short or malformed for the same reason"
+      (replaceAt aliceBytes sparseVersionAt 0x02) (some .shortOrMalformed),
+    tripleStored "classical-half-malformed"
+      "the ratchet_state's labels tag names no variant, so its own reader refuses it"
+      (replaceAt aliceBytes (5 + 180) 0x01) (some .shortOrMalformed),
+    tripleStored "first-length-overruns"
+      "the classical half's length one byte past its own, so the half its reader is handed is not the half that was written"
+      (replaceAt aliceBytes 4 (UInt8.ofNat ((classicalLen + 1) % 256))) (some .shortOrMalformed),
+    tripleStored "second-half-missing" "the bytes end after the classical half"
+      (aliceBytes.take (1 + 4 + classicalLen)) (some .shortOrMalformed),
+    tripleStored "trailing-byte" "one byte after the sparse half"
+      (aliceBytes ++ [0x00]) (some .shortOrMalformed),
+    tripleStored "halves-disagree-on-the-role"
+      "the initiator's classical half beside the responder's sparse half: each half's own reader accepts its bytes and the composition refuses them"
+      (Model.PersistedState.TripleState.toBytes mixed) (some .shortOrMalformed)
+  ].mapM id
+  pure ("{\n" ++
+    "  \"schema_version\": 1,\n" ++
+    "  \"algorithm\": \"triple-ratchet-state\",\n" ++
+    "  \"source\": \"generated by tacenta-model Vectors.lean (lake exe genvectors triple-ratchet-state), from Model.PersistedState.TripleState and Model.Triple; Diffie-Hellman outputs are the generator's symmetric stand-in, not X25519, and the generator writes no vector whose result the model does not give\",\n" ++
+    "  \"vectors\": [\n" ++
+    String.intercalate ",\n" (ops.flatten ++ bytesVectors) ++
+    "\n  ]\n}")
+
+/-! #### The ML-KEM Braid's state
+
+The tag, the epoch and authenticator every live state carries, and the tag's
+own length-prefixed fields. `key_pair` and `encaps` are the two values whose
+layout the page delegates (ADR-0006, point 5): the model checks their lengths
+and nothing inside them, so no accepted vector here carries a `key_pair` --
+tags 1 to 4 appear only in refusals, and the README and the manifest say
+so. -/
+
+open Model.PersistedState.BraidState (headerLen ekVectorLen ct1Len ct2Len macLen
+  keyPairLen encapsLen)
+
+/-- A value of `n` bytes for a coder to stream. -/
+def braidValue (n : Nat) : List UInt8 := ramp n 7 3
+
+/-- An encoder over an `n`-byte value, after `issued` codewords. -/
+def braidEncoder (n issued : Nat) : List UInt8 :=
+  ((Model.Erasure.Encoder.new (braidValue n)).issue issued).toBytes
+
+/-- A decoder for an `n`-byte value, holding the codewords at `is`. -/
+def braidDecoder (n : Nat) (is : List Nat) : List UInt8 :=
+  ((Model.Erasure.Decoder.new n).addAll (codewordsOf (braidValue n) is)).toBytes
+
+/-- A stand-in for one of the two delegated values: the right length and
+    nothing else, which is all the model's reader looks at. -/
+def opaqueField (n : Nat) (b : UInt8) : List UInt8 := List.replicate n b
+
+def braidAuth : List UInt8 := ramp 64 5 1
+
+def braidAt (tag : UInt8) (epoch : Nat) (fields : List (List UInt8)) :
+    Model.PersistedState.BraidState.State :=
+  { tag := tag, epoch := epoch, auth := braidAuth, fields := fields }
+
+def braidFailed : Model.PersistedState.BraidState.State :=
+  { tag := 11, epoch := 0, auth := [], fields := [] }
+
+/-- The fields an accepted Braid state holds. `Failed` carries only its tag:
+    the format writes no epoch, no authenticator and no fields for it. -/
+def braidFields (st : Model.PersistedState.BraidState.State) : List (String × List UInt8) :=
+  if st.tag = 11 then [("state_tag", [st.tag])]
+  else
+    [("state_tag", [st.tag]), ("epoch", beN 8 st.epoch), ("auth", st.auth),
+     ("fields", (st.fields.map fun f => beN 4 f.length ++ f).flatten)]
+
+@[never_extract]
+def braidStored (id comment : String) (bs : List UInt8)
+    (expect : Option Model.PersistedState.Refusal) : Except String String :=
+  storedStateVector Model.PersistedState.BraidState.ofBytes braidFields id comment bs expect
+
+/-- A state written and read back, and its bytes offered to the reader beside
+    it. -/
+@[never_extract]
+def braidState (id comment : String) (st : Model.PersistedState.BraidState.State) :
+    Except String (List String) :=
+  let bs := Model.PersistedState.BraidState.toBytes st
+  if Model.PersistedState.readsBackTo (Model.PersistedState.BraidState.ofBytes bs) st then do
+    let back ← braidStored id comment bs none
+    pure [back]
+  else .error ("genvectors: " ++ id ++ ": a stored Braid state does not read back to itself")
+
+/-- One received Braid message: `epoch(8) || type(1) || chunk_present(1) ||
+    chunk_index(2) || chunk(32)`, as the composite header carries one
+    (message-format.md, Ratchet message; `AgreementType` in CONSTANTS.md).
+    The two transitions a stored state can drive read no codeword, so every
+    step here is a `None` message carrying none. -/
+inductive BraidStep where
+  | receive (epoch : Nat)
+
+def BraidStep.bytes : BraidStep → List UInt8
+  | .receive e => beN 8 e ++ [0x00] ++ [0x00] ++ beN 2 0 ++ List.replicate 32 0
+
+/-- The model's own `receive`, on the one state a stored Braid can be put back
+    into (`Model.PersistedState.BraidState.toCt2Sampled`). -/
+def runBraid (st : Model.PersistedState.BraidState.State) :
+    List BraidStep → Option Model.PersistedState.BraidState.State
+  | [] => some st
+  | .receive e :: rest =>
+    match Model.PersistedState.BraidState.toCt2Sampled st with
+    | none => none
+    | some bst =>
+      match Model.PersistedState.BraidState.ofBraid
+          (Model.Braid.receive Model.Braid.toyKem bst
+            { epoch := e, type := Model.Braid.MsgType.none, data := Option.none }).2.2 with
+      | none => none
+      | some st' => runBraid st' rest
+
+/-- Operations on a stored Braid state, with the state they reach. -/
+@[never_extract]
+def braidOps (id comment : String) (start : Model.PersistedState.BraidState.State)
+    (steps : List BraidStep) : Except String (List String) :=
+  let startBytes := Model.PersistedState.BraidState.toBytes start
+  if !Model.PersistedState.readsBackTo
+      (Model.PersistedState.BraidState.ofBytes startBytes) start then
+    .error ("genvectors: " ++ id ++ ": the start does not read back to itself")
+  else
+    match runBraid start steps with
+    | none => .error ("genvectors: " ++ id ++ ": the model refuses an operation the vector lists")
+    | some st =>
+      let bs := Model.PersistedState.BraidState.toBytes st
+      if Model.PersistedState.readsBackTo (Model.PersistedState.BraidState.ofBytes bs) st then
+        .ok [answerVector id comment
+          [("start", startBytes), ("steps", (steps.map BraidStep.bytes).flatten)] (some bs)]
+      else .error ("genvectors: " ++ id ++ ": the state reached does not read back to itself")
+
+@[never_extract]
+def braidStateFile (_ : Unit) : Except String String := do
+  let hdrValue := headerLen + macLen
+  let ct2Value := ct2Len + macLen
+  let header := braidValue headerLen
+  let ct1 := braidValue ct1Len
+  let ekVector := braidValue ekVectorLen
+  let encaps := opaqueField encapsLen 0x5e
+  let keyPair := opaqueField keyPairLen 0x4b
+  let tag0 := braidAt 0 1 []
+  let tag5 := braidAt 5 1 [braidDecoder hdrValue []]
+  let tag6 := braidAt 6 1 [header, braidDecoder ekVectorLen []]
+  let tag7 := braidAt 7 1
+    [header, encaps, ct1, braidEncoder ct1Len 1, braidDecoder ekVectorLen [0]]
+  let tag8 := braidAt 8 2 [encaps, ct1, ekVector, braidEncoder ct1Len 2]
+  let tag9 := braidAt 9 1 [header, encaps, ct1, braidDecoder ekVectorLen [1, 0]]
+  let tag10 := braidAt 10 1 [braidEncoder ct2Value 1]
+  let accepted ← [
+    braidState "keys-unsampled"
+      "tag 0: the epoch and the authenticator, and no field at all" tag0,
+    braidState "no-header-received"
+      "tag 5: the header decoder, sized for the 96 bytes of the header and its MAC" tag5,
+    braidState "header-received"
+      "tag 6: the 64-byte header and an ek_vector decoder for 1,536 bytes" tag6,
+    braidState "ct1-sampled"
+      "tag 7: the header, an encapsulation state checked for its length alone, ct1, a ct1 encoder and an ek_vector decoder holding one codeword" tag7,
+    braidState "ek-received-ct1-sampled"
+      "tag 8: an encapsulation state, ct1, the completed ek_vector and a ct1 encoder, at epoch 2" tag8,
+    braidState "ct1-acknowledged"
+      "tag 9: the header, an encapsulation state, ct1 and an ek_vector decoder holding two codewords" tag9,
+    braidState "ct2-sampled" "tag 10: the ct2 encoder, sized for 192 bytes" tag10,
+    braidState "failed" "tag 11: two bytes, the version and the tag, and nothing else" braidFailed,
+    braidState "epoch-at-the-largest-accepted"
+      "tag 0 at u64::MAX - 1, the largest epoch a reader accepts"
+      (braidAt 0 (Model.PersistedState.BraidState.largestEpoch) [])
+  ].mapM id
+  let ops ← [
+    braidOps "ct2-sampled-below-the-ceiling-steps"
+      "tag 10 at u64::MAX - 2, a message at the next epoch: transition (13) to tag 0 at u64::MAX - 1"
+      (braidAt 10 (Model.Braid.u64Max - 2) [braidEncoder ct2Value 1])
+      [.receive (Model.Braid.u64Max - 1)],
+    braidOps "ct2-sampled-at-the-ceiling-fails"
+      "tag 10 at u64::MAX - 1, where the step would land on the reserved epoch: the Braid fails instead, whatever the message (mlkem-braid.md, Failure)"
+      (braidAt 10 (Model.Braid.u64Max - 1) [braidEncoder ct2Value 1])
+      [.receive Model.Braid.u64Max]
+  ].mapM id
+  let enc (st : Model.PersistedState.BraidState.State) :=
+    Model.PersistedState.BraidState.toBytes st
+  let tag0Bytes := enc tag0
+  let tag5Bytes := enc tag5
+  let refusals ← [
+    braidStored "empty" "no bytes" [] (some .shortOrMalformed),
+    braidStored "version-only" "one byte: the version, and no tag" [0x01]
+      (some .shortOrMalformed),
+    braidStored "version-zero" "a first byte of 0x00" (replaceAt tag0Bytes 0 0x00)
+      (some .wrongVersion),
+    braidStored "version-two" "a first byte of 0x02" (replaceAt tag0Bytes 0 0x02)
+      (some .wrongVersion),
+    braidStored "tag-twelve" "a tag one past Failed" (replaceAt tag0Bytes 1 0x0c)
+      (some .shortOrMalformed),
+    braidStored "tag-255" "a tag no state has" (replaceAt tag0Bytes 1 0xff)
+      (some .shortOrMalformed),
+    braidStored "epoch-u64-max"
+      "a stored epoch of u64::MAX, the value the Braid reserves and its reader refuses"
+      (enc (braidAt 0 Model.Braid.u64Max [])) (some .shortOrMalformed),
+    braidStored "epoch-zero" "a live state's epoch is at least 1"
+      (enc (braidAt 0 0 [])) (some .shortOrMalformed),
+    braidStored "failed-with-a-trailing-byte" "Failed carries nothing at all"
+      (enc braidFailed ++ [0x00]) (some .shortOrMalformed),
+    braidStored "auth-cut-short" "the authenticator one byte short of its 64"
+      (tag0Bytes.take (tag0Bytes.length - 1)) (some .shortOrMalformed),
+    braidStored "trailing-byte" "one byte after the last field"
+      (tag5Bytes ++ [0x00]) (some .shortOrMalformed),
+    braidStored "field-length-overruns" "a field length the buffer does not hold"
+      (replaceAt tag5Bytes 77 0xff) (some .shortOrMalformed),
+    braidStored "header-wrong-length" "tag 6's header is 64 bytes and this one is 63"
+      (enc (braidAt 6 1 [header.take 63, braidDecoder ekVectorLen []]))
+      (some .shortOrMalformed),
+    braidStored "ct1-wrong-length" "tag 7's ct1 is 1,408 bytes and this one is 1,407"
+      (enc (braidAt 7 1 [header, encaps, ct1.take (ct1Len - 1), braidEncoder ct1Len 1,
+        braidDecoder ekVectorLen []])) (some .shortOrMalformed),
+    braidStored "ek-vector-wrong-length" "tag 8's ek_vector is 1,536 bytes and this one is 1,535"
+      (enc (braidAt 8 2 [encaps, ct1, ekVector.take (ekVectorLen - 1), braidEncoder ct1Len 2]))
+      (some .shortOrMalformed),
+    braidStored "encaps-wrong-length"
+      "an encapsulation state of 2,591 bytes: its length is the whole of what the page has the reader check in it"
+      (enc (braidAt 7 1 [header, encaps.take (encapsLen - 1), ct1, braidEncoder ct1Len 1,
+        braidDecoder ekVectorLen []])) (some .shortOrMalformed),
+    braidStored "key-pair-wrong-length"
+      "a key pair of 11,871 bytes in tag 1: the length is the part of the key-pair rule a reader can apply without the layout the page delegates"
+      (enc (braidAt 1 1 [keyPair.take (keyPairLen - 1), braidEncoder hdrValue 1]))
+      (some .shortOrMalformed),
+    braidStored "decoder-sized-for-another-value"
+      "tag 5's decoder is sized for 96 bytes and this one for 1,536"
+      (enc (braidAt 5 1 [braidDecoder ekVectorLen []])) (some .shortOrMalformed),
+    braidStored "encoder-sized-for-another-value"
+      "tag 10's encoder is sized for 192 bytes and this one for 96"
+      (enc (braidAt 10 1 [braidEncoder hdrValue 1])) (some .shortOrMalformed),
+    braidStored "coder-its-own-reader-refuses"
+      "tag 5's decoder with a needed that is not ceil(size / 32), which the erasure decoder's own rules exclude"
+      (enc (braidAt 5 1 [beN 8 hdrValue ++ beN 8 5 ++ beN 4 0])) (some .shortOrMalformed),
+    braidStored "too-few-fields" "tag 6 carries a header and a decoder, and this carries one field"
+      (enc (braidAt 6 1 [header])) (some .shortOrMalformed),
+    braidStored "too-many-fields" "tag 0 carries no field at all"
+      (enc (braidAt 0 1 [header])) (some .shortOrMalformed)
+  ].mapM id
+  pure ("{\n" ++
+    "  \"schema_version\": 1,\n" ++
+    "  \"algorithm\": \"braid-state\",\n" ++
+    "  \"source\": \"generated by tacenta-model Vectors.lean (lake exe genvectors braid-state), from Model.PersistedState.BraidState and Model.Braid; key_pair and encaps are stand-ins of the right length, since the page delegates their layout, so no accepted vector carries a key_pair and tags 1 to 4 appear only in refusals; the generator writes no vector whose result the model does not give\",\n" ++
+    "  \"vectors\": [\n" ++
+    String.intercalate ",\n" (accepted.flatten ++ ops.flatten ++ refusals) ++
+    "\n  ]\n}")
+
 /-! ### The bounded protobuf profile (`Model.Protobuf`) -/
 
 def pbLd (field : Nat) (v : List UInt8) : List UInt8 :=
@@ -1874,6 +2236,10 @@ def main (args : List String) : IO Unit :=
     Vectors.printOrFail (Vectors.ratchetStateFile ())
   else if args.contains "sparse-ratchet-state" then
     Vectors.printOrFail (Vectors.sparseRatchetStateFile ())
+  else if args.contains "triple-ratchet-state" then
+    Vectors.printOrFail (Vectors.tripleStateFile ())
+  else if args.contains "braid-state" then
+    Vectors.printOrFail (Vectors.braidStateFile ())
   else if args.contains "protobuf-ratchet-body" then
     IO.println (Vectors.ratchetBodyFile ())
   else if args.contains "protobuf-prekey-envelope" then
