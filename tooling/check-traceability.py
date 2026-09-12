@@ -425,7 +425,7 @@ def main() -> int:
     print(
         "traceability: "
         f"{len(reqs)} requirements, {len(assumptions)} assumptions, identifier references "
-        "and the pilot evidence index are consistent"
+        "and the evidence index are consistent"
     )
     return 0
 

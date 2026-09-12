@@ -15,14 +15,21 @@ make_case() {
   cp -R "$root/tacenta-spec/security-properties" "$dst/tacenta-spec/"
   cp -R "$root/tacenta-spec/threat-model" "$dst/tacenta-spec/"
   mkdir -p "$dst/tacenta-core/src/sessions" "$dst/tacenta-core/src/primitives"
+  mkdir -p "$dst/tacenta-core/tests"
   mkdir -p "$dst/tacenta-proofs/Proofs" "$dst/tacenta-proofs/translation/Translation"
-  mkdir -p "$dst/tacenta-test-vectors/vectors/primitives"
+  mkdir -p "$dst/tacenta-test-vectors/vectors/primitives" "$dst/tacenta-test-vectors/vectors/aead"
   cp "$root/tacenta-core/src/sessions/mod.rs" "$dst/tacenta-core/src/sessions/mod.rs"
+  cp "$root/tacenta-core/src/sessions/lifecycle.rs" "$dst/tacenta-core/src/sessions/lifecycle.rs"
+  cp "$root/tacenta-core/src/primitives/aead.rs" "$dst/tacenta-core/src/primitives/aead.rs"
   cp "$root/tacenta-core/src/primitives/xeddsa.rs" "$dst/tacenta-core/src/primitives/xeddsa.rs"
+  cp "$root/tacenta-core/tests/full_session.rs" "$dst/tacenta-core/tests/full_session.rs"
+  cp "$root/tacenta-core/tests/fuzz.rs" "$dst/tacenta-core/tests/fuzz.rs"
   cp "$root/tacenta-proofs/Proofs/SessionEstablishment.lean" "$dst/tacenta-proofs/Proofs/SessionEstablishment.lean"
   cp "$root/tacenta-proofs/translation/Translation/SessionT3.lean" "$dst/tacenta-proofs/translation/Translation/SessionT3.lean"
   cp "$root/tacenta-proofs/CLAIMS.md" "$dst/tacenta-proofs/CLAIMS.md"
   cp "$root/tacenta-test-vectors/vectors/primitives/xeddsa.json" "$dst/tacenta-test-vectors/vectors/primitives/xeddsa.json"
+  cp "$root/tacenta-test-vectors/vectors/aead/aead-decrypt.json" "$dst/tacenta-test-vectors/vectors/aead/aead-decrypt.json"
+  cp "$root/tacenta-test-vectors/vectors/aead/aead-encrypt.json" "$dst/tacenta-test-vectors/vectors/aead/aead-encrypt.json"
 }
 
 expect_fail() {

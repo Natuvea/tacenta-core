@@ -6,7 +6,11 @@
       "source": "tacenta-spec/security-properties/authentication.md#REQ-AUTH-04",
       "property": "The associated data AD = EncodeEC(IKA) || EncodeEC(IKB) determines both identity keys.",
       "status": "proved",
-      "assumptions": ["ASM-15", "ASM-16", "ASM-17"],
+      "assumptions": [
+        "ASM-15",
+        "ASM-16",
+        "ASM-17"
+      ],
       "limitations": [],
       "implementation": [
         {
@@ -30,12 +34,16 @@
         {
           "path": "tacenta-proofs/CLAIMS.md",
           "section": "Proved (tier T2, PQXDH's input keying material)",
-          "references": ["associatedData_inj_of_length"]
+          "references": [
+            "associatedData_inj_of_length"
+          ]
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
           "section": "Proved (tier T3, the PQXDH derivation refines the model)",
-          "references": ["associated_data_refines"]
+          "references": [
+            "associated_data_refines"
+          ]
         }
       ],
       "vectors": [],
@@ -44,7 +52,9 @@
         {
           "kind": "test",
           "reason": "The requirement is carried by T2/T3 proofs; tests only pin the fixed EncodeEC width that the proof relies on.",
-          "references": ["ASM-17"]
+          "references": [
+            "ASM-17"
+          ]
         }
       ]
     },
@@ -53,7 +63,12 @@
       "source": "tacenta-spec/security-properties/authentication.md#REQ-AUTH-01",
       "property": "An initiator accepts a prekey bundle only if the signed curve prekey and KEM prekey signatures verify under the bundle identity key.",
       "status": "tested only",
-      "assumptions": ["ASM-03", "ASM-07", "ASM-14", "ASM-19"],
+      "assumptions": [
+        "ASM-03",
+        "ASM-07",
+        "ASM-14",
+        "ASM-19"
+      ],
       "limitations": [],
       "implementation": [
         {
@@ -74,7 +89,10 @@
       "vectors": [
         {
           "path": "tacenta-test-vectors/vectors/primitives/xeddsa.json",
-          "case_ids": ["tacenta-xeddsa-nonce-5a", "tacenta-xeddsa-reject-small-order-A-rule-3-only-u0"],
+          "case_ids": [
+            "tacenta-xeddsa-nonce-5a",
+            "tacenta-xeddsa-reject-small-order-A-rule-3-only-u0"
+          ],
           "coverage": "Pins XEdDSA signing/verification and an edge refusal from the verifier's accepted set."
         }
       ],
@@ -99,7 +117,59 @@
         {
           "kind": "proof",
           "reason": "No proof covers signature verification or the untranslated session-layer bundle check.",
-          "references": ["ASM-19"]
+          "references": [
+            "ASM-19"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-AUTH-02",
+      "source": "tacenta-spec/security-properties/authentication.md#REQ-AUTH-02",
+      "property": "An initiator that names an intended identity key refuses any prekey bundle whose identity key differs before encapsulation.",
+      "status": "tested only",
+      "assumptions": [
+        "ASM-14",
+        "ASM-19"
+      ],
+      "limitations": [
+        "LIM-13"
+      ],
+      "implementation": [
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "establish_initiator_for"
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "UnexpectedIdentity"
+        }
+      ],
+      "model_properties": [],
+      "claims": [],
+      "vectors": [],
+      "tests": [
+        {
+          "path": "tacenta-core/tests/full_session.rs",
+          "name": "a_bundle_for_another_identity_than_the_named_one_is_refused_and_changes_nothing",
+          "coverage": "A bundle whose signatures verify under another identity is refused as UnexpectedIdentity before randomness is drawn, and neither prekey store's bytes change."
+        }
+      ],
+      "missing_evidence": [
+        {
+          "kind": "proof",
+          "reason": "No proof covers the untranslated session-layer named-identity check.",
+          "references": [
+            "ASM-19",
+            "LIM-13"
+          ]
+        },
+        {
+          "kind": "vector",
+          "reason": "No conformance vector currently exercises establish_initiator_for's caller-pinned identity contract.",
+          "references": [
+            "LIM-13"
+          ]
         }
       ]
     },
@@ -108,8 +178,17 @@
       "source": "tacenta-spec/security-properties/authentication.md#REQ-AUTH-03",
       "property": "The shared secret binds both identities through the stated DH inputs and responder authentication under keys derived from SK.",
       "status": "assumed",
-      "assumptions": ["ASM-01", "ASM-02", "ASM-03", "ASM-05", "ASM-06", "ASM-14"],
-      "limitations": ["LIM-15"],
+      "assumptions": [
+        "ASM-01",
+        "ASM-02",
+        "ASM-03",
+        "ASM-05",
+        "ASM-06",
+        "ASM-14"
+      ],
+      "limitations": [
+        "LIM-15"
+      ],
       "implementation": [
         {
           "path": "tacenta-core/src/sessions/mod.rs",
@@ -141,12 +220,17 @@
         {
           "path": "tacenta-proofs/CLAIMS.md",
           "section": "Proved (tier T2, PQXDH's input keying material)",
-          "references": ["km_determines"]
+          "references": [
+            "km_determines"
+          ]
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
           "section": "Proved (tier T3, the PQXDH derivation refines the model)",
-          "references": ["shared_secret_refines_none", "shared_secret_refines_some"]
+          "references": [
+            "shared_secret_refines_none",
+            "shared_secret_refines_some"
+          ]
         }
       ],
       "vectors": [],
@@ -155,7 +239,123 @@
         {
           "kind": "security-claim-proof",
           "reason": "The supporting derivation proofs do not show that an attacker cannot compute SK; the requirement remains assumed.",
-          "references": ["ASM-02", "ASM-05", "ASM-06", "LIM-15"]
+          "references": [
+            "ASM-02",
+            "ASM-05",
+            "ASM-06",
+            "LIM-15"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-AUTH-05",
+      "source": "tacenta-spec/security-properties/authentication.md#REQ-AUTH-05",
+      "property": "Every ratchet message AEAD associated data value is CONCAT(AD, composite header), so changing AD or any header field changes the authenticated input.",
+      "status": "tested only",
+      "assumptions": [
+        "ASM-19"
+      ],
+      "limitations": [],
+      "implementation": [
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "concat_ad"
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "decrypt"
+        }
+      ],
+      "model_properties": [],
+      "claims": [],
+      "vectors": [
+        {
+          "path": "tacenta-test-vectors/vectors/aead/aead-decrypt.json",
+          "case_ids": [
+            "session-associated-data",
+            "associated-data-differs"
+          ],
+          "coverage": "Pins a full CONCAT(ad, header) AEAD input and a refusal when the same ciphertext/tag is checked under other associated data."
+        },
+        {
+          "path": "tacenta-test-vectors/vectors/aead/aead-encrypt.json",
+          "case_ids": [
+            "session-associated-data"
+          ],
+          "coverage": "Pins the encrypted form for an AD value that is already CONCAT(ad, header)."
+        }
+      ],
+      "tests": [
+        {
+          "path": "tacenta-core/tests/fuzz.rs",
+          "name": "concat_ad_is_unambiguous",
+          "coverage": "Property test that the length-prefixed AD/header concatenation parses as one pair."
+        },
+        {
+          "path": "tacenta-core/tests/full_session.rs",
+          "name": "a_tampered_message_is_rejected",
+          "coverage": "Full-session test that tampering with a ratchet message is refused."
+        }
+      ],
+      "missing_evidence": [
+        {
+          "kind": "proof",
+          "reason": "The untranslated session-layer construction of per-message associated data has no proof coverage.",
+          "references": [
+            "ASM-19"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-AUTH-06",
+      "source": "tacenta-spec/security-properties/authentication.md#REQ-AUTH-06",
+      "property": "A ratchet message is accepted only when the HMAC-SHA256 tag over associated data and ciphertext verifies under the message mac_key, before decryption.",
+      "status": "assumed",
+      "assumptions": [
+        "ASM-05",
+        "ASM-06",
+        "ASM-08"
+      ],
+      "limitations": [],
+      "implementation": [
+        {
+          "path": "tacenta-core/src/primitives/aead.rs",
+          "symbol": "decrypt"
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "decrypt"
+        }
+      ],
+      "model_properties": [],
+      "claims": [],
+      "vectors": [
+        {
+          "path": "tacenta-test-vectors/vectors/aead/aead-decrypt.json",
+          "case_ids": [
+            "tag-altered",
+            "ciphertext-altered",
+            "associated-data-differs"
+          ],
+          "coverage": "Pins tag, ciphertext and associated-data refusals for the AEAD receiver."
+        }
+      ],
+      "tests": [
+        {
+          "path": "tacenta-core/tests/full_session.rs",
+          "name": "a_tampered_message_is_rejected",
+          "coverage": "Full-session test that a tampered accepted-session message is refused."
+        }
+      ],
+      "missing_evidence": [
+        {
+          "kind": "security-claim-proof",
+          "reason": "Vectors and tests pin receiver behaviour, but no proof covers AEAD unforgeability or the attacker cannot make a valid tag without the message key.",
+          "references": [
+            "ASM-06"
+          ]
         }
       ]
     }
