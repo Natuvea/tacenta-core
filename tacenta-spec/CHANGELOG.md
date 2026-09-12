@@ -6,6 +6,10 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `ASSURANCE-OBLIGATIONS.md`: the first P1 obligation inventory for the
+  assurance execution plan. It classifies target deficits, gate obligations,
+  deferral risks and missing negative-control evidence so readiness is assessed
+  from named rows rather than inferred from prose.
 - `tooling/check-traceability.py` and
   `tooling/tests/run-check-traceability-cases.sh`: a CI-enforced structural
   traceability check for the security-property ledger. It checks that every
@@ -98,6 +102,9 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- `GAP-REGISTER.md`: add gate classes and work-package ownership to current
+  rows, and give stable IDs to the previously descriptive persisted-format and
+  proof-scope rows.
 - `tacenta-test-vectors/README.md`: add vector-layout sections for
   `prekey-store-state.json` and `session-state.json`, and refresh the
   differential-testing note now that the model states those stored formats.
