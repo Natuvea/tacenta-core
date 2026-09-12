@@ -68,7 +68,15 @@ of it ([ADR-0006](decisions/ADR-0006-specification-is-normative.md)).
   implementation has that this specification does not define is a finding.
 - **Deliberate delegation is stated:** where a detail is left to a dependency
   on purpose, the page says so and names what that means for another
-  implementation.
+  implementation. Where a rule can be applied only by an implementation that
+  has the delegated detail, the rule says so and scopes itself, so that an
+  implementation without it is conforming rather than deficient.
+- **Evidence may be cited; content may not:** a page may cite a theorem, a
+  test, a vector, `tacenta-proofs/CLAIMS.md` or `LIMITATIONS.md` as evidence
+  for a status it states, and such a citation is not part of the protocol's
+  definition. What a page *requires* is readable from these pages alone. Where
+  the content is a property of an implementation, the page states what the
+  protocol requires and cites that implementation's record as evidence.
 
 ## Trademarks and non-affiliation
 

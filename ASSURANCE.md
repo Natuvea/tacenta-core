@@ -51,7 +51,7 @@ A summary by component. A tick means the component has that kind of evidence, no
 | Session orchestration and prekey store | ✓ | ✓ | — | decoders only | partial | — | — | L1 | L2 |
 | Persisted formats: ratchet, sparse ratchet | ✓ | ✓ | ✓ | ✓, including the counter ceilings | ✓ | codec | — | L3 | L3 |
 | Persisted formats: erasure coders | ✓ | ✓ | ✓ | ✓ | ✓ | codec | — | L3 | L3 |
-| Persisted formats: triple ratchet, Braid | ✓ | ✓ | ✓ | ✓, except the Braid's `key_pair` content rule | not yet read | — | — | L1 | L2 |
+| Persisted formats: triple ratchet, Braid | ✓ | ✓ | ✓ | ✓; the Braid's `key_pair` content clause is scoped to implementations with the delegated KEM layout and no vector can pin it | not yet read | — | — | L1 | L2 |
 | Persisted formats: session, prekey store | ✓ | ✓ | — | — | — | — | — | L1 | L2 |
 
 ## Roadmap
@@ -62,9 +62,9 @@ A summary by component. A tick means the component has that kind of evidence, no
    - branch protection on `main` stays off while the project has one maintainer, and is revisited when a second joins.
 2. **Assumptions and requirements (done):** the threat model, with its assets, adversaries, assumptions and exclusions, is in `tacenta-spec/threat-model/`, and the security properties are numbered requirements in `tacenta-spec/security-properties/`.
 3. **Traceability:** requirement IDs in `CLAIMS.md`, the conformance manifest and the tests, with a CI check that every requirement has a property and a test.
-4. **Differential testing (done for the two ratchets and the Triple Ratchet, partly for the Braid):** generated operation sequences run through `tacenta-model` and `tacenta-core`, comparing outcomes, refusals and persisted bytes, in `tooling/ci.sh` and the CI vectors job. The Braid is covered for its decoder and the two transitions that meet its epoch ceiling; the rest of its state machine and its `key_pair` content rule need the KEM layout ADR-0006, point 5, delegates, and are covered by `tacenta-braid`'s own tests instead. The session and the prekey store are not covered, because the model states no stored format for them.
+4. **Differential testing (done for the two ratchets and the Triple Ratchet, partly for the Braid):** generated operation sequences run through `tacenta-model` and `tacenta-core`, comparing outcomes, refusals and persisted bytes, in `tooling/ci.sh` and the CI vectors job. The Braid is covered for its decoder and the two transitions that meet its epoch ceiling; the rest of its state machine, and the `key_pair` content clause that the page scopes to implementations knowing the KEM layout ADR-0006, point 5, delegates, are covered by `tacenta-braid`'s own tests instead. The session and the prekey store are not covered, because the model states no stored format for them.
 5. **Model and formats:**
    - the model's counter ceilings: done for the classical ratchet, the sparse ratchet and the Braid, and the Braid's is now pinned by vectors and by the harness as well as stated; whether the refinements' step of headroom can be dropped has not been checked;
-   - persisted formats phase 2 (the Triple Ratchet and the Braid): done, except the Braid's delegated `key_pair` content rule;
+   - persisted formats phase 2 (the Triple Ratchet and the Braid): done. The Braid's `key_pair` content clause is scoped to implementations that know the delegated KEM layout, and the model is outside that scope, so it states the clause nowhere and conforms; no vector can pin it, because a state that fails it is refused inside the scope and accepted outside, both conforming;
    - persisted formats phase 3 (the session and the prekey store).
 6. **Types and state:** validated newtypes at the decoder boundary, and an explicit session state machine, done step by step.

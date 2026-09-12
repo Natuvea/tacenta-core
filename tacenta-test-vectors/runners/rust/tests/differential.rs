@@ -66,11 +66,13 @@
 //!
 //!   For the same reason, **tags 1 to 4 appear only at a `key_pair` length
 //!   both readers refuse.** The page has the reader validate the `header` and
-//!   `ek_vector` inside a stored key pair, and finding them needs that layout;
-//!   the model states no such rule and so accepts key pairs `tacenta-braid`
-//!   refuses. Generating one would be generating a disagreement this harness
-//!   is not entitled to report as a finding, so it generates none, and
-//!   `ASSURANCE.md` and the conformance manifest record the gap instead.
+//!   `ek_vector` inside a stored key pair, and scopes that clause to a reader
+//!   that knows the layout, since finding them needs it. The model is outside
+//!   that scope: it checks the field's length, accepts it, and conforms, while
+//!   `tacenta-braid` has the layout and checks the content as well. So the two
+//!   sides may legitimately differ on such a state, and a difference both are
+//!   entitled to is not a finding this harness can report. It generates none,
+//!   and `ASSURANCE.md` and the conformance manifest record why.
 //!
 //! The states are compared by their bytes because neither crate exposes a
 //! state's fields or compares two states outside its own tests, the same

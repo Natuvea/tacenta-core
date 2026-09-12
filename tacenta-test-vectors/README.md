@@ -267,9 +267,11 @@ the leaf formats, and Rejection.
 have no accepted vector.** `key_pair` (11,872 bytes) and `encaps` (2,592) are
 `tacenta-kem`'s own serialisations, whose layout the page delegates to
 `libcrux-ml-kem` (ADR-0006, point 5). The page has a reader validate the
-`header` and `ek_vector` *inside* a stored `key_pair`, and finding them needs
-that layout, so `Model.PersistedState` checks the field's length and nothing
-inside it and therefore accepts key pairs `tacenta-braid` refuses. So:
+`header` and `ek_vector` *inside* a stored `key_pair`, and scopes that clause
+to a reader that knows the layout; finding them needs it. So
+`Model.PersistedState` checks the field's length and accepts it -- what the
+page asks of a reader outside the scope -- and therefore accepts key pairs
+`tacenta-braid`, which has the layout, refuses. So:
 
 - tags 1 to 4, which carry a `key_pair`, appear only in refusals, at a length
   both readers refuse;
@@ -281,10 +283,16 @@ inside it and therefore accepts key pairs `tacenta-braid` refuses. So:
   `ct2-sampled-*` vectors, and they are what pin the Braid's epoch ceiling
   from the transitions' side; `epoch-u64-max` pins it from the reader's.
 
-What no vector in this file pins, then, is **the `key_pair` content rule of
-tags 1 to 4**. It is stated on the page, implemented in `tacenta-braid`, and
-carried by that crate's own tests; no model states it and no vector here
-reaches it.
+What no vector in this file pins, then, is **the `key_pair` content clause of
+tags 1 to 4** -- and no vector can. A vector states one verdict every
+conforming reader must reach; this clause has none, because a stored state
+whose key pair fails it is refused by a reader inside the scope and accepted
+by one outside, and both conform. A vector on the accepting side would need a
+key pair that passes the validation, which means the library's serialisation,
+which is what the page delegates. The clause is stated on the page,
+implemented in `tacenta-braid`, and carried by that crate's own tests. What
+every implementation must apply, the field's length, is pinned by
+`key-pair-wrong-length`.
 
 ### The protobuf profile: `vectors/protobuf/`
 
@@ -408,12 +416,12 @@ from either implementation.
   epoch -- read the stored epoch and the message and nothing else. Every other
   transition consumes a KEM key pair or encapsulation state, whose layout the
   page delegates, so neither side of the harness can build one.
-- **The `key_pair` content rule of the Braid's tags 1 to 4.** For the same
-  reason, the model checks that field's length and nothing inside it, so it
-  accepts key pairs `tacenta-braid` refuses. The harness generates tags 1 to 4
-  only at a length both readers refuse: generating a well-formed one would be
-  generating a disagreement the harness is not entitled to report as a
-  finding.
+- **The `key_pair` content clause of the Braid's tags 1 to 4.** The page
+  scopes it to a reader that knows the delegated layout; the model is outside
+  that scope, so it checks the field's length and accepts it, and accepts key
+  pairs `tacenta-braid` refuses. The harness generates tags 1 to 4 only at a
+  length both readers refuse: generating a well-formed one would be generating
+  a difference the two sides are both entitled to, not a finding.
 - **The store's total bound.** Reaching `MAX_SKIPPED_STORE` means deriving
   thousands of message keys in the model's Lean SHA-256 and then reading a
   state holding them back at every later step. The refused side of the bound
@@ -533,9 +541,12 @@ pinned from both sides**: `braid-state.json`'s `epoch-u64-max` pins the
 reader's refusal of the reserved epoch, and its two `ct2-sampled-*` vectors
 drive the two transitions that meet the ceiling, which the harness drives too.
 What is still pinned by neither is the rest of the Braid's state machine and
-the `key_pair` content rule of tags 1 to 4, both for the same reason: they
-need the KEM layout the page delegates. Those rest on the proofs and the
-crate's own tests. Sender keys are not yet scheduled.
+the `key_pair` content clause of tags 1 to 4, both for the same reason: they
+need the KEM layout the page delegates. The clause is additionally one no
+vector could pin, since the page scopes it to implementations that have that
+layout, so a state failing it is refused by one conforming reader and accepted
+by another. Those rest on the proofs and the crate's own tests. Sender keys
+are not yet scheduled.
 
 ## Trademarks and non-affiliation
 

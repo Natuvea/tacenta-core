@@ -12,21 +12,26 @@ Principles section's "Canonical and length-prefixed", "Versioned" and
 refusal a leaf reader reports: a wrong version, and bytes that are short or
 malformed. A state that breaks a semantic rule is refused as malformed.
 
-**Where the Braid's model stops, and why.** The page requires of tags 1 to 4
-that the `header` and `ek_vector` the stored `key_pair` holds pass the
-validation a completed `ek_vector` passes against a received header
-(session-persistence.md, Braid; Semantic rules of the leaf formats, Braid).
-Where those two sit inside the 11,872 bytes is `libcrux-ml-kem`'s layout: the
-page does not define it and ADR-0006, point 5, delegates it. So `BraidState`
-checks `key_pair`'s length and nothing inside it, as it checks `encaps`'s
+**Where the Braid's model stops, and why it conforms there.** The page
+requires of tags 1 to 4 that the `header` and `ek_vector` the stored
+`key_pair` holds pass the validation a completed `ek_vector` passes against a
+received header, and **scopes that clause to a reader that knows the key
+pair's layout** (session-persistence.md, Braid; Semantic rules of the leaf
+formats, Braid). Where those two sit inside the 11,872 bytes is
+`libcrux-ml-kem`'s layout: the page does not define it and ADR-0006, point 5,
+delegates it. So `BraidState` checks `key_pair`'s length and accepts it, which
+is what the page asks of a reader outside the scope, as it checks `encaps`'s
 length and nothing inside it -- which for `encaps` is the whole of the page's
-rule, and for `key_pair` is not.
+rule for every implementation, and for `key_pair` is the whole of it only
+outside the scope.
 
 The consequence is recorded rather than worked around. For tags 1 to 4 this
-reader accepts stored states `tacenta-core`'s refuses, so no vector generated
-from this module offers an accepted state with one of those tags, and the
-differential harness offers none either. Tags 0, 5 to 11 carry no `key_pair`
-and are modelled in full.
+reader accepts stored states `tacenta-core`'s refuses, `tacenta-core` having
+the layout. Both conform, so a state that fails the clause has no single
+conforming verdict and no vector can pin it: no vector generated from this
+module offers an accepted state with one of those tags, and the differential
+harness offers none either. Tags 0, 5 to 11 carry no `key_pair` and are
+modelled in full.
 
 The states are `Model.State.State` and `Model.SparseRatchet.State`, the ones
 the operations run on; nothing here adds a field to either. Their counters are
@@ -1240,13 +1245,16 @@ def fieldKinds (t : UInt8) : List FieldKind := kindsOfNat t.toNat
     `n`.
 
     `key_pair` and `encaps` are length-checked and nothing else. For `encaps`
-    that is the whole of the page's rule, which says the reader "checks
-    nothing in `encaps` beyond its length". For `key_pair` it is not: in tags
-    1 to 4 the page also requires the `header` and `ek_vector` inside it to
-    pass the KEM split's validation, and finding those two needs the layout
-    the page delegates. That clause is stated nowhere in this module, so this
-    reader accepts key pairs `tacenta-core` refuses; the module header says
-    what follows. -/
+    that is the whole of the page's rule for every implementation, which says
+    the reader "checks nothing in `encaps` beyond its length". For `key_pair`
+    it is the whole of the rule only for a reader outside the content clause's
+    scope: in tags 1 to 4 the page also requires the `header` and `ek_vector`
+    inside it to pass the KEM split's validation, and scopes that clause to a
+    reader that knows the layout the page delegates, since finding those two
+    needs it. This module has no such layout, so checking the length and
+    accepting is what the page asks of it, and stating the clause nowhere is
+    conforming rather than short. This reader therefore accepts key pairs
+    `tacenta-core` refuses; the module header says what follows. -/
 def fieldOk : FieldKind → Bytes → Bool
   | .keyPair, b => decide (b.length = keyPairLen)
   | .encaps, b => decide (b.length = encapsLen)
@@ -1291,8 +1299,9 @@ def toBytes (st : State) : Bytes :=
 /-- The rules this module states, and all of them: every live state's `epoch`
     is at least 1 and its `auth` is 64 bytes; each tag carries its own fields,
     each of its own kind; and `Failed` is always accepted, carrying nothing.
-    The `key_pair` content rule of tags 1 to 4 is not among them, and
-    `fieldOk` says why. -/
+    The `key_pair` content clause of tags 1 to 4 is not among them: the page
+    scopes it to a reader that knows the delegated layout, and this module is
+    outside that scope, so omitting it is conforming. `fieldOk` says why. -/
 def invariant (st : State) : Bool :=
   if st.tag = failedTag then
     decide (st.epoch = 0) && st.auth.isEmpty && st.fields.isEmpty
