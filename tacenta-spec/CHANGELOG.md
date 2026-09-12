@@ -217,6 +217,11 @@ is SemVer against the specified protocol (not the implementation).
   and implementations that parse the header before ciphertext. It accepts
   exactly the 102-byte composite header and refuses trailing bytes. Gap item
   G4-01 is closed.
+- `protocol/session-persistence.md`, Prekey store: the stored-signature rule
+  now states that it deliberately narrows the canonical `identity_public` set.
+  In particular, `p - 1` is canonical as a curve public key but cannot verify a
+  stored signature because XEdDSA verification refuses it before Edwards
+  conversion. Gap item G7-05 is closed as a wording-only reader finding.
 - `protocol/ratchet.md`, Sending and receiving: the classical receive boundary
   where `Nr = u32::MAX` and an unstored same-chain message has a lower number
   now deliberately permits either stale/out-of-order or `ChainExhausted`. The
