@@ -6,6 +6,14 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `tooling/check-traceability.py` and
+  `tooling/tests/run-check-traceability-cases.sh`: a CI-enforced structural
+  traceability check for the security-property ledger. It checks that every
+  `REQ-*` row has status and assumptions, the limitations status table covers
+  those rows, direct assumption dependencies name live `ASM-*` entries, and
+  `REQ/ASM/LIM/ADV/AS/EX` references resolve. The cases prove the gate fails
+  when a requirement row drops out of the limitations table or cites an unknown
+  assumption.
 - `GAP-REGISTER.md`: a current register for assurance gate 2, preserving the
   historical independent-reader reports while recording which findings are now
   closed, open, or deferred.

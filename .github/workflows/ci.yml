@@ -370,6 +370,8 @@ jobs:
       - run: sh tacenta-proofs/scripts/assemble-braid-unit.sh --check
       - run: bash tacenta-proofs/scripts/port-unit-proofs.sh --check
       - run: bash tooling/check-labels.sh
+      - run: python3 tooling/check-traceability.py
+      - run: bash tooling/tests/run-check-traceability-cases.sh
       - run: python3 tooling/check_authentication_boundary.py
       - run: python3 tooling/check-vectors.py
       # Note the assurance boundary: this checks the attestation manifest
