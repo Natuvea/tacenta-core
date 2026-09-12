@@ -1443,8 +1443,9 @@ impl PrekeyStore {
 
         // What the signatures authenticate, checked here and not in
         // `invariant` (session-persistence.md, Prekey store, Semantic rules,
-        // "Every stored signature verifies under `identity_public`"). The four
-        // clauses above are cheap predicates over identifiers and tags, which
+        // "Every stored signature verifies under `identity_public`"). The five
+        // rules above are cheap predicates over identifiers, tags and a key's
+        // encoding, which
         // is why the tests and the fuzz targets can assert them after every
         // operation; this one costs a signature verification per stored
         // prekey. Reading is the moment worth paying it at, and the only
@@ -1461,7 +1462,9 @@ impl PrekeyStore {
     /// The sixth semantic rule of the stored format, and the one the other five
     /// cannot reach: they relate identifiers and tags to each other, where this
     /// relates the stored signatures to the stored keys they are supposed to
-    /// authenticate. A store failing it is refused as malformed by `from_bytes`.
+    /// authenticate. A store failing it is refused by `from_bytes` as
+    /// `Incoherent`, its own variant and not `Malformed`: see there for why,
+    /// and for the compatibility break that refusal records.
     ///
     /// **Why it matters, given no secret is at risk.** `publish` copies these
     /// signatures verbatim into every bundle it emits, and nothing between here
@@ -3759,7 +3762,7 @@ mod tests {
         );
         assert!(
             raw.invariant(),
-            "the other four rules must still hold, or it is a different test"
+            "the other five rules must still hold, or it is a different test"
         );
 
         // What the rule prevents.
@@ -3875,17 +3878,29 @@ mod tests {
     fn prekey_store_refuses_a_corrupted_one_time_kem_signature() {
         let mut rng = rand_core::OsRng;
         let id = Identity::generate(&mut rng);
-        let mut store = id.create_prekeys(2, &mut rng);
+        // Every entry in turn, not one index. Corrupting only `last_mut()`
+        // let a check narrowed to the last entry pass the whole tree: what
+        // this pins is the loop, so it has to walk the loop.
+        let count = 3;
+        for i in 0..count {
+            let mut store = id.create_prekeys(count, &mut rng);
+            store.kem_one_time[i].2[0] ^= 0x01;
+            assert!(store.invariant(), "only the signature is wrong");
+            assert!(
+                matches!(
+                    PrekeyStore::from_bytes(&store.to_bytes()),
+                    Err(PrekeyStoreDecodeError::Incoherent)
+                ),
+                "a corrupted signature on one-time KEM prekey {i} must be refused"
+            );
+        }
+        // And the later failure, on the entry `publish` actually takes.
+        let mut store = id.create_prekeys(count, &mut rng);
         store
             .kem_one_time
             .last_mut()
             .expect("a one-time KEM prekey")
             .2[0] ^= 0x01;
-        assert!(store.invariant(), "only the signature is wrong");
-        assert!(matches!(
-            PrekeyStore::from_bytes(&store.to_bytes()),
-            Err(PrekeyStoreDecodeError::Incoherent)
-        ));
         assert!(matches!(
             crate::sessions::verify_bundle(&store.publish().bundle),
             Err(crate::sessions::SessionError::BadKemPrekeySignature)

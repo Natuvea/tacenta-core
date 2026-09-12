@@ -23,7 +23,8 @@
 //! The prekey store's stored format is covered by stored bytes alone. Its four
 //! accepted vectors carry bytes `tacenta-core` itself produced, because the
 //! model has no signatures and so cannot build a store whose stored signatures
-//! verify; its thirteen refusals are one field of those bytes changed, so each
+//! verify; of its thirteen refusals, five are framing cases and eight change
+//! one field of those bytes, so each of those
 //! is refused for the rule under test rather than for a signature that never
 //! verified.
 //!
@@ -31,7 +32,8 @@
 //! reason: the model does not compute the curve, so it cannot build a session
 //! whose `ratchet_private` matches the classical ratchet's `dhs_pub`. Its
 //! three accepted vectors are `tacenta-core`'s own exports and its ten
-//! refusals change one field of one of them. They are the only vectors here
+//! refusals are three framing cases and seven that change one field of one of
+//! them. They are the only vectors here
 //! that carry the refusal `inconsistent`, which this page's Rejection section
 //! distinguishes from malformed for the session alone. The conformance
 //! manifest says which rules no vector reaches, and which Braid tags the
@@ -57,7 +59,7 @@ fn persistence_vectors_pass() {
             "sparse-ratchet-state",
             "triple-ratchet-state"
         ],
-        "expected the erasure coders' two files and the four persisted states"
+        "expected the erasure coders' two files and the six persisted states"
     );
 
     let mut total = 0;

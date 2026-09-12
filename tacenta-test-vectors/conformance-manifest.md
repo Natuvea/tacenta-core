@@ -417,8 +417,9 @@ can reach it.
   ours; nothing here is wire-sensitive.
 - **Oracle:** tacenta-model: `Model.Erasure` (`Encoder.toBytes`/`ofBytes` and
   `Decoder.toBytes`/`ofBytes`) and `Model.PersistedState`
-  (`RatchetState`, `SparseState`, `TripleState` and `BraidState`, each with
-  `toBytes`/`ofBytes`). Three of the four states are the ones the operations
+  (`RatchetState`, `SparseState`, `TripleState`, `BraidState`, `PrekeyStoreState`
+  and `SessionState`, each with `toBytes`/`ofBytes`). Three of the six states are
+  the ones the operations
   run on -- `Model.Ratchet`'s, `Model.SparseRatchet`'s and `Model.Triple`'s;
   the Braid's is the stored format's own, for the reasons under Not covered.
   Runner: `runners/rust/tests/persistence.rs`, against `tacenta-erasure`'s,
@@ -532,12 +533,15 @@ model's boundary; they are simply unpinned.
   never exercised.
 - **The prekey store's `kem_pair` content clauses.** The page's four are the
   length, `ek`'s FIPS 203 modulus check, `dk`'s hash check, and `ek` equalling
-  the copy inside `dk`. The model states the length and no vector reaches the
-  other three.
+  the copy inside `dk`. The model states the length; no vector varies `kem_pair` at
+  all, so none reaches any of the four, the length included.
 - **Three of the session's eight semantic rules.** Vectors reach five: the
-  epoch relation, the associated data's orientation, the role agreement (its
-  sparse half), the canonical stored keys, and the optional fields' shape (its
-  `established_ephemeral` clause). Unreached: the `ratchet_private` rule above;
+  epoch relation (only its `e - 1` branch: no vector carries a Braid tag of 7 to
+  10, nor the failed tag 11 the rule exempts), the associated data's
+  orientation, the role agreement (only its sparse half), the canonical stored
+  keys (only the `peer_identity_public` clause, not `our_identity_public` or
+  `pending_initial`'s `ephemeral_public`), and the optional fields' shape (only
+  the `established_ephemeral` clause, not the `kem_ciphertext` length). Unreached: the `ratchet_private` rule above;
   "an unanswered initiator is not also a responder", which the model states and
   no vector breaks because every refusal vector is built from the responder
   fixture, which has no `pending_initial`; and "each half satisfies its own
@@ -547,8 +551,15 @@ model's boundary; they are simply unpinned.
   only "bytes left after the last field" has a vector. A `triple_state` or
   `braid` its own reader refuses, a presence byte other than `0x00`/`0x01`, and
   a `pending_initial` that is not the layout have none.
+- **The prekey store's pre-sizing record check.** The page makes the budget a
+  two-place check: a count larger than the version could have written, refused
+  before it sizes anything, and the per-key rule over what was read. The largest
+  `seen_count` any vector carries is 1,025, under the v4 ceiling of two budgets,
+  so every vector lands on the second. `tacenta-core`'s own tests hold the
+  first.
 - **`non-canonical`, for either format.** The model's readers accept only
-  canonical encodings, so neither can be offered such a buffer.
+  canonical encodings: such a buffer can be offered but is never accepted, so no
+  vector generated from the model can record that refusal.
   `SessionState.ofBytes_ok` proves it for the session; for the prekey store the
   same property is believed and not proved, and the model says so.
 

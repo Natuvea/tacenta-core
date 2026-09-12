@@ -1348,7 +1348,8 @@ fn session_fields_agree(v: &Vector, stored: &[u8]) -> Result<(), String> {
 ///
 /// `NonCanonical` maps to "short or malformed" and no vector reaches it: the
 /// model's reader accepts only canonical encodings, which `SessionState`'s
-/// `ofBytes_ok` proves, so it cannot offer this one a non-canonical buffer.
+/// `ofBytes_ok` proves: such a buffer can be offered but is never accepted, so
+/// no vector generated from the model can record that refusal.
 /// `tacenta-core` keeps the check as defence in depth.
 fn check_session_state(v: &Vector) -> Result<(), String> {
     use tacenta_core::sessions::{Session, SessionDecodeError};
@@ -1402,6 +1403,12 @@ fn check_prekey_store_state(v: &Vector) -> Result<(), String> {
                 PrekeyStoreDecodeError::TooShort
                 | PrekeyStoreDecodeError::Malformed
                 | PrekeyStoreDecodeError::NonCanonical => "short-or-malformed",
+                // The store's analogue of the session's `Inconsistent`, for
+                // its signature rule alone (session-persistence.md,
+                // Rejection). No vector carries it yet -- the model has no
+                // signatures and so cannot generate one -- but the name exists
+                // on the page and in the schema, so the harness can read one.
+                PrekeyStoreDecodeError::Incoherent => "incoherent",
                 // The enum is `#[non_exhaustive]`, so a wildcard is required.
                 // It refuses rather than classifying: a refusal kind nobody
                 // has named yet must not quietly become "short or malformed".

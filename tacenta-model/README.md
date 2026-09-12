@@ -39,9 +39,11 @@ theory beneath it (`Model/Braid.lean`, `Model/Gf65536.lean`,
 `Model/Polynomial.lean`), the erasure code's bytes and its coders' persisted
 formats (`Model/Erasure.lean`), six persisted states with their readers and
 the rules the readers enforce -- the classical ratchet's, the sparse
-ratchet's, the Triple Ratchet's and the ML-KEM Braid's
-(`Model/PersistedState.lean`, which proves of each that it reads back what it
-writes and that its reader accepts only what it writes), the Triple Ratchet
+ratchet's, the Triple Ratchet's, the ML-KEM Braid's, the prekey store's and the
+session's (`Model/PersistedState.lean`, which proves of each that it reads back
+what it writes, and of every one but the prekey store's that its reader accepts
+only what it writes -- that format reads four versions and writes one, so the
+conjunct is false for it and its theorem drops it), the Triple Ratchet
 (`Model/Triple.lean`, `Model/TripleRatchet.lean`), the composite header, and a
 protobuf profile. The vectors are generated from the two persistence modules,
 and apart from the vector generator, the differential harness and the axiom
