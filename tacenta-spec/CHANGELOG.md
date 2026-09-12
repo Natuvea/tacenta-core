@@ -23,6 +23,9 @@ is SemVer against the specified protocol (not the implementation).
   REQ-AUTH-10, REQ-AUTH-11 and REQ-AUTH-12, extending the P2 migration across
   non-contributory agreement refusal, ratchet replay refusal and initial-message
   replay-record coverage.
+- `security-properties/evidence-index.json`: evidence-index entries for
+  REQ-AUTH-13 and REQ-AUTH-14, completing the authentication P2 migration with
+  unauthenticated-input durability and Braid authenticator-failure coverage.
 - `ASSURANCE-OBLIGATIONS.md`: the first P1 obligation inventory for the
   assurance execution plan. It classifies target deficits, gate obligations,
   deferral risks and missing negative-control evidence so readiness is assessed
