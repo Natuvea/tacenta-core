@@ -6,6 +6,13 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `protocol/session-persistence.md`, Triple ratchet state: the refusals that
+  format's reader gives, and in particular that a `ratchet_state` or
+  `spqr_state` its own reader refuses is short or malformed whatever that
+  reader's reason, an unrecognised inner version included. The page had stated
+  the mapping for the session's two halves and not for the triple ratchet
+  state's, leaving two readings a stored state can tell apart (the independent
+  reader's `GAPS-5.md`, G5-02's neighbour G5-01).
 - `decisions/ADR-0008-assurance-expectations.md`: the practices the
   project holds itself to, the definition of done, and assurance levels per
   component. `ASSURANCE.md` at the repository root records where each practice
