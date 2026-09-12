@@ -2083,6 +2083,14 @@ fn braid_states(rng: &mut Rng) -> Vec<(u8, Vec<u8>)> {
                 ],
             ),
         ),
+        // The two ends of the epoch's range, both of which the rules put
+        // outside it: a live state at epoch 0, and one at the reserved
+        // `u64::MAX`. Both readers refuse each, and a model that stopped
+        // refusing either would be caught here rather than only by the
+        // vectors. Corrupting a byte of a live state reaches neither, which
+        // is why they are built rather than left to `corrupt`.
+        (0, braid_state_bytes(0, 0, &auth, &[])),
+        (0, braid_state_bytes(0, u64::MAX, &auth, &[])),
     ]
 }
 
