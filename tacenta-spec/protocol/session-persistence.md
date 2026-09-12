@@ -643,7 +643,11 @@ key first.
   (identities-and-devices.md, Verifying a signature): the message is the tagged
   key as written above, with no label in front of it. The labelled input that
   page specifies is for signatures an application supplies, and a reader that
-  reached for it would refuse every honest store.
+  reached for it would refuse every honest store. This rule intentionally
+  narrows the canonical `identity_public` set accepted by the previous rule:
+  `p - 1` is below p and is therefore canonical as a curve public key, but no
+  signature verifies under it because signature verification refuses that value
+  before converting the Montgomery key to an Edwards point.
 
 The page's own reason for refusing a corrupted `next_id` decides this one: a
 value accepted here "would poison every future bundle and persist canonically".

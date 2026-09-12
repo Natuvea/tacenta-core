@@ -203,7 +203,7 @@ def _():
         PSC.store(identity_secret=hashlib.sha256(b"pass5 9").digest())))
 
 
-@case("SK-08 the prekey store's identity_public: every other spelling is refused as malformed in v1, v2, v3 and v4 (in v4 after the re-encode check, which a re-spelled key passes); the canonical key of a real identity is accepted in all four; the secrets are not held to the rule. Pass 7: the sixth rule is checked after this one, so p - 1, which this rule accepts, is refused as incoherent instead, no identity having it as a public key (G7-06)",
+@case("SK-08 the prekey store's identity_public: every other spelling is refused as malformed in v1, v2, v3 and v4 (in v4 after the re-encode check, which a re-spelled key passes); the canonical key of a real identity is accepted in all four; the secrets are not held to the rule. Pass 7: the sixth rule is checked after this one, so p - 1, which this rule accepts, is refused as incoherent instead, no identity having it as a public key (G7-05)",
       f"{SP} Prekey store, Semantic rules: identity_public is canonical ... they apply to all four versions; {SCK}: Refused as malformed, by ... the prekey store's own rules")
 def _():
     base = PSC.store(seen=[(4, PSC.rnd(32))], identity_secret=IKB_SECRET)
