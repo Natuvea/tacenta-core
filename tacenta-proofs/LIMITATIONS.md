@@ -555,13 +555,15 @@ from it. This holds here by delegation and discipline, not by proof.
   `tacenta-core/` (the `-p` form fails from the repository root, and without
   `--release` the numbers are a debug build's, not the ones described here).
 
-  **The harness carries two calibration controls, and they are load-bearing.**
+  **The harness carries three calibration controls, and they are load-bearing.**
   Every leak assertion here is a negative result, and a negative result is
   evidence only from an instrument that would have reported the positive. So the
   same measurement, floors and statistics are run over deliberately leaky
-  stand-ins -- a byte-at-a-time tag comparison, and a rejection path that returns
-  before the work it guards -- and the controls fail if the leak is *not*
-  detected. A failing control does not mean this codebase leaks; it means the
+  stand-ins -- a byte-at-a-time tag comparison, a rejection path costing a few
+  per cent more on one class of a microsecond path, and a leak confined to the
+  first rejection after the class changes -- and the controls fail if the leak
+  is *not* detected. Each names the batch factor it must be caught at, so each
+  pins one leg of the measurement rather than leaving the other free. A failing control does not mean this codebase leaks; it means the
   harness has gone blind, and that the other results are not evidence until it
   is understood.
 
@@ -585,10 +587,21 @@ from it. This holds here by delegation and discipline, not by proof.
 
   The fix is in `Floor::batch`: measure the host's quantum and time enough
   rejections per sample that `quantum / batch` sits at half the floor or better,
-  dividing the sample count by the same factor so the total work is unchanged.
+  dividing the sample count by the same factor so the total work is the same to
+  within one batch.
   On a nanosecond-resolution host the factor is 1 and nothing changes; on Apple
   Silicon it is 17, and the same short-circuit then measures 12--13 ns against a
   real path's 0.00--0.06 ns.
+
+  **What the controls do not establish, listed because a list of controls reads
+  as coverage.** No control pins the sampling plan: `LEAK_ROUNDS` and
+  `LEAK_SAMPLES` can be cut a hundredfold and the controls stay green. That is
+  not because the plan is spare -- thinning it makes the *real* tests go red on
+  honest code, which is the failure a reader would meet first -- but because
+  nothing here demonstrates either direction. Nor is the relative floor tightly
+  pinned: it can be loosened about two and a half times, or inflated at the
+  session scale alone, with every control green. And none of this runs on a
+  schedule while the nightly checks out another tree.
 
   **Batching has a cost, and it is the other half of the same trade.** A batched
   sample averages, so a leak confined to the first rejection after the class
