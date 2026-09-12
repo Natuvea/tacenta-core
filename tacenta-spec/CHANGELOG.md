@@ -212,6 +212,11 @@ is SemVer against the specified protocol (not the implementation).
     matters only for a bundle that reaches her another way.
   - "Receiving the initial message" says `peer_identity_public` is canonical
     in every session a reader accepts.
+- `protocol/ratchet.md`, Sending and receiving: the classical receive boundary
+  where `Nr = u32::MAX` and an unstored same-chain message has a lower number
+  now deliberately permits either stale/out-of-order or `ChainExhausted`. The
+  freedom is scoped to that overlap; accepting the message is still non
+  conforming. Gap item G5-09 is closed.
 - `protocol/session-persistence.md`, Rejection: the short-buffer and
   unknown-version overlap is now a format-by-format contract for ratchet
   state, sparse ratchet state, triple ratchet state, Braid state, session state

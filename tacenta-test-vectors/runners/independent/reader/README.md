@@ -348,7 +348,7 @@ and each is a row in the runner's table.
 | Module | Cases | Covers |
 |---|---|---|
 | `negative_cases.py` | 59 | wire decoders and refusals, bundle signatures, non-contributory DH, ratchet and sparse ratchet basics, field |
-| `cases_ratchet.py` | 19 | counter ceilings, clock ceiling, stale same-chain refusal, DH triggers, `PN` skip rules, store bound, eviction order, sparse ceilings and eviction, sparse replacement order (CR-18); the sparse store's total bound as the page now states its evidence (CR-19, pass 6) |
+| `cases_ratchet.py` | 20 | counter ceilings, clock ceiling, stale same-chain refusal, DH triggers, `PN` skip rules, store bound, eviction order, sparse ceilings and eviction, sparse replacement order (CR-18); the sparse store's total bound as the page now states its evidence (CR-19, pass 6); the `Nr = u32::MAX` stale/exhaustion overlap and its adjacent cases (CR-20) |
 | `cases_triple.py` | 11 | split halves, expansion of the combination, commit rules, AD binding, non-contributory check order, eviction retry, epoch advance; the Triple Ratchet's own send and receive, and the epoch the agreement names against the state's own (TR-11, pass 6) |
 | `cases_aead.py` | 13 | FIPS 197 KAT, round trips, padding, tag input, every refusal, one failure kind, no decryption before the tag, key and IV positions and the IV not sent (AE-12) |
 | `cases_erasure.py` | 13 | table arithmetic, chunking, codewords, decoding from any `k`, first copy wins, exhaustion; an encoder for zero bytes (EC-11) and over 65,536 chunks (EC-12); which chunks that encoder holds, and its stored form (EC-13, pass 5) |

@@ -144,6 +144,15 @@ A message whose ratchet key equals `DHr`, whose number `N` is below `Nr`, and
 whose key is not stored is not accepted: its key has already been used,
 expired, or evicted.
 
+If `Nr` is already `u32::MAX` and the same-chain message's number is below it,
+the message meets both the stale-message rule and the counter-exhaustion rule.
+This page fixes no order between those two checks. A reader may refuse that
+specific overlap as stale or out of order, or as counter exhaustion
+(`ChainExhausted`). Either refusal is conforming, and accepting the message is
+not. The freedom is only for that overlap: a same-chain unstored message below
+`Nr` while `Nr < u32::MAX` is stale, and a message numbered `u32::MAX` is
+counter exhaustion.
+
 **A refused receive may already have moved the state.** Keys on the old chain
 may have been stored, and the Diffie-Hellman step taken, before a later check
 refuses. A caller therefore runs a receive on a copy of the state and treats a
