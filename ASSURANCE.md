@@ -6,7 +6,7 @@ comes next. It is a summary. For what is proven, `tacenta-proofs/CLAIMS.md` and
 `LIMITATIONS.md` are the record. For what the vectors pin,
 `tacenta-test-vectors/conformance-manifest.md` is.
 
-Last assessed: 2026-09-11.
+Last assessed: 2026-09-12.
 
 ## Practices
 
@@ -20,7 +20,7 @@ Last assessed: 2026-09-11.
 | 6 | Verification in CI | Strong | Lean builds, the `sorry` scan, kernel replay, translation attestation, vectors current with the model, the independent reader. | Keep it. |
 | 7 | Reviewed normative changes | Gap, being addressed | One maintainer. Branch protection on `main` is off by decision while the project has one maintainer. Specification and model changes were merged on green checks with no recorded review. | ADR-0008 rule 7: every normative change carries a recorded review before merging on green. |
 | 8 | Traceability | Partial | `CLAIMS.md` maps theorems to claims, the conformance manifest maps sections to vectors, and `mapping-to-spec.md` maps the model to the specification. `security-properties/` numbers the security requirements and names each one's theorems and tests; no CI check holds that tracing. | Requirement IDs traced through `CLAIMS.md`, the conformance manifest and the tests, with a CI check. |
-| 9 | Differential testing | Partial | Model-generated vectors are checked against the Rust. An independent reader, written from the specification alone, checks every vector. No generated inputs are run through both the model and the Rust. | A model-versus-Rust harness on generated operation sequences. |
+| 9 | Differential testing | Partial | Model-generated vectors are checked against the Rust, and an independent reader written from the specification alone checks every vector. Generated operation sequences now run through both sides for the two ratchets (`tacenta-model/Difftest.lean` and `tacenta-test-vectors/runners/rust/tests/differential.rs`), comparing the outcome, the persisted bytes and the export-and-import check at every step, the refusal kind on a corrupted import, and the counter ceilings both sides now stop at. This is testing, not proof: it pins the sequences a seed generates and says nothing about the ones it does not. Nothing generated drives the Braid, the Triple Ratchet or the session, whose stored formats the model does not state. | A harness for the Braid's and the Triple Ratchet's state machines, once the model states their stored formats. |
 | 10 | Fuzzing and property tests | Good | Six cargo-fuzz targets, proptest, the constant-time disassembly check, `cargo audit`, MSRV and 32-bit builds. | Keep it. |
 
 **Rust expectations:**
@@ -61,7 +61,7 @@ A summary by component. A tick means the component has that kind of evidence, no
    - branch protection on `main` stays off while the project has one maintainer, and is revisited when a second joins.
 2. **Assumptions and requirements (done):** the threat model, with its assets, adversaries, assumptions and exclusions, is in `tacenta-spec/threat-model/`, and the security properties are numbered requirements in `tacenta-spec/security-properties/`.
 3. **Traceability:** requirement IDs in `CLAIMS.md`, the conformance manifest and the tests, with a CI check that every requirement has a property and a test.
-4. **Differential testing:** generated operation sequences through `tacenta-model` and `tacenta-core`, comparing outputs, refusals and persisted bytes.
+4. **Differential testing (done for the two ratchets):** generated operation sequences run through `tacenta-model` and `tacenta-core`, comparing outcomes, refusals and persisted bytes, in `tooling/ci.sh` and the CI vectors job. The Braid, the Triple Ratchet and the session are not covered, because the model states no stored format for them.
 5. **Model and formats:**
    - the model's counter ceilings: done for the classical ratchet, the sparse ratchet and the Braid; whether the refinements' step of headroom can be dropped has not been checked;
    - persisted formats phase 2 (Triple, Braid) and phase 3 (session, prekey store).

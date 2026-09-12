@@ -157,7 +157,25 @@ jobs:
           workspaces: tacenta-test-vectors/runners/rust
       - run: cargo fmt --check
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      # The differential harness (ADR-0008, practice 9) in
+      # `tests/differential.rs` runs generated operation sequences through both
+      # sides, so this job needs the model as well as the crates. It drives it
+      # through `lake exe difftest`, which `lake build` produces along with the
+      # model and the vector generator. `tacenta-model` is a plain Lean package
+      # with no Mathlib, so this is about a minute from cold and needs none of
+      # the cache machinery the two Lean jobs carry.
+      - name: Install the pinned elan release
+        working-directory: .
+        run: bash tooling/install-elan.sh
+      - name: Build the model, including the differential harness
+        working-directory: tacenta-model
+        run: lake build
+      # `TACENTA_DIFFTEST_REQUIRED` makes a missing model binary fail the
+      # harness rather than skip it: a gate that cannot run must not report
+      # green. `tooling/ci.sh` sets the same variable.
       - run: cargo test --locked --workspace
+        env:
+          TACENTA_DIFFTEST_REQUIRED: "1"
       # The independent reader, written from tacenta-spec and the vectors alone
       # (ADR-0006). Standard library only, so it needs no setup step.
       - run: python3 ../independent/reader/run.py | tail -n 22

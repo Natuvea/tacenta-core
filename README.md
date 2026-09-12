@@ -154,15 +154,16 @@ nothing skipped means the same thing here as a green workflow.
 | `cargo-audit` (`cargo install --locked cargo-audit`) | any current release | the advisory audit; skipped locally when absent, failed in CI |
 | `rustup target add armv7-linux-androideabi` | matching the toolchain | the 32-bit compile check; skipped locally when absent, failed in CI |
 | `rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu` | matching the toolchain | the constant-time disassembly gate (`tooling/check-constant-time-asm.sh`), which reads the release assembly of `mac_eq` and `calculate_key_pair`; the host is always read, a missing Linux target is skipped locally, and CI fails with neither present |
-| Lean, through elan | the version `tacenta-model/lean-toolchain` and `tacenta-proofs/lean-toolchain` name (v4.31.0) | the model, the proofs, and vector regeneration |
+| Lean, through elan | the version `tacenta-model/lean-toolchain` and `tacenta-proofs/lean-toolchain` name (v4.31.0) | the model, the proofs, vector regeneration, and the differential harness the vector runner drives (`tacenta-model/Difftest.lean`) |
 | the translation's Mathlib cache (`cd tacenta-proofs/translation && lake exe cache get`) | the commit `tacenta-proofs/translation/lake-manifest.json` pins | the translation build and its `sorry` scan; skipped when the cache has not been fetched (the test is for a built `Mathlib.olean`, not the package directory) |
 | `python3` with PyYAML (`pip install pyyaml`) | 3.8 or later | the `tooling/` checks; PyYAML is for the workflow check, which skips locally without it and fails in CI |
 | `git` | any | the vector-currency diff |
 
 Individual pieces can be run on their own: `cargo test --locked --workspace`
 in `tacenta-core`; `cargo test --locked` in
-`tacenta-test-vectors/runners/rust`; `lake build` in `tacenta-model`;
-`scripts/verify.sh` in `tacenta-proofs`. CONTRIBUTING.md has the pre-push
+`tacenta-test-vectors/runners/rust`, whose differential harness also needs
+`lake build` in `tacenta-model` and says so when it skips for want of it;
+`lake build` in `tacenta-model`; `scripts/verify.sh` in `tacenta-proofs`. CONTRIBUTING.md has the pre-push
 hook that runs the cheapest of the checks before a push leaves the machine.
 
 Three things run outside this repository, and the gate says so rather than

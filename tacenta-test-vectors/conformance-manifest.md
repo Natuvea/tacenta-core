@@ -481,6 +481,50 @@ encoder's rules after any number of codewords (`Encoder.new_issue_keeps`) and
 that such an encoder is read back from the bytes it is written as
 (`Encoder.ofBytes_toBytes`).
 
+## Differential testing on generated sequences
+
+- **Specification:** `tacenta-spec/protocol/ratchet.md`,
+  `sparse-pq-ratchet.md` and `session-persistence.md`, the three the two
+  ratchets' operations and stored formats come from.
+- **Oracle:** `tacenta-model` (`Model.Ratchet`, `Model.SparseRatchet`,
+  `Model.PersistedState`), driven by `tacenta-model/Difftest.lean`
+  (`lake exe difftest`).
+- **Runner:** `runners/rust/tests/differential.rs`, against
+  `tacenta-ratchet` and `tacenta-spqr`.
+
+This is not a vector file. The vectors pin chosen cases; this generates
+operation sequences from a printed seed, runs them through the model and the
+crates, and compares the two step by step (ADR-0008, practice 9). It is
+testing, not proof: it constrains the sequences a seed reaches and says
+nothing about the ones it does not.
+
+### Covered
+
+| Component | Spec section | Covered by |
+|---|---|---|
+| Initialisation in either role, and either direction | ratchet.md, Initialisation; sparse-pq-ratchet.md, Initialisation | each side runs its own initialisation from the same parameters, and the stored bytes are compared |
+| Send, receive in order, out of order and duplicated | ratchet.md, Sending and receiving; sparse-pq-ratchet.md, Sending and Receiving | generated sequences, with the outcome and the stored bytes of every step compared |
+| Skipped keys up to and past the per-chain bound | ratchet.md, Skipped keys; sparse-pq-ratchet.md, Skipped keys | generated skips, the step past `MAX_SKIP` in every run and `MAX_SKIP` itself in the long run |
+| A stored key taken, and keys aged out of the store | ratchet.md, Skipped keys; key-deletion.md | a start whose store holds keys either side of `MAX_SKIPPED_AGE`, so both the key that goes and the key that stays are compared |
+| A Diffie-Hellman step; an epoch advance and retirement | ratchet.md, The Diffie-Hellman ratchet; sparse-pq-ratchet.md, Advancing | generated headers on an unseen ratchet key, and generated agreement outputs, including two advances that retire an epoch with its stored keys |
+| Export and import at every step | session-persistence.md, Principles | each side reads back the bytes it wrote, and the two verdicts are compared |
+| Corrupted-byte imports, with the refusal each reader gives | session-persistence.md, Rejection | buffers made from each sequence's final state by changing a byte, the version, or the length |
+| The counter ceilings, and the received-message clock's stop | ratchet.md, Sending and receiving and Skipped keys; sparse-pq-ratchet.md, Sending and Receiving | starts assembled at each ceiling, from which the operation that meets it is the sequence's first step; the run asserts each ceiling was reached |
+
+### Excluded
+
+- **The message keys themselves.** The harness compares states, not the key an
+  operation returns; `vectors/ratchet/double-ratchet.json` pins those.
+- **The Braid, the Triple Ratchet, the session and the prekey store.** The
+  model states no stored format for them, so there is no state to compare by.
+- **The store's total bound**, `MAX_SKIPPED_STORE`, which would mean deriving
+  thousands of message keys in the model's own SHA-256 and re-reading a state
+  holding them at every later step. Its refused side is pinned by the
+  `store-over-its-bound` vectors in both persistence files.
+- **The refusal of a short buffer whose version byte is not `0x01`**, which
+  session-persistence.md, Rejection, leaves to the implementation: the harness
+  accepts either refusal for that buffer, and for no other.
+
 ## Interoperability with libsignal
 
 Scope is the bundle layer: prekey-bundle exchange and the session establishment

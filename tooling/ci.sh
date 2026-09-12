@@ -141,6 +141,15 @@ fi
 # the label here should not imply otherwise.
 echo "== Rust: every crate (fmt, clippy, test, property tests) =="
 export PROPTEST_CASES="${PROPTEST_CASES:-2048}"
+# The differential harness (ADR-0008, practice 9) runs generated operation
+# sequences through `tacenta-model` and `tacenta-core` and compares the
+# outcomes, the refusals and the persisted bytes. It lives in the vector
+# runner's test suite below and drives the model through `lake exe difftest`,
+# which the model build above has just produced. This makes a missing binary a
+# failure there rather than a skip: a gate that cannot run must not report
+# green. A developer running `cargo test` in that crate without a Lean
+# toolchain still gets the skip, and the test says how to build it.
+export TACENTA_DIFFTEST_REQUIRED=1
 # `--locked` everywhere. Without it a manifest edit that lands without its
 # lockfile, or a runner toolchain that resolves differently, lets Cargo
 # rewrite `Cargo.lock` in place and run against a dependency graph nobody
