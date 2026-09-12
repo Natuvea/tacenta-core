@@ -810,17 +810,36 @@ because revealing more helps an attacker; here, because there is no finer
 recovery a storage layer can attempt either way.
 
 **A short buffer with an unknown version may be refused as either.** A
-buffer too short to be read -- shorter than the fixed fields of the version
-the reader reads -- whose version byte is also one the reader does not
-recognise fails two checks at once. This page fixes no order between them,
-so a reader may refuse such a buffer as short or malformed or as a wrong
-version, and which of the two it reports is left to the implementation
-(error-handling.md, What is left to an implementation). Either is a
-conforming refusal; accepting the buffer is not. An empty buffer has no
-version byte and is short. The vectors pin neither refusal: no vector offers
-a reader a buffer that is both too short and wrongly versioned, so a reader
-that reads the version byte first and one that checks the length first pass
-the same vectors.
+non-empty buffer offered to one of these readers that is too short for every
+version that reader recognises, and whose first byte is also not one of those
+versions, fails the short-buffer check and the version check at once. This page fixes no order
+between those two checks, so a reader may refuse that buffer as short or
+malformed or as a wrong version, and which of the two it reports is left to
+the implementation (error-handling.md, What is left to an implementation).
+Either is a conforming refusal; accepting the buffer is not. An empty buffer
+has no version byte and is short.
+
+That freedom is only for this overlap. A recognised version byte followed by
+too few bytes is short or malformed. An unknown version byte on a buffer long
+enough for any recognised version's fixed fields is a wrong version. Trailing
+bytes, declared lengths that overrun the input, nested state refusals, and
+semantic rules keep the refusal kind stated by their own clauses; they are not
+normalised by this paragraph. The affected persisted formats are:
+
+| Format | Recognised version bytes | Short buffer with unknown version | Empty buffer | Long enough buffer with unknown version |
+| --- | --- | --- | --- | --- |
+| Ratchet state | `0x01` | `wrong-version` or `short-or-malformed` | `short-or-malformed` | `wrong-version` |
+| Sparse ratchet state | `0x01` | `wrong-version` or `short-or-malformed` | `short-or-malformed` | `wrong-version` |
+| Triple ratchet state | `0x01` | `wrong-version` or `short-or-malformed` | `short-or-malformed` | `wrong-version` |
+| Braid state | `0x01` | `wrong-version` or `short-or-malformed` | `short-or-malformed` | `wrong-version` |
+| Session state | `0x01` | `wrong-version` or `short-or-malformed` | `short-or-malformed` | `wrong-version` |
+| Prekey store | `0x01`, `0x02`, `0x03`, `0x04` | `wrong-version` or `short-or-malformed` | `short-or-malformed` | `wrong-version` |
+
+The vectors pin neither refusal for the overlap: no vector offers a reader a
+buffer that is both too short and wrongly versioned, so a reader that reads the
+version byte first and one that checks the length first pass the same vectors.
+The independent reader's rejection cases check the table directly and accept
+both refusals only for the overlap.
 
 ## Sources
 

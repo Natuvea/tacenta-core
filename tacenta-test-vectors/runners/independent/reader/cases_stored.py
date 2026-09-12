@@ -5,8 +5,9 @@ persisted-state vector files do not pin.
 - Stored curve public keys: which reader refuses each, and as what (SK-01 to
   SK-06).
 - The initiator's own canonical check of a bundle (SK-07).
-- Rejection: a short buffer with an unknown version, and the empty buffer
-  (RJ-01).
+- Rejection: the format-by-format short-buffer/unknown-version overlap,
+  the empty buffer, recognised-version truncation and long enough unknown
+  versions (RJ-01).
 - The Braid key pair's load check in tags 1 to 4 (BK-01).
 - "Being inductive": every state the operations produce, up to and at each
   counter's ceiling, is one its reader accepts (IN-01, IN-02).
@@ -257,8 +258,8 @@ def _short_unknown_formats():
     ]
 
 
-@case("RJ-01 a buffer too short for its fixed fields whose version byte is unknown is refused, as either wrong version or short or malformed, never accepted and never as anything else, in every versioned format; with a known version the same buffer is short or malformed; the empty buffer has no version byte and is short; a long enough buffer with an unknown version is a wrong version",
-      f"{SP} Rejection: A short buffer with an unknown version may be refused as either ... Either is a conforming refusal; accepting the buffer is not. An empty buffer has no version byte and is short")
+@case("RJ-01 a buffer too short for every recognised version of a persisted format whose first byte is unknown is refused, as either wrong version or short or malformed, never accepted and never as anything else, in each tabled format; with a known version the same buffer is short or malformed; the empty buffer has no version byte and is short; a long enough buffer with an unknown version is a wrong version",
+      f"{SP} Rejection: A short buffer with an unknown version may be refused as either ... The affected persisted formats are")
 def _():
     for name, reader, raw, fixed, unknown in _short_unknown_formats():
         e = rejects(reader, b"", exc=P.PersistError)
