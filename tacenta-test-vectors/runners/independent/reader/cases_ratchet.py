@@ -156,6 +156,17 @@ def _():
     assert b.events == ev
 
 
+@case("CR-20 at Nr = u32::MAX, a same-chain unstored lower message is refused as either OutOfOrder or ChainExhausted, never accepted; CR-02 pins the adjacent message number u32::MAX as ChainExhausted and CR-04 pins the adjacent stale case below the ceiling as OutOfOrder",
+      f"{RM} Sending and receiving: If Nr is already u32::MAX and the same-chain message's number is below it ... Either refusal is conforming, and accepting the message is not")
+def _():
+    b, _, _ = _recv(_bob(), K1, 0, 0)
+    b.nr = K.U32_MAX
+    before = b.clone()
+    e = rejects(_recv, b, K1, 0, K.U32_MAX - 1, exc=ratchet.RatchetError)
+    assert isinstance(e, (ratchet.OutOfOrder, ratchet.ChainExhausted)), type(e).__name__
+    assert b.__dict__ == before.__dict__
+
+
 # =================================================================== sparse
 
 def _pair(sk=b"\x07" * 32):
