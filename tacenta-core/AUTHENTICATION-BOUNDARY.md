@@ -141,6 +141,7 @@ compare, refusing a non-canonical spelling (CR-18).
 | function | how |
 |---|---|
 | `tacenta-core/src/sessions/lifecycle.rs::PrekeyStore::from_bytes` | decodes a persisted prekey store; v3 re-encode-and-compare backstop. |
+| `tacenta-core/src/sessions/lifecycle.rs::PrekeyStore::signatures_verify` | the fifth semantic rule of the stored prekey store (session-persistence.md, Prekey store, Semantic rules): every stored signature verifies under `identity_public`. Takes `&self`, returns a `bool`, and commits nothing. Reached only through `from_bytes`, and only after the four cheap rules have passed, so a store that fails those is refused before any signature is verified -- the work is bounded by a store the decoder already accepted structurally, not by whatever an attacker wrote. |
 | `tacenta-core/src/sessions/lifecycle.rs::PendingInitial::from_bytes` | private sub-decoder for the pending-initial field of a `Session`; reached only through `Session::import`. |
 | `tacenta-core/src/sessions/lifecycle.rs::Session::import` | decodes a persisted session; re-encodes and compares before returning. |
 | `tacenta-core/src/sessions/lifecycle.rs::Session::import_unchecked` | the nested decode `import` wraps; private, and only `import` calls it, so the canonicality check is never bypassed. |
