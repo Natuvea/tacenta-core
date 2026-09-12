@@ -491,21 +491,36 @@ generate vectors from, and they remain covered by `tacenta-core`'s round-trip
 and refusal tests and its fuzz targets.
 
 **And one rule of a format that is otherwise covered: the Braid's `key_pair`
-content check in tags 1 to 4.** The page requires the `header` and
-`ek_vector` that a stored `key_pair` holds to pass the KEM split's
-validation. Where those two sit inside the 11,872 bytes is
-`libcrux-ml-kem` 0.0.10's layout, which the page does not define and ADR-0006,
-point 5, delegates. So `Model.PersistedState.BraidState` checks that field's
-length and nothing inside it, and for those four tags it accepts states
+content clause in tags 1 to 4. No vector can pin it, and the reason is the
+rule's own scope.** The page requires the `header` and `ek_vector` that a
+stored `key_pair` holds to pass the KEM split's validation, and scopes that
+clause to an implementation that knows the key pair's layout. Where those two
+sit inside the 11,872 bytes is `libcrux-ml-kem` 0.0.10's layout, which the
+page does not define and ADR-0006, point 5, delegates.
+
+A vector states one verdict that every conforming implementation must reach.
+This clause has no such verdict. Offer a stored state in one of these tags
+whose key pair fails the validation, and a reader inside the scope refuses it
+while a reader outside accepts it on its length -- **both conforming**. So the
+vector would pin a disagreement rather than a rule. Nor can a vector pin the
+accepting side: producing a key pair that *passes* the validation means
+producing the library's serialisation, which is what the page delegates, and
+`Model.PersistedState.BraidState` cannot build one.
+
+What is pinned is the part every implementation must apply, the field's
+length: `key-pair-wrong-length`. Beyond that, `BraidState` checks the field's
+length and accepts it -- which is what the page asks of a reader outside the
+scope, so the model conforms -- and for those four tags it accepts states
 `tacenta-braid` refuses. The consequence is recorded rather than papered over:
 no accepted vector in `braid-state.json` carries a `key_pair` -- tags 1 to 4
 appear only at a length both readers refuse -- the differential harness
 generates none either, and `runners/rust/tests/persistence.rs` asserts that no
 accepted vector has one of those tags, so a later change cannot quietly add
-one. The rule itself is implemented in `tacenta-braid` and carried by that
-crate's own tests (`braid/src/tests.rs`, the key-pair hash and modulus cases).
-The independent reader records the same gap as `GAPS-5.md`'s G5-02, where it
-had to use its own KEM test double's layout to implement the rule at all.
+one. The clause itself is implemented in `tacenta-braid`, which has the
+layout, and carried by that crate's own tests (`braid/src/tests.rs`, the
+key-pair hash and modulus cases). Scoping the rule is what closed the
+independent reader's `GAPS-5.md`, G5-02, where the reader had to use its own
+KEM test double's layout to implement it at all.
 
 Two points of the two ratchets' states. A buffer too short for its fixed
 fields whose version byte is not `0x01`: the page leaves its refusal to the
@@ -567,15 +582,18 @@ nothing about the ones it does not.
   operation returns; `vectors/ratchet/double-ratchet.json` pins those.
 - **The session and the prekey store.** The model states no stored format for
   them, so there is no state to compare by.
-- **Most of the Braid's state machine, and the `key_pair` content rule of its
-  tags 1 to 4.** Both need the KEM layout the page delegates (ADR-0006, point
-  5), which neither side of the harness can build: every transition but the
-  two out of `Ct2Sampled` consumes a key pair or an encapsulation state, and
-  the tag 1 to 4 rule reads inside one. The harness generates those four tags
-  only at a `key_pair` length both readers refuse, since generating a
-  well-formed one would be generating a disagreement it is not entitled to
-  report as a finding. Session persistence, Not covered, says what carries
-  that rule instead.
+- **Most of the Braid's state machine, and the `key_pair` content clause of
+  its tags 1 to 4.** Both need the KEM layout the page delegates (ADR-0006,
+  point 5), which neither side of the harness can build: every transition but
+  the two out of `Ct2Sampled` consumes a key pair or an encapsulation state,
+  and the tag 1 to 4 clause reads inside one. The page scopes that clause to
+  an implementation that has the layout, so the model, which does not, checks
+  the field's length and accepts it and conforms, while `tacenta-braid` checks
+  the content as well. The two sides may therefore differ on such a state
+  without either being wrong, and a difference both are entitled to is not a
+  finding this harness can report. It generates those four tags only at a
+  `key_pair` length both readers refuse. Session persistence, Not covered,
+  says why no vector can pin the clause either.
 - **The store's total bound**, `MAX_SKIPPED_STORE`, which would mean deriving
   thousands of message keys in the model's own SHA-256 and re-reading a state
   holding them at every later step. Its refused side is pinned by the
