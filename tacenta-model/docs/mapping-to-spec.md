@@ -52,12 +52,16 @@ imported by the vector generator, the axiom audit and
 The field arithmetic and the interpolation beneath it are `Model/Gf65536.lean`
 and `Model/Polynomial.lean` (`interp`).
 
-## The ratchets' persisted states
+## The persisted states
 
 Source page: `tacenta-spec/protocol/session-persistence.md`.
-`Model/PersistedState.lean` is imported by the vector generator and the axiom
-audit only. Its states are `Model/State.lean`'s and `Model/SparseRatchet.lean`'s,
-with no field added.
+`Model/PersistedState.lean` is imported by the vector generator, the
+differential harness and the axiom audit. Three of its four states are the
+ones the operations run on, with no field added: `Model/State.lean`'s,
+`Model/SparseRatchet.lean`'s and `Model/Triple.lean`'s. The Braid's is its
+own, because the stored format's erasure coders are `Model/Erasure.lean`'s
+byte-level ones where `Model/Braid.lean` holds the code at its contract, and
+because two of its fields have no model at all (below).
 
 | Spec section | Model definition | File |
 |---|---|---|
@@ -65,8 +69,12 @@ with no field added.
 | Sparse ratchet state | `SparseState.toBytes`, `SparseState.ofBytes`, `directionByte`/`readDirection`, `chainBytes`/`readChain`, `chainsEntryBytes`/`readChainsEntry`, `skippedBytes`/`readSkipped` | `Model/PersistedState.lean` |
 | Semantic rules of the leaf formats, Ratchet state; Stored curve public keys | `RatchetState.invariant`, `RatchetState.keysCanonical` (with `Model.Messages.canonicalKey`) | `Model/PersistedState.lean` |
 | Semantic rules of the leaf formats, Sparse ratchet state | `SparseState.invariant`, `SparseState.satAdd` | `Model/PersistedState.lean` |
+| Triple ratchet state | `TripleState.toBytes`, `TripleState.ofBytes`, `lenPrefixed`/`readLenPrefixed` | `Model/PersistedState.lean` |
+| Semantic rules of the leaf formats, Triple ratchet state | `TripleState.invariant`, `TripleState.rolesAgree`, `TripleState.startedAsSender` | `Model/PersistedState.lean` |
+| Braid (the tag table, the epoch, the authenticator, the length-prefixed fields) | `BraidState.toBytes`, `BraidState.ofBytes`, `FieldKind`, `kindsOfNat`/`fieldKinds`, `fieldOk`, `readFields`, `BraidState.largestEpoch` | `Model/PersistedState.lean` |
+| Semantic rules of the leaf formats, Braid | `BraidState.invariant`, `BraidState.fieldsOk` (every rule but the `key_pair` content check of tags 1 to 4, below) | `Model/PersistedState.lean` |
 | Rejection: "wrong version" and "short or malformed" | `Refusal` | `Model/PersistedState.lean` |
-| Principles, Canonical and length-prefixed; Validated, not only parsed | `RatchetState.ofBytes_toBytes`, `SparseState.ofBytes_toBytes` (a state that keeps the rules and fits its fields reads back from its bytes); `RatchetState.ofBytes_ok`, `SparseState.ofBytes_ok` (a state a reader accepts keeps the rules, fits its fields, and is written as the bytes it was read from) | `Model/PersistedState.lean` |
+| Principles, Canonical and length-prefixed; Validated, not only parsed | `RatchetState.ofBytes_toBytes`, `SparseState.ofBytes_toBytes`, `TripleState.ofBytes_toBytes`, `BraidState.ofBytes_toBytes` (a state that keeps the rules and fits its fields reads back from its bytes); `RatchetState.ofBytes_ok`, `SparseState.ofBytes_ok`, `TripleState.ofBytes_ok`, `BraidState.ofBytes_ok` (a state a reader accepts keeps the rules, fits its fields, and is written as the bytes it was read from) | `Model/PersistedState.lean` |
 
 One point the page leaves to the implementation, so no vector depends on it.
 A buffer too short for its fixed fields whose version byte is not `0x01` is
@@ -86,16 +94,36 @@ clock at `u32::MAX - 1` (`Model.State.maxEvents`);
 and the persistence vectors pin each ceiling.
 
 The Braid's model stops at the epoch ceiling mlkem-braid.md (Failure) and
-session-persistence.md (Principles) state, though the model states no Braid
-stored format: `Model.Braid.receive` refuses, in transitions (5) and (13), the
-step onto epoch `u64::MAX` and goes to `failed` (`Model.Braid.u64Max`). In
-`EkSentCt1Received` it refuses when `ct2` completes, before decapsulating; in
-`Ct2Sampled`, before reading the message. The range lemmas are
-`Model.Braid.receive_epoch_lt`, `Model.Braid.receive_advance_lt` and
-`Model.Braid.receive_output_epoch_lt`, and the two refusals are
-`Model.Braid.receive_ct2Sampled_at_ceiling` and
-`Model.Braid.receive_ekSentCt1Received_at_ceiling`. No vector pins this
-ceiling, because no vector file holds a Braid state.
+session-persistence.md (Principles) state: `Model.Braid.receive` refuses, in
+transitions (5) and (13), the step onto epoch `u64::MAX` and goes to `failed`
+(`Model.Braid.u64Max`). In `EkSentCt1Received` it refuses when `ct2`
+completes, before decapsulating; in `Ct2Sampled`, before reading the message.
+The range lemmas are `Model.Braid.receive_epoch_lt`,
+`Model.Braid.receive_advance_lt` and `Model.Braid.receive_output_epoch_lt`,
+and the two refusals are `Model.Braid.receive_ct2Sampled_at_ceiling` and
+`Model.Braid.receive_ekSentCt1Received_at_ceiling`.
+
+The stored format is what makes that ceiling pinnable, and both halves of it
+are now pinned. The reader's half is `BraidState.ofBytes` refusing a stored
+epoch of `u64::MAX`. The transitions' half is driven from stored bytes through
+the model's own `receive`: `Model.Braid.receive_ct2Sampled_steps` and
+`receive_ct2Sampled_at_ceiling` say that the two transitions out of
+`Ct2Sampled` read the stored epoch and the message and nothing else -- neither
+the KEM nor the encoder the state holds -- so `BraidState.toCt2Sampled` and
+`BraidState.ofBraid` can put a stored state back into the machine and take its
+answer out again. That is the one place a stored Braid can be run, and it is
+enough for the ceiling.
+
+**What the Braid's model does not state, and why.** For tags 1 to 4 the page
+also requires the `header` and `ek_vector` inside the stored `key_pair` to
+pass the KEM split's validation. Where those two sit inside the 11,872 bytes
+is `libcrux-ml-kem`'s layout, which the page does not define and ADR-0006,
+point 5, delegates. `BraidState.fieldOk` therefore checks `key_pair`'s length
+and nothing inside it, so for those four tags the model accepts states
+`tacenta-braid` refuses. No vector generated here accepts one and the
+differential harness offers none; the conformance manifest and `ASSURANCE.md`
+record the gap. `encaps`, by contrast, is checked for its length and nothing
+else by the page itself, so tags 7 to 9 are modelled in full.
 
 ## Scope held to the spec
 

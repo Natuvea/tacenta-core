@@ -33,11 +33,12 @@ Two kinds live here:
   - `vectors/persistence/`: the persisted formats the model states, with the
     stored bytes their readers refuse: the erasure encoder's and decoder's
     (`erasure-encoder-state.json`, `erasure-decoder-state.json`, from
-    `Model.Erasure`), and the classical and sparse ratchets' states
-    (`ratchet-state.json`, `sparse-ratchet-state.json`, from
-    `Model.PersistedState`), whose refused vectors also name the refusal.
-    Checked by `runners/rust/tests/persistence.rs`. Layout: Vector layouts,
-    below.
+    `Model.Erasure`), and the classical ratchet's, the sparse ratchet's, the
+    Triple Ratchet's and the ML-KEM Braid's states (`ratchet-state.json`,
+    `sparse-ratchet-state.json`, `triple-ratchet-state.json`,
+    `braid-state.json`, from `Model.PersistedState`), whose refused vectors
+    also name the refusal. Checked by `runners/rust/tests/persistence.rs`.
+    Layout: Vector layouts, below.
   - `vectors/aead/`: the authenticated encryption, both directions, with its
     refusals, checked by `runners/rust/tests/aead.rs`. Generated like the
     others, but the model has no AES: the generator computes the padding, the
@@ -218,6 +219,73 @@ Two things no vector here pins.
 - **A store of exactly `MAX_SKIPPED_STORE` keys.** 2,001 keys are refused in
   both files, but the accepted side of the bound is not pinned, since its
   vector would be about 290 kilobytes.
+
+### The Triple Ratchet's state: `vectors/persistence/triple-ratchet-state.json`
+
+The page is session-persistence.md, Triple ratchet state, its entry under
+Semantic rules of the leaf formats, and Rejection. The two shapes are the
+ratchets' above.
+
+- **Built by operations**, when the inputs include `steps`. A new state is
+  named by `role`, `00` the party that sends first and `01` the party that
+  receives first, from `sk` and `our_pub` (and, for `00`, `peer_pub` and
+  `dh_out`); or the operations start from `start`, stored bytes the reader
+  accepts. `steps` is the operations back to back:
+  - `00` is a send, followed by `sending_epoch(8)` and the agreement's output;
+  - `01` is a receive, followed by the classical header's `dh(32) || pn(4) ||
+    n(4)`, the step's `dh_recv(32) || dh_send(32) || new_pub(32)`, the sparse
+    half's `epoch(8) || pq_n(8)`, and the output.
+
+  An output is `output_present(1) || output_epoch(8) || output_key(32)`,
+  zeroed when absent, as in `sparse-ratchet-state.json`. `output` is the
+  stored bytes of the state reached.
+- **Stored bytes**, when the one input is `bytes`. A valid vector's `fields`
+  are `classical` and `post_quantum`, each half's own stored bytes; laid out
+  as `version || len(4) || classical || len(4) || post_quantum` they are the
+  input. An invalid vector's `refusal` is `wrong-version` for a first byte
+  other than `0x01` and `short-or-malformed` for everything else -- including
+  a half whose *own* version byte its own reader does not recognise, which is
+  not passed through (session-persistence.md, Triple ratchet state).
+
+### The Braid's state: `vectors/persistence/braid-state.json`
+
+The page is session-persistence.md, Braid, its entry under Semantic rules of
+the leaf formats, and Rejection.
+
+- **Stored bytes**, when the one input is `bytes`. A valid vector's `fields`
+  are `state_tag`, and for every live state `epoch`, `auth` and `fields`; laid
+  out as `version || state_tag || epoch || auth || fields` they are the input.
+  `fields` is the tag's own fields, each `len(4) || bytes`, back to back.
+  `Failed` (tag 11) carries only `state_tag`: the format writes no epoch, no
+  authenticator and no field for it.
+- **Built by operations**, when the inputs are `start` and `steps`. Each step
+  is one received Braid message, `epoch(8) || type(1) || chunk_present(1) ||
+  chunk_index(2) || chunk(32)`, the type byte being `AgreementType`'s
+  (CONSTANTS.md). `output` is the stored bytes of the state reached.
+
+**Only two transitions are driven, and the reason is the reason tags 1 to 4
+have no accepted vector.** `key_pair` (11,872 bytes) and `encaps` (2,592) are
+`tacenta-kem`'s own serialisations, whose layout the page delegates to
+`libcrux-ml-kem` (ADR-0006, point 5). The page has a reader validate the
+`header` and `ek_vector` *inside* a stored `key_pair`, and finding them needs
+that layout, so `Model.PersistedState` checks the field's length and nothing
+inside it and therefore accepts key pairs `tacenta-braid` refuses. So:
+
+- tags 1 to 4, which carry a `key_pair`, appear only in refusals, at a length
+  both readers refuse;
+- tags 7 to 9, which carry an `encaps`, are pinned in full, because checking
+  `encaps`'s length and nothing else is the whole of the page's rule for it;
+- tags 0, 5, 6, 10 and 11 carry neither and are pinned in full;
+- the state machine is reached only from `Ct2Sampled`, whose two transitions
+  read the stored epoch and the message and nothing else. Those are the
+  `ct2-sampled-*` vectors, and they are what pin the Braid's epoch ceiling
+  from the transitions' side; `epoch-u64-max` pins it from the reader's.
+
+What no vector in this file pins, then, is **the `key_pair` content rule of
+tags 1 to 4**. It is stated on the page, implemented in `tacenta-braid`, and
+carried by that crate's own tests; no model states it and no vector here
+reaches it.
+
 ### The protobuf profile: `vectors/protobuf/`
 
 The page is protobuf-profile.md.
@@ -297,8 +365,8 @@ shows up (ADR-0008, practice 9). It has two halves:
   nothing and checks nothing.
 - `runners/rust/tests/differential.rs`, which generates the sequences from a
   seed, blind to what either side will answer, sends them to that executable,
-  replays the same operations on `tacenta-ratchet` and `tacenta-spqr`, and
-  compares the two transcripts.
+  replays the same operations on `tacenta-ratchet`, `tacenta-spqr`,
+  `tacenta-triple` and `tacenta-braid`, and compares the two transcripts.
 
 The operations are encoded exactly as the `steps` input of the two
 ratchet-state files above, so a sequence here means what a sequence there
@@ -330,9 +398,22 @@ from either implementation.
 
 - **Message keys.** The harness compares states, not the keys an operation
   returns; `vectors/ratchet/double-ratchet.json` pins those.
-- **The Braid, the Triple Ratchet, the session and the prekey store.** The
-  model states no stored format for them, so there is nothing to compare
-  states by, and no generated sequence drives them.
+- **The session and the prekey store.** The model states no stored format for
+  them, so there is nothing to compare states by, and no generated sequence
+  drives them.
+- **Most of the Braid's state machine.** The Triple Ratchet is driven through
+  generated sequences like the two ratchets, and the Braid's *decoder* is
+  driven on generated stored states. Its transitions are reached only from
+  `Ct2Sampled`, whose two -- transition (13) and the refusal at the reserved
+  epoch -- read the stored epoch and the message and nothing else. Every other
+  transition consumes a KEM key pair or encapsulation state, whose layout the
+  page delegates, so neither side of the harness can build one.
+- **The `key_pair` content rule of the Braid's tags 1 to 4.** For the same
+  reason, the model checks that field's length and nothing inside it, so it
+  accepts key pairs `tacenta-braid` refuses. The harness generates tags 1 to 4
+  only at a length both readers refuse: generating a well-formed one would be
+  generating a disagreement the harness is not entitled to report as a
+  finding.
 - **The store's total bound.** Reaching `MAX_SKIPPED_STORE` means deriving
   thousands of message keys in the model's Lean SHA-256 and then reading a
   state holding them back at every later step. The refused side of the bound
@@ -350,8 +431,10 @@ Running it needs the model built, as regenerating the vectors does:
     (cd tacenta-test-vectors/runners/rust && cargo test --locked --test differential -- --nocapture)
 
 The bounded run, which `tooling/ci.sh` and the CI vectors job run, is 48
-sequences per ratchet of up to 20 operations each from a fixed seed: 1,920
-steps and 384 corrupted imports, about ten seconds. The seed and the sequence
+sequences per algorithm of up to 20 operations each from a fixed seed: about
+2,900 steps for the two ratchets and 960 for the Triple Ratchet, 384 corrupted
+ratchet imports, 192 Triple Ratchet imports, 55 Braid imports and the Braid's
+three `Ct2Sampled` steps, in about ten seconds. The seed and the sequence
 count are printed, so a failure is reproducible, and a failing seed prints the
 shortest sequence that still disagrees along with both sides' bytes. A longer
 run is
@@ -421,12 +504,12 @@ hand-authored, as above.
 
 Primitives, the Double Ratchet, PQXDH session establishment, the post-quantum
 derivations, the erasure code, serialization, the protobuf profile, the
-AEAD, the erasure coders' persisted formats, the classical and sparse
-ratchets' persisted states, and malformed input all have vectors; see the
-directory list above and `conformance-manifest.md` for exactly what each
-covers and what it excludes. The other persisted formats (triple ratchet,
-Braid, session, prekey store) have none, because the model states none of
-them.
+AEAD, the erasure coders' persisted formats, the classical ratchet's, the
+sparse ratchet's, the Triple Ratchet's and the Braid's persisted states, and
+malformed input all have vectors; see the directory list above and
+`conformance-manifest.md` for exactly what each covers and what it excludes.
+The session's and the prekey store's persisted formats have none, because the
+model states neither.
 
 Files with refusals mark them `result: invalid`. The one exception is
 `erasure-decode.json`, whose invalid vectors are decoders that hold no value
@@ -435,16 +518,24 @@ an invalid vector also names its `refusal`. A decoder's accepted vector
 may carry `fields`, the named values its input decodes to, in place of
 `output` (`schema/vector.schema.json`).
 
-What the **vector files** still do not cover is the **state machines**: no
-vector drives the Braid or the sparse ratchet through a scenario the way the
-Double Ratchet's vectors do. For the two ratchets that gap is now covered by
-the differential harness above as well as by proof, since it drives both
-through generated sequences and compares every step against the model; for all
-three crates it is covered by proof (T1 and T3 on each), which the conformance
-manifest states in those terms. The Braid has neither: no vector file holds a
-Braid state and no generated sequence drives it, so its epoch ceiling, which
-`Model.Braid` states and `tacenta-braid` keeps, is pinned by neither and rests
-on the proofs and the crate's own tests. Sender keys are not yet scheduled.
+What the **vector files** still do not cover in full is the **state
+machines**: no vector drives the Braid or the sparse ratchet through a
+scenario the way the Double Ratchet's vectors do. For the two ratchets and the
+Triple Ratchet that gap is now covered by the differential harness above as
+well as by proof, since it drives each through generated sequences and
+compares every step against the model; for all of the crates it is covered by
+proof (T1 and T3 on each), which the conformance manifest states in those
+terms.
+
+The Braid is the partial case, and the line is worth stating exactly. Its
+epoch ceiling, which `Model.Braid` states and `tacenta-braid` keeps, **is now
+pinned from both sides**: `braid-state.json`'s `epoch-u64-max` pins the
+reader's refusal of the reserved epoch, and its two `ct2-sampled-*` vectors
+drive the two transitions that meet the ceiling, which the harness drives too.
+What is still pinned by neither is the rest of the Braid's state machine and
+the `key_pair` content rule of tags 1 to 4, both for the same reason: they
+need the KEM layout the page delegates. Those rest on the proofs and the
+crate's own tests. Sender keys are not yet scheduled.
 
 ## Trademarks and non-affiliation
 

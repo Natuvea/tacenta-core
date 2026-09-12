@@ -2135,6 +2135,21 @@ that assembly possible.
   translation it needs is in place, and it depends on the same Mathlib-backed
   Lean environment as T1. The vectors generated from the model give byte-level
   conformance evidence across the boundary it does not close.
+- **The Braid's model accepts stored states `tacenta-braid` refuses, in tags 1
+  to 4, and this is deliberate.** `session-persistence.md` requires the
+  `header` and `ek_vector` inside a stored `key_pair` to pass the KEM split's
+  validation. Where those sit inside the field's 11,872 bytes is the KEM
+  library's layout, which the page does not define and ADR-0006, point 5,
+  delegates. So `Model.PersistedState.BraidState` checks that field's length
+  and nothing inside it, and for those four tags it is weaker than the crate.
+  The gap is contained rather than hidden: no accepted vector in
+  `braid-state.json` carries one of those tags, `runners/rust/tests/persistence.rs`
+  asserts that, and the differential harness offers those tags only at a length
+  both sides refuse. Whether the page should state the positions, scope the rule
+  to implementations using that library, or drop the check is an open decision
+  (the independent reader's `GAPS-5.md`, G5-02). Every other rule of the Braid's
+  stored format, and the whole of the triple ratchet state's, is modelled.
+
 - The security properties are formalised against a symbolic attacker and not
   against a computational one, which the forward-secrecy section above states in
   full.

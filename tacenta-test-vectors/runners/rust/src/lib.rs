@@ -387,6 +387,11 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
         // state, Sparse ratchet state, Semantic rules of the leaf formats).
         "ratchet-state" => check_ratchet_state(v),
         "sparse-ratchet-state" => check_sparse_ratchet_state(v),
+        // The Triple Ratchet's state, which composes the two above, and the
+        // ML-KEM Braid's (session-persistence.md, Triple ratchet state;
+        // Braid; Semantic rules of the leaf formats).
+        "triple-ratchet-state" => check_triple_ratchet_state(v),
+        "braid-state" => check_braid_state(v),
         // The bounded protobuf profile's two readers (protobuf-profile.md).
         "protobuf-ratchet-body" => check_ratchet_body(v),
         "protobuf-prekey-envelope" => check_prekey_envelope(v),
@@ -976,6 +981,290 @@ fn sparse_fields_agree(
                 "epoch {epoch}'s receiving chain differs from the vector's"
             ));
         }
+    }
+    Ok(())
+}
+
+/// An agreement output as the persisted-state steps write one:
+/// `output_present(1) || output_epoch(8) || output_key(32)`, zeroed when
+/// absent.
+fn step_output(r: &[u8]) -> Result<Option<tacenta_triple::Output>, String> {
+    match r[0] {
+        0x00 => Ok(None),
+        0x01 => Ok(Some(tacenta_triple::Output::new(
+            be64(&r[1..9])?,
+            array32(&r[9..41])?,
+        ))),
+        other => Err(format!("output presence {other:#04x}")),
+    }
+}
+
+/// A triple-ratchet-state vector's steps, replayed on `state`. `00` is a send,
+/// followed by `sending_epoch(8)` and the agreement's output; `01` is a
+/// receive, followed by the classical header's `dh(32) || pn(4) || n(4)`, the
+/// step's `dh_recv(32) || dh_send(32) || new_pub(32)`, the sparse half's
+/// `epoch(8) || pq_n(8)`, and the output. A receive returns a candidate state
+/// the caller commits, so this commits it, which is what the session layer
+/// does once the message has authenticated.
+fn replay_triple_steps(
+    state: &mut tacenta_triple::State,
+    steps: &[u8],
+) -> Result<Replayed, String> {
+    use tacenta_triple::{DrHeader, Header};
+    let mut at = 0;
+    let mut i = 0;
+    while at < steps.len() {
+        let taken = match steps[at] {
+            0x00 => {
+                let r = steps
+                    .get(at + 1..at + 50)
+                    .ok_or_else(|| format!("step {i}: a send step cut short"))?;
+                let epoch = be64(&r[0..8])?;
+                let out = step_output(&r[8..49])?;
+                at += 50;
+                state.send(epoch, out.as_ref()).map(|_| ())
+            }
+            0x01 => {
+                let r = steps
+                    .get(at + 1..at + 194)
+                    .ok_or_else(|| format!("step {i}: a receive step cut short"))?;
+                let header = Header {
+                    dr: DrHeader {
+                        dh: array32(&r[0..32])?,
+                        pn: be32(&r[32..36])?,
+                        n: be32(&r[36..40])?,
+                    },
+                    epoch: be64(&r[136..144])?,
+                    pq_n: be64(&r[144..152])?,
+                };
+                let out = step_output(&r[152..193])?;
+                let dh_recv = array32(&r[40..72])?;
+                let dh_send = array32(&r[72..104])?;
+                let new_pub = array32(&r[104..136])?;
+                at += 194;
+                match state.receive(&header, &dh_recv, &dh_send, new_pub, out.as_ref()) {
+                    Ok((next, _key)) => {
+                        state.commit(next);
+                        Ok(())
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+            other => return Err(format!("step {i}: unknown operation {other:#04x}")),
+        };
+        if let Err(e) = taken {
+            return Ok(Replayed::Refused {
+                index: i,
+                last: at == steps.len(),
+                // No vector names a refused Triple Ratchet operation, so any
+                // refusal is reported as the error it was rather than mapped.
+                refusal: format!("{e:?}"),
+            });
+        }
+        i += 1;
+    }
+    Ok(Replayed::Taken)
+}
+
+/// A Triple Ratchet state's stored bytes, the same two ways as
+/// `check_ratchet_state`: built from `role` and the initialisation parameters,
+/// or from `start`, then `steps`; or offered as `bytes` to the reader.
+fn check_triple_ratchet_state(v: &Vector) -> Result<(), String> {
+    use tacenta_triple::{LabelSet, State, TripleDecodeError};
+    if v.inputs.contains_key("bytes") {
+        let stored = input(v, "bytes")?;
+        return match (expects_success(v)?, State::from_bytes(&stored)) {
+            (true, Ok(state)) => {
+                eq(&state.to_bytes(), &stored)?;
+                triple_fields_agree(v, &stored)
+            }
+            (true, Err(e)) => Err(format!("refused ({e:?}) stored bytes the vector accepts")),
+            (false, Ok(_)) => Err("accepted stored bytes the vector refuses".to_string()),
+            (false, Err(e)) => refusal_is(
+                v,
+                match e {
+                    TripleDecodeError::UnknownVersion => "wrong-version",
+                    TripleDecodeError::TooShort | TripleDecodeError::Malformed => {
+                        "short-or-malformed"
+                    }
+                },
+            ),
+        };
+    }
+    let mut state = if v.inputs.contains_key("start") {
+        State::from_bytes(&input(v, "start")?)
+            .map_err(|e| format!("refused ({e:?}) the start state the vector gives"))?
+    } else {
+        let sk = input(v, "sk")?;
+        let our_pub = array32(&input(v, "our_pub")?)?;
+        match input(v, "role")?.as_slice() {
+            [0x00] => State::init_sender(
+                &sk,
+                our_pub,
+                array32(&input(v, "peer_pub")?)?,
+                &array32(&input(v, "dh_out")?)?,
+                LabelSet::Tacenta,
+            ),
+            [0x01] => State::init_receiver(&sk, our_pub, LabelSet::Tacenta),
+            other => return Err(format!("unknown role {}", hex::encode(other))),
+        }
+    };
+    if !replay_verdict(v, replay_triple_steps(&mut state, &input(v, "steps")?)?)? {
+        return Ok(());
+    }
+    let stored = state.to_bytes();
+    eq(&stored, &bytes(&v.output)?)?;
+    let back = State::from_bytes(&stored)
+        .map_err(|e| format!("the reader refuses ({e:?}) what the writer wrote"))?;
+    eq(&back.to_bytes(), &stored)
+}
+
+/// An accepted Triple Ratchet state against the vector's `fields`: the two
+/// halves, each length-prefixed, laid out as the page lays them out are the
+/// stored bytes, and each half is one its own reader accepts. That last part
+/// is what leaves the composition's own rule as the only thing this format
+/// adds.
+fn triple_fields_agree(v: &Vector, stored: &[u8]) -> Result<(), String> {
+    fields_named(v, &["classical", "post_quantum"])?;
+    let classical = required_field(v, "classical")?;
+    let post_quantum = required_field(v, "post_quantum")?;
+    let laid_out = [
+        &[0x01][..],
+        &u32::try_from(classical.len())
+            .map_err(|_| "the classical half is too long".to_string())?
+            .to_be_bytes(),
+        &classical,
+        &u32::try_from(post_quantum.len())
+            .map_err(|_| "the post_quantum half is too long".to_string())?
+            .to_be_bytes(),
+        &post_quantum,
+    ]
+    .concat();
+    eq(&laid_out, stored).map_err(|e| format!("fields laid out: {e}"))?;
+    tacenta_core::ratchet::State::from_bytes(&classical)
+        .map(|_| ())
+        .map_err(|e| format!("the classical half is refused by its own reader: {e:?}"))?;
+    tacenta_spqr::State::from_bytes(&post_quantum)
+        .map(|_| ())
+        .map_err(|e| format!("the post_quantum half is refused by its own reader: {e:?}"))
+}
+
+/// One received Braid message, as the vectors write it: `epoch(8) ||
+/// type(1) || chunk_present(1) || chunk_index(2) || chunk(32)`, the type
+/// byte being `AgreementType`'s (CONSTANTS.md).
+fn braid_message(r: &[u8]) -> Result<tacenta_braid::Msg, String> {
+    use tacenta_braid::{Msg, MsgType};
+    let ty = match r[8] {
+        0x00 => MsgType::None,
+        0x01 => MsgType::Hdr,
+        0x02 => MsgType::Ek,
+        0x03 => MsgType::EkCt1Ack,
+        0x04 => MsgType::Ct1,
+        0x05 => MsgType::Ct2,
+        other => return Err(format!("unknown agreement type {other:#04x}")),
+    };
+    let data = match r[9] {
+        0x00 => None,
+        0x01 => Some(tacenta_erasure::Chunk {
+            index: u16::from_be_bytes([r[10], r[11]]),
+            data: r[12..44]
+                .try_into()
+                .map_err(|_| "codeword data".to_string())?,
+        }),
+        other => return Err(format!("chunk presence {other:#04x}")),
+    };
+    Ok(Msg {
+        epoch: be64(&r[0..8])?,
+        ty,
+        data,
+    })
+}
+
+/// A Braid's stored bytes. Either offered as `bytes` to the reader, which
+/// accepts them with `fields` or refuses them with `refusal`; or a `start`
+/// the reader accepts followed by `steps`, each a received message, whose
+/// result is written as `output` and read back.
+///
+/// Only the two transitions out of `Ct2Sampled` are driven this way. Every
+/// other transition needs a key pair or an encapsulation state, whose layout
+/// `session-persistence.md` delegates and the model therefore does not build
+/// (`Model.PersistedState`, BraidState).
+fn check_braid_state(v: &Vector) -> Result<(), String> {
+    use tacenta_braid::Braid;
+    if v.inputs.contains_key("bytes") {
+        let stored = input(v, "bytes")?;
+        return match (expects_success(v)?, Braid::from_bytes(&stored)) {
+            (true, Ok(b)) => {
+                eq(&b.to_bytes(), &stored)?;
+                braid_fields_agree(v, &b, &stored)
+            }
+            (true, Err(e)) => Err(format!("refused ({e:?}) stored bytes the vector accepts")),
+            (false, Ok(_)) => Err("accepted stored bytes the vector refuses".to_string()),
+            (false, Err(e)) => refusal_is(
+                v,
+                match e {
+                    tacenta_braid::BraidDecodeError::UnknownVersion => "wrong-version",
+                    tacenta_braid::BraidDecodeError::TooShort
+                    | tacenta_braid::BraidDecodeError::Malformed => "short-or-malformed",
+                },
+            ),
+        };
+    }
+    let mut braid = Braid::from_bytes(&input(v, "start")?)
+        .map_err(|e| format!("refused ({e:?}) the start state the vector gives"))?;
+    let steps = input(v, "steps")?;
+    if !steps.len().is_multiple_of(44) {
+        return Err(format!(
+            "steps: {} bytes is not a whole number of messages",
+            steps.len()
+        ));
+    }
+    for (i, r) in steps.chunks(44).enumerate() {
+        let msg = braid_message(r).map_err(|e| format!("step {i}: {e}"))?;
+        let (_epoch, _out, next) = braid.receive(&msg);
+        braid.commit(next);
+    }
+    let stored = braid.to_bytes();
+    eq(&stored, &bytes(&v.output)?)?;
+    let back = Braid::from_bytes(&stored)
+        .map_err(|e| format!("the reader refuses ({e:?}) what the writer wrote"))?;
+    eq(&back.to_bytes(), &stored)
+}
+
+/// An accepted Braid against the vector's `fields`: the tag, and for every
+/// live state the epoch, the authenticator and the tag's length-prefixed
+/// fields, laid out as the page lays them out. `Failed` carries only its tag.
+fn braid_fields_agree(
+    v: &Vector,
+    braid: &tacenta_braid::Braid,
+    stored: &[u8],
+) -> Result<(), String> {
+    fields_named(v, &["state_tag", "epoch", "auth", "fields"])?;
+    let tag = required_field(v, "state_tag")?;
+    let failed = tag == [11u8];
+    let laid_out = if failed {
+        [&[0x01][..], &tag].concat()
+    } else {
+        [
+            &[0x01][..],
+            &tag,
+            &required_field(v, "epoch")?,
+            &required_field(v, "auth")?,
+            &required_field(v, "fields")?,
+        ]
+        .concat()
+    };
+    eq(&laid_out, stored).map_err(|e| format!("fields laid out: {e}"))?;
+    eq(&[braid.state_tag()], &tag)?;
+    if failed {
+        if !braid.failed() {
+            return Err("the vector's tag is Failed and the Braid is not".to_string());
+        }
+    } else {
+        if braid.failed() {
+            return Err("the Braid has failed and the vector's tag is a live state".to_string());
+        }
+        eq(&braid.epoch().to_be_bytes(), &required_field(v, "epoch")?)?;
     }
     Ok(())
 }

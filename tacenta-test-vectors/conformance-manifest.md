@@ -230,6 +230,17 @@ implementation's addition to the published algorithms.
 - `tacenta-braid`'s `step_receive` refuses the same step in transitions (5)
   and (13), answering `Failed`.
 
+  Its stored format did not exist when the reservation was made, so no vector
+  could reach it. Now that `Model.PersistedState.BraidState` states one, both
+  sides of the Braid's reservation are pinned: `braid-state.json`'s
+  `epoch-u64-max` is the reader refusing the reserved epoch, and its
+  `ct2-sampled-below-the-ceiling-steps` and `ct2-sampled-at-the-ceiling-fails`
+  drive transition (13) and the failure that replaces it one epoch later. The
+  differential harness drives the same two. `Model.Braid.receive_ct2Sampled_steps`
+  and `receive_ct2Sampled_at_ceiling` are what make that possible from stored
+  bytes: they say those two transitions read the stored epoch and the message
+  and nothing else, neither the KEM nor the encoder the state holds.
+
 In each case the reservation makes the crate's own `invariant()` clause
 inductive: `from_bytes` then refuses only states the operations cannot build,
 rather than refusing a state the crate itself could export and never import
@@ -403,17 +414,22 @@ can reach it.
   ours; nothing here is wire-sensitive.
 - **Oracle:** tacenta-model: `Model.Erasure` (`Encoder.toBytes`/`ofBytes` and
   `Decoder.toBytes`/`ofBytes`) and `Model.PersistedState`
-  (`RatchetState.toBytes`/`ofBytes` and `SparseState.toBytes`/`ofBytes`, over
-  the states `Model.Ratchet` and `Model.SparseRatchet` run on). Runner:
-  `runners/rust/tests/persistence.rs`, against `tacenta-erasure`'s,
-  `tacenta-ratchet`'s and `tacenta-spqr`'s `to_bytes`/`from_bytes`.
+  (`RatchetState`, `SparseState`, `TripleState` and `BraidState`, each with
+  `toBytes`/`ofBytes`). Three of the four states are the ones the operations
+  run on -- `Model.Ratchet`'s, `Model.SparseRatchet`'s and `Model.Triple`'s;
+  the Braid's is the stored format's own, for the reasons under Not covered.
+  Runner: `runners/rust/tests/persistence.rs`, against `tacenta-erasure`'s,
+  `tacenta-ratchet`'s, `tacenta-spqr`'s, `tacenta-triple`'s and
+  `tacenta-braid`'s `to_bytes`/`from_bytes`.
 - **Layout:** `README.md`, Vector layouts. An erasure vector either builds the
   coder by operations (`message` and a 32-bit `issued`, or a 32-bit `size` and
   `codewords`) and gives its stored bytes as `output`, or offers stored `bytes`
-  to the reader. A ratchet-state vector either replays `steps` from a new state
-  or from stored `start` bytes and gives the stored bytes as `output`, or
-  offers stored `bytes` to the reader, which accepts them with `fields` or
-  refuses them with the `refusal` the vector names.
+  to the reader. A ratchet-state or triple-ratchet-state vector either replays
+  `steps` from a new state or from stored `start` bytes and gives the stored
+  bytes as `output`, or offers stored `bytes` to the reader, which accepts
+  them with `fields` or refuses them with the `refusal` the vector names. A
+  braid-state vector offers stored `bytes` the same way, or replays `steps` --
+  each one received Braid message -- from a stored `start`.
 
 ### Covered
 
@@ -454,13 +470,42 @@ codewords are written in the order each index first arrived. `Model.Erasure`
 and `tacenta-erasure` do the same, and the `partial`,
 `repeats-and-extras-not-held` and `last-index-next` vectors pin both.
 
+### Covered: the Triple Ratchet's and the Braid's states
+
+| Component | Spec section | Covered by |
+|---|---|---|
+| Triple ratchet state layout, written by operations and read back: the version byte and each half length-prefixed and unmodified | Triple ratchet state | `vectors/persistence/triple-ratchet-state.json`: a fresh initiator and responder, a send, and a receive that takes the classical half's Diffie-Hellman step; each beside its bytes read back, with `fields` |
+| Triple ratchet state semantic rule: the halves agree on the role while the classical half still shows one | Semantic rules of the leaf formats, Triple ratchet state | same file, `halves-disagree-on-the-role` (the initiator's classical half beside the responder's sparse half, each accepted by its own reader) |
+| Triple ratchet state refusals, each with its refusal | Triple ratchet state; Rejection | same file: version bytes `0x00` and `0x02` (`wrong-version`); and, `short-or-malformed`, no bytes, a length prefix past the half's own length, the bytes ending after the first half, a trailing byte, a half its own reader refuses as malformed, and **a half whose own version byte its reader does not recognise**, which is not passed through |
+| Braid layout, every tag: the version byte, the tag, and for a live state the epoch, the authenticator and the tag's length-prefixed fields | Braid | `vectors/persistence/braid-state.json`: tags 0, 5, 6, 7, 8, 9, 10 and 11, each with `fields`, and `Failed` as the two bytes it is |
+| Braid semantic rules: a live epoch of at least 1, the `header`, `ct1` and `ek_vector` lengths, each coder sized for the value it streams and accepted by its own reader | Semantic rules of the leaf formats, Braid | same file: `epoch-zero`, `header-wrong-length`, `ct1-wrong-length`, `ek-vector-wrong-length`, `decoder-sized-for-another-value`, `encoder-sized-for-another-value`, `coder-its-own-reader-refuses`, `too-few-fields`, `too-many-fields` |
+| Braid framing refusals | Braid; Rejection | same file: version bytes `0x00` and `0x02` (`wrong-version`); and, `short-or-malformed`, no bytes, a version with no tag, tags 12 and 255, a `Failed` with a trailing byte, an authenticator cut short, a trailing byte, and a field length the buffer does not hold |
+| Braid epoch ceiling, from the reader and from the transitions | Braid; Principles; mlkem-braid.md, Failure | same file: `epoch-u64-max`, `epoch-at-the-largest-accepted`, `ct2-sampled-below-the-ceiling-steps`, `ct2-sampled-at-the-ceiling-fails` |
+| The delegated fields' length, which is the whole of the page's rule for `encaps` and part of its rule for `key_pair` | Braid; CONSTANTS.md | same file: `encaps-wrong-length`, `key-pair-wrong-length`, and tags 7 to 9 accepted in full with a 2,592-byte `encaps` |
+
 ### Not covered
 
-Every other persisted format: the triple ratchet state, the Braid, the
-session, and the prekey store (v1 to v4), with their semantic rules. The model
-states none of them, so there is no oracle to generate vectors from, and they
-remain covered by `tacenta-core`'s round-trip and refusal tests and its fuzz
-targets.
+The session's and the prekey store's persisted formats (the store v1 to v4),
+with their semantic rules. The model states neither, so there is no oracle to
+generate vectors from, and they remain covered by `tacenta-core`'s round-trip
+and refusal tests and its fuzz targets.
+
+**And one rule of a format that is otherwise covered: the Braid's `key_pair`
+content check in tags 1 to 4.** The page requires the `header` and
+`ek_vector` that a stored `key_pair` holds to pass the KEM split's
+validation. Where those two sit inside the 11,872 bytes is
+`libcrux-ml-kem` 0.0.10's layout, which the page does not define and ADR-0006,
+point 5, delegates. So `Model.PersistedState.BraidState` checks that field's
+length and nothing inside it, and for those four tags it accepts states
+`tacenta-braid` refuses. The consequence is recorded rather than papered over:
+no accepted vector in `braid-state.json` carries a `key_pair` -- tags 1 to 4
+appear only at a length both readers refuse -- the differential harness
+generates none either, and `runners/rust/tests/persistence.rs` asserts that no
+accepted vector has one of those tags, so a later change cannot quietly add
+one. The rule itself is implemented in `tacenta-braid` and carried by that
+crate's own tests (`braid/src/tests.rs`, the key-pair hash and modulus cases).
+The independent reader records the same gap as `GAPS-5.md`'s G5-02, where it
+had to use its own KEM test double's layout to implement the rule at all.
 
 Two points of the two ratchets' states. A buffer too short for its fixed
 fields whose version byte is not `0x01`: the page leaves its refusal to the
@@ -487,10 +532,10 @@ that such an encoder is read back from the bytes it is written as
   `sparse-pq-ratchet.md` and `session-persistence.md`, the three the two
   ratchets' operations and stored formats come from.
 - **Oracle:** `tacenta-model` (`Model.Ratchet`, `Model.SparseRatchet`,
-  `Model.PersistedState`), driven by `tacenta-model/Difftest.lean`
-  (`lake exe difftest`).
+  `Model.Triple`, `Model.Braid`, `Model.PersistedState`), driven by
+  `tacenta-model/Difftest.lean` (`lake exe difftest`).
 - **Runner:** `runners/rust/tests/differential.rs`, against
-  `tacenta-ratchet` and `tacenta-spqr`.
+  `tacenta-ratchet`, `tacenta-spqr`, `tacenta-triple` and `tacenta-braid`.
 
 This is not a vector file. The vectors pin chosen cases; this generates
 operation sequences from a printed seed, runs them through the model and the
@@ -510,13 +555,27 @@ nothing about the ones it does not.
 | Export and import at every step | session-persistence.md, Principles | each side reads back the bytes it wrote, and the two verdicts are compared |
 | Corrupted-byte imports, with the refusal each reader gives | session-persistence.md, Rejection | buffers made from each sequence's final state by changing a byte, the version, or the length |
 | The counter ceilings, and the received-message clock's stop | ratchet.md, Sending and receiving and Skipped keys; sparse-pq-ratchet.md, Sending and Receiving | starts assembled at each ceiling, from which the operation that meets it is the sequence's first step; the run asserts each ceiling was reached |
+| The Triple Ratchet's send and receive, from both roles | triple-ratchet.md, Sending and receiving | generated sequences from fresh starts and from stored bytes assembled at each half's ceiling, with the outcome, the stored bytes and the export-and-import check compared at every step; a step either half refuses as `ChainExhausted` must be one the model refuses at a ceiling, and the run asserts that was reached |
+| The Triple Ratchet's stored format, on corrupted imports | session-persistence.md, Triple ratchet state; Rejection | buffers made from each sequence's final state, with the refusal each reader gives compared |
+| The Braid's stored format, every tag the model states in full | session-persistence.md, Braid | generated stored states assembled from the page's layout, one per tag, each with four corruptions, given to both readers |
+| The Braid's epoch range, from both ends | session-persistence.md, Braid; Principles | a live state at epoch 0 and one at the reserved `u64::MAX`, both refused by both readers |
+| The Braid's two `Ct2Sampled` transitions | mlkem-braid.md, Receiving and Failure | transition (13) below the ceiling and the failure at `u64::MAX - 1`, driven from stored bytes; the run asserts both were reached |
 
 ### Excluded
 
 - **The message keys themselves.** The harness compares states, not the key an
   operation returns; `vectors/ratchet/double-ratchet.json` pins those.
-- **The Braid, the Triple Ratchet, the session and the prekey store.** The
-  model states no stored format for them, so there is no state to compare by.
+- **The session and the prekey store.** The model states no stored format for
+  them, so there is no state to compare by.
+- **Most of the Braid's state machine, and the `key_pair` content rule of its
+  tags 1 to 4.** Both need the KEM layout the page delegates (ADR-0006, point
+  5), which neither side of the harness can build: every transition but the
+  two out of `Ct2Sampled` consumes a key pair or an encapsulation state, and
+  the tag 1 to 4 rule reads inside one. The harness generates those four tags
+  only at a `key_pair` length both readers refuse, since generating a
+  well-formed one would be generating a disagreement it is not entitled to
+  report as a finding. Session persistence, Not covered, says what carries
+  that rule instead.
 - **The store's total bound**, `MAX_SKIPPED_STORE`, which would mean deriving
   thousands of message keys in the model's own SHA-256 and re-reading a state
   holding them at every later step. Its refused side is pinned by the

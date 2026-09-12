@@ -2,13 +2,20 @@
 Difftest: the model's half of the differential harness (ADR-0008, practice 9).
 
 `lake exe difftest` reads requests on stdin and prints, for each one, what
-`Model.Ratchet` or `Model.SparseRatchet` does with it: after the start and
-after every operation, whether the operation was taken or refused and the
-bytes `Model.PersistedState` writes the state as. The other half is
-`tacenta-test-vectors/runners/rust/tests/differential.rs`, which generates the
-requests from a printed seed, sends them here, replays the same operations on
-`tacenta-ratchet` and `tacenta-spqr`, and compares the two transcripts step by
-step.
+`Model.Ratchet`, `Model.SparseRatchet`, `Model.Triple` or `Model.Braid` does
+with it: after the start and after every operation, whether the operation was
+taken or refused and the bytes `Model.PersistedState` writes the state as. The
+other half is `tacenta-test-vectors/runners/rust/tests/differential.rs`, which
+generates the requests from a printed seed, sends them here, replays the same
+operations on `tacenta-ratchet`, `tacenta-spqr`, `tacenta-triple` and
+`tacenta-braid`, and compares the two transcripts step by step.
+
+The Braid is the one algorithm here with no `fresh` start and only one kind of
+step. Its other transitions consume a KEM key pair or encapsulation state,
+whose layout `session-persistence.md` delegates, so nothing on either side of
+this harness can build one; what is left is the decoder and the two
+transitions out of `Ct2Sampled`. The section on the Braid below says so
+again where the code is.
 
 **This file decides nothing.** It reads the operations it is given, runs the
 model's own `send`, `receive` and `advance` on them, and prints the result. It
@@ -29,8 +36,16 @@ write what this reads.
     run ratchet stored <stored bytes>                                                    <steps>
     run sparse  fresh  <direction(1) || sk(32)>                                          <steps>
     run sparse  stored <stored bytes>                                                    <steps>
+    run triple  fresh  <role(1) || sk(32) || our_pub(32) || peer_pub(32) || dh_out(32)>  <steps>
+    run triple  stored <stored bytes>                                                    <steps>
+    run braid   stored <stored bytes>                                                    <steps>
     read ratchet <bytes>
     read sparse  <bytes>
+    read triple  <bytes>
+    read braid   <bytes>
+
+The Braid has no `fresh` form: its initialisation takes the preshared secret
+and its first send draws a KEM key pair.
 
 Every byte string is lowercase hex, and `<steps>` may be empty. A `fresh` start
 runs the model's own initialisation, so that initialisation is compared too; a
@@ -275,6 +290,162 @@ def transcript {σ α : Type} (start : σ) (steps : List α) (write : σ → Wri
           :: go st (i + 1) rest
   ("start ok " ++ (write start).line) :: go start 1 steps
 
+/-! ## The Triple Ratchet
+
+The composition of the two ratchets above, driven the same way. A refusal from
+either half refuses the call and moves neither, so the bytes a refused step
+leaves are the bytes it started from, as for the two leaves. -/
+
+/-- One operation on a Triple Ratchet state, encoded as
+    `vectors/persistence/triple-ratchet-state.json`'s `steps` encodes them:
+    `00` a send with `sending_epoch(8)` and the agreement's output, and `01` a
+    receive with the classical header, the step's three Diffie-Hellman values,
+    the sparse half's `epoch(8) || pq_n(8)`, and the output. -/
+inductive TripleStep where
+  | send (sendingEpoch : Nat) (out : Option Model.SparseRatchet.Output)
+  | receive (h : Model.Triple.Header) (dhRecv dhSend newPub : Model.State.Key)
+      (out : Option Model.SparseRatchet.Output)
+
+def decodeTripleSteps : Nat → Bytes → Option (List TripleStep)
+  | _, [] => some []
+  | 0, _ => none
+  | fuel + 1, b :: rest =>
+    if b == 0x00 then
+      if rest.length < 49 then none
+      else
+        match decodeOutput (rest.drop 8) with
+        | none => none
+        | some out =>
+          (decodeTripleSteps fuel (rest.drop 49)).map
+            (TripleStep.send (beValue (slice rest 0 8)) out :: ·)
+    else if b == 0x01 then
+      if rest.length < 193 then none
+      else
+        match decodeOutput (rest.drop 152) with
+        | none => none
+        | some out =>
+          let h : Model.Triple.Header :=
+            { dr := { dh := slice rest 0 32, pn := beValue (slice rest 32 4),
+                      n := beValue (slice rest 36 4) },
+              epoch := beValue (slice rest 136 8), pqN := beValue (slice rest 144 8) }
+          (decodeTripleSteps fuel (rest.drop 193)).map
+            (TripleStep.receive h (slice rest 40 32) (slice rest 72 32) (slice rest 104 32)
+              out :: ·)
+    else none
+
+def stepTriple (st : Model.Triple.State) : TripleStep → Option Model.Triple.State
+  | .send e out => (Model.Triple.send st e out).map (·.1)
+  | .receive h r d np out => (Model.Triple.receive st h r d np out).map (·.1)
+
+/-- Whether the counter a refused operation would have stepped is at its
+    ceiling in either half. The Rust side uses it in the same one direction
+    the leaves' flags are used in: a step `tacenta-triple` refuses as one
+    half's `ChainExhausted` must be a step the model refuses at a ceiling. -/
+def tripleAtCeiling (st : Model.Triple.State) : TripleStep → Bool
+  | .send e out =>
+    ratchetAtCeiling st.classical .send || sparseAtCeilingOf st.postQuantum e out true
+  | .receive h _ _ _ out =>
+    ratchetAtCeiling st.classical (.receive h.dr [] [] []) ||
+      sparseAtCeilingOf st.postQuantum h.epoch out false
+
+def writtenTriple (st : Model.Triple.State) : Written :=
+  let bs := Model.PersistedState.TripleState.toBytes st
+  { bytes := bs,
+    readback :=
+      match Model.PersistedState.TripleState.ofBytes bs with
+      | .ok st' => if st' = st then "same" else "differs"
+      | .error r => "refused:" ++ refusalName r }
+
+/-- A `fresh` Triple Ratchet start, laid out as the classical one is:
+    `role(1) || sk(32) || our_pub(32) || peer_pub(32) || dh_out(32)`. -/
+def freshTriple (bs : Bytes) : Option Model.Triple.State :=
+  if bs.length ≠ 129 then none
+  else
+    let sk := slice bs 1 32
+    let ourPub := slice bs 33 32
+    match bs.head? with
+    | some 0x00 =>
+      some (Model.Triple.initAlice sk ourPub (slice bs 65 32) (slice bs 97 32) .tacenta)
+    | some 0x01 => some (Model.Triple.initBob sk ourPub .tacenta)
+    | _ => none
+
+def runTriple (start : Model.Triple.State) (steps : Bytes) : Except String (List String) :=
+  match decodeTripleSteps steps.length steps with
+  | none => .error "difftest: the Triple Ratchet's steps are not a whole number of operations"
+  | some ss => .ok (transcript start ss writtenTriple stepTriple tripleAtCeiling)
+
+/-! ## The Braid
+
+Only the decoder and two transitions. Every other transition consumes a KEM
+key pair or encapsulation state, whose layout `session-persistence.md`
+delegates (ADR-0006, point 5), so neither this side nor a generator can build
+one: `Model.PersistedState.BraidState` carries them as opaque, length-checked
+bytes. What is left is `Ct2Sampled`, from which transition (13) and the
+refusal at the reserved epoch read the stored epoch and the message and
+nothing else (`Model.Braid.receive_ct2Sampled_steps`,
+`Model.Braid.receive_ct2Sampled_at_ceiling`). A step from any other stored
+state answers `refused other` here, and the Rust side only ever offers
+`Ct2Sampled` starts. -/
+
+/-- One received Braid message: `epoch(8) || type(1) || chunk_present(1) ||
+    chunk_index(2) || chunk(32)`, as the composite header carries one. The two
+    transitions above read no codeword, so a step carrying one is not a
+    request this answers. -/
+inductive BraidStep where
+  | receive (epoch : Nat) (ty : Model.Braid.MsgType)
+
+def braidTypeOf : UInt8 → Option Model.Braid.MsgType
+  | 0x00 => some .none
+  | 0x01 => some .hdr
+  | 0x02 => some .ek
+  | 0x03 => some .ekCt1Ack
+  | 0x04 => some .ct1
+  | 0x05 => some .ct2
+  | _ => none
+
+def decodeBraidSteps : Nat → Bytes → Option (List BraidStep)
+  | _, [] => some []
+  | 0, _ => none
+  | fuel + 1, bs =>
+    if bs.length < 44 then none
+    else if bs.getD 9 0xff != 0x00 then none
+    else
+      match braidTypeOf (bs.getD 8 0xff) with
+      | none => none
+      | some ty =>
+        (decodeBraidSteps fuel (bs.drop 44)).map
+          (BraidStep.receive (beValue (slice bs 0 8)) ty :: ·)
+
+def stepBraid (st : Model.PersistedState.BraidState.State) :
+    BraidStep → Option Model.PersistedState.BraidState.State
+  | .receive e ty =>
+    match Model.PersistedState.BraidState.toCt2Sampled st with
+    | none => none
+    | some bst =>
+      Model.PersistedState.BraidState.ofBraid
+        (Model.Braid.receive Model.Braid.toyKem bst
+          { epoch := e, type := ty, data := Option.none }).2.2
+
+/-- The Braid's `receive` refuses nothing: it answers with a state, `Failed`
+    among them. So no step here is ever at a counter's ceiling, and the flag
+    is always `other`. The epoch ceiling shows up as the state the step
+    lands in, which is what the bytes compare. -/
+def braidAtCeiling (_ : Model.PersistedState.BraidState.State) (_ : BraidStep) : Bool := false
+
+def writtenBraid (st : Model.PersistedState.BraidState.State) : Written :=
+  let bs := Model.PersistedState.BraidState.toBytes st
+  { bytes := bs,
+    readback :=
+      match Model.PersistedState.BraidState.ofBytes bs with
+      | .ok st' => if st' = st then "same" else "differs"
+      | .error r => "refused:" ++ refusalName r }
+
+def runBraid (start : Model.PersistedState.BraidState.State) (steps : Bytes) :
+    Except String (List String) :=
+  match decodeBraidSteps steps.length steps with
+  | none => .error "difftest: the Braid's steps are not a whole number of codewordless messages"
+  | some ss => .ok (transcript start ss writtenBraid stepBraid braidAtCeiling)
+
 /-! ## Requests -/
 
 /-- A `fresh` classical start: `role(1) || sk(32) || our_pub(32) ||
@@ -339,6 +510,14 @@ def handle (line : String) : Except String (List String) :=
       match freshSparse start with
       | some st => runSparse st steps
       | none => .error "difftest: a fresh sparse start is direction(1) and sk(32)"
+    | "triple" =>
+      match freshTriple start with
+      | some st => runTriple st steps
+      | none => .error "difftest: a fresh triple start is role(1), sk, our_pub, peer_pub, dh_out"
+    | "braid" =>
+      -- A Braid is never started fresh here: `initAlice` and `initBob` need
+      -- the preshared secret and, past the first send, the KEM.
+      .error "difftest: the braid has no fresh start; give it stored bytes"
     | other => .error ("difftest: no algorithm " ++ other)
   | ["run", algorithm, "stored", startHex, stepsHex] => do
     let start ← hexArg "a stored start" startHex
@@ -348,6 +527,10 @@ def handle (line : String) : Except String (List String) :=
       storedRun Model.PersistedState.RatchetState.ofBytes runRatchet start steps
     | "sparse" =>
       storedRun Model.PersistedState.SparseState.ofBytes runSparse start steps
+    | "triple" =>
+      storedRun Model.PersistedState.TripleState.ofBytes runTriple start steps
+    | "braid" =>
+      storedRun Model.PersistedState.BraidState.ofBytes runBraid start steps
     | other => .error ("difftest: no algorithm " ++ other)
   | ["read", algorithm, bytesHex] => do
     let bs ← hexArg "the stored bytes" bytesHex
@@ -359,6 +542,14 @@ def handle (line : String) : Except String (List String) :=
     | "sparse" =>
       match Model.PersistedState.SparseState.ofBytes bs with
       | .ok st => .ok ["read ok " ++ toHex (Model.PersistedState.SparseState.toBytes st), "end"]
+      | .error r => .ok ["read refused " ++ refusalName r, "end"]
+    | "triple" =>
+      match Model.PersistedState.TripleState.ofBytes bs with
+      | .ok st => .ok ["read ok " ++ toHex (Model.PersistedState.TripleState.toBytes st), "end"]
+      | .error r => .ok ["read refused " ++ refusalName r, "end"]
+    | "braid" =>
+      match Model.PersistedState.BraidState.ofBytes bs with
+      | .ok st => .ok ["read ok " ++ toHex (Model.PersistedState.BraidState.toBytes st), "end"]
       | .error r => .ok ["read refused " ++ refusalName r, "end"]
     | other => .error ("difftest: no algorithm " ++ other)
   | _ => .error ("difftest: not a request: " ++ line)

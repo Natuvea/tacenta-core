@@ -15,9 +15,12 @@
 //! crate exposes a state's fields or compares two states outside its own
 //! tests.
 //!
-//! The model states no other persisted format, so the triple ratchet, Braid,
-//! session and prekey store formats are not covered here; the conformance
-//! manifest says so.
+//! The Triple Ratchet's and the Braid's states are covered here too: the
+//! Triple Ratchet's by replaying its own `send`/`receive` and by stored bytes,
+//! and the Braid's by stored bytes plus the two transitions out of
+//! `Ct2Sampled` that read no KEM value. The session and the prekey store have
+//! no model and are not covered; the conformance manifest says so, and says
+//! which Braid tags the vectors reach and why the rest do not.
 
 use std::path::Path;
 
@@ -30,12 +33,14 @@ fn persistence_vectors_pass() {
     assert_eq!(
         algorithms,
         [
+            "braid-state",
             "erasure-decoder-state",
             "erasure-encoder-state",
             "ratchet-state",
-            "sparse-ratchet-state"
+            "sparse-ratchet-state",
+            "triple-ratchet-state"
         ],
-        "expected the erasure encoder's and decoder's files and the two ratchets'"
+        "expected the erasure coders' two files and the four persisted states"
     );
 
     let mut total = 0;
@@ -49,6 +54,8 @@ fn persistence_vectors_pass() {
             file.vectors.iter().partition(|v| v.result == "valid");
         let floor = match file.algorithm.as_str() {
             "ratchet-state" | "sparse-ratchet-state" => 20,
+            "braid-state" => 9,
+            "triple-ratchet-state" => 8,
             _ => 5,
         };
         assert!(
@@ -58,7 +65,7 @@ fn persistence_vectors_pass() {
             valid.len(),
             invalid.len()
         );
-        if file.algorithm.ends_with("ratchet-state") {
+        if file.algorithm.ends_with("ratchet-state") || file.algorithm == "braid-state" {
             assert!(
                 invalid.iter().all(|v| v.refusal.is_some()),
                 "{}: every refused state names its refusal",
@@ -125,6 +132,88 @@ fn persistence_vectors_pass() {
                 "{algorithm}: {id} is operations whose last step is refused as counter exhaustion"
             );
         }
+    }
+
+    // The Braid's epoch ceiling, which until these vectors existed no vector
+    // pinned (session-persistence.md, Principles; mlkem-braid.md, Failure).
+    // The reader's half is the reserved epoch; the transitions' half is the
+    // pair of `Ct2Sampled` steps, the one place a stored Braid can be driven
+    // without a KEM value.
+    let braid = files
+        .iter()
+        .find(|f| f.algorithm == "braid-state")
+        .expect("the Braid's file is loaded");
+    let braid_vector = |id: &str| {
+        braid
+            .vectors
+            .iter()
+            .find(|v| v.id == id)
+            .unwrap_or_else(|| panic!("braid-state: no vector {id}"))
+    };
+    let reserved = braid_vector("epoch-u64-max");
+    assert!(
+        reserved.result == "invalid" && reserved.refusal.as_deref() == Some("short-or-malformed"),
+        "braid-state: a stored epoch of u64::MAX is refused"
+    );
+    for id in [
+        "ct2-sampled-below-the-ceiling-steps",
+        "ct2-sampled-at-the-ceiling-fails",
+    ] {
+        let v = braid_vector(id);
+        assert!(
+            v.result == "valid" && v.inputs.contains_key("start") && v.inputs.contains_key("steps"),
+            "braid-state: {id} is a stored state the vector drives a message through"
+        );
+    }
+    // The two fields whose layout the page delegates (ADR-0006, point 5) are
+    // held to their length and nothing else, which is the part of their rule
+    // a reader without `libcrux-ml-kem` can apply.
+    for id in ["key-pair-wrong-length", "encaps-wrong-length"] {
+        let v = braid_vector(id);
+        assert!(
+            v.result == "invalid" && v.refusal.as_deref() == Some("short-or-malformed"),
+            "braid-state: {id} is refused"
+        );
+    }
+    // And no accepted vector carries a key pair. The page's rule for tags 1 to
+    // 4 reaches inside one, and finding the header and `ek_vector` in it needs
+    // the delegated layout, so the model states that rule nowhere and accepts
+    // key pairs `tacenta-braid` refuses. A vector accepting one of those tags
+    // would be a vector the two sides disagree about.
+    for v in braid.vectors.iter().filter(|v| v.result == "valid") {
+        if let Some(hex_bytes) = v.inputs.get("bytes") {
+            let raw = hex::decode(hex_bytes).expect("braid-state: bytes are hex");
+            let tag = raw.get(1).copied().unwrap_or(0xff);
+            assert!(
+                !(1..=4).contains(&tag),
+                "braid-state: {} is an accepted state with tag {tag}, which carries a key pair \
+                 the model checks only the length of",
+                v.id
+            );
+        }
+    }
+
+    // The refusal the specification gained for this phase: a half whose own
+    // version byte its own reader does not recognise is short or malformed,
+    // not a wrong version (session-persistence.md, Triple ratchet state).
+    let triple = files
+        .iter()
+        .find(|f| f.algorithm == "triple-ratchet-state")
+        .expect("the Triple Ratchet's file is loaded");
+    for id in [
+        "classical-half-with-an-unknown-version",
+        "sparse-half-with-an-unknown-version",
+        "halves-disagree-on-the-role",
+    ] {
+        let v = triple
+            .vectors
+            .iter()
+            .find(|v| v.id == id)
+            .unwrap_or_else(|| panic!("triple-ratchet-state: no vector {id}"));
+        assert!(
+            v.result == "invalid" && v.refusal.as_deref() == Some("short-or-malformed"),
+            "triple-ratchet-state: {id} is refused as short or malformed"
+        );
     }
 
     eprintln!(

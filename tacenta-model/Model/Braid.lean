@@ -582,6 +582,25 @@ theorem receive_ct2Sampled_at_ceiling (K : Kem) (epoch : Nat) (auth : Auth)
   simp only [receive]
   rw [if_neg (by omega)]
 
+/-- Below the last unreserved epoch, `Ct2Sampled` takes transition (13) on a
+message stamped with the next epoch, whatever its type and whatever codeword
+it carries, and reports the epoch it came from.
+
+The result depends on neither the KEM nor the encoder the state holds: (13)
+carries the authenticator over and drops the encoder, and the message is not
+otherwise read (mlkem-braid.md, Receiving). With
+`receive_ct2Sampled_at_ceiling`, which is independent of both for the same
+reason, the two transitions a stored `Ct2Sampled` state can take are settled
+by the stored epoch and the message alone. That is what lets a vector drive
+the epoch ceiling from stored bytes, where nothing can supply a real ML-KEM
+key pair. -/
+theorem receive_ct2Sampled_steps (K : Kem) (epoch : Nat) (auth : Auth)
+    (enc : Encoder) (msg : Msg) (hlt : epoch + 1 < u64Max) (hm : msg.epoch = epoch + 1) :
+    receive K (.ct2Sampled epoch auth enc) msg = (epoch, none, .keysUnsampled (epoch + 1) auth) := by
+  simp only [receive, hm]
+  rw [if_pos hlt, if_pos (by simp)]
+  simp [BraidState.epoch]
+
 /-- At or past the last unreserved epoch, `EkSentCt1Received` fails when a
 codeword completes `ct2`, before decapsulating; a message that completes
 nothing is handled as at any other epoch. -/

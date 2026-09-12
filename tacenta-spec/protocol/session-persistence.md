@@ -293,6 +293,20 @@ triple_state = version(1)
 The two ratchets' own formats above, each length-prefixed and unmodified:
 this format does not know or care what is inside either one.
 
+The reader refuses as a *wrong version* a first byte other than `0x01`, and as
+*short or malformed* everything else it refuses: a length prefix that overruns
+the input, bytes left after the second field, a state its rule under "Semantic
+rules of the leaf formats" excludes, and a `ratchet_state` or `spqr_state` that
+its own reader refuses, whatever that reader's reason. An unrecognised version
+inside a half is one of those reasons, and it is not passed through. Each
+format's version byte is its own namespace (Principles, Versioned), so
+reporting a half's wrong version as this format's would name a byte this
+format's writer never wrote, and a caller that acts on the difference --
+refusing to start rather than treating the store as corrupt -- would act on the
+wrong one. The session's reader reads its own two halves the same way
+(Session), and this states for the triple ratchet state what that sentence
+states for the session.
+
 ## Session
 
 ```
