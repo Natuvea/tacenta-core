@@ -18,9 +18,26 @@
 //! The Triple Ratchet's and the Braid's states are covered here too: the
 //! Triple Ratchet's by replaying its own `send`/`receive` and by stored bytes,
 //! and the Braid's by stored bytes plus the two transitions out of
-//! `Ct2Sampled` that read no KEM value. The session and the prekey store have
-//! no model and are not covered; the conformance manifest says so, and says
-//! which Braid tags the vectors reach and why the rest do not.
+//! `Ct2Sampled` that read no KEM value.
+//!
+//! The prekey store's stored format is covered by stored bytes alone. Its four
+//! accepted vectors carry bytes `tacenta-core` itself produced, because the
+//! model has no signatures and so cannot build a store whose stored signatures
+//! verify; of its thirteen refusals, five are framing cases and eight change
+//! one field of those bytes, so each of those
+//! is refused for the rule under test rather than for a signature that never
+//! verified.
+//!
+//! The session's stored format is covered the same way and for the same
+//! reason: the model does not compute the curve, so it cannot build a session
+//! whose `ratchet_private` matches the classical ratchet's `dhs_pub`. Its
+//! three accepted vectors are `tacenta-core`'s own exports and its ten
+//! refusals are three framing cases and seven that change one field of one of
+//! them. They are the only vectors here
+//! that carry the refusal `inconsistent`, which this page's Rejection section
+//! distinguishes from malformed for the session alone. The conformance
+//! manifest says which rules no vector reaches, and which Braid tags the
+//! vectors reach and why the rest do not.
 
 use std::path::Path;
 
@@ -36,11 +53,13 @@ fn persistence_vectors_pass() {
             "braid-state",
             "erasure-decoder-state",
             "erasure-encoder-state",
+            "prekey-store-state",
             "ratchet-state",
+            "session-state",
             "sparse-ratchet-state",
             "triple-ratchet-state"
         ],
-        "expected the erasure coders' two files and the four persisted states"
+        "expected the erasure coders' two files and the six persisted states"
     );
 
     let mut total = 0;
@@ -55,6 +74,8 @@ fn persistence_vectors_pass() {
         let floor = match file.algorithm.as_str() {
             "ratchet-state" | "sparse-ratchet-state" => 20,
             "braid-state" => 9,
+            "prekey-store-state" => 4,
+            "session-state" => 3,
             "triple-ratchet-state" => 8,
             _ => 5,
         };
