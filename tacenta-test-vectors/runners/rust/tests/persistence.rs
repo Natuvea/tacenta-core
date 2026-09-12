@@ -155,7 +155,10 @@ fn persistence_vectors_pass() {
         reserved.result == "invalid" && reserved.refusal.as_deref() == Some("short-or-malformed"),
         "braid-state: a stored epoch of u64::MAX is refused"
     );
-    for id in ["ct2-sampled-below-the-ceiling-steps", "ct2-sampled-at-the-ceiling-fails"] {
+    for id in [
+        "ct2-sampled-below-the-ceiling-steps",
+        "ct2-sampled-at-the-ceiling-fails",
+    ] {
         let v = braid_vector(id);
         assert!(
             v.result == "valid" && v.inputs.contains_key("start") && v.inputs.contains_key("steps"),

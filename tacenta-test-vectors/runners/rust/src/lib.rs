@@ -1006,7 +1006,10 @@ fn step_output(r: &[u8]) -> Result<Option<tacenta_triple::Output>, String> {
 /// `epoch(8) || pq_n(8)`, and the output. A receive returns a candidate state
 /// the caller commits, so this commits it, which is what the session layer
 /// does once the message has authenticated.
-fn replay_triple_steps(state: &mut tacenta_triple::State, steps: &[u8]) -> Result<Replayed, String> {
+fn replay_triple_steps(
+    state: &mut tacenta_triple::State,
+    steps: &[u8],
+) -> Result<Replayed, String> {
     use tacenta_triple::{DrHeader, Header};
     let mut at = 0;
     let mut i = 0;

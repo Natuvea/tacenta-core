@@ -2011,7 +2011,10 @@ fn braid_states(rng: &mut Rng) -> Vec<(u8, Vec<u8>)> {
     let ct2_value = CT2_LEN + MAC_LEN;
     vec![
         (0, braid_state_bytes(0, 1, &auth, &[])),
-        (5, braid_state_bytes(5, 1, &auth, &[decoder_bytes(hdr_value, &[])])),
+        (
+            5,
+            braid_state_bytes(5, 1, &auth, &[decoder_bytes(hdr_value, &[])]),
+        ),
         (
             6,
             braid_state_bytes(
