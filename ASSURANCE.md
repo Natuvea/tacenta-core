@@ -18,7 +18,7 @@ Last assessed: 2026-09-12.
 | 4 | Model separate from implementation | Good | The Lean model, its translation, and T3 refinement for the ratchets, Braid, decoders and PQXDH derivation. Vectors pin the rest. Four of the six persisted formats are modelled: the two ratchets', the Triple Ratchet's and the Braid's. Session orchestration is outside the verified zones. | Persisted-format models, phase 3: the session and the prekey store. |
 | 5 | Invariants, not examples | Partial | T1 panic-freedom, T3 refinement, decoded-state invariants, and forward secrecy and post-compromise security against a symbolic attacker. The classical and sparse ratchets' models stop at the counter ceilings the pages state, and persistence vectors pin those ceilings against `tacenta-core`. `Model.Braid` stops at its epoch ceiling too, and now that the model states a stored Braid format that ceiling is pinned from both sides: the reader's refusal of the reserved epoch, and the two `Ct2Sampled` transitions that meet it, in vectors and in the differential harness. Their refinements still ask for a step of headroom below the ceilings. The invariants are not catalogued as requirements. | Catalogue the invariants with the requirements. |
 | 6 | Verification in CI | Strong | Lean builds, the `sorry` scan, kernel replay, translation attestation, vectors current with the model, the independent reader. | Keep it. |
-| 7 | Reviewed normative changes | Gap, being addressed | One maintainer. Branch protection on `main` is off by decision while the project has one maintainer. Specification and model changes were merged on green checks with no recorded review. | ADR-0008 rule 7: every normative change carries a recorded review before merging on green. |
+| 7 | Reviewed normative changes | Done | ADR-0008 rule 7 is in force: every normative change carries a recorded review on its pull request, naming what was checked, before it merges on green pinned to the reviewed head. One maintainer, so the review is delegated and recorded rather than required by branch protection, which stays off by decision. `tooling/check-signoff.sh` and the `sign-off` CI job enforce the DCO on every added commit. | Keep it. Required code-owner review replaces the recorded review when a second maintainer joins. |
 | 8 | Traceability | Partial | `CLAIMS.md` maps theorems to claims, the conformance manifest maps sections to vectors, and `mapping-to-spec.md` maps the model to the specification. `security-properties/` numbers the security requirements and names each one's theorems and tests; no CI check holds that tracing. | Requirement IDs traced through `CLAIMS.md`, the conformance manifest and the tests, with a CI check. |
 | 9 | Differential testing | Partial | Model-generated vectors are checked against the Rust, and an independent reader written from the specification alone checks every vector. Generated operation sequences run through both sides for the two ratchets and the Triple Ratchet (`tacenta-model/Difftest.lean` and `tacenta-test-vectors/runners/rust/tests/differential.rs`), comparing the outcome, the persisted bytes and the export-and-import check at every step, the refusal kind on a corrupted import, and the counter ceilings both sides stop at. The Braid's decoder is driven on generated stored states, and its two `Ct2Sampled` transitions, which meet the epoch ceiling, are driven from stored bytes. Each of these comparisons has been shown able to fail, by mutating the model one thing at a time. This is testing, not proof: it pins the sequences a seed generates and says nothing about the ones it does not. Not driven: the session and the prekey store, whose stored formats the model does not state, and the rest of the Braid's state machine, which needs the KEM layout ADR-0006 delegates. | Phase 3, the session and the prekey store. |
 | 10 | Fuzzing and property tests | Good | Six cargo-fuzz targets, proptest, the constant-time disassembly check, `cargo audit`, MSRV and 32-bit builds. | Keep it. |
@@ -48,11 +48,49 @@ A summary by component. A tick means the component has that kind of evidence, no
 | Erasure code | ✓ | ✓ (through the Braid) | ✓ | ✓ | ✓ | ✓ | field only | L3 | L4 |
 | Protobuf profile | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | L4 | L4 |
 | PQXDH derivation | ✓ | ✓ (through the session) | ✓ | ✓ | ✓ | ✓ | ✓ | L4 | L4 |
-| Session orchestration and prekey store | ✓ | ✓ | — | decoders only | partial | — | — | L1 | L2 |
+| Session orchestration and prekey store | ✓ | ✓ | — | decoders only | partial | — | — | L1 | L2, by recorded decision: modelled and pinned, not translated (2026-09-12) |
 | Persisted formats: ratchet, sparse ratchet | ✓ | ✓ | ✓ | ✓, including the counter ceilings | ✓ | codec | — | L3 | L3 |
 | Persisted formats: erasure coders | ✓ | ✓ | ✓ | ✓ | ✓ | codec | — | L3 | L3 |
-| Persisted formats: triple ratchet, Braid | ✓ | ✓ | ✓ | ✓; the Braid's `key_pair` content clause is scoped to implementations with the delegated KEM layout and no vector can pin it | not yet read | — | — | L1 | L2 |
+| Persisted formats: triple ratchet, Braid | ✓ | ✓ | ✓ | ✓; the Braid's `key_pair` content clause is scoped to implementations with the delegated KEM layout and no vector can pin it | ✓ | — | — | L2 | L2 |
 | Persisted formats: session, prekey store | ✓ | ✓ | — | — | — | — | — | L1 | L2 |
+
+## Readiness for external review
+
+Two engagements, and this section says what each waits for. An external review is
+scheduled at the project's current state and a second at completion, so the bar
+below decides the second, not the first.
+
+**The first engagement, the cryptography and the code, does not wait.** It needs
+nothing private: `tacenta-core` is public, so it reviews a pinned public commit.
+Its findings are worth most while there is still time to act on them cheaply.
+
+**The second engagement, the proof ledger, waits for all four gates.** Its
+reviewer's work is checking whether the theorems say what `CLAIMS.md` says, and
+auditing a ledger that is still moving wastes the engagement.
+
+| # | Gate | How it is checked |
+|---|---|---|
+| 1 | Every component sits at its stated target level, or the target was lowered by a recorded decision | the Components table above |
+| 2 | No gap is open at BLOCKING, and every AMBIGUOUS one is closed or converted into a recorded decision | the gap register |
+| 3 | The claims ledger has been verified claim by claim, by a reader who did not write it, since its last change | a recorded review naming the reading |
+| 4 | Every gate has been shown to fail when what it checks is broken, and none reports green when it cannot run | each gate's mutation record |
+
+**Not gates, but disclosed in the pack:** practices still Partial and why; the
+limitations, current at the reviewed commit; and every claim the build does not
+pin, named individually.
+
+**What completion does not mean.** Three things stay open by decision, not by
+omission, and the pack says so rather than letting a reviewer find them:
+- the security properties are proved against a symbolic attacker, not a
+  computational one (`LIMITATIONS.md`, and LIM-01 in the requirements);
+- the Braid's `key_pair` content clause is scoped to implementations that know
+  the delegated KEM layout, and no vector can pin it;
+- session orchestration is modelled and pinned rather than translated, so ASM-19
+  carries it and the five requirements resting on it reach "pinned", not
+  "proved".
+
+Gate 3 is deliberately the last thing done before the second engagement, because
+it is only true of the ledger as it stands on the day.
 
 ## Roadmap
 
