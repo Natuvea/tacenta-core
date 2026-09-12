@@ -99,4 +99,34 @@ path.write_text(json.dumps(data, indent=2) + "\n")
 PY
 expect_fail "unknown-missing-evidence-reference" "missing_evidence cites unknown reference LIM-99"
 
-echo "check-traceability-cases: pass case and 6 refusal cases gave the expected result"
+make_case "$work/missing-required-field"
+python3 - "$work/missing-required-field/tacenta-spec/security-properties/evidence-index.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+del data["requirements"][0]["property"]
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+expect_fail "missing-required-field" "evidence entry missing required field property"
+
+make_case "$work/missing-coverage"
+python3 - "$work/missing-coverage/tacenta-spec/security-properties/evidence-index.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+del data["requirements"][0]["model_properties"][0]["coverage"]
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+expect_fail "missing-coverage" "model property in tacenta-proofs/Proofs/SessionEstablishment.lean has no coverage"
+
+make_case "$work/non-list-evidence-field"
+python3 - "$work/non-list-evidence-field/tacenta-spec/security-properties/evidence-index.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+data["requirements"][0]["tests"] = {}
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+expect_fail "non-list-evidence-field" "evidence field tests must be a list"
+
+echo "check-traceability-cases: pass case and 9 refusal cases gave the expected result"
