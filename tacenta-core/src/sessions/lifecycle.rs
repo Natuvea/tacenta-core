@@ -578,6 +578,19 @@ impl PrekeyStore {
         count: usize,
         rng: &mut R,
     ) {
+        // The store's signatures are only meaningful under the identity whose
+        // public key it holds (session-persistence.md, Prekey store, Semantic
+        // rules: "every operation that signs a prekey signs under the identity
+        // whose public key is `identity_public`"). Signing under any other
+        // identity builds a state the reader refuses on its next restore --
+        // internally consistent by every cheap predicate, and unusable -- so a
+        // mismatched identity is refused here, quietly and without changing
+        // anything, the same way the exhausted identifier space above is. This
+        // is the operations half of the fifth semantic rule; `from_bytes`
+        // checks the other half over bytes that have already been stored.
+        if identity.public() != self.identity_public {
+            return;
+        }
         // The identifier space is finite, and wrapping it would reach the
         // absent-identifier sentinel and then collide with live entries, the
         // exact trap `next_id`'s own note describes. Unreachable in any real
@@ -645,6 +658,19 @@ impl PrekeyStore {
         let Some(next) = self.next_id.checked_add(1) else {
             return;
         };
+        // The store's signatures are only meaningful under the identity whose
+        // public key it holds (session-persistence.md, Prekey store, Semantic
+        // rules: "every operation that signs a prekey signs under the identity
+        // whose public key is `identity_public`"). Signing under any other
+        // identity builds a state the reader refuses on its next restore --
+        // internally consistent by every cheap predicate, and unusable -- so a
+        // mismatched identity is refused here, quietly and without changing
+        // anything, the same way the exhausted identifier space above is. This
+        // is the operations half of the fifth semantic rule; `from_bytes`
+        // checks the other half over bytes that have already been stored.
+        if identity.public() != self.identity_public {
+            return;
+        }
         let secret = random_secret(rng);
         let id = self.next_id;
         self.next_id = next;
@@ -692,6 +718,19 @@ impl PrekeyStore {
         let Some(next) = self.next_id.checked_add(1) else {
             return;
         };
+        // The store's signatures are only meaningful under the identity whose
+        // public key it holds (session-persistence.md, Prekey store, Semantic
+        // rules: "every operation that signs a prekey signs under the identity
+        // whose public key is `identity_public`"). Signing under any other
+        // identity builds a state the reader refuses on its next restore --
+        // internally consistent by every cheap predicate, and unusable -- so a
+        // mismatched identity is refused here, quietly and without changing
+        // anything, the same way the exhausted identifier space above is. This
+        // is the operations half of the fifth semantic rule; `from_bytes`
+        // checks the other half over bytes that have already been stored.
+        if identity.public() != self.identity_public {
+            return;
+        }
         let pair = kem::KeyPair::generate(rng);
         let id = self.next_id;
         self.next_id = next;
@@ -1359,7 +1398,74 @@ impl PrekeyStore {
             return Err(PrekeyStoreDecodeError::Malformed);
         }
 
+        // What the signatures authenticate, checked here and not in
+        // `invariant` (session-persistence.md, Prekey store, Semantic rules,
+        // "Every stored signature verifies under `identity_public`"). The four
+        // clauses above are cheap predicates over identifiers and tags, which
+        // is why the tests and the fuzz targets can assert them after every
+        // operation; this one costs a signature verification per stored
+        // prekey. Reading is the moment worth paying it at, and the only
+        // moment the bytes could have been corrupted.
+        if !store.signatures_verify() {
+            return Err(PrekeyStoreDecodeError::Malformed);
+        }
+
         Ok(store)
+    }
+
+    /// Whether every stored signature verifies under `identity_public`.
+    ///
+    /// The fifth semantic rule of the stored format, and the one the other four
+    /// cannot reach: they relate identifiers and tags to each other, where this
+    /// relates the stored signatures to the stored keys they are supposed to
+    /// authenticate. A store failing it is refused as malformed by `from_bytes`.
+    ///
+    /// **Why it matters, given no secret is at risk.** `publish` copies these
+    /// signatures verbatim into every bundle it emits, and nothing between here
+    /// and there looks at them again. A single flipped byte in
+    /// `signed_prekey_sig` -- offset 69 of a v4 store -- re-encodes canonically
+    /// and satisfies `invariant`, so without this check the store restores
+    /// cleanly and then publishes a bundle every initiator refuses with
+    /// `BadSignedPrekeySignature`. The party sees nothing wrong; its peers see
+    /// someone they cannot start a session with. That is a recovery defect, and
+    /// the format's stated obligation is to survive corruption.
+    ///
+    /// The one-time *curve* prekeys are absent from this deliberately: they
+    /// carry no signature, and `create_prekeys` says why only the KEM prekeys
+    /// are signed individually.
+    fn signatures_verify(&self) -> bool {
+        let signed_ok = |secret: &[u8; 32], sig: &[u8; 64]| {
+            let public = dh::PrivateKey::from_bytes(*secret).public_key();
+            xeddsa::verify(&self.identity_public, &encode_ec(&public), sig).is_ok()
+        };
+        let kem_ok = |pair: &kem::KeyPair, sig: &[u8; 64]| {
+            xeddsa::verify(&self.identity_public, &encode_kem(&pair.public_key()), sig).is_ok()
+        };
+
+        if !signed_ok(&self.signed_prekey_secret, &self.signed_prekey_sig) {
+            return false;
+        }
+        if !kem_ok(&self.kem, &self.kem_sig) {
+            return false;
+        }
+        if self
+            .kem_one_time
+            .iter()
+            .any(|(_, pair, sig)| !kem_ok(pair, sig))
+        {
+            return false;
+        }
+        if let Some((secret, _, sig)) = &self.previous_signed_prekey {
+            if !signed_ok(secret, sig) {
+                return false;
+            }
+        }
+        if let Some((pair, _, sig)) = &self.previous_kem {
+            if !kem_ok(pair, sig) {
+                return false;
+            }
+        }
+        true
     }
 
     /// Whether this store is one `create_prekeys` builds and every operation
@@ -3389,6 +3495,205 @@ mod tests {
             PrekeyStore::from_bytes(&bytes),
             Err(PrekeyStoreDecodeError::UnknownVersion)
         ));
+    }
+
+    /// The exact case external review reported: one byte of the current signed
+    /// prekey's signature, at offset 69 of a v4 store.
+    ///
+    /// Written at the byte level rather than through the field, because the
+    /// offset and the canonicality are half the finding: the flip survives the
+    /// re-encode check, so nothing before the semantic rules can see it.
+    /// Asserts both halves of what a mutation test owes -- that the import is
+    /// refused, and what would have happened if it were not.
+    #[test]
+    fn prekey_store_refuses_a_corrupted_signed_prekey_signature() {
+        let mut rng = rand_core::OsRng;
+        let id = Identity::generate(&mut rng);
+        let store = id.create_prekeys(2, &mut rng);
+        let mut bytes = store.to_bytes().to_vec();
+        // version(1) + identity_public(32) + signed_prekey_secret(32)
+        // + signed_prekey_id(4) = 69, the first byte of signed_prekey_sig.
+        bytes[69] ^= 0x01;
+
+        // The flip is invisible to everything before the semantic rules.
+        // Rebuilt through the decoder rather than cloned: `PrekeyStore` is
+        // deliberately not `Clone`, because it holds secrets it erases on drop.
+        let mut raw = PrekeyStore::from_bytes(&store.to_bytes()).expect("a genuine store restores");
+        raw.signed_prekey_sig[0] ^= 0x01;
+        assert_eq!(
+            raw.to_bytes().to_vec(),
+            bytes,
+            "the flip must re-encode canonically, or it is a different test"
+        );
+        assert!(
+            raw.invariant(),
+            "the other four rules must still hold, or it is a different test"
+        );
+
+        // What the rule prevents.
+        assert!(matches!(
+            PrekeyStore::from_bytes(&bytes),
+            Err(PrekeyStoreDecodeError::Malformed)
+        ));
+
+        // And what would otherwise have happened: a bundle every initiator
+        // refuses, emitted by a store that restored without complaint.
+        assert!(matches!(
+            crate::sessions::verify_bundle(&raw.publish().bundle),
+            Err(crate::sessions::SessionError::BadSignedPrekeySignature)
+        ));
+    }
+
+    /// The current KEM prekey's signature. Published on the last-resort path,
+    /// once the one-time KEM prekeys are exhausted.
+    #[test]
+    fn prekey_store_refuses_a_corrupted_kem_signature() {
+        let mut rng = rand_core::OsRng;
+        let id = Identity::generate(&mut rng);
+        let mut store = id.create_prekeys(0, &mut rng);
+        store.kem_sig[0] ^= 0x01;
+        assert!(store.invariant(), "only the signature is wrong");
+        assert!(matches!(
+            PrekeyStore::from_bytes(&store.to_bytes()),
+            Err(PrekeyStoreDecodeError::Malformed)
+        ));
+        assert!(matches!(
+            crate::sessions::verify_bundle(&store.publish().bundle),
+            Err(crate::sessions::SessionError::BadKemPrekeySignature)
+        ));
+    }
+
+    /// A one-time KEM prekey's signature. Published in preference to the
+    /// last-resort key, so this is the one a first contact actually meets.
+    #[test]
+    fn prekey_store_refuses_a_corrupted_one_time_kem_signature() {
+        let mut rng = rand_core::OsRng;
+        let id = Identity::generate(&mut rng);
+        let mut store = id.create_prekeys(2, &mut rng);
+        store
+            .kem_one_time
+            .last_mut()
+            .expect("a one-time KEM prekey")
+            .2[0] ^= 0x01;
+        assert!(store.invariant(), "only the signature is wrong");
+        assert!(matches!(
+            PrekeyStore::from_bytes(&store.to_bytes()),
+            Err(PrekeyStoreDecodeError::Malformed)
+        ));
+        assert!(matches!(
+            crate::sessions::verify_bundle(&store.publish().bundle),
+            Err(crate::sessions::SessionError::BadKemPrekeySignature)
+        ));
+    }
+
+    /// The retired signed prekey's signature.
+    ///
+    /// No `verify_bundle` half here, deliberately: nothing reads a retired
+    /// signature, so there is no later failure to demonstrate. The page says
+    /// why it is checked anyway -- a retired signature was a current one, so one
+    /// that no longer verifies is evidence the file was written to. Asserting a
+    /// consequence this case does not have would be inventing one.
+    #[test]
+    fn prekey_store_refuses_a_corrupted_retired_signed_prekey_signature() {
+        let mut rng = rand_core::OsRng;
+        let id = Identity::generate(&mut rng);
+        let mut store = id.create_prekeys(2, &mut rng);
+        store.rotate_signed_prekey(&id, &mut rng);
+        assert!(
+            PrekeyStore::from_bytes(&store.to_bytes()).is_ok(),
+            "the rotated store must restore before it is corrupted"
+        );
+        store
+            .previous_signed_prekey
+            .as_mut()
+            .expect("a retired signed prekey")
+            .2[0] ^= 0x01;
+        assert!(store.invariant(), "only the signature is wrong");
+        assert!(matches!(
+            PrekeyStore::from_bytes(&store.to_bytes()),
+            Err(PrekeyStoreDecodeError::Malformed)
+        ));
+    }
+
+    /// The retired KEM prekey's signature. Same reasoning as above.
+    #[test]
+    fn prekey_store_refuses_a_corrupted_retired_kem_signature() {
+        let mut rng = rand_core::OsRng;
+        let id = Identity::generate(&mut rng);
+        let mut store = id.create_prekeys(2, &mut rng);
+        store.rotate_kem(&id, &mut rng);
+        assert!(
+            PrekeyStore::from_bytes(&store.to_bytes()).is_ok(),
+            "the rotated store must restore before it is corrupted"
+        );
+        store.previous_kem.as_mut().expect("a retired KEM prekey").2[0] ^= 0x01;
+        assert!(store.invariant(), "only the signature is wrong");
+        assert!(matches!(
+            PrekeyStore::from_bytes(&store.to_bytes()),
+            Err(PrekeyStoreDecodeError::Malformed)
+        ));
+    }
+
+    /// A genuine store restores. The control for the five above: without it
+    /// they would all pass against a reader that refused everything.
+    #[test]
+    fn prekey_store_with_every_signature_intact_restores() {
+        let mut rng = rand_core::OsRng;
+        let id = Identity::generate(&mut rng);
+        let mut store = id.create_prekeys(3, &mut rng);
+        store.rotate_signed_prekey(&id, &mut rng);
+        store.rotate_kem(&id, &mut rng);
+        store.replenish(&id, 2, &mut rng);
+        assert!(
+            PrekeyStore::from_bytes(&store.to_bytes()).is_ok(),
+            "a store whose every signature verifies must restore"
+        );
+    }
+
+    /// The operations half of the rule: an operation handed the wrong identity
+    /// changes nothing, rather than building a state the reader would refuse.
+    #[test]
+    fn prekey_operations_refuse_an_identity_that_is_not_the_stores() {
+        let mut rng = rand_core::OsRng;
+        let id = Identity::generate(&mut rng);
+        let other = Identity::generate(&mut rng);
+        assert_ne!(other.public(), id.public(), "the two identities differ");
+
+        for (name, apply) in [
+            (
+                "rotate_signed_prekey",
+                &(|s: &mut PrekeyStore, i: &Identity, r: &mut rand_core::OsRng| {
+                    s.rotate_signed_prekey(i, r)
+                }) as &dyn Fn(&mut PrekeyStore, &Identity, &mut rand_core::OsRng),
+            ),
+            ("rotate_kem", &|s, i, r| s.rotate_kem(i, r)),
+            ("replenish", &|s, i, r| s.replenish(i, 2, r)),
+        ] {
+            let store = id.create_prekeys(2, &mut rng);
+            let before = store.to_bytes().to_vec();
+
+            let mut wrong = PrekeyStore::from_bytes(&before).expect("restores");
+            apply(&mut wrong, &other, &mut rng);
+            assert_eq!(
+                wrong.to_bytes().to_vec(),
+                before,
+                "{name} under a foreign identity must change nothing"
+            );
+
+            // The same call under the store's own identity does change it, so
+            // the assertion above is not passing because the call is inert.
+            let mut right = PrekeyStore::from_bytes(&before).expect("restores");
+            apply(&mut right, &id, &mut rng);
+            assert_ne!(
+                right.to_bytes().to_vec(),
+                before,
+                "{name} under the store's own identity must still work"
+            );
+            assert!(
+                PrekeyStore::from_bytes(&right.to_bytes()).is_ok(),
+                "{name} under the store's own identity must leave a readable store"
+            );
+        }
     }
 
     #[test]

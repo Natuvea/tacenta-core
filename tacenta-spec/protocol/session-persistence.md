@@ -626,6 +626,63 @@ key first.
   key (message-format.md, Curve public keys). Every bundle the store publishes
   carries it, and a peer's bundle decoder refuses it in any other spelling
   (Session, Semantic rules, Stored curve public keys).
+- **Every stored signature verifies under `identity_public`**: `signed_prekey_sig`
+  over `EncodeEC` of the public half of `signed_prekey_secret`; `kem_sig` over
+  `EncodeKEM` of `kem_pair`'s public half; each `kem_one_time` entry's `sig` over
+  its own pair's; and, in the versions that carry them, `previous_signed`'s and
+  `previous_kem`'s over theirs. The one-time *curve* prekeys carry no signature
+  and are not covered by this rule; only the KEM prekeys are signed individually
+  (session-establishment.md, Sending the initial message).
+
+The page's own reason for refusing a corrupted `next_id` decides this one: a
+value accepted here "would poison every future bundle and persist canonically".
+A signature is the same case and worse, because nothing later in the party's own
+process ever looks at it again. `publish` copies the stored signature into every
+bundle it emits, so one flipped byte -- `signed_prekey_sig` begins at offset 69
+of a v4 store, and a flip there stays canonical under re-encoding -- yields a
+store that reads back, satisfies every other rule above, and then hands every
+initiator a bundle that initiator must refuse. The party itself observes nothing
+at all; its peers observe someone they cannot start a session with. Surviving
+corruption is the obligation this format's opening claims for itself, and this
+is corruption it did not survive.
+
+**The retired pair's signatures are covered for a different reason, and the
+difference is worth stating.** Nothing reads them: a handshake naming a retired
+identifier takes that entry's secret and ignores its signature, because what the
+signature authenticated was published in a bundle a peer already holds. So a
+corrupted retired signature has no consequence of its own -- today it cannot make
+anything fail. It is checked because a retired signature was a current one, and
+a current one verified; a retired signature that no longer verifies is therefore
+evidence that something wrote to this file. The reader is entitled to draw that
+conclusion about the rest of the file, and refusing is what drawing it means. A
+rule that skipped them would be a rule that ignored the cheapest corruption
+detector the format has.
+
+This is a recovery and availability rule, not a confidentiality one. No secret
+becomes reachable through a corrupted stored signature: a signature is not what
+protects the secrets in this file, and an attacker who can write to the file has
+the secrets already.
+
+**The rule is checked when the store is read, and not after every operation.**
+The other four are cheap predicates over identifiers and tags; this one costs a
+signature verification per stored prekey, linear in a count the format does not
+otherwise bound. Reading is where that is worth paying, and it is the only
+moment the bytes could have been corrupted. The consequence is an obligation on
+the operations instead of a check inside them: **every operation that signs a
+prekey signs under the identity whose public key is `identity_public`**, and an
+implementation whose API lets a caller supply some other identity refuses it
+rather than storing the result. Without that obligation an operation can build a
+state this reader would refuse, which is the one thing "No state the operations
+produce is refused" (Stored curve public keys) undertakes cannot happen.
+
+**The reading this rejects** is that the four rules above are exhaustive because
+they are the rules a reader can check without doing any cryptography. That
+reading does not survive contact with what is in the file: the store holds the
+identity's public key and each prekey's secret, so the public half and the
+verification are both available to any implementation, with nothing delegated to
+a library's private layout -- unlike the Braid's stored key pair, whose check is
+scoped for exactly that reason (Braid, Semantic rules). Nothing made this check
+unavailable. It was simply never stated.
 
 ## Semantic rules of the leaf formats
 
