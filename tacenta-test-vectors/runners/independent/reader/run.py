@@ -171,15 +171,17 @@ def _decoder_vector(v, decode, encode, also=None):
 
 
 def h_composite_decode(v):
-    """The composite header alone, as composite.json and CONCAT use it. A
-    102-byte input is also a ratchet message with an empty ciphertext, and the
-    ratchet-message decoder must agree (G4-01)."""
+    """The composite header alone, as composite.json and CONCAT use it. Accepted
+    102-byte inputs are also ratchet messages with an empty ciphertext, and the
+    ratchet-message decoder must agree. A standalone trailing-byte refusal is
+    narrower: the ratchet-message decoder treats the trailing bytes as
+    ciphertext (G4-01)."""
     def agree(h, enc):
         back, ct = wire.decode_ratchet_message(enc)
         if back != h or ct != b"":
             raise Fail("the ratchet-message decoder disagrees with the header decoder")
     _decoder_vector(v, wire.decode_composite, wire.encode_composite, agree)
-    if _invalid(v):
+    if _invalid(v) and v.get("id") != "trailing-byte":
         try:
             wire.decode_ratchet_message(bx(v["inputs"]["encoding"]))
         except wire.DecodeError:

@@ -212,6 +212,11 @@ is SemVer against the specified protocol (not the implementation).
     matters only for a bundle that reaches her another way.
   - "Receiving the initial message" says `peer_identity_public` is canonical
     in every session a reader accepts.
+- `protocol/message-format.md`, Ratchet message: standalone composite-header
+  decoding is now a public contract for vectors, associated-data construction
+  and implementations that parse the header before ciphertext. It accepts
+  exactly the 102-byte composite header and refuses trailing bytes. Gap item
+  G4-01 is closed.
 - `protocol/ratchet.md`, Sending and receiving: the classical receive boundary
   where `Nr = u32::MAX` and an unstored same-chain message has a lower number
   now deliberately permits either stale/out-of-order or `ChainExhausted`. The
