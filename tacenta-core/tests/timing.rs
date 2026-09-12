@@ -672,7 +672,31 @@ fn expect_verdict_at(
     batch: usize,
 ) {
     println!("{label}: CONTROL -- expected to be caught at {batch} per sample.");
-    match leak_verdict(label, a, b, reject, floor) {
+    // **Up to three attempts, and one detection is enough.** This is a retry,
+    // and the module head is rude about gates people learn to re-run -- so the
+    // difference is worth being explicit about. A *gate* asserts a negative and
+    // must never be retried: re-running until it passes is how a real leak gets
+    // shipped. A *control* asserts a positive, and the failure it exists to
+    // catch -- a harness that has gone blind -- is systematic, not stochastic:
+    // with the batching deleted the effect is 0.00 ns every time, so three
+    // attempts fail as surely as one. What retrying removes is only the
+    // quantized draw, where a 12 ns difference lands on two ticks instead of
+    // five and the control reddens on a harness that is working. Measured at
+    // roughly one run in twenty-five before this, which over a nightly is a red
+    // most weeks for no cause.
+    let mut last = None;
+    for attempt in 1..=3 {
+        match leak_verdict(label, a, b, reject, floor) {
+            Err(why) if why.contains(&format!("at {batch} rejections per sample")) => {
+                if attempt > 1 {
+                    println!("{label}: caught on attempt {attempt}.");
+                }
+                return;
+            }
+            other => last = Some(other),
+        }
+    }
+    match last.expect("three attempts were made") {
         Ok(()) => panic!(
             "{label}: THE HARNESS HAS GONE BLIND. {what} was not reported as distinguishable \
              at any factor measured. Likely causes, in order: a floor raised past the effect it \
@@ -682,10 +706,9 @@ fn expect_verdict_at(
              sampling plan is a weaker suspect than it looks: no control pins it, and thinning \
              it shows up first as a false red on honest code, not as a miss here."
         ),
-        Err(why) => assert!(
-            why.contains(&format!("at {batch} rejections per sample")),
-            "{label}: caught, but not at the factor this control exists to pin. Expected the \
-             verdict to name {batch} rejections per sample; it said: {why}"
+        Err(why) => panic!(
+            "{label}: caught, but not at the factor this control exists to pin, on any of three \
+             attempts. Expected the verdict to name {batch} rejections per sample; it said: {why}"
         ),
     }
 }

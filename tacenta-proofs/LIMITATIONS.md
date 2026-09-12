@@ -593,6 +593,14 @@ from it. This holds here by delegation and discipline, not by proof.
   Silicon it is 17, and the same short-circuit then measures 12--13 ns against a
   real path's 0.00--0.06 ns.
 
+  **Each control makes up to three attempts and needs one detection.** That is a
+  retry, and gates here are never retried: re-running a gate until it passes is
+  how a real leak ships. A control is the other direction, and the failure it
+  exists to catch -- a blind harness -- is systematic rather than stochastic,
+  so three attempts fail as surely as one; deleting the batching leaves the
+  effect at 0.00 ns on every attempt. What the retry removes is the quantized
+  draw, which reddened a working harness about one run in twenty-five.
+
   **What the controls do not establish, listed because a list of controls reads
   as coverage.** No control pins the sampling plan: `LEAK_ROUNDS` and
   `LEAK_SAMPLES` can be cut a hundredfold and the controls stay green. That is
