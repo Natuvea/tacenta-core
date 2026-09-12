@@ -546,9 +546,14 @@ from it. This holds here by delegation and discipline, not by proof.
   covers the inputs it draws on the machine it runs on; a proof covers all of
   them. What it buys is that a regression becomes visible, which reading the code
   cannot. The tests are `#[ignore]`d out of the per-push run and run nightly in
-  release mode by a nightly timing workflow, which lives in the private
-  deployment repository rather than in this one. Run them by hand with
-  `cargo test -p tacenta-core --test timing -- --ignored --nocapture`.
+  release mode by a nightly timing workflow, which lives in
+  `tacenta-core-private-backup`, this repository's private predecessor -- not
+  here, and not in the deployment repository. **That workflow checks out its own
+  tree**, so it runs that repository's copy of `tests/timing.rs`, not this one:
+  until a change here is mirrored there, no scheduled job runs it. Run them by hand with
+  `cargo test --release --test timing -- --ignored --nocapture`, from
+  `tacenta-core/` (the `-p` form fails from the repository root, and without
+  `--release` the numbers are a debug build's, not the ones described here).
 
   **The harness carries two calibration controls, and they are load-bearing.**
   Every leak assertion here is a negative result, and a negative result is
@@ -572,14 +577,27 @@ from it. This holds here by delegation and discipline, not by proof.
   isolated linux x64 core with a far finer timer, so the gate was sound where it
   gates; every run anywhere else silently was not. **Any previously recorded
   0.00 ns separation from an Apple Silicon host should be read in that light,
-  including one taken during external review.**
+  including one taken during external review, the aarch64 rows in the screening
+  table above, and the `0 ns on a DIT core` that `EFFECT_FLOOR_NS`'s own
+  derivation rests on.** A non-zero unbatched reading is no better: at a
+  41.67 ns quantum a 12 ns difference reads as 0 or as one whole tick, so such a
+  number is "same tick" or "different tick", not an effect size.
 
   The fix is in `Floor::batch`: measure the host's quantum and time enough
   rejections per sample that `quantum / batch` sits at half the floor or better,
   dividing the sample count by the same factor so the total work is unchanged.
   On a nanosecond-resolution host the factor is 1 and nothing changes; on Apple
   Silicon it is 17, and the same short-circuit then measures 12--13 ns against a
-  real path's 0.06 ns. A batched sample measures steady-state repeated
+  real path's 0.00--0.06 ns.
+
+  **Batching has a cost, and it is the other half of the same trade.** A batched
+  sample averages, so a leak confined to the first rejection after the class
+  changes -- a cold cache, a cold predictor -- is attenuated: one measured at
+  42 ns unbatched read 7.3 ns at seventeen per sample, close enough to the 5 ns
+  floor that a smaller one would vanish. Choosing a single factor therefore
+  chooses which class of leak to be blind to, so the ordinary direction measures
+  at **both** and a path must be indistinguishable at each. A third control, a
+  stand-in that leaks only on that first rejection, fails if it stops doing so. A batched sample measures steady-state repeated
   rejection rather than a cold one, which is a real change to the question and
   is stated with the code.
 
