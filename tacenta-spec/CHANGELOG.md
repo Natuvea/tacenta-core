@@ -212,6 +212,14 @@ is SemVer against the specified protocol (not the implementation).
     matters only for a bundle that reaches her another way.
   - "Receiving the initial message" says `peer_identity_public` is canonical
     in every session a reader accepts.
+- `protocol/session-persistence.md`, Rejection: the short-buffer and
+  unknown-version overlap is now a format-by-format contract for ratchet
+  state, sparse ratchet state, triple ratchet state, Braid state, session state
+  and prekey store. The only implementation freedom is a non-empty buffer that
+  is too short for every recognised version and also starts with an unknown
+  version byte; recognised-version truncations, empty buffers and long enough
+  unknown-version buffers keep their single refusal kind. Gap item G5-03 is
+  closed.
 - `protocol/session-persistence.md`, Rejection: a buffer too short to be read
   that also carries an unknown version byte may be refused either as short or
   malformed or as a wrong version, and which is left to the implementation,
