@@ -7,18 +7,21 @@ refusals and semantic rules.
 
 Refusal kinds (session-persistence.md, Rejection; error-handling.md):
 WrongVersion, Malformed (short, overrun, trailing, a leaf format's invariant,
-the prekey store's semantic rules), NonCanonical (session and prekey store
-re-encode check), Inconsistent (session semantic rules).
+five of the prekey store's six semantic rules), NonCanonical (session and
+prekey store re-encode check), Inconsistent (the session's semantic rules,
+"the session's alone"), Incoherent (the prekey store's signature rule, "its
+alone").
 
-Vectors exist for the erasure sub-formats, the ratchet and sparse ratchet
-states (pass 5), and the triple ratchet state and the Braid (pass 6), all under
-vectors/persistence/. The session and the prekey store have none.
+Vectors exist for every format under vectors/persistence/: the erasure
+sub-formats, the ratchet and sparse ratchet states (pass 5), the triple ratchet
+state and the Braid (pass 6), and the prekey store and the session (pass 7).
 
 The Braid's `key_pair` (11,872 bytes) and `encaps` (2,592 bytes) are the
-delegated library serialisations. `encaps` is checked for length only. From
-pass 5 the header and ek_vector a `key_pair` holds are checked in tags 1 to 4;
-where they are inside it is not stated, so this reader finds them with the KEM
-test double's `key_pair_view` (GAPS-5.md G5-02).
+delegated library serialisations, and both are checked for length only. The
+content clause on the header and ek_vector a `key_pair` holds in tags 1 to 4 is
+**scoped** to a reader that knows the layout (pass 7); this reader does not
+have it, checks the field's length, accepts it, and conforms. KEY_PAIR_VIEW is
+None for that reason.
 
 Pass 5, stored curve public keys (session-persistence.md, Session, Semantic
 rules, "Stored curve public keys"): the ratchet state's dhs_pub, dhr_pub and
@@ -33,14 +36,22 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Tuple
 
 from . import constants as K
-from . import erasure, kem_double, ratchet, spqr
-from .curve25519 import x25519_public
-from .wire import encode_ec, is_canonical_curve_key
+from . import erasure, ratchet, spqr
+from .curve25519 import x25519_public, xeddsa_verify
+from .wire import encode_ec, encode_kem, is_canonical_curve_key
 
 # Where a Braid key_pair holds the header and ek_vector its party sends
-# (session-persistence.md, Braid). The layout is delegated to the KEM library;
-# the default is the test double's (GAPS-5.md G5-02).
-KEY_PAIR_VIEW: Callable[[bytes], Tuple[bytes, bytes]] = kem_double.key_pair_view
+# (session-persistence.md, Braid). The layout is delegated to the KEM library,
+# so this reader does not have it, and the content clause of tags 1 to 4 is
+# **scoped** to a reader that does: "A reader that knows the key pair's layout
+# checks those two, as the Braid's semantic rules below state, and nothing else
+# in key_pair; a reader that does not checks the field's length and accepts it.
+# That scope is part of the rule and is stated with it" (Braid).
+#
+# None means outside the scope, which is this reader's position and is
+# conforming (Principles, "Validated, not only parsed"; pass 7, G5-02). A case
+# sets it to a layout to exercise the other side of the scope.
+KEY_PAIR_VIEW: Optional[Callable[[bytes], Tuple[bytes, bytes]]] = None
 
 
 class PersistError(Exception):
@@ -60,6 +71,12 @@ class NonCanonical(PersistError):
 
 
 class Inconsistent(PersistError):
+    pass
+
+
+class Incoherent(PersistError):
+    """Rejection: "the prekey store calls it 'incoherent' and gives it for its
+    signature rule alone, its other rules being malformed"."""
     pass
 
 
@@ -480,8 +497,14 @@ def braid_invariant(b: BraidState) -> Optional[str]:
     # validation a completed ek_vector passes against a received header
     # (mlkem-braid.md, The KEM split): H(ek_vector || rho) equals the header's
     # H(ek) ... and ek_vector passes section 7.2's modulus check." (pass 5)
+    #
+    # Pass 7: "**That clause is scoped to an implementation that knows the key
+    # pair's layout.** ... an implementation without that layout cannot apply
+    # the clause at all. Such an implementation checks the field's length,
+    # accepts it, and conforms." The length is checked above, with the other raw
+    # fields. KEY_PAIR_VIEW is None here, so this reader is outside the scope.
     kp = b.fields.get("key_pair")
-    if 1 <= b.tag <= 4 and kp is not None and len(kp) == K.BRAID_KEY_PAIR_LEN:
+    if KEY_PAIR_VIEW is not None and 1 <= b.tag <= 4 and kp is not None and len(kp) == K.BRAID_KEY_PAIR_LEN:
         header, ek_vector = KEY_PAIR_VIEW(kp)
         rho, h_ek = header[:32], header[32:64]
         if hashlib.sha3_256(ek_vector + rho).digest() != h_ek:
@@ -760,6 +783,50 @@ def prekey_store_semantic(p: PrekeyStore) -> Optional[str]:
     return None
 
 
+def prekey_store_signatures(p: PrekeyStore) -> Optional[str]:
+    """The sixth semantic rule (Prekey store, Semantic rules): "**Every stored
+    signature verifies under `identity_public`**: `signed_prekey_sig` over
+    `EncodeEC` of the public half of `signed_prekey_secret`; `kem_sig` over
+    `EncodeKEM` of `kem_pair`'s public half; each `kem_one_time` entry's `sig`
+    over its own pair's; and, in the versions that carry them,
+    `previous_signed`'s and `previous_kem`'s over theirs. The one-time *curve*
+    prekeys carry no signature and are not covered by this rule; only the KEM
+    prekeys are signed individually (session-establishment.md, Sending the
+    initial message)."
+
+    A prekey signature is `Sig(IKB, EncodeEC(SPKB), Z)` / `Sig(IKB,
+    EncodeKEM(PQSPKB), Z)` (session-establishment.md, Publishing keys), an
+    XEdDSA signature verified as identities-and-devices.md, Verifying a
+    signature, states, with no label (identities-and-devices.md, Signing: a
+    prekey signature carries none).
+
+    "It is checked when the store is read, and not after every operation",
+    "last of all, and reported separately": Incoherent, not Malformed.
+
+    `kem_pair`'s public half is its `ek`, the last 1,568 bytes of the 4,736
+    (Prekey store, `kem_pair = dk(3,168) || ek(1,568)`).
+    """
+    def ok(sig, message):
+        return xeddsa_verify(p.identity_public, message, sig) is not None
+
+    if not ok(p.signed_prekey_sig, encode_ec(x25519_public(p.signed_prekey_secret))):
+        return "signed_prekey_sig does not verify under identity_public"
+    if not ok(p.kem_sig, encode_kem(p.kem_pair[K.KEM_DK_LEN:])):
+        return "kem_sig does not verify under identity_public"
+    for i, kp, sig in p.kem_one_time:
+        if not ok(sig, encode_kem(kp[K.KEM_DK_LEN:])):
+            return f"the signature of one-time KEM prekey {i} does not verify under identity_public"
+    if p.previous_signed is not None:
+        sec, i, sig = p.previous_signed
+        if not ok(sig, encode_ec(x25519_public(sec))):
+            return f"previous_signed's signature (identifier {i}) does not verify under identity_public"
+    if p.previous_kem is not None:
+        kp, i, sig = p.previous_kem
+        if not ok(sig, encode_kem(kp[K.KEM_DK_LEN:])):
+            return f"previous_kem's signature (identifier {i}) does not verify under identity_public"
+    return None
+
+
 def prekey_store_from_bytes(buf: bytes) -> PrekeyStore:
     buf = bytes(buf)
     version = _version(buf, K.PREKEY_STORE_VERSIONS_READ, "prekey store")
@@ -809,4 +876,11 @@ def prekey_store_from_bytes(buf: bytes) -> PrekeyStore:
     problem = prekey_store_semantic(store)
     if problem:
         raise Malformed(f"prekey store: {problem}")
+    # "and -- last of all, and reported separately -- any store holding a
+    # signature that does not verify" (Semantic rules); Rejection: the prekey
+    # store "calls it 'incoherent' and gives it for its signature rule alone,
+    # its other rules being malformed".
+    problem = prekey_store_signatures(store)
+    if problem:
+        raise Incoherent(f"prekey store: {problem}")
     return store

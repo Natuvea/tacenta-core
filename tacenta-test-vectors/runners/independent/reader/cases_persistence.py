@@ -10,7 +10,7 @@ from _casekit import accepts, put, registry, rejects
 from tacenta_reader import constants as K
 from tacenta_reader import erasure, kem_double, ratchet, spqr, triple, wire
 from tacenta_reader import persistence as P
-from tacenta_reader.curve25519 import x25519_public
+from tacenta_reader.curve25519 import x25519_public, xeddsa_sign
 
 CASES, case = registry()
 SP = "session-persistence.md"
@@ -469,10 +469,10 @@ def _():
 
 @case("PS-17 session semantic rules, each refused as inconsistent: ratchet private key, sparse epoch vs the Braid's, identity_ad orientation, Braid role, direction, pending with established, optional field shapes",
       f"{SP} Session, Semantic rules: refuses the session as inconsistent unless every one of the following holds")
-def _():
-    accepts(P.session_from_bytes, P.session_to_bytes(ALICE_S))
-    accepts(P.session_from_bytes, P.session_to_bytes(BOB_S))
-    bad = {
+def session_semantic_breakages():
+    """One session for each of the page's semantic rules, each keeping every
+    other rule. Shared with cases_signed.py's RJ-02."""
+    return {
         "private key": replace(ALICE_S, ratchet_private=b"\xa1" * 32),
         "epoch tags 0-6": replace(ALICE_S, braid=braid_state(1, epoch=2)),
         "epoch tags 7-10": session_for(BOB0, braid_state(7, epoch=1), initiator=False),
@@ -485,7 +485,17 @@ def _():
         "kem_ciphertext": replace(ALICE_S, pending_initial=P.PendingInitial(EKA_PUB, rnd(1567), 1, 2, 3)),
         "established 32 bytes": replace(BOB_S, established_ephemeral=EKA_PUB),
         "established curve byte": replace(BOB_S, established_ephemeral=b"\x08" + EKA_PUB),
+        "our_identity_public not canonical": replace(ALICE_S, our_identity_public=b"\xff" * 32,
+                                                     identity_ad=wire.encode_ec(b"\xff" * 32) + wire.encode_ec(IKB)),
+        "ephemeral_public not canonical": replace(
+            ALICE_S, pending_initial=P.PendingInitial(b"\xff" * 32, rnd(1568), 1, 2, 3)),
     }
+
+
+def _():
+    accepts(P.session_from_bytes, P.session_to_bytes(ALICE_S))
+    accepts(P.session_from_bytes, P.session_to_bytes(BOB_S))
+    bad = session_semantic_breakages()
     for label, s in bad.items():
         try:
             P.session_from_bytes(P.session_to_bytes(s))
@@ -518,13 +528,49 @@ def kem_pair(coeffs=None):
     return dk + ek
 
 
+# The store's identity. Pass 7: "Every stored signature verifies under
+# identity_public" (Prekey store, Semantic rules), so a fixture that is meant
+# to be read back must carry signatures that verify, and the store's
+# identity_public must be the public key of the identity that made them.
+STORE_IDENTITY = b"\x71" * 32
+
+
+def prekey_sig(message, secret=STORE_IDENTITY):
+    """A prekey signature, Sig(IK, EncodeEC(SPK), Z) / Sig(IK, EncodeKEM(PQSPK),
+    Z) (session-establishment.md, Publishing keys), with no label
+    (identities-and-devices.md, Signing)."""
+    return xeddsa_sign(secret, message, rnd(64))
+
+
+def sign_store(p, secret=STORE_IDENTITY):
+    """Re-sign every signature the sixth semantic rule covers, under `secret`.
+    The one-time curve prekeys carry no signature and are not covered."""
+    p.signed_prekey_sig = prekey_sig(wire.encode_ec(x25519_public(p.signed_prekey_secret)), secret)
+    p.kem_sig = prekey_sig(wire.encode_kem(p.kem_pair[K.KEM_DK_LEN:]), secret)
+    p.kem_one_time = [(i, kp, prekey_sig(wire.encode_kem(kp[K.KEM_DK_LEN:]), secret))
+                      for i, kp, _ in p.kem_one_time]
+    if p.previous_signed is not None:
+        sec, i, _ = p.previous_signed
+        p.previous_signed = (sec, i, prekey_sig(wire.encode_ec(x25519_public(sec)), secret))
+    if p.previous_kem is not None:
+        kp, i, _ = p.previous_kem
+        p.previous_kem = (kp, i, prekey_sig(wire.encode_kem(kp[K.KEM_DK_LEN:]), secret))
+    return p
+
+
 def store(**kw):
-    base = dict(identity_public=rkey(), signed_prekey_secret=rnd(32), signed_prekey_id=1, signed_prekey_sig=rnd(64),
+    """A store whose signatures verify. `unsigned=True` leaves the random
+    placeholders, for the cases that test the signature rule itself."""
+    unsigned = kw.pop("unsigned", False)
+    secret = kw.pop("identity_secret", STORE_IDENTITY)
+    base = dict(identity_public=x25519_public(secret),
+                signed_prekey_secret=rnd(32), signed_prekey_id=1, signed_prekey_sig=rnd(64),
                 one_time=[(2, rnd(32)), (3, rnd(32))], kem_pair=kem_pair(), kem_id=4, kem_sig=rnd(64),
                 kem_one_time=[(5, kem_pair(), rnd(64)), (6, kem_pair(), rnd(64))], next_id=10,
                 seen=[(4, rnd(32)), (4, rnd(32))], previous_signed=None, previous_kem=None)
     base.update(kw)
-    return P.PrekeyStore(**base)
+    p = P.PrekeyStore(**base)
+    return p if unsigned else sign_store(p, secret)
 
 
 STORE = store(previous_signed=(rnd(32), 7, rnd(64)), previous_kem=(kem_pair(), 8, rnd(64)),

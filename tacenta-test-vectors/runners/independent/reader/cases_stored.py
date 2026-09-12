@@ -23,6 +23,7 @@ from _casekit import accepts, put, registry, rejects
 from tacenta_reader import constants as K
 from tacenta_reader import curve25519, ratchet, spqr, wire
 from tacenta_reader import persistence as P
+from tacenta_reader import kem_double
 from tacenta_reader.kem_double import byte_encode12
 
 CASES, case = registry()
@@ -34,6 +35,7 @@ TOP = (PRIME - 1).to_bytes(32, "little")
 NINE = (9).to_bytes(32, "little")
 R = random.Random(20260911_5)
 MAL, WV, INC = P.Malformed, P.WrongVersion, P.Inconsistent
+IKB_SECRET = b"\x62" * 32   # PSC.IKB is x25519_public of this (cases_persistence.py)
 
 
 def pub(tag):
@@ -196,21 +198,27 @@ def _():
         accepts(P.triple_from_bytes, P.triple_to_bytes(P.TripleState(party.classical, party.sparse)))
     accepts(P.session_from_bytes, P.session_to_bytes(PSC.ALICE_S))
     accepts(P.session_from_bytes, P.session_to_bytes(PSC.BOB_S))
-    accepts(P.prekey_store_from_bytes, P.prekey_store_to_bytes(PSC.store(identity_public=pub(9))))
+    accepts(P.prekey_store_from_bytes, P.prekey_store_to_bytes(
+        PSC.store(identity_secret=hashlib.sha256(b"pass5 9").digest())))
 
 
-@case("SK-08 the prekey store's identity_public: every other spelling is refused as malformed in v1, v2, v3 and v4 (in v4 after the re-encode check, which a re-spelled key passes); p - 1 is accepted in all four; the secrets and signatures are not held to the rule",
+@case("SK-08 the prekey store's identity_public: every other spelling is refused as malformed in v1, v2, v3 and v4 (in v4 after the re-encode check, which a re-spelled key passes); the canonical key of a real identity is accepted in all four; the secrets are not held to the rule. Pass 7: the sixth rule is checked after this one, so p - 1, which this rule accepts, is refused as incoherent instead, no identity having it as a public key (G7-06)",
       f"{SP} Prekey store, Semantic rules: identity_public is canonical ... they apply to all four versions; {SCK}: Refused as malformed, by ... the prekey store's own rules")
 def _():
-    base = PSC.store(seen=[(4, PSC.rnd(32))], identity_public=PSC.IKB)
+    base = PSC.store(seen=[(4, PSC.rnd(32))], identity_secret=IKB_SECRET)
     for version in (1, 2, 3, 4):
         def raw(p):
             return P.prekey_store_to_bytes(p) if version == 4 else PSC.legacy(p, version)
         accepts(P.prekey_store_from_bytes, raw(base))
-        accepts(P.prekey_store_from_bytes, raw(PSC.store(seen=[(4, PSC.rnd(32))], identity_public=TOP)))
+        # p - 1 keeps the fifth rule and breaks the sixth, which is checked
+        # after it: identities-and-devices.md, Verifying a signature, refuses
+        # u = p - 1, so no signature verifies under it.
+        refused_as(P.prekey_store_from_bytes, raw(PSC.store(seen=[(4, PSC.rnd(32))], identity_public=TOP)),
+                   P.Incoherent, needle="verify")
         for sp in CKC.spellings(PSC.IKB) + [PRIME.to_bytes(32, "little")]:
             refused_as(P.prekey_store_from_bytes, raw(PSC.store(seen=[(4, PSC.rnd(32))], identity_public=sp)), MAL)
-    accepts(P.prekey_store_from_bytes, P.prekey_store_to_bytes(PSC.store(signed_prekey_secret=b"\xff" * 32, signed_prekey_sig=b"\xff" * 64)))
+    accepts(P.prekey_store_from_bytes,
+            P.prekey_store_to_bytes(PSC.store(signed_prekey_secret=b"\xff" * 32)))
 
 
 @case("SK-09 the initiator refuses a bundle whose identity key, signed prekey or present one-time curve prekey is not canonical, before any agreement, even when the signed prekey's signature verifies over the re-spelled key and even when she names that very spelling as the identity she means to reach; p - 1 as the signed or one-time prekey passes her check; the decoder never returns such a bundle",
@@ -272,8 +280,8 @@ def _kp(ek_vector, header, z=None):
     return (ek_vector + header + (z or PSC.rnd(32))).ljust(K.BRAID_KEY_PAIR_LEN, b"\x00")
 
 
-@case("BK-01 a stored Braid key pair in tags 1 to 4: accepted when H(ek_vector || rho) equals the header's H(ek) and ek_vector passes the FIPS 203 modulus check; refused as malformed when either fails, the modulus failure with a matching hash included; nothing else in key_pair is checked; encaps is checked for length only; a session carrying such a Braid is refused as malformed (in this reader's KEM test double's layout, GAPS-5.md G5-02)",
-      f"{SP} Semantic rules of the leaf formats, Braid: In tags 1 to 4, the header and ek_vector that key_pair holds pass the validation a completed ek_vector passes against a received header ...; Braid: The reader checks those two ... and nothing else in key_pair. It checks nothing in encaps beyond its length")
+@case("BK-01 the Braid's key_pair content clause is scoped (pass 7): this reader has no KEM key-pair layout, so in tags 1 to 4 it checks the field's 11,872-byte length, accepts every content, and conforms; a reader inside the scope, given a layout, refuses as malformed a key_pair whose H(ek_vector || rho) differs from the header's H(ek) or whose ek_vector fails the FIPS 203 modulus check, and accepts one that passes both; nothing else in key_pair is checked either way; encaps is checked for length only; a session carrying such a Braid follows its Braid",
+      f"{SP} Semantic rules of the leaf formats, Braid: In tags 1 to 4, the header and ek_vector that key_pair holds pass the validation ...; **That clause is scoped to an implementation that knows the key pair's layout.** ... Such an implementation checks the field's length, accepts it, and conforms; {SP} Principles, Validated, not only parsed: A reader outside its scope checks that field's length and accepts it, and is conforming in doing so")
 def _():
     good_ek = byte_encode12([R.randrange(K.MLKEM_Q) for _ in range(1024)])
     rho = PSC.rnd(32)
@@ -288,22 +296,47 @@ def _():
         "modulus fails, hash matches": (_kp(bad_ek, bad_header), MAL),
         "rho altered": (_kp(good_ek, bytes([rho[0] ^ 1]) + rho[1:] + header[32:]), MAL),
     }
+    def with_kp(tag, kp):
+        b = PSC.braid_state(tag)
+        b.fields["key_pair"] = kp
+        return P.braid_to_bytes(b)
+
+    # Outside the scope, which is this reader's position: every content is
+    # accepted, including one no reader inside the scope would take. A key_pair
+    # of any other length is still refused, by the length rule every
+    # implementation applies.
+    assert P.KEY_PAIR_VIEW is None, "this reader has no KEM key-pair layout"
     for tag in (1, 2, 3, 4):
-        for label, (kp, exc) in cases_.items():
-            b = PSC.braid_state(tag)
-            b.fields["key_pair"] = kp
-            raw = P.braid_to_bytes(b)
-            if exc is None:
-                accepts(P.braid_from_bytes, raw)
-            else:
-                refused_as(P.braid_from_bytes, raw, exc, needle="ek_vector")
+        for label, (kp, _exc) in cases_.items():
+            accepts(P.braid_from_bytes, with_kp(tag, kp))
+        accepts(P.braid_from_bytes, with_kp(tag, b"\x00" * K.BRAID_KEY_PAIR_LEN))
+        for wrong in (K.BRAID_KEY_PAIR_LEN - 1, K.BRAID_KEY_PAIR_LEN + 1):
+            refused_as(P.braid_from_bytes, with_kp(tag, b"\x00" * wrong), MAL, needle="key_pair")
+
+    # Inside the scope, with a layout supplied. The clause is the same one, and
+    # the states it refuses are refused as malformed, the leaf formats' kind.
+    P.KEY_PAIR_VIEW = kem_double.key_pair_view
+    try:
+        for tag in (1, 2, 3, 4):
+            for label, (kp, exc) in cases_.items():
+                if exc is None:
+                    accepts(P.braid_from_bytes, with_kp(tag, kp))
+                else:
+                    refused_as(P.braid_from_bytes, with_kp(tag, kp), exc, needle="ek_vector")
+        braid = PSC.braid_state(1, epoch=1)
+        braid.fields["key_pair"] = cases_["modulus fails, hash matches"][0]
+        raw = P.session_to_bytes(PSC.session_for(PSC.ALICE0, braid))
+        refused_as(P.session_from_bytes, raw, MAL, needle="ek_vector")
+    finally:
+        P.KEY_PAIR_VIEW = None
+    # ... and outside it again, the same session is accepted.
+    accepts(P.session_from_bytes, raw)
+
+    # encaps is checked for length only, in or out of the scope.
     for tag in (7, 8, 9):
         b = PSC.braid_state(tag)
         b.fields["encaps"] = b"\xff" * K.BRAID_ENCAPS_LEN
         accepts(P.braid_from_bytes, P.braid_to_bytes(b))
-    braid = PSC.braid_state(1, epoch=1)
-    braid.fields["key_pair"] = cases_["modulus fails, hash matches"][0]
-    refused_as(P.session_from_bytes, P.session_to_bytes(PSC.session_for(PSC.ALICE0, braid)), MAL, needle="ek_vector")
 
 
 # =================================================== the operations are inductive
@@ -398,8 +431,8 @@ def _():
 
 # ============================================================ threat model text
 
-@case("TM-01 the derivation labels are distinct, and prefix-free apart from two pairs: of the info strings and keys CONSTANTS.md gives, exactly two are proper prefixes of another, COMBINE_INFO of SPLIT_INFO and the sparse chain step's of its initialisation's (which strings are the registered labels is named only in tacenta-core/LABELS.md, GAPS-5.md G5-07)",
-      "threat-model/assumptions.md ASM-05: Labels: the derivation labels are distinct, and prefix-free apart from two registered pairs; CONSTANTS.md Derivation labels")
+@case("TM-01 the derivation labels are distinct, and prefix-free apart from two pairs: of the info strings and keys CONSTANTS.md gives, exactly two are proper prefixes of another, COMBINE_INFO of SPLIT_INFO and the sparse chain step's of its initialisation's. Pass 7: ASM-05 now names both pairs with their values, so which strings are registered no longer has to be taken from outside the specification (ADR-0006, point 7)",
+      "threat-model/assumptions.md ASM-05: the derivation labels are the `info` strings and HMAC keys CONSTANTS.md gives under \"Derivation labels\", which carries every value. They are distinct, and prefix-free apart from exactly two pairs, registered here rather than left to a reader to notice")
 def _():
     spqr_info = lambda sfx: K.SPQR_PROTOCOL_INFO + K.SPQR_SEPARATOR + sfx   # noqa: E731
     labels = {
