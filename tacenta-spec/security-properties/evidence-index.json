@@ -955,6 +955,257 @@
           ]
         }
       ]
+    },
+    {
+      "id": "REQ-AUTH-13",
+      "source": "tacenta-spec/security-properties/authentication.md#REQ-AUTH-13",
+      "property": "Refused or unauthenticated input changes nothing durable in sessions, prekey stores, skipped-key stores, eviction state, Diffie-Hellman steps or Braid transitions.",
+      "status": "tested only",
+      "assumptions": [
+        "ASM-19"
+      ],
+      "limitations": [],
+      "implementation": [
+        {
+          "path": "tacenta-core/AUTHENTICATION-BOUNDARY.md",
+          "symbol": "transactional"
+        },
+        {
+          "path": "tooling/check_authentication_boundary.py",
+          "symbol": "main"
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "decrypt"
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "establish_responder"
+        }
+      ],
+      "model_properties": [
+        {
+          "path": "tacenta-proofs/translation/Translation/UnitTripleT3.lean",
+          "theorem": "receive_refines",
+          "coverage": "T3 proof that a successful Triple Ratchet receive returns the candidate state and key described by the model; the session verify-then-adopt wrapper remains outside this proof."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/UnitTripleT3.lean",
+          "theorem": "commit_refines",
+          "coverage": "T3 proof that committing a Triple Ratchet candidate projects as the model commit."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the Triple Ratchet's composed session on the unit, with both inner bundles discharged)",
+          "references": [
+            "Tacenta.UnitTripleT3.receive_refines",
+            "Tacenta.UnitTripleT3.commit_refines"
+          ]
+        }
+      ],
+      "vectors": [],
+      "tests": [
+        {
+          "path": "tacenta-core/tests/failed_decrypt_changes_nothing.rs",
+          "name": "a_forged_message_does_not_consume_the_genuine_one",
+          "coverage": "A forged ratchet message is refused without consuming the valid message it resembles."
+        },
+        {
+          "path": "tacenta-core/tests/failed_decrypt_changes_nothing.rs",
+          "name": "repeated_forgeries_do_not_desynchronise_the_session",
+          "coverage": "Repeated refused messages leave the session synchronized for later genuine traffic."
+        },
+        {
+          "path": "tacenta-core/tests/failed_decrypt_changes_nothing.rs",
+          "name": "a_forgery_does_not_consume_a_skipped_key",
+          "coverage": "A forged out-of-order message leaves the stored skipped key available for the genuine message."
+        },
+        {
+          "path": "tacenta-core/tests/failed_decrypt_changes_nothing.rs",
+          "name": "a_failed_initial_message_does_not_burn_prekeys",
+          "coverage": "A refused initial message leaves prekeys available for a later valid establishment."
+        },
+        {
+          "path": "tacenta-core/tests/failed_decrypt_changes_nothing.rs",
+          "name": "repeated_failed_initial_messages_do_not_drain_the_store",
+          "coverage": "Repeated refused initial messages do not consume one-time prekeys or replay-record capacity."
+        },
+        {
+          "path": "tacenta-core/tests/failed_decrypt_changes_nothing.rs",
+          "name": "a_successful_initial_message_does_consume_its_prekeys",
+          "coverage": "Control test proving the fixture observes durable prekey consumption when authentication succeeds."
+        },
+        {
+          "path": "tacenta-core/tests/post_quantum_stack.rs",
+          "name": "a_forged_message_moves_none_of_the_three_state_machines",
+          "coverage": "Integrated post-quantum stack test that a forged message leaves classical, sparse and Braid state unchanged."
+        },
+        {
+          "path": "tacenta-core/tests/store_eviction.rs",
+          "name": "a_forgery_against_a_full_store_evicts_nothing",
+          "coverage": "A forged message against a full skipped-key store does not evict durable stored keys."
+        },
+        {
+          "path": "tacenta-core/tests/store_eviction.rs",
+          "name": "a_forged_header_naming_the_epoch_a_fold_opens_evicts_nothing",
+          "coverage": "A forged header around an epoch-fold boundary does not trigger durable eviction."
+        },
+        {
+          "path": "tacenta-core/braid/src/tests.rs",
+          "name": "an_uncommitted_receive_changes_nothing",
+          "coverage": "Braid candidate receive state is not adopted until the caller commits it."
+        }
+      ],
+      "missing_evidence": [
+        {
+          "kind": "proof",
+          "reason": "The session verify-then-adopt orchestration and prekey-store mutation boundaries are tested but remain outside the translated proof boundary.",
+          "references": [
+            "ASM-19"
+          ]
+        },
+        {
+          "kind": "caller-boundary",
+          "reason": "Leaf crates still expose mutating receives that are safe only when called through the registered session boundary.",
+          "references": [
+            "ASM-19"
+          ]
+        },
+        {
+          "kind": "adversary-scope",
+          "reason": "Authenticated messages from a malicious peer may evict or age stored keys by design.",
+          "references": [
+            "ADV-06"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-AUTH-14",
+      "source": "tacenta-spec/security-properties/authentication.md#REQ-AUTH-14",
+      "property": "A Braid authenticator failure moves the agreement to Failed; once Failed, send and receive produce no key, report epoch 0 and leave the Braid Failed.",
+      "status": "proved",
+      "assumptions": [
+        "ASM-04",
+        "ASM-05",
+        "ASM-15",
+        "ASM-16",
+        "ASM-17",
+        "ASM-18"
+      ],
+      "limitations": [],
+      "implementation": [
+        {
+          "path": "tacenta-core/braid/src/lib.rs",
+          "symbol": "receive"
+        },
+        {
+          "path": "tacenta-core/braid/src/lib.rs",
+          "symbol": "send"
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "agreement_failed"
+        }
+      ],
+      "model_properties": [
+        {
+          "path": "tacenta-proofs/translation/Translation/BraidT3.lean",
+          "theorem": "step_receive_refines",
+          "coverage": "T3 step proof covering Braid receive transition branches, including authenticator failure under the listed boundary agreements."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/BraidT3.lean",
+          "theorem": "Braid.receive_refines",
+          "coverage": "T3 public receive refinement tying the implementation receive result and next state to the model receive."
+        },
+        {
+          "path": "tacenta-model/Model/Braid.lean",
+          "theorem": "receive_reports",
+          "coverage": "T2 model theorem that a receive reports the model's leading epoch, which is 0 for Failed."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the ML-KEM Braid's translated code refines the model)",
+          "references": [
+            "step_receive_refines",
+            "Braid.receive_refines"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, the ML-KEM Braid's epoch accounting)",
+          "references": [
+            "receive_reports"
+          ]
+        }
+      ],
+      "vectors": [],
+      "tests": [
+        {
+          "path": "tacenta-core/braid/src/tests.rs",
+          "name": "a_forged_header_mac_abandons_the_session",
+          "coverage": "A forged header MAC moves the Braid to Failed."
+        },
+        {
+          "path": "tacenta-core/braid/src/tests.rs",
+          "name": "a_tampered_header_chunk_abandons_the_session",
+          "coverage": "A chunk spliced from another encoding moves the Braid to Failed, covering a case excluded by HonestChunk."
+        },
+        {
+          "path": "tacenta-core/braid/src/tests.rs",
+          "name": "nothing_leaves_the_failed_state",
+          "coverage": "Once Failed, Braid send and receive produce no key, report epoch 0 and remain Failed."
+        },
+        {
+          "path": "tacenta-core/tests/full_session.rs",
+          "name": "the_message_that_fails_the_agreement_still_returns_its_plaintext",
+          "coverage": "Session integration test for a message whose Braid receive fails while the message plaintext is otherwise authenticated."
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "name": "a_failed_agreement_refuses_further_use",
+          "coverage": "Session-layer test that future encrypt/decrypt calls are refused after the Braid reaches Failed."
+        }
+      ],
+      "missing_evidence": [
+        {
+          "kind": "proof-boundary",
+          "reason": "The T3 Braid receive proof assumes HonestChunk and the listed KEM, erasure and platform agreements; chunk splicing outside HonestChunk is tested instead.",
+          "references": [
+            "ASM-15",
+            "ASM-16",
+            "ASM-17",
+            "ASM-18"
+          ]
+        },
+        {
+          "kind": "primitive-assumption",
+          "reason": "The proof does not establish that the MAC cannot be forged; that remains a primitive assumption.",
+          "references": [
+            "ASM-05"
+          ]
+        },
+        {
+          "kind": "session-proof",
+          "reason": "The session-layer refusal of encrypt/decrypt after Braid failure is tested but not translated.",
+          "references": [
+            "ASM-19"
+          ]
+        },
+        {
+          "kind": "adversary-scope",
+          "reason": "A peer that intentionally fails the agreement is outside the liveness guarantee for honest progress.",
+          "references": [
+            "ADV-06",
+            "EX-03"
+          ]
+        }
+      ]
     }
   ]
 }
