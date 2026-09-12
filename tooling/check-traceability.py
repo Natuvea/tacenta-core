@@ -25,6 +25,30 @@ RELIED_RE = re.compile(r"^- \*\*Relied on by:\*\* (.*?)(?:\n- \*\*|\Z)", re.M | 
 LIMIT_ROW_RE = re.compile(r"^\| (REQ-[A-Z]+-\d+): ([^|]+) \| ([^|]+) \|$", re.M)
 THEOREM_RE = r"\btheorem\s+{name}\b"
 TEST_RE = r"\bfn\s+{name}\s*\("
+ENTRY_REQUIRED_KEYS = {
+    "id",
+    "source",
+    "property",
+    "status",
+    "assumptions",
+    "limitations",
+    "implementation",
+    "model_properties",
+    "claims",
+    "vectors",
+    "tests",
+    "missing_evidence",
+}
+ENTRY_LIST_KEYS = {
+    "assumptions",
+    "limitations",
+    "implementation",
+    "model_properties",
+    "claims",
+    "vectors",
+    "tests",
+    "missing_evidence",
+}
 
 
 @dataclass(frozen=True)
@@ -184,6 +208,9 @@ def require_text(path: Path, what: str, errors: list[str]) -> str:
 
 
 def check_symbol(root: Path, item: dict, key: str, errors: list[str]) -> None:
+    if not isinstance(item, dict):
+        errors.append(f"evidence index {key} entry must be an object")
+        return
     name = item.get(key)
     if not isinstance(name, str) or not name:
         errors.append(f"evidence index entry in {item.get('path', '<missing path>')} has no {key}")
@@ -198,6 +225,12 @@ def check_symbol(root: Path, item: dict, key: str, errors: list[str]) -> None:
 
 
 def check_theorem(root: Path, item: dict, errors: list[str]) -> None:
+    if not isinstance(item, dict):
+        errors.append("evidence index model property entry must be an object")
+        return
+    coverage = item.get("coverage")
+    if not isinstance(coverage, str) or not coverage.strip():
+        errors.append(f"evidence index model property in {item.get('path', '<missing path>')} has no coverage")
     theorem = item.get("theorem")
     if not isinstance(theorem, str) or not theorem:
         errors.append(f"evidence index model property in {item.get('path', '<missing path>')} has no theorem")
@@ -212,6 +245,12 @@ def check_theorem(root: Path, item: dict, errors: list[str]) -> None:
 
 
 def check_test(root: Path, item: dict, errors: list[str]) -> None:
+    if not isinstance(item, dict):
+        errors.append("evidence index test entry must be an object")
+        return
+    coverage = item.get("coverage")
+    if not isinstance(coverage, str) or not coverage.strip():
+        errors.append(f"evidence index test in {item.get('path', '<missing path>')} has no coverage")
     name = item.get("name")
     if not isinstance(name, str) or not name:
         errors.append(f"evidence index test in {item.get('path', '<missing path>')} has no name")
@@ -226,6 +265,12 @@ def check_test(root: Path, item: dict, errors: list[str]) -> None:
 
 
 def check_vector(root: Path, item: dict, errors: list[str]) -> None:
+    if not isinstance(item, dict):
+        errors.append("evidence index vector entry must be an object")
+        return
+    coverage = item.get("coverage")
+    if not isinstance(coverage, str) or not coverage.strip():
+        errors.append(f"evidence index vector {item.get('path', '<missing path>')} has no coverage")
     path_value = item.get("path")
     if not isinstance(path_value, str):
         errors.append("evidence index vector entry has no path")
@@ -255,6 +300,9 @@ def check_vector(root: Path, item: dict, errors: list[str]) -> None:
 
 
 def check_claim(root: Path, item: dict, errors: list[str]) -> None:
+    if not isinstance(item, dict):
+        errors.append("evidence index claim entry must be an object")
+        return
     path_value = item.get("path")
     if not isinstance(path_value, str):
         errors.append("evidence index claim entry has no path")
@@ -295,6 +343,11 @@ def check_evidence_index(root: Path, security: Path, reqs: dict[str, Requirement
         if not isinstance(entry, dict):
             errors.append(f"{path}: requirement entries must be objects")
             continue
+        for key in sorted(ENTRY_REQUIRED_KEYS - set(entry)):
+            errors.append(f"{path}: evidence entry missing required field {key}")
+        for key in sorted(ENTRY_LIST_KEYS):
+            if key in entry and not isinstance(entry[key], list):
+                errors.append(f"{path}: evidence field {key} must be a list")
         rid = entry.get("id")
         if not isinstance(rid, str) or rid not in reqs:
             errors.append(f"{path}: evidence entry references unknown requirement {rid}")
@@ -308,6 +361,9 @@ def check_evidence_index(root: Path, security: Path, reqs: dict[str, Requirement
         source = entry.get("source")
         if not isinstance(source, str) or not source.endswith(f"#{rid}"):
             errors.append(f"{path}: {rid} source must end with #{rid}")
+        prop = entry.get("property")
+        if not isinstance(prop, str) or not prop.strip():
+            errors.append(f"{path}: {rid} property must be a non-empty string")
         for asm in entry.get("assumptions", []):
             if asm not in known_ids or not asm.startswith("ASM-"):
                 errors.append(f"{path}: {rid} cites unknown assumption {asm}")
@@ -328,6 +384,15 @@ def check_evidence_index(root: Path, security: Path, reqs: dict[str, Requirement
         if status_class(reqs[rid].status) != "proved" and not missing:
             errors.append(f"{path}: {rid} needs explicit missing_evidence for non-proved status")
         for item in missing:
+            if not isinstance(item, dict):
+                errors.append(f"{path}: {rid} missing_evidence entry must be an object")
+                continue
+            for key in ("kind", "reason", "references"):
+                if key not in item:
+                    errors.append(f"{path}: {rid} missing_evidence entry missing {key}")
+            for key in ("kind", "reason"):
+                if key in item and (not isinstance(item[key], str) or not item[key].strip()):
+                    errors.append(f"{path}: {rid} missing_evidence {key} must be a non-empty string")
             refs = item.get("references") if isinstance(item, dict) else None
             if not isinstance(refs, list) or not refs:
                 errors.append(f"{path}: {rid} missing_evidence entry has no references")

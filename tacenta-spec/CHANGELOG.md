@@ -6,6 +6,9 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `security-properties/evidence-index-format.md`: the checked JSON format for
+  the P2 requirement evidence index, including the boundary between reference
+  validation and human semantic review.
 - `security-properties/evidence-index.json`: a P2 pilot evidence index for
   REQ-AUTH-04, REQ-AUTH-01 and REQ-AUTH-03, covering one proved requirement,
   one tested-only requirement and one assumed requirement with supporting
@@ -108,7 +111,8 @@ is SemVer against the specified protocol (not the implementation).
 ### Changed
 - `tooling/check-traceability.py` and its case runner now validate the pilot
   evidence index's requirement IDs, status classes, paths, theorem names, test
-  names, vector case IDs and live missing-evidence references.
+  names, vector case IDs, live missing-evidence references and required format
+  fields.
 - `GAP-REGISTER.md`: add gate classes and work-package ownership to current
   rows, and give stable IDs to the previously descriptive persisted-format and
   proof-scope rows.
