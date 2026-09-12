@@ -358,6 +358,328 @@
           ]
         }
       ]
+    },
+    {
+      "id": "REQ-AUTH-07",
+      "source": "tacenta-spec/security-properties/authentication.md#REQ-AUTH-07",
+      "property": "A chain key or message key determines the session and chain position it belongs to; keys from distinct sessions or positions are distinct in the symbolic model.",
+      "status": "proved",
+      "assumptions": [
+        "ASM-01",
+        "ASM-06",
+        "ASM-10",
+        "ASM-17"
+      ],
+      "limitations": [
+        "LIM-03"
+      ],
+      "implementation": [],
+      "model_properties": [
+        {
+          "path": "tacenta-model/Properties/Authentication.lean",
+          "theorem": "ckAt_inj",
+          "coverage": "T2 model theorem that equality of chain-key terms implies equal session and position indices."
+        },
+        {
+          "path": "tacenta-model/Properties/Authentication.lean",
+          "theorem": "mkAt_inj",
+          "coverage": "T2 model theorem that equality of message-key terms implies equal session and position indices."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, model-level security properties against the symbolic attacker)",
+          "references": [
+            "Properties.Authentication.ckAt_inj",
+            "Properties.Authentication.mkAt_inj"
+          ]
+        }
+      ],
+      "vectors": [],
+      "tests": [],
+      "missing_evidence": [
+        {
+          "kind": "byte-level-proof",
+          "reason": "The proof is over symbolic model terms, not byte strings emitted by the implementation.",
+          "references": [
+            "ASM-10",
+            "LIM-03"
+          ]
+        },
+        {
+          "kind": "security-claim-proof",
+          "reason": "The proof takes key authentication as a premise rather than proving a valid tag was made by a key holder.",
+          "references": [
+            "ASM-06"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-AUTH-08",
+      "source": "tacenta-spec/security-properties/authentication.md#REQ-AUTH-08",
+      "property": "Ratchet-message, initial-message and prekey-bundle decoders refuse curve public keys whose 32 byte little-endian value is not below p = 2^255 - 19.",
+      "status": "proved",
+      "assumptions": [
+        "ASM-15",
+        "ASM-16",
+        "ASM-17"
+      ],
+      "limitations": [],
+      "implementation": [
+        {
+          "path": "tacenta-core/wire/src/lib.rs",
+          "symbol": "decode_composite"
+        },
+        {
+          "path": "tacenta-core/wire/src/lib.rs",
+          "symbol": "decode_message"
+        },
+        {
+          "path": "tacenta-core/wire/src/lib.rs",
+          "symbol": "decode_initial"
+        },
+        {
+          "path": "tacenta-core/wire/src/lib.rs",
+          "symbol": "decode_bundle"
+        }
+      ],
+      "model_properties": [
+        {
+          "path": "tacenta-proofs/translation/Translation/WireT3.lean",
+          "theorem": "decode_composite_refines",
+          "coverage": "T3 proof that the composite-header decoder agrees with the model, including refusal of non-canonical ratchet keys."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/WireT3.lean",
+          "theorem": "decode_message_refines",
+          "coverage": "T3 proof that the ratchet-message decoder agrees with the model after the composite header is decoded."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/WireInitialT3.lean",
+          "theorem": "decode_initial_refines",
+          "coverage": "T3 proof that initial-message decoding agrees with the model for identity and ephemeral curve keys."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/WireInitialT3.lean",
+          "theorem": "decodeInitial_cases",
+          "coverage": "Model case split identifying the non-canonical identity and ephemeral key refusals used by the refinement."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/WireBundleT3.lean",
+          "theorem": "decode_bundle_refines",
+          "coverage": "T3 proof that prekey-bundle decoding agrees with the model for identity, signed prekey and optional one-time prekey fields."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/WireBundleT3.lean",
+          "theorem": "decodeBundle_cases",
+          "coverage": "Model case split identifying the non-canonical bundle key refusals used by the refinement."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the ratchet-message decoder computes what the model says)",
+          "references": [
+            "decode_composite_refines",
+            "decode_message_refines"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the initial-message decoder computes what the model says)",
+          "references": [
+            "decode_initial_refines",
+            "decodeInitial_cases"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the prekey bundle decoder computes what the model says)",
+          "references": [
+            "decode_bundle_refines",
+            "decodeBundle_cases"
+          ]
+        }
+      ],
+      "vectors": [
+        {
+          "path": "tacenta-test-vectors/vectors/malformed-input/composite-header-decode.json",
+          "case_ids": [
+            "dh-with-bit-255-set",
+            "dh-plus-p",
+            "dh-equal-to-p"
+          ],
+          "coverage": "Pins composite-header refusals for non-canonical ratchet public keys."
+        },
+        {
+          "path": "tacenta-test-vectors/vectors/malformed-input/initial-message-decode.json",
+          "case_ids": [
+            "identity-with-bit-255-set",
+            "identity-plus-p",
+            "identity-equal-to-p",
+            "ephemeral-with-bit-255-set",
+            "ephemeral-plus-p",
+            "ephemeral-equal-to-p"
+          ],
+          "coverage": "Pins initial-message refusals for non-canonical identity and ephemeral public keys."
+        },
+        {
+          "path": "tacenta-test-vectors/vectors/malformed-input/prekey-bundle-decode.json",
+          "case_ids": [
+            "identity-key-with-bit-255-set",
+            "identity-key-plus-p",
+            "identity-key-equal-to-p",
+            "signed-prekey-with-bit-255-set",
+            "signed-prekey-plus-p",
+            "signed-prekey-equal-to-p",
+            "one-time-prekey-with-bit-255-set",
+            "one-time-prekey-plus-p",
+            "one-time-prekey-equal-to-p"
+          ],
+          "coverage": "Pins prekey-bundle refusals for non-canonical identity, signed-prekey and optional one-time prekey curve keys."
+        }
+      ],
+      "tests": [
+        {
+          "path": "tacenta-core/tests/canonical_curve_keys.rs",
+          "name": "a_ratchet_message_with_a_respelled_ratchet_key_is_refused_at_decode",
+          "coverage": "Session-level test that a ratchet message carrying a re-spelled curve key is refused before use."
+        },
+        {
+          "path": "tacenta-core/tests/canonical_curve_keys.rs",
+          "name": "an_initial_message_with_a_respelled_key_is_refused_at_decode",
+          "coverage": "Session-level test that an initial message with a non-canonical curve key is refused."
+        },
+        {
+          "path": "tacenta-core/tests/canonical_curve_keys.rs",
+          "name": "a_bundle_built_with_a_respelled_curve_key_is_refused_before_it_is_used",
+          "coverage": "Session-level test that the initiator refuses a bundle carrying a re-spelled curve key before use."
+        }
+      ],
+      "missing_evidence": [
+        {
+          "kind": "session-use-proof",
+          "reason": "The decoder refinements prove the wire decoders; what the untranslated session layer does after decoding remains outside the proof surface.",
+          "references": [
+            "ASM-19"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-AUTH-09",
+      "source": "tacenta-spec/security-properties/authentication.md#REQ-AUTH-09",
+      "property": "Each peer-reachable decoder accepts at most one encoding of a value: every accepted byte string re-encodes to itself.",
+      "status": "tested only",
+      "assumptions": [
+        "ASM-19"
+      ],
+      "limitations": [],
+      "implementation": [
+        {
+          "path": "tacenta-core/wire/src/lib.rs",
+          "symbol": "decode_composite"
+        },
+        {
+          "path": "tacenta-core/wire/src/lib.rs",
+          "symbol": "decode_message"
+        },
+        {
+          "path": "tacenta-core/wire/src/lib.rs",
+          "symbol": "decode_initial"
+        },
+        {
+          "path": "tacenta-core/wire/src/lib.rs",
+          "symbol": "decode_bundle"
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "import"
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "from_bytes"
+        }
+      ],
+      "model_properties": [],
+      "claims": [],
+      "vectors": [
+        {
+          "path": "tacenta-test-vectors/vectors/malformed-input/composite-header-decode.json",
+          "case_ids": [
+            "canonical-dh",
+            "largest-canonical-dh",
+            "dh-with-bit-255-set",
+            "dh-plus-p",
+            "dh-equal-to-p"
+          ],
+          "coverage": "Pins accepted canonical ratchet keys and refused non-canonical spellings for composite headers."
+        },
+        {
+          "path": "tacenta-test-vectors/vectors/malformed-input/initial-message-decode.json",
+          "case_ids": [
+            "every-key-canonical",
+            "every-key-the-largest-canonical",
+            "identity-with-bit-255-set",
+            "ephemeral-with-bit-255-set"
+          ],
+          "coverage": "Pins accepted canonical initial-message keys and refused non-canonical spellings."
+        },
+        {
+          "path": "tacenta-test-vectors/vectors/malformed-input/prekey-bundle-decode.json",
+          "case_ids": [
+            "every-key-canonical",
+            "every-key-the-largest-canonical",
+            "identity-key-with-bit-255-set",
+            "signed-prekey-with-bit-255-set",
+            "one-time-prekey-with-bit-255-set"
+          ],
+          "coverage": "Pins accepted canonical bundle keys and refused non-canonical spellings."
+        }
+      ],
+      "tests": [
+        {
+          "path": "tacenta-core/tests/canonicality.rs",
+          "name": "decode_composite_is_canonical",
+          "coverage": "Mutates each byte of a canonical composite header and requires every accepted mutation to re-encode exactly to itself."
+        },
+        {
+          "path": "tacenta-core/tests/canonicality.rs",
+          "name": "decode_message_is_canonical",
+          "coverage": "Mutates each byte of a canonical ratchet message and checks accepted inputs are already canonical."
+        },
+        {
+          "path": "tacenta-core/tests/canonicality.rs",
+          "name": "decode_initial_is_canonical",
+          "coverage": "Mutates each byte of a canonical initial message and checks accepted inputs are already canonical."
+        },
+        {
+          "path": "tacenta-core/tests/canonicality.rs",
+          "name": "decode_bundle_is_canonical",
+          "coverage": "Mutates each byte of canonical prekey bundles and checks accepted inputs are already canonical."
+        },
+        {
+          "path": "tacenta-core/tests/canonicality.rs",
+          "name": "decode_ec_is_canonical",
+          "coverage": "Checks public curve-key encodings have a single accepted spelling."
+        },
+        {
+          "path": "tacenta-core/tests/canonicality.rs",
+          "name": "decode_kem_is_canonical",
+          "coverage": "Checks KEM public-key encodings have a single accepted spelling."
+        }
+      ],
+      "missing_evidence": [
+        {
+          "kind": "proof",
+          "reason": "The decoder refinements used by REQ-AUTH-08 do not yet include a model-level theorem that every decoded value re-encodes to its input.",
+          "references": [
+            "ASM-19"
+          ]
+        }
+      ]
     }
   ]
 }
