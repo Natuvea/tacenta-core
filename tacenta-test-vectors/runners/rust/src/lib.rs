@@ -401,6 +401,11 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
         // bytes changed, so each is refused for the rule under test rather
         // than for a signature that never verified.
         "prekey-store-state" => check_prekey_store_state(v),
+        // The session's persisted format (session-persistence.md, Session).
+        // Its reader distinguishes "inconsistent" from "malformed", which the
+        // page says is the one case a storage layer could plausibly have
+        // written itself, so the vectors pin which of the two is given.
+        "session-state" => check_session_state(v),
         // The bounded protobuf profile's two readers (protobuf-profile.md).
         "protobuf-ratchet-body" => check_ratchet_body(v),
         "protobuf-prekey-envelope" => check_prekey_envelope(v),
@@ -1205,6 +1210,40 @@ fn braid_message(r: &[u8]) -> Result<tacenta_braid::Msg, String> {
 /// The variants are enumerated rather than caught by a wildcard, so that a new
 /// refusal kind has to be given a name here instead of silently joining
 /// "short or malformed".
+/// The session's stored format: which byte strings its reader accepts, which it
+/// refuses and with which of the page's refusals, and that what it accepts it
+/// writes back unchanged.
+///
+/// `NonCanonical` maps to "short or malformed" and no vector reaches it: the
+/// model's reader accepts only canonical encodings, which `SessionState`'s
+/// `ofBytes_ok` proves, so it cannot offer this one a non-canonical buffer.
+/// `tacenta-core` keeps the check as defence in depth.
+fn check_session_state(v: &Vector) -> Result<(), String> {
+    use tacenta_core::sessions::{Session, SessionDecodeError};
+    let stored = input(v, "bytes")?;
+    match (expects_success(v)?, Session::import(&stored)) {
+        (true, Ok(s)) => eq(&s.export(), &stored),
+        (true, Err(e)) => Err(format!("refused ({e:?}) stored bytes the vector accepts")),
+        (false, Ok(_)) => Err("accepted stored bytes the vector refuses".to_string()),
+        (false, Err(e)) => {
+            let name = match e {
+                SessionDecodeError::UnknownVersion => "wrong-version",
+                SessionDecodeError::TooShort
+                | SessionDecodeError::Malformed
+                | SessionDecodeError::NonCanonical => "short-or-malformed",
+                SessionDecodeError::Inconsistent => "inconsistent",
+                _ => {
+                    return Err(format!(
+                        "unclassified refusal ({e:?}): name it here and in \
+                         session-persistence.md, Rejection"
+                    ));
+                }
+            };
+            refusal_is(v, name)
+        }
+    }
+}
+
 fn check_prekey_store_state(v: &Vector) -> Result<(), String> {
     use tacenta_core::sessions::{PrekeyStore, PrekeyStoreDecodeError};
     let stored = input(v, "bytes")?;

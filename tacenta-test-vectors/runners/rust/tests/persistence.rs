@@ -25,9 +25,17 @@
 //! model has no signatures and so cannot build a store whose stored signatures
 //! verify; its thirteen refusals are one field of those bytes changed, so each
 //! is refused for the rule under test rather than for a signature that never
-//! verified. The session has no model and is not covered; the conformance
-//! manifest says so, and says which Braid tags the vectors reach and why the
-//! rest do not.
+//! verified.
+//!
+//! The session's stored format is covered the same way and for the same
+//! reason: the model does not compute the curve, so it cannot build a session
+//! whose `ratchet_private` matches the classical ratchet's `dhs_pub`. Its
+//! three accepted vectors are `tacenta-core`'s own exports and its ten
+//! refusals change one field of one of them. They are the only vectors here
+//! that carry the refusal `inconsistent`, which this page's Rejection section
+//! distinguishes from malformed for the session alone. The conformance
+//! manifest says which rules no vector reaches, and which Braid tags the
+//! vectors reach and why the rest do not.
 
 use std::path::Path;
 
@@ -45,6 +53,7 @@ fn persistence_vectors_pass() {
             "erasure-encoder-state",
             "prekey-store-state",
             "ratchet-state",
+            "session-state",
             "sparse-ratchet-state",
             "triple-ratchet-state"
         ],
@@ -64,6 +73,7 @@ fn persistence_vectors_pass() {
             "ratchet-state" | "sparse-ratchet-state" => 20,
             "braid-state" => 9,
             "prekey-store-state" => 4,
+            "session-state" => 3,
             "triple-ratchet-state" => 8,
             _ => 5,
         };

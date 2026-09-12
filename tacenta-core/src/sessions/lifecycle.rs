@@ -3499,10 +3499,22 @@ mod tests {
 
     /// A deterministic byte source, so a generated fixture is a property of
     /// *this code* rather than of whichever PRNG `rand` ships this month. The
-    /// same reasoning, and the same shape, as `primitives::xeddsa`'s.
+    /// same reasoning as `primitives::xeddsa`'s.
+    ///
+    /// **Counter-based, where that one cycles a fixed buffer, and the
+    /// difference is load-bearing.** A 64-byte cycle hands the same 32 bytes
+    /// back for a later key, and a Diffie-Hellman ratchet step cannot tell such
+    /// a key from the one it already holds: the session fixtures below could
+    /// not complete a round trip at all until the stream stopped repeating
+    /// (`NoReceivingChain` on the initiator's decrypt of the reply). The
+    /// xeddsa source is fine for its own use, which draws one nonce and stops.
+    ///
+    /// The mixing is splitmix64, written out here rather than taken from a
+    /// crate, for exactly the reason the stream is not `StdRng`'s: a fixture
+    /// must not be hostage to a dependency's internals.
     struct FixedRng {
-        bytes: [u8; 64],
-        at: usize,
+        seed: u64,
+        at: u64,
     }
 
     impl rand_core::RngCore for FixedRng {
@@ -3518,7 +3530,16 @@ mod tests {
         }
         fn fill_bytes(&mut self, dest: &mut [u8]) {
             for d in dest.iter_mut() {
-                *d = self.bytes[self.at % self.bytes.len()];
+                let mut x = self
+                    .at
+                    .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                    .wrapping_add(self.seed);
+                x ^= x >> 30;
+                x = x.wrapping_mul(0xBF58_476D_1CE4_E5B9);
+                x ^= x >> 27;
+                x = x.wrapping_mul(0x94D0_49BB_1331_11EB);
+                x ^= x >> 31;
+                *d = (x & 0xff) as u8;
                 self.at = self.at.wrapping_add(1);
             }
         }
@@ -3530,11 +3551,79 @@ mod tests {
     impl rand_core::CryptoRng for FixedRng {}
 
     fn fixed_rng(seed: u8) -> FixedRng {
-        let mut bytes = [0u8; 64];
-        for (i, b) in bytes.iter_mut().enumerate() {
-            *b = seed ^ (i as u8);
+        FixedRng {
+            seed: seed as u64,
+            at: 0,
         }
-        FixedRng { bytes, at: 0 }
+    }
+
+    /// Print the stored bytes of deterministic sessions, for the vector
+    /// generator to carry as recorded inputs.
+    ///
+    /// Same reason as the prekey store's fixtures: the model cannot build a
+    /// session whose `ratchet_private` matches the classical ratchet's
+    /// `dhs_pub`, because it does not compute the curve. Three cases, chosen
+    /// so the optional fields differ: an initiator nobody has answered yet
+    /// (`pending_initial` present), a responder (`established_ephemeral`
+    /// present), and an initiator whose peer has answered (neither).
+    ///
+    /// Ignored: it produces a fixture rather than checking anything.
+    #[test]
+    #[ignore = "prints a fixture; run with --ignored --nocapture"]
+    fn print_session_fixtures() {
+        let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
+        let mut rng = fixed_rng(0x37);
+        let alice = Identity::from_secret([0x11u8; 32]);
+        let bob = Identity::from_secret([0x22u8; 32]);
+        let mut store = bob.create_prekeys(2, &mut rng);
+        let bundle = store.publish();
+
+        // An initiator that has sent its initial message and heard nothing.
+        let mut initiator =
+            establish_initiator(&alice, &bundle, &mut rng).expect("the bundle verifies");
+        let first = initiator
+            .encrypt(b"the first message", &mut rng)
+            .expect("the initiator can send");
+        let pending = initiator.export();
+        assert!(Session::import(&pending).is_ok(), "the fixture must import");
+        println!(
+            "FIXTURE session-pending len={} hex={}",
+            pending.len(),
+            hex(&pending)
+        );
+
+        // The responder that answered it.
+        let (mut responder, _) = establish_responder(&bob, &mut store, &first, &mut rng)
+            .expect("the initial message authenticates");
+        let responded = responder.export();
+        assert!(
+            Session::import(&responded).is_ok(),
+            "the fixture must import"
+        );
+        println!(
+            "FIXTURE session-responder len={} hex={}",
+            responded.len(),
+            hex(&responded)
+        );
+
+        // The initiator once the peer has answered, which drops pending_initial.
+        let reply = responder
+            .encrypt(b"the reply", &mut rng)
+            .expect("the responder can send");
+        let back = initiator
+            .decrypt(&reply, &mut rng)
+            .expect("the reply decrypts");
+        assert_eq!(back, b"the reply");
+        let answered = initiator.export();
+        assert!(
+            Session::import(&answered).is_ok(),
+            "the fixture must import"
+        );
+        println!(
+            "FIXTURE session-answered len={} hex={}",
+            answered.len(),
+            hex(&answered)
+        );
     }
 
     /// Print the stored bytes of deterministic prekey stores, for the vector

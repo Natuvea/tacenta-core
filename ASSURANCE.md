@@ -53,7 +53,7 @@ A summary by component. A tick means the component has that kind of evidence, no
 | Persisted formats: erasure coders | ✓ | ✓ | ✓ | ✓ | ✓ | codec | — | L3 | L3 |
 | Persisted formats: triple ratchet, Braid | ✓ | ✓ | ✓ | ✓; the Braid's `key_pair` content clause is scoped to implementations with the delegated KEM layout and no vector can pin it | ✓ | — | — | L2 | L2 |
 | Persisted formats: prekey store | ✓ | ✓ | ✓, except the stored-signature rule: the model has no signatures | ✓ v1-v4 and four of the five semantic rules; **no vector pins the fifth**, which the mutation tests in `lifecycle.rs` hold instead | — not yet read by the independent reader | — | — | L1 | L2 |
-| Persisted formats: session | ✓ | ✓ | — | — | — | — | — | L1 | L2 |
+| Persisted formats: session | ✓ | ✓ | ✓, except the `ratchet_private`/`dhs_pub` rule: the model does not compute the curve | ✓ the format, four field refusals and seven of the eight semantic rules; **no vector pins the eighth** | — not yet read by the independent reader | — | — | L1 | L2 |
 
 ## Readiness for external review
 

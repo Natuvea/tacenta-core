@@ -488,12 +488,30 @@ and `tacenta-erasure` do the same, and the `partial`,
 
 ### Not covered
 
-The session's persisted format and its semantic rules. The model states it
-not at all, so there is no oracle to generate vectors from, and it remains
-covered by `tacenta-core`'s round-trip and refusal tests and its fuzz targets.
+**Both remaining persisted formats are now covered, each with one rule
+excepted, and the two exceptions are the same exception.** The model states
+every *structural* rule of the session and the prekey store and no
+*cryptographic* one, because its boundary excludes computing the curve and it
+has no notion of a signature. So:
 
-**The prekey store is now covered, with one rule excepted, and the exception
-matters.** `vectors/persistence/prekey-store-state.json` pins its format v1 to
+- The prekey store's fifth semantic rule -- every stored signature verifies
+  under `identity_public` -- is pinned by no vector.
+- The session's rule that `ratchet_private`'s public key equals the classical
+  ratchet's `dhs_pub` is pinned by no vector.
+
+Each is held instead by `tacenta-core`'s own tests. A reader working from the
+specification and these vectors alone would not learn that either rule exists;
+the pages are where they do.
+
+**The session, in detail.** `vectors/persistence/session-state.json` pins the
+format, its four field-by-field refusals and seven of its eight semantic rules.
+It is the only file whose refusals carry `inconsistent`, which Rejection
+distinguishes from malformed for the session alone. No vector carries
+`non-canonical`: the model's reader accepts only canonical encodings, which
+`SessionState.ofBytes_ok` proves, so it cannot offer a reader a non-canonical
+buffer; `tacenta-core` keeps that check as defence in depth.
+
+**The prekey store, in detail.** `vectors/persistence/prekey-store-state.json` pins its format v1 to
 v4 and four of its five semantic rules. The fifth -- that every stored
 signature verifies under `identity_public` -- is **not pinned by any vector**,
 because the model has no signatures and cannot produce a store whose signatures
@@ -595,9 +613,8 @@ nothing about the ones it does not.
 
 - **The message keys themselves.** The harness compares states, not the key an
   operation returns; `vectors/ratchet/double-ratchet.json` pins those.
-- **The session.** The model states no stored format for it, so there is no
-  state to compare by. The prekey store now has one, but the harness does not
-  yet drive it.
+- **The session and the prekey store.** Both now have a stored-format model,
+  but the differential harness does not yet drive either.
 - **Most of the Braid's state machine, and the `key_pair` content clause of
   its tags 1 to 4.** Both need the KEM layout the page delegates (ADR-0006,
   point 5), which neither side of the harness can build: every transition but

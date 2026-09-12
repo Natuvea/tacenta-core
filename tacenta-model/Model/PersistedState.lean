@@ -82,12 +82,30 @@ deriving instance DecidableEq for Model.SparseRatchet.State
 
 /-! ## Refusals and the reading steps -/
 
-/-- The two refusals a leaf format's reader reports (session-persistence.md,
-    Rejection): a version it does not read, and bytes that are short or
-    malformed, a state its semantic rules exclude among them. -/
+/-- The refusals a reader reports (session-persistence.md, Rejection).
+
+    A leaf format's reader gives the first two: a version it does not read, and
+    bytes that are short or malformed, a state its semantic rules exclude among
+    them. The prekey store's gives the same two, its semantic rules being
+    malformed by that page's own words.
+
+    **The session's reader distinguishes a third**, and the page is explicit
+    that it does: a stored session that is well-formed and canonical but cannot
+    go on is "the one case a storage layer could plausibly have written
+    itself". So its semantic rules are `inconsistent`, not malformed, and a
+    vector that recorded them as malformed would be pinning the wrong thing.
+
+    **The page names a fourth, `non-canonical`, which this model cannot
+    reach**, and that is a fact about this reader rather than an omission: it
+    reads every field at a fixed width or behind a length prefix, so a buffer
+    it accepts is written back as the bytes it was given. `SessionState`'s
+    `ofBytes_ok` proves exactly that. `tacenta-core` keeps the check anyway, as
+    defence in depth, and the vectors pin no case of it because no vector can
+    offer this reader one. -/
 inductive Refusal where
   | wrongVersion
   | shortOrMalformed
+  | inconsistent
   deriving Repr, DecidableEq, Inhabited
 
 /-- The version byte both formats are written with (CONSTANTS.md,
@@ -2327,7 +2345,10 @@ def ofBytes : Bytes → Except Refusal Session
                   ourIdentityPublic := ourPub, peerIdentityPublic := peerPub,
                   pendingInitial := pi, establishedEphemeral := estab }
               if r7.isEmpty then
-                if invariant s then .ok s else .error .shortOrMalformed
+                -- The semantic rules are `inconsistent`, not malformed: the
+                -- page says so, and the difference is what a storage layer
+                -- could act on.
+                if invariant s then .ok s else .error .inconsistent
               else .error .shortOrMalformed
 
 /-- Every value fits the field it is written into. -/
@@ -2745,6 +2766,7 @@ example :
       (step (Model.Braid.u64Max - 1) Model.Braid.u64Max
         == some { tag := 11, epoch := 0, auth := [], fields := [] }) = true := by
   native_decide
+
 
 
 end Model.PersistedState
