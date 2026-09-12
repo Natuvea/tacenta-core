@@ -4,7 +4,8 @@ This records where `tacenta-core` stands against the expectations in
 [ADR-0008](tacenta-spec/decisions/ADR-0008-assurance-expectations.md), and what
 comes next. It is a summary. For what is proven, `tacenta-proofs/CLAIMS.md` and
 `LIMITATIONS.md` are the record. For what the vectors pin,
-`tacenta-test-vectors/conformance-manifest.md` is.
+`tacenta-test-vectors/conformance-manifest.md` is. For current gate and target
+obligations, see [ASSURANCE-OBLIGATIONS.md](ASSURANCE-OBLIGATIONS.md).
 
 Last assessed: 2026-09-12.
 
@@ -72,8 +73,8 @@ auditing a ledger that is still moving wastes the engagement.
 
 | # | Gate | How it is checked |
 |---|---|---|
-| 1 | Every component sits at its stated target level, or the target was lowered by a recorded decision | the Components table above |
-| 2 | No gap is open at BLOCKING, and every AMBIGUOUS one is closed or converted into a recorded decision | [GAP-REGISTER.md](GAP-REGISTER.md) |
+| 1 | Every component sits at its stated target level, or the target was lowered by a recorded decision | the Components table above and [ASSURANCE-OBLIGATIONS.md](ASSURANCE-OBLIGATIONS.md) |
+| 2 | No gap is open at BLOCKING, and every AMBIGUOUS one is closed or converted into a recorded decision | [GAP-REGISTER.md](GAP-REGISTER.md) and [ASSURANCE-OBLIGATIONS.md](ASSURANCE-OBLIGATIONS.md) |
 | 3 | The claims ledger has been verified claim by claim, by a reader who did not write it, since its last change | a recorded review naming the reading |
 | 4 | Every gate has been shown to fail when what it checks is broken, and none reports green when it cannot run | each gate's mutation record |
 
