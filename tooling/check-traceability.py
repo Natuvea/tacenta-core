@@ -3,10 +3,13 @@
 
 This is a structural gate, not a proof auditor. It keeps the security
 requirement pages, the assumptions page and the limitations status ledger from
-drifting apart while the deeper claim/vector/test index is built.
+drifting apart. It also checks the pilot evidence index links for the P2
+requirements without deciding whether a theorem or test semantically proves a
+requirement.
 """
 from __future__ import annotations
 
+import json
 import re
 import sys
 from argparse import ArgumentParser
@@ -20,6 +23,8 @@ STATUS_RE = re.compile(r"^- \*\*Status: ([^*]+)\*\*", re.M)
 RESTS_RE = re.compile(r"^- \*\*Rests on:\*\* (.*?)(?:\n- \*\*|\Z)", re.M | re.S)
 RELIED_RE = re.compile(r"^- \*\*Relied on by:\*\* (.*?)(?:\n- \*\*|\Z)", re.M | re.S)
 LIMIT_ROW_RE = re.compile(r"^\| (REQ-[A-Z]+-\d+): ([^|]+) \| ([^|]+) \|$", re.M)
+THEOREM_RE = r"\btheorem\s+{name}\b"
+TEST_RE = r"\bfn\s+{name}\s*\("
 
 
 @dataclass(frozen=True)
@@ -159,6 +164,179 @@ def check_identifier_references(security: Path, threat: Path, reqs: dict[str, Re
                 errors.append(f"{path}: references unknown identifier {ref}")
 
 
+def collect_known_ids(security: Path, threat: Path, reqs: dict[str, Requirement], assumptions: set[str]) -> set[str]:
+    known: set[str] = set(reqs) | assumptions
+    for directory, pattern in [
+        (threat, r"^#+ (AS-\d+|ADV-\d+|EX-\d+):"),
+        (security, r"^#+ (LIM-\d+):"),
+    ]:
+        rx = re.compile(pattern, re.M)
+        for path in sorted(directory.glob("*.md")):
+            known.update(match.group(1) for match in rx.finditer(path.read_text()))
+    return known
+
+
+def require_text(path: Path, what: str, errors: list[str]) -> str:
+    if not path.exists():
+        errors.append(f"evidence index references missing {what} path {path}")
+        return ""
+    return path.read_text()
+
+
+def check_symbol(root: Path, item: dict, key: str, errors: list[str]) -> None:
+    name = item.get(key)
+    if not isinstance(name, str) or not name:
+        errors.append(f"evidence index entry in {item.get('path', '<missing path>')} has no {key}")
+        return
+    path_value = item.get("path")
+    if not isinstance(path_value, str):
+        errors.append(f"evidence index {key} {name} has no path")
+        return
+    text = require_text(root / path_value, key, errors)
+    if text and name not in text:
+        errors.append(f"evidence index {key} {name} not found in {path_value}")
+
+
+def check_theorem(root: Path, item: dict, errors: list[str]) -> None:
+    theorem = item.get("theorem")
+    if not isinstance(theorem, str) or not theorem:
+        errors.append(f"evidence index model property in {item.get('path', '<missing path>')} has no theorem")
+        return
+    path_value = item.get("path")
+    if not isinstance(path_value, str):
+        errors.append(f"evidence index theorem {theorem} has no path")
+        return
+    text = require_text(root / path_value, "theorem", errors)
+    if text and not re.search(THEOREM_RE.format(name=re.escape(theorem)), text):
+        errors.append(f"evidence index theorem {theorem} not found in {path_value}")
+
+
+def check_test(root: Path, item: dict, errors: list[str]) -> None:
+    name = item.get("name")
+    if not isinstance(name, str) or not name:
+        errors.append(f"evidence index test in {item.get('path', '<missing path>')} has no name")
+        return
+    path_value = item.get("path")
+    if not isinstance(path_value, str):
+        errors.append(f"evidence index test {name} has no path")
+        return
+    text = require_text(root / path_value, "test", errors)
+    if text and not re.search(TEST_RE.format(name=re.escape(name)), text):
+        errors.append(f"evidence index test {name} not found in {path_value}")
+
+
+def check_vector(root: Path, item: dict, errors: list[str]) -> None:
+    path_value = item.get("path")
+    if not isinstance(path_value, str):
+        errors.append("evidence index vector entry has no path")
+        return
+    path = root / path_value
+    if not path.exists():
+        errors.append(f"evidence index references missing vector path {path}")
+        return
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        errors.append(f"evidence index vector path {path_value} is not JSON: {exc}")
+        return
+    case_ids = item.get("case_ids")
+    if not isinstance(case_ids, list) or not case_ids:
+        errors.append(f"evidence index vector {path_value} has no case_ids")
+        return
+    available = {
+        v.get("id")
+        for key in ("vectors", "cases")
+        for v in data.get(key, [])
+        if isinstance(v, dict)
+    }
+    for case_id in case_ids:
+        if case_id not in available:
+            errors.append(f"evidence index vector case {case_id} not found in {path_value}")
+
+
+def check_claim(root: Path, item: dict, errors: list[str]) -> None:
+    path_value = item.get("path")
+    if not isinstance(path_value, str):
+        errors.append("evidence index claim entry has no path")
+        return
+    text = require_text(root / path_value, "claim", errors)
+    if not text:
+        return
+    section = item.get("section")
+    if not isinstance(section, str) or section not in text:
+        errors.append(f"evidence index claim section {section!r} not found in {path_value}")
+    refs = item.get("references")
+    if not isinstance(refs, list) or not refs:
+        errors.append(f"evidence index claim {path_value} has no references")
+        return
+    for ref in refs:
+        if not isinstance(ref, str) or ref not in text:
+            errors.append(f"evidence index claim reference {ref} not found in {path_value}")
+
+
+def check_evidence_index(root: Path, security: Path, reqs: dict[str, Requirement], known_ids: set[str], errors: list[str]) -> None:
+    path = security / "evidence-index.json"
+    if not path.exists():
+        errors.append(f"{path}: missing evidence index")
+        return
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        errors.append(f"{path}: invalid JSON: {exc}")
+        return
+    if data.get("schema_version") != 1:
+        errors.append(f"{path}: schema_version must be 1")
+    entries = data.get("requirements")
+    if not isinstance(entries, list) or not entries:
+        errors.append(f"{path}: requirements must be a non-empty list")
+        return
+    seen: set[str] = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            errors.append(f"{path}: requirement entries must be objects")
+            continue
+        rid = entry.get("id")
+        if not isinstance(rid, str) or rid not in reqs:
+            errors.append(f"{path}: evidence entry references unknown requirement {rid}")
+            continue
+        if rid in seen:
+            errors.append(f"{path}: duplicate evidence entry for {rid}")
+        seen.add(rid)
+        status = entry.get("status")
+        if status_class(str(status)) != status_class(reqs[rid].status):
+            errors.append(f"{path}: {rid} evidence status {status!r} differs from requirement status {reqs[rid].status!r}")
+        source = entry.get("source")
+        if not isinstance(source, str) or not source.endswith(f"#{rid}"):
+            errors.append(f"{path}: {rid} source must end with #{rid}")
+        for asm in entry.get("assumptions", []):
+            if asm not in known_ids or not asm.startswith("ASM-"):
+                errors.append(f"{path}: {rid} cites unknown assumption {asm}")
+        for lim in entry.get("limitations", []):
+            if lim not in known_ids or not lim.startswith("LIM-"):
+                errors.append(f"{path}: {rid} cites unknown limitation {lim}")
+        for item in entry.get("implementation", []):
+            check_symbol(root, item, "symbol", errors)
+        for item in entry.get("model_properties", []):
+            check_theorem(root, item, errors)
+        for item in entry.get("claims", []):
+            check_claim(root, item, errors)
+        for item in entry.get("vectors", []):
+            check_vector(root, item, errors)
+        for item in entry.get("tests", []):
+            check_test(root, item, errors)
+        missing = entry.get("missing_evidence", [])
+        if status_class(reqs[rid].status) != "proved" and not missing:
+            errors.append(f"{path}: {rid} needs explicit missing_evidence for non-proved status")
+        for item in missing:
+            refs = item.get("references") if isinstance(item, dict) else None
+            if not isinstance(refs, list) or not refs:
+                errors.append(f"{path}: {rid} missing_evidence entry has no references")
+                continue
+            for ref in refs:
+                if ref not in known_ids:
+                    errors.append(f"{path}: {rid} missing_evidence cites unknown reference {ref}")
+
+
 def main() -> int:
     parser = ArgumentParser()
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
@@ -172,6 +350,8 @@ def main() -> int:
     check_limitations(security, reqs, errors)
     assumptions = check_assumptions(threat, reqs, errors)
     check_identifier_references(security, threat, reqs, assumptions, errors)
+    known_ids = collect_known_ids(security, threat, reqs, assumptions)
+    check_evidence_index(root, security, reqs, known_ids, errors)
 
     if errors:
         for err in errors:
@@ -179,7 +359,8 @@ def main() -> int:
         return 1
     print(
         "traceability: "
-        f"{len(reqs)} requirements, {len(assumptions)} assumptions and identifier references are consistent"
+        f"{len(reqs)} requirements, {len(assumptions)} assumptions, identifier references "
+        "and the pilot evidence index are consistent"
     )
     return 0
 
