@@ -87,6 +87,7 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- Clarify the prekey store signature rule in `protocol/session-persistence.md`: verification uses the unlabelled prekey signature input, and the signing obligation names `create_prekeys`, `replenish`, and both rotations. This resolves G7-03 and G7-04 from the independent reader without changing the stored format or implementation.
 - `protocol/session-persistence.md`, Braid, and Semantic rules of the leaf
   formats, Braid: the `key_pair` content clause of tags 1 to 4 is **scoped**
   to an implementation that knows the KEM key pair's layout. Such an

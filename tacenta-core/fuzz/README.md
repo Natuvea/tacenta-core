@@ -86,9 +86,8 @@ cargo fuzz run wire_decoders
 ```
 
 Needs nightly Rust and `cargo install cargo-fuzz`. Each target keeps its corpus
-in `corpus/<target>/`, which is committed: 2,726 files holding 1,401,534 bytes of
-content in all, about 1.4 MB or 1.3 MiB (`du` reports nearer 11 MB, which is
-block usage across that many small files).
+in `corpus/<target>/`, which is committed: 4,105 files holding 2,655,764 bytes of
+content in all (`du` reports allocated blocks rather than content size).
 It is the accumulated set of inputs that reached distinct branches, plus the
 seeds the ignored tests named above write, and starting each run from it
 rather than from nothing is most of what makes a short run worth anything: a
@@ -118,7 +117,8 @@ both matter:
 - **`tooling/ci.sh`** runs each target briefly against the committed corpus
   when `cargo-fuzz` and a nightly toolchain are present. This is a regression
   gate, not a search: it catches a change that reintroduces a known input, and
-  it is over in about a minute.
+  it is over in about a minute. It uses a temporary copy of the corpus so new
+  coverage does not dirty the checkout; findings remain in `artifacts/`.
 - **Nightly**, a nightly fuzz workflow runs each target for several minutes
   on a dedicated runner and uploads any artifact it finds. This is
   the search. A corpus that grows is the point, so the workflow commits back

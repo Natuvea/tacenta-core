@@ -639,6 +639,11 @@ key first.
   `previous_kem`'s over theirs. The one-time *curve* prekeys carry no signature
   and are not covered by this rule; only the KEM prekeys are signed individually
   (session-establishment.md, Sending the initial message).
+  **Verified as a prekey signature, not an application one**
+  (identities-and-devices.md, Verifying a signature): the message is the tagged
+  key as written above, with no label in front of it. The labelled input that
+  page specifies is for signatures an application supplies, and a reader that
+  reached for it would refuse every honest store.
 
 The page's own reason for refusing a corrupted `next_id` decides this one: a
 value accepted here "would poison every future bundle and persist canonically".
@@ -689,7 +694,12 @@ moment the bytes could have been corrupted. The consequence is an obligation on
 the operations instead of a check inside them: **every operation that signs a
 prekey signs under the identity whose public key is `identity_public`**, and an
 implementation whose API lets a caller supply some other identity refuses it
-rather than storing the result. Without that obligation an operation can build a
+rather than storing the result. Four operations sign: `create_prekeys`, which
+signs the first signed prekey and every KEM prekey it creates; `replenish`,
+which signs each KEM prekey it adds; and the two rotations,
+`rotate_signed_prekey` and `rotate_kem`. `create_prekeys` is the one that
+cannot be handed a foreign identity, because it is the identity that builds the
+store; the other three can be, and refuse. Without that obligation an operation can build a
 state this reader would refuse, which is the one thing "No state the operations
 produce is refused" (Stored curve public keys) undertakes cannot happen.
 
