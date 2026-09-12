@@ -297,6 +297,54 @@ implemented in `tacenta-braid`, and carried by that crate's own tests. What
 every implementation must apply, the field's length, is pinned by
 `key-pair-wrong-length`.
 
+### The prekey store's state: `vectors/persistence/prekey-store-state.json`
+
+The page is session-persistence.md, Prekey store and Rejection. The model
+states the layout and the semantic rules it can check. Accepted vectors carry
+bytes `tacenta-core` produced under a fixed byte source, because the model has
+no signature operation and cannot create a store whose stored signatures verify.
+Refusal vectors are one-field mutations of those fixtures, or truncations,
+additions and version relabellings.
+
+- **Stored bytes**, when the one input is `bytes`: a stored prekey store offered
+  to the reader.
+- A valid vector's `fields` are small, checkable values from the store:
+  `identity_public`, `signed_prekey_secret`, `signed_prekey_id`,
+  `signed_prekey_sig`, `kem_id`, `kem_sig`, `next_id`, `one_time_count`,
+  `kem_one_time_count`, `seen_count`, `previous_signed_present` and
+  `previous_kem_present`.
+- The one-time lists and replay record are reported as counts rather than by
+  repeating their stored contents. A present retired key is reported by its
+  presence byte in `previous_*_present`; its full bytes are already in the
+  input the runner read.
+- An invalid vector's `refusal` is `wrong-version`, `short-or-malformed`,
+  `non-canonical` or `incoherent`. `incoherent` is the prekey store's
+  semantic-signature refusal.
+
+### The session's state: `vectors/persistence/session-state.json`
+
+The page is session-persistence.md, Session and Rejection. Accepted vectors
+carry sessions `tacenta-core` exported under the counter-based `FixedRng` in
+`lifecycle.rs`, because the model does not compute the curve and cannot build a
+session whose `ratchet_private` matches the classical ratchet's `dhs_pub`.
+Refusal vectors are one-field mutations of the responder fixture, or
+truncations, additions and a version relabelling.
+
+- **Stored bytes**, when the one input is `bytes`: a stored session offered to
+  the reader.
+- A valid vector's `fields` are `ratchet_private`, `our_identity_public`,
+  `peer_identity_public`, `identity_ad`, `braid_tag`, `braid_epoch`,
+  `sparse_epoch`, `pending_initial_present` and
+  `established_ephemeral_present`.
+- `braid_tag` is the Braid half's state tag. `braid_epoch` is the Braid half's
+  epoch, and `sparse_epoch` is the sparse ratchet half's epoch inside the
+  stored Triple Ratchet state.
+- The two optional session fields are reported by presence byte. Their full
+  bytes remain in the input and are not repeated in `fields`.
+- An invalid vector's `refusal` is `wrong-version`, `short-or-malformed`,
+  `non-canonical` or `inconsistent`. `inconsistent` is the session's semantic
+  refusal for a canonical stored session whose pieces do not agree.
+
 ### The protobuf profile: `vectors/protobuf/`
 
 The page is protobuf-profile.md.
@@ -409,9 +457,9 @@ from either implementation.
 
 - **Message keys.** The harness compares states, not the keys an operation
   returns; `vectors/ratchet/double-ratchet.json` pins those.
-- **The session and the prekey store.** The model states no stored format for
-  them, so there is nothing to compare states by, and no generated sequence
-  drives them.
+- **The session and the prekey store.** The model states their stored formats,
+  but no generated operation sequence drives them through Rust and the model
+  together yet.
 - **Most of the Braid's state machine.** The Triple Ratchet is driven through
   generated sequences like the two ratchets, and the Braid's *decoder* is
   driven on generated stored states. Its transitions are reached only from

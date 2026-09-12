@@ -1960,7 +1960,7 @@ def sessionStateFile (_ : Unit) : Except String String := do
     sessionStored "trailing-byte" "a byte after the last field"
       (baseBytes ++ [0x00]) (some .shortOrMalformed),
     sessionStored "sparse-epoch-does-not-follow-the-braid"
-      "the sparse ratchet's epoch one past what the Braid's state tag allows: outside the relation the sparse ratchet refuses the next agreement output on every message and the session never recovers"
+      "the Braid epoch moved outside the relation its state tag allows: the session's Braid and sparse ratchet halves no longer agree"
       -- The Braid's epoch rather than the sparse ratchet's, and by two rather
       -- than one. Bumping the sparse ratchet's breaks its own reader's rules,
       -- so that half is refused as malformed before the session's relation is
