@@ -546,8 +546,42 @@ from it. This holds here by delegation and discipline, not by proof.
   covers the inputs it draws on the machine it runs on; a proof covers all of
   them. What it buys is that a regression becomes visible, which reading the code
   cannot. The tests are `#[ignore]`d out of the per-push run and run nightly in
-  release mode by a nightly timing workflow. Run them by hand with
+  release mode by a nightly timing workflow, which lives in the private
+  deployment repository rather than in this one. Run them by hand with
   `cargo test -p tacenta-core --test timing -- --ignored --nocapture`.
+
+  **The harness carries two calibration controls, and they are load-bearing.**
+  Every leak assertion here is a negative result, and a negative result is
+  evidence only from an instrument that would have reported the positive. So the
+  same measurement, floors and statistics are run over deliberately leaky
+  stand-ins -- a byte-at-a-time tag comparison, and a rejection path that returns
+  before the work it guards -- and the controls fail if the leak is *not*
+  detected. A failing control does not mean this codebase leaks; it means the
+  harness has gone blind, and that the other results are not evidence until it
+  is understood.
+
+  **What the first control found, on its first run.** The absolute floor is
+  5 ns, and `Instant`'s resolution is a property of the host: on Apple Silicon
+  it is 41.67 ns (a 24 MHz timebase; measured, not assumed -- the smallest
+  non-zero deltas it reports are 41, 42, 83, 84, 125, 166 ns). Timing one
+  rejection at a time, a median gap can then only read 0 or >= 41.67 ns, so a
+  5 ns floor was never a 5 ns floor there. The ~10 ns byte-at-a-time
+  short-circuit these tests exist to catch fell underneath the quantum and
+  measured as **exactly 0.00 ns** -- an indistinguishable-looking pass from a
+  harness that could not have distinguished anything. The nightly job runs on an
+  isolated linux x64 core with a far finer timer, so the gate was sound where it
+  gates; every run anywhere else silently was not. **Any previously recorded
+  0.00 ns separation from an Apple Silicon host should be read in that light,
+  including one taken during external review.**
+
+  The fix is in `Floor::batch`: measure the host's quantum and time enough
+  rejections per sample that `quantum / batch` sits at half the floor or better,
+  dividing the sample count by the same factor so the total work is unchanged.
+  On a nanosecond-resolution host the factor is 1 and nothing changes; on Apple
+  Silicon it is 17, and the same short-circuit then measures 12--13 ns against a
+  real path's 0.06 ns. A batched sample measures steady-state repeated
+  rejection rather than a cold one, which is a real change to the question and
+  is stated with the code.
 
   **Why the gate is a median gap on an isolated core.** Two choices in the
   test are load-bearing, environment and statistic.
