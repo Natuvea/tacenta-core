@@ -2128,6 +2128,309 @@ theorem ofBytes_toBytes (st : Store) (hinv : invariant st = true) (hfit : Fits s
 
 end PrekeyStoreState
 
+namespace SessionState
+
+/-! ## The session's stored format (session-persistence.md, Session)
+
+The sixth and last stored format, and the second whose page carries a rule this
+model cannot state. **`ratchet_private`'s public key equals the classical
+ratchet's `dhs_pub`** needs X25519, and this model does not compute the curve:
+`Model.Ratchet` says so at its head, and the Diffie-Hellman outputs the model
+works from are taken as inputs, with the agreement itself checked by the X25519
+vectors. That boundary was drawn long before this format, so unlike the prekey
+store's signature rule there is no decision to take here -- only a consequence
+to state.
+
+**And the consequence is the same shape twice, which is worth naming once.**
+Both formats that remained unmodelled did so because their semantic rules are
+cryptographic relations between a stored secret and a stored public value --
+a signature against an identity key, a private key against its public half --
+and the model's boundary excludes exactly those. Every *structural* rule of
+both formats is modelled; no *cryptographic* rule of either is. That is what
+"modelled and pinned" can mean for these two rows and what it cannot, and it is
+why neither reaches its target on the strength of a model alone.
+
+The other seven rules are here. -/
+
+structure PendingInitial where
+  ephemeralPublic : Bytes
+  kemCiphertext : Bytes
+  signedPrekeyId : Nat
+  oneTimePrekeyId : Nat
+  kemPrekeyId : Nat
+  deriving Repr, DecidableEq, Inhabited
+
+structure Session where
+  triple : Model.Triple.State
+  braid : BraidState.State
+  ratchetPrivate : Bytes
+  identityAd : Bytes
+  ourIdentityPublic : Bytes
+  peerIdentityPublic : Bytes
+  pendingInitial : Option PendingInitial
+  establishedEphemeral : Option Bytes
+  deriving Repr, DecidableEq, Inhabited
+
+/-- One ML-KEM-1024 ciphertext: `ct1` and `ct2` together (CONSTANTS.md, Braid
+    KEM field lengths). -/
+def kemCiphertextLen : Nat := 1568
+
+/-- `EncodeEC`: the curve type byte, then the key (CONSTANTS.md). -/
+def encodeEc (k : Bytes) : Bytes := Model.Messages.ecCurveByte :: k
+
+/-! ### The bytes -/
+
+def pendingBytes (p : PendingInitial) : Bytes :=
+  p.ephemeralPublic ++ TripleState.lenPrefixed p.kemCiphertext
+    ++ be 4 p.signedPrekeyId ++ be 4 p.oneTimePrekeyId ++ be 4 p.kemPrekeyId
+
+/-- A presence byte, and a length-prefixed field only when present: nothing at
+    all when absent, not even the length. -/
+def optFieldBytes : Option Bytes → Bytes
+  | none => [0x00]
+  | some b => [0x01] ++ TripleState.lenPrefixed b
+
+def toBytes (s : Session) : Bytes :=
+  [stateVersion] ++ TripleState.lenPrefixed (TripleState.toBytes s.triple)
+    ++ TripleState.lenPrefixed (BraidState.toBytes s.braid)
+    ++ s.ratchetPrivate
+    ++ TripleState.lenPrefixed s.identityAd
+    ++ s.ourIdentityPublic ++ s.peerIdentityPublic
+    ++ optFieldBytes (s.pendingInitial.map pendingBytes)
+    ++ optFieldBytes s.establishedEphemeral
+
+/-! ### Semantic rules (Session, Semantic rules) -/
+
+/-- The role, read from `established_ephemeral`: every responder carries one for
+    its whole life and no initiator ever has one. `pending_initial` would not
+    do -- an initiator drops it once the peer answers. -/
+def isInitiator (s : Session) : Bool := s.establishedEphemeral.isNone
+
+/-- The Braid tags past the point where the header-receiving side folds the
+    epoch's secret. -/
+def pastFold (tag : UInt8) : Bool := 7 ≤ tag.toNat && tag.toNat ≤ 10
+
+/-- **The sparse ratchet's epoch follows the Braid's.** Written as
+    `epoch + 1 = braid.epoch` rather than `epoch = braid.epoch - 1`, because
+    truncated subtraction would make the rule vacuously true at a Braid epoch
+    of zero, which the Braid's own invariant already excludes. A failed Braid
+    is exempt: the failure is terminal and persists as such. -/
+def epochsFollow (s : Session) : Bool :=
+  if s.braid.tag == BraidState.failedTag then true
+  else if pastFold s.braid.tag then decide (s.triple.postQuantum.epoch = s.braid.epoch)
+  else decide (s.triple.postQuantum.epoch + 1 = s.braid.epoch)
+
+/-- **The associated data is the two identities in the role's orientation.** -/
+def adOriented (s : Session) : Bool :=
+  if isInitiator s then
+    s.identityAd == encodeEc s.ourIdentityPublic ++ encodeEc s.peerIdentityPublic
+  else
+    s.identityAd == encodeEc s.peerIdentityPublic ++ encodeEc s.ourIdentityPublic
+
+/-- **The halves agree on the role.** The sparse ratchet's `direction` is `A2b`
+    for the initiator. The Braid's role is read from its tag: the initiator
+    sends the first epoch's header and the roles swap each epoch, so at epoch
+    `e` this party is the header-sending side exactly when it is the initiator
+    and `e` is odd, or the responder and `e` is even. A failed Braid has no
+    role, so its half is not checked; the `direction` half still is. -/
+def rolesAgree (s : Session) : Bool :=
+  let sparseOk :=
+    (s.triple.postQuantum.direction == Model.SparseRatchet.Direction.a2b) == isInitiator s
+  let braidOk :=
+    if s.braid.tag == BraidState.failedTag then true
+    else decide (s.braid.tag.toNat ≤ 4) == (isInitiator s == decide (s.braid.epoch % 2 = 1))
+  sparseOk && braidOk
+
+/-- **An unanswered initiator is not also a responder.** -/
+def notBothRoles (s : Session) : Bool :=
+  !(s.pendingInitial.isSome && s.establishedEphemeral.isSome)
+
+/-- **The optional fields have their shape**: one ML-KEM ciphertext exactly,
+    and an `established_ephemeral` that `DecodeEC` accepts. -/
+def optionalShapes (s : Session) : Bool :=
+  (match s.pendingInitial with
+   | none => true
+   | some p => decide (p.kemCiphertext.length = kemCiphertextLen))
+  && (match s.establishedEphemeral with
+      | none => true
+      | some e =>
+        decide (e.length = 33) && (e.head? == some Model.Messages.ecCurveByte)
+          && canonicalKey (e.drop 1))
+
+/-- **Every curve public key the session stores is canonical.** -/
+def keysCanonical (s : Session) : Bool :=
+  canonicalKey s.ourIdentityPublic && canonicalKey s.peerIdentityPublic
+    && (match s.pendingInitial with
+        | none => true
+        | some p => canonicalKey p.ephemeralPublic)
+
+/-- The rules, and all of them this model can state. The eighth -- each half
+    satisfying its own crate's invariant -- is here as the page's second
+    reading of it: each half's own reader has already refused on it. -/
+def invariant (s : Session) : Bool :=
+  epochsFollow s && adOriented s && rolesAgree s && notBothRoles s
+    && optionalShapes s && keysCanonical s
+    && TripleState.invariant s.triple && BraidState.invariant s.braid
+
+/-! ### The reader -/
+
+def readOptField (bs : Bytes) : Step (Option Bytes) :=
+  andThen (readTag bs) fun present r =>
+    if present then
+      andThen (TripleState.readLenPrefixed r) fun b r1 => .ok (some b, r1)
+    else .ok (none, r)
+
+/-- `pending_initial`, from exactly its own bytes. -/
+def readPending (b : Bytes) : Except Refusal PendingInitial :=
+  andThen (takeN 32 b) fun eph r0 =>
+  andThen (TripleState.readLenPrefixed r0) fun ct r1 =>
+  andThen (readInt 4 r1) fun spId r2 =>
+  andThen (readInt 4 r2) fun otId r3 =>
+  andThen (readInt 4 r3) fun kemId r4 =>
+    if r4.isEmpty then
+      .ok { ephemeralPublic := eph, kemCiphertext := ct, signedPrekeyId := spId,
+            oneTimePrekeyId := otId, kemPrekeyId := kemId }
+    else .error .shortOrMalformed
+
+/-- Read a stored session back. Refused as a wrong version: a first byte other
+    than `0x01`. Refused as short or malformed: an empty buffer, a length
+    prefix that overruns, a half its own reader refuses whatever that reader's
+    reason, a presence byte other than `0x00` or `0x01`, a `pending_initial`
+    that is not the layout, bytes left after the last field, and a session that
+    breaks a rule above. -/
+def ofBytes : Bytes → Except Refusal Session
+  | [] => .error .shortOrMalformed
+  | v :: body =>
+    if v ≠ stateVersion then .error .wrongVersion
+    else
+      andThen (TripleState.readLenPrefixed body) fun tsb r0 =>
+      andThen (TripleState.readLenPrefixed r0) fun brb r1 =>
+      andThen (takeN 32 r1) fun rp r2 =>
+      andThen (TripleState.readLenPrefixed r2) fun ad r3 =>
+      andThen (takeN 32 r3) fun ourPub r4 =>
+      andThen (takeN 32 r4) fun peerPub r5 =>
+      andThen (readOptField r5) fun pendB r6 =>
+      andThen (readOptField r6) fun estab r7 =>
+        match TripleState.ofBytes tsb with
+        | .error _ => .error .shortOrMalformed
+        | .ok tr =>
+          match BraidState.ofBytes brb with
+          | .error _ => .error .shortOrMalformed
+          | .ok br =>
+            match (match pendB with
+                   | none => (Except.ok none : Except Refusal (Option PendingInitial))
+                   | some pb => (readPending pb).map some) with
+            | .error _ => .error .shortOrMalformed
+            | .ok pi =>
+              let s : Session :=
+                { triple := tr, braid := br, ratchetPrivate := rp, identityAd := ad,
+                  ourIdentityPublic := ourPub, peerIdentityPublic := peerPub,
+                  pendingInitial := pi, establishedEphemeral := estab }
+              if r7.isEmpty then
+                if invariant s then .ok s else .error .shortOrMalformed
+              else .error .shortOrMalformed
+
+/-- Every value fits the field it is written into. -/
+def Fits (s : Session) : Prop :=
+  TripleState.Fits s.triple ∧ BraidState.Fits s.braid
+    ∧ (TripleState.toBytes s.triple).length < 2 ^ 32
+    ∧ (BraidState.toBytes s.braid).length < 2 ^ 32
+    ∧ s.ratchetPrivate.length = 32 ∧ s.identityAd.length < 2 ^ 32
+    ∧ s.ourIdentityPublic.length = 32 ∧ s.peerIdentityPublic.length = 32
+    ∧ (∀ p, s.pendingInitial = some p →
+        p.ephemeralPublic.length = 32 ∧ p.kemCiphertext.length < 2 ^ 32
+          ∧ p.signedPrekeyId < 2 ^ 32 ∧ p.oneTimePrekeyId < 2 ^ 32
+          ∧ p.kemPrekeyId < 2 ^ 32 ∧ (pendingBytes p).length < 2 ^ 32)
+    ∧ (∀ e, s.establishedEphemeral = some e → e.length < 2 ^ 32)
+
+
+/-! ### The steps read back what is written -/
+
+theorem readOptField_bytes (o : Option Bytes) (rest : Bytes)
+    (h : ∀ b, o = some b → b.length < 2 ^ 32) :
+    readOptField (optFieldBytes o ++ rest) = .ok (o, rest) := by
+  match o with
+  | none => simp [readOptField, optFieldBytes, readTag]
+  | some b =>
+    have hb := h b rfl
+    simp only [optFieldBytes, readOptField, List.cons_append, List.nil_append,
+      readTag, if_neg (by decide : ¬(1 : UInt8) = 0),
+      andThen_ok, if_true, TripleState.readLenPrefixed_bytes b _ hb]
+
+theorem readPending_bytes (p : PendingInitial)
+    (h1 : p.ephemeralPublic.length = 32) (h2 : p.kemCiphertext.length < 2 ^ 32)
+    (h3 : p.signedPrekeyId < 2 ^ 32) (h4 : p.oneTimePrekeyId < 2 ^ 32)
+    (h5 : p.kemPrekeyId < 2 ^ 32) :
+    readPending (pendingBytes p) = .ok p := by
+  have h3' : p.signedPrekeyId < 256 ^ 4 := by simpa using h3
+  have h4' : p.oneTimePrekeyId < 256 ^ 4 := by simpa using h4
+  have h5' : p.kemPrekeyId < 256 ^ 4 := by simpa using h5
+  -- The last identifier ends the bytes, so it is read from `be 4 _ ++ []`
+  -- rather than from an append the rewrite would have to see through.
+  have hlast := readInt_be 4 p.kemPrekeyId [] h5'
+  simp only [List.append_nil] at hlast
+  simp only [pendingBytes, readPending, List.append_assoc,
+    takeN_append' 32 p.ephemeralPublic _ h1, andThen_ok,
+    TripleState.readLenPrefixed_bytes p.kemCiphertext _ h2,
+    readInt_be 4 p.signedPrekeyId _ h3', readInt_be 4 p.oneTimePrekeyId _ h4', hlast]
+  simp
+
+/-- **A session that keeps the rules, and whose values fit their fields, is read
+    back from the bytes it is written as.** -/
+theorem ofBytes_toBytes (s : Session) (hinv : invariant s = true) (hfit : Fits s) :
+    ofBytes (toBytes s) = .ok s := by
+  obtain ⟨htf, hbf, htl, hbl, hrp, had, hop, hpp, hpend, hest⟩ := hfit
+  have hinv' := hinv
+  simp only [invariant, Bool.and_eq_true] at hinv'
+  obtain ⟨⟨⟨⟨⟨⟨-, -⟩, -⟩, -⟩, -⟩, htinv⟩, hbinv⟩ := hinv'
+  -- The last optional field ends the bytes.
+  have hlast := readOptField_bytes s.establishedEphemeral [] hest
+  simp only [List.append_nil] at hlast
+  have hpendBytes : ∀ b, s.pendingInitial.map pendingBytes = some b → b.length < 2 ^ 32 := by
+    intro b hb
+    cases hp : s.pendingInitial with
+    | none => rw [hp] at hb; simp at hb
+    | some p =>
+      rw [hp] at hb
+      simp only [Option.map_some, Option.some.injEq] at hb
+      subst hb
+      exact (hpend p hp).2.2.2.2.2
+  have hpf := readOptField_bytes (s.pendingInitial.map pendingBytes)
+    (optFieldBytes s.establishedEphemeral) hpendBytes
+  simp only [toBytes, ofBytes, stateVersion, List.cons_append, List.nil_append,
+    List.append_assoc, ne_eq, not_true_eq_false, if_false,
+    TripleState.readLenPrefixed_bytes (TripleState.toBytes s.triple) _ htl, andThen_ok,
+    TripleState.readLenPrefixed_bytes (BraidState.toBytes s.braid) _ hbl,
+    takeN_append' 32 s.ratchetPrivate _ hrp,
+    TripleState.readLenPrefixed_bytes s.identityAd _ had,
+    takeN_append' 32 s.ourIdentityPublic _ hop,
+    takeN_append' 32 s.peerIdentityPublic _ hpp,
+    hpf, hlast,
+    TripleState.ofBytes_toBytes _ htinv htf, BraidState.ofBytes_toBytes _ hbinv hbf]
+  -- Each branch shows the record the reader built equal to `s` once, rather
+  -- than rewriting the literal back everywhere with `← hp`: that would also
+  -- undo the very reduction that got the proof here.
+  match hp : s.pendingInitial with
+  | none =>
+    have hrec : Session.mk s.triple s.braid s.ratchetPrivate s.identityAd
+        s.ourIdentityPublic s.peerIdentityPublic none s.establishedEphemeral = s := by
+      rw [← hp]
+    simp only [Option.map_none, hrec, hinv, if_true]
+    simp
+  | some p =>
+    obtain ⟨e1, e2, e3, e4, e5, -⟩ := hpend p hp
+    -- The record the reader built, shown equal to `s` once, rather than by
+    -- rewriting `some p` back everywhere: `← hp` would also undo the very
+    -- reduction that got us here.
+    have hrec : Session.mk s.triple s.braid s.ratchetPrivate s.identityAd
+        s.ourIdentityPublic s.peerIdentityPublic (some p) s.establishedEphemeral = s := by
+      rw [← hp]
+    simp only [Option.map_some, readPending_bytes p e1 e2 e3 e4 e5, Except.map,
+      hrec, hinv, if_true]
+    simp
+
+end SessionState
+
 /-! ## Build-time checks
 
 Executable instances of what the text says, as `Model.Erasure`'s are: states the
