@@ -104,6 +104,7 @@ than discouraged.
 | `tacenta-core/braid/src/lib.rs::Braid::receive` | `(u64, Option<Output>, Braid)`, adopted by `commit` |
 | `tacenta-core/braid/src/lib.rs::Braid::step_receive` | the receive logic proper: `&self`, takes the current `State` by value and returns the next one; `receive` wraps it and hands back the candidate `Braid`. Registered separately because the gate matches verbs anywhere in a name. |
 | `tacenta-core/braid/src/lib.rs::Braid::commit` | the adopting half |
+| `tacenta-core/src/sessions/lifecycle.rs::PrekeyStore::signatures_verify` | a `bool`: whether every stored signature verifies under `identity_public` (session-persistence.md, Prekey store, Semantic rules). Registered here rather than among the decoders so the gate enforces the `&self` it is safe because of: the decoders heading promises no shape, so a change to `&mut self` would pass there unnoticed. Reached only through `from_bytes`, and only after the structural rules have passed, so the verification work is bounded by a store the decoder already accepted rather than by whatever an attacker wrote -- an ordering the tests pin, because it is an argument and not an accident. |
 
 ### Orchestration, transactional by construction
 
@@ -141,7 +142,6 @@ compare, refusing a non-canonical spelling (CR-18).
 | function | how |
 |---|---|
 | `tacenta-core/src/sessions/lifecycle.rs::PrekeyStore::from_bytes` | decodes a persisted prekey store; v3 re-encode-and-compare backstop. |
-| `tacenta-core/src/sessions/lifecycle.rs::PrekeyStore::signatures_verify` | the fifth semantic rule of the stored prekey store (session-persistence.md, Prekey store, Semantic rules): every stored signature verifies under `identity_public`. Takes `&self`, returns a `bool`, and commits nothing. Reached only through `from_bytes`, and only after the four cheap rules have passed, so a store that fails those is refused before any signature is verified -- the work is bounded by a store the decoder already accepted structurally, not by whatever an attacker wrote. |
 | `tacenta-core/src/sessions/lifecycle.rs::PendingInitial::from_bytes` | private sub-decoder for the pending-initial field of a `Session`; reached only through `Session::import`. |
 | `tacenta-core/src/sessions/lifecycle.rs::Session::import` | decodes a persisted session; re-encodes and compares before returning. |
 | `tacenta-core/src/sessions/lifecycle.rs::Session::import_unchecked` | the nested decode `import` wraps; private, and only `import` calls it, so the canonicality check is never bypassed. |

@@ -394,7 +394,7 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
         "braid-state" => check_braid_state(v),
         // The prekey store's persisted format (session-persistence.md, Prekey
         // store). Unlike every format above it, the model cannot state this
-        // one's fifth semantic rule -- that every stored signature verifies
+        // one's sixth semantic rule -- that every stored signature verifies
         // under `identity_public` -- because the model has no signatures. So
         // its accepted vectors carry bytes `tacenta-core` itself produced,
         // which satisfy that rule, and its refusals are one field of those
@@ -1194,22 +1194,154 @@ fn braid_message(r: &[u8]) -> Result<tacenta_braid::Msg, String> {
     })
 }
 
-/// A Braid's stored bytes. Either offered as `bytes` to the reader, which
-/// accepts them with `fields` or refuses them with `refusal`; or a `start`
-/// the reader accepts followed by `steps`, each a received message, whose
-/// result is written as `output` and read back.
+/// Read a four-byte big-endian length at `pos`, and the bytes it prefixes.
+fn len_prefixed(b: &[u8], pos: usize) -> Result<(usize, usize), String> {
+    if pos + 4 > b.len() {
+        return Err(format!("no length prefix at {pos}"));
+    }
+    let n = u32::from_be_bytes(b[pos..pos + 4].try_into().unwrap()) as usize;
+    let start = pos + 4;
+    if start + n > b.len() {
+        return Err(format!("length at {pos} overruns the input"));
+    }
+    Ok((start, n))
+}
+
+/// Walk the stored prekey store and check every field the vector declares
+/// against the bytes at the position the format puts it.
 ///
-/// Only the two transitions out of `Ct2Sampled` are driven this way. Every
-/// other transition needs a key pair or an encapsulation state, whose layout
-/// `session-persistence.md` delegates and the model therefore does not build
-/// (`Model.PersistedState`, BraidState).
-/// The prekey store's stored format: which byte strings its reader accepts,
-/// which it refuses and with which refusal, and that what it accepts it writes
-/// back unchanged.
+/// An independent walk of the layout, not a second call to `tacenta-core`'s
+/// decoder: the point is to check the model's field decomposition against
+/// session-persistence.md's layout block, so a vector that declares the wrong
+/// decode is caught even though both readers agree on accepting the bytes.
+fn prekey_store_fields_agree(v: &Vector, stored: &[u8]) -> Result<(), String> {
+    fields_named(
+        v,
+        &[
+            "identity_public",
+            "signed_prekey_secret",
+            "signed_prekey_id",
+            "signed_prekey_sig",
+            "kem_id",
+            "kem_sig",
+            "next_id",
+            "one_time_count",
+            "kem_one_time_count",
+            "seen_count",
+            "previous_signed_present",
+            "previous_kem_present",
+        ],
+    )?;
+    let at = |from: usize, n: usize| -> Result<&[u8], String> {
+        stored
+            .get(from..from + n)
+            .ok_or_else(|| format!("the store ends before {}", from + n))
+    };
+    eq(at(1, 32)?, &required_field(v, "identity_public")?)?;
+    eq(at(33, 32)?, &required_field(v, "signed_prekey_secret")?)?;
+    eq(at(65, 4)?, &required_field(v, "signed_prekey_id")?)?;
+    eq(at(69, 64)?, &required_field(v, "signed_prekey_sig")?)?;
+    eq(at(133, 4)?, &required_field(v, "one_time_count")?)?;
+
+    // From here the layout is variable, so it is walked rather than indexed.
+    let one_time = u32::from_be_bytes(at(133, 4)?.try_into().unwrap()) as usize;
+    let mut pos = 137 + one_time * 36;
+    let (kem_at, kem_len) = len_prefixed(stored, pos)?;
+    pos = kem_at + kem_len;
+    eq(at(pos, 4)?, &required_field(v, "kem_id")?)?;
+    eq(at(pos + 4, 64)?, &required_field(v, "kem_sig")?)?;
+    pos += 68;
+    eq(at(pos, 4)?, &required_field(v, "kem_one_time_count")?)?;
+    let kem_one_time = u32::from_be_bytes(at(pos, 4)?.try_into().unwrap()) as usize;
+    pos += 4;
+    for _ in 0..kem_one_time {
+        let (pair_at, pair_len) = len_prefixed(stored, pos + 4)?;
+        pos = pair_at + pair_len + 64;
+    }
+    eq(at(pos, 4)?, &required_field(v, "next_id")?)?;
+    pos += 4;
+    eq(at(pos, 4)?, &required_field(v, "seen_count")?)?;
+    let seen = u32::from_be_bytes(at(pos, 4)?.try_into().unwrap()) as usize;
+    pos += 4 + seen * 36;
+    eq(at(pos, 1)?, &required_field(v, "previous_signed_present")?)?;
+    if stored[pos] == 1 {
+        pos += 1 + 32 + 4 + 64;
+    } else {
+        pos += 1;
+    }
+    eq(at(pos, 1)?, &required_field(v, "previous_kem_present")?)?;
+    Ok(())
+}
+
+/// Walk the stored session and check every field the vector declares.
 ///
-/// The variants are enumerated rather than caught by a wildcard, so that a new
-/// refusal kind has to be given a name here instead of silently joining
-/// "short or malformed".
+/// The two halves are decoded by their own crates, so `braid_tag`,
+/// `braid_epoch` and `sparse_epoch` are checked against what the Braid and the
+/// Triple Ratchet actually hold rather than against the session's own reading
+/// of them. That is what makes the epoch relation the vectors pin checkable
+/// from outside the session.
+fn session_fields_agree(v: &Vector, stored: &[u8]) -> Result<(), String> {
+    fields_named(
+        v,
+        &[
+            "ratchet_private",
+            "our_identity_public",
+            "peer_identity_public",
+            "identity_ad",
+            "braid_tag",
+            "braid_epoch",
+            "sparse_epoch",
+            "pending_initial_present",
+            "established_ephemeral_present",
+        ],
+    )?;
+    let (triple_at, triple_len) = len_prefixed(stored, 1)?;
+    let (braid_at, braid_len) = len_prefixed(stored, triple_at + triple_len)?;
+    let mut pos = braid_at + braid_len;
+    let at = |from: usize, n: usize| -> Result<&[u8], String> {
+        stored
+            .get(from..from + n)
+            .ok_or_else(|| format!("the session ends before {}", from + n))
+    };
+    eq(at(pos, 32)?, &required_field(v, "ratchet_private")?)?;
+    pos += 32;
+    let (ad_at, ad_len) = len_prefixed(stored, pos)?;
+    eq(at(ad_at, ad_len)?, &required_field(v, "identity_ad")?)?;
+    pos = ad_at + ad_len;
+    eq(at(pos, 32)?, &required_field(v, "our_identity_public")?)?;
+    eq(
+        at(pos + 32, 32)?,
+        &required_field(v, "peer_identity_public")?,
+    )?;
+    pos += 64;
+    eq(at(pos, 1)?, &required_field(v, "pending_initial_present")?)?;
+    if stored[pos] == 1 {
+        let (p_at, p_len) = len_prefixed(stored, pos + 1)?;
+        pos = p_at + p_len;
+    } else {
+        pos += 1;
+    }
+    eq(
+        at(pos, 1)?,
+        &required_field(v, "established_ephemeral_present")?,
+    )?;
+
+    // The halves, through their own decoders.
+    let braid = tacenta_braid::Braid::from_bytes(at(braid_at, braid_len)?)
+        .map_err(|e| format!("the Braid half the session carries is refused ({e:?})"))?;
+    eq(&[braid.state_tag()], &required_field(v, "braid_tag")?)?;
+    eq(
+        &braid.epoch().to_be_bytes(),
+        &required_field(v, "braid_epoch")?,
+    )?;
+    let triple = tacenta_triple::State::from_bytes(at(triple_at, triple_len)?)
+        .map_err(|e| format!("the Triple Ratchet half the session carries is refused ({e:?})"))?;
+    eq(
+        &triple.epoch().to_be_bytes(),
+        &required_field(v, "sparse_epoch")?,
+    )
+}
+
 /// The session's stored format: which byte strings its reader accepts, which it
 /// refuses and with which of the page's refusals, and that what it accepts it
 /// writes back unchanged.
@@ -1222,7 +1354,10 @@ fn check_session_state(v: &Vector) -> Result<(), String> {
     use tacenta_core::sessions::{Session, SessionDecodeError};
     let stored = input(v, "bytes")?;
     match (expects_success(v)?, Session::import(&stored)) {
-        (true, Ok(s)) => eq(&s.export(), &stored),
+        (true, Ok(s)) => {
+            eq(&s.export(), &stored)?;
+            session_fields_agree(v, &stored)
+        }
         (true, Err(e)) => Err(format!("refused ({e:?}) stored bytes the vector accepts")),
         (false, Ok(_)) => Err("accepted stored bytes the vector refuses".to_string()),
         (false, Err(e)) => {
@@ -1244,11 +1379,21 @@ fn check_session_state(v: &Vector) -> Result<(), String> {
     }
 }
 
+/// The prekey store's stored format: which byte strings its reader accepts,
+/// which it refuses and with which refusal, and that what it accepts it writes
+/// back unchanged.
+///
+/// The variants are enumerated rather than caught by a wildcard, so that a new
+/// refusal kind has to be given a name here instead of silently joining
+/// "short or malformed".
 fn check_prekey_store_state(v: &Vector) -> Result<(), String> {
     use tacenta_core::sessions::{PrekeyStore, PrekeyStoreDecodeError};
     let stored = input(v, "bytes")?;
     match (expects_success(v)?, PrekeyStore::from_bytes(&stored)) {
-        (true, Ok(s)) => eq(&s.to_bytes(), &stored),
+        (true, Ok(s)) => {
+            eq(&s.to_bytes(), &stored)?;
+            prekey_store_fields_agree(v, &stored)
+        }
         (true, Err(e)) => Err(format!("refused ({e:?}) stored bytes the vector accepts")),
         (false, Ok(_)) => Err("accepted stored bytes the vector refuses".to_string()),
         (false, Err(e)) => {
@@ -1272,6 +1417,15 @@ fn check_prekey_store_state(v: &Vector) -> Result<(), String> {
     }
 }
 
+/// A Braid's stored bytes. Either offered as `bytes` to the reader, which
+/// accepts them with `fields` or refuses them with `refusal`; or a `start`
+/// the reader accepts followed by `steps`, each a received message, whose
+/// result is written as `output` and read back.
+///
+/// Only the two transitions out of `Ct2Sampled` are driven this way. Every
+/// other transition needs a key pair or an encapsulation state, whose layout
+/// `session-persistence.md` delegates and the model therefore does not build
+/// (`Model.PersistedState`, BraidState).
 fn check_braid_state(v: &Vector) -> Result<(), String> {
     use tacenta_braid::Braid;
     if v.inputs.contains_key("bytes") {

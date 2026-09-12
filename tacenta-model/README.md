@@ -37,7 +37,7 @@ the model now carries PQXDH session establishment
 (`Model/SparseRatchet.lean`), the ML-KEM Braid and the field and polynomial
 theory beneath it (`Model/Braid.lean`, `Model/Gf65536.lean`,
 `Model/Polynomial.lean`), the erasure code's bytes and its coders' persisted
-formats (`Model/Erasure.lean`), four persisted states with their readers and
+formats (`Model/Erasure.lean`), six persisted states with their readers and
 the rules the readers enforce -- the classical ratchet's, the sparse
 ratchet's, the Triple Ratchet's and the ML-KEM Braid's
 (`Model/PersistedState.lean`, which proves of each that it reads back what it
@@ -46,9 +46,13 @@ writes and that its reader accepts only what it writes), the Triple Ratchet
 protobuf profile. The vectors are generated from the two persistence modules,
 and apart from the vector generator, the differential harness and the axiom
 audit only `Model/PersistedState.lean` imports the erasure module.
-
-Two things the persisted-state model deliberately stops short of. The
-session's and the prekey store's formats are not modelled at all. And in the
+Two things the persisted-state model deliberately stops short of. The session's
+and the prekey store's formats are modelled for their structure and not for
+their cryptographic rules: the model has no signatures and does not compute the
+curve, so the prekey store's rule on what its stored signatures authenticate
+and the session's rule that `ratchet_private` matches the classical ratchet's
+`dhs_pub` are stated on their pages and held by `tacenta-core`'s tests, not
+here. And in the
 Braid's tags 1 to 4 the `key_pair`'s own `header` and `ek_vector` are checked
 for the field's length and nothing else: the page has a reader validate them,
 and where they sit inside the 11,872 bytes is a library layout ADR-0006, point

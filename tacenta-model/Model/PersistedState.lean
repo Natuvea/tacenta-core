@@ -1,16 +1,34 @@
 /-
-Model.PersistedState: the stored formats of the classical ratchet's state, the
-sparse ratchet's state, the Triple Ratchet's state and the ML-KEM Braid's,
-byte for byte, the readers that take them back, and the rules those readers
-enforce.
+Model.PersistedState: all six stored formats -- the classical ratchet's state,
+the sparse ratchet's, the Triple Ratchet's, the ML-KEM Braid's, the prekey
+store's and the session's -- byte for byte, the readers that take them back,
+and the rules those readers enforce.
 
 Written from tacenta-spec/protocol/session-persistence.md: "Ratchet state",
-"Sparse ratchet state", "Triple ratchet state", "Braid", their four entries
-under "Semantic rules of the leaf formats", "Stored curve public keys", the
-Principles section's "Canonical and length-prefixed", "Versioned" and
-"Validated, not only parsed", and "Rejection", which names the two kinds of
-refusal a leaf reader reports: a wrong version, and bytes that are short or
-malformed. A state that breaks a semantic rule is refused as malformed.
+"Sparse ratchet state", "Triple ratchet state", "Braid", "Prekey store",
+"Session", their entries under "Semantic rules of the leaf formats" and each
+format's own "Semantic rules", "Stored curve public keys", the Principles
+section's "Canonical and length-prefixed", "Versioned" and "Validated, not
+only parsed", and "Rejection".
+
+**Rejection names more than two refusals, and the formats do not all give the
+same ones.** A leaf reader gives two: a wrong version, and bytes that are
+short or malformed, a state its semantic rules exclude among them. The prekey
+store gives those two as well, its semantic rules being malformed by the
+page's own words -- except the signature rule, which `tacenta-core` reports
+separately and this model does not state at all. The session gives a third,
+`inconsistent`, for its semantic rules; `Refusal`'s own docstring says why,
+and why a fourth, `non-canonical`, is unreachable here.
+
+**What is proved, and for which formats.** Every format: a state that keeps
+the rules and fits its fields is read back from the bytes it is written as
+(`ofBytes_toBytes`). Every format but the prekey store: a state the reader
+returns keeps the rules, fits its fields, **and is written as exactly the
+bytes it was read from** (`ofBytes_ok`), so the reader accepts one spelling of
+each state. The prekey store's `ofBytes_ok` drops that last conjunct because
+for it the conjunct is false: it reads four versions and writes one, so a v1,
+v2 or v3 store is written back as v4. Its canonicality half is therefore
+v4-shaped and is not yet proved; the theorem's own docstring says so.
 
 **Where the Braid's model stops, and why it conforms there.** The page
 requires of tags 1 to 4 that the `header` and `ek_vector` the stored
@@ -33,8 +51,11 @@ module offers an accepted state with one of those tags, and the differential
 harness offers none either. Tags 0, 5 to 11 carry no `key_pair` and are
 modelled in full.
 
-The states are `Model.State.State` and `Model.SparseRatchet.State`, the ones
-the operations run on; nothing here adds a field to either. Their counters are
+The leaf states are `Model.State.State` and `Model.SparseRatchet.State`, the
+ones the operations run on; nothing here adds a field to either. The prekey
+store's and the session's have no operations behind them in this model, so
+`PrekeyStoreState.Store` and `SessionState.Session` are declared here and hold
+only what their formats store. Their counters are
 natural numbers and the formats write them in four or eight bytes, so a state
 is written faithfully only when every value fits its field and every key is 32
 bytes (`RatchetState.Fits`, `SparseState.Fits`).
@@ -108,8 +129,9 @@ inductive Refusal where
   | inconsistent
   deriving Repr, DecidableEq, Inhabited
 
-/-- The version byte both formats are written with (CONSTANTS.md,
-    `STATE_VERSION`). -/
+/-- The version byte the four leaf formats are written with (CONSTANTS.md,
+    `STATE_VERSION`). The prekey store and the session each have their own:
+    `PrekeyStoreState.version` and `SessionState.sessionVersion`. -/
 def stateVersion : UInt8 := 0x01
 
 /-- One step of a reader: a value and the bytes after it, or a refusal. -/
@@ -1553,7 +1575,7 @@ namespace PrekeyStoreState
 /-! ## The prekey store's stored format (session-persistence.md, Prekey store)
 
 **What this model does not state, and why it is not a scoping problem.** The
-page's fifth semantic rule -- that every stored signature verifies under
+page's sixth semantic rule -- that every stored signature verifies under
 `identity_public` -- is absent here, deliberately. This model has no notion of
 a signature anywhere: no `sign`, no `verify`, no signature type, because it
 carries no elliptic-curve arithmetic. The rule is real and normative, and
@@ -1603,6 +1625,15 @@ def versionV1 : UInt8 := 0x01
 /-- `MAX_LAST_RESORT_SEEN` (CONSTANTS.md). -/
 def maxLastResortSeen : Nat := 1024
 
+/-- An ML-KEM-1024 key pair's stored length (CONSTANTS.md, "KEM key pair and
+    encapsulation state lengths"). The first of the page's four `kem_pair`
+    clauses, and the only one this model can state: the other three read inside
+    the FIPS 203 encoding -- `ek`'s modulus check, `dk`'s hash check, and `ek`
+    equalling the copy inside `dk` -- which needs arithmetic this model does
+    not carry. Unlike the Braid's key pair, whose layout the page delegates,
+    these are specified; the gap here is the model's, not the page's. -/
+def kemPairLen : Nat := 4736
+
 /-- The absent-identifier sentinel (message-format.md). -/
 def absentId : Nat := 0
 
@@ -1638,7 +1669,8 @@ def toBytes (st : Store) : Bytes :=
 
 /-! ### Semantic rules (Prekey store, Semantic rules)
 
-Four of the page's five. The fifth is the signature rule this model cannot
+Five of the page's six, in four conjuncts: the first two share one. The sixth
+is the signature rule this model cannot
 state; the note at the head of this namespace says why. -/
 
 /-- Every identifier the store holds, of every kind, in one list: one counter
@@ -1671,8 +1703,16 @@ def recordOk (st : Store) : Bool :=
 /-- The rules, and all of them this model can state: `identity_public` is
     canonical, every identifier is below `next_id` and none is the absent
     sentinel, all identifiers are distinct, and the record keeps its shape. -/
+def kemPairsSized (st : Store) : Bool :=
+  decide (st.kemPair.length = kemPairLen)
+    && st.kemOneTime.all (fun e => decide (e.2.1.length = kemPairLen))
+    && (match st.previousKem with
+        | none => true
+        | some p => decide (p.1.length = kemPairLen))
+
 def invariant (st : Store) : Bool :=
-  canonicalKey st.identityPublic
+  kemPairsSized st
+    && canonicalKey st.identityPublic
     && (ids st).all (fun i => !(i == absentId) && decide (i < st.nextId))
     && noShared (fun i => i) (ids st)
     && recordOk st
@@ -2170,6 +2210,13 @@ why neither reaches its target on the strength of a model alone.
 
 The other seven rules are here. -/
 
+/-- `SESSION_VERSION` (CONSTANTS.md). Its own constant, not the leaf formats'
+    `STATE_VERSION`: CONSTANTS.md lists five independent version namespaces and
+    this is the fifth, so tying it to `stateVersion` would move all five
+    together and nothing here would notice -- the round trip and every vector
+    would regenerate consistently around the change. -/
+def sessionVersion : UInt8 := 0x01
+
 structure PendingInitial where
   ephemeralPublic : Bytes
   kemCiphertext : Bytes
@@ -2209,7 +2256,7 @@ def optFieldBytes : Option Bytes → Bytes
   | some b => [0x01] ++ TripleState.lenPrefixed b
 
 def toBytes (s : Session) : Bytes :=
-  [stateVersion] ++ TripleState.lenPrefixed (TripleState.toBytes s.triple)
+  [sessionVersion] ++ TripleState.lenPrefixed (TripleState.toBytes s.triple)
     ++ TripleState.lenPrefixed (BraidState.toBytes s.braid)
     ++ s.ratchetPrivate
     ++ TripleState.lenPrefixed s.identityAd
@@ -2319,7 +2366,7 @@ def readPending (b : Bytes) : Except Refusal PendingInitial :=
 def ofBytes : Bytes → Except Refusal Session
   | [] => .error .shortOrMalformed
   | v :: body =>
-    if v ≠ stateVersion then .error .wrongVersion
+    if v ≠ sessionVersion then .error .wrongVersion
     else
       andThen (TripleState.readLenPrefixed body) fun tsb r0 =>
       andThen (TripleState.readLenPrefixed r0) fun brb r1 =>
@@ -2418,7 +2465,7 @@ theorem ofBytes_toBytes (s : Session) (hinv : invariant s = true) (hfit : Fits s
       exact (hpend p hp).2.2.2.2.2
   have hpf := readOptField_bytes (s.pendingInitial.map pendingBytes)
     (optFieldBytes s.establishedEphemeral) hpendBytes
-  simp only [toBytes, ofBytes, stateVersion, List.cons_append, List.nil_append,
+  simp only [toBytes, ofBytes, sessionVersion, List.cons_append, List.nil_append,
     List.append_assoc, ne_eq, not_true_eq_false, if_false,
     TripleState.readLenPrefixed_bytes (TripleState.toBytes s.triple) _ htl, andThen_ok,
     TripleState.readLenPrefixed_bytes (BraidState.toBytes s.braid) _ hbl,
@@ -2603,7 +2650,7 @@ theorem ofBytes_ok {bs : Bytes} {s : Session} (h : ofBytes bs = .ok s) :
                   by rw [hbb]; exact hbrl, hrp, hadl, hop, hpp, hpend, hestl⟩, ?_⟩
                 subst hr7
                 simp only [List.append_nil] at e7
-                simp only [toBytes, stateVersion, htb, hbb, hpbytes]
+                simp only [toBytes, sessionVersion, htb, hbb, hpbytes]
                 rw [e0, e1, e2, e3, e4, e5, e6, e7]
                 simp [List.append_assoc]
               next => simp at h
@@ -2766,6 +2813,7 @@ example :
       (step (Model.Braid.u64Max - 1) Model.Braid.u64Max
         == some { tag := 11, epoch := 0, auth := [], fields := [] }) = true := by
   native_decide
+
 
 
 

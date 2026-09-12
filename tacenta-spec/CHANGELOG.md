@@ -6,14 +6,14 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
-- `protocol/session-persistence.md`, Prekey store, Semantic rules: a fifth rule,
+- `protocol/session-persistence.md`, Prekey store, Semantic rules: a sixth rule,
   that every stored signature verifies under `identity_public` -- the signed
   prekey's, the KEM prekey's, each one-time KEM prekey's, and the retired pair's
-  in the versions carrying them. The page had enumerated four rules and said
+  in the versions carrying them. The page had enumerated five rules and said
   nothing about the signatures, so the two readings -- that the list is
   exhaustive, or that a reader also checks what the signatures authenticate --
   are told apart by a state a reader can be handed: a v4 store with one byte
-  flipped at offset 69 re-encodes canonically, satisfies all four existing
+  flipped at offset 69 re-encodes canonically, satisfies all five existing
   rules, reads back as valid, and then publishes a bundle every initiator
   refuses. The page decides for the second reading, on the reason it already
   gives for refusing a corrupted `next_id`. It also states the obligation that
@@ -22,6 +22,15 @@ is SemVer against the specified protocol (not the implementation).
   `identity_public`, and an API that lets a caller pass another refuses it.
   Found by external review at `d2dc386` (register R-01); `tacenta-core` did not
   perform the check and is what the decision puts in the wrong.
+  - The refusal is reported separately, as "incoherent", the prekey store's
+    analogue of the session's "inconsistent" and for the same reason: a store
+    well-formed and canonical but unusable is the one case a storage layer
+    could have written itself, and a caller that can tell it from corruption
+    can still read the secrets out. Rejection records both.
+  - **A reader with this rule refuses v4 stores a reader without it accepts**,
+    and the version is deliberately not bumped: nothing in the layout changed,
+    and the stores they disagree about were never usable. The page says so
+    where the rule is stated.
 - `protocol/session-persistence.md`, Triple ratchet state: the refusals that
   format's reader gives, and in particular that a `ratchet_state` or
   `spqr_state` its own reader refuses is short or malformed whatever that

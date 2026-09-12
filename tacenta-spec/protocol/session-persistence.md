@@ -64,7 +64,11 @@ interoperating with anyone.
   it, and is conforming in doing so. The rules are checked as an inductive
   invariant: the tests and the fuzz
   targets in `tacenta-core` assert the predicate after every operation, not
-  only at import.
+  only at import. **One rule is exempt and says so where it is stated**: the
+  prekey store's rule on what its stored signatures authenticate costs a
+  signature verification per stored prekey, which a predicate asserted after
+  every operation cannot afford, so it is checked when the store is read and
+  the operations carry an obligation instead (Prekey store, Semantic rules).
 - **Being inductive constrains the operations, not only the predicates.** A
   decoder that refuses a state its own library can produce is worse than one
   that refuses nothing: the state exports, re-imports, and is refused from
@@ -585,8 +589,10 @@ and those three versions are read on the semantic rules alone.
 ### Semantic rules
 
 Last, over the decoded store, the reader refuses as malformed any store for
-which `PrekeyStore::invariant` is false. The rules are the identifier
-namespace, the record's shape and the identity key's encoding, which
+which `PrekeyStore::invariant` is false, and -- last of all, and reported
+separately -- any store holding a signature that does not verify. The rules are
+the identifier namespace, the record's shape, the identity key's encoding and
+what the stored signatures authenticate, which
 `create_prekeys` establishes, every operation preserves, and no field-by-field
 read sees; they apply to all four
 versions, the untagged ones having had their entries tagged with the current
@@ -637,7 +643,8 @@ key first.
 The page's own reason for refusing a corrupted `next_id` decides this one: a
 value accepted here "would poison every future bundle and persist canonically".
 A signature is the same case and worse, because nothing later in the party's own
-process ever looks at it again. `publish` copies the stored signature into every
+process ever looks at it again. Every operation that publishes a bundle -- `publish`, `publish_one_time_batch`
+and `publish_multi_use` -- copies the stored signature into every
 bundle it emits, so one flipped byte -- `signed_prekey_sig` begins at offset 69
 of a v4 store, and a flip there stays canonical under re-encoding -- yields a
 store that reads back, satisfies every other rule above, and then hands every
@@ -645,6 +652,17 @@ initiator a bundle that initiator must refuse. The party itself observes nothing
 at all; its peers observe someone they cannot start a session with. Surviving
 corruption is the obligation this format's opening claims for itself, and this
 is corruption it did not survive.
+
+**The rule does not make the format proof against corruption, and the limit is
+worth stating.** What a stored signature authenticates is the key it was made
+over, so this rule binds the signatures themselves, `identity_public`, and the
+signed prekey's secret through the public half derived from it. It binds
+nothing in the KEM key pairs' secret material, which no stored value
+authenticates and which is most of the file. A flipped byte there is accepted,
+and its ending is worse than a refused bundle rather than better: the bundle's
+signatures verify, a peer accepts it, and the handshake then fails inside the
+AEAD, so the peer commits before it finds out. The format survives more
+corruption than it did, and not all of it.
 
 **The retired pair's signatures are covered for a different reason, and the
 difference is worth stating.** Nothing reads them: a handshake naming a retired
@@ -664,7 +682,7 @@ protects the secrets in this file, and an attacker who can write to the file has
 the secrets already.
 
 **The rule is checked when the store is read, and not after every operation.**
-The other four are cheap predicates over identifiers and tags; this one costs a
+The other five are cheap predicates over identifiers and tags; this one costs a
 signature verification per stored prekey, linear in a count the format does not
 otherwise bound. Reading is where that is worth paying, and it is the only
 moment the bytes could have been corrupted. The consequence is an obligation on
@@ -675,7 +693,17 @@ rather than storing the result. Without that obligation an operation can build a
 state this reader would refuse, which is the one thing "No state the operations
 produce is refused" (Stored curve public keys) undertakes cannot happen.
 
-**The reading this rejects** is that the four rules above are exhaustive because
+**A store written before this rule existed may be refused by a reader that has
+it, and that is accepted rather than worked around.** Nothing in the layout
+changed, so the version is not bumped: a reader with the rule and a reader
+without it disagree about the same v4 bytes. The stores they disagree about
+were never usable -- every bundle such a store publishes is refused by every
+initiator -- so refusing at import is an earlier and clearer report of a
+failure already present, not a new one. It is reported as "incoherent" rather
+than as malformed so a caller can tell it from a corrupt file and read the
+secrets out by hand if that matters.
+
+**The reading this rejects** is that the five rules above are exhaustive because
 they are the rules a reader can check without doing any cryptography. That
 reading does not survive contact with what is in the file: the store holds the
 identity's public key and each prekey's secret, so the public half and the
@@ -760,9 +788,12 @@ carries its own error
 type, distinguishing "wrong version" from "short or malformed" where a
 caller might act on the difference (refuse to start vs. treat as corrupt),
 the session and the prekey store distinguish "non-canonical" from both,
-and the session distinguishes "inconsistent" as well, since a stored
-session that is well-formed and canonical but cannot go on is the one case
-a storage layer could plausibly have written itself -- but none of them
+and each distinguishes one more for the same reason: a stored state that is
+well-formed and canonical but cannot go on is the one case a storage layer
+could plausibly have written itself. The session calls that "inconsistent"
+and gives it for any of its semantic rules; the prekey store calls it
+"incoherent" and gives it for its signature rule alone, its other rules
+being malformed -- but none of them
 promises more than that the bytes were unacceptable, the same restraint
 message-format.md's rejection section takes for a different reason: there,
 because revealing more helps an attacker; here, because there is no finer

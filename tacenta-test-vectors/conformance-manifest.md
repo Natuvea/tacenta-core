@@ -486,42 +486,78 @@ and `tacenta-erasure` do the same, and the `partial`,
 | Braid epoch ceiling, from the reader and from the transitions | Braid; Principles; mlkem-braid.md, Failure | same file: `epoch-u64-max`, `epoch-at-the-largest-accepted`, `ct2-sampled-below-the-ceiling-steps`, `ct2-sampled-at-the-ceiling-fails` |
 | The delegated fields' length, which is the whole of the page's rule for `encaps` and part of its rule for `key_pair` | Braid; CONSTANTS.md | same file: `encaps-wrong-length`, `key-pair-wrong-length`, and tags 7 to 9 accepted in full with a 2,592-byte `encaps` |
 
+### Covered: the prekey store's and the session's states
+
+| Component | Spec section | Covered by |
+|---|---|---|
+| Prekey store v4 layout, read back and written unchanged, including the one-time and one-time-KEM sub-formats and the retired signed prekey | Prekey store | `vectors/persistence/prekey-store-state.json`: `current-version`, `one-time-kem-prekey`, `retired-signed-prekey`, each with its fields |
+| Prekey store semantic rules: every identifier below `next_id`, none zero, all distinct across kinds | Prekey store, Semantic rules | same file: `identifier-zero`, `identifier-at-next-id`, `identifier-above-next-id`, `identifiers-repeated` |
+| Prekey store replay record: entries tagged with a live last-resort key, no fingerprint twice, and the per-key budget from both sides | Prekey store, Semantic rules; CONSTANTS.md | same file: `record-entry-under-an-unknown-key`, `record-fingerprint-repeated`, `record-over-budget-for-one-key`, and `record-at-budget` accepted at exactly `MAX_LAST_RESORT_SEEN` |
+| Prekey store `identity_public` canonical | Prekey store, Semantic rules; message-format.md, Curve public keys | same file: `identity-public-not-canonical` |
+| Prekey store framing refusals | Prekey store; Rejection | same file: `version-unknown`, `version-zero` (`wrong-version`); `empty`, `truncated`, `trailing-byte` |
+| Session layout, read back and written unchanged, with the optional fields present and absent | Session | `vectors/persistence/session-state.json`: `responder`, `initiator-unanswered`, `initiator-answered`, each with its fields, the halves' tag and epochs checked through their own crates |
+| Session semantic rules: the sparse epoch following the Braid's, the associated data's orientation, the role agreement, canonical stored keys, `established_ephemeral`'s shape | Session, Semantic rules | same file, each `inconsistent`: `sparse-epoch-does-not-follow-the-braid`, `associated-data-wrong-orientation`, `halves-disagree-on-the-role`, `peer-identity-not-canonical`, `established-ephemeral-wrong-curve-byte`, `established-ephemeral-key-not-canonical` |
+| Session framing refusals | Session; Rejection | same file: `version-unknown` (`wrong-version`); `empty`, `truncated`, `trailing-byte` |
+
 ### Not covered
 
-**Both remaining persisted formats are now covered, each with one rule
-excepted, and the two exceptions are the same exception.** The model states
+**Both remaining persisted formats now have vectors, and what those vectors do
+not reach is listed here rather than left to be inferred.** The model states
 every *structural* rule of the session and the prekey store and no
-*cryptographic* one, because its boundary excludes computing the curve and it
-has no notion of a signature. So:
+*cryptographic* one: its boundary excludes computing the curve, and it has no
+notion of a signature. Two rules follow from that and are pinned by no vector:
 
-- The prekey store's fifth semantic rule -- every stored signature verifies
-  under `identity_public` -- is pinned by no vector.
-- The session's rule that `ratchet_private`'s public key equals the classical
-  ratchet's `dhs_pub` is pinned by no vector.
+- the prekey store's sixth semantic rule, that every stored signature verifies
+  under `identity_public`;
+- the session's first, that `ratchet_private`'s public key equals the classical
+  ratchet's `dhs_pub`.
 
-Each is held instead by `tacenta-core`'s own tests. A reader working from the
-specification and these vectors alone would not learn that either rule exists;
-the pages are where they do.
+Each is held instead by `tacenta-core`'s own mutation tests. A reader working
+from the specification and these vectors alone would not learn that either rule
+exists; the pages are where they do.
 
-**The session, in detail.** `vectors/persistence/session-state.json` pins the
-format, its four field-by-field refusals and seven of its eight semantic rules.
-It is the only file whose refusals carry `inconsistent`, which Rejection
-distinguishes from malformed for the session alone. No vector carries
-`non-canonical`: the model's reader accepts only canonical encodings, which
-`SessionState.ofBytes_ok` proves, so it cannot offer a reader a non-canonical
-buffer; `tacenta-core` keeps that check as defence in depth.
+**What else the two files do not reach.** These are not consequences of the
+model's boundary; they are simply unpinned.
 
-**The prekey store, in detail.** `vectors/persistence/prekey-store-state.json` pins its format v1 to
-v4 and four of its five semantic rules. The fifth -- that every stored
-signature verifies under `identity_public` -- is **not pinned by any vector**,
-because the model has no signatures and cannot produce a store whose signatures
-verify. The four accepted vectors carry bytes `tacenta-core` itself produced,
-so they satisfy that rule without testing it; the thirteen refusals change one
-field of those bytes, so each is refused for the rule under test rather than
-for a signature. What holds the fifth rule is the mutation tests in
-`tacenta-core/src/sessions/lifecycle.rs`, one per signature class. A reader
-working from the specification and these vectors alone would not learn that the
-rule exists, and the page is where it does.
+- **The prekey store's older versions.** Every byte-carrying vector is v4. The
+  page's whole "four versions are read, one is written" paragraph -- v3's
+  untagged fingerprints reading back tagged with the current `kem_id`, v2
+  reading back with nothing retired, v1 with no record remembered -- is pinned
+  by no vector, and this runner cannot pin it: its accepted branch requires
+  that a store be written back as the bytes it was read from, which is false
+  for an older version by construction. `tacenta-core`'s own tests cover the
+  upgrade path, one of them at each version.
+- **The prekey store's `previous_kem` sub-format.** No vector carries
+  `previous_kem_present = 0x01`, so `len(4) || kem_pair || id(4) || sig(64)` is
+  never exercised.
+- **The prekey store's `kem_pair` content clauses.** The page's four are the
+  length, `ek`'s FIPS 203 modulus check, `dk`'s hash check, and `ek` equalling
+  the copy inside `dk`. The model states the length and no vector reaches the
+  other three.
+- **Three of the session's eight semantic rules.** Vectors reach five: the
+  epoch relation, the associated data's orientation, the role agreement (its
+  sparse half), the canonical stored keys, and the optional fields' shape (its
+  `established_ephemeral` clause). Unreached: the `ratchet_private` rule above;
+  "an unanswered initiator is not also a responder", which the model states and
+  no vector breaks because every refusal vector is built from the responder
+  fixture, which has no `pending_initial`; and "each half satisfies its own
+  crate's invariant", which cannot be reached here at all, since a half its own
+  reader refuses is refused before the session's rules run.
+- **Three of the session's four field-by-field refusals.** The page names four;
+  only "bytes left after the last field" has a vector. A `triple_state` or
+  `braid` its own reader refuses, a presence byte other than `0x00`/`0x01`, and
+  a `pending_initial` that is not the layout have none.
+- **`non-canonical`, for either format.** The model's readers accept only
+  canonical encodings, so neither can be offered such a buffer.
+  `SessionState.ofBytes_ok` proves it for the session; for the prekey store the
+  same property is believed and not proved, and the model says so.
+
+**What the two files do reach.** The prekey store: the v4 layout, the version
+and buffer refusals, and five of the page's six semantic rules, including both
+sides of the replay record's per-key budget. The session: the layout, one field
+refusal, the short-buffer and version refusals, and the five semantic rules
+above. The session's are the only vectors in the tree carrying `inconsistent`,
+which Rejection distinguishes from malformed for the session alone.
 
 **And one rule of a format that is otherwise covered: the Braid's `key_pair`
 content clause in tags 1 to 4. No vector can pin it, and the reason is the

@@ -282,7 +282,10 @@ deleting them after an interval, triggered by a timer or by counting events.
   included, so a restart neither reopens the window nor loses the pruning.
 - **Signed prekeys rotate, and the retired one is kept for exactly one
   rotation.** `PrekeyStore::rotate_signed_prekey` generates a fresh curve
-  prekey, signs it under the identity, and gives it the next identifier; the
+  prekey, signs it under the identity whose public key the store holds as
+  `identity_public` -- and refuses, changing nothing, if handed any other
+  (session-persistence.md, Prekey store, Semantic rules) -- and gives it the
+  next identifier; the
   key it replaces becomes the store's *previous* signed prekey, with its
   identifier and signature, and is honoured by `establish_responder` for an
   initial message that still names it. That is the brief retention the
