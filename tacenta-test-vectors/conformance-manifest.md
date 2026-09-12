@@ -488,10 +488,22 @@ and `tacenta-erasure` do the same, and the `partial`,
 
 ### Not covered
 
-The session's and the prekey store's persisted formats (the store v1 to v4),
-with their semantic rules. The model states neither, so there is no oracle to
-generate vectors from, and they remain covered by `tacenta-core`'s round-trip
-and refusal tests and its fuzz targets.
+The session's persisted format and its semantic rules. The model states it
+not at all, so there is no oracle to generate vectors from, and it remains
+covered by `tacenta-core`'s round-trip and refusal tests and its fuzz targets.
+
+**The prekey store is now covered, with one rule excepted, and the exception
+matters.** `vectors/persistence/prekey-store-state.json` pins its format v1 to
+v4 and four of its five semantic rules. The fifth -- that every stored
+signature verifies under `identity_public` -- is **not pinned by any vector**,
+because the model has no signatures and cannot produce a store whose signatures
+verify. The four accepted vectors carry bytes `tacenta-core` itself produced,
+so they satisfy that rule without testing it; the thirteen refusals change one
+field of those bytes, so each is refused for the rule under test rather than
+for a signature. What holds the fifth rule is the mutation tests in
+`tacenta-core/src/sessions/lifecycle.rs`, one per signature class. A reader
+working from the specification and these vectors alone would not learn that the
+rule exists, and the page is where it does.
 
 **And one rule of a format that is otherwise covered: the Braid's `key_pair`
 content clause in tags 1 to 4. No vector can pin it, and the reason is the
@@ -583,8 +595,9 @@ nothing about the ones it does not.
 
 - **The message keys themselves.** The harness compares states, not the key an
   operation returns; `vectors/ratchet/double-ratchet.json` pins those.
-- **The session and the prekey store.** The model states no stored format for
-  them, so there is no state to compare by.
+- **The session.** The model states no stored format for it, so there is no
+  state to compare by. The prekey store now has one, but the harness does not
+  yet drive it.
 - **Most of the Braid's state machine, and the `key_pair` content clause of
   its tags 1 to 4.** Both need the KEM layout the page delegates (ADR-0006,
   point 5), which neither side of the harness can build: every transition but

@@ -18,9 +18,16 @@
 //! The Triple Ratchet's and the Braid's states are covered here too: the
 //! Triple Ratchet's by replaying its own `send`/`receive` and by stored bytes,
 //! and the Braid's by stored bytes plus the two transitions out of
-//! `Ct2Sampled` that read no KEM value. The session and the prekey store have
-//! no model and are not covered; the conformance manifest says so, and says
-//! which Braid tags the vectors reach and why the rest do not.
+//! `Ct2Sampled` that read no KEM value.
+//!
+//! The prekey store's stored format is covered by stored bytes alone. Its four
+//! accepted vectors carry bytes `tacenta-core` itself produced, because the
+//! model has no signatures and so cannot build a store whose stored signatures
+//! verify; its thirteen refusals are one field of those bytes changed, so each
+//! is refused for the rule under test rather than for a signature that never
+//! verified. The session has no model and is not covered; the conformance
+//! manifest says so, and says which Braid tags the vectors reach and why the
+//! rest do not.
 
 use std::path::Path;
 
@@ -36,6 +43,7 @@ fn persistence_vectors_pass() {
             "braid-state",
             "erasure-decoder-state",
             "erasure-encoder-state",
+            "prekey-store-state",
             "ratchet-state",
             "sparse-ratchet-state",
             "triple-ratchet-state"
@@ -55,6 +63,7 @@ fn persistence_vectors_pass() {
         let floor = match file.algorithm.as_str() {
             "ratchet-state" | "sparse-ratchet-state" => 20,
             "braid-state" => 9,
+            "prekey-store-state" => 4,
             "triple-ratchet-state" => 8,
             _ => 5,
         };

@@ -1803,7 +1803,7 @@ theorem readOptSigned_bytes (o : Option (Bytes × Nat × Bytes)) (rest : Bytes)
     obtain ⟨h1, h2, h3⟩ := h p rfl
     have h2' : p.2.1 < 256 ^ 4 := by simpa using h2
     simp only [optSignedBytes, readOptSigned, List.cons_append, List.nil_append,
-      List.append_assoc, readTag, if_neg (by decide : ¬(1 : UInt8) = 0), if_pos rfl,
+      List.append_assoc, readTag, if_neg (by decide : ¬(1 : UInt8) = 0),
       andThen_ok, if_true, takeN_append' 32 p.1 _ h1, readInt_be 4 p.2.1 _ h2',
       takeN_append' 64 p.2.2 _ h3]
 
@@ -1816,7 +1816,7 @@ theorem readOptKem_bytes (o : Option (Bytes × Nat × Bytes)) (rest : Bytes)
     obtain ⟨h1, h2, h3⟩ := h p rfl
     have h2' : p.2.1 < 256 ^ 4 := by simpa using h2
     simp only [optKemBytes, readOptKem, List.cons_append, List.nil_append,
-      List.append_assoc, readTag, if_neg (by decide : ¬(1 : UInt8) = 0), if_pos rfl,
+      List.append_assoc, readTag, if_neg (by decide : ¬(1 : UInt8) = 0),
       andThen_ok, if_true, TripleState.readLenPrefixed_bytes p.1 _ h1,
       readInt_be 4 p.2.1 _ h2', takeN_append' 64 p.2.2 _ h3]
 
@@ -2098,10 +2098,8 @@ theorem ofBytes_toBytes (st : Store) (hinv : invariant st = true) (hfit : Fits s
   -- the retired KEM prekey, and the higher-order unification does not find that
   -- on its own.
   have hprev := readOptSigned_bytes st.previousSigned (optKemBytes st.previousKem) hpsigned
-  simp +decide only [toBytes, ofBytes, version, versionV1, versionV2, versionV3,
-    List.cons_append, List.nil_append, List.append_assoc, ne_eq,
-    reduceIte, reduceCtorEq, decide_true, decide_false, Bool.and_false,
-    Bool.false_and, Bool.and_true, not_true_eq_false, not_false_eq_true,
+  simp +decide only [toBytes, ofBytes, version,
+    List.cons_append, List.nil_append, List.append_assoc,
     if_false, if_true,
     takeN_append' 32 st.identityPublic _ hip, andThen_ok,
     takeN_append' 32 st.signedPrekeySecret _ hsps,
@@ -2285,5 +2283,6 @@ example :
       (step (Model.Braid.u64Max - 1) Model.Braid.u64Max
         == some { tag := 11, epoch := 0, auth := [], fields := [] }) = true := by
   native_decide
+
 
 end Model.PersistedState

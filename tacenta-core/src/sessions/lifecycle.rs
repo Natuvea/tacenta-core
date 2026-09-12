@@ -3497,6 +3497,86 @@ mod tests {
         ));
     }
 
+    /// A deterministic byte source, so a generated fixture is a property of
+    /// *this code* rather than of whichever PRNG `rand` ships this month. The
+    /// same reasoning, and the same shape, as `primitives::xeddsa`'s.
+    struct FixedRng {
+        bytes: [u8; 64],
+        at: usize,
+    }
+
+    impl rand_core::RngCore for FixedRng {
+        fn next_u32(&mut self) -> u32 {
+            let mut b = [0u8; 4];
+            self.fill_bytes(&mut b);
+            u32::from_le_bytes(b)
+        }
+        fn next_u64(&mut self) -> u64 {
+            let mut b = [0u8; 8];
+            self.fill_bytes(&mut b);
+            u64::from_le_bytes(b)
+        }
+        fn fill_bytes(&mut self, dest: &mut [u8]) {
+            for d in dest.iter_mut() {
+                *d = self.bytes[self.at % self.bytes.len()];
+                self.at = self.at.wrapping_add(1);
+            }
+        }
+        fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+            self.fill_bytes(dest);
+            Ok(())
+        }
+    }
+    impl rand_core::CryptoRng for FixedRng {}
+
+    fn fixed_rng(seed: u8) -> FixedRng {
+        let mut bytes = [0u8; 64];
+        for (i, b) in bytes.iter_mut().enumerate() {
+            *b = seed ^ (i as u8);
+        }
+        FixedRng { bytes, at: 0 }
+    }
+
+    /// Print the stored bytes of deterministic prekey stores, for the vector
+    /// generator to carry as recorded inputs.
+    ///
+    /// The model cannot produce these: it has no signatures (see
+    /// `Model.PersistedState.PrekeyStoreState`). An accepted prekey-store
+    /// vector therefore takes its bytes from here, once, rather than from the
+    /// generator. Refusal vectors need none of this and are generated in Lean,
+    /// because the signature check runs last and a structurally refused store
+    /// is refused for its structural reason by both readers.
+    ///
+    /// Ignored: it produces a fixture rather than checking anything.
+    #[test]
+    #[ignore = "prints a fixture; run with --ignored --nocapture"]
+    fn print_prekey_store_fixtures() {
+        let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
+        for (name, count) in [("no-one-time", 0usize), ("one-one-time", 1)] {
+            let mut rng = fixed_rng(0x11);
+            let id = Identity::from_secret([0x42u8; 32]);
+            let store = id.create_prekeys(count, &mut rng);
+            let bytes = store.to_bytes();
+            assert!(
+                PrekeyStore::from_bytes(&bytes).is_ok(),
+                "the fixture must be one both readers accept"
+            );
+            println!("FIXTURE {name} len={} hex={}", bytes.len(), hex(&bytes));
+        }
+        // One with a retired pair, so the v3/v4 optional fields are exercised.
+        let mut rng = fixed_rng(0x11);
+        let id = Identity::from_secret([0x42u8; 32]);
+        let mut store = id.create_prekeys(0, &mut rng);
+        store.rotate_signed_prekey(&id, &mut rng);
+        let bytes = store.to_bytes();
+        assert!(PrekeyStore::from_bytes(&bytes).is_ok());
+        println!(
+            "FIXTURE retired-signed len={} hex={}",
+            bytes.len(),
+            hex(&bytes)
+        );
+    }
+
     /// The exact case external review reported: one byte of the current signed
     /// prekey's signature, at offset 69 of a v4 store.
     ///

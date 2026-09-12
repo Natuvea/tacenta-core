@@ -392,6 +392,15 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
         // Braid; Semantic rules of the leaf formats).
         "triple-ratchet-state" => check_triple_ratchet_state(v),
         "braid-state" => check_braid_state(v),
+        // The prekey store's persisted format (session-persistence.md, Prekey
+        // store). Unlike every format above it, the model cannot state this
+        // one's fifth semantic rule -- that every stored signature verifies
+        // under `identity_public` -- because the model has no signatures. So
+        // its accepted vectors carry bytes `tacenta-core` itself produced,
+        // which satisfy that rule, and its refusals are one field of those
+        // bytes changed, so each is refused for the rule under test rather
+        // than for a signature that never verified.
+        "prekey-store-state" => check_prekey_store_state(v),
         // The bounded protobuf profile's two readers (protobuf-profile.md).
         "protobuf-ratchet-body" => check_ratchet_body(v),
         "protobuf-prekey-envelope" => check_prekey_envelope(v),
@@ -1189,6 +1198,41 @@ fn braid_message(r: &[u8]) -> Result<tacenta_braid::Msg, String> {
 /// other transition needs a key pair or an encapsulation state, whose layout
 /// `session-persistence.md` delegates and the model therefore does not build
 /// (`Model.PersistedState`, BraidState).
+/// The prekey store's stored format: which byte strings its reader accepts,
+/// which it refuses and with which refusal, and that what it accepts it writes
+/// back unchanged.
+///
+/// The variants are enumerated rather than caught by a wildcard, so that a new
+/// refusal kind has to be given a name here instead of silently joining
+/// "short or malformed".
+fn check_prekey_store_state(v: &Vector) -> Result<(), String> {
+    use tacenta_core::sessions::{PrekeyStore, PrekeyStoreDecodeError};
+    let stored = input(v, "bytes")?;
+    match (expects_success(v)?, PrekeyStore::from_bytes(&stored)) {
+        (true, Ok(s)) => eq(&s.to_bytes(), &stored),
+        (true, Err(e)) => Err(format!("refused ({e:?}) stored bytes the vector accepts")),
+        (false, Ok(_)) => Err("accepted stored bytes the vector refuses".to_string()),
+        (false, Err(e)) => {
+            let name = match e {
+                PrekeyStoreDecodeError::UnknownVersion => "wrong-version",
+                PrekeyStoreDecodeError::TooShort
+                | PrekeyStoreDecodeError::Malformed
+                | PrekeyStoreDecodeError::NonCanonical => "short-or-malformed",
+                // The enum is `#[non_exhaustive]`, so a wildcard is required.
+                // It refuses rather than classifying: a refusal kind nobody
+                // has named yet must not quietly become "short or malformed".
+                _ => {
+                    return Err(format!(
+                        "unclassified refusal ({e:?}): name it here and in \
+                         session-persistence.md, Rejection"
+                    ));
+                }
+            };
+            refusal_is(v, name)
+        }
+    }
+}
+
 fn check_braid_state(v: &Vector) -> Result<(), String> {
     use tacenta_braid::Braid;
     if v.inputs.contains_key("bytes") {
