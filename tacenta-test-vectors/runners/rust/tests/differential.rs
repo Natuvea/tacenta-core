@@ -43,6 +43,35 @@
 //!   converse is not asserted and does not hold -- a receive at `nr =
 //!   u32::MAX` numbered below it is out of order on both sides, not exhaustion.
 //!
+//! ## The two composed formats
+//!
+//! `check_composed` adds the Triple Ratchet and the Braid, whose stored
+//! formats the model now states as well.
+//!
+//! - **The Triple Ratchet** is driven exactly as the two leaves are:
+//!   generated operation sequences from fresh starts and from stored bytes
+//!   this file assembles at each half's ceiling, with the outcome, the stored
+//!   bytes and the export-and-import check compared at every step, and
+//!   corrupted imports of the states they reach. A step either half refuses as
+//!   `ChainExhausted` must be one the model refuses at a ceiling.
+//! - **The Braid** is driven as far as it can be. Its stored states are
+//!   assembled here from the layout in `session-persistence.md`, Braid, and
+//!   both readers are given each one and four corruptions of it. Its *state
+//!   machine* is reached only from `Ct2Sampled`: transition (13) and the
+//!   refusal at the reserved epoch read the stored epoch and the message and
+//!   nothing else, so they can be run without a KEM value. Every other
+//!   transition consumes a key pair or an encapsulation state, whose layout
+//!   `session-persistence.md` delegates (ADR-0006, point 5), so neither side
+//!   of this harness can build one.
+//!
+//!   For the same reason, **tags 1 to 4 appear only at a `key_pair` length
+//!   both readers refuse.** The page has the reader validate the `header` and
+//!   `ek_vector` inside a stored key pair, and finding them needs that layout;
+//!   the model states no such rule and so accepts key pairs `tacenta-braid`
+//!   refuses. Generating one would be generating a disagreement this harness
+//!   is not entitled to report as a finding, so it generates none, and
+//!   `ASSURANCE.md` and the conformance manifest record the gap instead.
+//!
 //! The states are compared by their bytes because neither crate exposes a
 //! state's fields or compares two states outside its own tests, the same
 //! reason `tests/persistence.rs` gives.
@@ -565,6 +594,16 @@ struct Observed {
     imports_accepted: usize,
     imports_wrong_version: usize,
     imports_malformed: usize,
+    // The two composed formats.
+    triple_steps: usize,
+    triple_ceiling: usize,
+    triple_reads: usize,
+    triple_reads_accepted: usize,
+    braid_steps: usize,
+    braid_reads: usize,
+    braid_reads_accepted: usize,
+    braid_ceiling_stepped: usize,
+    braid_ceiling_failed: usize,
 }
 
 // ---------------------------------------------------------------------------
@@ -1422,6 +1461,970 @@ fn corrupt(rng: &mut Rng, bytes: &[u8]) -> Vec<Vec<u8>> {
 }
 
 // ---------------------------------------------------------------------------
+// The Triple Ratchet and the Braid
+// ---------------------------------------------------------------------------
+
+/// The fixed fields of the two composed formats, before anything counted: the
+/// triple ratchet state's version byte, and the Braid's version byte and tag.
+/// Used only for the one refusal `session-persistence.md`, Rejection, leaves
+/// to the implementation; see `refusals_agree`.
+const TRIPLE_FIXED_LEN: usize = 1;
+const BRAID_FIXED_LEN: usize = 2;
+
+/// The KEM and MAC lengths the Braid's fields have (CONSTANTS.md, Braid KEM
+/// field lengths; KEM key pair and encapsulation state lengths). The last two
+/// are the values whose layout `session-persistence.md` delegates: this file
+/// writes them at the right length and never pretends to their contents.
+const HEADER_LEN: usize = 64;
+const EK_VECTOR_LEN: usize = 1536;
+const CT1_LEN: usize = 1408;
+const CT2_LEN: usize = 160;
+const MAC_LEN: usize = 32;
+const KEY_PAIR_LEN: usize = 11_872;
+const ENCAPS_LEN: usize = 2_592;
+
+/// One operation on a Triple Ratchet state, encoded as
+/// `vectors/persistence/triple-ratchet-state.json`'s `steps` encodes them.
+#[derive(Clone)]
+enum TStep {
+    Send {
+        epoch: u64,
+        out: Option<(u64, [u8; 32])>,
+    },
+    Receive {
+        dh: [u8; 32],
+        pn: u32,
+        n: u32,
+        dh_recv: [u8; 32],
+        dh_send: [u8; 32],
+        new_pub: [u8; 32],
+        epoch: u64,
+        pq_n: u64,
+        out: Option<(u64, [u8; 32])>,
+    },
+}
+
+/// `output_present(1) || output_epoch(8) || output_key(32)`, zeroed when
+/// absent, as both ratchet-state files write one.
+fn encode_output(buf: &mut Vec<u8>, out: Option<(u64, [u8; 32])>) {
+    match out {
+        None => buf.extend_from_slice(&[0u8; 41]),
+        Some((e, k)) => {
+            buf.push(0x01);
+            buf.extend_from_slice(&e.to_be_bytes());
+            buf.extend_from_slice(&k);
+        }
+    }
+}
+
+impl TStep {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        match self {
+            TStep::Send { epoch, out } => {
+                buf.push(0x00);
+                buf.extend_from_slice(&epoch.to_be_bytes());
+                encode_output(buf, *out);
+            }
+            TStep::Receive {
+                dh,
+                pn,
+                n,
+                dh_recv,
+                dh_send,
+                new_pub,
+                epoch,
+                pq_n,
+                out,
+            } => {
+                buf.push(0x01);
+                buf.extend_from_slice(dh);
+                buf.extend_from_slice(&pn.to_be_bytes());
+                buf.extend_from_slice(&n.to_be_bytes());
+                buf.extend_from_slice(dh_recv);
+                buf.extend_from_slice(dh_send);
+                buf.extend_from_slice(new_pub);
+                buf.extend_from_slice(&epoch.to_be_bytes());
+                buf.extend_from_slice(&pq_n.to_be_bytes());
+                encode_output(buf, *out);
+            }
+        }
+    }
+}
+
+fn encode_triple(steps: &[TStep]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for s in steps {
+        s.encode(&mut out);
+    }
+    out
+}
+
+/// A Triple Ratchet state's stored bytes, assembled from the layout in
+/// `session-persistence.md`, Triple ratchet state, over the two halves the
+/// assemblers above build.
+fn triple_state_bytes(classical: &[u8], post_quantum: &[u8]) -> Vec<u8> {
+    let mut out = vec![0x01];
+    out.extend_from_slice(&(classical.len() as u32).to_be_bytes());
+    out.extend_from_slice(classical);
+    out.extend_from_slice(&(post_quantum.len() as u32).to_be_bytes());
+    out.extend_from_slice(post_quantum);
+    out
+}
+
+fn triple_kind(e: tacenta_triple::TripleDecodeError) -> &'static str {
+    use tacenta_triple::TripleDecodeError as E;
+    match e {
+        E::UnknownVersion => "wrong-version",
+        E::TooShort | E::Malformed => "short-or-malformed",
+    }
+}
+
+fn triple_readback(bytes: &[u8]) -> String {
+    match tacenta_triple::State::from_bytes(bytes) {
+        Ok(s) => {
+            if s.to_bytes().as_slice() == bytes {
+                "same".to_string()
+            } else {
+                "differs".to_string()
+            }
+        }
+        Err(e) => format!("refused:{}", triple_kind(e)),
+    }
+}
+
+/// Replay one Triple Ratchet sequence against the model's answer.
+fn check_triple(
+    start: &Start,
+    steps: &[TStep],
+    answer: &[String],
+    seen: &mut Observed,
+) -> Result<(), String> {
+    use tacenta_triple::{DrHeader, Header, LabelSet, Output, State};
+
+    let mut lines = answer.iter();
+    let first = lines.next().ok_or("the model answered nothing")?;
+    let want = parse_start(first)?;
+
+    let mut state = match start {
+        Start::Fresh(p) => {
+            let sk: [u8; 32] = p[1..33].try_into().map_err(|_| "a short fresh start")?;
+            let our: [u8; 32] = p[33..65].try_into().map_err(|_| "a short fresh start")?;
+            let st = match p[0] {
+                0x00 => State::init_sender(
+                    &sk,
+                    our,
+                    p[65..97].try_into().map_err(|_| "a short fresh start")?,
+                    &p[97..129].try_into().map_err(|_| "a short fresh start")?,
+                    LabelSet::Tacenta,
+                ),
+                _ => State::init_receiver(&sk, our, LabelSet::Tacenta),
+            };
+            match want {
+                ModelStart::Ok { bytes, readback } => {
+                    let got = st.to_bytes();
+                    if got.as_slice() != bytes {
+                        return Err(format!(
+                            "initialisation: the crate writes {}, the model {}",
+                            hex::encode(got.as_slice()),
+                            hex::encode(&bytes)
+                        ));
+                    }
+                    let mine = triple_readback(got.as_slice());
+                    if mine != readback {
+                        return Err(format!(
+                            "initialisation read back: the crate says {mine}, the model {readback}"
+                        ));
+                    }
+                }
+                ModelStart::Refused(kind) => {
+                    return Err(format!(
+                        "initialisation: the model refuses it as {kind}, the crate takes it"
+                    ));
+                }
+            }
+            st
+        }
+        Start::Stored(bytes) => match (State::from_bytes(bytes), want) {
+            (Ok(st), ModelStart::Ok { bytes: want, .. }) => {
+                let got = st.to_bytes();
+                if got.as_slice() != want {
+                    return Err(format!(
+                        "the stored start: the crate reads it back as {}, the model as {}",
+                        hex::encode(got.as_slice()),
+                        hex::encode(&want)
+                    ));
+                }
+                st
+            }
+            (Err(e), ModelStart::Refused(kind)) => {
+                let mine = triple_kind(e);
+                if !refusals_agree(bytes, TRIPLE_FIXED_LEN, &kind, mine) {
+                    return Err(format!(
+                        "the stored start: the crate refuses it as {mine}, the model as {kind}"
+                    ));
+                }
+                return Ok(());
+            }
+            (Ok(_), ModelStart::Refused(kind)) => {
+                return Err(format!(
+                    "the stored start: the model refuses it as {kind}, the crate accepts it"
+                ));
+            }
+            (Err(e), ModelStart::Ok { .. }) => {
+                return Err(format!(
+                    "the stored start: the crate refuses it ({e:?}), the model accepts it"
+                ));
+            }
+        },
+    };
+
+    for (i, step) in steps.iter().enumerate() {
+        let line = lines
+            .next()
+            .ok_or_else(|| format!("step {}: the model answered nothing", i + 1))?;
+        let want = parse_step(line)?;
+        let before = state.clone();
+        let outcome = match step {
+            TStep::Send { epoch, out } => {
+                let o = out.map(|(e, k)| Output::new(e, k));
+                state.send(*epoch, o.as_ref()).map(|_| ())
+            }
+            TStep::Receive {
+                dh,
+                pn,
+                n,
+                dh_recv,
+                dh_send,
+                new_pub,
+                epoch,
+                pq_n,
+                out,
+            } => {
+                let o = out.map(|(e, k)| Output::new(e, k));
+                let header = Header {
+                    dr: DrHeader {
+                        dh: *dh,
+                        pn: *pn,
+                        n: *n,
+                    },
+                    epoch: *epoch,
+                    pq_n: *pq_n,
+                };
+                // A receive returns a candidate the caller commits once the
+                // message has authenticated, which is what the session does.
+                match state.receive(&header, dh_recv, dh_send, *new_pub, o.as_ref()) {
+                    Ok((next, _key)) => {
+                        state.commit(next);
+                        Ok(())
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+        };
+        seen.steps += 1;
+        seen.triple_steps += 1;
+        match (outcome, want) {
+            (Ok(()), ModelStep::Ok { bytes, readback }) => {
+                seen.accepted += 1;
+                compare_state(i + 1, state.to_bytes().as_slice(), &bytes, &readback, &{
+                    triple_readback(state.to_bytes().as_slice())
+                })?;
+            }
+            (
+                Err(e),
+                ModelStep::Refused {
+                    ceiling,
+                    bytes,
+                    readback,
+                },
+            ) => {
+                seen.refused += 1;
+                let exhausted = matches!(
+                    e,
+                    tacenta_triple::TripleError::Classical(RatchetError::ChainExhausted)
+                        | tacenta_triple::TripleError::PostQuantum(SpqrError::ChainExhausted)
+                );
+                if exhausted {
+                    if !ceiling {
+                        return Err(format!(
+                            "step {}: the crate refuses it as ChainExhausted, \
+                             and neither of the model's halves is at a ceiling",
+                            i + 1
+                        ));
+                    }
+                    seen.triple_ceiling += 1;
+                }
+                state = before;
+                compare_state(i + 1, state.to_bytes().as_slice(), &bytes, &readback, &{
+                    triple_readback(state.to_bytes().as_slice())
+                })?;
+            }
+            (Ok(()), ModelStep::Refused { .. }) => {
+                return Err(format!(
+                    "step {}: the crate takes it, the model refuses it",
+                    i + 1
+                ));
+            }
+            (Err(e), ModelStep::Ok { .. }) => {
+                return Err(format!(
+                    "step {}: the crate refuses it ({e:?}), the model takes it",
+                    i + 1
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+struct TripleSequence {
+    start: Start,
+    steps: Vec<TStep>,
+}
+
+/// A generated Triple Ratchet sequence. The near-ceiling starts are assembled
+/// from the two halves' layouts, as the leaves' are, because neither counter
+/// can be walked to. Every stored start here gives the classical half both
+/// chains, so it shows no role and the composition's rule holds vacuously;
+/// the role rule itself is pinned by the vectors, which can build a state
+/// that breaks it.
+fn generate_triple(rng: &mut Rng, template: usize, _long: bool) -> TripleSequence {
+    let dhs = rng.canonical_key();
+    let dhr = rng.canonical_key();
+    let rk = rng.key();
+    let cks = rng.key();
+    let ckr = rng.key();
+
+    let both_chains = |ns: u32, nr: u32| {
+        ratchet_state_bytes(
+            &dhs,
+            Some(&dhr),
+            &rk,
+            Some(&cks),
+            Some(&ckr),
+            ns,
+            nr,
+            0,
+            0,
+            &[],
+        )
+    };
+
+    let (start, mut steps) = match template % 6 {
+        0 | 1 => {
+            let role = (template % 6) as u8;
+            let mut p = vec![role];
+            p.extend_from_slice(&rng.key());
+            p.extend_from_slice(&dhs);
+            p.extend_from_slice(&dhr);
+            p.extend_from_slice(&rng.key());
+            (Start::Fresh(p), Vec::new())
+        }
+        2 => {
+            // The classical sending counter at its ceiling: the send is
+            // refused by that half and the whole call with it.
+            let c = both_chains(u32::MAX, 0);
+            let s = sparse_state_bytes(&rk, 0, 0x00, Some((&cks, 0)), Some((&ckr, 0)), &[]);
+            (
+                Start::Stored(triple_state_bytes(&c, &s)),
+                vec![TStep::Send {
+                    epoch: 0,
+                    out: None,
+                }],
+            )
+        }
+        3 => {
+            // The sparse sending chain at its ceiling, with the classical
+            // half one below its own, so the refusal is the sparse half's.
+            let c = both_chains(u32::MAX - 1, 0);
+            let s = sparse_state_bytes(&rk, 0, 0x00, Some((&cks, u64::MAX)), Some((&ckr, 0)), &[]);
+            (
+                Start::Stored(triple_state_bytes(&c, &s)),
+                vec![TStep::Send {
+                    epoch: 0,
+                    out: None,
+                }],
+            )
+        }
+        4 => {
+            // The sparse epoch one below its reserved value: the advance onto
+            // `u64::MAX` is refused inside the sparse half.
+            let e = u64::MAX - 1;
+            let c = both_chains(0, 0);
+            let s = sparse_state_bytes(&rk, e, 0x00, Some((&cks, 0)), Some((&ckr, 0)), &[]);
+            (
+                Start::Stored(triple_state_bytes(&c, &s)),
+                vec![TStep::Receive {
+                    dh: dhr,
+                    pn: 0,
+                    n: 0,
+                    dh_recv: rng.key(),
+                    dh_send: rng.key(),
+                    new_pub: rng.canonical_key(),
+                    epoch: e,
+                    pq_n: 1,
+                    out: Some((u64::MAX, rng.key())),
+                }],
+            )
+        }
+        _ => {
+            let c = both_chains(0, 0);
+            let s = sparse_state_bytes(&rk, 0, 0x00, Some((&cks, 0)), Some((&ckr, 0)), &[]);
+            (Start::Stored(triple_state_bytes(&c, &s)), Vec::new())
+        }
+    };
+
+    let mut shadow_n = 0u32;
+    let mut shadow_pq = 0u64;
+    let mut epoch = 0u64;
+    while steps.len() < STEPS {
+        if rng.below(10) < 4 {
+            let out = match rng.below(10) {
+                0..=1 => Some((epoch.saturating_add(1), rng.key())),
+                _ => None,
+            };
+            if out.is_some() {
+                epoch = epoch.saturating_add(1);
+                shadow_pq = 0;
+            }
+            steps.push(TStep::Send { epoch, out });
+            shadow_pq = shadow_pq.saturating_add(1);
+            continue;
+        }
+        let out = match rng.below(10) {
+            0 => Some((epoch.saturating_add(1), rng.key())),
+            1 => Some((epoch.saturating_add(2), rng.key())),
+            _ => None,
+        };
+        let named = match out {
+            Some((e, _)) => e,
+            None => epoch,
+        };
+        let n = match rng.below(10) {
+            0..=5 => shadow_n,
+            6..=7 => shadow_n.saturating_add(1 + rng.below(u64::from(GATE_SKIP)) as u32),
+            _ => shadow_n.saturating_add(MAX_SKIP + 1),
+        };
+        let pq_n = match rng.below(10) {
+            0..=5 => shadow_pq.saturating_add(1),
+            6..=7 => shadow_pq.saturating_add(1 + rng.below(u64::from(GATE_SKIP))),
+            _ => shadow_pq.saturating_add(u64::from(MAX_SKIP) + 2),
+        };
+        steps.push(TStep::Receive {
+            dh: dhr,
+            pn: 0,
+            n,
+            dh_recv: rng.key(),
+            dh_send: rng.key(),
+            new_pub: rng.canonical_key(),
+            epoch: named,
+            pq_n,
+            out,
+        });
+        if out.is_some() {
+            epoch = named;
+            shadow_pq = 0;
+        }
+        if n >= shadow_n {
+            shadow_n = n.saturating_add(1);
+        }
+        if pq_n > shadow_pq {
+            shadow_pq = pq_n;
+        }
+    }
+
+    TripleSequence { start, steps }
+}
+
+// --- The Braid -------------------------------------------------------------
+
+/// A persisted erasure encoder, from the layout in
+/// `session-persistence.md`, Erasure coder sub-formats, sized for a value of
+/// `value_len` bytes.
+fn encoder_bytes(value_len: usize, next: u16, fill: u8) -> Vec<u8> {
+    let chunks = value_len.div_ceil(32);
+    let mut out = Vec::new();
+    out.extend_from_slice(&next.to_be_bytes());
+    out.push(0x00);
+    out.extend_from_slice(&(chunks as u32).to_be_bytes());
+    for i in 0..chunks {
+        out.extend_from_slice(&[fill.wrapping_add(i as u8); 32]);
+    }
+    out
+}
+
+/// A persisted erasure decoder sized for `value_len` bytes, holding the
+/// codewords at `held`.
+fn decoder_bytes(value_len: usize, held: &[(u16, u8)]) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.extend_from_slice(&(value_len as u64).to_be_bytes());
+    out.extend_from_slice(&(value_len.div_ceil(32) as u64).to_be_bytes());
+    out.extend_from_slice(&(held.len() as u32).to_be_bytes());
+    for (i, f) in held {
+        out.extend_from_slice(&i.to_be_bytes());
+        out.extend_from_slice(&[*f; 32]);
+    }
+    out
+}
+
+/// A stored Braid state, assembled from the layout in
+/// `session-persistence.md`, Braid, rather than by either implementation.
+fn braid_state_bytes(tag: u8, epoch: u64, auth: &[u8; 64], fields: &[Vec<u8>]) -> Vec<u8> {
+    let mut out = vec![0x01, tag];
+    if tag == 11 {
+        return out;
+    }
+    out.extend_from_slice(&epoch.to_be_bytes());
+    out.extend_from_slice(auth);
+    for f in fields {
+        out.extend_from_slice(&(f.len() as u32).to_be_bytes());
+        out.extend_from_slice(f);
+    }
+    out
+}
+
+fn braid_kind(e: tacenta_braid::BraidDecodeError) -> &'static str {
+    use tacenta_braid::BraidDecodeError as E;
+    match e {
+        E::UnknownVersion => "wrong-version",
+        E::TooShort | E::Malformed => "short-or-malformed",
+    }
+}
+
+/// Every Braid state this file can assemble, by tag.
+///
+/// Tags 1 to 4 carry a `key_pair`, whose `header` and `ek_vector` the page has
+/// the reader validate and whose layout it delegates to `libcrux-ml-kem`
+/// (ADR-0006, point 5). Neither this file nor `tacenta-model` can build one
+/// that passes, so those tags appear here only at a length both readers
+/// refuse. Tags 7 to 9 carry an `encaps`, which the page has the reader check
+/// for its length and nothing else, so those are built in full.
+fn braid_states(rng: &mut Rng) -> Vec<(u8, Vec<u8>)> {
+    let mut auth = [0u8; 64];
+    for b in auth.iter_mut() {
+        *b = rng.byte();
+    }
+    let header = vec![0xa1u8; HEADER_LEN];
+    let ct1 = vec![0xc1u8; CT1_LEN];
+    let ek_vector = vec![0xe4u8; EK_VECTOR_LEN];
+    let encaps = vec![0x5eu8; ENCAPS_LEN];
+    let hdr_value = HEADER_LEN + MAC_LEN;
+    let ct2_value = CT2_LEN + MAC_LEN;
+    vec![
+        (0, braid_state_bytes(0, 1, &auth, &[])),
+        (5, braid_state_bytes(5, 1, &auth, &[decoder_bytes(hdr_value, &[])])),
+        (
+            6,
+            braid_state_bytes(
+                6,
+                2,
+                &auth,
+                &[header.clone(), decoder_bytes(EK_VECTOR_LEN, &[(0, 0x11)])],
+            ),
+        ),
+        (
+            7,
+            braid_state_bytes(
+                7,
+                1,
+                &auth,
+                &[
+                    header.clone(),
+                    encaps.clone(),
+                    ct1.clone(),
+                    encoder_bytes(CT1_LEN, 3, 0x20),
+                    decoder_bytes(EK_VECTOR_LEN, &[]),
+                ],
+            ),
+        ),
+        (
+            8,
+            braid_state_bytes(
+                8,
+                3,
+                &auth,
+                &[
+                    encaps.clone(),
+                    ct1.clone(),
+                    ek_vector,
+                    encoder_bytes(CT1_LEN, 0, 0x30),
+                ],
+            ),
+        ),
+        (
+            9,
+            braid_state_bytes(
+                9,
+                1,
+                &auth,
+                &[
+                    header,
+                    encaps,
+                    ct1,
+                    decoder_bytes(EK_VECTOR_LEN, &[(2, 0x44), (5, 0x55)]),
+                ],
+            ),
+        ),
+        (
+            10,
+            braid_state_bytes(10, 1, &auth, &[encoder_bytes(ct2_value, 2, 0x40)]),
+        ),
+        (11, braid_state_bytes(11, 0, &auth, &[])),
+        // A key pair at a length both readers refuse: the part of the
+        // key-pair rule that does not need the delegated layout.
+        (
+            1,
+            braid_state_bytes(
+                1,
+                1,
+                &auth,
+                &[
+                    vec![0x4bu8; KEY_PAIR_LEN - 1],
+                    encoder_bytes(hdr_value, 1, 0x50),
+                ],
+            ),
+        ),
+    ]
+}
+
+/// The Braid's `Ct2Sampled` steps: a message at the next epoch takes
+/// transition (13), and at `u64::MAX - 1` the same message fails instead,
+/// because the step would land on the reserved epoch.
+fn braid_step_bytes(epoch: u64) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.extend_from_slice(&epoch.to_be_bytes());
+    out.push(0x00); // type None
+    out.push(0x00); // no codeword
+    out.extend_from_slice(&0u16.to_be_bytes());
+    out.extend_from_slice(&[0u8; 32]);
+    out
+}
+
+fn braid_readback(bytes: &[u8]) -> String {
+    match tacenta_braid::Braid::from_bytes(bytes) {
+        Ok(b) => {
+            if b.to_bytes().as_slice() == bytes {
+                "same".to_string()
+            } else {
+                "differs".to_string()
+            }
+        }
+        Err(e) => format!("refused:{}", braid_kind(e)),
+    }
+}
+
+/// One `run braid stored` sequence against the model's answer.
+fn check_braid(
+    start: &[u8],
+    steps: &[u64],
+    answer: &[String],
+    seen: &mut Observed,
+) -> Result<(), String> {
+    use tacenta_braid::{Braid, Msg, MsgType};
+
+    let mut lines = answer.iter();
+    let first = lines.next().ok_or("the model answered nothing")?;
+    let want = parse_start(first)?;
+
+    let mut braid = match (Braid::from_bytes(start), want) {
+        (Ok(b), ModelStart::Ok { bytes: want, .. }) => {
+            let got = b.to_bytes();
+            if got.as_slice() != want {
+                return Err(format!(
+                    "the stored start: the crate reads it back as {}, the model as {}",
+                    hex::encode(got.as_slice()),
+                    hex::encode(&want)
+                ));
+            }
+            b
+        }
+        (Err(e), ModelStart::Refused(kind)) => {
+            let mine = braid_kind(e);
+            if !refusals_agree(start, BRAID_FIXED_LEN, &kind, mine) {
+                return Err(format!(
+                    "the stored start: the crate refuses it as {mine}, the model as {kind}"
+                ));
+            }
+            return Ok(());
+        }
+        (Ok(_), ModelStart::Refused(kind)) => {
+            return Err(format!(
+                "the stored start: the model refuses it as {kind}, the crate accepts it"
+            ));
+        }
+        (Err(e), ModelStart::Ok { .. }) => {
+            return Err(format!(
+                "the stored start: the crate refuses it ({e:?}), the model accepts it"
+            ));
+        }
+    };
+
+    for (i, epoch) in steps.iter().enumerate() {
+        let line = lines
+            .next()
+            .ok_or_else(|| format!("step {}: the model answered nothing", i + 1))?;
+        let want = parse_step(line)?;
+        let msg = Msg {
+            epoch: *epoch,
+            ty: MsgType::None,
+            data: None,
+        };
+        let (_e, _out, next) = braid.receive(&msg);
+        braid.commit(next);
+        seen.steps += 1;
+        seen.braid_steps += 1;
+        if braid.failed() {
+            seen.braid_ceiling_failed += 1;
+        } else if braid.state_tag() == 0 {
+            seen.braid_ceiling_stepped += 1;
+        }
+        match want {
+            // The Braid's receive refuses nothing: it answers with a state,
+            // `Failed` among them, so every step is an `ok` on both sides and
+            // the epoch ceiling shows up in the bytes.
+            ModelStep::Ok { bytes, readback } => {
+                compare_state(i + 1, braid.to_bytes().as_slice(), &bytes, &readback, &{
+                    braid_readback(braid.to_bytes().as_slice())
+                })?;
+            }
+            ModelStep::Refused { .. } => {
+                return Err(format!(
+                    "step {}: the model refuses it, and the Braid's receive refuses nothing",
+                    i + 1
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The two composed formats, in one round: the Triple Ratchet through
+/// generated operation sequences, and the Braid through generated stored
+/// states, the two `Ct2Sampled` transitions, and corrupted imports of both.
+fn check_composed(exe: &Path, seed: u64, sequences: usize, long: bool, seen: &mut Observed) {
+    let mut requests = Vec::new();
+    let mut triples: Vec<(usize, TripleSequence)> = Vec::new();
+    for i in 0..sequences {
+        let mut rng = Rng::new(seed ^ (i as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15));
+        let t = generate_triple(&mut rng, i, long);
+        requests.push(t.start.request("triple", &encode_triple(&t.steps)));
+        triples.push((requests.len() - 1, t));
+    }
+
+    // The Braid, by tag, and the two ceiling steps.
+    let mut rng = Rng::new(seed ^ 0x0b0b_0b0b_0b0b_0b0b);
+    let states = braid_states(&mut rng);
+    let mut braid_reads: Vec<Vec<u8>> = Vec::new();
+    for (_tag, bytes) in &states {
+        braid_reads.push(bytes.clone());
+        for c in corrupt(&mut rng, bytes) {
+            braid_reads.push(c);
+        }
+    }
+    let read_first = requests.len();
+    for b in &braid_reads {
+        requests.push(format!("read braid {}", hex::encode(b)));
+    }
+
+    let mut auth = [0u8; 64];
+    for b in auth.iter_mut() {
+        *b = rng.byte();
+    }
+    let ct2_value = CT2_LEN + MAC_LEN;
+    let ceiling_runs: Vec<(Vec<u8>, Vec<u64>)> = vec![
+        // Below the reserved epoch: transition (13).
+        (
+            braid_state_bytes(10, 1, &auth, &[encoder_bytes(ct2_value, 1, 0x60)]),
+            vec![2],
+        ),
+        (
+            braid_state_bytes(
+                10,
+                u64::MAX - 2,
+                &auth,
+                &[encoder_bytes(ct2_value, 1, 0x61)],
+            ),
+            vec![u64::MAX - 1],
+        ),
+        // At it: the step would land on `u64::MAX`, so the Braid fails.
+        (
+            braid_state_bytes(
+                10,
+                u64::MAX - 1,
+                &auth,
+                &[encoder_bytes(ct2_value, 1, 0x62)],
+            ),
+            vec![u64::MAX],
+        ),
+    ];
+    let run_first = requests.len();
+    for (start, steps) in &ceiling_runs {
+        let mut encoded = Vec::new();
+        for e in steps {
+            encoded.extend_from_slice(&braid_step_bytes(*e));
+        }
+        requests.push(format!(
+            "run braid stored {} {}",
+            hex::encode(start),
+            hex::encode(&encoded)
+        ));
+    }
+
+    let answers = ask_model(exe, &requests);
+
+    for (at, t) in &triples {
+        if let Err(e) = check_triple(&t.start, &t.steps, &answers[*at], seen) {
+            let (minimal, message) = shrink(&t.steps, &mut |steps: &[TStep]| {
+                let request = t.start.request("triple", &encode_triple(steps));
+                let a = ask_model(exe, std::slice::from_ref(&request));
+                let mut s = Observed::default();
+                check_triple(&t.start, steps, &a[0], &mut s)
+            });
+            panic!(
+                "\n\ntacenta-model and tacenta-core disagree on the Triple Ratchet.\n\
+                 seed: {seed} ({seed:#x})\n\
+                 first report: {e}\n\
+                 minimal: {message}\n\
+                 request: {}\n\n",
+                t.start.request("triple", &encode_triple(&minimal))
+            );
+        }
+    }
+
+    for (i, bytes) in braid_reads.iter().enumerate() {
+        let answer = &answers[read_first + i];
+        let line = answer.first().expect("a read answer");
+        seen.braid_reads += 1;
+        let model = parse_read(line).expect("a read line");
+        let rust = tacenta_braid::Braid::from_bytes(bytes)
+            .map(|b| b.to_bytes().to_vec())
+            .map_err(braid_kind);
+        match (model, rust) {
+            (Some(want), Ok(got)) => {
+                seen.braid_reads_accepted += 1;
+                assert_eq!(
+                    hex::encode(&got),
+                    hex::encode(&want),
+                    "\n\ntacenta-model and tacenta-core disagree on an imported Braid.\n\
+                     seed: {seed} ({seed:#x})\n\
+                     request: read braid {}\n\n",
+                    hex::encode(bytes)
+                );
+            }
+            (None, Err(mine)) => {
+                let kind = read_refusal(line).expect("the model's refusal");
+                assert!(
+                    refusals_agree(bytes, BRAID_FIXED_LEN, &kind, mine),
+                    "\n\ntacenta-model and tacenta-core disagree on why a Braid import is \
+                     refused.\nseed: {seed} ({seed:#x})\n\
+                     the model says {kind}, the crate {mine}\n\
+                     request: read braid {}\n\n",
+                    hex::encode(bytes)
+                );
+            }
+            (Some(_), Err(mine)) => panic!(
+                "\n\ntacenta-model accepts a Braid tacenta-core refuses ({mine}).\n\
+                 seed: {seed} ({seed:#x})\n\
+                 request: read braid {}\n\n",
+                hex::encode(bytes)
+            ),
+            (None, Ok(_)) => panic!(
+                "\n\ntacenta-core accepts a Braid tacenta-model refuses.\n\
+                 seed: {seed} ({seed:#x})\n\
+                 request: read braid {}\n\n",
+                hex::encode(bytes)
+            ),
+        }
+    }
+
+    for (i, (start, steps)) in ceiling_runs.iter().enumerate() {
+        if let Err(e) = check_braid(start, steps, &answers[run_first + i], seen) {
+            panic!(
+                "\n\ntacenta-model and tacenta-core disagree on the Braid.\n\
+                 seed: {seed} ({seed:#x})\n\
+                 {e}\n\
+                 start: {}\n\n",
+                hex::encode(start)
+            );
+        }
+    }
+
+    // The corrupted imports of the states the Triple Ratchet sequences
+    // reached, read by both sides.
+    let mut requests = Vec::new();
+    let mut which: Vec<Vec<u8>> = Vec::new();
+    for (at, _) in &triples {
+        let Some(last) = answers[*at].last() else {
+            continue;
+        };
+        let bytes = match parse_step(last).or_else(|_| {
+            parse_start(last).map(|s| match s {
+                ModelStart::Ok { bytes, readback } => ModelStep::Ok { bytes, readback },
+                ModelStart::Refused(k) => ModelStep::Refused {
+                    ceiling: false,
+                    bytes: Vec::new(),
+                    readback: k,
+                },
+            })
+        }) {
+            Ok(ModelStep::Ok { bytes, .. }) | Ok(ModelStep::Refused { bytes, .. }) => bytes,
+            Err(_) => continue,
+        };
+        for c in corrupt(&mut rng, &bytes) {
+            requests.push(format!("read triple {}", hex::encode(&c)));
+            which.push(c);
+        }
+    }
+    if requests.is_empty() {
+        return;
+    }
+    let read_answers = ask_model(exe, &requests);
+    for (bytes, answer) in which.iter().zip(read_answers.iter()) {
+        let line = answer.first().expect("a read answer");
+        seen.triple_reads += 1;
+        let model = parse_read(line).expect("a read line");
+        let rust = tacenta_triple::State::from_bytes(bytes)
+            .map(|s| s.to_bytes().to_vec())
+            .map_err(triple_kind);
+        match (model, rust) {
+            (Some(want), Ok(got)) => {
+                seen.triple_reads_accepted += 1;
+                assert_eq!(
+                    hex::encode(&got),
+                    hex::encode(&want),
+                    "\n\ntacenta-model and tacenta-core disagree on an imported Triple \
+                     Ratchet state.\nseed: {seed} ({seed:#x})\n\
+                     request: read triple {}\n\n",
+                    hex::encode(bytes)
+                );
+            }
+            (None, Err(mine)) => {
+                let kind = read_refusal(line).expect("the model's refusal");
+                assert!(
+                    refusals_agree(bytes, TRIPLE_FIXED_LEN, &kind, mine),
+                    "\n\ntacenta-model and tacenta-core disagree on why a Triple Ratchet \
+                     import is refused.\nseed: {seed} ({seed:#x})\n\
+                     the model says {kind}, the crate {mine}\n\
+                     request: read triple {}\n\n",
+                    hex::encode(bytes)
+                );
+            }
+            (Some(_), Err(mine)) => panic!(
+                "\n\ntacenta-model accepts a Triple Ratchet state tacenta-core refuses \
+                 ({mine}).\nseed: {seed} ({seed:#x})\n\
+                 request: read triple {}\n\n",
+                hex::encode(bytes)
+            ),
+            (None, Ok(_)) => panic!(
+                "\n\ntacenta-core accepts a Triple Ratchet state tacenta-model refuses.\n\
+                 seed: {seed} ({seed:#x})\n\
+                 request: read triple {}\n\n",
+                hex::encode(bytes)
+            ),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // The test
 // ---------------------------------------------------------------------------
 
@@ -1585,6 +2588,7 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     }
 
     check_imports(&exe, seed, &round, &answers, &mut seen);
+    check_composed(&exe, seed, sequences, long, &mut seen);
 
     eprintln!(
         "differential: {} steps ({} taken, {} refused), {} Diffie-Hellman or epoch steps, \
@@ -1648,6 +2652,45 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     assert!(
         seen.imports_accepted > 0 && seen.imports_wrong_version > 0 && seen.imports_malformed > 0,
         "the corrupted imports reached every verdict"
+    );
+
+    eprintln!(
+        "differential: the composed formats: {} Triple Ratchet steps ({} refused at a half's \
+         ceiling), {} Triple Ratchet imports ({} accepted); {} Braid imports ({} accepted), \
+         {} Braid steps ({} taking transition 13, {} failing at the reserved epoch)",
+        seen.triple_steps,
+        seen.triple_ceiling,
+        seen.triple_reads,
+        seen.triple_reads_accepted,
+        seen.braid_reads,
+        seen.braid_reads_accepted,
+        seen.braid_steps,
+        seen.braid_ceiling_stepped,
+        seen.braid_ceiling_failed,
+    );
+
+    // What the composed half had to reach, on the same principle as above: a
+    // run that stopped reaching these fails here rather than passing on fewer.
+    assert!(seen.triple_steps > 0, "no Triple Ratchet step ran");
+    assert!(
+        seen.triple_ceiling > 0,
+        "no Triple Ratchet step was refused at one of its halves' ceilings"
+    );
+    assert!(
+        seen.triple_reads_accepted > 0,
+        "no corrupted Triple Ratchet import was accepted by both sides"
+    );
+    assert!(
+        seen.braid_reads_accepted > 0,
+        "no generated Braid state was accepted by both sides"
+    );
+    assert!(
+        seen.braid_ceiling_stepped > 0,
+        "the Braid's transition (13) was not reached"
+    );
+    assert!(
+        seen.braid_ceiling_failed > 0,
+        "the Braid's refusal at the reserved epoch was not reached"
     );
 }
 
