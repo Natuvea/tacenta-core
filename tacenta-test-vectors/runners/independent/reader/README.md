@@ -5,15 +5,16 @@ written to test whether the specification alone is enough to build from.
 Python 3, standard library only (`hashlib`, `hmac`, `json`, `copy`, `re`,
 `dataclasses`).
 
-**Specification revision.** Sixth pass, against the tree as found:
+**Specification revision.** Seventh pass, against the tree as found:
 
-- `SOURCE-REVISION` `c3a00471fbef23f514eca184aac56be7b76fbc8d`;
+- `SOURCE-REVISION` `5ae44427d17d0e8bfa1d314780305690000ee770`;
 - `VERSION` `0.2.0`;
 - every change under `CHANGELOG.md` `[Unreleased]`, whose Added section begins
-  "`protocol/session-persistence.md`, Triple ratchet state: the refusals that
-  format's reader gives".
+  "`protocol/session-persistence.md`, Prekey store, Semantic rules: a sixth
+  rule, that every stored signature verifies under `identity_public`".
 
-The fifth pass read `1dd174609bc5b008564bddef45bee43d71589761` and the fourth
+The sixth pass read `c3a00471fbef23f514eca184aac56be7b76fbc8d`, the fifth
+`1dd174609bc5b008564bddef45bee43d71589761` and the fourth
 `24c602d375bbebe49c25d23c6a73d9ef8fe39df0` (`VERSION` `0.1.0`).
 
 ## Provenance
@@ -34,7 +35,8 @@ vector runner, libsignal or anything else.
 
 Where the spec does not state something, the code comment names the entry in
 `../GAPS.md` (first pass), `../GAPS-2.md` (second), `../GAPS-3.md` (third),
-`../GAPS-4.md` (fourth) or `../GAPS-5.md` (fifth).
+`../GAPS-4.md` (fourth), `../GAPS-5.md` (fifth), `../GAPS-6.md` (sixth) or
+`../GAPS-7.md` (seventh).
 A hypothesis that matches a vector is still recorded as a gap.
 
 ## Isolation
@@ -136,6 +138,86 @@ was used.
   unrelated material: a short index of notes from other work, which names
   several of the repositories this pass must not consult, and a list of further
   material available. None of it was opened or used.
+
+### Isolation, pass 7
+
+- **Reads.** Inside the clean-room directory and nowhere else:
+  `tacenta-spec/`, apart from the ADRs, of which only
+  `ADR-0006-specification-is-normative.md` was opened, this pass's brief having
+  named its new point 7; `tacenta-test-vectors/`; `reader/`; `GAPS-6.md` and
+  `SOURCE-REVISION`. `GAPS.md`, `GAPS-2.md`, `GAPS-3.md`, `GAPS-4.md` and
+  `GAPS-5.md` were not opened at all.
+- **No read outside this directory.** Two commands produced output too large to
+  display, and a copy of each was saved outside this directory. Neither copy was
+  opened; both commands were re-run reading the same files from inside this
+  directory. No other path outside this directory was read, listed or searched.
+- **Names treated as text.** The specification, the vectors README and the
+  manifest name implementation files, tests, theorems and records
+  (`tacenta-core`, `tacenta-model`, `tacenta-proofs/CLAIMS.md`,
+  `LIMITATIONS.md`, `LABELS.md`, `AUTHENTICATION-BOUNDARY.md`,
+  `Model.PersistedState`, `libcrux-ml-kem`, the Rust runner and the
+  differential harness). None was looked for (GAPS-5.md G5-07).
+- **Writes.** Only inside the clean-room directory:
+  - this reader: `tacenta_reader/persistence.py`, the new
+    `tacenta_reader/prekeys.py`, `tacenta_reader/__init__.py`, `run.py`,
+    `cases_persistence.py`, `cases_stored.py`, the new `cases_signed.py` and
+    this file;
+  - `../GAPS-7.md`;
+  - `../work/`: run outputs, `check_new_vectors7.py`, `xref7.py`, `faults7.py`
+    and `faults7.txt`.
+
+  The per-fault copies under `../work/faults7/` reached the vectors through a
+  symbolic link inside this directory, and were removed after each run.
+- **Not consulted.** No implementation, git history, other scratch files or web
+  search. RFC 7748 section 5, FIPS 203 sections 7.2 and 7.3 and XEdDSA's
+  verification procedure, which the pages cite, were used from knowledge.
+- **Unrelated context, not used.** The working environment again carried
+  unrelated material: an index of notes from other work, which names several of
+  the repositories this pass must not consult, and a list of further material
+  available. None of it was opened, and nothing in it was used for any reading
+  or decision here -- in particular nothing about the prekey store, the
+  signature rule or the two new vector files.
+
+## What changed in pass 7
+
+- **`persistence.py`: the prekey store's sixth semantic rule.** Every stored
+  signature is verified under `identity_public` -- `signed_prekey_sig` over
+  `EncodeEC` of the public half of `signed_prekey_secret`, `kem_sig` over
+  `EncodeKEM` of `kem_pair`'s `ek`, each `kem_one_time` entry's over its own
+  pair's, and, in v3 and v4, `previous_signed`'s and `previous_kem`'s over
+  theirs. The one-time curve prekeys carry none and are not covered. The
+  signature is XEdDSA under the identity key, over an unlabelled message
+  (session-establishment.md, Publishing keys; identities-and-devices.md,
+  Signing, "Prekey signatures carry no label"), which is the one thing the
+  rule's own sentence does not say (GAPS-7.md G7-03). It runs last of all:
+  after the framing, after the v4 re-encode check and after the other five
+  rules.
+- **`persistence.py`: a fifth refusal kind, `Incoherent`.** Rejection: "the
+  prekey store calls it 'incoherent' and gives it for its signature rule
+  alone, its other rules being malformed".
+- **`persistence.py`: the Braid's `key_pair` content clause is scoped.**
+  `KEY_PAIR_VIEW` is now `None` by default. This reader does not have the KEM
+  library's layout, so in tags 1 to 4 it checks the field's 11,872-byte length,
+  accepts the content, and conforms -- which is what the page now says such a
+  reader does. `GAPS-5.md` G5-02 is closed by that scope.
+- **`prekeys.py`, new: `rotate_signed_prekey` and `rotate_kem`.** The two
+  operations the new rule puts an obligation on. Each signs under the identity
+  whose public key the store holds as `identity_public` and refuses, changing
+  nothing, if handed any other; each takes the next identifier and returns the
+  store unchanged, silently, once `next_id` stands at `u32::MAX`; `rotate_kem`
+  drops the record entries of the key it wipes (key-deletion.md).
+- **`run.py`:** handlers for `prekey-store-state` and `session-state`, reading
+  stored bytes against `fields`, writing them back as the input, and checking
+  the refusal each invalid vector names against four kinds rather than two.
+- **Cases:** a new module `cases_signed.py`. `SK-08` and `BK-01` are rewritten
+  for this revision's two decisions, `TM-01`'s note about `LABELS.md` is
+  dropped, and `cases_persistence.py`'s prekey-store fixtures now carry
+  signatures that verify.
+
+**The session's format needed no change.** Its eight semantic rules, four
+field-by-field refusals and three refusal kinds were implemented from the page
+in pass 2 and extended in pass 5; the 13 session vectors passed against that
+code unchanged.
 
 ## What changed in pass 6
 
@@ -248,9 +330,10 @@ the 18 triple-ratchet-state vectors once the handler and the fix above were in.
 | `pqxdh.py`: `KDF`, `AD`, DH1..DH4, the decapsulation-length refusal, the FIPS 203 section 7.2 check on a bundle's KEM prekey, **the repeated-initial rule (both comparisons, decode first; pass 4)**, the last-resort fingerprint and the replay record's refusals | session-establishment.md, key-deletion.md | `session-establishment/pqxdh-sk.json`; the fingerprint and the repeated-initial rule by derived cases only |
 | `gf65536.py`, `erasure.py`: GF(2^16), chunking, codewords, first-copy-wins decoding, encoder exhaustion, **the zero-chunk and over-65,536-chunk encoders (pass 4)** | mlkem-braid.md The erasure code | `post-quantum/gf.json`, `inv.json`, `interp.json`, `erasure-encode.json`, `erasure-decode.json` |
 | `braid.py`: **the ML-KEM Braid**: `ToBytes`, `KDF_OK`, `KDF_AUTH`, the authenticator and both MACs, `ek_vector` validation, messages, the eleven live states and `Failed`, all thirteen transitions, send and receive epochs, what a receive ignores, every way into `Failed`, the epoch ceiling; conversion to the persisted layout; `BraidAgreement` for `triple.py` | mlkem-braid.md | `post-quantum/braid.json`, `auth.json`; the rest by derived cases |
-| `kem_double.py`: a **test double** for the incremental KEM interface, with the split's sizes, hash order and implicit rejection; its `key_pair` holds `ek_vector \|\| header \|\| z` (pass 5, GAPS-5.md G5-02). **Not ML-KEM** | mlkem-braid.md The KEM split | none |
-| `persistence.py`: readers and writers with every stated refusal and semantic rule: ratchet, sparse ratchet and triple states, erasure sub-formats, Braid (12 tags), session, prekey store (v4 written, v1-v3 read, `kem_pair` checks) | session-persistence.md, CONSTANTS.md | `persistence/erasure-encoder-state.json`, `erasure-decoder-state.json`, `ratchet-state.json`, `sparse-ratchet-state.json` (pass 5), **`triple-ratchet-state.json`, `braid-state.json` (pass 6)**; the session and the prekey store have no vectors, and neither has the Braid's `key_pair` content rule (GAPS-5.md G5-02) |
+| `kem_double.py`: a **test double** for the incremental KEM interface, with the split's sizes, hash order and implicit rejection; its `key_pair` holds `ek_vector \|\| header \|\| z`. **Not ML-KEM**, and not the layout the page delegates: from pass 7 the persistence reader does not use it, the `key_pair` content clause being scoped to a reader that has the real one (GAPS-7.md, G5-02 closed) | mlkem-braid.md The KEM split | none |
+| `persistence.py`: readers and writers with every stated refusal and semantic rule: ratchet, sparse ratchet and triple states, erasure sub-formats, Braid (12 tags), session, prekey store (v4 written, v1-v3 read, `kem_pair` checks, **and from pass 7 the sixth rule, every stored signature verifying under `identity_public`, refused as `incoherent`**) | session-persistence.md, CONSTANTS.md | every file under `persistence/`: the two erasure coders, `ratchet-state.json`, `sparse-ratchet-state.json` (pass 5), `triple-ratchet-state.json`, `braid-state.json` (pass 6), **`prekey-store-state.json`, `session-state.json` (pass 7)**. Not pinned by any: the signature rule, `non-canonical` for either format, and the Braid's `key_pair` content clause, which no vector can pin (GAPS-7.md, section 3) |
 | `protobuf.py`: the bounded protobuf profile, both message types | protobuf-profile.md, CONSTANTS.md | `protobuf/protobuf-ratchet-body.json`, `protobuf-prekey-envelope.json` |
+| `prekeys.py`: the two prekey-store rotations, each signing under `identity_public` and refusing any other identity, each stopping silently at `u32::MAX`, `rotate_kem` dropping the wiped key's record entries (pass 7) | key-deletion.md, session-persistence.md Prekey store Semantic rules | no vectors |
 | `identity.py`: the identity secret, application signatures | identities-and-devices.md | no vectors |
 
 **The eight vector files new in pass 3 needed no module change.** Their 106
@@ -274,7 +357,8 @@ and each is a row in the runner's table.
 | `cases_identity.py` | 19 | application signatures, clamping on use, the repeated-initial comparisons (SE-01, both fields, rewritten in pass 4), non-contributory definition; `DecodeEC` and the initial decoder's refusal (SE-03), X25519's masking against the decoders' refusals (SE-04), the section 7.2 KEM prekey check (SE-05); XEdDSA signing and the six verifier rules (XS-01 to XS-04); the fingerprint and replay record (LR-01 to LR-07, LR-06 through the bytes) |
 | `cases_braid.py` | 18 | derivation bytes, authenticator and MACs, sizes and holdings, initialisation, the send table, epoch completion and roles, send and receive epochs, what a receive ignores, all thirteen transitions, MAC and validation failures, KEM failures and `Failed`, the epoch ceiling, encoder exhaustion, persistence of all twelve tags, the composite header, the Triple Ratchet over the Braid with `session-persistence.md`'s relations, `AgreementFailed` |
 | `cases_curvekeys.py` | 7 | pass 4. The canonical-key rule at p and every value up to 2^255 - 1 (CK-01); the composite header's `dh`, including a live session refusing at decode (CK-02); the bundle's three keys, refused though signed, with low-order canonical keys left to the contributory check (CK-03); the initial message's two keys, and `DecodeEC` accepting every key the decoder returns (CK-04); why a second spelling is a second identity (CK-05); a repeat must first decode (SE-06); the repeated initial message over a live Triple Ratchet half: ignored fields, yield once, already-read messages, refusals before decryption, the initiator's session (SE-07) |
-| `cases_stored.py` | 15 | pass 5. Stored curve public keys: the ratchet state's three positions, refused as malformed (SK-01), and why (SK-02); a triple state or session holding one, malformed before the session's rules (SK-03); the session's four keys, inconsistent (SK-04), so a genuine repeat always matches (SK-05); the sparse state and the Braid hold none (SK-06); no honest state refused (SK-07); the prekey store's identity in v1 to v4 (SK-08); the initiator's own bundle check (SK-09). A short buffer with an unknown version, and the empty buffer (RJ-01). The Braid key pair's load check (BK-01). Both ratchets inductive up to and at their ceilings (IN-01, IN-02). ASM-05's labels (TM-01) and REQ-AUTH-11 against the protocol pages (TM-02) |
+| `cases_stored.py` | 15 | pass 5. Stored curve public keys: the ratchet state's three positions, refused as malformed (SK-01), and why (SK-02); a triple state or session holding one, malformed before the session's rules (SK-03); the session's four keys, inconsistent (SK-04), so a genuine repeat always matches (SK-05); the sparse state and the Braid hold none (SK-06); no honest state refused (SK-07); the prekey store's identity in v1 to v4 (SK-08); the initiator's own bundle check (SK-09). A short buffer with an unknown version, and the empty buffer (RJ-01). The Braid key pair's load check (BK-01). Both ratchets inductive up to and at their ceilings (IN-01, IN-02). ASM-05's labels (TM-01, rewritten in pass 7) and REQ-AUTH-11 against the protocol pages (TM-02). BK-01 and SK-08 rewritten in pass 7 for the scoped `key_pair` clause and for `p - 1` as `identity_public` |
+| `cases_signed.py` | 12 | pass 7. The prekey store's sixth semantic rule: every signed position (PK-01), what it does not bind (PK-02), `incoherent` as a kind of its own and the other five as malformed (PK-03), its place last of all in the order of checks (PK-04), the flipped byte at offset 69 and the two readers that disagree about it (PK-05), the rule across all four versions (PK-06). The obligation on the operations, and both rotations (PK-07), and forty rotations none of whose states is refused (PK-08). Rejection's paragraph on which format gives which refusal (RJ-02). The Principles' exception to the inductive invariant (IN-03). ADR-0006's point 7 against ASM-05 and AS-12 (TM-03). The epoch relation's boundary, all twelve tags under both readings (EP-01) |
 
 ## Deliberate faults
 
@@ -454,21 +538,99 @@ the page has now decided. They miss what `GAPS-6.md`, section 3, records: the
 epoch a triple send names (F6-09), `Ct2Sampled` checking the ceiling before it
 reads the message (F6-20), and the Braid key pair's content rule (F6-23).
 
+
+**Pass 7.** Forty faults and one control (`../work/faults7.py`), each a
+one-line or one-block change to a fresh copy of the reader, then the full
+runner. **38 were caught, 27 of them by a vector file.** Each cell gives how
+many failed and names the first few.
+
+| Fault | Vectors that failed | Cases that failed |
+|---|---|---|
+| F7-01 no identifier is zero: dropped | 1: `prekey-store-state` identifier-zero | 4: PS-23, PK-03, PK-04, RJ-02 |
+| F7-02 every identifier below next_id: dropped | 2: `prekey-store-state` identifier-at-next-id, `prekey-store-state` identifier-above-next-id | 2: PS-23, PK-03 |
+| F7-03 every identifier below next_id: off by one, next_id itself allowed | 1: `prekey-store-state` identifier-at-next-id | 1: PS-23 |
+| F7-04 identifiers pairwise distinct: dropped | 1: `prekey-store-state` identifiers-repeated | 1: PS-23 |
+| F7-05 identifiers distinct across kinds only within a kind | 1: `prekey-store-state` identifiers-repeated | 1: PS-23 |
+| F7-06 the bound counted over the whole record rather than per key | **none** | 1: PS-22 |
+| F7-07 the bound made exclusive: a key at exactly MAX_LAST_RESORT_SEEN refused | 1: `prekey-store-state` record-at-budget | 2: PS-22, LR-05 |
+| F7-08 the bound raised by one: a key one past its budget accepted | 1: `prekey-store-state` record-over-budget-for-one-key | 2: PS-22, PK-03 |
+| F7-09 an entry tagged with a key that is neither live: accepted | 1: `prekey-store-state` record-entry-under-an-unknown-key | 2: PS-23, PK-03 |
+| F7-10 a fingerprint twice: accepted | 1: `prekey-store-state` record-fingerprint-repeated | 2: PS-23, PK-03 |
+| F7-11 the pre-sizing ceiling: v4 given one budget rather than two | **none** | 1: PS-22 |
+| F7-12 the sparse epoch is the Braid's in every tag (the e - 1 branch dropped) | 3: `session-state` responder, `session-state` initiator-unanswered, `session-state` initiator-answered | 7: PS-15, SK-03, SK-04 , ... |
+| F7-13 the epoch relation's boundary moved to tags 6 to 10 | **none** | 1: EP-01 |
+| F7-14 the epoch relation dropped | 1: `session-state` sparse-epoch-does-not-follow-the-braid | 2: RJ-02, EP-01 |
+| F7-15 a failed Braid no longer exempt from the epoch relation | **none** | 2: PS-15, EP-01 |
+| F7-16 the Braid's half of the role rule dropped | **none** | 1: RJ-02 |
+| F7-17 the sparse ratchet's half of the role rule dropped | 1: `session-state` halves-disagree-on-the-role | 1: RJ-02 |
+| F7-18 the role parity inverted: the header-sending side is the initiator at even epochs | 3: `session-state` responder, `session-state` initiator-unanswered, `session-state` initiator-answered | 8: PS-15, SK-03, SK-04 , ... |
+| F7-19 the role read from pending_initial rather than established_ephemeral | 1: `session-state` initiator-answered | 2: PS-15, EP-01 |
+| F7-20 direction A2b read as the responder's | 4: `session-state` responder, `session-state` initiator-unanswered, `session-state` initiator-answered, `session-state` halves-disagree-on-the-role | 8: PS-15, SK-03 , ... |
+| F7-21 the store's signature rule reported as malformed, not incoherent | **none** | 9: SK-08, PK-01, PK-03, PK-04, ... |
+| F7-22 the store's other five rules reported as incoherent, not malformed | 8: `prekey-store-state` identity-public-not-canonical, `prekey-store-state` identifier-zero, `prekey-store-state` identifier-at-next-id, `prekey-store-state` identifier-above-next-id, ... | 6: , ... |
+| F7-23 the session's semantic rules reported as malformed, not inconsistent | 6: `session-state` sparse-epoch-does-not-follow-the-braid, `session-state` associated-data-wrong-orientation, `session-state` halves-disagree-on-the-role, `session-state` peer-identity-not-canonical, ... | 4: , ... |
+| F7-24 an unrecognised version reported as malformed, not wrong version | 11: `braid-state` version-zero, `braid-state` version-two, `prekey-store-state` version-unknown, `prekey-store-state` version-zero, ... | 9: , ... |
+| F7-25 the session's re-encode check reported as inconsistent, not non-canonical | **none** | **none** |
+| F7-26 the store's re-encode check reported as malformed, not non-canonical | **none** | **none** |
+| F7-27 the signature rule dropped altogether | **none** | 9: SK-08, PK-01, PK-03, PK-04, ... |
+| F7-28 kem_sig verified over the whole kem_pair rather than EncodeKEM of its ek | 4: `prekey-store-state` current-version, `prekey-store-state` one-time-kem-prekey, `prekey-store-state` retired-signed-prekey, `prekey-store-state` record-at-budget | 12: PS-18, PS-19 , ... |
+| F7-29 the one-time KEM prekeys' signatures not checked | **none** | 1: PK-01 |
+| F7-30 the retired pair's signatures not checked | **none** | 1: PK-01 |
+| F7-31 the signature rule checked before the other five, not last of all | 1: `prekey-store-state` identity-public-not-canonical | 3: SK-08, PK-03, PK-04 |
+| F7-32 the signed prekey's signature verified over its secret rather than its public half | 4: `prekey-store-state` current-version, `prekey-store-state` one-time-kem-prekey, `prekey-store-state` retired-signed-prekey, `prekey-store-state` record-at-budget | 12: PS-18, PS-19 , ... |
+| F7-33 identity_public's canonical rule dropped | 1: `prekey-store-state` identity-public-not-canonical | 2: SK-08, PK-03 |
+| F7-34 the session's canonical stored-key rules dropped | **none** | 1: SK-04 |
+| F7-35 established_ephemeral's shape rule dropped | 1: `session-state` established-ephemeral-wrong-curve-byte | 1: RJ-02 |
+| F7-36 the associated data's orientation not checked | 1: `session-state` associated-data-wrong-orientation | 1: RJ-02 |
+| F7-37 bytes left after the session's last field accepted | 1: `session-state` trailing-byte | 1: PS-16 |
+| F7-38 bytes left after the store's last field accepted | 1: `prekey-store-state` trailing-byte | 3: PS-19, PS-20, PK-04 |
+| F7-39 the Braid's key_pair content clause applied without the layout the page delegates | 2: `session-state` initiator-unanswered, `session-state` initiator-answered | 1: BK-01 |
+| F7-40 the session's ratchet_private rule dropped | **none** | 1: RJ-02 |
+| C7-01 control: the store's length checked before its version byte, which Rejection allows | **none** | **none** |
+
+The two new vector files catch every framing refusal of both formats, all four
+refusal kinds they use, the store's five cheap semantic rules and five of the
+session's eight. What they miss is what `../GAPS-7.md`, section 3, records: the
+signature rule and its `incoherent` refusal (F7-21, F7-27, F7-29, F7-30), the
+per-key bound read as a whole and the pre-sizing ceiling (F7-06, F7-11), the
+epoch relation's tag 6/7 boundary and its failed-Braid exemption (F7-13,
+F7-15), the role rule's Braid half (F7-16), and the session's canonical-key and
+`ratchet_private` rules (F7-34, F7-40).
+
+**F7-13 was missed on the first run.** No vector carries a session whose Braid
+is at tag 6 or 7, and no case walked the boundary. EP-01 was added for it and
+catches it.
+
+**F7-25 and F7-26 are clean and cannot be otherwise.** They change the kind the
+two re-encode checks report, and a reader that accepts only canonical
+encodings never reaches either check, so no input tells the two readings apart.
+The conformance manifest says the same of `non-canonical`: it is carried by no
+vector, and cannot be.
+
+**C7-01, the control**, checks the store's length before its version byte and
+fails nothing, as Rejection allows (GAPS-5.md G5-03).
+
 ## Not implemented
 
 - ML-KEM-1024 and its incremental split. The Braid runs over `kem_double.py`.
 - The end-to-end `Session`: the handshake with a real KEM, `pending_initial`
   resend, `established_ephemeral`, and export/import over live states.
-- Prekey store operations: numbering, `replenish`, rotations, `publish`
-  selection.
+- Prekey store operations other than the two rotations `prekeys.py` adds:
+  `create_prekeys`'s numbering, `replenish`, `publish` selection,
+  `establish_responder`. The rotations were added in pass 7 because the store's
+  new sixth rule puts an obligation on the operations that sign a prekey, and
+  the page states the refusal for them (GAPS-7.md G7-04 records that it states
+  it for no other).
 
 - A session router: which session an initial message goes to. What follows
   `NotARepeatedInitial` is now stated, and left to the application
   (GAPS-4.md G4-04, closed).
-- The library layout of the Braid's `key_pair` and `encaps`. The key pair's
-  load check runs over the test double's layout (GAPS-5.md G5-02).
+- The library layout of the Braid's `key_pair` and `encaps`. **This is no
+  longer a shortfall.** The `key_pair` content clause of tags 1 to 4 is scoped
+  to a reader that has that layout; this reader checks the field's length,
+  accepts the content, and conforms (GAPS-7.md, G5-02 closed).
 
-The reasons are in `../GAPS-3.md` to `../GAPS-6.md` ("Not
+The reasons are in `../GAPS-3.md` to `../GAPS-7.md` ("Not
 attempted"). No vector file needs any of these, so the runner reports no
 SKIPs.
 
@@ -476,11 +638,10 @@ SKIPs.
 
 ```
 python3 reader/run.py              # from the clean-room directory
-python3 work/faults6.py [F6-01 ...]    # the pass-6 deliberate faults and control
-python3 work/check_new_vectors6.py     # pass 6: the 51 new vectors pass for the stated reasons
-python3 work/xref6.py                  # pass 6: threat-model and requirement numbering
-# the pass-4 and pass-5 scripts (faults4.py, faults5.py, check_new_vectors5.py,
-# xref5.py) were not in the tree this pass was read from
+python3 work/faults7.py                # the pass-7 deliberate faults and control
+python3 work/check_new_vectors7.py     # pass 7: the 30 new vectors pass for the stated reasons
+python3 work/xref7.py                  # pass 7: threat-model numbering, and the two files' coverage statements
+# the pass-4 to pass-6 scripts were not in the tree this pass was read from
 ```
 
 The runner prints:
@@ -495,9 +656,9 @@ Current result:
 
 | | Count | PASS | FAIL | SKIP |
 |---|---|---|---|---|
-| Vectors (34 files) | 377 | 377 | 0 | 0 |
-| Derived cases (11 modules) | 207 | 207 | 0 | 0 |
-| **Total** | 584 | 584 | 0 | 0 |
+| Vectors (36 files) | 407 | 407 | 0 | 0 |
+| Derived cases (12 modules) | 219 | 219 | 0 | 0 |
+| **Total** | 626 | 626 | 0 | 0 |
 
 ## In this repository
 

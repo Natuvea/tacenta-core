@@ -20,6 +20,7 @@ __all__ = [
     "erasure",
     "curve25519",
     "persistence",
+    "prekeys",
     "protobuf",
     "identity",
 ]

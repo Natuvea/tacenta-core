@@ -789,6 +789,116 @@ def h_braid_state(v):
     check(v["output"], braid.export(braid.import_(out)), "output read back and written again")
 
 
+# ------------------- the prekey store's and the session's states (pass 7)
+# session-persistence.md: Prekey store (and its Semantic rules), Session (and
+# its Semantic rules), Rejection. vector.schema.json, `refusal`, for the four
+# kinds these two files can name. tacenta-test-vectors/README.md has no "Vector
+# layouts" section for either file, so the `fields` names are read as the
+# formats' own field names on the page, and the session's three that are not
+# field names (`braid_tag`, `braid_epoch`, `sparse_epoch`) as the halves' own
+# values, which is what the manifest calls "the halves' tag and epochs checked
+# through their own crates" (G7-01).
+
+_STORE_REFUSALS = ("wrong-version", "short-or-malformed", "non-canonical", "incoherent")
+_SESSION_REFUSALS = ("wrong-version", "short-or-malformed", "non-canonical", "inconsistent")
+
+
+def _refusal_kind_full(e):
+    """Rejection: each format carries wrong version and short or malformed;
+    "the session and the prekey store distinguish 'non-canonical' from both,
+    and each distinguishes one more ... The session calls that 'inconsistent'
+    and gives it for any of its semantic rules; the prekey store calls it
+    'incoherent' and gives it for its signature rule alone"."""
+    for cls, name in ((persistence.WrongVersion, "wrong-version"),
+                      (persistence.NonCanonical, "non-canonical"),
+                      (persistence.Inconsistent, "inconsistent"),
+                      (persistence.Incoherent, "incoherent"),
+                      (persistence.Malformed, "short-or-malformed")):
+        if isinstance(e, cls):
+            return name
+    return type(e).__name__
+
+
+def _full_state_vector(v, reader, writer, fields_of, allowed):
+    """As _stored_state_vector, with the two kinds only these formats give."""
+    i = v["inputs"]
+    if set(i) != {"bytes"}:
+        raise Fail(f"vector: a stored-bytes vector has inputs {sorted(i)}")
+    data = bx(i["bytes"])
+    if _invalid(v):
+        want = v.get("refusal")
+        if want not in allowed:
+            raise Fail(f"vector: stored bytes with refusal {want!r}")
+        try:
+            reader(data)
+        except persistence.PersistError as e:
+            got = _refusal_kind_full(e)
+            if got != want:
+                raise Fail(f"refused as {got}, the vector names {want}: {e}")
+            return
+        raise Fail(f"stored bytes accepted; expected {want}")
+    if "refusal" in v:
+        raise Fail("vector: a valid vector carries a refusal")
+    s = reader(data)
+    got = fields_of(s)
+    if got != v["fields"]:
+        names = sorted(set(got) ^ set(v["fields"]))
+        wrong = sorted(k for k in set(got) & set(v["fields"]) if got[k] != v["fields"][k])
+        raise Fail(f"fields differ: names only on one side {names}, values differ {wrong}")
+    check(i["bytes"], writer(s), "written back")
+
+
+def _h4(n):
+    return "%08x" % n
+
+
+def _store_fields(p):
+    """The prekey store's own field names (Prekey store), the lists reported by
+    their counts and the two retired fields by their presence bytes. The
+    `kem_pair`s, the one-time entries and the record are not named."""
+    return {
+        "identity_public": p.identity_public.hex(),
+        "signed_prekey_secret": p.signed_prekey_secret.hex(),
+        "signed_prekey_id": _h4(p.signed_prekey_id),
+        "signed_prekey_sig": p.signed_prekey_sig.hex(),
+        "kem_id": _h4(p.kem_id),
+        "kem_sig": p.kem_sig.hex(),
+        "next_id": _h4(p.next_id),
+        "one_time_count": _h4(len(p.one_time)),
+        "kem_one_time_count": _h4(len(p.kem_one_time)),
+        "seen_count": _h4(len(p.seen)),
+        "previous_signed_present": "01" if p.previous_signed is not None else "00",
+        "previous_kem_present": "01" if p.previous_kem is not None else "00",
+    }
+
+
+def _session_fields(s):
+    """The session's own field names (Session), plus the Braid's `state_tag`
+    and `epoch` and the sparse ratchet's `epoch`, which the session's two
+    semantic rules about them are stated over."""
+    return {
+        "ratchet_private": s.ratchet_private.hex(),
+        "our_identity_public": s.our_identity_public.hex(),
+        "peer_identity_public": s.peer_identity_public.hex(),
+        "identity_ad": s.identity_ad.hex(),
+        "braid_tag": "%02x" % s.braid.tag,
+        "braid_epoch": "%016x" % s.braid.epoch,
+        "sparse_epoch": "%016x" % s.triple.sparse.epoch,
+        "pending_initial_present": "01" if s.pending_initial is not None else "00",
+        "established_ephemeral_present": "01" if s.established_ephemeral is not None else "00",
+    }
+
+
+def h_prekey_store_state(v):
+    return _full_state_vector(v, persistence.prekey_store_from_bytes,
+                              persistence.prekey_store_to_bytes, _store_fields, _STORE_REFUSALS)
+
+
+def h_session_state(v):
+    return _full_state_vector(v, persistence.session_from_bytes,
+                              persistence.session_to_bytes, _session_fields, _SESSION_REFUSALS)
+
+
 # ------------------------------------------------------------ protobuf profile
 # protobuf-profile.md names fields in camelCase; the vectors' `fields` use the
 # same names in snake_case, which the page does not say (G3-03). The mapping
@@ -912,6 +1022,8 @@ HANDLERS = {
     "sparse-ratchet-state": h_sparse_state,
     "triple-ratchet-state": h_triple_state,
     "braid-state": h_braid_state,
+    "prekey-store-state": h_prekey_store_state,
+    "session-state": h_session_state,
 }
 
 
@@ -973,6 +1085,7 @@ CASE_MODULES = [
     "cases_braid",        # mlkem-braid.md: derivations, authenticator, state machine, failure, session
     "cases_curvekeys",    # message-format.md Curve public keys; the repeated initial message over a live session (pass 4)
     "cases_stored",       # stored curve keys, Rejection's short-and-unknown buffer, the Braid key pair, inductive ceilings (pass 5)
+    "cases_signed",       # the prekey store's signature rule and its refusal kind, the rotations' obligation (pass 7)
 ]
 
 
