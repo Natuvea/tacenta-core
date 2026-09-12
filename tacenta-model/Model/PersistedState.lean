@@ -1,15 +1,32 @@
 /-
-Model.PersistedState: the stored formats of the classical ratchet's state and
-of the sparse ratchet's state, byte for byte, the readers that take them back,
-and the rules those readers enforce.
+Model.PersistedState: the stored formats of the classical ratchet's state, the
+sparse ratchet's state, the Triple Ratchet's state and the ML-KEM Braid's,
+byte for byte, the readers that take them back, and the rules those readers
+enforce.
 
 Written from tacenta-spec/protocol/session-persistence.md: "Ratchet state",
-"Sparse ratchet state", their two entries under "Semantic rules of the leaf
-formats", "Stored curve public keys", the Principles section's "Canonical and
-length-prefixed", "Versioned" and "Validated, not only parsed", and
-"Rejection", which names the two kinds of refusal a leaf reader reports: a
-wrong version, and bytes that are short or malformed. A state that breaks a
-semantic rule is refused as malformed.
+"Sparse ratchet state", "Triple ratchet state", "Braid", their four entries
+under "Semantic rules of the leaf formats", "Stored curve public keys", the
+Principles section's "Canonical and length-prefixed", "Versioned" and
+"Validated, not only parsed", and "Rejection", which names the two kinds of
+refusal a leaf reader reports: a wrong version, and bytes that are short or
+malformed. A state that breaks a semantic rule is refused as malformed.
+
+**Where the Braid's model stops, and why.** The page requires of tags 1 to 4
+that the `header` and `ek_vector` the stored `key_pair` holds pass the
+validation a completed `ek_vector` passes against a received header
+(session-persistence.md, Braid; Semantic rules of the leaf formats, Braid).
+Where those two sit inside the 11,872 bytes is `libcrux-ml-kem`'s layout: the
+page does not define it and ADR-0006, point 5, delegates it. So `BraidState`
+checks `key_pair`'s length and nothing inside it, as it checks `encaps`'s
+length and nothing inside it -- which for `encaps` is the whole of the page's
+rule, and for `key_pair` is not.
+
+The consequence is recorded rather than worked around. For tags 1 to 4 this
+reader accepts stored states `tacenta-core`'s refuses, so no vector generated
+from this module offers an accepted state with one of those tags, and the
+differential harness offers none either. Tags 0, 5 to 11 carry no `key_pair`
+and are modelled in full.
 
 The states are `Model.State.State` and `Model.SparseRatchet.State`, the ones
 the operations run on; nothing here adds a field to either. Their counters are
@@ -39,10 +56,12 @@ short for its fixed fields and also carries a version byte other than `0x01`.
 The readers here read the version byte first, since the version is what says
 how the rest is laid out.
 -/
+import Model.Braid
 import Model.Erasure
 import Model.Messages
 import Model.Ratchet
 import Model.SparseRatchet
+import Model.Triple
 
 namespace Model.PersistedState
 
@@ -974,6 +993,534 @@ theorem ofBytes_ok {bs : Bytes} {st : State} (h : ofBytes bs = .ok st) :
 
 end SparseState
 
+/-! ## Triple ratchet state
+
+```
+triple_state = version(1)
+            || len(4) || ratchet_state
+            || len(4) || spqr_state
+```
+-/
+
+namespace TripleState
+
+-- Compared field by field, as the two leaf states are, for the build-time
+-- checks below and the vector generator.
+deriving instance DecidableEq for Model.Triple.State
+
+/-- One length-prefixed field: `len(4) || bytes`. -/
+def lenPrefixed (b : Bytes) : Bytes := be 4 b.length ++ b
+
+/-- A length-prefixed field. Refused as malformed: a buffer too short for the
+    four-byte length, and a length that overruns what is left. -/
+def readLenPrefixed (bs : Bytes) : Step Bytes :=
+  andThen (readInt 4 bs) fun n r => takeN n r
+
+/-- The stored bytes: the version byte, then each ratchet's own format,
+    length-prefixed and unmodified. -/
+def toBytes (st : Model.Triple.State) : Bytes :=
+  [stateVersion] ++ lenPrefixed (RatchetState.toBytes st.classical)
+    ++ lenPrefixed (SparseState.toBytes st.postQuantum)
+
+/-! ### Semantic rules (Semantic rules of the leaf formats, Triple ratchet
+state) -/
+
+/-- The role the classical ratchet still shows: a sending chain and no
+    receiving one is the party that sent first, neither is the party that
+    received first, and once a Diffie-Hellman step has opened both the state
+    shows it no longer (ratchet.md, Initialisation). -/
+def startedAsSender (st : Model.State.State) : Option Bool :=
+  match st.cks, st.ckr with
+  | some _, none => some true
+  | none, none => some false
+  | _, _ => none
+
+/-- The one rule the composition adds: while the classical ratchet still shows
+    the role it started in, the sparse ratchet's `direction` is `A2b` exactly
+    when that role is the sender's. Each half's own rules belong to its own
+    reader, which is why they are not repeated here. -/
+def rolesAgree (st : Model.Triple.State) : Bool :=
+  match startedAsSender st.classical with
+  | none => true
+  | some sender =>
+    sender == (st.postQuantum.direction == Model.SparseRatchet.Direction.a2b)
+
+/-- The rules, and all of them: both ratchets satisfy their own, and the two
+    halves agree on the role. -/
+def invariant (st : Model.Triple.State) : Bool :=
+  RatchetState.invariant st.classical && SparseState.invariant st.postQuantum
+    && rolesAgree st
+
+/-! ### The reader -/
+
+/-- Read a stored state back. Refused as a wrong version: a first byte other
+    than `0x01`. Refused as short or malformed: an empty buffer, a length
+    prefix that overruns the input, a half its own reader refuses whatever
+    that reader's reason -- an unrecognised inner version included
+    (session-persistence.md, Triple ratchet state) -- bytes after the second
+    half, and halves that disagree on the role. -/
+def ofBytes : Bytes → Except Refusal Model.Triple.State
+  | [] => .error .shortOrMalformed
+  | v :: body =>
+    if v ≠ stateVersion then .error .wrongVersion
+    else
+      andThen (readLenPrefixed body) fun rs r1 =>
+      andThen (readLenPrefixed r1) fun ss r2 =>
+        match RatchetState.ofBytes rs with
+        | .error _ => .error .shortOrMalformed
+        | .ok c =>
+          match SparseState.ofBytes ss with
+          | .error _ => .error .shortOrMalformed
+          | .ok p =>
+            let st : Model.Triple.State := { classical := c, postQuantum := p }
+            if r2.isEmpty && rolesAgree st then .ok st else .error .shortOrMalformed
+
+/-- Every value fits its field: each half's own do, and each half's stored
+    bytes are short enough for the four-byte length written ahead of them. -/
+def Fits (st : Model.Triple.State) : Prop :=
+  RatchetState.Fits st.classical ∧ SparseState.Fits st.postQuantum
+    ∧ (RatchetState.toBytes st.classical).length < 2 ^ 32
+    ∧ (SparseState.toBytes st.postQuantum).length < 2 ^ 32
+
+theorem readLenPrefixed_bytes (b rest : Bytes) (h : b.length < 2 ^ 32) :
+    readLenPrefixed (lenPrefixed b ++ rest) = .ok (b, rest) := by
+  have h' : b.length < 256 ^ 4 := by simpa using h
+  simp only [lenPrefixed, readLenPrefixed, List.append_assoc,
+    readInt_be 4 b.length (b ++ rest) h', andThen_ok, takeN_append]
+
+theorem readLenPrefixed_ok {bs b rest : Bytes} (h : readLenPrefixed bs = .ok (b, rest)) :
+    b.length < 2 ^ 32 ∧ bs = lenPrefixed b ++ rest := by
+  unfold readLenPrefixed at h
+  obtain ⟨n, r, h1, h2⟩ := andThen_eq_ok h
+  obtain ⟨hn, rfl⟩ := readInt_ok h1
+  obtain ⟨hl, rfl⟩ := takeN_ok h2
+  refine ⟨by rw [hl]; simpa using hn, ?_⟩
+  simp [lenPrefixed, hl, List.append_assoc]
+
+/-- **A state that keeps the rules, and whose values fit their fields, is read
+    back from the bytes it is written as.** -/
+theorem ofBytes_toBytes (st : Model.Triple.State) (hinv : invariant st = true)
+    (hfit : Fits st) : ofBytes (toBytes st) = .ok st := by
+  obtain ⟨hc, hp, hlc, hlp⟩ := hfit
+  have hinv' := hinv
+  simp only [invariant, Bool.and_eq_true] at hinv'
+  obtain ⟨⟨hic, hip⟩, hroles⟩ := hinv'
+  have h1 := readLenPrefixed_bytes (RatchetState.toBytes st.classical)
+    (lenPrefixed (SparseState.toBytes st.postQuantum)) hlc
+  -- The second half is the last field, so the bytes after it are `[]` rather
+  -- than an `++ []` the rewrite would have to see through.
+  have h2 := readLenPrefixed_bytes (SparseState.toBytes st.postQuantum) [] hlp
+  simp only [List.append_nil] at h2
+  simp only [toBytes, ofBytes, stateVersion, List.cons_append, List.nil_append,
+    ne_eq, not_true_eq_false, if_false, h1, andThen_ok, h2,
+    RatchetState.ofBytes_toBytes _ hic hc, SparseState.ofBytes_toBytes _ hip hp]
+  simp [hroles]
+
+/-- **What the reader accepts is written back as the same bytes**, as for the
+    two leaf formats (`RatchetState.ofBytes_ok`). -/
+theorem ofBytes_ok {bs : Bytes} {st : Model.Triple.State} (h : ofBytes bs = .ok st) :
+    invariant st = true ∧ Fits st ∧ toBytes st = bs := by
+  match bs, h with
+  | [], h => simp [ofBytes] at h
+  | v :: body, h =>
+    simp only [ofBytes] at h
+    split at h
+    · cases h
+    · rename_i hv
+      have hv' : v = stateVersion := by simpa using hv
+      obtain ⟨rs, r1, e1, h⟩ := andThen_eq_ok h
+      obtain ⟨ss, r2, e2, h⟩ := andThen_eq_ok h
+      split at h
+      · cases h
+      · rename_i c hcok
+        split at h
+        · cases h
+        · rename_i p hpok
+          split at h
+          · rename_i hok
+            simp only [Except.ok.injEq] at h
+            subst h
+            simp only [Bool.and_eq_true, List.isEmpty_iff] at hok
+            obtain ⟨rfl, hroles⟩ := hok
+            obtain ⟨hlc, rfl⟩ := readLenPrefixed_ok e1
+            obtain ⟨hlp, rfl⟩ := readLenPrefixed_ok e2
+            obtain ⟨ic, fc, bc⟩ := RatchetState.ofBytes_ok hcok
+            obtain ⟨ip, fp, bp⟩ := SparseState.ofBytes_ok hpok
+            subst hv'
+            refine ⟨?_, ⟨fc, fp, ?_, ?_⟩, ?_⟩
+            · simp only [invariant, Bool.and_eq_true]
+              exact ⟨⟨ic, ip⟩, hroles⟩
+            · rw [bc]; exact hlc
+            · rw [bp]; exact hlp
+            · simp [toBytes, bc, bp, stateVersion]
+          · cases h
+
+end TripleState
+
+/-! ## Braid
+
+```
+braid = version(1) || state_tag(1) || fields
+
+epoch = 8 bytes, big-endian
+auth  = root_key(32) || mac_key(32)
+```
+
+Every live state carries `epoch` and `auth`, and then the fields its tag
+names, each written `len(4) || bytes`. `Failed` (tag 11) carries none of the
+three.
+-/
+
+namespace BraidState
+
+open Model.Erasure (chunkCount)
+
+/-- The lengths the page gives (session-persistence.md, Braid; CONSTANTS.md,
+    Braid KEM field lengths, and KEM key pair and encapsulation state
+    lengths). `header`, `ct1` and `ek_vector` are the KEM's values raw;
+    `key_pair` and `encaps` are `tacenta-kem`'s own serialisations, whose
+    layouts the page delegates and this module therefore only measures. -/
+def headerLen : Nat := 64
+def ekVectorLen : Nat := 1536
+def ct1Len : Nat := 1408
+def ct2Len : Nat := 160
+def macLen : Nat := 32
+def keyPairLen : Nat := 11872
+def encapsLen : Nat := 2592
+
+/-- The authenticator's two keys back to back, with no presence tag: every
+    live state carries one. -/
+def authLen : Nat := 64
+
+/-- `Failed`, the one tag that carries nothing at all, and the largest tag a
+    reader accepts. -/
+def failedTag : UInt8 := 11
+
+/-- The largest epoch a reader accepts. `u64::MAX` is reserved and refused, so
+    a stored live state's epoch runs from 1 to `u64::MAX - 1`
+    (session-persistence.md, Braid). -/
+def largestEpoch : Nat := Model.Braid.u64Max - 1
+
+/-- What one of a state's length-prefixed fields is. An erasure coder carries
+    the length of the value it streams, since the rules size each coder for
+    its own value. -/
+inductive FieldKind where
+  | keyPair
+  | encaps
+  | header
+  | ct1
+  | ekVector
+  | encoder (valueLen : Nat)
+  | decoder (valueLen : Nat)
+  deriving Repr, DecidableEq, Inhabited
+
+/-- The fields a tag carries, in the order the page's table writes them. Tag
+    11 carries none, and no other tag exists. -/
+def kindsOfNat : Nat → List FieldKind
+  | 0 => []
+  | 1 => [.keyPair, .encoder (headerLen + macLen)]
+  | 2 => [.keyPair, .decoder ct1Len, .encoder ekVectorLen]
+  | 3 => [.keyPair, .ct1, .encoder ekVectorLen]
+  | 4 => [.keyPair, .ct1, .decoder (ct2Len + macLen)]
+  | 5 => [.decoder (headerLen + macLen)]
+  | 6 => [.header, .decoder ekVectorLen]
+  | 7 => [.header, .encaps, .ct1, .encoder ct1Len, .decoder ekVectorLen]
+  | 8 => [.encaps, .ct1, .ekVector, .encoder ct1Len]
+  | 9 => [.header, .encaps, .ct1, .decoder ekVectorLen]
+  | 10 => [.encoder (ct2Len + macLen)]
+  | _ => []
+
+def fieldKinds (t : UInt8) : List FieldKind := kindsOfNat t.toNat
+
+/-- What one field must be.
+
+    `header`, `ct1` and `ek_vector` have the lengths the page gives. An
+    erasure coder is bytes its own reader accepts, sized for the value it
+    streams: an encoder holds `ceil(n / 32)` chunks and a decoder's `size` is
+    `n`.
+
+    `key_pair` and `encaps` are length-checked and nothing else. For `encaps`
+    that is the whole of the page's rule, which says the reader "checks
+    nothing in `encaps` beyond its length". For `key_pair` it is not: in tags
+    1 to 4 the page also requires the `header` and `ek_vector` inside it to
+    pass the KEM split's validation, and finding those two needs the layout
+    the page delegates. That clause is stated nowhere in this module, so this
+    reader accepts key pairs `tacenta-core` refuses; the module header says
+    what follows. -/
+def fieldOk : FieldKind → Bytes → Bool
+  | .keyPair, b => decide (b.length = keyPairLen)
+  | .encaps, b => decide (b.length = encapsLen)
+  | .header, b => decide (b.length = headerLen)
+  | .ct1, b => decide (b.length = ct1Len)
+  | .ekVector, b => decide (b.length = ekVectorLen)
+  | .encoder n, b =>
+    match Model.Erasure.Encoder.ofBytes b with
+    | some e => decide (e.chunks.length = chunkCount n)
+    | none => false
+  | .decoder n, b =>
+    match Model.Erasure.Decoder.ofBytes b with
+    | some d => decide (d.size = n)
+    | none => false
+
+/-- A tag's fields, each against its own kind, and as many of them as the tag
+    names. -/
+def fieldsOk : List FieldKind → List Bytes → Bool
+  | [], [] => true
+  | k :: ks, f :: fs => fieldOk k f && fieldsOk ks fs
+  | _, _ => false
+
+/-- A stored Braid: the tag, the epoch and authenticator every live state
+    carries, and the tag's fields in order. `Failed` carries none of the
+    three and is written with all three empty. -/
+structure State where
+  tag : UInt8
+  epoch : Nat
+  auth : Bytes
+  fields : List Bytes
+  deriving Repr, DecidableEq, Inhabited
+
+/-- The stored bytes of a state. -/
+def toBytes (st : State) : Bytes :=
+  if st.tag = failedTag then [stateVersion, st.tag]
+  else
+    [stateVersion, st.tag] ++ be 8 st.epoch ++ st.auth
+      ++ (st.fields.map fun f => be 4 f.length ++ f).flatten
+
+/-! ### Semantic rules (Semantic rules of the leaf formats, Braid) -/
+
+/-- The rules this module states, and all of them: every live state's `epoch`
+    is at least 1 and its `auth` is 64 bytes; each tag carries its own fields,
+    each of its own kind; and `Failed` is always accepted, carrying nothing.
+    The `key_pair` content rule of tags 1 to 4 is not among them, and
+    `fieldOk` says why. -/
+def invariant (st : State) : Bool :=
+  if st.tag = failedTag then
+    decide (st.epoch = 0) && st.auth.isEmpty && st.fields.isEmpty
+  else
+    decide (st.tag.toNat < failedTag.toNat)
+      && decide (1 ≤ st.epoch)
+      && decide (st.auth.length = authLen)
+      && fieldsOk (fieldKinds st.tag) st.fields
+
+/-! ### The reader -/
+
+/-- `n` length-prefixed fields, in order. -/
+def readFields : Nat → Bytes → Step (List Bytes)
+  | 0, bs => .ok ([], bs)
+  | n + 1, bs =>
+    andThen (readInt 4 bs) fun len r1 =>
+    andThen (takeN len r1) fun f r2 =>
+    andThen (readFields n r2) fun fs r3 =>
+      .ok (f :: fs, r3)
+
+/-- Read a stored state back. Refused as a wrong version: a first byte other
+    than `0x01`. Refused as short or malformed: an empty buffer, a buffer with
+    no tag, a tag above 11, a stored `epoch` of `u64::MAX` (the reserved
+    value), a buffer too short for a field, a length that overruns the input,
+    a field its own kind excludes, bytes left after the last field, and a
+    state that breaks a rule. Tag 11 is accepted only with nothing after
+    it. -/
+def ofBytes : Bytes → Except Refusal State
+  | [] => .error .shortOrMalformed
+  | [v] => if v ≠ stateVersion then .error .wrongVersion else .error .shortOrMalformed
+  | v :: t :: body =>
+    if v ≠ stateVersion then .error .wrongVersion
+    else if t = failedTag then
+      if body.isEmpty then .ok { tag := failedTag, epoch := 0, auth := [], fields := [] }
+      else .error .shortOrMalformed
+    else if failedTag.toNat < t.toNat then .error .shortOrMalformed
+    else
+      andThen (readInt 8 body) fun epoch r1 =>
+      if epoch = Model.Braid.u64Max then .error .shortOrMalformed
+      else
+        andThen (takeN authLen r1) fun auth r2 =>
+        andThen (readFields (fieldKinds t).length r2) fun fields r3 =>
+          let st : State := { tag := t, epoch := epoch, auth := auth, fields := fields }
+          if r3.isEmpty && invariant st then .ok st else .error .shortOrMalformed
+
+/-- Every value fits its field: the epoch is below the reserved `u64::MAX`,
+    which the reader refuses (session-persistence.md, Braid), and every
+    field's length fits the four bytes written ahead of it. -/
+def Fits (st : State) : Prop :=
+  st.epoch < Model.Braid.u64Max ∧ ∀ f ∈ st.fields, f.length < 2 ^ 32
+
+/-! ### The one state machine's transitions a stored state can drive
+
+`Model.Braid` runs on `Model.Braid.BraidState`, whose key pair and
+encapsulation state are the KEM's and cannot be built here. Two transitions
+are the exception: from `Ct2Sampled`, transition (13) and the refusal at the
+reserved epoch read the stored epoch and the message and nothing else, and
+`Model.Braid.receive_ct2Sampled_steps` and
+`Model.Braid.receive_ct2Sampled_at_ceiling` say so. So a stored `Ct2Sampled`
+state can be run through the model's own `receive`, which is what pins the
+Braid's epoch ceiling. -/
+
+/-- A stored `Ct2Sampled` state as the state machine's, with an encoder
+    neither of those two transitions reads. -/
+def toCt2Sampled (st : State) : Option Model.Braid.BraidState :=
+  if st.tag.toNat = 10 ∧ st.auth.length = authLen then
+    some (.ct2Sampled st.epoch ⟨st.auth.take 32, st.auth.drop 32⟩ (Model.Braid.encode []))
+  else none
+
+/-- The stored form of the two states those transitions reach. Every other
+    state of the machine carries a KEM value this module does not build, and
+    is `none` rather than guessed. -/
+def ofBraid : Model.Braid.BraidState → Option State
+  | .keysUnsampled e a => some { tag := 0, epoch := e, auth := a.rootKey ++ a.macKey, fields := [] }
+  | .failed => some { tag := failedTag, epoch := 0, auth := [], fields := [] }
+  | _ => none
+
+theorem readFields_flatten (fs : List Bytes) (rest : Bytes)
+    (h : ∀ f ∈ fs, f.length < 2 ^ 32) :
+    readFields fs.length ((fs.map fun f => be 4 f.length ++ f).flatten ++ rest)
+      = .ok (fs, rest) := by
+  induction fs with
+  | nil => simp [readFields]
+  | cons f fs ih =>
+    have hf : f.length < 256 ^ 4 := by simpa using h f (by simp)
+    have ih' := ih (fun g hg => h g (by simp [hg]))
+    simp only [List.length_cons, List.map_cons, List.flatten_cons, List.append_assoc,
+      readFields, readInt_be 4 f.length _ hf, andThen_ok, takeN_append, ih']
+
+theorem readFields_ok : ∀ (n : Nat) (bs : Bytes) (fs : List Bytes) (rest : Bytes),
+    readFields n bs = .ok (fs, rest) →
+      fs.length = n ∧ bs = (fs.map fun f => be 4 f.length ++ f).flatten ++ rest
+        ∧ ∀ f ∈ fs, f.length < 2 ^ 32 := by
+  intro n
+  induction n with
+  | zero =>
+    intro bs fs rest h
+    simp only [readFields, Except.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    simp
+  | succ n ih =>
+    intro bs fs rest h
+    simp only [readFields] at h
+    obtain ⟨len, r1, e1, h⟩ := andThen_eq_ok h
+    obtain ⟨f, r2, e2, h⟩ := andThen_eq_ok h
+    obtain ⟨fs', r3, e3, h⟩ := andThen_eq_ok h
+    simp only [Except.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    obtain ⟨hlen, rfl⟩ := readInt_ok e1
+    obtain ⟨hf, rfl⟩ := takeN_ok e2
+    obtain ⟨h1, rfl, h3⟩ := ih _ _ _ e3
+    refine ⟨by simp [h1], ?_, ?_⟩
+    · simp only [List.map_cons, List.flatten_cons, List.append_assoc, hf]
+    · intro g hg
+      rcases List.mem_cons.mp hg with rfl | hg
+      · rw [hf]; simpa using hlen
+      · exact h3 g hg
+
+/-- A tag's fields being right of their kinds includes there being as many of
+    them as the tag names, which is what lets the reader count fields from the
+    tag and the writer count them from the list. -/
+theorem fieldsOk_length {ks : List FieldKind} {fs : List Bytes}
+    (h : fieldsOk ks fs = true) : ks.length = fs.length := by
+  induction ks generalizing fs with
+  | nil =>
+    cases fs with
+    | nil => rfl
+    | cons f fs => simp [fieldsOk] at h
+  | cons k ks ih =>
+    cases fs with
+    | nil => simp [fieldsOk] at h
+    | cons f fs =>
+      simp only [fieldsOk, Bool.and_eq_true] at h
+      simp [ih h.2]
+
+/-- **A state that keeps the rules, and whose values fit their fields, is read
+    back from the bytes it is written as.** -/
+theorem ofBytes_toBytes (st : State) (hinv : invariant st = true) (hfit : Fits st) :
+    ofBytes (toBytes st) = .ok st := by
+  obtain ⟨hep, hfl⟩ := hfit
+  by_cases hfail : st.tag = failedTag
+  · have hinv' := hinv
+    rw [invariant, if_pos hfail] at hinv'
+    simp only [Bool.and_eq_true, decide_eq_true_eq, List.isEmpty_iff] at hinv'
+    obtain ⟨⟨he, ha⟩, hf⟩ := hinv'
+    obtain ⟨tag, epoch, auth, fields⟩ := st
+    simp only at hfail he ha hf
+    subst hfail; subst he; subst ha; subst hf
+    simp [toBytes, ofBytes, failedTag, stateVersion]
+  · have hinv' := hinv
+    rw [invariant, if_neg hfail] at hinv'
+    simp only [Bool.and_eq_true, decide_eq_true_eq] at hinv'
+    obtain ⟨⟨⟨hlt, hge⟩, hauth⟩, hfields⟩ := hinv'
+    have hep8 : st.epoch < 256 ^ 8 := by
+      simp only [Model.Braid.u64Max] at hep; omega
+    have hne : ¬ st.epoch = Model.Braid.u64Max := by omega
+    have hflat := readFields_flatten st.fields [] hfl
+    simp only [List.append_nil] at hflat
+    have hnlt : ¬ failedTag.toNat < st.tag.toNat := by omega
+    -- The reader counts the fields from the tag and the writer from the list,
+    -- and the rules are what say the two counts agree.
+    have hlen : (fieldKinds st.tag).length = st.fields.length := fieldsOk_length hfields
+    -- `List.append_assoc` is load-bearing here, whatever the unused-argument
+    -- linter says: without it the epoch, the authenticator and the fields stay
+    -- bracketed as `toBytes` wrote them and none of the reads below fire.
+    set_option linter.unusedSimpArgs false in
+    simp only [toBytes, if_neg hfail, ofBytes, stateVersion, List.cons_append,
+      List.nil_append, List.append_assoc, ne_eq, not_true_eq_false, if_false,
+      if_neg hnlt, readInt_be 8 st.epoch _ hep8, andThen_ok,
+      if_neg hne, takeN_append' authLen _ _ hauth, hlen, hflat]
+    simp [hinv]
+
+/-- **What the reader accepts is written back as the same bytes**, as for the
+    other three formats. -/
+theorem ofBytes_ok {bs : Bytes} {st : State} (h : ofBytes bs = .ok st) :
+    invariant st = true ∧ Fits st ∧ toBytes st = bs := by
+  match bs, h with
+  | [], h => simp [ofBytes] at h
+  | [v], h =>
+    simp only [ofBytes] at h
+    split at h <;> cases h
+  | v :: t :: body, h =>
+    simp only [ofBytes] at h
+    split at h
+    · cases h
+    · rename_i hv
+      have hv' : v = stateVersion := by simpa using hv
+      split at h
+      · rename_i hft
+        split at h
+        · rename_i hb
+          simp only [Except.ok.injEq] at h
+          subst h
+          simp only [List.isEmpty_iff] at hb
+          subst hb; subst hv'; subst hft
+          refine ⟨by simp [invariant], ⟨by simp [Model.Braid.u64Max], by simp⟩, ?_⟩
+          simp [toBytes, stateVersion]
+        · cases h
+      · rename_i hft
+        split at h
+        · cases h
+        · rename_i hgt
+          obtain ⟨epoch, r1, e1, h⟩ := andThen_eq_ok h
+          split at h
+          · cases h
+          · rename_i hne
+            obtain ⟨auth, r2, e2, h⟩ := andThen_eq_ok h
+            obtain ⟨fields, r3, e3, h⟩ := andThen_eq_ok h
+            split at h
+            · rename_i hok
+              simp only [Except.ok.injEq] at h
+              subst h
+              simp only [Bool.and_eq_true, List.isEmpty_iff] at hok
+              obtain ⟨rfl, hinv⟩ := hok
+              obtain ⟨hb8, rfl⟩ := readInt_ok e1
+              obtain ⟨hl2, rfl⟩ := takeN_ok e2
+              obtain ⟨hn3, rfl, hf3⟩ := readFields_ok _ _ _ _ e3
+              subst hv'
+              have hltu : epoch < Model.Braid.u64Max := by
+                simp only [Model.Braid.u64Max]
+                simp only [Model.Braid.u64Max] at hne
+                omega
+              refine ⟨hinv, ⟨hltu, hf3⟩, ?_⟩
+              simp [toBytes, if_neg hft]
+            · cases h
+
+end BraidState
+
 /-! ## Build-time checks
 
 Executable instances of what the text says, as `Model.Erasure`'s are: states the
@@ -1066,6 +1613,68 @@ example :
       ∧ readsBackTo (SparseState.ofBytes (SparseState.toBytes absent)) absent = true
       ∧ refusalOf (SparseState.ofBytes (SparseState.toBytes { a0 with epoch := 1 }))
           = some .shortOrMalformed := by
+  native_decide
+
+/-- A Triple Ratchet state on either side reads back. The version byte first,
+    then: a half whose own version byte the inner reader does not recognise is
+    short or malformed rather than a wrong version (session-persistence.md,
+    Triple ratchet state), and so is a trailing byte. -/
+example :
+    let a := Model.Triple.initAlice sk aPub bPub dhAB .tacenta
+    let b := Model.Triple.initBob sk bPub .tacenta
+    let bs := TripleState.toBytes a
+    readsBackTo (TripleState.ofBytes bs) a &&
+      readsBackTo (TripleState.ofBytes (TripleState.toBytes b)) b &&
+      (refusalOf (TripleState.ofBytes (bs.set 0 2)) == some .wrongVersion) &&
+      (refusalOf (TripleState.ofBytes (bs.set 5 2)) == some .shortOrMalformed) &&
+      (refusalOf (TripleState.ofBytes (bs ++ [0])) == some .shortOrMalformed) = true := by
+  native_decide
+
+/-- Halves that disagree on the role are refused, though each half's own reader
+    accepts its own bytes: the initiator's classical half beside the
+    responder's sparse half. -/
+example :
+    let a := Model.Triple.initAlice sk aPub bPub dhAB .tacenta
+    let b := Model.Triple.initBob sk bPub .tacenta
+    let mixed : Model.Triple.State :=
+      { classical := a.classical, postQuantum := b.postQuantum }
+    refusalOf (TripleState.ofBytes (TripleState.toBytes mixed)) = some .shortOrMalformed := by
+  native_decide
+
+/-- A Braid's `Failed` and a live state read back; a tag above 11, the reserved
+    epoch `u64::MAX` and an epoch of 0 are malformed. -/
+example :
+    let auth : Bytes := List.replicate 64 0x07
+    let live : BraidState.State := { tag := 0, epoch := 1, auth := auth, fields := [] }
+    let failed : BraidState.State := { tag := 11, epoch := 0, auth := [], fields := [] }
+    readsBackTo (BraidState.ofBytes (BraidState.toBytes live)) live &&
+      readsBackTo (BraidState.ofBytes (BraidState.toBytes failed)) failed &&
+      (refusalOf (BraidState.ofBytes (BraidState.toBytes { live with tag := 12 }))
+        == some .shortOrMalformed) &&
+      (refusalOf (BraidState.ofBytes
+          (BraidState.toBytes { live with epoch := Model.Braid.u64Max }))
+        == some .shortOrMalformed) &&
+      (refusalOf (BraidState.ofBytes (BraidState.toBytes { live with epoch := 0 }))
+        == some .shortOrMalformed) = true := by
+  native_decide
+
+/-- The Braid's epoch ceiling, driven from stored bytes through the model's own
+    `receive`: from `Ct2Sampled` at `u64::MAX - 2` a message at the next epoch
+    steps to `KeysUnsampled` there, and the same message at `u64::MAX - 1`
+    fails. -/
+example :
+    let auth : Bytes := List.replicate 64 0x07
+    let held (e : Nat) : BraidState.State :=
+      { tag := 10, epoch := e, auth := auth,
+        fields := [(Model.Erasure.Encoder.new (List.replicate 192 0x11)).toBytes] }
+    let step (e msgEpoch : Nat) : Option BraidState.State :=
+      (BraidState.toCt2Sampled (held e)).bind fun bst =>
+        BraidState.ofBraid (Model.Braid.receive Model.Braid.toyKem bst
+          { epoch := msgEpoch, type := Model.Braid.MsgType.none, data := Option.none }).2.2
+    (step (Model.Braid.u64Max - 2) (Model.Braid.u64Max - 1)
+        == some { tag := 0, epoch := Model.Braid.u64Max - 1, auth := auth, fields := [] }) &&
+      (step (Model.Braid.u64Max - 1) Model.Braid.u64Max
+        == some { tag := 11, epoch := 0, auth := [], fields := [] }) = true := by
   native_decide
 
 end Model.PersistedState
