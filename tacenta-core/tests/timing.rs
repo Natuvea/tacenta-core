@@ -37,7 +37,26 @@
 //!
 //! **These are gated, despite the `#[ignore]`.** The constant-time results are
 //! defended by CI rather than measured once and written down: a nightly
-//! workflow runs them in release mode on a dedicated machine.
+//! workflow runs them in release mode on a dedicated machine -- an isolated,
+//! fixed-clock linux x64 core. That workflow lives in
+//! `tacenta-core-private-backup`, this repository's private predecessor: not
+//! here, and not in the deployment repository either.
+//!
+//! **And it checks out its own tree, not this one.** Its `actions/checkout`
+//! names no `repository:`, so what it runs is that repository's copy of this
+//! file, which is not this copy. Until a change here is mirrored there, no
+//! scheduled job anywhere runs it -- these controls included. That is a gap in
+//! the arrangement rather than a detail of it, and `LIMITATIONS.md` says so.
+//!
+//! **The harness proves it can still see.** Every assertion above is a negative
+//! result -- "these two are indistinguishable" -- and a negative result is
+//! evidence only from an instrument that would have reported the positive.
+//! Three calibration controls at the foot of this file run the same measurement, the
+//! same floors and the same statistics over deliberately leaky stand-ins, and
+//! fail if the leak is *not* detected. They are not optional colour: the first
+//! of them found that this harness could not resolve a byte-at-a-time
+//! short-circuit at all on a host whose timer quantum is 41.67 ns, which is why
+//! `Floor::batch` now measures the quantum instead of assuming it.
 //!
 //! So the `#[ignore]` keeps them out of the per-push job, where they would be
 //! flaky, without keeping them out of CI. Un-ignoring them would produce the
@@ -46,15 +65,20 @@
 //! **The gate decides on the effect size, not a t-statistic.** A plain
 //! wall-clock t-test reads contention as a leak: it can fail with the two
 //! classes' medians equal to the nanosecond, the signature of a busy machine
-//! rather than of a short-circuit. At ~200 ns per operation the t-statistic
-//! reports a huge |t| for the timer's own 1 ns quantization as readily as for a
+//! rather than of a short-circuit. At a few hundred nanoseconds per operation
+//! the t-statistic reports a huge |t| for the timer's own quantization -- which
+//! is a property of the host, 41.67 ns here and a nanosecond or less on the
+//! nightly's linux core -- as readily as for a
 //! real leak, so `run_leak_test` gates
 //! on the class **median rejection-time gap in nanoseconds** (`EFFECT_FLOOR_NS`):
 //! a constant-time compare differs by <= 2 ns, a real byte-at-a-time short-circuit
-//! by ~10 ns. The t-statistics and a same-input negative control are still
+//! by ~10 ns -- both figures now measured rather than estimated, by the
+//! calibration controls, and both resolvable only once `Floor::batch` has taken
+//! the host's timer quantum into account. The t-statistics and a same-input negative control are still
 //! computed and printed, but as diagnostics. The measurement runs pinned to an
 //! isolated, fixed-clock core, so contention does not perturb it.
-//! `run_leak_test` carries the full derivation; `LIMITATIONS.md` has
+//! `EFFECT_FLOOR_NS` and `LeakMeasurement` carry the full derivation;
+//! `LIMITATIONS.md` has
 //! the narrative.
 
 use rand::SeedableRng;
@@ -66,7 +90,11 @@ use tacenta_core::sessions::{self, Session, establish_initiator, establish_respo
 
 // ------------------------------------------------------------------ the stamp
 
-/// Rounds per leak test, and samples per class per round.
+/// Rounds per leak test, and **rejections** per class per round.
+///
+/// Not samples: `Floor::batch` may group several rejections into one timed
+/// sample on a coarse-timer host, in which case the sample count falls by the
+/// same factor and this total stays put.
 ///
 /// Module-level rather than local to `run_leak_test` so the stamp can report
 /// the plan the numbers came from.
@@ -167,7 +195,8 @@ fn median(xs: &[f64]) -> f64 {
 }
 
 /// Fraction of samples the leak tests keep -- the fastest, least-interrupted
-/// ones (see `keep_fastest`). 0.30 leaves ~1,200 of the 4,000 drawn per class:
+/// ones (see `keep_fastest`). 0.30 leaves the fastest three in ten of whatever
+/// the round drew -- which is `LEAK_SAMPLES` unbatched and fewer when batched:
 /// enough to estimate a variance, few enough to be near the uninterrupted compute
 /// floor.
 ///
@@ -291,11 +320,85 @@ enum Floor {
     Relative,
 }
 
+/// The smallest non-zero interval this machine's `Instant` can report, in
+/// nanoseconds.
+///
+/// Measured rather than assumed, because it is the property that decides
+/// whether a floor is real: see [`Floor::batch`]. Sampled from back-to-back
+/// `Instant::now()` calls, whose true separation is far below any timer's
+/// resolution, so every non-zero delta observed is one quantum or a multiple of
+/// one. The smallest is the quantum.
+fn measured_timer_quantum() -> f64 {
+    let mut smallest = f64::INFINITY;
+    let mut last = Instant::now();
+    for _ in 0..200_000 {
+        let now = Instant::now();
+        let d = now.duration_since(last).as_nanos() as f64;
+        if d > 0.0 && d < smallest {
+            smallest = d;
+        }
+        last = now;
+    }
+    // A timer that reported nothing but zeros would leave this infinite; treat
+    // that as "finer than we can measure", which needs no batching.
+    if smallest.is_finite() { smallest } else { 1.0 }
+}
+
 impl Floor {
     fn nanoseconds(self, med_a: f64, med_b: f64) -> f64 {
         match self {
             Floor::Absolute => EFFECT_FLOOR_NS,
             Floor::Relative => EFFECT_FLOOR_NS.max(EFFECT_FLOOR_FRACTION * med_a.min(med_b)),
+        }
+    }
+
+    /// How many rejections one timed sample covers, on this machine.
+    ///
+    /// **A floor below the timer's own quantum is not a floor.** `Instant`'s
+    /// resolution is a property of the host, and on Apple Silicon it is 41.67 ns
+    /// (a 24 MHz timebase). A median gap measured one rejection at a time can
+    /// then only ever read 0 or >= 41.67 ns -- so `EFFECT_FLOOR_NS`, at 5 ns,
+    /// was not a 5 ns floor there. It was a 41.67 ns floor wearing a 5 ns label,
+    /// and the ~10 ns byte-at-a-time short-circuit this file exists to catch fell
+    /// underneath it and read as exactly 0.00 ns.
+    ///
+    /// **The calibration control at the foot of this file is what found that**,
+    /// which is the argument for having it. The nightly job runs on an isolated
+    /// linux x64 core where the quantum is far finer, so the gate was sound
+    /// where it gates; what was unsound was every run anywhere else, including
+    /// a reviewer's, silently reporting a green it could not have distinguished
+    /// from a leak.
+    ///
+    /// So the batch is **measured, not assumed**: enough rejections per sample
+    /// that `quantum / batch` sits at half the floor or better. On a host whose
+    /// timer already resolves a nanosecond this is 1 and nothing changes; on
+    /// Apple Silicon it is 17. [`measure_leak`] divides the sample count by the
+    /// same factor, so the total number of rejections is the same to within one
+    /// batch and only their grouping differs.
+    ///
+    /// **The microsecond paths take 1 for cost, not because their floors are
+    /// safe.** Batching a microsecond path seventeen times over eleven rounds
+    /// costs minutes. The Braid header floor is only a small multiple of the
+    /// quantum on a coarse-timer host -- close enough that the gate resolves
+    /// differences in whole ticks rather than in nanoseconds, and a difference
+    /// of one tick passes it. The session floor, being a fraction of a far
+    /// longer path, is comfortably above the quantum. No figures are quoted for
+    /// either: they move with the host and with the machine's load, and every
+    /// number this file has quoted for them has since failed to reproduce. Run
+    /// the suite with `--nocapture` and read the floor it prints.
+    ///
+    /// **What batching changes about the question.** A batched sample measures
+    /// steady-state repeated rejection, with caches and predictors warm, rather
+    /// than one rejection arriving cold. Both classes are batched identically,
+    /// so the comparison stays fair, but the absolute numbers are steady-state
+    /// numbers and should be read as such.
+    fn batch(self) -> usize {
+        match self {
+            Floor::Absolute => {
+                let quantum = measured_timer_quantum();
+                ((quantum / (EFFECT_FLOOR_NS / 2.0)).ceil() as usize).clamp(1, 64)
+            }
+            Floor::Relative => 1,
         }
     }
 }
@@ -313,14 +416,25 @@ impl Floor {
 /// alone and read as a leak; sharing the window is what makes the control
 /// fair. `reject` performs one rejection of the bytes it is given and is
 /// expected to `black_box` the result.
-fn signal_and_null(a: &[u8], b: &[u8], n: usize, reject: &impl Fn(&[u8])) -> (f64, f64, f64, f64) {
+fn signal_and_null(
+    a: &[u8],
+    b: &[u8],
+    n: usize,
+    batch: usize,
+    reject: &impl Fn(&[u8]),
+) -> (f64, f64, f64, f64) {
     let mut ta = Vec::with_capacity(n);
     let mut ta2 = Vec::with_capacity(n);
     let mut tb = Vec::with_capacity(n);
+    // One sample covers `batch` rejections, so the quantized clock reading is
+    // divided across them: see `Floor::batch` for why a floor below the timer's
+    // quantum is not a floor at all.
     let time_one = |bytes: &[u8]| -> f64 {
         let s = Instant::now();
-        reject(bytes);
-        s.elapsed().as_nanos() as f64
+        for _ in 0..batch {
+            reject(bytes);
+        }
+        s.elapsed().as_nanos() as f64 / batch as f64
     };
     // Rotate the order of the three timings each iteration so no stream is
     // permanently in the first (post-previous-iteration) slot or the slot right
@@ -370,9 +484,11 @@ fn signal_and_null(a: &[u8], b: &[u8], n: usize, reject: &impl Fn(&[u8])) -> (f6
 ///
 /// The statistic is the median gap, and the reason is worth stating. A dudect
 /// Welch t-statistic is the right tool for a microbenchmark on a quiet,
-/// dedicated machine and the wrong one here. At ~200 ns per operation, sampled
+/// dedicated machine and the wrong one here. At a few hundred nanoseconds per
+/// operation, sampled
 /// thousands of times, the t-statistic reports a large |t| for the
-/// integer-nanosecond timer's own 1 ns quantization as readily as for a real
+/// timer's own quantization -- a property of the host, not a nanosecond
+/// everywhere -- as readily as for a real
 /// leak, and its same-input null varies by two orders of magnitude run to run
 /// -- even on an isolated, fixed-clock core, which still catches the occasional
 /// per-CPU housekeeping tick. A negative control, fast-head cropping, and order
@@ -388,14 +504,27 @@ fn signal_and_null(a: &[u8], b: &[u8], n: usize, reject: &impl Fn(&[u8])) -> (f6
 /// by <= 1 ns (measured) and does not. A test that `#[ignore]`d itself would
 /// reach the same conclusion; this one stays a gate, on the quantity that
 /// actually matters.
-fn run_leak_test(
+/// One measurement: the class median gap, the floor it is judged against, and
+/// the signal t-statistic.
+///
+/// Split out from [`run_leak_test`] so that the calibration controls at the
+/// foot of this file run **the same measurement code** the real leak tests run.
+/// A control that measured a leak its own way would certify only itself; the
+/// whole point of it is to exercise this function and this floor.
+struct LeakMeasurement {
+    effect: f64,
+    floor_ns: f64,
+    signal_t: f64,
+}
+
+fn measure_leak(
     label: &str,
     a: &[u8],
     b: &[u8],
     reject: &impl Fn(&[u8]),
-    leak_hint: &str,
     floor: Floor,
-) {
+    batch: usize,
+) -> LeakMeasurement {
     // Make the CPU itself data-independent where it is not by default (Apple
     // Silicon), so the experiment measures the software and not the core.
     request_data_independent_timing();
@@ -407,6 +536,15 @@ fn run_leak_test(
         reject(b);
     }
 
+    // The batch is the caller's, because a path has to be measured at more
+    // than one: see `run_leak_test`. Rejections per round are held constant to
+    // within one batch -- integer division, so `LEAK_SAMPLES / batch * batch`
+    // falls short of `LEAK_SAMPLES` by up to `batch - 1`, and the run prints
+    // both numbers. An earlier `.max(250)` floor made it wrong in the other
+    // direction and by more, and made `LEAK_SAMPLES` inert below `250 * batch`,
+    // which the control's own failure message told a reader to check first.
+    let samples = (LEAK_SAMPLES / batch).max(1);
+
     let mut signal = Vec::with_capacity(LEAK_ROUNDS);
     let mut noise = Vec::with_capacity(LEAK_ROUNDS);
     let mut meds_a = Vec::with_capacity(LEAK_ROUNDS);
@@ -414,7 +552,7 @@ fn run_leak_test(
     for _ in 0..LEAK_ROUNDS {
         // Both come from the same interleaved window, so contention inflates the
         // null alongside the signal instead of the signal alone.
-        let (s, n, ma, mb) = signal_and_null(a, b, LEAK_SAMPLES, reject);
+        let (s, n, ma, mb) = signal_and_null(a, b, samples, batch, reject);
         signal.push(s);
         noise.push(n);
         meds_a.push(ma);
@@ -438,14 +576,141 @@ fn run_leak_test(
     println!(
         "{label}: class medians = {med_a:.1} ns vs {med_b:.1} ns  =>  effect size = {effect:.2} ns  (leak floor {floor_ns:.1} ns)"
     );
+    println!("{label}: {samples} samples per class per round × {batch} rejections per sample");
 
-    assert!(
-        effect < floor_ns,
-        "{label}: distinguishable by timing. The two classes' median rejection times differ by \
-         {effect:.2} ns, at or above the {floor_ns:.1} ns leak floor (|t| = {signal_t:.2}). \
-         A constant-time path differs by less than that here, so a systematic gap this size is \
-         a real, usable leak, not the timer's quantization. {leak_hint}"
-    );
+    LeakMeasurement {
+        effect,
+        floor_ns,
+        signal_t,
+    }
+}
+
+/// The verdict the ordinary direction reaches: `Err` naming the factor at which
+/// the two classes were distinguishable, `Ok` if they were indistinguishable at
+/// every factor measured.
+///
+/// Split out from [`run_leak_test`] so a control can assert the *other* answer
+/// over a stand-in that really leaks. Without that, the loop below -- the thing
+/// that keeps this harness from being blind to cold leaks -- is pinned by
+/// nothing, and removing it passes every test.
+fn leak_verdict(
+    label: &str,
+    a: &[u8],
+    b: &[u8],
+    reject: &impl Fn(&[u8]),
+    floor: Floor,
+) -> Result<(), String> {
+    // **Measured at both batch factors, and both must pass.** Batching buys
+    // resolution on a coarse-timer host and pays for it by averaging: a leak
+    // that appears only on the first rejection after the class changes -- a
+    // cold cache, a cold predictor -- is attenuated, and one this harness
+    // caught at 42 ns unbatched read 7.3 ns at seventeen per sample, close
+    // enough to the floor that a smaller one would vanish. Choosing a single
+    // factor chooses which class of leak to be blind to. Measuring at both
+    // costs one more pass and chooses neither.
+    let batched = floor.batch();
+    for batch in if batched == 1 {
+        vec![1]
+    } else {
+        vec![1, batched]
+    } {
+        let LeakMeasurement {
+            effect,
+            floor_ns,
+            signal_t,
+        } = measure_leak(label, a, b, reject, floor, batch);
+        if effect >= floor_ns {
+            return Err(format!(
+                "{label}: distinguishable by timing. The two classes' median rejection times \
+                 differ by {effect:.2} ns, at or above the {floor_ns:.1} ns leak floor \
+                 (|t| = {signal_t:.2}), measured at {batch} rejections per sample. A \
+                 constant-time path differs by less than that here, so a systematic gap this \
+                 size is a real, usable leak, not the timer's quantization. A path must be \
+                 indistinguishable at every factor it is measured at."
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Assert that two classes are **indistinguishable**: the ordinary direction.
+fn run_leak_test(
+    label: &str,
+    a: &[u8],
+    b: &[u8],
+    reject: &impl Fn(&[u8]),
+    leak_hint: &str,
+    floor: Floor,
+) {
+    if let Err(why) = leak_verdict(label, a, b, reject, floor) {
+        panic!("{why} {leak_hint}");
+    }
+}
+
+/// Assert that `leak_verdict` reports a stand-in as distinguishable, **at the
+/// batch factor named**.
+///
+/// Used only by the controls, over stand-ins written to leak. Naming the factor
+/// is what makes each control pin its own leg of the loop: a steady-state leak
+/// is resolvable only batched, a cold one only unbatched, so a control that
+/// merely asserted "some factor caught it" would leave the other leg free. That
+/// is not hypothetical -- with a plain `is_err()` assertion, deleting the
+/// batched leg went undetected in ten runs out of ten.
+///
+/// A failure here does not mean `tacenta-core` leaks. The stand-in is not
+/// `tacenta-core`; it is written to leak. It means **this harness can no longer
+/// see a leak it is supposed to see**, and therefore that the four tests above
+/// have stopped being evidence. That is the more dangerous failure of the two,
+/// because a blind harness reports green.
+fn expect_verdict_at(
+    label: &str,
+    a: &[u8],
+    b: &[u8],
+    reject: &impl Fn(&[u8]),
+    what: &str,
+    floor: Floor,
+    batch: usize,
+) {
+    println!("{label}: CONTROL -- expected to be caught at {batch} per sample.");
+    // **Up to three attempts, and one detection is enough.** This is a retry,
+    // and the module head is rude about gates people learn to re-run -- so the
+    // difference is worth being explicit about. A *gate* asserts a negative and
+    // must never be retried: re-running until it passes is how a real leak gets
+    // shipped. A *control* asserts a positive, and the failure it exists to
+    // catch -- a harness that has gone blind -- is systematic, not stochastic:
+    // with the batching deleted the effect is 0.00 ns every time, so three
+    // attempts fail as surely as one. What retrying removes is only the
+    // quantized draw, where a 12 ns difference lands on two ticks instead of
+    // five and the control reddens on a harness that is working. Measured at
+    // roughly one run in twenty-five before this, which over a nightly is a red
+    // most weeks for no cause.
+    let mut last = None;
+    for attempt in 1..=3 {
+        match leak_verdict(label, a, b, reject, floor) {
+            Err(why) if why.contains(&format!("at {batch} rejections per sample")) => {
+                if attempt > 1 {
+                    println!("{label}: caught on attempt {attempt}.");
+                }
+                return;
+            }
+            other => last = Some(other),
+        }
+    }
+    match last.expect("three attempts were made") {
+        Ok(()) => panic!(
+            "{label}: THE HARNESS HAS GONE BLIND. {what} was not reported as distinguishable \
+             at any factor measured. Likely causes, in order: a floor raised past the effect it \
+             is meant to catch; a batch factor that no longer resolves this scale; a compiler or \
+             hardware change that altered the cost of the stand-in; or a measurement taken on a \
+             contended or frequency-scaling core rather than an isolated fixed-clock one. The \
+             sampling plan is a weaker suspect than it looks: no control pins it, and thinning \
+             it shows up first as a false red on honest code, not as a miss here."
+        ),
+        Err(why) => panic!(
+            "{label}: caught, but not at the factor this control exists to pin, on any of three \
+             attempts. Expected the verdict to name {batch} rejections per sample; it said: {why}"
+        ),
+    }
 }
 
 // ------------------------------------------------------------- the leak test
@@ -466,7 +731,7 @@ fn run_leak_test(
 #[ignore = "timing-sensitive; run with --ignored"]
 fn the_tag_comparison_does_not_leak_how_much_of_the_tag_was_right() {
     print_stamp(&format!(
-        "{LEAK_ROUNDS} rounds × {LEAK_SAMPLES} samples per class"
+        "{LEAK_ROUNDS} rounds × {LEAK_SAMPLES} rejections per class per round"
     ));
     let enc_key = [0x11u8; 32];
     let mac_key = [0x22u8; 32];
@@ -520,7 +785,7 @@ fn the_tag_comparison_does_not_leak_how_much_of_the_tag_was_right() {
 #[ignore = "timing-sensitive; run with --ignored"]
 fn a_forged_ciphertext_rejects_in_time_independent_of_its_contents() {
     print_stamp(&format!(
-        "{LEAK_ROUNDS} rounds × {LEAK_SAMPLES} samples per class"
+        "{LEAK_ROUNDS} rounds × {LEAK_SAMPLES} rejections per class per round"
     ));
     let enc_key = [0x44u8; 32];
     let mac_key = [0x55u8; 32];
@@ -579,7 +844,7 @@ fn a_forged_ciphertext_rejects_in_time_independent_of_its_contents() {
 #[ignore = "timing-sensitive; run with --ignored"]
 fn the_braid_header_mac_does_not_leak_how_much_of_the_mac_was_right() {
     print_stamp(&format!(
-        "{LEAK_ROUNDS} rounds × {LEAK_SAMPLES} samples per class"
+        "{LEAK_ROUNDS} rounds × {LEAK_SAMPLES} rejections per class per round"
     ));
     let mut r = rng(11);
     let secret = [0x77u8; 32];
@@ -659,7 +924,7 @@ fn the_braid_header_mac_does_not_leak_how_much_of_the_mac_was_right() {
 #[ignore = "timing-sensitive; run with --ignored"]
 fn the_session_rejection_path_does_not_leak_how_much_of_the_tag_was_right() {
     print_stamp(&format!(
-        "{LEAK_ROUNDS} rounds × {LEAK_SAMPLES} samples per class"
+        "{LEAK_ROUNDS} rounds × {LEAK_SAMPLES} rejections per class per round"
     ));
     let mut r = rng(13);
     let (mut alice, bob) = establish(&mut r);
@@ -814,5 +1079,282 @@ fn the_skip_bound_caps_what_one_forged_message_can_cost() {
         "the worst allowed gap cost {:.1}x the baseline, which is more than \
          linear in MAX_SKIP and suggests per-skip work beyond one derivation",
         worst / baseline
+    );
+}
+
+// ------------------------------------------- calibration: can this harness see?
+
+// The four tests above assert that a path does not leak. Each one is evidence
+// only while the harness that runs it can still detect a leak that is there --
+// and nothing above establishes that. A harness whose sampling plan stopped
+// resolving its scale, or whose floor drifted above the effect it exists to
+// catch, reports exactly the same green as a codebase with no leak in it.
+//
+// So these three run the same measurement, the same floors and the same
+// statistics over **deliberately leaky stand-ins**, and fail if the leak is
+// not detected. They are the positive controls for the negative results above.
+//
+// **What these stand-ins are not.** Neither is `tacenta-core` code, and a
+// failure in one is not a finding about the library. They are written to leak.
+// Their only job is to make the harness demonstrate, on the machine and
+// toolchain of the day, that it can still tell a leak from a non-leak.
+//
+// **What they do not establish.** Four things, named because a list of controls
+// reads as coverage.
+//
+// *The sampling plan is pinned by nothing.* `LEAK_ROUNDS` and `LEAK_SAMPLES`
+// can be cut a hundredfold with every test here still green: on a quiet host
+// these effects resolve with far fewer samples than the plan draws. The plan is
+// sized for a contended one, and no control demonstrates that -- so the failure
+// message below lists the plan first among likely causes on reasoning, not on
+// evidence.
+//
+// *An unbatched reading is bimodal, and a non-zero one is not an effect size.*
+// Where the quantum is 41.67 ns a 12 ns difference reads as either 0 or one
+// whole tick, so the same quantization that erases an effect can also overstate
+// it three-and-a-half times. Read a single unbatched number as "same tick" or
+// "different tick", not as nanoseconds.
+//
+// *That the harness resolves every weakening at every scale.*
+// `EFFECT_FLOOR_FRACTION`'s derivation above is explicit that the session floor
+// does not resolve a skipped HMAC or HKDF, and no control here claims
+// otherwise. The three calibrate the two floors and the cost of batching: a
+// byte-at-a-time comparison against `Floor::Absolute`, a few per cent of a
+// microsecond path against `Floor::Relative`, and a leak confined to the first
+// rejection after the class changes against the batching itself.
+//
+// *That any of this runs anywhere but by hand.* See the module header: the
+// nightly job runs another repository's copy of this file.
+//
+// The gap between what a floor resolves and what an attacker could use is
+// stated with the floors, not closed by these.
+
+/// The harness detects a byte-at-a-time tag comparison.
+///
+/// The stand-in does exactly the work `aead::decrypt` does -- it calls it, so
+/// the HMAC and the constant-time verify both happen -- and then performs the
+/// short-circuiting comparison a careless implementer writes instead of
+/// `Mac::verify_slice`. The two classes differ only in where that comparison
+/// stops: byte 0 against byte 31.
+///
+/// `black_box` on each byte read is deliberate and is the honest choice to
+/// document: without it the optimiser is free to turn the loop into a vector
+/// compare, which would erase the very effect the control exists to produce and
+/// leave the control passing for the wrong reason. A real short-circuiting
+/// comparison in shipped code could of course be vectorised the same way -- that
+/// is a reason the *absolute* floor is not the whole constant-time story, and it
+/// is why the assembly gate exists alongside this file.
+#[test]
+#[ignore = "timing-sensitive; run with --ignored"]
+fn control_the_harness_detects_a_short_circuiting_tag_comparison() {
+    print_stamp(&format!(
+        "CONTROL {LEAK_ROUNDS} rounds × {LEAK_SAMPLES} rejections per class per round"
+    ));
+    let enc_key = [0x11u8; 32];
+    let mac_key = [0x22u8; 32];
+    let iv = [0x33u8; 16];
+    let ad = b"associated data";
+
+    let sealed = aead::encrypt(&enc_key, &mac_key, &iv, b"a plaintext of some length", ad);
+    let split = sealed.len() - 32;
+    let real_tag: [u8; 32] = sealed[split..].try_into().expect("the tag is 32 bytes");
+
+    let mut early = sealed.clone();
+    early[split] ^= 0xff;
+    let mut late = sealed.clone();
+    let last = late.len() - 1;
+    late[last] ^= 0xff;
+
+    // Both are still rejected by the real path, so the stand-in is a leak added
+    // to a genuine rejection rather than a rejection replaced by something else.
+    assert!(aead::decrypt(&enc_key, &mac_key, &iv, &early, ad).is_err());
+    assert!(aead::decrypt(&enc_key, &mac_key, &iv, &late, ad).is_err());
+
+    let leaky_reject = |bytes: &[u8]| {
+        let _ = std::hint::black_box(aead::decrypt(&enc_key, &mac_key, &iv, bytes, ad));
+        // The deliberate defect: stop at the first wrong byte.
+        let tag = &bytes[bytes.len() - 32..];
+        let mut equal = true;
+        for i in 0..32 {
+            if std::hint::black_box(tag[i]) != std::hint::black_box(real_tag[i]) {
+                equal = false;
+                break;
+            }
+        }
+        let _ = std::hint::black_box(equal);
+    };
+    // Pinned to the batched factor: a ~12 ns steady-state difference is below
+    // one timer quantum on a coarse-timer host, so only the batched leg
+    // resolves it, which is what makes this control that leg's pin.
+    expect_verdict_at(
+        "control: short-circuiting tag comparison",
+        &early,
+        &late,
+        &leaky_reject,
+        "A tag comparison that stops at the first wrong byte",
+        Floor::Absolute,
+        Floor::Absolute.batch(),
+    );
+}
+
+/// The harness still sees a leak confined to the first rejection after the
+/// class changes.
+///
+/// **This is the control for the cost of batching**, and it is why
+/// `run_leak_test` measures at more than one factor. A batched sample averages
+/// `batch` rejections, so a leak present only in the first of them is
+/// attenuated by exactly that factor: this stand-in is caught at one rejection
+/// per sample and attenuated to near the floor at seventeen -- close enough
+/// that a smaller one would vanish. A harness that chose
+/// the batched factor alone would be blind to every cold-cache leak below
+/// `floor * batch`, and would say nothing about it.
+///
+/// Pinned to one rejection per sample deliberately. The tag-comparison control
+/// is pinned to the batched factor, because a difference that small is below a
+/// coarse timer's quantum and only batching resolves it; between the two, both
+/// legs of `leak_verdict`'s loop are held, and deleting either is caught. The
+/// third control runs on a microsecond path, where `Floor::Relative` takes no
+/// batching at all.
+#[test]
+#[ignore = "timing-sensitive; run with --ignored"]
+fn control_the_harness_detects_a_leak_only_on_the_first_rejection() {
+    print_stamp(&format!(
+        "CONTROL {LEAK_ROUNDS} rounds × {LEAK_SAMPLES} rejections per class per round"
+    ));
+    let enc_key = [0x77u8; 32];
+    let mac_key = [0x88u8; 32];
+    let iv = [0x99u8; 16];
+    let ad = b"associated data";
+
+    let sealed = aead::encrypt(&enc_key, &mac_key, &iv, b"a plaintext of some length", ad);
+    let split = sealed.len() - 32;
+    let mut early = sealed.clone();
+    early[split] ^= 0xff;
+    let mut late = sealed.clone();
+    let last = late.len() - 1;
+    late[last] ^= 0xff;
+
+    // The deliberate defect: one class pays extra, and only on its first
+    // rejection after the other class ran. Steady-state repetition hides it,
+    // which is the whole point of the control.
+    let cold_class = late.clone();
+    let previous = RefCell::new(Vec::<u8>::new());
+    let leaky_reject = |bytes: &[u8]| {
+        let _ = std::hint::black_box(aead::decrypt(&enc_key, &mac_key, &iv, bytes, ad));
+        let mut prev = previous.borrow_mut();
+        let cold = bytes == cold_class.as_slice() && prev.as_slice() != cold_class.as_slice();
+        prev.clear();
+        prev.extend_from_slice(bytes);
+        drop(prev);
+        if cold {
+            let mut acc = 0u64;
+            for i in 0..COLD_PENALTY {
+                acc = acc.wrapping_add(std::hint::black_box(i));
+            }
+            let _ = std::hint::black_box(acc);
+        }
+    };
+    // Through `leak_verdict`, the same path the four real tests take, so this
+    // pins the loop over batch factors and not merely the stand-in: measure at
+    // the batched factor alone and this is the test that goes red.
+    // Pinned to one rejection per sample: this leak is confined to the first
+    // rejection after the class changes, so batching averages it away and only
+    // the unbatched leg resolves it, which is what makes this control that
+    // leg's pin.
+    expect_verdict_at(
+        "control: a leak only on the first rejection",
+        &early,
+        &late,
+        &leaky_reject,
+        "A rejection path that pays extra only on its first call after the class changed",
+        Floor::Absolute,
+        1,
+    );
+}
+
+/// The extra work the relative-floor stand-in pays on one class, sized to a few
+/// per cent of the ~1.8 microsecond Braid header path -- just above
+/// `EFFECT_FLOOR_FRACTION` of it, so the control is judged by that constant and
+/// fails if it is raised.
+const RELATIVE_PENALTY: u64 = 520;
+
+/// The work the cold-only stand-in pays, sized to about one DRAM miss -- the
+/// scale of a real cold-cache leak, not a large one. Tuned so the effect sits
+/// well above one timer quantum at a single rejection per sample.
+const COLD_PENALTY: u64 = 120;
+
+/// The harness detects a few per cent of difference on a microsecond path.
+///
+/// Both classes run the Braid's real header path, and one pays a few per cent
+/// more. `Floor::Relative` is a fraction of the *faster* class's own cost, so
+/// both classes must do the microsecond work or the floor is not the one being
+/// calibrated -- an earlier version returned outright on one class, whose median
+/// then measured zero, collapsing the relative floor to the absolute one.
+///
+/// What this pins is coarse, and the limits are worth stating. The floor can
+/// still be loosened by a factor of about two and a half, or inflated at the
+/// session scale alone, with this control green: it runs at the Braid scale
+/// only, and its own margin is a handful of timer ticks rather than a
+/// calibrated effect size.
+#[test]
+#[ignore = "timing-sensitive; run with --ignored"]
+fn control_the_harness_detects_a_few_per_cent_on_a_microsecond_path() {
+    print_stamp(&format!(
+        "CONTROL {LEAK_ROUNDS} rounds × {LEAK_SAMPLES} rejections per class per round"
+    ));
+    let mut r = rng(11);
+    let secret = [0x77u8; 32];
+    let initiator = Braid::initiator(&secret);
+    let responder = Braid::responder(&secret);
+
+    let (chunk0, _, _, initiator) = initiator.send(&mut r);
+    let (chunk1, _, _, initiator) = initiator.send(&mut r);
+    let (chunk2, _, _, _) = initiator.send(&mut r);
+    let (_, _, responder) = responder.receive(&chunk0);
+    let (_, _, responder) = responder.receive(&chunk1);
+    let mac_chunk = chunk2.data.expect("the third header chunk carries data");
+
+    let deliver = |bytes: &[u8]| {
+        let mut msg = chunk2;
+        msg.data.as_mut().expect("data").data.copy_from_slice(bytes);
+        responder.receive(&msg).2
+    };
+    let mut early = mac_chunk.data;
+    early[0] ^= 0xff;
+    let mut late = mac_chunk.data;
+    late[31] ^= 0xff;
+    assert!(deliver(&early).failed(), "the early forgery must fail");
+    assert!(deliver(&late).failed(), "the late forgery must fail");
+
+    let genuine = mac_chunk.data;
+    let leaky_reject = |bytes: &[u8]| {
+        // The deliberate defect: one class pays a little more than the other,
+        // both having done the same microsecond-scale work.
+        //
+        // **Both classes must do that work**, or this control does not
+        // calibrate the floor it names. An earlier version returned outright on
+        // one class, whose median then measured 0.0 ns; `Floor::Relative` is
+        // `EFFECT_FLOOR_FRACTION` of the *faster* class, so a zero median
+        // collapses it to `EFFECT_FLOOR_NS` and the control silently exercised
+        // the absolute floor instead. `EFFECT_FLOOR_FRACTION` could then be
+        // raised to 100.0 -- enough for both microsecond gates to accept a leak
+        // a hundred times the whole path cost -- with every test still green.
+        let _ = std::hint::black_box(deliver(bytes));
+        if std::hint::black_box(bytes[0]) == std::hint::black_box(genuine[0]) {
+            let mut acc = 0u64;
+            for i in 0..RELATIVE_PENALTY {
+                acc = acc.wrapping_add(std::hint::black_box(i));
+            }
+            let _ = std::hint::black_box(acc);
+        }
+    };
+    expect_verdict_at(
+        "control: a few per cent on a microsecond path",
+        &early,
+        &late,
+        &leaky_reject,
+        "A rejection path that costs a few per cent more on one class than the other",
+        Floor::Relative,
+        Floor::Relative.batch(),
     );
 }

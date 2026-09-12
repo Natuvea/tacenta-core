@@ -546,8 +546,81 @@ from it. This holds here by delegation and discipline, not by proof.
   covers the inputs it draws on the machine it runs on; a proof covers all of
   them. What it buys is that a regression becomes visible, which reading the code
   cannot. The tests are `#[ignore]`d out of the per-push run and run nightly in
-  release mode by a nightly timing workflow. Run them by hand with
-  `cargo test -p tacenta-core --test timing -- --ignored --nocapture`.
+  release mode by a nightly timing workflow, which lives in
+  `tacenta-core-private-backup`, this repository's private predecessor -- not
+  here, and not in the deployment repository. **That workflow checks out its own
+  tree**, so it runs that repository's copy of `tests/timing.rs`, not this one:
+  until a change here is mirrored there, no scheduled job runs it. Run them by hand with
+  `cargo test --release --test timing -- --ignored --nocapture`, from
+  `tacenta-core/` (the `-p` form fails from the repository root, and without
+  `--release` the numbers are a debug build's, not the ones described here).
+
+  **The harness carries three calibration controls, and they are load-bearing.**
+  Every leak assertion here is a negative result, and a negative result is
+  evidence only from an instrument that would have reported the positive. So the
+  same measurement, floors and statistics are run over deliberately leaky
+  stand-ins -- a byte-at-a-time tag comparison, a rejection path costing a few
+  per cent more on one class of a microsecond path, and a leak confined to the
+  first rejection after the class changes -- and the controls fail if the leak
+  is *not* detected. Each names the batch factor it must be caught at, so each
+  pins one leg of the measurement rather than leaving the other free. A failing control does not mean this codebase leaks; it means the
+  harness has gone blind, and that the other results are not evidence until it
+  is understood.
+
+  **What the first control found, on its first run.** The absolute floor is
+  5 ns, and `Instant`'s resolution is a property of the host: on Apple Silicon
+  it is 41.67 ns (a 24 MHz timebase; measured, not assumed -- the smallest
+  non-zero deltas it reports are 41, 42, 83, 84, 125, 166 ns). Timing one
+  rejection at a time, a median gap can then only read 0 or >= 41.67 ns, so a
+  5 ns floor was never a 5 ns floor there. The ~10 ns byte-at-a-time
+  short-circuit these tests exist to catch fell underneath the quantum and
+  measured as **exactly 0.00 ns** -- an indistinguishable-looking pass from a
+  harness that could not have distinguished anything. The nightly job runs on an
+  isolated linux x64 core with a far finer timer, so the gate was sound where it
+  gates; every run anywhere else silently was not. **Any previously recorded
+  0.00 ns separation from an Apple Silicon host should be read in that light,
+  including one taken during external review, the aarch64 rows in the screening
+  table above, and the `0 ns on a DIT core` that `EFFECT_FLOOR_NS`'s own
+  derivation rests on.** A non-zero unbatched reading is no better: at a
+  41.67 ns quantum a 12 ns difference reads as 0 or as one whole tick, so such a
+  number is "same tick" or "different tick", not an effect size.
+
+  The fix is in `Floor::batch`: measure the host's quantum and time enough
+  rejections per sample that `quantum / batch` sits at half the floor or better,
+  dividing the sample count by the same factor so the total work is the same to
+  within one batch.
+  On a nanosecond-resolution host the factor is 1 and nothing changes; on Apple
+  Silicon it is 17, and the same short-circuit then measures 12--13 ns against a
+  real path's 0.00--0.06 ns.
+
+  **Each control makes up to three attempts and needs one detection.** That is a
+  retry, and gates here are never retried: re-running a gate until it passes is
+  how a real leak ships. A control is the other direction, and the failure it
+  exists to catch -- a blind harness -- is systematic rather than stochastic,
+  so three attempts fail as surely as one; deleting the batching leaves the
+  effect at 0.00 ns on every attempt. What the retry removes is the quantized
+  draw, which reddened a working harness about one run in twenty-five.
+
+  **What the controls do not establish, listed because a list of controls reads
+  as coverage.** No control pins the sampling plan: `LEAK_ROUNDS` and
+  `LEAK_SAMPLES` can be cut a hundredfold and the controls stay green. That is
+  not because the plan is spare -- thinning it makes the *real* tests go red on
+  honest code, which is the failure a reader would meet first -- but because
+  nothing here demonstrates either direction. Nor is the relative floor tightly
+  pinned: it can be loosened about two and a half times, or inflated at the
+  session scale alone, with every control green. And none of this runs on a
+  schedule while the nightly checks out another tree.
+
+  **Batching has a cost, and it is the other half of the same trade.** A batched
+  sample averages, so a leak confined to the first rejection after the class
+  changes -- a cold cache, a cold predictor -- is attenuated: one measured at
+  42 ns unbatched read 7.3 ns at seventeen per sample, close enough to the 5 ns
+  floor that a smaller one would vanish. Choosing a single factor therefore
+  chooses which class of leak to be blind to, so the ordinary direction measures
+  at **both** and a path must be indistinguishable at each. A third control, a
+  stand-in that leaks only on that first rejection, fails if it stops doing so. A batched sample measures steady-state repeated
+  rejection rather than a cold one, which is a real change to the question and
+  is stated with the code.
 
   **Why the gate is a median gap on an isolated core.** Two choices in the
   test are load-bearing, environment and statistic.
