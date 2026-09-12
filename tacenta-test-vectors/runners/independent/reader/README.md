@@ -5,17 +5,16 @@ written to test whether the specification alone is enough to build from.
 Python 3, standard library only (`hashlib`, `hmac`, `json`, `copy`, `re`,
 `dataclasses`).
 
-**Specification revision.** Fifth pass, against the tree as found:
+**Specification revision.** Sixth pass, against the tree as found:
 
-- `SOURCE-REVISION` `1dd174609bc5b008564bddef45bee43d71589761`;
+- `SOURCE-REVISION` `c3a00471fbef23f514eca184aac56be7b76fbc8d`;
 - `VERSION` `0.2.0`;
-- every change under `CHANGELOG.md` `[Unreleased]`, whose Changed section
-  begins "`protocol/session-persistence.md`, `protocol/session-establishment.md`,
-  `protocol/message-format.md`: every curve public key a stored state holds
-  must be canonical".
+- every change under `CHANGELOG.md` `[Unreleased]`, whose Added section begins
+  "`protocol/session-persistence.md`, Triple ratchet state: the refusals that
+  format's reader gives".
 
-The fourth pass read `24c602d375bbebe49c25d23c6a73d9ef8fe39df0` (`VERSION`
-`0.1.0`).
+The fifth pass read `1dd174609bc5b008564bddef45bee43d71589761` and the fourth
+`24c602d375bbebe49c25d23c6a73d9ef8fe39df0` (`VERSION` `0.1.0`).
 
 ## Provenance
 
@@ -101,6 +100,81 @@ was used.
   working environment: a short index of notes from other work, and a list of
   further material available. None of it was opened or used.
 
+### Isolation, pass 6
+
+- **Reads.** Inside the clean-room directory, with one exception below:
+  `tacenta-spec/` apart from the ADRs, which were not opened;
+  `tacenta-test-vectors/`; `reader/`; `GAPS-5.md` and `SOURCE-REVISION`.
+  `GAPS.md`, `GAPS-2.md`, `GAPS-3.md` and `GAPS-4.md` were not opened at all.
+- **One read outside the clean-room directory.** The deliberate-fault run was
+  started as a backgrounded command, with its output redirected to
+  `../work/faults6.txt`. The output file of that backgrounded command, which is
+  written outside this directory, was opened once to see whether the run had
+  finished. It was empty, because the output had been redirected into this
+  directory, and nothing was taken from it. It held no specification, vector or
+  implementation material; it was a record of a command this pass itself ran.
+  No other path outside this directory was read, listed or searched.
+- **Names treated as text.** The specification, the vectors README and the
+  manifest name implementation files, tests, theorems and records
+  (`tacenta-core`, `tacenta-model`, `tacenta-proofs/CLAIMS.md`,
+  `LIMITATIONS.md`, `LABELS.md`, `Model.PersistedState`, `Model.Braid`, the
+  Rust runner and the differential harness). None was looked for
+  (GAPS-5.md G5-07).
+- **Writes.** Only inside the clean-room directory:
+  - this reader: `tacenta_reader/persistence.py`, `triple.py`, `run.py`,
+    `cases_persistence.py`, `cases_ratchet.py`, `cases_triple.py` and this file;
+  - `../GAPS-6.md`;
+  - `../work/`: run outputs, `check_new_vectors6.py`, `xref6.py`, `faults6.py`
+    and `faults6.txt`.
+
+  The per-fault copies under `../work/faults6/` reached the vectors through a
+  symbolic link inside this directory, and were removed after each run.
+- **Not consulted.** No implementation, git history, other scratch files or web
+  search. RFC 7748 section 5 and FIPS 203 sections 7.2 and 7.3, which the pages
+  cite, were used from knowledge.
+- **Unrelated context, not used.** The working environment again carried
+  unrelated material: a short index of notes from other work, which names
+  several of the repositories this pass must not consult, and a list of further
+  material available. None of it was opened or used.
+
+## What changed in pass 6
+
+- **`persistence.py`: a reader error, fixed.** session-persistence.md, Triple
+  ratchet state, now states the refusals that format gives: a wrong version for
+  its own first byte, and short or malformed for everything else it refuses,
+  including "a `ratchet_state` or `spqr_state` that its own reader refuses,
+  whatever that reader's reason. An unrecognised version inside a half is one
+  of those reasons, and it is not passed through." This reader passed an inner
+  wrong version through, which was reading (b) of GAPS-5.md G5-01, chosen while
+  the page was silent. It now maps every inner refusal to malformed, as it
+  already did for the session. PS-09 asserted the old behaviour and is
+  rewritten; PS-24 states the decided rule.
+- **`triple.py`: the Triple Ratchet's own operations**, with the agreement's
+  results handed in rather than an agreement object: `init_halves` (the split
+  of `SK`, triple-ratchet.md, Initialisation), `halves_send` and
+  `halves_receive` ("Both run the classical half first and the sparse half
+  second"). This is the shape `triple-ratchet-state.json`'s `steps` drive.
+- **`run.py`: the Triple Ratchet's and the Braid's persisted states**
+  (`vectors/persistence/triple-ratchet-state.json`, `braid-state.json`), laid
+  out in the vectors README. For each vector the runner checks:
+  - **stored bytes:** the reader's `fields`, names and values; the layout the
+    README composes them into, which must be the input; the bytes written back;
+    or the refusal the vector names;
+  - **the triple state's operations:** replayed from a new state named by
+    `role` or from `start`, written as `output`, read back and written again,
+    with the `-read-back` vector beside each;
+  - **the Braid's operations:** each step one received Braid message, from
+    stored `start` bytes and with no KEM, since the two `Ct2Sampled`
+    transitions read the stored epoch and the message and nothing else.
+- **Cases:** PS-24 (the decided refusal rule), TR-11 (the Triple Ratchet's own
+  send and receive, and the epoch the agreement names) and CR-19 (the sparse
+  store's total bound as the page now states its evidence). PS-09 rewritten.
+
+**Nothing else needed changing.** The Braid's stored format, its twelve tags,
+its semantic rules and both its refusal kinds were implemented from the page in
+earlier passes; the 33 Braid vectors passed against that code unchanged, as did
+the 18 triple-ratchet-state vectors once the handler and the fix above were in.
+
 ## What changed in pass 5
 
 - **`run.py`: the two ratchets' persisted states**
@@ -170,12 +244,12 @@ was used.
 | `aes.py`, `aead.py`: AES-256, CBC, PKCS#7, the HMAC-SHA256 tag, the four receiver steps, one authentication failure | message-format.md Authenticated encryption | `aead/aead-encrypt.json`, `aead-decrypt.json` |
 | `ratchet.py`: the Double Ratchet: initialisation, derivations, expansion, DH triggers, `MAX_SKIP`, store bound, replacement, stale same-chain refusal, ceilings, expiry, eviction | ratchet.md, CONSTANTS.md, key-deletion.md | `ratchet/double-ratchet.json`, `malformed-input/ratchet-reject.json` |
 | `spqr.py`: the sparse ratchet: derivations, send counter, ceilings, refusals, total bound, eviction, retention, and **replacement order (fixed in pass 3, G2-01)** | sparse-pq-ratchet.md, session-persistence.md | `post-quantum/spqr.json` (chain step only) |
-| `triple.py`: split, combination, encrypt/decrypt with the commit rules, the non-contributory check, eviction retry; the agreement runs before the ratchets | triple-ratchet.md, mlkem-braid.md What the session does with them | `post-quantum/triple.json`, `split.json` |
+| `triple.py`: split, combination, encrypt/decrypt with the commit rules, the non-contributory check, eviction retry; the agreement runs before the ratchets; **the Triple Ratchet's own initialisation, send and receive with the agreement's results handed in (pass 6)** | triple-ratchet.md, mlkem-braid.md What the session does with them | `post-quantum/triple.json`, `split.json`, `persistence/triple-ratchet-state.json` |
 | `pqxdh.py`: `KDF`, `AD`, DH1..DH4, the decapsulation-length refusal, the FIPS 203 section 7.2 check on a bundle's KEM prekey, **the repeated-initial rule (both comparisons, decode first; pass 4)**, the last-resort fingerprint and the replay record's refusals | session-establishment.md, key-deletion.md | `session-establishment/pqxdh-sk.json`; the fingerprint and the repeated-initial rule by derived cases only |
 | `gf65536.py`, `erasure.py`: GF(2^16), chunking, codewords, first-copy-wins decoding, encoder exhaustion, **the zero-chunk and over-65,536-chunk encoders (pass 4)** | mlkem-braid.md The erasure code | `post-quantum/gf.json`, `inv.json`, `interp.json`, `erasure-encode.json`, `erasure-decode.json` |
 | `braid.py`: **the ML-KEM Braid**: `ToBytes`, `KDF_OK`, `KDF_AUTH`, the authenticator and both MACs, `ek_vector` validation, messages, the eleven live states and `Failed`, all thirteen transitions, send and receive epochs, what a receive ignores, every way into `Failed`, the epoch ceiling; conversion to the persisted layout; `BraidAgreement` for `triple.py` | mlkem-braid.md | `post-quantum/braid.json`, `auth.json`; the rest by derived cases |
 | `kem_double.py`: a **test double** for the incremental KEM interface, with the split's sizes, hash order and implicit rejection; its `key_pair` holds `ek_vector \|\| header \|\| z` (pass 5, GAPS-5.md G5-02). **Not ML-KEM** | mlkem-braid.md The KEM split | none |
-| `persistence.py`: readers and writers with every stated refusal and semantic rule: ratchet, sparse ratchet and triple states, erasure sub-formats, Braid (12 tags), session, prekey store (v4 written, v1-v3 read, `kem_pair` checks) | session-persistence.md, CONSTANTS.md | `persistence/erasure-encoder-state.json`, `erasure-decoder-state.json`, **`ratchet-state.json`, `sparse-ratchet-state.json` (pass 5)**; the triple ratchet state, Braid, session and prekey store have no vectors |
+| `persistence.py`: readers and writers with every stated refusal and semantic rule: ratchet, sparse ratchet and triple states, erasure sub-formats, Braid (12 tags), session, prekey store (v4 written, v1-v3 read, `kem_pair` checks) | session-persistence.md, CONSTANTS.md | `persistence/erasure-encoder-state.json`, `erasure-decoder-state.json`, `ratchet-state.json`, `sparse-ratchet-state.json` (pass 5), **`triple-ratchet-state.json`, `braid-state.json` (pass 6)**; the session and the prekey store have no vectors, and neither has the Braid's `key_pair` content rule (GAPS-5.md G5-02) |
 | `protobuf.py`: the bounded protobuf profile, both message types | protobuf-profile.md, CONSTANTS.md | `protobuf/protobuf-ratchet-body.json`, `protobuf-prekey-envelope.json` |
 | `identity.py`: the identity secret, application signatures | identities-and-devices.md | no vectors |
 
@@ -191,11 +265,11 @@ and each is a row in the runner's table.
 | Module | Cases | Covers |
 |---|---|---|
 | `negative_cases.py` | 59 | wire decoders and refusals, bundle signatures, non-contributory DH, ratchet and sparse ratchet basics, field |
-| `cases_ratchet.py` | 18 | counter ceilings, clock ceiling, stale same-chain refusal, DH triggers, `PN` skip rules, store bound, eviction order, sparse ceilings and eviction, sparse replacement order (CR-18) |
-| `cases_triple.py` | 10 | split halves, expansion of the combination, commit rules, AD binding, non-contributory check order, eviction retry, epoch advance |
+| `cases_ratchet.py` | 19 | counter ceilings, clock ceiling, stale same-chain refusal, DH triggers, `PN` skip rules, store bound, eviction order, sparse ceilings and eviction, sparse replacement order (CR-18); the sparse store's total bound as the page now states its evidence (CR-19, pass 6) |
+| `cases_triple.py` | 11 | split halves, expansion of the combination, commit rules, AD binding, non-contributory check order, eviction retry, epoch advance; the Triple Ratchet's own send and receive, and the epoch the agreement names against the state's own (TR-11, pass 6) |
 | `cases_aead.py` | 13 | FIPS 197 KAT, round trips, padding, tag input, every refusal, one failure kind, no decryption before the tag, key and IV positions and the IV not sent (AE-12) |
 | `cases_erasure.py` | 13 | table arithmetic, chunking, codewords, decoding from any `k`, first copy wins, exhaustion; an encoder for zero bytes (EC-11) and over 65,536 chunks (EC-12); which chunks that encoder holds, and its stored form (EC-13, pass 5) |
-| `cases_persistence.py` | 23 | round trips and every stated refusal and semantic rule of each format |
+| `cases_persistence.py` | 24 | round trips and every stated refusal and semantic rule of each format; the triple ratchet state's decided refusals, an inner half's unrecognised version included (PS-24, pass 6) |
 | `cases_protobuf.py` | 9 | varints, tags, bounds, both field tables, free order |
 | `cases_identity.py` | 19 | application signatures, clamping on use, the repeated-initial comparisons (SE-01, both fields, rewritten in pass 4), non-contributory definition; `DecodeEC` and the initial decoder's refusal (SE-03), X25519's masking against the decoders' refusals (SE-04), the section 7.2 KEM prekey check (SE-05); XEdDSA signing and the six verifier rules (XS-01 to XS-04); the fingerprint and replay record (LR-01 to LR-07, LR-06 through the bytes) |
 | `cases_braid.py` | 18 | derivation bytes, authenticator and MACs, sizes and holdings, initialisation, the send table, epoch completion and roles, send and receive epochs, what a receive ignores, all thirteen transitions, MAC and validation failures, KEM failures and `Failed`, the epoch ceiling, encoder exhaustion, persistence of all twelve tags, the composite header, the Triple Ratchet over the Braid with `session-persistence.md`'s relations, `AgreementFailed` |
@@ -342,6 +416,44 @@ covers (GAPS-5.md, vector gaps): the session's, the prekey store's and the
 initiator's stored-key rules; the Braid key pair; the longer encoder; expiry;
 the accepted store of 2,000 keys; and the session's inner refusal kind.
 
+**Pass 6.** Twenty-three faults and one control in `../work/faults6.py`, run
+the same way. **Twenty-two were caught on the first run; F6-09 was missed, and
+is caught once TR-11 was added for it, so all 23 are caught. 20 are caught by a
+vector file.**
+
+| Fault | Vectors that failed | Derived cases that failed |
+|---|---|---|
+| F6-01 an inner refusal passed through (pass 5's reading of G5-01) | `triple-ratchet-state` classical-half-with-an-unknown-version, sparse-half-with-an-unknown-version | PS-24 |
+| F6-02 the triple state's own wrong version reported as short or malformed | `triple-ratchet-state` version-zero, version-two | PS-09, PS-24, RJ-01 |
+| F6-03 the triple state's role rule removed | `triple-ratchet-state` halves-disagree-on-the-role | PS-09, PS-24 |
+| F6-04 the triple state accepts bytes after the second half | `triple-ratchet-state` trailing-byte | PS-09, PS-24 |
+| F6-05 the role rule reads the direction the other way round | `triple-ratchet-state` (seven) | BK-01, PS-09, PS-15, PS-17, PS-24, SK-03 to SK-05, ... |
+| F6-06 initialisation does not split `SK` | `triple-ratchet-state` the four `role` vectors | **none** |
+| F6-07 the responder initialises the sparse half in `A2b` | `triple-ratchet-state` fresh-responder, responder-after-a-receive | **none** |
+| F6-08 a receive gives the sparse half the classical message number | `triple-ratchet-state` responder-after-a-receive | **none** |
+| F6-09 a send gives the sparse half the state's epoch, not the agreement's | **none** | TR-11 (added for it; nothing caught it before) |
+| F6-10 the Braid accepts a tag above 11 | `braid-state` tag-twelve, tag-255 | PS-13 |
+| F6-11 the Braid accepts a stored epoch of `u64::MAX` | `braid-state` epoch-u64-max | PS-13 |
+| F6-12 a live Braid state may have epoch 0 | `braid-state` epoch-zero | PS-14 |
+| F6-13 `Failed` is written and read with an epoch | `braid-state` failed, ct2-sampled-at-the-ceiling-fails | BR-15, PS-12, PS-15, PS-17 |
+| F6-14 the Braid's raw field lengths are not checked | `braid-state` the five `*-wrong-length` | PS-14 |
+| F6-15 the Braid's coders are not sized for their values | `braid-state` decoder-sized-for-another-value, encoder-sized-for-another-value | PS-14 |
+| F6-16 tag 8's fields are read in the other order | `braid-state` ek-received-ct1-sampled | BR-03 |
+| F6-17 the Braid accepts bytes after its last field | `braid-state` trailing-byte, too-many-fields | PS-13 |
+| F6-18 a coder its own reader refuses is accepted inside the Braid | `braid-state` coder-its-own-reader-refuses | **none** |
+| F6-19 the Braid's wrong version reported as short or malformed | `braid-state` version-zero, version-two | PS-13, RJ-01 |
+| F6-20 `Ct2Sampled` checks the ceiling only on a message that advances it | **none** | BR-13 |
+| F6-21 transition (13) stays at the epoch it was at | `braid-state` ct2-sampled-below-the-ceiling-steps | BR-05, BR-06, BR-08, BR-09, BR-15, BR-17 |
+| F6-22 transition (13) starts a fresh authenticator | `braid-state` ct2-sampled-below-the-ceiling-steps | BR-05 to BR-09, BR-15 to BR-17 |
+| F6-23 the Braid key pair's content check dropped (pass 5's F5-45) | **none** | BK-01 |
+| C6-01 control: a short buffer refused as short though its version is unknown | none, as Rejection allows | none |
+
+The two new vector files catch every framing refusal, both refusal kinds, every
+tag rule and every semantic rule of both formats, and the inner-refusal mapping
+the page has now decided. They miss what `GAPS-6.md`, section 3, records: the
+epoch a triple send names (F6-09), `Ct2Sampled` checking the ceiling before it
+reads the message (F6-20), and the Braid key pair's content rule (F6-23).
+
 ## Not implemented
 
 - ML-KEM-1024 and its incremental split. The Braid runs over `kem_double.py`.
@@ -356,7 +468,7 @@ the accepted store of 2,000 keys; and the session's inner refusal kind.
 - The library layout of the Braid's `key_pair` and `encaps`. The key pair's
   load check runs over the test double's layout (GAPS-5.md G5-02).
 
-The reasons are in `../GAPS-3.md`, `../GAPS-4.md` and `../GAPS-5.md` ("Not
+The reasons are in `../GAPS-3.md` to `../GAPS-6.md` ("Not
 attempted"). No vector file needs any of these, so the runner reports no
 SKIPs.
 
@@ -364,10 +476,11 @@ SKIPs.
 
 ```
 python3 reader/run.py              # from the clean-room directory
-python3 work/faults4.py [F4-01 ...]    # the pass-4 deliberate faults (not in this tree)
-python3 work/faults5.py [F5-01 ...]    # the pass-5 deliberate faults and control
-python3 work/check_new_vectors5.py     # pass 5: the added vectors pass for the stated reasons
-python3 work/xref5.py                  # pass 5: threat-model and requirement numbering
+python3 work/faults6.py [F6-01 ...]    # the pass-6 deliberate faults and control
+python3 work/check_new_vectors6.py     # pass 6: the 51 new vectors pass for the stated reasons
+python3 work/xref6.py                  # pass 6: threat-model and requirement numbering
+# the pass-4 and pass-5 scripts (faults4.py, faults5.py, check_new_vectors5.py,
+# xref5.py) were not in the tree this pass was read from
 ```
 
 The runner prints:
@@ -382,9 +495,9 @@ Current result:
 
 | | Count | PASS | FAIL | SKIP |
 |---|---|---|---|---|
-| Vectors (32 files) | 326 | 326 | 0 | 0 |
-| Derived cases (11 modules) | 204 | 204 | 0 | 0 |
-| **Total** | 530 | 530 | 0 | 0 |
+| Vectors (34 files) | 377 | 377 | 0 | 0 |
+| Derived cases (11 modules) | 207 | 207 | 0 | 0 |
+| **Total** | 584 | 584 | 0 | 0 |
 
 ## In this repository
 
@@ -415,7 +528,8 @@ Each gap report re-assesses its predecessors against the revision it names:
 - `../GAPS-2.md`: the second pass.
 - `../GAPS-3.md`: the third pass.
 - `../GAPS-4.md`: the fourth pass.
-- `../GAPS-5.md`: this pass.
+- `../GAPS-5.md`: the fifth pass.
+- `../GAPS-6.md`: this pass.
 
 A gap is closed by changing the specification. Its entry is marked closed when
 the reader is next updated from the new text.

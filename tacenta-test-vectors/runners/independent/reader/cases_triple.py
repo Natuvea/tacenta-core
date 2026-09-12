@@ -200,6 +200,36 @@ def _():
             fresh(), exc=(spqr.TooManySkipped, ratchet.RatchetError, NonContributory, aead.AuthenticationFailure))
 
 
+@case("TR-11 the Triple Ratchet's own send and receive, with the agreement's results handed in: each steps the chain of the epoch the agreement named, which after an advance is one behind the state's own epoch, and the classical half steps with it",
+      f"sparse-pq-ratchet.md Sending: the sending chain of the epoch the agreement named is stepped once. That is the epoch the receiver is guaranteed to know, which can be one behind the latest; {TR} Sending and receiving: Both run the classical half first and the sparse half second")
+def _():
+    secret = b"\x6e" * 32
+    # a send: the agreement opens epoch 1 and names epoch 0, so epoch 0's
+    # sending chain steps and epoch 1's does not
+    c, s = triple.init_halves(0, SK, x25519_public(b"\xa0" * 32), SPK_PUB, x25519(b"\xa0" * 32, SPK_PUB))
+    assert s.epoch == 0 and c.cks is not None and c.ns == 0
+    c, s = triple.halves_send(c, s, 0, secret, 1)
+    assert s.epoch == 1, "the secret's epoch is the one the advance opens"
+    assert s.chains[0][0].n == 1 and s.chains[1][0].n == 0, "the epoch the agreement named is the one stepped"
+    assert c.ns == 1, "the classical half steps too"
+    c, s = triple.halves_send(c, s, 0, None, None)
+    assert s.chains[0][0].n == 2 and s.chains[1][0].n == 0 and c.ns == 2
+    c, s = triple.halves_send(c, s, 1, None, None)
+    assert s.chains[1][0].n == 1 and s.chains[0][0].n == 2
+    # a receive: the header's pq_epoch selects the chain, likewise
+    c, s = triple.init_halves(1, SK, SPK_PUB)
+    assert s.epoch == 0 and s.direction == spqr.B2A and c.cks is None and c.ckr is None
+    hdr = ratchet.Header(x25519_public(b"\xa0" * 32), 0, 0)
+    c, s = triple.halves_receive(c, s, hdr, b"\x11" * 32, b"\x22" * 32, x25519_public(b"\xd1" * 32),
+                                 0, 1, secret, 1)
+    assert s.epoch == 1
+    assert s.chains[0][1].n == 1 and s.chains[1][1].n == 0, "pq_epoch selects the receiving chain"
+    assert c.nr == 1 and c.dhr == hdr.dh, "the classical half took its Diffie-Hellman step"
+    c, s = triple.halves_receive(c, s, ratchet.Header(hdr.dh, 0, 1), b"\x11" * 32, b"\x22" * 32,
+                                 x25519_public(b"\xd2" * 32), 0, 2, None, None)
+    assert s.chains[0][1].n == 2 and s.chains[1][1].n == 0 and c.nr == 2
+
+
 @case("TR-10 an agreement secret opens epoch 1 on both sides through the composition; the message carrying it is sent on epoch 0",
       f"sparse-pq-ratchet.md Sending: the message carrying the secret that opens an epoch is itself sent on the epoch before")
 def _():

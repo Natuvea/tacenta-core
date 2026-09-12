@@ -10,9 +10,9 @@ WrongVersion, Malformed (short, overrun, trailing, a leaf format's invariant,
 the prekey store's semantic rules), NonCanonical (session and prekey store
 re-encode check), Inconsistent (session semantic rules).
 
-Vectors exist for the erasure sub-formats and, from pass 5, the ratchet and
-sparse ratchet states (vectors/persistence/). The triple ratchet state, the
-Braid, the session and the prekey store have none.
+Vectors exist for the erasure sub-formats, the ratchet and sparse ratchet
+states (pass 5), and the triple ratchet state and the Braid (pass 6), all under
+vectors/persistence/. The session and the prekey store have none.
 
 The Braid's `key_pair` (11,872 bytes) and `encaps` (2,592 bytes) are the
 delegated library serialisations. `encaps` is checked for length only. From
@@ -315,13 +315,25 @@ def triple_invariant(t: TripleState) -> Optional[str]:
 
 
 def triple_from_bytes(buf: bytes) -> TripleState:
+    # "The reader refuses as a wrong version a first byte other than 0x01, and as
+    # short or malformed everything else it refuses: a length prefix that overruns
+    # the input, bytes left after the second field, a state its rule under
+    # 'Semantic rules of the leaf formats' excludes, and a ratchet_state or
+    # spqr_state that its own reader refuses, whatever that reader's reason. An
+    # unrecognised version inside a half is one of those reasons, and it is not
+    # passed through." (pass 6; pass 5 passed an inner wrong version through, on
+    # the reading GAPS-5.md G5-01 recorded while the page was silent.)
     _version(buf, {K.STATE_VERSION}, "triple ratchet state")
     r = _Reader(buf)
     r.take(1, "version")
     rb = r.prefixed("ratchet_state")
     sb = r.prefixed("spqr_state")
     r.end("triple ratchet state")
-    t = TripleState(ratchet_from_bytes(rb), spqr_from_bytes(sb))
+    try:
+        t = TripleState(ratchet_from_bytes(rb), spqr_from_bytes(sb))
+    except (WrongVersion, Malformed) as e:
+        raise Malformed(
+            f"triple ratchet state: a half its own reader refuses: {type(e).__name__}: {e}") from e
     problem = triple_invariant(t)
     if problem:
         raise Malformed(f"triple ratchet state: {problem}")

@@ -228,6 +228,43 @@ def _():
     assert list(b.chains) == [1, 0]
 
 
+@case("CR-19 the sparse store's total bound as the page now states its evidence: a skip that succeeds leaves the store no longer than the larger of its previous length and MAX_SKIPPED_STORE; over a sequence of sends, receives and advances the store stays within the bound, which is what the page says is tested rather than proved",
+      f"{SP} The store also has a total bound: a skip that succeeds leaves the store no longer than the larger of its previous length and MAX_SKIPPED_STORE. No theorem carries the bound across this ratchet's sending, receiving or advancing, or across a sequence of them")
+def _():
+    from tacenta_reader import persistence
+    # one skip, the statement as written
+    _, b = _pair()
+    for n in (500, 1200, 1201, 1900, 2001):
+        before = len(b.skipped)
+        try:
+            b = spqr.receive(b, 0, n)[0]
+        except spqr.SpqrError:
+            continue
+        assert len(b.skipped) <= max(before, K.MAX_SKIPPED_STORE), (n, before, len(b.skipped))
+    # a sequence: sends, receives, an advance that retires an epoch, replacements
+    a, b = _pair()
+    secret = b"\x51" * 32
+    for epoch in (1, 2, 3):
+        a = spqr.send(a, epoch - 1, secret, epoch)[0]
+        b = spqr.receive(b, epoch - 1, 1, secret, epoch)[0]
+        for n in (900, 1800, 1801):
+            before = len(b.skipped)
+            try:
+                b = spqr.receive(b, epoch, n)[0]
+            except spqr.SpqrError:
+                continue
+            assert len(b.skipped) <= max(before, K.MAX_SKIPPED_STORE)
+        assert len(b.skipped) <= K.MAX_SKIPPED_STORE, "the store passed its bound over the sequence"
+        accepts(persistence.spqr_from_bytes, persistence.spqr_to_bytes(b))
+    # the "larger of" clause is not reachable here: a stored state over the bound
+    # is refused, and every skip from an over-full state is refused as well
+    _, c = _pair()
+    c.skipped = {(0, i + 1): b"\x00" * 32 for i in range(K.MAX_SKIPPED_STORE + 1)}
+    rejects(persistence.spqr_from_bytes, persistence.spqr_to_bytes(c), exc=persistence.Malformed)
+    c.chains[0][1].n = K.MAX_SKIPPED_STORE + 1
+    rejects(spqr.receive, c, 0, K.MAX_SKIPPED_STORE + 3, exc=spqr.SkippedStoreFull)
+
+
 @case("CR-18 sparse replacement (G2-01, closed): stepping forward deletes a key stored for the epoch under a number it is about to store, then stores the range in number order after every key already held; the replacing key is last, eviction takes the others first, and the bound counts the resulting size",
       f"{SP} Receiving: Stepping forward deletes any key stored for the epoch under a number it is about to store, then stores the keys it passes, in number order, after every key already in the store; {SPS} Semantic rules of the leaf formats (ADR-0007)")
 def _():
