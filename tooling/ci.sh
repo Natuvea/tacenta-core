@@ -100,6 +100,13 @@ bash tacenta-proofs/scripts/port-unit-proofs.sh --check
 echo "== Derivation labels are registered =="
 bash tooling/check-labels.sh
 
+# The requirements, assumptions and limitations are an assurance ledger, not
+# loose prose. This keeps their IDs and direct dependency lists aligned while
+# the deeper claim/vector/test index is built.
+echo "== Security-property traceability is consistent =="
+python3 tooling/check-traceability.py
+bash tooling/tests/run-check-traceability-cases.sh
+
 # The runners parse vectors with serde, which ignores what it does not know;
 # the schemas are stricter, and this is what makes them binding.
 echo "== Vector files validate against their schemas =="
