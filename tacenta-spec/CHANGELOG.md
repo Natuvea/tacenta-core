@@ -13,6 +13,9 @@ is SemVer against the specified protocol (not the implementation).
   REQ-AUTH-04, REQ-AUTH-01 and REQ-AUTH-03, covering one proved requirement,
   one tested-only requirement and one assumed requirement with supporting
   derivation proofs.
+- `security-properties/evidence-index.json`: evidence-index entries for
+  REQ-AUTH-02, REQ-AUTH-05 and REQ-AUTH-06, extending the P2 migration across
+  named identity checks and ratchet-message associated-data/AEAD coverage.
 - `ASSURANCE-OBLIGATIONS.md`: the first P1 obligation inventory for the
   assurance execution plan. It classifies target deficits, gate obligations,
   deferral risks and missing negative-control evidence so readiness is assessed
