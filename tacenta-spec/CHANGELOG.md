@@ -226,6 +226,10 @@ is SemVer against the specified protocol (not the implementation).
   distinguish the already split per-ratchet `sk` inputs from the unsplit Triple
   Ratchet `sk` input. Gap item G6-01 is closed without renaming stable vector
   fields.
+- `tacenta-test-vectors/README.md`: Braid operation vectors now state their
+  read-back obligation explicitly. Runners must read `output` back and write it
+  as the same bytes; this runner assertion is the equivalent check used instead
+  of `-read-back` sibling vectors. Gap item G6-03 is closed.
 - `protocol/ratchet.md`, Sending and receiving: the classical receive boundary
   where `Nr = u32::MAX` and an unstored same-chain message has a lower number
   now deliberately permits either stale/out-of-order or `ChainExhausted`. The
