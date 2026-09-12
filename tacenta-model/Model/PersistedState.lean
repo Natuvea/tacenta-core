@@ -1530,6 +1530,606 @@ theorem ofBytes_ok {bs : Bytes} {st : State} (h : ofBytes bs = .ok st) :
 
 end BraidState
 
+namespace PrekeyStoreState
+
+/-! ## The prekey store's stored format (session-persistence.md, Prekey store)
+
+**What this model does not state, and why it is not a scoping problem.** The
+page's fifth semantic rule -- that every stored signature verifies under
+`identity_public` -- is absent here, deliberately. This model has no notion of
+a signature anywhere: no `sign`, no `verify`, no signature type, because it
+carries no elliptic-curve arithmetic. The rule is real and normative, and
+`tacenta-core` enforces it; what pins it is the mutation tests in
+`sessions/lifecycle.rs`, one per signature class, not this model and not the
+vectors generated from it.
+
+The tempting alternative was to scope the rule on the page, as the Braid's
+stored key pair is scoped to readers that know the KEM library's layout. That
+would have been wrong. The Braid's scoping exists because *no* implementation
+can portably locate those fields; every implementation can verify a signature.
+Scoping this one would have meant weakening a security rule to accommodate a
+modelling tool, which is the failure ADR-0006 exists to prevent. So the page
+keeps the rule, and this file records that it cannot carry it.
+
+**The direction of the gap is stated rather than hidden:** this reader is more
+permissive than the specification. A store it accepts may still be refused by a
+conforming implementation, and the vectors generated from it carry signature
+bytes that do not verify. Acceptance vectors therefore take their signatures as
+recorded inputs rather than from this model. -/
+
+/-- The signatures are carried as opaque 64-byte strings: stored, re-emitted,
+    and said nothing about (see above). -/
+structure Store where
+  identityPublic : Bytes
+  signedPrekeySecret : Bytes
+  signedPrekeyId : Nat
+  signedPrekeySig : Bytes
+  oneTime : List (Nat × Bytes)
+  kemPair : Bytes
+  kemId : Nat
+  kemSig : Bytes
+  kemOneTime : List (Nat × Bytes × Bytes)
+  nextId : Nat
+  seen : List (Nat × Bytes)
+  previousSigned : Option (Bytes × Nat × Bytes)
+  previousKem : Option (Bytes × Nat × Bytes)
+  deriving Repr, DecidableEq, Inhabited
+
+/-- The version `toBytes` writes, and the three earlier ones `ofBytes` still
+    reads (CONSTANTS.md, `PREKEY_STORE_VERSION`). -/
+def version : UInt8 := 0x04
+def versionV3 : UInt8 := 0x03
+def versionV2 : UInt8 := 0x02
+def versionV1 : UInt8 := 0x01
+
+/-- `MAX_LAST_RESORT_SEEN` (CONSTANTS.md). -/
+def maxLastResortSeen : Nat := 1024
+
+/-- The absent-identifier sentinel (message-format.md). -/
+def absentId : Nat := 0
+
+/-! ### The bytes -/
+
+def oneTimeBytes (e : Nat × Bytes) : Bytes := be 4 e.1 ++ e.2
+
+def kemOneTimeBytes (e : Nat × Bytes × Bytes) : Bytes :=
+  be 4 e.1 ++ TripleState.lenPrefixed e.2.1 ++ e.2.2
+
+def seenBytes (e : Nat × Bytes) : Bytes := be 4 e.1 ++ e.2
+
+def optSignedBytes : Option (Bytes × Nat × Bytes) → Bytes
+  | none => [0x00]
+  | some (secret, id, sig) => [0x01] ++ secret ++ be 4 id ++ sig
+
+def optKemBytes : Option (Bytes × Nat × Bytes) → Bytes
+  | none => [0x00]
+  | some (pair, id, sig) => [0x01] ++ TripleState.lenPrefixed pair ++ be 4 id ++ sig
+
+/-- The stored bytes. Always written at the current version: the three earlier
+    ones are read and never produced, so an older store upgrades by being read
+    and written back. -/
+def toBytes (st : Store) : Bytes :=
+  [version] ++ st.identityPublic
+    ++ st.signedPrekeySecret ++ be 4 st.signedPrekeyId ++ st.signedPrekeySig
+    ++ be 4 st.oneTime.length ++ (st.oneTime.map oneTimeBytes).flatten
+    ++ TripleState.lenPrefixed st.kemPair ++ be 4 st.kemId ++ st.kemSig
+    ++ be 4 st.kemOneTime.length ++ (st.kemOneTime.map kemOneTimeBytes).flatten
+    ++ be 4 st.nextId
+    ++ be 4 st.seen.length ++ (st.seen.map seenBytes).flatten
+    ++ optSignedBytes st.previousSigned ++ optKemBytes st.previousKem
+
+/-! ### Semantic rules (Prekey store, Semantic rules)
+
+Four of the page's five. The fifth is the signature rule this model cannot
+state; the note at the head of this namespace says why. -/
+
+/-- Every identifier the store holds, of every kind, in one list: one counter
+    numbers them all, so distinctness is across kinds and not within them. -/
+def ids (st : Store) : List Nat :=
+  [st.signedPrekeyId, st.kemId]
+    ++ (match st.previousSigned with | none => [] | some p => [p.2.1])
+    ++ (match st.previousKem with | none => [] | some p => [p.2.1])
+    ++ st.oneTime.map Prod.fst
+    ++ st.kemOneTime.map Prod.fst
+
+/-- How many record entries are tagged with one last-resort key. -/
+def seenFor (st : Store) (keyId : Nat) : Nat :=
+  (st.seen.filter (fun e => e.1 == keyId)).length
+
+/-- The replay record's shape: every entry tagged with a live last-resort key,
+    each key's budget counted per key rather than over the record, and no
+    fingerprint twice. SEC-1 was a bypass of exactly this record. -/
+def recordOk (st : Store) : Bool :=
+  let prevKemId : Option Nat := match st.previousKem with
+    | none => none
+    | some p => some p.2.1
+  st.seen.all (fun e => (e.1 == st.kemId) || (prevKemId == some e.1))
+    && decide (seenFor st st.kemId ≤ maxLastResortSeen)
+    && (match prevKemId with
+        | none => true
+        | some i => decide (seenFor st i ≤ maxLastResortSeen))
+    && noShared Prod.snd st.seen
+
+/-- The rules, and all of them this model can state: `identity_public` is
+    canonical, every identifier is below `next_id` and none is the absent
+    sentinel, all identifiers are distinct, and the record keeps its shape. -/
+def invariant (st : Store) : Bool :=
+  canonicalKey st.identityPublic
+    && (ids st).all (fun i => !(i == absentId) && decide (i < st.nextId))
+    && noShared (fun i => i) (ids st)
+    && recordOk st
+
+/-! ### The reader -/
+
+/-- One one-time prekey, from exactly its 36 bytes. -/
+def readOneTime (b : Bytes) : Except Refusal (Nat × Bytes) :=
+  andThen (readInt 4 b) fun id r => .ok (id, r)
+
+/-- One v4 record entry, from exactly its 36 bytes. -/
+def readSeenV4 (b : Bytes) : Except Refusal (Nat × Bytes) :=
+  andThen (readInt 4 b) fun id r => .ok (id, r)
+
+/-- `n` one-time KEM prekeys. Variable width, because each carries its own
+    length-prefixed key pair, so they are read in sequence rather than by
+    `readEntries`. -/
+def readKemOneTimes : Nat → Bytes → Step (List (Nat × Bytes × Bytes))
+  | 0, bs => .ok ([], bs)
+  | n + 1, bs =>
+    andThen (readInt 4 bs) fun id r1 =>
+    andThen (TripleState.readLenPrefixed r1) fun pair r2 =>
+    andThen (takeN 64 r2) fun sig r3 =>
+    andThen (readKemOneTimes n r3) fun rest r4 =>
+      .ok ((id, pair, sig) :: rest, r4)
+
+/-- The replay record. Absent before v2. Before v4 its entries are bare
+    fingerprints with no identifier, and they read back tagged with the current
+    last-resort key, which is the only key they could have belonged to. -/
+def readSeen (v : UInt8) (kemId : Nat) (bs : Bytes) : Step (List (Nat × Bytes)) :=
+  if v = versionV1 then .ok ([], bs)
+  else
+    andThen (readInt 4 bs) fun n r =>
+      if v = version then readEntries 36 readSeenV4 n r
+      else
+        andThen (readEntries 32 (fun b => .ok b) n r) fun fps r' =>
+          .ok (fps.map (fun fp => (kemId, fp)), r')
+
+/-- The retired signed prekey. -/
+def readOptSigned (bs : Bytes) : Step (Option (Bytes × Nat × Bytes)) :=
+  andThen (readTag bs) fun present r =>
+    if present then
+      andThen (takeN 32 r) fun secret r1 =>
+      andThen (readInt 4 r1) fun id r2 =>
+      andThen (takeN 64 r2) fun sig r3 => .ok (some (secret, id, sig), r3)
+    else .ok (none, r)
+
+/-- The retired KEM prekey. -/
+def readOptKem (bs : Bytes) : Step (Option (Bytes × Nat × Bytes)) :=
+  andThen (readTag bs) fun present r =>
+    if present then
+      andThen (TripleState.readLenPrefixed r) fun pair r1 =>
+      andThen (readInt 4 r1) fun id r2 =>
+      andThen (takeN 64 r2) fun sig r3 => .ok (some (pair, id, sig), r3)
+    else .ok (none, r)
+
+/-- Both retired prekeys. Absent before v3, where a store reads back with
+    nothing retired. -/
+def readPrev (v : UInt8) (bs : Bytes) :
+    Step (Option (Bytes × Nat × Bytes) × Option (Bytes × Nat × Bytes)) :=
+  if v = versionV1 || v = versionV2 then .ok ((none, none), bs)
+  else
+    andThen (readOptSigned bs) fun ps r =>
+    andThen (readOptKem r) fun pk r' => .ok ((ps, pk), r')
+
+/-- Read a stored store back. Refused as a wrong version: a first byte naming
+    none of the four. Refused as short or malformed: an empty buffer, any field
+    the buffer does not hold, a length prefix that overruns the input, a
+    presence byte other than `0x00` or `0x01`, bytes left after the last field,
+    and a store that breaks a rule above. -/
+def ofBytes : Bytes → Except Refusal Store
+  | [] => .error .shortOrMalformed
+  | v :: body =>
+    if v ≠ version && v ≠ versionV3 && v ≠ versionV2 && v ≠ versionV1 then
+      .error .wrongVersion
+    else
+      andThen (takeN 32 body) fun idPub r0 =>
+      andThen (takeN 32 r0) fun spSecret r1 =>
+      andThen (readInt 4 r1) fun spId r2 =>
+      andThen (takeN 64 r2) fun spSig r3 =>
+      andThen (readInt 4 r3) fun otCount r4 =>
+      andThen (readEntries 36 readOneTime otCount r4) fun oneTime r5 =>
+      andThen (TripleState.readLenPrefixed r5) fun kemPair r6 =>
+      andThen (readInt 4 r6) fun kemId r7 =>
+      andThen (takeN 64 r7) fun kemSig r8 =>
+      andThen (readInt 4 r8) fun kotCount r9 =>
+      andThen (readKemOneTimes kotCount r9) fun kemOneTime r10 =>
+      andThen (readInt 4 r10) fun nextId r11 =>
+      andThen (readSeen v kemId r11) fun seen r12 =>
+      andThen (readPrev v r12) fun prev r13 =>
+        let st : Store :=
+          { identityPublic := idPub, signedPrekeySecret := spSecret,
+            signedPrekeyId := spId, signedPrekeySig := spSig, oneTime := oneTime,
+            kemPair := kemPair, kemId := kemId, kemSig := kemSig,
+            kemOneTime := kemOneTime, nextId := nextId, seen := seen,
+            previousSigned := prev.1, previousKem := prev.2 }
+        -- Two refusals, nested rather than conjoined: bytes left after the
+        -- last field, and a store that breaks a rule. The page names them
+        -- separately and they are reached separately.
+        if r13.isEmpty then
+          if invariant st then .ok st else .error .shortOrMalformed
+        else .error .shortOrMalformed
+
+
+/-! ### The steps read back what is written -/
+
+theorem oneTimeBytes_length (e : Nat × Bytes) (h : e.2.length = 32) :
+    (oneTimeBytes e).length = 36 := by
+  simp [oneTimeBytes, be_length, h]
+
+theorem readOneTime_bytes (e : Nat × Bytes) (h : e.1 < 2 ^ 32) :
+    readOneTime (oneTimeBytes e) = .ok e := by
+  have h' : e.1 < 256 ^ 4 := by simpa using h
+  simp [readOneTime, oneTimeBytes, readInt_be 4 e.1 e.2 h']
+
+theorem seenBytes_length (e : Nat × Bytes) (h : e.2.length = 32) :
+    (seenBytes e).length = 36 := by
+  simp [seenBytes, be_length, h]
+
+theorem readSeenV4_bytes (e : Nat × Bytes) (h : e.1 < 2 ^ 32) :
+    readSeenV4 (seenBytes e) = .ok e := by
+  have h' : e.1 < 256 ^ 4 := by simpa using h
+  simp [readSeenV4, seenBytes, readInt_be 4 e.1 e.2 h']
+
+theorem readKemOneTimes_bytes (xs : List (Nat × Bytes × Bytes)) (rest : Bytes)
+    (h : ∀ e ∈ xs, e.1 < 2 ^ 32 ∧ e.2.1.length < 2 ^ 32 ∧ e.2.2.length = 64) :
+    readKemOneTimes xs.length ((xs.map kemOneTimeBytes).flatten ++ rest) =
+      .ok (xs, rest) := by
+  induction xs with
+  | nil => simp [readKemOneTimes]
+  | cons x xs ih =>
+    obtain ⟨hid, hpair, hsig⟩ := h x (by simp)
+    have hid' : x.1 < 256 ^ 4 := by simpa using hid
+    have ih' := ih fun y hy => h y (by simp [hy])
+    simp only [List.length_cons, List.map_cons, List.flatten_cons, List.append_assoc,
+      readKemOneTimes, kemOneTimeBytes, readInt_be 4 x.1 _ hid', andThen_ok,
+      TripleState.readLenPrefixed_bytes x.2.1 _ hpair,
+      takeN_append' 64 x.2.2 _ hsig, ih']
+
+theorem readOptSigned_bytes (o : Option (Bytes × Nat × Bytes)) (rest : Bytes)
+    (h : ∀ p, o = some p → p.1.length = 32 ∧ p.2.1 < 2 ^ 32 ∧ p.2.2.length = 64) :
+    readOptSigned (optSignedBytes o ++ rest) = .ok (o, rest) := by
+  match o with
+  | none => simp [readOptSigned, optSignedBytes, readTag]
+  | some p =>
+    obtain ⟨h1, h2, h3⟩ := h p rfl
+    have h2' : p.2.1 < 256 ^ 4 := by simpa using h2
+    simp only [optSignedBytes, readOptSigned, List.cons_append, List.nil_append,
+      List.append_assoc, readTag, if_neg (by decide : ¬(1 : UInt8) = 0), if_pos rfl,
+      andThen_ok, if_true, takeN_append' 32 p.1 _ h1, readInt_be 4 p.2.1 _ h2',
+      takeN_append' 64 p.2.2 _ h3]
+
+theorem readOptKem_bytes (o : Option (Bytes × Nat × Bytes)) (rest : Bytes)
+    (h : ∀ p, o = some p → p.1.length < 2 ^ 32 ∧ p.2.1 < 2 ^ 32 ∧ p.2.2.length = 64) :
+    readOptKem (optKemBytes o ++ rest) = .ok (o, rest) := by
+  match o with
+  | none => simp [readOptKem, optKemBytes, readTag]
+  | some p =>
+    obtain ⟨h1, h2, h3⟩ := h p rfl
+    have h2' : p.2.1 < 256 ^ 4 := by simpa using h2
+    simp only [optKemBytes, readOptKem, List.cons_append, List.nil_append,
+      List.append_assoc, readTag, if_neg (by decide : ¬(1 : UInt8) = 0), if_pos rfl,
+      andThen_ok, if_true, TripleState.readLenPrefixed_bytes p.1 _ h1,
+      readInt_be 4 p.2.1 _ h2', takeN_append' 64 p.2.2 _ h3]
+
+/-- Every value fits the field it is written into. -/
+def Fits (st : Store) : Prop :=
+  st.identityPublic.length = 32 ∧ st.signedPrekeySecret.length = 32
+    ∧ st.signedPrekeyId < 2 ^ 32 ∧ st.signedPrekeySig.length = 64
+    ∧ st.oneTime.length < 2 ^ 32
+    ∧ (∀ e ∈ st.oneTime, e.1 < 2 ^ 32 ∧ e.2.length = 32)
+    ∧ st.kemPair.length < 2 ^ 32 ∧ st.kemId < 2 ^ 32 ∧ st.kemSig.length = 64
+    ∧ st.kemOneTime.length < 2 ^ 32
+    ∧ (∀ e ∈ st.kemOneTime, e.1 < 2 ^ 32 ∧ e.2.1.length < 2 ^ 32 ∧ e.2.2.length = 64)
+    ∧ st.nextId < 2 ^ 32
+    ∧ st.seen.length < 2 ^ 32
+    ∧ (∀ e ∈ st.seen, e.1 < 2 ^ 32 ∧ e.2.length = 32)
+    ∧ (∀ p, st.previousSigned = some p →
+        p.1.length = 32 ∧ p.2.1 < 2 ^ 32 ∧ p.2.2.length = 64)
+    ∧ (∀ p, st.previousKem = some p →
+        p.1.length < 2 ^ 32 ∧ p.2.1 < 2 ^ 32 ∧ p.2.2.length = 64)
+
+
+
+/-! ### What the reader accepts is what is written -/
+
+theorem readKemOneTimes_ok : ∀ (n : Nat) (bs : Bytes) (xs : List (Nat × Bytes × Bytes))
+    (rest : Bytes), readKemOneTimes n bs = .ok (xs, rest) →
+      xs.length = n ∧ bs = (xs.map kemOneTimeBytes).flatten ++ rest ∧
+        ∀ e ∈ xs, e.1 < 2 ^ 32 ∧ e.2.1.length < 2 ^ 32 ∧ e.2.2.length = 64 := by
+  intro n
+  induction n with
+  | zero =>
+    intro bs xs rest h
+    simp only [readKemOneTimes, Except.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    simp
+  | succ n ih =>
+    intro bs xs rest h
+    simp only [readKemOneTimes] at h
+    obtain ⟨id, r1, h1, hA⟩ := andThen_eq_ok h
+    obtain ⟨pair, r2, h2, hB⟩ := andThen_eq_ok hA
+    obtain ⟨sig, r3, h3, hC⟩ := andThen_eq_ok hB
+    obtain ⟨ys, r4, h4, hD⟩ := andThen_eq_ok hC
+    obtain ⟨hid, e1⟩ := readInt_ok h1
+    obtain ⟨hpair, e2⟩ := TripleState.readLenPrefixed_ok h2
+    obtain ⟨hsig, e3⟩ := takeN_ok h3
+    obtain ⟨hlen, e4, hall⟩ := ih _ _ _ h4
+    simp only [Except.ok.injEq, Prod.mk.injEq] at hD
+    obtain ⟨rfl, rfl⟩ := hD
+    subst e1; subst e2; subst e3; subst e4
+    refine ⟨by simp [hlen], ?_, ?_⟩
+    · simp [kemOneTimeBytes, List.append_assoc]
+    · intro e he
+      rcases List.mem_cons.mp he with rfl | he'
+      · exact ⟨by simpa using hid, hpair, hsig⟩
+      · exact hall e he'
+
+theorem readOptSigned_ok {bs rest : Bytes} {o : Option (Bytes × Nat × Bytes)}
+    (h : readOptSigned bs = .ok (o, rest)) :
+    bs = optSignedBytes o ++ rest ∧
+      ∀ p, o = some p → p.1.length = 32 ∧ p.2.1 < 2 ^ 32 ∧ p.2.2.length = 64 := by
+  unfold readOptSigned at h
+  obtain ⟨present, r, h1, hA⟩ := andThen_eq_ok h
+  have e1 := readTag_ok h1
+  subst e1
+  split at hA
+  · rename_i hp
+    subst hp
+    obtain ⟨secret, r1, h2, hB⟩ := andThen_eq_ok hA
+    obtain ⟨id, r2, h3, hC⟩ := andThen_eq_ok hB
+    obtain ⟨sig, r3, h4, hD⟩ := andThen_eq_ok hC
+    obtain ⟨hs, e2⟩ := takeN_ok h2
+    obtain ⟨hid, e3⟩ := readInt_ok h3
+    obtain ⟨hsg, e4⟩ := takeN_ok h4
+    simp only [Except.ok.injEq, Prod.mk.injEq] at hD
+    obtain ⟨rfl, rfl⟩ := hD
+    subst e2; subst e3; subst e4
+    refine ⟨by simp [optSignedBytes, List.append_assoc], ?_⟩
+    intro p hp2
+    obtain rfl : p = (secret, id, sig) := by simpa using hp2.symm
+    exact ⟨hs, by simpa using hid, hsg⟩
+  · rename_i hp
+    simp only [Except.ok.injEq, Prod.mk.injEq] at hA
+    obtain ⟨rfl, rfl⟩ := hA
+    simp only [Bool.not_eq_true] at hp
+    subst hp
+    exact ⟨by simp [optSignedBytes], by simp⟩
+
+theorem readOptKem_ok {bs rest : Bytes} {o : Option (Bytes × Nat × Bytes)}
+    (h : readOptKem bs = .ok (o, rest)) :
+    bs = optKemBytes o ++ rest ∧
+      ∀ p, o = some p → p.1.length < 2 ^ 32 ∧ p.2.1 < 2 ^ 32 ∧ p.2.2.length = 64 := by
+  unfold readOptKem at h
+  obtain ⟨present, r, h1, hA⟩ := andThen_eq_ok h
+  have e1 := readTag_ok h1
+  subst e1
+  split at hA
+  · rename_i hp
+    subst hp
+    obtain ⟨pair, r1, h2, hB⟩ := andThen_eq_ok hA
+    obtain ⟨id, r2, h3, hC⟩ := andThen_eq_ok hB
+    obtain ⟨sig, r3, h4, hD⟩ := andThen_eq_ok hC
+    obtain ⟨hp1, e2⟩ := TripleState.readLenPrefixed_ok h2
+    obtain ⟨hid, e3⟩ := readInt_ok h3
+    obtain ⟨hsg, e4⟩ := takeN_ok h4
+    simp only [Except.ok.injEq, Prod.mk.injEq] at hD
+    obtain ⟨rfl, rfl⟩ := hD
+    subst e2; subst e3; subst e4
+    refine ⟨by simp [optKemBytes, List.append_assoc], ?_⟩
+    intro p hp2
+    obtain rfl : p = (pair, id, sig) := by simpa using hp2.symm
+    exact ⟨hp1, by simpa using hid, hsg⟩
+  · rename_i hp
+    simp only [Except.ok.injEq, Prod.mk.injEq] at hA
+    obtain ⟨rfl, rfl⟩ := hA
+    simp only [Bool.not_eq_true] at hp
+    subst hp
+    exact ⟨by simp [optKemBytes], by simp⟩
+
+
+theorem readOneTime_ok {b : Bytes} {e : Nat × Bytes} (hl : b.length = 36)
+    (h : readOneTime b = .ok e) : oneTimeBytes e = b ∧ e.1 < 2 ^ 32 ∧ e.2.length = 32 := by
+  unfold readOneTime at h
+  obtain ⟨id, r, h1, h2⟩ := andThen_eq_ok h
+  obtain ⟨hid, e1⟩ := readInt_ok h1
+  simp only [Except.ok.injEq] at h2
+  subst h2; subst e1
+  have : r.length = 32 := by simp [be_length] at hl; omega
+  exact ⟨by simp [oneTimeBytes], by simpa using hid, this⟩
+
+theorem readSeenV4_ok {b : Bytes} {e : Nat × Bytes} (hl : b.length = 36)
+    (h : readSeenV4 b = .ok e) : seenBytes e = b ∧ e.1 < 2 ^ 32 ∧ e.2.length = 32 := by
+  unfold readSeenV4 at h
+  obtain ⟨id, r, h1, h2⟩ := andThen_eq_ok h
+  obtain ⟨hid, e1⟩ := readInt_ok h1
+  simp only [Except.ok.injEq] at h2
+  subst h2; subst e1
+  have : r.length = 32 := by simp [be_length] at hl; omega
+  exact ⟨by simp [seenBytes], by simpa using hid, this⟩
+
+theorem readSeen_ok {v : UInt8} {kemId : Nat} {bs rest : Bytes}
+    {seen : List (Nat × Bytes)} (hk : kemId < 2 ^ 32)
+    (h : readSeen v kemId bs = .ok (seen, rest)) :
+    seen.length < 2 ^ 32 ∧ ∀ e ∈ seen, e.1 < 2 ^ 32 ∧ e.2.length = 32 := by
+  unfold readSeen at h
+  split at h
+  · simp only [Except.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, -⟩ := h
+    simp
+  · obtain ⟨n, r, h1, hA⟩ := andThen_eq_ok h
+    obtain ⟨hn, -⟩ := readInt_ok h1
+    have hn' : n < 2 ^ 32 := by simpa using hn
+    split at hA
+    · obtain ⟨hlen, -, hall⟩ :=
+        readEntries_ok 36 seenBytes readSeenV4
+          (fun e => e.1 < 2 ^ 32 ∧ e.2.length = 32)
+          (fun b x hb hx => readSeenV4_ok hb hx) n r seen rest hA
+      exact ⟨by omega, hall⟩
+    · obtain ⟨fps, r', h2, hB⟩ := andThen_eq_ok hA
+      obtain ⟨hlen, -, hall⟩ :=
+        readEntries_ok 32 (fun b => b) (fun b => .ok b) (fun b => b.length = 32)
+          (fun b x hb hx => by
+            simp only [Except.ok.injEq] at hx; subst hx; exact ⟨rfl, hb⟩)
+          n r fps r' h2
+      simp only [Except.ok.injEq, Prod.mk.injEq] at hB
+      obtain ⟨rfl, -⟩ := hB
+      refine ⟨by simp [hlen]; omega, ?_⟩
+      intro e he
+      obtain ⟨fp, hfp, rfl⟩ := List.mem_map.mp he
+      exact ⟨hk, hall fp hfp⟩
+
+theorem readPrev_ok {v : UInt8} {bs rest : Bytes}
+    {prev : Option (Bytes × Nat × Bytes) × Option (Bytes × Nat × Bytes)}
+    (h : readPrev v bs = .ok (prev, rest)) :
+    (∀ p, prev.1 = some p → p.1.length = 32 ∧ p.2.1 < 2 ^ 32 ∧ p.2.2.length = 64) ∧
+      (∀ p, prev.2 = some p → p.1.length < 2 ^ 32 ∧ p.2.1 < 2 ^ 32 ∧ p.2.2.length = 64) := by
+  unfold readPrev at h
+  split at h
+  · simp only [Except.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, -⟩ := h
+    simp
+  · obtain ⟨ps, r, h1, hA⟩ := andThen_eq_ok h
+    obtain ⟨pk, r', h2, hB⟩ := andThen_eq_ok hA
+    obtain ⟨-, hps⟩ := readOptSigned_ok h1
+    obtain ⟨-, hpk⟩ := readOptKem_ok h2
+    simp only [Except.ok.injEq, Prod.mk.injEq] at hB
+    obtain ⟨rfl, -⟩ := hB
+    exact ⟨hps, hpk⟩
+
+
+/-- **What the reader accepts keeps the rules and fits its fields.**
+
+    Stated without the "and is written back as the same bytes" half that the
+    four leaf formats carry, because for this format that half is false, and
+    false for a reason worth naming: `toBytes` writes the current version only,
+    so a v1, v2 or v3 store read back and written out again comes out as v4.
+    That is the format's upgrade path, not a defect, and `ofBytes_toBytes`
+    below states the round trip in the direction that does hold: a store
+    written by this model is read back as itself.
+
+    **Not yet proved:** that a v4 buffer the reader accepts is written back as
+    the same bytes. `tacenta-core` checks exactly that, and only at v4
+    (`from_bytes` re-encodes and compares before the semantic rules, for the
+    current version alone), so the missing theorem is the canonicality half and
+    it is v4-shaped. Stated here as absent rather than implied by the two
+    theorems that are present. -/
+theorem ofBytes_ok {bs : Bytes} {st : Store} (h : ofBytes bs = .ok st) :
+    invariant st = true ∧ Fits st := by
+  match bs, h with
+  | [], h => simp [ofBytes] at h
+  | v :: body, h =>
+    simp only [ofBytes] at h
+    split at h
+    · cases h
+    · obtain ⟨idPub, r0, h0, h⟩ := andThen_eq_ok h
+      obtain ⟨spSecret, r1, h1, h⟩ := andThen_eq_ok h
+      obtain ⟨spId, r2, h2, h⟩ := andThen_eq_ok h
+      obtain ⟨spSig, r3, h3, h⟩ := andThen_eq_ok h
+      obtain ⟨otCount, r4, h4, h⟩ := andThen_eq_ok h
+      obtain ⟨oneTime, r5, h5, h⟩ := andThen_eq_ok h
+      obtain ⟨kemPair, r6, h6, h⟩ := andThen_eq_ok h
+      obtain ⟨kemId, r7, h7, h⟩ := andThen_eq_ok h
+      obtain ⟨kemSig, r8, h8, h⟩ := andThen_eq_ok h
+      obtain ⟨kotCount, r9, h9, h⟩ := andThen_eq_ok h
+      obtain ⟨kemOneTime, r10, h10, h⟩ := andThen_eq_ok h
+      obtain ⟨nextId, r11, h11, h⟩ := andThen_eq_ok h
+      obtain ⟨seen, r12, h12, h⟩ := andThen_eq_ok h
+      obtain ⟨prev, r13, h13, h⟩ := andThen_eq_ok h
+      split at h
+      · split at h
+        · rename_i hinv
+          simp only [Except.ok.injEq] at h
+          subst h
+          obtain ⟨hip, -⟩ := takeN_ok h0
+          obtain ⟨hsps, -⟩ := takeN_ok h1
+          obtain ⟨hspid, -⟩ := readInt_ok h2
+          obtain ⟨hspsig, -⟩ := takeN_ok h3
+          obtain ⟨hotc, -⟩ := readInt_ok h4
+          obtain ⟨hotlen, -, hot⟩ :=
+            readEntries_ok 36 oneTimeBytes readOneTime
+              (fun e => e.1 < 2 ^ 32 ∧ e.2.length = 32)
+              (fun b x hb hx => readOneTime_ok hb hx) otCount r4 oneTime r5 h5
+          obtain ⟨hkp, -⟩ := TripleState.readLenPrefixed_ok h6
+          obtain ⟨hkid, -⟩ := readInt_ok h7
+          obtain ⟨hksig, -⟩ := takeN_ok h8
+          obtain ⟨hkotc, -⟩ := readInt_ok h9
+          obtain ⟨hkotlen, -, hkot⟩ := readKemOneTimes_ok kotCount r9 kemOneTime r10 h10
+          obtain ⟨hnext, -⟩ := readInt_ok h11
+          have hkid' : kemId < 2 ^ 32 := by simpa using hkid
+          obtain ⟨hseenlen, hseen⟩ := readSeen_ok hkid' h12
+          obtain ⟨hpsigned, hpkem⟩ := readPrev_ok h13
+          have hotc' : otCount < 2 ^ 32 := by simpa using hotc
+          have hkotc' : kotCount < 2 ^ 32 := by simpa using hkotc
+          exact ⟨hinv, hip, hsps, by simpa using hspid, hspsig,
+            by rw [hotlen]; exact hotc', hot, hkp, hkid', hksig,
+            by rw [hkotlen]; exact hkotc', hkot,
+            by simpa using hnext, hseenlen, hseen, hpsigned, hpkem⟩
+        · simp at h
+      · simp at h
+
+/-- **A store that keeps the rules, and whose values fit their fields, is read
+    back from the bytes it is written as.** Stated for the version `toBytes`
+    writes; the three earlier ones are read and never produced. -/
+theorem ofBytes_toBytes (st : Store) (hinv : invariant st = true) (hfit : Fits st) :
+    ofBytes (toBytes st) = .ok st := by
+  obtain ⟨hip, hsps, hspid, hspsig, hotlen, hot, hkp, hkid, hksig, hkotlen, hkot,
+    hnext, hseenlen, hseen, hpsigned, hpkem⟩ := hfit
+  have hspid' : st.signedPrekeyId < 256 ^ 4 := by simpa using hspid
+  have hotlen' : st.oneTime.length < 256 ^ 4 := by simpa using hotlen
+  have hkid' : st.kemId < 256 ^ 4 := by simpa using hkid
+  have hkotlen' : st.kemOneTime.length < 256 ^ 4 := by simpa using hkotlen
+  have hnext' : st.nextId < 256 ^ 4 := by simpa using hnext
+  have hseenlen' : st.seen.length < 256 ^ 4 := by simpa using hseenlen
+  -- The retired KEM prekey is the last field, so the bytes after it are `[]`
+  -- rather than an `++ []` the rewrite would have to see through.
+  have hlast := readOptKem_bytes st.previousKem [] hpkem
+  simp only [List.append_nil] at hlast
+  -- Instantiated at the bytes that actually follow, rather than left as a
+  -- metavariable for `simp` to unify: the retired signed prekey is followed by
+  -- the retired KEM prekey, and the higher-order unification does not find that
+  -- on its own.
+  have hprev := readOptSigned_bytes st.previousSigned (optKemBytes st.previousKem) hpsigned
+  simp +decide only [toBytes, ofBytes, version, versionV1, versionV2, versionV3,
+    List.cons_append, List.nil_append, List.append_assoc, ne_eq,
+    reduceIte, reduceCtorEq, decide_true, decide_false, Bool.and_false,
+    Bool.false_and, Bool.and_true, not_true_eq_false, not_false_eq_true,
+    if_false, if_true,
+    takeN_append' 32 st.identityPublic _ hip, andThen_ok,
+    takeN_append' 32 st.signedPrekeySecret _ hsps,
+    readInt_be 4 st.signedPrekeyId _ hspid',
+    takeN_append' 64 st.signedPrekeySig _ hspsig,
+    readInt_be 4 st.oneTime.length _ hotlen',
+    readEntries_flatten 36 oneTimeBytes readOneTime st.oneTime _
+      (fun x hx => oneTimeBytes_length x (hot x hx).2)
+      (fun x hx => readOneTime_bytes x (hot x hx).1),
+    TripleState.readLenPrefixed_bytes st.kemPair _ hkp,
+    readInt_be 4 st.kemId _ hkid',
+    takeN_append' 64 st.kemSig _ hksig,
+    readInt_be 4 st.kemOneTime.length _ hkotlen',
+    readKemOneTimes_bytes st.kemOneTime _ hkot,
+    readInt_be 4 st.nextId _ hnext',
+    readSeen, readPrev,
+    readInt_be 4 st.seen.length _ hseenlen',
+    readEntries_flatten 36 seenBytes readSeenV4 st.seen _
+      (fun x hx => seenBytes_length x (hseen x hx).2)
+      (fun x hx => readSeenV4_bytes x (hseen x hx).1),
+    ]
+  rw [hprev]
+  simp only [andThen_ok]
+  rw [hlast]
+  simp [hinv]
+
+end PrekeyStoreState
+
 /-! ## Build-time checks
 
 Executable instances of what the text says, as `Model.Erasure`'s are: states the
