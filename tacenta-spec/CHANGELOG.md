@@ -6,6 +6,9 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `GAP-REGISTER.md`: a current register for assurance gate 2, preserving the
+  historical independent-reader reports while recording which findings are now
+  closed, open, or deferred.
 - `protocol/session-persistence.md`, Prekey store, Semantic rules: a sixth rule,
   that every stored signature verifies under `identity_public` -- the signed
   prekey's, the KEM prekey's, each one-time KEM prekey's, and the retired pair's
@@ -87,6 +90,11 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- `tacenta-test-vectors/README.md`: add vector-layout sections for
+  `prekey-store-state.json` and `session-state.json`, and refresh the
+  differential-testing note now that the model states those stored formats.
+- `ASSURANCE.md`: point assurance gate 2 at the current gap register, and replace
+  stale pass-7 wording about the prekey-store and session vector files.
 - Clarify the prekey store signature rule in `protocol/session-persistence.md`: verification uses the unlabelled prekey signature input, and the signing obligation names `create_prekeys`, `replenish`, and both rotations. This resolves G7-03 and G7-04 from the independent reader without changing the stored format or implementation.
 - `protocol/session-persistence.md`, Braid, and Semantic rules of the leaf
   formats, Braid: the `key_pair` content clause of tags 1 to 4 is **scoped**
