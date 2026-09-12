@@ -78,11 +78,14 @@ composite  = version || type=0x01
 ```
 
 All counters are big-endian. The composite header is **102 bytes**, framing
-included, so a ratchet message is 102 bytes plus the ciphertext. `ciphertext`
-is the AEAD output, which already carries its authentication tag, and runs to
-the end of the message; it is not length-prefixed because nothing follows it.
-The decoder places no constraint on its length or contents: the AEAD checks
-both (Authenticated encryption, below).
+included, so a ratchet message is 102 bytes plus the ciphertext. A standalone
+composite-header decoder is a public contract for vectors, associated-data
+construction and implementations that parse the header before the ciphertext:
+it accepts exactly those 102 bytes and refuses trailing bytes. `ciphertext` is
+the AEAD output, which already carries its authentication tag, and runs to the
+end of the ratchet message; it is not length-prefixed because nothing follows
+it there. The ratchet-message decoder places no constraint on the ciphertext's
+length or contents: the AEAD checks both (Authenticated encryption, below).
 
 `ag_type` names what the agreement's message carries, and its six values are
 the ML-KEM Braid specification's members minus one:

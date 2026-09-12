@@ -313,7 +313,8 @@ the 18 triple-ratchet-state vectors once the handler and the fix above were in.
   - A zero-chunk encoder's all-zero codewords are now asserted.
 - **`run.py`:**
   - handlers for `composite-header-decode`, `prekey-bundle-decode` and
-    `initial-message-decode` (the input layout is GAPS-4.md G4-01);
+    `initial-message-decode`; RM-14 covers the standalone composite header's
+    trailing-byte refusal;
   - the zero-chunk encoder comparison runs for every encoder-state vector.
 
 ## What it implements
@@ -656,9 +657,9 @@ Current result:
 
 | | Count | PASS | FAIL | SKIP |
 |---|---|---|---|---|
-| Vectors (36 files) | 407 | 407 | 0 | 0 |
-| Derived cases (12 modules) | 219 | 219 | 0 | 0 |
-| **Total** | 626 | 626 | 0 | 0 |
+| Vectors (36 files) | 408 | 408 | 0 | 0 |
+| Derived cases (12 modules) | 220 | 220 | 0 | 0 |
+| **Total** | 628 | 628 | 0 | 0 |
 
 ## In this repository
 

@@ -347,9 +347,16 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
         "composite-header-decode" => {
             use tacenta_core::serialization::composite as c;
             let encoding = input(v, "encoding")?;
-            decoder_verdict(v, c::decode_composite(&encoding), |(h, rest)| {
-                [c::encode_composite(&h).as_slice(), rest].concat()
-            })
+            let decoded = c::decode_composite(&encoding)
+                .map_err(|e| format!("{e:?}"))
+                .and_then(|(h, rest)| {
+                    if rest.is_empty() {
+                        Ok(h)
+                    } else {
+                        Err("trailing bytes after composite header".to_string())
+                    }
+                });
+            decoder_verdict(v, decoded, |h| c::encode_composite(&h))
         }
         "prekey-bundle-decode" => {
             use tacenta_core::serialization;

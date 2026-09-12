@@ -87,13 +87,13 @@ bundle, Curve public keys and Rejection.
 - **`encoding`**, the one input, is the bytes handed to the decoder, whole.
   - In `composite-header-decode.json` it is a composite header alone, the
     102 bytes of `composite` in Ratchet message, with nothing after it. The
-    page defines the ratchet-message decoder rather than a decoder of the
-    header on its own. These 102 bytes are also a whole ratchet message with
-    an empty `ciphertext`, which that decoder does not constrain, so it gives
-    each vector the same verdict. No vector has bytes after the header, so
-    none decides what a decoder of the header alone does with them.
-    `tacenta-wire`'s `decode_composite`, which the Rust runner calls, returns
-    them, as the ciphertext that follows.
+    page defines this standalone decoder as accepting exactly one composite
+    header, so bytes after the header are refused. The ratchet-message decoder
+    reads the accepted 102-byte cases as a header followed by an empty
+    `ciphertext`, which that decoder does not constrain, so it gives those
+    vectors the same verdict. A vector with bytes after the header is invalid
+    for this standalone file even though the ratchet-message decoder would
+    treat those bytes as ciphertext.
   - In `prekey-bundle-decode.json` it is a whole bundle (Prekey bundle), 1,811
     bytes with ML-KEM-1024's `kem_prekey`.
   - In `initial-message-decode.json` it is a whole initial message (Initial
