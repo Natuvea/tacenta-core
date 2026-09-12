@@ -104,6 +104,7 @@ than discouraged.
 | `tacenta-core/braid/src/lib.rs::Braid::receive` | `(u64, Option<Output>, Braid)`, adopted by `commit` |
 | `tacenta-core/braid/src/lib.rs::Braid::step_receive` | the receive logic proper: `&self`, takes the current `State` by value and returns the next one; `receive` wraps it and hands back the candidate `Braid`. Registered separately because the gate matches verbs anywhere in a name. |
 | `tacenta-core/braid/src/lib.rs::Braid::commit` | the adopting half |
+| `tacenta-core/src/sessions/lifecycle.rs::PrekeyStore::signatures_verify` | a `bool`: whether every stored signature verifies under `identity_public` (session-persistence.md, Prekey store, Semantic rules). Registered here rather than among the decoders so the gate enforces the `&self` it is safe because of: the decoders heading promises no shape, so a change to `&mut self` would pass there unnoticed. Reached only through `from_bytes`, and only after the structural rules have passed, so the verification work is bounded by a store the decoder already accepted rather than by whatever an attacker wrote -- an ordering the tests pin, because it is an argument and not an accident. |
 
 ### Orchestration, transactional by construction
 

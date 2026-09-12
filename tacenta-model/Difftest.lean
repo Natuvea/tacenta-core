@@ -131,11 +131,12 @@ def slice (bs : Bytes) (at_ len : Nat) : Bytes := (bs.drop at_).take len
 
 /-! ## Refusals -/
 
-/-- The name a refusal is given, as `Vectors.lean` names it: the two
-    `session-persistence.md`, Rejection, states. -/
+/-- The name a refusal is given, as `Vectors.lean` names it: the
+    `session-persistence.md`, Rejection, states this model can reach. -/
 def refusalName : Model.PersistedState.Refusal → String
   | .wrongVersion => "wrong-version"
   | .shortOrMalformed => "short-or-malformed"
+  | .inconsistent => "inconsistent"
 
 /-! ## The operations, as the vectors encode them -/
 

@@ -56,7 +56,7 @@ and `Model/Polynomial.lean` (`interp`).
 
 Source page: `tacenta-spec/protocol/session-persistence.md`.
 `Model/PersistedState.lean` is imported by the vector generator, the
-differential harness and the axiom audit. Three of its four states are the
+differential harness and the axiom audit. Three of its six states are the
 ones the operations run on, with no field added: `Model/State.lean`'s,
 `Model/SparseRatchet.lean`'s and `Model/Triple.lean`'s. The Braid's is its
 own, because the stored format's erasure coders are `Model/Erasure.lean`'s
@@ -73,7 +73,11 @@ because two of its fields have no model at all (below).
 | Semantic rules of the leaf formats, Triple ratchet state | `TripleState.invariant`, `TripleState.rolesAgree`, `TripleState.startedAsSender` | `Model/PersistedState.lean` |
 | Braid (the tag table, the epoch, the authenticator, the length-prefixed fields) | `BraidState.toBytes`, `BraidState.ofBytes`, `FieldKind`, `kindsOfNat`/`fieldKinds`, `fieldOk`, `readFields`, `BraidState.largestEpoch` | `Model/PersistedState.lean` |
 | Semantic rules of the leaf formats, Braid | `BraidState.invariant`, `BraidState.fieldsOk` (every rule that applies; the `key_pair` content clause of tags 1 to 4 is scoped to a reader with the KEM layout, and this model is outside that scope, below) | `Model/PersistedState.lean` |
-| Rejection: "wrong version" and "short or malformed" | `Refusal` | `Model/PersistedState.lean` |
+| Prekey store (all four versions read, v4 written; the one-time, one-time-KEM and retired sub-formats; the replay record) | `PrekeyStoreState.toBytes`, `PrekeyStoreState.ofBytes`, `readSeen`, `readPrev`, `readKemOneTimes` | `Model/PersistedState.lean` |
+| Prekey store, Semantic rules | `PrekeyStoreState.invariant`, `ids`, `recordOk`, `kemPairsSized` (five of the page's six rules, and of `kem_pair`'s four clauses only the length; the signature rule is not stated -- the model has no signatures) | `Model/PersistedState.lean` |
+| Session (the layout, both halves length-prefixed, the two optional fields) | `SessionState.toBytes`, `SessionState.ofBytes`, `readOptField`, `readPending` | `Model/PersistedState.lean` |
+| Session, Semantic rules | `SessionState.invariant`, `epochsFollow`, `adOriented`, `rolesAgree`, `notBothRoles`, `optionalShapes`, `keysCanonical` (seven of the page's eight; the first, that `ratchet_private`'s public half is the classical ratchet's `dhs_pub`, is not stated -- the model does not compute the curve) | `Model/PersistedState.lean` |
+| Rejection: "wrong version", "short or malformed", and the session's "inconsistent" | `Refusal` | `Model/PersistedState.lean` |
 | Principles, Canonical and length-prefixed; Validated, not only parsed | `RatchetState.ofBytes_toBytes`, `SparseState.ofBytes_toBytes`, `TripleState.ofBytes_toBytes`, `BraidState.ofBytes_toBytes` (a state that keeps the rules and fits its fields reads back from its bytes); `RatchetState.ofBytes_ok`, `SparseState.ofBytes_ok`, `TripleState.ofBytes_ok`, `BraidState.ofBytes_ok` (a state a reader accepts keeps the rules, fits its fields, and is written as the bytes it was read from) | `Model/PersistedState.lean` |
 
 One point the page leaves to the implementation, so no vector depends on it.

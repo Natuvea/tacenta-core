@@ -36,8 +36,11 @@ Two kinds live here:
     `Model.Erasure`), and the classical ratchet's, the sparse ratchet's, the
     Triple Ratchet's and the ML-KEM Braid's states (`ratchet-state.json`,
     `sparse-ratchet-state.json`, `triple-ratchet-state.json`,
-    `braid-state.json`, from `Model.PersistedState`), whose refused vectors
-    also name the refusal. Checked by `runners/rust/tests/persistence.rs`.
+    `braid-state.json`), and the prekey store's and the session's
+    (`prekey-store-state.json`, `session-state.json`, whose accepted vectors
+    carry bytes `tacenta-core` produced, because the model has neither
+    signatures nor the curve; all from `Model.PersistedState`), whose refused
+    vectors also name the refusal. Checked by `runners/rust/tests/persistence.rs`.
     Layout: Vector layouts, below.
   - `vectors/aead/`: the authenticated encryption, both directions, with its
     refusals, checked by `runners/rust/tests/aead.rs`. Generated like the
