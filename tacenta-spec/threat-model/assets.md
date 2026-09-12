@@ -135,9 +135,29 @@ skipped-key store.
 
 ### AS-12: state integrity against unauthenticated input
 
-That input nobody authenticated changes nothing durable. This covers a session's
-counters, chains and stored keys, the Braid's state, the prekey store's
-one-time prekeys, and the replay record (tacenta-core's
-`AUTHENTICATION-BOUNDARY.md` states the rule for that implementation). Loss
-lets anyone who can send bytes desynchronise a session, consume stored keys,
-drain one-time prekeys, or fill the replay record.
+That input nobody authenticated changes nothing durable. What the protocol
+requires of it is REQ-AUTH-13: a message that is refused, or that does not
+authenticate, leaves every one of the following as it was.
+
+- **In the session:** the classical ratchet's counters `Ns`, `Nr` and `PN`,
+  its root key and chain keys, its ratchet key pair and the peer ratchet key
+  it holds, and whether it has taken a Diffie-Hellman step; the skipped-key
+  store, both the keys in it and the evictions and expiry that take keys out
+  of it; the sparse ratchet's epoch, its chains and its stored keys; and the
+  Braid's state, including its epoch, its authenticator's two keys, and any
+  transition it would take.
+- **In the prekey store:** the one-time curve and KEM prekeys, which a
+  handshake consumes only once the initial message naming it authenticates;
+  the last-resort replay record; the prekeys a rotation retired; and the
+  identifier counter `next_id`.
+
+**Deriving is not committing.** A receive must derive a key before it can
+check an authenticator at all, so what is required is that nothing durable
+moves until the authenticator verifies, not that nothing is computed. The
+rules that carry this are stated in triple-ratchet.md (Sending and receiving),
+session-establishment.md (Receiving the initial message), key-deletion.md and
+error-handling.md: a receive runs on a copy and the copy is adopted only after
+the message authenticates, and a refusal changes nothing.
+
+Loss lets anyone who can send bytes desynchronise a session, consume stored
+keys, drain one-time prekeys, or fill the replay record.

@@ -82,6 +82,37 @@ is SemVer against the specified protocol (not the implementation).
   manifest and the vectors README say so; the field's length, which every
   implementation applies, stays pinned by `key-pair-wrong-length`. Register
   item G5-02 (the independent reader's `GAPS-5.md`).
+- `decisions/ADR-0006-specification-is-normative.md`, new point 7, with the
+  amendment recorded and dated as the `threat-model/` amendment was: a
+  normative page may cite non-normative evidence for a status it states -- a
+  Lean theorem, a test, a vector, `tacenta-proofs/CLAIMS.md` or
+  `LIMITATIONS.md` -- and such a citation is not part of the protocol's
+  definition. What a page *requires* must be readable from the specification
+  alone, and where the content is a property of an implementation the page
+  states what the protocol requires and cites the implementation's own record
+  as evidence. The citations stay: ADR-0008's practice 8 builds traceability
+  on them. `README.md`'s "Normative status" carries the same two points.
+  Register item G5-07.
+- `threat-model/assets.md`, AS-12, and `threat-model/assumptions.md`, ASM-05:
+  the two statements that took their *content* from implementation files now
+  carry it themselves (G5-07).
+  - AS-12 named what it covers and pointed at `tacenta-core`'s
+    `AUTHENTICATION-BOUNDARY.md` for "the rule for that implementation", which
+    is a registry of function names. It now states what the protocol requires,
+    REQ-AUTH-13's durable state, enumerated for the session and for the prekey
+    store, and says that deriving is not committing: the requirement is that
+    nothing durable moves before the authenticator verifies, not that nothing
+    is computed. No function name is normative.
+  - ASM-05 said the derivation labels are "prefix-free apart from two
+    registered pairs (`tacenta-core/LABELS.md`)", leaving which strings are
+    labels, and which pairs are registered, to that file. It now names both
+    pairs with their values -- `COMBINE_INFO` a proper prefix of `SPLIT_INFO`,
+    and `Tacenta SPQRChain` of `Tacenta SPQRChain Start` -- over CONSTANTS.md's
+    "Derivation labels", which already carries every value, and says why
+    neither pair is reachable as a collision.
+  - Both keep their evidence citations. The registry and
+    `tooling/check-labels.sh` are cited as evidence for `tacenta-core`, which
+    is what point 7 allows.
 - `protocol/session-persistence.md`, `protocol/session-establishment.md`,
   `protocol/message-format.md`: every curve public key a stored state holds
   must be canonical, and each reader refuses a state that holds one spelled

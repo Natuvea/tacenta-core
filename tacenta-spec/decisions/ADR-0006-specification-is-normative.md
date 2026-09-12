@@ -10,6 +10,14 @@ security requirement came to be stated against the threat model's assets,
 adversaries and assumptions, so a requirement cannot be normative unless those
 are too.
 
+Amended 2026-09-12: a normative page may cite non-normative evidence for a
+status it states, and such a citation is not part of the protocol's definition
+(point 7). What a page *requires* must still be readable from the
+specification alone. The independent reader's fifth pass found every
+requirement's status citing `CLAIMS.md`, `LIMITATIONS.md`, a Lean theorem or a
+`tacenta-core` test, none of them in the normative tree, and two statements
+taking their *content* from implementation files (`GAPS-5.md`, G5-07).
+
 ## Context
 
 `tacenta-spec/README.md` has always called the specification the source that
@@ -80,6 +88,27 @@ implementations, and what it promises ends up being whatever that code does.
    Coverage is stated: until the reader covers a page, that page's
    sufficiency has not been shown, and the reader's README says which pages
    it covers.
+
+7. **Evidence may be cited; content may not.** A normative page may cite
+   non-normative evidence for a status it states: a Lean theorem, a test, a
+   vector, `tacenta-proofs/CLAIMS.md` or `tacenta-proofs/LIMITATIONS.md`. Such
+   a citation records where the evidence for a claim about this project's work
+   is. It is not part of the protocol's definition, and nothing is true of the
+   protocol because a cited theorem or test exists. Removing a citation would
+   lose the traceability ADR-0008's practice 8 is built on; the citations stay.
+   - **What a page requires is readable from the specification alone.** A
+     rule, a list, or a set that a requirement is stated over belongs in these
+     pages. A page that takes its *content* from a file outside them makes
+     that implementation normative through the back door, which point 1
+     denies, and leaves a second implementer unable to tell what is required.
+   - **Where the content is a property of an implementation** rather than of
+     the protocol -- which functions of some codebase consume unauthenticated
+     input, say -- the page states what the protocol requires, and cites the
+     implementation's own record as evidence that this implementation meets
+     it.
+   - The distinction is the one point 1 already draws. A citation answers
+     "how do we know this holds here"; content answers "what must hold". Only
+     the second defines the protocol.
 
 ## Consequences
 
