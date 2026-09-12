@@ -38,6 +38,10 @@ echo "fuzz-smoke: using $toolchain"
 # Every file under fuzz_targets/ is a target: enumerated rather than listed,
 # so a target added to the crate cannot be left out of the smoke run by
 # forgetting to name it here (the triple_receive target was, for one commit).
+# Smoke runs replay a copy so fresh coverage does not dirty the checkout.
+# Findings still go to fuzz/artifacts, where cargo-fuzz keeps reproducers.
+smoke_corpus="$(mktemp -d "${TMPDIR:-/tmp}/tacenta-fuzz-smoke.XXXXXX")"
+trap 'rm -rf "$smoke_corpus"' EXIT
 count=0
 for target_file in fuzz/fuzz_targets/*.rs; do
   target="$(basename "$target_file" .rs)"
@@ -51,7 +55,9 @@ for target_file in fuzz/fuzz_targets/*.rs; do
   if [ "$target" = "persisted_state" ]; then max_len=32768; fi
   # `-runs` as well as `-max_total_time`: whichever comes first. A slow target
   # on a loaded runner should stop on time, and a fast one should not spin.
-  cargo "+$toolchain" fuzz run "$target" -- \
+  mkdir -p "$smoke_corpus/$target"
+  cp -R "fuzz/corpus/$target/." "$smoke_corpus/$target/"
+  cargo "+$toolchain" fuzz run "$target" "$smoke_corpus/$target" -- \
     -runs=20000 \
     -max_len="$max_len" \
     -max_total_time="$seconds" \
@@ -61,7 +67,10 @@ done
 # A finding writes an artifact and a non-zero exit above, so reaching here means
 # none did. Checked anyway: a target that fails to *start* could otherwise pass
 # without a finding.
-found="$(find fuzz/artifacts -type f 2>/dev/null | head -5)"
+found=""
+if [ -d fuzz/artifacts ]; then
+  found="$(find fuzz/artifacts -type f -print -quit)"
+fi
 if [ -n "$found" ]; then
   echo "ERROR: fuzz artifacts present:" >&2
   echo "$found" >&2

@@ -519,13 +519,13 @@ AEAD, the erasure coders' persisted formats, the classical ratchet's, the
 sparse ratchet's, the Triple Ratchet's and the Braid's persisted states, and
 malformed input all have vectors; see the directory list above and
 `conformance-manifest.md` for exactly what each covers and what it excludes.
-The session's and the prekey store's persisted formats have none, because the
-model states neither.
+The session's and the prekey store's persisted formats have vectors too; the
+manifest says which of their rules those vectors reach and which they do not.
 
 Files with refusals mark them `result: invalid`. The one exception is
 `erasure-decode.json`, whose invalid vectors are decoders that hold no value
-rather than refusals (Vector layouts, above). In the two ratchet-state files
-an invalid vector also names its `refusal`. A decoder's accepted vector
+rather than refusals (Vector layouts, above). In every persistence file but the two
+erasure coders', an invalid vector also names its `refusal`. A decoder's accepted vector
 may carry `fields`, the named values its input decodes to, in place of
 `output` (`schema/vector.schema.json`).
 
