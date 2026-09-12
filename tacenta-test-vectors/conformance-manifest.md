@@ -249,10 +249,13 @@ again. The refinement theorems are stated one step below the ceiling
 preconditions), as a premise kept from before the models stopped. The persistence
 vectors drive the two ratchets' counters to these values and past them, and
 `tacenta-ratchet` and `tacenta-spqr` are checked on them. The Braid's
-reservation is tested by its crate (`the_epoch_ceiling_is_out_of_reach`) and
+reservation is tested by its crate (`the_epoch_ceiling_is_out_of_reach`),
 stated and proved of its model (`Model.Braid.receive_epoch_lt`,
-`receive_advance_lt`, `receive_output_epoch_lt`), and no vector here pins it:
-no vector file holds a Braid state or drives the Braid's state machine.
+`receive_advance_lt`, `receive_output_epoch_lt`), and pinned by
+`braid-state.json`, as the reserved-ceilings section above sets out: the reader
+refusing the reserved epoch, and transition (13) stepping below the ceiling and
+failing at it. That file did not exist when this paragraph was first written,
+and it said then that no vector could pin the Braid's reservation.
 The ratchets' own tests (`the_clock_stops_one_below_its_ceiling`,
 `the_epoch_ceiling_is_unreachable`) pin theirs too.
 
