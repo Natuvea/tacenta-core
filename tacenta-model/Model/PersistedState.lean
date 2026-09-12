@@ -2429,6 +2429,165 @@ theorem ofBytes_toBytes (s : Session) (hinv : invariant s = true) (hfit : Fits s
       hrec, hinv, if_true]
     simp
 
+
+/-! ### What the reader accepts is what is written -/
+
+theorem readOptField_ok {bs rest : Bytes} {o : Option Bytes}
+    (h : readOptField bs = .ok (o, rest)) :
+    bs = optFieldBytes o ++ rest ∧ ∀ b, o = some b → b.length < 2 ^ 32 := by
+  unfold readOptField at h
+  obtain ⟨present, r, h1, hA⟩ := andThen_eq_ok h
+  have e1 := readTag_ok h1
+  subst e1
+  split at hA
+  · rename_i hp
+    subst hp
+    obtain ⟨b, r1, h2, hB⟩ := andThen_eq_ok hA
+    obtain ⟨hb, e2⟩ := TripleState.readLenPrefixed_ok h2
+    simp only [Except.ok.injEq, Prod.mk.injEq] at hB
+    obtain ⟨rfl, rfl⟩ := hB
+    subst e2
+    refine ⟨by simp [optFieldBytes], ?_⟩
+    intro b' hb'
+    obtain rfl : b' = b := by simpa using hb'.symm
+    exact hb
+  · rename_i hp
+    simp only [Except.ok.injEq, Prod.mk.injEq] at hA
+    obtain ⟨rfl, rfl⟩ := hA
+    simp only [Bool.not_eq_true] at hp
+    subst hp
+    exact ⟨by simp [optFieldBytes], by simp⟩
+
+theorem readPending_ok {b : Bytes} {p : PendingInitial} (h : readPending b = .ok p) :
+    pendingBytes p = b ∧ p.ephemeralPublic.length = 32
+      ∧ p.kemCiphertext.length < 2 ^ 32 ∧ p.signedPrekeyId < 2 ^ 32
+      ∧ p.oneTimePrekeyId < 2 ^ 32 ∧ p.kemPrekeyId < 2 ^ 32 := by
+  unfold readPending at h
+  obtain ⟨eph, r0, h0, hA⟩ := andThen_eq_ok h
+  obtain ⟨ct, r1, h1, hB⟩ := andThen_eq_ok hA
+  obtain ⟨spId, r2, h2, hC⟩ := andThen_eq_ok hB
+  obtain ⟨otId, r3, h3, hD⟩ := andThen_eq_ok hC
+  obtain ⟨kemId, r4, h4, hE⟩ := andThen_eq_ok hD
+  obtain ⟨he, e0⟩ := takeN_ok h0
+  obtain ⟨hct, e1⟩ := TripleState.readLenPrefixed_ok h1
+  obtain ⟨hsp, e2⟩ := readInt_ok h2
+  obtain ⟨hot, e3⟩ := readInt_ok h3
+  obtain ⟨hkem, e4⟩ := readInt_ok h4
+  split at hE
+  · rename_i hempty
+    simp only [Except.ok.injEq] at hE
+    subst hE
+    have hr4 : r4 = [] := by simpa using hempty
+    subst hr4; subst e4; subst e3; subst e2; subst e1; subst e0
+    exact ⟨by simp [pendingBytes, List.append_assoc], he, by simpa using hct,
+      by simpa using hsp, by simpa using hot, by simpa using hkem⟩
+  · simp at hE
+
+/-- The optional `pending_initial` field, read and written back.
+
+    Factored out because `ofBytes` needs it twice -- once for the bytes and
+    once for the bounds -- and doing it inline twice made two fragile proofs
+    where one will do. -/
+theorem readPendingOpt_ok {pendB : Option Bytes} {pi : Option PendingInitial}
+    (h : (match pendB with
+          | none => (Except.ok none : Except Refusal (Option PendingInitial))
+          | some pb => (readPending pb).map some) = .ok pi) :
+    Option.map pendingBytes pi = pendB ∧
+      ∀ p, pi = some p →
+        p.ephemeralPublic.length = 32 ∧ p.kemCiphertext.length < 2 ^ 32
+          ∧ p.signedPrekeyId < 2 ^ 32 ∧ p.oneTimePrekeyId < 2 ^ 32
+          ∧ p.kemPrekeyId < 2 ^ 32 := by
+  cases hpb : pendB with
+  | none =>
+    rw [hpb] at h
+    simp only [Except.ok.injEq] at h
+    subst h
+    simp
+  | some pb =>
+    rw [hpb] at h
+    simp only [Except.map] at h
+    cases hq : readPending pb with
+    | error e => rw [hq] at h; simp at h
+    | ok q =>
+      rw [hq] at h
+      simp only [Except.ok.injEq] at h
+      subst h
+      obtain ⟨hqb, a1, a2, a3, a4, a5⟩ := readPending_ok hq
+      refine ⟨by simp [hqb], ?_⟩
+      intro p hp
+      obtain rfl : p = q := by simpa using hp.symm
+      exact ⟨a1, a2, a3, a4, a5⟩
+
+/-- **What the reader accepts keeps the rules, fits its fields, and is written
+    back as the same bytes.** The session has one version, so unlike the prekey
+    store it carries the canonicality half that the four leaf formats do: this
+    is the theorem behind the page's re-encode check. -/
+theorem ofBytes_ok {bs : Bytes} {s : Session} (h : ofBytes bs = .ok s) :
+    invariant s = true ∧ Fits s ∧ toBytes s = bs := by
+  match bs, h with
+  | [], h => simp [ofBytes] at h
+  | v :: body, h =>
+    simp only [ofBytes] at h
+    split at h
+    · cases h
+    · rename_i hv
+      simp only [ne_eq, Decidable.not_not] at hv
+      subst hv
+      obtain ⟨tsb, r0, h0, h⟩ := andThen_eq_ok h
+      obtain ⟨brb, r1, h1, h⟩ := andThen_eq_ok h
+      obtain ⟨rp, r2, h2, h⟩ := andThen_eq_ok h
+      obtain ⟨ad, r3, h3, h⟩ := andThen_eq_ok h
+      obtain ⟨ourPub, r4, h4, h⟩ := andThen_eq_ok h
+      obtain ⟨peerPub, r5, h5, h⟩ := andThen_eq_ok h
+      obtain ⟨pendB, r6, h6, h⟩ := andThen_eq_ok h
+      obtain ⟨estab, r7, h7, h⟩ := andThen_eq_ok h
+      obtain ⟨htsl, e0⟩ := TripleState.readLenPrefixed_ok h0
+      obtain ⟨hbrl, e1⟩ := TripleState.readLenPrefixed_ok h1
+      obtain ⟨hrp, e2⟩ := takeN_ok h2
+      obtain ⟨hadl, e3⟩ := TripleState.readLenPrefixed_ok h3
+      obtain ⟨hop, e4⟩ := takeN_ok h4
+      obtain ⟨hpp, e5⟩ := takeN_ok h5
+      obtain ⟨e6, hpendl⟩ := readOptField_ok h6
+      obtain ⟨e7, hestl⟩ := readOptField_ok h7
+      -- `next` rather than `rename_i`: at this depth the inaccessible names
+      -- are not the ones a positional `rename_i` would pick up.
+      split at h
+      next => simp at h
+      next tr htr =>
+        split at h
+        next => simp at h
+        next br hbr =>
+          split at h
+          next => simp at h
+          next pi hpi =>
+            split at h
+            next hempty =>
+              split at h
+              next hinv =>
+                simp only [Except.ok.injEq] at h
+                subst h
+                obtain ⟨htinv, htfit, htb⟩ := TripleState.ofBytes_ok htr
+                obtain ⟨hbinv, hbfit, hbb⟩ := BraidState.ofBytes_ok hbr
+                obtain ⟨hpbytes, hpbounds⟩ := readPendingOpt_ok hpi
+                have hr7 : r7 = [] := by simpa using hempty
+                have hpend : ∀ p, pi = some p →
+                    p.ephemeralPublic.length = 32 ∧ p.kemCiphertext.length < 2 ^ 32
+                      ∧ p.signedPrekeyId < 2 ^ 32 ∧ p.oneTimePrekeyId < 2 ^ 32
+                      ∧ p.kemPrekeyId < 2 ^ 32 ∧ (pendingBytes p).length < 2 ^ 32 := by
+                  intro p hp
+                  obtain ⟨a1, a2, a3, a4, a5⟩ := hpbounds p hp
+                  refine ⟨a1, a2, a3, a4, a5, ?_⟩
+                  exact hpendl (pendingBytes p) (by rw [← hpbytes, hp]; simp)
+                refine ⟨hinv, ⟨htfit, hbfit, by rw [htb]; exact htsl,
+                  by rw [hbb]; exact hbrl, hrp, hadl, hop, hpp, hpend, hestl⟩, ?_⟩
+                subst hr7
+                simp only [List.append_nil] at e7
+                simp only [toBytes, stateVersion, htb, hbb, hpbytes]
+                rw [e0, e1, e2, e3, e4, e5, e6, e7]
+                simp [List.append_assoc]
+              next => simp at h
+            next => simp at h
+
 end SessionState
 
 /-! ## Build-time checks
