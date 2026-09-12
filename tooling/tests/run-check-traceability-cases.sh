@@ -14,6 +14,15 @@ make_case() {
   mkdir -p "$dst/tacenta-spec"
   cp -R "$root/tacenta-spec/security-properties" "$dst/tacenta-spec/"
   cp -R "$root/tacenta-spec/threat-model" "$dst/tacenta-spec/"
+  mkdir -p "$dst/tacenta-core/src/sessions" "$dst/tacenta-core/src/primitives"
+  mkdir -p "$dst/tacenta-proofs/Proofs" "$dst/tacenta-proofs/translation/Translation"
+  mkdir -p "$dst/tacenta-test-vectors/vectors/primitives"
+  cp "$root/tacenta-core/src/sessions/mod.rs" "$dst/tacenta-core/src/sessions/mod.rs"
+  cp "$root/tacenta-core/src/primitives/xeddsa.rs" "$dst/tacenta-core/src/primitives/xeddsa.rs"
+  cp "$root/tacenta-proofs/Proofs/SessionEstablishment.lean" "$dst/tacenta-proofs/Proofs/SessionEstablishment.lean"
+  cp "$root/tacenta-proofs/translation/Translation/SessionT3.lean" "$dst/tacenta-proofs/translation/Translation/SessionT3.lean"
+  cp "$root/tacenta-proofs/CLAIMS.md" "$dst/tacenta-proofs/CLAIMS.md"
+  cp "$root/tacenta-test-vectors/vectors/primitives/xeddsa.json" "$dst/tacenta-test-vectors/vectors/primitives/xeddsa.json"
 }
 
 expect_fail() {
@@ -56,4 +65,38 @@ path.write_text(text)
 PY
 expect_fail "unknown-assumption" "requirements cite unknown assumption ASM-99"
 
-echo "check-traceability-cases: pass case and 2 refusal cases gave the expected result"
+make_case "$work/missing-evidence-index"
+rm "$work/missing-evidence-index/tacenta-spec/security-properties/evidence-index.json"
+expect_fail "missing-evidence-index" "missing evidence index"
+
+make_case "$work/bad-theorem-reference"
+python3 - "$work/bad-theorem-reference/tacenta-spec/security-properties/evidence-index.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+data["requirements"][0]["model_properties"][0]["theorem"] = "associatedData_missing"
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+expect_fail "bad-theorem-reference" "theorem associatedData_missing not found"
+
+make_case "$work/bad-vector-case"
+python3 - "$work/bad-vector-case/tacenta-spec/security-properties/evidence-index.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+data["requirements"][1]["vectors"][0]["case_ids"][0] = "missing-xeddsa-case"
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+expect_fail "bad-vector-case" "vector case missing-xeddsa-case not found"
+
+make_case "$work/unknown-missing-evidence-reference"
+python3 - "$work/unknown-missing-evidence-reference/tacenta-spec/security-properties/evidence-index.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+data["requirements"][2]["missing_evidence"][0]["references"] = ["LIM-99"]
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+expect_fail "unknown-missing-evidence-reference" "missing_evidence cites unknown reference LIM-99"
+
+echo "check-traceability-cases: pass case and 6 refusal cases gave the expected result"
