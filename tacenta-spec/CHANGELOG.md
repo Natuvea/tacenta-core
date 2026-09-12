@@ -62,6 +62,26 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- `protocol/session-persistence.md`, Braid, and Semantic rules of the leaf
+  formats, Braid: the `key_pair` content clause of tags 1 to 4 is **scoped**
+  to an implementation that knows the KEM key pair's layout. Such an
+  implementation checks that the `header` and `ek_vector` a stored `key_pair`
+  holds pass the KEM split's validation, as before; one without the layout
+  checks the field's length, accepts it, and conforms. Where those two values
+  sit inside the field's 11,872 bytes is the KEM library's serialisation,
+  which the page delegates rather than defines (ADR-0006, point 5), so the
+  rule as written could not be implemented from the specification at all, and
+  a reader without that library read as deficient rather than conforming. The
+  Principles' "Validated, not only parsed" and the leaf formats' preamble each
+  name the one scoped rule, so every list of semantic rules stays complete and
+  ADR-0007's "the leaf readers enforce exactly their stated rules" still
+  holds: the rule as stated is the conditional one. Nothing changes for
+  `tacenta-braid`, which has the layout and checks the content. No vector can
+  pin the clause -- a state that fails it is refused by a reader inside the
+  scope and accepted by one outside, both conforming -- and the conformance
+  manifest and the vectors README say so; the field's length, which every
+  implementation applies, stays pinned by `key-pair-wrong-length`. Register
+  item G5-02 (the independent reader's `GAPS-5.md`).
 - `protocol/session-persistence.md`, `protocol/session-establishment.md`,
   `protocol/message-format.md`: every curve public key a stored state holds
   must be canonical, and each reader refuses a state that holds one spelled

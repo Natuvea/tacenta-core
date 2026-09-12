@@ -57,7 +57,11 @@ interoperating with anyone.
   store under each format's "Semantic rules", and for the leaf formats under
   "Semantic rules of the leaf formats". Each list is complete: a reader
   refuses a state that breaks a listed rule, and no other state, on
-  semantic grounds. The rules are checked as an inductive
+  semantic grounds. One rule is **scoped**, and says so where it is stated:
+  the Braid's `key_pair` content rule applies to an implementation that knows
+  the KEM key pair's layout, which this page delegates rather than defines
+  (Braid). A reader outside its scope checks that field's length and accepts
+  it, and is conforming in doing so. The rules are checked as an inductive
   invariant: the tests and the fuzz
   targets in `tacenta-core` assert the predicate after every operation, not
   only at import.
@@ -207,9 +211,11 @@ decoder always sees exactly the slice it produced and nothing else:
   incremental key pair and encapsulation state: each is its underlying bytes,
   with no version byte and no layout this page defines, and each reader
   refuses any other length. A `key_pair` holds, among the rest, the `header`
-  and `ek_vector` its party sends (mlkem-braid.md, The KEM split). The reader
-  checks those two, as the Braid's semantic rules below state, and nothing
-  else in `key_pair`. It checks nothing in `encaps` beyond its length: an
+  and `ek_vector` its party sends (mlkem-braid.md, The KEM split). A reader
+  that knows the key pair's layout checks those two, as the Braid's semantic
+  rules below state, and nothing else in `key_pair`; a reader that does not
+  checks the field's length and accepts it. That scope is part of the rule and
+  is stated with it. It checks nothing in `encaps` beyond its length: an
   encapsulation state is derived from the encapsulation randomness and holds
   no hash, and no copy of another value the state carries, to check it
   against.
@@ -228,8 +234,11 @@ implementation is this:
   serialisation can carry `key_pair` and `encaps` only as opaque,
   length-checked bytes: it cannot decapsulate with the one or finish the
   encapsulation the other holds, and it cannot find in `key_pair` the header
-  and `ek_vector` that this format's semantic rules check. So it cannot
-  import, and go on from, a Braid in any state that carries one of them:
+  and `ek_vector` the semantic rule below checks. Not finding them is not a
+  failure to conform: that rule is scoped to a reader that knows the layout,
+  and a reader without it conforms by checking the field's length. What such
+  an implementation cannot do is go on -- it cannot import, and carry forward,
+  a Braid in any state that carries one of them:
   - `key_pair`: tags 1 (`KeysSampled`), 2 (`HeaderSent`), 3 (`Ct1Received`)
     and 4 (`EkSentCt1Received`);
   - `encaps`: tags 7 (`Ct1Sampled`), 8 (`EkReceivedCt1Sampled`) and 9
@@ -623,7 +632,10 @@ key first.
 Each leaf format's reader, having read every field, refuses as malformed a
 state its crate's `invariant` is false of. The rules are these, and they are
 all of them: a reader refuses a state that breaks one, and accepts every state
-that keeps them all.
+that keeps them all. One of them, the Braid's `key_pair` content rule, is
+scoped to a reader that knows the KEM key pair's layout, and says so where it
+is stated below; a reader outside that scope accepts a state that breaks it,
+and conforms (Principles, Validated, not only parsed).
 
 The rules are not a description of the states the operations produce. A state
 can keep every rule and still be one no operation produces, and the reader
@@ -661,7 +673,14 @@ Semantic rules, Stored curve public keys).
   KEM split): `H(ek_vector || rho)` equals the header's `H(ek)`, which is FIPS
   203 section 7.3's hash check made on the incremental key pair, whose
   decapsulation uses that `H(ek)`; and `ek_vector` passes section 7.2's
-  modulus check. Every erasure coder
+  modulus check. **That clause is scoped to an implementation that knows the
+  key pair's layout.** Where those two values sit inside the field's 11,872
+  bytes is the KEM library's own serialisation, which this page delegates
+  rather than defines (Braid; ADR-0006, point 5), so an implementation without
+  that layout cannot apply the clause at all. Such an implementation checks the
+  field's length, accepts it, and conforms. It is separately unable to carry a
+  state in these four tags forward, for the reason the Braid section gives, so
+  the scope costs it nothing it had. Every erasure coder
   satisfies its own rules below and is sized for the value it carries: the
   `hdr` coders for the header and a 32-byte MAC (96 bytes), the `ek` coders for
   1,536 bytes, the `ct1` coders for 1,408, and the `ct2` coders for the second
