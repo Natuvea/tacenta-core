@@ -110,9 +110,24 @@ In particular:
   key is. The post-quantum key is the salt and the classical key the input
   keying material (triple-ratchet.md).
 - **The PQXDH `KDF`:** `SK` is secret if any one agreement output or `SS` is.
-- **Labels:** the derivation labels are distinct, and prefix-free apart from
-  two registered pairs (`tacenta-core/LABELS.md`, checked by
-  `tooling/check-labels.sh`).
+- **Labels:** the derivation labels are the `info` strings and HMAC keys
+  CONSTANTS.md gives under "Derivation labels", which carries every value.
+  They are distinct, and prefix-free apart from exactly two pairs, registered
+  here rather than left to a reader to notice:
+  - `COMBINE_INFO`, `Tacenta_CURVE25519_SHA-256_MLKEM1024`, is a proper
+    prefix of `SPLIT_INFO`, which is that string followed by `:Split`;
+  - the sparse ratchet's chain-step `info`, `Tacenta SPQRChain`, is a proper
+    prefix of its initialisation `info`, `Tacenta SPQRChain Start`, because
+    that ratchet joins `PROTOCOL_INFO` to its suffix with no separator.
+
+  Neither pair is reachable as a collision: each label is passed to HKDF as
+  `info` in full, as a fixed constant, and is never concatenated with anything
+  an attacker influences. Prefix-freedom would have to be re-established for a
+  label built at runtime, or placed next to variable-length data. A new label
+  is prefix-free against all of these and against every other new one.
+  (`tacenta-core/LABELS.md` registers the same two pairs for that
+  implementation, and `tooling/check-labels.sh` holds its source to them:
+  evidence for that implementation, not the definition, ADR-0006 point 7.)
 
 - **Relied on by:** REQ-AUTH-03, REQ-AUTH-06, REQ-AUTH-14, REQ-CONF-01,
   REQ-CONF-04, REQ-CONF-05, REQ-CONF-06, REQ-CONF-07, REQ-FS-01, REQ-FS-05,

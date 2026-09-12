@@ -175,11 +175,13 @@ fn persistence_vectors_pass() {
             "braid-state: {id} is refused"
         );
     }
-    // And no accepted vector carries a key pair. The page's rule for tags 1 to
-    // 4 reaches inside one, and finding the header and `ek_vector` in it needs
-    // the delegated layout, so the model states that rule nowhere and accepts
-    // key pairs `tacenta-braid` refuses. A vector accepting one of those tags
-    // would be a vector the two sides disagree about.
+    // And no accepted vector carries a key pair. The page's content clause for
+    // tags 1 to 4 reaches inside one, and is scoped to a reader that knows the
+    // delegated layout; the model is outside that scope, so it checks the
+    // field's length, accepts it, and conforms, while `tacenta-braid` has the
+    // layout and checks the content too. A state that fails the clause is
+    // therefore refused by one conforming reader and accepted by another, so
+    // no vector can carry one: there is no single verdict to pin.
     for v in braid.vectors.iter().filter(|v| v.result == "valid") {
         if let Some(hex_bytes) = v.inputs.get("bytes") {
             let raw = hex::decode(hex_bytes).expect("braid-state: bytes are hex");

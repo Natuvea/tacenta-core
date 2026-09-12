@@ -72,7 +72,7 @@ because two of its fields have no model at all (below).
 | Triple ratchet state | `TripleState.toBytes`, `TripleState.ofBytes`, `lenPrefixed`/`readLenPrefixed` | `Model/PersistedState.lean` |
 | Semantic rules of the leaf formats, Triple ratchet state | `TripleState.invariant`, `TripleState.rolesAgree`, `TripleState.startedAsSender` | `Model/PersistedState.lean` |
 | Braid (the tag table, the epoch, the authenticator, the length-prefixed fields) | `BraidState.toBytes`, `BraidState.ofBytes`, `FieldKind`, `kindsOfNat`/`fieldKinds`, `fieldOk`, `readFields`, `BraidState.largestEpoch` | `Model/PersistedState.lean` |
-| Semantic rules of the leaf formats, Braid | `BraidState.invariant`, `BraidState.fieldsOk` (every rule but the `key_pair` content check of tags 1 to 4, below) | `Model/PersistedState.lean` |
+| Semantic rules of the leaf formats, Braid | `BraidState.invariant`, `BraidState.fieldsOk` (every rule that applies; the `key_pair` content clause of tags 1 to 4 is scoped to a reader with the KEM layout, and this model is outside that scope, below) | `Model/PersistedState.lean` |
 | Rejection: "wrong version" and "short or malformed" | `Refusal` | `Model/PersistedState.lean` |
 | Principles, Canonical and length-prefixed; Validated, not only parsed | `RatchetState.ofBytes_toBytes`, `SparseState.ofBytes_toBytes`, `TripleState.ofBytes_toBytes`, `BraidState.ofBytes_toBytes` (a state that keeps the rules and fits its fields reads back from its bytes); `RatchetState.ofBytes_ok`, `SparseState.ofBytes_ok`, `TripleState.ofBytes_ok`, `BraidState.ofBytes_ok` (a state a reader accepts keeps the rules, fits its fields, and is written as the bytes it was read from) | `Model/PersistedState.lean` |
 
@@ -114,16 +114,21 @@ the KEM nor the encoder the state holds -- so `BraidState.toCt2Sampled` and
 answer out again. That is the one place a stored Braid can be run, and it is
 enough for the ceiling.
 
-**What the Braid's model does not state, and why.** For tags 1 to 4 the page
-also requires the `header` and `ek_vector` inside the stored `key_pair` to
-pass the KEM split's validation. Where those two sit inside the 11,872 bytes
-is `libcrux-ml-kem`'s layout, which the page does not define and ADR-0006,
-point 5, delegates. `BraidState.fieldOk` therefore checks `key_pair`'s length
-and nothing inside it, so for those four tags the model accepts states
-`tacenta-braid` refuses. No vector generated here accepts one and the
-differential harness offers none; the conformance manifest and `ASSURANCE.md`
-record the gap. `encaps`, by contrast, is checked for its length and nothing
-else by the page itself, so tags 7 to 9 are modelled in full.
+**What the Braid's model does not state, and why it conforms anyway.** For
+tags 1 to 4 the page also requires the `header` and `ek_vector` inside the
+stored `key_pair` to pass the KEM split's validation, and **scopes that clause
+to a reader that knows the key pair's layout.** Where those two sit inside the
+11,872 bytes is `libcrux-ml-kem`'s layout, which the page does not define and
+ADR-0006, point 5, delegates. `BraidState.fieldOk` therefore checks
+`key_pair`'s length and accepts it, which is exactly what the page asks of a
+reader outside the scope, so the model conforms here rather than falling
+short. For those four tags it still accepts stored states `tacenta-braid`,
+which has the layout, refuses. No vector generated here accepts one and the
+differential harness offers none: a state whose key pair fails the clause has
+no single conforming verdict, since a reader inside the scope refuses it and
+one outside accepts it. The conformance manifest and `ASSURANCE.md` record
+this. `encaps`, by contrast, is checked for its length and nothing else by the
+page itself, for every implementation, so tags 7 to 9 are modelled in full.
 
 ## Scope held to the spec
 
