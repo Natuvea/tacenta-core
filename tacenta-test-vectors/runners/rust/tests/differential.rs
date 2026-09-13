@@ -685,6 +685,10 @@ struct Observed {
     session_messages_receive: usize,
     session_messages_noop: usize,
     session_messages_agreement_failed: usize,
+    session_messages_repeated_initial: usize,
+    session_messages_out_of_order: usize,
+    session_crypto_signature_refusal: usize,
+    session_crypto_low_order_refusal: usize,
     session_reads: usize,
     session_reads_accepted: usize,
     session_reads_wrong_version: usize,
@@ -3244,6 +3248,215 @@ fn check_failed_agreement_effects(exe: &Path, seed: u64, seen: &mut Observed) {
     seen.session_messages_noop += 1;
 }
 
+/// Exercise the delivery shapes and crypto verdicts which are deliberately
+/// outside the persisted-state reader's structural domain.  Every stateful
+/// case is still checked against the operation model; the two bad signatures
+/// happen before a session exists, so their concrete error and unchanged RNG
+/// draw are the observable refusal contract.
+fn check_session_delivery_and_crypto_refusals(exe: &Path, seed: u64, seen: &mut Observed) {
+    use tacenta_core::serialization::composite::Composite;
+    use tacenta_core::serialization::{decode_message, encode_message};
+    use tacenta_core::sessions::{
+        Identity, LifecycleError, PreKeyBundle, PublishedBundle, SessionError, establish_initiator,
+        establish_responder,
+    };
+
+    fn copied_bundle(source: &PublishedBundle) -> PublishedBundle {
+        PublishedBundle {
+            bundle: PreKeyBundle {
+                identity_key: source.bundle.identity_key,
+                signed_prekey: source.bundle.signed_prekey,
+                signed_prekey_signature: source.bundle.signed_prekey_signature,
+                kem_prekey: source.bundle.kem_prekey.clone(),
+                kem_prekey_signature: source.bundle.kem_prekey_signature,
+                one_time_prekey: source.bundle.one_time_prekey,
+            },
+            signed_prekey_id: source.signed_prekey_id,
+            one_time_prekey_id: source.one_time_prekey_id,
+            kem_prekey_id: source.kem_prekey_id,
+        }
+    }
+
+    let mut rng = Rng::new(seed ^ 0x0070_3664_656c_6976);
+    let alice_id = Identity::generate(&mut rng);
+    let bob_id = Identity::generate(&mut rng);
+    let mut store = bob_id.create_prekeys(4, &mut rng);
+    let bundle = store.publish();
+
+    // The signature verdict precedes the first session-creation draw.  There
+    // is no durable session to compare here: proving the absence of one means
+    // preserving the caller's random stream as well as returning the exact
+    // public refusal class.
+    let mut bad_signed = copied_bundle(&bundle);
+    bad_signed.bundle.signed_prekey_signature[0] ^= 0x01;
+    let mut untouched = Rng(rng.0);
+    assert!(matches!(
+        establish_initiator(&alice_id, &bad_signed, &mut rng),
+        Err(LifecycleError::Handshake(
+            SessionError::BadSignedPrekeySignature
+        ))
+    ));
+    assert_eq!(
+        rng.next_u64(),
+        untouched.next_u64(),
+        "a bad signed-prekey signature must refuse before randomness"
+    );
+    seen.session_crypto_signature_refusal += 1;
+
+    let mut bad_kem = copied_bundle(&bundle);
+    bad_kem.bundle.kem_prekey_signature[0] ^= 0x01;
+    let mut untouched = Rng(rng.0);
+    assert!(matches!(
+        establish_initiator(&alice_id, &bad_kem, &mut rng),
+        Err(LifecycleError::Handshake(
+            SessionError::BadKemPrekeySignature
+        ))
+    ));
+    assert_eq!(
+        rng.next_u64(),
+        untouched.next_u64(),
+        "a bad KEM-prekey signature must refuse before randomness"
+    );
+    seen.session_crypto_signature_refusal += 1;
+
+    let mut alice = establish_initiator(&alice_id, &bundle, &mut rng)
+        .expect("published bundle should establish an initiator");
+    let initial = alice
+        .encrypt(b"operation-model delivery initial", &mut rng)
+        .expect("pending initiator sends initial");
+    let (mut bob, initial_plaintext) = establish_responder(&bob_id, &mut store, &initial, &mut rng)
+        .expect("matching initial establishes responder");
+    assert_eq!(initial_plaintext, b"operation-model delivery initial");
+
+    // An initiator repeats its initial wrapper until a reply arrives.  The
+    // responder accepts the matching wrapper as an ordinary durable receive.
+    let before = session_bytes(&alice);
+    let repeated = alice
+        .encrypt(b"operation-model repeated initial", &mut rng)
+        .expect("pending initiator repeats initial wrapper");
+    let after = session_bytes(&alice);
+    expect_model_check(
+        exe,
+        format!(
+            "check session send {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.session_messages_send += 1;
+
+    let before = session_bytes(&bob);
+    assert_eq!(
+        bob.decrypt(&repeated, &mut rng)
+            .expect("responder accepts its repeated initial wrapper"),
+        b"operation-model repeated initial"
+    );
+    let after = session_bytes(&bob);
+    expect_model_check(
+        exe,
+        format!(
+            "check session receive {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.session_messages_repeated_initial += 1;
+
+    let reply = bob
+        .encrypt(b"operation-model reply after repeats", &mut rng)
+        .expect("responder replies");
+    assert_eq!(
+        alice
+            .decrypt(&reply, &mut rng)
+            .expect("authenticated reply clears pending wrapper"),
+        b"operation-model reply after repeats"
+    );
+
+    // Receive the newest message first, then recover both stored skipped keys.
+    let first = alice
+        .encrypt(b"operation-model out of order first", &mut rng)
+        .expect("established initiator sends first message");
+    let second = alice
+        .encrypt(b"operation-model out of order second", &mut rng)
+        .expect("established initiator sends second message");
+    let third = alice
+        .encrypt(b"operation-model out of order third", &mut rng)
+        .expect("established initiator sends third message");
+    for (message, expected) in [
+        (&third, b"operation-model out of order third".as_slice()),
+        (&first, b"operation-model out of order first".as_slice()),
+        (&second, b"operation-model out of order second".as_slice()),
+    ] {
+        let before = session_bytes(&bob);
+        assert_eq!(
+            bob.decrypt(message, &mut rng)
+                .expect("out-of-order message decrypts"),
+            expected
+        );
+        let after = session_bytes(&bob);
+        expect_model_check(
+            exe,
+            format!(
+                "check session receive {} {}",
+                hex::encode(&before),
+                hex::encode(&after)
+            ),
+            seed,
+        );
+        seen.session_messages_out_of_order += 1;
+    }
+
+    // A low-order ratchet public is a concrete non-contributory-DH verdict.
+    // It must not consume the real message behind the forged header.
+    let genuine = alice
+        .encrypt(b"operation-model low-order genuine", &mut rng)
+        .expect("established initiator sends a genuine message");
+    let decoded = decode_message(&genuine).expect("generated ratchet message decodes");
+    let forged_header = Composite {
+        dh: [0u8; 32],
+        ..decoded.header
+    };
+    let forged = encode_message(&forged_header, &decoded.ciphertext);
+    let before = session_bytes(&bob);
+    assert!(matches!(
+        bob.decrypt(&forged, &mut rng),
+        Err(LifecycleError::Handshake(
+            SessionError::NonContributoryAgreement
+        ))
+    ));
+    let after = session_bytes(&bob);
+    expect_model_check(
+        exe,
+        format!(
+            "check session no-op {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.session_crypto_low_order_refusal += 1;
+
+    let before = session_bytes(&bob);
+    assert_eq!(
+        bob.decrypt(&genuine, &mut rng)
+            .expect("the low-order refusal leaves the genuine message live"),
+        b"operation-model low-order genuine"
+    );
+    let after = session_bytes(&bob);
+    expect_model_check(
+        exe,
+        format!(
+            "check session receive {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.session_messages_receive += 1;
+}
+
 #[derive(Deserialize)]
 struct SessionVectorFile {
     vectors: Vec<SessionVector>,
@@ -3533,6 +3746,7 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     check_initial_session_establishment(&exe, seed, &mut seen);
     check_established_message_effects(&exe, seed, &mut seen);
     check_failed_agreement_effects(&exe, seed, &mut seen);
+    check_session_delivery_and_crypto_refusals(&exe, seed, &mut seen);
     check_session_imports(&exe, seed, &mut seen);
     check_composed(&exe, seed, sequences, long, &mut seen);
 
@@ -3711,6 +3925,22 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     assert!(
         seen.session_messages_agreement_failed > 0,
         "no terminal agreement failure was compared"
+    );
+    assert!(
+        seen.session_messages_repeated_initial > 0,
+        "no repeated initial-wrapper receive was compared"
+    );
+    assert!(
+        seen.session_messages_out_of_order >= 3,
+        "the out-of-order delivery sequence was not fully compared"
+    );
+    assert!(
+        seen.session_crypto_signature_refusal >= 2,
+        "both prekey-signature refusals were not reached"
+    );
+    assert!(
+        seen.session_crypto_low_order_refusal > 0,
+        "no low-order ratchet-header refusal was compared"
     );
 
     eprintln!(
