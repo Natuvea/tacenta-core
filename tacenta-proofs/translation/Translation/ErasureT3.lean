@@ -246,6 +246,17 @@ theorem mul_refines (a b : Std.U16) :
   rw [hrp, hpp]
   rfl
 
+/-! ## A rejection transition at the translated leaf boundary -/
+
+/-- A full leaf decoder rejects an offered codeword and preserves its complete
+state. This is a direct property of the translated `tacenta-erasure` entry
+point. It does not yet transfer to the Braid translation, whose erasure
+dependency is a separately translated opaque symbol. -/
+theorem decoder_add_chunk_rejects_complete (self : Decoder) (chunk : Chunk)
+    (hcomplete : alloc.vec.Vec.len self.«have» ≥ self.needed) :
+    Decoder.add_chunk self chunk = ok (false, self) := by
+  simp [Decoder.add_chunk, hcomplete]
+
 /-! ## What is pinned
 
 The field arithmetic rests on the kernel's axioms and one more. `bv_decide`

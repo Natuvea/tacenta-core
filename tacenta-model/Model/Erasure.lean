@@ -148,6 +148,17 @@ def Decoder.add (d : Decoder) (cw : Nat × Bytes) : Decoder :=
   else if d.held.any (fun h => h.1 == cw.1) then d
   else { d with held := d.held ++ [cw] }
 
+/-- A completed decoder preserves its state for every later offer. -/
+theorem Decoder.add_eq_self_of_complete (d : Decoder) (cw : Nat × Bytes)
+    (hcomplete : d.needed ≤ d.held.length) : d.add cw = d := by
+  simp [Decoder.add, hcomplete]
+
+/-- A decoder preserves its state when an offered codeword repeats an index it
+already holds. The codeword bytes do not affect that refusal. -/
+theorem Decoder.add_eq_self_of_duplicate (d : Decoder) (cw : Nat × Bytes)
+    (hduplicate : d.held.any (fun h => h.1 == cw.1) = true) : d.add cw = d := by
+  simp [Decoder.add, hduplicate]
+
 def Decoder.addAll (d : Decoder) (cws : List (Nat × Bytes)) : Decoder :=
   cws.foldl Decoder.add d
 
