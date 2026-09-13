@@ -354,8 +354,8 @@ session whose `ratchet_private` matches the classical ratchet's `dhs_pub`.
 Additional accepted vectors place the responder session on the tag 6/7
 epoch-relation boundary and on the failed-Braid exemption. Refusal vectors are
 one-field mutations of the responder fixture, including separate sparse-role and
-Braid-role disagreements, boundary-neighbour mutations, or truncations,
-additions and a version relabelling.
+Braid-role disagreements and one Rust-backed `ratchet_private` mismatch,
+boundary-neighbour mutations, or truncations, additions and a version relabelling.
 
 - **Stored bytes**, when the one input is `bytes`: a stored session offered to
   the reader.
@@ -373,7 +373,9 @@ additions and a version relabelling.
   bytes remain in the input and are not repeated in `fields`.
 - An invalid vector's `refusal` is `wrong-version`, `short-or-malformed`,
   `non-canonical` or `inconsistent`. `inconsistent` is the session's semantic
-  refusal for a canonical stored session whose pieces do not agree.
+  refusal for a canonical stored session whose pieces do not agree. The
+  `ratchet-private-does-not-match-dhs-pub` vector is appended by
+  `augment-session-state.py` after Lean generation, because it needs X25519.
 
 ### The protobuf profile: `vectors/protobuf/`
 

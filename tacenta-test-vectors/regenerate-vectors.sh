@@ -65,6 +65,8 @@ for a in erasure-encoder-state erasure-decoder-state ratchet-state sparse-ratche
          triple-ratchet-state braid-state prekey-store-state session-state; do
   generate "$a" "$here/vectors/persistence/$a.json"
 done
+python3 "$here/augment-session-state.py" "$here/vectors/persistence/session-state.json"
+echo "augmented vectors/persistence/session-state.json with the Rust-backed ratchet-private session vector"
 for a in protobuf-ratchet-body protobuf-prekey-envelope; do
   generate "$a" "$here/vectors/protobuf/$a.json"
 done

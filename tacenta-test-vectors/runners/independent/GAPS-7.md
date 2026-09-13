@@ -30,7 +30,7 @@ A hypothesis confirmed by a vector is still a gap.
 | **Total** | **584** | **0** | **30** |
 
 The 30 skips were the two new files, `persistence/prekey-store-state.json`
-(17) and `session-state.json` (13).
+(17) and `session-state.json` (14).
 
 **Final run:**
 
@@ -352,10 +352,11 @@ evidence is in section 5.
   7 from one whose begins at tag 6. Later P4 work added accepted tag 6/tag 7
   neighbours and refused wrong-side siblings in `session-state.json`; EP-01
   remains as derived coverage across all twelve tags.
-- **The session's `ratchet_private` rule, its "an unanswered initiator is not
-  also a responder" rule, and "each half satisfies its own crate's
-  invariant".** The manifest names all three as unreached. F7-40 is caught only
-  by RJ-02.
+- **The session's "an unanswered initiator is not also a responder" rule and
+  "each half satisfies its own crate's invariant".** The manifest names both
+  as unreached. Later P4 work added
+  `session-state/ratchet-private-does-not-match-dhs-pub`, so F7-40 is now
+  vector-pinned as well as covered by cases.
 - **The role rule's Braid half**. Later P4 work added
   `session-state/halves-disagree-on-the-braid-role`, so F7-16 is now
   vector-pinned as well as covered by cases. The failed-Braid exemption is
@@ -377,7 +378,7 @@ evidence is in section 5.
 
 | Vector gap | Status | Note |
 |---|---|---|
-| The session's and the prekey store's persisted formats | **CLOSED** | Both files exist and pin the layouts, the framing refusals with their kinds, five of the store's six semantic rules and six of the session's eight. What they do not reach is section 3 above and the manifest's own "Not covered". |
+| The session's and the prekey store's persisted formats | **CLOSED** | Both files exist and pin the layouts, the framing refusals with their kinds, five of the store's six semantic rules and seven of the session's eight. What they do not reach is section 3 above and the manifest's own "Not covered". |
 | The session over the Braid | **NARROWED** | `session-state.json` pins the epoch relation's `e - 1` branch, the tag 7 `e` branch at the boundary, the failed-Braid exemption, and both halves of the role rule over a real Braid. |
 | `DecodeEC` on its own | STILL OPEN | |
 | The repeated initial message | STILL OPEN | |

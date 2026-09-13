@@ -586,15 +586,14 @@ many failed and names the first few.
 | F7-37 bytes left after the session's last field accepted | 1: `session-state` trailing-byte | 1: PS-16 |
 | F7-38 bytes left after the store's last field accepted | 1: `prekey-store-state` trailing-byte | 3: PS-19, PS-20, PK-04 |
 | F7-39 the Braid's key_pair content clause applied without the layout the page delegates | 2: `session-state` initiator-unanswered, `session-state` initiator-answered | 1: BK-01 |
-| F7-40 the session's ratchet_private rule dropped | **none** | 1: RJ-02 |
+| F7-40 the session's ratchet_private rule dropped | 1: `session-state` ratchet-private-does-not-match-dhs-pub | 1: RJ-02 |
 | C7-01 control: the store's length checked before its version byte, which Rejection allows | **none** | **none** |
 
 The two new vector files catch every framing refusal of both formats, all four
-refusal kinds they use, the store's five cheap semantic rules and six of the
+refusal kinds they use, the store's five cheap semantic rules and seven of the
 session's eight. What they miss is what `../GAPS-7.md`, section 3, records: the
 remaining signature-rule edge cases (F7-29, F7-30), the
-per-key bound read as a whole and the pre-sizing ceiling (F7-06, F7-11), the session's canonical-key and
-`ratchet_private` rules (F7-34, F7-40).
+per-key bound read as a whole and the pre-sizing ceiling (F7-06, F7-11), the session's remaining canonical-key clauses (F7-34).
 
 **F7-13 was missed on the first run and is now vector-pinned.** The boundary
 vectors carry accepted tag 6 and tag 7 neighbours and refused siblings on the
