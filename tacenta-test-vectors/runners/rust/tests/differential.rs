@@ -655,6 +655,7 @@ struct Observed {
     sparse_epoch_ceiling: usize,
     sparse_send_ceiling: usize,
     sparse_receive_ceiling: usize,
+    sparse_no_chain_refused: usize,
     dh_steps: usize,
     keys_stored: usize,
     keys_used: usize,
@@ -1089,6 +1090,9 @@ fn check_sparse(
                 if e == SpqrError::TooManySkipped || e == SpqrError::SkippedStoreFull {
                     seen.skip_refused += 1;
                 }
+                if e == SpqrError::NoChain {
+                    seen.sparse_no_chain_refused += 1;
+                }
                 if e == SpqrError::ChainExhausted {
                     if !ceiling {
                         return Err(format!(
@@ -1473,6 +1477,14 @@ fn generate_sparse(rng: &mut Rng, template: usize, long: bool) -> SparseSequence
                     epoch: 2,
                     out: Some((2, rng.key())),
                     n: 1,
+                },
+                // Once epoch 2 is installed, epoch 0 and the stored keys
+                // belonging to it have retired.  An operation naming it must
+                // now refuse as `NoChain`; retirement alone did not exercise
+                // that observable refusal.
+                SStep::Send {
+                    epoch: 0,
+                    out: None,
                 },
             ];
             (Start::Stored(b), opening, 2, 0, 1)
@@ -3951,6 +3963,7 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
          {} steps storing keys, {} using one, {} dropping more than one at once, \
          {} refused at a skip bound; \
          ceilings reached: ns {}, nr {}, sparse epoch {}, sparse send {}, sparse receive {}; \
+         sparse post-retirement NoChain refusals {}; \
          {} imports ({} accepted, {} wrong-version, {} short-or-malformed)",
         seen.steps,
         seen.accepted,
@@ -3965,6 +3978,7 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
         seen.sparse_epoch_ceiling,
         seen.sparse_send_ceiling,
         seen.sparse_receive_ceiling,
+        seen.sparse_no_chain_refused,
         seen.imports,
         seen.imports_accepted,
         seen.imports_wrong_version,
@@ -4004,6 +4018,10 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     assert!(
         seen.sparse_receive_ceiling > 0,
         "the sparse receiving counter's ceiling was not reached"
+    );
+    assert!(
+        seen.sparse_no_chain_refused > 0,
+        "no sparse post-retirement operation was refused as NoChain"
     );
     assert!(
         seen.imports_accepted > 0 && seen.imports_wrong_version > 0 && seen.imports_malformed > 0,
