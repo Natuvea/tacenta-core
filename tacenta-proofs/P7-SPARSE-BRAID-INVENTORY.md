@@ -10,15 +10,22 @@ component meets its L4 target.
 receive, skipped-key lookup and the bounded retained-epoch/store rules. The
 differential harness generates sparse send/receive sequences and imports, then
 compares the Rust state, canonical persisted bytes, read-back and model refusal
-at every step. It explicitly reaches send and receive chain ceilings, the
-reserved epoch boundary, stored-key recovery and retirement of an old epoch.
+at every step.
 
-The protocol-vector set remains marked partial because this run is generated
-test evidence rather than an inventory of every normative operation and
-invariant. The next sparse slice must make that inventory explicit, map each
-item to model/vector/differential/reader evidence, and add a missing scoped
-case only after identifying one. It must not call the existing generated
-coverage a complete L4 vector surface by inference.
+| Scoped operation or invariant | Model/proof evidence | Differential and vector evidence | Independent-reader evidence | Scope still open |
+| --- | --- | --- | --- | --- |
+| Initialization and direction | `Model.SparseRatchet.init`; persisted-state semantic rules | Fresh starts in templates 0--1; canonical export/import at each step; committed sparse-state fixtures | Clean-room `tacenta_reader/spqr.py`; CR-12--CR-17 | No fixed operation-vector corpus for all initialization variants. |
+| Advance only to the next epoch, and never onto the reserved epoch | `advance`, `advance_epoch_lt` | Generated agreement outputs; templates 6--7 reach the reserved boundary and require the same refusal | Clean-room SP-07 and CR-17 advance/retention exercises | The generated run does not separately classify every `EpochOutOfOrder` refusal. |
+| Send and receive counters | `send`, `receive`, `send_number_le` | Templates 2--5 force both chain ceilings and compare every accepted/refused result | Clean-room CR-12 and CR-13 | No fixed operation-vector corpus for all counter/refusal permutations. |
+| Skip/store bound, lookup and one-time use | `skipMessageKeys`, `trySkipped`; `deriveInto_*`, `skipMessageKeys_store_bounded`, `trySkipped_store_lt` | Generated gaps, `TooManySkipped`/`SkippedStoreFull` counter, template 8 stored-key recovery, and byte/read-back comparison | Clean-room CR-15 and SP-06 | The differential counter combines the two store-bound kinds. |
+| Retention removes old chains and their stored keys | `clearOldEpochs`, `clearOldEpochs_store_le` | Template 9 advances twice and requires the store to shrink by more than one | Clean-room SP-07 | No committed Rust/model fixed operation vector for the sequence. |
+| An operation on a retired epoch refuses | `findChains`/`send` model transition | Template 9 now sends at retired epoch 0 after advancing to 2 and requires Rust `NoChain`, model refusal, unchanged bytes, and a coverage counter | Clean-room CR-14 and SP-07 | This closes the previously unexercised Rust/model observable effect of retirement; it does not make the overall operation surface complete. |
+| Persisted-state acceptance and canonicalization | Persisted-state model encoding/decoding | Every generated start and resulting state is exported, re-imported, and corrupted-import classifications are compared | Clean-room state reader and committed persistence fixtures | KEM/Braid delegation is outside this leaf format. |
+
+This is a scoped operation/invariant map, not a claim that generated coverage
+is a complete L4 vector surface. The remaining target gap is a fixed-vector
+decision for the refusal combinations the generated differential run does not
+separately classify.
 
 ## ML-KEM Braid
 
@@ -42,7 +49,7 @@ layout exclusion as interchangeable.
 
 | Obligation | Current evidence | Next closure step |
 | --- | --- | --- |
-| Sparse operation/invariant inventory | Model and generated differential coverage, but no itemized norm-to-evidence map | Publish the scoped map and identify an actual uncovered operation/invariant before adding a case. |
+| Sparse operation/invariant inventory | Scoped map above; generated differential and clean-room reader evidence include the post-retirement `NoChain` refusal it identified as missing | Decide which remaining generated refusal combinations need fixed vectors, then add them or record the target decision. |
 | Braid persisted-state tags | Model/vector/reader/import comparison for tags 0 and 5--11; invalid-length check for 1--4 | Keep the delegated key-pair layout exclusion narrow and add valid tag evidence only with a specified independent producer. |
 | Braid MAC behavior | Differential check of a persisted-key header MAC and a one-byte mutation, with model recomputation | Specify ciphertext-MAC provenance and add accepted-neighbour/failure-state ciphertext evidence. |
 | Braid state machine | `Ct2Sampled` boundaries plus empty-`NoHeaderReceived` transition (6) | Identify the next branch that can be driven without a KEM fixture, or make a narrow fixture/scope decision. |
