@@ -26,8 +26,8 @@
 //! signatures verify; the legacy accepted vectors re-spell the no-record,
 //! no-retired fixture in older layouts and are permitted to upgrade to v4 on
 //! write-back. The refusals are framing cases or change one field of those
-//! bytes, so each is refused for the rule under test rather than for a
-//! signature that never verified.
+//! bytes, including one `signed_prekey_sig` byte for the stored-signature
+//! `incoherent` refusal, so each is refused for the rule under test.
 //!
 //! The session's stored format is covered the same way and for the same
 //! reason: the model does not compute the curve, so it cannot build a session

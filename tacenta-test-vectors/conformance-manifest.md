@@ -506,16 +506,20 @@ and `tacenta-erasure` do the same, and the `partial`,
 not reach is listed here rather than left to be inferred.** The model states
 every *structural* rule of the session and the prekey store and no
 *cryptographic* one: its boundary excludes computing the curve, and it has no
-notion of a signature. Two rules follow from that and are pinned by no vector:
+notion of a signature. The prekey store's stored-signature refusal is still
+outside the model's verdicts, but `prekey-store-state.json` now pins it with
+`signed-prekey-signature-does-not-verify`: the generator first requires the
+model to accept and re-encode the one-byte signature mutation, then the
+cryptographic runners refuse it as `incoherent`.
 
-- the prekey store's sixth semantic rule, that every stored signature verifies
-  under `identity_public`;
-- the session's first, that `ratchet_private`'s public key equals the classical
-  ratchet's `dhs_pub`.
+One persisted-format rule is still pinned by no vector:
 
-Each is held instead by `tacenta-core`'s own mutation tests. A reader working
-from the specification and these vectors alone would not learn that either rule
-exists; the pages are where they do.
+- the session's first semantic rule, that `ratchet_private`'s public key equals
+  the classical ratchet's `dhs_pub`.
+
+It is held instead by `tacenta-core`'s own mutation tests. A reader working
+from the specification and these vectors alone would not learn that rule
+exists; the page is where it does.
 
 **What else the two files do not reach.** These are not consequences of the
 model's boundary; they are simply unpinned.

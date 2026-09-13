@@ -404,9 +404,10 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
         // one's sixth semantic rule -- that every stored signature verifies
         // under `identity_public` -- because the model has no signatures. So
         // its accepted vectors carry bytes `tacenta-core` itself produced,
-        // which satisfy that rule, and its refusals are one field of those
-        // bytes changed, so each is refused for the rule under test rather
-        // than for a signature that never verified.
+        // which satisfy that rule. The `incoherent` vector is a one-byte
+        // signature mutation that the model first accepts and re-encodes
+        // structurally, so this runner reaches the cryptographic signature
+        // check.
         "prekey-store-state" => check_prekey_store_state(v),
         // The session's persisted format (session-persistence.md, Session).
         // Its reader distinguishes "inconsistent" from "malformed", which the
@@ -1443,9 +1444,9 @@ fn check_prekey_store_state(v: &Vector) -> Result<(), String> {
                 | PrekeyStoreDecodeError::NonCanonical => "short-or-malformed",
                 // The store's analogue of the session's `Inconsistent`, for
                 // its signature rule alone (session-persistence.md,
-                // Rejection). No vector carries it yet -- the model has no
-                // signatures and so cannot generate one -- but the name exists
-                // on the page and in the schema, so the harness can read one.
+                // Rejection). The model cannot derive this verdict, so the
+                // vector generator emits it only after checking the mutated
+                // bytes are structurally accepted and re-encoded unchanged.
                 PrekeyStoreDecodeError::Incoherent => "incoherent",
                 // The enum is `#[non_exhaustive]`, so a wildcard is required.
                 // It refuses rather than classifying: a refusal kind nobody
