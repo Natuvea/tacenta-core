@@ -278,14 +278,9 @@ impl rand_core::RngCore for Rng {
     }
 
     fn fill_bytes(&mut self, dest: &mut [u8]) {
-        let mut chunks = dest.chunks_exact_mut(8);
-        for chunk in &mut chunks {
-            chunk.copy_from_slice(&self.next_u64().to_le_bytes());
-        }
-        let rem = chunks.into_remainder();
-        if !rem.is_empty() {
+        for chunk in dest.chunks_mut(8) {
             let bytes = self.next_u64().to_le_bytes();
-            rem.copy_from_slice(&bytes[..rem.len()]);
+            chunk.copy_from_slice(&bytes[..chunk.len()]);
         }
     }
 
