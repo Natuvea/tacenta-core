@@ -46,7 +46,7 @@ A summary by component. A tick means the component has that kind of evidence, no
 | Sparse post-quantum ratchet | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | L4 | L4 |
 | Triple Ratchet | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | L4 | L4 |
 | ML-KEM Braid | ✓ | ✓ | ✓ | partial (persisted tags 1--4 contain a delegated KEM layout with no universal vector verdict; state-machine controls run separately) | ✓ | ✓ | ✓ | L3/L4 | L4 |
-| Erasure code | ✓ | ✓ (through the Braid) | ✓ | ✓ | ✓ | ✓ | field only | L3 | L4 |
+| Erasure code | ✓ | ✓ (through the Braid) | ✓ | ✓ | ✓ | ✓ | field only | L3 | L3, by [recorded target decision](tacenta-proofs/ERASURE-CODEC-TARGET-DECISION.md) |
 | Protobuf profile | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | L4 | L4 |
 | PQXDH derivation | ✓ | ✓ (through the session) | ✓ | ✓ | ✓ | ✓ | ✓ | L4 | L4 |
 | Session orchestration and prekey store | ✓ | ✓ | — | decoders; prekey lifecycle/replay; initiator/responder establishment structural checks | partial | — | — | L1 | L2, by recorded decision: modelled and pinned, not translated (2026-09-12) |
