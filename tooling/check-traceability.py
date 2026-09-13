@@ -3,7 +3,7 @@
 
 This is a structural gate, not a proof auditor. It keeps the security
 requirement pages, the assumptions page and the limitations status ledger from
-drifting apart. It also checks the pilot evidence index links for the P2
+drifting apart. It also checks the migrated evidence index links for the P2
 requirements without deciding whether a theorem or test semantically proves a
 requirement.
 """
@@ -425,7 +425,7 @@ def main() -> int:
     print(
         "traceability: "
         f"{len(reqs)} requirements, {len(assumptions)} assumptions, identifier references "
-        "and the evidence index are consistent"
+        "and migrated evidence-index entries are consistent"
     )
     return 0
 

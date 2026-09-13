@@ -16,13 +16,15 @@ make_case() {
   cp -R "$root/tacenta-spec/threat-model" "$dst/tacenta-spec/"
   mkdir -p "$dst/tacenta-core/src/sessions" "$dst/tacenta-core/src/primitives" "$dst/tacenta-core/wire/src" "$dst/tacenta-core/ratchet/src" "$dst/tacenta-core/braid/src" "$dst/tooling" "$dst/tacenta-model/Model"
   mkdir -p "$dst/tacenta-core/tests"
+  mkdir -p "$dst/tacenta-core/spqr/src" "$dst/tacenta-core/triple/src"
   mkdir -p "$dst/tacenta-model/Properties"
   mkdir -p "$dst/tacenta-proofs/Proofs" "$dst/tacenta-proofs/translation/Translation"
-  mkdir -p "$dst/tacenta-test-vectors/vectors/primitives" "$dst/tacenta-test-vectors/vectors/aead" "$dst/tacenta-test-vectors/vectors/malformed-input"
+  mkdir -p "$dst/tacenta-test-vectors/vectors/primitives" "$dst/tacenta-test-vectors/vectors/aead" "$dst/tacenta-test-vectors/vectors/malformed-input" "$dst/tacenta-test-vectors/vectors/post-quantum"
   cp "$root/tacenta-core/src/sessions/mod.rs" "$dst/tacenta-core/src/sessions/mod.rs"
   cp "$root/tacenta-core/src/sessions/lifecycle.rs" "$dst/tacenta-core/src/sessions/lifecycle.rs"
   cp "$root/tacenta-core/AUTHENTICATION-BOUNDARY.md" "$dst/tacenta-core/AUTHENTICATION-BOUNDARY.md"
   cp "$root/tooling/check_authentication_boundary.py" "$dst/tooling/check_authentication_boundary.py"
+  cp "$root/tooling/check-constant-time-asm.sh" "$dst/tooling/check-constant-time-asm.sh"
   cp "$root/tacenta-core/src/primitives/aead.rs" "$dst/tacenta-core/src/primitives/aead.rs"
   cp "$root/tacenta-core/src/primitives/xeddsa.rs" "$dst/tacenta-core/src/primitives/xeddsa.rs"
   cp "$root/tacenta-core/src/primitives/dh.rs" "$dst/tacenta-core/src/primitives/dh.rs"
@@ -30,6 +32,8 @@ make_case() {
   cp "$root/tacenta-core/ratchet/src/lib.rs" "$dst/tacenta-core/ratchet/src/lib.rs"
   cp "$root/tacenta-core/braid/src/lib.rs" "$dst/tacenta-core/braid/src/lib.rs"
   cp "$root/tacenta-core/braid/src/tests.rs" "$dst/tacenta-core/braid/src/tests.rs"
+  cp "$root/tacenta-core/spqr/src/lib.rs" "$dst/tacenta-core/spqr/src/lib.rs"
+  cp "$root/tacenta-core/triple/src/lib.rs" "$dst/tacenta-core/triple/src/lib.rs"
   cp "$root/tacenta-core/tests/full_session.rs" "$dst/tacenta-core/tests/full_session.rs"
   cp "$root/tacenta-core/tests/agreement_and_bounds.rs" "$dst/tacenta-core/tests/agreement_and_bounds.rs"
   cp "$root/tacenta-core/tests/replay_record.rs" "$dst/tacenta-core/tests/replay_record.rs"
@@ -39,13 +43,17 @@ make_case() {
   cp "$root/tacenta-core/tests/fuzz.rs" "$dst/tacenta-core/tests/fuzz.rs"
   cp "$root/tacenta-core/tests/canonical_curve_keys.rs" "$dst/tacenta-core/tests/canonical_curve_keys.rs"
   cp "$root/tacenta-core/tests/canonicality.rs" "$dst/tacenta-core/tests/canonicality.rs"
+  cp "$root/tacenta-core/tests/timing.rs" "$dst/tacenta-core/tests/timing.rs"
   cp "$root/tacenta-model/Properties/Authentication.lean" "$dst/tacenta-model/Properties/Authentication.lean"
+  cp "$root/tacenta-model/Properties/StateConsistency.lean" "$dst/tacenta-model/Properties/StateConsistency.lean"
+  cp "$root/tacenta-model/Properties/Secrecy.lean" "$dst/tacenta-model/Properties/Secrecy.lean"
   cp "$root/tacenta-model/Model/Triple.lean" "$dst/tacenta-model/Model/Triple.lean"
   cp "$root/tacenta-model/Model/Braid.lean" "$dst/tacenta-model/Model/Braid.lean"
   cp "$root/tacenta-proofs/Proofs/SessionEstablishment.lean" "$dst/tacenta-proofs/Proofs/SessionEstablishment.lean"
   cp "$root/tacenta-proofs/Proofs/KeyErasure.lean" "$dst/tacenta-proofs/Proofs/KeyErasure.lean"
   cp "$root/tacenta-proofs/translation/Translation/SessionT3.lean" "$dst/tacenta-proofs/translation/Translation/SessionT3.lean"
   cp "$root/tacenta-proofs/translation/Translation/T3.lean" "$dst/tacenta-proofs/translation/Translation/T3.lean"
+  cp "$root/tacenta-proofs/translation/Translation/SpqrT3.lean" "$dst/tacenta-proofs/translation/Translation/SpqrT3.lean"
   cp "$root/tacenta-proofs/translation/Translation/UnitTripleT3.lean" "$dst/tacenta-proofs/translation/Translation/UnitTripleT3.lean"
   cp "$root/tacenta-proofs/translation/Translation/BraidT3.lean" "$dst/tacenta-proofs/translation/Translation/BraidT3.lean"
   cp "$root/tacenta-proofs/translation/Translation/WireT3.lean" "$dst/tacenta-proofs/translation/Translation/WireT3.lean"
@@ -55,6 +63,7 @@ make_case() {
   cp "$root/tacenta-test-vectors/vectors/primitives/xeddsa.json" "$dst/tacenta-test-vectors/vectors/primitives/xeddsa.json"
   cp "$root/tacenta-test-vectors/vectors/aead/aead-decrypt.json" "$dst/tacenta-test-vectors/vectors/aead/aead-decrypt.json"
   cp "$root/tacenta-test-vectors/vectors/aead/aead-encrypt.json" "$dst/tacenta-test-vectors/vectors/aead/aead-encrypt.json"
+  cp "$root/tacenta-test-vectors/vectors/post-quantum/triple.json" "$dst/tacenta-test-vectors/vectors/post-quantum/triple.json"
   cp "$root/tacenta-test-vectors/vectors/malformed-input/composite-header-decode.json" "$dst/tacenta-test-vectors/vectors/malformed-input/composite-header-decode.json"
   cp "$root/tacenta-test-vectors/vectors/malformed-input/initial-message-decode.json" "$dst/tacenta-test-vectors/vectors/malformed-input/initial-message-decode.json"
   cp "$root/tacenta-test-vectors/vectors/malformed-input/prekey-bundle-decode.json" "$dst/tacenta-test-vectors/vectors/malformed-input/prekey-bundle-decode.json"
@@ -160,6 +169,17 @@ path.write_text(json.dumps(data, indent=2) + "\n")
 PY
 expect_fail "missing-coverage" "model property in tacenta-proofs/Proofs/SessionEstablishment.lean has no coverage"
 
+make_case "$work/bad-conf-vector-case"
+python3 - "$work/bad-conf-vector-case/tacenta-spec/security-properties/evidence-index.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+entry = next(req for req in data["requirements"] if req["id"] == "REQ-CONF-05")
+entry["vectors"][0]["case_ids"][0] = "missing-triple-combine-case"
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+expect_fail "bad-conf-vector-case" "vector case missing-triple-combine-case not found"
+
 make_case "$work/non-list-evidence-field"
 python3 - "$work/non-list-evidence-field/tacenta-spec/security-properties/evidence-index.json" <<'PY'
 import json, pathlib, sys
@@ -171,4 +191,4 @@ path.write_text(json.dumps(data, indent=2) + "\n")
 PY
 expect_fail "non-list-evidence-field" "evidence field tests must be a list"
 
-echo "check-traceability-cases: pass case and 9 refusal cases gave the expected result"
+echo "check-traceability-cases: pass case and 10 refusal cases gave the expected result"

@@ -26,6 +26,10 @@ is SemVer against the specified protocol (not the implementation).
 - `security-properties/evidence-index.json`: evidence-index entries for
   REQ-AUTH-13 and REQ-AUTH-14, completing the authentication P2 migration with
   unauthenticated-input durability and Braid authenticator-failure coverage.
+- `security-properties/evidence-index.json`: evidence-index entries for
+  REQ-CONF-01 through REQ-CONF-09, extending the P2 migration across
+  confidentiality assumptions, derivation proofs, symbolic secrecy claims, AEAD
+  vectors and timing-test evidence.
 - `ASSURANCE-OBLIGATIONS.md`: the first P1 obligation inventory for the
   assurance execution plan. It classifies target deficits, gate obligations,
   deferral risks and missing negative-control evidence so readiness is assessed

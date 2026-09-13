@@ -1206,6 +1206,814 @@
           ]
         }
       ]
+    },
+    {
+      "id": "REQ-CONF-01",
+      "source": "tacenta-spec/security-properties/confidentiality.md#REQ-CONF-01",
+      "property": "An outsider without session secrets learns no message plaintext beyond allowed metadata and length leakage.",
+      "status": "assumed",
+      "assumptions": [
+        "ASM-01",
+        "ASM-02",
+        "ASM-04",
+        "ASM-05",
+        "ASM-06",
+        "ASM-08",
+        "ASM-14"
+      ],
+      "limitations": [],
+      "implementation": [
+        {
+          "path": "tacenta-core/src/primitives/aead.rs",
+          "symbol": "encrypt"
+        },
+        {
+          "path": "tacenta-core/src/primitives/aead.rs",
+          "symbol": "decrypt"
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "encrypt"
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "decrypt"
+        }
+      ],
+      "model_properties": [
+        {
+          "path": "tacenta-proofs/translation/Translation/T3.lean",
+          "theorem": "message_keys_refines",
+          "coverage": "T3 proof that the classical ratchet message-key expansion computes the model derivation beneath the confidentiality claim."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/UnitTripleT3.lean",
+          "theorem": "combine_refines",
+          "coverage": "T3 proof that the composed Triple Ratchet combines the two half message keys as the model specifies."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Read this first: what is not proved",
+          "references": [
+            "The primitives are opaque"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the classical Double Ratchet refines the model)",
+          "references": [
+            "message_keys_refines"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the Triple Ratchet's composed session on the unit, with both inner bundles discharged)",
+          "references": [
+            "Tacenta.UnitTripleT3.combine_refines"
+          ]
+        }
+      ],
+      "vectors": [
+        {
+          "path": "tacenta-test-vectors/vectors/aead/aead-encrypt.json",
+          "case_ids": [
+            "fifteen-bytes",
+            "session-associated-data"
+          ],
+          "coverage": "Pins representative AEAD encryption outputs for plaintext under associated data."
+        },
+        {
+          "path": "tacenta-test-vectors/vectors/aead/aead-decrypt.json",
+          "case_ids": [
+            "fifteen-bytes",
+            "session-associated-data"
+          ],
+          "coverage": "Pins accepted AEAD decryption outputs for representative ciphertexts."
+        }
+      ],
+      "tests": [
+        {
+          "path": "tacenta-core/tests/full_session.rs",
+          "name": "the_first_message_is_delivered",
+          "coverage": "Full-session smoke test that an encrypted first message is delivered through the established session path."
+        }
+      ],
+      "missing_evidence": [
+        {
+          "kind": "security-claim-proof",
+          "reason": "Confidentiality against an outsider rests on primitive secrecy and AEAD assumptions; the proofs only cover derivation shape below the session layer.",
+          "references": [
+            "ASM-02",
+            "ASM-04",
+            "ASM-05",
+            "ASM-06"
+          ]
+        },
+        {
+          "kind": "metadata-scope",
+          "reason": "The requirement deliberately excludes metadata, plaintext length leakage and persisted state.",
+          "references": [
+            "EX-01",
+            "EX-07"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-CONF-02",
+      "source": "tacenta-spec/security-properties/confidentiality.md#REQ-CONF-02",
+      "property": "The implementation derives SK, ratchet keys, message keys, Triple Ratchet combined keys and Braid epoch/authenticator keys as specified.",
+      "status": "proved",
+      "assumptions": [
+        "ASM-15",
+        "ASM-16",
+        "ASM-17",
+        "ASM-18",
+        "ASM-19"
+      ],
+      "limitations": [
+        "LIM-05",
+        "LIM-07"
+      ],
+      "implementation": [
+        {
+          "path": "tacenta-core/src/sessions/mod.rs",
+          "symbol": "initiator_shared_secret"
+        },
+        {
+          "path": "tacenta-core/src/sessions/mod.rs",
+          "symbol": "responder_shared_secret"
+        },
+        {
+          "path": "tacenta-core/ratchet/src/lib.rs",
+          "symbol": "message_keys"
+        },
+        {
+          "path": "tacenta-core/spqr/src/lib.rs",
+          "symbol": "kdf_init"
+        },
+        {
+          "path": "tacenta-core/triple/src/lib.rs",
+          "symbol": "combine"
+        },
+        {
+          "path": "tacenta-core/braid/src/lib.rs",
+          "symbol": "receive"
+        }
+      ],
+      "model_properties": [
+        {
+          "path": "tacenta-proofs/translation/Translation/SessionT3.lean",
+          "theorem": "shared_secret_refines_none",
+          "coverage": "T3 proof for the no-one-time-prekey PQXDH shared-secret derivation."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/SessionT3.lean",
+          "theorem": "shared_secret_refines_some",
+          "coverage": "T3 proof for the one-time-prekey PQXDH shared-secret derivation."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/T3.lean",
+          "theorem": "kdf_ck_refines",
+          "coverage": "T3 proof for the classical ratchet chain-key derivation."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/T3.lean",
+          "theorem": "kdf_rk_refines",
+          "coverage": "T3 proof for the classical ratchet root-key derivation."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/T3.lean",
+          "theorem": "message_keys_refines",
+          "coverage": "T3 proof for the classical ratchet message-key expansion."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/SpqrT3.lean",
+          "theorem": "kdf_init_refines",
+          "coverage": "T3 proof for sparse ratchet initial key derivation."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/SpqrT3.lean",
+          "theorem": "send_refines",
+          "coverage": "T3 proof for sparse ratchet send derivation and state update."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/SpqrT3.lean",
+          "theorem": "receive_refines",
+          "coverage": "T3 proof for sparse ratchet receive derivation and state update."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/UnitTripleT3.lean",
+          "theorem": "split_secret_refines",
+          "coverage": "T3 proof for splitting SK into the two Triple Ratchet halves."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/UnitTripleT3.lean",
+          "theorem": "combine_refines",
+          "coverage": "T3 proof for combining classical and post-quantum message keys."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/BraidT3.lean",
+          "theorem": "Braid.receive_refines",
+          "coverage": "T3 proof that Braid receive refines the model, including epoch output/authenticator transition shape."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the PQXDH derivation refines the model)",
+          "references": [
+            "shared_secret_refines_none",
+            "shared_secret_refines_some"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the classical Double Ratchet refines the model)",
+          "references": [
+            "kdf_ck_refines",
+            "kdf_rk_refines",
+            "message_keys_refines",
+            "send_refines",
+            "receive_refines"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the sparse post-quantum ratchet's translated code refines the model)",
+          "references": [
+            "kdf_init_refines",
+            "send_refines",
+            "receive_refines"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the Triple Ratchet's composed session on the unit, with both inner bundles discharged)",
+          "references": [
+            "Tacenta.UnitTripleT3.split_secret_refines",
+            "Tacenta.UnitTripleT3.combine_refines"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the ML-KEM Braid's translated code refines the model)",
+          "references": [
+            "Braid.receive_refines"
+          ]
+        }
+      ],
+      "vectors": [
+        {
+          "path": "tacenta-test-vectors/vectors/post-quantum/triple.json",
+          "case_ids": [
+            "distinct-inputs",
+            "swapped",
+            "zero-classical",
+            "zero-post-quantum"
+          ],
+          "coverage": "Pins Triple Ratchet key-combination derivations against tacenta-core."
+        },
+        {
+          "path": "tacenta-test-vectors/vectors/aead/aead-encrypt.json",
+          "case_ids": [
+            "empty-plaintext",
+            "fifteen-bytes",
+            "session-associated-data"
+          ],
+          "coverage": "Pins AEAD key/IV use for representative derived inputs outside the proof boundary."
+        }
+      ],
+      "tests": [],
+      "missing_evidence": [
+        {
+          "kind": "session-orchestration-proof",
+          "reason": "The derivation proofs stop below Session::encrypt and Session::decrypt, which remain untranslated orchestration.",
+          "references": [
+            "ASM-19",
+            "LIM-05"
+          ]
+        },
+        {
+          "kind": "primitive-proof",
+          "reason": "The agreement outputs, KEM shared secret, AEAD and Braid MACs are primitive or boundary assumptions rather than proved cryptographic facts.",
+          "references": [
+            "ASM-04",
+            "ASM-05",
+            "ASM-06"
+          ]
+        },
+        {
+          "kind": "headroom-proof",
+          "reason": "Some refinement theorems retain counter-headroom premises at the boundary.",
+          "references": [
+            "LIM-07"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-CONF-03",
+      "source": "tacenta-spec/security-properties/confidentiality.md#REQ-CONF-03",
+      "property": "PQXDH keying material is injective in the tuple of agreement outputs, and the no-one-time-prekey and one-time-prekey forms are distinct.",
+      "status": "proved",
+      "assumptions": [
+        "ASM-17"
+      ],
+      "limitations": [],
+      "implementation": [
+        {
+          "path": "tacenta-core/src/sessions/mod.rs",
+          "symbol": "initiator_shared_secret"
+        },
+        {
+          "path": "tacenta-core/src/sessions/mod.rs",
+          "symbol": "responder_shared_secret"
+        }
+      ],
+      "model_properties": [
+        {
+          "path": "tacenta-proofs/Proofs/SessionEstablishment.lean",
+          "theorem": "km_determines",
+          "coverage": "T2 proof that keying material determines the agreement-output tuple."
+        },
+        {
+          "path": "tacenta-proofs/Proofs/SessionEstablishment.lean",
+          "theorem": "km_none_ne_some",
+          "coverage": "T2 proof that the no-one-time-prekey and one-time-prekey keying-material forms are distinct."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/SessionT3.lean",
+          "theorem": "shared_secret_refines_none",
+          "coverage": "T3 proof that no-one-time-prekey code builds the model input."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/SessionT3.lean",
+          "theorem": "shared_secret_refines_some",
+          "coverage": "T3 proof that one-time-prekey code builds the model input."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, PQXDH's input keying material)",
+          "references": [
+            "km_determines",
+            "km_none_ne_some"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the PQXDH derivation refines the model)",
+          "references": [
+            "shared_secret_refines_none",
+            "shared_secret_refines_some"
+          ]
+        }
+      ],
+      "vectors": [],
+      "tests": [],
+      "missing_evidence": [
+        {
+          "kind": "kdf-collision-proof",
+          "reason": "The proof covers unambiguous construction of the KDF input, not collision resistance of the KDF itself.",
+          "references": [
+            "ASM-05"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-CONF-04",
+      "source": "tacenta-spec/security-properties/confidentiality.md#REQ-CONF-04",
+      "property": "No enc_key and iv pair is used for more than one plaintext during normal sends.",
+      "status": "assumed",
+      "assumptions": [
+        "ASM-05",
+        "ASM-12",
+        "ASM-19"
+      ],
+      "limitations": [],
+      "implementation": [
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "encrypt"
+        },
+        {
+          "path": "tacenta-core/ratchet/src/lib.rs",
+          "symbol": "send"
+        },
+        {
+          "path": "tacenta-core/spqr/src/lib.rs",
+          "symbol": "send"
+        }
+      ],
+      "model_properties": [
+        {
+          "path": "tacenta-model/Properties/StateConsistency.lean",
+          "theorem": "send_advances_ns",
+          "coverage": "T2 proof that a classical ratchet send advances the send counter."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/T3.lean",
+          "theorem": "send_refines",
+          "coverage": "T3 proof that classical ratchet send refines the model."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/SpqrT3.lean",
+          "theorem": "send_refines",
+          "coverage": "T3 proof that sparse ratchet send refines the model."
+        },
+        {
+          "path": "tacenta-model/Properties/Authentication.lean",
+          "theorem": "mkAt_inj",
+          "coverage": "T2 proof that symbolic message keys at distinct positions are distinct."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, the classical ratchet model's counters and transitions)",
+          "references": [
+            "send_advances_ns"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the classical Double Ratchet refines the model)",
+          "references": [
+            "send_refines"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the sparse post-quantum ratchet's translated code refines the model)",
+          "references": [
+            "send_refines"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, model-level security properties against the symbolic attacker)",
+          "references": [
+            "Properties.Authentication.mkAt_inj"
+          ]
+        }
+      ],
+      "vectors": [],
+      "tests": [],
+      "missing_evidence": [
+        {
+          "kind": "security-claim-proof",
+          "reason": "Distinct symbolic positions do not by themselves prove distinct byte strings or prevent storage rollback/restart from reusing a state.",
+          "references": [
+            "ASM-05",
+            "ASM-12",
+            "EX-07"
+          ]
+        },
+        {
+          "kind": "session-proof",
+          "reason": "Session::encrypt orchestration is outside the translated proof boundary.",
+          "references": [
+            "ASM-19"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-CONF-05",
+      "source": "tacenta-spec/security-properties/confidentiality.md#REQ-CONF-05",
+      "property": "The Triple Ratchet encryption key depends on both the classical and post-quantum message keys.",
+      "status": "assumed",
+      "assumptions": [
+        "ASM-05"
+      ],
+      "limitations": [],
+      "implementation": [
+        {
+          "path": "tacenta-core/triple/src/lib.rs",
+          "symbol": "combine"
+        }
+      ],
+      "model_properties": [
+        {
+          "path": "tacenta-proofs/translation/Translation/UnitTripleT3.lean",
+          "theorem": "combine_refines",
+          "coverage": "T3 proof that code combines the two half message keys as the model does."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the Triple Ratchet's composed session on the unit, with both inner bundles discharged)",
+          "references": [
+            "Tacenta.UnitTripleT3.combine_refines"
+          ]
+        }
+      ],
+      "vectors": [
+        {
+          "path": "tacenta-test-vectors/vectors/post-quantum/triple.json",
+          "case_ids": [
+            "distinct-inputs",
+            "swapped",
+            "zero-classical",
+            "zero-post-quantum"
+          ],
+          "coverage": "Pins that the combination changes when either half changes and that the order matters."
+        }
+      ],
+      "tests": [],
+      "missing_evidence": [
+        {
+          "kind": "security-claim-proof",
+          "reason": "The proof and vectors pin the combination rule, not the HKDF security claim that one unknown half hides the result.",
+          "references": [
+            "ASM-05"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-CONF-06",
+      "source": "tacenta-spec/security-properties/confidentiality.md#REQ-CONF-06",
+      "property": "Recorded traffic remains confidential from a future quantum adversary that later computes X25519 private keys but does not break the post-quantum/KDF/AEAD assumptions.",
+      "status": "assumed",
+      "assumptions": [
+        "ASM-01",
+        "ASM-04",
+        "ASM-05",
+        "ASM-06",
+        "ASM-07",
+        "ASM-14"
+      ],
+      "limitations": [
+        "LIM-04"
+      ],
+      "implementation": [
+        {
+          "path": "tacenta-core/spqr/src/lib.rs",
+          "symbol": "kdf_init"
+        },
+        {
+          "path": "tacenta-core/braid/src/lib.rs",
+          "symbol": "receive"
+        },
+        {
+          "path": "tacenta-core/triple/src/lib.rs",
+          "symbol": "combine"
+        }
+      ],
+      "model_properties": [
+        {
+          "path": "tacenta-proofs/translation/Translation/SpqrT3.lean",
+          "theorem": "kdf_init_refines",
+          "coverage": "T3 proof that sparse ratchet initial derivation follows the model."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/UnitTripleT3.lean",
+          "theorem": "combine_refines",
+          "coverage": "T3 proof for combining classical and post-quantum message keys."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Read this first: what is not proved",
+          "references": [
+            "The primitives are opaque"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the sparse post-quantum ratchet's translated code refines the model)",
+          "references": [
+            "kdf_init_refines"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the Triple Ratchet's composed session on the unit, with both inner bundles discharged)",
+          "references": [
+            "Tacenta.UnitTripleT3.combine_refines"
+          ]
+        }
+      ],
+      "vectors": [
+        {
+          "path": "tacenta-test-vectors/vectors/post-quantum/triple.json",
+          "case_ids": [
+            "zero-classical",
+            "zero-post-quantum"
+          ],
+          "coverage": "Pins that either half contributes to the combined message key derivation."
+        }
+      ],
+      "tests": [],
+      "missing_evidence": [
+        {
+          "kind": "security-claim-proof",
+          "reason": "No proof establishes future-quantum confidentiality; the statement rests on ML-KEM, HKDF/HMAC and AEAD assumptions plus sparse-ratchet design.",
+          "references": [
+            "ASM-04",
+            "ASM-05",
+            "ASM-06",
+            "LIM-04"
+          ]
+        },
+        {
+          "kind": "scope",
+          "reason": "The claim excludes quantum-active handshakes, state compromise and metadata.",
+          "references": [
+            "EX-01",
+            "EX-11",
+            "ADV-02"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-CONF-07",
+      "source": "tacenta-spec/security-properties/confidentiality.md#REQ-CONF-07",
+      "property": "In the symbolic classical ratchet model, one message key reveals no other message key and not its chain key.",
+      "status": "proved",
+      "assumptions": [
+        "ASM-05",
+        "ASM-10",
+        "ASM-17"
+      ],
+      "limitations": [
+        "LIM-03",
+        "LIM-04"
+      ],
+      "implementation": [],
+      "model_properties": [
+        {
+          "path": "tacenta-model/Properties/Secrecy.lean",
+          "theorem": "message_keys_are_independent",
+          "coverage": "T2 symbolic proof that distinct message keys are independent terms."
+        },
+        {
+          "path": "tacenta-model/Properties/Secrecy.lean",
+          "theorem": "a_message_key_does_not_expose_its_chain",
+          "coverage": "T2 symbolic proof that a message key does not expose its chain key."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, model-level security properties against the symbolic attacker)",
+          "references": [
+            "Properties.Secrecy.message_keys_are_independent",
+            "Properties.Secrecy.a_message_key_does_not_expose_its_chain"
+          ]
+        }
+      ],
+      "vectors": [],
+      "tests": [],
+      "missing_evidence": [
+        {
+          "kind": "byte-level-proof",
+          "reason": "The proof is symbolic and does not cover byte strings, plaintext exposure, sparse ratchet keys, the combined Triple Ratchet key or whole sessions.",
+          "references": [
+            "ASM-10",
+            "LIM-03",
+            "LIM-04"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-CONF-08",
+      "source": "tacenta-spec/security-properties/confidentiality.md#REQ-CONF-08",
+      "property": "In the symbolic classical ratchet model, a chain key from one session reveals no chain or message key from a differently seeded session.",
+      "status": "proved",
+      "assumptions": [
+        "ASM-01",
+        "ASM-10",
+        "ASM-17"
+      ],
+      "limitations": [
+        "LIM-03"
+      ],
+      "implementation": [],
+      "model_properties": [
+        {
+          "path": "tacenta-model/Properties/Authentication.lean",
+          "theorem": "no_cross_session_chain",
+          "coverage": "T2 symbolic proof that a chain key from one session does not reveal another session chain key."
+        },
+        {
+          "path": "tacenta-model/Properties/Authentication.lean",
+          "theorem": "no_cross_session_message",
+          "coverage": "T2 symbolic proof that a chain key from one session does not reveal another session message key."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, model-level security properties against the symbolic attacker)",
+          "references": [
+            "Properties.Authentication.no_cross_session_chain",
+            "Properties.Authentication.no_cross_session_message"
+          ]
+        }
+      ],
+      "vectors": [],
+      "tests": [],
+      "missing_evidence": [
+        {
+          "kind": "byte-level-proof",
+          "reason": "The proof is symbolic and does not cover byte strings or shared long-term identity/prekey material.",
+          "references": [
+            "ASM-10",
+            "LIM-03",
+            "AS-02",
+            "AS-03"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-CONF-09",
+      "source": "tacenta-spec/security-properties/confidentiality.md#REQ-CONF-09",
+      "property": "A refusal reveals only that a message was refused; AEAD tag checks and relevant rejection paths avoid content-dependent timing in the checked scope.",
+      "status": "tested only",
+      "assumptions": [
+        "ASM-08",
+        "ASM-19"
+      ],
+      "limitations": [],
+      "implementation": [
+        {
+          "path": "tacenta-core/src/primitives/aead.rs",
+          "symbol": "decrypt"
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "decrypt"
+        },
+        {
+          "path": "tooling/check-constant-time-asm.sh",
+          "symbol": "mac_eq"
+        }
+      ],
+      "model_properties": [],
+      "claims": [],
+      "vectors": [
+        {
+          "path": "tacenta-test-vectors/vectors/aead/aead-decrypt.json",
+          "case_ids": [
+            "padding-byte-zero",
+            "padding-byte-seventeen",
+            "padding-bytes-disagree",
+            "last-byte-sixteen-rest-not"
+          ],
+          "coverage": "Pins padding refusals that should not be distinguishable from tag refusals by decrypted content."
+        }
+      ],
+      "tests": [
+        {
+          "path": "tacenta-core/tests/timing.rs",
+          "name": "the_tag_comparison_does_not_leak_how_much_of_the_tag_was_right",
+          "coverage": "Nightly timing test for tag comparison leakage."
+        },
+        {
+          "path": "tacenta-core/tests/timing.rs",
+          "name": "a_forged_ciphertext_rejects_in_time_independent_of_its_contents",
+          "coverage": "Nightly timing test for forged ciphertext rejection."
+        },
+        {
+          "path": "tacenta-core/tests/timing.rs",
+          "name": "the_braid_header_mac_does_not_leak_how_much_of_the_mac_was_right",
+          "coverage": "Nightly timing test for Braid header MAC rejection."
+        },
+        {
+          "path": "tacenta-core/tests/timing.rs",
+          "name": "the_session_rejection_path_does_not_leak_how_much_of_the_tag_was_right",
+          "coverage": "Nightly timing test for session rejection timing."
+        }
+      ],
+      "missing_evidence": [
+        {
+          "kind": "proof",
+          "reason": "This is timing and side-channel evidence, not a Lean proof; primitive timing remains assumed.",
+          "references": [
+            "ASM-08"
+          ]
+        },
+        {
+          "kind": "scope",
+          "reason": "Far-future message numbers and application-visible refusal behavior remain outside this checked timing claim.",
+          "references": [
+            "EX-03",
+            "ASM-19"
+          ]
+        }
+      ]
     }
   ]
 }
