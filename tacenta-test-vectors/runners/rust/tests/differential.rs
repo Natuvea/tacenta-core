@@ -54,6 +54,12 @@
 //!   bytes and the export-and-import check compared at every step, and
 //!   corrupted imports of the states they reach. A step either half refuses as
 //!   `ChainExhausted` must be one the model refuses at a ceiling.
+//! - **The prekey store** is driven over the committed P4 persistence fixtures
+//!   in the shared model domain: layout, older-version upgrade, optional
+//!   branches, record bounds and structural refusal classes. The stored
+//!   signature rule and KEM-pair arithmetic are excluded from this comparison
+//!   because the model deliberately has neither signatures nor FIPS 203
+//!   arithmetic; vectors and crate tests pin those rules separately.
 //! - **The Braid** is driven as far as it can be. Its stored states are
 //!   assembled here from the layout in `session-persistence.md`, Braid, and
 //!   both readers are given each one and four corruptions of it. Its *state
@@ -101,6 +107,8 @@
 //! names.
 
 use std::path::{Path, PathBuf};
+
+use serde::Deserialize;
 use std::process::{Command, Stdio};
 
 use tacenta_core::ratchet::{self, LabelSet, RatchetDecodeError, RatchetError};
@@ -140,6 +148,7 @@ const MAX_SKIP: u32 = 1000;
 /// to the implementation; see `refusals_agree`.
 const RATCHET_FIXED_LEN: usize = 185;
 const SPARSE_FIXED_PREFIX: usize = 46;
+const PREKEY_STORE_FIXED_PREFIX: usize = 137;
 
 // ---------------------------------------------------------------------------
 // The model process
@@ -556,6 +565,18 @@ fn sparse_kind(e: SpqrDecodeError) -> &'static str {
     }
 }
 
+fn prekey_kind(e: tacenta_core::sessions::PrekeyStoreDecodeError) -> Option<&'static str> {
+    use tacenta_core::sessions::PrekeyStoreDecodeError;
+    match e {
+        PrekeyStoreDecodeError::UnknownVersion => Some("wrong-version"),
+        PrekeyStoreDecodeError::TooShort
+        | PrekeyStoreDecodeError::Malformed
+        | PrekeyStoreDecodeError::NonCanonical => Some("short-or-malformed"),
+        PrekeyStoreDecodeError::Incoherent => Some("incoherent"),
+        _ => None,
+    }
+}
+
 /// Whether two refusals of the same buffer are the same refusal, or the one
 /// case `session-persistence.md`, Rejection, leaves to the implementation: a
 /// buffer too short for its fixed fields whose version byte is not `0x01` may
@@ -566,6 +587,14 @@ fn refusals_agree(bytes: &[u8], fixed_len: usize, model: &str, rust: &str) -> bo
     model == rust
         || (bytes.len() < fixed_len
             && bytes.first() != Some(&0x01)
+            && model == "wrong-version"
+            && rust == "short-or-malformed")
+}
+
+fn prekey_refusals_agree(bytes: &[u8], model: &str, rust: &str) -> bool {
+    model == rust
+        || (bytes.len() < PREKEY_STORE_FIXED_PREFIX
+            && !matches!(bytes.first(), Some(0x01..=0x04))
             && model == "wrong-version"
             && rust == "short-or-malformed")
 }
@@ -596,7 +625,12 @@ struct Observed {
     imports_accepted: usize,
     imports_wrong_version: usize,
     imports_malformed: usize,
-    // The two composed formats.
+    // The persisted prekey store and the two composed formats.
+    prekey_reads: usize,
+    prekey_reads_accepted: usize,
+    prekey_reads_wrong_version: usize,
+    prekey_reads_malformed: usize,
+    prekey_reads_excluded: usize,
     triple_steps: usize,
     triple_ceiling: usize,
     triple_reads: usize,
@@ -2437,6 +2471,124 @@ fn check_composed(exe: &Path, seed: u64, sequences: usize, long: bool, seen: &mu
     }
 }
 
+#[derive(Deserialize)]
+struct PrekeyVectorFile {
+    vectors: Vec<PrekeyVector>,
+}
+
+#[derive(Deserialize)]
+struct PrekeyVector {
+    id: String,
+    inputs: PrekeyInputs,
+    #[serde(default = "ok_result")]
+    result: String,
+    #[serde(default)]
+    refusal: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct PrekeyInputs {
+    bytes: String,
+}
+
+fn ok_result() -> String {
+    "valid".to_string()
+}
+
+fn prekey_vectors() -> Vec<PrekeyVector> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../vectors/persistence/prekey-store-state.json");
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    serde_json::from_str::<PrekeyVectorFile>(&text)
+        .unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+        .vectors
+}
+
+fn check_prekey_imports(exe: &Path, seed: u64, seen: &mut Observed) {
+    use tacenta_core::sessions::PrekeyStore;
+
+    let cases = prekey_vectors();
+    let mut requests = Vec::new();
+    let mut selected = Vec::new();
+    for case in cases {
+        if case.refusal.as_deref() == Some("incoherent") {
+            seen.prekey_reads_excluded += 1;
+            continue;
+        }
+        let bytes = hex::decode(&case.inputs.bytes)
+            .unwrap_or_else(|e| panic!("prekey-store-state/{} bytes: {e}", case.id));
+        let valid = case.result == "valid";
+        requests.push(format!("read prekey {}", case.inputs.bytes));
+        selected.push((case.id, valid, bytes));
+    }
+
+    let answers = ask_model(exe, &requests);
+    for ((id, valid, bytes), answer) in selected.iter().zip(answers.iter()) {
+        let line = answer.first().expect("a read answer");
+        seen.prekey_reads += 1;
+        let model = parse_read(line).expect("a read line");
+        let rust = PrekeyStore::from_bytes(bytes)
+            .map(|s| s.to_bytes().to_vec())
+            .map_err(|e| prekey_kind(e).unwrap_or("unnamed"));
+        match (model, rust) {
+            (Some(want), Ok(got)) => {
+                seen.prekey_reads_accepted += 1;
+                assert_eq!(
+                    hex::encode(&got),
+                    hex::encode(&want),
+                    "\n\ntacenta-model and tacenta-core disagree on an imported prekey store.\n\
+                     seed: {seed} ({seed:#x})\n\
+                     vector: prekey-store-state/{id}\n\
+                     request: read prekey {}\n\n",
+                    hex::encode(bytes)
+                );
+                assert!(
+                    *valid,
+                    "prekey-store-state/{id}: both readers accepted a vector marked invalid"
+                );
+            }
+            (None, Err(mine)) => {
+                let kind = read_refusal(line).expect("the model's refusal");
+                match kind.as_str() {
+                    "wrong-version" => seen.prekey_reads_wrong_version += 1,
+                    "short-or-malformed" => seen.prekey_reads_malformed += 1,
+                    _ => {}
+                }
+                assert!(
+                    prekey_refusals_agree(bytes, &kind, mine),
+                    "\n\ntacenta-model and tacenta-core disagree on why a prekey store import is refused.\n\
+                     seed: {seed} ({seed:#x})\n\
+                     vector: prekey-store-state/{id}\n\
+                     the model says {kind}, the crate {mine}\n\
+                     request: read prekey {}\n\n",
+                    hex::encode(bytes)
+                );
+                assert!(
+                    !*valid,
+                    "prekey-store-state/{id}: both readers refused a vector marked valid"
+                );
+            }
+            (Some(_), Err("incoherent")) => {
+                seen.prekey_reads_excluded += 1;
+            }
+            (Some(_), Err(mine)) => panic!(
+                "\n\ntacenta-model accepts a prekey store tacenta-core refuses ({mine}).\n\
+                 seed: {seed} ({seed:#x})\n\
+                 vector: prekey-store-state/{id}\n\
+                 request: read prekey {}\n\n",
+                hex::encode(bytes)
+            ),
+            (None, Ok(_)) => panic!(
+                "\n\ntacenta-core accepts a prekey store tacenta-model refuses.\n\
+                 seed: {seed} ({seed:#x})\n\
+                 vector: prekey-store-state/{id}\n\
+                 request: read prekey {}\n\n",
+                hex::encode(bytes)
+            ),
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // The test
 // ---------------------------------------------------------------------------
@@ -2601,6 +2753,7 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     }
 
     check_imports(&exe, seed, &round, &answers, &mut seen);
+    check_prekey_imports(&exe, seed, &mut seen);
     check_composed(&exe, seed, sequences, long, &mut seen);
 
     eprintln!(
@@ -2665,6 +2818,33 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     assert!(
         seen.imports_accepted > 0 && seen.imports_wrong_version > 0 && seen.imports_malformed > 0,
         "the corrupted imports reached every verdict"
+    );
+
+    eprintln!(
+        "differential: prekey store imports: {} checked ({} accepted, {} wrong-version, \
+         {} short-or-malformed, {} excluded outside the model domain)",
+        seen.prekey_reads,
+        seen.prekey_reads_accepted,
+        seen.prekey_reads_wrong_version,
+        seen.prekey_reads_malformed,
+        seen.prekey_reads_excluded,
+    );
+
+    assert!(
+        seen.prekey_reads_accepted > 0,
+        "no prekey-store import was accepted by both sides"
+    );
+    assert!(
+        seen.prekey_reads_wrong_version > 0,
+        "no prekey-store wrong-version refusal was compared"
+    );
+    assert!(
+        seen.prekey_reads_malformed > 0,
+        "no prekey-store short-or-malformed refusal was compared"
+    );
+    assert!(
+        seen.prekey_reads_excluded > 0,
+        "no prekey-store case exercised an explicit model-domain exclusion"
     );
 
     eprintln!(

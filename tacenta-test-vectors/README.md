@@ -464,7 +464,9 @@ shows up (ADR-0008, practice 9). It has two halves:
 - `runners/rust/tests/differential.rs`, which generates the sequences from a
   seed, blind to what either side will answer, sends them to that executable,
   replays the same operations on `tacenta-ratchet`, `tacenta-spqr`,
-  `tacenta-triple` and `tacenta-braid`, and compares the two transcripts.
+  `tacenta-triple` and `tacenta-braid`, drives the prekey store over its
+  committed P4 stored-format fixtures, and compares the two transcripts or
+  import verdicts.
 
 The operations are encoded exactly as the `steps` input of the two
 ratchet-state files above, so a sequence here means what a sequence there
@@ -496,9 +498,14 @@ from either implementation.
 
 - **Message keys.** The harness compares states, not the keys an operation
   returns; `vectors/ratchet/double-ratchet.json` pins those.
-- **The session and the prekey store.** The model states their stored formats,
-  but no generated operation sequence drives them through Rust and the model
-  together yet.
+- **The session.** The model states its stored format, but no generated
+  operation sequence drives it through Rust and the model together yet.
+- **The prekey store rules outside the model domain.** The harness compares
+  the committed prekey-store fixtures whose verdicts are structural: accepted
+  current and legacy stores, optional branches, record bounds, wrong-version
+  and short-or-malformed refusals. It excludes the stored-signature refusal
+  and KEM-pair arithmetic, because the model deliberately has neither
+  signatures nor FIPS 203 arithmetic; vectors and crate tests pin those rules.
 - **Most of the Braid's state machine.** The Triple Ratchet is driven through
   generated sequences like the two ratchets, and the Braid's *decoder* is
   driven on generated stored states. Its transitions are reached only from
