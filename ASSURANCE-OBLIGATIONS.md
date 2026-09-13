@@ -32,7 +32,7 @@ gate cannot be assessed from prose.
 | P6 | Session/prekey operation model and L2 evidence | BLOCKING for the session orchestration/prekey-store component target. |
 | P7 | Remaining proof/vector target obligations | BLOCKING where a component remains below its target; discovery starts before P4/P5 complete. |
 | P8 | Validated types and explicit phases | NONBLOCKING unless P1/P6 identifies a target deficit that requires it. |
-| P9 | Reproducible gate evidence and final review pack | BLOCKING final assembly after the other packages settle. |
+| P9 | Reproducible gate evidence and final review pack | [P9-GATE-EVIDENCE.md](tacenta-proofs/P9-GATE-EVIDENCE.md) records the candidate-capture procedure, open gate status, mutation inventory and final independent-review record. It remains BLOCKING until that pack is populated at a final candidate. |
 
 ## Component obligations
 
@@ -49,8 +49,8 @@ gate cannot be assessed from prose.
 | Practice 9: differential testing | The prekey store's and session's shared structural stored-format domains are now driven through both sides. Braid covers stored tags, `Ct2Sampled` boundaries, authenticated-header and ciphertext-MAC controls, and every state-machine transition under seeded real-ML-KEM schedules; its delegated persisted key-pair content rule has no universal vector verdict. | CLOSED | P7 | Revisit the narrow delegated-layout decision with any portable encoding, independent producer, or new Braid observable. |
 | Gate 1 | Every component must meet target or have a recorded target decision. Several rows above do not. | BLOCKING | P1/P7/P6 | Component obligation matrix closed or amended by recorded decisions. |
 | Gate 2 | Gap register must have no open BLOCKING rows and no unresolved AMBIGUOUS rows. | BLOCKING | P1/P3/P6/P7 | `GAP-REGISTER.md` rows classified and closed/decided as required. |
-| Gate 3 | Claims ledger must receive a final independent claim-by-claim review after its last change. | BLOCKING | P9 | Review record naming reviewer, revision, artifacts read and findings/disposition. |
-| Gate 4 | Every gate must have negative-control evidence and must fail when required inputs are absent. | BLOCKING | P9/P2/P7 | Gate mutation records with command/environment, deliberate fault and diagnostic. |
+| Gate 3 | Claims ledger must receive a final independent claim-by-claim review after its last change. | BLOCKING | P9 | [P9-GATE-EVIDENCE.md](tacenta-proofs/P9-GATE-EVIDENCE.md) names the required review record; it still needs a reviewer, frozen revision, artifacts read and findings/disposition. |
+| Gate 4 | Every gate must have negative-control evidence and must fail when required inputs are absent. | BLOCKING | P9/P2/P7 | [P9-GATE-EVIDENCE.md](tacenta-proofs/P9-GATE-EVIDENCE.md) distinguishes the existing controls from missing records and cases; all need command/environment, deliberate fault and diagnostic at the final candidate. |
 
 ## Deferral decisions still needed
 
