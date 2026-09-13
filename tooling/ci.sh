@@ -112,6 +112,7 @@ bash tooling/tests/run-check-traceability-cases.sh
 # the schemas are stricter, and this is what makes them binding.
 echo "== Vector files validate against their schemas =="
 python3 tooling/check-vectors.py
+bash tooling/tests/run-check-vectors-cases.sh
 
 # A second reader of the same vectors, written from tacenta-spec and the
 # vectors alone and never from tacenta-core or tacenta-model (ADR-0006). What

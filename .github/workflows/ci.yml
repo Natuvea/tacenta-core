@@ -375,6 +375,7 @@ jobs:
       - run: bash tooling/tests/run-check-traceability-cases.sh
       - run: python3 tooling/check_authentication_boundary.py
       - run: python3 tooling/check-vectors.py
+      - run: bash tooling/tests/run-check-vectors-cases.sh
       # Note the assurance boundary: this checks the attestation manifest
       # against the source hashes. It does NOT re-derive the Rust->Lean
       # (Charon/Aeneas) translation, which runs on dedicated runners;
