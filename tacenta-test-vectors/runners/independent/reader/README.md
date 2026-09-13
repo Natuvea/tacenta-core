@@ -574,11 +574,11 @@ many failed and names the first few.
 | F7-25 the session's re-encode check reported as inconsistent, not non-canonical | **none** | **none** |
 | F7-26 the store's re-encode check reported as malformed, not non-canonical | **none** | **none** |
 | F7-27 the signature rule dropped altogether | **none** | 9: SK-08, PK-01, PK-03, PK-04, ... |
-| F7-28 kem_sig verified over the whole kem_pair rather than EncodeKEM of its ek | 4: `prekey-store-state` current-version, `prekey-store-state` one-time-kem-prekey, `prekey-store-state` retired-signed-prekey, `prekey-store-state` record-at-budget | 12: PS-18, PS-19 , ... |
+| F7-28 kem_sig verified over the whole kem_pair rather than EncodeKEM of its ek | 5: `prekey-store-state` current-version, `prekey-store-state` one-time-kem-prekey, `prekey-store-state` retired-signed-prekey, `prekey-store-state` retired-kem-prekey, `prekey-store-state` record-at-budget | 12: PS-18, PS-19 , ... |
 | F7-29 the one-time KEM prekeys' signatures not checked | **none** | 1: PK-01 |
 | F7-30 the retired pair's signatures not checked | **none** | 1: PK-01 |
 | F7-31 the signature rule checked before the other five, not last of all | 1: `prekey-store-state` identity-public-not-canonical | 3: SK-08, PK-03, PK-04 |
-| F7-32 the signed prekey's signature verified over its secret rather than its public half | 4: `prekey-store-state` current-version, `prekey-store-state` one-time-kem-prekey, `prekey-store-state` retired-signed-prekey, `prekey-store-state` record-at-budget | 12: PS-18, PS-19 , ... |
+| F7-32 the signed prekey's signature verified over its secret rather than its public half | 5: `prekey-store-state` current-version, `prekey-store-state` one-time-kem-prekey, `prekey-store-state` retired-signed-prekey, `prekey-store-state` retired-kem-prekey, `prekey-store-state` record-at-budget | 12: PS-18, PS-19 , ... |
 | F7-33 identity_public's canonical rule dropped | 1: `prekey-store-state` identity-public-not-canonical | 2: SK-08, PK-03 |
 | F7-34 the session's canonical stored-key rules dropped | **none** | 1: SK-04 |
 | F7-35 established_ephemeral's shape rule dropped | 1: `session-state` established-ephemeral-wrong-curve-byte | 1: RJ-02 |

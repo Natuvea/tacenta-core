@@ -318,9 +318,10 @@ fixtures carry bytes `tacenta-core` produced under a fixed byte source, because
 the model has no signature operation and cannot create a store whose stored
 signatures verify. The `legacy-v1`, `legacy-v2` and `legacy-v3` accepted
 vectors re-spell the no-record, no-retired fixture in those older layouts; they
-read to the same field values and write back as current v4. Refusal vectors are
-one-field mutations of those fixtures, or truncations, additions and version
-relabellings.
+read to the same field values and write back as current v4. The
+`retired-signed-prekey` and `retired-kem-prekey` fixtures separately exercise
+the two retired-key sub-formats. Refusal vectors are one-field mutations of
+those fixtures, or truncations, additions and version relabellings.
 
 - **Stored bytes**, when the one input is `bytes`: a stored prekey store offered
   to the reader.

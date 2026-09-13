@@ -491,7 +491,7 @@ and `tacenta-erasure` do the same, and the `partial`,
 
 | Component | Spec section | Covered by |
 |---|---|---|
-| Prekey store v4 layout, read back and written unchanged, including the one-time and one-time-KEM sub-formats and the retired signed prekey | Prekey store | `vectors/persistence/prekey-store-state.json`: `current-version`, `one-time-kem-prekey`, `retired-signed-prekey`, each with its fields |
+| Prekey store v4 layout, read back and written unchanged, including the one-time and one-time-KEM sub-formats, the retired signed prekey and the retired KEM prekey | Prekey store | `vectors/persistence/prekey-store-state.json`: `current-version`, `one-time-kem-prekey`, `retired-signed-prekey`, `retired-kem-prekey`, each with its fields |
 | Prekey store semantic rules: every identifier below `next_id`, none zero, all distinct across kinds | Prekey store, Semantic rules | same file: `identifier-zero`, `identifier-at-next-id`, `identifier-above-next-id`, `identifiers-repeated` |
 | Prekey store replay record: entries tagged with a live last-resort key, no fingerprint twice, and the per-key budget from both sides | Prekey store, Semantic rules; CONSTANTS.md | same file: `record-entry-under-an-unknown-key`, `record-fingerprint-repeated`, `record-over-budget-for-one-key`, and `record-at-budget` accepted at exactly `MAX_LAST_RESORT_SEEN` |
 | Prekey store `identity_public` canonical | Prekey store, Semantic rules; message-format.md, Curve public keys | same file: `identity-public-not-canonical` |
@@ -520,17 +520,6 @@ exists; the pages are where they do.
 **What else the two files do not reach.** These are not consequences of the
 model's boundary; they are simply unpinned.
 
-- **The prekey store's older versions.** Every byte-carrying vector is v4. The
-  page's whole "four versions are read, one is written" paragraph -- v3's
-  untagged fingerprints reading back tagged with the current `kem_id`, v2
-  reading back with nothing retired, v1 with no record remembered -- is pinned
-  by no vector, and this runner cannot pin it: its accepted branch requires
-  that a store be written back as the bytes it was read from, which is false
-  for an older version by construction. `tacenta-core`'s own tests cover the
-  upgrade path, one of them at each version.
-- **The prekey store's `previous_kem` sub-format.** No vector carries
-  `previous_kem_present = 0x01`, so `len(4) || kem_pair || id(4) || sig(64)` is
-  never exercised.
 - **The prekey store's `kem_pair` content clauses.** The page's four are the
   length, `ek`'s FIPS 203 modulus check, `dk`'s hash check, and `ek` equalling
   the copy inside `dk`. The model states the length; no vector varies `kem_pair` at

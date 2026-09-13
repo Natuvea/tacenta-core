@@ -75,7 +75,7 @@ fn persistence_vectors_pass() {
         let floor = match file.algorithm.as_str() {
             "ratchet-state" | "sparse-ratchet-state" => 20,
             "braid-state" => 9,
-            "prekey-store-state" => 6,
+            "prekey-store-state" => 7,
             "session-state" => 3,
             "triple-ratchet-state" => 8,
             _ => 5,

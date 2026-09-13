@@ -3730,6 +3730,20 @@ mod tests {
             bytes.len(),
             hex(&bytes)
         );
+
+        // One with a retired last-resort KEM pair, so `previous_kem`'s
+        // length-prefixed sub-format is exercised too.
+        let mut rng = fixed_rng(0x11);
+        let id = Identity::from_secret([0x42u8; 32]);
+        let mut store = id.create_prekeys(0, &mut rng);
+        store.rotate_kem(&id, &mut rng);
+        let bytes = store.to_bytes();
+        assert!(PrekeyStore::from_bytes(&bytes).is_ok());
+        println!(
+            "FIXTURE retired-kem len={} hex={}",
+            bytes.len(),
+            hex(&bytes)
+        );
     }
 
     /// The exact case external review reported: one byte of the current signed
