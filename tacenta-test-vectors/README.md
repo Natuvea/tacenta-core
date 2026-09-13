@@ -313,11 +313,14 @@ every implementation must apply, the field's length, is pinned by
 ### The prekey store's state: `vectors/persistence/prekey-store-state.json`
 
 The page is session-persistence.md, Prekey store and Rejection. The model
-states the layout and the semantic rules it can check. Accepted vectors carry
-bytes `tacenta-core` produced under a fixed byte source, because the model has
-no signature operation and cannot create a store whose stored signatures verify.
-Refusal vectors are one-field mutations of those fixtures, or truncations,
-additions and version relabellings.
+states the layout and the semantic rules it can check. Accepted cryptographic
+fixtures carry bytes `tacenta-core` produced under a fixed byte source, because
+the model has no signature operation and cannot create a store whose stored
+signatures verify. The `legacy-v1`, `legacy-v2` and `legacy-v3` accepted
+vectors re-spell the no-record, no-retired fixture in those older layouts; they
+read to the same field values and write back as current v4. Refusal vectors are
+one-field mutations of those fixtures, or truncations, additions and version
+relabellings.
 
 - **Stored bytes**, when the one input is `bytes`: a stored prekey store offered
   to the reader.
@@ -330,6 +333,9 @@ additions and version relabellings.
   repeating their stored contents. A present retired key is reported by its
   presence byte in `previous_*_present`; its full bytes are already in the
   input the runner read.
+- A runner must reproduce exact stored bytes for accepted v4 vectors. Accepted
+  legacy prekey-store vectors instead check the read fields and permit the
+  required v4 upgrade on write-back.
 - An invalid vector's `refusal` is `wrong-version`, `short-or-malformed`,
   `non-canonical` or `incoherent`. `incoherent` is the prekey store's
   semantic-signature refusal.

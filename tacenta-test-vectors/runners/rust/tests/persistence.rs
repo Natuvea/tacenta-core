@@ -20,13 +20,14 @@
 //! and the Braid's by stored bytes plus the two transitions out of
 //! `Ct2Sampled` that read no KEM value.
 //!
-//! The prekey store's stored format is covered by stored bytes alone. Its four
-//! accepted vectors carry bytes `tacenta-core` itself produced, because the
-//! model has no signatures and so cannot build a store whose stored signatures
-//! verify; of its thirteen refusals, five are framing cases and eight change
-//! one field of those bytes, so each of those
-//! is refused for the rule under test rather than for a signature that never
-//! verified.
+//! The prekey store's stored format is covered by stored bytes alone. Its
+//! cryptographic accepted fixtures carry bytes `tacenta-core` itself produced,
+//! because the model has no signatures and so cannot build a store whose stored
+//! signatures verify; the legacy accepted vectors re-spell the no-record,
+//! no-retired fixture in older layouts and are permitted to upgrade to v4 on
+//! write-back. The refusals are framing cases or change one field of those
+//! bytes, so each is refused for the rule under test rather than for a
+//! signature that never verified.
 //!
 //! The session's stored format is covered the same way and for the same
 //! reason: the model does not compute the curve, so it cannot build a session
@@ -74,7 +75,7 @@ fn persistence_vectors_pass() {
         let floor = match file.algorithm.as_str() {
             "ratchet-state" | "sparse-ratchet-state" => 20,
             "braid-state" => 9,
-            "prekey-store-state" => 4,
+            "prekey-store-state" => 6,
             "session-state" => 3,
             "triple-ratchet-state" => 8,
             _ => 5,

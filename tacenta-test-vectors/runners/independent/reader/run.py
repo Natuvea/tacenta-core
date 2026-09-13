@@ -821,7 +821,7 @@ def _refusal_kind_full(e):
     return type(e).__name__
 
 
-def _full_state_vector(v, reader, writer, fields_of, allowed):
+def _full_state_vector(v, reader, writer, fields_of, allowed, must_write_back=lambda _data: True):
     """As _stored_state_vector, with the two kinds only these formats give."""
     i = v["inputs"]
     if set(i) != {"bytes"}:
@@ -847,7 +847,8 @@ def _full_state_vector(v, reader, writer, fields_of, allowed):
         names = sorted(set(got) ^ set(v["fields"]))
         wrong = sorted(k for k in set(got) & set(v["fields"]) if got[k] != v["fields"][k])
         raise Fail(f"fields differ: names only on one side {names}, values differ {wrong}")
-    check(i["bytes"], writer(s), "written back")
+    if must_write_back(data):
+        check(i["bytes"], writer(s), "written back")
 
 
 def _h4(n):
@@ -893,7 +894,8 @@ def _session_fields(s):
 
 def h_prekey_store_state(v):
     return _full_state_vector(v, persistence.prekey_store_from_bytes,
-                              persistence.prekey_store_to_bytes, _store_fields, _STORE_REFUSALS)
+                              persistence.prekey_store_to_bytes, _store_fields, _STORE_REFUSALS,
+                              lambda data: data[0] == persistence.K.PREKEY_STORE_VERSION)
 
 
 def h_session_state(v):

@@ -140,6 +140,11 @@ is SemVer against the specified protocol (not the implementation).
   and `chunk` padding, and a runner reports a vector that violates that padding
   as malformed vector data. This resolves G6-05 from the independent reader
   without changing any vector bytes.
+- `prekey-store-state.json`: add accepted `legacy-v1`, `legacy-v2` and
+  `legacy-v3` fixtures for the prekey store's older stored layouts. The new
+  vectors read to the same fields as the no-record, no-retired current fixture
+  and upgrade to v4 on write-back, resolving `PK-OLD-VERSIONS` in the gap
+  register while leaving the separate `previous_kem` fixture gap open.
 - `protocol/session-persistence.md`, Braid, and Semantic rules of the leaf
   formats, Braid: the `key_pair` content clause of tags 1 to 4 is **scoped**
   to an implementation that knows the KEM key pair's layout. Such an

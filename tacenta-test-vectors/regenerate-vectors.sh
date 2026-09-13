@@ -5,11 +5,12 @@
 # commit the result; `tooling/ci.sh` and the public `proofs` CI job run this
 # and fail on a difference between the model and the committed files.
 #
-# Twenty-eight files, all under vectors/: the Double Ratchet scenarios, the
+# Thirty files, all under vectors/: the Double Ratchet scenarios, the
 # PQXDH shared secrets, the message and initial-message encodings, the nine
 # post-quantum derivation files and the two erasure-code files beside them, the
-# erasure coders' two persisted formats and the four persisted states (the two
-# ratchets', the Triple Ratchet's and the Braid's),
+# erasure coders' two persisted formats and the six persisted states (the two
+# ratchets', the Triple Ratchet's, the Braid's, the prekey store's and the
+# session's),
 # the protobuf profile's two readers, the AEAD's two directions, and the three
 # decoder files under malformed-input/.
 # The AEAD files take their AES-256 block values from NIST SP 800-38A, since
@@ -61,7 +62,7 @@ done
 # (session-persistence.md), the bounded protobuf profile (protobuf-profile.md),
 # and the AEAD (message-format.md).
 for a in erasure-encoder-state erasure-decoder-state ratchet-state sparse-ratchet-state \
-         triple-ratchet-state braid-state; do
+         triple-ratchet-state braid-state prekey-store-state session-state; do
   generate "$a" "$here/vectors/persistence/$a.json"
 done
 for a in protobuf-ratchet-body protobuf-prekey-envelope; do
