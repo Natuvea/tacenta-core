@@ -54,12 +54,18 @@ and compares the resulting persisted state. This pins canonical persisted
 state read-back, reader refusal, the documented boundary transition, and one
 accepted/failure authenticated-header pair without a KEM value.
 
-The same runner separately drives a genuine ML-KEM Braid exchange through
-transition (5), where the persisted-state bridge cannot construct the delegated
-key-pair and encapsulation fields. A complete six-codeword `ct2 || MacCt`
-stream emits epoch 1; changing one byte of systematic codeword 5, which carries
-only `MacCt`, emits no key and reaches terminal `Failed`. The clean-room
-reader's BR-10 independently covers the matching ciphertext-MAC failure rule.
+The same runner separately drives a genuine ML-KEM Braid exchange through all
+thirteen state-machine transitions, where the persisted-state bridge cannot
+construct the delegated key-pair and encapsulation fields. Five deterministic
+delivery schedules exercise the three orders in which the responder completes
+encapsulation: strict delivery, delayed `Ct1`, delayed `Ek`, a final `Ek`
+carried by `EkCt1Ack`, and ordinary loss. The run fails unless every documented
+transition occurs and an honest run stays out of terminal `Failed`. It also
+drives transition (5)'s complete six-codeword `ct2 || MacCt` stream: changing
+one byte of systematic codeword 5, which carries only `MacCt`, emits no key and
+reaches terminal `Failed`. The clean-room reader's BR-09 independently checks
+the abstract transition table with its specified KEM double, and BR-10 covers
+the matching ciphertext-MAC failure rule.
 
 Tags 1 through 4 require a valid ML-KEM key-pair layout. That layout is the
 recorded ADR-0006 delegated boundary, so the harness currently exercises only
@@ -73,4 +79,24 @@ or a delegated-layout exclusion as interchangeable.
 | Sparse operation/invariant inventory | Scoped map above; the fixed-vector decision names the ceiling and retired-epoch observations, while generated differential and the clean-room reader cover combinations | Closed for P7's sparse vector target. |
 | Braid persisted-state tags | Model/vector/reader/import comparison for tags 0 and 5--11; invalid-length check for 1--4 | Keep the delegated key-pair layout exclusion narrow and add valid tag evidence only with a specified independent producer. |
 | Braid MAC behavior | Differential check of a persisted-key header MAC and mutation, with model recomputation; real-ML-KEM runner check of accepted `ct2 || MacCt` and a MAC-only-codeword mutation to `Failed`; clean-room BR-10 | Keep the KEM-backed control separate from the persisted-state bridge and add a committed operation vector only if the target decision requires one. |
-| Braid state machine | `Ct2Sampled` boundaries, empty-`NoHeaderReceived` transition (6), and real-ML-KEM transition (5) MAC controls | The remaining branches require delegated KEM material; decide whether they need committed operation vectors or record that narrow target boundary. |
+| Braid state machine | `Ct2Sampled` boundaries, empty-`NoHeaderReceived` transition (6), real-ML-KEM transition (5) MAC controls, and a seeded real-ML-KEM run covering all transitions (1)--(13) across five delivery schedules; clean-room BR-09 covers the specified abstract table | Closed for the Braid operation target below. |
+
+### Braid operation target decision
+
+P7's Braid operation target is a real-ML-KEM execution control for every
+documented state-machine transition, paired with the clean-room reader's
+specification-only transition-table test. It is not a committed persisted
+operation-vector corpus: such a corpus would have to embed valid `key_pair` or
+encapsulation values in the KEM implementation's delegated layout. It could
+only be produced by the same layout-aware implementation, while a reader
+outside that scope is entitled to accept a field that the layout-aware reader
+refuses. That would create a fixture with no universal acceptance verdict,
+rather than independent evidence.
+
+The fixed persisted-vector surface remains tags 0 and 5--11 plus the
+`key_pair` length rule that every reader applies. Tags 1--4 remain excluded
+only for the delegated content clause; their public state-machine behavior is
+covered by the seeded real-ML-KEM runner. Revisit this decision if the
+specification defines a portable KEM-state encoding, an independent producer
+for that exact delegated layout becomes available, or the Braid wire/state
+machine gains a new transition or failure observable.

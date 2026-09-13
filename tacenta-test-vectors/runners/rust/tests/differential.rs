@@ -70,10 +70,12 @@
 //!   persisted authenticator plus a complete authenticated header, and no KEM
 //!   value. A separate real-ML-KEM exchange reaches transition (5): its
 //!   complete ciphertext MAC emits the epoch output, while a mutation in the
-//!   final, MAC-only systematic codeword reaches `Failed`. The remaining
-//!   stored-state transitions consume a key pair or encapsulation state whose
-//!   layout `session-persistence.md` delegates (ADR-0006, point 5), so neither
-//!   side of the persisted differential bridge can construct them.
+//!   final, MAC-only systematic codeword reaches `Failed`. A separate seeded
+//!   real-ML-KEM runner drives all thirteen state-machine transitions under
+//!   five delivery schedules. The remaining stored-state transitions consume a
+//!   key pair or encapsulation state whose layout `session-persistence.md`
+//!   delegates (ADR-0006, point 5), so neither side of the persisted
+//!   model-comparison bridge can construct them.
 //!
 //!   For the same reason, **tags 1 to 4 appear only at a `key_pair` length
 //!   both readers refuse.** The page has the reader validate the `header` and
@@ -111,6 +113,7 @@
 //! the sequences that are too slow for the gate, which the constant below
 //! names.
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -2360,6 +2363,128 @@ fn braid_ciphertext_mac_run(seed: u64, mutate_mac: bool) -> BraidCiphertextMacRu
     panic!("a real Braid exchange did not complete its first ciphertext MAC");
 }
 
+/// Exercise every Braid state-machine transition with real ML-KEM material.
+///
+/// The persisted-state bridge deliberately cannot construct tags 1--4: their
+/// `key_pair` and encapsulation bytes use the layout ADR-0006 delegates to the
+/// KEM implementation.  This runner is therefore separate from the model
+/// comparison.  It drives the public Braid API with deterministic randomness
+/// and the same delivery schedules as the specification-only reader's BR-09:
+/// strict delivery, delayed `Ct1`, delayed `Ek`, a simultaneous final `Ek` and
+/// acknowledgement, and ordinary loss.  Together those schedules select all
+/// three orders by which the responder can finish encapsulation.
+fn braid_all_transitions_run(seed: u64) -> BTreeSet<(u8, u8, bool)> {
+    use tacenta_braid::{Braid, Msg, MsgType};
+
+    #[derive(Clone, Copy)]
+    enum Schedule {
+        Strict,
+        Ct1Late,
+        EkLate,
+        Simultaneous,
+        Lossy,
+    }
+
+    fn deliver(schedule: Schedule, sender: char, round: usize, msg: &Msg) -> bool {
+        match schedule {
+            Schedule::Strict => true,
+            // Complete Ek before the delayed Ct1: transitions (10) then (12).
+            Schedule::Ct1Late => {
+                !(sender == 'b' && msg.ty == MsgType::Ct1 && !round.is_multiple_of(3))
+            }
+            // Receive the acknowledgement before Ek completes: transitions (8) then (11).
+            Schedule::EkLate => !(sender == 'a' && msg.ty == MsgType::Ek && round < 45),
+            // Hold the final Ek and most Ct1 chunks so the final Ek arrives as EkCt1Ack:
+            // transition (9).
+            Schedule::Simultaneous => {
+                if sender == 'a' && msg.ty == MsgType::Ek {
+                    msg.data.as_ref().is_none_or(|chunk| chunk.index < 47)
+                } else if sender == 'b' && msg.ty == MsgType::Ct1 {
+                    msg.data
+                        .as_ref()
+                        .is_none_or(|chunk| chunk.index == 0 || round >= 70)
+                } else {
+                    true
+                }
+            }
+            Schedule::Lossy => !(round * 7 + sender.len_utf8()).is_multiple_of(3),
+        }
+    }
+
+    fn step(
+        sender: &mut Braid,
+        receiver: &mut Braid,
+        sender_name: char,
+        round: usize,
+        schedule: Schedule,
+        rng: &mut Rng,
+        seen: &mut BTreeSet<(u8, u8, bool)>,
+    ) {
+        let before = sender.state_tag();
+        let (msg, _reported, sent_output, next) = sender.send(rng);
+        let after = next.state_tag();
+        if before != after {
+            seen.insert((before, after, true));
+        }
+        *sender = next;
+        let _ = sent_output;
+        if deliver(schedule, sender_name, round, &msg) {
+            let before = receiver.state_tag();
+            let (_reported, received_output, next) = receiver.receive(&msg);
+            let after = next.state_tag();
+            if before != after {
+                seen.insert((before, after, false));
+            }
+            receiver.commit(next);
+            let _ = received_output;
+        }
+    }
+
+    let mut all = BTreeSet::new();
+    for (case, schedule) in [
+        Schedule::Strict,
+        Schedule::Ct1Late,
+        Schedule::EkLate,
+        Schedule::Simultaneous,
+        Schedule::Lossy,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut rng = Rng::new(seed ^ (case as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15));
+        let mut initiator = Braid::initiator(b"differential full Braid state machine");
+        let mut responder = Braid::responder(b"differential full Braid state machine");
+        let mut seen = BTreeSet::new();
+
+        for round in 0..1024 {
+            step(
+                &mut initiator,
+                &mut responder,
+                'a',
+                round,
+                schedule,
+                &mut rng,
+                &mut seen,
+            );
+            step(
+                &mut responder,
+                &mut initiator,
+                'b',
+                round,
+                schedule,
+                &mut rng,
+                &mut seen,
+            );
+            assert!(
+                !initiator.failed() && !responder.failed(),
+                "an honest real-ML-KEM Braid schedule entered Failed"
+            );
+        }
+        all.extend(seen);
+    }
+    all
+}
+
 fn braid_readback(bytes: &[u8]) -> String {
     match tacenta_braid::Braid::from_bytes(bytes) {
         Ok(b) => {
@@ -2615,6 +2740,31 @@ fn check_composed(exe: &Path, seed: u64, sequences: usize, long: bool, seen: &mu
         "a changed ciphertext MAC must reach terminal Braid failure"
     );
     seen.braid_ciphertext_mac_failed += 1;
+
+    // The stored-state model cannot construct the delegated KEM fields, but
+    // the production API can. These schedules are the real-KEM counterpart of
+    // the clean-room reader's BR-09 and must collectively hit every transition
+    // in mlkem-braid.md's state table.
+    let real_transitions = braid_all_transitions_run(seed ^ 0xe7e7_e7e7_e7e7_e7e7);
+    let expected_real_transitions = BTreeSet::from([
+        (0, 1, true),   // (1) generate key pair
+        (1, 2, false),  // (2) first Ct1
+        (2, 3, false),  // (3) complete Ct1
+        (3, 4, false),  // (4) first Ct2
+        (4, 5, false),  // (5) complete Ct2 and advance
+        (5, 6, false),  // (6) complete authenticated header
+        (6, 7, true),   // (7) sample Ct1
+        (7, 9, false),  // (8) acknowledgement before final Ek
+        (7, 10, false), // (9) final Ek carried by acknowledgement
+        (7, 8, false),  // (10) complete Ek before acknowledgement
+        (9, 10, false), // (11) final Ek after acknowledgement
+        (8, 10, false), // (12) acknowledgement after complete Ek
+        (10, 0, false), // (13) next-epoch message swaps roles
+    ]);
+    assert_eq!(
+        real_transitions, expected_real_transitions,
+        "real-ML-KEM schedules did not exercise exactly Braid's thirteen state transitions"
+    );
 
     let answers = ask_model(exe, &requests);
 
