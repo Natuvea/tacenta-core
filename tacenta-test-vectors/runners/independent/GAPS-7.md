@@ -333,7 +333,7 @@ evidence is in section 5.
   every record entry tagged with a live key.
 - **Every accepted session** re-encodes to its input and keeps all eight
   semantic rules.
-- **The manifest's coverage statements hold**: no vector carries
+- **The manifest's coverage statements hold**: `retired-kem-prekey` now carries
   `previous_kem`, the largest `seen_count` is 1,025, no session vector carries
   a Braid tag of 7 to 11, every session refusal vector is the responder fixture
   with one field changed, and `peer-identity-not-canonical` changes only
@@ -394,7 +394,7 @@ evidence is in section 5.
 | Classical expiry (`MAX_SKIPPED_AGE`) | STILL OPEN | |
 | A short buffer with an unknown version | STILL OPEN | G5-03; the page leaves it to the implementation. |
 | The session's, the prekey store's and the initiator's stored-key rules | **NARROWED** | `peer-identity-not-canonical` and `identity-public-not-canonical` pin two of them, each with its own kind. `our_identity_public`, `pending_initial`'s `ephemeral_public`, the ratchet state's three positions and the initiator's own bundle check are still unpinned. |
-| The prekey store's older versions, and `previous_kem` | STILL OPEN (narrowed) | `prekey-store-state.json` now carries accepted `legacy-v1`, `legacy-v2` and `legacy-v3` inputs derived from the no-record, no-retired fixture, and the runner checks their fields while permitting the required v4 upgrade on write-back. No vector still carries `previous_kem_present = 0x01`, so `len(4) \|\| kem_pair \|\| id(4) \|\| sig(64)` is exercised by nothing. PS-19 and PK-06 hold the four versions; PK-01 holds the retired KEM pair. |
+| The prekey store's older versions, and `previous_kem` | **CLOSED** | `prekey-store-state.json` carries accepted `legacy-v1`, `legacy-v2` and `legacy-v3` inputs derived from the no-record, no-retired fixture, and the runner checks their fields while permitting the required v4 upgrade on write-back. It also carries `retired-kem-prekey`, with `previous_kem_present = 0x01`, so `len(4) \|\| kem_pair \|\| id(4) \|\| sig(64)` is exercised by a deterministic `tacenta-core` fixture. PS-19 and PK-06 hold the four versions; PK-01 holds the retired KEM pair. |
 | From `GAPS-2.md`: the sparse ratchet's state machine; the Double Ratchet's eviction, expiry and no-chain refusals | STILL OPEN (narrowed in pass 5) | |
 
 **The reverse case, a vector with no spec behind it:** none. Every refusal,

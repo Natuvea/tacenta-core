@@ -144,7 +144,11 @@ is SemVer against the specified protocol (not the implementation).
   `legacy-v3` fixtures for the prekey store's older stored layouts. The new
   vectors read to the same fields as the no-record, no-retired current fixture
   and upgrade to v4 on write-back, resolving `PK-OLD-VERSIONS` in the gap
-  register while leaving the separate `previous_kem` fixture gap open.
+  register.
+- `prekey-store-state.json`: add the accepted `retired-kem-prekey` fixture,
+  produced by `print_prekey_store_fixtures`, so the prekey store's
+  `previous_kem` sub-format is covered by a deterministic vector. This
+  resolves `PK-PREVIOUS-KEM` in the gap register.
 - `protocol/session-persistence.md`, Braid, and Semantic rules of the leaf
   formats, Braid: the `key_pair` content clause of tags 1 to 4 is **scoped**
   to an implementation that knows the KEM key pair's layout. Such an

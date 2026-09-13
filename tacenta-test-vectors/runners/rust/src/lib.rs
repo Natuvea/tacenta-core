@@ -1289,6 +1289,22 @@ fn prekey_store_fields_agree(v: &Vector, stored: &[u8]) -> Result<(), String> {
         pos += 1;
     }
     eq(at(pos, 1)?, &required_field(v, "previous_kem_present")?)?;
+    if stored[pos] == 1 {
+        let (pair_at, pair_len) = len_prefixed(stored, pos + 1)?;
+        pos = pair_at + pair_len;
+        at(pos, 4)?;
+        pos += 4;
+        at(pos, 64)?;
+        pos += 64;
+    } else {
+        pos += 1;
+    }
+    if pos != stored.len() {
+        return Err(format!(
+            "the store has {} trailing byte(s)",
+            stored.len() - pos
+        ));
+    }
     Ok(())
 }
 
