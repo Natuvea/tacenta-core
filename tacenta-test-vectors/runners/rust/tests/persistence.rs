@@ -33,8 +33,9 @@
 //! reason: the model does not compute the curve, so it cannot build a session
 //! whose `ratchet_private` matches the classical ratchet's `dhs_pub`. Its
 //! first three accepted vectors are `tacenta-core`'s own exports, two accepted
-//! neighbours pin the tag 6/7 epoch boundary, and its twelve refusals are
-//! three framing cases plus semantic mutations of the responder fixture. They
+//! neighbours pin the tag 6/7 epoch boundary, one accepted fixture pins the
+//! failed-Braid exemption, and its twelve refusals are three framing cases plus
+//! semantic mutations of the responder fixture. They
 //! are the only vectors here that carry the refusal `inconsistent`, which this
 //! page's Rejection section distinguishes from malformed for the session alone.
 //! The conformance manifest says which rules no vector reaches, and which
@@ -76,7 +77,7 @@ fn persistence_vectors_pass() {
             "ratchet-state" | "sparse-ratchet-state" => 20,
             "braid-state" => 9,
             "prekey-store-state" => 7,
-            "session-state" => 5,
+            "session-state" => 6,
             "triple-ratchet-state" => 8,
             _ => 5,
         };
