@@ -562,14 +562,14 @@ many failed and names the first few.
 | F7-13 the epoch relation's boundary moved to tags 6 to 10 | 4: `session-state` tag-six-keeps-previous-sparse-epoch, `session-state` tag-seven-uses-current-sparse-epoch, `session-state` tag-six-with-current-sparse-epoch-refused, `session-state` tag-seven-with-previous-sparse-epoch-refused | 1: EP-01 |
 | F7-14 the epoch relation dropped | 1: `session-state` sparse-epoch-does-not-follow-the-braid | 2: RJ-02, EP-01 |
 | F7-15 a failed Braid no longer exempt from the epoch relation | 1: `session-state` failed-braid-exempts-sparse-epoch | 2: PS-15, EP-01 |
-| F7-16 the Braid's half of the role rule dropped | **none** | 1: RJ-02 |
-| F7-17 the sparse ratchet's half of the role rule dropped | 1: `session-state` halves-disagree-on-the-role | 1: RJ-02 |
+| F7-16 the Braid's half of the role rule dropped | 1: `session-state` halves-disagree-on-the-braid-role | 1: RJ-02 |
+| F7-17 the sparse ratchet's half of the role rule dropped | 1: `session-state` halves-disagree-on-the-sparse-role | 1: RJ-02 |
 | F7-18 the role parity inverted: the header-sending side is the initiator at even epochs | 3: `session-state` responder, `session-state` initiator-unanswered, `session-state` initiator-answered | 8: PS-15, SK-03, SK-04 , ... |
 | F7-19 the role read from pending_initial rather than established_ephemeral | 1: `session-state` initiator-answered | 2: PS-15, EP-01 |
-| F7-20 direction A2b read as the responder's | 4: `session-state` responder, `session-state` initiator-unanswered, `session-state` initiator-answered, `session-state` halves-disagree-on-the-role | 8: PS-15, SK-03 , ... |
+| F7-20 direction A2b read as the responder's | 4: `session-state` responder, `session-state` initiator-unanswered, `session-state` initiator-answered, `session-state` halves-disagree-on-the-sparse-role | 8: PS-15, SK-03 , ... |
 | F7-21 the store's signature rule reported as malformed, not incoherent | 1: `prekey-store-state` signed-prekey-signature-does-not-verify | 9: SK-08, PK-01, PK-03, PK-04, ... |
 | F7-22 the store's other five rules reported as incoherent, not malformed | 8: `prekey-store-state` identity-public-not-canonical, `prekey-store-state` identifier-zero, `prekey-store-state` identifier-at-next-id, `prekey-store-state` identifier-above-next-id, ... | 6: , ... |
-| F7-23 the session's semantic rules reported as malformed, not inconsistent | 6: `session-state` sparse-epoch-does-not-follow-the-braid, `session-state` associated-data-wrong-orientation, `session-state` halves-disagree-on-the-role, `session-state` peer-identity-not-canonical, ... | 4: , ... |
+| F7-23 the session's semantic rules reported as malformed, not inconsistent | 7: `session-state` sparse-epoch-does-not-follow-the-braid, `session-state` associated-data-wrong-orientation, `session-state` halves-disagree-on-the-sparse-role, `session-state` halves-disagree-on-the-braid-role, `session-state` peer-identity-not-canonical, ... | 4: , ... |
 | F7-24 an unrecognised version reported as malformed, not wrong version | 11: `braid-state` version-zero, `braid-state` version-two, `prekey-store-state` version-unknown, `prekey-store-state` version-zero, ... | 9: , ... |
 | F7-25 the session's re-encode check reported as inconsistent, not non-canonical | **none** | **none** |
 | F7-26 the store's re-encode check reported as malformed, not non-canonical | **none** | **none** |
@@ -590,11 +590,10 @@ many failed and names the first few.
 | C7-01 control: the store's length checked before its version byte, which Rejection allows | **none** | **none** |
 
 The two new vector files catch every framing refusal of both formats, all four
-refusal kinds they use, the store's five cheap semantic rules and five of the
+refusal kinds they use, the store's five cheap semantic rules and six of the
 session's eight. What they miss is what `../GAPS-7.md`, section 3, records: the
 remaining signature-rule edge cases (F7-29, F7-30), the
-per-key bound read as a whole and the pre-sizing ceiling (F7-06, F7-11), the
-role rule's Braid half (F7-16), and the session's canonical-key and
+per-key bound read as a whole and the pre-sizing ceiling (F7-06, F7-11), the session's canonical-key and
 `ratchet_private` rules (F7-34, F7-40).
 
 **F7-13 was missed on the first run and is now vector-pinned.** The boundary

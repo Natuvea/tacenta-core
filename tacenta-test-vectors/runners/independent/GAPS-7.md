@@ -356,9 +356,10 @@ evidence is in section 5.
   also a responder" rule, and "each half satisfies its own crate's
   invariant".** The manifest names all three as unreached. F7-40 is caught only
   by RJ-02.
-- **The role rule's Braid half**. F7-16 is caught only by cases. Later P4
-  work added `session-state/failed-braid-exempts-sparse-epoch`, so the
-  failed-Braid exemption is now vector-pinned as well as covered by cases.
+- **The role rule's Braid half**. Later P4 work added
+  `session-state/halves-disagree-on-the-braid-role`, so F7-16 is now
+  vector-pinned as well as covered by cases. The failed-Braid exemption is
+  also pinned by `session-state/failed-braid-exempts-sparse-epoch`.
 - **The record's pre-sizing ceiling, and the per-key bound read as a whole.**
   F7-11 and F7-06 are caught only by PS-22; the manifest states the first.
 - **`non-canonical`, for either format.** Both re-encode checks are
@@ -376,8 +377,8 @@ evidence is in section 5.
 
 | Vector gap | Status | Note |
 |---|---|---|
-| The session's and the prekey store's persisted formats | **CLOSED** | Both files exist and pin the layouts, the framing refusals with their kinds, five of the store's six semantic rules and five of the session's eight. What they do not reach is section 3 above and the manifest's own "Not covered". |
-| The session over the Braid | **NARROWED** | `session-state.json` pins the epoch relation's `e - 1` branch, the tag 7 `e` branch at the boundary, the failed-Braid exemption, and the role rule's sparse half over a real Braid. The role rule's Braid half is still unpinned. |
+| The session's and the prekey store's persisted formats | **CLOSED** | Both files exist and pin the layouts, the framing refusals with their kinds, five of the store's six semantic rules and six of the session's eight. What they do not reach is section 3 above and the manifest's own "Not covered". |
+| The session over the Braid | **NARROWED** | `session-state.json` pins the epoch relation's `e - 1` branch, the tag 7 `e` branch at the boundary, the failed-Braid exemption, and both halves of the role rule over a real Braid. |
 | `DecodeEC` on its own | STILL OPEN | |
 | The repeated initial message | STILL OPEN | |
 | The erasure encoder's stated edges | STILL OPEN (narrowed in pass 5) | |
