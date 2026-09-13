@@ -44,6 +44,7 @@ write what this reads.
     read triple  <bytes>
     read braid   <bytes>
     read prekey  <bytes>
+    read session <bytes>
 
 The Braid has no `fresh` form: its initialisation takes the preshared secret
 and its first send draws a KEM key pair.
@@ -556,6 +557,10 @@ def handle (line : String) : Except String (List String) :=
     | "prekey" =>
       match Model.PersistedState.PrekeyStoreState.ofBytes bs with
       | .ok st => .ok ["read ok " ++ toHex (Model.PersistedState.PrekeyStoreState.toBytes st), "end"]
+      | .error r => .ok ["read refused " ++ refusalName r, "end"]
+    | "session" =>
+      match Model.PersistedState.SessionState.ofBytes bs with
+      | .ok st => .ok ["read ok " ++ toHex (Model.PersistedState.SessionState.toBytes st), "end"]
       | .error r => .ok ["read refused " ++ refusalName r, "end"]
     | other => .error ("difftest: no algorithm " ++ other)
   | _ => .error ("difftest: not a request: " ++ line)
