@@ -65,12 +65,12 @@
 //! - **The Braid** is driven as far as it can be. Its stored states are
 //!   assembled here from the layout in `session-persistence.md`, Braid, and
 //!   both readers are given each one and four corruptions of it. Its *state
-//!   machine* is reached only from `Ct2Sampled`: transition (13) and the
-//!   refusal at the reserved epoch read the stored epoch and the message and
-//!   nothing else, so they can be run without a KEM value. Every other
-//!   transition consumes a key pair or an encapsulation state, whose layout
-//!   `session-persistence.md` delegates (ADR-0006, point 5), so neither side
-//!   of this harness can build one.
+//!   machine* reaches `Ct2Sampled` transition (13), its reserved-epoch
+//!   refusal, and `NoHeaderReceived` transition (6). The last consumes a
+//!   persisted authenticator plus a complete authenticated header, and no KEM
+//!   value. Every other transition consumes a key pair or an encapsulation
+//!   state, whose layout `session-persistence.md` delegates (ADR-0006, point
+//!   5), so neither side of this harness can build one.
 //!
 //!   For the same reason, **tags 1 to 4 appear only at a `key_pair` length
 //!   both readers refuse.** The page has the reader validate the `header` and
@@ -113,6 +113,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use std::process::{Command, Stdio};
 
+use tacenta_core::primitives::kdf;
 use tacenta_core::ratchet::{self, LabelSet, RatchetDecodeError, RatchetError};
 use tacenta_spqr::{Direction, Output, SpqrDecodeError, SpqrError};
 
@@ -705,6 +706,8 @@ struct Observed {
     braid_reads_accepted: usize,
     braid_ceiling_stepped: usize,
     braid_ceiling_failed: usize,
+    braid_header_accepted: usize,
+    braid_header_failed: usize,
 }
 
 // ---------------------------------------------------------------------------
@@ -2211,6 +2214,50 @@ fn braid_step_bytes(epoch: u64) -> Vec<u8> {
     out
 }
 
+struct BraidHeaderRun {
+    start: Vec<u8>,
+    framed: Vec<u8>,
+    after: Vec<u8>,
+    invalid_mac: bool,
+}
+
+/// A complete, authenticated Braid header. The start state's persisted MAC
+/// key is input, while the independent Lean model recomputes the same HMAC
+/// when it checks the transition.
+fn braid_authenticated_header(auth: &[u8; 64], epoch: u64, header: &[u8; HEADER_LEN]) -> Vec<u8> {
+    let mut data = b"Tacenta_MLKEM1024_SHA-256:ekheader".to_vec();
+    data.extend_from_slice(&epoch.to_be_bytes());
+    data.extend_from_slice(header);
+    let mut framed = header.to_vec();
+    framed.extend_from_slice(&kdf::hmac_sha256(&auth[32..], &data));
+    framed
+}
+
+/// Receive the three systematic codewords carrying an authenticated header.
+fn braid_receive_header(start: &[u8], epoch: u64, framed: &[u8]) -> Vec<u8> {
+    use tacenta_braid::{Braid, Msg, MsgType};
+
+    assert_eq!(
+        framed.len(),
+        HEADER_LEN + MAC_LEN,
+        "a complete Braid header"
+    );
+    let mut braid = Braid::from_bytes(start).expect("the generated Braid header start");
+    for (index, data) in framed.chunks(32).enumerate() {
+        let chunk = tacenta_erasure::Chunk {
+            index: u16::try_from(index).expect("three header indices"),
+            data: data.try_into().expect("a 32-byte header codeword"),
+        };
+        let (_epoch, _out, next) = braid.receive(&Msg {
+            epoch,
+            ty: MsgType::Hdr,
+            data: Some(chunk),
+        });
+        braid.commit(next);
+    }
+    braid.to_bytes().to_vec()
+}
+
 fn braid_readback(bytes: &[u8]) -> String {
     match tacenta_braid::Braid::from_bytes(bytes) {
         Ok(b) => {
@@ -2381,6 +2428,57 @@ fn check_composed(exe: &Path, seed: u64, sequences: usize, long: bool, seen: &mu
         ));
     }
 
+    // Completing the three header codewords needs neither a key pair nor an
+    // encapsulation state. A good MAC reaches HeaderReceived; changing only
+    // its final byte reaches the terminal failure state.
+    let header_first = requests.len();
+    let mut header_runs = Vec::new();
+    for invalid_mac in [false, true] {
+        let mut header_auth = [0u8; 64];
+        for b in &mut header_auth {
+            *b = rng.byte();
+        }
+        let mut header = [0u8; HEADER_LEN];
+        for b in &mut header {
+            *b = rng.byte();
+        }
+        let mut framed = braid_authenticated_header(&header_auth, 1, &header);
+        if invalid_mac {
+            let last = framed.len() - 1;
+            framed[last] ^= 0x01;
+        }
+        let start = braid_state_bytes(
+            5,
+            1,
+            &header_auth,
+            &[decoder_bytes(HEADER_LEN + MAC_LEN, &[])],
+        );
+        let after = braid_receive_header(&start, 1, &framed);
+        let restored = tacenta_braid::Braid::from_bytes(&after)
+            .expect("a Braid header transition writes a readable state");
+        if invalid_mac {
+            assert!(restored.failed(), "a changed Braid header MAC must fail");
+        } else {
+            assert_eq!(
+                restored.state_tag(),
+                6,
+                "an authenticated Braid header reaches HeaderReceived"
+            );
+        }
+        requests.push(format!(
+            "check braid header {} {} {}",
+            hex::encode(&start),
+            hex::encode(&framed),
+            hex::encode(&after)
+        ));
+        header_runs.push(BraidHeaderRun {
+            start,
+            framed,
+            after,
+            invalid_mac,
+        });
+    }
+
     let answers = ask_model(exe, &requests);
 
     for (at, t) in &triples {
@@ -2399,6 +2497,26 @@ fn check_composed(exe: &Path, seed: u64, sequences: usize, long: bool, seen: &mu
                  request: {}\n\n",
                 t.start.request("triple", &encode_triple(&minimal))
             );
+        }
+    }
+
+    for (i, run) in header_runs.iter().enumerate() {
+        let line = answers[header_first + i]
+            .first()
+            .expect("a Braid header check answer");
+        assert_eq!(
+            line,
+            "check ok",
+            "\n\ntacenta-model and tacenta-core disagree on Braid header transition (6).\n\
+             start: {}\nheader: {}\nafter: {}\nanswer: {line}\n\n",
+            hex::encode(&run.start),
+            hex::encode(&run.framed),
+            hex::encode(&run.after),
+        );
+        if run.invalid_mac {
+            seen.braid_header_failed += 1;
+        } else {
+            seen.braid_header_accepted += 1;
         }
     }
 
@@ -4060,7 +4178,8 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     eprintln!(
         "differential: the composed formats: {} Triple Ratchet steps ({} refused at a half's \
          ceiling), {} Triple Ratchet imports ({} accepted); {} Braid imports ({} accepted), \
-         {} Braid steps ({} taking transition 13, {} failing at the reserved epoch)",
+        {} Braid steps ({} taking transition 13, {} failing at the reserved epoch); \
+         authenticated headers ({} accepted, {} failed)",
         seen.triple_steps,
         seen.triple_ceiling,
         seen.triple_reads,
@@ -4070,6 +4189,8 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
         seen.braid_steps,
         seen.braid_ceiling_stepped,
         seen.braid_ceiling_failed,
+        seen.braid_header_accepted,
+        seen.braid_header_failed,
     );
 
     // What the composed half had to reach, on the same principle as above: a
@@ -4094,6 +4215,14 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     assert!(
         seen.braid_ceiling_failed > 0,
         "the Braid's refusal at the reserved epoch was not reached"
+    );
+    assert!(
+        seen.braid_header_accepted > 0,
+        "an authenticated Braid header did not reach HeaderReceived"
+    );
+    assert!(
+        seen.braid_header_failed > 0,
+        "a changed Braid header MAC did not reach terminal failure"
     );
 }
 
