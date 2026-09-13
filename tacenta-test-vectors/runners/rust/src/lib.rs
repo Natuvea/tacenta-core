@@ -36,8 +36,7 @@ pub struct Vector {
     /// Which refusal an invalid persisted-state vector names: for stored
     /// bytes, the one the reader gives (session-persistence.md, Rejection),
     /// `wrong-version` or `short-or-malformed`; for operations whose last step
-    /// is refused, `counter-exhaustion` (ratchet.md, Sending and receiving;
-    /// sparse-pq-ratchet.md, Sending and Receiving).
+    /// is refused, `counter-exhaustion`, or sparse `no-chain` after retirement.
     #[serde(default)]
     pub refusal: Option<String>,
 }
@@ -865,8 +864,8 @@ fn ratchet_fields_agree(
 /// `op(1) || epoch(8) || output_present(1) || output_epoch(8) ||
 /// output_key(32)`, the output zeroed when absent, and a receive (`op` `01`)
 /// is followed by the message number `n(8)`; a send's `op` is `00`. The replay
-/// stops at the first step the crate refuses, and `ChainExhausted` is named
-/// `counter-exhaustion`, as for the classical ratchet.
+/// stops at the first step the crate refuses. `ChainExhausted` is named
+/// `counter-exhaustion`, and the retired-epoch refusal `NoChain` is `no-chain`.
 fn replay_sparse_steps(state: &mut tacenta_spqr::State, steps: &[u8]) -> Result<Replayed, String> {
     use tacenta_spqr::{Output, SpqrError};
     let mut at = 0;
@@ -903,6 +902,7 @@ fn replay_sparse_steps(state: &mut tacenta_spqr::State, steps: &[u8]) -> Result<
                 last: at == steps.len(),
                 refusal: match e {
                     SpqrError::ChainExhausted => "counter-exhaustion".to_string(),
+                    SpqrError::NoChain => "no-chain".to_string(),
                     other => format!("{other:?}"),
                 },
             });

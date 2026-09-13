@@ -43,7 +43,7 @@ A summary by component. A tick means the component has that kind of evidence, no
 |---|---|---|---|---|---|---|---|---|---|
 | Wire decoders | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | L4 | L4 |
 | Double Ratchet | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | L4 | L4 |
-| Sparse post-quantum ratchet | ✓ | ✓ | ✓ | partial | ✓ | ✓ | ✓ | L3/L4 | L4 |
+| Sparse post-quantum ratchet | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | L4 | L4 |
 | Triple Ratchet | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | L4 | L4 |
 | ML-KEM Braid | ✓ | ✓ | ✓ | partial (no MAC or state-machine vectors) | ✓ | ✓ | ✓ | L3/L4 | L4 |
 | Erasure code | ✓ | ✓ (through the Braid) | ✓ | ✓ | ✓ | ✓ | field only | L3 | L4 |
