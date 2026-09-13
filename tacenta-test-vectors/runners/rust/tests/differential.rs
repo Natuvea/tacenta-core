@@ -54,12 +54,14 @@
 //!   bytes and the export-and-import check compared at every step, and
 //!   corrupted imports of the states they reach. A step either half refuses as
 //!   `ChainExhausted` must be one the model refuses at a ceiling.
-//! - **The prekey store** is driven over the committed P4 persistence fixtures
-//!   in the shared model domain: layout, older-version upgrade, optional
-//!   branches, record bounds and structural refusal classes. The stored
-//!   signature rule and KEM-pair arithmetic are excluded from this comparison
-//!   because the model deliberately has neither signatures nor FIPS 203
-//!   arithmetic; vectors and crate tests pin those rules separately.
+//! - **The prekey store and the session** are driven over the committed P4
+//!   persistence fixtures in their shared model domains. The prekey store
+//!   compares layout, older-version upgrade, optional branches, record bounds
+//!   and structural refusal classes. The session compares layout, role/epoch
+//!   relations, optional fields, inner-reader refusals and inconsistent states.
+//!   The cryptographic relations the model deliberately cannot compute are
+//!   exact exclusions: prekey stored signatures/KEM arithmetic and the
+//!   session ratchet-private/public relation.
 //! - **The Braid** is driven as far as it can be. Its stored states are
 //!   assembled here from the layout in `session-persistence.md`, Braid, and
 //!   both readers are given each one and four corruptions of it. Its *state
@@ -577,6 +579,18 @@ fn prekey_kind(e: tacenta_core::sessions::PrekeyStoreDecodeError) -> Option<&'st
     }
 }
 
+fn session_kind(e: tacenta_core::sessions::SessionDecodeError) -> Option<&'static str> {
+    use tacenta_core::sessions::SessionDecodeError;
+    match e {
+        SessionDecodeError::UnknownVersion => Some("wrong-version"),
+        SessionDecodeError::TooShort
+        | SessionDecodeError::Malformed
+        | SessionDecodeError::NonCanonical => Some("short-or-malformed"),
+        SessionDecodeError::Inconsistent => Some("inconsistent"),
+        _ => None,
+    }
+}
+
 /// Whether two refusals of the same buffer are the same refusal, or the one
 /// case `session-persistence.md`, Rejection, leaves to the implementation: a
 /// buffer too short for its fixed fields whose version byte is not `0x01` may
@@ -625,12 +639,18 @@ struct Observed {
     imports_accepted: usize,
     imports_wrong_version: usize,
     imports_malformed: usize,
-    // The persisted prekey store and the two composed formats.
+    // The persisted prekey store, session and the two composed formats.
     prekey_reads: usize,
     prekey_reads_accepted: usize,
     prekey_reads_wrong_version: usize,
     prekey_reads_malformed: usize,
     prekey_reads_excluded: usize,
+    session_reads: usize,
+    session_reads_accepted: usize,
+    session_reads_wrong_version: usize,
+    session_reads_malformed: usize,
+    session_reads_inconsistent: usize,
+    session_reads_excluded: usize,
     triple_steps: usize,
     triple_ceiling: usize,
     triple_reads: usize,
@@ -2589,6 +2609,126 @@ fn check_prekey_imports(exe: &Path, seed: u64, seen: &mut Observed) {
     }
 }
 
+#[derive(Deserialize)]
+struct SessionVectorFile {
+    vectors: Vec<SessionVector>,
+}
+
+#[derive(Deserialize)]
+struct SessionVector {
+    id: String,
+    inputs: SessionInputs,
+    #[serde(default = "ok_result")]
+    result: String,
+    #[serde(default)]
+    refusal: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct SessionInputs {
+    bytes: String,
+}
+
+fn session_vectors() -> Vec<SessionVector> {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../vectors/persistence/session-state.json");
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    serde_json::from_str::<SessionVectorFile>(&text)
+        .unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+        .vectors
+}
+
+fn check_session_imports(exe: &Path, seed: u64, seen: &mut Observed) {
+    use tacenta_core::sessions::Session;
+
+    let cases = session_vectors();
+    let mut requests = Vec::new();
+    let mut selected = Vec::new();
+    for case in cases {
+        if case.id == "ratchet-private-does-not-match-dhs-pub" {
+            seen.session_reads_excluded += 1;
+            continue;
+        }
+        let bytes = hex::decode(&case.inputs.bytes)
+            .unwrap_or_else(|e| panic!("session-state/{} bytes: {e}", case.id));
+        let valid = case.result == "valid";
+        requests.push(format!("read session {}", case.inputs.bytes));
+        selected.push((case.id, valid, case.refusal, bytes));
+    }
+
+    let answers = ask_model(exe, &requests);
+    for ((id, valid, expected_refusal, bytes), answer) in selected.iter().zip(answers.iter()) {
+        let line = answer.first().expect("a read answer");
+        seen.session_reads += 1;
+        let model = parse_read(line).expect("a read line");
+        let rust = Session::import(bytes)
+            .map(|s| s.export().to_vec())
+            .map_err(|e| session_kind(e).unwrap_or("unnamed"));
+        match (model, rust) {
+            (Some(want), Ok(got)) => {
+                seen.session_reads_accepted += 1;
+                assert_eq!(
+                    hex::encode(&got),
+                    hex::encode(&want),
+                    "\n\ntacenta-model and tacenta-core disagree on an imported session.\n\
+                     seed: {seed} ({seed:#x})\n\
+                     vector: session-state/{id}\n\
+                     request: read session {}\n\n",
+                    hex::encode(bytes)
+                );
+                assert!(
+                    *valid,
+                    "session-state/{id}: both readers accepted a vector marked invalid"
+                );
+            }
+            (None, Err(mine)) => {
+                let kind = read_refusal(line).expect("the model's refusal");
+                match kind.as_str() {
+                    "wrong-version" => seen.session_reads_wrong_version += 1,
+                    "short-or-malformed" => seen.session_reads_malformed += 1,
+                    "inconsistent" => seen.session_reads_inconsistent += 1,
+                    _ => {}
+                }
+                assert_eq!(
+                    expected_refusal.as_deref(),
+                    Some(kind.as_str()),
+                    "session-state/{id}: the model refusal drifted from the vector metadata"
+                );
+                assert!(
+                    refusals_agree(bytes, 1, &kind, mine),
+                    "\n\ntacenta-model and tacenta-core disagree on why a session import is refused.\n\
+                     seed: {seed} ({seed:#x})\n\
+                     vector: session-state/{id}\n\
+                     the model says {kind}, the crate {mine}\n\
+                     request: read session {}\n\n",
+                    hex::encode(bytes)
+                );
+                assert!(
+                    !*valid,
+                    "session-state/{id}: both readers refused a vector marked valid"
+                );
+            }
+            (Some(_), Err("inconsistent")) if id == "ratchet-private-does-not-match-dhs-pub" => {
+                seen.session_reads_excluded += 1;
+            }
+            (Some(_), Err(mine)) => panic!(
+                "\n\ntacenta-model accepts a session tacenta-core refuses ({mine}).\n\
+                 seed: {seed} ({seed:#x})\n\
+                 vector: session-state/{id}\n\
+                 request: read session {}\n\n",
+                hex::encode(bytes)
+            ),
+            (None, Ok(_)) => panic!(
+                "\n\ntacenta-core accepts a session tacenta-model refuses.\n\
+                 seed: {seed} ({seed:#x})\n\
+                 vector: session-state/{id}\n\
+                 request: read session {}\n\n",
+                hex::encode(bytes)
+            ),
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // The test
 // ---------------------------------------------------------------------------
@@ -2754,6 +2894,7 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
 
     check_imports(&exe, seed, &round, &answers, &mut seen);
     check_prekey_imports(&exe, seed, &mut seen);
+    check_session_imports(&exe, seed, &mut seen);
     check_composed(&exe, seed, sequences, long, &mut seen);
 
     eprintln!(
@@ -2845,6 +2986,38 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     assert!(
         seen.prekey_reads_excluded > 0,
         "no prekey-store case exercised an explicit model-domain exclusion"
+    );
+
+    eprintln!(
+        "differential: session imports: {} checked ({} accepted, {} wrong-version, \
+         {} short-or-malformed, {} inconsistent, {} excluded outside the model domain)",
+        seen.session_reads,
+        seen.session_reads_accepted,
+        seen.session_reads_wrong_version,
+        seen.session_reads_malformed,
+        seen.session_reads_inconsistent,
+        seen.session_reads_excluded,
+    );
+
+    assert!(
+        seen.session_reads_accepted > 0,
+        "no session import was accepted by both sides"
+    );
+    assert!(
+        seen.session_reads_wrong_version > 0,
+        "no session wrong-version refusal was compared"
+    );
+    assert!(
+        seen.session_reads_malformed > 0,
+        "no session short-or-malformed refusal was compared"
+    );
+    assert!(
+        seen.session_reads_inconsistent > 0,
+        "no session inconsistent refusal was compared"
+    );
+    assert!(
+        seen.session_reads_excluded > 0,
+        "no session case exercised an explicit model-domain exclusion"
     );
 
     eprintln!(
