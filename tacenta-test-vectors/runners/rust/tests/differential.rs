@@ -681,6 +681,10 @@ struct Observed {
     session_establishment_unexpected_identity: usize,
     session_establishment_unauthenticated: usize,
     session_establishment_model_control: usize,
+    session_messages_send: usize,
+    session_messages_receive: usize,
+    session_messages_noop: usize,
+    session_messages_agreement_failed: usize,
     session_reads: usize,
     session_reads_accepted: usize,
     session_reads_wrong_version: usize,
@@ -3022,6 +3026,224 @@ fn check_initial_session_establishment(exe: &Path, seed: u64, seen: &mut Observe
     seen.session_establishment_unauthenticated += 1;
 }
 
+/// Check the durable session transitions after establishment. The message
+/// cryptography remains concrete Rust work; the model compares the exact
+/// persisted state before and after each accepted operation or ordinary
+/// refusal. Terminal Braid failure is deliberately a separate transition.
+fn check_established_message_effects(exe: &Path, seed: u64, seen: &mut Observed) {
+    use tacenta_core::sessions::{Identity, establish_initiator, establish_responder};
+
+    let mut rng = Rng::new(seed ^ 0x0070_366d_6573_7361);
+    let alice_id = Identity::generate(&mut rng);
+    let bob_id = Identity::generate(&mut rng);
+    let mut store = bob_id.create_prekeys(2, &mut rng);
+    let bundle = store.publish();
+    let mut alice = establish_initiator(&alice_id, &bundle, &mut rng)
+        .expect("published bundle should establish initiator");
+    let initial = alice
+        .encrypt(b"operation-model initial", &mut rng)
+        .expect("pending initiator should send initial");
+    let (mut bob, first) = establish_responder(&bob_id, &mut store, &initial, &mut rng)
+        .expect("matching initial should establish responder");
+    assert_eq!(first, b"operation-model initial");
+
+    let before = session_bytes(&bob);
+    let reply = bob
+        .encrypt(b"operation-model reply", &mut rng)
+        .expect("responder sends");
+    let after = session_bytes(&bob);
+    expect_model_check(
+        exe,
+        format!(
+            "check session send {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.session_messages_send += 1;
+
+    let before = session_bytes(&alice);
+    assert_eq!(
+        alice
+            .decrypt(&reply, &mut rng)
+            .expect("initiator receives reply"),
+        b"operation-model reply"
+    );
+    let after = session_bytes(&alice);
+    expect_model_check(
+        exe,
+        format!(
+            "check session receive {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.session_messages_receive += 1;
+
+    let before = session_bytes(&alice);
+    let message = alice
+        .encrypt(b"operation-model established", &mut rng)
+        .expect("initiator sends established message");
+    let after = session_bytes(&alice);
+    expect_model_check(
+        exe,
+        format!(
+            "check session send {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.session_messages_send += 1;
+
+    let mut forged = message.clone();
+    let last = forged.len() - 1;
+    forged[last] ^= 0x01;
+    let before = session_bytes(&bob);
+    assert!(
+        bob.decrypt(&forged, &mut rng).is_err(),
+        "forged established message must refuse"
+    );
+    let after = session_bytes(&bob);
+    expect_model_check(
+        exe,
+        format!(
+            "check session no-op {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.session_messages_noop += 1;
+
+    let before = session_bytes(&bob);
+    assert_eq!(
+        bob.decrypt(&message, &mut rng)
+            .expect("genuine message remains deliverable"),
+        b"operation-model established"
+    );
+    let after = session_bytes(&bob);
+    expect_model_check(
+        exe,
+        format!(
+            "check session receive {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.session_messages_receive += 1;
+
+    let before = session_bytes(&bob);
+    assert!(
+        bob.decrypt(&message, &mut rng).is_err(),
+        "duplicate established message must refuse"
+    );
+    let after = session_bytes(&bob);
+    expect_model_check(
+        exe,
+        format!(
+            "check session no-op {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.session_messages_noop += 1;
+}
+
+fn check_failed_agreement_effects(exe: &Path, seed: u64, seen: &mut Observed) {
+    use tacenta_core::sessions::{
+        Identity, LifecycleError, Session, establish_initiator, establish_responder,
+    };
+
+    let mut rng = Rng::new(seed ^ 0x0070_3666_6169_6c65);
+    let alice_id = Identity::generate(&mut rng);
+    let bob_id = Identity::generate(&mut rng);
+    let mut store = bob_id.create_prekeys(2, &mut rng);
+    let bundle = store.publish();
+    let mut alice =
+        establish_initiator(&alice_id, &bundle, &mut rng).expect("initiator establishes");
+    let initial = alice
+        .encrypt(b"operation-model agreement initial", &mut rng)
+        .expect("initial sends");
+    let (bob, _) = establish_responder(&bob_id, &mut store, &initial, &mut rng)
+        .expect("responder establishes");
+
+    let mut saved = session_bytes(&bob);
+    let triple_len = u32::from_be_bytes(saved[1..5].try_into().expect("triple length")) as usize;
+    let braid = 1 + 4 + triple_len + 4;
+    saved[braid + 2 + 8 + 32] ^= 0x01;
+    let mut bob = Session::import(&saved).expect("MAC-key change remains structurally importable");
+    for i in 0..4u8 {
+        let message = alice
+            .encrypt(&[b'f', i], &mut rng)
+            .expect("sender remains live");
+        let before = session_bytes(&bob);
+        let plaintext = bob
+            .decrypt(&message, &mut rng)
+            .expect("failure-revealing message authenticates");
+        assert_eq!(plaintext, [b'f', i]);
+        let after = session_bytes(&bob);
+        if bob.agreement_failed() {
+            expect_model_check(
+                exe,
+                format!(
+                    "check session agreement-failed {} {}",
+                    hex::encode(&before),
+                    hex::encode(&after)
+                ),
+                seed,
+            );
+            seen.session_messages_agreement_failed += 1;
+            break;
+        }
+    }
+    assert!(
+        bob.agreement_failed(),
+        "the altered Braid MAC must reach terminal failure"
+    );
+
+    let before = session_bytes(&bob);
+    assert!(matches!(
+        bob.encrypt(b"after failure", &mut rng),
+        Err(LifecycleError::AgreementFailed)
+    ));
+    let after = session_bytes(&bob);
+    expect_model_check(
+        exe,
+        format!(
+            "check session no-op {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.session_messages_noop += 1;
+
+    let next = alice
+        .encrypt(b"after failure receive", &mut rng)
+        .expect("sender stays live");
+    let before = session_bytes(&bob);
+    assert!(matches!(
+        bob.decrypt(&next, &mut rng),
+        Err(LifecycleError::AgreementFailed)
+    ));
+    let after = session_bytes(&bob);
+    expect_model_check(
+        exe,
+        format!(
+            "check session no-op {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.session_messages_noop += 1;
+}
+
 #[derive(Deserialize)]
 struct SessionVectorFile {
     vectors: Vec<SessionVector>,
@@ -3309,6 +3531,8 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     check_prekey_imports(&exe, seed, &mut seen);
     check_prekey_lifecycle(&exe, seed, &mut seen);
     check_initial_session_establishment(&exe, seed, &mut seen);
+    check_established_message_effects(&exe, seed, &mut seen);
+    check_failed_agreement_effects(&exe, seed, &mut seen);
     check_session_imports(&exe, seed, &mut seen);
     check_composed(&exe, seed, sequences, long, &mut seen);
 
@@ -3471,6 +3695,22 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     assert!(
         seen.session_establishment_model_control > 0,
         "no deliberate initial-session model mismatch was reached"
+    );
+    assert!(
+        seen.session_messages_send > 0,
+        "no established send was compared"
+    );
+    assert!(
+        seen.session_messages_receive > 0,
+        "no established receive was compared"
+    );
+    assert!(
+        seen.session_messages_noop > 0,
+        "no established-message refusal no-op was compared"
+    );
+    assert!(
+        seen.session_messages_agreement_failed > 0,
+        "no terminal agreement failure was compared"
     );
 
     eprintln!(

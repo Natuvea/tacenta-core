@@ -96,9 +96,14 @@ assertion compares durable state before and after the documented commit point.
    refusal before randomness/session creation and a forged-initial `Aead`
    refusal that leaves the responder store unchanged. Signature, KEM and DH
    negative controls still need their own cases.
-3. **Established messages and failed agreement.** Model send/receive candidate
-   state, repeated initial wrappers, duplicate/out-of-order messages, AEAD
-   refusal rollback, terminal Braid failure and export/import between steps.
+3. **Established messages and failed agreement.** `SessionOperations` now
+   checks durable send and receive transitions, including clearing the
+   initiator's pending wrapper only after an authenticated reply. The runner
+   checks forged and duplicate message refusals as session no-ops, and checks
+   that the message which reveals a Braid failure commits the terminal state
+   while later sends and receives refuse unchanged. Repeated-initial wrappers,
+   out-of-order delivery, broader crypto negative controls and reader coverage
+   remain open.
 
 Each slice must emit a reproducible seed, name the reached requirement rows, and
 include at least one deliberate model/runner disagreement before it is counted as
