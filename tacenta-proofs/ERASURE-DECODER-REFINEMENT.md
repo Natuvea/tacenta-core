@@ -3,6 +3,9 @@
 This note records the first bounded P7 result. It does not raise the erasure
 component's assurance level or discharge a translation assumption.
 
+The current engagement's L3 target and the conditions that reopen L4 are
+recorded separately in [ERASURE-CODEC-TARGET-DECISION.md](ERASURE-CODEC-TARGET-DECISION.md).
+
 ## What exists
 
 `Translation/BraidT3.lean` already defines `DecoderRefines`: a real decoder
