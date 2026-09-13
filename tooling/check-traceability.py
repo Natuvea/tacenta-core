@@ -400,6 +400,8 @@ def check_evidence_index(root: Path, security: Path, reqs: dict[str, Requirement
             for ref in refs:
                 if ref not in known_ids:
                     errors.append(f"{path}: {rid} missing_evidence cites unknown reference {ref}")
+    for missing in sorted(set(reqs) - seen):
+        errors.append(f"{path}: missing evidence entry for {missing}")
 
 
 def main() -> int:

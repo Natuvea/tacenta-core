@@ -2014,6 +2014,700 @@
           ]
         }
       ]
+    },
+    {
+      "id": "REQ-FS-01",
+      "source": "tacenta-spec/security-properties/forward-secrecy.md#REQ-FS-01",
+      "property": "A chain key at step n does not reveal earlier chain or message keys of that chain.",
+      "status": "proved",
+      "assumptions": [
+        "ASM-05",
+        "ASM-09",
+        "ASM-10",
+        "ASM-17"
+      ],
+      "limitations": [
+        "LIM-03",
+        "LIM-04"
+      ],
+      "implementation": [],
+      "model_properties": [
+        {
+          "path": "tacenta-model/Properties/ForwardSecrecy.lean",
+          "theorem": "past_message_keys_are_safe",
+          "coverage": "T2 symbolic proof that a chain key at step n does not derive earlier message keys."
+        },
+        {
+          "path": "tacenta-model/Properties/ForwardSecrecy.lean",
+          "theorem": "past_chain_keys_are_safe",
+          "coverage": "T2 symbolic proof that a chain key at step n does not derive earlier chain keys."
+        },
+        {
+          "path": "tacenta-model/Properties/ForwardSecrecy.lean",
+          "theorem": "future_message_keys_are_exposed",
+          "coverage": "T2 theorem recording the intentional forward exposure boundary for later keys."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, model-level security properties against the symbolic attacker)",
+          "references": [
+            "Properties.ForwardSecrecy.past_message_keys_are_safe",
+            "Properties.ForwardSecrecy.past_chain_keys_are_safe",
+            "Properties.ForwardSecrecy.future_message_keys_are_exposed"
+          ]
+        }
+      ],
+      "vectors": [],
+      "tests": [],
+      "missing_evidence": [
+        {
+          "kind": "implementation proof",
+          "reason": "The requirement is model-level and symbolic; no proof covers whole sessions or sparse-ratchet chains.",
+          "references": [
+            "ASM-10",
+            "LIM-03",
+            "LIM-04"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-FS-02",
+      "source": "tacenta-spec/security-properties/forward-secrecy.md#REQ-FS-02",
+      "property": "Spent chain, root, ratchet, and skipped-key material is replaced or removed in the state as specified.",
+      "status": "proved",
+      "assumptions": [
+        "ASM-15",
+        "ASM-16",
+        "ASM-17",
+        "ASM-18"
+      ],
+      "limitations": [
+        "LIM-07"
+      ],
+      "implementation": [
+        {
+          "path": "tacenta-core/ratchet/src/lib.rs",
+          "symbol": "send"
+        },
+        {
+          "path": "tacenta-core/ratchet/src/lib.rs",
+          "symbol": "receive"
+        },
+        {
+          "path": "tacenta-core/spqr/src/lib.rs",
+          "symbol": "receive"
+        }
+      ],
+      "model_properties": [
+        {
+          "path": "tacenta-proofs/translation/Translation/T3.lean",
+          "theorem": "send_refines",
+          "coverage": "T3 classical send state replacement follows the model."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/T3.lean",
+          "theorem": "receive_refines",
+          "coverage": "T3 classical receive state replacement follows the model."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/T3.lean",
+          "theorem": "try_skipped_refines",
+          "coverage": "T3 classical skipped-key lookup removes the consumed key as the model does."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/SpqrT3.lean",
+          "theorem": "send_refines",
+          "coverage": "T3 sparse send state replacement follows the model."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/SpqrT3.lean",
+          "theorem": "receive_refines",
+          "coverage": "T3 sparse receive state replacement follows the model."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/SpqrT3.lean",
+          "theorem": "try_skipped_refines",
+          "coverage": "T3 sparse skipped-key lookup removes the consumed key as the model does."
+        },
+        {
+          "path": "tacenta-proofs/Proofs/KeyErasure.lean",
+          "theorem": "trySkipped_removes_the_entry",
+          "coverage": "T2 model proof that skipped-key lookup removes the returned entry."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, the models' skipped-key stores)",
+          "references": [
+            "Proofs.KeyErasure.trySkipped_removes_the_entry"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the classical Double Ratchet refines the model)",
+          "references": [
+            "send_refines",
+            "receive_refines",
+            "try_skipped_refines"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the sparse post-quantum ratchet's translated code refines the model)",
+          "references": [
+            "send_refines",
+            "receive_refines",
+            "try_skipped_refines"
+          ]
+        }
+      ],
+      "vectors": [],
+      "tests": [],
+      "missing_evidence": [
+        {
+          "kind": "headroom edge proof",
+          "reason": "The T3 refinements keep headroom premises at counter ceilings.",
+          "references": [
+            "LIM-07"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-FS-03",
+      "source": "tacenta-spec/security-properties/forward-secrecy.md#REQ-FS-03",
+      "property": "Spent secrets are erased from memory when key-deletion rules make them deletable.",
+      "status": "tested only",
+      "assumptions": [
+        "ASM-09",
+        "ASM-12",
+        "ASM-19"
+      ],
+      "limitations": [
+        "LIM-11"
+      ],
+      "implementation": [
+        {
+          "path": "tacenta-core/ratchet/src/lib.rs",
+          "symbol": "Zeroize"
+        },
+        {
+          "path": "tacenta-core/src/primitives/kem.rs",
+          "symbol": "Zeroize"
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "take_one_time"
+        }
+      ],
+      "model_properties": [],
+      "claims": [],
+      "vectors": [],
+      "tests": [
+        {
+          "path": "tacenta-core/ratchet/src/lib.rs",
+          "name": "the_state_erases_when_dropped",
+          "coverage": "Compile-time drop-erasure test for the classical ratchet state."
+        },
+        {
+          "path": "tacenta-core/src/primitives/kem.rs",
+          "name": "the_key_pair_erases_when_dropped",
+          "coverage": "Compile-time drop-erasure test for KEM key pairs."
+        },
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "name": "the_identity_and_the_prekey_store_erase_when_dropped",
+          "coverage": "Compile-time drop-erasure test for identity and prekey-store containers."
+        },
+        {
+          "path": "tacenta-core/tests/failed_decrypt_changes_nothing.rs",
+          "name": "a_successful_initial_message_does_consume_its_prekeys",
+          "coverage": "Session test that authenticated initial messages consume one-time prekeys."
+        },
+        {
+          "path": "tacenta-core/tests/replay_record.rs",
+          "name": "the_record_follows_its_key_through_rotation_and_leaves_when_it_is_wiped",
+          "coverage": "Replay-record test that rotation and wiping remove stored records."
+        }
+      ],
+      "missing_evidence": [
+        {
+          "kind": "proof",
+          "reason": "The Lean translation ignores Drop and cannot prove memory erasure or allocator/language copies.",
+          "references": [
+            "ASM-09",
+            "ASM-12",
+            "ASM-19",
+            "LIM-11"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-FS-04",
+      "source": "tacenta-spec/security-properties/forward-secrecy.md#REQ-FS-04",
+      "property": "Skipped and stored message keys are bounded and expire according to ratchet and sparse-ratchet rules.",
+      "status": "proved",
+      "assumptions": [
+        "ASM-11",
+        "ASM-15",
+        "ASM-16",
+        "ASM-17",
+        "ASM-18"
+      ],
+      "limitations": [
+        "LIM-18"
+      ],
+      "implementation": [
+        {
+          "path": "tacenta-core/ratchet/src/lib.rs",
+          "symbol": "MAX_SKIP"
+        },
+        {
+          "path": "tacenta-core/ratchet/src/lib.rs",
+          "symbol": "MAX_SKIPPED_STORE"
+        },
+        {
+          "path": "tacenta-core/spqr/src/lib.rs",
+          "symbol": "clear_old_epochs"
+        }
+      ],
+      "model_properties": [
+        {
+          "path": "tacenta-proofs/Proofs/RatchetCorrectness.lean",
+          "theorem": "skipMessageKeys_growth",
+          "coverage": "T2 model proof that successful skips advance and account for skipped keys."
+        },
+        {
+          "path": "tacenta-proofs/Proofs/RatchetCorrectness.lean",
+          "theorem": "skipMessageKeys_store_bounded",
+          "coverage": "T2 model proof that successful classical skips preserve the store bound."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/T3.lean",
+          "theorem": "skip_message_keys_refines",
+          "coverage": "T3 classical skip/store updates follow the model."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/T3.lean",
+          "theorem": "age_store_refines",
+          "coverage": "T3 classical store ageing follows the model."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/SpqrT3.lean",
+          "theorem": "skip_message_keys_refines",
+          "coverage": "T3 sparse skip/store updates follow the model."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/SpqrT3.lean",
+          "theorem": "clear_old_epochs_refines",
+          "coverage": "T3 sparse epoch retirement follows the model."
+        },
+        {
+          "path": "tacenta-proofs/Proofs/KeyErasure.lean",
+          "theorem": "ageStore_drops_the_expired",
+          "coverage": "T2 model proof that ageing removes expired skipped keys."
+        },
+        {
+          "path": "tacenta-proofs/Proofs/MemorySafety.lean",
+          "theorem": "reachable_stays_bounded",
+          "coverage": "T2 model proof that the classical store bound survives finite transition sequences under its premise."
+        },
+        {
+          "path": "tacenta-proofs/Proofs/MemorySafety.lean",
+          "theorem": "a_session_stays_bounded",
+          "coverage": "T2 model proof that fresh receiver sessions start and remain bounded for the covered transition relation."
+        },
+        {
+          "path": "tacenta-proofs/Proofs/SparseRatchetCorrectness.lean",
+          "theorem": "skipMessageKeys_store_bounded",
+          "coverage": "T2 sparse model proof that successful skips preserve the store bound for one operation."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, functional properties of the model)",
+          "references": [
+            "skipMessageKeys_growth",
+            "skipMessageKeys_store_bounded"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, the models' skipped-key stores)",
+          "references": [
+            "Proofs.KeyErasure.ageStore_drops_the_expired",
+            "Proofs.MemorySafety.reachable_stays_bounded",
+            "Proofs.MemorySafety.a_session_stays_bounded",
+            "Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the classical Double Ratchet refines the model)",
+          "references": [
+            "skip_message_keys_refines",
+            "age_store_refines"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the sparse post-quantum ratchet's translated code refines the model)",
+          "references": [
+            "skip_message_keys_refines",
+            "clear_old_epochs_refines"
+          ]
+        }
+      ],
+      "vectors": [
+        {
+          "path": "tacenta-test-vectors/vectors/malformed-input/ratchet-reject.json",
+          "case_ids": [
+            "reject-too-many-skipped"
+          ],
+          "coverage": "Malformed-input vector pins refusal of a skip beyond MAX_SKIP."
+        },
+        {
+          "path": "tacenta-test-vectors/vectors/persistence/ratchet-state.json",
+          "case_ids": [
+            "store-over-its-bound",
+            "stored-after-the-clock"
+          ],
+          "coverage": "Persistence vectors pin refused over-bound and stale classical skipped-key stores."
+        },
+        {
+          "path": "tacenta-test-vectors/vectors/persistence/sparse-ratchet-state.json",
+          "case_ids": [
+            "store-over-its-bound",
+            "bob-retires-an-epoch-with-its-keys"
+          ],
+          "coverage": "Persistence vectors pin sparse store bounds and epoch retirement read-back."
+        }
+      ],
+      "tests": [],
+      "missing_evidence": [
+        {
+          "kind": "whole-session sparse proof",
+          "reason": "The sparse store bound is proved per relevant operation, not across every receive/session sequence; counter-ceiling ageing remains limited.",
+          "references": [
+            "LIM-18"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-FS-05",
+      "source": "tacenta-spec/security-properties/forward-secrecy.md#REQ-FS-05",
+      "property": "The handshake remains forward secret after the relevant prekey secret is gone.",
+      "status": "assumed",
+      "assumptions": [
+        "ASM-01",
+        "ASM-02",
+        "ASM-04",
+        "ASM-05",
+        "ASM-09",
+        "ASM-11"
+      ],
+      "limitations": [],
+      "implementation": [
+        {
+          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "symbol": "take_one_time"
+        }
+      ],
+      "model_properties": [],
+      "claims": [],
+      "vectors": [
+        {
+          "path": "tacenta-test-vectors/vectors/session-establishment/pqxdh-sk.json",
+          "case_ids": [
+            "with-one-time-curve-prekey",
+            "without-one-time-curve-prekey"
+          ],
+          "coverage": "Handshake vectors pin SK derivation with and without one-time curve prekeys."
+        }
+      ],
+      "tests": [
+        {
+          "path": "tacenta-core/tests/failed_decrypt_changes_nothing.rs",
+          "name": "a_successful_initial_message_does_consume_its_prekeys",
+          "coverage": "Session test that a successfully authenticated initial message consumes its one-time prekey."
+        }
+      ],
+      "missing_evidence": [
+        {
+          "kind": "proof",
+          "reason": "No proof covers the real handshake forward secrecy; it is carried by KEM/DH assumptions and deletion assumptions.",
+          "references": [
+            "ASM-01",
+            "ASM-02",
+            "ASM-04",
+            "ASM-05",
+            "ASM-09",
+            "ASM-11"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-FS-06",
+      "source": "tacenta-spec/security-properties/forward-secrecy.md#REQ-FS-06",
+      "property": "Chains replaced by a root step stay secret against an attacker that later compromises the replacement state.",
+      "status": "assumed",
+      "assumptions": [
+        "ASM-01",
+        "ASM-02",
+        "ASM-05",
+        "ASM-09"
+      ],
+      "limitations": [
+        "LIM-03"
+      ],
+      "implementation": [],
+      "model_properties": [
+        {
+          "path": "tacenta-model/Properties/ForwardSecrecy.lean",
+          "theorem": "past_message_keys_are_safe",
+          "coverage": "Related T2 proof covers one symmetric chain, which is explicitly narrower than replaced-chain/session secrecy."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, model-level security properties against the symbolic attacker)",
+          "references": [
+            "Properties.ForwardSecrecy.past_message_keys_are_safe"
+          ]
+        }
+      ],
+      "vectors": [],
+      "tests": [],
+      "missing_evidence": [
+        {
+          "kind": "session/root-step proof",
+          "reason": "No theorem covers a root step or a sequence of root steps as a session-level secrecy property.",
+          "references": [
+            "ASM-05",
+            "ASM-09",
+            "LIM-03"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-PCS-01",
+      "source": "tacenta-spec/security-properties/post-compromise-security.md#REQ-PCS-01",
+      "property": "A fresh classical ratchet agreement heals the next epoch chain and root from a root-key compromise.",
+      "status": "proved",
+      "assumptions": [
+        "ASM-01",
+        "ASM-02",
+        "ASM-05",
+        "ASM-10",
+        "ASM-13",
+        "ASM-17"
+      ],
+      "limitations": [
+        "LIM-03"
+      ],
+      "implementation": [],
+      "model_properties": [
+        {
+          "path": "tacenta-model/Properties/PostCompromise.lean",
+          "theorem": "fresh_agreement_heals",
+          "coverage": "T2 symbolic proof that a fresh agreement keeps the next chain key out of reach."
+        },
+        {
+          "path": "tacenta-model/Properties/PostCompromise.lean",
+          "theorem": "fresh_agreement_heals_the_root",
+          "coverage": "T2 symbolic proof that a fresh agreement keeps the next root key out of reach."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T2, model-level security properties against the symbolic attacker)",
+          "references": [
+            "Properties.PostCompromise.fresh_agreement_heals",
+            "Properties.PostCompromise.fresh_agreement_heals_the_root"
+          ]
+        }
+      ],
+      "vectors": [],
+      "tests": [],
+      "missing_evidence": [
+        {
+          "kind": "session proof",
+          "reason": "The proof is one symbolic step and does not prove whole-session healing.",
+          "references": [
+            "ASM-10",
+            "LIM-03"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-PCS-02",
+      "source": "tacenta-spec/security-properties/post-compromise-security.md#REQ-PCS-02",
+      "property": "A DH ratchet step pairs the old private key with the peer new key, then uses a fresh key pair as specified.",
+      "status": "tested only",
+      "assumptions": [
+        "ASM-01",
+        "ASM-02",
+        "ASM-19"
+      ],
+      "limitations": [],
+      "implementation": [
+        {
+          "path": "tacenta-core/ratchet/src/lib.rs",
+          "symbol": "dh_ratchet"
+        },
+        {
+          "path": "tacenta-core/tests/handshake_to_ratchet.rs",
+          "symbol": "a_session_dh_step_pairs_the_old_key_with_the_peers_new_key"
+        }
+      ],
+      "model_properties": [
+        {
+          "path": "tacenta-proofs/translation/Translation/T3.lean",
+          "theorem": "dh_ratchet_refines",
+          "coverage": "T3 leaf refinement takes the two agreement outputs and fresh public key as boundary bytes."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/T3.lean",
+          "theorem": "receive_refines",
+          "coverage": "T3 receive refinement consumes the boundary agreement outputs supplied to the step."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the classical Double Ratchet refines the model)",
+          "references": [
+            "dh_ratchet_refines",
+            "receive_refines"
+          ]
+        }
+      ],
+      "vectors": [],
+      "tests": [
+        {
+          "path": "tacenta-core/tests/handshake_to_ratchet.rs",
+          "name": "a_session_dh_step_pairs_the_old_key_with_the_peers_new_key",
+          "coverage": "Concrete session test pins old/new key pairing across a DH ratchet step."
+        }
+      ],
+      "missing_evidence": [
+        {
+          "kind": "proof of fresh generation/pairing in session layer",
+          "reason": "Leaf proofs take agreement outputs and fresh public keys as inputs; freshness and concrete pairing are tested at the session boundary.",
+          "references": [
+            "ASM-01",
+            "ASM-02",
+            "ASM-19"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REQ-PCS-03",
+      "source": "tacenta-spec/security-properties/post-compromise-security.md#REQ-PCS-03",
+      "property": "A completed post-quantum Braid epoch with an uncompromised contribution heals the sparse ratchet state.",
+      "status": "assumed",
+      "assumptions": [
+        "ASM-01",
+        "ASM-04",
+        "ASM-05",
+        "ASM-13"
+      ],
+      "limitations": [
+        "LIM-04"
+      ],
+      "implementation": [
+        {
+          "path": "tacenta-core/spqr/src/lib.rs",
+          "symbol": "advance"
+        },
+        {
+          "path": "tacenta-core/braid/src/lib.rs",
+          "symbol": "receive"
+        }
+      ],
+      "model_properties": [
+        {
+          "path": "tacenta-proofs/translation/Translation/SpqrT3.lean",
+          "theorem": "advance_refines",
+          "coverage": "T3 sparse ratchet proof that agreement output advances the root key as the model does."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/BraidT3.lean",
+          "theorem": "Braid.send_refines",
+          "coverage": "T3 Braid send transition follows the model."
+        },
+        {
+          "path": "tacenta-proofs/translation/Translation/BraidT3.lean",
+          "theorem": "Braid.receive_refines",
+          "coverage": "T3 Braid receive transition follows the model."
+        }
+      ],
+      "claims": [
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the sparse post-quantum ratchet's translated code refines the model)",
+          "references": [
+            "advance_refines"
+          ]
+        },
+        {
+          "path": "tacenta-proofs/CLAIMS.md",
+          "section": "Proved (tier T3, the ML-KEM Braid's translated code refines the model)",
+          "references": [
+            "Braid.send_refines",
+            "Braid.receive_refines"
+          ]
+        }
+      ],
+      "vectors": [
+        {
+          "path": "tacenta-test-vectors/vectors/post-quantum/braid.json",
+          "case_ids": [
+            "epoch-one",
+            "epoch-two"
+          ],
+          "coverage": "Braid vectors pin epoch progression and shared-secret derivation cases."
+        },
+        {
+          "path": "tacenta-test-vectors/vectors/post-quantum/spqr.json",
+          "case_ids": [
+            "first-message",
+            "second-message"
+          ],
+          "coverage": "Sparse-ratchet vectors pin post-advance message derivations."
+        }
+      ],
+      "tests": [
+        {
+          "path": "tacenta-core/tests/post_quantum_stack.rs",
+          "name": "no_message_is_encrypted_under_an_epoch_the_peer_cannot_reach",
+          "coverage": "Post-quantum stack test drives enough alternating traffic to keep encrypted messages within the peer-reachable epoch."
+        }
+      ],
+      "missing_evidence": [
+        {
+          "kind": "symbolic PCS proof",
+          "reason": "No symbolic theorem covers sparse-ratchet or Braid healing; the guarantee is carried by KEM and key-derivation assumptions plus T3 transition evidence.",
+          "references": [
+            "ASM-04",
+            "ASM-05",
+            "LIM-04"
+          ]
+        }
+      ]
     }
   ]
 }
