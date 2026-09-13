@@ -569,7 +569,7 @@ many failed and names the first few.
 | F7-20 direction A2b read as the responder's | 4: `session-state` responder, `session-state` initiator-unanswered, `session-state` initiator-answered, `session-state` halves-disagree-on-the-sparse-role | 8: PS-15, SK-03 , ... |
 | F7-21 the store's signature rule reported as malformed, not incoherent | 1: `prekey-store-state` signed-prekey-signature-does-not-verify | 9: SK-08, PK-01, PK-03, PK-04, ... |
 | F7-22 the store's other five rules reported as incoherent, not malformed | 8: `prekey-store-state` identity-public-not-canonical, `prekey-store-state` identifier-zero, `prekey-store-state` identifier-at-next-id, `prekey-store-state` identifier-above-next-id, ... | 6: , ... |
-| F7-23 the session's semantic rules reported as malformed, not inconsistent | 7: `session-state` sparse-epoch-does-not-follow-the-braid, `session-state` associated-data-wrong-orientation, `session-state` halves-disagree-on-the-sparse-role, `session-state` halves-disagree-on-the-braid-role, `session-state` peer-identity-not-canonical, ... | 4: , ... |
+| F7-23 the session's semantic rules reported as malformed, not inconsistent | 8: `session-state` sparse-epoch-does-not-follow-the-braid, `session-state` associated-data-wrong-orientation, `session-state` halves-disagree-on-the-sparse-role, `session-state` halves-disagree-on-the-braid-role, `session-state` unanswered-initiator-is-also-responder, ... | 4: , ... |
 | F7-24 an unrecognised version reported as malformed, not wrong version | 11: `braid-state` version-zero, `braid-state` version-two, `prekey-store-state` version-unknown, `prekey-store-state` version-zero, ... | 9: , ... |
 | F7-25 the session's re-encode check reported as inconsistent, not non-canonical | **none** | **none** |
 | F7-26 the store's re-encode check reported as malformed, not non-canonical | **none** | **none** |
@@ -590,10 +590,11 @@ many failed and names the first few.
 | C7-01 control: the store's length checked before its version byte, which Rejection allows | **none** | **none** |
 
 The two new vector files catch every framing refusal of both formats, all four
-refusal kinds they use, the store's five cheap semantic rules and seven of the
-session's eight. What they miss is what `../GAPS-7.md`, section 3, records: the
-remaining signature-rule edge cases (F7-29, F7-30), the
-per-key bound read as a whole and the pre-sizing ceiling (F7-06, F7-11), the session's remaining canonical-key clauses (F7-34).
+refusal kinds they use, the store's five cheap semantic rules and eight of the
+session's top-level semantic rules. What they miss is what `../GAPS-7.md`,
+section 3, records: the remaining signature-rule edge cases (F7-29, F7-30), the
+per-key bound read as a whole and the pre-sizing ceiling (F7-06, F7-11), the
+session's remaining canonical-key clauses (F7-34).
 
 **F7-13 was missed on the first run and is now vector-pinned.** The boundary
 vectors carry accepted tag 6 and tag 7 neighbours and refused siblings on the
