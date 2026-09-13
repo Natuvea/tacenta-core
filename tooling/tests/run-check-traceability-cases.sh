@@ -213,4 +213,74 @@ path.write_text(json.dumps(data, indent=2) + "\n")
 PY
 expect_fail "non-list-evidence-field" "evidence field tests must be a list"
 
-echo "check-traceability-cases: pass case and 11 refusal cases gave the expected result"
+make_case "$work/missing-requirement-status"
+python3 - "$work/missing-requirement-status/tacenta-spec/security-properties/authentication.md" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+text = text.replace("- **Status: tested only.**", "- **Evidence:** tested only.", 1)
+path.write_text(text)
+PY
+expect_fail "missing-requirement-status" "REQ-AUTH-01 has no '- **Status:**' line"
+
+make_case "$work/missing-requirement-rests-on"
+python3 - "$work/missing-requirement-rests-on/tacenta-spec/security-properties/authentication.md" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+text = text.replace("- **Rests on:** ASM-03, ASM-07, ASM-14, ASM-19.", "- **Dependencies:** ASM-03, ASM-07, ASM-14, ASM-19.", 1)
+path.write_text(text)
+PY
+expect_fail "missing-requirement-rests-on" "REQ-AUTH-01 has no '- **Rests on:**' line"
+
+make_case "$work/status-table-title-drift"
+python3 - "$work/status-table-title-drift/tacenta-spec/security-properties/limitations.md" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+text = text.replace("| REQ-AUTH-01: prekey signatures are verified before use | Tested only |", "| REQ-AUTH-01: mutated title | Tested only |", 1)
+path.write_text(text)
+PY
+expect_fail "status-table-title-drift" "REQ-AUTH-01 title differs"
+
+make_case "$work/status-table-class-drift"
+python3 - "$work/status-table-class-drift/tacenta-spec/security-properties/limitations.md" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+text = text.replace("| REQ-AUTH-01: prekey signatures are verified before use | Tested only |", "| REQ-AUTH-01: prekey signatures are verified before use | Assumed |", 1)
+path.write_text(text)
+PY
+expect_fail "status-table-class-drift" "REQ-AUTH-01 status class differs"
+
+make_case "$work/assumption-inverse-extra"
+python3 - "$work/assumption-inverse-extra/tacenta-spec/threat-model/assumptions.md" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+text = text.replace("- **Relied on by:** REQ-AUTH-01, REQ-AUTH-03.", "- **Relied on by:** REQ-AUTH-01, REQ-AUTH-02, REQ-AUTH-03.", 1)
+path.write_text(text)
+PY
+expect_fail "assumption-inverse-extra" "ASM-03 lists REQ-AUTH-02, but that requirement does not cite ASM-03"
+
+make_case "$work/assumption-inverse-missing"
+python3 - "$work/assumption-inverse-missing/tacenta-spec/threat-model/assumptions.md" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+text = text.replace("- **Relied on by:** REQ-AUTH-01, REQ-AUTH-03.", "- **Relied on by:** REQ-AUTH-01.", 1)
+path.write_text(text)
+PY
+expect_fail "assumption-inverse-missing" "ASM-03 is cited by REQ-AUTH-03 but its relied-on list omits it"
+
+for kind in LIM ADV AS EX; do
+  make_case "$work/unknown-$kind-reference"
+  case "$kind" in
+    LIM) path="$work/unknown-$kind-reference/tacenta-spec/security-properties/limitations.md" ;;
+    *) path="$work/unknown-$kind-reference/tacenta-spec/threat-model/assumptions.md" ;;
+  esac
+  printf '\nP9 mutation reference: %s-99.\n' "$kind" >> "$path"
+  expect_fail "unknown-$kind-reference" "references unknown identifier $kind-99"
+done
+
+echo "check-traceability-cases: pass case and 19 refusal cases gave the expected result"
