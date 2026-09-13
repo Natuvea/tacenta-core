@@ -41,6 +41,18 @@ bash tooling/check-workflows.sh
 # loosened by mistake fails this gate rather than the next reader.
 bash tooling/tests/run-check-workflows-cases.sh
 
+# YAML parsing and the repository-specific checks above deliberately do not
+# parse GitHub expressions. The pinned actionlint release covers that grammar
+# and workflow schema surface; its case runner proves this gate sees a malformed
+# expression that the narrower checker accepts.
+echo "== Workflow expressions and schema are valid =="
+actionlint_dir="$(mktemp -d)"
+cleanup_actionlint() { rm -rf "$actionlint_dir"; }
+trap cleanup_actionlint EXIT
+bash tooling/install-actionlint.sh "$actionlint_dir"
+ACTIONLINT_BIN="$actionlint_dir/actionlint" bash tooling/check-actionlint.sh
+ACTIONLINT_BIN="$actionlint_dir/actionlint" bash tooling/tests/run-check-actionlint-cases.sh
+
 # Every commit this branch adds on top of origin/main is signed off by its
 # author (CONTRIBUTING.md, Developer Certificate of Origin). In CI the
 # `sign-off` job runs the same script against the pull request's base branch.
