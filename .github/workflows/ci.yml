@@ -383,7 +383,9 @@ jobs:
       # proofs. A green attest check confirms the manifest matches the tree,
       # not that the translation was regenerated on this run.
       - name: Claims and attestations cover what ships
-        run: python3 tacenta-proofs/scripts/attest.py --check
+        run: |
+          python3 tacenta-proofs/scripts/attest.py --check
+          bash tacenta-proofs/scripts/check-attest-negatives.sh
 
   # Every commit a pull request adds is signed off by its author under the
   # Developer Certificate of Origin (CONTRIBUTING.md). Only pull requests: a
