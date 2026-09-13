@@ -353,8 +353,9 @@ carry sessions `tacenta-core` exported under the counter-based `FixedRng` in
 session whose `ratchet_private` matches the classical ratchet's `dhs_pub`.
 Additional accepted vectors place the responder session on the tag 6/7
 epoch-relation boundary and on the failed-Braid exemption. Refusal vectors are
-one-field mutations of the responder fixture, boundary-neighbour mutations, or
-truncations, additions and a version relabelling.
+one-field mutations of the responder fixture, including separate sparse-role and
+Braid-role disagreements, boundary-neighbour mutations, or truncations,
+additions and a version relabelling.
 
 - **Stored bytes**, when the one input is `bytes`: a stored session offered to
   the reader.

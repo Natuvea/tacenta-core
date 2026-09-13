@@ -497,7 +497,7 @@ and `tacenta-erasure` do the same, and the `partial`,
 | Prekey store `identity_public` canonical | Prekey store, Semantic rules; message-format.md, Curve public keys | same file: `identity-public-not-canonical` |
 | Prekey store framing refusals | Prekey store; Rejection | same file: `version-unknown`, `version-zero` (`wrong-version`); `empty`, `truncated`, `trailing-byte` |
 | Session layout, read back and written unchanged, with the optional fields present and absent, plus the tag 6/7 epoch boundary's accepted neighbours and the failed-Braid exemption | Session | `vectors/persistence/session-state.json`: `responder`, `initiator-unanswered`, `initiator-answered`, `tag-six-keeps-previous-sparse-epoch`, `tag-seven-uses-current-sparse-epoch`, `failed-braid-exempts-sparse-epoch`, each with its fields, the halves' tag and epochs checked through their own crates |
-| Session semantic rules: the sparse epoch following the Braid's, including both sides of the tag 6/7 boundary, the associated data's orientation, the role agreement, canonical stored keys, `established_ephemeral`'s shape | Session, Semantic rules | same file, each `inconsistent`: `sparse-epoch-does-not-follow-the-braid`, `tag-six-with-current-sparse-epoch-refused`, `tag-seven-with-previous-sparse-epoch-refused`, `associated-data-wrong-orientation`, `halves-disagree-on-the-role`, `peer-identity-not-canonical`, `established-ephemeral-wrong-curve-byte`, `established-ephemeral-key-not-canonical` |
+| Session semantic rules: the sparse epoch following the Braid's, including both sides of the tag 6/7 boundary, the associated data's orientation, the role agreement, canonical stored keys, `established_ephemeral`'s shape | Session, Semantic rules | same file, each `inconsistent`: `sparse-epoch-does-not-follow-the-braid`, `tag-six-with-current-sparse-epoch-refused`, `tag-seven-with-previous-sparse-epoch-refused`, `associated-data-wrong-orientation`, `halves-disagree-on-the-sparse-role`, `halves-disagree-on-the-braid-role`, `peer-identity-not-canonical`, `established-ephemeral-wrong-curve-byte`, `established-ephemeral-key-not-canonical` |
 | Session framing refusals | Session; Rejection | same file: `version-unknown` (`wrong-version`); `empty`, `truncated`, `trailing-byte` |
 
 ### Not covered
@@ -528,10 +528,10 @@ model's boundary; they are simply unpinned.
   length, `ek`'s FIPS 203 modulus check, `dk`'s hash check, and `ek` equalling
   the copy inside `dk`. The model states the length; no vector varies `kem_pair` at
   all, so none reaches any of the four, the length included.
-- **Three of the session's eight semantic rules.** Vectors reach five: the
+- **Two of the session's eight semantic rules.** Vectors reach six: the
   epoch relation (both the tag 6 `e - 1` side, the tag 7 `e` side and the
   failed tag 11 exemption), the associated data's orientation, the role
-  agreement (only its sparse half), the canonical stored keys (only the
+  agreement (both its sparse and Braid halves), the canonical stored keys (only the
   `peer_identity_public` clause, not `our_identity_public` or
   `pending_initial`'s `ephemeral_public`), and the optional fields' shape (only
   the `established_ephemeral` clause, not the `kem_ciphertext` length). Unreached: the `ratchet_private` rule above;

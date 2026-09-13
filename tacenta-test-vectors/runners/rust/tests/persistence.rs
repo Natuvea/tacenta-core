@@ -34,7 +34,7 @@
 //! whose `ratchet_private` matches the classical ratchet's `dhs_pub`. Its
 //! first three accepted vectors are `tacenta-core`'s own exports, two accepted
 //! neighbours pin the tag 6/7 epoch boundary, one accepted fixture pins the
-//! failed-Braid exemption, and its twelve refusals are three framing cases plus
+//! failed-Braid exemption, and its thirteen refusals are three framing cases plus
 //! semantic mutations of the responder fixture. They
 //! are the only vectors here that carry the refusal `inconsistent`, which this
 //! page's Rejection section distinguishes from malformed for the session alone.
