@@ -54,6 +54,10 @@ write what this reads.
     check prekey record-last-resort <before> <after>
     check session initiator-pending <our-identity> <peer-identity> <after>
     check session responder-established <our-identity> <peer-identity> <after>
+    check session send <before> <after>
+    check session receive <before> <after>
+    check session no-op <before> <after>
+    check session agreement-failed <before> <after>
 
 The Braid has no `fresh` form: its initialisation takes the preshared secret
 and its first send draws a KEM key pair.
@@ -584,6 +588,17 @@ def checkSessionOp (initiator : Bool) (ourHex peerHex afterHex : String) :
       Model.SessionOperations.responderEstablishedOk ourIdentity peerIdentity after
   .ok [if accepted then "check ok" else "check mismatch", "end"]
 
+def checkSessionTransition (op beforeHex afterHex : String) : Except String (List String) := do
+  let before ← readSession "session operation before state" beforeHex
+  let after ← readSession "session operation after state" afterHex
+  let accepted := match op with
+    | "send" => Model.SessionOperations.sendOk before after
+    | "receive" => Model.SessionOperations.receiveOk before after
+    | "no-op" => Model.SessionOperations.noOpOk before after
+    | "agreement-failed" => Model.SessionOperations.agreementFailedOk before after
+    | _ => false
+  .ok [if accepted then "check ok" else "check mismatch", "end"]
+
 /-- One request's answer. -/
 def handle (line : String) : Except String (List String) :=
   match line.splitOn " " with
@@ -639,6 +654,8 @@ def handle (line : String) : Except String (List String) :=
     checkSessionOp true ourHex peerHex afterHex
   | ["check", "session", "responder-established", ourHex, peerHex, afterHex] =>
     checkSessionOp false ourHex peerHex afterHex
+  | ["check", "session", op, beforeHex, afterHex] =>
+    checkSessionTransition op beforeHex afterHex
   | ["read", algorithm, bytesHex] => do
     let bs ← hexArg "the stored bytes" bytesHex
     match algorithm with

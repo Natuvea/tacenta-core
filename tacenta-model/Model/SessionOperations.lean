@@ -39,5 +39,41 @@ def responderEstablishedOk (ourIdentity peerIdentity : Bytes) (after : Session) 
     && !(isInitiator after)
     && invariant after
 
+/-- An accepted send advances the composed session but preserves its identities
+    and role fields. A pending initiator keeps its initial wrapper until an
+    authenticated peer answer arrives. -/
+def sendOk (before after : Session) : Bool :=
+  after != before
+    && after.ourIdentityPublic == before.ourIdentityPublic
+    && after.peerIdentityPublic == before.peerIdentityPublic
+    && after.pendingInitial == before.pendingInitial
+    && after.establishedEphemeral == before.establishedEphemeral
+    && invariant before && invariant after
+
+/-- An accepted receive advances the composed session. It may clear an
+    initiator's pending wrapper, but cannot create one or change the responder
+    marker. -/
+def receiveOk (before after : Session) : Bool :=
+  after != before
+    && after.ourIdentityPublic == before.ourIdentityPublic
+    && after.peerIdentityPublic == before.peerIdentityPublic
+    && (before.pendingInitial.isNone || after.pendingInitial.isNone)
+    && after.establishedEphemeral == before.establishedEphemeral
+    && invariant before && invariant after
+
+/-- Ordinary refusals leave the persisted session unchanged. Terminal Braid
+    failure is deliberately not this relation because it commits failure. -/
+def noOpOk (before after : Session) : Bool := before == after && invariant before
+
+/-- The message that reveals a Braid failure may still authenticate and advance
+    the ratchets, but commits the terminal Braid state. -/
+def agreementFailedOk (before after : Session) : Bool :=
+  after != before
+    && after.ourIdentityPublic == before.ourIdentityPublic
+    && after.peerIdentityPublic == before.peerIdentityPublic
+    && after.establishedEphemeral == before.establishedEphemeral
+    && after.braid.tag == BraidState.failedTag
+    && invariant before && invariant after
+
 end SessionOperations
 end Model
