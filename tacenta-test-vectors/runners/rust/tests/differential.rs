@@ -673,6 +673,8 @@ struct Observed {
     prekey_lifecycle_replenish: usize,
     prekey_lifecycle_rotate_signed: usize,
     prekey_lifecycle_rotate_kem: usize,
+    prekey_lifecycle_consume_one_time: usize,
+    prekey_lifecycle_record_last_resort: usize,
     prekey_lifecycle_noop: usize,
     session_reads: usize,
     session_reads_accepted: usize,
@@ -2764,6 +2766,115 @@ fn check_prekey_lifecycle(exe: &Path, seed: u64, seen: &mut Observed) {
         seed,
     );
     seen.prekey_lifecycle_noop += 1;
+
+    check_prekey_responder_effects(exe, &mut rng, seed, seen);
+}
+
+fn initial_for_bundle(
+    initiator: &tacenta_core::sessions::Identity,
+    bundle: &tacenta_core::sessions::PublishedBundle,
+    rng: &mut Rng,
+) -> Vec<u8> {
+    let mut session = tacenta_core::sessions::establish_initiator(initiator, bundle, rng)
+        .expect("generated bundle should establish an initiator session");
+    session
+        .encrypt(b"operation-model first plaintext", rng)
+        .expect("fresh initiator session should encrypt its initial message")
+}
+
+fn check_prekey_responder_effects(exe: &Path, rng: &mut Rng, seed: u64, seen: &mut Observed) {
+    use tacenta_core::sessions::{Identity, LifecycleError, establish_responder};
+
+    let responder = Identity::generate(rng);
+    let initiator = Identity::generate(rng);
+    let mut store = responder.create_prekeys(2, rng);
+    let bundle = store.publish();
+    assert_ne!(
+        bundle.one_time_prekey_id,
+        u32::MAX,
+        "create_prekeys(2) should publish a curve one-time id"
+    );
+    assert_ne!(
+        bundle.kem_prekey_id,
+        store.publish_multi_use().kem_prekey_id,
+        "create_prekeys(2) should publish a one-time KEM id"
+    );
+    let initial = initial_for_bundle(&initiator, &bundle, rng);
+    let before = prekey_bytes(&store);
+    let (_session, plaintext) = establish_responder(&responder, &mut store, &initial, rng)
+        .expect("authenticated one-time initial message should establish");
+    assert_eq!(plaintext, b"operation-model first plaintext");
+    let after = prekey_bytes(&store);
+    expect_model_check(
+        exe,
+        format!(
+            "check prekey consume-one-time {} {} {} {}",
+            bundle.one_time_prekey_id,
+            bundle.kem_prekey_id,
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.prekey_lifecycle_consume_one_time += 1;
+
+    let before_replay = prekey_bytes(&store);
+    assert!(
+        establish_responder(&responder, &mut store, &initial, rng).is_err(),
+        "replaying a one-time initial message should fail after consumption"
+    );
+    let after_replay = prekey_bytes(&store);
+    expect_model_check(
+        exe,
+        format!(
+            "check prekey no-op {} {}",
+            hex::encode(&before_replay),
+            hex::encode(&after_replay)
+        ),
+        seed,
+    );
+    seen.prekey_lifecycle_noop += 1;
+
+    let responder = Identity::generate(rng);
+    let initiator = Identity::generate(rng);
+    let mut store = responder.create_prekeys(0, rng);
+    let bundle = store.publish_multi_use();
+    let initial = initial_for_bundle(&initiator, &bundle, rng);
+    let before = prekey_bytes(&store);
+    let (_session, plaintext) = establish_responder(&responder, &mut store, &initial, rng)
+        .expect("authenticated last-resort initial message should establish");
+    assert_eq!(plaintext, b"operation-model first plaintext");
+    let after = prekey_bytes(&store);
+    expect_model_check(
+        exe,
+        format!(
+            "check prekey record-last-resort {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.prekey_lifecycle_record_last_resort += 1;
+
+    let before_replay = prekey_bytes(&store);
+    assert!(
+        matches!(
+            establish_responder(&responder, &mut store, &initial, rng),
+            Err(LifecycleError::ReplayedLastResort)
+        ),
+        "replaying a last-resort initial message should fail as a replay"
+    );
+    let after_replay = prekey_bytes(&store);
+    expect_model_check(
+        exe,
+        format!(
+            "check prekey no-op {} {}",
+            hex::encode(&before_replay),
+            hex::encode(&after_replay)
+        ),
+        seed,
+    );
+    seen.prekey_lifecycle_noop += 1;
 }
 
 #[derive(Deserialize)]
@@ -3148,11 +3259,13 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
 
     eprintln!(
         "differential: prekey lifecycle checks: publish {}, replenish {}, rotate-signed {}, \
-         rotate-kem {}, no-op {}",
+         rotate-kem {}, consume-one-time {}, record-last-resort {}, no-op {}",
         seen.prekey_lifecycle_publish,
         seen.prekey_lifecycle_replenish,
         seen.prekey_lifecycle_rotate_signed,
         seen.prekey_lifecycle_rotate_kem,
+        seen.prekey_lifecycle_consume_one_time,
+        seen.prekey_lifecycle_record_last_resort,
         seen.prekey_lifecycle_noop,
     );
     assert!(
@@ -3170,6 +3283,14 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     assert!(
         seen.prekey_lifecycle_rotate_kem > 0,
         "no prekey lifecycle KEM rotation check was compared"
+    );
+    assert!(
+        seen.prekey_lifecycle_consume_one_time > 0,
+        "no prekey lifecycle one-time consumption check was compared"
+    );
+    assert!(
+        seen.prekey_lifecycle_record_last_resort > 0,
+        "no prekey lifecycle last-resort record check was compared"
     );
     assert!(
         seen.prekey_lifecycle_noop > 0,

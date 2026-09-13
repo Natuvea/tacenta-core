@@ -48,8 +48,10 @@ write what this reads.
     check prekey publish       <before> <after>
     check prekey no-op         <before> <after>
     check prekey replenish <n> <before> <after>
-    check prekey rotate-signed <before> <after>
-    check prekey rotate-kem    <before> <after>
+    check prekey rotate-signed      <before> <after>
+    check prekey rotate-kem         <before> <after>
+    check prekey consume-one-time   <curve-id> <kem-id> <before> <after>
+    check prekey record-last-resort <before> <after>
 
 The Braid has no `fresh` form: its initialisation takes the preshared secret
 and its first send draws a KEM key pair.
@@ -537,6 +539,11 @@ def prekeyOpArg : List String → Except String Model.PrekeyOperations.Op
   | ["publish"] => .ok .publish
   | ["rotate-signed"] => .ok .rotateSigned
   | ["rotate-kem"] => .ok .rotateKem
+  | ["record-last-resort"] => .ok .recordLastResort
+  | ["consume-one-time", curveId, kemId] => do
+      let c ← natArg "one-time curve id" curveId
+      let k ← natArg "one-time KEM id" kemId
+      .ok (.consumeOneTime c k)
   | ["replenish", count] => do
       let n ← natArg "replenish count" count
       .ok (.replenish n)
@@ -599,6 +606,10 @@ def handle (line : String) : Except String (List String) :=
     checkPrekeyOp ["rotate-signed"] beforeHex afterHex
   | ["check", "prekey", "rotate-kem", beforeHex, afterHex] =>
     checkPrekeyOp ["rotate-kem"] beforeHex afterHex
+  | ["check", "prekey", "record-last-resort", beforeHex, afterHex] =>
+    checkPrekeyOp ["record-last-resort"] beforeHex afterHex
+  | ["check", "prekey", "consume-one-time", curveId, kemId, beforeHex, afterHex] =>
+    checkPrekeyOp ["consume-one-time", curveId, kemId] beforeHex afterHex
   | ["check", "prekey", "replenish", count, beforeHex, afterHex] =>
     checkPrekeyOp ["replenish", count] beforeHex afterHex
   | ["read", algorithm, bytesHex] => do

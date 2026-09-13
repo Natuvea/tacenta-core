@@ -53,6 +53,51 @@ def replenishOk (before after : Store) (count : Nat) : Bool :=
 def noOpOk (before after : Store) : Bool :=
   before == after && invariant before
 
+/-- Successful authenticated responder establishment using one-time curve and KEM
+    prekeys deletes exactly the named one-time entries after authentication. The
+    session output and plaintext are outside this store-only structural check. -/
+def consumeOneTimeOk (before after : Store) (curveId kemId : Nat) : Bool :=
+  before.identityPublic == after.identityPublic
+    && before.signedPrekeySecret == after.signedPrekeySecret
+    && before.signedPrekeyId == after.signedPrekeyId
+    && before.signedPrekeySig == after.signedPrekeySig
+    && after.oneTime == before.oneTime.filter (fun e => !(e.1 == curveId))
+    && before.kemPair == after.kemPair
+    && before.kemId == after.kemId
+    && before.kemSig == after.kemSig
+    && after.kemOneTime == before.kemOneTime.filter (fun e => !(e.1 == kemId))
+    && before.nextId == after.nextId
+    && before.seen == after.seen
+    && before.previousSigned == after.previousSigned
+    && before.previousKem == after.previousKem
+    && before.oneTime.any (fun e => e.1 == curveId)
+    && before.kemOneTime.any (fun e => e.1 == kemId)
+    && invariant before
+    && invariant after
+
+/-- Successful authenticated responder establishment on the last-resort path
+    leaves key material unchanged and appends one replay fingerprint tagged with
+    the live last-resort key id. The fingerprint is computed by Rust over the
+    decoded initial message; the model checks the durable shape and tag. -/
+def recordLastResortOk (before after : Store) : Bool :=
+  before.identityPublic == after.identityPublic
+    && before.signedPrekeySecret == after.signedPrekeySecret
+    && before.signedPrekeyId == after.signedPrekeyId
+    && before.signedPrekeySig == after.signedPrekeySig
+    && before.oneTime == after.oneTime
+    && before.kemPair == after.kemPair
+    && before.kemId == after.kemId
+    && before.kemSig == after.kemSig
+    && before.kemOneTime == after.kemOneTime
+    && before.nextId == after.nextId
+    && before.previousSigned == after.previousSigned
+    && before.previousKem == after.previousKem
+    && after.seen.take before.seen.length == before.seen
+    && after.seen.length == before.seen.length + 1
+    && (after.seen.drop before.seen.length).all (fun e => e.1 == before.kemId && e.2.length == 32)
+    && invariant before
+    && invariant after
+
 /-- Successful signed-prekey rotation: the current signed prekey is retained as
     the one previous key, a fresh opaque prekey/signature pair is installed under
     the old `nextId`, and unrelated state is unchanged. -/
@@ -108,6 +153,8 @@ inductive Op where
   | replenish (count : Nat)
   | rotateSigned
   | rotateKem
+  | consumeOneTime (curveId kemId : Nat)
+  | recordLastResort
   deriving Repr, DecidableEq
 
 def check (op : Op) (before after : Store) : Bool :=
@@ -117,6 +164,8 @@ def check (op : Op) (before after : Store) : Bool :=
   | .replenish count => replenishOk before after count
   | .rotateSigned => rotateSignedOk before after
   | .rotateKem => rotateKemOk before after
+  | .consumeOneTime curveId kemId => consumeOneTimeOk before after curveId kemId
+  | .recordLastResort => recordLastResortOk before after
 
 end PrekeyOperations
 end Model
