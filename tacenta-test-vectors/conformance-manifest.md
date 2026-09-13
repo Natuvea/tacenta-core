@@ -646,13 +646,20 @@ nothing about the ones it does not.
 | The Braid's stored format, every tag the model states in full | session-persistence.md, Braid | generated stored states assembled from the page's layout, one per tag, each with four corruptions, given to both readers |
 | The Braid's epoch range, from both ends | session-persistence.md, Braid; Principles | a live state at epoch 0 and one at the reserved `u64::MAX`, both refused by both readers |
 | The Braid's two `Ct2Sampled` transitions | mlkem-braid.md, Receiving and Failure | transition (13) below the ceiling and the failure at `u64::MAX - 1`, driven from stored bytes; the run asserts both were reached |
+| The prekey store's shared stored-format domain | session-persistence.md, Prekey store; Rejection | committed P4 fixtures for current and legacy stores, optional retired branches, record bounds, wrong-version and short-or-malformed refusals are given to `read prekey`; accepted imports compare canonical v4 re-encoding, and the run asserts accepted, wrong-version, malformed and excluded cases were reached |
 
 ### Excluded
 
 - **The message keys themselves.** The harness compares states, not the key an
   operation returns; `vectors/ratchet/double-ratchet.json` pins those.
-- **The session and the prekey store.** Both now have a stored-format model,
-  but the differential harness does not yet drive either.
+- **The session.** It has a stored-format model, but the differential harness
+  does not yet drive it.
+- **The prekey store's signature rule and KEM-pair arithmetic.** The prekey
+  store is driven through the shared structural domain. Its stored-signature
+  refusal and the FIPS 203 checks inside KEM key pairs remain outside that
+  comparison because `Model.PersistedState.PrekeyStoreState` deliberately has
+  neither signatures nor KEM arithmetic; the prekey-store vectors and crate
+  tests pin those rules separately.
 - **Most of the Braid's state machine, and the `key_pair` content clause of
   its tags 1 to 4.** Both need the KEM layout the page delegates (ADR-0006,
   point 5), which neither side of the harness can build: every transition but
