@@ -676,6 +676,11 @@ struct Observed {
     prekey_lifecycle_consume_one_time: usize,
     prekey_lifecycle_record_last_resort: usize,
     prekey_lifecycle_noop: usize,
+    session_establishment_initiator: usize,
+    session_establishment_responder: usize,
+    session_establishment_unexpected_identity: usize,
+    session_establishment_unauthenticated: usize,
+    session_establishment_model_control: usize,
     session_reads: usize,
     session_reads_accepted: usize,
     session_reads_wrong_version: usize,
@@ -2655,8 +2660,30 @@ fn expect_model_check(exe: &Path, request: String, seed: u64) {
     );
 }
 
+/// A negative control for a P6 operation relation. It demonstrates that the
+/// model check is capable of detecting an intentionally mismatched result,
+/// rather than merely accepting every concrete state supplied by the runner.
+fn expect_model_mismatch(exe: &Path, request: String, seed: u64) {
+    let answers = ask_model(exe, std::slice::from_ref(&request));
+    let line = answers
+        .first()
+        .and_then(|answer| answer.first())
+        .expect("a check answer");
+    assert_eq!(
+        line, "check mismatch",
+        "\n\ntacenta-model accepted a deliberately mismatched operation transition.\n\
+         seed: {seed} ({seed:#x})\n\
+         request: {request}\n\
+         answer: {line}\n\n"
+    );
+}
+
 fn prekey_bytes(store: &tacenta_core::sessions::PrekeyStore) -> Vec<u8> {
     store.to_bytes().to_vec()
+}
+
+fn session_bytes(session: &tacenta_core::sessions::Session) -> Vec<u8> {
+    session.export().to_vec()
 }
 
 fn check_prekey_lifecycle(exe: &Path, seed: u64, seen: &mut Observed) {
@@ -2875,6 +2902,124 @@ fn check_prekey_responder_effects(exe: &Path, rng: &mut Rng, seed: u64, seen: &m
         seed,
     );
     seen.prekey_lifecycle_noop += 1;
+}
+
+/// Drive the two establishment constructors through the session-operation
+/// model. Cryptographic verdicts come from the concrete implementation: the
+/// model checks the persisted session that an accepted verdict commits, while
+/// the refusal cases prove that no session result or prekey-store mutation is
+/// exposed before the relevant commit point.
+fn check_initial_session_establishment(exe: &Path, seed: u64, seen: &mut Observed) {
+    use tacenta_core::sessions::{
+        Identity, LifecycleError, establish_initiator_for, establish_responder,
+    };
+
+    let mut rng = Rng::new(seed ^ 0x0070_3673_7461_7274);
+    let initiator = Identity::generate(&mut rng);
+    let responder = Identity::generate(&mut rng);
+    let mut store = responder.create_prekeys(2, &mut rng);
+    let bundle = store.publish();
+    let initiator_public = initiator.public();
+    let responder_public = responder.public();
+
+    let mut pending = establish_initiator_for(&initiator, &bundle, &responder_public, &mut rng)
+        .expect("a published bundle for the named identity should establish an initiator");
+    expect_model_check(
+        exe,
+        format!(
+            "check session initiator-pending {} {} {}",
+            hex::encode(initiator_public.as_bytes()),
+            hex::encode(responder_public.as_bytes()),
+            hex::encode(session_bytes(&pending)),
+        ),
+        seed,
+    );
+    seen.session_establishment_initiator += 1;
+    expect_model_mismatch(
+        exe,
+        format!(
+            "check session initiator-pending {} {} {}",
+            hex::encode(responder_public.as_bytes()),
+            hex::encode(initiator_public.as_bytes()),
+            hex::encode(session_bytes(&pending)),
+        ),
+        seed,
+    );
+    seen.session_establishment_model_control += 1;
+
+    let initial = pending
+        .encrypt(b"operation-model authenticated establishment", &mut rng)
+        .expect("a pending initiator session should encrypt its first message");
+    let store_before = prekey_bytes(&store);
+    let (established, plaintext) = establish_responder(&responder, &mut store, &initial, &mut rng)
+        .expect("the matching initial message should establish a responder");
+    assert_eq!(plaintext, b"operation-model authenticated establishment");
+    expect_model_check(
+        exe,
+        format!(
+            "check session responder-established {} {} {}",
+            hex::encode(responder_public.as_bytes()),
+            hex::encode(initiator_public.as_bytes()),
+            hex::encode(session_bytes(&established)),
+        ),
+        seed,
+    );
+    seen.session_establishment_responder += 1;
+    let store_after = prekey_bytes(&store);
+    expect_model_check(
+        exe,
+        format!(
+            "check prekey consume-one-time {} {} {} {}",
+            bundle.one_time_prekey_id,
+            bundle.kem_prekey_id,
+            hex::encode(&store_before),
+            hex::encode(&store_after),
+        ),
+        seed,
+    );
+
+    let substitute = Identity::generate(&mut rng);
+    let substitute_store = substitute.create_prekeys(1, &mut rng);
+    let substitute_bundle = substitute_store.publish();
+    let mut untouched = Rng(rng.0);
+    assert!(matches!(
+        establish_initiator_for(&initiator, &substitute_bundle, &responder_public, &mut rng,),
+        Err(LifecycleError::UnexpectedIdentity)
+    ));
+    assert_eq!(
+        rng.next_u64(),
+        untouched.next_u64(),
+        "an unexpected identity must refuse before session-creation randomness"
+    );
+    seen.session_establishment_unexpected_identity += 1;
+
+    let initiator = Identity::generate(&mut rng);
+    let responder = Identity::generate(&mut rng);
+    let mut store = responder.create_prekeys(1, &mut rng);
+    let bundle = store.publish();
+    let mut pending = establish_initiator_for(&initiator, &bundle, &responder.public(), &mut rng)
+        .expect("a second published bundle should establish an initiator");
+    let mut forged = pending
+        .encrypt(b"operation-model forged initial", &mut rng)
+        .expect("a pending initiator session should encrypt its first message");
+    let last = forged.len() - 1;
+    forged[last] ^= 0x01;
+    let before = prekey_bytes(&store);
+    assert!(matches!(
+        establish_responder(&responder, &mut store, &forged, &mut rng),
+        Err(LifecycleError::Aead)
+    ));
+    let after = prekey_bytes(&store);
+    expect_model_check(
+        exe,
+        format!(
+            "check prekey no-op {} {}",
+            hex::encode(&before),
+            hex::encode(&after),
+        ),
+        seed,
+    );
+    seen.session_establishment_unauthenticated += 1;
 }
 
 #[derive(Deserialize)]
@@ -3163,6 +3308,7 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     check_imports(&exe, seed, &round, &answers, &mut seen);
     check_prekey_imports(&exe, seed, &mut seen);
     check_prekey_lifecycle(&exe, seed, &mut seen);
+    check_initial_session_establishment(&exe, seed, &mut seen);
     check_session_imports(&exe, seed, &mut seen);
     check_composed(&exe, seed, sequences, long, &mut seen);
 
@@ -3295,6 +3441,36 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     assert!(
         seen.prekey_lifecycle_noop > 0,
         "no prekey lifecycle refused no-op check was compared"
+    );
+
+    eprintln!(
+        "differential: initial-session establishment checks: initiator {}, responder {}, \
+         unexpected-identity refusal {}, unauthenticated-initial refusal {}, model control {}",
+        seen.session_establishment_initiator,
+        seen.session_establishment_responder,
+        seen.session_establishment_unexpected_identity,
+        seen.session_establishment_unauthenticated,
+        seen.session_establishment_model_control,
+    );
+    assert!(
+        seen.session_establishment_initiator > 0,
+        "no pending initiator establishment was compared"
+    );
+    assert!(
+        seen.session_establishment_responder > 0,
+        "no established responder session was compared"
+    );
+    assert!(
+        seen.session_establishment_unexpected_identity > 0,
+        "no unexpected-identity establishment refusal was reached"
+    );
+    assert!(
+        seen.session_establishment_unauthenticated > 0,
+        "no unauthenticated initial-message refusal was reached"
+    );
+    assert!(
+        seen.session_establishment_model_control > 0,
+        "no deliberate initial-session model mismatch was reached"
     );
 
     eprintln!(

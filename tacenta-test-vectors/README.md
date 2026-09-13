@@ -500,6 +500,12 @@ from either implementation.
   structurally; authenticated responder establishment deletes the named
   one-time curve and KEM ids or appends one last-resort replay fingerprint;
   identity-mismatch lifecycle calls and replay refusals are no-ops.
+- initial session establishment: a concrete, identity-pinned initiator becomes
+  a pending session and the responder's authenticated initial message becomes
+  an established session; the model checks each persisted role, the two public
+  identity bindings, and the composed session invariant. An unexpected bundle
+  identity refuses before session-creation randomness, and a forged initial
+  AEAD tag returns no session and leaves the prekey store unchanged.
 
 **What it does not compare.**
 
@@ -520,6 +526,11 @@ from either implementation.
   and authenticated the initial message. It does not predict signatures, KEM
   key pairs, curve public keys, session secrets or the replay fingerprint
   contents beyond their persisted shape.
+- **The cryptography inside initial establishment.** The model observes the
+  persisted sessions after Rust has verified signatures, encapsulated or
+  decapsulated the KEM, performed curve agreement and authenticated the first
+  ciphertext. It does not calculate those verdicts or secrets; bad-signature,
+  KEM and non-contributory-DH operation controls remain separate cases.
 - **Most of the Braid's state machine.** The Triple Ratchet is driven through
   generated sequences like the two ratchets, and the Braid's *decoder* is
   driven on generated stored states. Its transitions are reached only from

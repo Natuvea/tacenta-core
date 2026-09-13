@@ -13,6 +13,7 @@ import Model.Polynomial
 import Model.Protobuf
 import Model.Ratchet
 import Model.SessionEstablishment
+import Model.SessionOperations
 import Model.Sha256
 import Model.SparseRatchet
 import Model.State
