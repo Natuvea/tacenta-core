@@ -269,9 +269,14 @@ the leaf formats, and Rejection.
 - **Built by operations**, when the inputs are `start` and `steps`. Each step
   is one received Braid message, `epoch(8) || type(1) || chunk_present(1) ||
   chunk_index(2) || chunk(32)`, the type byte being `AgreementType`'s
-  (CONSTANTS.md). `output` is the stored bytes of the state reached. A runner
-  must read `output` back to a Braid state and write that state as `output`
-  again. Braid operation vectors use this runner assertion as their read-back
+  (CONSTANTS.md). These four fields are the wire Braid message fields from the
+  composite header: when `chunk_present` is `00`, `chunk_index` and `chunk`
+  are the absent codeword's all-zero padding (mlkem-braid.md, Messages, On the
+  wire; message-format.md, Ratchet message). A runner must report a vector with
+  `chunk_present` `00` and a non-zero `chunk_index` or `chunk` as malformed
+  vector data. `output` is the stored bytes of the state reached. A runner must
+  read `output` back to a Braid state and write that state as `output` again.
+  Braid operation vectors use this runner assertion as their read-back
   obligation; they do not carry separate `-read-back` siblings.
 
 **Only two transitions are driven, and the reason is the reason tags 1 to 4

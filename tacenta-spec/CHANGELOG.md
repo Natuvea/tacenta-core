@@ -135,6 +135,11 @@ is SemVer against the specified protocol (not the implementation).
 - `ASSURANCE.md`: point assurance gate 2 at the current gap register, and replace
   stale pass-7 wording about the prekey-store and session vector files.
 - Clarify the prekey store signature rule in `protocol/session-persistence.md`: verification uses the unlabelled prekey signature input, and the signing obligation names `create_prekeys`, `replenish`, and both rotations. This resolves G7-03 and G7-04 from the independent reader without changing the stored format or implementation.
+- `tacenta-test-vectors/README.md`: clarify that Braid operation steps use the
+  wire Braid-message fields, so an absent codeword has all-zero `chunk_index`
+  and `chunk` padding, and a runner reports a vector that violates that padding
+  as malformed vector data. This resolves G6-05 from the independent reader
+  without changing any vector bytes.
 - `protocol/session-persistence.md`, Braid, and Semantic rules of the leaf
   formats, Braid: the `key_pair` content clause of tags 1 to 4 is **scoped**
   to an implementation that knows the KEM key pair's layout. Such an
