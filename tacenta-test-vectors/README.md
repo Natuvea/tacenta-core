@@ -465,8 +465,9 @@ shows up (ADR-0008, practice 9). It has two halves:
   seed, blind to what either side will answer, sends them to that executable,
   replays the same operations on `tacenta-ratchet`, `tacenta-spqr`,
   `tacenta-triple` and `tacenta-braid`, drives the prekey store and session
-  over their committed P4 stored-format fixtures, and compares the two
-  transcripts or import verdicts.
+  over their committed P4 stored-format fixtures, checks concrete prekey-store
+  lifecycle operations against the model's structural before/after contract,
+  and compares the two transcripts, import verdicts or operation verdicts.
 
 The operations are encoded exactly as the `steps` input of the two
 ratchet-state files above, so a sequence here means what a sequence there
@@ -493,6 +494,10 @@ from either implementation.
   one the model refuses with the counter at its ceiling. The converse is not
   asserted and does not hold, since a receive at `nr = u32::MAX` numbered below
   it is out of order on both sides rather than exhaustion.
+- prekey-store lifecycle effects: publication leaves the store unchanged;
+  replenishment appends curve and KEM one-time ids from `next_id`; signed-prekey
+  and KEM rotations retain the previous key material structurally; and
+  identity-mismatch lifecycle calls are no-ops.
 
 **What it does not compare.**
 
@@ -507,6 +512,10 @@ from either implementation.
   ratchet-private/public relation, because the model deliberately has neither
   signatures, FIPS 203 arithmetic nor X25519 public-key computation; vectors
   and crate tests pin those rules.
+- **The cryptography inside prekey lifecycle operations.** The model checks the
+  persisted structural effects of replenishment and rotation after Rust has
+  generated and signed the concrete keys. It does not predict signatures, KEM
+  key pairs or curve public keys.
 - **Most of the Braid's state machine.** The Triple Ratchet is driven through
   generated sequences like the two ratchets, and the Braid's *decoder* is
   driven on generated stored states. Its transitions are reached only from

@@ -8,6 +8,7 @@ import Model.Kdf
 import Model.Messages
 import Model.MultiDevice
 import Model.PersistedState
+import Model.PrekeyOperations
 import Model.Polynomial
 import Model.Protobuf
 import Model.Ratchet
