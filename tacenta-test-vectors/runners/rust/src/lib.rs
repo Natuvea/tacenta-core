@@ -1244,6 +1244,7 @@ fn prekey_store_fields_agree(v: &Vector, stored: &[u8]) -> Result<(), String> {
             .get(from..from + n)
             .ok_or_else(|| format!("the store ends before {}", from + n))
     };
+    let version = *stored.first().ok_or("the store is empty")?;
     eq(at(1, 32)?, &required_field(v, "identity_public")?)?;
     eq(at(33, 32)?, &required_field(v, "signed_prekey_secret")?)?;
     eq(at(65, 4)?, &required_field(v, "signed_prekey_id")?)?;
@@ -1267,9 +1268,20 @@ fn prekey_store_fields_agree(v: &Vector, stored: &[u8]) -> Result<(), String> {
     }
     eq(at(pos, 4)?, &required_field(v, "next_id")?)?;
     pos += 4;
+    if version == 1 {
+        eq(&[0, 0, 0, 0], &required_field(v, "seen_count")?)?;
+        eq(&[0], &required_field(v, "previous_signed_present")?)?;
+        eq(&[0], &required_field(v, "previous_kem_present")?)?;
+        return Ok(());
+    }
     eq(at(pos, 4)?, &required_field(v, "seen_count")?)?;
     let seen = u32::from_be_bytes(at(pos, 4)?.try_into().unwrap()) as usize;
     pos += 4 + seen * 36;
+    if version == 2 {
+        eq(&[0], &required_field(v, "previous_signed_present")?)?;
+        eq(&[0], &required_field(v, "previous_kem_present")?)?;
+        return Ok(());
+    }
     eq(at(pos, 1)?, &required_field(v, "previous_signed_present")?)?;
     if stored[pos] == 1 {
         pos += 1 + 32 + 4 + 64;
@@ -1388,8 +1400,9 @@ fn check_session_state(v: &Vector) -> Result<(), String> {
 }
 
 /// The prekey store's stored format: which byte strings its reader accepts,
-/// which it refuses and with which refusal, and that what it accepts it writes
-/// back unchanged.
+/// which it refuses and with which refusal, and that current-format accepted
+/// stores write back unchanged. Accepted legacy stores read to the same fields
+/// and write back upgraded to the current version.
 ///
 /// The variants are enumerated rather than caught by a wildcard, so that a new
 /// refusal kind has to be given a name here instead of silently joining
@@ -1399,7 +1412,9 @@ fn check_prekey_store_state(v: &Vector) -> Result<(), String> {
     let stored = input(v, "bytes")?;
     match (expects_success(v)?, PrekeyStore::from_bytes(&stored)) {
         (true, Ok(s)) => {
-            eq(&s.to_bytes(), &stored)?;
+            if stored.first() == Some(&4) {
+                eq(&s.to_bytes(), &stored)?;
+            }
             prekey_store_fields_agree(v, &stored)
         }
         (true, Err(e)) => Err(format!("refused ({e:?}) stored bytes the vector accepts")),
