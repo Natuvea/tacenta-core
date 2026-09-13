@@ -35,7 +35,7 @@ contract below.
 | Signature check over a signed curve prekey | `valid`, `invalid` | Fixture carries a bundle signed by the identity key, and a second bundle with the same fields but a bad signature. Rust must refuse the bad one before KEM encapsulation or state mutation. | Ed25519 unforgeability and canonical signature verification remain ASM-07/ASM-14 territory. |
 | Signature check over a KEM prekey | `valid`, `invalid` | Fixture pairs each KEM public key with its signature; the invalid case changes only the signature or signing identity. | The model only observes the verdict; it does not model FIPS 203 key contents. |
 | Diffie-Hellman agreement | `contributory(output)` or `non_contributory` | Fixture uses ordinary keys for the success path and a low-order public key for refusal. | X25519 group arithmetic and low-order classification remain in the primitive implementation. |
-| KEM agreement | `decapsulates(output)` or `refuses` | Fixture uses a generated KEM pair/ciphertext for success and a malformed ciphertext for refusal. | FIPS 203 encapsulation, decapsulation and key-pair consistency are assumed outside the model. |
+| KEM agreement | `decapsulates(output)` or `refuses` | Fixture uses a generated KEM pair/ciphertext for success. The wire decoder rejects a length-malformed initial message before decapsulation; an equal-length altered ML-KEM ciphertext follows the primitive's implicit-rejection path and is observed as later authentication failure, not as a KEM error. | FIPS 203 encapsulation, decapsulation and key-pair consistency are assumed outside the model. |
 | AEAD authentication | `authenticates(plaintext)` or `refuses` | Fixture changes only ciphertext/tag/header-associated data after a valid message is generated. | AEAD confidentiality and authenticity are primitive assumptions; the model only states commit behaviour after the verdict. |
 | Injected randomness | Named draws for identity/prekey/ratchet/KEM operations | Fixture seed records the draw order or concrete generated public values. | Randomness quality remains ASM-01; the model requires freshness labels and equality/inequality where the protocol relies on it. |
 
@@ -67,11 +67,11 @@ assertion compares durable state before and after the documented commit point.
 
 | Requirement | P6 operations that can pin it | First accepted trace | First failure trace | Omission after this design slice |
 | --- | --- | --- | --- | --- |
-| REQ-AUTH-01 | create/replenish/rotate prekeys; initiator and responder establishment | Concrete signed bundle establishment reaches a persisted pending initiator and an established responder session whose identity bindings the model checks. | Bad signed curve-prekey signature and bad KEM-prekey signature still need operation-level runner cases that refuse before session creation. | Signature verdicts remain abstract; the new session checker observes only the state committed after Rust has verified them. |
+| REQ-AUTH-01 | create/replenish/rotate prekeys; initiator and responder establishment | Concrete signed bundle establishment reaches a persisted pending initiator and an established responder session whose identity bindings the model checks. | Changed signed-curve and KEM-prekey signatures refuse before the first initiator randomness draw, so no session can be produced. | Signature verdicts remain abstract; the model observes only the state committed after Rust has verified them. |
 | REQ-AUTH-02 | initiator establishment with expected identity | Expected identity equals bundle identity. | Bundle identity differs from expected identity and refuses before randomness is drawn. | `establish_initiator`'s deliberately trusting form remains documented, not a pinned identity check. |
 | REQ-AUTH-05 | send/receive associated-data construction | A message sent under one identity pair decrypts under the matching peer session. | Same ciphertext/header under swapped or changed identity associated data refuses without state mutation. | AEAD security itself remains an assumption. |
 | REQ-AUTH-09 | export/import after operations | Accepted operation states export and import canonically. | Re-spelled public keys in imported session/prekey bytes refuse as already covered by the persisted-format rows. | This requirement is mostly closed by P4/P5; P6 only ties operation outputs to those readers. |
-| REQ-AUTH-10 | initiator/responder establishment and established receive | Ordinary DH and ratchet public keys produce contributory outputs. | Low-order public key refuses before durable state changes. | Curve arithmetic remains abstract. |
+| REQ-AUTH-10 | initiator/responder establishment and established receive | Ordinary DH and ratchet public keys produce contributory outputs. | A low-order received ratchet public refuses as non-contributory, preserves the persisted session under the model's no-op relation, and leaves the genuine message deliverable. | Initiator and responder low-order establishment controls remain concrete tests outside this operation runner. Curve arithmetic remains abstract. |
 | REQ-AUTH-11 | established receive | First delivery of a ratchet message accepts and advances state. | Duplicate delivery refuses or fails authentication without accepting the message twice. | Exact skipped-key eviction branches may need their own sub-slice. |
 | REQ-AUTH-12 | responder establishment and prekey lifecycle | One-time curve and KEM ids are consumed only after authenticated responder establishment. Last-resort first delivery records a fingerprint. | Replay of one-time ids refuses `UnknownPrekeyId`; replay of last-resort fingerprint refuses `ReplayedLastResort`; full record refuses `LastResortRecordFull` unchanged. | Near-exhaustion partial replenishment/rotation needs a scope decision. |
 | REQ-AUTH-13 | responder establishment and established receive | An accepted initial decrypt commits a responder session and the documented one-time store transition. | A forged initial AEAD tag returns `Aead`, emits no session and leaves the store unchanged. Malformed-message, bad agreement and established-receive controls remain open. | The runner now has an explicit initial-AEAD negative control; later message transitions still need their own controls. |
@@ -101,9 +101,14 @@ assertion compares durable state before and after the documented commit point.
    initiator's pending wrapper only after an authenticated reply. The runner
    checks forged and duplicate message refusals as session no-ops, and checks
    that the message which reveals a Braid failure commits the terminal state
-   while later sends and receives refuse unchanged. Repeated-initial wrappers,
-   out-of-order delivery, broader crypto negative controls and reader coverage
-   remain open.
+   while later sends and receives refuse unchanged. It additionally compares a
+   repeated initial-wrapper receive, third-first delivery followed by both
+   skipped messages, and a low-order ratchet-header refusal that leaves both
+   the persisted session and the genuine in-flight message intact. Bad signed
+   curve and KEM-prekey signatures are checked before the initiator's first
+   randomness draw; no session exists on those traces to supply a persisted
+   comparison. Responder low-order establishment, malformed-initial decoder
+   precedence, and specification-only reader coverage remain open.
 
 Each slice must emit a reproducible seed, name the reached requirement rows, and
 include at least one deliberate model/runner disagreement before it is counted as
