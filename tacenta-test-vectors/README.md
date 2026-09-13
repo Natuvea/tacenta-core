@@ -351,10 +351,10 @@ The page is session-persistence.md, Session and Rejection. Accepted vectors
 carry sessions `tacenta-core` exported under the counter-based `FixedRng` in
 `lifecycle.rs`, because the model does not compute the curve and cannot build a
 session whose `ratchet_private` matches the classical ratchet's `dhs_pub`.
-Two additional accepted vectors place the responder session on the tag 6/7
-epoch-relation boundary. Refusal vectors are one-field mutations of the
-responder fixture, boundary-neighbour mutations, or truncations, additions and
-a version relabelling.
+Additional accepted vectors place the responder session on the tag 6/7
+epoch-relation boundary and on the failed-Braid exemption. Refusal vectors are
+one-field mutations of the responder fixture, boundary-neighbour mutations, or
+truncations, additions and a version relabelling.
 
 - **Stored bytes**, when the one input is `bytes`: a stored session offered to
   the reader.
@@ -366,7 +366,8 @@ a version relabelling.
   epoch, and `sparse_epoch` is the sparse ratchet half's epoch inside the
   stored Triple Ratchet state. The accepted tag 6 and tag 7 boundary vectors
   show the switch from `sparse_epoch = braid_epoch - 1` to
-  `sparse_epoch = braid_epoch`.
+  `sparse_epoch = braid_epoch`; the accepted Failed vector shows that tag 11
+  carries no live Braid epoch and is exempt from that relation.
 - The two optional session fields are reported by presence byte. Their full
   bytes remain in the input and are not repeated in `fields`.
 - An invalid vector's `refusal` is `wrong-version`, `short-or-malformed`,
