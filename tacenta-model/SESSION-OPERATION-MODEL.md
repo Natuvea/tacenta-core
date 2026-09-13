@@ -67,15 +67,15 @@ assertion compares durable state before and after the documented commit point.
 
 | Requirement | P6 operations that can pin it | First accepted trace | First failure trace | Omission after this design slice |
 | --- | --- | --- | --- | --- |
-| REQ-AUTH-01 | create/replenish/rotate prekeys; initiator and responder establishment | Initiator accepts a bundle whose signed curve and KEM prekey signatures verify; responder accepts a message naming those ids. | Bad signed curve-prekey signature and bad KEM-prekey signature both refuse before session creation. | No model evidence until fixtures and runner exist. |
+| REQ-AUTH-01 | create/replenish/rotate prekeys; initiator and responder establishment | Concrete signed bundle establishment reaches a persisted pending initiator and an established responder session whose identity bindings the model checks. | Bad signed curve-prekey signature and bad KEM-prekey signature still need operation-level runner cases that refuse before session creation. | Signature verdicts remain abstract; the new session checker observes only the state committed after Rust has verified them. |
 | REQ-AUTH-02 | initiator establishment with expected identity | Expected identity equals bundle identity. | Bundle identity differs from expected identity and refuses before randomness is drawn. | `establish_initiator`'s deliberately trusting form remains documented, not a pinned identity check. |
 | REQ-AUTH-05 | send/receive associated-data construction | A message sent under one identity pair decrypts under the matching peer session. | Same ciphertext/header under swapped or changed identity associated data refuses without state mutation. | AEAD security itself remains an assumption. |
 | REQ-AUTH-09 | export/import after operations | Accepted operation states export and import canonically. | Re-spelled public keys in imported session/prekey bytes refuse as already covered by the persisted-format rows. | This requirement is mostly closed by P4/P5; P6 only ties operation outputs to those readers. |
 | REQ-AUTH-10 | initiator/responder establishment and established receive | Ordinary DH and ratchet public keys produce contributory outputs. | Low-order public key refuses before durable state changes. | Curve arithmetic remains abstract. |
 | REQ-AUTH-11 | established receive | First delivery of a ratchet message accepts and advances state. | Duplicate delivery refuses or fails authentication without accepting the message twice. | Exact skipped-key eviction branches may need their own sub-slice. |
 | REQ-AUTH-12 | responder establishment and prekey lifecycle | One-time curve and KEM ids are consumed only after authenticated responder establishment. Last-resort first delivery records a fingerprint. | Replay of one-time ids refuses `UnknownPrekeyId`; replay of last-resort fingerprint refuses `ReplayedLastResort`; full record refuses `LastResortRecordFull` unchanged. | Near-exhaustion partial replenishment/rotation needs a scope decision. |
-| REQ-AUTH-13 | responder establishment and established receive | Accepted decrypt commits the documented state. | Bad AEAD/tag, malformed message, bad key agreement and non-repeat initial wrapper leave durable state unchanged; terminal Braid failure is the explicit exception that records failure. | Needs deliberate negative controls in the runner. |
-| REQ-CONF-02 | establishment and message operations | Initiator and responder derive compatible `SK`; Braid/Triple inputs carry the expected epochs and outputs. | KEM refusal or non-contributory DH produces no session/message. | Cryptographic derivation values are fixture outputs, not proved by the operation model. |
+| REQ-AUTH-13 | responder establishment and established receive | An accepted initial decrypt commits a responder session and the documented one-time store transition. | A forged initial AEAD tag returns `Aead`, emits no session and leaves the store unchanged. Malformed-message, bad agreement and established-receive controls remain open. | The runner now has an explicit initial-AEAD negative control; later message transitions still need their own controls. |
+| REQ-CONF-02 | establishment and message operations | A concrete initiator and responder complete a compatible initial-message exchange; the model checks both committed session roles and identity bindings. | KEM refusal or non-contributory DH produces no session/message. | Cryptographic derivation values are fixture outputs, not proved by the operation model. |
 | REQ-CONF-04 | send/export and receive/export ordering | Send advances state before ciphertext is allowed to leave; receive advances before acknowledgement. | Importing the pre-operation state demonstrates why persistence ordering is a caller obligation rather than a model guarantee. | Storage atomicity remains outside the crate. |
 | REQ-CONF-09 | refusal surface | Refusals collapse to the public error classes already exposed by `Error` and the persisted readers. | Malformed input, bad authentication and unknown ids do not expose secrets or commit speculative state. | Side-channel uniformity remains covered by primitive assumptions and tests, not this model. |
 | REQ-FS-03 | prekey lifecycle and responder establishment | One-time private halves are deleted after authenticated use; rotations retire and then wipe old keys. | Unauthenticated initial messages do not delete one-time private halves. | Language-level temporary copies remain a known limitation. |
@@ -89,10 +89,13 @@ assertion compares durable state before and after the documented commit point.
    refusal now have Lean structural before/after checks driven by concrete Rust
    execution. Still open in this slice: exhausted-identifier edges and the
    corresponding specification-only reader coverage.
-2. **Initial session establishment.** Model initiator pending state and responder
-   establishment with abstract signature, KEM, DH and AEAD verdicts. The runner
-   should pair every accepted establishment with one refusal that proves the
-   prekey store and session creation commit point.
+2. **Initial session establishment.** `SessionOperations` now checks the
+   persisted initiator-pending and responder-established states after concrete
+   Rust handshakes, including role, identity binding and the composed session
+   invariant. The runner pairs the accepted exchange with an expected-identity
+   refusal before randomness/session creation and a forged-initial `Aead`
+   refusal that leaves the responder store unchanged. Signature, KEM and DH
+   negative controls still need their own cases.
 3. **Established messages and failed agreement.** Model send/receive candidate
    state, repeated initial wrappers, duplicate/out-of-order messages, AEAD
    refusal rollback, terminal Braid failure and export/import between steps.

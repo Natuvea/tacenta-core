@@ -52,6 +52,8 @@ write what this reads.
     check prekey rotate-kem         <before> <after>
     check prekey consume-one-time   <curve-id> <kem-id> <before> <after>
     check prekey record-last-resort <before> <after>
+    check session initiator-pending <our-identity> <peer-identity> <after>
+    check session responder-established <our-identity> <peer-identity> <after>
 
 The Braid has no `fresh` form: its initialisation takes the preshared secret
 and its first send draws a KEM key pair.
@@ -92,16 +94,19 @@ ends with `end`, whichever request it answers, so the caller reads one answer
 without knowing what it asked.
 
 A `check prekey` request reads two concrete prekey-store byte strings and checks
-the structural operation relation the P6 operation model can state. It answers
-`check ok` or `check mismatch`; malformed stores still stop as request errors,
-because the caller is checking operations that already produced persisted
-states.
+the structural operation relation the P6 operation model can state. A `check
+session` request reads the returned concrete session and checks the establishment
+role, identity binding and durable pending/established fields. Each answers
+`check ok` or `check mismatch`; malformed stores or sessions still stop as
+request errors, because the caller is checking operations that already produced
+persisted states.
 
 A malformed request is an error and stops the run, rather than an answer that
 could be mistaken for the model's.
 -/
 import Model.PersistedState
 import Model.PrekeyOperations
+import Model.SessionOperations
 import Model.Ratchet
 import Model.SparseRatchet
 
@@ -561,6 +566,24 @@ def checkPrekeyOp (opParts : List String) (beforeHex afterHex : String) :
       "check mismatch"
   .ok [verdict, "end"]
 
+def readSession (what hex : String) : Except String Model.PersistedState.SessionState.Session := do
+  let bs ← hexArg what hex
+  match Model.PersistedState.SessionState.ofBytes bs with
+  | .ok st => .ok st
+  | .error r => .error ("difftest: " ++ what ++ " refused " ++ refusalName r)
+
+def checkSessionOp (initiator : Bool) (ourHex peerHex afterHex : String) :
+    Except String (List String) := do
+  let ourIdentity ← hexArg "session operation own identity" ourHex
+  let peerIdentity ← hexArg "session operation peer identity" peerHex
+  let after ← readSession "session operation after state" afterHex
+  let accepted :=
+    if initiator then
+      Model.SessionOperations.initiatorPendingOk ourIdentity peerIdentity after
+    else
+      Model.SessionOperations.responderEstablishedOk ourIdentity peerIdentity after
+  .ok [if accepted then "check ok" else "check mismatch", "end"]
+
 /-- One request's answer. -/
 def handle (line : String) : Except String (List String) :=
   match line.splitOn " " with
@@ -612,6 +635,10 @@ def handle (line : String) : Except String (List String) :=
     checkPrekeyOp ["consume-one-time", curveId, kemId] beforeHex afterHex
   | ["check", "prekey", "replenish", count, beforeHex, afterHex] =>
     checkPrekeyOp ["replenish", count] beforeHex afterHex
+  | ["check", "session", "initiator-pending", ourHex, peerHex, afterHex] =>
+    checkSessionOp true ourHex peerHex afterHex
+  | ["check", "session", "responder-established", ourHex, peerHex, afterHex] =>
+    checkSessionOp false ourHex peerHex afterHex
   | ["read", algorithm, bytesHex] => do
     let bs ← hexArg "the stored bytes" bytesHex
     match algorithm with
