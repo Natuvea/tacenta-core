@@ -83,11 +83,12 @@ assertion compares durable state before and after the documented commit point.
 
 ## Implementation slices
 
-1. **Prekey lifecycle and replay.** `publish`, `replenish`, both rotations
-   and identity-mismatch no-ops now have a Lean structural before/after checker
-   driven by concrete Rust execution. Still open in this slice: responder
-   consumption of one-time ids, last-resort replay records, exhausted-identifier
-   edges and the corresponding reader coverage.
+1. **Prekey lifecycle and replay.** `publish`, `replenish`, both rotations,
+   identity-mismatch no-ops, authenticated responder one-time consumption,
+   last-resort replay-record insertion, replay refusal and one-time replay
+   refusal now have Lean structural before/after checks driven by concrete Rust
+   execution. Still open in this slice: exhausted-identifier edges and the
+   corresponding specification-only reader coverage.
 2. **Initial session establishment.** Model initiator pending state and responder
    establishment with abstract signature, KEM, DH and AEAD verdicts. The runner
    should pair every accepted establishment with one refusal that proves the
