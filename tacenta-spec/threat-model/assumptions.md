@@ -418,7 +418,7 @@ the protocol pages say. In particular it:
   the Triple Ratchet's four size bounds and the counters' step of headroom
   (CLAIMS.md, "Read this first: what is not proved").
 
-This is established by tests and by reading, not by proof.
+This is established by tests and by reading, not by proof. The P6 operation-model design in `tacenta-model/SESSION-OPERATION-MODEL.md` inventories the part intended to move from assumption to model/vector evidence; until those implementation slices land, ASM-19 remains an assumption.
 
 - **Relied on by:** every requirement, as a statement about `tacenta-core`; in
   particular REQ-AUTH-01, REQ-AUTH-02, REQ-AUTH-05, REQ-AUTH-09 to
