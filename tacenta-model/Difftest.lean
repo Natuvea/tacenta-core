@@ -45,6 +45,11 @@ write what this reads.
     read braid   <bytes>
     read prekey  <bytes>
     read session <bytes>
+    check prekey publish       <before> <after>
+    check prekey no-op         <before> <after>
+    check prekey replenish <n> <before> <after>
+    check prekey rotate-signed <before> <after>
+    check prekey rotate-kem    <before> <after>
 
 The Braid has no `fresh` form: its initialisation takes the preshared secret
 and its first send draws a KEM key pair.
@@ -84,10 +89,17 @@ refusal named as `session-persistence.md`, Rejection, names it. Every answer
 ends with `end`, whichever request it answers, so the caller reads one answer
 without knowing what it asked.
 
+A `check prekey` request reads two concrete prekey-store byte strings and checks
+the structural operation relation the P6 operation model can state. It answers
+`check ok` or `check mismatch`; malformed stores still stop as request errors,
+because the caller is checking operations that already produced persisted
+states.
+
 A malformed request is an error and stops the run, rather than an answer that
 could be mistaken for the model's.
 -/
 import Model.PersistedState
+import Model.PrekeyOperations
 import Model.Ratchet
 import Model.SparseRatchet
 
@@ -498,6 +510,50 @@ def hexArg (what s : String) : Except String Bytes :=
   | some bs => .ok bs
   | none => .error ("difftest: " ++ what ++ " is not lowercase hex")
 
+/-- A decimal natural number with at least one digit. -/
+def natArg (what s : String) : Except String Nat :=
+  let chars := s.toList
+  if chars.isEmpty then
+    .error ("difftest: bad " ++ what)
+  else
+    chars.foldlM
+      (fun acc c =>
+        if '0' ≤ c && c ≤ '9' then
+          some (acc * 10 + (c.toNat - 48))
+        else
+          none)
+      0
+    |>.elim (.error ("difftest: bad " ++ what)) .ok
+
+def readPrekeyStore (what hex : String) :
+    Except String Model.PersistedState.PrekeyStoreState.Store := do
+  let bs ← hexArg what hex
+  match Model.PersistedState.PrekeyStoreState.ofBytes bs with
+  | .ok st => .ok st
+  | .error r => .error ("difftest: " ++ what ++ " refused " ++ refusalName r)
+
+def prekeyOpArg : List String → Except String Model.PrekeyOperations.Op
+  | ["no-op"] => .ok .noOp
+  | ["publish"] => .ok .publish
+  | ["rotate-signed"] => .ok .rotateSigned
+  | ["rotate-kem"] => .ok .rotateKem
+  | ["replenish", count] => do
+      let n ← natArg "replenish count" count
+      .ok (.replenish n)
+  | _ => .error "difftest: bad prekey operation"
+
+def checkPrekeyOp (opParts : List String) (beforeHex afterHex : String) :
+    Except String (List String) := do
+  let op ← prekeyOpArg opParts
+  let before ← readPrekeyStore "prekey operation before state" beforeHex
+  let after ← readPrekeyStore "prekey operation after state" afterHex
+  let verdict :=
+    if Model.PrekeyOperations.check op before after then
+      "check ok"
+    else
+      "check mismatch"
+  .ok [verdict, "end"]
+
 /-- One request's answer. -/
 def handle (line : String) : Except String (List String) :=
   match line.splitOn " " with
@@ -535,6 +591,16 @@ def handle (line : String) : Except String (List String) :=
     | "braid" =>
       storedRun Model.PersistedState.BraidState.ofBytes runBraid start steps
     | other => .error ("difftest: no algorithm " ++ other)
+  | ["check", "prekey", "publish", beforeHex, afterHex] =>
+    checkPrekeyOp ["publish"] beforeHex afterHex
+  | ["check", "prekey", "no-op", beforeHex, afterHex] =>
+    checkPrekeyOp ["no-op"] beforeHex afterHex
+  | ["check", "prekey", "rotate-signed", beforeHex, afterHex] =>
+    checkPrekeyOp ["rotate-signed"] beforeHex afterHex
+  | ["check", "prekey", "rotate-kem", beforeHex, afterHex] =>
+    checkPrekeyOp ["rotate-kem"] beforeHex afterHex
+  | ["check", "prekey", "replenish", count, beforeHex, afterHex] =>
+    checkPrekeyOp ["replenish", count] beforeHex afterHex
   | ["read", algorithm, bytesHex] => do
     let bs ← hexArg "the stored bytes" bytesHex
     match algorithm with

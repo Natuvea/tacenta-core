@@ -268,6 +268,35 @@ impl Rng {
     }
 }
 
+impl rand_core::RngCore for Rng {
+    fn next_u32(&mut self) -> u32 {
+        self.next_u64() as u32
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        Rng::next_u64(self)
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        let mut chunks = dest.chunks_exact_mut(8);
+        for chunk in &mut chunks {
+            chunk.copy_from_slice(&self.next_u64().to_le_bytes());
+        }
+        let rem = chunks.into_remainder();
+        if !rem.is_empty() {
+            let bytes = self.next_u64().to_le_bytes();
+            rem.copy_from_slice(&bytes[..rem.len()]);
+        }
+    }
+
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+        self.fill_bytes(dest);
+        Ok(())
+    }
+}
+
+impl rand_core::CryptoRng for Rng {}
+
 // ---------------------------------------------------------------------------
 // The operations, encoded as the vectors encode them
 // ---------------------------------------------------------------------------
@@ -645,6 +674,11 @@ struct Observed {
     prekey_reads_wrong_version: usize,
     prekey_reads_malformed: usize,
     prekey_reads_excluded: usize,
+    prekey_lifecycle_publish: usize,
+    prekey_lifecycle_replenish: usize,
+    prekey_lifecycle_rotate_signed: usize,
+    prekey_lifecycle_rotate_kem: usize,
+    prekey_lifecycle_noop: usize,
     session_reads: usize,
     session_reads_accepted: usize,
     session_reads_wrong_version: usize,
@@ -2609,6 +2643,134 @@ fn check_prekey_imports(exe: &Path, seed: u64, seen: &mut Observed) {
     }
 }
 
+fn expect_model_check(exe: &Path, request: String, seed: u64) {
+    let answers = ask_model(exe, std::slice::from_ref(&request));
+    let line = answers
+        .first()
+        .and_then(|answer| answer.first())
+        .expect("a check answer");
+    assert_eq!(
+        line, "check ok",
+        "\n\ntacenta-model rejected a concrete prekey lifecycle transition.\n\
+         seed: {seed} ({seed:#x})\n\
+         request: {request}\n\
+         answer: {line}\n\n"
+    );
+}
+
+fn prekey_bytes(store: &tacenta_core::sessions::PrekeyStore) -> Vec<u8> {
+    store.to_bytes().to_vec()
+}
+
+fn check_prekey_lifecycle(exe: &Path, seed: u64, seen: &mut Observed) {
+    use tacenta_core::sessions::Identity;
+
+    let mut rng = Rng::new(seed ^ 0x0070_6b6f_705f_7036);
+    let identity = Identity::generate(&mut rng);
+    let wrong_identity = Identity::generate(&mut rng);
+    let mut store = identity.create_prekeys(2, &mut rng);
+
+    let before = prekey_bytes(&store);
+    let _ = store.publish();
+    let _ = store.publish_one_time_batch();
+    let _ = store.publish_multi_use();
+    let after = prekey_bytes(&store);
+    expect_model_check(
+        exe,
+        format!(
+            "check prekey publish {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.prekey_lifecycle_publish += 1;
+
+    let before = prekey_bytes(&store);
+    store.replenish(&identity, 3, &mut rng);
+    let after = prekey_bytes(&store);
+    expect_model_check(
+        exe,
+        format!(
+            "check prekey replenish 3 {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.prekey_lifecycle_replenish += 1;
+
+    let before = prekey_bytes(&store);
+    store.replenish(&wrong_identity, 2, &mut rng);
+    let after = prekey_bytes(&store);
+    expect_model_check(
+        exe,
+        format!(
+            "check prekey no-op {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.prekey_lifecycle_noop += 1;
+
+    let before = prekey_bytes(&store);
+    store.rotate_signed_prekey(&identity, &mut rng);
+    let after = prekey_bytes(&store);
+    expect_model_check(
+        exe,
+        format!(
+            "check prekey rotate-signed {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.prekey_lifecycle_rotate_signed += 1;
+
+    let before = prekey_bytes(&store);
+    store.rotate_signed_prekey(&wrong_identity, &mut rng);
+    let after = prekey_bytes(&store);
+    expect_model_check(
+        exe,
+        format!(
+            "check prekey no-op {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.prekey_lifecycle_noop += 1;
+
+    let before = prekey_bytes(&store);
+    store.rotate_kem(&identity, &mut rng);
+    let after = prekey_bytes(&store);
+    expect_model_check(
+        exe,
+        format!(
+            "check prekey rotate-kem {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.prekey_lifecycle_rotate_kem += 1;
+
+    let before = prekey_bytes(&store);
+    store.rotate_kem(&wrong_identity, &mut rng);
+    let after = prekey_bytes(&store);
+    expect_model_check(
+        exe,
+        format!(
+            "check prekey no-op {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.prekey_lifecycle_noop += 1;
+}
+
 #[derive(Deserialize)]
 struct SessionVectorFile {
     vectors: Vec<SessionVector>,
@@ -2894,6 +3056,7 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
 
     check_imports(&exe, seed, &round, &answers, &mut seen);
     check_prekey_imports(&exe, seed, &mut seen);
+    check_prekey_lifecycle(&exe, seed, &mut seen);
     check_session_imports(&exe, seed, &mut seen);
     check_composed(&exe, seed, sequences, long, &mut seen);
 
@@ -2986,6 +3149,36 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     assert!(
         seen.prekey_reads_excluded > 0,
         "no prekey-store case exercised an explicit model-domain exclusion"
+    );
+
+    eprintln!(
+        "differential: prekey lifecycle checks: publish {}, replenish {}, rotate-signed {}, \
+         rotate-kem {}, no-op {}",
+        seen.prekey_lifecycle_publish,
+        seen.prekey_lifecycle_replenish,
+        seen.prekey_lifecycle_rotate_signed,
+        seen.prekey_lifecycle_rotate_kem,
+        seen.prekey_lifecycle_noop,
+    );
+    assert!(
+        seen.prekey_lifecycle_publish > 0,
+        "no prekey lifecycle publication check was compared"
+    );
+    assert!(
+        seen.prekey_lifecycle_replenish > 0,
+        "no prekey lifecycle replenishment check was compared"
+    );
+    assert!(
+        seen.prekey_lifecycle_rotate_signed > 0,
+        "no prekey lifecycle signed-prekey rotation check was compared"
+    );
+    assert!(
+        seen.prekey_lifecycle_rotate_kem > 0,
+        "no prekey lifecycle KEM rotation check was compared"
+    );
+    assert!(
+        seen.prekey_lifecycle_noop > 0,
+        "no prekey lifecycle refused no-op check was compared"
     );
 
     eprintln!(
