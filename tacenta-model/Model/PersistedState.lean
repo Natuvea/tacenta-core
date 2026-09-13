@@ -1396,13 +1396,13 @@ def Fits (st : State) : Prop :=
 /-! ### The one state machine's transitions a stored state can drive
 
 `Model.Braid` runs on `Model.Braid.BraidState`, whose key pair and
-encapsulation state are the KEM's and cannot be built here. Two transitions
-are the exception: from `Ct2Sampled`, transition (13) and the refusal at the
-reserved epoch read the stored epoch and the message and nothing else, and
-`Model.Braid.receive_ct2Sampled_steps` and
-`Model.Braid.receive_ct2Sampled_at_ceiling` say so. So a stored `Ct2Sampled`
-state can be run through the model's own `receive`, which is what pins the
-Braid's epoch ceiling. -/
+encapsulation state are the KEM's and cannot be built here. Three transitions
+are the exception. From `Ct2Sampled`, transition (13) and the refusal at the
+reserved epoch read the stored epoch and the message and nothing else. From
+an empty `NoHeaderReceived` decoder, transition (6) needs only the persisted
+authenticator and a complete authenticated header; it reaches a fresh
+`HeaderReceived` decoder. The harness can therefore drive those cases without
+constructing a KEM value. -/
 
 /-- A stored `Ct2Sampled` state as the state machine's, with an encoder
     neither of those two transitions reads. -/
@@ -1411,11 +1411,37 @@ def toCt2Sampled (st : State) : Option Model.Braid.BraidState :=
     some (.ct2Sampled st.epoch ⟨st.auth.take 32, st.auth.drop 32⟩ (Model.Braid.encode []))
   else none
 
+/-- An empty stored `NoHeaderReceived` state as the state machine's. The
+    persisted decoder is the concrete erasure decoder; the Braid model keeps
+    its contract decoder separately, so this bridge is intentionally limited
+    to the empty decoder that the harness constructs and then completes with
+    the three header codewords. -/
+def toNoHeaderReceivedEmpty (st : State) : Option Model.Braid.BraidState :=
+  match st.fields, Model.Erasure.Decoder.ofBytes (st.fields.getD 0 []) with
+  | [_field], some d =>
+    if st.tag.toNat = 5 ∧ st.auth.length = authLen ∧ d.size = headerLen + macLen
+        ∧ d.held.isEmpty then
+      some (.noHeaderReceived st.epoch ⟨st.auth.take 32, st.auth.drop 32⟩
+        (Model.Braid.Decoder.new (Model.Braid.headerSize + Model.Braid.macSize)))
+    else none
+  | _, _ => none
+
 /-- The stored form of the two states those transitions reach. Every other
     state of the machine carries a KEM value this module does not build, and
     is `none` rather than guessed. -/
 def ofBraid : Model.Braid.BraidState → Option State
   | .keysUnsampled e a => some { tag := 0, epoch := e, auth := a.rootKey ++ a.macKey, fields := [] }
+  | .failed => some { tag := failedTag, epoch := 0, auth := [], fields := [] }
+  | _ => none
+
+/-- The only two outcomes of completing an empty header decoder. The persisted
+    `HeaderReceived` state always begins an empty 1,536-byte `ek_vector`
+    decoder; this is a storage-format constant, rather than the toy KEM's
+    smaller model decoder. -/
+def ofNoHeaderReceive : Model.Braid.BraidState → Option State
+  | .headerReceived e a seed hek _ =>
+    some { tag := 6, epoch := e, auth := a.rootKey ++ a.macKey, fields :=
+      [seed ++ hek, (Model.Erasure.Decoder.new ekVectorLen).toBytes] }
   | .failed => some { tag := failedTag, epoch := 0, auth := [], fields := [] }
   | _ => none
 

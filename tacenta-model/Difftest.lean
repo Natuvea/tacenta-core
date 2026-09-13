@@ -10,12 +10,13 @@ generates the requests from a printed seed, sends them here, replays the same
 operations on `tacenta-ratchet`, `tacenta-spqr`, `tacenta-triple` and
 `tacenta-braid`, and compares the two transcripts step by step.
 
-The Braid is the one algorithm here with no `fresh` start and only one kind of
-step. Its other transitions consume a KEM key pair or encapsulation state,
-whose layout `session-persistence.md` delegates, so nothing on either side of
-this harness can build one; what is left is the decoder and the two
-transitions out of `Ct2Sampled`. The section on the Braid below says so
-again where the code is.
+The Braid is the one algorithm here with no `fresh` start. Its stored-run
+steps cover the two transitions out of `Ct2Sampled`; its dedicated header
+check also drives transition (6) from an empty `NoHeaderReceived` decoder,
+using a persisted authenticator and a complete header with MAC. The other
+transitions consume a KEM key pair or encapsulation state, whose layout
+`session-persistence.md` delegates, so nothing on either side of this harness
+can build one. The section on the Braid below says so again where the code is.
 
 **This file decides nothing.** It reads the operations it is given, runs the
 model's own `send`, `receive` and `advance` on them, and prints the result. It
@@ -58,6 +59,7 @@ write what this reads.
     check session receive <before> <after>
     check session no-op <before> <after>
     check session agreement-failed <before> <after>
+    check braid header <before> <header-with-mac> <after>
 
 The Braid has no `fresh` form: its initialisation takes the preshared secret
 and its first send draws a KEM key pair.
@@ -599,6 +601,33 @@ def checkSessionTransition (op beforeHex afterHex : String) : Except String (Lis
     | _ => false
   .ok [if accepted then "check ok" else "check mismatch", "end"]
 
+/-- Drive the three systematic header codewords from an empty persisted Braid
+    decoder. The model's chunks retain their whole source as the erasure
+    contract requires; the Rust half independently splits the same 96 bytes
+    into its three on-wire codewords. -/
+def checkBraidHeader (beforeHex headerHex afterHex : String) : Except String (List String) := do
+  let beforeBytes ← hexArg "Braid header start" beforeHex
+  let header ← hexArg "Braid authenticated header" headerHex
+  let afterBytes ← hexArg "Braid header result" afterHex
+  let before ← match Model.PersistedState.BraidState.ofBytes beforeBytes with
+    | .ok st => .ok st
+    | .error r => .error ("difftest: Braid header start refused " ++ refusalName r)
+  let after ← match Model.PersistedState.BraidState.ofBytes afterBytes with
+    | .ok st => .ok st
+    | .error r => .error ("difftest: Braid header result refused " ++ refusalName r)
+  if header.length ≠ Model.Braid.headerSize + Model.Braid.macSize then
+    .error "difftest: a Braid authenticated header is not 96 bytes"
+  else match Model.PersistedState.BraidState.toNoHeaderReceivedEmpty before with
+    | none => .error "difftest: Braid header start is not an empty NoHeaderReceived state"
+    | some start =>
+      let result := (List.range 3).foldl (fun st i =>
+        (Model.Braid.receive Model.Braid.toyKem st
+          { epoch := before.epoch, type := .hdr,
+            data := some ⟨header, i⟩ }).2.2) start
+      match Model.PersistedState.BraidState.ofNoHeaderReceive result with
+      | none => .error "difftest: Braid header did not reach a supported outcome"
+      | some expected => .ok [if expected == after then "check ok" else "check mismatch", "end"]
+
 /-- One request's answer. -/
 def handle (line : String) : Except String (List String) :=
   match line.splitOn " " with
@@ -656,6 +685,8 @@ def handle (line : String) : Except String (List String) :=
     checkSessionOp false ourHex peerHex afterHex
   | ["check", "session", op, beforeHex, afterHex] =>
     checkSessionTransition op beforeHex afterHex
+  | ["check", "braid", "header", beforeHex, headerHex, afterHex] =>
+    checkBraidHeader beforeHex headerHex afterHex
   | ["read", algorithm, bytesHex] => do
     let bs ← hexArg "the stored bytes" bytesHex
     match algorithm with
