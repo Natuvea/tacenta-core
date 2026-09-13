@@ -30,7 +30,7 @@ A hypothesis confirmed by a vector is still a gap.
 | **Total** | **584** | **0** | **30** |
 
 The 30 skips were the two new files, `persistence/prekey-store-state.json`
-(17) and `session-state.json` (15).
+(17) and `session-state.json` (17).
 
 **Final run:**
 
@@ -352,12 +352,13 @@ evidence is in section 5.
   7 from one whose begins at tag 6. Later P4 work added accepted tag 6/tag 7
   neighbours and refused wrong-side siblings in `session-state.json`; EP-01
   remains as derived coverage across all twelve tags.
-- **The session's "each half satisfies its own crate's invariant" rule.** The
-  manifest names it as unreached because a half its own reader refuses is refused
-  before the session's rules run. Later P4 work added
-  `session-state/unanswered-initiator-is-also-responder` for the
-  unanswered-role rule and `session-state/ratchet-private-does-not-match-dhs-pub`,
-  so F7-40 is now vector-pinned as well as covered by cases.
+- **The session's "each half satisfies its own crate's invariant" rule.** Later
+  P4 work added `session-state/triple-state-reader-refuses` and
+  `session-state/braid-reader-refuses`, pinning the reachable session-boundary
+  form of the rule as `short-or-malformed`. It also added
+  `session-state/unanswered-initiator-is-also-responder` for the unanswered-role
+  rule and `session-state/ratchet-private-does-not-match-dhs-pub`, so F7-40 is
+  now vector-pinned as well as covered by cases.
 - **The role rule's Braid half**. Later P4 work added
   `session-state/halves-disagree-on-the-braid-role`, so F7-16 is now
   vector-pinned as well as covered by cases. The failed-Braid exemption is

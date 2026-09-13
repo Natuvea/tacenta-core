@@ -591,10 +591,11 @@ many failed and names the first few.
 
 The two new vector files catch every framing refusal of both formats, all four
 refusal kinds they use, the store's five cheap semantic rules and eight of the
-session's top-level semantic rules. What they miss is what `../GAPS-7.md`,
-section 3, records: the remaining signature-rule edge cases (F7-29, F7-30), the
-per-key bound read as a whole and the pre-sizing ceiling (F7-06, F7-11), the
-session's remaining canonical-key clauses (F7-34).
+session's top-level semantic rules, plus the two nested half-reader refusals
+at the session boundary. What they miss is what `../GAPS-7.md`, section 3,
+records: the remaining signature-rule edge cases (F7-29, F7-30), the per-key
+bound read as a whole and the pre-sizing ceiling (F7-06, F7-11), the session's
+remaining canonical-key clauses (F7-34).
 
 **F7-13 was missed on the first run and is now vector-pinned.** The boundary
 vectors carry accepted tag 6 and tag 7 neighbours and refused siblings on the
