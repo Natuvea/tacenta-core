@@ -99,6 +99,7 @@ bash tacenta-proofs/scripts/port-unit-proofs.sh --check
 # for anything new -- the property distinctness does not give you.
 echo "== Derivation labels are registered =="
 bash tooling/check-labels.sh
+bash tooling/tests/run-check-labels-cases.sh
 
 # The requirements, assumptions and limitations are an assurance ledger, not
 # loose prose. This keeps their IDs and direct dependency lists aligned while
