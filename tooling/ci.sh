@@ -133,6 +133,7 @@ echo "== Lean: proofs build and use no sorry =="
 # document maintained by hand can describe a state the repository has left.
 echo "== Claims and attestations cover what ships =="
 python3 tacenta-proofs/scripts/attest.py --check
+bash tacenta-proofs/scripts/check-attest-negatives.sh
 
 echo "== Vectors are current with the model =="
 tacenta-test-vectors/regenerate-vectors.sh

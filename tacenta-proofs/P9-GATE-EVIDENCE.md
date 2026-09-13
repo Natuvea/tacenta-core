@@ -54,7 +54,7 @@ mistaken for a control.
 | `tooling/check-labels.sh` | Derivation labels remain registered and prefix-safe. | `tooling/tests/run-check-labels-cases.sh` runs a passing baseline, an unregistered-label refusal and a forbidden-prefix refusal through the production checker. | Capture its command, platform and successful diagnostic-free result at the candidate. |
 | `tooling/check-vectors.py` | Vector documents obey their schemas. | `tooling/tests/run-check-vectors-cases.sh` runs a valid baseline, an unexpected-field schema refusal, a duplicate-ID refusal and an unsupported-schema-keyword refusal against the production checker. | Capture its command, platform and successful diagnostic-free result at the candidate. |
 | Independent reader | The specification-only reader can interpret the committed vector surface it declares. | Derived reader cases and historical findings cover current component pages. | A clean-room author must run and record a representative incorrect/missing vector-rule control. The author must satisfy ADR-0006’s isolation requirement. |
-| Claims and attestation | Declared claims name live theorems and generated artifacts match their recorded source state. | `attest.py --check`, audit-negative and audit-reach checks run in CI. | Map each planted audit/attestation case to the pack’s claim and retain its actual diagnostic. |
+| Claims and attestation | Declared claims name live theorems and generated artifacts match their recorded source state. | `check-audit-negatives.sh` exercises the audit's accepted compiler-trust orphan and 11 refusal cases. `check-attest-negatives.sh` refuses a missing claimed theorem, missing verification manifest, stale source attestation and edited generated translation, matching each diagnostic. | Capture their command, platform and successful diagnostic-free result at the candidate. |
 | Full CI | Required gates do not silently report success when inputs or tools are absent. | Local `tooling/ci.sh` and the GitHub workflow share the principal checks; workflow scripts state CI-only missing-tool failure behaviour. | Record exact local skips and the hosted job results; plant or identify a missing-prerequisite control for every required hosted-only dependency. |
 
 ## Human-review record
@@ -73,6 +73,24 @@ candidate.  Its record must contain all of the following:
 
 The recorded review is evidence of the review only.  It does not replace the
 mutation evidence required by gate 4.
+
+## Claims and attestation control record
+
+`bash tacenta-proofs/scripts/check-audit-negatives.sh` holds the first-party
+axiom audit to the one permitted unmentioned compiler-trust orphan and to its
+eleven distinct refusals: type-only and value references to a compiler-trust
+axiom, an orphan without a parent, a free-statement orphan, a malformed unsafe
+recursor, and declarations that are an axiom, opaque, `implemented_by`,
+`extern`, partial or unsafe.  Each refusal is matched to its individual audit
+reason, rather than merely to a nonzero exit.
+
+`bash tacenta-proofs/scripts/check-attest-negatives.sh` makes a separate
+detached worktree for each of four P9 mutations and runs the production
+attestation script.  It requires these exact fault classes: a ledger theorem
+not declared by Lean, a missing generated verification manifest, a stale
+source-commit attestation, and a generated translation whose bytes do not
+match the recorded provenance.  The runner matches the corresponding
+diagnostic, so a failure elsewhere cannot satisfy a case.
 
 ## Finalization checklist
 
