@@ -1,5 +1,11 @@
 # Changelog
 
+- `security-properties/evidence-index.json`: migrated `REQ-FS-01` through
+  `REQ-FS-06` and `REQ-PCS-01` through `REQ-PCS-03` into the checked evidence
+  index, completing coverage for all 32 security-property requirements. The
+  traceability checker now fails if any requirement lacks an evidence-index
+  entry, and its case runner includes a missing-entry negative control.
+
 All notable changes to the specification. Format: Keep a Changelog; the version
 is SemVer against the specified protocol (not the implementation).
 
