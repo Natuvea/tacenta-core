@@ -559,7 +559,7 @@ many failed and names the first few.
 | F7-10 a fingerprint twice: accepted | 1: `prekey-store-state` record-fingerprint-repeated | 2: PS-23, PK-03 |
 | F7-11 the pre-sizing ceiling: v4 given one budget rather than two | **none** | 1: PS-22 |
 | F7-12 the sparse epoch is the Braid's in every tag (the e - 1 branch dropped) | 3: `session-state` responder, `session-state` initiator-unanswered, `session-state` initiator-answered | 7: PS-15, SK-03, SK-04 , ... |
-| F7-13 the epoch relation's boundary moved to tags 6 to 10 | **none** | 1: EP-01 |
+| F7-13 the epoch relation's boundary moved to tags 6 to 10 | 4: `session-state` tag-six-keeps-previous-sparse-epoch, `session-state` tag-seven-uses-current-sparse-epoch, `session-state` tag-six-with-current-sparse-epoch-refused, `session-state` tag-seven-with-previous-sparse-epoch-refused | 1: EP-01 |
 | F7-14 the epoch relation dropped | 1: `session-state` sparse-epoch-does-not-follow-the-braid | 2: RJ-02, EP-01 |
 | F7-15 a failed Braid no longer exempt from the epoch relation | **none** | 2: PS-15, EP-01 |
 | F7-16 the Braid's half of the role rule dropped | **none** | 1: RJ-02 |
@@ -594,13 +594,14 @@ refusal kinds they use, the store's five cheap semantic rules and five of the
 session's eight. What they miss is what `../GAPS-7.md`, section 3, records: the
 remaining signature-rule edge cases (F7-29, F7-30), the
 per-key bound read as a whole and the pre-sizing ceiling (F7-06, F7-11), the
-epoch relation's tag 6/7 boundary and its failed-Braid exemption (F7-13,
-F7-15), the role rule's Braid half (F7-16), and the session's canonical-key and
-`ratchet_private` rules (F7-34, F7-40).
+epoch relation's failed-Braid exemption (F7-15), the role rule's Braid half
+(F7-16), and the session's canonical-key and `ratchet_private` rules (F7-34,
+F7-40).
 
-**F7-13 was missed on the first run.** No vector carries a session whose Braid
-is at tag 6 or 7, and no case walked the boundary. EP-01 was added for it and
-catches it.
+**F7-13 was missed on the first run and is now vector-pinned.** The boundary
+vectors carry accepted tag 6 and tag 7 neighbours and refused siblings on the
+wrong side of the epoch relation; EP-01 remains as derived coverage across all
+twelve tags.
 
 **F7-25 and F7-26 are clean and cannot be otherwise.** They change the kind the
 two re-encode checks report, and a reader that accepts only canonical

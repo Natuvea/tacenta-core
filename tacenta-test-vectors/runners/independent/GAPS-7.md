@@ -346,12 +346,12 @@ evidence is in section 5.
   vector reaches either, and the schema and the manifest both say so. Faults
   F7-21, F7-27, F7-29, F7-30 and F7-32 are caught only by cases (PK-01 to
   PK-06, SK-08).
-- **The epoch relation's boundary between tags 6 and 7.** The accepted session
-  vectors carry Braid tags 1 and 5 only, and the manifest says the relation is
-  reached "only [in] its `e - 1` branch". Nothing in the tree distinguishes a
-  reader whose `e` branch begins at tag 7 from one whose begins at tag 6.
-  F7-13 was **missed on the first fault run**; EP-01, which walks all twelve
-  tags under both readings, was added for it and catches it.
+- **The epoch relation's boundary between tags 6 and 7.** This was missed on
+  the first fault run: the accepted session vectors then carried Braid tags 1
+  and 5 only, and nothing distinguished a reader whose `e` branch begins at tag
+  7 from one whose begins at tag 6. Later P4 work added accepted tag 6/tag 7
+  neighbours and refused wrong-side siblings in `session-state.json`; EP-01
+  remains as derived coverage across all twelve tags.
 - **The session's `ratchet_private` rule, its "an unanswered initiator is not
   also a responder" rule, and "each half satisfies its own crate's
   invariant".** The manifest names all three as unreached. F7-40 is caught only
@@ -376,7 +376,7 @@ evidence is in section 5.
 | Vector gap | Status | Note |
 |---|---|---|
 | The session's and the prekey store's persisted formats | **CLOSED** | Both files exist and pin the layouts, the framing refusals with their kinds, five of the store's six semantic rules and five of the session's eight. What they do not reach is section 3 above and the manifest's own "Not covered". |
-| The session over the Braid | **NARROWED** | `session-state.json` pins the epoch relation's `e - 1` branch and the role rule's sparse half over a real Braid. The `e` branch, the tag 6/7 boundary, the failed-Braid exemption and the role rule's Braid half are still unpinned. |
+| The session over the Braid | **NARROWED** | `session-state.json` pins the epoch relation's `e - 1` branch, the tag 7 `e` branch at the boundary, and the role rule's sparse half over a real Braid. The failed-Braid exemption and the role rule's Braid half are still unpinned. |
 | `DecodeEC` on its own | STILL OPEN | |
 | The repeated initial message | STILL OPEN | |
 | The erasure encoder's stated edges | STILL OPEN (narrowed in pass 5) | |
@@ -447,9 +447,9 @@ not caught are the pair nothing in the tree can catch, and the page says so.
 | The remaining rules of the two formats (F7-33 to F7-40) | 8 | 8 | 6 |
 
 - **F7-13**, the epoch relation's boundary moved from tags 7-10 to 6-10, failed
-  nothing on the first run: no vector carries a session whose Braid is at tag 6
-  or 7, and no case walked the boundary. **EP-01** was added for it and catches
-  it. This is the pass's one hole, and it is recorded in section 3.
+  nothing on the first run. Later P4 work added accepted tag 6/tag 7 neighbours
+  and refused wrong-side siblings in `session-state.json`; **EP-01** remains as
+  derived coverage across all twelve tags.
 - **F7-25 and F7-26**, the session's and the prekey store's re-encode checks
   reported as `inconsistent` and `malformed` rather than as `non-canonical`,
   are clean and cannot be otherwise: a reader that accepts only canonical

@@ -1954,10 +1954,12 @@ def prekeyStoreStateFile (_ : Unit) : Except String String := do
 
 Accepted vectors are fixtures for the same reason the prekey store's are: the
 model cannot build a session whose `ratchet_private` matches the classical
-ratchet's `dhs_pub`, because it does not compute the curve. The three below are
+ratchet's `dhs_pub`, because it does not compute the curve. The first three below are
 `tacenta-core`'s own exports under the counter-based `FixedRng` in
 `lifecycle.rs`, chosen so the optional fields differ -- an initiator nobody has
-answered, a responder, and an initiator whose peer has answered.
+answered, a responder, and an initiator whose peer has answered. Boundary
+neighbours reuse the responder fixture's cryptographic material and change only
+the model-structural Braid and sparse epochs.
 
 Refusals change one field of a fixture, again so the rule under test is the
 only thing wrong. They carry `inconsistent` where the page says the session's
@@ -1998,6 +2000,36 @@ def sessionBase (hex : String) :
   | .ok s => .ok s
   | .error _ => .error "genvectors: the model refuses a session fixture tacenta-core accepts"
 
+/-- A value of `n` bytes for the session boundary Braid fixtures to stream. -/
+def sessionBraidValue (n : Nat) : List UInt8 := ramp n 7 3
+
+/-- An encoder over an `n`-byte value, after `issued` codewords. -/
+def sessionBraidEncoder (n issued : Nat) : List UInt8 :=
+  ((Model.Erasure.Encoder.new (sessionBraidValue n)).issue issued).toBytes
+
+/-- A decoder for an `n`-byte value, holding the codewords at `is`. -/
+def sessionBraidDecoder (n : Nat) (is : List Nat) : List UInt8 :=
+  ((Model.Erasure.Decoder.new n).addAll (codewordsOf (sessionBraidValue n) is)).toBytes
+
+def sessionBraidHeader : List UInt8 := ramp Model.PersistedState.BraidState.headerLen 0x19 5
+def sessionBraidCt1 : List UInt8 := ramp Model.PersistedState.BraidState.ct1Len 0x2a 7
+def sessionBraidEncaps : List UInt8 := List.replicate Model.PersistedState.BraidState.encapsLen 0xa5
+
+def sessionSparseAtEpoch (st : Model.SparseRatchet.State) (epoch : Nat) : Model.SparseRatchet.State :=
+  if st.epoch == epoch then st
+  else
+    match st.chains with
+    | [] => { st with epoch := epoch }
+    | p :: ps => { st with epoch := epoch, chains := (epoch, p.2) :: ps }
+
+def sessionWithBraidBoundary (s : Model.PersistedState.SessionState.Session)
+    (tag : UInt8) (braidEpoch sparseEpoch : Nat) (fields : List (List UInt8)) :
+    Model.PersistedState.SessionState.Session :=
+  { s with
+    triple := { s.triple with
+      postQuantum := sessionSparseAtEpoch s.triple.postQuantum sparseEpoch },
+    braid := { tag := tag, epoch := braidEpoch, auth := s.braid.auth, fields := fields } }
+
 @[never_extract]
 def sessionStateFile (_ : Unit) : Except String String := do
   -- The responder is the small fixture, so the refusals built from it cost a
@@ -2007,6 +2039,11 @@ def sessionStateFile (_ : Unit) : Except String String := do
   let mutate (f : Model.PersistedState.SessionState.Session →
       Model.PersistedState.SessionState.Session) : List UInt8 :=
     Model.PersistedState.SessionState.toBytes (f base)
+  let tag6Fields := [sessionBraidHeader,
+    sessionBraidDecoder Model.PersistedState.BraidState.ekVectorLen []]
+  let tag7Fields := [sessionBraidHeader, sessionBraidEncaps, sessionBraidCt1,
+    sessionBraidEncoder Model.PersistedState.BraidState.ct1Len 1,
+    sessionBraidDecoder Model.PersistedState.BraidState.ekVectorLen [1]]
   let accepted ← [
     sessionStored "responder"
       "a responder tacenta-core wrote: established_ephemeral present, no pending initial"
@@ -2016,7 +2053,13 @@ def sessionStateFile (_ : Unit) : Except String String := do
       (ofHex sessionFixture_session_pending) none,
     sessionStored "initiator-answered"
       "an initiator whose peer has replied, which drops pending_initial: neither optional field"
-      (ofHex sessionFixture_session_answered) none
+      (ofHex sessionFixture_session_answered) none,
+    sessionStored "tag-six-keeps-previous-sparse-epoch"
+      "tag 6 at Braid epoch 1 is before the fold boundary, so sparse epoch 0 still follows"
+      (mutate (fun s => sessionWithBraidBoundary s 6 1 0 tag6Fields)) none,
+    sessionStored "tag-seven-uses-current-sparse-epoch"
+      "tag 7 at Braid epoch 1 is after the fold boundary, so sparse epoch 1 follows"
+      (mutate (fun s => sessionWithBraidBoundary s 7 1 1 tag7Fields)) none
   ].mapM id
   let refusals ← [
     sessionStored "version-unknown" "a first byte naming no version this reader reads"
@@ -2036,6 +2079,14 @@ def sessionStateFile (_ : Unit) : Except String String := do
       -- holds and this vector breaks the one rule it names.
       (mutate (fun s => { s with
         braid := { s.braid with epoch := s.braid.epoch + 2 } }))
+      (some .inconsistent),
+    sessionStored "tag-six-with-current-sparse-epoch-refused"
+      "tag 6 at Braid epoch 1 is before the fold boundary, so sparse epoch 1 is one epoch too far"
+      (mutate (fun s => sessionWithBraidBoundary s 6 1 1 tag6Fields))
+      (some .inconsistent),
+    sessionStored "tag-seven-with-previous-sparse-epoch-refused"
+      "tag 7 at Braid epoch 1 is after the fold boundary, so sparse epoch 0 is one epoch behind"
+      (mutate (fun s => sessionWithBraidBoundary s 7 1 0 tag7Fields))
       (some .inconsistent),
     sessionStored "associated-data-wrong-orientation"
       "identity_ad with the two identities the other way round, which is an AEAD failure on every message in both directions"
@@ -2069,7 +2120,7 @@ def sessionStateFile (_ : Unit) : Except String String := do
   pure ("{\n" ++
     "  \"schema_version\": 1,\n" ++
     "  \"algorithm\": \"session-state\",\n" ++
-    "  \"source\": \"generated by tacenta-model Vectors.lean (lake exe genvectors session-state), from Model.PersistedState.SessionState; the three accepted vectors carry sessions tacenta-core exported under the counter-based FixedRng in lifecycle.rs, because the model does not compute the curve and so cannot build a session whose ratchet_private matches the classical ratchet's dhs_pub, and every refusal that changes a field changes one, so the rule under test is the only thing wrong; the rest are truncations, additions and a version relabelling; the semantic rules carry the refusal inconsistent, which the page distinguishes from malformed; the generator writes no vector whose result the model does not give\",\n" ++
+    "  \"source\": \"generated by tacenta-model Vectors.lean (lake exe genvectors session-state), from Model.PersistedState.SessionState; the first three accepted vectors carry sessions tacenta-core exported under the counter-based FixedRng in lifecycle.rs, because the model does not compute the curve and so cannot build a session whose ratchet_private matches the classical ratchet's dhs_pub; the tag 6/7 boundary neighbours reuse the responder fixture's cryptographic material while changing only model-structural Braid and sparse epochs; every refusal that changes a field changes one, so the rule under test is the only thing wrong; the rest are truncations, additions and a version relabelling; the semantic rules carry the refusal inconsistent, which the page distinguishes from malformed; the generator writes no vector whose result the model does not give\",\n" ++
     "  \"vectors\": [\n" ++
     String.intercalate ",\n" (accepted ++ refusals) ++
     "\n  ]\n}")

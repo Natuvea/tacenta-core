@@ -32,13 +32,13 @@
 //! The session's stored format is covered the same way and for the same
 //! reason: the model does not compute the curve, so it cannot build a session
 //! whose `ratchet_private` matches the classical ratchet's `dhs_pub`. Its
-//! three accepted vectors are `tacenta-core`'s own exports and its ten
-//! refusals are three framing cases and seven that change one field of one of
-//! them. They are the only vectors here
-//! that carry the refusal `inconsistent`, which this page's Rejection section
-//! distinguishes from malformed for the session alone. The conformance
-//! manifest says which rules no vector reaches, and which Braid tags the
-//! vectors reach and why the rest do not.
+//! first three accepted vectors are `tacenta-core`'s own exports, two accepted
+//! neighbours pin the tag 6/7 epoch boundary, and its twelve refusals are
+//! three framing cases plus semantic mutations of the responder fixture. They
+//! are the only vectors here that carry the refusal `inconsistent`, which this
+//! page's Rejection section distinguishes from malformed for the session alone.
+//! The conformance manifest says which rules no vector reaches, and which
+//! Braid tags the vectors reach and why the rest do not.
 
 use std::path::Path;
 
@@ -76,7 +76,7 @@ fn persistence_vectors_pass() {
             "ratchet-state" | "sparse-ratchet-state" => 20,
             "braid-state" => 9,
             "prekey-store-state" => 7,
-            "session-state" => 3,
+            "session-state" => 5,
             "triple-ratchet-state" => 8,
             _ => 5,
         };
