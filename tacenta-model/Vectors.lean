@@ -1083,12 +1083,15 @@ def refusedStateVector (id comment : String) (bs : List UInt8)
   vectorHead id comment ++ "\"result\": \"invalid\", \"refusal\": \"" ++ refusalName r ++
     "\", \"inputs\": " ++ jsonObject [("bytes", toHex bs)] ++ " }"
 
-/-- Operations whose last step is refused at a counter's ceiling: the inputs,
-    and the refusal, counter exhaustion (ratchet.md, Sending and receiving;
-    sparse-pq-ratchet.md, Sending and Receiving). -/
-def refusedOpsVector (id comment : String) (inputs : List (String × List UInt8)) : String :=
-  vectorHead id comment ++ "\"result\": \"invalid\", \"refusal\": \"counter-exhaustion\", \"inputs\": " ++
+/-- An operation vector whose final operation refuses with the specified
+    protocol-level reason. -/
+def refusedOpsVectorAs (id comment reason : String) (inputs : List (String × List UInt8)) : String :=
+  vectorHead id comment ++ "\"result\": \"invalid\", \"refusal\": \"" ++ reason ++ "\", \"inputs\": " ++
     jsonObject (inputs.map fun p => (p.1, toHex p.2)) ++ " }"
+
+/-- Counter-exhaustion operation vector, retained for the classical ratchet. -/
+def refusedOpsVector (id comment : String) (inputs : List (String × List UInt8)) : String :=
+  refusedOpsVectorAs id comment "counter-exhaustion" inputs
 
 /-- Stored bytes offered to a reader: accepted, with the fields `fieldsOf`
     names, when `expect` is `none`; refused with `expect` otherwise. -/
@@ -1475,11 +1478,12 @@ def sparseOps (id comment : String) (start : SparseStart) (steps : List SparseSt
         (start.inputs ++ [("steps", (steps.map SparseStep.bytes).flatten)]) (some bs), back]
     else .error ("genvectors: " ++ id ++ ": a stored state does not read back to itself")
 
-/-- Operations whose last step the model refuses at a counter's ceiling, as
-    `ratchetRefused` writes them for the classical ratchet. -/
+/-- Operations whose final step the model refuses. `reason` is the specified
+    observable refusal, while `holds` keeps the generator honest about the
+    particular condition selected for that refusal. -/
 @[never_extract]
 def sparseRefused (id comment : String) (start : SparseStart) (steps : List SparseStep)
-    (last : SparseStep) (atCeiling : Model.SparseRatchet.State → Bool) : Except String String :=
+    (last : SparseStep) (reason : String) (holds : Model.SparseRatchet.State → Bool) : Except String String :=
   let startOk := match start with
     | .stored st => sparseReadsBack st
     | _ => true
@@ -1490,10 +1494,10 @@ def sparseRefused (id comment : String) (start : SparseStart) (steps : List Spar
       .error ("genvectors: " ++ id ++ ": a stored state does not read back to itself")
     else if (runSparse st [last]).isSome then
       .error ("genvectors: " ++ id ++ ": the model takes the step the vector refuses")
-    else if !atCeiling st then
-      .error ("genvectors: " ++ id ++ ": the refused step is not at a counter's ceiling")
+    else if !holds st then
+      .error ("genvectors: " ++ id ++ ": the refused step does not meet its stated condition")
     else
-      .ok (refusedOpsVector id comment
+      .ok (refusedOpsVectorAs id comment reason
         (start.inputs ++ [("steps", ((steps ++ [last]).map SparseStep.bytes).flatten)]))
 
 def reachSparse (what : String) (start : SparseStart) (steps : List SparseStep) :
@@ -1541,19 +1545,25 @@ def sparseRatchetStateFile (_ : Unit) : Except String String := do
   let counterAt (st : Model.SparseRatchet.State) (e : Nat) (sendSide : Bool) : Option Nat :=
     (Model.SparseRatchet.findChains st e).bind fun c =>
       (if sendSide then c.send else c.receive).map (·.n)
+  let retired ← reachSparse "Bob's retired epoch" .bob
+    [.receive 0 none 3, .receive 0 (out 1 0xa1) 4, .receive 1 (out 2 0xa2) 1]
   let refusals ← [
     sparseRefused "advance-onto-u64-max-refused"
       "from epoch u64::MAX - 1, a receive carrying epoch u64::MAX's secret: refused as counter exhaustion (ChainExhausted), since epoch u64::MAX is reserved"
       (.stored { bob with epoch := u64Max - 1, chains := [(u64Max - 2, bobCs), (u64Max - 1, bobCs)] })
-      [] (.receive (u64Max - 1) (out u64Max 0xa4) 1) (fun st => st.epoch + 1 == u64Max),
+      [] (.receive (u64Max - 1) (out u64Max 0xa4) 1) "counter-exhaustion" (fun st => st.epoch + 1 == u64Max),
     sparseRefused "send-past-u64-max-refused"
       "from a sending chain at n u64::MAX, a send: refused as counter exhaustion (ChainExhausted)"
       (.stored (withChain alice (fun c => { c with n := u64Max }) true)) [] (.send 0 none)
-      (fun st => counterAt st 0 true == some u64Max),
+      "counter-exhaustion" (fun st => counterAt st 0 true == some u64Max),
     sparseRefused "receive-past-u64-max-refused"
       "from a receiving chain at n u64::MAX, message u64::MAX: refused as counter exhaustion (ChainExhausted)"
       (.stored (withChain bob (fun c => { c with n := u64Max }) false)) [] (.receive 0 none u64Max)
-      (fun st => counterAt st 0 false == some u64Max)
+      "counter-exhaustion" (fun st => counterAt st 0 false == some u64Max),
+    sparseRefused "retired-epoch-no-chain-refused"
+      "after opening epochs 1 and 2, an epoch-0 send is refused as NoChain and leaves the retired state unchanged"
+      (.stored retired) [] (.send 0 none) "no-chain" (fun st =>
+        st.epoch == 2 && (Model.SparseRatchet.findChains st 0).isNone)
   ].mapM id
   let enc (st : Model.SparseRatchet.State) := Model.PersistedState.SparseState.toBytes st
   let aliceBytes := enc alice

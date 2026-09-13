@@ -173,9 +173,11 @@ vector has one of two shapes.
   - `steps` is the operations in order, back to back. It is empty when there
     are none. In a valid vector every operation in it is accepted. In an
     invalid vector every operation but the last is accepted and the last is
-    refused, and its `refusal` is `counter-exhaustion`: a step past a
-    counter's ceiling (ratchet.md, Sending and receiving; sparse-pq-ratchet.md,
-    Sending and Receiving).
+    refused. Its `refusal` is `counter-exhaustion` for a step past a counter's
+    ceiling (ratchet.md, Sending and receiving; sparse-pq-ratchet.md, Sending
+    and Receiving), or, for sparse-ratchet-state only, `no-chain` for a
+    retired epoch whose chains were removed (sparse-pq-ratchet.md, Retiring old
+    epochs).
     - In `ratchet-state.json`, `00` is a send. `01` is a receive, followed by
       the header's `dh(32) || pn(4) || n(4)`, then `dh_recv(32) ||
       dh_send(32) || new_pub(32)`. Those three are `DH(DHs, header key)`,

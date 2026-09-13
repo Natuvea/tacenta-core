@@ -490,12 +490,13 @@ def _stored_state_vector(v, reader, writer, fields_of):
 
 def _built_state_vector(v, state, apply_ops, writer, reader, refused):
     """A built-by-operations vector. Every operation but an invalid vector's
-    last is accepted; that last one is refused as counter-exhaustion. A valid
+    last is accepted; that last one is refused with the vector's named
+    operation refusal. A valid
     vector's state is written as `output`, `output` reads back to a state
     written as `output` again, and a `-read-back` vector beside it offers
     `output` as its bytes."""
     invalid = _invalid(v)
-    if invalid and v.get("refusal") != "counter-exhaustion":
+    if invalid and v.get("refusal") not in ("counter-exhaustion", "no-chain"):
         raise Fail(f"vector: an operations vector with refusal {v.get('refusal')!r}")
     ops = apply_ops
     for idx, op in enumerate(ops):
@@ -503,9 +504,9 @@ def _built_state_vector(v, state, apply_ops, writer, reader, refused):
             state = op(state)
         except refused as e:
             if invalid and idx == len(ops) - 1:
-                if _counter_exhaustion(e):
+                if _operation_refusal(e) == v.get("refusal"):
                     return
-                raise Fail(f"last step refused as {type(e).__name__}, not as counter exhaustion: {e}")
+                raise Fail(f"last step refused as {type(e).__name__}, not as {v.get('refusal')}: {e}")
             raise Fail(f"step {idx} refused: {type(e).__name__}: {e}")
     if invalid:
         raise Fail("every step accepted; the vector's last step must be refused")
@@ -523,6 +524,14 @@ def _counter_exhaustion(e):
     # ratchet.md, Sending and receiving, and sparse-pq-ratchet.md, Sending and
     # Receiving: "counter exhaustion (ChainExhausted)"
     return isinstance(e, (ratchet.ChainExhausted, spqr.ChainExhausted))
+
+
+def _operation_refusal(e):
+    if _counter_exhaustion(e):
+        return "counter-exhaustion"
+    if isinstance(e, spqr.NoChain):
+        return "no-chain"
+    return type(e).__name__
 
 
 def _u(b):
