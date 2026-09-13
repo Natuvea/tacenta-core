@@ -269,7 +269,10 @@ the leaf formats, and Rejection.
 - **Built by operations**, when the inputs are `start` and `steps`. Each step
   is one received Braid message, `epoch(8) || type(1) || chunk_present(1) ||
   chunk_index(2) || chunk(32)`, the type byte being `AgreementType`'s
-  (CONSTANTS.md). `output` is the stored bytes of the state reached.
+  (CONSTANTS.md). `output` is the stored bytes of the state reached. A runner
+  must read `output` back to a Braid state and write that state as `output`
+  again. Braid operation vectors use this runner assertion as their read-back
+  obligation; they do not carry separate `-read-back` siblings.
 
 **Only two transitions are driven, and the reason is the reason tags 1 to 4
 have no accepted vector.** `key_pair` (11,872 bytes) and `encaps` (2,592) are
