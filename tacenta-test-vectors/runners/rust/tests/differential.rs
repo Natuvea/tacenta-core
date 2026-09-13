@@ -689,6 +689,7 @@ struct Observed {
     session_messages_out_of_order: usize,
     session_crypto_signature_refusal: usize,
     session_crypto_low_order_refusal: usize,
+    session_responder_refusal: usize,
     session_reads: usize,
     session_reads_accepted: usize,
     session_reads_wrong_version: usize,
@@ -3457,6 +3458,82 @@ fn check_session_delivery_and_crypto_refusals(exe: &Path, seed: u64, seen: &mut 
     seen.session_messages_receive += 1;
 }
 
+/// The responder does not own a session until the initial ciphertext has
+/// authenticated, but it does own a durable prekey store.  Check that both a
+/// non-contributory agreement and an earlier malformed-wire refusal preserve
+/// that observable state.
+fn check_responder_refusal_controls(exe: &Path, seed: u64, seen: &mut Observed) {
+    use tacenta_core::primitives::dh::PublicKeyBytes;
+    use tacenta_core::primitives::kem;
+    use tacenta_core::serialization::{ABSENT_ID, encode_initial};
+    use tacenta_core::sessions::{
+        Identity, LifecycleError, SessionError, encode_ec, establish_initiator, establish_responder,
+    };
+
+    let mut rng = Rng::new(seed ^ 0x0070_3672_6566_7573);
+    let bob = Identity::generate(&mut rng);
+    let alice = Identity::generate(&mut rng);
+    let mut store = bob.create_prekeys(0, &mut rng);
+    let published = store.publish_multi_use();
+    let (kem_ct, _) = kem::encapsulate(&published.bundle.kem_prekey, &mut rng)
+        .expect("published KEM key encapsulates");
+    let initial = encode_initial(
+        &encode_ec(&alice.public()),
+        &encode_ec(&PublicKeyBytes::from_bytes([0u8; 32])),
+        &kem_ct,
+        published.signed_prekey_id,
+        ABSENT_ID,
+        published.kem_prekey_id,
+        b"never authenticates after non-contributory agreement",
+    );
+    let before = prekey_bytes(&store);
+    assert!(matches!(
+        establish_responder(&bob, &mut store, &initial, &mut rng),
+        Err(LifecycleError::Handshake(
+            SessionError::NonContributoryAgreement
+        ))
+    ));
+    let after = prekey_bytes(&store);
+    expect_model_check(
+        exe,
+        format!(
+            "check prekey no-op {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.session_responder_refusal += 1;
+
+    let mut store = bob.create_prekeys(1, &mut rng);
+    let bundle = store.publish();
+    let mut pending = establish_initiator(&alice, &bundle, &mut rng)
+        .expect("published bundle establishes an initiator");
+    let genuine = pending
+        .encrypt(b"operation-model malformed initial", &mut rng)
+        .expect("pending initiator sends initial");
+    let before = prekey_bytes(&store);
+    let refusal = match establish_responder(&bob, &mut store, &genuine[..1], &mut rng) {
+        Err(refusal) => refusal,
+        Ok(_) => panic!("a truncated initial message must refuse"),
+    };
+    assert!(
+        matches!(refusal, LifecycleError::Decode(_)),
+        "the truncated initial message must refuse at decode, got {refusal:?}"
+    );
+    let after = prekey_bytes(&store);
+    expect_model_check(
+        exe,
+        format!(
+            "check prekey no-op {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.session_responder_refusal += 1;
+}
+
 #[derive(Deserialize)]
 struct SessionVectorFile {
     vectors: Vec<SessionVector>,
@@ -3747,6 +3824,7 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     check_established_message_effects(&exe, seed, &mut seen);
     check_failed_agreement_effects(&exe, seed, &mut seen);
     check_session_delivery_and_crypto_refusals(&exe, seed, &mut seen);
+    check_responder_refusal_controls(&exe, seed, &mut seen);
     check_session_imports(&exe, seed, &mut seen);
     check_composed(&exe, seed, sequences, long, &mut seen);
 
@@ -3941,6 +4019,10 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     assert!(
         seen.session_crypto_low_order_refusal > 0,
         "no low-order ratchet-header refusal was compared"
+    );
+    assert!(
+        seen.session_responder_refusal >= 2,
+        "the responder low-order and malformed-initial refusals were not reached"
     );
 
     eprintln!(

@@ -74,7 +74,7 @@ assertion compares durable state before and after the documented commit point.
 | REQ-AUTH-10 | initiator/responder establishment and established receive | Ordinary DH and ratchet public keys produce contributory outputs. | A low-order received ratchet public refuses as non-contributory, preserves the persisted session under the model's no-op relation, and leaves the genuine message deliverable. | Initiator and responder low-order establishment controls remain concrete tests outside this operation runner. Curve arithmetic remains abstract. |
 | REQ-AUTH-11 | established receive | First delivery of a ratchet message accepts and advances state. | Duplicate delivery refuses or fails authentication without accepting the message twice. | Exact skipped-key eviction branches may need their own sub-slice. |
 | REQ-AUTH-12 | responder establishment and prekey lifecycle | One-time curve and KEM ids are consumed only after authenticated responder establishment. Last-resort first delivery records a fingerprint. | Replay of one-time ids refuses `UnknownPrekeyId`; replay of last-resort fingerprint refuses `ReplayedLastResort`; full record refuses `LastResortRecordFull` unchanged. | Near-exhaustion partial replenishment/rotation needs a scope decision. |
-| REQ-AUTH-13 | responder establishment and established receive | An accepted initial decrypt commits a responder session and the documented one-time store transition. | A forged initial AEAD tag returns `Aead`, emits no session and leaves the store unchanged. Malformed-message, bad agreement and established-receive controls remain open. | The runner now has an explicit initial-AEAD negative control; later message transitions still need their own controls. |
+| REQ-AUTH-13 | responder establishment and established receive | An accepted initial decrypt commits a responder session and the documented one-time store transition. | A forged initial AEAD tag, a malformed initial wire prefix, and a low-order initiator ephemeral all emit no session and leave the store unchanged. | The runner now covers the documented responder refusal order at its wire and agreement boundaries; independent-reader operation coverage remains open. |
 | REQ-CONF-02 | establishment and message operations | A concrete initiator and responder complete a compatible initial-message exchange; the model checks both committed session roles and identity bindings. | KEM refusal or non-contributory DH produces no session/message. | Cryptographic derivation values are fixture outputs, not proved by the operation model. |
 | REQ-CONF-04 | send/export and receive/export ordering | Send advances state before ciphertext is allowed to leave; receive advances before acknowledgement. | Importing the pre-operation state demonstrates why persistence ordering is a caller obligation rather than a model guarantee. | Storage atomicity remains outside the crate. |
 | REQ-CONF-09 | refusal surface | Refusals collapse to the public error classes already exposed by `Error` and the persisted readers. | Malformed input, bad authentication and unknown ids do not expose secrets or commit speculative state. | Side-channel uniformity remains covered by primitive assumptions and tests, not this model. |
@@ -107,8 +107,9 @@ assertion compares durable state before and after the documented commit point.
    the persisted session and the genuine in-flight message intact. Bad signed
    curve and KEM-prekey signatures are checked before the initiator's first
    randomness draw; no session exists on those traces to supply a persisted
-   comparison. Responder low-order establishment, malformed-initial decoder
-   precedence, and specification-only reader coverage remain open.
+   comparison. A responder low-order ephemeral and a malformed initial wire
+   prefix each preserve the prekey store under its model no-op relation.
+   Specification-only operation-reader coverage remains open.
 
 Each slice must emit a reproducible seed, name the reached requirement rows, and
 include at least one deliberate model/runner disagreement before it is counted as
