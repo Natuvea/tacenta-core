@@ -67,7 +67,7 @@ recorded decision or a target-closing slice:
 
 | Gate/check | Protected property | Current negative-control evidence | Missing evidence |
 | --- | --- | --- | --- |
-| `tooling/check-traceability.py` | Requirement/status/assumption/reference spine does not drift. | Case runner removes a limitations row and cites an unknown assumption. | Cases for missing status, missing rests-on, bad title/status class, bad assumption inverse list and unknown LIM/ADV/AS/EX references. |
+| `tooling/check-traceability.py` | Requirement/status/assumption/reference spine does not drift. | `tooling/tests/run-check-traceability-cases.sh` runs a passing baseline and 19 refusal cases: status-table removal/title/class drift, missing requirement status/`Rests on`, both direct assumption-inverse faults, unknown `LIM`/`ADV`/`AS`/`EX` references, and evidence-index faults. | Retain its command, environment and diagnostic-free candidate result. |
 | `tooling/check-workflows.sh` | Workflow files parse and obey repository security rules. | 62 case files under `tooling/tests/check-workflows-cases`. | None identified in this P1 pass. |
 | `tooling/check-precondition-shapes.py` | Listed vacuous numeric precondition shapes do not enter first-party Lean. | 71 case directories under `tooling/tests/check-precondition-shapes-cases`. | None identified in this P1 pass. |
 | `tooling/check-labels.sh` | Derivation labels stay registered and prefix-free except recorded pairs. | `tooling/tests/run-check-labels-cases.sh` runs a passing baseline plus unregistered-label and forbidden-prefix refusals against the production checker. | Retain its command, environment and diagnostic-free candidate result. |
@@ -78,9 +78,7 @@ recorded decision or a target-closing slice:
 
 ## Next P1 slices
 
-1. Extend `tooling/tests/run-check-traceability-cases.sh` to cover each rule the
-   checker claims to enforce.
-2. Decide whether `GAP-REGISTER.md` should remain Markdown-only or gain a
+1. Decide whether `GAP-REGISTER.md` should remain Markdown-only or gain a
    machine-readable sidecar before P2 indexes evidence against gap IDs.
-3. Add target/scope decision records for any deferred item that is intended not
+2. Add target/scope decision records for any deferred item that is intended not
    to block gate 1.
