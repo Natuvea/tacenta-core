@@ -319,6 +319,10 @@ the model has no signature operation and cannot create a store whose stored
 signatures verify. The `legacy-v1`, `legacy-v2` and `legacy-v3` accepted
 vectors re-spell the no-record, no-retired fixture in those older layouts; they
 read to the same field values and write back as current v4. The
+`signed-prekey-signature-does-not-verify` refusal flips one byte of
+`signed_prekey_sig` in that same fixture after the model has accepted and
+re-encoded the mutated bytes, so the cryptographic runner reaches the stored
+signature rule and reports `incoherent`. The
 `retired-signed-prekey` and `retired-kem-prekey` fixtures separately exercise
 the two retired-key sub-formats. Refusal vectors are one-field mutations of
 those fixtures, or truncations, additions and version relabellings.
