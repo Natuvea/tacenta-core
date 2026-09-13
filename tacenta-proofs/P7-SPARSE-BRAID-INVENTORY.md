@@ -40,16 +40,23 @@ and compares the resulting persisted state. This pins canonical persisted
 state read-back, reader refusal, the documented boundary transition, and one
 accepted/failure authenticated-header pair without a KEM value.
 
+The same runner separately drives a genuine ML-KEM Braid exchange through
+transition (5), where the persisted-state bridge cannot construct the delegated
+key-pair and encapsulation fields. A complete six-codeword `ct2 || MacCt`
+stream emits epoch 1; changing one byte of systematic codeword 5, which carries
+only `MacCt`, emits no key and reaches terminal `Failed`. The clean-room
+reader's BR-10 independently covers the matching ciphertext-MAC failure rule.
+
 Tags 1 through 4 require a valid ML-KEM key-pair layout. That layout is the
 recorded ADR-0006 delegated boundary, so the harness currently exercises only
-an invalid-length refusal there. The header pair does not cover ciphertext MAC
-traffic or the other receive/send state-machine branches. Those are separate
-obligations: do not treat a header MAC, a state transition, or a delegated
-layout exclusion as interchangeable.
+an invalid-length refusal there. The persisted header pair and the real-KEM
+ciphertext control are separate evidence; they do not cover the other
+receive/send state-machine branches. Do not treat a MAC, a state transition,
+or a delegated-layout exclusion as interchangeable.
 
 | Obligation | Current evidence | Next closure step |
 | --- | --- | --- |
 | Sparse operation/invariant inventory | Scoped map above; generated differential and clean-room reader evidence include the post-retirement `NoChain` refusal it identified as missing | Decide which remaining generated refusal combinations need fixed vectors, then add them or record the target decision. |
 | Braid persisted-state tags | Model/vector/reader/import comparison for tags 0 and 5--11; invalid-length check for 1--4 | Keep the delegated key-pair layout exclusion narrow and add valid tag evidence only with a specified independent producer. |
-| Braid MAC behavior | Differential check of a persisted-key header MAC and a one-byte mutation, with model recomputation | Specify ciphertext-MAC provenance and add accepted-neighbour/failure-state ciphertext evidence. |
-| Braid state machine | `Ct2Sampled` boundaries plus empty-`NoHeaderReceived` transition (6) | Identify the next branch that can be driven without a KEM fixture, or make a narrow fixture/scope decision. |
+| Braid MAC behavior | Differential check of a persisted-key header MAC and mutation, with model recomputation; real-ML-KEM runner check of accepted `ct2 || MacCt` and a MAC-only-codeword mutation to `Failed`; clean-room BR-10 | Keep the KEM-backed control separate from the persisted-state bridge and add a committed operation vector only if the target decision requires one. |
+| Braid state machine | `Ct2Sampled` boundaries, empty-`NoHeaderReceived` transition (6), and real-ML-KEM transition (5) MAC controls | The remaining branches require delegated KEM material; decide whether they need committed operation vectors or record that narrow target boundary. |

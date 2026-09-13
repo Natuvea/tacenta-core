@@ -68,9 +68,12 @@
 //!   machine* reaches `Ct2Sampled` transition (13), its reserved-epoch
 //!   refusal, and `NoHeaderReceived` transition (6). The last consumes a
 //!   persisted authenticator plus a complete authenticated header, and no KEM
-//!   value. Every other transition consumes a key pair or an encapsulation
-//!   state, whose layout `session-persistence.md` delegates (ADR-0006, point
-//!   5), so neither side of this harness can build one.
+//!   value. A separate real-ML-KEM exchange reaches transition (5): its
+//!   complete ciphertext MAC emits the epoch output, while a mutation in the
+//!   final, MAC-only systematic codeword reaches `Failed`. The remaining
+//!   stored-state transitions consume a key pair or encapsulation state whose
+//!   layout `session-persistence.md` delegates (ADR-0006, point 5), so neither
+//!   side of the persisted differential bridge can construct them.
 //!
 //!   For the same reason, **tags 1 to 4 appear only at a `key_pair` length
 //!   both readers refuse.** The page has the reader validate the `header` and
@@ -709,6 +712,8 @@ struct Observed {
     braid_ceiling_failed: usize,
     braid_header_accepted: usize,
     braid_header_failed: usize,
+    braid_ciphertext_mac_accepted: usize,
+    braid_ciphertext_mac_failed: usize,
 }
 
 // ---------------------------------------------------------------------------
@@ -2270,6 +2275,91 @@ fn braid_receive_header(start: &[u8], epoch: u64, framed: &[u8]) -> Vec<u8> {
     braid.to_bytes().to_vec()
 }
 
+struct BraidCiphertextMacRun {
+    ct2_chunks: usize,
+    mac_mutated: bool,
+    output_epoch: Option<u64>,
+    failed: bool,
+}
+
+/// Drive a genuine ML-KEM exchange through transition (5). The first five
+/// systematic `Ct2` chunks carry the 160-byte ciphertext; chunk 5 is the
+/// 32-byte `MacCt`, so changing it leaves the ciphertext intact and makes the
+/// failure an authentication control rather than a KEM-decapsulation control.
+fn braid_ciphertext_mac_run(seed: u64, mutate_mac: bool) -> BraidCiphertextMacRun {
+    use tacenta_braid::{Braid, MsgType};
+
+    fn deliver(
+        sender: &mut Braid,
+        receiver: &mut Braid,
+        rng: &mut Rng,
+        mutate_mac: bool,
+        mac_mutated: &mut bool,
+        ct2_chunks: &mut usize,
+    ) -> (Option<u64>, bool) {
+        let (mut msg, _reported, _sent_output, next) = sender.send(rng);
+        *sender = next;
+        if msg.ty == MsgType::Ct2 {
+            *ct2_chunks += 1;
+            if mutate_mac
+                && !*mac_mutated
+                && let Some(chunk) = msg.data.as_mut()
+                && chunk.index == 5
+            {
+                chunk.data[0] ^= 0x01;
+                *mac_mutated = true;
+            }
+        }
+        let (_reported, output, next) = receiver.receive(&msg);
+        receiver.commit(next);
+        (output.map(|o| o.key_epoch), receiver.failed())
+    }
+
+    let mut rng = Rng::new(seed);
+    let mut initiator = Braid::initiator(b"differential ciphertext MAC control");
+    let mut responder = Braid::responder(b"differential ciphertext MAC control");
+    let mut ct2_chunks = 0;
+    let mut mac_mutated = false;
+
+    for _ in 0..512 {
+        let (output_epoch, failed) = deliver(
+            &mut initiator,
+            &mut responder,
+            &mut rng,
+            mutate_mac,
+            &mut mac_mutated,
+            &mut ct2_chunks,
+        );
+        if output_epoch.is_some() || failed {
+            return BraidCiphertextMacRun {
+                ct2_chunks,
+                mac_mutated,
+                output_epoch,
+                failed,
+            };
+        }
+
+        let (output_epoch, failed) = deliver(
+            &mut responder,
+            &mut initiator,
+            &mut rng,
+            mutate_mac,
+            &mut mac_mutated,
+            &mut ct2_chunks,
+        );
+        if output_epoch.is_some() || failed {
+            return BraidCiphertextMacRun {
+                ct2_chunks,
+                mac_mutated,
+                output_epoch,
+                failed,
+            };
+        }
+    }
+
+    panic!("a real Braid exchange did not complete its first ciphertext MAC");
+}
+
 fn braid_readback(bytes: &[u8]) -> String {
     match tacenta_braid::Braid::from_bytes(bytes) {
         Ok(b) => {
@@ -2490,6 +2580,41 @@ fn check_composed(exe: &Path, seed: u64, sequences: usize, long: bool, seen: &mu
             invalid_mac,
         });
     }
+
+    // Transition (5) carries KEM values whose persisted layout is delegated,
+    // so it cannot use the stored-state bridge above. Exercise it with the
+    // real interface instead: the positive run reaches agreement, and the
+    // negative control changes only a byte of the final MAC codeword.
+    let ciphertext_ok = braid_ciphertext_mac_run(seed ^ 0xc7c7_c7c7_c7c7_c7c7, false);
+    assert!(
+        ciphertext_ok.ct2_chunks >= 6,
+        "a ciphertext MAC needs six systematic Ct2 chunks"
+    );
+    assert_eq!(
+        ciphertext_ok.output_epoch,
+        Some(1),
+        "a genuine ciphertext MAC must emit the first epoch key"
+    );
+    assert!(
+        !ciphertext_ok.failed,
+        "a genuine ciphertext MAC must not fail the Braid"
+    );
+    seen.braid_ciphertext_mac_accepted += 1;
+
+    let ciphertext_bad = braid_ciphertext_mac_run(seed ^ 0xd7d7_d7d7_d7d7_d7d7, true);
+    assert!(
+        ciphertext_bad.ct2_chunks >= 6 && ciphertext_bad.mac_mutated,
+        "the negative control must change the final Ct2 MAC codeword"
+    );
+    assert_eq!(
+        ciphertext_bad.output_epoch, None,
+        "a changed ciphertext MAC must not emit an epoch key"
+    );
+    assert!(
+        ciphertext_bad.failed,
+        "a changed ciphertext MAC must reach terminal Braid failure"
+    );
+    seen.braid_ciphertext_mac_failed += 1;
 
     let answers = ask_model(exe, &requests);
 
@@ -4197,7 +4322,7 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
         "differential: the composed formats: {} Triple Ratchet steps ({} refused at a half's \
          ceiling), {} Triple Ratchet imports ({} accepted); {} Braid imports ({} accepted), \
         {} Braid steps ({} taking transition 13, {} failing at the reserved epoch); \
-         authenticated headers ({} accepted, {} failed)",
+         authenticated headers ({} accepted, {} failed); ciphertext MACs ({} accepted, {} failed)",
         seen.triple_steps,
         seen.triple_ceiling,
         seen.triple_reads,
@@ -4209,6 +4334,8 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
         seen.braid_ceiling_failed,
         seen.braid_header_accepted,
         seen.braid_header_failed,
+        seen.braid_ciphertext_mac_accepted,
+        seen.braid_ciphertext_mac_failed,
     );
 
     // What the composed half had to reach, on the same principle as above: a
@@ -4241,6 +4368,14 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     assert!(
         seen.braid_header_failed > 0,
         "a changed Braid header MAC did not reach terminal failure"
+    );
+    assert!(
+        seen.braid_ciphertext_mac_accepted > 0,
+        "a genuine Braid ciphertext MAC did not emit an epoch key"
+    );
+    assert!(
+        seen.braid_ciphertext_mac_failed > 0,
+        "a changed Braid ciphertext MAC did not reach terminal failure"
     );
 }
 
