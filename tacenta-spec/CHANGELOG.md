@@ -12,6 +12,12 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `protocol/group-messaging.md`, Bounded fan-out commitment helper: the
+  version-one SHA-256 commitments for product-canonical roster preimages and
+  authenticated application contexts. The helper's two domain labels are
+  registered in `CONSTANTS.md` and `tacenta-core/LABELS.md`; this small
+  validation-profile contract does not select a production group cipher or
+  membership protocol.
 - `security-properties/evidence-index-format.md`: the checked JSON format for
   the P2 requirement evidence index, including the boundary between reference
   validation and human semantic review.
