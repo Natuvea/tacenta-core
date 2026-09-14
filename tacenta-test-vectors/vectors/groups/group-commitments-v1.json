@@ -1,0 +1,18 @@
+{
+  "schema": "tacenta-group-commitments-v1",
+  "comment": "The inputs are already canonical product values. This vector pins only the standalone core's SHA-256 domain separation.",
+  "cases": [
+    {
+      "id": "roster-domain-v1",
+      "operation": "roster_commitment",
+      "input_hex": "726f737465722d766563746f722d7631",
+      "output_hex": "82243088403a2e96612f409b310b1842076d602fc628466b8b0f5c9d00c7ea0f"
+    },
+    {
+      "id": "payload-domain-v1",
+      "operation": "payload_commitment",
+      "input_hex": "636f6e746578742d766563746f722d7631",
+      "output_hex": "2c715e67c0cf6375cee708c290450d0bcb7e2720f5fea66a19e06ae00a608f80"
+    }
+  ]
+}

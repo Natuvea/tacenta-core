@@ -25,6 +25,8 @@ source, fixed before the protocol is frozen.
 | `tacenta-triple` | `SPLIT_INFO` | `Tacenta_CURVE25519_SHA-256_MLKEM1024:Split` |
 | `tacenta-core` | `APPLICATION_SIGNING_LABEL` | `tacenta:application-signature:v1\xff` |
 | `tacenta-core` | `LAST_RESORT_HANDSHAKE_LABEL` | `tacenta last-resort handshake v2` |
+| `tacenta-core` | `GROUP_ROSTER_COMMITMENT_LABEL` | `Tacenta:group:roster-commitment:v1\xff` |
+| `tacenta-core` | `GROUP_PAYLOAD_COMMITMENT_LABEL` | `Tacenta:group:payload-commitment:v1\xff` |
 
 `tooling/check-labels.sh`, which `tooling/ci.sh` runs, extracts these from source
 and fails if
