@@ -1,9 +1,10 @@
 # Group messaging (sender keys)
 
 In scope. Tacenta uses group messaging, and this outline assumes sender keys
-as the mechanism (see the open questions below). This page is a placeholder
-for work that is not yet scheduled, and will be written spec-first before the
-model and core.
+as the mechanism (see the open questions below). Most of this page remains a
+placeholder for work that is not yet scheduled. The bounded fan-out commitment
+helper below is an explicit exception: it is specified first for the product's
+one-authority validation profile, without selecting a sender-key mechanism.
 
 The mechanism, in outline: each member holds a sender key for the group (a chain
 key that ratchets forward per message, plus a signing key so recipients can
@@ -12,6 +13,52 @@ sending a sender-key distribution message over the one-to-one sessions. Group
 messages are encrypted with the sender's current sender key and signed. When
 membership changes, sender keys rotate into a new epoch so a removed member
 cannot read later messages.
+
+## Bounded fan-out commitment helper (version one)
+
+This section specifies the standalone core helper used by the bounded
+one-authority, one-device-per-identity fan-out experiment. It is not a group
+cipher, a membership protocol, a wire envelope, or a production group profile.
+The product validates and canonically encodes rosters, invitations and
+application contexts. This helper only binds those already validated bytes to
+fixed, distinct SHA-256 domains.
+
+`roster_commitment(preimage)` is the 32-byte SHA-256 digest of:
+
+```text
+"Tacenta:group:roster-commitment:v1\xff" || preimage
+```
+
+`preimage` is exactly the product's canonical roster preimage in its bounded
+group roster contract: it begins with `"Tacenta Group Roster v1"`, and contains
+the framed group ID, revision, predecessor digest, authority binding, policy,
+closed field and sorted member bindings. The helper neither parses this value
+nor supplies defaults. A caller must refuse a malformed or noncanonical roster
+before calling it; different byte strings always receive independently computed
+digests, even when a product considers both malformed.
+
+`payload_commitment(context)` is the 32-byte SHA-256 digest of:
+
+```text
+"Tacenta:group:payload-commitment:v1\xff" || context
+```
+
+`context` is exactly the product's canonical authenticated application context:
+it begins with `"Tacenta Group Application v1"` and contains the framed group,
+revision, roster digest, sender/device, recipient/device, logical sequence and
+payload. The pairwise layer authenticates this context as plaintext; this helper
+does not change pairwise associated data or establish peer identity.
+
+Both labels and the SHA-256 primitive are Tacenta choices (`ours`). The labels
+are prefix-free, end in `0xff`, and appear in the label registry and constant
+ledger. The digest length follows SHA-256. The product must record the returned
+commitments with the exact preimages they bind and must not replace the helper
+with an ad hoc product hash.
+
+The helper has no secret input and does not make a collision-resistance claim
+beyond the SHA-256 assumption already named by the core threat model. It gives
+the product stable domain separation, not membership authenticity, delivery,
+privacy, or removal guarantees.
 
 ## Published material
 
@@ -64,4 +111,5 @@ assumed before then.
   for Signal from Key Re-Randomizable Signatures" (IACR ePrint 2026/453)
   addresses that layer.
 
-Status: scaffold. Not yet scheduled.
+Status: the bounded fan-out commitment helper is specified and scheduled; the
+sender-key/group-protocol outline remains scaffolded and unscheduled.
