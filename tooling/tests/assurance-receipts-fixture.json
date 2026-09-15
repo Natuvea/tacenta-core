@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate": {
+    "commit": "c7499a9b6fedb9d211198671848c1e3acbe592af",
+    "tree": "e95d43239071f92bb4429c033dd302e4466c5c38"
+  },
+  "checks": [
+    {"id": "rust", "classification": "required", "applicable": true, "status": "pass", "command": "fixture", "environment": {}, "run": {"id": "fixture"}},
+    {"id": "msrv", "classification": "required", "applicable": true, "status": "pass", "command": "fixture", "environment": {}, "run": {"id": "fixture"}},
+    {"id": "armv7", "classification": "required", "applicable": true, "status": "pass", "command": "fixture", "environment": {}, "run": {"id": "fixture"}},
+    {"id": "vectors", "classification": "required", "applicable": true, "status": "pass", "command": "fixture", "environment": {}, "run": {"id": "fixture"}},
+    {"id": "audit", "classification": "required", "applicable": true, "status": "pass", "command": "fixture", "environment": {}, "run": {"id": "fixture"}},
+    {"id": "proofs", "classification": "required", "applicable": true, "status": "pass", "command": "fixture", "environment": {}, "run": {"id": "fixture"}},
+    {"id": "translation", "classification": "required", "applicable": true, "status": "pass", "command": "fixture", "environment": {}, "run": {"id": "fixture"}},
+    {"id": "checks", "classification": "required", "applicable": true, "status": "pass", "command": "fixture", "environment": {}, "run": {"id": "fixture"}}
+  ]
+}

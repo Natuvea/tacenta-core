@@ -14,6 +14,7 @@ import Model.Protobuf
 import Model.Ratchet
 import Model.SessionEstablishment
 import Model.SessionOperations
+import Model.SessionTrace
 import Model.Sha256
 import Model.SparseRatchet
 import Model.State

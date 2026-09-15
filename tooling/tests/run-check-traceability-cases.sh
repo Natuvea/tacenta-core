@@ -14,6 +14,7 @@ make_case() {
   mkdir -p "$dst/tacenta-spec"
   cp -R "$root/tacenta-spec/security-properties" "$dst/tacenta-spec/"
   cp -R "$root/tacenta-spec/threat-model" "$dst/tacenta-spec/"
+  cp -R "$root/tacenta-spec/protocol" "$dst/tacenta-spec/"
   mkdir -p "$dst/tacenta-core/src/sessions" "$dst/tacenta-core/src/primitives" "$dst/tacenta-core/wire/src" "$dst/tacenta-core/ratchet/src" "$dst/tacenta-core/braid/src" "$dst/tooling" "$dst/tacenta-model/Model"
   mkdir -p "$dst/tacenta-core/tests"
   mkdir -p "$dst/tacenta-core/spqr/src" "$dst/tacenta-core/triple/src"
@@ -33,6 +34,7 @@ make_case() {
   cp "$root/tacenta-core/ratchet/src/lib.rs" "$dst/tacenta-core/ratchet/src/lib.rs"
   cp "$root/tacenta-core/braid/src/lib.rs" "$dst/tacenta-core/braid/src/lib.rs"
   cp "$root/tacenta-core/braid/src/tests.rs" "$dst/tacenta-core/braid/src/tests.rs"
+  cp "$root/tacenta-core/spqr/src/tests.rs" "$dst/tacenta-core/spqr/src/tests.rs"
   cp "$root/tacenta-core/spqr/src/lib.rs" "$dst/tacenta-core/spqr/src/lib.rs"
   cp "$root/tacenta-core/triple/src/lib.rs" "$dst/tacenta-core/triple/src/lib.rs"
   cp "$root/tacenta-core/tests/full_session.rs" "$dst/tacenta-core/tests/full_session.rs"
@@ -46,6 +48,9 @@ make_case() {
   cp "$root/tacenta-core/tests/canonical_curve_keys.rs" "$dst/tacenta-core/tests/canonical_curve_keys.rs"
   cp "$root/tacenta-core/tests/canonicality.rs" "$dst/tacenta-core/tests/canonicality.rs"
   cp "$root/tacenta-core/tests/timing.rs" "$dst/tacenta-core/tests/timing.rs"
+  cp "$root/tacenta-core/tests/session_lifecycle_property.rs" "$dst/tacenta-core/tests/session_lifecycle_property.rs"
+  cp "$root/tacenta-core/tests/import_invariants.rs" "$dst/tacenta-core/tests/import_invariants.rs"
+  cp "$root/tacenta-core/tests/session_persistence.rs" "$dst/tacenta-core/tests/session_persistence.rs"
   cp "$root/tacenta-model/Properties/Authentication.lean" "$dst/tacenta-model/Properties/Authentication.lean"
   cp "$root/tacenta-model/Properties/StateConsistency.lean" "$dst/tacenta-model/Properties/StateConsistency.lean"
   cp "$root/tacenta-model/Properties/Secrecy.lean" "$dst/tacenta-model/Properties/Secrecy.lean"
@@ -53,16 +58,19 @@ make_case() {
   cp "$root/tacenta-model/Properties/PostCompromise.lean" "$dst/tacenta-model/Properties/PostCompromise.lean"
   cp "$root/tacenta-model/Model/Triple.lean" "$dst/tacenta-model/Model/Triple.lean"
   cp "$root/tacenta-model/Model/Braid.lean" "$dst/tacenta-model/Model/Braid.lean"
+  cp "$root/tacenta-model/Model/SessionTrace.lean" "$dst/tacenta-model/Model/SessionTrace.lean"
   cp "$root/tacenta-proofs/Proofs/SessionEstablishment.lean" "$dst/tacenta-proofs/Proofs/SessionEstablishment.lean"
   cp "$root/tacenta-proofs/Proofs/KeyErasure.lean" "$dst/tacenta-proofs/Proofs/KeyErasure.lean"
   cp "$root/tacenta-proofs/Proofs/RatchetCorrectness.lean" "$dst/tacenta-proofs/Proofs/RatchetCorrectness.lean"
   cp "$root/tacenta-proofs/Proofs/MemorySafety.lean" "$dst/tacenta-proofs/Proofs/MemorySafety.lean"
   cp "$root/tacenta-proofs/Proofs/SparseRatchetCorrectness.lean" "$dst/tacenta-proofs/Proofs/SparseRatchetCorrectness.lean"
+  cp "$root/tacenta-proofs/Proofs/SessionTrace.lean" "$dst/tacenta-proofs/Proofs/SessionTrace.lean"
   cp "$root/tacenta-proofs/translation/Translation/SessionT3.lean" "$dst/tacenta-proofs/translation/Translation/SessionT3.lean"
   cp "$root/tacenta-proofs/translation/Translation/T3.lean" "$dst/tacenta-proofs/translation/Translation/T3.lean"
   cp "$root/tacenta-proofs/translation/Translation/SpqrT3.lean" "$dst/tacenta-proofs/translation/Translation/SpqrT3.lean"
   cp "$root/tacenta-proofs/translation/Translation/UnitTripleT3.lean" "$dst/tacenta-proofs/translation/Translation/UnitTripleT3.lean"
   cp "$root/tacenta-proofs/translation/Translation/BraidT3.lean" "$dst/tacenta-proofs/translation/Translation/BraidT3.lean"
+  cp "$root/tacenta-proofs/translation/Translation/ImportInv.lean" "$dst/tacenta-proofs/translation/Translation/ImportInv.lean"
   cp "$root/tacenta-proofs/translation/Translation/WireT3.lean" "$dst/tacenta-proofs/translation/Translation/WireT3.lean"
   cp "$root/tacenta-proofs/translation/Translation/WireInitialT3.lean" "$dst/tacenta-proofs/translation/Translation/WireInitialT3.lean"
   cp "$root/tacenta-proofs/translation/Translation/WireBundleT3.lean" "$dst/tacenta-proofs/translation/Translation/WireBundleT3.lean"
@@ -283,4 +291,34 @@ for kind in LIM ADV AS EX; do
   expect_fail "unknown-$kind-reference" "references unknown identifier $kind-99"
 done
 
-echo "check-traceability-cases: pass case and 19 refusal cases gave the expected result"
+make_case "$work/missing-invariant-id"
+python3 - "$work/missing-invariant-id/tacenta-spec/security-properties/evidence-index.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+del data["invariants"][0]["id"]
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+expect_fail "missing-invariant-id" "invariant has invalid id None"
+
+make_case "$work/duplicate-invariant-id"
+python3 - "$work/duplicate-invariant-id/tacenta-spec/security-properties/evidence-index.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+data["invariants"][1]["id"] = data["invariants"][0]["id"]
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+expect_fail "duplicate-invariant-id" "duplicate invariant id INV-AUTH-COMMIT"
+
+make_case "$work/unknown-invariant-requirement"
+python3 - "$work/unknown-invariant-requirement/tacenta-spec/security-properties/evidence-index.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+data["invariants"][0]["requirements"] = ["REQ-AUTH-99"]
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+expect_fail "unknown-invariant-requirement" "INV-AUTH-COMMIT cites unknown requirement REQ-AUTH-99"
+
+echo "check-traceability-cases: pass case and 22 refusal cases gave the expected result"

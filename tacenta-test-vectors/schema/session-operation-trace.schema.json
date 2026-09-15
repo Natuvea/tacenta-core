@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tacenta.dev/schema/session-operation-trace.schema.json",
+  "title": "Tacenta session and prekey operation traces, version 1",
+  "description": "A specification-defined transcript for prekey-store and session operations. Each step gives its actor, operation, declared fixture inputs, expected outcome, and the durable effects that a conforming implementation must expose. Cryptographic fixture bytes are deliberately external to this grammar: the grammar does not prescribe an implementation's random-source or private state representation.",
+  "type": "object",
+  "required": ["schema_version", "algorithm", "source", "traces"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "algorithm": { "const": "session-operation-trace" },
+    "source": { "type": "string" },
+    "traces": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "steps"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "comment": { "type": "string" },
+          "fixtures": {
+            "type": "object",
+            "description": "Named, opaque inputs such as a prekey store, published bundle, initial message, session, or exported state. A fixture's byte encoding and cryptographic construction are specified by its referenced vector or by the trace author; this schema names no implementation representation.",
+            "additionalProperties": { "type": "string" }
+          },
+          "steps": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/$defs/step" }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "step": {
+      "type": "object",
+      "required": ["actor", "op", "expect", "effect"],
+      "additionalProperties": false,
+      "properties": {
+        "actor": { "enum": ["initiator", "responder", "application"] },
+        "op": {
+          "enum": ["create-prekey-store", "publish-bundle", "replenish", "rotate-signed-prekey", "rotate-kem", "establish-initiator", "establish-responder", "send", "receive", "receive-repeated-initial", "restore-prekey-store", "restore-session"]
+        },
+        "inputs": {
+          "type": "object",
+          "description": "Operation-specific fixture references and source-defined scalar inputs. Names are defined in tacenta-test-vectors/session-operation-trace.md.",
+          "additionalProperties": { "type": "string" }
+        },
+        "expect": {
+          "type": "object",
+          "required": ["outcome"],
+          "additionalProperties": false,
+          "properties": {
+            "outcome": { "enum": ["ok", "refused"] },
+            "refusal": { "enum": ["decode-failure", "authentication-failure", "NotARepeatedInitial", "ReplayedLastResort", "LastResortRecordFull"] }
+          }
+        },
+        "effect": { "$ref": "#/$defs/effect" }
+      }
+    },
+    "effect": {
+      "type": "object",
+      "required": ["prekey_store", "session"],
+      "additionalProperties": false,
+      "properties": {
+        "prekey_store": { "enum": ["unchanged", "created", "replenished", "signed-prekey-rotated", "kem-prekey-rotated", "one-time-keys-deleted", "last-resort-fingerprint-added", "restored"] },
+        "session": { "enum": ["unchanged", "initiator-pending", "responder-established", "message-accepted", "terminal-failed", "restored"] },
+        "next_id": { "enum": ["unchanged", "advanced", "at-ceiling"] },
+        "one_time_curve": { "enum": ["unchanged", "deleted", "absent"] },
+        "one_time_kem": { "enum": ["unchanged", "deleted", "last-resort"] },
+        "last_resort_record": { "enum": ["unchanged", "added", "dropped"] },
+        "retired_signed_prekey": { "enum": ["unchanged", "retained", "dropped"] },
+        "retired_kem_prekey": { "enum": ["unchanged", "retained", "dropped"] }
+      }
+    }
+  }
+}

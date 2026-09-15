@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tacenta.dev/schema/assurance-manifest.schema.json",
+  "title": "Tacenta assurance manifest, version 1",
+  "description": "Canonical inventory of one clean candidate's source identities, selected run receipts and pending independent review requirement. The builder and validator enforce the complete contract without relying on a JSON Schema runtime.",
+  "type": "object",
+  "required": ["schema_version", "identity", "sources", "checks", "review_requirements"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "identity": { "type": "object" },
+    "sources": { "type": "array", "minItems": 1 },
+    "checks": { "type": "array", "minItems": 1 },
+    "review_requirements": { "type": "array", "minItems": 1 }
+  }
+}

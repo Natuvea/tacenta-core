@@ -125,6 +125,12 @@ bash tooling/tests/run-check-traceability-cases.sh
 echo "== Vector files validate against their schemas =="
 python3 tooling/check-vectors.py
 bash tooling/tests/run-check-vectors-cases.sh
+python3 tooling/check-session-operation-traces.py
+bash tooling/tests/run-check-session-operation-traces-cases.sh
+bash tooling/tests/run-build-assurance-manifest-cases.sh
+bash tooling/tests/run-collect-assurance-receipts-cases.sh
+bash tooling/tests/run-build-evidence-pack-cases.sh
+bash tooling/tests/run-check-ledger-review-receipt-cases.sh
 
 # A second reader of the same vectors, written from tacenta-spec and the
 # vectors alone and never from tacenta-core or tacenta-model (ADR-0006). What
@@ -132,6 +138,7 @@ bash tooling/tests/run-check-vectors-cases.sh
 # confirm, is a question about the specification, not about this runner.
 echo "== Independent reader: the specification and the vectors only =="
 python3 tacenta-test-vectors/runners/independent/reader/run.py | tail -n 22
+python3 tacenta-test-vectors/runners/independent/session-operation-reader.py
 
 echo "== Lean: build the model =="
 

@@ -1,9 +1,9 @@
 # Session and prekey operation model
 
 This is the P6 design slice for the session/prekey operation surface that
-currently rests on ASM-19. It is a contract for the model and vector work that
-will follow; it does not claim proof or differential coverage for the operation
-surface by itself.
+partly rests on ASM-19. Its bounded L2 model, vectors, concrete checks and
+independent reader are recorded in `P6-L2-TARGET-DECISION.md`; it does not
+claim a Rust-to-model refinement or proof of the whole operation surface.
 
 The persisted session and prekey-store formats are already modelled and driven
 through the differential harness over their shared structural domains. This note
@@ -43,6 +43,41 @@ The Rust fixtures that instantiate these abstractions must preserve the operatio
 shape: a failure trace changes only the abstract verdict being tested, and the
 assertion compares durable state before and after the documented commit point.
 
+## `SESSION-LIFECYCLE-01`: bounded composed trace
+
+This is the first P6 composition property. It is deliberately narrower than a
+refinement of the Rust session implementation and does not amend any public
+security requirement. It connects the operation rows below for a bounded
+two-party trace family, with abstract cryptographic verdicts supplied under the
+contract above.
+
+For two distinct fixed identities, an accepted establishment creates coherent
+peer observations. An accepted authenticated send followed by its matching
+receive delivers the intended plaintext exactly once. Exporting either peer
+after a committed step and importing fresh objects from those bytes preserves
+the observations needed for the remainder of the trace. An ordinary refused
+input preserves the specified durable observation, and a terminal Braid
+failure persists across export/import and refuses later session operations.
+
+The initial CI budget is at most two peers, three queued messages, 32 protocol
+operations and 32 deterministic seeds. Named regression traces are mandatory
+in addition to generated traces: one-time and last-resort establishment;
+pending, established, post-send and post-receive restoration; third-first
+delivery followed by skipped-message delivery; altered authentication/header
+and low-order agreement refusal followed by the genuine message; replay after
+restore; terminal Braid failure followed by restore and retry; and malformed
+stored bytes. The operation count excludes the observation-only exports used
+to create fresh objects, but each such checkpoint is recorded explicitly.
+
+The model observes identity binding, role/phase, pending-wrapper state,
+accepted plaintext labels, single-use/replay disposition, terminal Braid state
+and canonical exported session/store bytes. It does not observe or prove raw
+DH, KEM, signature or AEAD calculations, database atomicity, transport
+acknowledgements, hostile rollback of a valid store, or product store write
+ordering. The joint session/store snapshot is assumed committed at every
+checkpoint. A test-budget change must not change this statement without an
+explicit update to this section and the trace theorem.
+
 ## Operation inventory
 
 | Operation | Input and precondition | Transition and commit point | Outputs | Refusals and durable effects | Requirement families |
@@ -74,7 +109,7 @@ assertion compares durable state before and after the documented commit point.
 | REQ-AUTH-10 | initiator/responder establishment and established receive | Ordinary DH and ratchet public keys produce contributory outputs. | A low-order received ratchet public refuses as non-contributory, preserves the persisted session under the model's no-op relation, and leaves the genuine message deliverable. | Initiator and responder low-order establishment controls remain concrete tests outside this operation runner. Curve arithmetic remains abstract. |
 | REQ-AUTH-11 | established receive | First delivery of a ratchet message accepts and advances state. | Duplicate delivery refuses or fails authentication without accepting the message twice. | Exact skipped-key eviction branches may need their own sub-slice. |
 | REQ-AUTH-12 | responder establishment and prekey lifecycle | One-time curve and KEM ids are consumed only after authenticated responder establishment. Last-resort first delivery records a fingerprint. | Replay of one-time ids refuses `UnknownPrekeyId`; replay of last-resort fingerprint refuses `ReplayedLastResort`; full record refuses `LastResortRecordFull` unchanged. | Near-exhaustion partial replenishment/rotation needs a scope decision. |
-| REQ-AUTH-13 | responder establishment and established receive | An accepted initial decrypt commits a responder session and the documented one-time store transition. | A forged initial AEAD tag, a malformed initial wire prefix, and a low-order initiator ephemeral all emit no session and leave the store unchanged. | The runner now covers the documented responder refusal order at its wire and agreement boundaries; independent-reader operation coverage remains open. |
+| REQ-AUTH-13 | responder establishment and established receive | An accepted initial decrypt commits a responder session and the documented one-time store transition. | A forged initial AEAD tag, a malformed initial wire prefix, and a low-order initiator ephemeral all emit no session and leave the store unchanged. | The runner and the v4 specification-only reader cover the bounded operation/refusal surface; the reader takes cryptographic verdicts as declared fixture facts. |
 | REQ-CONF-02 | establishment and message operations | A concrete initiator and responder complete a compatible initial-message exchange; the model checks both committed session roles and identity bindings. | KEM refusal or non-contributory DH produces no session/message. | Cryptographic derivation values are fixture outputs, not proved by the operation model. |
 | REQ-CONF-04 | send/export and receive/export ordering | Send advances state before ciphertext is allowed to leave; receive advances before acknowledgement. | Importing the pre-operation state demonstrates why persistence ordering is a caller obligation rather than a model guarantee. | Storage atomicity remains outside the crate. |
 | REQ-CONF-09 | refusal surface | Refusals collapse to the public error classes already exposed by `Error` and the persisted readers. | Malformed input, bad authentication and unknown ids do not expose secrets or commit speculative state. | Side-channel uniformity remains covered by primitive assumptions and tests, not this model. |
@@ -87,8 +122,9 @@ assertion compares durable state before and after the documented commit point.
    identity-mismatch no-ops, authenticated responder one-time consumption,
    last-resort replay-record insertion, replay refusal and one-time replay
    refusal now have Lean structural before/after checks driven by concrete Rust
-   execution. Still open in this slice: exhausted-identifier edges and the
-   corresponding specification-only reader coverage.
+   execution. The v4 specification-only reader covers the agreed lifecycle and
+   replay surface; identifier-exhaustion coverage remains bounded to the
+   selected L2 traces and decision triggers.
 2. **Initial session establishment.** `SessionOperations` now checks the
    persisted initiator-pending and responder-established states after concrete
    Rust handshakes, including role, identity binding and the composed session
@@ -108,8 +144,9 @@ assertion compares durable state before and after the documented commit point.
    curve and KEM-prekey signatures are checked before the initiator's first
    randomness draw; no session exists on those traces to supply a persisted
    comparison. A responder low-order ephemeral and a malformed initial wire
-   prefix each preserve the prekey store under its model no-op relation.
-   Specification-only operation-reader coverage remains open.
+   prefix each preserve the prekey store under its model no-op relation. The v4
+   specification-only reader covers the agreed establishment/refusal families
+   under its declared-cryptography boundary.
 
 Each slice must emit a reproducible seed, name the reached requirement rows, and
 include at least one deliberate model/runner disagreement before it is counted as
