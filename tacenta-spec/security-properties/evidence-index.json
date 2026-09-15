@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "requirements": [
     {
       "id": "REQ-AUTH-04",
@@ -2708,6 +2708,136 @@
           ]
         }
       ]
+    }
+  ],
+  "invariants": [
+    {
+      "id": "INV-AUTH-COMMIT",
+      "rule_source": "tacenta-spec/protocol/session-establishment.md#Receiving the initial message",
+      "scope": "Responder establishment and established-session receive commit points.",
+      "establishing_operations": ["authenticated responder establishment", "authenticated session receive"],
+      "preserving_operations": ["ordinary refused input", "export/import from a committed snapshot"],
+      "refusal_terminal_effects": ["unauthenticated initial messages leave the prekey store unchanged", "ordinary receive refusal leaves the session unchanged"],
+      "requirements": ["REQ-AUTH-13", "REQ-CONF-04"],
+      "assumptions": ["ASM-19"],
+      "headroom": "not applicable: this is a commit-order predicate, not a numeric successor bound.",
+      "implementation": [{"path": "tacenta-core/src/sessions/lifecycle.rs", "symbol": "establish_responder"}],
+      "model_properties": [{"path": "tacenta-model/Model/SessionTrace.lean", "theorem": "refused_prefix", "coverage": "An ordinary abstract refusal has no committed effect before later actions."}],
+      "proofs": [{"path": "tacenta-proofs/Proofs/SessionTrace.lean", "theorem": "refusal_restore_preserves_continuation", "coverage": "The trace theorem preserves later outcomes across refusal and restore."}],
+      "tests": [{"path": "tacenta-core/tests/session_lifecycle_property.rs", "name": "session_lifecycle_01_establishes_restores_continues_and_refuses_replays", "coverage": "A forged message preserves the exported session and the genuine message remains deliverable."}],
+      "missing_evidence": [{"kind": "real-store crash proof", "reason": "The core has no database transaction boundary; the sibling product owns write-order and crash recovery.", "references": ["ASM-19"]}]
+    },
+    {
+      "id": "INV-IDENTITY-ROLE",
+      "rule_source": "tacenta-spec/protocol/session-persistence.md#Semantic rules",
+      "scope": "Persisted session identity orientation, role agreement and phase fields.",
+      "establishing_operations": ["initiator establishment", "responder establishment"],
+      "preserving_operations": ["authenticated send", "authenticated receive", "canonical export/import"],
+      "refusal_terminal_effects": ["inconsistent stored role/identity state is refused", "unrelated initial wrappers do not replace an established peer"],
+      "requirements": ["REQ-AUTH-01", "REQ-AUTH-02", "REQ-AUTH-05"],
+      "assumptions": ["ASM-19"],
+      "headroom": "not applicable: identity and role bindings do not consume a numeric budget.",
+      "implementation": [{"path": "tacenta-core/src/sessions/lifecycle.rs", "symbol": "Session::import"}],
+      "model_properties": [],
+      "proofs": [],
+      "tests": [{"path": "tacenta-core/tests/canonical_curve_keys.rs", "name": "a_repeated_initial_message_must_carry_the_sessions_peer_identity", "coverage": "An initial wrapper from a different peer cannot alter the established session."}],
+      "missing_evidence": [{"kind": "orchestration refinement", "reason": "The concrete session lifecycle is not translated or refined end to end.", "references": ["ASM-19"]}]
+    },
+    {
+      "id": "INV-PREKEY-CONSUMPTION",
+      "rule_source": "tacenta-spec/protocol/key-deletion.md#Establishing a session",
+      "scope": "One-time prekey deletion and last-resort replay records during responder establishment.",
+      "establishing_operations": ["authenticated responder establishment with one-time prekeys", "authenticated responder establishment with a last-resort key"],
+      "preserving_operations": ["failed initial decode", "failed initial authentication", "prekey-store export/import"],
+      "refusal_terminal_effects": ["reused one-time keys refuse", "last-resort replay records refuse repeated initial messages"],
+      "requirements": ["REQ-AUTH-12", "REQ-AUTH-13", "REQ-FS-03"],
+      "assumptions": ["ASM-19"],
+      "headroom": "Last-resort replay records are bounded by the specified store capacity; exhaustion is a refusal rather than continued success.",
+      "implementation": [{"path": "tacenta-core/src/sessions/lifecycle.rs", "symbol": "PrekeyStore"}],
+      "model_properties": [],
+      "proofs": [],
+      "tests": [{"path": "tacenta-core/tests/failed_decrypt_changes_nothing.rs", "name": "a_successful_initial_message_does_consume_its_prekeys", "coverage": "Only an authenticated initial message consumes the named one-time prekeys."}],
+      "missing_evidence": [{"kind": "specification-only operation reader", "reason": "The committed independent reader does not yet interpret lifecycle operations.", "references": ["ASM-19"]}]
+    },
+    {
+      "id": "INV-MESSAGE-SINGLE-USE",
+      "rule_source": "tacenta-spec/protocol/ratchet.md#Skipped keys",
+      "scope": "Accepted ratchet-message labels and replay after restoration.",
+      "establishing_operations": ["first authenticated delivery of a queued message"],
+      "preserving_operations": ["restoration after accepted delivery", "out-of-order skipped-key delivery"],
+      "refusal_terminal_effects": ["replay leaves the committed observation unchanged", "forged ciphertext leaves the committed observation unchanged"],
+      "requirements": ["REQ-AUTH-11", "REQ-CONF-04"],
+      "assumptions": ["ASM-19"],
+      "headroom": "The skipped-key store and per-chain skip limits bound delivery; an attempted step beyond a bound is refused.",
+      "implementation": [{"path": "tacenta-core/src/sessions/lifecycle.rs", "symbol": "decrypt"}],
+      "model_properties": [{"path": "tacenta-model/Model/SessionTrace.lean", "theorem": "accepted_replay_is_no_op", "coverage": "An already accepted abstract message cannot create a second accepted observation."}],
+      "proofs": [{"path": "tacenta-proofs/Proofs/SessionTrace.lean", "theorem": "replay_has_no_second_acceptance", "coverage": "The narrow trace theorem pins no operation effect for an accepted replay."}],
+      "tests": [{"path": "tacenta-core/tests/session_lifecycle_property.rs", "name": "session_lifecycle_01_establishes_restores_continues_and_refuses_replays", "coverage": "A replay after restoration is refused and a later genuine message is accepted."}],
+      "missing_evidence": [{"kind": "unbounded schedule proof", "reason": "The trace property is bounded and does not cover every delivery schedule.", "references": ["ASM-19"]}]
+    },
+    {
+      "id": "INV-COUNTER-EPOCH-BOUNDS",
+      "rule_source": "tacenta-spec/protocol/sparse-pq-ratchet.md#Receiving",
+      "scope": "Classical-ratchet counters, sparse epochs and Braid epoch transitions.",
+      "establishing_operations": ["ratchet send", "ratchet receive", "sparse advance", "Braid receive"],
+      "preserving_operations": ["canonical stored-state import", "bounded transition execution"],
+      "refusal_terminal_effects": ["reserved counter or epoch successor is refused", "decoded valid state remains panic-free at the boundary"],
+      "requirements": ["REQ-PCS-02"],
+      "assumptions": ["ASM-04", "ASM-05"],
+      "headroom": "Success refinement theorems retain an explicit successor-headroom premise; boundary states are separately accepted or refused as specified.",
+      "implementation": [{"path": "tacenta-core/braid/src/lib.rs", "symbol": "receive"}],
+      "model_properties": [],
+      "proofs": [{"path": "tacenta-proofs/Proofs/RatchetCorrectness.lean", "theorem": "skipMessageKeys_store_bounded", "coverage": "The model proves the skipped-key store stays within its bound after a successful skip."}],
+      "tests": [{"path": "tacenta-core/tests/agreement_and_bounds.rs", "name": "a_full_last_resort_budget_refuses_new_handshakes_and_still_refuses_replays", "coverage": "A full replay budget refuses new work without weakening replay refusal."}],
+      "missing_evidence": [{"kind": "boundary-success refinement", "reason": "The retained headroom premises are not consequences of decoded-state invariants.", "references": ["LIM-03"]}]
+    },
+    {
+      "id": "INV-COMPOSED-STATE",
+      "rule_source": "tacenta-spec/protocol/session-persistence.md#Semantic rules",
+      "scope": "Composed session Triple Ratchet, Braid and sparse-epoch relationship.",
+      "establishing_operations": ["session establishment", "authenticated send", "authenticated receive"],
+      "preserving_operations": ["session export/import", "ordinary refusal"],
+      "refusal_terminal_effects": ["inconsistent nested or role state is refused", "failed Braid is terminal and exempt only from its documented live-epoch relation"],
+      "requirements": ["REQ-PCS-02", "REQ-CONF-04"],
+      "assumptions": ["ASM-04", "ASM-05", "ASM-19"],
+      "headroom": "Live Braid epochs reserve the terminal value; Failed carries no live epoch and is handled by a separate terminal-state rule.",
+      "implementation": [{"path": "tacenta-core/src/sessions/lifecycle.rs", "symbol": "agreement_failed"}],
+      "model_properties": [],
+      "proofs": [],
+      "tests": [{"path": "tacenta-core/tests/import_invariants.rs", "name": "a_failed_braid_is_exempt_from_the_epoch_and_role_clauses", "coverage": "The persisted Failed state retains exactly the documented exemption."}],
+      "missing_evidence": [{"kind": "full orchestration proof", "reason": "The session layer composes translated leaf crates but is not itself translated.", "references": ["ASM-19"]}]
+    },
+    {
+      "id": "INV-TERMINAL-FAILURE",
+      "rule_source": "tacenta-spec/protocol/mlkem-braid.md#Failure",
+      "scope": "Session behavior after an authenticated receive commits Braid failure.",
+      "establishing_operations": ["authenticated receive that exposes a Braid failure"],
+      "preserving_operations": ["session export/import after failure"],
+      "refusal_terminal_effects": ["later send refuses", "later receive refuses", "restoration does not resurrect the session"],
+      "requirements": ["REQ-PCS-02"],
+      "assumptions": ["ASM-05", "ASM-19"],
+      "headroom": "not applicable: terminal failure is a phase transition, not a successful successor operation.",
+      "implementation": [{"path": "tacenta-core/src/sessions/lifecycle.rs", "symbol": "agreement_failed"}],
+      "model_properties": [{"path": "tacenta-model/Model/SessionTrace.lean", "theorem": "failed_run_stays_failed", "coverage": "Every later abstract action preserves the committed failed phase."}],
+      "proofs": [{"path": "tacenta-proofs/Proofs/SessionTrace.lean", "theorem": "terminal_failure_preserves_refusal", "coverage": "The narrow theorem carries terminal failure through any later trace suffix."}],
+      "tests": [{"path": "tacenta-core/tests/full_session.rs", "name": "the_message_that_fails_the_agreement_still_returns_its_plaintext", "coverage": "The triggering message is delivered, then later send and receive operations refuse."}],
+      "missing_evidence": [{"kind": "post-failure real-store recovery", "reason": "The core tests session bytes, not product-level durable store transactions.", "references": ["ASM-19"]}]
+    },
+    {
+      "id": "INV-CANONICAL-RESTORE",
+      "rule_source": "tacenta-spec/protocol/session-persistence.md#Principles",
+      "scope": "Session and prekey-store canonical import/export at operation checkpoints.",
+      "establishing_operations": ["successful session or prekey-store export"],
+      "preserving_operations": ["import of canonical bytes", "operation continuation after fresh-object restoration"],
+      "refusal_terminal_effects": ["malformed or inconsistent import creates no usable new object", "valid live state remains available to the caller"],
+      "requirements": ["REQ-AUTH-09", "REQ-CONF-04"],
+      "assumptions": ["ASM-19"],
+      "headroom": "Stored-format numeric bounds are checked by readers; no claim is made that a later successor operation has spare headroom.",
+      "implementation": [{"path": "tacenta-core/src/sessions/lifecycle.rs", "symbol": "Session::import"}],
+      "model_properties": [],
+      "proofs": [],
+      "tests": [{"path": "tacenta-core/tests/session_persistence.rs", "name": "a_session_survives_export_and_import", "coverage": "A fresh imported object continues a bidirectional conversation."}],
+      "missing_evidence": [{"kind": "atomic multi-object persistence", "reason": "Joint session/store writes are a caller contract outside this crate.", "references": ["ASM-19"]}]
     }
   ]
 }

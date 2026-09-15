@@ -43,6 +43,41 @@ The Rust fixtures that instantiate these abstractions must preserve the operatio
 shape: a failure trace changes only the abstract verdict being tested, and the
 assertion compares durable state before and after the documented commit point.
 
+## `SESSION-LIFECYCLE-01`: bounded composed trace
+
+This is the first P6 composition property. It is deliberately narrower than a
+refinement of the Rust session implementation and does not amend any public
+security requirement. It connects the operation rows below for a bounded
+two-party trace family, with abstract cryptographic verdicts supplied under the
+contract above.
+
+For two distinct fixed identities, an accepted establishment creates coherent
+peer observations. An accepted authenticated send followed by its matching
+receive delivers the intended plaintext exactly once. Exporting either peer
+after a committed step and importing fresh objects from those bytes preserves
+the observations needed for the remainder of the trace. An ordinary refused
+input preserves the specified durable observation, and a terminal Braid
+failure persists across export/import and refuses later session operations.
+
+The initial CI budget is at most two peers, three queued messages, 32 protocol
+operations and 32 deterministic seeds. Named regression traces are mandatory
+in addition to generated traces: one-time and last-resort establishment;
+pending, established, post-send and post-receive restoration; third-first
+delivery followed by skipped-message delivery; altered authentication/header
+and low-order agreement refusal followed by the genuine message; replay after
+restore; terminal Braid failure followed by restore and retry; and malformed
+stored bytes. The operation count excludes the observation-only exports used
+to create fresh objects, but each such checkpoint is recorded explicitly.
+
+The model observes identity binding, role/phase, pending-wrapper state,
+accepted plaintext labels, single-use/replay disposition, terminal Braid state
+and canonical exported session/store bytes. It does not observe or prove raw
+DH, KEM, signature or AEAD calculations, database atomicity, transport
+acknowledgements, hostile rollback of a valid store, or product store write
+ordering. The joint session/store snapshot is assumed committed at every
+checkpoint. A test-budget change must not change this statement without an
+explicit update to this section and the trace theorem.
+
 ## Operation inventory
 
 | Operation | Input and precondition | Transition and commit point | Outputs | Refusals and durable effects | Requirement families |

@@ -7,8 +7,8 @@ case IDs and gap or assumption references exist. It does not decide whether a
 theorem statement or test assertion semantically proves a requirement. That
 review remains a human obligation.
 
-The current on-disk format is JSON with `schema_version: 1` and a
-`requirements` array. Each requirement entry must include:
+The current on-disk format is JSON with `schema_version: 2`, a `requirements`
+array and an `invariants` array. Each requirement entry must include:
 
 - `id`: the `REQ-*` identifier from the security-property pages.
 - `source`: the source page plus `#REQ-*` anchor.
@@ -36,3 +36,24 @@ entry where tests only pin a proof premise.
 
 Attaching evidence never upgrades a requirement's status. The status remains
 the status stated by the requirement page and limitations table.
+
+Each invariant entry uses an `INV-*` identifier and must include:
+
+- `rule_source`: a normative protocol page and anchor containing the rule.
+- `scope`: component and state scope.
+- `establishing_operations`, `preserving_operations` and
+  `refusal_terminal_effects`: operation names or descriptions that establish,
+  preserve, refuse or terminally affect the invariant.
+- `requirements` and `assumptions`: live `REQ-*` and direct `ASM-*` links.
+- `headroom`: the relevant numeric bound or an explicit `not applicable`
+  disposition; a state bound does not imply a successor operation succeeds at
+  that bound.
+- `implementation`, `model_properties`, `proofs` and `tests`: live symbols or
+  test functions carrying the selected evidence.
+- `missing_evidence`: an explicit limitation or gap where a type of evidence
+  is absent. A declared gap is evidence of a limit, not proof that the
+  invariant is closed.
+
+The checker validates identifiers and live references only. It cannot decide
+that a cited theorem semantically proves a predicate; that remains a recorded
+review obligation.

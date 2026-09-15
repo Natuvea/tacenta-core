@@ -1,0 +1,20 @@
+name: assurance receipt
+description: Write and retain one successful candidate-check receipt.
+inputs:
+  id:
+    required: true
+  classification:
+    required: true
+  command:
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: cd "$GITHUB_WORKSPACE" && python3 tooling/write-assurance-receipt.py --id '${{ inputs.id }}' --classification '${{ inputs.classification }}' --command '${{ inputs.command }}' --output '.assurance/${{ inputs.id }}.json'
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: assurance-receipt-${{ inputs.id }}
+        path: .assurance/${{ inputs.id }}.json
+        if-no-files-found: error
+        retention-days: 7

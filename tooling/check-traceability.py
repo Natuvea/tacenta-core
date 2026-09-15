@@ -49,6 +49,34 @@ ENTRY_LIST_KEYS = {
     "tests",
     "missing_evidence",
 }
+INVARIANT_REQUIRED_KEYS = {
+    "id",
+    "rule_source",
+    "scope",
+    "establishing_operations",
+    "preserving_operations",
+    "refusal_terminal_effects",
+    "requirements",
+    "assumptions",
+    "headroom",
+    "implementation",
+    "model_properties",
+    "proofs",
+    "tests",
+    "missing_evidence",
+}
+INVARIANT_LIST_KEYS = {
+    "establishing_operations",
+    "preserving_operations",
+    "refusal_terminal_effects",
+    "requirements",
+    "assumptions",
+    "implementation",
+    "model_properties",
+    "proofs",
+    "tests",
+    "missing_evidence",
+}
 
 
 @dataclass(frozen=True)
@@ -332,8 +360,8 @@ def check_evidence_index(root: Path, security: Path, reqs: dict[str, Requirement
     except json.JSONDecodeError as exc:
         errors.append(f"{path}: invalid JSON: {exc}")
         return
-    if data.get("schema_version") != 1:
-        errors.append(f"{path}: schema_version must be 1")
+    if data.get("schema_version") != 2:
+        errors.append(f"{path}: schema_version must be 2")
     entries = data.get("requirements")
     if not isinstance(entries, list) or not entries:
         errors.append(f"{path}: requirements must be a non-empty list")
@@ -403,6 +431,67 @@ def check_evidence_index(root: Path, security: Path, reqs: dict[str, Requirement
     for missing in sorted(set(reqs) - seen):
         errors.append(f"{path}: missing evidence entry for {missing}")
 
+    invariants = data.get("invariants")
+    if not isinstance(invariants, list) or not invariants:
+        errors.append(f"{path}: invariants must be a non-empty list")
+        return
+    seen_invariants: set[str] = set()
+    for invariant in invariants:
+        if not isinstance(invariant, dict):
+            errors.append(f"{path}: invariant entries must be objects")
+            continue
+        for key in sorted(INVARIANT_REQUIRED_KEYS - set(invariant)):
+            errors.append(f"{path}: invariant entry missing required field {key}")
+        for key in sorted(INVARIANT_LIST_KEYS):
+            if key in invariant and not isinstance(invariant[key], list):
+                errors.append(f"{path}: invariant field {key} must be a list")
+        iid = invariant.get("id")
+        if not isinstance(iid, str) or not re.fullmatch(r"INV-[A-Z0-9-]+", iid):
+            errors.append(f"{path}: invariant has invalid id {iid!r}")
+            continue
+        if iid in seen_invariants:
+            errors.append(f"{path}: duplicate invariant id {iid}")
+        seen_invariants.add(iid)
+        for key in ("rule_source", "scope", "headroom"):
+            value = invariant.get(key)
+            if not isinstance(value, str) or not value.strip():
+                errors.append(f"{path}: {iid} {key} must be a non-empty string")
+        source = invariant.get("rule_source")
+        if isinstance(source, str):
+            source_path, marker, anchor = source.partition("#")
+            source_text = require_text(root / source_path, "invariant source", errors)
+            if not marker or not anchor or (source_text and anchor not in source_text):
+                errors.append(f"{path}: {iid} rule_source must name a live path and anchor")
+        for rid in invariant.get("requirements", []):
+            if rid not in reqs:
+                errors.append(f"{path}: {iid} cites unknown requirement {rid}")
+        for asm in invariant.get("assumptions", []):
+            if asm not in known_ids or not str(asm).startswith("ASM-"):
+                errors.append(f"{path}: {iid} cites unknown assumption {asm}")
+        for item in invariant.get("implementation", []):
+            check_symbol(root, item, "symbol", errors)
+        for item in invariant.get("model_properties", []):
+            check_theorem(root, item, errors)
+        for item in invariant.get("proofs", []):
+            check_theorem(root, item, errors)
+        for item in invariant.get("tests", []):
+            check_test(root, item, errors)
+        missing = invariant.get("missing_evidence", [])
+        for item in missing:
+            if not isinstance(item, dict):
+                errors.append(f"{path}: {iid} missing_evidence entry must be an object")
+                continue
+            for key in ("kind", "reason", "references"):
+                if key not in item:
+                    errors.append(f"{path}: {iid} missing_evidence entry missing {key}")
+            refs = item.get("references")
+            if not isinstance(refs, list) or not refs:
+                errors.append(f"{path}: {iid} missing_evidence entry has no references")
+                continue
+            for ref in refs:
+                if ref not in known_ids:
+                    errors.append(f"{path}: {iid} missing_evidence cites unknown reference {ref}")
+
 
 def main() -> int:
     parser = ArgumentParser()
@@ -427,7 +516,7 @@ def main() -> int:
     print(
         "traceability: "
         f"{len(reqs)} requirements, {len(assumptions)} assumptions, identifier references "
-        "and migrated evidence-index entries are consistent"
+        "and migrated evidence-index/invariant entries are consistent"
     )
     return 0
 

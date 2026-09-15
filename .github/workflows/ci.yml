@@ -92,6 +92,8 @@ jobs:
       - run: rustup target add aarch64-unknown-linux-gnu
       - name: The constant-time functions compile to straight-line code
         run: bash ../tooling/check-constant-time-asm.sh
+      - uses: ./.github/actions/assurance-receipt
+        with: { id: rust, classification: required, command: cargo-test-clippy-format-and-constant-time }
 
   # The minimum supported Rust version still compiles the workspace. A check,
   # not a test run: the tests run on stable above, and this exists so a use of
@@ -113,6 +115,8 @@ jobs:
         with:
           workspaces: tacenta-core
       - run: cargo check --locked --workspace --all-targets
+      - uses: ./.github/actions/assurance-receipt
+        with: { id: msrv, classification: required, command: cargo-check-msrv }
 
   # The decoders cast attacker-controlled lengths to `usize`, which is a
   # different width on a phone; the overflow guards are written for 32 bits
@@ -135,6 +139,8 @@ jobs:
         with:
           workspaces: tacenta-core
       - run: cargo check --locked --workspace --target armv7-linux-androideabi
+      - uses: ./.github/actions/assurance-receipt
+        with: { id: armv7, classification: required, command: cargo-check-armv7 }
 
   # The Rust conformance runner: the committed vectors under
   # `tacenta-test-vectors/vectors` against tacenta-core. Whether those vectors
@@ -179,6 +185,9 @@ jobs:
       # The independent reader, written from tacenta-spec and the vectors alone
       # (ADR-0006). Standard library only, so it needs no setup step.
       - run: python3 ../independent/reader/run.py | tail -n 22
+      - run: cd ../../.. && python3 tacenta-test-vectors/runners/independent/session-operation-reader.py
+      - uses: ./.github/actions/assurance-receipt
+        with: { id: vectors, classification: required, command: conformance-and-independent-readers }
 
   # Known advisories against tacenta-core's dependency graph. Fails on a
   # vulnerability; warnings (unmaintained, yanked) are printed and do not
@@ -196,6 +205,8 @@ jobs:
       - run: cargo install --locked cargo-audit
       - run: cargo audit
         working-directory: tacenta-core
+      - uses: ./.github/actions/assurance-receipt
+        with: { id: audit, classification: required, command: cargo-audit }
 
   # The Lean model and the model-layer proofs, and the vectors' currency.
   # `lake build` in tacenta-model compiles the model, the properties, and
@@ -238,6 +249,8 @@ jobs:
         run: |
           bash tacenta-test-vectors/regenerate-vectors.sh
           git diff --exit-code -- tacenta-test-vectors/vectors
+      - uses: ./.github/actions/assurance-receipt
+        with: { id: proofs, classification: required, command: model-proofs-and-vector-currency }
 
   # The committed Rust-to-Lean translation and the T1/T3 proofs over it, plus
   # the model and model-layer proofs, all built and scanned for incomplete
@@ -340,6 +353,8 @@ jobs:
             tacenta-proofs/translation/.lake/build
             tacenta-proofs/translation/.lake/packages/aeneas/backends/lean/.lake/build
           key: lean-build-${{ runner.os }}-${{ hashFiles('tacenta-model/lean-toolchain', 'tacenta-model/lake-manifest.json', 'tacenta-proofs/lean-toolchain', 'tacenta-proofs/lake-manifest.json', 'tacenta-proofs/translation/lean-toolchain', 'tacenta-proofs/translation/lake-manifest.json') }}-${{ github.sha }}
+      - uses: ./.github/actions/assurance-receipt
+        with: { id: translation, classification: required, command: translation-proofs-and-no-sorry }
 
   # The repository's own consistency checks: the ones `tooling/ci.sh` runs
   # before building anything, plus the attestation gate.
@@ -380,6 +395,12 @@ jobs:
       - run: python3 tooling/check_authentication_boundary.py
       - run: python3 tooling/check-vectors.py
       - run: bash tooling/tests/run-check-vectors-cases.sh
+      - run: python3 tooling/check-session-operation-traces.py
+      - run: bash tooling/tests/run-check-session-operation-traces-cases.sh
+      - run: bash tooling/tests/run-build-assurance-manifest-cases.sh
+      - run: bash tooling/tests/run-collect-assurance-receipts-cases.sh
+      - run: bash tooling/tests/run-build-evidence-pack-cases.sh
+      - run: bash tooling/tests/run-check-ledger-review-receipt-cases.sh
       # Note the assurance boundary: this checks the attestation manifest
       # against the source hashes. It does NOT re-derive the Rust->Lean
       # (Charon/Aeneas) translation, which runs on dedicated runners;
@@ -390,6 +411,8 @@ jobs:
         run: |
           python3 tacenta-proofs/scripts/attest.py --check
           bash tacenta-proofs/scripts/check-attest-negatives.sh
+      - uses: ./.github/actions/assurance-receipt
+        with: { id: checks, classification: required, command: source-and-assurance-checks }
 
   # Every commit a pull request adds is signed off by its author under the
   # Developer Certificate of Origin (CONTRIBUTING.md). Only pull requests: a
@@ -409,3 +432,35 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: bash tooling/check-signoff.sh "origin/${BASE_REF}"
+      - uses: ./.github/actions/assurance-receipt
+        with: { id: sign-off, classification: conditional, command: tooling-check-signoff }
+
+  assurance-receipts:
+    needs: [rust, msrv, armv7, vectors, audit, proofs, translation, checks, sign-off]
+    if: >-
+      needs.rust.result == 'success' && needs.msrv.result == 'success' &&
+      needs.armv7.result == 'success' && needs.vectors.result == 'success' &&
+      needs.audit.result == 'success' && needs.proofs.result == 'success' &&
+      needs.translation.result == 'success' && needs.checks.result == 'success' &&
+      (github.event_name == 'push' || needs.sign-off.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: assurance-receipt-*
+          path: .assurance/receipts
+          merge-multiple: true
+      - run: python3 tooling/collect-assurance-receipts.py --event '${{ github.event_name }}' --input-dir .assurance/receipts --output .assurance/assurance-receipts.json
+      - run: python3 tooling/build-assurance-manifest.py --receipts .assurance/assurance-receipts.json --output .assurance/assurance-manifest.json
+      - run: python3 tooling/build-assurance-manifest.py --validate .assurance/assurance-manifest.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: assurance-receipts
+          path: |
+            .assurance/assurance-receipts.json
+            .assurance/assurance-manifest.json
+          if-no-files-found: error
+          retention-days: 7

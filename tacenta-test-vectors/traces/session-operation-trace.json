@@ -1,0 +1,918 @@
+{
+  "schema_version": 1,
+  "algorithm": "session-operation-trace",
+  "source": "tacenta-spec/protocol/session-establishment.md (Keys; Publishing keys; Sending the initial message; Receiving the initial message; Replay; The fingerprint); tacenta-spec/protocol/key-deletion.md (Establishing a session; Prekeys at rest; What this implementation does: one-time prekeys are replenished, a replayed last-resort handshake is refused, signed prekeys rotate); tacenta-spec/protocol/session-persistence.md (Session; Prekey store); tacenta-spec/protocol/error-handling.md (Conditions a caller must act on are named); independent clean-room author: Jie Sun, P6 round two; ratchet.md (Sending and receiving; Skipped keys, 'A message whose ratchet key equals DHr, whose number N is below Nr, and whose key is not stored is not accepted'); mlkem-braid.md (Failure; 'Session puts nothing from a failed Braid on the wire: it refuses encrypt and decrypt with AgreementFailed'); session-persistence.md (Session, Semantic rules, 'A failed Braid (tag 11) is exempt'); session-establishment.md (Sending the initial message: 'Alice verifies every signature in the bundle and aborts if any fails'; Notation: 'Both sides refuse a Diffie-Hellman output that is not contributory'; Byte-level conventions / KEM validation, 'She has then computed no agreement and sent nothing')",
+  "traces": [
+    {
+      "id": "prekey-store-lifecycle",
+      "comment": "Family 1: create, publish, replenish, and each rotation, showing a retired key retained after the first rotation and then dropped after the second (key-deletion.md, Signed prekeys rotate).",
+      "fixtures": {
+        "bob-store": "the prekey store create-prekey-store below produces: create_prekeys(n=1) for Bob's identity -- signed prekey id 1, one one-time curve prekey id 2, last-resort KEM prekey id 3, one one-time KEM prekey id 4, next_id 5 (key-deletion.md, One-time prekeys are replenished)"
+      },
+      "steps": [
+        {
+          "actor": "application",
+          "op": "create-prekey-store",
+          "inputs": {
+            "identity": "bob-identity",
+            "one_time_count": "1"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "created",
+            "session": "unchanged",
+            "next_id": "advanced"
+          }
+        },
+        {
+          "actor": "application",
+          "op": "publish-bundle",
+          "inputs": {
+            "store": "bob-store"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged"
+          }
+        },
+        {
+          "actor": "application",
+          "op": "replenish",
+          "inputs": {
+            "store": "bob-store",
+            "count": "1"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "replenished",
+            "session": "unchanged",
+            "next_id": "advanced"
+          }
+        },
+        {
+          "actor": "application",
+          "op": "rotate-signed-prekey",
+          "inputs": {
+            "store": "bob-store"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "signed-prekey-rotated",
+            "session": "unchanged",
+            "next_id": "advanced",
+            "retired_signed_prekey": "retained"
+          }
+        },
+        {
+          "actor": "application",
+          "op": "rotate-signed-prekey",
+          "inputs": {
+            "store": "bob-store"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "signed-prekey-rotated",
+            "session": "unchanged",
+            "next_id": "advanced",
+            "retired_signed_prekey": "dropped"
+          }
+        },
+        {
+          "actor": "application",
+          "op": "rotate-kem",
+          "inputs": {
+            "store": "bob-store"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "kem-prekey-rotated",
+            "session": "unchanged",
+            "next_id": "advanced",
+            "retired_kem_prekey": "retained"
+          }
+        },
+        {
+          "actor": "application",
+          "op": "rotate-kem",
+          "inputs": {
+            "store": "bob-store"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "kem-prekey-rotated",
+            "session": "unchanged",
+            "next_id": "advanced",
+            "retired_kem_prekey": "dropped"
+          }
+        }
+      ]
+    },
+    {
+      "id": "prekey-store-identifier-ceiling",
+      "comment": "Family 1: the identifier ceiling. key-deletion.md: replenish 'adds nothing further and keeps what it has added' once next_id is u32::MAX, and each rotation 'returns without rotating, silently' at the same ceiling.",
+      "fixtures": {
+        "store-at-ceiling": "a prekey store whose next_id already stands at u32::MAX (key-deletion.md, One-time prekeys are replenished, identifier space end)"
+      },
+      "steps": [
+        {
+          "actor": "application",
+          "op": "replenish",
+          "inputs": {
+            "store": "store-at-ceiling",
+            "count": "1"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "next_id": "at-ceiling"
+          }
+        },
+        {
+          "actor": "application",
+          "op": "rotate-signed-prekey",
+          "inputs": {
+            "store": "store-at-ceiling"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "next_id": "at-ceiling"
+          }
+        },
+        {
+          "actor": "application",
+          "op": "rotate-kem",
+          "inputs": {
+            "store": "store-at-ceiling"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "next_id": "at-ceiling"
+          }
+        }
+      ]
+    },
+    {
+      "id": "establish-initiator-with-one-time-curve-prekey",
+      "comment": "Family 2: initiator establishment with a one-time curve prekey (session-establishment.md, Sending the initial message).",
+      "fixtures": {
+        "bob-bundle-with-otpk": "Bob's published bundle, carrying a one-time curve prekey and a one-time KEM prekey"
+      },
+      "steps": [
+        {
+          "actor": "initiator",
+          "op": "establish-initiator",
+          "inputs": {
+            "bundle": "bob-bundle-with-otpk",
+            "peer_identity": "bob-identity"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "initiator-pending"
+          }
+        }
+      ]
+    },
+    {
+      "id": "establish-initiator-without-one-time-curve-prekey",
+      "comment": "Family 2: initiator establishment against a bundle with no one-time curve prekey, the last-resort KEM path (session-establishment.md, Sending the initial message; Replay).",
+      "fixtures": {
+        "bob-bundle-no-otpk": "Bob's published bundle, with no one-time curve prekey and the last-resort KEM prekey named"
+      },
+      "steps": [
+        {
+          "actor": "initiator",
+          "op": "establish-initiator",
+          "inputs": {
+            "bundle": "bob-bundle-no-otpk",
+            "peer_identity": "bob-identity"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "initiator-pending"
+          }
+        }
+      ]
+    },
+    {
+      "id": "establish-responder-with-one-time-curve-prekey",
+      "comment": "Family 2: responder establishment consumes exactly the named one-time curve and KEM prekeys, only once the initial ciphertext has authenticated (session-establishment.md, Receiving the initial message; key-deletion.md, Establishing a session).",
+      "fixtures": {
+        "bob-store": "Bob's prekey store, holding the one-time curve and KEM prekeys named below",
+        "alice-initial-with-otpk": "Alice's initial message naming Bob's signed prekey, one one-time curve prekey and one one-time KEM prekey, whose ciphertext authenticates"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "establish-responder",
+          "inputs": {
+            "store": "bob-store",
+            "message": "alice-initial-with-otpk"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "one-time-keys-deleted",
+            "session": "responder-established",
+            "one_time_curve": "deleted",
+            "one_time_kem": "deleted"
+          }
+        }
+      ]
+    },
+    {
+      "id": "establish-responder-last-resort",
+      "comment": "Family 2: responder establishment on the last-resort path -- no one-time curve prekey, the last-resort KEM prekey reused -- and the fingerprint is added only after the ciphertext authenticates (session-establishment.md, Replay, The fingerprint).",
+      "fixtures": {
+        "bob-store": "Bob's prekey store, one-time curve and KEM pools exhausted, last-resort KEM prekey still live",
+        "alice-initial-last-resort": "Alice's initial message naming no one-time curve prekey and Bob's last-resort KEM prekey, never seen before, whose ciphertext authenticates"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "establish-responder",
+          "inputs": {
+            "store": "bob-store",
+            "message": "alice-initial-last-resort"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "last-resort-fingerprint-added",
+            "session": "responder-established",
+            "one_time_curve": "absent",
+            "one_time_kem": "last-resort",
+            "last_resort_record": "added"
+          }
+        }
+      ]
+    },
+    {
+      "id": "establish-responder-forged-initial-ciphertext",
+      "comment": "Families 2 and 3: a forged initial message fails to authenticate; SK is aborted and deleted, and the prekey store is left exactly as it found it -- no one-time key is deleted (session-establishment.md, Receiving the initial message; key-deletion.md, 'a message that fails to authenticate leaves the store as it found it').",
+      "fixtures": {
+        "bob-store": "Bob's prekey store, holding the one-time curve and KEM prekeys named below, untouched",
+        "alice-forged-initial": "an initial message naming the same prekeys as alice-initial-with-otpk, whose AEAD tag does not verify under the derived SK"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "establish-responder",
+          "inputs": {
+            "store": "bob-store",
+            "message": "alice-forged-initial"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "authentication-failure"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "one_time_curve": "unchanged",
+            "one_time_kem": "unchanged",
+            "last_resort_record": "unchanged"
+          }
+        }
+      ]
+    },
+    {
+      "id": "one-time-kem-prekey-replay-refused",
+      "comment": "Family 4: a one-time KEM prekey defends itself by deletion on use, so a fresh establish-responder attempt naming an already-consumed one-time prekey fails as a no-op. error-handling.md leaves the error type to the implementation and names no refusal for this case, so expect carries no `refusal` field.",
+      "fixtures": {
+        "bob-store-after-establish": "Bob's store after establish-responder consumed the one-time curve and KEM prekeys named by alice-initial-with-otpk",
+        "alice-initial-with-otpk-replayed": "the identical bytes of alice-initial-with-otpk, offered again with no existing responder session to recognise it as a repeat (e.g. the application dropped that session)"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "establish-responder",
+          "inputs": {
+            "store": "bob-store-after-establish",
+            "message": "alice-initial-with-otpk-replayed"
+          },
+          "expect": {
+            "outcome": "refused"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "one_time_curve": "unchanged",
+            "one_time_kem": "unchanged",
+            "last_resort_record": "unchanged"
+          }
+        }
+      ]
+    },
+    {
+      "id": "last-resort-handshake-replay-refused",
+      "comment": "Family 4: a captured last-resort initial message, replayed against the fingerprint record, is refused (session-establishment.md, Replay, The fingerprint; key-deletion.md, 'A replayed last-resort handshake is refused').",
+      "fixtures": {
+        "bob-store-with-fingerprint": "Bob's store, whose last-resort replay record already holds the fingerprint of an earlier accepted handshake",
+        "alice-last-resort-initial-replayed": "the identical bytes of that earlier accepted last-resort initial message"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "establish-responder",
+          "inputs": {
+            "store": "bob-store-with-fingerprint",
+            "message": "alice-last-resort-initial-replayed"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "ReplayedLastResort"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "one_time_curve": "unchanged",
+            "one_time_kem": "unchanged",
+            "last_resort_record": "unchanged"
+          }
+        }
+      ]
+    },
+    {
+      "id": "last-resort-record-full-refused",
+      "comment": "Family 4: a last-resort key whose replay record already holds MAX_LAST_RESORT_SEEN entries refuses a new, never-seen handshake before anything is decrypted or changed (key-deletion.md, 'it never evicts... is refused (LastResortRecordFull)').",
+      "fixtures": {
+        "bob-store-record-full": "Bob's store, whose current last-resort KEM key's replay record already holds MAX_LAST_RESORT_SEEN entries",
+        "alice-new-last-resort-initial": "a fresh, never-seen last-resort initial message naming that same last-resort KEM key"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "establish-responder",
+          "inputs": {
+            "store": "bob-store-record-full",
+            "message": "alice-new-last-resort-initial"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "LastResortRecordFull"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged",
+            "one_time_curve": "unchanged",
+            "one_time_kem": "unchanged",
+            "last_resort_record": "unchanged"
+          }
+        }
+      ]
+    },
+    {
+      "id": "repeated-initial-accepted-on-responder-session",
+      "comment": "Family 5: a repeat of the message that established a responder session is not refused; it decrypts the inner ratchet message once (session-establishment.md, Receiving the initial message).",
+      "fixtures": {
+        "bob-established-session": "Bob's responder session, established from alice-initial-with-otpk, whose inner ratchet message has not yet been read a second time",
+        "alice-initial-with-otpk-repeat": "the identical bytes of alice-initial-with-otpk, sent again before Bob's first reply reaches Alice"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "receive-repeated-initial",
+          "inputs": {
+            "session": "bob-established-session",
+            "message": "alice-initial-with-otpk-repeat"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "message-accepted"
+          }
+        }
+      ]
+    },
+    {
+      "id": "not-a-repeated-initial-on-initiator-session",
+      "comment": "Family 5: an initiator's session always refuses an initial message as not a repeat (session-establishment.md, Receiving the initial message, 'always on an initiator's session').",
+      "fixtures": {
+        "alice-initiator-session": "Alice's own initiator session, still pending Bob's reply",
+        "carol-initial-to-alice": "an initial message addressed to Alice from a third party, or from Bob under simultaneous initiation"
+      },
+      "steps": [
+        {
+          "actor": "initiator",
+          "op": "receive-repeated-initial",
+          "inputs": {
+            "session": "alice-initiator-session",
+            "message": "carol-initial-to-alice"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "NotARepeatedInitial"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged"
+          }
+        }
+      ]
+    },
+    {
+      "id": "not-a-repeated-initial-changed-ephemeral",
+      "comment": "Family 5: a responder session refuses an initial message whose ephemeral differs from the one that established it -- a session reset (session-establishment.md, Receiving the initial message, 'A session reset, or a changed identity').",
+      "fixtures": {
+        "bob-established-session": "Bob's responder session, established from alice-initial-with-otpk",
+        "alice-reset-initial": "an initial message from Alice with a new ephemeral key, the same identity key"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "receive-repeated-initial",
+          "inputs": {
+            "session": "bob-established-session",
+            "message": "alice-reset-initial"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "NotARepeatedInitial"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged"
+          }
+        }
+      ]
+    },
+    {
+      "id": "not-a-repeated-initial-changed-identity",
+      "comment": "Family 5: a responder session refuses an initial message whose identity differs from the one that established it (session-establishment.md, Receiving the initial message, 'and, after a changed identity, a new identity').",
+      "fixtures": {
+        "bob-established-session": "Bob's responder session, established from alice-initial-with-otpk",
+        "alice-changed-identity-initial": "an initial message with a new identity key and a new ephemeral key"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "receive-repeated-initial",
+          "inputs": {
+            "session": "bob-established-session",
+            "message": "alice-changed-identity-initial"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "NotARepeatedInitial"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged"
+          }
+        }
+      ]
+    },
+    {
+      "id": "restore-prekey-store-then-replenish",
+      "comment": "Family 6: restoring a prekey store from exported bytes and continuing to replenish it confirms the restored next_id sequence carries forward (session-persistence.md, Prekey store; key-deletion.md, One-time prekeys are replenished).",
+      "fixtures": {
+        "bob-store-exported": "Bob's prekey store, exported to bytes before a restart",
+        "bob-store-restored": "the store restore-prekey-store below reads back from bob-store-exported"
+      },
+      "steps": [
+        {
+          "actor": "application",
+          "op": "restore-prekey-store",
+          "inputs": {
+            "bytes": "bob-store-exported"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "restored",
+            "session": "unchanged"
+          }
+        },
+        {
+          "actor": "application",
+          "op": "replenish",
+          "inputs": {
+            "store": "bob-store-restored",
+            "count": "1"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "replenished",
+            "session": "unchanged",
+            "next_id": "advanced"
+          }
+        }
+      ]
+    },
+    {
+      "id": "restore-session-then-send",
+      "comment": "Family 6: restoring a session from exported bytes and sending on it confirms the restored session continues (session-persistence.md, Session; triple-ratchet.md, Sending and receiving).",
+      "fixtures": {
+        "alice-session-exported": "Alice's established session, exported to bytes before a restart",
+        "alice-session-restored": "the session restore-session below reads back from alice-session-exported"
+      },
+      "steps": [
+        {
+          "actor": "application",
+          "op": "restore-session",
+          "inputs": {
+            "bytes": "alice-session-exported"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "restored"
+          }
+        },
+        {
+          "actor": "initiator",
+          "op": "send",
+          "inputs": {
+            "session": "alice-session-restored",
+            "plaintext": "post-restart message"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "message-accepted"
+          }
+        }
+      ]
+    },
+    {
+      "id": "control-wrong-durable-effect",
+      "comment": "Control C1 (deliberately wrong expected effect). The step and its refusal are exactly establish-responder-with-one-time-curve-prekey's, but this trace falsely claims the one-time curve prekey survives. session-establishment.md and key-deletion.md require it deleted once the ciphertext authenticates. A conformant checker must flag this trace as contradicting the cited source, not pass it.",
+      "fixtures": {
+        "bob-store": "Bob's prekey store, holding the one-time curve and KEM prekeys named below",
+        "alice-initial-with-otpk": "Alice's initial message naming Bob's signed prekey, one one-time curve prekey and one one-time KEM prekey, whose ciphertext authenticates"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "establish-responder",
+          "inputs": {
+            "store": "bob-store",
+            "message": "alice-initial-with-otpk"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "one-time-keys-deleted",
+            "session": "responder-established",
+            "one_time_curve": "unchanged",
+            "one_time_kem": "deleted"
+          }
+        }
+      ]
+    },
+    {
+      "id": "control-missing-required-input",
+      "comment": "Control C2 (missing required input). establish-responder cannot be checked against the source without the initial message it is receiving: `inputs` omits `message` on purpose. A conformant checker must refuse to score this step rather than silently pass it.",
+      "fixtures": {
+        "bob-store": "Bob's prekey store, holding the one-time curve and KEM prekeys named below"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "establish-responder",
+          "inputs": {
+            "store": "bob-store"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "one-time-keys-deleted",
+            "session": "responder-established",
+            "one_time_curve": "deleted",
+            "one_time_kem": "deleted"
+          }
+        }
+      ]
+    },
+    {
+      "id": "receive-ordinary-authenticated",
+      "comment": "Family 7 passing neighbour: an ordinary, in-order authenticated receive on an already-established session (ratchet.md, Sending and receiving).",
+      "fixtures": {
+        "established-session": "an established session with a live sending and receiving chain",
+        "in-order-message": "the next message on that chain, whose ciphertext authenticates"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "receive",
+          "inputs": {
+            "session": "established-session",
+            "message": "in-order-message"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "message-accepted"
+          }
+        }
+      ]
+    },
+    {
+      "id": "receive-out-of-order-then-recovery-then-duplicate-refused",
+      "comment": "Family 7 main case: later-message-first delivery stores a skipped key, a late arrival recovers it, and a replay of an already-used message is refused without changing the session (ratchet.md, Skipped keys; Sending and receiving).",
+      "fixtures": {
+        "established-session": "an established session with a live receiving chain, Nr at its start",
+        "message-2-first": "the receiving chain's second message, delivered before its first, whose ciphertext authenticates -- the receiver stores message 1's key and decrypts message 2",
+        "message-1-late": "the receiving chain's first message, arriving after message 2 -- its key was stored by the previous step and is used and removed",
+        "message-2-replayed": "the identical bytes of message-2-first, delivered again after message 2 has already been read"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "receive",
+          "inputs": {
+            "session": "established-session",
+            "message": "message-2-first"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "message-accepted"
+          }
+        },
+        {
+          "actor": "responder",
+          "op": "receive",
+          "inputs": {
+            "session": "established-session",
+            "message": "message-1-late"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "message-accepted"
+          }
+        },
+        {
+          "actor": "responder",
+          "op": "receive",
+          "inputs": {
+            "session": "established-session",
+            "message": "message-2-replayed"
+          },
+          "expect": {
+            "outcome": "refused"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged"
+          }
+        }
+      ]
+    },
+    {
+      "id": "control-family7-duplicate-wrongly-accepted",
+      "comment": "Control (family 7, deliberately wrong durable effect). Same duplicate-replay step as receive-out-of-order-then-recovery-then-duplicate-refused's last step, but this trace falsely claims it is accepted a second time. ratchet.md requires a message whose key has already been used and is not stored to be refused, unchanged.",
+      "fixtures": {
+        "established-session": "an established session, message 2 already read once",
+        "message-2-replayed": "the identical bytes of an already-read message"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "receive",
+          "inputs": {
+            "session": "established-session",
+            "message": "message-2-replayed"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "message-accepted"
+          }
+        }
+      ]
+    },
+    {
+      "id": "braid-terminal-failure-persists-and-refuses",
+      "comment": "Family 8, all three parts in one arc: an authenticated receive whose Braid MAC check fails enters the terminal Failed state (the outer message still authenticates and is accepted -- mlkem-braid.md, Failure); the session is exported and restored, and the persisted Failed state survives (session-persistence.md, Session, Semantic rules, 'A failed Braid (tag 11) is exempt'); a later operation on the restored session is refused (mlkem-braid.md, 'Session puts nothing from a failed Braid on the wire').",
+      "fixtures": {
+        "established-session": "an established session with a live Braid",
+        "message-with-failing-braid-mac": "a message whose outer ratchet AEAD tag authenticates but whose Braid header or ciphertext MAC does not verify, moving the Braid to Failed",
+        "failed-session-exported": "the session, with its now-Failed Braid, exported to bytes",
+        "failed-session-restored": "the session restore-session below reads back from failed-session-exported",
+        "next-plaintext": "a plaintext the application attempts to send after restoring"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "receive",
+          "inputs": {
+            "session": "established-session",
+            "message": "message-with-failing-braid-mac"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "terminal-failed"
+          }
+        },
+        {
+          "actor": "application",
+          "op": "restore-session",
+          "inputs": {
+            "bytes": "failed-session-exported"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "restored"
+          }
+        },
+        {
+          "actor": "initiator",
+          "op": "send",
+          "inputs": {
+            "session": "failed-session-restored",
+            "plaintext": "next-plaintext"
+          },
+          "expect": {
+            "outcome": "refused"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged"
+          }
+        }
+      ]
+    },
+    {
+      "id": "control-family8-missing-message-input",
+      "comment": "Control (family 8, missing required input). The receive step that is supposed to drive the Braid to Failed omits its `message` fixture reference, so it cannot be evaluated at all.",
+      "fixtures": {
+        "established-session": "an established session with a live Braid"
+      },
+      "steps": [
+        {
+          "actor": "responder",
+          "op": "receive",
+          "inputs": {
+            "session": "established-session"
+          },
+          "expect": {
+            "outcome": "ok"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "terminal-failed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "establish-initiator-bad-prekey-signature-refused",
+      "comment": "Family 9: a bundle whose signed prekey signature does not verify is refused before any agreement is computed (session-establishment.md, Sending the initial message, 'Alice verifies every signature in the bundle and aborts if any fails. This is not optional').",
+      "fixtures": {
+        "bob-bundle-bad-signature": "a well-formed, decodable bundle whose signed-prekey signature does not verify under the bundle's own identity key"
+      },
+      "steps": [
+        {
+          "actor": "initiator",
+          "op": "establish-initiator",
+          "inputs": {
+            "bundle": "bob-bundle-bad-signature",
+            "peer_identity": "bob-identity"
+          },
+          "expect": {
+            "outcome": "refused"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged"
+          }
+        }
+      ]
+    },
+    {
+      "id": "establish-initiator-non-contributory-dh-refused",
+      "comment": "Family 9: a bundle whose prekey is a low-order point yields a non-contributory Diffie-Hellman output, refused before SK is used for anything (session-establishment.md, Notation, 'Both sides refuse a Diffie-Hellman output that is not contributory, which a low-order public key produces').",
+      "fixtures": {
+        "bob-bundle-low-order-prekey": "a well-formed, canonically-encoded bundle whose signed prekey is a low-order curve point, so DH(EKA, SPKB) is all-zero"
+      },
+      "steps": [
+        {
+          "actor": "initiator",
+          "op": "establish-initiator",
+          "inputs": {
+            "bundle": "bob-bundle-low-order-prekey",
+            "peer_identity": "bob-identity"
+          },
+          "expect": {
+            "outcome": "refused"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged"
+          }
+        }
+      ]
+    },
+    {
+      "id": "establish-initiator-malformed-bundle-refused",
+      "comment": "Family 9: a bundle that fails to decode -- here, a curve key re-spelled outside its canonical encoding -- is refused as a decode failure, before any signature is checked or agreement computed (message-format.md, Curve public keys; Rejection; session-establishment.md, 'She has then computed no agreement and sent nothing').",
+      "fixtures": {
+        "bob-bundle-noncanonical-key": "a bundle whose identity_key is re-spelled with bit 255 set, failing DecodeEC's canonical check"
+      },
+      "steps": [
+        {
+          "actor": "initiator",
+          "op": "establish-initiator",
+          "inputs": {
+            "bundle": "bob-bundle-noncanonical-key",
+            "peer_identity": "bob-identity"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "decode-failure"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "unchanged"
+          }
+        }
+      ]
+    },
+    {
+      "id": "control-family9-malformed-bundle-wrongly-pending",
+      "comment": "Control (family 9, deliberately wrong durable effect). Same malformed bundle as establish-initiator-malformed-bundle-refused, but this trace falsely claims a pending session results. session-establishment.md is explicit that a bundle failing this check means Alice 'has then computed no agreement and sent nothing'.",
+      "fixtures": {
+        "bob-bundle-noncanonical-key": "a bundle whose identity_key is re-spelled with bit 255 set, failing DecodeEC's canonical check"
+      },
+      "steps": [
+        {
+          "actor": "initiator",
+          "op": "establish-initiator",
+          "inputs": {
+            "bundle": "bob-bundle-noncanonical-key",
+            "peer_identity": "bob-identity"
+          },
+          "expect": {
+            "outcome": "refused",
+            "refusal": "decode-failure"
+          },
+          "effect": {
+            "prekey_store": "unchanged",
+            "session": "initiator-pending"
+          }
+        }
+      ]
+    }
+  ]
+}

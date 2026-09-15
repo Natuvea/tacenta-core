@@ -1,6 +1,10 @@
 # Rust
 target/
 
+# Candidate receipt aggregation writes only ephemeral CI inputs and outputs.
+# These are retained through the workflow artifact, never as source files.
+.assurance/
+
 # Lean
 .lake/
 

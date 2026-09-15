@@ -29,13 +29,13 @@ The current reproduction instructions and toolchain pins are in
 
 | Gate | Evidence to freeze at the candidate | Status before candidate selection | Closure action |
 | --- | --- | --- | --- |
-| 1 — component targets | `ASSURANCE.md`, `ASSURANCE-OBLIGATIONS.md`, target decisions and the component-specific proof/vector/test results | Open: the session orchestration and prekey-store row remains L1 with an L2 target. | Complete the specification-only reader operation surface, or make a reviewed target decision. |
-| 2 — classified gaps | `GAP-REGISTER.md`, `ASSURANCE-OBLIGATIONS.md`, and every decision linked from an open/deferred row | Open while P6 remains BLOCKING. | Re-run the classification check after gate 1’s P6 action; no BLOCKING or unresolved AMBIGUOUS row may remain. |
+| 1 — component targets | `ASSURANCE.md`, `ASSURANCE-OBLIGATIONS.md`, target decisions and the component-specific proof/vector/test results | P6 is closed at its bounded L2 target by `P6-L2-TARGET-DECISION.md`; Practice 5 and the remaining final-candidate obligations still block the gate. | Complete or record decisions for every remaining component deficit, then assess the matrix at the frozen candidate. |
+| 2 — classified gaps | `GAP-REGISTER.md`, `ASSURANCE-OBLIGATIONS.md`, and every decision linked from an open/deferred row | Open: the headroom and erasure deferrals have recorded decisions, but blocking MU-03, MU-04, MU-05 and P9 work remains. | Re-run the classification assessment at the frozen candidate; no BLOCKING or unresolved AMBIGUOUS row may remain. |
 | 3 — independent ledger review | Candidate `CLAIMS.md`, `LIMITATIONS.md`, requirement evidence index, proof manifests and generated translation attestation | Not yet requested. | A reader distinct from the ledger author records the reviewed revision, artifacts read, claim-by-claim findings and disposition in the final pull request. Any later ledger or supporting-evidence change reopens this review. |
 | 4 — negative controls and required inputs | The mutation records below plus full local and hosted CI evidence | Open: the inventory identifies controls still to be run or added. | Execute or add each named control, retain its diagnostic at the candidate revision, and test missing prerequisites separately from malformed inputs. |
 
 The P7 target decisions are inputs to gates 1 and 2, not substitutes for the
-P6 reader or P9 review.  In particular,
+remaining semantic review, hosted evidence or P9 review. In particular,
 [`ERASURE-CODEC-TARGET-DECISION.md`](ERASURE-CODEC-TARGET-DECISION.md) records
 an L3 engagement target and deliberately does not claim codec refinement.
 
@@ -48,12 +48,12 @@ mistaken for a control.
 
 | Check | Protected property | Existing control/evidence | Candidate record still needed |
 | --- | --- | --- | --- |
-| `tooling/check-traceability.py` | Requirement, status, assumption and evidence-index references stay coherent. | `tooling/tests/run-check-traceability-cases.sh` runs a passing baseline and 19 focused refusals, including missing requirement metadata, status-table title/class drift, both assumption-inverse directions, and unknown `LIM`/`ADV`/`AS`/`EX` references. | Capture its command, platform and successful diagnostic-free result at the candidate. |
+| `tooling/check-traceability.py` | Requirement, status, assumption and evidence-index references stay coherent. | `tooling/tests/run-check-traceability-cases.sh` runs a passing baseline and 22 focused refusals, including missing requirement metadata, status-table title/class drift, both assumption-inverse directions, unknown `LIM`/`ADV`/`AS`/`EX` references, and invariant-catalogue faults. | Capture its command, platform and successful diagnostic-free result at the candidate. |
 | `tooling/check-workflows.sh` | Workflows parse and retain repository security rules. | The 62 cases in `tooling/tests/check-workflows-cases` are the current negative corpus. | Capture its command, platform and successful diagnostic-free result at the candidate. |
 | `tooling/check-precondition-shapes.py` | First-party Lean does not gain a listed vacuous numeric precondition shape. | The 71 case directories in `tooling/tests/check-precondition-shapes-cases` are the current negative corpus. | Capture its command, platform and successful diagnostic-free result at the candidate. |
 | `tooling/check-labels.sh` | Derivation labels remain registered and prefix-safe. | `tooling/tests/run-check-labels-cases.sh` runs a passing baseline, an unregistered-label refusal and a forbidden-prefix refusal through the production checker. | Capture its command, platform and successful diagnostic-free result at the candidate. |
 | `tooling/check-vectors.py` | Vector documents obey their schemas. | `tooling/tests/run-check-vectors-cases.sh` runs a valid baseline, an unexpected-field schema refusal, a duplicate-ID refusal and an unsupported-schema-keyword refusal against the production checker. | Capture its command, platform and successful diagnostic-free result at the candidate. |
-| Independent reader | The specification-only reader can interpret the committed vector surface it declares. | Derived reader cases and historical findings cover current component pages. | A clean-room author must run and record a representative incorrect/missing vector-rule control. The author must satisfy ADR-0006’s isolation requirement. |
+| Independent operation reader | The specification-only reader can interpret the committed P6 operation surface it declares. | Jie Sun's v4 record covers 27 traces/41 steps across all nine families. Its five controls reject a wrong durable effect, missing required inputs, an accepted duplicate and malformed-bundle pending state. | Retain the v4 clean-room record, reader/corpus hashes, command, platform and full output at the candidate; any changed operation corpus needs a new isolated run. |
 | Claims and attestation | Declared claims name live theorems and generated artifacts match their recorded source state. | `check-audit-negatives.sh` exercises the audit's accepted compiler-trust orphan and 11 refusal cases. `check-attest-negatives.sh` refuses a missing claimed theorem, missing verification manifest, stale source attestation and edited generated translation, matching each diagnostic. | Capture their command, platform and successful diagnostic-free result at the candidate. |
 | Full CI | Required gates do not silently report success when inputs or tools are absent. | Local `tooling/ci.sh` and the GitHub workflow share the principal checks; workflow scripts state CI-only missing-tool failure behaviour. | Record exact local skips and the hosted job results; plant or identify a missing-prerequisite control for every required hosted-only dependency. |
 
@@ -73,6 +73,12 @@ candidate.  Its record must contain all of the following:
 
 The recorded review is evidence of the review only.  It does not replace the
 mutation evidence required by gate 4.
+
+`tooling/check-ledger-review-receipt.py` validates the receipt's structure and
+binding to the evidence-pack manifest. It cannot establish reviewer
+independence or semantic adequacy, which remain human-review findings.
+`tooling/validate-reviewed-evidence.py` additionally verifies that the review
+receipt, evidence pack and assurance manifest bind the same clean candidate.
 
 ## Claims and attestation control record
 
@@ -99,4 +105,24 @@ diagnostic, so a failure elsewhere cannot satisfy a case.
    with a dated evidence record or a reviewed decision that changes the target.
 3. Run the independent ledger review on that frozen revision.
 4. Confirm no covered artifact changed after the review; otherwise repeat the
-   affected checks and review.
+affected checks and review.
+
+## Immutable archive
+
+The private archive bucket is `tacenta-core-assurance-evidence-238576302016`
+in `eu-west-2`. It has versioning, all public-access blocks, and a default
+2,555-day S3 Object Lock **COMPLIANCE** retention. Publish each verified pack
+under a new content-addressed candidate prefix, retain its version IDs and
+Object-Lock metadata in the publication receipt, then download and run
+`python3 tooling/build-evidence-pack.py --verify` on the downloaded pack.
+`tooling/publish-evidence-archive.py --pack PACK --dry-run` derives and prints
+that prefix; without `--dry-run` it uploads only verified pack files and sends
+S3 `If-None-Match: *` so an existing object key is refused. Publication
+requires an unused `--receipt` path and records every object key, version ID
+and Compliance retain-until timestamp.
+
+The initialization control uploaded
+`controls/initialization/object-lock-20260915T151835Z.txt`, version
+`NUDN9R0z2n0L.ngQi0NvfKjP4YMKq8hG`. S3 reported Compliance retention until
+`2033-09-13T15:18:36Z` and refused a version-specific delete with Object Lock
+`AccessDenied`. This verifies configuration, not a candidate publication.

@@ -5,6 +5,7 @@ import Proofs.MemorySafety
 import Proofs.RatchetCorrectness
 import Proofs.Serialization
 import Proofs.SessionEstablishment
+import Proofs.SessionTrace
 import Proofs.SparseRatchetCorrectness
 import Proofs.StateInvariants
 import Proofs.TrustedBase
