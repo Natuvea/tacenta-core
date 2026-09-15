@@ -2037,6 +2037,29 @@ are what the refinement theorems are *about*.
   the induction forced into the open; every real call starts at one and only
   multiplies.
 
+## Proved (bounded P6 session lifecycle observations)
+
+Location: `Proofs/SessionTrace.lean`. These are the three narrow theorems for
+`SESSION-LIFECYCLE-01`, over `Model.SessionTrace`'s explicit abstract state.
+They are part of the recorded P6 L2 evidence, not a new public security
+requirement and not a refinement of `tacenta-core`'s session orchestration.
+The abstract crypto verdicts and the committed joint snapshot are assumptions
+of the model; the concrete lifecycle test and operation corpus are separate,
+bounded evidence that selected Rust traces fit this boundary.
+
+- `refusal_restore_preserves_continuation`: adding an ordinary abstract
+  refusal and restoration from the same committed snapshot before a later
+  honest suffix leaves that suffix's final abstract observation unchanged.
+  It excludes crash windows, hostile rollback and product-store transaction
+  semantics.
+- `terminal_failure_preserves_refusal`: once an abstract terminal agreement
+  failure is committed, every later abstract lifecycle suffix remains in the
+  failed phase. It does not say a caller cannot replace storage with an older
+  hostile snapshot.
+- `replay_has_no_second_acceptance`: receiving a message already in the
+  committed accepted observation has no abstract operation effect. Concrete
+  P6 traces separately check the public replay refusal they return.
+
 ## Evidence, not proof
 
 Runtime evidence: known-answer and self-consistency checks. These are build

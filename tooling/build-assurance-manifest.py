@@ -24,6 +24,7 @@ SOURCES = [
     "tacenta-model/P6-L2-TARGET-DECISION.md",
     "tacenta-proofs/manifests/verification-manifest.json",
     "tacenta-spec/security-properties/evidence-index.json",
+    "tacenta-spec/security-properties/INVARIANT-EVIDENCE-SOURCE-DECISION.md",
     "tacenta-spec/security-properties/INVARIANT-SEMANTIC-REVIEW-BRIEF.md",
     "tacenta-test-vectors/conformance-manifest.md",
     "tacenta-test-vectors/traces/session-operation-trace.json",

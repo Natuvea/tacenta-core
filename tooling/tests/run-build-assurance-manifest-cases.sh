@@ -7,6 +7,8 @@ root="$(cd "$here/../.." && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 fixture="$root/tooling/tests/assurance-receipts-fixture.json"
+export ASSURANCE_FIXTURE_COMMIT="$(git -C "$root" rev-parse HEAD)"
+export ASSURANCE_FIXTURE_TREE="$(git -C "$root" rev-parse 'HEAD^{tree}')"
 
 expect_fail() {
   local name="$1" needle="$2" out rc
@@ -31,12 +33,17 @@ make_case() {
 import json, pathlib, sys
 source, output, program = map(pathlib.Path, sys.argv[1:])
 data = json.loads(source.read_text())
+data['candidate'] = {
+    'commit': __import__('os').environ['ASSURANCE_FIXTURE_COMMIT'],
+    'tree': __import__('os').environ['ASSURANCE_FIXTURE_TREE'],
+}
 exec(program.read_text(), {'data': data})
 output.write_text(json.dumps(data, indent=2) + '\n')
 PY
 }
 
-cp "$fixture" "$work/pass.json"
+printf '%s\n' '# pass fixture is rebound to this checkout by make_case' > "$work/pass.py"
+make_case pass "$work/pass.py"
 python3 "$root/tooling/build-assurance-manifest.py" --allow-dirty --receipts "$work/pass.json" --output "$work/pass.out"
 
 printf "%s\n" "data['checks'] = [c for c in data['checks'] if c['id'] != 'proofs']" > "$work/missing.py"
