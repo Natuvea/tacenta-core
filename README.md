@@ -82,10 +82,12 @@ README and that document ever disagree, that document is right.
 
 ## Status
 
-Seven crates ship with T1 panic-freedom and T3 refinement proofs: the ratchet,
-the session zone, `tacenta-spqr`, `tacenta-braid`, `tacenta-triple`,
+Eight crates have T1 panic-freedom and T3 refinement proofs: the ratchet, the
+session zone, `tacenta-wire`, `tacenta-spqr`, `tacenta-braid`,
+`tacenta-triple` (proved on the three-leaf translation unit),
 `tacenta-protobuf`, and `tacenta-erasure` (the last over its field arithmetic;
-its decoder has T1 and no refinement). The post-quantum ratchet is in the
+its decoder has T1 and no refinement). All but `tacenta-protobuf`, which has
+no caller, are on the shipping path. The post-quantum ratchet is in the
 session path, and sessions and prekey stores serialize.
 `tacenta-proofs/CLAIMS.md` records exactly what is and is not proven.
 `ASSURANCE.md` records where the project stands against the expectations in

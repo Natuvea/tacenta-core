@@ -754,7 +754,7 @@ alone. And nothing anywhere in this project proves that an identity key belongs 
 the person a user means: that is trust on first use and the directory's problem,
 and it is the assumption a user actually bears.
 
-## Eight verified zones on the shipping path, and the orchestration runs outside them
+## Seven verified zones on the shipping path, and the orchestration runs outside them
 
 **Read this before the list.** Integrating the Triple Ratchet
 moved `Session::encrypt` and `Session::decrypt` off `tacenta-ratchet::send` and
@@ -1644,7 +1644,7 @@ store and a chain table a session may carry, and that layer is not translated
 or proved in its own right. The classical one is discharged in the other
 island, by `Ratchet.inv_gives_store_bound` in `Translation/ImportInv.lean` and
 through it by `Ratchet.decoded_receive_no_panic`, for a state that came from
-`from_bytes`; "Eight verified zones on the shipping path" above describes that
+`from_bytes`; "Seven verified zones on the shipping path" above describes that
 route. It has not been ported to the unit, so it does not reach these
 theorems. All four hold of any state that could exist, at either platform
 width. They are bounds against `usize::MAX` on quantities a real session keeps
@@ -1924,8 +1924,8 @@ that assembly possible.
 
 - T1 (panic-freedom and memory safety of the core's verified zone via the
   Charon and Aeneas translation) **is proven**, under the stated assumptions and
-  for the verified zone only, which is the eight leaf crates and not the
-  product. The assumptions it rests on are not all ones anybody chose. Where
+  for the verified zone only, which is the seven leaf crates and the Triple
+  through its three-leaf unit, and not the product. The assumptions it rests on are not all ones anybody chose. Where
   it stands, precisely:
   - **The ratchet, the verified zone, translates.** Charon extracts and Aeneas
     translates the ratchet functions with the primitives opaque at the boundary.

@@ -69,8 +69,9 @@ TRANSLATION_SCHEMA_VERSION = 3
 # The crates the proofs are about. A proof about translated Rust is a proof
 # about *these* bytes, so their hashes belong in the attestation.
 #
-# The six `scripts/run-aeneas.sh` translates on their own, the three-leaf unit
-# it translates, and `tacenta-core/triple`, which it translates only inside the
+# The seven `scripts/run-aeneas.sh` translates on their own, the two assembled
+# units it translates (the three-leaf unit and the Braid-and-erasure unit), and
+# `tacenta-core/triple`, which it translates only inside the three-leaf
 # unit: the Triple Ratchet's proofs are about the unit's translation, and the
 # unit is generated from these bytes. If `run-aeneas.sh` gains a crate, this
 # list must gain it too; the two are checked against each other below, counting
