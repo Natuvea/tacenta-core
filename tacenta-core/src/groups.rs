@@ -6,6 +6,10 @@
 
 use sha2::{Digest, Sha256};
 
+/// Canonical public inventory preimages for the initial hosted-device profile.
+/// This parses no product account type and does not authorize group membership.
+pub mod inventory;
+
 /// Domain separation for a canonical product roster preimage.
 pub const GROUP_ROSTER_COMMITMENT_LABEL: &[u8] = b"Tacenta:group:roster-commitment:v1\xff";
 /// Domain separation for a canonical authenticated application context.
