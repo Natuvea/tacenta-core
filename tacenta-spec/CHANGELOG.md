@@ -132,6 +132,11 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- `security-properties/limitations.md` and `threat-model/assumptions.md`: cite
+  LIMITATIONS.md's section by its corrected title, "Seven verified zones on the
+  shipping path". Seven proved crates are on the shipping path (ratchet,
+  session, wire, spqr, braid, erasure, and triple through its unit);
+  `tacenta-protobuf` is proved and has no caller. No rule changes.
 - `tooling/check-traceability.py` and its case runner now validate the pilot
   evidence index's requirement IDs, status classes, paths, theorem names, test
   names, vector case IDs, live missing-evidence references and required format

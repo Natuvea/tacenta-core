@@ -69,7 +69,7 @@ against ADV-03.
 
 - **Relied on by:** REQ-AUTH-01, REQ-AUTH-03.
 - **Proofs:** none. The signature check is outside every translated crate
-  (LIMITATIONS.md, "Eight verified zones on the shipping path, and the
+  (LIMITATIONS.md, "Seven verified zones on the shipping path, and the
   orchestration runs outside them").
 
 ### ASM-04: ML-KEM-1024
