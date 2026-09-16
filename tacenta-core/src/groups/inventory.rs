@@ -1,6 +1,10 @@
 //! Bounded canonical preimages for hosted device-inventory statements.
 
+use crate::primitives::{dh::PublicKeyBytes, xeddsa};
+use rand_core::{CryptoRng, RngCore};
+
 pub const INVENTORY_DOMAIN: &[u8] = b"Tacenta Inventory Statement v1";
+const INVENTORY_SIGNING_LABEL: &[u8] = b"Tacenta:inventory-statement:v1\xff";
 pub const GROUP_EPOCH_V1: u64 = 1;
 pub const MAX_ACCOUNT_BYTES: usize = 256;
 pub const MAX_ACTIVE_BINDINGS: usize = 8;
@@ -84,6 +88,38 @@ impl InventoryStatement {
         }
         Ok(out)
     }
+
+    /// Signs this exact canonical statement under the dedicated hosted-issuer
+    /// key. The caller keeps the issuer secret outside this public statement.
+    pub fn sign<R: RngCore + CryptoRng>(
+        &self,
+        issuer_secret: &[u8; 32],
+        rng: &mut R,
+    ) -> Result<[u8; 64], Error> {
+        Ok(xeddsa::sign(
+            issuer_secret,
+            &signing_input(&self.encode_unsigned()?),
+            rng,
+        ))
+    }
+
+    /// Verifies an issuer signature over this exact canonical statement.
+    pub fn verify(&self, issuer_public: &[u8; 32], signature: &[u8; 64]) -> Result<(), Error> {
+        let unsigned = self.encode_unsigned()?;
+        xeddsa::verify(
+            &PublicKeyBytes::from_bytes(*issuer_public),
+            &signing_input(&unsigned),
+            signature,
+        )
+        .map_err(|_| Error::Malformed)
+    }
+}
+
+fn signing_input(unsigned: &[u8]) -> Vec<u8> {
+    let mut input = Vec::with_capacity(INVENTORY_SIGNING_LABEL.len() + unsigned.len());
+    input.extend_from_slice(INVENTORY_SIGNING_LABEL);
+    input.extend_from_slice(unsigned);
+    input
 }
 
 fn canonical_bindings(bindings: &[DeviceBinding]) -> Result<(), Error> {
@@ -147,5 +183,27 @@ mod tests {
         let mut reordered = statement;
         reordered.active.swap(0, 1);
         assert_eq!(reordered.encode_unsigned(), Err(Error::NonCanonical));
+    }
+
+    #[test]
+    fn issuer_signature_binds_the_exact_canonical_statement() {
+        let statement = InventoryStatement {
+            issuer_key_id: 7,
+            account_handle: "acme/alice".into(),
+            inventory_generation: 2,
+            active: vec![binding(1)],
+            revocation_floor_generation: 0,
+            revoked: vec![],
+        };
+        let secret = [9; 32];
+        let public = crate::primitives::dh::PrivateKey::from_bytes(secret)
+            .public_key()
+            .as_bytes()
+            .to_owned();
+        let signature = statement.sign(&secret, &mut rand_core::OsRng).unwrap();
+        assert_eq!(statement.verify(&public, &signature), Ok(()));
+        let mut changed = statement;
+        changed.inventory_generation = 3;
+        assert_eq!(changed.verify(&public, &signature), Err(Error::Malformed));
     }
 }
