@@ -1,0 +1,16 @@
+{
+  "schema": "tacenta-inventory-statements-v1",
+  "comment": "Pins the canonical unsigned preimage only; signatures are randomized.",
+  "cases": [
+    {
+      "id": "one-active-binding",
+      "issuer_key_id": 7,
+      "account_handle": "acme/alice",
+      "inventory_generation": 2,
+      "active": [{"device_id": 1, "identity_hex": "0101010101010101010101010101010101010101010101010101010101010101", "capabilities": 1}],
+      "revocation_floor_generation": 0,
+      "revoked": [],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000010101010101010101010101010101010101010101010101010101010101010101000000000000000100000000000000000000000000"
+    }
+  ]
+}
