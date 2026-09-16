@@ -684,6 +684,8 @@ struct Observed {
     prekey_lifecycle_consume_one_time: usize,
     prekey_lifecycle_record_last_resort: usize,
     prekey_lifecycle_noop: usize,
+    prekey_model_control: usize,
+    prekey_rotate_signed_one_time_control: usize,
     session_establishment_initiator: usize,
     session_establishment_responder: usize,
     session_establishment_unexpected_identity: usize,
@@ -693,6 +695,7 @@ struct Observed {
     session_messages_receive: usize,
     session_messages_noop: usize,
     session_messages_agreement_failed: usize,
+    session_transition_model_control: usize,
     session_messages_repeated_initial: usize,
     session_messages_out_of_order: usize,
     session_crypto_signature_refusal: usize,
@@ -3155,6 +3158,19 @@ fn check_prekey_lifecycle(exe: &Path, seed: u64, seen: &mut Observed) {
     let before = prekey_bytes(&store);
     store.rotate_signed_prekey(&identity, &mut rng);
     let after = prekey_bytes(&store);
+    // Control A: a rotation that returns its input is not a rotation. Reject
+    // it before accepting the concrete transition below, so an unconditional
+    // prekey check cannot look covered.
+    expect_model_mismatch(
+        exe,
+        format!(
+            "check prekey rotate-signed {} {}",
+            hex::encode(&before),
+            hex::encode(&before)
+        ),
+        seed,
+    );
+    seen.prekey_model_control += 1;
     expect_model_check(
         exe,
         format!(
@@ -3208,6 +3224,7 @@ fn check_prekey_lifecycle(exe: &Path, seed: u64, seen: &mut Observed) {
     );
     seen.prekey_lifecycle_noop += 1;
 
+    check_rotate_signed_one_time_control(exe, &mut rng, seed, seen);
     check_prekey_responder_effects(exe, &mut rng, seed, seen);
 }
 
@@ -3221,6 +3238,53 @@ fn initial_for_bundle(
     session
         .encrypt(b"operation-model first plaintext", rng)
         .expect("fresh initiator session should encrypt its initial message")
+}
+
+/// Control M1: consuming one-time prekeys is a valid store transition, but it
+/// is not part of signed-prekey rotation. The wrong result is made by a real,
+/// authenticated responder operation after a rotation. `rotateSignedOk` must
+/// reject that result before accepting the unconsumed result of the rotation.
+fn check_rotate_signed_one_time_control(exe: &Path, rng: &mut Rng, seed: u64, seen: &mut Observed) {
+    use tacenta_core::sessions::{Identity, establish_responder};
+
+    let responder = Identity::generate(rng);
+    let initiator = Identity::generate(rng);
+    let mut store = responder.create_prekeys(1, rng);
+    let bundle = store.publish();
+    let initial = initial_for_bundle(&initiator, &bundle, rng);
+    let before = prekey_bytes(&store);
+
+    store.rotate_signed_prekey(&responder, rng);
+    let rotated = prekey_bytes(&store);
+    let (_, plaintext) = establish_responder(&responder, &mut store, &initial, rng)
+        .expect("a previous signed prekey and live one-time entries should establish");
+    assert_eq!(plaintext, b"operation-model first plaintext");
+    assert_eq!(
+        store.one_time_remaining(),
+        (0, 0),
+        "an authenticated responder operation must consume both one-time entries"
+    );
+    let rotated_and_consumed = prekey_bytes(&store);
+
+    expect_model_mismatch(
+        exe,
+        format!(
+            "check prekey rotate-signed {} {}",
+            hex::encode(&before),
+            hex::encode(&rotated_and_consumed)
+        ),
+        seed,
+    );
+    seen.prekey_rotate_signed_one_time_control += 1;
+    expect_model_check(
+        exe,
+        format!(
+            "check prekey rotate-signed {} {}",
+            hex::encode(&before),
+            hex::encode(&rotated)
+        ),
+        seed,
+    );
 }
 
 fn check_prekey_responder_effects(exe: &Path, rng: &mut Rng, seed: u64, seen: &mut Observed) {
@@ -3462,6 +3526,19 @@ fn check_established_message_effects(exe: &Path, seed: u64, seen: &mut Observed)
         .encrypt(b"operation-model reply", &mut rng)
         .expect("responder sends");
     let after = session_bytes(&bob);
+    // Control B: a real state-changing send is deliberately checked as a
+    // no-op. Reject it before accepting the matching send relation, so a
+    // session-transition dispatcher that always passes cannot look covered.
+    expect_model_mismatch(
+        exe,
+        format!(
+            "check session no-op {} {}",
+            hex::encode(&before),
+            hex::encode(&after)
+        ),
+        seed,
+    );
+    seen.session_transition_model_control += 1;
     expect_model_check(
         exe,
         format!(
@@ -4369,6 +4446,14 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
         seen.prekey_lifecycle_noop > 0,
         "no prekey lifecycle refused no-op check was compared"
     );
+    assert!(
+        seen.prekey_model_control > 0,
+        "control A did not reject a deliberately wrong prekey transition"
+    );
+    assert!(
+        seen.prekey_rotate_signed_one_time_control > 0,
+        "control M1 did not reject a rotation that consumed one-time prekeys"
+    );
 
     eprintln!(
         "differential: initial-session establishment checks: initiator {}, responder {}, \
@@ -4414,6 +4499,10 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     assert!(
         seen.session_messages_agreement_failed > 0,
         "no terminal agreement failure was compared"
+    );
+    assert!(
+        seen.session_transition_model_control > 0,
+        "control B did not reject a deliberately wrong session transition"
     );
     assert!(
         seen.session_messages_repeated_initial > 0,

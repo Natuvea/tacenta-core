@@ -30,15 +30,15 @@ A hypothesis confirmed by a vector is still a gap.
 | **Total** | **584** | **0** | **30** |
 
 The 30 skips were the two new files, `persistence/prekey-store-state.json`
-(17) and `session-state.json` (17).
+(17) and `session-state.json` (13).
 
 **Final run:**
 
 | | PASS | FAIL | SKIP |
 |---|---|---|---|
-| Vectors (36 files) | 408 | 0 | 0 |
-| Derived cases (12 modules) | 220 | 0 | 0 |
-| **Total** | **628** | **0** | **0** |
+| Vectors (36 files) | 407 | 0 | 0 |
+| Derived cases (12 modules) | 219 | 0 | 0 |
+| **Total** | **626** | **0** | **0** |
 
 All 30 new vectors passed on the first run of the new handlers, the four
 accepted prekey stores included: the sixth rule was implemented from the page,
@@ -95,7 +95,7 @@ against that code unchanged.
 
 ## 1. The earlier gaps
 
-Counts for the gaps `GAPS-6.md` left open: **6 CLOSED, 8 STILL OPEN, 1
+Counts for the gaps `GAPS-6.md` left open: **3 CLOSED, 11 STILL OPEN, 1
 NARROWED.** Those gaps are G5-02 to G5-10, G4-01 and G6-01 to G6-05.
 
 The gaps recorded as closed before are still closed: G-01 to G-28, G2-01 to
@@ -107,7 +107,7 @@ vector, and all pass.
 | Gap | Status | Citation, and what changed in the reader |
 |---|---|---|
 | G5-02 The Braid key pair's load check needs the delegated layout | **CLOSED** | session-persistence.md, Semantic rules of the leaf formats, Braid: "**That clause is scoped to an implementation that knows the key pair's layout.** Where those two values sit inside the field's 11,872 bytes is the KEM library's own serialisation, which this page delegates rather than defines (Braid; ADR-0006, point 5), so an implementation without that layout cannot apply the clause at all. Such an implementation checks the field's length, accepts it, and conforms." The Principles' "Validated, not only parsed" names the one scoped rule and says "A reader outside its scope checks that field's length and accepts it, and is conforming in doing so"; the leaf formats' preamble says the same; the Braid section says "That scope is part of the rule and is stated with it". The vectors README and the manifest both say no vector can pin the clause and why. **The reader was deficient and is now conforming**: `KEY_PAIR_VIEW` is `None`, the length is checked and the content accepted. BK-01 is rewritten to exercise both sides of the scope, and fault F7-39 -- a reader that applies the clause with a guessed layout -- is caught by two vectors and by BK-01. |
-| G6-02 `vector.schema.json`'s `refusal` names two files where four now carry it | **CLOSED** | `schema/vector.schema.json`, `refusal`: "Every invalid vector in vectors/persistence/ carries one except the erasure coders': ratchet-state, sparse-ratchet-state, triple-ratchet-state, braid-state, prekey-store-state and session-state." All six are named, `incoherent` is added to the enumeration with its scope ("the prekey store's alone, for its signature rule"), and `inconsistent` is described as the session's alone with the reason Rejection gives. Later P4 work added `prekey-store-state/signed-prekey-signature-does-not-verify`, so the signature-rule vector gap noted in this historical pass is now closed. The same paragraph of the vectors README is *not* fixed; that is G7-02 below, recorded as new because it is a different file and a different sentence. |
+| G6-02 `vector.schema.json`'s `refusal` names two files where four now carry it | **CLOSED** | `schema/vector.schema.json`, `refusal`: "Every invalid vector in vectors/persistence/ carries one except the erasure coders': ratchet-state, sparse-ratchet-state, triple-ratchet-state, braid-state, prekey-store-state and session-state." All six are named, `incoherent` is added to the enumeration with its scope ("the prekey store's alone, for its signature rule, which no vector reaches today"), and `inconsistent` is described as the session's alone with the reason Rejection gives. The same paragraph of the vectors README is *not* fixed; that is G7-02 below, recorded as new because it is a different file and a different sentence. |
 | G6-04 The conformance manifest says, in one section, both that the Braid's ceiling is pinned by vectors and that no vector pins it | **CLOSED** | The contradicting sentence is gone: `grep "no vector here pins it"` over `tacenta-test-vectors/` returns nothing. "Addition: reserved counter ceilings" now states the pinning once, and agrees with the README's Status and with the manifest's own Covered table. |
 | G5-07 The evidence the requirements cite is outside the specification | **NARROWED** | `decisions/ADR-0006-specification-is-normative.md`, new point 7: "**Evidence may be cited; content may not.** ... Such a citation records where the evidence for a claim about this project's work is. It is not part of the protocol's definition ... **What a page requires is readable from the specification alone.** A rule, a list, or a set that a requirement is stated over belongs in these pages." Both statements that took *content* from outside have moved it in: ASM-05 now names the two registered prefix pairs with their values over CONSTANTS.md's "Derivation labels", and AS-12 states REQ-AUTH-13's durable state for the session and the prekey store rather than pointing at a registry of function names. `work/xref7.py` finds no page taking content from outside: the remaining `tacenta-core/LABELS.md` and `AUTHENTICATION-BOUNDARY.md` mentions are beside the values or the requirement the page itself states. **What is still open:** every Status in `security-properties/` still names a theorem, a test or a `CLAIMS.md` section that is not in this tree, so a reader cannot check any of them -- which point 7 now says is intended. TM-03 is new and reads the two moved statements against the page. No theorem, test or `CLAIMS.md` section was looked for. |
 | G5-03 "Shorter than the fixed fields of the version the reader reads" when there is no one such version | STILL OPEN | session-persistence.md, Rejection, is unchanged, and the two formats added this pass widen it: the prekey store's fixed part ends after `next_id` at v1 and after two presence bytes at v4, so "the fixed fields of the version the reader reads" names four different lengths for one buffer. The vectors pin neither refusal, as the page says: `prekey-store-state.json` has `empty` (short) and `version-unknown`/`version-zero` at full length, and `session-state.json` the same shape. Control C7-01, a reader that checks the store's length before its version byte, fails nothing. |
@@ -117,10 +117,10 @@ vector, and all pass.
 | G5-08 The sparse ratchet's retention window: saturating on one page, not on the other | STILL OPEN | sparse-pq-ratchet.md, Retiring old epochs, still writes "every epoch `e` with `E < e + EPOCHS_KEPT`"; session-persistence.md still writes "`e <= epoch < e + EPOCHS_KEPT`, the sum saturating". The advance to `u64::MAX` is refused, so the difference stays unobservable. |
 | G5-09 The classical ratchet at `Nr = u32::MAX`, for a message numbered below it | STILL OPEN | ratchet.md, Sending and receiving, is unchanged, and fixes no order between the two refusals where sparse-pq-ratchet.md does. The reader still gives the stale refusal first. |
 | G5-10 REQ-AUTH-11 does not cite the rule that refuses a replay onto a chain the receiver has left | STILL OPEN | `security-properties/authentication.md` REQ-AUTH-11 is unchanged. TM-02 still checks the requirement over a live Triple Ratchet session and finds the sparse half's out-of-order refusal doing the work. |
-| G4-01 A decoder of the composite header alone, and its trailing bytes | **CLOSED** | message-format.md now defines standalone composite-header decoding as accepting exactly the 102-byte header and refusing trailing bytes. `composite-header-decode.json` adds `trailing-byte`; RM-14 and the vector handlers check the standalone refusal while leaving ratchet-message ciphertext parsing unchanged. |
-| G6-01 The two persistence files' `sk` input is the same word for two different secrets | **CLOSED** | `tacenta-test-vectors/README.md`, "The ratchets' persisted states" and "The Triple Ratchet's state", now says the two ratchet-state files use already split per-ratchet initial root secrets, while `triple-ratchet-state.json` uses the unsplit Triple Ratchet shared secret. |
-| G6-03 Whether a Braid operations vector's `output` must read back is not stated | **CLOSED** | `tacenta-test-vectors/README.md`, "The Braid's state", now states that a runner must read operation `output` back and write the same bytes again, and that this runner assertion is the read-back obligation used instead of `-read-back` siblings. |
-| G6-05 A Braid step's absent codeword has no zeroing rule | **CLOSED** | `tacenta-test-vectors/README.md`, "The Braid's state", now states that the step's four Braid-message fields are the wire fields and that an absent codeword's index and chunk are all-zero padding. The reader's vector handler already reports an absent codeword with non-zero index or chunk data as malformed vector data. |
+| G4-01 A decoder of the composite header alone, and its trailing bytes | STILL OPEN | Unchanged since pass 5. |
+| G6-01 The two persistence files' `sk` input is the same word for two different secrets | STILL OPEN | `tacenta-test-vectors/README.md`, "The ratchets' persisted states" and "The Triple Ratchet's state", are unchanged, and still use `sk` for the Double Ratchet's already-split secret in one file and the unsplit `SK` in the other. |
+| G6-03 Whether a Braid operations vector's `output` must read back is not stated | STILL OPEN | The README's "The Braid's state" still says only "`output` is the stored bytes of the state reached", where "The ratchets' persisted states" states the read-back obligation and the `-read-back` sibling. The two `ct2-sampled-*` vectors still have no sibling. The reader still applies the obligation; a reader that did not would also pass. |
+| G6-05 A Braid step's absent codeword has no zeroing rule | STILL OPEN | The README's step layout is unchanged and still does not say that an absent codeword's index and chunk are zero, nor point at the page that says it of the wire. |
 
 ### Closed in earlier reports, touched by this revision, still closed
 
@@ -323,10 +323,9 @@ evidence is in section 5.
   sixth rule and is refused as `incoherent` (G7-05) -- and the framing refusals
   do not move. With the session's semantic rules made vacuous, exactly the six
   that name one are accepted.
-- **With the signature rule made vacuous, the later P4 vector is the one that
-  moves**: `prekey-store-state/signed-prekey-signature-does-not-verify` pins
-  the prekey store's `incoherent` signature refusal after the model accepts and
-  re-encodes the mutated bytes.
+- **With the signature rule made vacuous, no vector moves**, which is the
+  schema's statement that `incoherent` is "the prekey store's alone, for its
+  signature rule, which no vector reaches today".
 - **With the four `kem_pair` content clauses made vacuous, no vector moves**,
   which is the manifest's "no vector varies `kem_pair` at all".
 - **Every accepted store** is v4, re-encodes to its input, has every stored
@@ -334,7 +333,7 @@ evidence is in section 5.
   every record entry tagged with a live key.
 - **Every accepted session** re-encodes to its input and keeps all eight
   semantic rules.
-- **The manifest's coverage statements hold**: `retired-kem-prekey` now carries
+- **The manifest's coverage statements hold**: no vector carries
   `previous_kem`, the largest `seen_count` is 1,025, no session vector carries
   a Braid tag of 7 to 11, every session refusal vector is the responder fixture
   with one field changed, and `peer-identity-not-canonical` changes only
@@ -346,23 +345,18 @@ evidence is in section 5.
   vector reaches either, and the schema and the manifest both say so. Faults
   F7-21, F7-27, F7-29, F7-30 and F7-32 are caught only by cases (PK-01 to
   PK-06, SK-08).
-- **The epoch relation's boundary between tags 6 and 7.** This was missed on
-  the first fault run: the accepted session vectors then carried Braid tags 1
-  and 5 only, and nothing distinguished a reader whose `e` branch begins at tag
-  7 from one whose begins at tag 6. Later P4 work added accepted tag 6/tag 7
-  neighbours and refused wrong-side siblings in `session-state.json`; EP-01
-  remains as derived coverage across all twelve tags.
-- **The session's "each half satisfies its own crate's invariant" rule.** Later
-  P4 work added `session-state/triple-state-reader-refuses` and
-  `session-state/braid-reader-refuses`, pinning the reachable session-boundary
-  form of the rule as `short-or-malformed`. It also added
-  `session-state/unanswered-initiator-is-also-responder` for the unanswered-role
-  rule and `session-state/ratchet-private-does-not-match-dhs-pub`, so F7-40 is
-  now vector-pinned as well as covered by cases.
-- **The role rule's Braid half**. Later P4 work added
-  `session-state/halves-disagree-on-the-braid-role`, so F7-16 is now
-  vector-pinned as well as covered by cases. The failed-Braid exemption is
-  also pinned by `session-state/failed-braid-exempts-sparse-epoch`.
+- **The epoch relation's boundary between tags 6 and 7.** The accepted session
+  vectors carry Braid tags 1 and 5 only, and the manifest says the relation is
+  reached "only [in] its `e - 1` branch". Nothing in the tree distinguishes a
+  reader whose `e` branch begins at tag 7 from one whose begins at tag 6.
+  F7-13 was **missed on the first fault run**; EP-01, which walks all twelve
+  tags under both readings, was added for it and catches it.
+- **The session's `ratchet_private` rule, its "an unanswered initiator is not
+  also a responder" rule, and "each half satisfies its own crate's
+  invariant".** The manifest names all three as unreached. F7-40 is caught only
+  by RJ-02.
+- **The role rule's Braid half**, and **the epoch relation's exemption for a
+  failed Braid**. F7-16 and F7-15 are caught only by cases.
 - **The record's pre-sizing ceiling, and the per-key bound read as a whole.**
   F7-11 and F7-06 are caught only by PS-22; the manifest states the first.
 - **`non-canonical`, for either format.** Both re-encode checks are
@@ -380,8 +374,8 @@ evidence is in section 5.
 
 | Vector gap | Status | Note |
 |---|---|---|
-| The session's and the prekey store's persisted formats | **CLOSED** | Both files exist and pin the layouts, the framing refusals with their kinds, five of the store's six semantic rules and eight of the session's top-level semantic rules. What they do not reach is section 3 above and the manifest's own "Not covered". |
-| The session over the Braid | **NARROWED** | `session-state.json` pins the epoch relation's `e - 1` branch, the tag 7 `e` branch at the boundary, the failed-Braid exemption, both halves of the role rule over a real Braid, and the unanswered-role exclusion. |
+| The session's and the prekey store's persisted formats | **CLOSED** | Both files exist and pin the layouts, the framing refusals with their kinds, five of the store's six semantic rules and five of the session's eight. What they do not reach is section 3 above and the manifest's own "Not covered". |
+| The session over the Braid | **NARROWED** | `session-state.json` pins the epoch relation's `e - 1` branch and the role rule's sparse half over a real Braid. The `e` branch, the tag 6/7 boundary, the failed-Braid exemption and the role rule's Braid half are still unpinned. |
 | `DecodeEC` on its own | STILL OPEN | |
 | The repeated initial message | STILL OPEN | |
 | The erasure encoder's stated edges | STILL OPEN (narrowed in pass 5) | |
@@ -400,7 +394,7 @@ evidence is in section 5.
 | Classical expiry (`MAX_SKIPPED_AGE`) | STILL OPEN | |
 | A short buffer with an unknown version | STILL OPEN | G5-03; the page leaves it to the implementation. |
 | The session's, the prekey store's and the initiator's stored-key rules | **NARROWED** | `peer-identity-not-canonical` and `identity-public-not-canonical` pin two of them, each with its own kind. `our_identity_public`, `pending_initial`'s `ephemeral_public`, the ratchet state's three positions and the initiator's own bundle check are still unpinned. |
-| The prekey store's older versions, and `previous_kem` | **CLOSED** | `prekey-store-state.json` carries accepted `legacy-v1`, `legacy-v2` and `legacy-v3` inputs derived from the no-record, no-retired fixture, and the runner checks their fields while permitting the required v4 upgrade on write-back. It also carries `retired-kem-prekey`, with `previous_kem_present = 0x01`, so `len(4) \|\| kem_pair \|\| id(4) \|\| sig(64)` is exercised by a deterministic `tacenta-core` fixture. PS-19 and PK-06 hold the four versions; PK-01 holds the retired KEM pair. |
+| The prekey store's older versions, and `previous_kem` | STILL OPEN (new) | The manifest states both: every byte-carrying vector is v4, and no vector carries `previous_kem_present = 0x01`, so `len(4) \|\| kem_pair \|\| id(4) \|\| sig(64)` is exercised by nothing. PS-19 and PK-06 hold the four versions; PK-01 holds the retired KEM pair. |
 | From `GAPS-2.md`: the sparse ratchet's state machine; the Double Ratchet's eviction, expiry and no-chain refusals | STILL OPEN (narrowed in pass 5) | |
 
 **The reverse case, a vector with no spec behind it:** none. Every refusal,
@@ -452,9 +446,9 @@ not caught are the pair nothing in the tree can catch, and the page says so.
 | The remaining rules of the two formats (F7-33 to F7-40) | 8 | 8 | 6 |
 
 - **F7-13**, the epoch relation's boundary moved from tags 7-10 to 6-10, failed
-  nothing on the first run. Later P4 work added accepted tag 6/tag 7 neighbours
-  and refused wrong-side siblings in `session-state.json`; **EP-01** remains as
-  derived coverage across all twelve tags.
+  nothing on the first run: no vector carries a session whose Braid is at tag 6
+  or 7, and no case walked the boundary. **EP-01** was added for it and catches
+  it. This is the pass's one hole, and it is recorded in section 3.
 - **F7-25 and F7-26**, the session's and the prekey store's re-encode checks
   reported as `inconsistent` and `malformed` rather than as `non-canonical`,
   are clean and cannot be otherwise: a reader that accepts only canonical
@@ -468,10 +462,8 @@ not caught are the pair nothing in the tree can catch, and the page says so.
   rather than over the record as a whole" exists to rule out; the second is the
   check the manifest says no vector lands on.
 - **F7-21** and **F7-27**, the signature rule reported as malformed and the
-  rule dropped, were caught by nine cases each and by no vector in this pass.
-  Later P4 work added `prekey-store-state/signed-prekey-signature-does-not-verify`,
-  so the independent reader now has both derived-case and vector evidence for
-  this rule.
+  rule dropped, are caught by nine cases each and by no vector -- the whole of
+  the new rule's evidence in this reader is derived.
 - **F7-39**, a reader outside the scope applying the `key_pair` content clause
   with a guessed layout, is caught by two session vectors and by BK-01: the two
   initiator sessions carry a Braid in tag 1, so a guessed layout refuses a

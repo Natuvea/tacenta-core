@@ -695,3 +695,9 @@ Each gap report re-assesses its predecessors against the revision it names:
 
 A gap is closed by changing the specification. Its entry is marked closed when
 the reader is next updated from the new text.
+
+### Pass 8 record
+
+`../GAPS-8.md` records a maintenance re-run against the later vector and
+specification changes. It leaves `GAPS-7.md` as the historical seventh-pass
+record and places the four subsequent gap closures in the new pass instead.
