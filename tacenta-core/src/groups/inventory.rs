@@ -50,7 +50,7 @@ impl InventoryStatement {
         let account_handle =
             String::from_utf8(take_lp(&mut input)?.to_vec()).map_err(|_| Error::Malformed)?;
         let inventory_generation = take_u64(&mut input)?;
-        let active = take_many(&mut input, |rest| take_binding(rest))?;
+        let active = take_many(&mut input, take_binding)?;
         let revocation_floor_generation = take_u64(&mut input)?;
         let revoked = take_many(&mut input, |rest| {
             Ok(Revocation {
@@ -146,9 +146,29 @@ impl InventoryStatement {
         )
         .map_err(|_| Error::Malformed)
     }
+
+    pub fn encode_signed<R: RngCore + CryptoRng>(
+        &self,
+        issuer_secret: &[u8; 32],
+        rng: &mut R,
+    ) -> Result<Vec<u8>, Error> {
+        let mut bytes = self.encode_unsigned()?;
+        bytes.extend_from_slice(&self.sign(issuer_secret, rng)?);
+        Ok(bytes)
+    }
+
+    pub fn decode_signed(bytes: &[u8], issuer_public: &[u8; 32]) -> Result<Self, Error> {
+        let unsigned_len = bytes.len().checked_sub(64).ok_or(Error::Malformed)?;
+        let statement = Self::decode_unsigned(&bytes[..unsigned_len])?;
+        let signature = bytes[unsigned_len..]
+            .try_into()
+            .map_err(|_| Error::Malformed)?;
+        statement.verify(issuer_public, &signature)?;
+        Ok(statement)
+    }
 }
 
-fn take_exact<'a>(input: &mut &'a [u8], expected: &[u8]) -> Result<(), Error> {
+fn take_exact(input: &mut &[u8], expected: &[u8]) -> Result<(), Error> {
     let value = take(input, expected.len())?;
     if value == expected {
         Ok(())
@@ -310,6 +330,36 @@ mod tests {
         trailing.push(0);
         assert_eq!(
             InventoryStatement::decode_unsigned(&trailing),
+            Err(Error::Malformed)
+        );
+    }
+
+    #[test]
+    fn signed_decoder_requires_the_issuer_signature() {
+        let statement = InventoryStatement {
+            issuer_key_id: 7,
+            account_handle: "acme/alice".into(),
+            inventory_generation: 2,
+            active: vec![binding(1)],
+            revocation_floor_generation: 0,
+            revoked: vec![],
+        };
+        let secret = [9; 32];
+        let public = crate::primitives::dh::PrivateKey::from_bytes(secret)
+            .public_key()
+            .as_bytes()
+            .to_owned();
+        let encoded = statement
+            .encode_signed(&secret, &mut rand_core::OsRng)
+            .unwrap();
+        assert_eq!(
+            InventoryStatement::decode_signed(&encoded, &public),
+            Ok(statement)
+        );
+        let mut altered = encoded;
+        altered[0] ^= 1;
+        assert_eq!(
+            InventoryStatement::decode_signed(&altered, &public),
             Err(Error::Malformed)
         );
     }
