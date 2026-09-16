@@ -42,6 +42,39 @@ pub enum Error {
 }
 
 impl InventoryStatement {
+    /// Decodes only a fully canonical unsigned v1 statement preimage.
+    pub fn decode_unsigned(bytes: &[u8]) -> Result<Self, Error> {
+        let mut input = bytes;
+        take_exact(&mut input, INVENTORY_DOMAIN)?;
+        let issuer_key_id = take_u64(&mut input)?;
+        let account_handle =
+            String::from_utf8(take_lp(&mut input)?.to_vec()).map_err(|_| Error::Malformed)?;
+        let inventory_generation = take_u64(&mut input)?;
+        let active = take_many(&mut input, |rest| take_binding(rest))?;
+        let revocation_floor_generation = take_u64(&mut input)?;
+        let revoked = take_many(&mut input, |rest| {
+            Ok(Revocation {
+                binding: take_binding(rest)?,
+                terminal_generation: take_u64(rest)?,
+            })
+        })?;
+        if !input.is_empty() {
+            return Err(Error::Malformed);
+        }
+        let statement = Self {
+            issuer_key_id,
+            account_handle,
+            inventory_generation,
+            active,
+            revocation_floor_generation,
+            revoked,
+        };
+        if statement.encode_unsigned()? != bytes {
+            return Err(Error::NonCanonical);
+        }
+        Ok(statement)
+    }
+
     /// Validates and encodes the exact unsigned v1 statement preimage.
     pub fn encode_unsigned(&self) -> Result<Vec<u8>, Error> {
         let account = self.account_handle.as_bytes();
@@ -113,6 +146,60 @@ impl InventoryStatement {
         )
         .map_err(|_| Error::Malformed)
     }
+}
+
+fn take_exact<'a>(input: &mut &'a [u8], expected: &[u8]) -> Result<(), Error> {
+    let value = take(input, expected.len())?;
+    if value == expected {
+        Ok(())
+    } else {
+        Err(Error::Malformed)
+    }
+}
+fn take<'a>(input: &mut &'a [u8], n: usize) -> Result<&'a [u8], Error> {
+    let (head, tail) = input.split_at_checked(n).ok_or(Error::Malformed)?;
+    *input = tail;
+    Ok(head)
+}
+fn take_u32(input: &mut &[u8]) -> Result<u32, Error> {
+    Ok(u32::from_be_bytes(
+        take(input, 4)?.try_into().map_err(|_| Error::Malformed)?,
+    ))
+}
+fn take_u64(input: &mut &[u8]) -> Result<u64, Error> {
+    Ok(u64::from_be_bytes(
+        take(input, 8)?.try_into().map_err(|_| Error::Malformed)?,
+    ))
+}
+fn take_lp<'a>(input: &mut &'a [u8]) -> Result<&'a [u8], Error> {
+    let length = take_u32(input)? as usize;
+    take(input, length)
+}
+fn take_many<T>(
+    input: &mut &[u8],
+    mut parse: impl FnMut(&mut &[u8]) -> Result<T, Error>,
+) -> Result<Vec<T>, Error> {
+    let count = take_u32(input)? as usize;
+    if count > MAX_ACTIVE_BINDINGS {
+        return Err(Error::Malformed);
+    }
+    (0..count).map(|_| parse(input)).collect()
+}
+fn take_binding(input: &mut &[u8]) -> Result<DeviceBinding, Error> {
+    let device_id = take_u32(input)?;
+    let identity_public_key = take(input, 32)?.try_into().map_err(|_| Error::Malformed)?;
+    let capabilities = take_u64(input)?;
+    let replacement_predecessor = match take(input, 1)?[0] {
+        0 => None,
+        1 => Some(take(input, 32)?.try_into().map_err(|_| Error::Malformed)?),
+        _ => return Err(Error::Malformed),
+    };
+    Ok(DeviceBinding {
+        device_id,
+        identity_public_key,
+        capabilities,
+        replacement_predecessor,
+    })
 }
 
 fn signing_input(unsigned: &[u8]) -> Vec<u8> {
@@ -205,5 +292,25 @@ mod tests {
         let mut changed = statement;
         changed.inventory_generation = 3;
         assert_eq!(changed.verify(&public, &signature), Err(Error::Malformed));
+    }
+
+    #[test]
+    fn unsigned_decoder_refuses_trailing_and_noncanonical_data() {
+        let statement = InventoryStatement {
+            issuer_key_id: 7,
+            account_handle: "acme/alice".into(),
+            inventory_generation: 2,
+            active: vec![binding(1)],
+            revocation_floor_generation: 0,
+            revoked: vec![],
+        };
+        let encoded = statement.encode_unsigned().unwrap();
+        assert_eq!(InventoryStatement::decode_unsigned(&encoded), Ok(statement));
+        let mut trailing = encoded;
+        trailing.push(0);
+        assert_eq!(
+            InventoryStatement::decode_unsigned(&trailing),
+            Err(Error::Malformed)
+        );
     }
 }
