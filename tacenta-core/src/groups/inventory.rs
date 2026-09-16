@@ -2,9 +2,13 @@
 
 use crate::primitives::{dh::PublicKeyBytes, xeddsa};
 use rand_core::{CryptoRng, RngCore};
+use sha2::{Digest, Sha256};
 
 pub const INVENTORY_DOMAIN: &[u8] = b"Tacenta Inventory Statement v1";
 const INVENTORY_SIGNING_LABEL: &[u8] = b"Tacenta:inventory-statement:v1\xff";
+/// Domain separation for the commitment a replacement stores for its exact
+/// retired binding.
+pub const BINDING_COMMITMENT_LABEL: &[u8] = b"Tacenta:inventory-binding-commitment:v1\xff";
 pub const GROUP_EPOCH_V1: u64 = 1;
 pub const MAX_ACCOUNT_BYTES: usize = 256;
 pub const MAX_ACTIVE_BINDINGS: usize = 8;
@@ -16,6 +20,21 @@ pub struct DeviceBinding {
     pub identity_public_key: [u8; 32],
     pub capabilities: u64,
     pub replacement_predecessor: Option<[u8; 32]>,
+}
+
+/// Computes the version-one commitment of one canonical device binding.
+///
+/// This binds every encoded binding field, including a prior replacement
+/// predecessor. A replacement names this value for the exact active binding it
+/// retires; it is neither an identity-key fingerprint nor a device-id alias.
+pub fn binding_commitment(binding: &DeviceBinding) -> Result<[u8; 32], Error> {
+    binding_ok(binding)?;
+    let mut encoded = Vec::with_capacity(4 + 32 + 8 + 1 + 32);
+    put_binding(&mut encoded, binding);
+    let mut digest = Sha256::new();
+    digest.update(BINDING_COMMITMENT_LABEL);
+    digest.update(encoded);
+    Ok(digest.finalize().into())
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -312,6 +331,36 @@ mod tests {
         let mut changed = statement;
         changed.inventory_generation = 3;
         assert_eq!(changed.verify(&public, &signature), Err(Error::Malformed));
+    }
+
+    #[test]
+    fn replacement_commitment_binds_every_canonical_binding_field() {
+        let binding = DeviceBinding {
+            device_id: 7,
+            identity_public_key: [3; 32],
+            capabilities: GROUP_EPOCH_V1,
+            replacement_predecessor: Some([4; 32]),
+        };
+        assert_eq!(
+            binding_commitment(&binding).unwrap(),
+            [
+                0x00, 0xdc, 0x59, 0x26, 0x0f, 0xb9, 0x8d, 0xea, 0xe1, 0x9a, 0x0f, 0x07, 0xfb, 0x6c,
+                0xe9, 0xa9, 0xb6, 0xe0, 0x43, 0x1f, 0xf9, 0x63, 0xc8, 0xe4, 0xbe, 0xcd, 0x12, 0xf2,
+                0x05, 0x2d, 0xe9, 0x81,
+            ]
+        );
+        let mut changed = binding;
+        changed.device_id = 8;
+        assert_ne!(
+            binding_commitment(&changed).unwrap(),
+            binding_commitment(&DeviceBinding {
+                device_id: 7,
+                identity_public_key: [3; 32],
+                capabilities: GROUP_EPOCH_V1,
+                replacement_predecessor: Some([4; 32]),
+            })
+            .unwrap()
+        );
     }
 
     #[test]
