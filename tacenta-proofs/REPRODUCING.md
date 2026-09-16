@@ -53,8 +53,8 @@ Locally it is three steps, and the first needs Charon and Aeneas on `PATH`:
 bash tacenta-proofs/scripts/run-aeneas.sh
 ```
 
-Translates the verified zone -- six leaf crates, ratchet, session, erasure,
-protobuf, spqr and braid, the three-leaf unit `triple-unit`, which is the
+Translates the verified zone -- seven leaf crates, ratchet, session, erasure,
+protobuf, wire, spqr and braid, the three-leaf unit `triple-unit`, which is the
 only translation of the Triple crate, and the Braid-and-erasure unit
 `braid-unit`, which nothing is proved about yet. It writes into `translation/Translation/`
 alongside the hand-written proofs. Immediately afterwards, and at no other

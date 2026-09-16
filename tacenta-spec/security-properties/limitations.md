@@ -108,7 +108,7 @@ proved about the post-quantum half is refinement: T1 and T3.
 
 `Session::encrypt`, `Session::decrypt` and the rest of
 `tacenta-core/src/sessions` are neither translated nor modelled (CLAIMS.md,
-"Read this first: what is not proved"; LIMITATIONS.md, "Eight verified zones
+"Read this first: what is not proved"; LIMITATIONS.md, "Seven verified zones
 on the shipping path, and the orchestration runs outside them", and "Scope").
 Several behaviours live there and are tested only:
 - which key pair each Diffie-Hellman ratchet output is computed with
