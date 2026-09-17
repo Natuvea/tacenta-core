@@ -666,6 +666,7 @@ struct Observed {
     keys_stored: usize,
     keys_used: usize,
     store_shrank_beyond_one: usize,
+    ratchet_replacement_bound: usize,
     skip_refused: usize,
     imports: usize,
     imports_accepted: usize,
@@ -884,6 +885,12 @@ fn check_ratchet(
                     seen.dh_steps += 1;
                 }
                 let after = state.skipped_len();
+                if stored_before == ratchet::MAX_SKIPPED_STORE - 1
+                    && after == stored_before
+                    && matches!(step, RStep::Receive { .. })
+                {
+                    seen.ratchet_replacement_bound += 1;
+                }
                 if after > stored_before {
                     seen.keys_stored += 1;
                 } else if after + 1 == stored_before {
@@ -1169,6 +1176,48 @@ fn generate_ratchet(rng: &mut Rng, template: usize, long: bool) -> RatchetSequen
     let cks = rng.key();
     let ckr = rng.key();
     let ceiling = u32::MAX;
+
+    // One deliberately large sequence distinguishes the resulting-size store
+    // bound from the old pre-replacement count. With 1,999 held keys and two
+    // pairs in the range about to be re-derived, adding two is valid only after
+    // those held pairs are removed. Keep it to one step: serialising this state
+    // after every random continuation would add no evidence for the boundary.
+    if template == 10 {
+        let mut other = rng.canonical_key();
+        while other == dhr {
+            other = rng.canonical_key();
+        }
+        let mut store = Vec::with_capacity(ratchet::MAX_SKIPPED_STORE - 1);
+        store.push((dhr, 0, 0, rng.key()));
+        store.push((dhr, 1, 0, rng.key()));
+        for n in 0..(ratchet::MAX_SKIPPED_STORE - 3) as u32 {
+            store.push((other, n, 0, rng.key()));
+        }
+        let start = Start::Stored(ratchet_state_bytes(
+            &dhs,
+            Some(&dhr),
+            &rk,
+            Some(&cks),
+            Some(&ckr),
+            0,
+            0,
+            0,
+            0,
+            &store,
+        ));
+        let step = RStep::Receive {
+            dh: dhr,
+            pn: 0,
+            n: 2,
+            dh_recv: rng.key(),
+            dh_send: rng.key(),
+            new_pub: rng.canonical_key(),
+        };
+        return RatchetSequence {
+            start,
+            steps: vec![step],
+        };
+    }
 
     // Every template in turn, so the ceilings are reached by construction and
     // not by chance. A near-ceiling start is followed by the operation that
@@ -4351,6 +4400,10 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
         "no step aged keys out of the store or retired an epoch with its keys"
     );
     assert!(seen.skip_refused > 0, "no step was refused at a skip bound");
+    assert!(
+        seen.ratchet_replacement_bound > 0,
+        "no classical sequence reached the resulting-size replacement bound"
+    );
     assert!(
         seen.ratchet_send_ceiling > 0,
         "the classical sending counter's ceiling was not reached"

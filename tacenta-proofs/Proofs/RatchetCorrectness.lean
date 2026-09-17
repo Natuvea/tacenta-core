@@ -87,15 +87,16 @@ theorem skipMessageKeys_growth (st : State) (ck dhr : Key) (upto : Nat)
       ∧ st'.skipped.length ≤ st.skipped.length + (upto - st.nr) := by
   have h1 : ¬ (upto ≤ st.nr) := Nat.not_le.mpr hlo
   have h2 : ¬ (st.nr + maxSkip < upto) := Nat.not_lt.mpr hhi
-  have h3 : ¬ (maxSkippedStore < st.skipped.length + (upto - st.nr)) :=
-    Nat.not_lt.mpr hstore
+  have hsurvivors : (skipSurvivors st dhr upto).length ≤ st.skipped.length := by
+    unfold skipSurvivors
+    exact List.length_filter_le _ _
+  have h3 : ¬ (maxSkippedStore <
+      (skipSurvivors st dhr upto).length + (upto - st.nr)) := by
+    omega
   simp only [skipMessageKeys, hckr, hdhr, if_neg h1, gt_iff_lt, if_neg h2, if_neg h3]
   refine ⟨_, rfl, rfl, ?_⟩
   simp only [List.length_append, List.length_map, deriveChain_length]
-  have := List.length_filter_le
-    (fun e => !(e.1 == dhr && decide (st.nr ≤ e.2.1) && decide (e.2.1 < upto)))
-    st.skipped
-  omega
+  exact Nat.add_le_add_right hsurvivors _
 
 /-- The store never exceeds its bound: any state `skipMessageKeys` returns has a
     stored-key list within `maxSkippedStore`, given a state that was already
@@ -114,11 +115,6 @@ theorem skipMessageKeys_store_bounded (st : State) (upto : Nat) (st' : State)
          first
            | exact hpre
            | (simp only [List.length_append, List.length_map, deriveChain_length]
-              -- Storing replaces, so what lands in the store is a filtered
-              -- prefix of what was there plus the new entries. Let the
-              -- predicate come from the goal rather than naming it: it mentions
-              -- the ratchet key, which is bound anonymously by the split.
-              exact Nat.le_trans
-                (Nat.add_le_add_right (List.length_filter_le _ _) _) (by omega)))
+              omega))
 
 end Proofs.RatchetCorrectness

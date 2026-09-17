@@ -112,7 +112,7 @@ theorem skipMessageKeys_preserves_map (st : State) (upto : Nat) (st' : State)
           · -- no collision: what survived was outside the replaced range, and
             -- everything derived is inside it
             intro a ha b hb
-            simp only [List.mem_filter] at ha
+            simp only [skipSurvivors, List.mem_filter] at ha
             simp only [List.mem_map] at hb
             obtain ⟨hamem, hakeep⟩ := ha
             obtain ⟨y, hy, rfl⟩ := hb

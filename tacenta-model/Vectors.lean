@@ -1280,6 +1280,14 @@ def ratchetStateFile (_ : Unit) : Except String String := do
   let clockStop : State :=
     { withStore with events := u32Max - 1,
                      skipped := withStore.skipped.map fun e => (e.1, e.2.1, u32Max - 1, e.2.2.2) }
+  let replacementBase : State :=
+    { answered with dhrPub := some aPub, ckr := some (fill 0x61), nr := 0, events := 0 }
+  let replacementStart : State :=
+    { replacementBase with
+        skipped := [(aPub, 0, 0, fill 0x51), (aPub, 1, 0, fill 0x52)] ++
+          (List.range (maxSkippedStore - 3)).map fun i => (bPub3, i, 0, fill 0x53) }
+  let replacementStep :=
+    RatchetStep.receive { dh := aPub, pn := 0, n := 2 } zero zero zero
   let ops ← [
     ratchetOps "fresh-initiator"
       "init_sender: a sending chain and the peer's ratchet key, nothing stored" .initiator [],
@@ -1314,7 +1322,10 @@ def ratchetStateFile (_ : Unit) : Except String String := do
       (.stored clockStop) [same s.h0],
     ratchetOps "clock-stays-at-its-stop-on-the-chain"
       "from events u32::MAX - 1, the next message on the chain: events stays u32::MAX - 1"
-      (.stored { answered with events := u32Max - 1 }) [same s.h1]
+      (.stored { answered with events := u32Max - 1 }) [same s.h1],
+    ratchetOps "replacement-bound-counts-resulting-store"
+      "a 1,999-key store re-derives two pairs it already holds: replacement keeps the resulting store at 1,999 rather than refusing on the pre-replacement count"
+      (.stored replacementStart) [replacementStep]
   ].mapM id
   let refusals ← [
     ratchetRefused "send-at-u32-max-refused"

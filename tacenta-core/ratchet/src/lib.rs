@@ -825,19 +825,23 @@ fn skip_message_keys(state: &mut State, upto: u32) -> Result<(), RatchetError> {
                 Ok(())
             } else if upto > state.nr.saturating_add(MAX_SKIP) {
                 Err(RatchetError::TooManySkipped)
-            } else if state.skipped.len() + (upto - state.nr) as usize > MAX_SKIPPED_STORE {
-                Err(RatchetError::SkippedStoreFull)
             } else {
+                // Purge a clone so the store bound is checked against the
+                // exact resulting store while every refusal remains atomic.
+                let mut skipped = state.skipped.clone();
+                purge_chain_range(&mut skipped, dhr, state.nr, upto);
+                if skipped.len() + (upto - state.nr) as usize > MAX_SKIPPED_STORE {
+                    return Err(RatchetError::SkippedStoreFull);
+                }
                 let (ck2, keys) = match derive_chain(&ck, state.nr, upto - state.nr) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
-                purge_chain_range(&mut state.skipped, dhr, state.nr, upto);
                 // By index rather than by consuming the vector, so that it is
                 // wiped whole when it drops; see `derive_chain`.
                 let mut i = 0;
                 while i < keys.len() {
-                    state.skipped.push(SkippedKey {
+                    skipped.push(SkippedKey {
                         dh: dhr,
                         n: keys[i].0,
                         stored_at: state.events,
@@ -847,6 +851,7 @@ fn skip_message_keys(state: &mut State, upto: u32) -> Result<(), RatchetError> {
                 }
                 state.ckr = Some(ck2);
                 state.nr = upto;
+                state.skipped = skipped;
                 Ok(())
             }
         }
@@ -1317,6 +1322,43 @@ mod tests {
             sb.skipped.len() <= MAX_SKIPPED_STORE,
             "store held {} keys, bound is {MAX_SKIPPED_STORE}",
             sb.skipped.len()
+        );
+    }
+
+    #[test]
+    fn skipped_store_bound_counts_replacements_after_deletion() {
+        let mut state = init_receiver(&SK, B_PUB, LabelSet::Tacenta);
+        state.ckr = Some(SK);
+        state.dhr_pub = Some(A_PUB);
+        for n in 0..2 {
+            state.skipped.push(SkippedKey {
+                dh: A_PUB,
+                n,
+                stored_at: 0,
+                key: [0x31; 32],
+            });
+        }
+        for n in 0..(MAX_SKIPPED_STORE - 3) as u32 {
+            state.skipped.push(SkippedKey {
+                dh: B_PUB,
+                n,
+                stored_at: 0,
+                key: [0x32; 32],
+            });
+        }
+        assert_eq!(state.skipped.len(), MAX_SKIPPED_STORE - 1);
+
+        skip_message_keys(&mut state, 2).expect("two replacements keep the store below the cap");
+
+        assert_eq!(state.skipped.len(), MAX_SKIPPED_STORE - 1);
+        assert_eq!(state.nr, 2);
+        assert_eq!(
+            state
+                .skipped
+                .iter()
+                .filter(|entry| entry.dh == A_PUB)
+                .count(),
+            2
         );
     }
 
