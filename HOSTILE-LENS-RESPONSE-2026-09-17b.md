@@ -32,7 +32,7 @@ reader records.
 
 ## Remediated
 
-- **IMP-01 / `HL-IMP-01`:** `b4fdeff` adds a deterministic byte-level vector
+- **IMP-01 implementation (not gap closure) / `HL-IMP-01`:** `b4fdeff` adds a deterministic byte-level vector
   for real X25519 and ML-KEM-1024 prekey creation, initiator establishment, the
   first encrypted message and responder establishment. It pins every named
   random draw, the handshake intermediates, wire messages, message keys,
@@ -41,8 +41,10 @@ reader records.
   components and requires exact agreement with the public lifecycle. A negative
   control corrupts the expected associated data and requires the runner to
   fail. The expected bytes are project-generated regression/composition
-  evidence, not an external oracle; independent-reader pass 10 records one
-  explicit skip because that reader has no real ML-KEM implementation.
+  evidence, not an external oracle. Independent-reader pass 10 records one
+  explicit skip because that reader has no real ML-KEM implementation, so the
+  gap remains open until the reader replays it or a checked skip allowlist is
+  enforced.
 - **IMP-02 / `HL-IMP-02`:** `3e2745f` makes the model and Rust check
   `MAX_SKIPPED_STORE` against the store after replaceable pairs are removed.
   The Rust unit test and the byte-level
@@ -51,6 +53,12 @@ reader records.
   to reach it and observed model/Rust agreement across 2,864 operations. The
   regenerated Aeneas translation and T1/T3 proofs build, and independent-reader
   pass 9 records 646 PASS, 0 FAIL and 0 SKIP.
+
+- **Sparse follow-up / `HL-R1-SPARSE-TRANSLATION`:** no closure is claimed in
+  this response. The sparse replacement-bound change was removed from the
+  current pull request because its proof and translation were not ready to
+  support the implementation. It remains an open blocking item for a separate
+  verified-zone change.
 
 ## Evidence language
 
