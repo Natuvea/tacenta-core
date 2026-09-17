@@ -60,6 +60,11 @@ reader records.
   support the implementation. It remains an open blocking item for a separate
   verified-zone change.
 
+- **Reader skip control:** `run.py` now keeps an exact allowlist for the one
+  documented real-ML-KEM/session skip and exits non-zero if a skip is added,
+  removed or moved. This prevents silent drift but does not turn the skipped
+  vector into an independent replay.
+
 ## Evidence language
 
 The project uses automated and AI-assisted engineering tools. Project-controlled

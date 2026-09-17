@@ -2,7 +2,8 @@
 """Run tacenta_reader against every vector file and the derived negative cases.
 
 Prints one line per vector: PASS, FAIL (with a short diff) or SKIP (with the
-reason), then per-file totals. Exit status is non-zero on any FAIL.
+reason), then per-file totals. Exit status is non-zero on any FAIL or any
+skip outside the checked allowlist.
 """
 
 import json
@@ -14,6 +15,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CLEANROOM = os.path.dirname(HERE)
 VECTORS = os.path.join(CLEANROOM, "..", "..", "vectors")
 sys.path.insert(0, HERE)
+
+# A skip is evidence about this reader's documented scope, not a free pass.
+# Keep the exact vector label here so adding, removing or moving a skip makes
+# the reader fail until the disposition is reviewed.
+EXPECTED_SKIPS = {
+    "session-establishment/session-e2e.json :: one-time-prekeys-first-message",
+}
+_OBSERVED_SKIPS = set()
 
 import copy  # noqa: E402
 import re  # noqa: E402
@@ -1066,12 +1075,14 @@ def run_vectors(totals):
             label = f"{rel} :: {v['id']}"
             if handler is None:
                 print(f"SKIP  {label}: algorithm {doc.get('algorithm')!r} not implemented")
+                _OBSERVED_SKIPS.add(label)
                 counts["SKIP"] += 1
                 continue
             try:
                 handler(v)
             except Skip as e:
                 print(f"SKIP  {label}: {e}")
+                _OBSERVED_SKIPS.add(label)
                 counts["SKIP"] += 1
             except Fail as e:
                 print(f"FAIL  {label}: {e}")
@@ -1123,6 +1134,7 @@ def run_negative(totals):
 
 def main():
     totals = OrderedDict()
+    _OBSERVED_SKIPS.clear()
     run_vectors(totals)
     run_negative(totals)
     print()
@@ -1138,7 +1150,13 @@ def main():
     for label, c in (("vectors subtotal", sub["vectors"]), ("derived cases subtotal", sub["negative"])):
         print(f"{label:58} {c['PASS']:5} {c['FAIL']:5} {c['SKIP']:5}")
     print(f"{'TOTAL':58} {grand['PASS']:5} {grand['FAIL']:5} {grand['SKIP']:5}")
-    return 1 if grand["FAIL"] else 0
+    unexpected = sorted(_OBSERVED_SKIPS - EXPECTED_SKIPS)
+    missing = sorted(EXPECTED_SKIPS - _OBSERVED_SKIPS)
+    if unexpected:
+        print("FAIL  reader skip allowlist: unexpected skip(s): " + ", ".join(unexpected))
+    if missing:
+        print("FAIL  reader skip allowlist: expected skip(s) not observed: " + ", ".join(missing))
+    return 1 if grand["FAIL"] or unexpected or missing else 0
 
 
 if __name__ == "__main__":

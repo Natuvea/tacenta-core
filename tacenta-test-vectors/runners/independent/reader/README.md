@@ -652,7 +652,8 @@ The runner prints:
 2. one line per derived case;
 3. a per-file table with a vectors subtotal, a derived-cases subtotal and a total.
 
-The exit status is non-zero on any FAIL. A full run takes about five seconds.
+The exit status is non-zero on any FAIL, or when the observed skips differ from
+the checked allowlist in `run.py`. A full run takes about five seconds.
 
 Current result:
 
