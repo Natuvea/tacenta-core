@@ -53,6 +53,10 @@ bash tooling/install-actionlint.sh "$actionlint_dir"
 ACTIONLINT_BIN="$actionlint_dir/actionlint" bash tooling/check-actionlint.sh
 ACTIONLINT_BIN="$actionlint_dir/actionlint" bash tooling/tests/run-check-actionlint-cases.sh
 
+# The assembly gate allow-list must match a whole Rust identifier component;
+# a helper whose longer name merely contains an allowed word must stay red.
+bash tooling/tests/run-check-constant-time-asm-cases.sh
+
 # Every commit this branch adds on top of origin/main is signed off by its
 # author (CONTRIBUTING.md, Developer Certificate of Origin). In CI the
 # `sign-off` job runs the same script against the pull request's base branch.
