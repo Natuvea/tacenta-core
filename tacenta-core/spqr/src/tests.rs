@@ -160,8 +160,16 @@ fn replacement_keys_make_room_at_the_exact_store_edge() {
     let old1 = [0xA1; 32];
     let old2 = [0xA2; 32];
     let mut b = seed;
-    b.skipped.push(Skipped { epoch: 0, n: 1, key: old1 });
-    b.skipped.push(Skipped { epoch: 0, n: 2, key: old2 });
+    b.skipped.push(Skipped {
+        epoch: 0,
+        n: 1,
+        key: old1,
+    });
+    b.skipped.push(Skipped {
+        epoch: 0,
+        n: 2,
+        key: old2,
+    });
     for n in 5_000..6_997 {
         b.skipped.push(Skipped {
             epoch: 0,
@@ -194,8 +202,16 @@ fn sparse_store_refusal_is_atomic_when_replacement_would_still_overflow() {
     let old1 = [0xA1; 32];
     let old2 = [0xA2; 32];
     let mut b = seed;
-    b.skipped.push(Skipped { epoch: 0, n: 1, key: old1 });
-    b.skipped.push(Skipped { epoch: 0, n: 2, key: old2 });
+    b.skipped.push(Skipped {
+        epoch: 0,
+        n: 1,
+        key: old1,
+    });
+    b.skipped.push(Skipped {
+        epoch: 0,
+        n: 2,
+        key: old2,
+    });
     for n in 5_000..6_999 {
         b.skipped.push(Skipped {
             epoch: 0,
