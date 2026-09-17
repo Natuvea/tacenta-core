@@ -21,6 +21,19 @@ signed off by its author, and as a step of `tooling/ci.sh` against
 not signed off cannot be merged. The check covers only commits added on top of
 main, and the commits on main from before it was introduced carry no sign-off.
 
+## Pull-request gate
+
+`main` is protected. A pull request must have all ten required CI contexts
+green (`rust`, `msrv`, `armv7`, `vectors`, `audit`, `proofs`, `translation`,
+`checks`, `sign-off`, and `assurance-receipts`) and one approving review from
+an account other than the last pusher. A new push dismisses a stale approval.
+All review conversations must be resolved; administrators are subject to the
+same rule; force-pushes, deletion and merge commits on `main` are disabled.
+
+A DCO sign-off certifies origin and licensing. It is not a code review. Output
+from automated or AI-assisted review can support a reviewer, but does not count
+as the independent approval required by branch protection.
+
 ## Licence of contributions
 
 This project is licensed under the Apache License, Version 2.0 (see `LICENSE`).
