@@ -255,7 +255,11 @@ jobs:
       - name: The committed vectors are current with the model
         run: |
           bash tacenta-test-vectors/regenerate-vectors.sh
-          git diff --exit-code -- tacenta-test-vectors/vectors
+          vector_status="$(git status --porcelain --untracked-files=all -- tacenta-test-vectors/vectors)"
+          if [ -n "$vector_status" ]; then
+            printf '%s\n' "$vector_status" >&2
+            exit 1
+          fi
       - uses: ./.github/actions/assurance-receipt
         with: { id: proofs, classification: required, command: model-proofs-and-vector-currency }
 

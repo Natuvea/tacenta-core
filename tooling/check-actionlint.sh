@@ -19,8 +19,8 @@ while IFS= read -r file; do
 done < <(find . -path '*/.github/workflows/*.yml' -o -path '*/.github/workflows/*.yaml' | \
   grep -vE '/(\.lake|target|node_modules)/')
 if [ "${#files[@]}" -eq 0 ]; then
-  echo "check-actionlint: no workflow files found"
-  exit 0
+  echo "check-actionlint: no workflow files found" >&2
+  exit 1
 fi
 
 "$actionlint" -color=false "${files[@]}"

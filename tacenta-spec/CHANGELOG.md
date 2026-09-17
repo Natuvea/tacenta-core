@@ -12,6 +12,10 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- Workflow checks now fail when the workflow or case corpus is absent, with an
+  explicit empty-repository control. Vector currency uses `git status` with
+  untracked files included, so a newly generated uncommitted vector cannot be
+  hidden from the local or hosted gate. This closes hostile-lens item SC-14.
 - The six legacy `nominated` interoperability value families no longer claim
   provenance from an unrecorded pinned-build experiment. `CONSTANTS.md`, the
   protobuf/session pages, implementation comments, manifest, proof limitations
