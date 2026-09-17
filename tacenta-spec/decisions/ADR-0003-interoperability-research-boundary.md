@@ -36,6 +36,22 @@ risk of incorporating third-party expression. Interface layers can carry
 structure, names, types, and design choices even when publicly visible, so the
 implementation role uses only the inputs listed above.
 
+## Current evidence state
+
+This ADR states the required process; it is not evidence that every historical
+value followed it. As of 2026-09-17, the project has no retained pinned-build
+record or research transcript for the six legacy `nominated` value families
+identified in `CONSTANTS.md`, and no completed libsignal interoperability run is
+recorded. Those provenance claims are open gaps. They must not be reconstructed
+from memory or retroactively labelled as observed.
+
+Automated and AI-assisted tools are used across implementation, specification,
+tests and review preparation. The input rules bind their use, but the project
+cannot establish that a model's training excluded third-party expression. A
+similarity review by a party allowed to inspect both sides is the remaining
+control for that risk; tool output is project-controlled work, not independent
+provenance evidence.
+
 ## Interoperability gaps
 
 Where the published specifications omit a fact required for interoperability,

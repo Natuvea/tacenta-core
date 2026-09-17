@@ -20,7 +20,9 @@ without notice.
 
 A neutral test runner. Each implementation sits behind an adapter exposing one
 small behavioural API (`create_identity`, `generate_prekey_bundle`,
-`process_prekey_bundle`, `export_public_state`). The
+`process_prekey_bundle`, `export_public_state`). Those operation and type names
+use common Signal-ecosystem vocabulary; they are not claimed as independently
+coined or as API compatibility. The
 adapter translates between the neutral API and its implementation; Tacenta does
 not reproduce libsignal's API, and the neutral API is not libsignal's.
 

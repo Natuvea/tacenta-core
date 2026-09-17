@@ -357,9 +357,9 @@ pub fn decode_tag(raw: u32) -> Result<Tag, ProtoError> {
 /// A prekey envelope's protobuf region, parsed.
 ///
 /// Eight fields, numbered as in the external interoperability profile
-/// (`tacenta-spec/CONSTANTS.md`). Field names are this crate's own, chosen for
-/// what each field carries; only the field numbers and wire types are the
-/// profile's. Field 4 is a **nested ratchet message**, byte-identical in shape
+/// (`tacenta-spec/CONSTANTS.md`). The numbers, wire types and descriptive field
+/// labels are legacy profile inputs whose public provenance remains unresolved.
+/// Field 4 is a **nested ratchet message**, byte-identical in shape
 /// to a standalone one. It is carried here as bytes and not parsed, because the
 /// authenticator inside it covers those bytes and re-encoding them to check
 /// would verify a different byte string.
@@ -876,9 +876,8 @@ impl Raw {
 /// A ratchet message's protobuf region, parsed.
 ///
 /// The five fields of the external interoperability profile
-/// (`tacenta-spec/CONSTANTS.md`). Field names are this crate's own, chosen for
-/// what each field carries; only the field numbers and wire types are the
-/// profile's.
+/// (`tacenta-spec/CONSTANTS.md`). The numbers, wire types and descriptive field
+/// labels are legacy profile inputs whose public provenance remains unresolved.
 ///
 /// The version byte and the trailing authenticator are *not* handled here.
 /// This parses the protobuf region a caller has already separated, because the

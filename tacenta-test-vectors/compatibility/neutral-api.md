@@ -2,14 +2,16 @@
 
 Every implementation under test sits behind an adapter exposing the same small,
 behavioural interface. The harness drives it; each adapter translates between it
-and one implementation. Tacenta does not reproduce libsignal's API, and this is
-not libsignal's API: it is a Tacenta-defined surface, the minimum needed to
-establish sessions and exchange messages. Interoperability claims against a
+and one implementation. This is a Tacenta-defined RPC surface, not an API-
+compatibility claim. Names such as `PreKeyBundle` and `process_prekey_bundle`
+follow common Signal-ecosystem vocabulary and are not claimed as independently
+coined. The surface contains only what the proposed scenarios need.
+Interoperability claims against a
 third-party peer are scoped to the bundle layer (ADR-0004); the message
 operations serve the harness's own scenarios.
 
 It is an **RPC** interface, not a library boundary (ADR-0005). The reference
-adapter runs as a separate process or container, and the implementation team
+adapter runs as a separate process or container, and the implementation role
 sees these operations
 and nothing of the adapter behind them.
 

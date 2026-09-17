@@ -2,8 +2,9 @@
 
 ## Reporting a vulnerability
 
-Email **security@natuvea.com**. Please do not open a public issue for a
-security report.
+Email **security@natuvea.com** or use GitHub's
+[private vulnerability report](https://github.com/Natuvea/tacenta-core/security/advisories/new).
+Please do not open a public issue for a security report.
 
 If you would like to encrypt the report, ask for a key in a first message with
 no details in it.
@@ -56,8 +57,9 @@ itself is a report we want.
 
 - The primitives, and their composition: X25519, HKDF/HMAC-SHA256, the
   AES-CBC + HMAC AEAD, ML-KEM-1024, Ed25519 and **XEdDSA in particular**, which
-  is our custom implementation and the deliberate exception to using vetted
-  code.
+  is implemented in-house over Dalek. The hand-written constant-time MAC
+  comparison and GF(2^16) erasure codec are also in scope rather than being
+  described as vetted primitive-library code.
 - PQXDH session establishment, the Double and Triple Ratchets, the sparse
   post-quantum ratchet, the braid, and erasure coding.
 - Every decoder. They parse attacker-controlled bytes and the panic-freedom
@@ -97,5 +99,6 @@ reference-adapter implementation, research transcripts, or libsignal-derived
 fixtures. **Please do not send those materials in a vulnerability report.**
 Describe the externally observable behaviour and provide independently generated
 inputs where possible. ADR-0003 and ADR-0005 state the engineering policy for
-handling third-party material; libsignal's source code is not an input to this
-project.
+handling third-party material; the policy prohibits using libsignal source as
+an input, while the unresolved historical provenance is recorded in
+`CONSTANTS.md` and `GAP-REGISTER.md`.

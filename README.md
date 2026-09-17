@@ -204,20 +204,29 @@ knows what a green badge does not include.
 
 ## Provenance
 
-tacenta-core is a clean-room implementation. Its inputs are the published
+tacenta-core is a source-not-consulted implementation developed under the
+input boundary in ADR-0003 and ADR-0005. Its intended inputs are the published
 Signal Protocol specifications, pinned by SHA-256 in
 `tacenta-test-vectors/conformance-manifest.md`; the standards those
 specifications cite; this project's own specification, model, and vectors; and,
 where a published specification leaves a wire-level convention to the
 implementer, black-box observation of a pinned build of a third-party
-implementation under the interoperability research boundary (ADR-0003,
-ADR-0005), with each such value and its provenance recorded in
-`tacenta-spec/CONSTANTS.md`. libsignal's source code, tests, fixtures, schemas,
-and internal documentation are not inputs to this project. The public API is
-independently designed and does not reproduce libsignal's.
+implementation under the interoperability research boundary. The current tree
+does not contain the pinned-build research records needed to substantiate six
+legacy `nominated` values, and no completed libsignal interoperability run is
+recorded. `tacenta-spec/CONSTANTS.md` names those provenance gaps rather than
+crediting them to an unrecorded experiment. The project policy prohibits using
+libsignal source, tests, fixtures, schemas and internal documentation; the
+public history alone cannot prove that negative.
+
+Automated and AI-assisted tools contribute code, specification text, tests and
+review preparation under maintainer responsibility. The project does not claim
+that those tools' training excluded third-party expression. A similarity review
+by a party permitted to inspect both codebases remains an open provenance
+control; tool assistance is not individual authorship or independent review.
 
 This tree contains no libsignal implementation source, compiled libsignal
-objects, reference-adapter implementation, research transcripts, or
+objects, reference-adapter implementation, research transcripts, or identified
 libsignal-derived fixtures.
 
 ## License

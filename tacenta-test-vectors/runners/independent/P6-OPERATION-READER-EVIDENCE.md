@@ -10,9 +10,14 @@ The reader source SHA-256 at delivery was
 
 The independent record is retained in planning as
 `p6-reader-packet-session-trace-v4/JIE-SUN-V4-RECORD.md`. It records a
-renewed clean-room declaration, manifest verification and a Darwin
+renewed source-isolation declaration, manifest verification and a Darwin
 arm64/Python 3.9.6 run; its SHA-256 is
 `4be190a449a58f92141fc674a54c6c8d8a69293d1e71b0326721580fcfa2501d`.
+
+The importing commit carries the maintainer's DCO sign-off, not Jie Sun's, and
+the public tree contains no separate Apache-2.0 grant or assignment from Jie
+Sun. Until that grant is retained, this record does not establish the reader
+file's redistribution licence; `HL-IP-04` records the open disposition.
 
 The reader evaluates the committed 27-trace, 41-step session/prekey corpus
 from `tacenta-test-vectors/traces/session-operation-trace.json`. Its 36

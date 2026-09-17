@@ -408,8 +408,8 @@ findings change a table rather than a format:
 |---|---|---|
 | Message version byte | `0x01` | our choice, tier `ours` |
 | Message type bytes | `0x01` ratchet, `0x02` initial, `0x03` bundle | our choice, tier `ours` |
-| `EncodeEC` curve byte | see session-establishment.md | black-box research, tier `nominated` |
-| `EncodeKEM` KEM byte | see session-establishment.md | black-box research, tier `nominated` |
+| `EncodeEC` curve byte | see session-establishment.md | unresolved legacy provenance, tier `nominated` |
+| `EncodeKEM` KEM byte | see session-establishment.md | unresolved legacy provenance, tier `nominated` |
 | Field order and widths | as above | our choice |
 | Absent-identifier sentinel | `0` | our choice |
 

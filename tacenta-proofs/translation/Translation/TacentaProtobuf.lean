@@ -1219,32 +1219,32 @@ def encode_length_delimited
     | core.result.Result.Err _ => ok r
 
 /-- [tacenta_protobuf::FIELD_PQ]
-    Source: 'protobuf/src/lib.rs', lines 902:0-902:28
+    Source: 'protobuf/src/lib.rs', lines 901:0-901:28
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_PQ : Std.U32 := 5#u32
 
 /-- [tacenta_protobuf::FIELD_CIPHERTEXT]
-    Source: 'protobuf/src/lib.rs', lines 901:0-901:36
+    Source: 'protobuf/src/lib.rs', lines 900:0-900:36
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_CIPHERTEXT : Std.U32 := 4#u32
 
 /-- [tacenta_protobuf::FIELD_PREVIOUS_COUNTER]
-    Source: 'protobuf/src/lib.rs', lines 900:0-900:42
+    Source: 'protobuf/src/lib.rs', lines 899:0-899:42
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_PREVIOUS_COUNTER : Std.U32 := 3#u32
 
 /-- [tacenta_protobuf::FIELD_COUNTER]
-    Source: 'protobuf/src/lib.rs', lines 899:0-899:33
+    Source: 'protobuf/src/lib.rs', lines 898:0-898:33
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_COUNTER : Std.U32 := 2#u32
 
 /-- [tacenta_protobuf::FIELD_RATCHET_KEY]
-    Source: 'protobuf/src/lib.rs', lines 898:0-898:37
+    Source: 'protobuf/src/lib.rs', lines 897:0-897:37
     Visibility: public -/
 @[global_simps, irreducible] def FIELD_RATCHET_KEY : Std.U32 := 1#u32
 
 /-- [tacenta_protobuf::RatchetBody]
-    Source: 'protobuf/src/lib.rs', lines 888:0-894:1
+    Source: 'protobuf/src/lib.rs', lines 887:0-893:1
     Visibility: public -/
 structure RatchetBody where
   ratchet_key : alloc.vec.Vec Std.U8
@@ -1507,7 +1507,7 @@ def Raw.slice_of
       ok (core.result.Result.Ok out)
 
 /-- [tacenta_protobuf::Parse]
-    Source: 'protobuf/src/lib.rs', lines 911:0-920:1
+    Source: 'protobuf/src/lib.rs', lines 910:0-919:1
     Visibility: public -/
 structure Parse where
   reader : Reader
@@ -1520,7 +1520,7 @@ structure Parse where
   error : Option ProtoError
 
 /-- [tacenta_protobuf::one_field]:
-    Source: 'protobuf/src/lib.rs', lines 928:0-995:1
+    Source: 'protobuf/src/lib.rs', lines 927:0-994:1
     Visibility: public -/
 def one_field (st : Parse) : Result Parse := do
   let (r, r1) ← Reader.tag st.reader
@@ -1661,7 +1661,7 @@ def one_field (st : Parse) : Result Parse := do
   | core.result.Result.Err e => ok { st with reader := r1, error := (some e) }
 
 /-- [tacenta_protobuf::parse_ratchet_body]: loop body 0:
-    Source: 'protobuf/src/lib.rs', lines 1:0-1028:5
+    Source: 'protobuf/src/lib.rs', lines 1:0-1027:5
     Visibility: public -/
 @[rust_loop_body]
 def parse_ratchet_body_loop.body
@@ -1684,7 +1684,7 @@ def parse_ratchet_body_loop.body
   else ok (done st)
 
 /-- [tacenta_protobuf::parse_ratchet_body]: loop 0:
-    Source: 'protobuf/src/lib.rs', lines 1:0-1028:5
+    Source: 'protobuf/src/lib.rs', lines 1:0-1027:5
     Visibility: public -/
 @[rust_loop]
 def parse_ratchet_body_loop
@@ -1694,7 +1694,7 @@ def parse_ratchet_body_loop
     (st, turns)
 
 /-- [tacenta_protobuf::parse_ratchet_body]:
-    Source: 'protobuf/src/lib.rs', lines 1007:0-1060:1
+    Source: 'protobuf/src/lib.rs', lines 1006:0-1059:1
     Visibility: public -/
 def parse_ratchet_body
   (bytes : alloc.vec.Vec Std.U8) :

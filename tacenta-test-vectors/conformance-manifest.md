@@ -35,7 +35,9 @@ engineering policy. [ADR-0005](../tacenta-spec/decisions/ADR-0005-segregated-ref
 also permits recorded black-box observation of protocol peers and, for the
 isolated reference-adapter role, the consumer-facing API of an official
 compiled package. ADR-0005 excludes implementation source from permissible
-inputs; libsignal's source code is not an input to this project.
+inputs. The current records do not substantiate the claimed black-box origin of
+the six legacy `nominated` value families in `CONSTANTS.md`; no completed
+libsignal interoperability run is recorded.
 
 ## Double Ratchet
 
@@ -373,10 +375,10 @@ the padding of 16 is pinned by the empty plaintext instead.
 
 The message version byte, the field order and widths, and the absent-identifier
 sentinel are our own conventions, gathered in one place in the spec, the model,
-and the core. The `EncodeEC` and `EncodeKEM` leading bytes are the values that
-must match a peer at the bundle layer, and `tacenta-spec/CONSTANTS.md` records
-their provenance. Message-layer interoperability with any other implementation
-is not claimed, and this is recorded rather than implied.
+and the core. The `EncodeEC` and `EncodeKEM` leading bytes are values that would
+have to match a peer at the bundle layer. `tacenta-spec/CONSTANTS.md` records
+that their historical provenance is unresolved. Message-layer interoperability
+with any other implementation is not claimed.
 
 ## Protobuf profile
 
@@ -742,8 +744,7 @@ the AEAD's refusals, the protobuf profile's refusals, and the erasure coders'
 and the two ratchets' stored-state refusals; the broader cases (truncated headers, length overruns,
 the bundle's presence rule, the other persisted formats) are covered by core
 tests and by the fuzz targets rather than by files in this directory.
-Interoperability against a libsignal-based peer is bundle-layer scope: the
-harness contract is defined (the neutral adapter API, the black-box boundary,
-and claim-by-version discipline) and session establishment is implemented;
-what remains is a run against a pinned libsignal build, and the harness and
-its adapters are not part of this public tree.
+Interoperability against a libsignal-based peer is an unfulfilled bundle-layer
+goal. The neutral adapter contract and input boundary are defined, but no pinned
+libsignal package/build, completed run or retained transcript is recorded, and
+the harness and adapters are not part of this public tree.

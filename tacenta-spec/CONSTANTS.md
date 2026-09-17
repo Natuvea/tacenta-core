@@ -10,21 +10,22 @@ leave free. There are several, and this file is what distinguishes them from
 mandated values without reading the code.
 
 The provenance tiers are: **fact** (standards, mathematics, public test vectors),
-**nominated** (labels, tags, version bytes: proposed from published material,
-authoritative only after specification, independent derivation, or black-box
-verification), and **ours** (free choices, authorised by nobody but us).
+**nominated** (values retained by this profile whose external provenance must
+be evidenced before an interoperability claim relies on them), and **ours**
+(free choices, authorised by nobody but us). A nominated row is not evidence
+that the required derivation or black-box experiment has occurred.
 
 ## Wire encodings
 
 | Constant | Value | Tier | Provenance |
 |---|---|---|---|
-| `EncodeEC` type byte | `0x05` | nominated | External interoperability profile, determined by black-box observation of a pinned build (ADR-0003). |
-| `EncodeKEM` type byte | `0x08` | nominated | External interoperability profile, determined by black-box observation of a pinned build (ADR-0003). |
+| `EncodeEC` type byte | `0x05` | nominated | Legacy external-profile value. No pinned package/build or ADR-0003 research record for this value is present in the public or retained project records; black-box provenance is therefore unestablished. |
+| `EncodeKEM` type byte | `0x08` | nominated | Legacy external-profile value. No pinned package/build or ADR-0003 research record for this value is present in the public or retained project records; black-box provenance is therefore unestablished. |
 | PQXDH KEM parameter set | ML-KEM-1024 | fact | Published PQXDH specification. |
 | Bundle KEM prekey length | 1,568 bytes | fact | The ML-KEM-1024 encapsulation-key length, fixed by the FIPS 203 parameter set. A bundle's `kem_prekey_len` must equal it, and a decoder refuses any other value as a decode failure (message-format.md, Prekey bundle). |
 | External message version | none in this tree | nominated | The protobuf profile reads and writes only the protobuf region a caller has already separated, and neither `Model.Protobuf` nor `tacenta-core/protobuf` reads or writes a version byte (protobuf-profile.md, Role and status). No value is recorded here, and none is emitted or accepted. |
-| External ratchet message body field numbers | `1` ratchet key (length-delimited), `2` counter (varint), `3` previous counter (varint), `4` ciphertext (length-delimited), `5` post-quantum part (length-delimited); all five required | nominated | External interoperability profile, determined by black-box observation of a pinned build (ADR-0003). Only the numbers and wire types are the profile's; the names are ours (`Model/Protobuf.lean`, `protobuf/src/lib.rs`; protobuf-profile.md, Ratchet message body). |
-| External prekey envelope field numbers | `1` one-time prekey identifier (varint, optional), `2` base key, `3` identity key, `4` message (length-delimited), `5` registration identifier, `6` signed prekey identifier, `7` post-quantum prekey identifier (varint), `8` KEM (length-delimited); fields 2 to 8 required | nominated | External interoperability profile, determined by black-box observation of a pinned build (ADR-0003). Field 1 is the only optional field in either message type (`Model/Protobuf.lean`, `protobuf/src/lib.rs`; protobuf-profile.md, Prekey envelope). |
+| External ratchet message body field numbers | `1` ratchet key (length-delimited), `2` counter (varint), `3` previous counter (varint), `4` ciphertext (length-delimited), `5` post-quantum part (length-delimited); all five required | nominated | Legacy external-profile numbers, wire types and semantic labels. No pinned package/build or ADR-0003 research record is present, so neither observation provenance nor independent origin of the labels is established (`Model/Protobuf.lean`, `protobuf/src/lib.rs`; protobuf-profile.md, Ratchet message body). |
+| External prekey envelope field numbers | `1` one-time prekey identifier (varint, optional), `2` base key, `3` identity key, `4` message (length-delimited), `5` registration identifier, `6` signed prekey identifier, `7` post-quantum prekey identifier (varint), `8` KEM (length-delimited); fields 2 to 8 required | nominated | Legacy external-profile numbers, wire types and semantic labels. No pinned package/build or ADR-0003 research record is present, so neither observation provenance nor independent origin of labels such as `registration identifier` is established. Field 1 is the only optional field in either message type (`Model/Protobuf.lean`, `protobuf/src/lib.rs`; protobuf-profile.md, Prekey envelope). |
 | **Our own** `VERSION` | `0x01` | ours | Our wire format, not libsignal's. Free choice. |
 | **Our own** `TYPE_RATCHET` / `TYPE_INITIAL` / `TYPE_BUNDLE` | `0x01` / `0x02` / `0x03` | ours | Free choice. |
 | **Our own** AEAD tag length | 32 bytes | ours | The full HMAC-SHA256 output, not truncated (`primitives/aead.rs`). See the note below on MAC truncation. |
@@ -66,9 +67,9 @@ a peer's constant does not belong in them.
 
 | Constant | Value | Tier | Provenance |
 |---|---|---|---|
-| XEdDSA signature sign bit | top bit of `signature[63]` | nominated | External interoperability profile, determined by black-box observation of a pinned build (ADR-0003). A verifier reads it as the sign of the Edwards public key's x-coordinate and clears it from `s`; a signer that normalises the sign, as ours does, leaves it 0. This is the one place the accepted set is wider than XEdDSA Revision 1's. The whole accepted set is stated as rules in identities-and-devices.md, "Verifying a signature", including the two places it is narrower (`s` below the group order, and no small-order public key or `R`). Its edges in both directions are pinned by the verify-only vectors in `tacenta-test-vectors/vectors/primitives/xeddsa.json`. |
+| XEdDSA signature sign bit | top bit of `signature[63]` | nominated | Legacy external-profile value with no pinned package/build or ADR-0003 research record. A verifier reads it as the sign of the Edwards public key's x-coordinate and clears it from `s`; a signer that normalises the sign, as ours does, leaves it 0. This is the one place the accepted set is wider than XEdDSA Revision 1's. The whole accepted set is stated as rules in identities-and-devices.md, "Verifying a signature", including the two places it is narrower (`s` below the group order, and no small-order public key or `R`). Its edges in both directions are pinned by the verify-only vectors in `tacenta-test-vectors/vectors/primitives/xeddsa.json`; those vectors establish behaviour, not provenance. |
 | XEdDSA `hash_1` prefix | `0xFE` then 31 bytes of `0xFF`: 2^256 - 2 in 32 little-endian bytes | fact | XEdDSA Revision 1, section 2.5, `hash_i` for i = 1 with a 256-bit field encoding. It is prefixed to the nonce hash's input (identities-and-devices.md, Signing; `xeddsa.rs`, `HASH_1_PREFIX`). |
-| Signed-prekey signature input | the *tagged* key form (33-byte `EncodeEC`, 1,569-byte `EncodeKEM`) | nominated | External interoperability profile, determined by black-box observation of a pinned build (ADR-0003). |
+| Signed-prekey signature input | the *tagged* key form (33-byte `EncodeEC`, 1,569-byte `EncodeKEM`) | nominated | Legacy external-profile rule with no pinned package/build or ADR-0003 research record; black-box provenance is unestablished. |
 | Application signature label | `"tacenta:application-signature:v1"` then `0xFF`: 33 bytes | ours | Prefixed to the message an application signs under the identity key (`sessions/mod.rs`, `APPLICATION_SIGNING_LABEL`; `Identity::sign_message`, `verify_under_identity`; identities-and-devices.md, Application signatures). Registered in `tacenta-core/LABELS.md`. Free choice. |
 
 ## Storage formats

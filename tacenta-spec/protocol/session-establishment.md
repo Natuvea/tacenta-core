@@ -524,10 +524,11 @@ the implementer. Those are exactly the values a specific peer must agree on for
 wire interoperability, and all of them are recorded in
 [CONSTANTS.md](../CONSTANTS.md).
 
-The two encoding type bytes were determined by black-box observation of a pinned
-build under the interoperability boundary, never by reading another
-implementation's source, and are reproduced by our own parser against bundles
-observed under that boundary. The `info` string is the other case: it is a
+The two encoding type bytes are retained legacy profile values. No pinned
+package/build, transcript or ADR-0003 research record for them is present in
+the public or retained project records, so the project does not claim completed
+black-box derivation or a reproduced bundle observation. The `info` string is
+the other case: it is a
 free choice at tier `ours`, because message-layer interoperability is not
 attempted. The layer
 that interoperates is the bundle, and every constant it needs travels on the
