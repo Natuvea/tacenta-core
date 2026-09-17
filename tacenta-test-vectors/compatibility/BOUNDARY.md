@@ -11,7 +11,7 @@ The boundary is not "nobody may read interface definitions". It is:
 > compiled package. Only approved behavioural outputs may cross from the adapter
 > role to the implementation role.
 
-## Three isolated components
+## Three isolated roles
 
 ```
 Tacenta implementation
@@ -28,14 +28,14 @@ Interoperability harness
            pinned libsignal package
 ```
 
-**1. Tacenta implementation team.** May see: published protocol specifications;
+**1. Tacenta implementation role.** May see: published protocol specifications;
 Tacenta's own behavioural requirements; the neutral interoperability scenarios;
 inputs and outputs from test runs; wire-level observations. Must not see:
 libsignal source; internal bridge declarations; repository tests or fixtures;
 source comments or internal architecture; and the implementation of the
 libsignal adapter, including its libsignal-specific API mapping.
 
-**2. Reference-adapter team.** May see only what an ordinary consumer needs to
+**2. Reference-adapter role.** May see only what an ordinary consumer needs to
 use the package: official package documentation; the public classes, methods,
 and types exposed by the compiled package; package metadata; public API
 declaration files shipped as part of an official package. Must not inspect:
@@ -44,12 +44,20 @@ embedded in the implementation; tests or fixtures that expose expected wire
 values; implementation comments or commit history.
 
 **3. Harness.** Speaks to both adapters through the Tacenta-defined neutral RPC
-interface in `neutral-api.md`. The implementation team sees that interface only,
+interface in `neutral-api.md`. The implementation role sees that interface only,
 never libsignal's names, types, or structure.
+
+These are information-flow roles, not a claim that separate teams or identities
+have always filled them. The public repository has one maintainer account, and
+automated and AI-assisted tools contribute across implementation,
+specification, tests and review preparation. No completed reference-adapter run
+or retained research transcript is public or present in the retained project
+records. The policy therefore describes the required boundary for future work;
+it does not establish provenance for the unresolved legacy profile values.
 
 ## Which interface files are acceptable
 
-An interface declaration is acceptable for the adapter team when it is shipped
+An interface declaration is acceptable for the adapter role when it is shipped
 with the compiled package as its normal consumer-facing API, is necessary to
 compile an ordinary application against that package, is limited to names,
 argument types, return types, and documented errors, and is used only inside the
@@ -67,7 +75,7 @@ Signal repository.
 
 **The test to apply:** is this information needed to call the library normally,
 or is it being used to learn how the protocol is implemented? The first is
-acceptable for the adapter team. The second breaches the boundary, for everyone.
+acceptable for the adapter role. The second breaches the boundary, for everyone.
 
 ## Containment
 

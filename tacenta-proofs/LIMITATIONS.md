@@ -1513,9 +1513,9 @@ decoder accepts anything at all is the Rust round-trip tests.
   The public model is checked with synthetic and model-generated inputs.
 
   **The supported message profile is fully parsed.** The proofs cover the
-  profile expressed in the model and implementation; the profile itself is
-  determined by black-box observation under the research boundary
-  (`tacenta-spec/CONSTANTS.md`).
+  profile expressed in the model and implementation. Its six legacy
+  `nominated` value families have no retained pinned-build research record, so
+  their historical provenance is unresolved (`tacenta-spec/CONSTANTS.md`).
 
   The verified-core design puts the wire parser inside the verified core.
   Item 5 of its contract is closed, and items 6 and 7 -- canonical emission

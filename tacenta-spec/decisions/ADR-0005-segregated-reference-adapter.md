@@ -40,9 +40,9 @@ not receive the adapter implementation or its libsignal-specific API mapping.
 
 Is this information needed to call the library normally, or is it being used to
 learn how the protocol is implemented? The first is acceptable for the adapter
-team. The second breaches the clean-room boundary, for everyone.
+role. The second breaches the research boundary, for everyone.
 
-### Acceptable for the adapter team
+### Acceptable for the adapter role
 
 An interface declaration is acceptable when it is shipped with the compiled
 package as its normal consumer-facing API, is necessary to compile an ordinary
@@ -69,9 +69,10 @@ shipped with any Tacenta product.
 
 ## What this public record establishes
 
-This record establishes the project's engineering policy and the role
-separation. Implementation and verification work uses only the inputs ADR-0003
-lists; libsignal's source code is not among them.
+This record establishes the project's engineering policy and intended
+information-flow separation. It does not prove historical compliance. The
+missing research records and unresolved legacy values are disclosed in
+ADR-0003 and `CONSTANTS.md`.
 
 The public tree itself contains no libsignal implementation source, compiled
 libsignal objects, reference-adapter implementation, research transcripts, or
@@ -79,8 +80,8 @@ libsignal-derived fixtures.
 
 ## Consequences
 
-- The role separation is enforced through repository, process, and input
-  controls, not merely by contributor identity.
+- The role separation is a required repository, process, and input control; a
+  separate contributor identity is not asserted by this record.
 - Compliance rests on the inputs actually used; repository layout is the
   enforcement mechanism, not the definition of the boundary.
 - What would reopen it: upstream changing what it publishes as the supported

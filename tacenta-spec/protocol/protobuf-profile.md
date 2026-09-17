@@ -14,13 +14,13 @@ within declared limits, and refuses everything outside that subset rather
 than skipping it. Nothing outside the subset is specified, because nothing
 outside it is accepted.
 
-The field numbers and wire types of the two message types follow an external
-interoperability profile, determined by black-box observation of a pinned
-build (ADR-0003), and [CONSTANTS.md](../CONSTANTS.md) records them at tier
-`nominated`. Compatibility is claimed only by version and covered surface
-(ADR-0004), and this page claims none: it fixes what the profile accepts, not
-that any other implementation emits it. The limits and the refusal policies
-are ours, at tier `ours`.
+The field numbers, wire types and descriptive labels of the two message types
+are legacy external-profile inputs. No pinned package/build or ADR-0003
+research record for them is present in the public or retained project records,
+so [CONSTANTS.md](../CONSTANTS.md) records them at tier `nominated` with
+unresolved provenance. This page fixes what the profile accepts; it does not
+claim that another implementation emits it or that the labels were derived
+independently. The limits and refusal policies are ours, at tier `ours`.
 
 The profile covers the **protobuf region only**. A caller separates that
 region before parsing it, and anything framing it is outside this page. For
@@ -218,8 +218,9 @@ field  name              wire type          presence
   prekey and post-quantum prekey, 32-bit unsigned values.
 - `kem`: the KEM field, as bytes.
 
-As with the ratchet body, the names are ours and the numbers and wire types
-are the external profile's, and the descriptions are informative.
+As with the ratchet body, the names are descriptive labels for the legacy
+profile. Their independent provenance is not established, and the descriptions
+are informative.
 
 **Field 1, `prekeyId`, is optional, and it is the only optional field in
 either message type.** When absent, the parsed envelope has no identifier.
@@ -289,11 +290,9 @@ minimality claim above. The refinement theorems in
 readers in `tacenta-core/protobuf` compute what the model says, on every
 input. The encoders are covered by no theorem.
 
-The field numbers and wire types of both message types are tier `nominated`.
-They follow an external interoperability profile determined by black-box
-observation of a pinned build (ADR-0003), and compatibility is claimed only by
-version and covered surface (ADR-0004). No published specification defines
-them, and they are not derived from any other implementation's source. The
+The field numbers, wire types and semantic labels of both message types are tier
+`nominated`. No published specification defines them, and the project has no
+pinned-build research record that establishes how they were obtained. The
 varint and tag packing are the general protobuf wire encoding's. The
 restrictions placed on it, and the bounds `maxMessageLen`, `maxFieldNumber`,
 `maxFields` and `maxVarintBytes`, are tier `ours`: free choices recorded in

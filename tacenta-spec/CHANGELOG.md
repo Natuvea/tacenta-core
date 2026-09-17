@@ -12,6 +12,15 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- The six legacy `nominated` interoperability value families no longer claim
+  provenance from an unrecorded pinned-build experiment. `CONSTANTS.md`, the
+  protobuf/session pages, implementation comments, manifest, proof limitations
+  and front-door provenance statement now say that no package/version,
+  transcript or ADR-0003 research record is retained. The unsupported claim
+  that protobuf field names were independently chosen is also removed. ADR
+  roles are described as information-flow roles rather than separate teams,
+  and the remaining AI-training, semantic-label, similarity-review and
+  third-party-reader licence gaps are recorded openly.
 - The assurance record now describes per-job receipt JSON as an unsigned
   post-check checkpoint rather than authenticated proof of a job conclusion.
   A separate default-branch `workflow_run` workflow now derives the exact CI
