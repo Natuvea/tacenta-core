@@ -91,6 +91,12 @@ later compromises the recipient and recovers the stored keys.
 The first is met by a bound on how many are stored. The second is met by
 deleting them after an interval, triggered by a timer or by counting events.
 
+For a same-chain skip, delete the held `(DHr, n)` entries in the range that
+will be re-derived before checking the total-store bound. A re-derived pair
+replaces the held entry and consumes one slot only once. The operation checks
+the resulting store against `MAX_SKIPPED_STORE` and leaves the state unchanged
+when that check refuses it.
+
 ## What this implementation does
 
 - Keys are **superseded** at every point the first table requires: a message key

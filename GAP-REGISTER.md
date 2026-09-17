@@ -4,7 +4,7 @@ Current register for assurance gate 2. Historical independent-reader reports sta
 unchanged under `tacenta-test-vectors/runners/independent/`; this file records
 the current disposition after later fixes.
 
-Last assessed: 2026-09-17, with the implementation at `313a267`.
+Last assessed: 2026-09-17, with the implementation at the hardened PR head.
 
 ## Status key
 
@@ -34,6 +34,7 @@ gate obligations that are not individual reader findings.
 | ID | Status | Gate class | Package | Area | Current disposition | Acceptance criterion |
 | --- | --- | --- | --- | --- | --- | --- |
 | HL-IMP-02 | Closed | CLOSED | P3/P5/P7 | Double Ratchet replacement bound | The normative order is recorded in `CHANGELOG.md`. At `3e2745f`, the model and Rust remove replaceable pairs before checking the resulting store length. `replacement-bound-counts-resulting-store` pins a 1,999-key state at byte level, the differential harness requires that boundary to be reached, the translated T1/T3 proofs were regenerated and rebuilt, and independent-reader pass 9 records 646 PASS, 0 FAIL, 0 SKIP. | Satisfied: normative resolution, model/Rust agreement, distinguishing vector and differential sequence, translated proofs, and a new reader pass are all recorded. |
+| HL-R1-SPARSE-TRANSLATION | Open | BLOCKING | P7 | Sparse ratchet replacement bound | The sparse ratchet implementation and model change is deliberately out of this PR until its Aeneas translation, T1/T3 proofs, generated manifests and a distinguishing revert test are produced together. The candidate keeps the prior sparse behavior and does not claim this follow-up is complete. | Close only when the sparse Rust, model, generated translation, proofs and attestations are regenerated from the same source head and a test fails when the sparse fix is reverted. |
 | G7-01 | Closed | CLOSED | P1 | Vector layouts | `tacenta-test-vectors/README.md` now states the `prekey-store-state.json` and `session-state.json` `fields` layouts, including the derived `braid_tag`, `braid_epoch` and `sparse_epoch` session names. | Independent reader can implement the two files' exact field names from the README layout rather than from inference. |
 | G7-02 | Closed | CLOSED | P1 | Vector status | The README status paragraph now says the session and prekey-store persisted formats have vectors, and that every persistence file except the two erasure coders names its refusal. | No current status paragraph says those two files have no vectors or limits refusals to the two ratchet-state files. |
 | G7-03 | Closed | CLOSED | P3 | Prekey signatures | `session-persistence.md` now says stored prekey signatures verify using the unlabelled prekey signature input. `CHANGELOG.md` records the clarification. | A reader no longer has to choose between labelled application signatures and unlabelled prekey signatures. |

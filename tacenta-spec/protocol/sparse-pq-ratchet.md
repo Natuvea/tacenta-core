@@ -220,6 +220,9 @@ messages.
 The Double Ratchet caps its store's total size ([ratchet.md](ratchet.md),
 Skipped keys). The same cap applies here, for the same reason, and a request
 that would exceed it is refused by the ratchet (`SkippedStoreFull`).
+Before that check, remove any held key whose `(epoch, n)` pair is in the
+re-derived range. Re-deriving a pair therefore replaces it without consuming
+an additional slot; a refusal leaves the sparse state unchanged.
 `Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded` proves this of
 one skip: a skip that succeeds leaves the store no longer than the larger of
 its previous length and `MAX_SKIPPED_STORE`. No theorem carries the bound

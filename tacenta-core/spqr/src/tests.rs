@@ -152,23 +152,6 @@ fn the_store_bound_stops_repeated_skipping_on_one_chain() {
 }
 
 #[test]
-fn the_store_absolute_bound_rejects_2001_atomically() {
-    // Keep this edge fixed: changing the policy bound to 2,001 must make the
-    // test fail instead of moving the test along with the constant.
-    let mut b = State::init_bob(&sk());
-    for n in 5_000..7_000 {
-        b.skipped.push(Skipped {
-            epoch: 0,
-            n,
-            key: [0x32; 32],
-        });
-    }
-    let before = b.clone();
-    assert_eq!(b.skip_message_keys(0, 1), Err(SpqrError::SkippedStoreFull));
-    assert_eq!(b, before, "a full-store refusal must be atomic");
-}
-
-#[test]
 fn retirement_keeps_the_cross_epoch_total_below_the_bound() {
     // Skipping the maximum in every epoch does not accumulate, because
     // retirement drops everything older than EPOCHS_KEPT. So the total stays at

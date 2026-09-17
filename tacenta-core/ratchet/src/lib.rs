@@ -1530,13 +1530,21 @@ mod tests {
 
     #[test]
     fn skipped_store_absolute_bound_rejects_2001_atomically() {
-        // A full store on another chain leaves no room for one newly derived
-        // key. This fixed 2,000/2,001 edge catches a loosened constant and
-        // proves the refusal does not mutate the state.
+        // One existing key is in the range being replaced. The resulting
+        // store would be 1,999 survivors plus two fresh keys, so a
+        // pre-check implementation would refuse before purging while an
+        // implementation that commits the purge before checking would mutate
+        // the state on this refusal.
         let mut state = init_receiver(&SK, B_PUB, LabelSet::Tacenta);
         state.ckr = Some(SK);
         state.dhr_pub = Some(A_PUB);
-        for n in 0..2000u32 {
+        state.skipped.push(SkippedKey {
+            dh: A_PUB,
+            n: 1,
+            stored_at: 0,
+            key: [0x31; 32],
+        });
+        for n in 0..1999u32 {
             state.skipped.push(SkippedKey {
                 dh: B_PUB,
                 n,
@@ -1550,6 +1558,42 @@ mod tests {
             Err(RatchetError::SkippedStoreFull)
         );
         assert_eq!(state, before, "a full-store refusal must be atomic");
+    }
+
+    #[test]
+    fn skipped_store_absolute_bound_accepts_exactly_2000_after_replacement() {
+        // The resulting store is exactly the fixed policy bound: 1,998
+        // survivors plus the two newly derived keys. This catches tightening
+        // the check to `>=`, which would reject an honest boundary receive.
+        let mut state = init_receiver(&SK, B_PUB, LabelSet::Tacenta);
+        state.ckr = Some(SK);
+        state.dhr_pub = Some(A_PUB);
+        state.skipped.push(SkippedKey {
+            dh: A_PUB,
+            n: 1,
+            stored_at: 0,
+            key: [0x31; 32],
+        });
+        for n in 0..1998u32 {
+            state.skipped.push(SkippedKey {
+                dh: B_PUB,
+                n,
+                stored_at: 0,
+                key: [0x32; 32],
+            });
+        }
+        assert_eq!(state.skipped.len(), 1999);
+        skip_message_keys(&mut state, 2).expect("the exact bound is accepted");
+        assert_eq!(state.skipped.len(), 2000);
+        assert_eq!(state.nr, 2);
+        assert_eq!(
+            state
+                .skipped
+                .iter()
+                .filter(|entry| entry.dh == A_PUB)
+                .count(),
+            2
+        );
     }
 
     /// A store clock at `u32::MAX` is refused at import (`State::invariant`).
