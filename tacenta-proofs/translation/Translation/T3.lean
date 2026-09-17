@@ -589,7 +589,7 @@ theorem skip_message_keys_loop_refines [DerivedKeysModel]
     (i : Usize)
     (hb : v.val.length + ((DerivedKeysModel.contents keys).val.length - i.val)
           ≤ Usize.max) :
-    skip_message_keys_loop dhr v now keys i ⦃ fun r =>
+    skip_message_keys_loop dhr now v keys i ⦃ fun r =>
       r.val.map skippedOf
         = v.val.map skippedOf
           ++ ((DerivedKeysModel.contents keys).val.drop i.val).map (storedOf dhr now) ⦄ := by
@@ -619,7 +619,7 @@ theorem skip_message_keys_loop_refines [DerivedKeysModel]
       -- the end of the store, and the answer does not change.
       rw [List.drop_eq_getElem_cons hlt] at hinv2
       step*
-      subst v1_post
+      subst v_post
       -- The two reads at the cursor are the two halves of the same entry.
       have h1 := congrArg Prod.fst i3_post
       have h2 := congrArg Prod.snd __post
@@ -627,10 +627,10 @@ theorem skip_message_keys_loop_refines [DerivedKeysModel]
       refine ⟨?_, ?_, ?_⟩
       · -- Done by hand rather than by `simp_all`, which folds the exposed head
         -- back into the drop and loses the entry it was exposed for.
-        rw [v2_post, i4_post, ← hinv2]
+        rw [skipped1_post, i4_post, ← hinv2]
         simp only [List.map_append, List.map_cons, List.map_nil, List.append_assoc,
           List.singleton_append, skippedOf, storedOf, h1, h2]
-      · simp only [v2_post, List.length_append, List.length_singleton, i4_post]
+      · simp only [skipped1_post, List.length_append, List.length_singleton, i4_post]
         omega
       · rw [i4_post]
         omega
@@ -1048,33 +1048,32 @@ theorem skip_message_keys_refines (h : HmacAgrees)
           simp [hg']
         have hgap := Tacenta.T1.skip_gap_le s.nr upto hg
         step*
-        obtain ⟨ck2, keys⟩ := v
-        have hrOk : r = core.result.Result.Ok (ck2, keys) := by assumption
-        rw [hrOk] at r_post
-        obtain ⟨rp, rlen⟩ := r_post
-        step*
-        · -- The purge shrank the store, so the storing loop still fits.
-          have hlen := congrArg List.length v1_post
+        · -- The cloned store is purged before the bound check, and a filter
+          -- cannot be longer than its input.
+          have hlen := congrArg List.length skipped1_post
           have hfil := List.length_filter_le
             (keepOutside (keyOf dhr) s.nr.val upto.val)
             (List.map skippedOf s.skipped.val)
           have hi2max : i2.val ≤ U32.max := by scalar_tac
           simp only [List.length_map] at hlen hfil
-          simp only at rlen
+          have hpurge : skipped1.val.length ≤ s.skipped.val.length := by
+            rw [← skipped_post] at hlen
+            omega
+          have hlenval : skipped1.len.val = skipped1.val.length := by
+            simp [alloc.vec.Vec.len]
+          have hcast : (UScalar.cast .Usize i2).val = i2.val := by scalar_tac
           omega
-        · intro _
+        · obtain ⟨ck2, keys⟩ := v
+          have hrOk : r = core.result.Result.Ok (ck2, keys) := by assumption
+          rw [hrOk] at r_post
+          obtain ⟨rp, rlen⟩ := r_post
+          step*
+          intro _
           have hsatle := saturating_add_le s.nr MAX_SKIP
           have hg1 : ¬ (upto.val > m.nr + Model.State.maxSkip) := by
             rw [← hnr]
             simp only [MAX_SKIP, Model.State.maxSkip] at *
             scalar_tac
-          have hg2 : ¬ (m.skipped.length + (upto.val - m.nr)
-              > Model.State.maxSkippedStore) := by
-            rw [← hnr, ← hskip]
-            simp only [Model.State.maxSkippedStore, MAX_SKIPPED_STORE,
-              alloc.vec.Vec.len] at *
-            scalar_tac
-          simp only [hg1, hg2, if_false]
           -- The derivation was indexed by the Rust's counters; restate it at
           -- the model's before matching, or the two never line up.
           have hi2 : i2.val = upto.val - m.nr := by rw [← hnr]; omega
@@ -1090,12 +1089,26 @@ theorem skip_message_keys_refines (h : HmacAgrees)
             rw [List.drop_zero, ← rkeys]
             simp [keysOf, List.map_map, storedOf, pairOf, hev]
           -- What the purge left, restated at the model's counter.
-          have hkept : List.map skippedOf v1.val
-              = (m.skipped.filter fun e =>
-                  !(e.1 == keyOf dhr && decide (m.nr ≤ e.2.1)
-                    && decide (e.2.1 < upto.val))) := by
-            rw [v1_post, hskip, hnr]
+          have hsurvivors : (m.skipped.filter fun e =>
+                !(e.1 == keyOf dhr && decide (m.nr ≤ e.2.1)
+                  && decide (e.2.1 < upto.val)))
+              = Model.State.skipSurvivors m (keyOf dhr) upto.val := by
             rfl
+          have hkept : List.map skippedOf skipped1.val
+              = Model.State.skipSurvivors m (keyOf dhr) upto.val := by
+            rw [skipped1_post, ← skipped_post, hskip, hnr]
+            exact hsurvivors
+          have hkeptLen := congrArg List.length hkept
+          simp only [List.length_map] at hkeptLen
+          have hcast : (UScalar.cast .Usize i2).val = i2.val := by scalar_tac
+          have hi4nat : i4.val = skipped1.val.length + i2.val := by
+            simpa [alloc.vec.Vec.len, hcast] using i4_post
+          have hg2 : ¬ ((Model.State.skipSurvivors m (keyOf dhr) upto.val).length
+              + (upto.val - m.nr) > Model.State.maxSkippedStore) := by
+            rw [← hkeptLen, ← hnr, ← i2_post1]
+            simp only [Model.State.maxSkippedStore, MAX_SKIPPED_STORE] at *
+            scalar_tac
+          simp only [hg1, hg2, if_false]
           refine ⟨_, rfl, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩ <;>
             simp_all [keysOf]
 
@@ -1463,7 +1476,7 @@ theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.T1.VecRemoveTotal)
 -- The sub-operations are applied by hand below: their refinement statements
 -- carry the model state as a free parameter, which the stepping tactic has
 -- nothing to determine from the call, so T1's weaker rules would win.
-attribute [-step] Tacenta.T1.skip_message_keys_bound Tacenta.T1.dh_ratchet_spec
+attribute [-step] Tacenta.T1.skip_message_keys_room Tacenta.T1.dh_ratchet_spec
 
 theorem receive_refines (h : HmacAgrees) (hk : HkdfAgrees)
     (hz : ZeroizingRoundTrips) (hrm : Tacenta.T1.VecRemoveTotal)

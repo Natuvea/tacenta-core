@@ -36,10 +36,11 @@ ahead of the cursor, and it would breach one of the two bounds.
     theorem cannot survive. -/
 theorem skipMessageKeys_none_iff (st : State) (upto : Nat) :
     skipMessageKeys st upto = none
-      ↔ (∃ ck, st.ckr = some ck) ∧ (∃ dhr, st.dhrPub = some dhr)
-        ∧ st.nr < upto
-        ∧ (st.nr + maxSkip < upto
-            ∨ maxSkippedStore < st.skipped.length + (upto - st.nr)) := by
+      ↔ ∃ ck dhr, st.ckr = some ck ∧ st.dhrPub = some dhr
+          ∧ st.nr < upto
+          ∧ (st.nr + maxSkip < upto
+              ∨ maxSkippedStore <
+                (skipSurvivors st dhr upto).length + (upto - st.nr)) := by
   unfold skipMessageKeys
   cases hck : st.ckr with
   | none => simp
@@ -54,11 +55,13 @@ theorem skipMessageKeys_none_iff (st : State) (upto : Nat) :
         by_cases h2 : upto > st.nr + maxSkip
         · simp [h2, Nat.lt_of_not_le h1]
         · simp only [h2, if_false]
-          by_cases h3 : st.skipped.length + (upto - st.nr) > maxSkippedStore
+          by_cases h3 :
+              (skipSurvivors st dhr upto).length + (upto - st.nr) > maxSkippedStore
           · simp [h3, Nat.lt_of_not_le h1]
           · simp only [h3, if_false]
             simp only [Nat.not_lt] at h2 h3
             simp [Nat.lt_of_not_le h1]
+            exact h3
 
 /-- Skipping with no receiving chain **succeeds**, as a no-op.
 
@@ -100,6 +103,17 @@ example :
 
 /-- And a request that fits under both is served. -/
 example : (skipMessageKeys (loaded 10) 10).isSome := by native_decide
+
+/-- The total bound counts the store after replacement. A store one short of
+the cap can re-store two held pairs because those pairs are removed first. -/
+example :
+    let replacing : State :=
+      { loaded 0 with
+          skipped :=
+            [(dh0, 0, 0, ck0), (dh0, 1, 0, ck0)] ++
+              (List.range (maxSkippedStore - 3)).map
+                (fun i => (ck0, 1000000 + i, 0, ck0)) }
+    (skipMessageKeys replacing 2).isSome := by native_decide
 
 /-! ## A refusal leaves nothing behind
 

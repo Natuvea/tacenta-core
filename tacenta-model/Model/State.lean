@@ -144,6 +144,12 @@ def deriveChain (ck : Key) (startN : Nat) : Nat → Key × List (Nat × Key)
     let (ckFinal, rest) := deriveChain ck' (startN + 1) count
     (ckFinal, (startN, mk) :: rest)
 
+/-- The entries that survive replacement of `[st.nr, upto)` under `dhr`. -/
+def skipSurvivors (st : State) (dhr : Key) (upto : Nat) :
+    List (Key × Nat × Nat × Key) :=
+  st.skipped.filter fun e =>
+    !(e.1 == dhr && decide (st.nr ≤ e.2.1) && decide (e.2.1 < upto))
+
 /-- Store skipped message keys on the current receiving chain up to (but not
     including) `upto` (ratchet.md, Skipped keys). Returns `none` when the request
     would exceed `maxSkip` on this chain, or would push the store past
@@ -155,22 +161,20 @@ def skipMessageKeys (st : State) (upto : Nat) : Option State :=
       some st
     else if upto > st.nr + maxSkip then
       none
-    else if st.skipped.length + (upto - st.nr) > maxSkippedStore then
+    else if (skipSurvivors st dhr upto).length + (upto - st.nr) > maxSkippedStore then
       none
     else
-      -- Bound with projections rather than a destructuring `let`, so the
-      -- stored list stays visibly `(deriveChain ...).2` for the proofs.
-      let res := deriveChain ck st.nr (upto - st.nr)
       -- The store maps a ratchet key and message number to a key, so storing
       -- replaces rather than accumulates. It matters because the peer chooses
       -- the ratchet key and may return to one it left, which starts a fresh
       -- chain numbered from zero under a key already stored; without this the
       -- pair would hold two entries with different keys and the second could
       -- never be found (Properties.Invariants).
-      let kept := st.skipped.filter fun e =>
-        !(e.1 == dhr && decide (st.nr ≤ e.2.1) && decide (e.2.1 < upto))
+      -- Bound with projections rather than a destructuring `let`, so the
+      -- stored list stays visibly `(deriveChain ...).2` for the proofs.
+      let res := deriveChain ck st.nr (upto - st.nr)
       let stored := res.2.map (fun x => (dhr, x.1, st.events, x.2))
-      some { st with ckr := some res.1, nr := upto, skipped := kept ++ stored }
+      some { st with ckr := some res.1, nr := upto, skipped := skipSurvivors st dhr upto ++ stored }
   | _, _ => some st
 
 /-- Count one received message and delete the skipped keys that have outlived

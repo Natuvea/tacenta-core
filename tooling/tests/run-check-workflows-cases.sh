@@ -40,14 +40,33 @@ trap 'rm -rf "$work"' EXIT
 
 wrong=0
 total=0
-for case in "$cases"/pass-*.yml "$cases"/fail-*.yml; do
+for case in "$cases"/pass-*.yml "$cases"/fail-*.yml "$cases"/action-pass-*.yml "$cases"/action-fail-*.yml; do
   [ -e "$case" ] || continue
   total=$((total + 1))
   name="$(basename "$case" .yml)"
   repo="$work/$name"
   mkdir -p "$repo/.github/workflows"
   git -C "$repo" init -q
-  cp "$case" "$repo/.github/workflows/t.yml"
+  case "$name" in
+    action-*)
+      mkdir -p "$repo/.github/actions/probe"
+      cp "$case" "$repo/.github/actions/probe/action.yml"
+      # The checker requires a workflow directory to exist, so the fixture
+      # action gets one minimal valid caller.
+      cat > "$repo/.github/workflows/t.yml" <<'EOF'
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/probe
+EOF
+      ;;
+    *) cp "$case" "$repo/.github/workflows/t.yml" ;;
+  esac
   set +e
   # Not `GITHUB_ACTIONS`: the checker's own skip-or-fail rule is not under
   # test, and a case must see the same checker a developer's machine does.
@@ -55,14 +74,14 @@ for case in "$cases"/pass-*.yml "$cases"/fail-*.yml; do
   rc=$?
   set -e
   case "$name" in
-    pass-*)
+    pass-*|action-pass-*)
       if [ "$rc" -ne 0 ]; then
         echo "WRONG  $name: expected accepted, was refused:" >&2
         printf '  %s\n' "$out" >&2
         wrong=$((wrong + 1))
       fi
       ;;
-    fail-*)
+    fail-*|action-fail-*)
       expect="$(sed -n '1s/^# expect: //p' "$case")"
       if [ -z "$expect" ]; then
         echo "WRONG  $name: a fail case's first line must be '# expect: <text>'" >&2
@@ -79,6 +98,10 @@ for case in "$cases"/pass-*.yml "$cases"/fail-*.yml; do
   esac
 done
 
+if [ "$total" -eq 0 ]; then
+  echo "check-workflows-cases: no cases found" >&2
+  exit 1
+fi
 if [ "$wrong" -ne 0 ]; then
   echo "check-workflows-cases: $wrong of $total case(s) gave the wrong result" >&2
   exit 1

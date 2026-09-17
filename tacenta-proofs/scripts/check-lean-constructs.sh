@@ -116,6 +116,13 @@ lean_files=$(
 )
 
 # The lakefiles, which can set Lean options for every module they build.
+# This narrower structural gate permits generated Translation/Tacenta*.lean
+# files to declare their recorded opaque externals. A disabled `sorry` warning
+# is different: it can hide incompleteness in any first-party module, including
+# generated translation, so scan the complete first-party source set for it.
+all_lean_files=$(find tacenta-model tacenta-proofs -type f -name '*.lean' \
+  -not -path '*/.lake/*' 2>/dev/null | sort)
+
 lakefiles=$(
   ls tacenta-model/lakefile.lean tacenta-model/lakefile.toml \
     tacenta-proofs/lakefile.lean tacenta-proofs/lakefile.toml \
@@ -135,7 +142,7 @@ fi
 
 # python3 for the stripping: a block comment spans lines, and the repository
 # already needs python3 for attest.py. Standard library only.
-found=$(LEAN_FILES="$lean_files" LAKEFILES="$lakefiles" python3 - <<'PY'
+found=$(LEAN_FILES="$lean_files" ALL_LEAN_FILES="$all_lean_files" LAKEFILES="$lakefiles" python3 - <<'PY'
 import os, re, sys
 
 # A reserved word as a token: not glued to an identifier character, a dot
@@ -277,7 +284,8 @@ def strip_toml(text):
 def collapse(line):
     return " ".join(line.split())
 
-lean_paths, lake_paths = os.environ["LEAN_FILES"], os.environ["LAKEFILES"]
+lean_paths, all_lean_paths = os.environ["LEAN_FILES"], os.environ["ALL_LEAN_FILES"]
+lake_paths = os.environ["LAKEFILES"]
 hits = []
 present = {path: set() for path in ALLOW}
 for path in lean_paths.split():
@@ -296,6 +304,19 @@ for path in lean_paths.split():
                     present[path].add(source)
                 else:
                     hits.append(f"{path}:{lineno}: {kind}: {line.strip()}")
+# Lean only emits the diagnostic the no-sorry gate scans when this option is
+# enabled. It must remain enabled in generated translation as well as the
+# hand-written proof/model files, so this scan is deliberately broader than
+# the structural rules above.
+for path in all_lean_paths.split():
+    text = strip_lean(open(path, encoding="utf-8").read())
+    # Search the complete file so a line break (or spaces around the dot)
+    # cannot split the option name and evade the gate.
+    for match in re.finditer(r"set_option\s+warn\s*\.\s*sorry\s+false", text):
+        lineno = text.count("\n", 0, match.start()) + 1
+        line = text.splitlines()[lineno - 1] if text.splitlines() else ""
+        hits.append(f"{path}:{lineno}: sorry-warning-disabled: {line.strip()}")
+
 for path, lines in ALLOW.items():
     for source in lines:
         if source not in present[path]:
@@ -320,7 +341,7 @@ if [ -n "$found" ]; then
   echo "" >&2
   echo "An axiom, an opaque, an implemented_by/extern attribute, a partial def, an" >&2
   echo "unsafe declaration, a name in the compiler's _unsafe_rec/_native namespace," >&2
-  echo "a debug.* option, or a lakefile that sets Lean options widens the trust" >&2
+  echo 'a disabled warn.sorry diagnostic, a debug.* option, or a lakefile that sets Lean options widens the trust' >&2
   echo "base of every theorem downstream of it without a compiler warning; and" >&2
   echo "elaboration-time code (run_cmd, #eval, elab, macro, syntax, initialize," >&2
   echo "addDecl, any reference to the Lean namespace) could plant a compiler-trust" >&2

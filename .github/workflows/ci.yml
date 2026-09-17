@@ -447,8 +447,11 @@ jobs:
 
   assurance-receipts:
     needs: [rust, msrv, armv7, vectors, audit, proofs, translation, checks, sign-off]
+    # `sign-off` is intentionally skipped for pushes. `always()` makes this
+    # collector evaluate that conditional dependency instead of GitHub skipping
+    # the collector before its push branch can run.
     if: >-
-      needs.rust.result == 'success' && needs.msrv.result == 'success' &&
+      always() && needs.rust.result == 'success' && needs.msrv.result == 'success' &&
       needs.armv7.result == 'success' && needs.vectors.result == 'success' &&
       needs.audit.result == 'success' && needs.proofs.result == 'success' &&
       needs.translation.result == 'success' && needs.checks.result == 'success' &&

@@ -260,7 +260,7 @@ theorem skip_message_keys_loop_no_panic [DerivedKeysModel]
     (i : Usize)
     (h : v.val.length + ((DerivedKeysModel.contents keys).val.length - i.val)
           ≤ Usize.max) :
-    skip_message_keys_loop dhr v now keys i ⦃ fun _ => True ⦄ := by
+    skip_message_keys_loop dhr now v keys i ⦃ fun _ => True ⦄ := by
   unfold skip_message_keys_loop
   apply loop.spec_decr_nat
     (measure := fun x =>
@@ -522,6 +522,39 @@ theorem purge_chain_range_shrinks (hrm : VecRemoveTotal)
   unfold purge_chain_range
   exact purge_chain_range_loop_shrinks hrm skipped dhr from1 upto 0#usize
 
+/-- A skipped-key clone is the identity: every field clone is the identity. -/
+@[step]
+theorem skipped_key_clone_spec (sk : SkippedKey) :
+    SkippedKey.Insts.CoreCloneClone.clone sk ⦃ fun r => r = sk ⦄ := by
+  unfold SkippedKey.Insts.CoreCloneClone.clone
+  step with core.array.CloneArray.clone_spec core.clone.CloneU8 sk.dh
+    (fun x _ => by rfl)
+  simp only [core.clone.impls.CloneU32.clone, lift]
+  step with core.array.CloneArray.clone_spec core.clone.CloneU8 sk.key
+    (fun x _ => by rfl)
+  simp only [← a_post, ← i_post]
+
+/-- Cloning the candidate store is total and preserves it exactly. -/
+@[step]
+theorem skipped_vec_clone_spec (v : alloc.vec.Vec SkippedKey) :
+    alloc.vec.CloneVec.clone SkippedKey.Insts.CoreCloneClone v
+      ⦃ fun r => v = r ⦄ := by
+  unfold alloc.vec.CloneVec.clone
+  have h : ∀ x ∈ v.val,
+      SkippedKey.Insts.CoreCloneClone.clone x = ok x := by
+    intro x _
+    obtain ⟨y, hy, hxy⟩ := WP.spec_imp_exists (skipped_key_clone_spec x)
+    simpa [hxy] using hy
+  exact Slice.clone_spec h
+
+/-- Array inequality is defined in terms of equality, so it is total. -/
+@[step]
+theorem array_ne_total {N : Usize} (a b : Array U8 N) :
+    core.array.equality.PartialEqArray.ne core.cmp.PartialEqU8 a b
+    ⦃ fun _ => True ⦄ := by
+  unfold core.array.equality.PartialEqArray.ne
+  step*
+
 /-- A saturating sum is at most the true sum, whether or not it saturated.
 Stated here rather than imported because `T1` sits below the modules that also
 need it. -/
@@ -588,15 +621,6 @@ theorem try_skipped_no_panic (hrm : VecRemoveTotal) (state : State)
   obtain ⟨o, a, o1, a1, o2, o3, i, i1, i2, v, ev, lbl⟩ := r
   simp [hr]
 
-/-- The array inequality, which is defined in terms of the equality above rather
-than being opaque, so it inherits its totality. -/
-@[step]
-theorem array_ne_total {N : Usize} (a b : Array U8 N) :
-    core.array.equality.PartialEqArray.ne core.cmp.PartialEqU8 a b
-    ⦃ fun _ => True ⦄ := by
-  unfold core.array.equality.PartialEqArray.ne
-  step*
-
 /-- The store loop, with the bound carried so a caller learns how large the
 store ends up rather than only that the loop did not fail. Same shape as the
 chain loop's length lemma. -/
@@ -605,7 +629,7 @@ theorem skip_message_keys_loop_bound [DerivedKeysModel] (B : Nat) (hB : B ≤ Us
     (keys : zeroize.Zeroizing (alloc.vec.Vec (U32 × Array U8 32#usize)))
     (i : Usize)
     (h : v.val.length + ((DerivedKeysModel.contents keys).val.length - i.val) ≤ B) :
-    skip_message_keys_loop dhr v now keys i ⦃ fun r => r.val.length ≤ B ⦄ := by
+    skip_message_keys_loop dhr now v keys i ⦃ fun r => r.val.length ≤ B ⦄ := by
   unfold skip_message_keys_loop
   apply loop.spec_decr_nat
     (measure := fun x =>
@@ -633,7 +657,7 @@ theorem skip_message_keys_loop_grows [DerivedKeysModel]
     (i : Usize)
     (h : v.val.length + ((DerivedKeysModel.contents keys).val.length - i.val)
           ≤ Usize.max) :
-    skip_message_keys_loop dhr v now keys i ⦃ fun r =>
+    skip_message_keys_loop dhr now v keys i ⦃ fun r =>
       r.val.length ≤ v.val.length
         + ((DerivedKeysModel.contents keys).val.length - i.val) ⦄ :=
   skip_message_keys_loop_bound _ h dhr v now keys i (le_refl _)
@@ -642,7 +666,6 @@ theorem skip_message_keys_loop_grows [DerivedKeysModel]
 the code enforces, whichever is bigger. This is what a second call needs in
 order to re-establish its own precondition, which is why panic-freedom alone was
 not enough to compose. -/
-@[step]
 theorem skip_message_keys_bound (h : HmacTotal) (hrm : VecRemoveTotal)
     [DerivedKeysModel] (state : State) (upto : U32)
     (hs : state.skipped.val.length + MAX_SKIP.val ≤ Usize.max) :
@@ -657,6 +680,29 @@ theorem skip_message_keys_bound (h : HmacTotal) (hrm : VecRemoveTotal)
     step*
     all_goals (try obtain ⟨ck2, keys⟩ := v)
     all_goals ((step*; simp_all [alloc.vec.Vec.len, MAX_SKIPPED_STORE]) <;> omega)
+
+/-- The form used when two skips are composed: a call preserves enough room
+for another `MAX_SKIP` request. -/
+@[step]
+theorem skip_message_keys_room (h : HmacTotal) (hrm : VecRemoveTotal)
+    [DerivedKeysModel] (state : State) (upto : U32)
+    (hs : max state.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val
+      ≤ Usize.max) :
+    skip_message_keys state upto ⦃ fun p =>
+      max p.2.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val
+        ≤ Usize.max ⦄ := by
+  have hcall : state.skipped.val.length + MAX_SKIP.val ≤ Usize.max := by
+    calc
+      state.skipped.val.length + MAX_SKIP.val
+          ≤ max state.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val :=
+        Nat.add_le_add_right (Nat.le_max_left _ _) _
+      _ ≤ Usize.max := hs
+  refine WP.spec_mono (skip_message_keys_bound h hrm state upto hcall) ?_
+  intro p hp
+  have hm : max p.2.skipped.val.length MAX_SKIPPED_STORE.val
+      ≤ max state.skipped.val.length MAX_SKIPPED_STORE.val :=
+    max_le hp (Nat.le_max_right _ _)
+  exact le_trans (Nat.add_le_add_right hm _) hs
 
 /-- The scan never grows the store: it either removes the matching key or leaves
 the store alone. `receive` needs this to carry its own precondition across the
@@ -806,9 +852,16 @@ theorem receive_no_panic (h : HmacTotal) (hk : HkdfTotal) (hz : ZeroizingTotal)
     (hs : max state.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val ≤ Usize.max) :
     NoPanic (receive state header dh_out_recv dh_out_send new_dhs_pub) := by
   unfold NoPanic receive
-  step*
+  step
+  have hroom1 : max state1.skipped.val.length MAX_SKIPPED_STORE.val
+      + MAX_SKIP.val ≤ Usize.max := by
+    calc
+      max state1.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val
+          ≤ max state.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val :=
+        Nat.add_le_add_right
+          (max_le (le_trans o_post (Nat.le_max_left _ _)) (Nat.le_max_right _ _)) _
+      _ ≤ Usize.max := hs
   rcases hd : state1.dhr_pub with _ | dhr <;> (try simp only) <;> step*
-  all_goals (simp_all [MAX_SKIPPED_STORE]; omega)
 
 /-
 ## What T1 covers, and what it rests on

@@ -1793,7 +1793,7 @@ def derive_chain
   derive_chain_loop { start := 0#u32, «end» := count } start_n ck keys
 
 /-- [tacenta_ratchet::purge_chain_range]: loop body 0:
-    Source: 'ratchet/src/lib.rs', lines 977:4-983:5 -/
+    Source: 'ratchet/src/lib.rs', lines 982:4-988:5 -/
 @[rust_loop_body]
 def purge_chain_range_loop.body
   (dhr : Array Std.U8 32#usize) (from1 : Std.U32) (upto : Std.U32)
@@ -1826,7 +1826,7 @@ def purge_chain_range_loop.body
   else ok (done skipped)
 
 /-- [tacenta_ratchet::purge_chain_range]: loop 0:
-    Source: 'ratchet/src/lib.rs', lines 977:4-983:5 -/
+    Source: 'ratchet/src/lib.rs', lines 982:4-988:5 -/
 @[rust_loop]
 def purge_chain_range_loop
   (skipped : alloc.vec.Vec SkippedKey) (dhr : Array Std.U8 32#usize)
@@ -1839,7 +1839,7 @@ def purge_chain_range_loop
     (skipped, i)
 
 /-- [tacenta_ratchet::purge_chain_range]:
-    Source: 'ratchet/src/lib.rs', lines 975:0-984:1 -/
+    Source: 'ratchet/src/lib.rs', lines 980:0-989:1 -/
 @[reducible]
 def purge_chain_range
   (skipped : alloc.vec.Vec SkippedKey) (dhr : Array Std.U8 32#usize)
@@ -1849,52 +1849,53 @@ def purge_chain_range
   purge_chain_range_loop skipped dhr from1 upto 0#usize
 
 /-- [tacenta_ratchet::skip_message_keys]: loop body 0:
-    Source: 'ratchet/src/lib.rs', lines 839:16-847:17 -/
+    Source: 'ratchet/src/lib.rs', lines 843:16-851:17 -/
 @[rust_loop_body]
 def skip_message_keys_loop.body
   (dhr : Array Std.U8 32#usize) (i : Std.U32)
   (keys : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8
-  32#usize)))) (v : alloc.vec.Vec SkippedKey) (i1 : Std.Usize) :
+  32#usize)))) (skipped : alloc.vec.Vec SkippedKey) (i1 : Std.Usize) :
   Result (ControlFlow ((alloc.vec.Vec SkippedKey) × Std.Usize) (alloc.vec.Vec
     SkippedKey))
   := do
-  let v1 ←
+  let v ←
     zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
       (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
       (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
       (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
       U8.Insts.ZeroizeDefaultIsZeroes)))) keys
-  let i2 := alloc.vec.Vec.len v1
+  let i2 := alloc.vec.Vec.len v
   if i1 < i2
   then
     let (i3, _) ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Std.U32 ×
-        (Array Std.U8 32#usize))) v1 i1
+        (Array Std.U8 32#usize))) v i1
     let (_, a) ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Std.U32 ×
-        (Array Std.U8 32#usize))) v1 i1
-    let v2 ←
-      alloc.vec.Vec.push v ({ dh := dhr, n := i3, stored_at := i, key := a } :
-        SkippedKey)
+        (Array Std.U8 32#usize))) v i1
+    let skipped1 ←
+      alloc.vec.Vec.push skipped
+        ({ dh := dhr, n := i3, stored_at := i, key := a } : SkippedKey)
     let i4 ← i1 + 1#usize
-    ok (cont (v2, i4))
-  else ok (done v)
+    ok (cont (skipped1, i4))
+  else ok (done skipped)
 
 /-- [tacenta_ratchet::skip_message_keys]: loop 0:
-    Source: 'ratchet/src/lib.rs', lines 839:16-847:17 -/
+    Source: 'ratchet/src/lib.rs', lines 843:16-851:17 -/
 @[rust_loop]
 def skip_message_keys_loop
-  (dhr : Array Std.U8 32#usize) (v : alloc.vec.Vec SkippedKey) (i : Std.U32)
+  (dhr : Array Std.U8 32#usize) (i : Std.U32)
+  (skipped : alloc.vec.Vec SkippedKey)
   (keys : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8
   32#usize)))) (i1 : Std.Usize) :
   Result (alloc.vec.Vec SkippedKey)
   := do
   loop
-    (fun (v1, i2) => skip_message_keys_loop.body dhr i keys v1 i2)
-    (v, i1)
+    (fun (skipped1, i2) => skip_message_keys_loop.body dhr i keys skipped1 i2)
+    (skipped, i1)
 
 /-- [tacenta_ratchet::skip_message_keys]:
-    Source: 'ratchet/src/lib.rs', lines 821:0-855:1 -/
+    Source: 'ratchet/src/lib.rs', lines 821:0-860:1 -/
 def skip_message_keys
   (state : State) (upto : Std.U32) :
   Result ((core.result.Result Unit RatchetError) × State)
@@ -1912,7 +1913,11 @@ def skip_message_keys
         if upto > i
         then ok (core.result.Result.Err RatchetError.TooManySkipped, state)
         else
-          let i1 := alloc.vec.Vec.len state.skipped
+          let skipped ←
+            alloc.vec.CloneVec.clone SkippedKey.Insts.CoreCloneClone
+              state.skipped
+          let skipped1 ← purge_chain_range skipped dhr state.nr upto
+          let i1 := alloc.vec.Vec.len skipped1
           let i2 ← upto - state.nr
           let i3 ← lift (UScalar.cast .Usize i2)
           let i4 ← i1 + i3
@@ -1923,15 +1928,15 @@ def skip_message_keys
             match r with
             | core.result.Result.Ok v =>
               let (ck2, keys) := v
-              let v1 ← purge_chain_range state.skipped dhr state.nr upto
-              let v2 ←
-                skip_message_keys_loop dhr v1 state.events keys 0#usize
+              let skipped2 ←
+                skip_message_keys_loop dhr state.events skipped1 keys 0#usize
               ok (core.result.Result.Ok (),
-                { state with ckr := (some ck2), nr := upto, skipped := v2 })
+                { state with ckr := (some ck2), nr := upto, skipped := skipped2
+                })
             | core.result.Result.Err e => ok (core.result.Result.Err e, state)
 
 /-- [tacenta_ratchet::init_sender]:
-    Source: 'ratchet/src/lib.rs', lines 860:0-875:1
+    Source: 'ratchet/src/lib.rs', lines 865:0-880:1
     Visibility: public -/
 def init_sender
   (sk : Array Std.U8 32#usize) (our_pub : Array Std.U8 32#usize)
@@ -1956,7 +1961,7 @@ def init_sender
     }
 
 /-- [tacenta_ratchet::init_receiver]:
-    Source: 'ratchet/src/lib.rs', lines 880:0-894:1
+    Source: 'ratchet/src/lib.rs', lines 885:0-899:1
     Visibility: public -/
 def init_receiver
   (sk : Array Std.U8 32#usize) (our_pub : Array Std.U8 32#usize)
@@ -1979,7 +1984,7 @@ def init_receiver
     }
 
 /-- [tacenta_ratchet::send]:
-    Source: 'ratchet/src/lib.rs', lines 898:0-918:1
+    Source: 'ratchet/src/lib.rs', lines 903:0-923:1
     Visibility: public -/
 def send
   (state : State) :
@@ -1999,7 +2004,7 @@ def send
         { state with cks := (some ck2), ns := next_ns })
 
 /-- [tacenta_ratchet::dh_ratchet]:
-    Source: 'ratchet/src/lib.rs', lines 923:0-940:1 -/
+    Source: 'ratchet/src/lib.rs', lines 928:0-945:1 -/
 def dh_ratchet
   (state : State) (header : Header) (dh_out_recv : Array Std.U8 32#usize)
   (dh_out_send : Array Std.U8 32#usize) (new_dhs_pub : Array Std.U8 32#usize) :
@@ -2022,7 +2027,7 @@ def dh_ratchet
     }
 
 /-- [tacenta_ratchet::age_store]: loop body 0:
-    Source: 'ratchet/src/lib.rs', lines 1020:4-1031:5 -/
+    Source: 'ratchet/src/lib.rs', lines 1025:4-1036:5 -/
 @[rust_loop_body]
 def age_store_loop.body
   (now : Std.U32) (v : alloc.vec.Vec SkippedKey) (i : Std.Usize) :
@@ -2044,7 +2049,7 @@ def age_store_loop.body
   else ok (done v)
 
 /-- [tacenta_ratchet::age_store]: loop 0:
-    Source: 'ratchet/src/lib.rs', lines 1020:4-1031:5 -/
+    Source: 'ratchet/src/lib.rs', lines 1025:4-1036:5 -/
 @[rust_loop]
 def age_store_loop
   (v : alloc.vec.Vec SkippedKey) (now : Std.U32) (i : Std.Usize) :
@@ -2055,7 +2060,7 @@ def age_store_loop
     (v, i)
 
 /-- [tacenta_ratchet::age_store]:
-    Source: 'ratchet/src/lib.rs', lines 1011:0-1032:1 -/
+    Source: 'ratchet/src/lib.rs', lines 1016:0-1037:1 -/
 def age_store (state : State) : Result State := do
   let stepped ← lift (core.num.U32.saturating_add state.events 1#u32)
   let now ← if stepped = core.num.U32.MAX
@@ -2065,7 +2070,7 @@ def age_store (state : State) : Result State := do
   ok { state with skipped := v, events := now }
 
 /-- [tacenta_ratchet::try_skipped]: loop body 0:
-    Source: 'ratchet/src/lib.rs', lines 1:0-1048:1 -/
+    Source: 'ratchet/src/lib.rs', lines 1:0-1053:1 -/
 @[rust_loop_body]
 def try_skipped_loop.body
   (state : State) (header : Header) (i : Std.Usize) :
@@ -2102,7 +2107,7 @@ def try_skipped_loop.body
       state.labels))
 
 /-- [tacenta_ratchet::try_skipped]: loop 0:
-    Source: 'ratchet/src/lib.rs', lines 1:0-1048:1 -/
+    Source: 'ratchet/src/lib.rs', lines 1:0-1053:1 -/
 @[rust_loop]
 def try_skipped_loop
   (state : State) (header : Header) (i : Std.Usize) :
@@ -2116,7 +2121,7 @@ def try_skipped_loop
     i
 
 /-- [tacenta_ratchet::try_skipped]:
-    Source: 'ratchet/src/lib.rs', lines 1034:0-1048:1 -/
+    Source: 'ratchet/src/lib.rs', lines 1039:0-1053:1 -/
 def try_skipped
   (state : State) (header : Header) :
   Result ((Option (Array Std.U8 32#usize)) × State)
@@ -2139,7 +2144,7 @@ def try_skipped
     })
 
 /-- [tacenta_ratchet::receive]:
-    Source: 'ratchet/src/lib.rs', lines 1071:0-1117:1
+    Source: 'ratchet/src/lib.rs', lines 1076:0-1122:1
     Visibility: public -/
 def receive
   (state : State) (header : Header) (dh_out_recv : Array Std.U8 32#usize)

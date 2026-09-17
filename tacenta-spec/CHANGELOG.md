@@ -132,6 +132,12 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- Double Ratchet skipped-key capacity is checked after removing entries that
+  the operation will replace. `key-deletion.md` states the order explicitly:
+  delete held `(DHr, n)` pairs in the re-derived range, then require the
+  resulting store to stay within `MAX_SKIPPED_STORE`. The model and
+  `tacenta-core` previously checked the pre-replacement length and could refuse
+  a conforming revisit near the bound.
 - `tooling/check-traceability.py` and its case runner now validate the pilot
   evidence index's requirement IDs, status classes, paths, theorem names, test
   names, vector case IDs, live missing-evidence references and required format

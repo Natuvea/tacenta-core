@@ -476,6 +476,41 @@ fn ratchet_state_bytes(
     out
 }
 
+/// Decode just the skipped-key entries from the classical persisted layout.
+/// The boundary sequence uses this to prove that its two replacement pairs
+/// were present before the receive and were actually replaced afterwards.
+fn ratchet_skipped_entries(bytes: &[u8]) -> Option<Vec<Skipped>> {
+    const ENTRY_LEN: usize = 72;
+    if bytes.len() < RATCHET_FIXED_LEN {
+        return None;
+    }
+    let count = u32::from_be_bytes(bytes[181..185].try_into().ok()?) as usize;
+    if count > ratchet::MAX_SKIPPED_STORE {
+        return None;
+    }
+    let total = RATCHET_FIXED_LEN.checked_add(count.checked_mul(ENTRY_LEN)?)?;
+    if bytes.len() != total {
+        return None;
+    }
+    let mut entries = Vec::with_capacity(count);
+    for chunk in bytes[RATCHET_FIXED_LEN..].chunks(ENTRY_LEN) {
+        entries.push((
+            chunk[0..32].try_into().ok()?,
+            u32::from_be_bytes(chunk[32..36].try_into().ok()?),
+            u32::from_be_bytes(chunk[36..40].try_into().ok()?),
+            chunk[40..72].try_into().ok()?,
+        ));
+    }
+    Some(entries)
+}
+
+fn ratchet_receive_count(bytes: &[u8]) -> Option<u32> {
+    if bytes.len() < RATCHET_FIXED_LEN {
+        return None;
+    }
+    Some(u32::from_be_bytes(bytes[168..172].try_into().ok()?))
+}
+
 /// A sparse ratchet state's stored bytes, one `chains` entry for the current
 /// epoch and an empty store (`session-persistence.md`, Sparse ratchet state).
 fn sparse_state_bytes(
@@ -666,6 +701,7 @@ struct Observed {
     keys_stored: usize,
     keys_used: usize,
     store_shrank_beyond_one: usize,
+    ratchet_replacement_bound: usize,
     skip_refused: usize,
     imports: usize,
     imports_accepted: usize,
@@ -764,6 +800,7 @@ fn check_ratchet(
     steps: &[RStep],
     answer: &[String],
     seen: &mut Observed,
+    require_replacement_bound: bool,
 ) -> Result<(), String> {
     let mut lines = answer.iter();
     let first = lines.next().ok_or("the model answered nothing")?;
@@ -854,6 +891,34 @@ fn check_ratchet(
         let before = state.clone();
         let public_before = state.sending_public();
         let stored_before = state.skipped_len();
+        let is_required_replacement_step = require_replacement_bound
+            && i == 0
+            && stored_before == ratchet::MAX_SKIPPED_STORE - 1
+            && matches!(step, RStep::Receive { n: 2, .. });
+        let replacement_keys_before = if is_required_replacement_step {
+            let bytes = state.to_bytes();
+            let entries = ratchet_skipped_entries(&bytes)
+                .ok_or("replacement-bound start did not have a canonical store")?;
+            if ratchet_receive_count(&bytes) != Some(0) || entries.len() != stored_before {
+                return Err("replacement-bound start did not have nr=0 and 1,999 entries".into());
+            }
+            let dh = match step {
+                RStep::Receive { dh, .. } => *dh,
+                RStep::Send => return Err("replacement-bound marker was not a receive".into()),
+            };
+            let mut pair: Option<[[u8; 32]; 2]> = None;
+            for (entry_dh, n, _, key) in entries {
+                if entry_dh == dh && (n == 0 || n == 1) {
+                    let p = pair.get_or_insert([[0u8; 32]; 2]);
+                    p[(n == 1) as usize] = key;
+                }
+            }
+            pair.filter(|p| p[0] != [0u8; 32] && p[1] != [0u8; 32])
+                .ok_or("replacement-bound start lacked both old chain keys")?
+                .into()
+        } else {
+            None
+        };
         let outcome = match step {
             RStep::Send => ratchet::send(&mut state).map(|_| ()),
             RStep::Receive {
@@ -884,6 +949,33 @@ fn check_ratchet(
                     seen.dh_steps += 1;
                 }
                 let after = state.skipped_len();
+                if is_required_replacement_step && after == stored_before {
+                    let bytes = state.to_bytes();
+                    let entries = ratchet_skipped_entries(&bytes)
+                        .ok_or("replacement-bound result was not a canonical store")?;
+                    let dh = match step {
+                        RStep::Receive { dh, .. } => *dh,
+                        RStep::Send => unreachable!(),
+                    };
+                    let mut replacement = [[0u8; 32]; 2];
+                    for (entry_dh, n, _, key) in entries {
+                        if entry_dh == dh && n < 2 {
+                            replacement[n as usize] = key;
+                        }
+                    }
+                    let old = replacement_keys_before
+                        .ok_or("replacement-bound old keys were not recorded")?;
+                    if replacement[0] == [0u8; 32]
+                        || replacement[1] == [0u8; 32]
+                        || replacement[0] == old[0]
+                        || replacement[1] == old[1]
+                    {
+                        return Err(
+                            "replacement-bound receive did not replace both old keys".into()
+                        );
+                    }
+                    seen.ratchet_replacement_bound += 1;
+                }
                 if after > stored_before {
                     seen.keys_stored += 1;
                 } else if after + 1 == stored_before {
@@ -1160,6 +1252,7 @@ fn check_sparse(
 struct RatchetSequence {
     start: Start,
     steps: Vec<RStep>,
+    replacement_bound: bool,
 }
 
 fn generate_ratchet(rng: &mut Rng, template: usize, long: bool) -> RatchetSequence {
@@ -1169,6 +1262,49 @@ fn generate_ratchet(rng: &mut Rng, template: usize, long: bool) -> RatchetSequen
     let cks = rng.key();
     let ckr = rng.key();
     let ceiling = u32::MAX;
+
+    // One deliberately large sequence distinguishes the resulting-size store
+    // bound from the old pre-replacement count. With 1,999 held keys and two
+    // pairs in the range about to be re-derived, adding two is valid only after
+    // those held pairs are removed. Keep it to one step: serialising this state
+    // after every random continuation would add no evidence for the boundary.
+    if template == 10 {
+        let mut other = rng.canonical_key();
+        while other == dhr {
+            other = rng.canonical_key();
+        }
+        let mut store = Vec::with_capacity(ratchet::MAX_SKIPPED_STORE - 1);
+        store.push((dhr, 0, 0, rng.key()));
+        store.push((dhr, 1, 0, rng.key()));
+        for n in 0..(ratchet::MAX_SKIPPED_STORE - 3) as u32 {
+            store.push((other, n, 0, rng.key()));
+        }
+        let start = Start::Stored(ratchet_state_bytes(
+            &dhs,
+            Some(&dhr),
+            &rk,
+            Some(&cks),
+            Some(&ckr),
+            0,
+            0,
+            0,
+            0,
+            &store,
+        ));
+        let step = RStep::Receive {
+            dh: dhr,
+            pn: 0,
+            n: 2,
+            dh_recv: rng.key(),
+            dh_send: rng.key(),
+            new_pub: rng.canonical_key(),
+        };
+        return RatchetSequence {
+            start,
+            steps: vec![step],
+            replacement_bound: true,
+        };
+    }
 
     // Every template in turn, so the ceilings are reached by construction and
     // not by chance. A near-ceiling start is followed by the operation that
@@ -1375,7 +1511,11 @@ fn generate_ratchet(rng: &mut Rng, template: usize, long: bool) -> RatchetSequen
         }
     }
 
-    RatchetSequence { start, steps }
+    RatchetSequence {
+        start,
+        steps,
+        replacement_bound: false,
+    }
 }
 
 struct SparseSequence {
@@ -4183,7 +4323,7 @@ fn run_ratchet_once(exe: &Path, start: &Start, steps: &[RStep]) -> Result<(), St
     let request = start.request("ratchet", &encode_ratchet(steps));
     let answers = ask_model(exe, std::slice::from_ref(&request));
     let mut seen = Observed::default();
-    check_ratchet(start, steps, &answers[0], &mut seen)
+    check_ratchet(start, steps, &answers[0], &mut seen, false)
 }
 
 fn run_sparse_once(exe: &Path, start: &Start, steps: &[SStep]) -> Result<(), String> {
@@ -4269,7 +4409,13 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     let mut seen = Observed::default();
 
     for (at, r) in &round.ratchet {
-        if let Err(e) = check_ratchet(&r.start, &r.steps, &answers[*at], &mut seen) {
+        if let Err(e) = check_ratchet(
+            &r.start,
+            &r.steps,
+            &answers[*at],
+            &mut seen,
+            r.replacement_bound,
+        ) {
             let (minimal, message) = shrink(&r.steps, &mut |steps: &[RStep]| {
                 run_ratchet_once(&exe, &r.start, steps)
             });
@@ -4351,6 +4497,10 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
         "no step aged keys out of the store or retired an epoch with its keys"
     );
     assert!(seen.skip_refused > 0, "no step was refused at a skip bound");
+    assert!(
+        seen.ratchet_replacement_bound > 0,
+        "no classical sequence reached the resulting-size replacement bound"
+    );
     assert!(
         seen.ratchet_send_ceiling > 0,
         "the classical sending counter's ceiling was not reached"

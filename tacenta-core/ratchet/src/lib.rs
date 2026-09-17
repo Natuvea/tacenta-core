@@ -825,19 +825,23 @@ fn skip_message_keys(state: &mut State, upto: u32) -> Result<(), RatchetError> {
                 Ok(())
             } else if upto > state.nr.saturating_add(MAX_SKIP) {
                 Err(RatchetError::TooManySkipped)
-            } else if state.skipped.len() + (upto - state.nr) as usize > MAX_SKIPPED_STORE {
-                Err(RatchetError::SkippedStoreFull)
             } else {
+                // Purge a clone so the store bound is checked against the
+                // exact resulting store while every refusal remains atomic.
+                let mut skipped = state.skipped.clone();
+                purge_chain_range(&mut skipped, dhr, state.nr, upto);
+                if skipped.len() + (upto - state.nr) as usize > MAX_SKIPPED_STORE {
+                    return Err(RatchetError::SkippedStoreFull);
+                }
                 let (ck2, keys) = match derive_chain(&ck, state.nr, upto - state.nr) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
-                purge_chain_range(&mut state.skipped, dhr, state.nr, upto);
                 // By index rather than by consuming the vector, so that it is
                 // wiped whole when it drops; see `derive_chain`.
                 let mut i = 0;
                 while i < keys.len() {
-                    state.skipped.push(SkippedKey {
+                    skipped.push(SkippedKey {
                         dh: dhr,
                         n: keys[i].0,
                         stored_at: state.events,
@@ -847,6 +851,7 @@ fn skip_message_keys(state: &mut State, upto: u32) -> Result<(), RatchetError> {
                 }
                 state.ckr = Some(ck2);
                 state.nr = upto;
+                state.skipped = skipped;
                 Ok(())
             }
         }
@@ -1320,6 +1325,43 @@ mod tests {
         );
     }
 
+    #[test]
+    fn skipped_store_bound_counts_replacements_after_deletion() {
+        let mut state = init_receiver(&SK, B_PUB, LabelSet::Tacenta);
+        state.ckr = Some(SK);
+        state.dhr_pub = Some(A_PUB);
+        for n in 0..2 {
+            state.skipped.push(SkippedKey {
+                dh: A_PUB,
+                n,
+                stored_at: 0,
+                key: [0x31; 32],
+            });
+        }
+        for n in 0..(MAX_SKIPPED_STORE - 3) as u32 {
+            state.skipped.push(SkippedKey {
+                dh: B_PUB,
+                n,
+                stored_at: 0,
+                key: [0x32; 32],
+            });
+        }
+        assert_eq!(state.skipped.len(), MAX_SKIPPED_STORE - 1);
+
+        skip_message_keys(&mut state, 2).expect("two replacements keep the store below the cap");
+
+        assert_eq!(state.skipped.len(), MAX_SKIPPED_STORE - 1);
+        assert_eq!(state.nr, 2);
+        assert_eq!(
+            state
+                .skipped
+                .iter()
+                .filter(|entry| entry.dh == A_PUB)
+                .count(),
+            2
+        );
+    }
+
     /// A state with every optional field populated and a non-empty skipped
     /// store round-trips byte for byte and field for field. This is the case
     /// the fixed-width optional encoding exists for.
@@ -1473,7 +1515,9 @@ mod tests {
     fn from_bytes_rejects_a_store_past_its_bound() {
         let b = init_receiver(&[1u8; 32], [3u8; 32], LabelSet::Tacenta);
         let bytes = b.to_bytes();
-        let count = MAX_SKIPPED_STORE + 1;
+        // Keep this literal: changing the policy bound to 2,001 must make the
+        // exact edge red rather than moving the test along with the policy.
+        let count = 2001usize;
         let mut dirty = Vec::new();
         dirty.extend_from_slice(&bytes[..FIXED_LEN - 4]);
         dirty.extend_from_slice(&(count as u32).to_be_bytes());
@@ -1482,6 +1526,74 @@ mod tests {
             State::from_bytes(&dirty),
             Err(RatchetDecodeError::Malformed)
         ));
+    }
+
+    #[test]
+    fn skipped_store_absolute_bound_rejects_2001_atomically() {
+        // One existing key is in the range being replaced. The resulting
+        // store would be 1,999 survivors plus two fresh keys, so a
+        // pre-check implementation would refuse before purging while an
+        // implementation that commits the purge before checking would mutate
+        // the state on this refusal.
+        let mut state = init_receiver(&SK, B_PUB, LabelSet::Tacenta);
+        state.ckr = Some(SK);
+        state.dhr_pub = Some(A_PUB);
+        state.skipped.push(SkippedKey {
+            dh: A_PUB,
+            n: 1,
+            stored_at: 0,
+            key: [0x31; 32],
+        });
+        for n in 0..1999u32 {
+            state.skipped.push(SkippedKey {
+                dh: B_PUB,
+                n,
+                stored_at: 0,
+                key: [0x32; 32],
+            });
+        }
+        let before = state.clone();
+        assert_eq!(
+            skip_message_keys(&mut state, 2),
+            Err(RatchetError::SkippedStoreFull)
+        );
+        assert_eq!(state, before, "a full-store refusal must be atomic");
+    }
+
+    #[test]
+    fn skipped_store_absolute_bound_accepts_exactly_2000_after_replacement() {
+        // The resulting store is exactly the fixed policy bound: 1,998
+        // survivors plus the two newly derived keys. This catches tightening
+        // the check to `>=`, which would reject an honest boundary receive.
+        let mut state = init_receiver(&SK, B_PUB, LabelSet::Tacenta);
+        state.ckr = Some(SK);
+        state.dhr_pub = Some(A_PUB);
+        state.skipped.push(SkippedKey {
+            dh: A_PUB,
+            n: 1,
+            stored_at: 0,
+            key: [0x31; 32],
+        });
+        for n in 0..1998u32 {
+            state.skipped.push(SkippedKey {
+                dh: B_PUB,
+                n,
+                stored_at: 0,
+                key: [0x32; 32],
+            });
+        }
+        assert_eq!(state.skipped.len(), 1999);
+        skip_message_keys(&mut state, 2).expect("the exact bound is accepted");
+        assert_eq!(state.skipped.len(), 2000);
+        assert_eq!(state.nr, 2);
+        assert_eq!(
+            state
+                .skipped
+                .iter()
+                .filter(|entry| entry.dh == A_PUB)
+                .count(),
+            2
+        );
     }
 
     /// A store clock at `u32::MAX` is refused at import (`State::invariant`).

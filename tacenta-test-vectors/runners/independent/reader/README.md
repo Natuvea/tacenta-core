@@ -701,3 +701,10 @@ the reader is next updated from the new text.
 `../GAPS-8.md` records a maintenance re-run against the later vector and
 specification changes. It leaves `GAPS-7.md` as the historical seventh-pass
 record and places the four subsequent gap closures in the new pass instead.
+
+### Pass 9 record
+
+`../GAPS-9.md` records a maintenance re-run for the Double Ratchet
+replacement-bound repair at implementation commit `3e2745f`. It reuses this
+reader and makes no claim of a new clean-room implementation or independent
+review.
