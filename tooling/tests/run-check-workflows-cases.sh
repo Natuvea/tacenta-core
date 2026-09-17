@@ -106,4 +106,18 @@ if [ "$wrong" -ne 0 ]; then
   echo "check-workflows-cases: $wrong of $total case(s) gave the wrong result" >&2
   exit 1
 fi
-echo "check-workflows-cases: $total case(s) gave the expected result"
+
+empty_repo="$work/empty-tree"
+mkdir -p "$empty_repo"
+git -C "$empty_repo" init -q
+set +e
+empty_out="$(cd "$empty_repo" && env -u GITHUB_ACTIONS bash "$checker" 2>&1)"
+empty_rc=$?
+set -e
+if [ "$empty_rc" -eq 0 ] || ! printf '%s' "$empty_out" | grep -qF -- 'no workflow files found'; then
+  echo 'WRONG  empty-tree: missing workflows did not fail closed' >&2
+  printf '%s\n' "$empty_out" >&2
+  exit 1
+fi
+
+echo "check-workflows-cases: $total file cases and the empty-tree refusal gave the expected result"

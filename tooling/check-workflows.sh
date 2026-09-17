@@ -108,8 +108,8 @@ action_files = sorted(
     if "/.lake/" not in f and "/target/" not in f and "/node_modules/" not in f
 )
 if not files:
-    print("check-workflows: no workflow files found")
-    sys.exit(0)
+    print("check-workflows: no workflow files found", file=sys.stderr)
+    sys.exit(1)
 
 # Rules 4 and 6 share the interpreter list. `sha256sum` is not matched by
 # `sh\b`, which is what lets the download-then-check pattern through.
