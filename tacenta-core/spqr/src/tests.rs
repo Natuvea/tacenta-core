@@ -152,6 +152,80 @@ fn the_store_bound_stops_repeated_skipping_on_one_chain() {
 }
 
 #[test]
+fn replacement_keys_make_room_at_the_exact_store_edge() {
+    // Keep 1,997 unrelated entries and two held keys in the range that will
+    // be re-derived. The resulting store is 1,997 survivors plus two fresh
+    // keys, so the exact 2,000-key policy allows the replacement.
+    let seed = State::init_bob(&sk());
+    let old1 = [0xA1; 32];
+    let old2 = [0xA2; 32];
+    let mut b = seed;
+    b.skipped.push(Skipped { epoch: 0, n: 1, key: old1 });
+    b.skipped.push(Skipped { epoch: 0, n: 2, key: old2 });
+    for n in 5_000..6_997 {
+        b.skipped.push(Skipped {
+            epoch: 0,
+            n,
+            key: [0x32; 32],
+        });
+    }
+    assert_eq!(b.skipped_len(), MAX_SKIPPED_STORE - 1);
+
+    b.skip_message_keys(0, 2)
+        .expect("re-deriving held pairs should replace them before the bound");
+    assert_eq!(b.skipped_len(), MAX_SKIPPED_STORE - 1);
+    let replacement = |n| {
+        b.skipped
+            .iter()
+            .find(|s| s.epoch == 0 && s.n == n)
+            .map(|s| s.key)
+            .expect("replacement key is present")
+    };
+    assert_ne!(replacement(1), old1);
+    assert_ne!(replacement(2), old2);
+}
+
+#[test]
+fn sparse_store_refusal_is_atomic_when_replacement_would_still_overflow() {
+    // Here the range has two held keys but 1,999 unrelated entries. Purging
+    // them would still leave 2,001 keys after the two replacements, so the
+    // request must refuse and leave every entry untouched.
+    let seed = State::init_bob(&sk());
+    let old1 = [0xA1; 32];
+    let old2 = [0xA2; 32];
+    let mut b = seed;
+    b.skipped.push(Skipped { epoch: 0, n: 1, key: old1 });
+    b.skipped.push(Skipped { epoch: 0, n: 2, key: old2 });
+    for n in 5_000..6_999 {
+        b.skipped.push(Skipped {
+            epoch: 0,
+            n,
+            key: [0x32; 32],
+        });
+    }
+    let before = b.clone();
+    assert_eq!(b.skip_message_keys(0, 2), Err(SpqrError::SkippedStoreFull));
+    assert_eq!(b, before, "a sparse-store refusal must be atomic");
+}
+
+#[test]
+fn sparse_store_absolute_bound_rejects_2001_atomically() {
+    // Keep this edge fixed: changing the policy bound to 2,001 must make the
+    // test fail instead of moving the test along with the constant.
+    let mut b = State::init_bob(&sk());
+    for n in 5_000..7_000 {
+        b.skipped.push(Skipped {
+            epoch: 0,
+            n,
+            key: [0x32; 32],
+        });
+    }
+    let before = b.clone();
+    assert_eq!(b.skip_message_keys(0, 1), Err(SpqrError::SkippedStoreFull));
+    assert_eq!(b, before, "a full-store refusal must be atomic");
+}
+
+#[test]
 fn retirement_keeps_the_cross_epoch_total_below_the_bound() {
     // Skipping the maximum in every epoch does not accumulate, because
     // retirement drops everything older than EPOCHS_KEPT. So the total stays at
