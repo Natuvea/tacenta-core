@@ -12,6 +12,10 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- The DCO gate now fails if its comparison base is missing and checks merge
+  commits instead of silently excluding them. A production-script case runner
+  pins a signed pass plus missing-base, unsigned-commit and unsigned-merge
+  refusals. This closes hostile-lens item SC-10.
 - Workflow checks now fail when the workflow or case corpus is absent, with an
   explicit empty-repository control. Vector currency uses `git status` with
   untracked files included, so a newly generated uncommitted vector cannot be
