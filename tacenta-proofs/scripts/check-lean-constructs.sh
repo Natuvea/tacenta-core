@@ -74,8 +74,8 @@
 # `run_cmd` in an audit module, a `run_cmd` in any other file, or an audit
 # module invoking something other than `Model.AxiomAudit.run` fails. The
 # allow-list entries must also all be present, so an audit invocation that
-# is deleted fails here as well; `check-audit-reach.sh` checks that the four
-# modules carrying them reach every first-party module, and that all four
+# is deleted fails here as well; `check-audit-reach.sh` checks that the five
+# modules carrying them reach every first-party module, and that all five
 # name the same first-party prefixes.
 #
 # Earlier versions of this script required the keyword at the start of a line,
@@ -190,7 +190,7 @@ ELAB_RULES = [
 
 # The allow-list: file path -> the exact source lines (whitespace collapsed)
 # on which an ELAB_RULES hit is accepted. Every entry must be present in its
-# file, or the run fails: the four `run_cmd` lines are the audit invocations
+# file, or the run fails: the five `run_cmd` lines are the audit invocations
 # and a missing one is an audit nothing runs. `Model/AxiomAudit.lean` is the
 # audit's implementation and is otherwise held to every rule here, so a
 # `run_cmd` or an `addDecl` added to it fails like anywhere else.
@@ -350,6 +350,6 @@ fi
 
 count=$(echo "$lean_files" | wc -l | tr -d ' ')
 if [ "$status" -eq 0 ]; then
-  echo "check-lean-constructs: $count first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 4 allow-listed invocations and its implementation; 3 lakefiles set no Lean option"
+  echo "check-lean-constructs: $count first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 5 allow-listed invocations and its implementation; 3 lakefiles set no Lean option"
 fi
 exit "$status"

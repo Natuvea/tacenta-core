@@ -102,17 +102,21 @@ it works and costs hours.
 bash tacenta-proofs/scripts/no-sorry.sh
 ```
 
-**This is the authoritative completeness check.** It asks the compiler instead
-of grepping the source: Lean emits "declaration uses `sorry`" for every
-incomplete declaration it elaborates, so a build log is exhaustive where a grep
-is not. It runs three builds -- `translation/`, the model-layer proofs, and
+**This is the authoritative completeness gate.** Its decisive check is in the
+elaborated environment: each package's `Model.AxiomAudit` calls
+`collectAxioms` on every first-party declaration and refuses any dependency on
+`sorryAx`, even if `set_option warn.sorry false` suppressed Lean's diagnostic.
+The build-log scan remains as a readable diagnostic, and the textual gate also
+refuses disabling the warning. It runs three builds -- `translation/`, the model-layer proofs, and
 the model package on its own terms so that `Properties/` is elaborated -- and
-it filters *positively* by our own directories, so a third-party `sorry`
-(Aeneas's own library ships four) is not ours and is not failed on, while
-anything it does not recognise is treated as third-party rather than quietly as
-first-party. Each of those builds also runs the package's `AxiomAudit`
+it filters build-log warnings *positively* by our own directories, so a
+third-party warning (Aeneas's own library ships four sorries) is not attributed
+to this project. A first-party declaration that reaches one of them still
+depends on `sorryAx` and is refused by the environment audit. Each of those
+builds also runs the package's `AxiomAudit`
 module (`tacenta-model/Model/AxiomAudit.lean`), which walks the elaborated
-environment and fails the build if any hand-written declaration is an axiom,
+environment and fails the build if any first-party declaration depends on
+`sorryAx`, or if any hand-written declaration is an axiom,
 opaque, unsafe or partial, carries `implemented_by`/`extern`, or is named
 into the compiler's `_native`/`_unsafe_rec` namespace outside the exact
 shape the compiler produces (a `native_decide`/`bv_decide` axiom is accepted
@@ -135,14 +139,14 @@ and `Vectors.lean` included), refuses a lakefile that sets any Lean option,
 is the only one that sees `set_option debug.skipKernelTC`, and refuses
 every elaboration-time construct (`run_cmd`, `#eval`, `elab`, `macro`,
 `syntax`, `initialize`, `addDecl`, any reference to the `Lean` namespace)
-outside `Model/AxiomAudit.lean`'s own implementation and the four `run_cmd
+outside `Model/AxiomAudit.lean`'s own implementation and the five `run_cmd
 Model.AxiomAudit.run` lines, which it allow-lists by file path and exact
 line content, because such code could plant an axiom in the one shape the
 audit accepts; `check-audit-reach.sh`, which asks Lean for every
 first-party module's imports and fails if any module (the generated
-`Tacenta*.lean` included) is outside the four audit modules' import
+`Tacenta*.lean` included) is outside the five audit modules' import
 closure, since the audit walks only what its invoking module imports, and
-which also requires all four to run with the same first-party prefixes, so
+which also requires all five to run with the same first-party prefixes, so
 that no declaration is first-party to the audit that declares an axiom and
 foreign to the audit that uses it; and `check-audit-negatives.sh`, which
 plants declarations the audit's rule says to refuse, and the one shape it
@@ -159,9 +163,9 @@ translation-coverage: all 34 Translation/*.lean modules are in the build target 
 attest: the axiom audit's opaque-external list matches translation-attestation.json for 7 generated modules (93 compiler-trust axioms in them, from Aeneas's toStr bound, are not externals and are listed in the build log)
 no-sorry: the model-layer proofs is complete
 no-sorry: the model and its property theorems is complete
-check-lean-constructs: 64 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 4 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
-audit-reach: the 4 audit modules, all with the same first-party prefixes, reach all 70 first-party modules (tacenta-model 25, tacenta-proofs 10, tacenta-proofs/translation 35)
-audit-negatives: the audit called all 12 planted cases correctly
+check-lean-constructs: 64 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 5 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
+audit-reach: the 5 audit modules, all with the same first-party prefixes, reach all 70 first-party modules (tacenta-model 25, tacenta-proofs 10, tacenta-proofs/translation 35)
+audit-negatives: the audit called all 13 planted cases correctly
 no-sorry: replaying the translation and its T1/T3 proofs through the kernel (leanchecker)
 no-sorry: the translation and its T1/T3 proofs replays clean (34 modules)
 no-sorry: replaying the model-layer proofs through the kernel (leanchecker)
@@ -245,7 +249,7 @@ you do:
   things *together*: every compiler-namespace declaration the audit saw has
   the compiler's shape; no hand-written first-party module contains
   elaboration-time code (`check-lean-constructs.sh`, which allow-lists only
-  the audit's own implementation and its four invocations, by path and
+  the audit's own implementation and its five invocations, by path and
   exact line); and every first-party module is in an audit's import closure
   (`check-audit-reach.sh`). The first alone excludes nothing planted, and
   the second is a grep: a construct its stripper mishandles would be a hole

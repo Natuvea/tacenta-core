@@ -148,6 +148,12 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- The no-`sorry` gate now asks Lean's elaborated environment whether every
+  first-party declaration depends on `sorryAx`; it no longer relies on the
+  suppressible `warn.sorry` diagnostic. A planted theorem disables that
+  warning and must still fail the audit for `sorryAx`. This closes hostile-lens
+  finding FM-01 and also checks that no first-party declaration reaches the
+  four disclosed sorries in the pinned Aeneas dependency.
 - ADR-0008 and the public assurance summaries now define L4/T3 as named,
   scoped functional agreement whose theorem statement controls direction and
   covered result branches. They no longer imply that every T3 theorem is

@@ -7,8 +7,8 @@
 # outside the compiler's shape -- but only in the environment it is run in,
 # which is whatever the invoking module imports. Each package carries one
 # such module (`Properties/AxiomAudit.lean`, `Proofs/AxiomAudit.lean`,
-# `Translation/AxiomAudit.lean`, and, for the three-leaf unit, which cannot
-# share an environment with the rest, `Translation/AxiomAuditTripleUnit.lean`),
+# `Translation/AxiomAudit.lean`, and separate audit modules for the three-leaf
+# and Braid-and-erasure units, which cannot share an environment with the rest),
 # each with a hand-maintained import
 # list. A module missing from every list is built,
 # has its `sorry`s scanned, is replayed by `leanchecker`, and is never

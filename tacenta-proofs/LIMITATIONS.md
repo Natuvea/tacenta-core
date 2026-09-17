@@ -149,6 +149,13 @@ excludes it.
   toolchain, and honestly, is not something the public tree can check: it is
   what the private verification workflow's drift step checks by
   regenerating, and what any linux-x86_64 reader can check the same way.
+- The pinned Aeneas dependency contains four `sorry` declarations in its own
+  library. They are outside the first-party source-warning filter, but they are
+  not invisible to theorem dependencies: every package's axiom audit calls
+  `collectAxioms` on every first-party declaration and fails if `sorryAx`
+  appears. The current builds find no such dependency. This establishes that
+  current first-party declarations do not reach those incomplete dependency
+  declarations; it does not complete or independently verify Aeneas itself.
 - A declaration added with `set_option debug.skipKernelTC true` is checked
   by the elaborator and not by the kernel, and nothing in the environment
   says so afterwards. `Model.AxiomAudit`, which every package's build runs,

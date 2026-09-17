@@ -8,10 +8,11 @@
 # a declaration in a throwaway first-party module, runs the audit over it, and
 # compares the outcome with what the rule says should happen.
 #
-# It plants one case for each of the seven kinds the audit refuses -- `axiom`,
-# `opaque`, `unsafe`, `partial`, `implemented_by`, `extern` and
-# `compiler-namespace` -- with the compiler-trust conditions covered case by
-# case, plus the one shape the rule allows.
+# It plants one case for each declaration kind the audit refuses, including a
+# theorem whose `sorry` diagnostic is disabled. The latter proves the gate
+# reads the elaborated dependency rather than trusting a warning in build
+# output. The compiler-trust conditions are covered case by case, plus the one
+# shape the rule allows.
 #
 # It exists because the rule has been wrong before. `compilerTrust` waives its
 # "the parent applies it" requirement for a compiler-trust axiom no first-party
@@ -175,6 +176,14 @@ EOF
 # The ordinary case, and the one the gate is mostly there for.
 run plain-axiom refuse:axiom <<'EOF'
 axiom Bad : True
+EOF
+
+# `set_option warn.sorry false` suppresses the warning `no-sorry.sh` also scans
+# for. The elaborated theorem still depends on `sorryAx`, which the environment
+# audit must reject directly.
+run sorry-with-warning-disabled refuse:sorryAx <<'EOF'
+set_option warn.sorry false in
+theorem HiddenSorry : False := by sorry
 EOF
 
 # The audit refuses seven kinds of declaration and the five below are the rest
