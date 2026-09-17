@@ -10,6 +10,8 @@ use serde::Deserialize;
 
 use tacenta_core::ratchet;
 
+mod session_e2e;
+
 /// One vector file (one algorithm), matching schema/vector.schema.json.
 #[derive(Deserialize)]
 pub struct VectorFile {
@@ -176,6 +178,7 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
                 &bytes(&v.output)?,
             )
         }
+        "session-establishment-e2e" => session_e2e::check(v),
         "hkdf-sha256" => {
             let expected = bytes(&v.output)?;
             let mut out = vec![0u8; expected.len()];

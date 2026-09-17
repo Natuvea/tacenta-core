@@ -13,12 +13,14 @@ Two kinds live here:
   crate rather than a tacenta-core API. SHA-256 itself has no file here: its
   NIST examples are checked against the model at build time. Format:
   `schema/vector.schema.json`.
-- **Protocol vectors**, generated from the model by `regenerate-vectors.sh`
-  (all but `malformed-input/ratchet-reject.json`, whose `source` field says it
-  is hand-authored) and checked against tacenta-core:
+- **Protocol vectors**, mostly generated from the model by
+  `regenerate-vectors.sh`. The hand-authored ratchet refusal and the fixed
+  full-session known answer name their different provenance in `source`; all
+  are checked against tacenta-core:
   - `vectors/ratchet/`: Double Ratchet scenarios, replayed by
     `runners/rust/tests/ratchet.rs`. Format: `schema/ratchet-vector.schema.json`.
-  - `vectors/session-establishment/`: PQXDH shared secrets, checked by
+  - `vectors/session-establishment/`: PQXDH shared secrets and a deterministic
+    real-primitive handshake through the first encrypted message, checked by
     `runners/rust/tests/session_establishment.rs`. Format:
     `schema/vector.schema.json`.
   - `vectors/post-quantum/`: the field, interpolation, sparse-ratchet, Braid
@@ -90,6 +92,37 @@ bytes. Most known-answer files name their inputs for the fields or parameters
 of the page they pin, and message-format.md, Ratchet message, says how the
 composite-header vectors name theirs. The files below have layouts of their
 own, written down here. `schema/vector.schema.json` points here.
+
+### The full session: `vectors/session-establishment/session-e2e.json`
+
+This fixed known answer drives real X25519 and ML-KEM-1024 through prekey
+creation, initiator establishment, the first encrypted send, responder
+establishment and authenticated recovery of the plaintext. It also reconstructs
+the same initial message from the public leaf components. The two paths must
+produce identical bytes before the runner compares every named intermediate and
+persisted result with the committed vector.
+
+The random draws are inputs rather than hidden runner state. Their call order
+and exact lengths are:
+
+1. prekey creation: `bob_signed_prekey_secret` (32),
+   `bob_signed_prekey_signature_nonce` (64),
+   `bob_one_time_curve_secret` (32), `bob_last_resort_kem_d_z` (64),
+   `bob_last_resort_kem_signature_nonce` (64), `bob_one_time_kem_d_z` (64),
+   `bob_one_time_kem_signature_nonce` (64);
+2. initiator establishment: `alice_ephemeral_secret` (32),
+   `alice_kem_encapsulation_m` (32), `alice_ratchet_secret` (32);
+3. initiator's first send: `alice_braid_keygen_d_z` (64);
+4. responder establishment: `bob_ratchet_secret` (32).
+
+The `fields` pin the encoded bundle, four X25519 agreements, ML-KEM ciphertext
+and shared secret, PQXDH secret and split halves, the two ratchet message keys
+and their combination, composite header, associated data, AEAD output, ratchet
+and initial messages, both resulting session states, the consumed prekey store,
+and responder plaintext. The Rust test includes a negative control that changes
+the committed associated-data answer and requires the runner to fail on that
+field. The expected bytes were produced by the project runner, so this is a
+byte-level regression and composition check rather than an external oracle.
 
 ### The decoders: `vectors/malformed-input/*-decode.json`
 
