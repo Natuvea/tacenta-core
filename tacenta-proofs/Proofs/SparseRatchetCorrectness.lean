@@ -143,7 +143,6 @@ theorem skipMessageKeys_store_bounded (st : State) (e upto : Nat) (st' : State)
     (h : skipMessageKeys st e upto = some st') :
     st'.skipped.length ≤ max st.skipped.length maxSkippedStore := by
   unfold skipMessageKeys at h
-  simp only [skipSurvivors] at h
   split at h
   · exact absurd h (by simp)
   · rename_i cs _
@@ -211,7 +210,6 @@ theorem skipMessageKeys_preserves_map (st : State) (e upto : Nat) (st' : State)
     (h : skipMessageKeys st e upto = some st') :
     StoreIsMap st'.skipped := by
   unfold skipMessageKeys at h
-  simp only [skipSurvivors] at h
   split at h
   · exact absurd h (by simp)
   · rename_i cs _
