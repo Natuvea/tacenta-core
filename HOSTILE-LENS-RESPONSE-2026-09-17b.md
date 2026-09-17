@@ -23,7 +23,6 @@ reader records.
 | Finding family | Disposition | Next evidence needed |
 | --- | --- | --- |
 | FM-02 / FM-04 | Open proof scope | Per-headline theorem satisfiability witnesses and explicit success-path-only wording until refusal refinement exists. |
-| FM-03 | Open correctness cleanup | Remove the unused perfect-correctness KEM hypothesis after the Lean proof set is rebuilt and pinned. |
 | SC-05 / SC-08 / SC-09 | Open supply-chain evidence | Replace candidate-written receipt claims with an independently derived record; distinguish checksum from regeneration; pin the Lean toolchain artefact. |
 | SC-01 / SC-02 / SC-03 | Open governance/process | Enforce protected `main`, record the historic exceptions, and require a named reviewer who is not the change author before claiming independent review. |
 | F1 / F2 / F3 | Open fuzzing | Add accepted-bundle and responder-handshake seeds, plus assertions that fail when each guard is deleted. |
@@ -32,6 +31,13 @@ reader records.
 
 ## Remediated
 
+- **FM-03 / `HL-FM-03`:** at `34c8636`, `KemAgreesFor` no longer includes
+  `K.Correct`.
+  Both Braid T3 proofs had destructured and discarded that premise, so its
+  removal does not weaken a proof step; it removes a property that real
+  ML-KEM's probabilistic correctness bound does not satisfy. The corresponding
+  witness shape, claims and limitations record are updated, while
+  `toyKem_correct` remains a separate model fact.
 - **IMP-01 / `HL-IMP-01`:** `b4fdeff` adds a deterministic byte-level vector
   for real X25519 and ML-KEM-1024 prekey creation, initiator establishment, the
   first encrypted message and responder establishment. It pins every named

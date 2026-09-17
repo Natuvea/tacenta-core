@@ -12,6 +12,12 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `tacenta-proofs/translation/Translation/BraidT3.lean`: removed the unused
+  `K.Correct` conjunct from `KemAgreesFor`. The two proof bodies destructured
+  but never used it, while perfect correctness is false of ML-KEM's
+  probabilistic correctness bound. The four Braid refinement theorems now take
+  only the operation agreements they use; the toy KEM's correctness theorem
+  remains a separate model fact. This closes hostile-lens finding FM-03.
 - `tacenta-test-vectors/vectors/session-establishment/session-e2e.json`: a
   deterministic byte-level known answer from a real X25519 and ML-KEM-1024
   prekey bundle through the first authenticated session message. It records
