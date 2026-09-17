@@ -58,7 +58,7 @@ inputs; libsignal's source code is not an input to this project.
 | Symmetric-key ratchet | The symmetric-key ratchet | in-order vector |
 | Diffie-Hellman ratchet | The Diffie-Hellman ratchet | bidirectional and peer-revisits-ratchet-key vectors |
 | Skipped keys, MAX_SKIP | Skipped keys | out-of-order vector, `skipMessageKeys_growth`, reject vector |
-| Skipped store bound, MAX_SKIPPED_STORE | Skipped keys | `skipMessageKeys_store_bounded`, core store-bound test |
+| Skipped store bound, MAX_SKIPPED_STORE | Skipped keys | `skipMessageKeys_store_bounded`, fixed 2,000/2,001 edge and replacement tests, `replacement-bound-counts-resulting-store` vector, differential harness |
 | Initialisation, both roles | Initialisation | all vectors (init_sender / init_receiver) |
 | Same-chain message below `Nr` with no stored key refused | Sending and receiving | same-chain-duplicate reject vector, `Model.Ratchet` examples (a duplicate after an in-order receive and after a stored-key receive is refused, the next message is still received), `receive_refines` (the model's refusal is part of what the Rust success case refines), core unit test `a_same_chain_duplicate_is_refused_and_changes_nothing` (`OutOfOrder`, state unchanged) |
 
@@ -205,6 +205,11 @@ its previous length and `MAX_SKIPPED_STORE`. No theorem carries the bound
 across this ratchet's `send`, `receive` or `advance`, or across a sequence of
 them, so over a session the evidence is the vectors and the tests described
 next. Recorded here because it is an addition to the specification.
+
+The classical replacement-bound vector starts with 1,999 entries, including
+the two pairs about to be re-derived, and pins the resulting count at 1,999.
+The differential harness inspects those pairs before and after the receive, so
+the marker cannot be satisfied by an in-order no-op.
 
 `tacenta-spqr` demonstrates both halves of this in Rust. Three requests on a
 single chain in a single epoch, each inside the per-call bound, reach the cap and
@@ -676,8 +681,9 @@ nothing about the ones it does not.
   says why no vector can pin the clause either.
 - **The store's total bound**, `MAX_SKIPPED_STORE`, which would mean deriving
   thousands of message keys in the model's own SHA-256 and re-reading a state
-  holding them at every later step. Its refused side is pinned by the
-  `store-over-its-bound` vectors in both persistence files.
+  holding them at every later step. Its refused side is pinned by the fixed
+  exact-edge tests and by the `store-over-its-bound` vectors in both persistence
+  files; the replacement side is pinned by the boundary vector and harness.
 - **The refusal of a short buffer whose version byte is not `0x01`**, which
   session-persistence.md, Rejection, leaves to the implementation: the harness
   accepts either refusal for that buffer, and for no other.

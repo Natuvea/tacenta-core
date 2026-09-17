@@ -310,9 +310,12 @@ for path in lean_paths.split():
 # the structural rules above.
 for path in all_lean_paths.split():
     text = strip_lean(open(path, encoding="utf-8").read())
-    for lineno, line in enumerate(text.split("\n"), 1):
-        if re.search(r"set_option\s+warn\.sorry\s+false", line):
-            hits.append(f"{path}:{lineno}: sorry-warning-disabled: {line.strip()}")
+    # Search the complete file so a line break (or spaces around the dot)
+    # cannot split the option name and evade the gate.
+    for match in re.finditer(r"set_option\s+warn\s*\.\s*sorry\s+false", text):
+        lineno = text.count("\n", 0, match.start()) + 1
+        line = text.splitlines()[lineno - 1] if text.splitlines() else ""
+        hits.append(f"{path}:{lineno}: sorry-warning-disabled: {line.strip()}")
 
 for path, lines in ALLOW.items():
     for source in lines:

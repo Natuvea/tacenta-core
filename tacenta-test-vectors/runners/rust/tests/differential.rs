@@ -476,6 +476,41 @@ fn ratchet_state_bytes(
     out
 }
 
+/// Decode just the skipped-key entries from the classical persisted layout.
+/// The boundary sequence uses this to prove that its two replacement pairs
+/// were present before the receive and were actually replaced afterwards.
+fn ratchet_skipped_entries(bytes: &[u8]) -> Option<Vec<Skipped>> {
+    const ENTRY_LEN: usize = 72;
+    if bytes.len() < RATCHET_FIXED_LEN {
+        return None;
+    }
+    let count = u32::from_be_bytes(bytes[181..185].try_into().ok()?) as usize;
+    if count > ratchet::MAX_SKIPPED_STORE {
+        return None;
+    }
+    let total = RATCHET_FIXED_LEN.checked_add(count.checked_mul(ENTRY_LEN)?)?;
+    if bytes.len() != total {
+        return None;
+    }
+    let mut entries = Vec::with_capacity(count);
+    for chunk in bytes[RATCHET_FIXED_LEN..].chunks_exact(ENTRY_LEN) {
+        entries.push((
+            chunk[0..32].try_into().ok()?,
+            u32::from_be_bytes(chunk[32..36].try_into().ok()?),
+            u32::from_be_bytes(chunk[36..40].try_into().ok()?),
+            chunk[40..72].try_into().ok()?,
+        ));
+    }
+    Some(entries)
+}
+
+fn ratchet_receive_count(bytes: &[u8]) -> Option<u32> {
+    if bytes.len() < RATCHET_FIXED_LEN {
+        return None;
+    }
+    Some(u32::from_be_bytes(bytes[168..172].try_into().ok()?))
+}
+
 /// A sparse ratchet state's stored bytes, one `chains` entry for the current
 /// epoch and an empty store (`session-persistence.md`, Sparse ratchet state).
 fn sparse_state_bytes(
@@ -860,6 +895,30 @@ fn check_ratchet(
             && i == 0
             && stored_before == ratchet::MAX_SKIPPED_STORE - 1
             && matches!(step, RStep::Receive { n: 2, .. });
+        let replacement_keys_before = if is_required_replacement_step {
+            let bytes = state.to_bytes();
+            let entries = ratchet_skipped_entries(&bytes)
+                .ok_or("replacement-bound start did not have a canonical store")?;
+            if ratchet_receive_count(&bytes) != Some(0) || entries.len() != stored_before {
+                return Err("replacement-bound start did not have nr=0 and 1,999 entries".into());
+            }
+            let dh = match step {
+                RStep::Receive { dh, .. } => *dh,
+                RStep::Send => return Err("replacement-bound marker was not a receive".into()),
+            };
+            let mut pair: Option<[[u8; 32]; 2]> = None;
+            for (entry_dh, n, _, key) in entries {
+                if entry_dh == dh && (n == 0 || n == 1) {
+                    let p = pair.get_or_insert([[0u8; 32]; 2]);
+                    p[(n == 1) as usize] = key;
+                }
+            }
+            pair.filter(|p| p[0] != [0u8; 32] && p[1] != [0u8; 32])
+                .ok_or("replacement-bound start lacked both old chain keys")?
+                .into()
+        } else {
+            None
+        };
         let outcome = match step {
             RStep::Send => ratchet::send(&mut state).map(|_| ()),
             RStep::Receive {
@@ -891,6 +950,30 @@ fn check_ratchet(
                 }
                 let after = state.skipped_len();
                 if is_required_replacement_step && after == stored_before {
+                    let bytes = state.to_bytes();
+                    let entries = ratchet_skipped_entries(&bytes)
+                        .ok_or("replacement-bound result was not a canonical store")?;
+                    let dh = match step {
+                        RStep::Receive { dh, .. } => *dh,
+                        RStep::Send => unreachable!(),
+                    };
+                    let mut replacement = [[0u8; 32]; 2];
+                    for (entry_dh, n, _, key) in entries {
+                        if entry_dh == dh && n < 2 {
+                            replacement[n as usize] = key;
+                        }
+                    }
+                    let old = replacement_keys_before
+                        .ok_or("replacement-bound old keys were not recorded")?;
+                    if replacement[0] == [0u8; 32]
+                        || replacement[1] == [0u8; 32]
+                        || replacement[0] == old[0]
+                        || replacement[1] == old[1]
+                    {
+                        return Err(
+                            "replacement-bound receive did not replace both old keys".into()
+                        );
+                    }
                     seen.ratchet_replacement_bound += 1;
                 }
                 if after > stored_before {

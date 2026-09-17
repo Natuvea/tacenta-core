@@ -74,14 +74,14 @@ EOF
   rc=$?
   set -e
   case "$name" in
-    pass-*)
+    pass-*|action-pass-*)
       if [ "$rc" -ne 0 ]; then
         echo "WRONG  $name: expected accepted, was refused:" >&2
         printf '  %s\n' "$out" >&2
         wrong=$((wrong + 1))
       fi
       ;;
-    fail-*)
+    fail-*|action-fail-*)
       expect="$(sed -n '1s/^# expect: //p' "$case")"
       if [ -z "$expect" ]; then
         echo "WRONG  $name: a fail case's first line must be '# expect: <text>'" >&2

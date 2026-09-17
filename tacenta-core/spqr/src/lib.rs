@@ -682,7 +682,12 @@ impl State {
         if count > MAX_SKIP {
             return Err(SpqrError::TooManySkipped);
         }
-        if self.skipped.len() + (count as usize) > MAX_SKIPPED_STORE {
+        // Purge the range before checking the total. Re-deriving an existing
+        // pair replaces it, so the bound is on the resulting store; a refusal
+        // must still leave the state untouched.
+        let mut survivors = self.skipped.clone();
+        survivors.retain(|s| !(s.epoch == e && ch.n < s.n && s.n <= upto));
+        if survivors.len() + (count as usize) > MAX_SKIPPED_STORE {
             return Err(SpqrError::SkippedStoreFull);
         }
 
@@ -703,9 +708,8 @@ impl State {
             });
         }
 
-        self.skipped
-            .retain(|s| !(s.epoch == e && ch.n < s.n && s.n <= upto));
-        self.skipped.append(&mut derived);
+        survivors.append(&mut derived);
+        self.skipped = survivors;
         self.set_chains(
             e,
             Chains {

@@ -236,8 +236,9 @@ in `Proofs/TrustedBase.lean`, so the build fails if one starts resting on
   steps, at number `start + i`. A skipped key equals the key an in-order receive
   derives, so out-of-order delivery recovers the right message.
 - `skipMessageKeys_growth`: a successful skip advances `nr` to `upto` and grows
-  the stored-key list by exactly `upto - nr`. It succeeds only within `maxSkip`
-  on the chain and within `maxSkippedStore` in total.
+  the stored-key list by at most `upto - nr`, after replacing any entries in
+  the re-derived range. The request is accepted only within `maxSkip` on the
+  chain and when the resulting total stays within `maxSkippedStore`.
 - `skipMessageKeys_store_bounded`: any state a skip returns holds at most
   `maxSkippedStore` keys, given a state already within the bound. This is the
   memory-safety invariant: a per-chain bound alone does not bound the store,

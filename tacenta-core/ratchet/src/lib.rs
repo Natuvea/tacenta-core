@@ -1515,7 +1515,9 @@ mod tests {
     fn from_bytes_rejects_a_store_past_its_bound() {
         let b = init_receiver(&[1u8; 32], [3u8; 32], LabelSet::Tacenta);
         let bytes = b.to_bytes();
-        let count = MAX_SKIPPED_STORE + 1;
+        // Keep this literal: changing the policy bound to 2,001 must make the
+        // exact edge red rather than moving the test along with the policy.
+        let count = 2001usize;
         let mut dirty = Vec::new();
         dirty.extend_from_slice(&bytes[..FIXED_LEN - 4]);
         dirty.extend_from_slice(&(count as u32).to_be_bytes());
@@ -1524,6 +1526,30 @@ mod tests {
             State::from_bytes(&dirty),
             Err(RatchetDecodeError::Malformed)
         ));
+    }
+
+    #[test]
+    fn skipped_store_absolute_bound_rejects_2001_atomically() {
+        // A full store on another chain leaves no room for one newly derived
+        // key. This fixed 2,000/2,001 edge catches a loosened constant and
+        // proves the refusal does not mutate the state.
+        let mut state = init_receiver(&SK, B_PUB, LabelSet::Tacenta);
+        state.ckr = Some(SK);
+        state.dhr_pub = Some(A_PUB);
+        for n in 0..2000u32 {
+            state.skipped.push(SkippedKey {
+                dh: B_PUB,
+                n,
+                stored_at: 0,
+                key: [0x32; 32],
+            });
+        }
+        let before = state.clone();
+        assert_eq!(
+            skip_message_keys(&mut state, 1),
+            Err(RatchetError::SkippedStoreFull)
+        );
+        assert_eq!(state, before, "a full-store refusal must be atomic");
     }
 
     /// A store clock at `u32::MAX` is refused at import (`State::invariant`).
