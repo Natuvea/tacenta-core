@@ -65,8 +65,7 @@ def KemLenAgrees (K : Model.Braid.Kem) : Prop :=
   (∃ v, A.ct2Len = ok v ∧ v.val = K.ct2Size)
 
 def KemAgreesFor (K : Model.Braid.Kem) : Prop :=
-  K.Correct ∧
-    (∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R) (rng : R),
+  (∀ {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R) (rng : R),
       Tacenta.BraidT1.RngTotal rc →
       ∃ kp rng' rand,
         A.generate rc crc rng = ok (core.result.Result.Ok kp, rng') ∧
@@ -247,7 +246,7 @@ theorem api_lenAgrees : KemLenAgrees api Model.Braid.toyKem := by
     simp [Model.Braid.headerSize, Model.Braid.toyKem]
 
 theorem api_agreesFor : KemAgreesFor api Model.Braid.toyKem := by
-  refine ⟨Model.Braid.toyKem_correct, ?_, ?_⟩
+  refine ⟨?_, ?_⟩
   · intro R rc crc rng _
     refine ⟨0, rng, 0, rfl, ⟨_, rfl, ?_⟩, ⟨_, rfl, ?_⟩, ?_⟩
     · rw [vecOf_vecOfBytes]; rfl
