@@ -1554,7 +1554,7 @@ mod tests {
         }
         let before = state.clone();
         assert_eq!(
-            skip_message_keys(&mut state, 1),
+            skip_message_keys(&mut state, 2),
             Err(RatchetError::SkippedStoreFull)
         );
         assert_eq!(state, before, "a full-store refusal must be atomic");
