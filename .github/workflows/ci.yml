@@ -389,6 +389,7 @@ jobs:
         run: bash tooling/install-actionlint.sh "$RUNNER_TEMP/actionlint"
       - run: ACTIONLINT_BIN="$RUNNER_TEMP/actionlint/actionlint" bash tooling/check-actionlint.sh
       - run: ACTIONLINT_BIN="$RUNNER_TEMP/actionlint/actionlint" bash tooling/tests/run-check-actionlint-cases.sh
+      - run: bash tooling/tests/run-check-constant-time-asm-cases.sh
       - run: bash tooling/check-proof-hygiene.sh
       - run: python3 tooling/check-precondition-shapes.py
       - run: bash tooling/tests/run-check-precondition-shapes-cases.sh
