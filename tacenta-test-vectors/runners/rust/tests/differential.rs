@@ -493,7 +493,7 @@ fn ratchet_skipped_entries(bytes: &[u8]) -> Option<Vec<Skipped>> {
         return None;
     }
     let mut entries = Vec::with_capacity(count);
-    for chunk in bytes[RATCHET_FIXED_LEN..].chunks_exact(ENTRY_LEN) {
+    for chunk in bytes[RATCHET_FIXED_LEN..].chunks(ENTRY_LEN) {
         entries.push((
             chunk[0..32].try_into().ok()?,
             u32::from_be_bytes(chunk[32..36].try_into().ok()?),
