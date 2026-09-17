@@ -32,7 +32,7 @@ reader records.
 
 ## Remediated
 
-- **IMP-01 implementation (not gap closure) / `HL-IMP-01`:** `b4fdeff` adds a deterministic byte-level vector
+- **IMP-01 implementation (not gap closure) / `HL-IMP-01`:** `44409c6` adds a deterministic byte-level vector
   for real X25519 and ML-KEM-1024 prekey creation, initiator establishment, the
   first encrypted message and responder establishment. It pins every named
   random draw, the handshake intermediates, wire messages, message keys,
