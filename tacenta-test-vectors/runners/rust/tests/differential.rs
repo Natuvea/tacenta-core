@@ -765,6 +765,7 @@ fn check_ratchet(
     steps: &[RStep],
     answer: &[String],
     seen: &mut Observed,
+    require_replacement_bound: bool,
 ) -> Result<(), String> {
     let mut lines = answer.iter();
     let first = lines.next().ok_or("the model answered nothing")?;
@@ -855,6 +856,10 @@ fn check_ratchet(
         let before = state.clone();
         let public_before = state.sending_public();
         let stored_before = state.skipped_len();
+        let is_required_replacement_step = require_replacement_bound
+            && i == 0
+            && stored_before == ratchet::MAX_SKIPPED_STORE - 1
+            && matches!(step, RStep::Receive { n: 2, .. });
         let outcome = match step {
             RStep::Send => ratchet::send(&mut state).map(|_| ()),
             RStep::Receive {
@@ -885,10 +890,7 @@ fn check_ratchet(
                     seen.dh_steps += 1;
                 }
                 let after = state.skipped_len();
-                if stored_before == ratchet::MAX_SKIPPED_STORE - 1
-                    && after == stored_before
-                    && matches!(step, RStep::Receive { .. })
-                {
+                if is_required_replacement_step && after == stored_before {
                     seen.ratchet_replacement_bound += 1;
                 }
                 if after > stored_before {
@@ -1167,6 +1169,7 @@ fn check_sparse(
 struct RatchetSequence {
     start: Start,
     steps: Vec<RStep>,
+    replacement_bound: bool,
 }
 
 fn generate_ratchet(rng: &mut Rng, template: usize, long: bool) -> RatchetSequence {
@@ -1216,6 +1219,7 @@ fn generate_ratchet(rng: &mut Rng, template: usize, long: bool) -> RatchetSequen
         return RatchetSequence {
             start,
             steps: vec![step],
+            replacement_bound: true,
         };
     }
 
@@ -1424,7 +1428,11 @@ fn generate_ratchet(rng: &mut Rng, template: usize, long: bool) -> RatchetSequen
         }
     }
 
-    RatchetSequence { start, steps }
+    RatchetSequence {
+        start,
+        steps,
+        replacement_bound: false,
+    }
 }
 
 struct SparseSequence {
@@ -4232,7 +4240,7 @@ fn run_ratchet_once(exe: &Path, start: &Start, steps: &[RStep]) -> Result<(), St
     let request = start.request("ratchet", &encode_ratchet(steps));
     let answers = ask_model(exe, std::slice::from_ref(&request));
     let mut seen = Observed::default();
-    check_ratchet(start, steps, &answers[0], &mut seen)
+    check_ratchet(start, steps, &answers[0], &mut seen, false)
 }
 
 fn run_sparse_once(exe: &Path, start: &Start, steps: &[SStep]) -> Result<(), String> {
@@ -4318,7 +4326,13 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     let mut seen = Observed::default();
 
     for (at, r) in &round.ratchet {
-        if let Err(e) = check_ratchet(&r.start, &r.steps, &answers[*at], &mut seen) {
+        if let Err(e) = check_ratchet(
+            &r.start,
+            &r.steps,
+            &answers[*at],
+            &mut seen,
+            r.replacement_bound,
+        ) {
             let (minimal, message) = shrink(&r.steps, &mut |steps: &[RStep]| {
                 run_ratchet_once(&exe, &r.start, steps)
             });
