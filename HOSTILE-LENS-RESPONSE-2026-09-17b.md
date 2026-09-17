@@ -43,8 +43,8 @@ reader records.
   fail. The expected bytes are project-generated regression/composition
   evidence, not an external oracle. Independent-reader pass 10 records one
   explicit skip because that reader has no real ML-KEM implementation, so the
-  gap remains open until the reader replays it or a checked skip allowlist is
-  enforced.
+  gap remains open until the reader replays it. The checked skip allowlist
+  prevents silent drift but cannot satisfy that replay requirement.
 - **IMP-02 / `HL-IMP-02`:** `3e2745f` makes the model and Rust check
   `MAX_SKIPPED_STORE` against the store after replaceable pairs are removed.
   The Rust unit test and the byte-level
@@ -65,8 +65,9 @@ reader records.
 
 - **Reader skip control:** `run.py` now keeps an exact allowlist for the one
   documented real-ML-KEM/session skip and exits non-zero if a skip is added,
-  removed or moved. This prevents silent drift but does not turn the skipped
-  vector into an independent replay.
+  removed or moved. A three-case control test exercises unexpected and missing
+  skips. This prevents silent drift but does not turn the skipped vector into
+  an independent replay.
 
 - **Translation checksum limit:** `attest.py --check-translation` now also
   checks that each recorded source hash matches the committed tree named by
