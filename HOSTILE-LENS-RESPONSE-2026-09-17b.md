@@ -9,7 +9,7 @@ reader records.
 
 - **IMP-02:** reproduced against the committed isolated reader with the supplied
   `poc_store_bound.py`. It printed `reader accepted; store 1999`. The
-  discrepancy is recorded as blocking `HL-IMP-02` in `GAP-REGISTER.md`.
+  discrepancy was recorded as blocking `HL-IMP-02` in `GAP-REGISTER.md`.
 - **FM-01:** a temporary `set_option warn.sorry false` mutation was refused by
   `check-lean-constructs.sh`; the real tree passed after restoration.
 - **SC-04:** the receipt collector depended on a skipped `sign-off` job on a
@@ -22,7 +22,7 @@ reader records.
 
 | Finding family | Disposition | Next evidence needed |
 | --- | --- | --- |
-| IMP-01 / IMP-02 | Blocking | A deterministic end-to-end session vector, and a direct replacement-bound vector plus model/Rust/reader agreement. |
+| IMP-01 | Blocking | A deterministic end-to-end session vector that pins a real handshake and session at byte level. |
 | FM-02 / FM-04 | Open proof scope | Per-headline theorem satisfiability witnesses and explicit success-path-only wording until refusal refinement exists. |
 | FM-03 | Open correctness cleanup | Remove the unused perfect-correctness KEM hypothesis after the Lean proof set is rebuilt and pinned. |
 | SC-05 / SC-08 / SC-09 | Open supply-chain evidence | Replace candidate-written receipt claims with an independently derived record; distinguish checksum from regeneration; pin the Lean toolchain artefact. |
@@ -30,6 +30,18 @@ reader records.
 | F1 / F2 / F3 | Open fuzzing | Add accepted-bundle and responder-handshake seeds, plus assertions that fail when each guard is deleted. |
 | IP-01 / IP-02 | Open provenance decision | Publish source/version and research evidence where it may safely be published, or remove/downgrade the black-box and “ours” claims. |
 | HN-01 / HN-05 | Open claims correction | Align public “proven core” language with the named verified zone and remove unproved session encrypt/decrypt implications. |
+
+## Remediated
+
+- **IMP-02 / `HL-IMP-02`:** `3e2745f` makes the model and Rust check
+  `MAX_SKIPPED_STORE` against the store after replaceable pairs are removed.
+  The Rust unit test and the byte-level
+  `replacement-bound-counts-resulting-store` vector exercise the reported
+  1,999-key boundary. The differential harness requires a generated sequence
+  to reach it and observed model/Rust agreement across 2,864 operations. The
+  regenerated Aeneas translation and T1/T3 proofs build, and independent-reader
+  pass 9 records 646 PASS, 0 FAIL and 0 SKIP. This closes IMP-02 separately
+  from the still-open real-handshake coverage in IMP-01.
 
 ## Evidence language
 
