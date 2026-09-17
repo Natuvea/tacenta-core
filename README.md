@@ -1,8 +1,9 @@
 # tacenta-core
 
-A verification-first implementation of selected published Signal Protocol
-specifications: a small, standalone cryptographic core with machine-checked
-proofs over its verified zone.
+A verification-first protocol core built from selected published Signal
+protocol designs. Machine-checked proofs cover the named verified zone; the
+public session API is tested rather than proved end to end. Tacenta defines its
+own wire format and KDF labels and is not wire-compatible with Signal.
 
 ## What this is
 
@@ -40,8 +41,8 @@ review, and assurance records identify their scope and limits.
 
 ## The mission
 
-> Build a small, stable, verification-first engine for selected published Signal
-> Protocol specifications, with narrowly stated and reproducible compatibility
+> Build a small, stable, verification-first engine from selected published
+> protocol designs, with narrowly stated and reproducible compatibility
 > results.
 
 Every phrase is a constraint, and each is meant to be falsifiable:
@@ -49,8 +50,8 @@ Every phrase is a constraint, and each is meant to be falsifiable:
 - **Small.** Only security-critical protocol functionality is in the core.
 - **Stable.** Tacenta owns and versions its public API.
 - **Verification-first.** Specifications, models, and evidence precede claims.
-- **Interoperable on the wire.** Match another implementation's protocol
-  *behaviour*, not its API architecture. What that covers today is stated below.
+- **Reproducible compatibility research.** State the exact external boundary,
+  version and observed result; do not imply message-layer wire compatibility.
 - **Explicitly supported versions.** Compatibility is tested and bounded, never
   universal.
 - **No product coupling.** Storage and device abstractions belong; application
@@ -60,14 +61,13 @@ Every phrase is a constraint, and each is meant to be falsifiable:
 
 Two of the constraints above carry limits worth stating plainly.
 
-- **Interoperability reaches the bundle layer, not the message layer.** The
-  target is exchanging prekey bundles and establishing a session with a pinned
-  libsignal release, with any result claimed by version and covered surface
-  (ADR-0004). Ongoing messages are not exchanged across implementations: the
-  key-derivation constants sit upstream of
-  every message byte, no published specification carries test vectors for them,
-  and black-box observation cannot recover them. The release gate is scoped to
-  the bundle layer accordingly.
+- **No cross-implementation interoperability run is recorded.** The candidate
+  boundary is parsing and verifying prekey bundles from a pinned libsignal
+  release (ADR-0004). Establishing a cross-implementation session is not a
+  current target: Tacenta's wire format and KDF labels are its own, so its
+  message layer is not wire-compatible with Signal. The adapter and research
+  harness are outside this public tree, and the release gate makes no
+  interoperability claim until a versioned result is recorded.
 - **Stable is a goal, not a state.** There is no versioning policy, deprecation
   policy, or supported-target matrix yet.
 

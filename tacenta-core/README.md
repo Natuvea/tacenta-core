@@ -5,13 +5,15 @@ Rust. The specification is normative and this crate is not: where the two
 disagree, this crate is wrong until the specification is amended, and a
 behaviour change starts in the specification
 (`../tacenta-spec/decisions/ADR-0006-specification-is-normative.md`). The
-specification builds on the same published protocols that libsignal
-implements, so this is also an independent implementation of those.
+specification builds on published protocol designs that libsignal also
+implements. Tacenta defines its own wire format and KDF labels and is not
+wire-compatible with Signal.
 
-Implemented clean-room from ../tacenta-spec and ../tacenta-model, never from
-libsignal's source. Cryptography only: no product coupling, usable by any
-caller. It is not yet packaged for installation from a registry. A fresh
-implementation, not a port.
+Written without libsignal source from the published protocol designs. Much of
+`../tacenta-spec` was then written to describe the implementation and is now
+the normative definition that governs later changes. Cryptography only: no
+product coupling, usable by any caller. It is not yet packaged for installation
+from a registry. A fresh implementation, not a port.
 
 tacenta-core and Tacenta are not affiliated with, endorsed by, or sponsored by
 Signal Messenger LLC or the Signal Foundation. "Signal" and "libsignal" are used
@@ -27,6 +29,11 @@ assumptions; the Triple's T1 is conditional on totality assumptions no leaf
 theorem discharges); see
 `../tacenta-proofs/CLAIMS.md` for the ledger and `../tacenta-proofs/LIMITATIONS.md`
 for what is not covered.
+
+The public `Session::encrypt` and `Session::decrypt` orchestration is tested,
+fuzzed and covered by byte-level vectors; it is not proved end to end. The
+proof ledger names the lower-level functions and assumptions each theorem
+actually covers.
 
 Not built: group messaging and sender keys (not yet scheduled), and a storage
 layer, each recorded where it matters rather than only here. Signed-prekey

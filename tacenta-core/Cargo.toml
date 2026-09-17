@@ -50,7 +50,7 @@ license = "Apache-2.0"
 version = "0.0.0"
 edition = "2024"
 rust-version = "1.87"
-description = "Independent, verification-first implementation of selected Signal Protocol specifications."
+description = "Verification-first protocol core built from published PQXDH and ratchet designs."
 publish = false
 
 # Vetted, permissively licensed primitive implementations. These are the trusted
