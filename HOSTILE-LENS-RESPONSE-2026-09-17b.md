@@ -26,7 +26,7 @@ reader records.
 | SC-05 / SC-08 / SC-09 | Open supply-chain evidence | Replace candidate-written receipt claims with an independently derived record; distinguish checksum from regeneration; pin the Lean toolchain artefact. |
 | SC-01 / SC-02 / SC-03 | Open governance/process | Enforce protected `main`, record the historic exceptions, and require a named reviewer who is not the change author before claiming independent review. |
 | IP-01 / IP-02 | Open provenance decision | Publish source/version and research evidence where it may safely be published, or remove/downgrade the black-box and “ours” claims. |
-| HN-01 / HN-05 | Open claims correction | Align public “proven core” language with the named verified zone and remove unproved session encrypt/decrypt implications. |
+| HN-01 / HN-05 | In remediation | This branch scopes the core README and package description to the named verified zone, says the public session API is tested rather than proved, and records that Tacenta is not wire-compatible with Signal. Website PR [#20](https://github.com/Natuvea/tacenta-website/pull/20) applies the same scope to the hero, FAQ, assurance text, `llms.txt` and social card. Close after both PRs land. |
 
 ## Remediated
 
