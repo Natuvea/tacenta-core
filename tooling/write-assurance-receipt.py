@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Write one successful CI check receipt for later assurance aggregation."""
+"""Write a post-check CI checkpoint for later assurance aggregation.
+
+The literal ``status: pass`` means only that execution reached this step after
+the preceding job steps. The JSON is produced by the candidate workflow and is
+not signed or independently derived from the Actions API.
+"""
 from __future__ import annotations
 
 import argparse

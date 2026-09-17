@@ -12,6 +12,12 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- The assurance record now describes per-job receipt JSON as an unsigned
+  post-check checkpoint rather than authenticated proof of a job conclusion.
+  It leaves SC-05 open until the conclusion is derived by trusted code from
+  GitHub or carries verifiable provenance. SC-04 remains open until the fixed
+  `always()` push path completes on `main`; SC-06 is closed by composite-action
+  scanning, focused controls and repository-level Actions SHA pinning.
 - `main` protection now requires all ten current CI contexts on an up-to-date
   pull-request head, one approval from an account other than the last pusher,
   stale-review dismissal, resolved conversations and linear history. The rule

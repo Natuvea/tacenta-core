@@ -25,6 +25,16 @@ The current reproduction instructions and toolchain pins are in
 [`REPRODUCING.md`](REPRODUCING.md); the source-of-truth operation inventory is
 [`SESSION-OPERATION-MODEL.md`](../tacenta-model/SESSION-OPERATION-MODEL.md).
 
+The per-job JSON files and the manifest built from them are unsigned records
+written by the candidate's own workflow. Their literal `status: pass` means the
+job reached a checkpoint placed after its declared checks. It does not
+authenticate the GitHub job conclusion, prove that the candidate left the
+workflow intact, or become tamper-evident when an outer digest is added later.
+The selected candidate therefore needs the hosted run identity and conclusions
+verified independently through GitHub, or a replacement manifest derived by
+trusted/default-branch code from the Actions API (or equivalent verifiable
+artifact provenance).
+
 ## Gate status
 
 | Gate | Evidence to freeze at the candidate | Status before candidate selection | Closure action |
@@ -49,7 +59,7 @@ mistaken for a control.
 | Check | Protected property | Existing control/evidence | Candidate record still needed |
 | --- | --- | --- | --- |
 | `tooling/check-traceability.py` | Requirement, status, assumption and evidence-index references stay coherent. | `tooling/tests/run-check-traceability-cases.sh` runs a passing baseline and 22 focused refusals, including missing requirement metadata, status-table title/class drift, both assumption-inverse directions, unknown `LIM`/`ADV`/`AS`/`EX` references, and invariant-catalogue faults. | Capture its command, platform and successful diagnostic-free result at the candidate. |
-| `tooling/check-workflows.sh` | Workflows parse and retain repository security rules. | The 62 cases in `tooling/tests/check-workflows-cases` are the current negative corpus. | Capture its command, platform and successful diagnostic-free result at the candidate. |
+| `tooling/check-workflows.sh` | Workflows and composite actions parse and retain repository security rules. | The 65 cases in `tooling/tests/check-workflows-cases` include composite-action tag-pin and download-to-shell refusals. Repository-level Actions SHA pinning supplies a second live enforcement layer. | Capture its command, platform and successful diagnostic-free result at the candidate and read back the repository setting. |
 | `tooling/check-precondition-shapes.py` | First-party Lean does not gain a listed vacuous numeric precondition shape. | The 71 case directories in `tooling/tests/check-precondition-shapes-cases` are the current negative corpus. | Capture its command, platform and successful diagnostic-free result at the candidate. |
 | `tooling/check-labels.sh` | Derivation labels remain registered and prefix-safe. | `tooling/tests/run-check-labels-cases.sh` runs a passing baseline, an unregistered-label refusal and a forbidden-prefix refusal through the production checker. | Capture its command, platform and successful diagnostic-free result at the candidate. |
 | `tooling/check-vectors.py` | Vector documents obey their schemas. | `tooling/tests/run-check-vectors-cases.sh` runs a valid baseline, an unexpected-field schema refusal, a duplicate-ID refusal and an unsupported-schema-keyword refusal against the production checker. | Capture its command, platform and successful diagnostic-free result at the candidate. |
