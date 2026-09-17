@@ -4,7 +4,7 @@ Current register for assurance gate 2. Historical independent-reader reports sta
 unchanged under `tacenta-test-vectors/runners/independent/`; this file records
 the current disposition after later fixes.
 
-Last assessed: 2026-09-17, with the implementation at `3e2745f`.
+Last assessed: 2026-09-17, with the implementation at `b4fdeff`.
 
 ## Status key
 
@@ -33,6 +33,7 @@ gate obligations that are not individual reader findings.
 
 | ID | Status | Gate class | Package | Area | Current disposition | Acceptance criterion |
 | --- | --- | --- | --- | --- | --- | --- |
+| HL-IMP-01 | Closed | CLOSED | P3/P4/P6 | Session known answer | At `b4fdeff`, `session-e2e.json` fixes every random draw and pins a real X25519/ML-KEM-1024 prekey bundle, all four DH results, the PQXDH and split secrets, first ratchet keys, associated data, AEAD and wire bytes, responder plaintext, consumed prekey store and both session states. The runner requires its public lifecycle and separate public-component reconstruction to produce the same initial message. A negative control changes the expected associated data and requires failure. Independent-reader pass 10 reports this real-ML-KEM vector as one explicit skip because that reader implements only its documented KEM test double. | Satisfied for the reported missing byte-level vector: a deterministic real-primitive handshake and first message are pinned end to end, with a control proving the expected fields are checked. The project-generated expected bytes are disclosed as regression/composition evidence, not an external oracle or independent review. |
 | HL-IMP-02 | Closed | CLOSED | P3/P5/P7 | Double Ratchet replacement bound | The normative order is recorded in `CHANGELOG.md`. At `3e2745f`, the model and Rust remove replaceable pairs before checking the resulting store length. `replacement-bound-counts-resulting-store` pins a 1,999-key state at byte level, the differential harness requires that boundary to be reached, the translated T1/T3 proofs were regenerated and rebuilt, and independent-reader pass 9 records 646 PASS, 0 FAIL, 0 SKIP. | Satisfied: normative resolution, model/Rust agreement, distinguishing vector and differential sequence, translated proofs, and a new reader pass are all recorded. |
 | G7-01 | Closed | CLOSED | P1 | Vector layouts | `tacenta-test-vectors/README.md` now states the `prekey-store-state.json` and `session-state.json` `fields` layouts, including the derived `braid_tag`, `braid_epoch` and `sparse_epoch` session names. | Independent reader can implement the two files' exact field names from the README layout rather than from inference. |
 | G7-02 | Closed | CLOSED | P1 | Vector status | The README status paragraph now says the session and prekey-store persisted formats have vectors, and that every persistence file except the two erasure coders names its refusal. | No current status paragraph says those two files have no vectors or limits refusals to the two ratchet-state files. |

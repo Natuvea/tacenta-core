@@ -22,7 +22,6 @@ reader records.
 
 | Finding family | Disposition | Next evidence needed |
 | --- | --- | --- |
-| IMP-01 | Blocking | A deterministic end-to-end session vector that pins a real handshake and session at byte level. |
 | FM-02 / FM-04 | Open proof scope | Per-headline theorem satisfiability witnesses and explicit success-path-only wording until refusal refinement exists. |
 | FM-03 | Open correctness cleanup | Remove the unused perfect-correctness KEM hypothesis after the Lean proof set is rebuilt and pinned. |
 | SC-05 / SC-08 / SC-09 | Open supply-chain evidence | Replace candidate-written receipt claims with an independently derived record; distinguish checksum from regeneration; pin the Lean toolchain artefact. |
@@ -33,6 +32,17 @@ reader records.
 
 ## Remediated
 
+- **IMP-01 / `HL-IMP-01`:** `b4fdeff` adds a deterministic byte-level vector
+  for real X25519 and ML-KEM-1024 prekey creation, initiator establishment, the
+  first encrypted message and responder establishment. It pins every named
+  random draw, the handshake intermediates, wire messages, message keys,
+  authenticated plaintext, consumed prekey store and both session states. The
+  runner also reconstructs the initial message through the public leaf
+  components and requires exact agreement with the public lifecycle. A negative
+  control corrupts the expected associated data and requires the runner to
+  fail. The expected bytes are project-generated regression/composition
+  evidence, not an external oracle; independent-reader pass 10 records one
+  explicit skip because that reader has no real ML-KEM implementation.
 - **IMP-02 / `HL-IMP-02`:** `3e2745f` makes the model and Rust check
   `MAX_SKIPPED_STORE` against the store after replaceable pairs are removed.
   The Rust unit test and the byte-level
@@ -40,8 +50,7 @@ reader records.
   1,999-key boundary. The differential harness requires a generated sequence
   to reach it and observed model/Rust agreement across 2,864 operations. The
   regenerated Aeneas translation and T1/T3 proofs build, and independent-reader
-  pass 9 records 646 PASS, 0 FAIL and 0 SKIP. This closes IMP-02 separately
-  from the still-open real-handshake coverage in IMP-01.
+  pass 9 records 646 PASS, 0 FAIL and 0 SKIP.
 
 ## Evidence language
 

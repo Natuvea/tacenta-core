@@ -631,9 +631,10 @@ fails nothing, as Rejection allows (GAPS-5.md G5-03).
   to a reader that has that layout; this reader checks the field's length,
   accepts the content, and conforms (GAPS-7.md, G5-02 closed).
 
-The reasons are in `../GAPS-3.md` to `../GAPS-7.md` ("Not
-attempted"). No vector file needs any of these, so the runner reports no
-SKIPs.
+The reasons are in `../GAPS-3.md` to `../GAPS-7.md` ("Not attempted"). The
+real-primitive `session-e2e.json` added after pass 9 needs ML-KEM-1024 and the
+end-to-end session, so this unchanged reader reports that one case as an
+explicit SKIP. `../GAPS-10.md` records the maintenance run and its boundary.
 
 ## Running
 
@@ -657,9 +658,9 @@ Current result:
 
 | | Count | PASS | FAIL | SKIP |
 |---|---|---|---|---|
-| Vectors (36 files) | 408 | 408 | 0 | 0 |
+| Vectors (37 files) | 427 | 426 | 0 | 1 |
 | Derived cases (12 modules) | 220 | 220 | 0 | 0 |
-| **Total** | 628 | 628 | 0 | 0 |
+| **Total** | 647 | 646 | 0 | 1 |
 
 ## In this repository
 
@@ -708,3 +709,11 @@ record and places the four subsequent gap closures in the new pass instead.
 replacement-bound repair at implementation commit `3e2745f`. It reuses this
 reader and makes no claim of a new clean-room implementation or independent
 review.
+
+### Pass 10 record
+
+`../GAPS-10.md` records a maintenance re-run after the real-primitive
+end-to-end session vector was added at `b4fdeff`. The unchanged reader reports
+the new vector as one explicit skip because its documented boundary excludes
+real ML-KEM and a live end-to-end session. It makes no claim of a new
+clean-room implementation or independent review.
