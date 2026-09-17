@@ -30,10 +30,11 @@ written by the candidate's own workflow. Their literal `status: pass` means the
 job reached a checkpoint placed after its declared checks. It does not
 authenticate the GitHub job conclusion, prove that the candidate left the
 workflow intact, or become tamper-evident when an outer digest is added later.
-The selected candidate therefore needs the hosted run identity and conclusions
-verified independently through GitHub, or a replacement manifest derived by
-trusted/default-branch code from the Actions API (or equivalent verifiable
-artifact provenance).
+`hosted-assurance.yml` supplies the separate path: after CI completes it runs
+code checked out from `main`, queries GitHub's API for the selected run and
+requires the exact candidate, event, job set and conclusions without checking
+out the candidate. Its artifact remains to be demonstrated on `main` and bound
+into the final evidence pack before this item closes.
 
 ## Gate status
 

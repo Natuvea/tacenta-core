@@ -129,6 +129,7 @@ python3 tooling/check-session-operation-traces.py
 bash tooling/tests/run-check-session-operation-traces-cases.sh
 bash tooling/tests/run-build-assurance-manifest-cases.sh
 bash tooling/tests/run-collect-assurance-receipts-cases.sh
+bash tooling/tests/run-collect-hosted-check-conclusions-cases.sh
 bash tooling/tests/run-build-evidence-pack-cases.sh
 bash tooling/tests/run-check-ledger-review-receipt-cases.sh
 
