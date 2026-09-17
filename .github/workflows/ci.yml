@@ -410,6 +410,7 @@ jobs:
       - run: bash tooling/tests/run-check-session-operation-traces-cases.sh
       - run: bash tooling/tests/run-build-assurance-manifest-cases.sh
       - run: bash tooling/tests/run-collect-assurance-receipts-cases.sh
+      - run: bash tooling/tests/run-check-signoff-cases.sh
       - run: bash tooling/tests/run-build-evidence-pack-cases.sh
       - run: bash tooling/tests/run-check-ledger-review-receipt-cases.sh
       # Note the assurance boundary: this checks the attestation manifest

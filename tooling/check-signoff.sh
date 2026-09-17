@@ -9,23 +9,22 @@
 # a rule that no gate enforces is a sentence, not a rule. So this checks the
 # commits a change adds, `BASE..HEAD`, and nothing already on BASE.
 #
-# What counts: every non-merge commit in the range has a `Signed-off-by:`
-# trailer whose value is exactly its author, `Name <email>`. Merge commits are
-# skipped. GitHub writes the merge that lands a pull request itself, and a
-# merge of main into a branch adds no authored change of its own.
+# What counts: every commit in the range has a `Signed-off-by:` trailer whose
+# value is exactly its author, `Name <email>`. That includes merge commits. The
+# protected branch requires linear history, so a branch should rebase instead
+# of introducing an unsigned merge of its base.
 #
 # In CI the pull request's base branch is BASE. Locally, `tooling/ci.sh` runs
 # it against origin/main, so a branch is checked before it is pushed. With no
-# BASE to compare against, as in a clone without that ref, there is nothing to
-# check, and it says so and succeeds.
+# BASE to compare against is a missing prerequisite and fails closed.
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
 base="${1:-origin/main}"
 if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
-  echo "check-signoff: no ${base} in this clone, so no commits to check"
-  exit 0
+  echo "check-signoff: required base ${base} is missing; fetch it before checking" >&2
+  exit 1
 fi
 
 status=0
@@ -39,7 +38,7 @@ while read -r sha; do
       "$(git log -1 --format='%h %s' "$sha")" "$author" >&2
     status=1
   fi
-done < <(git rev-list --no-merges "${base}..HEAD")
+done < <(git rev-list "${base}..HEAD")
 
 if [ "$status" -eq 0 ]; then
   echo "check-signoff: ${count} commit(s) on top of ${base}, each signed off by its author"
