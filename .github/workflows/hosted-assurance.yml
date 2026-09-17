@@ -1,0 +1,40 @@
+name: hosted assurance conclusions
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+
+# This workflow runs from the default branch after CI completes. It checks the
+# GitHub API record and never checks out or executes the candidate revision.
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: main
+      - name: Derive conclusions from GitHub's hosted record
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SELECTED_REPOSITORY: ${{ github.repository }}
+          SELECTED_RUN_ID: ${{ github.event.workflow_run.id }}
+          SELECTED_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          SELECTED_EVENT: ${{ github.event.workflow_run.event }}
+        run: >-
+          python3 tooling/collect-hosted-check-conclusions.py
+          --repository "$SELECTED_REPOSITORY"
+          --run-id "$SELECTED_RUN_ID"
+          --head-sha "$SELECTED_HEAD_SHA"
+          --event "$SELECTED_EVENT"
+          --output hosted-assurance-conclusions.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: hosted-assurance-conclusions-${{ github.event.workflow_run.id }}
+          path: hosted-assurance-conclusions.json
+          if-no-files-found: error
+          retention-days: 90

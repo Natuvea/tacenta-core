@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Aggregate selected CI job receipts into one assurance-receipts document.
+"""Aggregate selected CI job checkpoints into one assurance-receipts document.
 
 Jobs write one JSON object containing the fields the assurance manifest records.
 This collector supplies the selected HEAD commit/tree and the explicit
 conditional ``sign-off`` receipt, then refuses duplicate, missing or
 cross-candidate job records. It is deterministic: timestamps and run IDs are
-inputs in the job receipts, never generated here.
+inputs in the job receipts, never generated here. These candidate-produced,
+unsigned records are an inventory aid, not authenticated evidence of GitHub job
+conclusions; the hosted run remains the authority for those conclusions.
 """
 from __future__ import annotations
 

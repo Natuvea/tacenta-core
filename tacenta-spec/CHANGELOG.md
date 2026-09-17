@@ -12,6 +12,15 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- The assurance record now describes per-job receipt JSON as an unsigned
+  post-check checkpoint rather than authenticated proof of a job conclusion.
+  A separate default-branch `workflow_run` workflow now derives the exact CI
+  head, event and ten job conclusions from GitHub's API without checking out
+  the candidate; five cases exercise its PR/push paths and three refusals.
+  SC-05 stays open until that workflow produces and binds a hosted `main`
+  artifact. SC-04 likewise awaits the fixed `always()` push path on `main`;
+  SC-06 is closed by composite-action scanning, focused controls and
+  repository-level Actions SHA pinning.
 - `main` protection now requires all ten current CI contexts on an up-to-date
   pull-request head, one approval from an account other than the last pusher,
   stale-review dismissal, resolved conversations and linear history. The rule

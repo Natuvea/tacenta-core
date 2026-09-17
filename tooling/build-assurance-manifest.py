@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Build or validate the candidate assurance manifest (schema v1).
 
-The manifest is an inventory of supplied, selected check receipts and static
-evidence. It never turns a missing job, a dirty candidate or a review-pending
-state into a pass. Release publication adds an outer digest over this file.
+The manifest is an inventory of candidate-produced check checkpoints and static
+evidence. The unsigned checkpoints are not authenticated job conclusions. It
+never turns a missing checkpoint, a dirty candidate or a review-pending state
+into a pass. Release publication adds an outer digest over this file, but that
+does not retroactively authenticate the CI claims it contains.
 """
 from __future__ import annotations
 

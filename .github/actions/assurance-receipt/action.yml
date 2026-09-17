@@ -1,5 +1,5 @@
-name: assurance receipt
-description: Write and retain one successful candidate-check receipt.
+name: assurance checkpoint
+description: Record that a job reached its post-check checkpoint; this unsigned JSON is not a job attestation.
 inputs:
   id:
     required: true
