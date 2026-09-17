@@ -11,6 +11,13 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+- `tacenta-proofs`: the Braid refinement boundary `KemAgreesFor` no longer
+  assumes `K.Correct`. No proof used the conjunct, and it asserted perfect
+  decapsulation, which ML-KEM-1024 satisfies only up to the FIPS 203 failure
+  bound. The four Braid refinement theorems now rest on the two
+  operation-agreement clauses alone; `toyKem_correct` stays a model fact.
+  Closes hostile-lens item FM-03.
+
 - `tacenta-core`: the classical and sparse ratchets’ secret-bearing working
   copies and removal paths now allocate at their final capacity and wipe dead
   slots before release; sparse decoder vectors are sized from checked counts.
