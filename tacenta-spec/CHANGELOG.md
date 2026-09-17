@@ -12,6 +12,10 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- The sparse ratchet now removes same-chain keys that will be re-derived
+  before applying the total-store bound. Its model, Rust implementation and
+  translated proofs agree on replacement, exact-edge acceptance and refusal
+  atomicity; the distinguishing tests are fixed at the 2,000-key policy edge.
 - `tacenta-test-vectors/vectors/session-establishment/session-e2e.json`: a
   deterministic byte-level known answer from a real X25519 and ML-KEM-1024
   prekey bundle through the first authenticated session message. It records

@@ -713,7 +713,7 @@ review.
 ### Pass 10 record
 
 `../GAPS-10.md` records a maintenance re-run after the real-primitive
-end-to-end session vector was added at `b4fdeff`. The unchanged reader reports
+end-to-end session vector was added at `44409c6`. The unchanged reader reports
 the new vector as one explicit skip because its documented boundary excludes
 real ML-KEM and a live end-to-end session. It makes no claim of a new
 clean-room implementation or independent review.

@@ -1,7 +1,7 @@
 # Independent reader: pass 10 record
 
 **Date:** 2026-09-17
-**Implementation revision:** `b4fdeff`
+**Implementation revision:** `44409c6`
 
 This is a maintenance run record. It does not alter the historical reports
 `GAPS.md` through `GAPS-9.md`, change the independent reader, or claim a new
@@ -10,7 +10,7 @@ clean-room implementation or independent reviewer.
 ## Purpose
 
 Hostile-lens finding IMP-01 identified that no vector pinned a real handshake
-or session at byte level. Commit `b4fdeff` adds
+or session at byte level. Commit `44409c6` adds
 `vectors/session-establishment/session-e2e.json`, which drives real X25519 and
 ML-KEM-1024 from prekey creation through the first authenticated message and
 responder establishment. The Rust runner checks a public lifecycle path against
@@ -19,7 +19,7 @@ intermediates and resulting state with the committed known answer.
 
 ## Run
 
-From the repository root, after `b4fdeff`, this command exited zero:
+From the repository root, after `44409c6`, this command exited zero:
 
 ```text
 python3 tacenta-test-vectors/runners/independent/reader/run.py
