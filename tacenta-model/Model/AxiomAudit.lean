@@ -3,9 +3,11 @@ import Lean
 /-!
 # AxiomAudit: the declaration kinds `#print axioms` cannot see
 
-`#print axioms` under `#guard_msgs` pins what a *pinned* theorem rests on,
-and `no-sorry.sh` asks the compiler for incomplete declarations. Neither sees a
-declaration that is itself the new thing: an `axiom` nobody pins a theorem
+`#print axioms` under `#guard_msgs` pins what a *pinned* theorem rests on.
+This audit also calls `collectAxioms` for every first-party declaration and
+refuses any dependency on `sorryAx`; that check does not depend on Lean's
+`warn.sorry` diagnostic being enabled. Neither check alone sees a declaration
+that is itself the new thing: an `axiom` nobody pins a theorem
 against, an `opaque` or `partial def` that opts out of termination checking,
 an `unsafe` declaration that opts out of everything, or an `@[implemented_by]`
 or `@[extern]` attribute, under which the program `native_decide` runs is a
@@ -81,9 +83,9 @@ from a real one on shape alone.** What excludes them is textual:
 in hand-written first-party Lean -- `run_cmd`, `#eval`, `elab`, `macro`,
 `syntax`, `initialize`, `addDecl` and its kin, and any reference to the
 `Lean` namespace at all -- outside this module's own implementation and the
-four `run_cmd Model.AxiomAudit.run` lines, which it allow-lists by file path
+five `run_cmd Model.AxiomAudit.run` lines, which it allow-lists by file path
 and exact line content; and `scripts/check-audit-reach.sh` fails if any
-first-party module is outside the four audit modules' import closure, so no
+first-party module is outside the five audit modules' import closure, so no
 module escapes the walk. The division of labour: this module recognises the
 declaration kinds a grep cannot, and the grep refuses the code that could
 forge what this module accepts.
@@ -397,6 +399,20 @@ hold to the rule. -/
 def run (prefixes : Array Name) : Elab.Command.CommandElabM Unit := do
   let env ← getEnv
   let { offences, seen, generated, generatedNative } := audit env prefixes
+  let mut offences := offences
+  -- `warn.sorry` controls only the diagnostic printed while a declaration is
+  -- elaborated. The dependency remains `sorryAx` in the environment, where
+  -- `collectAxioms` sees it even if the source disabled the warning. Check
+  -- every first-party declaration rather than only the pinned headline
+  -- theorems: an incomplete helper is still part of a later theorem's trusted
+  -- base, and an unused incomplete declaration is still not complete code.
+  for (n, _) in env.constants.toList do
+    let m := moduleOf env n
+    if !isFirstParty prefixes m then continue
+    let axioms ← collectAxioms n
+    if axioms.contains ``sorryAx then
+      offences := offences.push { decl := n, module := m, kind := "sorryAx" }
+  offences := offences.qsort (fun a b => a.decl.toString < b.decl.toString)
   if seen == 0 then
     throwError "axiom audit: no first-party declaration found under {prefixes}; \
       the audit module imports nothing it should"
@@ -404,7 +420,7 @@ def run (prefixes : Array Name) : Elab.Command.CommandElabM Unit := do
     let lines := offences.map fun o => s!"  {o.decl} ({o.module}): {o.kind}"
     throwError "axiom audit: {offences.size} first-party declaration(s) widen the \
       trust base without a compiler warning:\n{String.intercalate "\n" lines.toList}\n\
-      An axiom, an opaque or partial definition, an unsafe declaration, an \
+      A dependency on sorryAx, an axiom, an opaque or partial definition, an unsafe declaration, an \
       implemented_by/extern attribute, or a declaration named into the compiler's \
       `_native`/`_unsafe_rec` namespace outside the shape the compiler produces, in \
       hand-written Lean is refused. If one is genuinely needed, record it in \
@@ -424,8 +440,8 @@ def run (prefixes : Array Name) : Elab.Command.CommandElabM Unit := do
       listed above and held to manifests/translation-attestation.json by attest.py, and \
       {generatedNative.size} compiler-trust axioms in it (Aeneas's `toStr` bound, \
       `by decide +native`)"
-  logInfo m!"axiom audit: {seen} first-party declarations under {prefixes}; none is an \
-    axiom, opaque, unsafe or partial, or carries implemented_by/extern, outside the \
+  logInfo m!"axiom audit: {seen} first-party declarations under {prefixes}; none depends on \
+    sorryAx or is an axiom, opaque, unsafe or partial, or carries implemented_by/extern, outside the \
     native_decide/bv_decide allowance{generatedNote}"
 
 end Model.AxiomAudit

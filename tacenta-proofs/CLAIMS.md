@@ -2102,7 +2102,8 @@ refutable,
 `Translation/ErasureWitness.lean` and `Translation/KemWitness.lean`, which
 fail if the Braid's erasure or KEM hypotheses lose their model, and
 `Translation/AxiomAudit.lean` and `AxiomAuditTripleUnit.lean`, which walk the
-elaborated environment and fail if any hand-written declaration is an
+elaborated environment, call `collectAxioms` for every first-party declaration,
+and fail if any depends on `sorryAx` or if any hand-written declaration is an
 axiom, opaque, unsafe or partial, carries `implemented_by`/`extern`, or is
 named into the compiler's `_native`/`_unsafe_rec` namespace outside the
 exact shape the compiler produces -- the `native_decide`/`bv_decide` axioms
@@ -2117,19 +2118,20 @@ what the text elaborated to and not only to the text.
 `scripts/check-lean-constructs.sh`, the textual second line, strips
 comments and strings and refuses those keywords wherever they sit on a
 line, in every hand-written module including the package roots and
-`Vectors.lean`, and refuses a lakefile that sets any Lean option. It also
+`Vectors.lean`, refuses `set_option warn.sorry false` even in generated files,
+and refuses a lakefile that sets any Lean option. It also
 refuses every elaboration-time construct (`run_cmd`, `#eval`, `elab`,
 `macro`, `syntax`, `initialize`, `addDecl`, any reference to the `Lean`
 namespace) outside `Model/AxiomAudit.lean`'s own implementation and the
-four `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
+five `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
 exact line content: the audit accepts the compiler-trust axioms by shape
 and cannot tell a planted one, added by such code with its name assembled
 from string literals, from a real one, so the absence of such code is what
 excludes it (`LIMITATIONS.md`, "Trusted, not verified").
 `scripts/check-audit-reach.sh` fails if any first-party module, generated
-ones included, is outside the four audit modules' import closure, since
+ones included, is outside the five audit modules' import closure, since
 the audit walks only what its invoking module imports, and fails if the
-four do not all run with the same first-party prefixes, since the audit's
+five do not all run with the same first-party prefixes, since the audit's
 waiver for an unmentioned compiler-trust axiom asks whether any first-party
 declaration mentions it and only sees the modules in its own environment.
 `scripts/check-audit-negatives.sh` plants twelve declarations: one for each

@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
 # Fail if any first-party proof is incomplete.
 #
-# This asks the compiler rather than grepping the source. Lean emits
-# "declaration uses `sorry`" for every incomplete declaration it elaborates, so
-# a build log is an exhaustive and authoritative list, where a grep is neither:
-# it sees only the files it is pointed at, and matches the word wherever it
-# appears, including in prose explaining that there is no sorry.
+# The build-log scan below is a useful diagnostic, but it is not the authority:
+# `set_option warn.sorry false` can silence it. Every package build also runs
+# `Model.AxiomAudit`, which calls `collectAxioms` on every first-party
+# declaration and refuses a `sorryAx` dependency directly. The textual gate
+# separately refuses disabling `warn.sorry`, and a planted negative case proves
+# the environment check still fails when that warning is suppressed.
 #
-# Third-party sorries are not ours and are not failed on: Aeneas's own library
-# ships four. They cannot be filtered by looking for `.lake` in the path,
+# Third-party warning lines are not failed on: Aeneas's own library ships four
+# sorries. They cannot be filtered by looking for `.lake` in the path,
 # because a dependency reports its files relative to its own package root
 # (`Aeneas/Std/Slice.lean`, with nothing to distinguish it). So the filter is
 # positive, naming the directories that are ours, and anything it does not
-# recognise is treated as third-party rather than as first-party.
+# recognise is treated as third-party rather than as first-party. If a
+# first-party declaration depends on one of those sorries, the environment
+# audit fails it through `sorryAx`.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
