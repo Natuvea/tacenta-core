@@ -148,6 +148,12 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- Assurance levels for the sparse ratchet, Triple Ratchet, ML-KEM Braid and
+  erasure code now carry a `*` while their headline theorems' numeric
+  preconditions lack theorem-linked joint satisfiability witnesses. ADR-0008
+  states that a T3/L4 label does not itself establish premise satisfiability,
+  and the gap register keeps hostile-lens finding FM-02 open until every pinned
+  headline hypothesis set has a checked witness.
 - The no-`sorry` gate now asks Lean's elaborated environment whether every
   first-party declaration depends on `sorryAx`; it no longer relies on the
   suppressible `warn.sorry` diagnostic. A planted theorem disables that

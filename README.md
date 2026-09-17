@@ -99,8 +99,12 @@ statements: an `Ok` result agrees with the model and preserves the state
 relation. They do not prove that every model acceptance is accepted by Rust,
 or relate Rust `Err` results to model refusals and unchanged state. Other T3
 theorems have different scopes, including fuller accepted/refused matching for
-the sparse ratchet and named decoders. The post-quantum ratchet is in the
-session path, and sessions and prekey stores serialize.
+the sparse ratchet and named decoders. The tree does not yet establish that all
+numeric size and counter preconditions are satisfiable: the classical and
+sparse decoder-to-invariant chains discharge named families, while roughly 54
+remaining hypothesis shapes have not been exhaustively witnessed. The
+post-quantum ratchet is in the session path, and sessions and prekey stores
+serialize.
 `tacenta-proofs/CLAIMS.md` records exactly what is and is not proven.
 `ASSURANCE.md` records where the project stands against the expectations in
 ADR-0008, component by component, and what comes next.

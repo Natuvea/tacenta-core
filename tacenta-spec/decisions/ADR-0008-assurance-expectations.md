@@ -142,7 +142,7 @@ Two facts shape what is realistic here:
 | L1 | Tested | Stated in the specification. Unit and property tests. Fuzzing where input is untrusted. |
 | L2 | Pinned | L1, plus the model states it and model-generated vectors pin it. The vectors are checked against the implementation and read by the independent reader. |
 | L3 | Panic-free | L2, plus T1 proofs for the translated code. |
-| L4 | Scoped model agreement | L3, plus named T3 agreement theorems whose direction, covered result branches, hypotheses and invariants are stated in `tacenta-proofs/CLAIMS.md`. L4 alone does not claim bidirectional, whole-domain or refusal-branch refinement. |
+| L4 | Scoped model agreement | L3, plus named T3 agreement theorems whose direction, covered result branches, hypotheses and invariants are stated in `tacenta-proofs/CLAIMS.md`. L4 alone does not claim bidirectional, whole-domain or refusal-branch refinement, or that every stated precondition has been shown satisfiable. A component with incomplete numeric-precondition evidence carries `L4*` in `ASSURANCE.md` until theorem-linked joint witnesses exist. |
 
 A component's level is lowered only by a recorded decision.
 
