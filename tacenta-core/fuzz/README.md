@@ -7,10 +7,10 @@ somebody else chose.
 
 | Target | Covers |
 | --- | --- |
-| `wire_decoders` | `message_type`, `decode_message`, `decode_initial`, `decode_bundle`, `decode_composite` |
+| `wire_decoders` | `message_type`, `decode_message`, `decode_initial`, `decode_bundle`, `decode_composite`; a committed 1,811-byte canonical bundle seed reaches `decode_bundle` acceptance and a normal test requires that seed to decode and re-encode exactly |
 | `protobuf_bodies` | `parse_prekey_body`, `parse_ratchet_body`, `decode_tag` |
 | `persisted_state` | `from_bytes` on the ratchet, sparse ratchet, Braid, triple, and both erasure coders, plus `PrekeyStore::from_bytes` and `Session::import`; every accepted state, session and store is asserted to satisfy its own `invariant`, and the restored session again after the message and the send it is driven through |
-| `session_receive` | `establish_responder` on an unauthenticated message, and `Session::decrypt` on both sides of an established session; both sessions and the store are asserted to satisfy their `invariant` after every establishment, send and receive, accepted or refused |
+| `session_receive` | `establish_responder` on raw unauthenticated bytes and on xor mutations of a genuine initial message (a committed zero-byte mutation reaches an accepted responder handshake), plus `Session::decrypt` on both sides of an established session; both sessions and the store are asserted to satisfy their `invariant` after every establishment, send and receive, accepted or refused |
 | `braid_receive` | `Braid::receive` and `commit` from either role, driven by a sequence of `Msg` values; every candidate that did not fail is adopted, the target sends after each message, and `Braid::invariant` is asserted after every receive and send; so a transcript carries the machine through all eleven live states, though a fuzzed message is only ever *received* in the nine a send leaves behind -- the two it never meets, `KeysUnsampled` and `HeaderReceived`, are the two whose receive arm does nothing. The corpus is seeded with an honest transcript parked in each state (`write_braid_receive_seeds` in `braid/src/tests.rs`) |
 | `triple_receive` | `tacenta_triple::State::receive` and `commit` from either side, driven by a sequence of composite headers and agreement outputs (`write_triple_receive_seeds` in `triple/src/tests.rs`); `State::invariant` is asserted after every receive and send |
 
@@ -86,7 +86,7 @@ cargo fuzz run wire_decoders
 ```
 
 Needs nightly Rust and `cargo install cargo-fuzz`. Each target keeps its corpus
-in `corpus/<target>/`, which is committed: 4,105 files holding 2,655,764 bytes of
+in `corpus/<target>/`, which is committed: 4,107 files holding 2,657,576 bytes of
 content in all (`du` reports allocated blocks rather than content size).
 It is the accumulated set of inputs that reached distinct branches, plus the
 seeds the ignored tests named above write, and starting each run from it
