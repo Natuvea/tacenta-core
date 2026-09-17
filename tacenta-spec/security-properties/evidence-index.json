@@ -792,7 +792,7 @@
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the classical Double Ratchet refines the model)",
+          "section": "Proved (tier T3, scoped agreement for the classical Double Ratchet)",
           "references": [
             "try_skipped_refines"
           ]
@@ -998,7 +998,7 @@
       "claims": [
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the Triple Ratchet's composed session on the unit, with both inner bundles discharged)",
+          "section": "Proved (tier T3, scoped agreement for the Triple Ratchet's composed session on the unit, with both inner bundles discharged)",
           "references": [
             "Tacenta.UnitTripleT3.receive_refines",
             "Tacenta.UnitTripleT3.commit_refines"
@@ -1130,7 +1130,7 @@
       "claims": [
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the ML-KEM Braid's translated code refines the model)",
+          "section": "Proved (tier T3, scoped agreement for the ML-KEM Braid's translated code)",
           "references": [
             "step_receive_refines",
             "Braid.receive_refines"
@@ -1262,14 +1262,14 @@
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the classical Double Ratchet refines the model)",
+          "section": "Proved (tier T3, scoped agreement for the classical Double Ratchet)",
           "references": [
             "message_keys_refines"
           ]
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the Triple Ratchet's composed session on the unit, with both inner bundles discharged)",
+          "section": "Proved (tier T3, scoped agreement for the Triple Ratchet's composed session on the unit, with both inner bundles discharged)",
           "references": [
             "Tacenta.UnitTripleT3.combine_refines"
           ]
@@ -1431,7 +1431,7 @@
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the classical Double Ratchet refines the model)",
+          "section": "Proved (tier T3, scoped agreement for the classical Double Ratchet)",
           "references": [
             "kdf_ck_refines",
             "kdf_rk_refines",
@@ -1442,7 +1442,7 @@
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the sparse post-quantum ratchet's translated code refines the model)",
+          "section": "Proved (tier T3, accepted/refused agreement for the sparse post-quantum ratchet)",
           "references": [
             "kdf_init_refines",
             "send_refines",
@@ -1451,7 +1451,7 @@
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the Triple Ratchet's composed session on the unit, with both inner bundles discharged)",
+          "section": "Proved (tier T3, scoped agreement for the Triple Ratchet's composed session on the unit, with both inner bundles discharged)",
           "references": [
             "Tacenta.UnitTripleT3.split_secret_refines",
             "Tacenta.UnitTripleT3.combine_refines"
@@ -1459,7 +1459,7 @@
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the ML-KEM Braid's translated code refines the model)",
+          "section": "Proved (tier T3, scoped agreement for the ML-KEM Braid's translated code)",
           "references": [
             "Braid.receive_refines"
           ]
@@ -1642,14 +1642,14 @@
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the classical Double Ratchet refines the model)",
+          "section": "Proved (tier T3, scoped agreement for the classical Double Ratchet)",
           "references": [
             "send_refines"
           ]
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the sparse post-quantum ratchet's translated code refines the model)",
+          "section": "Proved (tier T3, accepted/refused agreement for the sparse post-quantum ratchet)",
           "references": [
             "send_refines"
           ]
@@ -1708,7 +1708,7 @@
       "claims": [
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the Triple Ratchet's composed session on the unit, with both inner bundles discharged)",
+          "section": "Proved (tier T3, scoped agreement for the Triple Ratchet's composed session on the unit, with both inner bundles discharged)",
           "references": [
             "Tacenta.UnitTripleT3.combine_refines"
           ]
@@ -1789,14 +1789,14 @@
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the sparse post-quantum ratchet's translated code refines the model)",
+          "section": "Proved (tier T3, accepted/refused agreement for the sparse post-quantum ratchet)",
           "references": [
             "kdf_init_refines"
           ]
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the Triple Ratchet's composed session on the unit, with both inner bundles discharged)",
+          "section": "Proved (tier T3, scoped agreement for the Triple Ratchet's composed session on the unit, with both inner bundles discharged)",
           "references": [
             "Tacenta.UnitTripleT3.combine_refines"
           ]
@@ -2148,7 +2148,7 @@
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the classical Double Ratchet refines the model)",
+          "section": "Proved (tier T3, scoped agreement for the classical Double Ratchet)",
           "references": [
             "send_refines",
             "receive_refines",
@@ -2157,7 +2157,7 @@
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the sparse post-quantum ratchet's translated code refines the model)",
+          "section": "Proved (tier T3, accepted/refused agreement for the sparse post-quantum ratchet)",
           "references": [
             "send_refines",
             "receive_refines",
@@ -2349,7 +2349,7 @@
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the classical Double Ratchet refines the model)",
+          "section": "Proved (tier T3, scoped agreement for the classical Double Ratchet)",
           "references": [
             "skip_message_keys_refines",
             "age_store_refines"
@@ -2357,7 +2357,7 @@
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the sparse post-quantum ratchet's translated code refines the model)",
+          "section": "Proved (tier T3, accepted/refused agreement for the sparse post-quantum ratchet)",
           "references": [
             "skip_message_keys_refines",
             "clear_old_epochs_refines"
@@ -2587,7 +2587,7 @@
       "claims": [
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the classical Double Ratchet refines the model)",
+          "section": "Proved (tier T3, scoped agreement for the classical Double Ratchet)",
           "references": [
             "dh_ratchet_refines",
             "receive_refines"
@@ -2658,14 +2658,14 @@
       "claims": [
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the sparse post-quantum ratchet's translated code refines the model)",
+          "section": "Proved (tier T3, accepted/refused agreement for the sparse post-quantum ratchet)",
           "references": [
             "advance_refines"
           ]
         },
         {
           "path": "tacenta-proofs/CLAIMS.md",
-          "section": "Proved (tier T3, the ML-KEM Braid's translated code refines the model)",
+          "section": "Proved (tier T3, scoped agreement for the ML-KEM Braid's translated code)",
           "references": [
             "Braid.send_refines",
             "Braid.receive_refines"

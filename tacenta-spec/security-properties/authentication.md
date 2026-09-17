@@ -318,7 +318,7 @@ A session accepts each ratchet message at most once.
       `Proofs.KeyErasure.trySkipped_is_once` (T2, CLAIMS.md, "Proved (tier
       T2, the models' skipped-key stores)");
     - the code's lookup does what the model's does: `try_skipped_refines` (T3,
-      "Proved (tier T3, the classical Double Ratchet refines the model)").
+      "Proved (tier T3, scoped agreement for the classical Double Ratchet)").
   - No theorem states that the model refuses every repeat.
 - **Does not cover:**
   - An initial message (REQ-AUTH-12).

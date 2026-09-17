@@ -216,10 +216,12 @@ this section says in one place what is not proved.
   handed, as `Braid.send_no_panic`/`step_send_no_panic` do. The theorem's
   signature is the authoritative list.
 
-The honest one-line summary: **the protocol core is proved to refine a model
-under stated assumptions; the code path a customer's message actually travels
-is not proved as a whole.** `LIMITATIONS.md` gives the detail behind each point
-above.
+The honest one-line summary: **named protocol-core operations have scoped T3
+functional-agreement proofs under stated assumptions; the classical and
+composed Triple Ratchet `receive` theorems cover successful Rust results only,
+and the code path a customer's message actually travels is not proved as a
+whole.** Some other T3 theorems cover refusal branches as their individual
+entries state. `LIMITATIONS.md` gives the detail behind each point above.
 
 ## Proved (tier T2, functional properties of the model)
 
@@ -436,7 +438,7 @@ Each is pinned under `#guard_msgs` in `Proofs/TrustedBase.lean`, on `propext`
 and `Quot.sound`, except `ageStore_drops_the_expired`, `ageStore_only_removes`
 and `clearOldEpochs_store_le`, on `propext` alone.
 
-## Proved (tier T3, the classical Double Ratchet refines the model)
+## Proved (tier T3, scoped agreement for the classical Double Ratchet)
 
 Location: `Translation/T3.lean`, against `Model.Ratchet` and `Model.State` in
 `tacenta-model`. This is the central refinement of the project, and until
@@ -444,10 +446,11 @@ this section existed it had no ledger entry and no pin, so nothing in it was
 checked by `attest.py`; it is now, and the three headline theorems are
 pinned under `#guard_msgs` at the end of the file.
 
-Every theorem takes a state relation `StateR s m` (the translated state
-refines the model state field by field, with the fixed-width arrays, `u32`
-counters and `Vec` of records absorbed there) and says the translated
-operation carries it to the model's operation.
+Every theorem takes a state relation `StateR s m` (the translated state is
+related to the model state field by field, with the fixed-width arrays, `u32`
+counters and `Vec` of records absorbed there). The exact result direction is
+part of each theorem: `receive_refines` is success-path-only, while
+`send_refines` additionally relates one named refusal.
 
 - `send_refines`: a successful `send` returns a header and a message key that
   `Model.Ratchet.send` also returns, with the new state still related, and
@@ -1508,7 +1511,7 @@ crate's own prefix -- `tacenta_kdf.hmac_sha256` for what is fully
 `tacenta_ratchet.tacenta_kdf.hmac_sha256` -- and the underlying names
 differ by that prefix as well.
 
-## Proved (tier T3, the Triple Ratchet's composed session on the unit, with both inner bundles discharged)
+## Proved (tier T3, scoped agreement for the Triple Ratchet's composed session on the unit, with both inner bundles discharged)
 
 Location: `tacenta-proofs/translation/Translation/UnitTripleT3.lean` and
 `Translation/UnitPins.lean`, against `Model.Triple` in
@@ -1604,7 +1607,7 @@ the bundle-taking theorems carry: `UnitT3.HmacAgrees`, `UnitT3.HkdfAgrees`,
 the same constant, and applies both theorems to exactly those hypotheses, so a
 boundary hypothesis added ahead of the state relation stops it building.
 
-## Proved (tier T3, the translated code refines the model)
+## Proved (tier T3, named translated operations agree with the model in the directions stated below)
 
 Location: `tacenta-proofs/translation/Translation/SessionT3.lean`,
 `tacenta-proofs/translation/Translation/ErasureT3.lean` and
@@ -1690,7 +1693,7 @@ Location: `tacenta-proofs/translation/Translation/SessionT3.lean`,
   **Still not proved.** Canonical emission and raw-byte fidelity -- items 6
   and 7 of the verified-core contract.
 
-## Proved (tier T3, the ML-KEM Braid's translated code refines the model)
+## Proved (tier T3, scoped agreement for the ML-KEM Braid's translated code)
 
 Location: `tacenta-proofs/translation/Translation/BraidT3.lean`.
 
@@ -1930,7 +1933,7 @@ What a reader has to grant:
   with `K.hashEk` -- four more opaque-boundary assumptions, distinct from
   `BraidT1.lean`'s bound-only copies of the same constants.
 
-## Proved (tier T3, the sparse post-quantum ratchet's translated code refines the model)
+## Proved (tier T3, accepted/refused agreement for the sparse post-quantum ratchet)
 
 Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
 

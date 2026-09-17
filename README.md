@@ -90,10 +90,16 @@ README and that document ever disagree, that document is right.
 
 ## Status
 
-Seven crates ship with T1 panic-freedom and T3 refinement proofs: the ratchet,
-the session zone, `tacenta-spqr`, `tacenta-braid`, `tacenta-triple`,
-`tacenta-protobuf`, and `tacenta-erasure` (the last over its field arithmetic;
-its decoder has T1 and no refinement). The post-quantum ratchet is in the
+Seven crates ship with T1 panic-freedom and named T3 functional-agreement
+proofs: the ratchet, the session zone, `tacenta-spqr`, `tacenta-braid`,
+`tacenta-triple`, `tacenta-protobuf`, and `tacenta-erasure` (the last over its
+field arithmetic; its decoder has T1 and no refinement). The classical Double
+Ratchet and composed Triple Ratchet `receive` theorems are success-path
+statements: an `Ok` result agrees with the model and preserves the state
+relation. They do not prove that every model acceptance is accepted by Rust,
+or relate Rust `Err` results to model refusals and unchanged state. Other T3
+theorems have different scopes, including fuller accepted/refused matching for
+the sparse ratchet and named decoders. The post-quantum ratchet is in the
 session path, and sessions and prekey stores serialize.
 `tacenta-proofs/CLAIMS.md` records exactly what is and is not proven.
 `ASSURANCE.md` records where the project stands against the expectations in
