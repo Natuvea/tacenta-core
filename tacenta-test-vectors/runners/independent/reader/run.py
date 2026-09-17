@@ -24,6 +24,13 @@ EXPECTED_SKIPS = {
 }
 _OBSERVED_SKIPS = set()
 
+
+def validate_skip_allowlist(observed, expected=EXPECTED_SKIPS):
+    """Return unexpected and missing skip labels for the reader gate."""
+    observed = set(observed)
+    expected = set(expected)
+    return sorted(observed - expected), sorted(expected - observed)
+
 import copy  # noqa: E402
 import re  # noqa: E402
 
@@ -1150,8 +1157,7 @@ def main():
     for label, c in (("vectors subtotal", sub["vectors"]), ("derived cases subtotal", sub["negative"])):
         print(f"{label:58} {c['PASS']:5} {c['FAIL']:5} {c['SKIP']:5}")
     print(f"{'TOTAL':58} {grand['PASS']:5} {grand['FAIL']:5} {grand['SKIP']:5}")
-    unexpected = sorted(_OBSERVED_SKIPS - EXPECTED_SKIPS)
-    missing = sorted(EXPECTED_SKIPS - _OBSERVED_SKIPS)
+    unexpected, missing = validate_skip_allowlist(_OBSERVED_SKIPS)
     if unexpected:
         print("FAIL  reader skip allowlist: unexpected skip(s): " + ", ".join(unexpected))
     if missing:

@@ -190,6 +190,7 @@ jobs:
       # (ADR-0006). Standard library only, so it needs no setup step.
       - run: python3 ../independent/reader/run.py | tail -n 22
         shell: bash
+      - run: python3 ../independent/reader/test_skip_allowlist.py
       - run: cd ../../.. && python3 tacenta-test-vectors/runners/independent/session-operation-reader.py
       - uses: ./.github/actions/assurance-receipt
         with: { id: vectors, classification: required, command: conformance-and-independent-readers }
