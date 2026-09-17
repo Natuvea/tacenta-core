@@ -21,6 +21,11 @@ is SemVer against the specified protocol (not the implementation).
   roles are described as information-flow roles rather than separate teams,
   and the remaining AI-training, semantic-label, similarity-review and
   third-party-reader licence gaps are recorded openly.
+- Repository hardening now enables native Actions SHA pinning, secret scanning,
+  push protection, secret validity checks, Dependabot security updates and
+  private vulnerability reporting. `SECURITY.md` links the private channel and
+  accurately names XEdDSA, the MAC comparison and the erasure codec as in-house
+  cryptographic or cryptography-adjacent code.
 - The assurance record now describes per-job receipt JSON as an unsigned
   post-check checkpoint rather than authenticated proof of a job conclusion.
   A separate default-branch `workflow_run` workflow now derives the exact CI
