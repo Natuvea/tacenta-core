@@ -1,0 +1,6 @@
+# expect: pin by 40-char commit digest
+name: probe
+runs:
+  using: composite
+  steps:
+    - uses: actions/upload-artifact@v4

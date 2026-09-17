@@ -103,6 +103,10 @@ files = sorted(
     f for f in glob.glob("**/.github/workflows/*.y*ml", recursive=True)
     if "/.lake/" not in f and "/target/" not in f and "/node_modules/" not in f
 )
+action_files = sorted(
+    f for f in glob.glob("**/.github/actions/**/action.y*ml", recursive=True)
+    if "/.lake/" not in f and "/target/" not in f and "/node_modules/" not in f
+)
 if not files:
     print("check-workflows: no workflow files found")
     sys.exit(0)
@@ -279,6 +283,43 @@ for f in files:
             if isinstance(run, str):
                 check_run(f, name, run)
 
-print("check-workflows: %d workflow file(s) parse" % len(files))
+# Composite actions execute with their caller's token and runner. They have no
+# workflow trigger or permissions block, but their `uses:` and `run:` steps
+# carry the same pinning and download-execution risks as workflow steps.
+for f in action_files:
+    try:
+        doc = yaml.safe_load(open(f))
+    except yaml.YAMLError as e:
+        complain("%s does not parse as YAML" % f)
+        print("  %s" % str(e).replace("\n", "\n  "), file=sys.stderr)
+        continue
+    if not isinstance(doc, dict):
+        complain("%s is not a mapping" % f)
+        continue
+    runs = doc.get("runs")
+    if not isinstance(runs, dict) or runs.get("using") != "composite":
+        complain("%s is not a composite action" % f)
+        continue
+    steps = runs.get("steps")
+    if not isinstance(steps, list) or not steps:
+        complain("%s defines no composite-action steps" % f)
+        continue
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        uses = step.get("uses")
+        if isinstance(uses, str):
+            check_pin(f, "composite action", "uses", uses)
+            if uses.startswith("actions/checkout@"):
+                with_ = step.get("with") or {}
+                if not isinstance(with_, dict) \
+                        or with_.get("persist-credentials") is not False:
+                    complain("%s composite action checks out without "
+                             "`persist-credentials: false`" % f)
+        run = step.get("run")
+        if isinstance(run, str):
+            check_run(f, "composite action", run)
+
+print("check-workflows: %d workflow file(s) and %d composite action file(s) parse" % (len(files), len(action_files)))
 sys.exit(bad)
 PY
