@@ -66,7 +66,7 @@ An implementation derives the keys the pages specify:
 - **Status: proved (T3),** for the translated leaf crates:
   - "Proved (tier T3, the PQXDH derivation refines the model)":
     `shared_secret_refines_none`, `shared_secret_refines_some`.
-  - "Proved (tier T3, the classical Double Ratchet refines the model)":
+  - "Proved (tier T3, scoped agreement for the classical Double Ratchet)":
     `kdf_ck_refines`, `kdf_rk_refines`, `message_keys_refines`,
     `send_refines`, `receive_refines`.
   - "Proved (tier T3, the sparse post-quantum ratchet's translated code refines
@@ -76,7 +76,7 @@ An implementation derives the keys the pages specify:
     `Tacenta.UnitTripleT3.combine_refines`,
     `Tacenta.UnitTripleT3.send_refines_discharged`,
     `Tacenta.UnitTripleT3.receive_refines_discharged`.
-  - "Proved (tier T3, the ML-KEM Braid's translated code refines the model)":
+  - "Proved (tier T3, scoped agreement for the ML-KEM Braid's translated code)":
     `Braid.send_refines`, `Braid.receive_refines`.
 
   The model-generated vectors pin the model's derivations against

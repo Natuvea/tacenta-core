@@ -75,7 +75,7 @@ must be deleted, and when):
 - **Rests on:** ASM-15, ASM-16, ASM-17, ASM-18.
 - **Status: proved (T3),** for the classical and sparse ratchets. The code's
   state after `send` and `receive` is related, field by field, to the model's:
-  - "Proved (tier T3, the classical Double Ratchet refines the model)":
+  - "Proved (tier T3, scoped agreement for the classical Double Ratchet)":
     `send_refines`, `receive_refines`, `try_skipped_refines`;
   - "Proved (tier T3, the sparse post-quantum ratchet's translated code refines
     the model)": `send_refines`, `receive_refines`, `try_skipped_refines`.

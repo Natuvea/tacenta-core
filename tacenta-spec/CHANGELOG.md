@@ -148,6 +148,13 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- ADR-0008 and the public assurance summaries now define L4/T3 as named,
+  scoped functional agreement whose theorem statement controls direction and
+  covered result branches. They no longer imply that every T3 theorem is
+  bidirectional, whole-domain, or covers refusal branches. The security-property
+  claim links were renamed with their `CLAIMS.md` sections. This closes
+  hostile-lens finding FM-04 as a claim-accuracy issue; further refusal proofs
+  remain useful work rather than evidence already claimed.
 - Double Ratchet skipped-key capacity is checked after removing entries that
   the operation will replace. This records the existing normative order in
   `ratchet.md` explicitly: delete held `(DHr, n)` pairs in the re-derived

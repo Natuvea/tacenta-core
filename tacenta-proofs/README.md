@@ -8,8 +8,11 @@ Charon/Aeneas) to reproduce them.
 
 Status: live, and the claims are checked rather than asserted. Three tiers of
 proof run here. **T1** is panic-freedom of the translated Rust; **T2** is
-functional properties of the Lean model; **T3** is refinement of the translated
-Rust against that model. `translation/Translation/` carries T1 and T3 for the
+functional properties of the Lean model; **T3** is a family of scoped
+functional-agreement theorems between translated Rust and that model. The
+theorem statement determines direction and covered result branches: T3 does not
+uniformly mean bidirectional, whole-domain or refusal-branch refinement.
+`translation/Translation/` carries T1 and T3 for the
 ratchet, session, erasure, protobuf, sparse ratchet, Braid, and triple crates,
 with two caveats worth stating here: the erasure crate's T3 covers its field
 arithmetic only, not the encoder or decoder, whose entry points have T1 and no
