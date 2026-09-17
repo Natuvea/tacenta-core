@@ -58,7 +58,7 @@ inputs; libsignal's source code is not an input to this project.
 | Symmetric-key ratchet | The symmetric-key ratchet | in-order vector |
 | Diffie-Hellman ratchet | The Diffie-Hellman ratchet | bidirectional and peer-revisits-ratchet-key vectors |
 | Skipped keys, MAX_SKIP | Skipped keys | out-of-order vector, `skipMessageKeys_growth`, reject vector |
-| Skipped store bound, MAX_SKIPPED_STORE | Skipped keys | `skipMessageKeys_store_bounded`, fixed 2,000/2,001 edge and replacement tests, `replacement-bound-counts-resulting-store` vector, differential harness |
+| Skipped store bound, MAX_SKIPPED_STORE | Skipped keys | Classical ratchet: `skipMessageKeys_store_bounded`, fixed 2,000/2,001 edge and replacement tests, `replacement-bound-counts-resulting-store` vector, and the differential harness. Sparse ratchet: the total bound and retirement are tested; the replacement-only stored-state edge remains in `HL-R1-SPARSE-TRANSLATION`. |
 | Initialisation, both roles | Initialisation | all vectors (init_sender / init_receiver) |
 | Same-chain message below `Nr` with no stored key refused | Sending and receiving | same-chain-duplicate reject vector, `Model.Ratchet` examples (a duplicate after an in-order receive and after a stored-key receive is refused, the next message is still received), `receive_refines` (the model's refusal is part of what the Rust success case refines), core unit test `a_same_chain_duplicate_is_refused_and_changes_nothing` (`OutOfOrder`, state unchanged) |
 
@@ -210,6 +210,11 @@ The classical replacement-bound vector starts with 1,999 entries, including
 the two pairs about to be re-derived, and pins the resulting count at 1,999.
 The differential harness inspects those pairs before and after the receive, so
 the marker cannot be satisfied by an in-order no-op.
+
+The sparse ratchet currently has no equivalent replacement-only differential
+case. Its follow-up must add a stored-state sequence that both replaces held
+pairs and reaches the exact lower purge endpoint, then pin the model and Rust
+responses together.
 
 `tacenta-spqr` demonstrates both halves of this in Rust. Three requests on a
 single chain in a single epoch, each inside the per-call bound, reach the cap and

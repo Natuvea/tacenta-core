@@ -57,13 +57,22 @@ reader records.
 - **Sparse follow-up / `HL-R1-SPARSE-TRANSLATION`:** no closure is claimed in
   this response. The sparse replacement-bound change was removed from the
   current pull request because its proof and translation were not ready to
-  support the implementation. It remains an open blocking item for a separate
-  verified-zone change.
+  support the implementation. The current differential does not reach the
+  replacement-only stored-state edge, no test pins the lower purge endpoint,
+  and the translation checksum cannot establish that Aeneas actually ran.
+  These remain open blocking evidence items for a separate verified-zone
+  change.
 
 - **Reader skip control:** `run.py` now keeps an exact allowlist for the one
   documented real-ML-KEM/session skip and exits non-zero if a skip is added,
   removed or moved. This prevents silent drift but does not turn the skipped
   vector into an independent replay.
+
+- **Translation checksum limit:** `attest.py --check-translation` now also
+  checks that each recorded source hash matches the committed tree named by
+  `generated_at_commit` (or the recorded leaf trees for assembled units). The
+  negative suite covers a false source pairing. This narrows the residual, but
+  a checksum is still not a public regeneration proof.
 
 ## Evidence language
 

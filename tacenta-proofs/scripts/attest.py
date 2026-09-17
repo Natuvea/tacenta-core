@@ -300,6 +300,40 @@ def git_commit():
     return run("git", "rev-parse", "HEAD")
 
 
+def committed_tree_hash(commit, rel):
+    """Hash a source tree as it existed at ``commit``.
+
+    The normal zone hash is computed from the working tree so a refresh can be
+    prepared before the manifest is committed.  The recorded generation
+    commit gives the check one independent provenance fact as well: a manifest
+    cannot claim that bytes generated from one committed source tree came from
+    another source tree.  This still does not prove that Aeneas ran; that
+    requires an actual regeneration and diff.
+    """
+    try:
+        names = run("git", "ls-tree", "-r", "--name-only", commit, "--", rel).splitlines()
+    except subprocess.CalledProcessError:
+        return None
+    if not names:
+        return None
+    h = hashlib.sha256()
+    for name in names:
+        try:
+            data = subprocess.run(
+                ["git", "show", f"{commit}:{name}"],
+                cwd=ROOT,
+                capture_output=True,
+                check=True,
+            ).stdout
+        except subprocess.CalledProcessError:
+            return None
+        h.update(name.encode())
+        h.update(b"\0")
+        h.update(data)
+        h.update(b"\0")
+    return h.hexdigest()
+
+
 # Fields that change every time these files are written, and so cannot take part
 # in the staleness comparison.
 #
@@ -876,6 +910,12 @@ def check_translation(current):
             "`attest.py --refresh-translation`"
         ]
     recorded = json.loads(TRANSLATION_MANIFEST.read_text())
+    generated_at = recorded.get("generated_at_commit")
+    if not generated_at:
+        problems.append(
+            "translation-attestation.json has no generated_at_commit; regenerate "
+            "with scripts/run-aeneas.sh and re-run attest.py --refresh-translation"
+        )
     if recorded.get("schema_version") != TRANSLATION_SCHEMA_VERSION:
         problems.append(
             f"translation-attestation.json has schema_version "
@@ -933,6 +973,32 @@ def check_translation(current):
                 "regenerate with scripts/run-aeneas.sh on the pinned toolchain and "
                 "re-run attest.py --refresh-translation"
             )
+        if generated_at and w["zone"]:
+            # An assembled unit is generated from its leaf trees, not from the
+            # unit directory itself. Compare the recorded leaf provenance in
+            # that case; ordinary zones compare their own source tree.
+            source_hashes = (
+                r.get("assembly", {}).get("sources", {})
+                if w.get("assembly") is not None
+                else {w["zone"]: r.get("zone_sha256")}
+            )
+            for source, recorded_hash in source_hashes.items():
+                committed = committed_tree_hash(generated_at, source)
+                if committed is None:
+                    problems.append(
+                        f"translation-attestation.json names generation commit "
+                        f"{generated_at}, but it does not contain {source}; "
+                        "regenerate on a committed source tree and re-run "
+                        "attest.py --refresh-translation"
+                    )
+                elif committed != recorded_hash:
+                    problems.append(
+                        f"translation for {w['zone']} was recorded from source hash "
+                        f"{str(recorded_hash)[:12]}... but generation commit "
+                        f"{generated_at[:12]}... contains {committed[:12]}... for "
+                        f"{source}; the manifest cannot pair a generated file with "
+                        "a different source tree"
+                    )
         # The assembled zone's provenance. Compared field by field rather than
         # as one blob so the message can name what moved: an edited assembly
         # script and an edited leaf are different mistakes with different

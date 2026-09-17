@@ -224,7 +224,9 @@ that would exceed it is refused by the ratchet (`SkippedStoreFull`).
 one skip: a skip that succeeds leaves the store no longer than the larger of
 its previous length and `MAX_SKIPPED_STORE`. No theorem carries the bound
 across this ratchet's sending, receiving or advancing, or across a sequence of
-them, so over a session the bound is tested rather than proved.
+them, and it does not prove the purge-before-bound-check order, replacement
+semantics, or refusal atomicity. Those behaviours are tested rather than
+proved; over a session the bound is tested rather than proved.
 
 The receiver then makes room as the Double Ratchet's does (ratchet.md, Skipped
 keys): it evicts keys from this store, the one stored first going first

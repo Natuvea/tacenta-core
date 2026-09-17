@@ -70,4 +70,23 @@ make_case
 printf '\n-- P9 mutation --\n' >> "$work/tacenta-proofs/translation/Translation/TacentaRatchet.lean"
 expect_fail "edited-generated-translation" "TacentaRatchet.lean differs from the recorded generation" --check-translation
 
-echo "check-attest-negatives: 4 refusal cases gave the expected result"
+make_case
+python3 - "$work/tacenta-proofs/manifests/translation-attestation.json" <<'PY'
+import json, pathlib, subprocess, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+# A recorded file and a source hash must come from the same committed source
+# tree. Select the oldest commit that contains the sparse source so this test
+# remains valid when the branch is rebased or its history is pruned.
+commits = subprocess.check_output(
+    ["git", "rev-list", "--all", "--", "tacenta-core/spqr/src/lib.rs"],
+    text=True,
+).splitlines()
+if len(commits) < 2:
+    raise SystemExit("not enough sparse source history for the pairing control")
+data["generated_at_commit"] = commits[-1]
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+expect_fail "false-source-pairing" "manifest cannot pair a generated file with a different source tree" --check-translation
+
+echo "check-attest-negatives: 5 refusal cases gave the expected result"
