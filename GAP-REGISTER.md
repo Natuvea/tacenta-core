@@ -4,8 +4,7 @@ Current register for assurance gate 2. Historical independent-reader reports sta
 unchanged under `tacenta-test-vectors/runners/independent/`; this file records
 the current disposition after later fixes.
 
-Last assessed: 2026-09-12, at `96890d3a07dfa3fa0d0b6b00e5f9e4a6a82485a8`
-plus this P1 classification update.
+Last assessed: 2026-09-17, at `1a83ce0`.
 
 ## Status key
 
@@ -34,6 +33,7 @@ gate obligations that are not individual reader findings.
 
 | ID | Status | Gate class | Package | Area | Current disposition | Acceptance criterion |
 | --- | --- | --- | --- | --- | --- | --- |
+| HL-IMP-02 | Open | BLOCKING | P3/P5/P7 | Double Ratchet replacement bound | The supplied reproduction was run against the committed isolated reader: returning to a prior ratchet key after filling 1,999 stored keys is accepted and leaves 1,999 keys. Current `Model.State.skipMessageKeys` and `tacenta-core/ratchet/src/lib.rs` count the pre-replacement store instead. `ratchet.md` says to delete the range before storing it, so the normative text and reader support the resulting-size reading. | Record the normative resolution, make the model and Rust agree with it, add a byte-level vector and differential sequence that distinguish pre-replacement from resulting-size counting, then rerun the isolated reader and record its result in a new pass. |
 | G7-01 | Closed | CLOSED | P1 | Vector layouts | `tacenta-test-vectors/README.md` now states the `prekey-store-state.json` and `session-state.json` `fields` layouts, including the derived `braid_tag`, `braid_epoch` and `sparse_epoch` session names. | Independent reader can implement the two files' exact field names from the README layout rather than from inference. |
 | G7-02 | Closed | CLOSED | P1 | Vector status | The README status paragraph now says the session and prekey-store persisted formats have vectors, and that every persistence file except the two erasure coders names its refusal. | No current status paragraph says those two files have no vectors or limits refusals to the two ratchet-state files. |
 | G7-03 | Closed | CLOSED | P3 | Prekey signatures | `session-persistence.md` now says stored prekey signatures verify using the unlabelled prekey signature input. `CHANGELOG.md` records the clarification. | A reader no longer has to choose between labelled application signatures and unlabelled prekey signatures. |

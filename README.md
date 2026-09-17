@@ -30,6 +30,14 @@ stated below. It is not yet packaged for installation from a registry; today the
 way to engage with it is to read the specification and verify the proofs (see
 "Verify it yourself" below).
 
+## Development assistance
+
+Tacenta is developed by human engineers using automated and AI-assisted tools.
+Those tools assist implementation, specification text, test harnesses and review
+preparation; the project maintainer remains accountable for accepting changes.
+Tool-assisted checks and reviews are evidence of what they ran, not independent
+review, and assurance records identify their scope and limits.
+
 ## The mission
 
 > Build a small, stable, verification-first engine for selected published Signal
