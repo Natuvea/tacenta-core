@@ -25,12 +25,22 @@ reader records.
 | FM-02 / FM-04 | Open proof scope | Per-headline theorem satisfiability witnesses and explicit success-path-only wording until refusal refinement exists. |
 | SC-05 / SC-08 / SC-09 | Open supply-chain evidence | Replace candidate-written receipt claims with an independently derived record; distinguish checksum from regeneration; pin the Lean toolchain artefact. |
 | SC-01 / SC-02 / SC-03 | Open governance/process | Enforce protected `main`, record the historic exceptions, and require a named reviewer who is not the change author before claiming independent review. |
-| F1 / F2 / F3 | Open fuzzing | Add accepted-bundle and responder-handshake seeds, plus assertions that fail when each guard is deleted. |
 | IP-01 / IP-02 | Open provenance decision | Publish source/version and research evidence where it may safely be published, or remove/downgrade the black-box and “ours” claims. |
 | HN-01 / HN-05 | Open claims correction | Align public “proven core” language with the named verified zone and remove unproved session encrypt/decrypt implications. |
 
 ## Remediated
 
+- **F1 / F2 / F3 and RS-09 / `HL-FUZZ-01`:** the `wire_decoders`
+  corpus now contains a 1,811-byte canonical bundle that reaches
+  `decode_bundle` acceptance, and a normal test requires the committed seed to
+  decode and re-encode exactly. `session_receive` now overlays fuzz bytes onto
+  a genuine initial message; its committed zero-mutation seed must complete an
+  accepted responder handshake. Both targets replayed their full committed
+  corpora locally. The ratchet and sparse-ratchet decoder tests now start from
+  valid encodings, overwrite the actual count fields, and require
+  `Malformed`. With each of the three bounds disabled separately, the
+  corresponding regression test failed to finish within six seconds; all
+  three pass immediately with the real checks restored.
 - **FM-03 / `HL-FM-03`:** at `34c8636`, `KemAgreesFor` no longer includes
   `K.Correct`.
   Both Braid T3 proofs had destructured and discarded that premise, so its

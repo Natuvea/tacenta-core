@@ -1086,11 +1086,28 @@ mod decode_bounds_tests {
     /// the same shape in `tacenta-erasure` and `tacenta-ratchet`.
     #[test]
     fn a_count_the_buffer_cannot_hold_is_refused_at_once() {
-        let mut buf = vec![0u8; 64];
-        buf[0] = STATE_VERSION;
-        let end = buf.len();
-        buf[end - 4..].copy_from_slice(&u32::MAX.to_be_bytes());
-        let _ = State::from_bytes(&buf);
+        // A valid initial state contains one chains entry and no skipped
+        // entries. Corrupt each real count field in turn, leaving the buffer
+        // too short for the claimed entries.
+        let state = State::init_alice(&[1u8; 32]);
+        let bytes = state.to_bytes();
+        assert_eq!(bytes.len(), FIXED_PREFIX + CHAINS_LEN + 4);
+
+        let mut bad_chains = bytes.to_vec();
+        bad_chains[FIXED_PREFIX - 4..FIXED_PREFIX].copy_from_slice(&u32::MAX.to_be_bytes());
+        assert_eq!(
+            State::from_bytes(&bad_chains),
+            Err(SpqrDecodeError::Malformed)
+        );
+
+        let mut bad_skipped = bytes.to_vec();
+        let skipped_count_at = FIXED_PREFIX + CHAINS_LEN;
+        bad_skipped[skipped_count_at..skipped_count_at + 4]
+            .copy_from_slice(&u32::MAX.to_be_bytes());
+        assert_eq!(
+            State::from_bytes(&bad_skipped),
+            Err(SpqrDecodeError::Malformed)
+        );
     }
 }
 
