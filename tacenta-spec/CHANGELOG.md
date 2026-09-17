@@ -12,6 +12,16 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `tacenta-test-vectors/vectors/session-establishment/session-e2e.json`: a
+  deterministic byte-level known answer from a real X25519 and ML-KEM-1024
+  prekey bundle through the first authenticated session message. It records
+  every random draw, the four DH results, KEM and PQXDH outputs, split and
+  message keys, wire messages, resulting sessions and consumed prekey store.
+  The Rust runner compares the public lifecycle with a separate reconstruction
+  through the public leaf components, and a negative control proves a changed
+  associated-data answer fails. This closes hostile-lens finding IMP-01's
+  missing-vector claim while stating that the expected bytes are
+  project-generated regression evidence rather than an external oracle.
 - `security-properties/evidence-index-format.md`: the checked JSON format for
   the P2 requirement evidence index, including the boundary between reference
   validation and human semantic review.

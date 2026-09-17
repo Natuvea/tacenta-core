@@ -31,8 +31,8 @@ pub struct Vector {
     pub inputs: BTreeMap<String, String>,
     #[serde(default)]
     pub output: String,
-    /// A decoder's answer: the named values an accepted input decodes to,
-    /// carried in place of `output` (schema/vector.schema.json).
+    /// Several named answers, such as a decoder's fields or the full-session
+    /// known answer's intermediates, carried in place of `output`.
     #[serde(default)]
     pub fields: Option<BTreeMap<String, String>>,
     /// Which refusal an invalid persisted-state vector names: for stored

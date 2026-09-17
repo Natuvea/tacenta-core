@@ -10,9 +10,8 @@ identifier. So a file can pass the runner and still be one the schema forbids,
 and the next language runner, written to the schema, would be the one to find
 out. This makes the schema binding.
 
-(In a known-answer file a decoder's valid vector may carry `fields`, the named
-values its input decodes to, in place of `output`; the rule below counts
-either as the answer.)
+(In a known-answer file a valid vector may carry `fields`, several named
+answers, in place of one `output`; the rule below counts either as the answer.)
 
 Two schemas, chosen by the file's `algorithm` field: `double-ratchet` files
 are scripted scenarios (`schema/ratchet-vector.schema.json`); everything else
