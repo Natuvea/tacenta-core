@@ -126,7 +126,8 @@ def main() -> int:
         if bool(args.run_file) != bool(args.jobs_file):
             fail("--run-file and --jobs-file must be supplied together")
         if args.run_file:
-            if os.environ.get("GITHUB_ACTIONS") == "true":
+            if (os.environ.get("GITHUB_ACTIONS") == "true" and
+                    os.environ.get("TACENTA_HOSTED_CONCLUSIONS_FIXTURES") != "1"):
                 fail("fixture input is forbidden in GitHub Actions")
             run = load(args.run_file)
             jobs = load(args.jobs_file)

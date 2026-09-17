@@ -27,7 +27,8 @@ jobs = {"jobs": [{"id": i, "name": name, "conclusion": "success",
 PY
 
 run_case() {
-  python3 "$script" --repository Natuvea/tacenta-core --run-id 42 \
+  TACENTA_HOSTED_CONCLUSIONS_FIXTURES=1 python3 "$script" \
+    --repository Natuvea/tacenta-core --run-id 42 \
     --head-sha "$sha" --event "$1" --run-file "$work/$2-run.json" \
     --jobs-file "$work/$2-jobs.json" --output "$work/$2-output.json"
 }
@@ -35,6 +36,19 @@ run_case() {
 cp "$work/run.json" "$work/pass-run.json"
 cp "$work/jobs.json" "$work/pass-jobs.json"
 run_case pull_request pass >/dev/null
+
+set +e
+fixture_in_ci="$(GITHUB_ACTIONS=true python3 "$script" \
+  --repository Natuvea/tacenta-core --run-id 42 --head-sha "$sha" \
+  --event pull_request --run-file "$work/pass-run.json" \
+  --jobs-file "$work/pass-jobs.json" --output "$work/forbidden.json" 2>&1)"
+fixture_in_ci_rc=$?
+set -e
+if [ "$fixture_in_ci_rc" -eq 0 ] || ! printf '%s' "$fixture_in_ci" | grep -qF -- 'fixture input is forbidden in GitHub Actions'; then
+  echo 'WRONG  fixture-in-ci: production invocation accepted fixture input' >&2
+  printf '%s\n' "$fixture_in_ci" >&2
+  exit 1
+fi
 
 expect_fail() {
   local name="$1" needle="$2" event="${3:-pull_request}" out rc
@@ -82,4 +96,4 @@ expect_fail failed "hosted job translation concluded 'failure'"
 expect_fail wrong-head 'workflow run head does not match selected candidate'
 run_case push push >/dev/null
 
-echo 'collect-hosted-check-conclusions-cases: 2 pass cases and 3 refusals gave the expected result'
+echo 'collect-hosted-check-conclusions-cases: 2 pass cases and 4 refusals gave the expected result'
