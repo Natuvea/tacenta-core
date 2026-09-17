@@ -4,7 +4,7 @@
   "generated_at_commit": "73b341dd5e0dd6471d5b60690542eef9955449ab",
   "verified_zones": {
     "tacenta-core/ratchet": {
-      "sha256": "50158ccdda3b07eda0f5bd9c90b2a45e83f919c3be0d16f843d2b531b5c1fe00",
+      "sha256": "cd50011aa4e1b73f9db6a2938efa71f0fb5a85b68cf0b32f9f3d008d45b354e1",
       "files": 3
     },
     "tacenta-core/session": {
