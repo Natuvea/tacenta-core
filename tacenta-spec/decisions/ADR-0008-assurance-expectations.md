@@ -25,8 +25,10 @@ verified protocol work. `ASSURANCE.md` keeps the result current.
 
 Two facts shape what is realistic here:
 - **One maintainer.** Changes are prepared with automated assistance under
-  that maintainer's account. Repository settings cannot require a second,
-  independent approval.
+  that maintainer's account. Since 2026-09-17, repository protection requires
+  an approving account other than the last pusher, so a normative change must
+  wait for that independent review even when no regular second maintainer is
+  available.
 - **Proof effort is uneven by design.** The leaf crates, where the protocol's
   cryptography and parsing live, carry T1 and T3 proofs. Orchestration,
   storage, transport and the product do not.
@@ -88,15 +90,19 @@ Two facts shape what is realistic here:
    - **Scope:** changes to `tacenta-spec`, `tacenta-model`, or the proofs'
      trusted base (axioms, the trusted-base lists, `CLAIMS.md`,
      `LIMITATIONS.md`).
-   - **Review:** such a change is reviewed against this record before it is
-     merged. The maintainer reviews it, or delegates the review.
-   - **The record:** the review is written on the pull request and says what
-     was checked.
-   - **Merging:** only on green checks.
+   - **Review:** such a change is reviewed against this record by an account
+     other than the author and last pusher before it is merged. Automated or
+     AI-assisted analysis may support that reviewer but is project-controlled
+     evidence, not the required independent approval.
+   - **The record:** the approving review is written on the pull request and
+     says what was checked.
+   - **Merging:** only after all required checks are green on the current head;
+     a new push dismisses the approval.
    - **The independent reader:** its passes are an adversarial second reading
      of sufficiency, not a substitute for this review.
-   - **When a second reviewer joins:** required code-owner review replaces this
-     rule.
+   - **Enforcement:** `main` branch protection requires the green contexts and
+     one last-push approval, applies to administrators, and blocks force-pushes
+     and deletion.
 
 8. **Traceability.** Security properties are numbered requirements. Each is
    traced to:
@@ -155,6 +161,6 @@ A component's level is lowered only by a recorded decision.
 - **`ASSURANCE.md` is kept current:** the status of each practice, component
   levels and targets, and open gaps.
 - **This would be reopened** if:
-  - a second reviewer joins (rule 7);
+  - the independent-review rule or its enforcement changes;
   - the scope of proof changes;
   - the levels turn out to be the wrong granularity.

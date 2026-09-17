@@ -12,6 +12,13 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 ### Added
+- `main` protection now requires all ten current CI contexts on an up-to-date
+  pull-request head, one approval from an account other than the last pusher,
+  stale-review dismissal, resolved conversations and linear history. The rule
+  applies to administrators and blocks force-pushes and deletion. The assurance
+  record separately names the 13 historical merged heads with no recorded CI
+  run and the 32 audited normative pull requests with neither a review nor a
+  comment; those historical absences are not represented as repaired evidence.
 - `tacenta-proofs/translation/Translation/BraidT3.lean`: removed the unused
   `K.Correct` conjunct from `KemAgreesFor`. The two proof bodies destructured
   but never used it, while perfect correctness is false of ML-KEM's
