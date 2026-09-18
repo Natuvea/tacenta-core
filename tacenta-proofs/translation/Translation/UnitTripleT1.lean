@@ -361,7 +361,7 @@ def SpqrReceiveTotal : Prop :=
 
 theorem spqrReceiveTotal (hret : UnitSpqrT1.VecRetainTotal) (hrk : UnitSpqrT1.KdfRkTotal)
     (hz : UnitSpqrT1.ZeroizeTotal) (hck : UnitSpqrT1.KdfCkTotal)
-    (hopt : UnitSpqrT1.OptionCloneTotal) (hrm : UnitSpqrT1.VecRemoveTotal)
+    (hopt : UnitSpqrT1.OptionCloneTotal) (hrm : UnitSpqrT1.RemoveSkippedAtTotal)
     (happ : UnitSpqrT1.VecAppendTotal) : SpqrReceiveTotal := by
   intro s epoch out n hroom hskiproom
   exact (UnitT1.noPanic_iff _).1
@@ -533,7 +533,7 @@ theorem State.receive_no_panic (hhmac : UnitT1.HmacTotal) (hkdf : UnitT1.HkdfTot
     (hrk : UnitSpqrT1.KdfRkTotal) (hck : UnitSpqrT1.KdfCkTotal)
     (hopt : UnitSpqrT1.OptionCloneTotal)
     (hrm_ratchet : UnitT1.RemoveSkippedAtTotal)
-    (hrm : UnitSpqrT1.VecRemoveTotal) (happ : UnitSpqrT1.VecAppendTotal)
+    (hrm : UnitSpqrT1.RemoveSkippedAtTotal) (happ : UnitSpqrT1.VecAppendTotal)
     (self : State) (header : Header)
     (dh_out_recv dh_out_send new_dhs_pub : Array U8 32#usize)
     (output : Option tacenta_spqr.Output)

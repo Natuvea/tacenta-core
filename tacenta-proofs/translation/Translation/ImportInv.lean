@@ -1301,7 +1301,7 @@ The five are recorded as open in `CLAIMS.md`. -/
 theorem decoded_receive_no_panic (hret : Tacenta.SpqrT1.VecRetainTotal)
     (hrk : Tacenta.SpqrT1.KdfRkTotal) (hz : Tacenta.SpqrT1.ZeroizeTotal)
     (hkdf : Tacenta.SpqrT1.KdfCkTotal) (hopt : Tacenta.SpqrT1.OptionCloneTotal)
-    (hrm : Tacenta.SpqrT1.VecRemoveTotal) (happ : Tacenta.SpqrT1.VecAppendTotal)
+    (hrm : Tacenta.SpqrT1.RemoveSkippedAtTotal) (happ : Tacenta.SpqrT1.VecAppendTotal)
     (bytes : Slice Std.U8) (s : State)
     (hdec : State.from_bytes bytes = ok (core.result.Result.Ok s))
     (receiving_epoch n : Std.U64) (out : Option Output) :
@@ -1570,7 +1570,7 @@ info: 'Tacenta.ImportInv.Spqr.decoded_receive_no_panic' depends on axioms: [prop
  tacenta_spqr.zeroize.Zeroizing.new,
  tacenta_spqr.Array.Insts.ZeroizeZeroize.zeroize,
  tacenta_spqr.alloc.vec.Vec.append,
- tacenta_spqr.alloc.vec.Vec.remove,
+ tacenta_spqr.alloc.vec.Vec.pop,
  tacenta_spqr.alloc.vec.Vec.retain,
  tacenta_spqr.zeroize.Zeroize.Blanket.zeroize,
  SpqrT1.receive_no_panic._native.native_decide.ax_1_1,

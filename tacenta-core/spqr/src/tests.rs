@@ -795,3 +795,77 @@ fn receive_count_reports_what_the_state_holds() {
     );
     assert_eq!(b.receive_count(2), None);
 }
+
+/// Replacement allocates the final skipped-store capacity before copying any
+/// secret. A clone-then-push implementation grows from the cloned length and
+/// leaves a freed allocation containing skipped message keys.
+#[test]
+fn skipped_replacement_allocates_its_final_capacity() {
+    let mut a = State::init_alice(&sk());
+    let mut b = State::init_bob(&sk());
+
+    let mut sent = Vec::new();
+    for _ in 0..4 {
+        sent.push(a.send(0, None).unwrap());
+    }
+    b.receive(0, None, sent[3].0).unwrap();
+    assert_eq!(b.skipped.len(), 3);
+
+    // Replacing one key while three survive must allocate exactly four slots.
+    b.skip_message_keys(0, 5).unwrap();
+    assert_eq!(b.skipped.len(), 4);
+    assert_eq!(b.skipped.capacity(), 4);
+}
+
+/// The custom removal path preserves order and the source guard pins the
+/// security-relevant wipe-before-pop sequence. Replacing it with
+/// `Vec::remove` keeps the functional assertions green but fails this guard.
+#[test]
+fn skipped_removal_wipes_before_shortening() {
+    let mut skipped = vec![
+        Skipped {
+            epoch: 0,
+            n: 1,
+            key: [0x11; 32],
+        },
+        Skipped {
+            epoch: 0,
+            n: 2,
+            key: [0x22; 32],
+        },
+        Skipped {
+            epoch: 0,
+            n: 3,
+            key: [0x33; 32],
+        },
+    ];
+    let key = State::remove_skipped_at(&mut skipped, 1);
+    assert_eq!(key, [0x22; 32]);
+    assert_eq!(skipped.iter().map(|s| s.n).collect::<Vec<_>>(), [1, 3]);
+
+    let source = include_str!("lib.rs");
+    let start = source.find("fn remove_skipped_at(").expect("helper exists");
+    let body = &source[start..];
+    let end = body.find("\n    }\n").expect("helper ends");
+    let body = &body[..end];
+    assert!(body.contains("skipped[i].zeroize();"));
+    assert!(body.contains("skipped.pop()"));
+    assert!(!body.contains("skipped.remove("));
+}
+
+/// Decoder vectors are allocated from their checked counts. Starting them at
+/// zero would reallocate while copying persisted secret material.
+#[test]
+fn decoding_uses_the_checked_final_capacities() {
+    let mut a = State::init_alice(&sk());
+    let mut b = State::init_bob(&sk());
+    let mut sent = Vec::new();
+    for _ in 0..4 {
+        sent.push(a.send(0, None).unwrap());
+    }
+    b.receive(0, None, sent[3].0).unwrap();
+
+    let decoded = State::from_bytes(&b.to_bytes()).unwrap();
+    assert_eq!(decoded.chains.capacity(), decoded.chains.len());
+    assert_eq!(decoded.skipped.capacity(), decoded.skipped.len());
+}

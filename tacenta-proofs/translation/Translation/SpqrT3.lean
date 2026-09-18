@@ -22,7 +22,7 @@ them, and every `_refines` theorem for translated code is proved outright
 against those, not assumed.
 
 That is not the whole trusted base, and this file does not pretend it is:
-`Vec::retain`, `Vec::remove`, `Vec::append`, `Zeroize`, and `Option::clone`
+`Vec::retain`, `Vec::pop`, `Vec::append`, `Zeroize`, and `Option::clone`
 are each their own opaque call too, carried over as assumptions from
 `SpqrT1.lean` (three of them strengthened past bare totality, one genuinely
 new) rather than reproved here. See the closing section for the full count
@@ -33,6 +33,11 @@ open Aeneas Aeneas.Std Result
 namespace Tacenta.SpqrT3
 
 open tacenta_spqr
+
+@[step]
+theorem skipped_clone_spec (s : Skipped) :
+    Skipped.Insts.CoreCloneClone.clone s ⦃ fun s' => s' = s ⦄ :=
+  Tacenta.SpqrT1.skipped_clone_spec s
 
 /-- A translated byte as the model's. -/
 def u8 (b : Std.U8) : UInt8 := UInt8.ofNat b.val
@@ -431,8 +436,8 @@ theorem findChains_refines {s : State} {m : Model.SparseRatchet.State}
 
 /-! ## `retain` and `remove`, restated as agreement
 
-`SpqrT1.lean` assumed these two opaque Aeneas library primitives merely
-return (`VecRetainTotal`, `VecRemoveTotal`). Refinement needs the value too:
+`SpqrT1.lean` assumed the opaque retain and custom-removal boundary merely
+return (`VecRetainTotal`, `RemoveSkippedAtTotal`). Refinement needs the value too:
 that `retain` keeps exactly what a *pure* test function accepts (`hp` pins the
 closure down to one, which every call site here satisfies -- none of this
 crate's retain closures capture or mutate anything), and that `remove`
@@ -440,7 +445,7 @@ returns the element actually at the index it removed, not merely a vector one
 shorter. Both are strictly stronger than `SpqrT1.lean`'s totality, so this
 file does not also carry that hypothesis.
 
-`VecRemoveAgrees` speaks only under the index bound `i < len`, which is the
+`RemoveSkippedAtAgrees` speaks only under the index bound `i < len`, which is the
 condition under which the real `Vec::remove` returns at all (out of range it
 panics) and is the loop guard its one call site checks first; the proof
 discharges the premise from that branch. That guard is also what lets the
@@ -459,9 +464,9 @@ def VecRetainAgrees : Prop :=
     (_hp : ∀ x, inst.call_mut f x = ok (p x, f)),
     ∃ r, alloc.vec.Vec.retain A inst v f = ok r ∧ r.val = v.val.filter p
 
-def VecRemoveAgrees : Prop :=
-  ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize) (h : i.val < v.val.length),
-    ∃ r, alloc.vec.Vec.remove A v i = ok r ∧ r.1 = v.val[i.val]'h ∧
+def RemoveSkippedAtAgrees : Prop :=
+  ∀ (v : alloc.vec.Vec Skipped) (i : Usize) (h : i.val < v.val.length),
+    ∃ r, State.remove_skipped_at v i = ok r ∧ r.1 = (v.val[i.val]'h).key ∧
       r.2.val = v.val.eraseIdx i.val
 
 /-- Filtering commutes with a map whose predicate factors through it. Needed
@@ -1253,7 +1258,7 @@ The two agree only given at most one match for the `(e, n)` looked up, so
 needed it -- discharged there by the store staying a map, which this crate's
 own T2 correctness proof would supply for a real caller. -/
 
-theorem try_skipped_loop_refines (hrm : VecRemoveAgrees) (st : State) (e n : Std.U64) (i : Usize)
+theorem try_skipped_loop_refines (hrm : RemoveSkippedAtAgrees) (st : State) (e n : Std.U64) (i : Usize)
     (hone : ((st.skipped.val.map skippedOf).filter
       (fun x => x.1 == e.val && x.2.1 == n.val)).length ≤ 1)
     (hpre : ((st.skipped.val.map skippedOf).take i.val).filter
@@ -1275,7 +1280,7 @@ theorem try_skipped_loop_refines (hrm : VecRemoveAgrees) (st : State) (e n : Std
     -- The removal's hypothesis is available only under the guard the body
     -- checks first, so the case split comes before the removal is named.
     by_cases hlt : j.val < st.skipped.val.length
-    · obtain ⟨⟨removed, v'⟩, hrm', hval, herase⟩ := hrm Global st.skipped j hlt
+    · obtain ⟨⟨removed, v'⟩, hrm', hval, herase⟩ := hrm st.skipped j hlt
       step*
       · -- The epoch and the number both match: this is the one, remove it.
         rename_i heq1 heq2
@@ -1289,10 +1294,10 @@ theorem try_skipped_loop_refines (hrm : VecRemoveAgrees) (st : State) (e n : Std
               ++ (st.skipped.val.map skippedOf)[j.val]
                 :: (st.skipped.val.map skippedOf).drop (j.val + 1) := by
           rw [← List.drop_eq_getElem_cons hjm, List.take_append_drop]
-        have hvaleq : removed = st.skipped.val[j.val]'(by simpa using hlt) := hval
+        have hvaleq : removed = (st.skipped.val[j.val]'(by simpa using hlt)).key := hval
         refine ⟨rfl, rfl, rfl, rfl, ?_⟩
         rw [hsp, find?_eq_of_split _ _ _ _ hinv hpj]
-        refine ⟨removed.key, rfl, ?_, ?_⟩
+        refine ⟨removed, rfl, ?_, ?_⟩
         · rw [hvaleq, List.getElem_map]; simp [skippedOf]
         · have herase' : v'.val = st.skipped.val.eraseIdx j.val := herase
           rw [herase', map_eraseIdx, ← hsp]
@@ -1333,7 +1338,7 @@ theorem try_skipped_loop_refines (hrm : VecRemoveAgrees) (st : State) (e n : Std
 
 /-- `State.try_skipped` refines `Model.SparseRatchet.trySkipped`: it takes a stored
 key for this epoch and number, removing it, given at most one entry can match. -/
-theorem try_skipped_refines (hrm : VecRemoveAgrees) {s : State} {m : Model.SparseRatchet.State}
+theorem try_skipped_refines (hrm : RemoveSkippedAtAgrees) {s : State} {m : Model.SparseRatchet.State}
     (hrel : StateRefines s m) (e n : Std.U64)
     (hone : (m.skipped.filter (fun x => x.1 == e.val && x.2.1 == n.val)).length ≤ 1) :
     State.try_skipped s e n ⦃ fun r =>
@@ -1431,14 +1436,14 @@ theorem skip_message_keys_loop_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingR
     (e upto : Std.U64) (ck0 : Array Std.U8 32#usize) (derived0 : alloc.vec.Vec Skipped)
     (num0 : Std.U64) (hnum : num0.val ≤ upto.val) (hderived0 : derived0.val = [])
     (hroom : upto.val - num0.val < Usize.max) :
-    State.skip_message_keys_loop e upto ck0 derived0 num0 ⦃ fun r =>
+    State.skip_message_keys_loop0 e upto ck0 derived0 num0 ⦃ fun r =>
       keyOf r.1 = (Model.SparseRatchet.skipMessageKeys.deriveInto
         (keyOf ck0) num0.val (upto.val - num0.val)).1 ∧
       r.2.val.map (fun s => (s.n.val, keyOf s.key))
         = (Model.SparseRatchet.skipMessageKeys.deriveInto
             (keyOf ck0) num0.val (upto.val - num0.val)).2 ∧
       ∀ s ∈ r.2.val, s.epoch = e ⦄ := by
-  unfold State.skip_message_keys_loop
+  unfold State.skip_message_keys_loop0
   apply loop.spec_decr_nat
     (measure := fun p => upto.val - p.2.2.val)
     (inv := fun p =>
@@ -1452,7 +1457,7 @@ theorem skip_message_keys_loop_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingR
       ∀ s ∈ p.2.1.val, s.epoch = e)
   · rintro ⟨ckA, derivedA, numA⟩ ⟨hge, hle, hlenA, hkeq, hlist, hepoch⟩
     dsimp only at hge hle hlenA hkeq hlist hepoch ⊢
-    simp only [State.skip_message_keys_loop.body]
+    simp only [State.skip_message_keys_loop0.body]
     by_cases hlt : numA.val < upto.val <;> step*
     · -- One more turn: step the chain key, zeroize the old one, store the
       -- message key passed.
@@ -1497,6 +1502,59 @@ theorem skip_message_keys_loop_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingR
   · refine ⟨le_refl _, hnum, by simp [hderived0], ?_, ?_, by simp [hderived0]⟩
     · simp [Model.SparseRatchet.skipMessageKeys.deriveInto]
     · simp [Model.SparseRatchet.skipMessageKeys.deriveInto, hderived0]
+
+/-- The preallocated copy loop keeps exactly the entries outside the
+replacement interval.  Its invariant relates the already-copied prefix to the
+filtered unread suffix, so this new implementation is checked directly rather
+than hidden behind a trusted model boundary. -/
+@[step]
+theorem skip_message_keys_loop1_refines
+    (v : alloc.vec.Vec Skipped) (e upto fromN : Std.U64)
+    (skipped : alloc.vec.Vec Skipped) (i : Usize)
+    (hroom : skipped.val.length + (v.val.length - i.val) ≤ Usize.max) :
+    State.skip_message_keys_loop1 v e upto fromN skipped i
+      ⦃ fun r => r.val = skipped.val ++ (v.val.drop i.val).filter
+        (fun s => !(s.epoch == e && fromN < s.n && s.n ≤ upto)) ⦄ := by
+  let keep := fun s : Skipped => !(s.epoch == e && fromN < s.n && s.n ≤ upto)
+  set target := skipped.val ++ (v.val.drop i.val).filter keep with htarget
+  unfold State.skip_message_keys_loop1
+  apply loop.spec_decr_nat
+    (measure := fun p => v.val.length - p.2.val)
+    (inv := fun p => p.1.val ++ (v.val.drop p.2.val).filter keep = target ∧
+      p.1.val.length + (v.val.length - p.2.val) ≤ Usize.max)
+  · rintro ⟨w, j⟩ ⟨hinv, hlen⟩
+    simp only at hinv hlen
+    simp only [State.skip_message_keys_loop1.body]
+    have hvfit := v.property
+    by_cases hlt : j.val < v.val.length
+    · rw [List.drop_eq_getElem_cons hlt] at hinv
+      have hwroom : w.val.length < Usize.max := by omega
+      step*
+      all_goals repeat' (first | (step with skipped_clone_spec) | step | split)
+      all_goals (try simp_all [keep, alloc.vec.Vec.len])
+      all_goals refine ⟨?_, ?_, ?_⟩
+      all_goals first
+        | (apply Eq.trans ?_ hinv; congr 1
+           rw [List.drop_eq_getElem_cons hlt]
+           simp only [List.filter_cons]
+           simp_all [UScalar.eq_equiv])
+        | omega
+    · have hge : v.val.length ≤ j.val := by omega
+      rw [List.drop_eq_nil_of_le hge, List.filter_nil, List.append_nil] at hinv
+      step*
+  · exact ⟨htarget, hroom⟩
+
+@[step]
+theorem skip_message_keys_loop1_from_empty_refines
+    (v : alloc.vec.Vec Skipped) (e upto fromN : Std.U64) (capacity : Usize) :
+    State.skip_message_keys_loop1 v e upto fromN
+        (alloc.vec.Vec.with_capacity Skipped capacity) 0#usize
+      ⦃ fun r => r.val = v.val.filter
+        (fun s => !(s.epoch == e && fromN < s.n && s.n ≤ upto)) ⦄ := by
+  step with skip_message_keys_loop1_refines v e upto fromN
+    (alloc.vec.Vec.with_capacity Skipped capacity) 0#usize (by
+      simpa [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new] using v.property)
+  simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
 
 /-- The real forward-skip limit is the model's. -/
 theorem max_skip_agrees : MAX_SKIP.val = Model.SparseRatchet.maxSkip := by native_decide
@@ -1611,31 +1669,18 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
         step with skip_message_keys_loop_refines hkr hz64 hz e upto ch1.ck
           (alloc.vec.Vec.with_capacity Skipped i3) ch1.n
           (by scalar_tac) hloomprep (by have := max_skip_val; scalar_tac)
-        obtain ⟨v, hv, hveq⟩ := hret Global
-          State.skip_message_keys.closure.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool
-          s.skipped (e, ch1.n, upto)
-          (fun x => !(x.epoch == e && ch1.n < x.n && x.n ≤ upto))
-          (fun x => by
-            (by_cases h1 : x.epoch = e <;> by_cases h2 : ch1.n < x.n <;> by_cases h3 : x.n ≤ upto <;>
-              simp [
-                State.skip_message_keys.closure.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool.call_mut,
-                h1, h2, h3] <;>
-              (try split) <;>
-              simp_all)
-            first
-              | rfl
-              | scalar_tac)
-        simp only [hv]
-        have hretain := hveq
-        step*
+        step
+        step
+        step with skip_message_keys_loop1_from_empty_refines s.skipped e upto ch1.n i6
+        have hretain := skipped1_post
         -- The guard on `append`: the retained store is
         -- no longer than the store it came from; the derived keys number
         -- exactly the count walked (the loop refinement's `map` equality, read
         -- through `deriveInto_snd_length`); that count is at most `MAX_SKIP`
         -- (the source's check, `hnotB`); and `hskiproom` says store plus
         -- `MAX_SKIP` fits. So the two lengths fit together.
-        obtain ⟨r, hr, hrveq⟩ := happ Global v derived1 (by
-          have hvlen : v.val.length ≤ s.skipped.val.length := by
+        obtain ⟨r, hr, hrveq⟩ := happ Global skipped1 derived1 (by
+          have hvlen : skipped1.val.length ≤ s.skipped.val.length := by
             rw [hretain]; exact List.length_filter_le _ _
           have hdlen : derived1.val.length = upto.val - ch1.n.val := by
             simpa [List.length_map, deriveInto_snd_length] using congrArg List.length ck_post2
@@ -1648,9 +1693,9 @@ theorem skip_message_keys_refines (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundT
         obtain ⟨v1, w⟩ := r
         dsimp only at hrveq ⊢
         step with hopt Chain.Insts.CoreCloneClone cs.send (fun x _ => Tacenta.SpqrT1.chain_clone_spec x)
-        have hveq : v.val = s.skipped.val.filter
+        have hveq : skipped1.val = s.skipped.val.filter
             (fun x => !(x.epoch == e && ch1.n < x.n && x.n ≤ upto)) := hretain
-        have hv1eq : v1.val = v.val ++ derived1.val := hrveq
+        have hv1eq : v1.val = skipped1.val ++ derived1.val := hrveq
         have hskipped1 : v1.val.map skippedOf
             = m.skipped.filter
                 (fun x => !(x.1 == e.val && (chainOf ch).n < x.2.1 && x.2.1 ≤ upto.val))
@@ -1696,7 +1741,7 @@ skip, and the receiving chain's own step. Factored out on its own so
 `out`'s two cases. -/
 theorem receive_refines_continuation (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRoundTrips64)
     (hret : VecRetainAgrees)
-    (happ : VecAppendAgrees) (hrm : VecRemoveAgrees) (hz : Tacenta.SpqrT1.ZeroizeTotal)
+    (happ : VecAppendAgrees) (hrm : RemoveSkippedAtAgrees) (hz : Tacenta.SpqrT1.ZeroizeTotal)
     (hopt : Tacenta.SpqrT1.OptionCloneTotal)
     {self1 : State} {m1 : Model.SparseRatchet.State} (hrel1 : StateRefines self1 m1)
     (receiving_epoch n : Std.U64)
@@ -1887,7 +1932,7 @@ own step, in that order -- the same order the model's own `receive` composes
 its four pieces. -/
 theorem receive_refines (hkr : SpqrHkdfAgrees)
     (hz96 : ZeroizingRoundTrips96) (hz64 : ZeroizingRoundTrips64) (hret : VecRetainAgrees)
-    (happ : VecAppendAgrees) (hrm : VecRemoveAgrees) (hz : Tacenta.SpqrT1.ZeroizeTotal)
+    (happ : VecAppendAgrees) (hrm : RemoveSkippedAtAgrees) (hz : Tacenta.SpqrT1.ZeroizeTotal)
     (hopt : Tacenta.SpqrT1.OptionCloneTotal)
     {s : State} {m : Model.SparseRatchet.State} (hrel : StateRefines s m)
     (receiving_epoch : Std.U64) (out : Option Output) (n : Std.U64)
@@ -1981,8 +2026,8 @@ below `SpqrT1.lean`'s totality-only `KdfRkTotal`/`KdfCkTotal`, at the opaque
 `hkdf_sha256` call itself, and with `ZeroizingRoundTrips96`/
 `ZeroizingRoundTrips64` -- the `zeroize` wrapper each expansion now passes
 through on its way to being split -- subsumes both, so this file states the
-KDF boundary once rather than twice. `VecRetainAgrees` and `VecRemoveAgrees`
-likewise state what `retain`/`remove` return, not only that they return, and
+KDF boundary once rather than twice. `VecRetainAgrees` and `RemoveSkippedAtAgrees`
+likewise state what `retain` and the custom wipe-before-pop helper return, and
 are each strictly stronger than their `SpqrT1.lean` namesake, so neither
 totality hypothesis is separately assumed here. `VecAppendAgrees` is genuinely
 new: `SpqrT1.lean` needed only `VecAppendTotal`, since nothing there depended
@@ -1995,7 +2040,7 @@ only required to complete.
 As with `SpqrT1.lean` and `BraidT3.lean`, count by constant, not by name:
 none of these eight is the same proposition as any other file's assumption of
 a similar shape, including `T1.lean`'s or `BraidT1.lean`'s own copies of
-`Vec::retain`/`Vec::remove`/`Vec::append`, `Zeroize`, a KDF call, or
+`Vec::retain`/`Vec::pop`/`Vec::append`, `Zeroize`, a KDF call, or
 `T3.lean`'s `ZeroizingRoundTrips`/`ZeroizingRoundTrips80` at the ratchet's own
 wrapper constants.
 
@@ -2083,7 +2128,7 @@ info: 'Tacenta.SpqrT3.receive_refines' depends on axioms: [propext,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.append,
- alloc.vec.Vec.remove,
+ alloc.vec.Vec.pop,
  alloc.vec.Vec.retain,
  zeroize.Zeroize.Blanket.zeroize,
  chain_label_agrees._native.native_decide.ax_1_1,

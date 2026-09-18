@@ -10,7 +10,7 @@ import Translation.ErasureT1
 Every `Vec` operation Aeneas does not model reaches the translation as an
 axiom, as do the `zeroize` wrapper's constructor and projection, and the
 T1/T3 files assume what they need about them as a named `Prop`
-(`VecAppendTotal`, `VecRemoveAgrees`, `ZeroizingRoundTrips96`,
+(`VecAppendTotal`, `RemoveSkippedAtAgrees`, `ZeroizingRoundTrips96`,
 `ZeroizingArrayRoundTrip`, `T3.ZeroizingRoundTrips80`, ...), or as a class
 (`T1.DerivedKeysModel`), and so are the key-derivation agreements (`T3.HmacAgrees`,
 `T3.HkdfAgrees`, `SpqrT3.SpqrHkdfAgrees`, `SessionT3.HkdfAgrees` and the Braid's
@@ -117,14 +117,14 @@ theorem append_total_unguarded_unsatisfiable : ¬ ∃ f : AppendFn, AppendTotalU
   have := usize_max_pos
   omega
 
-/-! ## `Vec::remove` -/
+/-! ## Secret-bearing removal helpers -/
 
 /-- The type of both crates' `alloc.vec.Vec.remove`. -/
 abbrev RemoveFn :=
   {T : Type} → (A : Type) → alloc.vec.Vec T → Usize → Result (T × alloc.vec.Vec T)
 
-/-- The shape of `SpqrT1.VecRemoveTotal`: under the index guard, the
-standard-library operation returns with that index erased. -/
+/-- The legacy standard-library removal shape used by the classical proof's
+historical satisfiability checks. -/
 def RemoveTotal (f : RemoveFn) : Prop :=
   ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize), i.val < v.val.length →
     ∃ r, f A v i = ok r ∧ r.2.val = v.val.eraseIdx i.val
@@ -139,8 +139,7 @@ def RemoveSkippedAtTotalShape
       ∃ r, f v i = ok r ∧ r.1 = (v.val[i.val]'h).key ∧
         r.2.val = v.val.eraseIdx i.val
 
-/-- The shape of `SpqrT3.VecRemoveAgrees`: the same, naming the element
-removed, which the guard makes well-defined without an `Inhabited` bound. -/
+/-- The legacy standard-library agreement shape. -/
 def RemoveAgrees (f : RemoveFn) : Prop :=
   ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize) (h : i.val < v.val.length),
     ∃ r, f A v i = ok r ∧ r.1 = v.val[i.val]'h ∧ r.2.val = v.val.eraseIdx i.val
@@ -161,12 +160,29 @@ theorem T1_RemoveSkippedAtTotal_is :
       RemoveSkippedAtTotalShape @tacenta_ratchet.remove_skipped_at :=
   Iff.rfl
 
-theorem SpqrT1_VecRemoveTotal_is :
-    Tacenta.SpqrT1.VecRemoveTotal ↔ RemoveTotal @tacenta_spqr.alloc.vec.Vec.remove :=
+def SpqrRemoveTotalShape
+    (f : alloc.vec.Vec tacenta_spqr.Skipped → Usize →
+      Result (Std.Array Std.U8 32#usize × alloc.vec.Vec tacenta_spqr.Skipped)) : Prop :=
+  ∀ (v : alloc.vec.Vec tacenta_spqr.Skipped) (i : Usize)
+    (_h : i.val < v.val.length),
+      ∃ r, f v i = ok r ∧ r.2.val.length + 1 = v.val.length
+
+def SpqrRemoveAgreesShape
+    (f : alloc.vec.Vec tacenta_spqr.Skipped → Usize →
+      Result (Std.Array Std.U8 32#usize × alloc.vec.Vec tacenta_spqr.Skipped)) : Prop :=
+  ∀ (v : alloc.vec.Vec tacenta_spqr.Skipped) (i : Usize)
+    (h : i.val < v.val.length),
+      ∃ r, f v i = ok r ∧ r.1 = (v.val[i.val]'h).key ∧
+        r.2.val = v.val.eraseIdx i.val
+
+theorem SpqrT1_RemoveSkippedAtTotal_is :
+    Tacenta.SpqrT1.RemoveSkippedAtTotal ↔
+      SpqrRemoveTotalShape @tacenta_spqr.State.remove_skipped_at :=
   Iff.rfl
 
-theorem VecRemoveAgrees_is :
-    Tacenta.SpqrT3.VecRemoveAgrees ↔ RemoveAgrees @tacenta_spqr.alloc.vec.Vec.remove :=
+theorem RemoveSkippedAtAgrees_is :
+    Tacenta.SpqrT3.RemoveSkippedAtAgrees ↔
+      SpqrRemoveAgreesShape @tacenta_spqr.State.remove_skipped_at :=
   Iff.rfl
 
 theorem length_eraseIdx_le_max {T : Type} (v : alloc.vec.Vec T) (i : Nat) :

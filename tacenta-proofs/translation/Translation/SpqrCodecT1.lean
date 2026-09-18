@@ -184,7 +184,9 @@ theorem from_bytes_no_panic (bytes : Slice U8) (hroom : bytes.length + 90 ≤ Us
   unfold State.from_bytes
   simp only [fixed_prefix_eq, chains_len_eq, skipped_len_eq, bind_tc_ok]
   all_goals repeat' (first | simp only [WP.spec_ok] | step | split)
-  all_goals (try simp_all [Slice.length, Array.repeat])
+  all_goals (try simp_all [Slice.length, Array.repeat, alloc.vec.Vec.with_capacity,
+    alloc.vec.Vec.new])
+  all_goals (try scalar_tac)
 
 
 /-! ## Encoding

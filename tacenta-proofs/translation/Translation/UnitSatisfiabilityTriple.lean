@@ -39,9 +39,9 @@ they hold together:
   `ZeroizingRoundTrips64`, `UnitTripleT3.ZeroizingRoundTrips` and
   `UnitT1.DerivedKeysModel` all constrain the one `zeroize.Zeroizing` family.
   `zeroizing_joint_satisfiable` witnesses all five at once.
-* `UnitT1.RemoveSkippedAtTotal` and `UnitSpqrT3.VecRemoveAgrees` constrain
+* `UnitT1.RemoveSkippedAtTotal` and `UnitSpqrT3.RemoveSkippedAtAgrees` constrain
   two different removal operations after the ratchet hardening: the classical
-  ratchet's `remove_skipped_at` wrapper and the sparse ratchet's `Vec.remove`.
+  and sparse ratchets' respective `remove_skipped_at` helpers.
   `vec_remove_joint_satisfiable` witnesses both together.
 
 The other witnessed hypotheses, `UnitT3.HmacAgrees`, `UnitT3.HkdfAgrees` (which
@@ -206,44 +206,42 @@ abbrev RemoveSkippedFn :=
   (A : Type) → (alloc.vec.Vec tacenta_ratchet.SkippedKey) → Usize →
     Result (Std.Array Std.U8 32#usize × alloc.vec.Vec tacenta_ratchet.SkippedKey)
 
-/-- The type of `alloc.vec.Vec.remove`. -/
-abbrev RemoveFn :=
-  {T : Type} → (A : Type) → alloc.vec.Vec T → Usize → Result (T × alloc.vec.Vec T)
+/-- The type of the sparse ratchet's hardened removal wrapper. -/
+abbrev SpqrRemoveFn :=
+  alloc.vec.Vec tacenta_spqr.Skipped → Usize →
+    Result (Std.Array Std.U8 32#usize × alloc.vec.Vec tacenta_spqr.Skipped)
 
 /-- The classical ratchet's `RemoveSkippedAtTotal` and the sparse ratchet's
-`VecRemoveAgrees`, each stating the value and erased-vector result of its own
+`RemoveSkippedAtAgrees`, each stating the value and erased-vector result of its own
 removal operation. -/
-def RemoveJoint (g : RemoveSkippedFn) (f : RemoveFn) : Prop :=
+def RemoveJoint (g : RemoveSkippedFn) (f : SpqrRemoveFn) : Prop :=
   (∀ (A : Type) (v : alloc.vec.Vec tacenta_ratchet.SkippedKey) (i : Usize)
       (h : i.val < v.val.length),
     ∃ r, g A v i = ok r ∧ r.1 = (v.val[i.val]'h).key ∧ r.2.val = v.val.eraseIdx i.val) ∧
-  (∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize) (h : i.val < v.val.length),
-    ∃ r, f A v i = ok r ∧ r.1 = v.val[i.val]'h ∧ r.2.val = v.val.eraseIdx i.val)
+  (∀ (v : alloc.vec.Vec tacenta_spqr.Skipped) (i : Usize) (h : i.val < v.val.length),
+    ∃ r, f v i = ok r ∧ r.1 = (v.val[i.val]'h).key ∧ r.2.val = v.val.eraseIdx i.val)
 
 theorem vec_remove_joint_is :
-    (Tacenta.UnitT1.RemoveSkippedAtTotal ∧ Tacenta.UnitSpqrT3.VecRemoveAgrees) ↔
-      RemoveJoint (fun _A => tacenta_ratchet.remove_skipped_at) @alloc.vec.Vec.remove :=
+    (Tacenta.UnitT1.RemoveSkippedAtTotal ∧ Tacenta.UnitSpqrT3.RemoveSkippedAtAgrees) ↔
+      RemoveJoint (fun _A => tacenta_ratchet.remove_skipped_at)
+        @tacenta_spqr.State.remove_skipped_at :=
   Iff.rfl
-
-/-- What the real `Vec::remove` does: the element and the rest when the index is
-in range, a panic otherwise. -/
-def removeWitness : RemoveFn := fun {_T} _A v i =>
-  if h : i.val < v.val.length then
-    ok (v.val[i.val], ⟨v.val.eraseIdx i.val, le_trans (List.length_eraseIdx_le _ _) v.property⟩)
-  else fail .panic
 
 theorem vec_remove_joint_satisfiable : ∃ g f, RemoveJoint g f := by
   refine ⟨(fun _A v i => if h : i.val < v.val.length then
       ok ((v.val[i.val]).key, ⟨v.val.eraseIdx i.val,
         le_trans (List.length_eraseIdx_le _ _) v.property⟩)
-    else fail .panic), @removeWitness, ?_, ?_⟩
+    else fail .panic), (fun v i => if h : i.val < v.val.length then
+      ok ((v.val[i.val]).key, ⟨v.val.eraseIdx i.val,
+        le_trans (List.length_eraseIdx_le _ _) v.property⟩)
+    else fail .panic), ?_, ?_⟩
   · intro _A v i h
     exact ⟨((v.val[i.val]).key, ⟨v.val.eraseIdx i.val,
         le_trans (List.length_eraseIdx_le _ _) v.property⟩), by simp [h], rfl, rfl⟩
-  · intro _T _A v i h
-    exact ⟨(v.val[i.val], ⟨v.val.eraseIdx i.val,
+  · intro v i h
+    exact ⟨((v.val[i.val]).key, ⟨v.val.eraseIdx i.val,
         le_trans (List.length_eraseIdx_le _ _) v.property⟩),
-      by simp [removeWitness, h], rfl, rfl⟩
+      by simp [h], rfl, rfl⟩
 
 /-! ## `Vec::append` -/
 
@@ -426,8 +424,9 @@ example (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
     [Tacenta.UnitT1.DerivedKeysModel]
     (hz96 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips64)
-    (hret : Tacenta.UnitSpqrT3.VecRetainAgrees) (happ : Tacenta.UnitSpqrT3.VecAppendAgrees)
-    (hrm : Tacenta.UnitSpqrT3.VecRemoveAgrees) (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
+    (hret : Tacenta.UnitSpqrT3.VecRetainAgrees)
+    (happ : Tacenta.UnitSpqrT3.VecAppendAgrees)
+    (hrm : Tacenta.UnitSpqrT3.RemoveSkippedAtAgrees) (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
     (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal)
     {s : tacenta_triple_unit.tacenta_triple.State} {m : Model.Triple.State}
     (hrel : Tacenta.UnitTripleT3.StateRefines Tacenta.UnitTripleT3.ratchetAbs
@@ -440,8 +439,9 @@ example (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
     [Tacenta.UnitT1.DerivedKeysModel]
     (hz96 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips64)
-    (hret : Tacenta.UnitSpqrT3.VecRetainAgrees) (happ : Tacenta.UnitSpqrT3.VecAppendAgrees)
-    (hrm : Tacenta.UnitSpqrT3.VecRemoveAgrees) (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
+    (hret : Tacenta.UnitSpqrT3.VecRetainAgrees)
+    (happ : Tacenta.UnitSpqrT3.VecAppendAgrees)
+    (hrm : Tacenta.UnitSpqrT3.RemoveSkippedAtAgrees) (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
     (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal)
     {s : tacenta_triple_unit.tacenta_triple.State} {m : Model.Triple.State}
     (hrel : Tacenta.UnitTripleT3.StateRefines Tacenta.UnitTripleT3.ratchetAbs

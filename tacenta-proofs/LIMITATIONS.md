@@ -224,9 +224,9 @@ excludes it.
   `expect` enforces; every call site asks for 32, 64, 80 or 96 bytes and the
   premise closes from the literal (`KdfCkTotal` and `KdfRkTotal` are about
   the sparse ratchet's own fixed-length wrappers, total in Rust, and were
-  never in this list). The two `VecRemoveTotal`s and `VecRemoveAgrees`
-  carry `i.val < v.val.length`, the one condition under which `Vec::remove`
-  returns rather than panics; every call site sits under exactly that loop
+  never in this list). The classical `VecRemoveTotal`/`VecRemoveAgrees` and
+  sparse `RemoveSkippedAtTotal`/`RemoveSkippedAtAgrees` carry
+  `i.val < v.val.length`; every call site sits under exactly that loop
   guard, from which the proof discharges the premise, and the guard also
   removed the `[Inhabited T]` bound the unguarded statements needed for
   consistency (`Translation/Satisfiability.lean` now models each with the
@@ -815,7 +815,7 @@ reported, and the state transitioned to -- across every branch each can
 take, not merely that they cannot fail. Unlike the ML-KEM Braid this crate
 has no KEM boundary and no erasure-coding boundary to assume agreement at;
 the only opaque call this file assumes anything about the *value* of is
-`hkdf_sha256` -- `Vec::retain`/`remove`/`append`, `Zeroize`, and
+`hkdf_sha256` -- `Vec::retain`/`pop`/`append`, `Zeroize`, and
 `Option::clone` are opaque too, each its own assumption below -- and
 everything built out of translated code around it -- `find_chains`,
 `set_chains`, `clear_old_epochs`, `advance`/`maybe_advance`, `try_skipped`,
@@ -826,7 +826,7 @@ how a chain-vector length bound survives `set_chains`/`skip_message_keys`,
 and a left-peeling split for the forward-derivation walk `skip_message_keys`
 performs. Eight assumptions back it: `SpqrHkdfAgrees` (one level below
 `SpqrT1.lean`'s `KdfRkTotal`/`KdfCkTotal`, subsuming both), `VecRetainAgrees`
-and `VecRemoveAgrees` (each strictly stronger than its `SpqrT1.lean`
+and `RemoveSkippedAtAgrees` (each strictly stronger than its `SpqrT1.lean`
 namesake), `VecAppendAgrees` (genuinely new, since nothing in T1 needed to
 know what `skip_message_keys`'s concatenation actually produced),
 `ZeroizingRoundTrips96` and `ZeroizingRoundTrips64` (the key derivation's
@@ -1833,12 +1833,13 @@ bundles discharged. What that does and does not buy:
   clause needs `OptionCloneTotal`. Each bundle covers its ratchet's whole calling
   surface, so the `send` theorem assumes the receive path's boundary as well.
 * **Every boundary hypothesis of the discharged theorems is witnessed on the
-  unit.** `UnitSatisfiabilityTriple.lean` witnesses all twelve, about the unit's
+  unit.** `UnitSatisfiabilityTriple.lean` witnesses all eleven, about the unit's
   constants, including the HMAC and HKDF agreements (from the model's output
   lengths). Where two constrain one constant it witnesses them jointly: the
   classical round trip, which is also the Triple's, the sparse round trips at 96
   and 64 bytes and `DerivedKeysModel` all constrain one `zeroize.Zeroizing`
-  family, and `VecRemoveTotal` and `VecRemoveAgrees` both constrain `Vec::remove`.
+  family, and the classical `VecRemoveTotal` and `VecRemoveAgrees` both
+  constrain `Vec::remove`.
   The rest each constrain a constant nothing else mentions, and that their
   separate witnesses combine is an argument in prose, not a checked one. Two
   `example`s apply the discharged theorems to exactly the witnessed hypotheses,
@@ -2153,8 +2154,9 @@ that assembly possible.
   exactly one -- which the purge scan needs, because it removes without
   advancing its index and so has nothing else to make its measure decrease --
   is `VecRemoveTotal.lengths`, proved from the value rather than assumed
-  beside it. The sparse ratchet's `VecRemoveAgrees` names the removed element
-  as well, since its refinement reads it. This is the recurring shape of the
+  beside it. The sparse ratchet's `RemoveSkippedAtAgrees` names the removed
+  element and the custom helper's erased-index result, since its refinement
+  reads both. This is the recurring shape of the
   whole exercise: T1 needed only that an unmodelled operation returns, and
   refinement needs to know what it returned.
 
