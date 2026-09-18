@@ -10,6 +10,8 @@ use serde::Deserialize;
 
 use tacenta_core::ratchet;
 
+mod session_e2e;
+
 /// One vector file (one algorithm), matching schema/vector.schema.json.
 #[derive(Deserialize)]
 pub struct VectorFile {
@@ -29,8 +31,8 @@ pub struct Vector {
     pub inputs: BTreeMap<String, String>,
     #[serde(default)]
     pub output: String,
-    /// A decoder's answer: the named values an accepted input decodes to,
-    /// carried in place of `output` (schema/vector.schema.json).
+    /// Several named answers, such as a decoder's fields or the full-session
+    /// known answer's intermediates, carried in place of `output`.
     #[serde(default)]
     pub fields: Option<BTreeMap<String, String>>,
     /// Which refusal an invalid persisted-state vector names: for stored
@@ -176,6 +178,7 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
                 &bytes(&v.output)?,
             )
         }
+        "session-establishment-e2e" => session_e2e::check(v),
         "hkdf-sha256" => {
             let expected = bytes(&v.output)?;
             let mut out = vec![0u8; expected.len()];

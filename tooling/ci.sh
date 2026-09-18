@@ -138,6 +138,7 @@ bash tooling/tests/run-check-ledger-review-receipt-cases.sh
 # confirm, is a question about the specification, not about this runner.
 echo "== Independent reader: the specification and the vectors only =="
 python3 tacenta-test-vectors/runners/independent/reader/run.py | tail -n 22
+python3 tacenta-test-vectors/runners/independent/reader/test_skip_allowlist.py
 python3 tacenta-test-vectors/runners/independent/session-operation-reader.py
 
 echo "== Lean: build the model =="

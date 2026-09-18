@@ -132,6 +132,10 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- `protocol/sparse-pq-ratchet.md`, The store also has a total bound: clarified
+  that the current sparse implementation checks the pre-purge store length,
+  while resulting-store replacement semantics and refusal atomicity remain an
+  open follow-up rather than current tested behaviour.
 - Double Ratchet skipped-key capacity is checked after removing entries that
   the operation will replace. `key-deletion.md` states the order explicitly:
   delete held `(DHr, n)` pairs in the re-derived range, then require the

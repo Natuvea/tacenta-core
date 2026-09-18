@@ -17,8 +17,8 @@
 # the model has no AES; their `source` field says so. The primitive vectors
 # under vectors/primitives/ are not regenerated: they are standards' known
 # answers, plus one project-generated XEdDSA file, and none of them comes from
-# the model. Nor is malformed-input/ratchet-reject.json, which is
-# hand-authored.
+# the model. Nor are the project-generated session-establishment known answer
+# or malformed-input/ratchet-reject.json, which are outside model regeneration.
 #
 # Needs the Lean toolchain the model pins (`tacenta-model/lean-toolchain`,
 # installed through elan) and a built model: `lake build` there compiles the

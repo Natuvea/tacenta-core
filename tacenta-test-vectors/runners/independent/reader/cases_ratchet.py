@@ -239,7 +239,7 @@ def _():
     assert list(b.chains) == [1, 0]
 
 
-@case("CR-19 the sparse store's total bound as the page now states its evidence: a skip that succeeds leaves the store no longer than the larger of its previous length and MAX_SKIPPED_STORE; over a sequence of sends, receives and advances the store stays within the bound, which is what the page says is tested rather than proved",
+@case("CR-19 the sparse store's current total-bound evidence: a skip that succeeds leaves the store no longer than the larger of its previous length and MAX_SKIPPED_STORE; over a sequence of sends, receives and advances the store stays within the bound, while replacement semantics remain an open follow-up",
       f"{SP} The store also has a total bound: a skip that succeeds leaves the store no longer than the larger of its previous length and MAX_SKIPPED_STORE. No theorem carries the bound across this ratchet's sending, receiving or advancing, or across a sequence of them")
 def _():
     from tacenta_reader import persistence
