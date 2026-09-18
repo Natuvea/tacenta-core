@@ -2109,6 +2109,10 @@ the same audit). The audit also prints every axiom the generated
 `no-sorry.sh` fails if that list differs from the per-file sets
 `manifests/translation-attestation.json` records, so the record is held to
 what the text elaborated to and not only to the text.
+The same audit refuses every first-party declaration whose type or proof value
+reaches Lean's `sorryAx`, including when `warn.sorry` is disabled or the
+diagnostic is consumed by `#guard_msgs`; this is the semantic check behind the
+no-sorry claim rather than a token-pattern workaround.
 `scripts/check-lean-constructs.sh`, the textual second line, strips
 comments and strings and refuses those keywords wherever they sit on a
 line, in every hand-written module including the package roots and
@@ -2127,7 +2131,7 @@ the audit walks only what its invoking module imports, and fails if the
 four do not all run with the same first-party prefixes, since the audit's
 waiver for an unmentioned compiler-trust axiom asks whether any first-party
 declaration mentions it and only sees the modules in its own environment.
-`scripts/check-audit-negatives.sh` plants twelve declarations: one for each
+`scripts/check-audit-negatives.sh` plants thirteen declarations: one for each
 of the seven kinds the audit refuses, one for each condition a compiler-trust
 axiom must meet, and one for the shape the waiver accepts. It fails if the
 audit calls any of them wrongly. Its own comment carries the matrix of which

@@ -177,7 +177,15 @@ run plain-axiom refuse:axiom <<'EOF'
 axiom Bad : True
 EOF
 
-# The audit refuses seven kinds of declaration and the five below are the rest
+# A disabled warning must not turn an incomplete theorem into an accepted one.
+# This is the shape used by `#guard_msgs` and by option spellings that hide the
+# compiler diagnostic: the elaborated declaration still depends on `sorryAx`.
+run hidden-sorry refuse:sorryAx <<'EOF'
+set_option warn.sorry false in
+theorem Hidden : False := by sorry
+EOF
+
+# The audit refuses seven kinds of declaration plus `sorryAx`; the five below are the rest
 # of them. Each was unplanted once, and deleting its rule from
 # `Model/AxiomAudit.lean` left this script reporting every case correct.
 
