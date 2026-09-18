@@ -203,13 +203,13 @@ def _():
         PSC.store(identity_secret=hashlib.sha256(b"pass5 9").digest())))
 
 
-@case("SK-08 the prekey store's identity_public: every other spelling is refused as malformed in v1, v2, v3 and v4 (in v4 after the re-encode check, which a re-spelled key passes); the canonical key of a real identity is accepted in all four; the secrets are not held to the rule. Pass 7: the sixth rule is checked after this one, so p - 1, which this rule accepts, is refused as incoherent instead, no identity having it as a public key (G7-05)",
-      f"{SP} Prekey store, Semantic rules: identity_public is canonical ... they apply to all four versions; {SCK}: Refused as malformed, by ... the prekey store's own rules")
+@case("SK-08 the prekey store's identity_public: every other spelling is refused as malformed in v1, v2, v3, v4 and v5 (in v5 after the re-encode check, which a re-spelled key passes); the canonical key of a real identity is accepted in all five; the secrets are not held to the rule. Pass 7: the sixth rule is checked after this one, so p - 1, which this rule accepts, is refused as incoherent instead, no identity having it as a public key (G7-05)",
+      f"{SP} Prekey store, Semantic rules: identity_public is canonical ... they apply to all five versions; {SCK}: Refused as malformed, by ... the prekey store's own rules")
 def _():
     base = PSC.store(seen=[(4, PSC.rnd(32))], identity_secret=IKB_SECRET)
-    for version in (1, 2, 3, 4):
+    for version in (1, 2, 3, 4, 5):
         def raw(p):
-            return P.prekey_store_to_bytes(p) if version == 4 else PSC.legacy(p, version)
+            return P.prekey_store_to_bytes(p) if version == 5 else PSC.legacy(p, version)
         accepts(P.prekey_store_from_bytes, raw(base))
         # p - 1 keeps the fifth rule and breaks the sixth, which is checked
         # after it: identities-and-devices.md, Verifying a signature, refuses
@@ -254,7 +254,7 @@ def _short_unknown_formats():
         ("triple ratchet state", P.triple_from_bytes, P.triple_to_bytes(P.TripleState(PSC.BOB1.classical, PSC.BOB1.sparse)), 9, (0x00, 0x02)),
         ("braid", P.braid_from_bytes, P.braid_to_bytes(PSC.braid_state(0)), 2, (0x00, 0x02)),
         ("session", P.session_from_bytes, P.session_to_bytes(PSC.ALICE_S), 5, (0x00, 0x02)),
-        ("prekey store", P.prekey_store_from_bytes, P.prekey_store_to_bytes(PSC.STORE), 137, (0x00, 0x05, 0xFF)),
+        ("prekey store", P.prekey_store_from_bytes, P.prekey_store_to_bytes(PSC.STORE), 137, (0x00, 0x06, 0xFF)),
     ]
 
 

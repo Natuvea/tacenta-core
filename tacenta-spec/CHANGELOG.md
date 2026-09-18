@@ -177,7 +177,7 @@ is SemVer against the specified protocol (not the implementation).
 - `prekey-store-state.json`: add accepted `legacy-v1`, `legacy-v2` and
   `legacy-v3` fixtures for the prekey store's older stored layouts. The new
   vectors read to the same fields as the no-record, no-retired current fixture
-  and upgrade to v4 on write-back, resolving `PK-OLD-VERSIONS` in the gap
+  and upgrade to v5 on write-back, resolving `PK-OLD-VERSIONS` in the gap
   register.
 - `prekey-store-state.json`: add the accepted `retired-kem-prekey` fixture,
   produced by `print_prekey_store_fixtures`, so the prekey store's

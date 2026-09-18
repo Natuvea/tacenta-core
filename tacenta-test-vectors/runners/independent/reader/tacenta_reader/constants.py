@@ -116,8 +116,8 @@ PB_MAX_U32 = U32_MAX
 # --- session-persistence.md; CONSTANTS.md "Storage formats"
 STATE_VERSION = 0x01          # ratchet, spqr, braid, triple
 SESSION_VERSION = 0x01
-PREKEY_STORE_VERSION = 0x04
-PREKEY_STORE_VERSIONS_READ = frozenset({0x01, 0x02, 0x03, 0x04})
+PREKEY_STORE_VERSION = 0x05
+PREKEY_STORE_VERSIONS_READ = frozenset({0x01, 0x02, 0x03, 0x04, 0x05})
 LABELS_TACENTA = 0x00
 DIRECTION_A2B = 0x00
 DIRECTION_B2A = 0x01

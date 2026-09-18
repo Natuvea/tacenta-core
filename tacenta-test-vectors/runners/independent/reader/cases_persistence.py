@@ -578,29 +578,32 @@ STORE = store(previous_signed=(rnd(32), 7, rnd(64)), previous_kem=(kem_pair(), 8
 
 
 def legacy(p, version):
-    """A v1, v2 or v3 store, laid out by the page's field list."""
-    v4 = P.prekey_store_to_bytes(p)
+    """An older-version store, laid out by the page's field list."""
+    v5 = P.prekey_store_to_bytes(p)
     head_len = (1 + 32 + 32 + 4 + 64 + 4 + 36 * len(p.one_time) + 4 + len(p.kem_pair) + 4 + 64
                 + 4 + sum(4 + 4 + len(kp) + 64 for _, kp, _ in p.kem_one_time) + 4)
-    out = bytearray([version]) + v4[1:head_len]
+    marker_at = head_len + 4 + 36 * len(p.seen)
+    if version == 4:
+        return bytes([version]) + v5[1:marker_at] + v5[marker_at + 4:]
+    out = bytearray([version]) + v5[1:head_len]
     if version >= 2:
         out += len(p.seen).to_bytes(4, "big") + b"".join(fp for _, fp in p.seen)
     if version >= 3:
-        out += v4[head_len + 4 + 36 * len(p.seen):]
+        out += v5[marker_at + 4:]
     return bytes(out)
 
 
-@case("PS-18 prekey store v4 round trip, with retired prekeys and record entries under both live keys",
-      f"{SP} Prekey store: prekey_store = version(1) || ... || previous_kem_present(1) || previous_kem; The writer always emits 0x04")
+@case("PS-18 prekey store v5 round trip, with retired prekeys and record entries under both live keys",
+      f"{SP} Prekey store: prekey_store = version(1) || ... || legacy_last_resort_blocked || previous_kem_present(1) || previous_kem; The writer always emits 0x05")
 def _():
     for p in (STORE, store(), store(seen=[], one_time=[], kem_one_time=[])):
         raw = P.prekey_store_to_bytes(p)
-        assert raw[0] == 0x04
+        assert raw[0] == 0x05
         back = accepts(P.prekey_store_from_bytes, raw)
         assert back == p
 
 
-@case("PS-19 prekey store v1, v2 and v3 are read: v1 with nothing remembered, v2 with nothing retired, untagged entries tagged with the current kem_id; each re-encodes as v4",
+@case("PS-19 prekey store v1, v2 and v3 are read: v1 with nothing remembered, v2 with nothing retired, untagged entries tagged with the current kem_id; each re-encodes as v5",
       f"{SP} Prekey store: Four versions are read; one is written")
 def _():
     p = store(seen=[(4, rnd(32)), (4, rnd(32))])
@@ -610,11 +613,11 @@ def _():
     assert v2.seen == p.seen and v2.previous_kem is None
     q = store(previous_signed=(rnd(32), 7, rnd(64)), previous_kem=(kem_pair(), 8, rnd(64)), seen=[(4, rnd(32))])
     v3 = accepts(P.prekey_store_from_bytes, legacy(q, 3))
-    assert v3 == q
+    assert v3 == replace(q, legacy_blocked=sorted({q.kem_id, q.previous_kem[1]}))
     q_untagged = replace(q, seen=[(8, q.seen[0][1])])
     assert accepts(P.prekey_store_from_bytes, legacy(q_untagged, 3)).seen == [(4, q.seen[0][1])]
     for old in (v1, v2, v3):
-        assert P.prekey_store_to_bytes(old)[0] == 0x04
+        assert P.prekey_store_to_bytes(old)[0] == 0x05
         accepts(P.prekey_store_from_bytes, P.prekey_store_to_bytes(old))
     rejects(P.prekey_store_from_bytes, legacy(p, 2) + b"\x00", exc=MAL)
     rejects(P.prekey_store_from_bytes, legacy(p, 1) + b"\x00", exc=MAL)
@@ -624,7 +627,7 @@ def _():
       f"{SP} Prekey store: A presence byte is 0x00 or 0x01 and nothing else")
 def _():
     raw = P.prekey_store_to_bytes(STORE)
-    for v in (0x00, 0x05, 0xFF):
+    for v in (0x00, 0x06, 0xFF):
         rejects(P.prekey_store_from_bytes, put(raw, 0, v), exc=WV)
     for n in (1, 40, 200, 300, len(raw) - 1):
         rejects(P.prekey_store_from_bytes, raw[:n], exc=MAL)
@@ -658,7 +661,7 @@ def _():
         rejects(P.prekey_store_from_bytes, P.prekey_store_to_bytes(p), exc=MAL)
 
 
-@case("PS-22 prekey store record counts: v4 at most two budgets, v2/v3 one, refused before sizing anything; per-key bound 1024 as a rule over what was read",
+@case("PS-22 prekey store record counts: v4/v5 at most two budgets, v2/v3 one, refused before sizing anything; per-key bound 1024 as a rule over what was read",
       f"{SP} Prekey store: a count larger than what the version could possibly have written is refused as malformed before it sizes anything")
 def _():
     two = [(4, rnd(32)) for _ in range(1024)] + [(8, rnd(32)) for _ in range(1024)]
