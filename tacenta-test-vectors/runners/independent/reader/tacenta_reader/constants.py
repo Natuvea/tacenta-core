@@ -82,7 +82,7 @@ BRAID_CIPHERTEXT = b":ciphertext"
 
 # session-establishment.md, The fingerprint; CONSTANTS.md
 # LAST_RESORT_HANDSHAKE_LABEL: 32 ASCII bytes, no terminator
-LAST_RESORT_HANDSHAKE_LABEL = b"tacenta last-resort handshake v1"
+LAST_RESORT_HANDSHAKE_LABEL = b"tacenta last-resort handshake v2"
 
 # session-establishment.md, DecodeEC: "a key whose value is at least p"
 CURVE25519_P = (1 << 255) - 19

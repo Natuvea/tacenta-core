@@ -826,11 +826,21 @@ fn skip_message_keys(state: &mut State, upto: u32) -> Result<(), RatchetError> {
             } else if upto > state.nr.saturating_add(MAX_SKIP) {
                 Err(RatchetError::TooManySkipped)
             } else {
-                // Purge a clone so the store bound is checked against the
-                // exact resulting store while every refusal remains atomic.
-                let mut skipped = state.skipped.clone();
+                // Build the working copy at its final capacity before copying
+                // secret-bearing entries. `Vec::clone` has capacity == len;
+                // pushing the first newly-derived key would otherwise free
+                // that live-key buffer during reallocation, unwiped.
+                let count = (upto - state.nr) as usize;
+                let mut skipped = Vec::with_capacity(state.skipped.len() + count);
+                let mut copied = 0;
+                while copied < state.skipped.len() {
+                    skipped.push(state.skipped[copied].clone());
+                    copied += 1;
+                }
+                // Purge the working copy so the store bound is checked against
+                // the exact resulting store while every refusal remains atomic.
                 purge_chain_range(&mut skipped, dhr, state.nr, upto);
-                if skipped.len() + (upto - state.nr) as usize > MAX_SKIPPED_STORE {
+                if skipped.len() + count > MAX_SKIPPED_STORE {
                     return Err(RatchetError::SkippedStoreFull);
                 }
                 let (ck2, keys) = match derive_chain(&ck, state.nr, upto - state.nr) {
@@ -1043,8 +1053,7 @@ fn try_skipped(state: &mut State, header: &Header) -> Option<Key> {
     let mut i = 0;
     while i < state.skipped.len() {
         if state.skipped[i].dh == header.dh && state.skipped[i].n == header.n {
-            let removed = remove_skipped_at(&mut state.skipped, i);
-            return Some(removed.key);
+            return Some(remove_skipped_at(&mut state.skipped, i));
         }
         i += 1;
     }
@@ -1052,15 +1061,18 @@ fn try_skipped(state: &mut State, header: &Header) -> Option<Key> {
 }
 
 /// Remove one secret-bearing skipped entry without `Vec::remove`'s tail copy.
-/// Adjacent swaps preserve the store order, and popping the final slot drops
-/// the removed value through `ZeroizeOnDrop`.
-fn remove_skipped_at(skipped: &mut Vec<SkippedKey>, index: usize) -> SkippedKey {
+/// Adjacent swaps preserve the store order. The key is copied for the caller,
+/// the heap slot is zeroized in place, and only then is the vector shortened.
+fn remove_skipped_at(skipped: &mut Vec<SkippedKey>, index: usize) -> Key {
     let mut i = index;
     while i + 1 < skipped.len() {
         skipped.swap(i, i + 1);
         i += 1;
     }
-    skipped.pop().expect("index is within the skipped store")
+    let key = skipped[i].key;
+    skipped[i].zeroize();
+    let _ = skipped.pop();
+    key
 }
 
 /// Receive (ratchet.md): try a stored skipped key; otherwise, on a ratchet key

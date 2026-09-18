@@ -307,14 +307,13 @@ Four things are not erased, and they are the honest remainder:
   Lean as a `massert` the T1 proofs discharge. On those lines the Lean is
   stricter than the binary it was translated from -- the harmless direction,
   but not the same program.
-  And the *reading* direction of the sparse ratchet is untouched by all of it:
-  `State::from_bytes` still builds **both** of its vectors by pushing, the
-  chain table (`spqr/src/lib.rs:1008`), whose entries carry chain keys, and
-  the skipped-key list (`:1035`), whose entries carry message keys, so a
-  reallocation in either loop hands back an un-wiped copy of what it had read
-  so far. Each count is bounded against the buffer before its loop runs, so
-  sizing both exactly is available; it waits on the window "Waiting on the
-  next re-translation window" describes.
+  The verified-zone stores now build working copies at their final capacities:
+  the classical skipped-key path, the sparse chain and skipped-key decoders,
+  sparse epoch retirement, and sparse replacement all avoid growing a live
+  secret-bearing vector by repeated push. Removal also wipes the dead slot
+  before shortening the vector. These are implementation hardening measures;
+  Charon and Aeneas ignore `Drop` and allocator behaviour, so the proofs below
+  do not establish them.
 
 **None of it is proved.** Charon and Aeneas ignore `Drop` entirely, so the
 generated Lean is byte for byte identical with and without every destructor
@@ -327,12 +326,11 @@ classical ratchet's `State` and `SkippedKey` (`the_state_erases_when_dropped`,
 `Identity` and `PrekeyStore` (`the_identity_and_the_prekey_store_erase_when_dropped`,
 `tacenta-core/src/sessions/lifecycle.rs`). Each checks the marker, not what the
 destructor wipes, and `KeyPair` and `PrekeyStore` implement the marker by hand.
-Nothing holds the rest in place: the sparse ratchet's `State` (whose root key a
-hand-written `Drop` wipes), `Chain`, `Skipped` and `Output`; the Braid's `Auth`
-and `Output`, and the KEM state it holds in `Zeroizing` buffers; and the Triple
-Ratchet's `State`, which has no destructor of its own and erases through the two
-ratchet states it holds. Their derives and destructors could be removed without
-any build failing. Where a test exists it is a much weaker instrument than the
+Nothing holds the rest in place: the sparse ratchet's `State`, `Chain`,
+`Skipped` and `Output`; the Braid's `Auth` and `Output`, and the KEM state it
+holds in `Zeroizing` buffers; and the Triple Ratchet's `State`, which has no
+destructor of its own and erases through the two ratchet states it holds. Their
+derives and destructors could be removed without any build failing. Where a test exists it is a much weaker instrument than the
 proofs standing next to it, and it should not be mistaken for them. The Double Ratchet specification's own secure-deletion
 section notes that recovering deleted data is platform-dependent and outside its
 scope; the same caveat applies here. Treat forward secrecy as resting on the key

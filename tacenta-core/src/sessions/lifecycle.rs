@@ -158,7 +158,7 @@ impl Identity {
             signed_prekey_secret,
             signed_prekey_id,
             signed_prekey_sig,
-            one_time,
+            one_time: Zeroizing::new(one_time),
             kem,
             kem_id,
             kem_sig,
@@ -327,7 +327,7 @@ pub struct PrekeyStore {
     signed_prekey_secret: [u8; 32],
     signed_prekey_id: u32,
     signed_prekey_sig: [u8; 64],
-    one_time: Vec<(u32, [u8; 32])>,
+    one_time: Zeroizing<Vec<(u32, [u8; 32])>>,
     kem: kem::KeyPair,
     kem_id: u32,
     kem_sig: [u8; 64],
@@ -1071,7 +1071,7 @@ impl PrekeyStore {
         out.extend_from_slice(&self.signed_prekey_sig);
 
         out.extend_from_slice(&(self.one_time.len() as u32).to_be_bytes());
-        for (id, secret) in &self.one_time {
+        for (id, secret) in self.one_time.iter() {
             out.extend_from_slice(&id.to_be_bytes());
             out.extend_from_slice(secret);
         }
@@ -1208,7 +1208,10 @@ impl PrekeyStore {
         // bytes could actually hold -- each entry is exactly 36 bytes on the
         // wire -- rather than trusting the header to size an allocation.
         let one_time_capacity = (one_time_count as usize).min(bytes.len().saturating_sub(pos) / 36);
-        let mut one_time = Vec::with_capacity(one_time_capacity);
+        // Keep decoded curve secrets in a zeroizing owner from the first
+        // allocation. A later malformed KEM or rotation field must not free a
+        // valid prefix of this vector as ordinary bytes.
+        let mut one_time = Zeroizing::new(Vec::with_capacity(one_time_capacity));
         for _ in 0..one_time_count {
             if bytes.len() < pos + 36 {
                 return Err(PrekeyStoreDecodeError::TooShort);

@@ -11,6 +11,11 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+- `tacenta-core`: secret-bearing ratchet working copies, decoder buffers and
+  removal paths now allocate at their final capacity and wipe dead slots before
+  release. The independent reader follows the v2 agreed-secret replay identity
+  and covers fail-closed import of v4 replay records into v5.
+
 - `security-properties/evidence-index-format.md`: the checked JSON format for
   the P2 requirement evidence index, including the boundary between reference
   validation and human semantic review.

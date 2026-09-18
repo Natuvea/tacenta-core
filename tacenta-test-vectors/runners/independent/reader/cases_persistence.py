@@ -614,6 +614,11 @@ def _():
     q = store(previous_signed=(rnd(32), 7, rnd(64)), previous_kem=(kem_pair(), 8, rnd(64)), seen=[(4, rnd(32))])
     v3 = accepts(P.prekey_store_from_bytes, legacy(q, 3))
     assert v3 == replace(q, legacy_blocked=sorted({q.kem_id, q.previous_kem[1]}))
+    # v4 carried public-byte replay identities but no v5 marker. Importing a
+    # non-empty record must therefore fail closed for both still-decryptable
+    # last-resort keys until the operator rotates them.
+    v4 = accepts(P.prekey_store_from_bytes, legacy(q, 4))
+    assert v4 == replace(q, legacy_blocked=sorted({q.kem_id, q.previous_kem[1]}))
     q_untagged = replace(q, seen=[(8, q.seen[0][1])])
     assert accepts(P.prekey_store_from_bytes, legacy(q_untagged, 3)).seen == [(4, q.seen[0][1])]
     for old in (v1, v2, v3):
