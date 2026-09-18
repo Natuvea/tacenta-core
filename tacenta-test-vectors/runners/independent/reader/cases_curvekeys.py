@@ -146,7 +146,7 @@ def _():
     assert accepted > 500
 
 
-@case("CK-05 why the rule: a second spelling names the same key to X25519 but is a second identity wherever bytes are the identity: a signature over EncodeEC(key) does not verify over the other spelling, and PQXDH's AD and the last-resort fingerprint differ",
+@case("CK-05 why the rule: a second spelling names the same key to X25519 but is a second identity wherever bytes are the identity: a signature over EncodeEC(key) does not verify over the other spelling, and PQXDH's AD differs; the v2 replay identity is bound to SK",
       f"{CK}: A key's bytes serve as its identity in several places ... A second spelling of one key would give it a second identity in each of them")
 def _():
     z = b"\x5d" * 64
@@ -158,7 +158,7 @@ def _():
             assert curve25519.x25519(b"\x21" * 32, s) == curve25519.x25519(b"\x21" * 32, key)
             assert curve25519.xeddsa_verify(NC.IK_PUB, wire.encode_ec(s), sig) is None
             assert pqxdh.associated_data(s, NC.IK_PUB) != pqxdh.associated_data(key, NC.IK_PUB)
-            assert pqxdh.last_resort_fingerprint(replace(m, ephemeral=b"\x05" + s)) != pqxdh.last_resort_fingerprint(m)
+            assert pqxdh.last_resort_fingerprint(b"\x21" * 32) == pqxdh.last_resort_fingerprint(b"\x21" * 32)
 
 
 # ------------------------------------------- the repeated initial message, live

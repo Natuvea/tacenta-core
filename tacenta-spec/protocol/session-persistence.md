@@ -478,7 +478,7 @@ every round trip.
 restarts: the private halves of the signed and one-time prekeys, the
 identifiers a bundle names them by, the signatures a bundle carries, and two
 records that exist only to survive a restart, the last-resort replay
-fingerprints and the prekeys a rotation retired. The identity's own secret is
+identities and the prekeys a rotation retired. The identity's own secret is
 not here; `Identity` is separate and is persisted by the caller on its own
 terms.
 
@@ -491,13 +491,15 @@ prekey_store = version(1)
             || kem_one_time_count(4) || kem_one_time[kem_one_time_count]
             || next_id(4)
             || seen_count(4) || seen[seen_count]                          -- v2 and later
+            || legacy_blocked_count(4) || legacy_blocked[legacy_blocked_count] -- v5
             || previous_signed_present(1) || previous_signed              -- v3 and later
             || previous_kem_present(1) || previous_kem                    -- v3 and later
 
 one_time        = id(4) || secret(32)
 kem_one_time    = id(4) || len(4) || kem_pair || sig(64)
-seen            = kem_id(4) || fingerprint(32)              -- v4
+seen            = kem_id(4) || replay_identity(32)          -- v4 and v5
                 = fingerprint(32)                           -- v2 and v3
+legacy_blocked = kem_id(4)                                  -- v5
 previous_signed = secret(32) || id(4) || sig(64)      -- only when present
 previous_kem    = len(4) || kem_pair || id(4) || sig(64)   -- only when present
 ```
@@ -518,7 +520,7 @@ else in `dk` is checked. `next_id` is the
 identifier the next key added to the store will take, so that replenishment
 continues the sequence rather than restarting it (key-deletion.md). `seen`
 is the record of spent last-resort handshakes, oldest first, each
-`fingerprint` constructed as session-establishment.md, "The fingerprint",
+`replay_identity` is constructed as session-establishment.md, "The replay identity",
 states; from v4 each
 entry carries the identifier of the last-resort KEM key the handshake was
 made against, which is `kem_id` or the identifier inside `previous_kem`,
@@ -527,9 +529,12 @@ and which is what lets a rotation drop a wiped key's entries
 CONSTANTS.md) is per key, so no count on its own expresses it and the reader
 checks it in two places: a count larger than what the version could possibly
 have written is refused as malformed before it sizes anything -- two budgets
-for v4, whose entries name a key each and where two keys can still decrypt,
+for v4 and v5, whose entries name a key each and where two keys can still decrypt,
 one budget for v2 and v3, whose untagged entries all read back under
-`kem_id` -- and the per-key bound itself is a rule over what was read, below. The two `previous_*` fields are the signed prekey and the
+`kem_id` -- and the per-key bound itself is a rule over what was read, below.
+A nonempty v1-v4 record cannot be converted to a v5 `SK` identity, so its live
+key identifiers are written in `legacy_blocked` and last-resort traffic fails
+closed until rotation wipes those keys. The two `previous_*` fields are the signed prekey and the
 last-resort KEM prekey the most recent rotation retired, each behind a
 presence byte and, like the session's `pending_initial`, followed by
 nothing at all when absent.
@@ -556,14 +561,12 @@ is no longer identifier order. The order decides what a bundle names:
 Every bundle names the current signed prekey and, when it names the
 last-resort KEM prekey, the current one; never a key a rotation retired.
 
-**Four versions are read; one is written.** The writer always emits `0x04`.
-The reader also accepts `0x03`, the format before the record was tagged by
-key, whose entries are bare fingerprints and read back tagged with the
-current `kem_id`. That is the conservative reading: the fingerprint alone
-decides whether a handshake is a repeat, since it covers the identifier, so
-every replay the older store refused is still refused, and the only effect
-of a wrong tag is that an entry made under the retired key is dropped one
-rotation later than it need be. The reader further accepts `0x02`, the
+**Five versions are read; one is written.** The writer always emits `0x05`.
+The reader accepts `0x04`, the previous tagged public-byte record, and
+`0x03`, whose entries are bare fingerprints. Nonempty v1-v4 records are
+retained only as fail-closed markers for the live keys because their public
+byte identities cannot be compared with v5's `SK` identities; rotation wipes
+those markers with the affected keys. The reader further accepts `0x02`, the
 format before rotation, which ends after `seen` and reads back with nothing
 retired; and `0x01`, the format before the replay record, which ends after
 `next_id` and reads back with no fingerprints remembered. Each is the honest
@@ -574,17 +577,16 @@ direction of incompatibility.
 Two refusals are specific to this format's framing. A presence byte is
 `0x00` or `0x01` and nothing else: a `previous_signed_present` or
 `previous_kem_present` carrying any other value is malformed, not
-"present". And a v4 store must re-encode to the identical bytes: having
+"present". And a v5 store must re-encode to the identical bytes: having
 decoded the input, the reader runs `to_bytes` over what it read and refuses
 the input if the result differs. That is the canonicality backstop, the
 same one `Session::import` applies to the session format: it refuses any
 second spelling of a value that the field-by-field checks did not
 enumerate, at the cost of one encode, and it is what makes the "canonical"
 principle above a property of the decoder rather than a promise about the
-writer. It applies only to the version the writer emits. A v1, v2 or v3
-store re-encodes to v4, gaining the fields the newer format added and the
-tags on its record, so comparing there would refuse every honest upgrade,
-and those three versions are read on the semantic rules alone.
+writer. It applies only to the version the writer emits. Older stores are read
+on the semantic rules alone and re-encode to v5 with any nonempty replay record
+represented as a fail-closed marker.
 
 ### Semantic rules
 
@@ -837,7 +839,7 @@ normalised by this paragraph. The affected persisted formats are:
 | Triple ratchet state | `0x01` | `wrong-version` or `short-or-malformed` | `short-or-malformed` | `wrong-version` |
 | Braid state | `0x01` | `wrong-version` or `short-or-malformed` | `short-or-malformed` | `wrong-version` |
 | Session state | `0x01` | `wrong-version` or `short-or-malformed` | `short-or-malformed` | `wrong-version` |
-| Prekey store | `0x01`, `0x02`, `0x03`, `0x04` | `wrong-version` or `short-or-malformed` | `short-or-malformed` | `wrong-version` |
+| Prekey store | `0x01`, `0x02`, `0x03`, `0x04`, `0x05` | `wrong-version` or `short-or-malformed` | `short-or-malformed` | `wrong-version` |
 
 The vectors pin neither refusal for the overlap: no vector offers a reader a
 buffer that is both too short and wrongly versioned, so a reader that reads the

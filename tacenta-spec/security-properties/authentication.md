@@ -332,10 +332,11 @@ it established does not accept it again as a new message:
 - **One-time KEM prekeys.** A one-time KEM prekey is deleted once the initial
   message naming it authenticates. A replay then names a prekey the store no
   longer holds.
-- **The last-resort path.** A handshake on the last-resort path is
-  fingerprinted before decapsulation.
-  - It is refused if the fingerprint is already in the record.
-  - Its fingerprint is recorded only once it authenticates.
+- **The last-resort path.** A handshake on the last-resort path derives its
+  replay identity from `SK` after decapsulation and DH combination, before the
+  initial ciphertext is decrypted.
+  - It is refused if that identity is already in the record.
+  - Its identity is recorded only once it authenticates.
   - The record fails closed: once a key's budget of `MAX_LAST_RESORT_SEEN`
     entries is spent, a new handshake naming that key is refused.
 - **An existing session.** It accepts an initial message only if it is a

@@ -369,8 +369,8 @@ The rule covers every curve public key a peer sends:
 
 This is the Canonical principle applied to curve keys, which X25519 alone does
 not enforce. A key's bytes serve as its identity in several places: a
-signature covers a signed prekey's bytes, the associated data and the
-last-resort replay fingerprint are computed over bytes, and the ratchet keeps
+signature covers a signed prekey's bytes, the associated data is computed over
+bytes, and the ratchet keeps
 skipped keys by a header's ratchet public key and takes a Diffie-Hellman step
 when that key differs from `DHr` (ratchet.md). A second spelling of one key
 would give it a second identity in each of them.

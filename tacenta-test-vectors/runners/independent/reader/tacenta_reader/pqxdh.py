@@ -107,22 +107,12 @@ def handshake_keys(message: InitialMessage):
     return decode_ec(message.identity), decode_ec(message.ephemeral)
 
 
-def last_resort_fingerprint(message: InitialMessage) -> bytes:
-    """input = u32(33) || identity || u32(33) || ephemeral
-              || u32(len(kem_ciphertext)) || kem_ciphertext
-              || one_time_prekey_id (4) || kem_prekey_id (4)
-    fingerprint = HMAC-SHA256(key = LAST_RESORT_HANDSHAKE_LABEL, data = input)"""
-    for name, v in (("identity", message.identity), ("ephemeral", message.ephemeral)):
-        if len(v) != K.ENCODED_EC_LEN:
-            raise ValueError(f"{name} keeps its curve byte and is 33 bytes")
-
-    def u32(n):
-        return n.to_bytes(4, "big")
-
-    data = (u32(33) + bytes(message.identity) + u32(33) + bytes(message.ephemeral)
-            + u32(len(message.kem_ciphertext)) + bytes(message.kem_ciphertext)
-            + u32(message.one_time_prekey_id) + u32(message.kem_prekey_id))
-    return hmac_sha256(K.LAST_RESORT_HANDSHAKE_LABEL, data)
+def last_resort_fingerprint(sk: bytes) -> bytes:
+    """The v2 replay identity is HMAC(label, SK), after the agreed secret has
+    been derived and before the authenticated initial decrypt."""
+    if len(sk) != 32:
+        raise ValueError("the agreed secret must be 32 bytes")
+    return hmac_sha256(K.LAST_RESORT_HANDSHAKE_LABEL, bytes(sk))
 
 
 def on_last_resort_path(store, kem_prekey_id: int) -> bool:
@@ -131,7 +121,7 @@ def on_last_resort_path(store, kem_prekey_id: int) -> bool:
     return kem_prekey_id == store.kem_id or (store.previous_kem is not None and kem_prekey_id == store.previous_kem[1])
 
 
-def check_last_resort(store, message: InitialMessage) -> Optional[bytes]:
+def check_last_resort(store, message: InitialMessage, sk: Optional[bytes]) -> Optional[bytes]:
     """Before decapsulation. Refuses a fingerprint any entry holds, whatever its
     tag (ReplayedLastResort), and a new handshake naming a key whose budget is
     spent (LastResortRecordFull); changes nothing. Returns the fingerprint to
@@ -139,7 +129,9 @@ def check_last_resort(store, message: InitialMessage) -> Optional[bytes]:
     handshake_keys(message)
     if not on_last_resort_path(store, message.kem_prekey_id):
         return None
-    fp = last_resort_fingerprint(message)
+    if sk is None:
+        raise ValueError("last-resort path requires the agreed secret")
+    fp = last_resort_fingerprint(sk)
     if any(f == fp for _, f in store.seen):
         raise ReplayedLastResort("a record entry holds this fingerprint")
     if sum(1 for k, _ in store.seen if k == message.kem_prekey_id) >= K.MAX_LAST_RESORT_SEEN:
@@ -152,7 +144,11 @@ def receive_last_resort(store, message: InitialMessage, authenticate):
     deriving SK and decrypting the initial ciphertext; it raises on failure.
     The entry, tagged with kem_prekey_id, is added only once it returns.
     Returns (store, authenticate's result)."""
-    fp = check_last_resort(store, message)
+    # The production responder derives SK before computing the v2 replay
+    # identity. The reader receives that agreed secret from its deterministic
+    # authentication fixture; it never implements ML-KEM itself.
+    sk = getattr(authenticate, "shared_secret", None)
+    fp = check_last_resort(store, message, sk)
     result = authenticate()
     if fp is None:
         return store, result

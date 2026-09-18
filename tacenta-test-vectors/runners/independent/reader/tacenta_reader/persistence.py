@@ -28,7 +28,7 @@ rules, "Stored curve public keys"): the ratchet state's dhs_pub, dhr_pub and
 each skipped dh are refused as malformed; the session's our_identity_public,
 peer_identity_public, pending_initial's ephemeral_public and
 established_ephemeral's key as inconsistent; the prekey store's
-identity_public as malformed, in all four versions.
+    identity_public as malformed, in all five versions.
 """
 
 import hashlib
@@ -720,6 +720,7 @@ class PrekeyStore:
     kem_one_time: List[Tuple[int, bytes, bytes]]
     next_id: int
     seen: List[Tuple[int, bytes]] = field(default_factory=list)
+    legacy_blocked: List[int] = field(default_factory=list)
     previous_signed: Optional[Tuple[bytes, int, bytes]] = None
     previous_kem: Optional[Tuple[bytes, int, bytes]] = None
 
@@ -734,6 +735,7 @@ def prekey_store_to_bytes(p: PrekeyStore) -> bytes:
         out += _be(i, 4) + _be(len(kp), 4) + kp + sig
     out += _be(p.next_id, 4)
     out += _be(len(p.seen), 4) + b"".join(_be(k, 4) + fp for k, fp in p.seen)
+    out += _be(len(p.legacy_blocked), 4) + b"".join(_be(i, 4) for i in p.legacy_blocked)
     if p.previous_signed is None:
         out += bytes([K.ABSENT])
     else:
@@ -850,17 +852,22 @@ def prekey_store_from_bytes(buf: bytes) -> PrekeyStore:
     seen: List[Tuple[int, bytes]] = []
     if version >= 0x02:
         count = r.u(4, "seen_count")
-        ceiling = 2 * K.MAX_LAST_RESORT_SEEN if version == 0x04 else K.MAX_LAST_RESORT_SEEN
+        ceiling = 2 * K.MAX_LAST_RESORT_SEEN if version in (0x04, 0x05) else K.MAX_LAST_RESORT_SEEN
         if count > ceiling:
             raise Malformed("prekey store: seen_count exceeds what this version could have written")
-        entry = 36 if version == 0x04 else 32
+        entry = 36 if version in (0x04, 0x05) else 32
         if count * entry > r.remaining():
             raise Malformed("prekey store: seen_count larger than the buffer could hold")
         for _ in range(count):
-            if version == 0x04:
+            if version in (0x04, 0x05):
                 seen.append((r.u(4, "seen kem_id"), r.take(32, "fingerprint")))
             else:
                 seen.append((kem_id, r.take(32, "fingerprint")))   # read back tagged with the current key
+    legacy_blocked: List[int] = []
+    if version == 0x05:
+        blocked = r.count(4, "legacy_last_resort_blocked")
+        for _ in range(blocked):
+            legacy_blocked.append(r.u(4, "legacy blocked kem_id"))
     previous_signed = previous_kem = None
     if version >= 0x03:
         if _presence(r, "previous_signed"):
@@ -869,8 +876,13 @@ def prekey_store_from_bytes(buf: bytes) -> PrekeyStore:
             kp = _checked_kem_pair(r, "previous_kem kem_pair")
             previous_kem = (kp, r.u(4, "previous_kem id"), r.take(64, "previous_kem sig"))
     r.end("prekey store")
+    if version != 0x05 and seen:
+        legacy_blocked.append(kem_id)
+        if previous_kem is not None:
+            legacy_blocked.append(previous_kem[1])
+        legacy_blocked = sorted(set(legacy_blocked))
     store = PrekeyStore(identity, spk_secret, spk_id, spk_sig, one_time, kem_pair, kem_id, kem_sig,
-                        kem_one_time, next_id, seen, previous_signed, previous_kem)
+                        kem_one_time, next_id, seen, legacy_blocked, previous_signed, previous_kem)
     if version == K.PREKEY_STORE_VERSION and prekey_store_to_bytes(store) != buf:
         raise NonCanonical("prekey store does not re-encode to its input")
     problem = prekey_store_semantic(store)

@@ -56,9 +56,10 @@ bound: stated for every index, the existential would ask at `T := Empty` for
 an element of an empty type, and `try_skipped_no_panic` and
 `receive_no_panic` below would be provable from `False` (see `T1.lean`'s twin
 and `Translation/Satisfiability.lean`). -/
-def VecRemoveTotal : Prop :=
-  ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize), i.val < v.val.length →
-    ∃ r, alloc.vec.Vec.remove A v i = ok r ∧ r.2.val = v.val.eraseIdx i.val
+def RemoveSkippedAtTotal : Prop :=
+  ∀ (v : alloc.vec.Vec Skipped) (i : Usize), i.val < v.val.length →
+    ∃ r, State.remove_skipped_at v i = ok r ∧
+      r.2.val.length + 1 = v.val.length
 
 /-- Wiping a chain key returns.
 
@@ -121,6 +122,16 @@ theorem chain_clone_spec (ch : Chain) :
     (fun x _ => by simp [liftFun1])
   simp [lift, ← a_post]
 
+@[step]
+theorem skipped_clone_spec (s : Skipped) :
+    Skipped.Insts.CoreCloneClone.clone s ⦃ fun s' => s' = s ⦄ := by
+  unfold Skipped.Insts.CoreCloneClone.clone
+  simp only [core.clone.impls.CloneU64.clone, lift]
+  step with core.array.CloneArray.clone_spec core.clone.CloneU8 s.key
+    (fun x _ => by simp [liftFun1])
+  cases s
+  simp_all
+
 /-- Cloning a pair of chain slots returns exactly that pair, given the `Option`
     assumption above and the chain fact just proved. -/
 theorem chains_clone_spec (hopt : OptionCloneTotal) (cs : Chains) :
@@ -175,7 +186,7 @@ theorem find_chains_no_panic (st : State) (e : U64) :
 -- leaves `.chains` untouched and can only shrink `.skipped`, since its own
 -- room preconditions are stated in terms of the *original* state, not this
 -- loop's.
-theorem try_skipped_loop_no_panic (hrm : VecRemoveTotal)
+theorem try_skipped_loop_no_panic (hrm : RemoveSkippedAtTotal)
     (st : State) (e n : U64) (i : Usize) :
     State.try_skipped_loop st e n i
       ⦃ fun r => r.2.2.2.1 = st.chains ∧ r.2.2.2.2.1.length ≤ st.skipped.length ⦄ := by
@@ -189,14 +200,15 @@ theorem try_skipped_loop_no_panic (hrm : VecRemoveTotal)
     · -- Inside the store. The index is in range by the test just taken, which
       -- is the removal's premise, and the advance cannot overflow because the
       -- index is below a vector's length.
-      obtain ⟨⟨removed, v'⟩, hrm', herase⟩ := hrm Global st.skipped i1 hlt
+      obtain ⟨⟨removed, v'⟩, hrm', hlen⟩ := hrm st.skipped i1 hlt
       step*
-      all_goals (try simp_all [List.length_eraseIdx])
+      all_goals (try simp_all)
+      omega
     · step*
   · trivial
 
 @[step]
-theorem try_skipped_no_panic (hrm : VecRemoveTotal) (st : State) (e n : U64) :
+theorem try_skipped_no_panic (hrm : RemoveSkippedAtTotal) (st : State) (e n : U64) :
     State.try_skipped st e n
       ⦃ fun r => r.2.chains = st.chains ∧ r.2.skipped.length ≤ st.skipped.length ⦄ := by
   unfold State.try_skipped
@@ -212,9 +224,9 @@ theorem skip_message_keys_loop_no_panic (hkdf : KdfCkTotal) (hz : ZeroizeTotal)
     -- retained store is only total when the two lengths fit together, and this
     -- bound (with the source's `count ≤ MAX_SKIP` check) is what discharges
     -- that guard from `hskiproom`.
-    State.skip_message_keys_loop e upto ck derived num
+    State.skip_message_keys_loop0 e upto ck derived num
       ⦃ fun r => r.2.length ≤ derived.length + (upto.val - num.val) ⦄ := by
-  unfold State.skip_message_keys_loop
+  unfold State.skip_message_keys_loop0
   apply loop.spec_decr_nat
     (measure := fun p => upto.val - p.2.2.val)
     -- The conserved quantity: keys derived so far plus keys still to walk never
@@ -223,7 +235,7 @@ theorem skip_message_keys_loop_no_panic (hkdf : KdfCkTotal) (hz : ZeroizeTotal)
     (inv := fun p => p.2.1.length + (upto.val - p.2.2.val)
       ≤ derived.length + (upto.val - num.val))
   · rintro ⟨ckA, derivedA, numA⟩ hinv
-    simp only [State.skip_message_keys_loop.body]
+    simp only [State.skip_message_keys_loop0.body]
     split
     · -- A turn of the walk. The counter cannot overflow because it is below
       -- `upto`; the derivation returns by assumption; and the push is total
@@ -241,6 +253,37 @@ theorem skip_message_keys_loop_no_panic (hkdf : KdfCkTotal) (hz : ZeroizeTotal)
       -- zero, and the invariant is exactly the postcondition.
       (try simp_all)
   · exact le_refl _
+
+theorem skip_message_keys_loop1_bound (B : Nat) (hB : B ≤ Usize.max)
+    (v : alloc.vec.Vec Skipped) (e upto fromN : U64)
+    (skipped : alloc.vec.Vec Skipped) (i : Usize)
+    (h : skipped.val.length + (v.val.length - i.val) ≤ B) :
+    State.skip_message_keys_loop1 v e upto fromN skipped i
+      ⦃ fun r => r.val.length ≤ B ⦄ := by
+  unfold State.skip_message_keys_loop1
+  apply loop.spec_decr_nat
+    (measure := fun p => v.val.length - p.2.val)
+    (inv := fun p => p.1.val.length + (v.val.length - p.2.val) ≤ B)
+  · rintro ⟨w, j⟩ hinv
+    simp only at hinv
+    simp only [State.skip_message_keys_loop1.body]
+    have hvfit := v.property
+    by_cases hlt : j.val < v.val.length
+    · step*
+      all_goals repeat' (first | (step with skipped_clone_spec) | step | split)
+      all_goals (try simp_all [alloc.vec.Vec.len])
+      all_goals omega
+    · step*
+  · exact h
+
+@[step]
+theorem skip_message_keys_loop1_grows
+    (v : alloc.vec.Vec Skipped) (e upto fromN : U64)
+    (skipped : alloc.vec.Vec Skipped) (i : Usize)
+    (h : skipped.val.length + (v.val.length - i.val) ≤ Usize.max) :
+    State.skip_message_keys_loop1 v e upto fromN skipped i
+      ⦃ fun r => r.val.length ≤ skipped.val.length + (v.val.length - i.val) ⦄ :=
+  skip_message_keys_loop1_bound _ h v e upto fromN skipped i (le_refl _)
 
 /-- Replacing an epoch's chains cannot fail, **given room for one more**.
 
@@ -423,6 +466,14 @@ def VecAppendTotal : Prop :=
     v.length + w.length ≤ Usize.max →
     ∃ r, alloc.vec.Vec.append A v w = ok r ∧ r.1.length = v.length + w.length
 
+@[step]
+theorem vec_append_spec (happ : VecAppendTotal) {T : Type} (A : Type)
+    (v w : alloc.vec.Vec T) (h : v.length + w.length ≤ Usize.max) :
+    alloc.vec.Vec.append A v w
+      ⦃ fun r => r.1.length = v.length + w.length ⦄ := by
+  obtain ⟨r, hr, hrlen⟩ := happ A v w h
+  simp [hr, hrlen]
+
 theorem skip_message_keys_no_panic (hret : VecRetainTotal) (happ : VecAppendTotal)
     (hkdf : KdfCkTotal) (hz : ZeroizeTotal) (hopt : OptionCloneTotal)
     (st : State) (e upto : U64)
@@ -459,24 +510,13 @@ theorem skip_message_keys_no_panic (hret : VecRetainTotal) (happ : VecAppendTota
   all_goals (try simp_all [UScalar.cast_val_eq])
   all_goals (try (rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac))
   all_goals (try (step with skip_message_keys_loop_no_panic hkdf hz e upto ch.ck (alloc.vec.Vec.with_capacity Skipped (UScalar.cast UScalarTy.Usize count)) ch.n (by simp only [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new, alloc.vec.Vec.length]; rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac)))
-  all_goals (try (obtain ⟨v, hv, hvlen⟩ := hret Global State.skip_message_keys.closure.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool st.skipped (e, ch.n, upto); simp only [hv]))
-  all_goals (try step*)
-  -- The guard on `append`: the retained store is no longer than the store it
-  -- came from (`hvlen`), the derived keys number at most the count walked (the
+  all_goals (try simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new,
+    alloc.vec.Vec.length] at *)
+  -- The guard on `append`: the copied store is no longer than the store it
+  -- came from (`skipped1_post`), the derived keys number at most the count walked (the
   -- loop's postcondition), that count is at most `MAX_SKIP` (the source's own
   -- check, in context from the branch), and `hskiproom` says the store plus
   -- `MAX_SKIP` fits -- so the two lengths fit together.
-  all_goals (try (obtain ⟨r, hr, hrlen⟩ := happ Global v derived1 (by
-      -- `hvlen` is the retain's conjunction; only its length half is wanted.
-      -- `ck_post` bounds the derived keys by the empty starting vector's
-      -- length plus the count walked: name that length as `0` so the
-      -- arithmetic can see through the `with_capacity` atom.
-      obtain ⟨hvlen', -⟩ := hvlen
-      have hcap : (alloc.vec.Vec.with_capacity Skipped (UScalar.cast UScalarTy.Usize count)).length = 0 := by
-        simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new, alloc.vec.Vec.length]
-      (try simp only [alloc.vec.Vec.length] at *)
-      scalar_tac); simp only [hr]))
-  all_goals (try (obtain ⟨v1, w⟩ := r))
   all_goals (try step*)
   all_goals (try (step with hopt Chain.Insts.CoreCloneClone cs.send (fun x _ => chain_clone_spec x)))
   all_goals (try (step with set_chains_no_panic hret))
@@ -503,7 +543,7 @@ carried in is stated with `+ 2`, not `+ 1`, room for both. As for `send`,
 there is no epoch bound and no counter bound: both increments are
 `checked_add`, and their `None` arms are returned `ChainExhausted`s. -/
 theorem receive_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal) (hz : ZeroizeTotal)
-    (hkdf : KdfCkTotal) (hopt : OptionCloneTotal) (hrm : VecRemoveTotal)
+    (hkdf : KdfCkTotal) (hopt : OptionCloneTotal) (hrm : RemoveSkippedAtTotal)
     (happ : VecAppendTotal) (st : State) (receiving_epoch n : U64) (out : Option Output)
     (hroom : st.chains.length + 2 < Usize.max)
     (hskiproom : st.skipped.length + MAX_SKIP.val ≤ Usize.max) :
@@ -586,22 +626,19 @@ refine against. See `LIMITATIONS.md`.
 
 ## Seven assumptions, seven constants, and the counting trap
 
-This file assumes `VecRemoveTotal`, `KdfCkTotal`, `ZeroizeTotal`,
+This file assumes `RemoveSkippedAtTotal`, `KdfCkTotal`, `ZeroizeTotal`,
 `VecRetainTotal`, `KdfRkTotal`, `OptionCloneTotal`, and `VecAppendTotal`. The
 first three have namesakes in `T1.lean` and **none of the seven is the same
 proposition as its namesake.**
 
-Each translation unit declares its own opaque constants, so
-`tacenta_ratchet.alloc.vec.Vec.remove` and `tacenta_spqr`'s are different
-constants, and an assumption discharged for one says nothing about the other.
-Reusing the ratchet's assumption here leaves an unsolved goal that looks
-exactly like a stepping problem; printing the goal and comparing fully
-qualified names is what shows why.
+The sparse helper is translated, including its swaps and wipe; its final
+`Vec::pop` is opaque, so the assumption states the helper's complete result
+under its checked index guard. It is distinct from the classical ratchet's
+`VecRemoveTotal`, and an assumption discharged for one says nothing about the
+other.
 
 **So count the trusted base by constant, not by name.** One modelling gap in
-Aeneas becomes one assumption per translated crate that touches it, and a list
-naming `VecRemoveTotal` once while two crates assume it understates what is
-trusted. -/
+Aeneas becomes one assumption per translated crate that touches it. -/
 
 -- The trust base of the two entry points, held by the build. The copy of this
 -- file generated onto the three-leaf unit leaves these out; `UnitPins.lean`

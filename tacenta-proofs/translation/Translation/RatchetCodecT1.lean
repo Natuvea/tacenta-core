@@ -152,6 +152,7 @@ theorem from_bytes_no_panic (bytes : Slice U8) (hroom : bytes.length + 72 ≤ Us
   all_goals repeat' (first | simp only [WP.spec_ok] | step | split)
   all_goals (rcases hr2 : r2 with v2 | e2 <;> simp only [])
   all_goals repeat' (first | simp only [WP.spec_ok] | step | split)
+  all_goals (simp_all [alloc.vec.Vec.with_capacity] <;> scalar_tac)
 
 
 /-! ## Encoding

@@ -224,9 +224,9 @@ excludes it.
   `expect` enforces; every call site asks for 32, 64, 80 or 96 bytes and the
   premise closes from the literal (`KdfCkTotal` and `KdfRkTotal` are about
   the sparse ratchet's own fixed-length wrappers, total in Rust, and were
-  never in this list). The two `VecRemoveTotal`s and `VecRemoveAgrees`
-  carry `i.val < v.val.length`, the one condition under which `Vec::remove`
-  returns rather than panics; every call site sits under exactly that loop
+  never in this list). The classical `VecRemoveTotal`/`VecRemoveAgrees` and
+  sparse `RemoveSkippedAtTotal`/`RemoveSkippedAtAgrees` carry
+  `i.val < v.val.length`; every call site sits under exactly that loop
   guard, from which the proof discharges the premise, and the guard also
   removed the `[Inhabited T]` bound the unguarded statements needed for
   consistency (`Translation/Satisfiability.lean` now models each with the
@@ -307,36 +307,36 @@ Four things are not erased, and they are the honest remainder:
   Lean as a `massert` the T1 proofs discharge. On those lines the Lean is
   stricter than the binary it was translated from -- the harmless direction,
   but not the same program.
-  And the *reading* direction of the sparse ratchet is untouched by all of it:
-  `State::from_bytes` still builds **both** of its vectors by pushing, the
-  chain table (`spqr/src/lib.rs:1008`), whose entries carry chain keys, and
-  the skipped-key list (`:1035`), whose entries carry message keys, so a
-  reallocation in either loop hands back an un-wiped copy of what it had read
-  so far. Each count is bounded against the buffer before its loop runs, so
-  sizing both exactly is available; it waits on the window "Waiting on the
-  next re-translation window" describes.
+  The classical ratchet’s skipped-key path now builds its working copy at the
+  final capacity and wipes removed slots before shortening the vector. The sparse
+  ratchet now does the same for skipped-key replacement and removal, sizes its
+  decoder vectors from the checked counts, and wipes the old store before its
+  allocation is released. Its state destructor wipes the live fields as well.
+  These are implementation hardening measures;
+  Charon and Aeneas ignore `Drop` and allocator behaviour, so the proofs below
+  do not establish them.
 
 **None of it is proved.** Charon and Aeneas ignore `Drop` entirely, so the
 generated Lean is byte for byte identical with and without every destructor
 above, and no T1 or T3 theorem says anything about erasure. What guards part
 of it is a static test that fails to build if a type loses the
-`zeroize::ZeroizeOnDrop` marker, and there are three, for five types: the
-classical ratchet's `State` and `SkippedKey` (`the_state_erases_when_dropped`,
-`tacenta-core/ratchet/src/lib.rs`), the ML-KEM `KeyPair`
+`zeroize::ZeroizeOnDrop` marker, and the marker checks cover the classical ratchet's `State` and `SkippedKey`
+(`the_state_erases_when_dropped`, `tacenta-core/ratchet/src/lib.rs`), the sparse
+ratchet's `State`, `Chain`, `Chains` and `Skipped`, the ML-KEM `KeyPair`
 (`the_key_pair_erases_when_dropped`, `tacenta-core/src/primitives/kem.rs`), and
 `Identity` and `PrekeyStore` (`the_identity_and_the_prekey_store_erase_when_dropped`,
 `tacenta-core/src/sessions/lifecycle.rs`). Each checks the marker, not what the
 destructor wipes, and `KeyPair` and `PrekeyStore` implement the marker by hand.
-Nothing holds the rest in place: the sparse ratchet's `State` (whose root key a
-hand-written `Drop` wipes), `Chain`, `Skipped` and `Output`; the Braid's `Auth`
-and `Output`, and the KEM state it holds in `Zeroizing` buffers; and the Triple
-Ratchet's `State`, which has no destructor of its own and erases through the two
-ratchet states it holds. Their derives and destructors could be removed without
-any build failing. Where a test exists it is a much weaker instrument than the
-proofs standing next to it, and it should not be mistaken for them. The Double Ratchet specification's own secure-deletion
-section notes that recovering deleted data is platform-dependent and outside its
-scope; the same caveat applies here. Treat forward secrecy as resting on the key
-schedule, not on guaranteed erasure of every in-memory copy.
+The Braid's `Auth` and `Output`, and the KEM state it holds in `Zeroizing`
+buffers, still need their own marker coverage; the Triple Ratchet's `State`
+erases through the two ratchet states it holds. The sparse marker checks cover
+the live state, but not transient allocator copies. Every marker check checks
+the marker, not what the destructor wipes. Where a test exists it is a much
+weaker instrument than the proofs standing next to it, and it should not be
+mistaken for them. The Double Ratchet specification's own secure-deletion
+section notes that recovering deleted data is platform-dependent and outside
+its scope; the same caveat applies here. Treat forward secrecy as resting on the
+key schedule, not on guaranteed erasure of every in-memory copy.
 
 ## Undefined behaviour: forbidden statically, checked dynamically where it can be
 
@@ -815,7 +815,7 @@ reported, and the state transitioned to -- across every branch each can
 take, not merely that they cannot fail. Unlike the ML-KEM Braid this crate
 has no KEM boundary and no erasure-coding boundary to assume agreement at;
 the only opaque call this file assumes anything about the *value* of is
-`hkdf_sha256` -- `Vec::retain`/`remove`/`append`, `Zeroize`, and
+`hkdf_sha256` -- `Vec::retain`/`pop`/`append`, `Zeroize`, and
 `Option::clone` are opaque too, each its own assumption below -- and
 everything built out of translated code around it -- `find_chains`,
 `set_chains`, `clear_old_epochs`, `advance`/`maybe_advance`, `try_skipped`,
@@ -826,7 +826,7 @@ how a chain-vector length bound survives `set_chains`/`skip_message_keys`,
 and a left-peeling split for the forward-derivation walk `skip_message_keys`
 performs. Eight assumptions back it: `SpqrHkdfAgrees` (one level below
 `SpqrT1.lean`'s `KdfRkTotal`/`KdfCkTotal`, subsuming both), `VecRetainAgrees`
-and `VecRemoveAgrees` (each strictly stronger than its `SpqrT1.lean`
+and `RemoveSkippedAtAgrees` (each strictly stronger than its `SpqrT1.lean`
 namesake), `VecAppendAgrees` (genuinely new, since nothing in T1 needed to
 know what `skip_message_keys`'s concatenation actually produced),
 `ZeroizingRoundTrips96` and `ZeroizingRoundTrips64` (the key derivation's
@@ -1833,12 +1833,13 @@ bundles discharged. What that does and does not buy:
   clause needs `OptionCloneTotal`. Each bundle covers its ratchet's whole calling
   surface, so the `send` theorem assumes the receive path's boundary as well.
 * **Every boundary hypothesis of the discharged theorems is witnessed on the
-  unit.** `UnitSatisfiabilityTriple.lean` witnesses all twelve, about the unit's
+  unit.** `UnitSatisfiabilityTriple.lean` witnesses all eleven, about the unit's
   constants, including the HMAC and HKDF agreements (from the model's output
   lengths). Where two constrain one constant it witnesses them jointly: the
   classical round trip, which is also the Triple's, the sparse round trips at 96
   and 64 bytes and `DerivedKeysModel` all constrain one `zeroize.Zeroizing`
-  family, and `VecRemoveTotal` and `VecRemoveAgrees` both constrain `Vec::remove`.
+  family, and the classical `VecRemoveTotal` and `VecRemoveAgrees` both
+  constrain `Vec::remove`.
   The rest each constrain a constant nothing else mentions, and that their
   separate witnesses combine is an argument in prose, not a checked one. Two
   `example`s apply the discharged theorems to exactly the witnessed hypotheses,
@@ -2153,8 +2154,9 @@ that assembly possible.
   exactly one -- which the purge scan needs, because it removes without
   advancing its index and so has nothing else to make its measure decrease --
   is `VecRemoveTotal.lengths`, proved from the value rather than assumed
-  beside it. The sparse ratchet's `VecRemoveAgrees` names the removed element
-  as well, since its refinement reads it. This is the recurring shape of the
+  beside it. The sparse ratchet's `RemoveSkippedAtAgrees` names the removed
+  element and the custom helper's erased-index result, since its refinement
+  reads both. This is the recurring shape of the
   whole exercise: T1 needed only that an unmodelled operation returns, and
   refinement needs to know what it returned.
 

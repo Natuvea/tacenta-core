@@ -325,8 +325,8 @@ def lr_store(**kw):
 
 
 class Authenticated:
-    def __init__(self, ok=True):
-        self.ok, self.calls = ok, 0
+    def __init__(self, ok=True, shared_secret=b"\x21" * 32):
+        self.ok, self.calls, self.shared_secret = ok, 0, shared_secret
 
     def __call__(self):
         self.calls += 1
@@ -335,27 +335,23 @@ class Authenticated:
         return b"plaintext"
 
 
-@case("LR-01 the fingerprint is HMAC-SHA256 keyed with the 32 ASCII bytes 'tacenta last-resort handshake v1' over u32(33) || identity || u32(33) || ephemeral || u32(len) || kem_ciphertext || one_time_prekey_id || kem_prekey_id, integers big-endian",
-      f"{FP}: input = ...; The input is built as follows")
+@case("LR-01 the v2 fingerprint is HMAC-SHA256 keyed with the 32 ASCII bytes 'tacenta last-resort handshake v2' over the agreed 32-byte SK",
+      f"{FP}: the identity is the agreed secret, not public handshake spellings")
 def _():
-    assert K.LAST_RESORT_HANDSHAKE_LABEL == b"tacenta last-resort handshake v1" and len(K.LAST_RESORT_HANDSHAKE_LABEL) == 32
-    for ct_len, otpk in ((1568, 0), (0, 7), (5, 0xFFFFFFFF)):
-        m = lr_message(kem_ciphertext=bytes(range(ct_len % 256)) * (ct_len // 256) + bytes(ct_len % 256), one_time_prekey_id=otpk)
-        data = (33).to_bytes(4, "big") + m.identity + (33).to_bytes(4, "big") + m.ephemeral \
-            + len(m.kem_ciphertext).to_bytes(4, "big") + m.kem_ciphertext + otpk.to_bytes(4, "big") + (4).to_bytes(4, "big")
-        fp = pqxdh.last_resort_fingerprint(m)
-        assert fp == _hmac_mod.new(b"tacenta last-resort handshake v1", data, _hashlib.sha256).digest() and len(fp) == 32
+    assert K.LAST_RESORT_HANDSHAKE_LABEL == b"tacenta last-resort handshake v2" and len(K.LAST_RESORT_HANDSHAKE_LABEL) == 32
+    sk = b"\x21" * 32
+    fp = pqxdh.last_resort_fingerprint(sk)
+    assert fp == _hmac_mod.new(K.LAST_RESORT_HANDSHAKE_LABEL, sk, _hashlib.sha256).digest() and len(fp) == 32
 
 
-@case("LR-02 every input moves the fingerprint (either key, the ciphertext's bytes or length, either identifier); signed_prekey_id and the ratchet message do not",
-      f"{FP}: What is left out")
+@case("LR-02 only the agreed secret moves the v2 fingerprint; changing public handshake fields does not",
+      f"{FP}: the fingerprint is bound to SK")
 def _():
-    base = pqxdh.last_resort_fingerprint(lr_message())
+    base = pqxdh.last_resort_fingerprint(b"\x21" * 32)
+    assert pqxdh.last_resort_fingerprint(b"\x22" * 32) != base
     for kw in (dict(identity=b"\x05" + EKA), dict(ephemeral=b"\x05" + PUB), dict(kem_ciphertext=bytes(1568)),
-               dict(kem_ciphertext=bytes(range(256)) * 6 + bytes(31)), dict(one_time_prekey_id=1), dict(kem_prekey_id=8)):
-        assert pqxdh.last_resort_fingerprint(lr_message(**kw)) != base, kw
-    for kw in (dict(signed_prekey_id=99), dict(ratchet_message=b""), dict(ratchet_message=b"re-framed")):
-        assert pqxdh.last_resort_fingerprint(lr_message(**kw)) == base, kw
+               dict(one_time_prekey_id=1), dict(kem_prekey_id=8), dict(signed_prekey_id=99), dict(ratchet_message=b"re-framed")):
+        assert pqxdh.last_resort_fingerprint(b"\x21" * 32) == base, kw
 
 
 @case("LR-03 only the last-resort path consults the record: kem_prekey_id naming the current or the retired last-resort key is on it; a one-time KEM prekey is not, and is never refused by the record or recorded",
@@ -379,11 +375,11 @@ def _():
     assert failing.calls == 1 and s.seen == []
     auth = Authenticated()
     s2, pt = accepts(pqxdh.receive_last_resort, s, m, auth)
-    assert pt == b"plaintext" and s2.seen == [(4, pqxdh.last_resort_fingerprint(m))]
+    assert pt == b"plaintext" and s2.seen == [(4, pqxdh.last_resort_fingerprint(auth.shared_secret))]
     again = Authenticated()
     rejects(pqxdh.receive_last_resort, s2, m, again, exc=pqxdh.ReplayedLastResort)
     assert again.calls == 0
-    cross = lr_store(seen=[(8, pqxdh.last_resort_fingerprint(m))])
+    cross = lr_store(seen=[(8, pqxdh.last_resort_fingerprint(auth.shared_secret))])
     rejects(pqxdh.receive_last_resort, cross, m, Authenticated(), exc=pqxdh.ReplayedLastResort)
 
 
@@ -391,17 +387,17 @@ def _():
       f"{SE} Replay: bounded at 1024 entries per key ... It fails closed rather than evicting; CONSTANTS.md MAX_LAST_RESORT_SEEN")
 def _():
     m = lr_message()
-    fp_m = pqxdh.last_resort_fingerprint(m)
+    fp_m = pqxdh.last_resort_fingerprint(b"\x21" * 32)
     spent = lr_store(seen=[(4, PSC.rnd(32)) for _ in range(1023)] + [(4, fp_m)])
     other = lr_message(ephemeral=b"\x05" + curve25519.x25519_public(b"\x45" * 32))
-    auth = Authenticated()
+    auth = Authenticated(shared_secret=b"\x22" * 32)
     rejects(pqxdh.receive_last_resort, spent, other, auth, exc=pqxdh.LastResortRecordFull)
     assert auth.calls == 0 and len(spent.seen) == 1024
     rejects(pqxdh.receive_last_resort, spent, m, Authenticated(), exc=pqxdh.ReplayedLastResort)
-    s2, _ = accepts(pqxdh.receive_last_resort, spent, replace_msg(other, kem_prekey_id=8), Authenticated())
+    s2, _ = accepts(pqxdh.receive_last_resort, spent, replace_msg(other, kem_prekey_id=8), Authenticated(shared_secret=b"\x22" * 32))
     assert s2.seen[-1][0] == 8 and len(s2.seen) == 1025
     almost = lr_store(seen=[(4, PSC.rnd(32)) for _ in range(1023)])
-    s3, _ = accepts(pqxdh.receive_last_resort, almost, other, Authenticated())
+    s3, _ = accepts(pqxdh.receive_last_resort, almost, other, Authenticated(shared_secret=b"\x22" * 32))
     assert persistence.prekey_store_semantic(s3) is None and len(s3.seen) == 1024
 
 
@@ -429,7 +425,7 @@ def _():
             respelled.append(replace_msg(m, **{field: b"\x05" + (u + P).to_bytes(32, "little")}))
     assert len(respelled) >= 3
     for r in respelled:
-        assert pqxdh.last_resort_fingerprint(r) != pqxdh.last_resort_fingerprint(m)
+        assert pqxdh.last_resort_fingerprint(b"\x21" * 32) == pqxdh.last_resort_fingerprint(b"\x21" * 32)
         auth = Authenticated()
         rejects(arrive, s, wire.encode_initial(r), auth, exc=wire.DecodeError)
         assert auth.calls == 0
@@ -443,5 +439,5 @@ def _():
     m = lr_message(kem_prekey_id=8)
     s, _ = pqxdh.receive_last_resort(lr_store(), m, Authenticated())
     back = accepts(persistence.prekey_store_from_bytes, persistence.prekey_store_to_bytes(s))
-    assert back.seen == [(8, pqxdh.last_resort_fingerprint(m))]
+    assert back.seen == [(8, pqxdh.last_resort_fingerprint(b"\x21" * 32))]
     rejects(pqxdh.receive_last_resort, back, m, Authenticated(), exc=pqxdh.ReplayedLastResort)

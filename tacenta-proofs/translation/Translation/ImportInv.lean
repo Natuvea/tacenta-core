@@ -670,7 +670,8 @@ theorem from_bytes_accepts_witness :
         try clear i4_post
         try clear hi4
         try clear hq
-        simp_all [InvB, chainsOk, storeOk, keysOk, canonical_zeros, MAX_SKIPPED_STORE,
+        simp_all [InvB, chainsOk, storeOk, keysOk, canonical_zeros,
+          alloc.vec.Vec.with_capacity, MAX_SKIPPED_STORE,
           Std.U32.max_eq]
   obtain ⟨r, hr, hre⟩ := Std.WP.spec_imp_exists h
   obtain ⟨s, rfl⟩ := hre
@@ -758,7 +759,7 @@ theorem inv_gives_store_is_map (s : State) (m : Model.State.State)
 /-- **Decoded state → `Inv` → `hs` → `T1.receive_no_panic`.** A `receive` on a
 state that came out of `from_bytes` does not panic. -/
 theorem decoded_receive_no_panic (h : Tacenta.T1.HmacTotal) (hk : Tacenta.T1.HkdfTotal)
-    (hz : Tacenta.T1.ZeroizingTotal) (hrm : Tacenta.T1.VecRemoveTotal)
+    (hz : Tacenta.T1.ZeroizingTotal) (hrm : Tacenta.T1.RemoveSkippedAtTotal)
     [Tacenta.T1.DerivedKeysModel]
     (bytes : Slice Std.U8) (s : State)
     (hdec : State.from_bytes bytes = ok (core.result.Result.Ok s))
@@ -792,7 +793,7 @@ The relation to the model state is still a hypothesis too: `from_bytes` says
 which translated states are reachable, not which model state a caller
 means. -/
 theorem decoded_receive_refines (h : Tacenta.T3.HmacAgrees) (hk : Tacenta.T3.HkdfAgrees)
-    (hz : Tacenta.T3.ZeroizingRoundTrips) (hrm : Tacenta.T1.VecRemoveTotal)
+    (hz : Tacenta.T3.ZeroizingRoundTrips) (hrm : Tacenta.T1.RemoveSkippedAtTotal)
     [Tacenta.T1.DerivedKeysModel]
     (bytes : Slice Std.U8) (s : State)
     (hdec : State.from_bytes bytes = ok (core.result.Result.Ok s))
@@ -1300,7 +1301,7 @@ The five are recorded as open in `CLAIMS.md`. -/
 theorem decoded_receive_no_panic (hret : Tacenta.SpqrT1.VecRetainTotal)
     (hrk : Tacenta.SpqrT1.KdfRkTotal) (hz : Tacenta.SpqrT1.ZeroizeTotal)
     (hkdf : Tacenta.SpqrT1.KdfCkTotal) (hopt : Tacenta.SpqrT1.OptionCloneTotal)
-    (hrm : Tacenta.SpqrT1.VecRemoveTotal) (happ : Tacenta.SpqrT1.VecAppendTotal)
+    (hrm : Tacenta.SpqrT1.RemoveSkippedAtTotal) (happ : Tacenta.SpqrT1.VecAppendTotal)
     (bytes : Slice Std.U8) (s : State)
     (hdec : State.from_bytes bytes = ok (core.result.Result.Ok s))
     (receiving_epoch n : Std.U64) (out : Option Output) :
@@ -1529,7 +1530,7 @@ info: 'Tacenta.ImportInv.Ratchet.decoded_receive_no_panic' depends on axioms: [p
  tacenta_ratchet.zeroize.Zeroizing.new,
  tacenta_ratchet.Array.Insts.ZeroizeZeroize.zeroize,
  tacenta_ratchet.Pair.Insts.ZeroizeZeroize.zeroize,
- tacenta_ratchet.alloc.vec.Vec.remove,
+ tacenta_ratchet.alloc.vec.Vec.pop,
  tacenta_ratchet.zeroize.Zeroize.Blanket.zeroize,
  tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
@@ -1548,7 +1549,7 @@ info: 'Tacenta.ImportInv.Ratchet.decoded_receive_refines' depends on axioms: [pr
  tacenta_ratchet.zeroize.Zeroizing.new,
  tacenta_ratchet.Array.Insts.ZeroizeZeroize.zeroize,
  tacenta_ratchet.Pair.Insts.ZeroizeZeroize.zeroize,
- tacenta_ratchet.alloc.vec.Vec.remove,
+ tacenta_ratchet.alloc.vec.Vec.pop,
  tacenta_ratchet.zeroize.Zeroize.Blanket.zeroize,
  tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
@@ -1569,7 +1570,7 @@ info: 'Tacenta.ImportInv.Spqr.decoded_receive_no_panic' depends on axioms: [prop
  tacenta_spqr.zeroize.Zeroizing.new,
  tacenta_spqr.Array.Insts.ZeroizeZeroize.zeroize,
  tacenta_spqr.alloc.vec.Vec.append,
- tacenta_spqr.alloc.vec.Vec.remove,
+ tacenta_spqr.alloc.vec.Vec.pop,
  tacenta_spqr.alloc.vec.Vec.retain,
  tacenta_spqr.zeroize.Zeroize.Blanket.zeroize,
  SpqrT1.receive_no_panic._native.native_decide.ax_1_1,

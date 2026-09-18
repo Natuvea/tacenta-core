@@ -737,7 +737,7 @@ the boundary those take: `HmacAgrees`, `HkdfAgrees`, `ZeroizingRoundTrips`,
 `OptionCloneTotal` for `clone`. -/
 theorem ratchet_agrees_for (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal)
     (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
-    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.VecRemoveTotal)
+    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.RemoveSkippedAtTotal)
     [Tacenta.UnitT1.DerivedKeysModel] :
     RatchetAgreesFor ratchetAbs := by
   unfold RatchetAgreesFor
@@ -788,8 +788,9 @@ boundary `UnitSpqrT3.lean`'s theorems take. -/
 theorem spqr_agrees_for (hkr : Tacenta.UnitSpqrT3.SpqrHkdfAgrees)
     (hz96 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips64)
-    (hret : Tacenta.UnitSpqrT3.VecRetainAgrees) (happ : Tacenta.UnitSpqrT3.VecAppendAgrees)
-    (hrm : Tacenta.UnitSpqrT3.VecRemoveAgrees) (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
+    (hret : Tacenta.UnitSpqrT3.VecRetainAgrees)
+    (happ : Tacenta.UnitSpqrT3.VecAppendAgrees)
+    (hrm : Tacenta.UnitSpqrT3.RemoveSkippedAtAgrees) (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
     (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal) :
     SpqrAgreesFor spqrAbs := by
   -- The chain-counter bound: the bundle states it over the model's chain table,
@@ -863,17 +864,18 @@ ratchet needs gives this file's narrow `ZeroizeTotal` at its one instance.
 
 One cost is not collapsed. Each bundle covers its ratchet's whole calling surface,
 so `send_refines_discharged` assumes the boundary of the receive path as well
-(`VecRemoveTotal`, `DerivedKeysModel`, `VecAppendAgrees`, `VecRemoveAgrees`), which
+(`VecRemoveTotal`, `DerivedKeysModel`, `VecAppendAgrees`, `RemoveSkippedAtAgrees`), which
 its own proof never reaches. -/
 
 theorem send_refines_discharged
     (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
-    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.VecRemoveTotal)
+    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.RemoveSkippedAtTotal)
     [Tacenta.UnitT1.DerivedKeysModel]
     (hz96 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips64)
-    (hret : Tacenta.UnitSpqrT3.VecRetainAgrees) (happ : Tacenta.UnitSpqrT3.VecAppendAgrees)
-    (hrm : Tacenta.UnitSpqrT3.VecRemoveAgrees) (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
+    (hret : Tacenta.UnitSpqrT3.VecRetainAgrees)
+    (happ : Tacenta.UnitSpqrT3.VecAppendAgrees)
+    (hrm : Tacenta.UnitSpqrT3.RemoveSkippedAtAgrees) (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
     (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal)
     {s : State} {m : Model.Triple.State} (hrel : StateRefines ratchetAbs spqrAbs s m)
     (sending_epoch : Std.U64) (output : Option tacenta_spqr.Output)
@@ -900,12 +902,13 @@ theorem send_refines_discharged
 
 theorem receive_refines_discharged
     (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
-    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.VecRemoveTotal)
+    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.RemoveSkippedAtTotal)
     [Tacenta.UnitT1.DerivedKeysModel]
     (hz96 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips64)
-    (hret : Tacenta.UnitSpqrT3.VecRetainAgrees) (happ : Tacenta.UnitSpqrT3.VecAppendAgrees)
-    (hrm : Tacenta.UnitSpqrT3.VecRemoveAgrees) (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
+    (hret : Tacenta.UnitSpqrT3.VecRetainAgrees)
+    (happ : Tacenta.UnitSpqrT3.VecAppendAgrees)
+    (hrm : Tacenta.UnitSpqrT3.RemoveSkippedAtAgrees) (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
     (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal)
     {s : State} {m : Model.Triple.State} (hrel : StateRefines ratchetAbs spqrAbs s m)
     (header : Header) (mh : Model.State.Header) (hheader : RatchetHeaderR header.dr mh)

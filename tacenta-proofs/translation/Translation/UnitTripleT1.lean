@@ -278,7 +278,7 @@ def RatchetReceiveTotal : Prop :=
     ∃ r, tacenta_ratchet.receive s hdr a b c = ok r
 
 theorem ratchetReceiveTotal (h : UnitT1.HmacTotal) (hk : UnitT1.HkdfTotal)
-    (hzw : UnitT1.ZeroizingTotal) (hrm : UnitT1.VecRemoveTotal)
+    (hzw : UnitT1.ZeroizingTotal) (hrm : UnitT1.RemoveSkippedAtTotal)
     [UnitT1.DerivedKeysModel] : RatchetReceiveTotal := by
   intro s hdr a b c hs
   exact (UnitT1.noPanic_iff _).1 (UnitT1.receive_no_panic h hk hzw hrm s hdr a b c hs)
@@ -361,7 +361,7 @@ def SpqrReceiveTotal : Prop :=
 
 theorem spqrReceiveTotal (hret : UnitSpqrT1.VecRetainTotal) (hrk : UnitSpqrT1.KdfRkTotal)
     (hz : UnitSpqrT1.ZeroizeTotal) (hck : UnitSpqrT1.KdfCkTotal)
-    (hopt : UnitSpqrT1.OptionCloneTotal) (hrm : UnitSpqrT1.VecRemoveTotal)
+    (hopt : UnitSpqrT1.OptionCloneTotal) (hrm : UnitSpqrT1.RemoveSkippedAtTotal)
     (happ : UnitSpqrT1.VecAppendTotal) : SpqrReceiveTotal := by
   intro s epoch out n hroom hskiproom
   exact (UnitT1.noPanic_iff _).1
@@ -531,8 +531,9 @@ theorem State.receive_no_panic (hhmac : UnitT1.HmacTotal) (hkdf : UnitT1.HkdfTot
     (hzw : UnitT1.ZeroizingTotal) [UnitT1.DerivedKeysModel]
     (hz : UnitSpqrT1.ZeroizeTotal) (hret : UnitSpqrT1.VecRetainTotal)
     (hrk : UnitSpqrT1.KdfRkTotal) (hck : UnitSpqrT1.KdfCkTotal)
-    (hopt : UnitSpqrT1.OptionCloneTotal) (hrm : UnitSpqrT1.VecRemoveTotal)
-    (happ : UnitSpqrT1.VecAppendTotal)
+    (hopt : UnitSpqrT1.OptionCloneTotal)
+    (hrm_ratchet : UnitT1.RemoveSkippedAtTotal)
+    (hrm : UnitSpqrT1.RemoveSkippedAtTotal) (happ : UnitSpqrT1.VecAppendTotal)
     (self : State) (header : Header)
     (dh_out_recv dh_out_send new_dhs_pub : Array U8 32#usize)
     (output : Option tacenta_spqr.Output)
@@ -542,7 +543,7 @@ theorem State.receive_no_panic (hhmac : UnitT1.HmacTotal) (hkdf : UnitT1.HkdfTot
     (hskiproom : self.post_quantum.skipped.length + tacenta_spqr.MAX_SKIP.val ≤ Usize.max) :
     State.receive self header dh_out_recv dh_out_send new_dhs_pub output ⦃ fun _ => True ⦄ := by
   obtain ⟨⟨r, s⟩, hrs⟩ :=
-    ratchetReceiveTotal hhmac hkdf hzw hrm self.classical header.dr dh_out_recv
+    ratchetReceiveTotal hhmac hkdf hzw hrm_ratchet self.classical header.dr dh_out_recv
       dh_out_send new_dhs_pub hs
   obtain ⟨⟨r1, s1⟩, hrq⟩ :=
     spqrReceiveTotal hret hrk hz hck hopt hrm happ self.post_quantum header.epoch output

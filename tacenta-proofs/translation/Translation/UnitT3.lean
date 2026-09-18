@@ -595,13 +595,56 @@ lengths is not bounded in general; the caller discharges it from its own store
 guard. The loop reads the wrapper by index, so what it appends is the part of
 the wrapper's contents from the cursor on. -/
 @[step]
-theorem skip_message_keys_loop_refines [DerivedKeysModel]
+theorem skip_message_keys_loop0_refines
+    (v skipped : alloc.vec.Vec SkippedKey) (i : Usize)
+    (hb : skipped.val.length + (v.val.length - i.val) ≤ Usize.max) :
+    skip_message_keys_loop0 v skipped i ⦃ fun r =>
+      r.val.map skippedOf = skipped.val.map skippedOf
+        ++ (v.val.drop i.val).map skippedOf ⦄ := by
+  set target := skipped.val.map skippedOf
+    ++ (v.val.drop i.val).map skippedOf with htarget
+  have hinv : skipped.val.map skippedOf
+      ++ (v.val.drop i.val).map skippedOf = target := rfl
+  unfold skip_message_keys_loop0
+  apply loop.spec_decr_nat
+    (measure := fun x => v.val.length - (Prod.snd x).val)
+    (inv := fun x =>
+      (Prod.fst x).val.map skippedOf
+        ++ (v.val.drop (Prod.snd x).val).map skippedOf = target
+      ∧ (Prod.fst x).val.length + (v.val.length - (Prod.snd x).val)
+        ≤ Usize.max)
+  · rintro ⟨vv, j⟩ ⟨hinv2, hlen⟩
+    simp only at hinv2 hlen
+    simp only [skip_message_keys_loop0.body]
+    have hfits := v.property
+    by_cases hlt : j.val < v.val.length
+    · rw [List.drop_eq_getElem_cons hlt] at hinv2
+      step*
+      have hsk := congrArg skippedOf sk1_post
+      refine ⟨?_, ?_, ?_⟩
+      · rw [skipped1_post, copied1_post, ← hinv2]
+        simp only [List.map_append, List.map_cons, List.map_nil,
+          List.append_assoc, List.singleton_append, hsk, sk_post]
+      · simp only [skipped1_post, List.length_append, List.length_singleton,
+          copied1_post]
+        omega
+      · rw [copied1_post]
+        omega
+    · have hge : v.val.length ≤ j.val := by omega
+      rw [List.drop_eq_nil_of_le hge] at hinv2
+      have hlt' : ¬ j < v.len := by simpa using hlt
+      simp [hlt']
+      simp_all [alloc.vec.Vec.len]
+  · exact ⟨hinv, hb⟩
+
+@[step]
+theorem skip_message_keys_loop1_refines [DerivedKeysModel]
     (dhr : Array Std.U8 32#usize) (v : alloc.vec.Vec SkippedKey) (now : Std.U32)
     (keys : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × Array Std.U8 32#usize)))
     (i : Usize)
     (hb : v.val.length + ((DerivedKeysModel.contents keys).val.length - i.val)
           ≤ Usize.max) :
-    skip_message_keys_loop dhr now v keys i ⦃ fun r =>
+    skip_message_keys_loop1 dhr now v keys i ⦃ fun r =>
       r.val.map skippedOf
         = v.val.map skippedOf
           ++ ((DerivedKeysModel.contents keys).val.drop i.val).map (storedOf dhr now) ⦄ := by
@@ -611,7 +654,7 @@ theorem skip_message_keys_loop_refines [DerivedKeysModel]
   have hinv : v.val.map skippedOf
     ++ ((DerivedKeysModel.contents keys).val.drop i.val).map (storedOf dhr now)
     = target := rfl
-  unfold skip_message_keys_loop
+  unfold skip_message_keys_loop1
   apply loop.spec_decr_nat
     (measure := fun x =>
       (DerivedKeysModel.contents keys).val.length - (Prod.snd x).val)
@@ -624,7 +667,7 @@ theorem skip_message_keys_loop_refines [DerivedKeysModel]
           ≤ Usize.max)
   · rintro ⟨vv, j⟩ ⟨hinv2, hlen⟩
     simp only at hinv2 hlen
-    simp only [skip_message_keys_loop.body]
+    simp only [skip_message_keys_loop1.body]
     have hfits := (DerivedKeysModel.contents keys).property
     by_cases hlt : j.val < (DerivedKeysModel.contents keys).val.length
     · -- One more key: it moves from the head of what is left to read onto
@@ -802,7 +845,7 @@ theorem init_sender_refines (h : HkdfAgrees) (hz : ZeroizingRoundTrips)
   simp_all [Model.Ratchet.initSender, Model.State.kdfRk]
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> simp_all
 
-theorem purge_chain_range_loop_refines (hrm : Tacenta.UnitT1.VecRemoveTotal)
+theorem purge_chain_range_loop_refines (hrm : Tacenta.UnitT1.RemoveSkippedAtTotal)
     (dhr : Array Std.U8 32#usize) (from1 upto : Std.U32)
     (target : List (Model.State.Key × Nat × Nat × Model.State.Key))
     (skipped : alloc.vec.Vec SkippedKey) (i : Usize)
@@ -825,7 +868,7 @@ theorem purge_chain_range_loop_refines (hrm : Tacenta.UnitT1.VecRemoveTotal)
     -- The removal's hypothesis is available only under the guard the body
     -- checks first, so the case split comes before the removal is named.
     by_cases hlt : j.val < v.val.length
-    · obtain ⟨⟨removed, v'⟩, hrm', hv⟩ := hrm Global v j hlt
+    · obtain ⟨⟨removed, v'⟩, hrm', -, hv⟩ := hrm Global v j hlt
       simp only [hrm']
       step*
       all_goals
@@ -860,7 +903,7 @@ theorem purge_chain_range_loop_refines (hrm : Tacenta.UnitT1.VecRemoveTotal)
 /-- The scan lifted to the whole function: what it leaves in the store is what
 the model's filter leaves. -/
 @[step]
-theorem purge_chain_range_refines (hrm : Tacenta.UnitT1.VecRemoveTotal)
+theorem purge_chain_range_refines (hrm : Tacenta.UnitT1.RemoveSkippedAtTotal)
     (skipped : alloc.vec.Vec SkippedKey) (dhr : Array Std.U8 32#usize)
     (from1 upto : Std.U32) :
     purge_chain_range skipped dhr from1 upto ⦃ fun r =>
@@ -919,7 +962,7 @@ theorem keepFresh_eta (now : Nat) :
       decide (now - e.2.2.1 < Model.State.maxSkippedAge)) = keepFresh now :=
   rfl
 
-theorem age_store_loop_refines (hrm : Tacenta.UnitT1.VecRemoveTotal)
+theorem age_store_loop_refines (hrm : Tacenta.UnitT1.RemoveSkippedAtTotal)
     (now : Std.U32)
     (target : List (Model.State.Key × Nat × Nat × Model.State.Key))
     (skipped : alloc.vec.Vec SkippedKey) (i : Usize)
@@ -948,7 +991,7 @@ theorem age_store_loop_refines (hrm : Tacenta.UnitT1.VecRemoveTotal)
       rw [List.drop_eq_nil_of_le (by simpa using hlt), List.filter_nil,
         List.append_nil, List.take_of_length_le (by simpa using hlt)] at hinv2
       exact hinv2
-    obtain ⟨⟨removed, v'⟩, hrm', hv⟩ := hrm Global v j hlt
+    obtain ⟨⟨removed, v'⟩, hrm', -, hv⟩ := hrm Global v j hlt
     simp only [hrm']
     step*
     all_goals
@@ -986,7 +1029,7 @@ stop as well. The precondition -- `events + 1 < U32.max`, which is
 two parted company there; it is no longer what the agreement needs, and is kept
 so the statement, and every theorem composed with it, is unchanged. Below it the
 clamp never fires and `now` is the saturating step itself. -/
-theorem age_store_refines (hrm : Tacenta.UnitT1.VecRemoveTotal)
+theorem age_store_refines (hrm : Tacenta.UnitT1.RemoveSkippedAtTotal)
     (s : State) (m : Model.State.State) (hR : StateR s m)
     (hroom : s.events.val + 1 < U32.max) :
     age_store s ⦃ fun s' => StateR s' (Model.State.ageStore m) ⦄ := by
@@ -1022,8 +1065,11 @@ theorem age_store_refines (hrm : Tacenta.UnitT1.VecRemoveTotal)
     simp_all [keepFresh_eta]
   · simpa [Model.State.ageStore, hmin] using hnow
 
+attribute [-step] Tacenta.UnitT1.skip_message_keys_loop0_grows
+attribute [-step] Tacenta.UnitT1.skip_message_keys_loop0_bound
+
 theorem skip_message_keys_refines (h : HmacAgrees)
-    (hrm : Tacenta.UnitT1.VecRemoveTotal) [DerivedKeysModel] (s : State)
+    (hrm : Tacenta.UnitT1.RemoveSkippedAtTotal) [DerivedKeysModel] (s : State)
     (m : Model.State.State) (hR : StateR s m) (upto : Std.U32)
     (hs : s.skipped.val.length + MAX_SKIP.val ≤ Usize.max) :
     skip_message_keys s upto ⦃ fun r =>
@@ -1060,24 +1106,29 @@ theorem skip_message_keys_refines (h : HmacAgrees)
           simp [hg']
         have hgap := Tacenta.UnitT1.skip_gap_le s.nr upto hg
         step*
+        all_goals have hsmax := s.skipped.property
+        all_goals simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
         · -- The cloned store is purged before the bound check, and a filter
           -- cannot be longer than its input.
           have hlen := congrArg List.length skipped1_post
           have hfil := List.length_filter_le
             (keepOutside (keyOf dhr) s.nr.val upto.val)
             (List.map skippedOf s.skipped.val)
-          have hi2max : i2.val ≤ U32.max := by scalar_tac
           simp only [List.length_map] at hlen hfil
+          have hskiplen := congrArg List.length hskip
+          simp only [List.length_map] at hskiplen
           have hpurge : skipped1.val.length ≤ s.skipped.val.length := by
-            rw [← skipped_post] at hlen
             omega
           have hlenval : skipped1.len.val = skipped1.val.length := by
             simp [alloc.vec.Vec.len]
-          have hcast : (UScalar.cast .Usize i2).val = i2.val := by scalar_tac
+          have hlen2 := congrArg List.length skipped2_post
+          rw [← hnr, ← hskip] at hlen2
+          simp only [List.length_map] at hlen2
+          have hpurge2 : skipped2.val.length ≤ s.skipped.val.length := by
+            omega
+          have hcast : (UScalar.cast .Usize i1).val = i1.val := by scalar_tac
           omega
         · obtain ⟨ck2, keys⟩ := v
-          have hrOk : r = core.result.Result.Ok (ck2, keys) := by assumption
-          rw [hrOk] at r_post
           obtain ⟨rp, rlen⟩ := r_post
           step*
           intro _
@@ -1088,8 +1139,7 @@ theorem skip_message_keys_refines (h : HmacAgrees)
             scalar_tac
           -- The derivation was indexed by the Rust's counters; restate it at
           -- the model's before matching, or the two never line up.
-          have hi2 : i2.val = upto.val - m.nr := by rw [← hnr]; omega
-          rw [hnr, hi2] at rp
+          have hi1 : i1.val = upto.val - m.nr := by omega
           have rck := congrArg Prod.fst rp
           have rkeys := congrArg Prod.snd rp
           simp only at rck rkeys
@@ -1106,23 +1156,33 @@ theorem skip_message_keys_refines (h : HmacAgrees)
                   && decide (e.2.1 < upto.val)))
               = Model.State.skipSurvivors m (keyOf dhr) upto.val := by
             rfl
-          have hkept : List.map skippedOf skipped1.val
+          have hkept : List.map skippedOf skipped2.val
               = Model.State.skipSurvivors m (keyOf dhr) upto.val := by
-            rw [skipped1_post, ← skipped_post, hskip, hnr]
+            rw [skipped2_post]
+            change List.filter (fun e =>
+              !(e.1 == keyOf dhr && decide (m.nr ≤ e.2.1)
+                && decide (e.2.1 < upto.val))) m.skipped = _
             exact hsurvivors
           have hkeptLen := congrArg List.length hkept
           simp only [List.length_map] at hkeptLen
-          have hcast : (UScalar.cast .Usize i2).val = i2.val := by scalar_tac
-          have hi4nat : i4.val = skipped1.val.length + i2.val := by
-            simpa [alloc.vec.Vec.len, hcast] using i4_post
+          have hcast : (UScalar.cast .Usize i1).val = i1.val := by scalar_tac
+          have hi4nat : i5.val = skipped2.val.length + i1.val := by
+            omega
           have hg2 : ¬ ((Model.State.skipSurvivors m (keyOf dhr) upto.val).length
               + (upto.val - m.nr) > Model.State.maxSkippedStore) := by
-            rw [← hkeptLen, ← hnr, ← i2_post1]
+            rw [← hkeptLen]
             simp only [Model.State.maxSkippedStore, MAX_SKIPPED_STORE] at *
-            scalar_tac
-          simp only [hg1, hg2, if_false]
-          refine ⟨_, rfl, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩ <;>
-            simp_all [keysOf]
+            have hbound : (skipped2.val.length + (upto.val - m.nr)) ≤ 2000 := by
+              scalar_tac
+            omega
+          have hg2' : (Model.State.skipSurvivors m (keyOf dhr) upto.val).length
+              + (upto.val - m.nr) ≤ Model.State.maxSkippedStore := by
+            omega
+          simp [hg1, hg2']
+          constructor
+          · omega
+          · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+              simp_all [keysOf]
 
 /-! ## The skipped-key lookup refines the model's
 
@@ -1136,9 +1196,16 @@ The at-most-one hypothesis is discharged for real callers by
 functional-property package next door: storing keeps the store a map, so a
 header can match at most one entry. -/
 
-/-- Nothing before the entry matches and the entry does, so the model's
-first-match lookup finds exactly it. Stated on an explicit split rather than an
-index, because rewriting a list under a dependent index breaks the motive. -/
+/-- Filtering commutes with a map whose predicate factors through it. -/
+theorem List.filter_map_comm {α β : Type} (l : List α) (f : α → β) (p : α → Bool)
+    (q : β → Bool) (hpq : ∀ x, p x = q (f x)) :
+    (l.filter p).map f = (l.map f).filter q := by
+  induction l with
+  | nil => simp
+  | cons hd tl ih =>
+    simp only [List.filter_cons, List.map_cons, hpq hd]
+    split <;> simp [ih]
+
 theorem find?_eq_of_split {α : Type} (p : α → Bool) (pre : List α) (a : α)
     (post : List α) (hpre : pre.filter p = []) (hpa : p a = true) :
     (pre ++ a :: post).find? p = some a := by
@@ -1181,7 +1248,7 @@ theorem matchesHeader_eta (mh : Model.State.Header) :
       match x with | (dh, n, _, _) => dh == mh.dh && n == mh.n) = matchesHeader mh :=
   rfl
 
-theorem try_skipped_loop_refines (hrm : Tacenta.UnitT1.VecRemoveTotal)
+theorem try_skipped_loop_refines (hrm : Tacenta.UnitT1.RemoveSkippedAtTotal)
     (s : State) (hdr : Header) (mh : Model.State.Header)
     (hH : HeaderR hdr mh) (i : Usize)
     (hone : ((s.skipped.val.map skippedOf).filter (matchesHeader mh)).length ≤ 1)
@@ -1210,7 +1277,7 @@ theorem try_skipped_loop_refines (hrm : Tacenta.UnitT1.VecRemoveTotal)
     -- The removal's hypothesis is available only under the guard the body
     -- checks first, so the case split comes before the removal is named.
     by_cases hlt : j.val < s.skipped.val.length
-    · obtain ⟨⟨removed, v'⟩, hrm', hv⟩ := hrm Global s.skipped j hlt
+    · obtain ⟨⟨removed, v'⟩, hrm', hremoved, hv⟩ := hrm Global s.skipped j hlt
       simp only [hrm']
       step*
       -- The entry matches: the lookup finds it, and deleting every match is
@@ -1222,20 +1289,58 @@ theorem try_skipped_loop_refines (hrm : Tacenta.UnitT1.VecRemoveTotal)
           rw [List.getElem_map, ← sk_post]
           simp only [matchesHeader, skippedOf, Bool.and_eq_true, beq_iff_eq]
           exact ⟨by rw [hdheq, hhdh], by rw [hneq, hhn]⟩
+        have hremoved' : removed = sk.key := by
+          simpa [sk_post] using hremoved
         refine ⟨?_, by simp⟩
         rintro mk hmk
         injection hmk with hmk
         subst hmk
+        simp [hremoved']
         constructor
-        · refine ⟨sk.stored_at.val, ?_⟩
-          have hsp : (s.skipped.val.map skippedOf)
-              = ((s.skipped.val.map skippedOf).take j.val)
-                ++ (s.skipped.val.map skippedOf)[j.val]
-                  :: (s.skipped.val.map skippedOf).drop (j.val + 1) := by
-            rw [← List.drop_eq_getElem_cons hjm, List.take_append_drop]
-          rw [hsp, find?_eq_of_split _ _ _ _ hinv2 hpj, List.getElem_map, ← sk_post]
-          simp only [skippedOf]
-          rw [hdheq, hhdh, hneq, hhn]
+        · have hsp_raw : s.skipped.val =
+              s.skipped.val.take j.val ++ s.skipped.val[j.val] ::
+                s.skipped.val.drop (j.val + 1) := by
+            have hdrop : s.skipped.val.drop j.val =
+                s.skipped.val[j.val] :: s.skipped.val.drop (j.val + 1) :=
+              List.drop_eq_getElem_cons (by simpa using hlt)
+            rw [← hdrop]
+            exact (List.take_append_drop _ _).symm
+          have hpre_raw :
+              (s.skipped.val.take j.val).filter (matchesHeader mh ∘ skippedOf) = [] := by
+            have hmap := List.filter_map_comm
+              (s.skipped.val.take j.val) skippedOf
+              (matchesHeader mh ∘ skippedOf) (matchesHeader mh)
+              (fun x => rfl)
+            have hpre_mapped :
+                ((s.skipped.val.take j.val).map skippedOf).filter (matchesHeader mh) = [] := by
+              simpa [List.map_take] using hinv2
+            have : ((s.skipped.val.take j.val).filter
+                (matchesHeader mh ∘ skippedOf)).map skippedOf = [] := by
+              rw [hmap, hpre_mapped]
+            exact List.map_eq_nil_iff.mp this
+          have hpk_raw : (matchesHeader mh ∘ skippedOf) s.skipped.val[j.val] = true := by
+            have hsk : s.skipped.val[j.val] = sk := sk_post.symm
+            rw [hsk]
+            simp only [Function.comp_def, matchesHeader, skippedOf,
+              Bool.and_eq_true, beq_iff_eq]
+            exact ⟨by rw [hdheq, hhdh], by rw [hneq, hhn]⟩
+          refine ⟨sk.stored_at.val, sk, ?_, ?_⟩
+          · have htail : List.find? (matchesHeader mh ∘ skippedOf)
+                (s.skipped.val.take j.val ++ s.skipped.val[j.val] ::
+                  s.skipped.val.drop (j.val + 1)) = some s.skipped.val[j.val] :=
+              find?_eq_of_split _ _ _ _ hpre_raw hpk_raw
+            have hfind_raw : List.find? (matchesHeader mh ∘ skippedOf) s.skipped.val =
+                some s.skipped.val[j.val] := by
+              calc
+                List.find? (matchesHeader mh ∘ skippedOf) s.skipped.val =
+                    List.find? (matchesHeader mh ∘ skippedOf)
+                      (s.skipped.val.take j.val ++ s.skipped.val[j.val] ::
+                        s.skipped.val.drop (j.val + 1)) :=
+                  congrArg (List.find? (matchesHeader mh ∘ skippedOf)) hsp_raw
+                _ = some s.skipped.val[j.val] := htail
+            exact hfind_raw.trans (congrArg some sk_post.symm)
+          · simp only [skippedOf]
+            rw [hdheq, hhdh, hneq, hhn]
         · rw [hv, map_eraseIdx,
             filter_not_eq_eraseIdx (matchesHeader mh) _ j.val hjm hpj hone]
       -- The entry's message number differs, so the scan steps past it.
@@ -1281,7 +1386,7 @@ theorem try_skipped_loop_refines (hrm : Tacenta.UnitT1.VecRemoveTotal)
 wrapper rebuilds is the one it started from with the store replaced. Separate
 from the refinement above because it is a different concern: that one is about
 what the scan found, this is about what it left alone. -/
-theorem try_skipped_loop_fields (hrm : Tacenta.UnitT1.VecRemoveTotal)
+theorem try_skipped_loop_fields (hrm : Tacenta.UnitT1.RemoveSkippedAtTotal)
     (s : State) (hdr : Header) (i : Usize) :
     try_skipped_loop s hdr i ⦃ fun r =>
       ({ dhs_pub := r.2.1, dhr_pub := r.2.2.1, rk := r.2.2.2.1,
@@ -1297,7 +1402,7 @@ theorem try_skipped_loop_fields (hrm : Tacenta.UnitT1.VecRemoveTotal)
   · rintro j -
     simp only [try_skipped_loop.body]
     by_cases hlt : j.val < s.skipped.val.length
-    · obtain ⟨⟨removed, v'⟩, hrm', -⟩ := hrm Global s.skipped j hlt
+    · obtain ⟨⟨removed, v'⟩, hrm', -, -⟩ := hrm Global s.skipped j hlt
       simp only [hrm']
       step*
     · step*
@@ -1310,7 +1415,7 @@ model finds nothing either.
 The at-most-one hypothesis is what the store being a map buys, and it is proven
 rather than assumed: see `Proofs.StateInvariants.skipMessageKeys_preserves_map`
 in the functional-property package. -/
-theorem try_skipped_refines (hrm : Tacenta.UnitT1.VecRemoveTotal)
+theorem try_skipped_refines (hrm : Tacenta.UnitT1.RemoveSkippedAtTotal)
     (s : State) (m : Model.State.State) (hR : StateR s m)
     (hdr : Header) (mh : Model.State.Header) (hH : HeaderR hdr mh)
     (hone : (m.skipped.filter (matchesHeader mh)).length ≤ 1) :
@@ -1368,7 +1473,7 @@ The refusal (`OutOfOrder`, ratchet.md, Sending and receiving) is an `Err` on
 the Rust side and a `none` on the model's, and the two agree on when it fires
 because the skip leaves `nr` related: so a success here is never the refused
 case, and the model's test is passed exactly when the Rust's is. -/
-theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.UnitT1.VecRemoveTotal)
+theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.UnitT1.RemoveSkippedAtTotal)
     [DerivedKeysModel] (st : State) (mst : Model.State.State) (hR : StateR st mst) (n : Std.U32)
     (hs : st.skipped.val.length + MAX_SKIP.val ≤ Usize.max)
     (hroom : st.events.val + 1 < U32.max) :
@@ -1491,7 +1596,7 @@ theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.UnitT1.VecRemoveTot
 attribute [-step] Tacenta.UnitT1.skip_message_keys_room Tacenta.UnitT1.dh_ratchet_spec
 
 theorem receive_refines (h : HmacAgrees) (hk : HkdfAgrees)
-    (hz : ZeroizingRoundTrips) (hrm : Tacenta.UnitT1.VecRemoveTotal)
+    (hz : ZeroizingRoundTrips) (hrm : Tacenta.UnitT1.RemoveSkippedAtTotal)
     [DerivedKeysModel] (s : State) (m : Model.State.State) (hR : StateR s m)
     (hdr : Header) (mh : Model.State.Header) (hH : HeaderR hdr mh)
     (dh_out_recv dh_out_send new_dhs_pub : Array Std.U8 32#usize)
@@ -1704,7 +1809,7 @@ to agree with anything, so `HmacAgrees` and `HkdfAgrees` are assumptions. If the
 Rust HMAC and the model's disagreed, every theorem here would still hold and the
 implementation would still be wrong. The model-generated byte vectors are what
 covers that, outside Lean. `ZeroizingRoundTrips`, T1's `DerivedKeysModel` and
-`VecRemoveTotal` are the other three, the first two for an external crate --
+`RemoveSkippedAtTotal` are the other three, the first two for an external crate --
 the wrapper at the root-key step's width, and the wrapper the derived keys
 travel in between the chain derivation and the store -- and the third for an
 operation Aeneas does not model.
@@ -1758,6 +1863,6 @@ assumption smuggled in through a lemma -- fails the build here rather than
 being noticed by whoever next runs `#print axioms` by hand. Everything each
 rests on beyond Lean's three standard axioms is an opaque external the
 translation declares: the key-derivation primitives, the `zeroize` wrapper,
-and `Vec::remove`. -/
+and `remove_skipped_at`. -/
 
 end Tacenta.UnitT3

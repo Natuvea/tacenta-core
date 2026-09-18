@@ -38,7 +38,7 @@
 #      than inside either;
 #   4. qualified references to the four leaf proof namespaces
 #      (`Tacenta.T1.` and so on) become references to the unit's copies. These
-#      do reach statements and proof bodies -- 45 in `T3.lean`, 24 in
+#      do reach statements and proof bodies -- 47 in `T3.lean`, 25 in
 #      `SpqrT3.lean`: a hypothesis's type, a lemma a body cites, the rules an
 #      `attribute [-step]` removes. The others fall inside pins and go with them;
 #   5. in `SpqrT3.lean` only, one inserted stepping-rule erasure, explained
@@ -407,7 +407,7 @@ JOBS = [
         ] + renames(0, 4, 0, 0),
     ),
     # `T3.lean` is the classical ratchet's refinement of the model. It opens one
-    # name from the panic-freedom namespace, which moves with it. Its other 45
+    # name from the panic-freedom namespace, which moves with it. Its other 47
     # references to `Tacenta.T1.` are in statements, proof bodies and prose,
     # and seven of them name rules `UnitT1.lean` also registers, in
     # `attribute [-step]` erasures on six lines. Its six references to
@@ -432,7 +432,7 @@ JOBS = [
              "open tacenta_triple_unit tacenta_triple_unit.tacenta_ratchet", 1),
             (r"^open Tacenta\.T1 \(DerivedKeysModel\)$",
              "open Tacenta.UnitT1 (DerivedKeysModel)", 1),
-        ] + renames(45, 0, 6, 0),
+        ] + renames(47, 0, 6, 0),
     ),
     # `SpqrT3.lean` is the sparse ratchet's refinement. Its four references to
     # `Tacenta.SpqrT3.` are inside its two pins. Its eleven qualified `tacenta_spqr.*` references, to six names, are
@@ -482,7 +482,7 @@ JOBS = [
              "-- and they are left. The removal is local to this file: a module that\n"
              "-- imports it has the rule back.\n"
              "attribute [-step] Tacenta.UnitT1.zeroizing_deref_step", 1),
-        ] + renames(0, 24, 0, 4),
+        ] + renames(0, 25, 0, 4),
     ),
 ]
 

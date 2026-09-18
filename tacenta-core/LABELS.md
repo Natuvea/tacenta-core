@@ -24,7 +24,7 @@ source, fixed before the protocol is frozen.
 | `tacenta-triple` | `COMBINE_INFO` | `Tacenta_CURVE25519_SHA-256_MLKEM1024` |
 | `tacenta-triple` | `SPLIT_INFO` | `Tacenta_CURVE25519_SHA-256_MLKEM1024:Split` |
 | `tacenta-core` | `APPLICATION_SIGNING_LABEL` | `tacenta:application-signature:v1\xff` |
-| `tacenta-core` | `LAST_RESORT_HANDSHAKE_LABEL` | `tacenta last-resort handshake v1` |
+| `tacenta-core` | `LAST_RESORT_HANDSHAKE_LABEL` | `tacenta last-resort handshake v2` |
 
 `tooling/check-labels.sh`, which `tooling/ci.sh` runs, extracts these from source
 and fails if
@@ -37,7 +37,8 @@ and under each leaf crate's `src`. That is what brings in the sparse ratchet's
 two HMAC labels (`ROOT_LABEL`, `CHAIN_LABEL`: the domain-separation bytes its
 root-key and chain-key steps are keyed with) and the root crate's two
 (`APPLICATION_SIGNING_LABEL`, which prefixes a signing input, and
-`LAST_RESORT_HANDSHAKE_LABEL`, which keys an HMAC fingerprint of public data)
+`LAST_RESORT_HANDSHAKE_LABEL`, which keys an HMAC replay identity of the agreed
+handshake secret)
 alongside the HKDF `info` constants. `Root` and `Chain` are the shortest labels
 here; `Root` is a prefix of nothing, and `Chain` is a prefix of `Chain Start`,
 which is spelling fact 3 below. All four are frozen for the same reason the

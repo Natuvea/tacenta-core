@@ -4,7 +4,10 @@ import Lean
 # AxiomAudit: the declaration kinds `#print axioms` cannot see
 
 `#print axioms` under `#guard_msgs` pins what a *pinned* theorem rests on,
-and `no-sorry.sh` asks the compiler for incomplete declarations. Neither sees a
+and `no-sorry.sh` asks the compiler for incomplete declarations. The audit also
+refuses any first-party declaration that reaches `sorryAx`, so disabling the
+warning or consuming it with `#guard_msgs` cannot turn an incomplete proof
+green. Neither source check alone sees a
 declaration that is itself the new thing: an `axiom` nobody pins a theorem
 against, an `opaque` or `partial def` that opts out of termination checking,
 an `unsafe` declaration that opts out of everything, or an `@[implemented_by]`
@@ -268,6 +271,16 @@ write, and the two exemptions above accept it only in the compiler's shape. -/
 def compilerNamed (n : Name) : Bool :=
   n.components.any fun c => c.toString == "_unsafe_rec" || c.toString == "_native"
 
+/- A declaration whose type or value reaches Lean's `sorryAx` is incomplete,
+   even when the usual warning was disabled or consumed by `#guard_msgs`.
+   Keep this in the elaborated-environment audit: unlike a source grep it also
+   catches a macro or an option spelling that hides the diagnostic. -/
+def usesSorryAx (c : ConstantInfo) : Bool :=
+  c.type.getUsedConstants.contains ``sorryAx ||
+    match c.value? (allowOpaque := true) with
+    | some v => v.getUsedConstants.contains ``sorryAx
+    | none => false
+
 /-- Every constant named into the compiler's namespace (`compilerNamed`) that
 some first-party declaration mentions, in its value or in its statement.
 
@@ -346,6 +359,7 @@ def reasons (env : Environment) (applied : NameSet)
   if (Compiler.implementedByAttr.getParam? env n).isSome then
     out := out ++ ["implemented_by"]
   if isExtern env n then out := out ++ ["extern"]
+  if usesSorryAx c then out := out ++ ["sorryAx"]
   -- A name in the compiler's namespace that is not one of the two shapes the
   -- compiler produces: a planted `_unsafe_rec` the code generator would call,
   -- or an axiom dressed as compiler trust.
@@ -405,7 +419,7 @@ def run (prefixes : Array Name) : Elab.Command.CommandElabM Unit := do
     throwError "axiom audit: {offences.size} first-party declaration(s) widen the \
       trust base without a compiler warning:\n{String.intercalate "\n" lines.toList}\n\
       An axiom, an opaque or partial definition, an unsafe declaration, an \
-      implemented_by/extern attribute, or a declaration named into the compiler's \
+      implemented_by/extern attribute, a declaration using `sorryAx`, or a declaration named into the compiler's \
       `_native`/`_unsafe_rec` namespace outside the shape the compiler produces, in \
       hand-written Lean is refused. If one is genuinely needed, record it in \
       LIMITATIONS.md and extend `Model.AxiomAudit` with the reason."

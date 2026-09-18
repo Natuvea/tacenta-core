@@ -13,6 +13,9 @@
 # (`Aeneas/Std/Slice.lean`, with nothing to distinguish it). So the filter is
 # positive, naming the directories that are ours, and anything it does not
 # recognise is treated as third-party rather than as first-party.
+# The elaborated-environment audit in each build separately refuses any
+# first-party declaration that reaches `sorryAx`, covering disabled or consumed
+# warnings even when Lean emits no diagnostic for the log scan below.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

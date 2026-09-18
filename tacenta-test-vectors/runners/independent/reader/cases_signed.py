@@ -32,7 +32,7 @@ KD = "key-deletion.md"
 R = random.Random(20260912_7)
 MAL, WV, NC, INC, ICO = P.Malformed, P.WrongVersion, P.NonCanonical, P.Inconsistent, P.Incoherent
 
-# "signed_prekey_sig begins at offset 69 of a v4 store"
+# "signed_prekey_sig begins at offset 69 of a v5 store"
 SIG_OFFSET = 69
 OTHER_IDENTITY = b"\x73" * 32
 
@@ -140,7 +140,7 @@ def _():
         refused_as(P.prekey_store_from_bytes, P.prekey_store_to_bytes(store), MAL)
 
 
-@case("PK-04 the sixth rule is checked last of all: after the framing, after the v4 re-encode check, and after the other five. A store that breaks the signature rule and one of the others is refused as malformed; one that breaks it and is non-canonical is refused as non-canonical; one that breaks it under an unrecognised version byte is a wrong version",
+@case("PK-04 the sixth rule is checked last of all: after the framing, after the v5 re-encode check, and after the other five. A store that breaks the signature rule and one of the others is refused as malformed; one that breaks it and is non-canonical is refused as non-canonical; one that breaks it under an unrecognised version byte is a wrong version",
       f"{SP} Prekey store, Semantic rules: Last, over the decoded store, the reader refuses as malformed any store for which `PrekeyStore::invariant` is false, and -- last of all, and reported separately -- any store holding a signature that does not verify")
 def _():
     bad_sig = full_store()
@@ -154,17 +154,17 @@ def _():
 
     # non-canonical: a seen_count that re-encodes differently is not reachable,
     # so use the one second spelling the layout allows, a trailing field written
-    # by hand. The v4 re-encode check is what catches it, before the signature.
+    # by hand. The v5 re-encode check is what catches it, before the signature.
     canon = bytearray(raw)
     canon[SIG_OFFSET - 1] = canon[SIG_OFFSET - 1]     # unchanged: raw is canonical
     assert P.prekey_store_to_bytes(bad_sig) == bytes(canon)
-    refused_as(P.prekey_store_from_bytes, bytes([0x05]) + raw[1:], WV)
+    refused_as(P.prekey_store_from_bytes, bytes([0x06]) + raw[1:], WV)
     refused_as(P.prekey_store_from_bytes, raw + b"\x00", MAL)
     refused_as(P.prekey_store_from_bytes, raw[:-1], MAL)
 
 
-@case("PK-05 the flipped byte the page describes: signed_prekey_sig begins at offset 69 of a v4 store; a flip there re-encodes to the identical bytes, keeps all five of the other rules, and is refused by the sixth alone. A reader with the rule and a reader without it disagree about those same v4 bytes, which is what the page records",
-      f"{SP} Prekey store, Semantic rules: one flipped byte -- `signed_prekey_sig` begins at offset 69 of a v4 store, and a flip there stays canonical under re-encoding -- yields a store that reads back, satisfies every other rule above, and then hands every initiator a bundle that initiator must refuse; {SP} Prekey store: a reader with the rule and a reader without it disagree about the same v4 bytes")
+@case("PK-05 the flipped byte the page describes: signed_prekey_sig begins at offset 69 of a v5 store; a flip there re-encodes to the identical bytes, keeps all five of the other rules, and is refused by the sixth alone. A reader with the rule and a reader without it disagree about those same v5 bytes, which is what the page records",
+      f"{SP} Prekey store, Semantic rules: one flipped byte -- `signed_prekey_sig` begins at offset 69 of a v5 store, and a flip there stays canonical under re-encoding -- yields a store that reads back, satisfies every other rule above, and then hands every initiator a bundle that initiator must refuse; {SP} Prekey store: a reader with the rule and a reader without it disagree about the same v5 bytes")
 def _():
     p = full_store()
     raw = P.prekey_store_to_bytes(p)
@@ -193,12 +193,12 @@ def _read_without_the_signature_rule(raw):
         P.prekey_store_signatures = saved
 
 
-@case("PK-06 the rule applies to all four versions, the untagged ones having had their entries tagged first: a v1, v2 or v3 store whose signatures verify is read, and the same store with signed_prekey_sig flipped is refused as incoherent at every version. v1 and v2 carry no retired pair, so the rule covers nothing there beyond the two current signatures and the one-time KEM prekeys'",
-      f"{SP} Prekey store, Semantic rules: they apply to all four versions, the untagged ones having had their entries tagged with the current key first")
+@case("PK-06 the rule applies to all five versions, the untagged ones having had their entries tagged first: a v1, v2 or v3 store whose signatures verify is read, and the same store with signed_prekey_sig flipped is refused as incoherent at every version. v1 and v2 carry no retired pair, so the rule covers nothing there beyond the two current signatures and the one-time KEM prekeys'",
+      f"{SP} Prekey store, Semantic rules: they apply to all five versions, the untagged ones having had their entries tagged with the current key first")
 def _():
     p = full_store(seen=[(4, PSC.rnd(32))])
-    for version in (1, 2, 3, 4):
-        raw = P.prekey_store_to_bytes(p) if version == 4 else PSC.legacy(p, version)
+    for version in (1, 2, 3, 4, 5):
+        raw = P.prekey_store_to_bytes(p) if version == 5 else PSC.legacy(p, version)
         read = accepts(P.prekey_store_from_bytes, raw)
         if version < 3:
             assert read.previous_signed is None and read.previous_kem is None

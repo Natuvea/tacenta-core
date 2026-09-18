@@ -1281,6 +1281,10 @@ fn prekey_store_fields_agree(v: &Vector, stored: &[u8]) -> Result<(), String> {
     eq(at(pos, 4)?, &required_field(v, "seen_count")?)?;
     let seen = u32::from_be_bytes(at(pos, 4)?.try_into().unwrap()) as usize;
     pos += 4 + seen * 36;
+    if version == 5 {
+        let blocked = u32::from_be_bytes(at(pos, 4)?.try_into().unwrap()) as usize;
+        pos += 4 + blocked * 4;
+    }
     if version == 2 {
         eq(&[0], &required_field(v, "previous_signed_present")?)?;
         eq(&[0], &required_field(v, "previous_kem_present")?)?;
@@ -1432,7 +1436,7 @@ fn check_prekey_store_state(v: &Vector) -> Result<(), String> {
     let stored = input(v, "bytes")?;
     match (expects_success(v)?, PrekeyStore::from_bytes(&stored)) {
         (true, Ok(s)) => {
-            if stored.first() == Some(&4) {
+            if stored.first() == Some(&4) || stored.first() == Some(&5) {
                 eq(&s.to_bytes(), &stored)?;
             }
             prekey_store_fields_agree(v, &stored)

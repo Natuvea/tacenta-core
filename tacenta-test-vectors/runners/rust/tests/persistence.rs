@@ -24,7 +24,7 @@
 //! cryptographic accepted fixtures carry bytes `tacenta-core` itself produced,
 //! because the model has no signatures and so cannot build a store whose stored
 //! signatures verify; the legacy accepted vectors re-spell the no-record,
-//! no-retired fixture in older layouts and are permitted to upgrade to v4 on
+//! no-retired fixture in older layouts and are permitted to upgrade to v5 on
 //! write-back. The refusals are framing cases or change one field of those
 //! bytes, including one `signed_prekey_sig` byte for the stored-signature
 //! `incoherent` refusal, so each is refused for the rule under test.

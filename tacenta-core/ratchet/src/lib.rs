@@ -263,7 +263,7 @@ impl State {
                 }
                 i += 1;
             }
-            self.skipped.remove(oldest);
+            let _ = remove_skipped_at(&mut self.skipped, oldest);
             evicted += 1;
         }
         evicted
@@ -692,7 +692,7 @@ impl State {
         // and the loop still runs to completion (every remaining call is
         // still bounds-checked by `decode_skipped_entry`, so nothing panics),
         // with the failure reported once, after the loop.
-        let mut skipped = Vec::new();
+        let mut skipped = Vec::with_capacity(skipped_count);
         let mut ok = true;
         for _ in 0..skipped_count {
             match decode_skipped_entry(bytes, pos) {
@@ -826,11 +826,21 @@ fn skip_message_keys(state: &mut State, upto: u32) -> Result<(), RatchetError> {
             } else if upto > state.nr.saturating_add(MAX_SKIP) {
                 Err(RatchetError::TooManySkipped)
             } else {
-                // Purge a clone so the store bound is checked against the
-                // exact resulting store while every refusal remains atomic.
-                let mut skipped = state.skipped.clone();
+                // Build the working copy at its final capacity before copying
+                // secret-bearing entries. `Vec::clone` has capacity == len;
+                // pushing the first newly-derived key would otherwise free
+                // that live-key buffer during reallocation, unwiped.
+                let count = (upto - state.nr) as usize;
+                let mut skipped = Vec::with_capacity(state.skipped.len() + count);
+                let mut copied = 0;
+                while copied < state.skipped.len() {
+                    skipped.push(state.skipped[copied].clone());
+                    copied += 1;
+                }
+                // Purge the working copy so the store bound is checked against
+                // the exact resulting store while every refusal remains atomic.
                 purge_chain_range(&mut skipped, dhr, state.nr, upto);
-                if skipped.len() + (upto - state.nr) as usize > MAX_SKIPPED_STORE {
+                if skipped.len() + count > MAX_SKIPPED_STORE {
                     return Err(RatchetError::SkippedStoreFull);
                 }
                 let (ck2, keys) = match derive_chain(&ck, state.nr, upto - state.nr) {
@@ -981,7 +991,7 @@ fn purge_chain_range(skipped: &mut Vec<SkippedKey>, dhr: Key, from: u32, upto: u
     let mut i = 0;
     while i < skipped.len() {
         if skipped[i].dh == dhr && skipped[i].n >= from && skipped[i].n < upto {
-            skipped.remove(i);
+            let _ = remove_skipped_at(skipped, i);
         } else {
             i += 1;
         }
@@ -1029,7 +1039,7 @@ fn age_store(state: &mut State) {
         // It also matches the model exactly, where the subtraction is over the
         // naturals and already truncates.
         if now.saturating_sub(state.skipped[i].stored_at) >= MAX_SKIPPED_AGE {
-            state.skipped.remove(i);
+            let _ = remove_skipped_at(&mut state.skipped, i);
         } else {
             i += 1;
         }
@@ -1043,13 +1053,26 @@ fn try_skipped(state: &mut State, header: &Header) -> Option<Key> {
     let mut i = 0;
     while i < state.skipped.len() {
         if state.skipped[i].dh == header.dh && state.skipped[i].n == header.n {
-            let mk = state.skipped[i].key;
-            state.skipped.remove(i);
-            return Some(mk);
+            return Some(remove_skipped_at(&mut state.skipped, i));
         }
         i += 1;
     }
     None
+}
+
+/// Remove one secret-bearing skipped entry without `Vec::remove`'s tail copy.
+/// Adjacent swaps preserve the store order. The key is copied for the caller,
+/// the heap slot is zeroized in place, and only then is the vector shortened.
+fn remove_skipped_at(skipped: &mut Vec<SkippedKey>, index: usize) -> Key {
+    let mut i = index;
+    while i + 1 < skipped.len() {
+        skipped.swap(i, i + 1);
+        i += 1;
+    }
+    let key = skipped[i].key;
+    skipped[i].zeroize();
+    let _ = skipped.pop();
+    key
 }
 
 /// Receive (ratchet.md): try a stored skipped key; otherwise, on a ratchet key

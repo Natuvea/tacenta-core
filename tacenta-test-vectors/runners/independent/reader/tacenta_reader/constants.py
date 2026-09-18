@@ -82,7 +82,7 @@ BRAID_CIPHERTEXT = b":ciphertext"
 
 # session-establishment.md, The fingerprint; CONSTANTS.md
 # LAST_RESORT_HANDSHAKE_LABEL: 32 ASCII bytes, no terminator
-LAST_RESORT_HANDSHAKE_LABEL = b"tacenta last-resort handshake v1"
+LAST_RESORT_HANDSHAKE_LABEL = b"tacenta last-resort handshake v2"
 
 # session-establishment.md, DecodeEC: "a key whose value is at least p"
 CURVE25519_P = (1 << 255) - 19
@@ -116,8 +116,8 @@ PB_MAX_U32 = U32_MAX
 # --- session-persistence.md; CONSTANTS.md "Storage formats"
 STATE_VERSION = 0x01          # ratchet, spqr, braid, triple
 SESSION_VERSION = 0x01
-PREKEY_STORE_VERSION = 0x04
-PREKEY_STORE_VERSIONS_READ = frozenset({0x01, 0x02, 0x03, 0x04})
+PREKEY_STORE_VERSION = 0x05
+PREKEY_STORE_VERSIONS_READ = frozenset({0x01, 0x02, 0x03, 0x04, 0x05})
 LABELS_TACENTA = 0x00
 DIRECTION_A2B = 0x00
 DIRECTION_B2A = 0x01

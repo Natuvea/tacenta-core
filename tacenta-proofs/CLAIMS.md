@@ -69,11 +69,11 @@ this section says in one place what is not proved.
 - **Every boundary hypothesis about an opaque operation is guarded by that
   operation's own precondition, and the build checks that each `Vec`-family
   one is satisfiable.** `VecAppendTotal`/`VecAppendAgrees` carry a length
-  guard (Aeneas's `Vec` has no room for two full vectors); `VecRemoveTotal`
-  in both `T1.lean` and `SpqrT1.lean` and `VecRemoveAgrees` carry the index
-  guard `i.val < v.val.length →`, the one condition under which Rust's
-  `Vec::remove` returns rather than panics, discharged in each proof from
-  the loop guard the source checks first (the guard also removed the
+  guard (Aeneas's `Vec` has no room for two full vectors); the classical
+  ratchet's `VecRemoveTotal`/`VecRemoveAgrees` and the sparse ratchet's
+  `RemoveSkippedAtTotal`/`RemoveSkippedAtAgrees` carry the index guard
+  `i.val < v.val.length →`, discharged in each proof from the loop guard the
+  source checks first (the guard also removed the
   `[Inhabited]` bound the unguarded statements needed: stated for every
   index and every element type, including the empty one, they would imply
   `False`); every width-polymorphic HKDF hypothesis carries RFC 5869's `N.val ≤ 8160` (`SessionT3.HkdfAgrees` is fixed at 32 bytes and needs none), the
@@ -906,9 +906,10 @@ says.
   opaque-operation axioms it carries
   `SpqrT1.receive_no_panic._native.native_decide.ax_1_1`, one closed numeric
   fact in its proof settled by `native_decide`.
-- Seven opaque-operation assumptions back these theorems (`VecRemoveTotal`,
-  stated under the index guard `i.val < v.val.length →` and discharged from
-  the skipped-key scan's own loop check; `KdfCkTotal`, `ZeroizeTotal`,
+- Seven opaque-operation assumptions back these theorems
+  (`RemoveSkippedAtTotal`, which describes the custom wipe-before-pop helper
+  under `i.val < v.val.length →` and is discharged from the skipped-key
+  scan's own loop check; `KdfCkTotal`, `ZeroizeTotal`,
   `VecRetainTotal`, `KdfRkTotal`, `OptionCloneTotal`, `VecAppendTotal`), each
   a per-crate axiom Aeneas could not model, none shared with the classical
   ratchet's own copies of the same operations. See `SpqrT1.lean`'s own
@@ -1600,8 +1601,9 @@ the bundle-taking theorems carry: `UnitT3.HmacAgrees`, `UnitT3.HkdfAgrees`,
 `UnitT3.ZeroizingRoundTrips`, `UnitT1.VecRemoveTotal`, an instance of
 `UnitT1.DerivedKeysModel`, `UnitSpqrT3.ZeroizingRoundTrips96` and
 `ZeroizingRoundTrips64`, `UnitSpqrT3.VecRetainAgrees`, `VecAppendAgrees` and
-`VecRemoveAgrees`, `UnitSpqrT1.ZeroizeTotal` and `UnitSpqrT1.OptionCloneTotal`.
-`UnitSatisfiabilityTriple.lean` witnesses all twelve, jointly where two constrain
+`RemoveSkippedAtAgrees`, `UnitSpqrT1.ZeroizeTotal` and
+`UnitSpqrT1.OptionCloneTotal`.
+`UnitSatisfiabilityTriple.lean` witnesses all eleven, jointly where two constrain
 the same constant, and applies both theorems to exactly those hypotheses, so a
 boundary hypothesis added ahead of the state relation stops it building.
 
@@ -1957,13 +1959,12 @@ Location: `tacenta-proofs/translation/Translation/SpqrT3.lean`.
   `Model.Kdf.hkdf` computes -- under RFC 5869's `N.val ≤ 8160`, discharged
   at the 64- and 96-byte literals. Subsumes both of `SpqrT1.lean`'s KDF
   assumptions, so this file states the boundary once rather than twice.
-- **`VecRetainAgrees` and `VecRemoveAgrees`:** each states what `retain`/
-  `remove` return, not only that they return, and each is strictly stronger
+- **`VecRetainAgrees` and `RemoveSkippedAtAgrees`:** each states what the
+  operation returns, not only that it returns, and each is strictly stronger
   than its `SpqrT1.lean` namesake, so neither older hypothesis is separately
-  assumed here. `VecRemoveAgrees` is stated under the index guard
-  `i.val < v.val.length`, where `Vec::remove` returns, and names the removed
-  element as `v.val[i.val]` outright, with no `Inhabited` bound and no
-  out-of-range value to name.
+  assumed here. `RemoveSkippedAtAgrees` is stated under the index guard
+  `i.val < v.val.length`, and says the custom wipe-before-pop helper returns
+  the indexed key and the vector with that index erased.
 - **`VecAppendAgrees`:** genuinely new. `SpqrT1.lean` needed only
   `VecAppendTotal`, since nothing there depended on what
   `skip_message_keys`'s concatenation actually produced; this file does.
@@ -2109,6 +2110,10 @@ the same audit). The audit also prints every axiom the generated
 `no-sorry.sh` fails if that list differs from the per-file sets
 `manifests/translation-attestation.json` records, so the record is held to
 what the text elaborated to and not only to the text.
+The same audit refuses every first-party declaration whose type or proof value
+reaches Lean's `sorryAx`, including when `warn.sorry` is disabled or the
+diagnostic is consumed by `#guard_msgs`; this is the semantic check behind the
+no-sorry claim rather than a token-pattern workaround.
 `scripts/check-lean-constructs.sh`, the textual second line, strips
 comments and strings and refuses those keywords wherever they sit on a
 line, in every hand-written module including the package roots and
@@ -2127,7 +2132,7 @@ the audit walks only what its invoking module imports, and fails if the
 four do not all run with the same first-party prefixes, since the audit's
 waiver for an unmentioned compiler-trust axiom asks whether any first-party
 declaration mentions it and only sees the modules in its own environment.
-`scripts/check-audit-negatives.sh` plants twelve declarations: one for each
+`scripts/check-audit-negatives.sh` plants thirteen declarations: one for each
 of the seven kinds the audit refuses, one for each condition a compiler-trust
 axiom must meet, and one for the shape the waiver accepts. It fails if the
 audit calls any of them wrongly. Its own comment carries the matrix of which

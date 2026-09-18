@@ -11,7 +11,12 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
-### Added
+- `tacenta-core`: the classical and sparse ratchets’ secret-bearing working
+  copies and removal paths now allocate at their final capacity and wipe dead
+  slots before release; sparse decoder vectors are sized from checked counts.
+  The independent reader follows the v2 agreed-secret replay identity and
+  covers fail-closed import of v4 replay records into v5.
+
 - `security-properties/evidence-index-format.md`: the checked JSON format for
   the P2 requirement evidence index, including the boundary between reference
   validation and human semantic review.
@@ -132,6 +137,21 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- `protocol/session-establishment.md`, `protocol/session-persistence.md` and
+  `CONSTANTS.md`: the last-resort replay record now uses an `SK`-bound replay
+  identity (`tacenta last-resort handshake v2`). Stores written as v1-v4 with
+  a nonempty legacy record import with the affected live KEM keys blocked until
+  rotation; v5 is the only format written. This closes the torsion-equivalent
+  public-encoding replay gap without pretending an old byte-based record can be
+  upgraded safely.
+- `protocol/key-deletion.md` and `security-properties/authentication.md`:
+  authentication and deletion rules now name the post-decapsulation replay
+  identity rather than a public-byte fingerprint.
+- `tacenta-core/ratchet`: skipped-key removal avoids `Vec::remove`'s
+  secret-bearing dead-tail copy, and persisted secret vectors are sized before
+  decode. AES-CBC buffers now use the crates' zeroization features. The
+  analogous SPQR container hardening remains a follow-up because its verified
+  proof contracts still describe the old standard-library operations.
 - `protocol/sparse-pq-ratchet.md`, The store also has a total bound: clarified
   that the current sparse implementation checks the pre-purge store length,
   while resulting-store replacement semantics and refusal atomicity remain an
@@ -163,7 +183,7 @@ is SemVer against the specified protocol (not the implementation).
 - `prekey-store-state.json`: add accepted `legacy-v1`, `legacy-v2` and
   `legacy-v3` fixtures for the prekey store's older stored layouts. The new
   vectors read to the same fields as the no-record, no-retired current fixture
-  and upgrade to v4 on write-back, resolving `PK-OLD-VERSIONS` in the gap
+  and upgrade to v5 on write-back, resolving `PK-OLD-VERSIONS` in the gap
   register.
 - `prekey-store-state.json`: add the accepted `retired-kem-prekey` fixture,
   produced by `print_prekey_store_fixtures`, so the prekey store's

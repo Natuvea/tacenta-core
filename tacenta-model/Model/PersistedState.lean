@@ -1641,9 +1641,10 @@ structure Store where
   previousKem : Option (Bytes × Nat × Bytes)
   deriving Repr, DecidableEq, Inhabited
 
-/-- The version `toBytes` writes, and the three earlier ones `ofBytes` still
+/-- The version `toBytes` writes, and the four earlier ones `ofBytes` still
     reads (CONSTANTS.md, `PREKEY_STORE_VERSION`). -/
-def version : UInt8 := 0x04
+def version : UInt8 := 0x05
+def versionV4 : UInt8 := 0x04
 def versionV3 : UInt8 := 0x03
 def versionV2 : UInt8 := 0x02
 def versionV1 : UInt8 := 0x01
@@ -1691,6 +1692,7 @@ def toBytes (st : Store) : Bytes :=
     ++ be 4 st.kemOneTime.length ++ (st.kemOneTime.map kemOneTimeBytes).flatten
     ++ be 4 st.nextId
     ++ be 4 st.seen.length ++ (st.seen.map seenBytes).flatten
+    ++ be 4 0
     ++ optSignedBytes st.previousSigned ++ optKemBytes st.previousKem
 
 /-! ### Semantic rules (Prekey store, Semantic rules)
@@ -1772,10 +1774,19 @@ def readSeen (v : UInt8) (kemId : Nat) (bs : Bytes) : Step (List (Nat × Bytes))
   if v = versionV1 then .ok ([], bs)
   else
     andThen (readInt 4 bs) fun n r =>
-      if v = version then readEntries 36 readSeenV4 n r
+      if v = version || v = versionV4 then readEntries 36 readSeenV4 n r
       else
         andThen (readEntries 32 (fun b => .ok b) n r) fun fps r' =>
-          .ok (fps.map (fun fp => (kemId, fp)), r')
+        .ok (fps.map (fun fp => (kemId, fp)), r')
+
+/-- v5's fail-closed legacy replay markers. The model does not model the
+    cryptographic migration decision, so it consumes and discards the bounded
+    identifiers; current stores write an empty marker list. -/
+def readLegacyBlocked (v : UInt8) (bs : Bytes) : Step Unit :=
+  if v = version then
+    andThen (readInt 4 bs) fun n r =>
+      andThen (readEntries 4 (fun b => readInt 4 b) n r) fun _ r' => .ok ((), r')
+  else .ok ((), bs)
 
 /-- The retired signed prekey. -/
 def readOptSigned (bs : Bytes) : Step (Option (Bytes × Nat × Bytes)) :=
@@ -1812,7 +1823,7 @@ def readPrev (v : UInt8) (bs : Bytes) :
 def ofBytes : Bytes → Except Refusal Store
   | [] => .error .shortOrMalformed
   | v :: body =>
-    if v ≠ version && v ≠ versionV3 && v ≠ versionV2 && v ≠ versionV1 then
+    if v ≠ version && v ≠ versionV4 && v ≠ versionV3 && v ≠ versionV2 && v ≠ versionV1 then
       .error .wrongVersion
     else
       andThen (takeN 32 body) fun idPub r0 =>
@@ -1828,7 +1839,8 @@ def ofBytes : Bytes → Except Refusal Store
       andThen (readKemOneTimes kotCount r9) fun kemOneTime r10 =>
       andThen (readInt 4 r10) fun nextId r11 =>
       andThen (readSeen v kemId r11) fun seen r12 =>
-      andThen (readPrev v r12) fun prev r13 =>
+      andThen (readLegacyBlocked v r12) fun _ r13 =>
+      andThen (readPrev v r13) fun prev r14 =>
         let st : Store :=
           { identityPublic := idPub, signedPrekeySecret := spSecret,
             signedPrekeyId := spId, signedPrekeySig := spSig, oneTime := oneTime,
@@ -1838,7 +1850,7 @@ def ofBytes : Bytes → Except Refusal Store
         -- Two refusals, nested rather than conjoined: bytes left after the
         -- last field, and a store that breaks a rule. The page names them
         -- separately and they are reached separately.
-        if r13.isEmpty then
+        if r14.isEmpty then
           if invariant st then .ok st else .error .shortOrMalformed
         else .error .shortOrMalformed
 
@@ -2127,7 +2139,8 @@ theorem ofBytes_ok {bs : Bytes} {st : Store} (h : ofBytes bs = .ok st) :
       obtain ⟨kemOneTime, r10, h10, h⟩ := andThen_eq_ok h
       obtain ⟨nextId, r11, h11, h⟩ := andThen_eq_ok h
       obtain ⟨seen, r12, h12, h⟩ := andThen_eq_ok h
-      obtain ⟨prev, r13, h13, h⟩ := andThen_eq_ok h
+      obtain ⟨_, r13, h13, h⟩ := andThen_eq_ok h
+      obtain ⟨prev, r14, h14, h⟩ := andThen_eq_ok h
       split at h
       · split at h
         · rename_i hinv
@@ -2150,7 +2163,7 @@ theorem ofBytes_ok {bs : Bytes} {st : Store} (h : ofBytes bs = .ok st) :
           obtain ⟨hnext, -⟩ := readInt_ok h11
           have hkid' : kemId < 2 ^ 32 := by simpa using hkid
           obtain ⟨hseenlen, hseen⟩ := readSeen_ok hkid' h12
-          obtain ⟨hpsigned, hpkem⟩ := readPrev_ok h13
+          obtain ⟨hpsigned, hpkem⟩ := readPrev_ok h14
           have hotc' : otCount < 2 ^ 32 := by simpa using hotc
           have hkotc' : kotCount < 2 ^ 32 := by simpa using hkotc
           exact ⟨hinv, hip, hsps, by simpa using hspid, hspsig,
@@ -2182,6 +2195,9 @@ theorem ofBytes_toBytes (st : Store) (hinv : invariant st = true) (hfit : Fits s
   -- the retired KEM prekey, and the higher-order unification does not find that
   -- on its own.
   have hprev := readOptSigned_bytes st.previousSigned (optKemBytes st.previousKem) hpsigned
+  have hcount := readInt_be 4 0
+    (optSignedBytes st.previousSigned ++ optKemBytes st.previousKem) (by decide)
+  set_option maxRecDepth 100000 in
   simp +decide only [toBytes, ofBytes, version,
     List.cons_append, List.nil_append, List.append_assoc,
     if_false, if_true,
@@ -2199,7 +2215,7 @@ theorem ofBytes_toBytes (st : Store) (hinv : invariant st = true) (hfit : Fits s
     readInt_be 4 st.kemOneTime.length _ hkotlen',
     readKemOneTimes_bytes st.kemOneTime _ hkot,
     readInt_be 4 st.nextId _ hnext',
-    readSeen, readPrev,
+    readSeen, readLegacyBlocked, hcount, readEntries, readPrev,
     readInt_be 4 st.seen.length _ hseenlen',
     readEntries_flatten 36 seenBytes readSeenV4 st.seen _
       (fun x hx => seenBytes_length x (hseen x hx).2)

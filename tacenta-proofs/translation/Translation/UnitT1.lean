@@ -266,14 +266,81 @@ invariant is that the keys already stored plus the ones still to be read stay
 within the bound; each turn moves exactly one key from the wrapper into the
 store. The measure is the number of keys left to read. -/
 @[step]
-theorem skip_message_keys_loop_no_panic [DerivedKeysModel]
+theorem skipped_key_clone_spec0 (sk : SkippedKey) :
+    SkippedKey.Insts.CoreCloneClone.clone sk ⦃ fun r => r = sk ⦄ := by
+  unfold SkippedKey.Insts.CoreCloneClone.clone
+  step with core.array.CloneArray.clone_spec core.clone.CloneU8 sk.dh
+    (fun x _ => by rfl)
+  simp only [core.clone.impls.CloneU32.clone, lift]
+  step with core.array.CloneArray.clone_spec core.clone.CloneU8 sk.key
+    (fun x _ => by rfl)
+  simp only [← a_post, ← i_post]
+
+theorem skipped_key_clone_eq (sk : SkippedKey) :
+    SkippedKey.Insts.CoreCloneClone.clone sk = ok sk := by
+  obtain ⟨y, hy, hxy⟩ := WP.spec_imp_exists (skipped_key_clone_spec0 sk)
+  simpa [hxy] using hy
+
+theorem skip_message_keys_loop0_no_panic
+    (v skipped : alloc.vec.Vec SkippedKey) (i : Usize)
+    (h : skipped.val.length + (v.val.length - i.val) ≤ Usize.max) :
+    skip_message_keys_loop0 v skipped i ⦃ fun _ => True ⦄ := by
+  unfold skip_message_keys_loop0
+  apply loop.spec_decr_nat
+    (measure := fun x => v.val.length - (Prod.snd x).val)
+    (inv := fun x => (Prod.fst x).val.length
+      + (v.val.length - (Prod.snd x).val) ≤ Usize.max)
+  · rintro ⟨w, j⟩ hinv
+    simp only at hinv
+    simp only [skip_message_keys_loop0.body]
+    have hfits := v.property
+    by_cases hlt : j.val < v.val.length
+    · have hleft : 1 ≤ v.val.length - j.val := by omega
+      step*
+      simp_all [alloc.vec.Vec.len]
+      omega
+    · step*
+  · exact h
+
+@[step]
+theorem skip_message_keys_loop0_bound (B : Nat) (hB : B ≤ Usize.max)
+    (v skipped : alloc.vec.Vec SkippedKey) (i : Usize)
+    (h : skipped.val.length + (v.val.length - i.val) ≤ B) :
+    skip_message_keys_loop0 v skipped i ⦃ fun r => r.val.length ≤ B ⦄ := by
+  unfold skip_message_keys_loop0
+  apply loop.spec_decr_nat
+    (measure := fun x => v.val.length - (Prod.snd x).val)
+    (inv := fun x => (Prod.fst x).val.length
+      + (v.val.length - (Prod.snd x).val) ≤ B)
+  · rintro ⟨w, j⟩ hinv
+    simp only at hinv
+    simp only [skip_message_keys_loop0.body]
+    have hfits := v.property
+    by_cases hlt : j.val < v.val.length
+    · have hleft : 1 ≤ v.val.length - j.val := by omega
+      step*
+      simp_all [alloc.vec.Vec.len]
+      omega
+    · step*
+  · exact h
+
+@[step]
+theorem skip_message_keys_loop0_grows
+    (v skipped : alloc.vec.Vec SkippedKey) (i : Usize)
+    (h : skipped.val.length + (v.val.length - i.val) ≤ Usize.max) :
+    skip_message_keys_loop0 v skipped i ⦃ fun r =>
+      r.val.length ≤ skipped.val.length + (v.val.length - i.val) ⦄ := by
+  apply skip_message_keys_loop0_bound (skipped.val.length + (v.val.length - i.val)) (by omega) v skipped i (le_refl _)
+
+@[step]
+theorem skip_message_keys_loop1_no_panic [DerivedKeysModel]
     (dhr : Array U8 32#usize) (v : alloc.vec.Vec SkippedKey) (now : U32)
     (keys : zeroize.Zeroizing (alloc.vec.Vec (U32 × Array U8 32#usize)))
     (i : Usize)
     (h : v.val.length + ((DerivedKeysModel.contents keys).val.length - i.val)
           ≤ Usize.max) :
-    skip_message_keys_loop dhr now v keys i ⦃ fun _ => True ⦄ := by
-  unfold skip_message_keys_loop
+    skip_message_keys_loop1 dhr now v keys i ⦃ fun _ => True ⦄ := by
+  unfold skip_message_keys_loop1
   apply loop.spec_decr_nat
     (measure := fun x =>
       (DerivedKeysModel.contents keys).val.length - (Prod.snd x).val)
@@ -281,7 +348,7 @@ theorem skip_message_keys_loop_no_panic [DerivedKeysModel]
       + ((DerivedKeysModel.contents keys).val.length - (Prod.snd x).val) ≤ Usize.max)
   · rintro ⟨w, j⟩ hinv
     simp only at hinv
-    simp only [skip_message_keys_loop.body]
+    simp only [skip_message_keys_loop1.body]
     -- The cursor's increment needs the wrapper's vector to be a vector: its
     -- length is within `Usize.max`, so a cursor below it has room to move.
     have hfits := (DerivedKeysModel.contents keys).property
@@ -349,10 +416,10 @@ theorem array_eq_total {N : Usize} (a b : Array U8 N) :
   obtain ⟨r, hr⟩ := h
   simp [hr]
 
-/-- A second boundary. Aeneas does not model `Vec::remove`, so it reaches the
+/-- A second boundary. Aeneas does not model `remove_skipped_at`, so it reaches the
 translation as an opaque function and this hypothesis states what it does
 **at an in-range index**: it returns, and the vector it hands back is the
-input with that index erased. That is the whole of what Rust's `Vec::remove`
+input with that index erased. That is the whole of what Rust's `remove_skipped_at`
 promises; out of range it panics, and the hypothesis says nothing there. So
 this is a fact the real operation satisfies for every quantified input, not
 a totality stronger than the crate, and every use of it in this file sits
@@ -367,24 +434,25 @@ into.
 The guard is also what keeps the statement satisfiable without an
 `[Inhabited T]` bound. Stated for every index, the existential would ask,
 at `T := Empty` and an empty vector, for an element of an empty type, and
-`VecRemoveTotal → False` would be provable -- with every theorem taking it.
+`RemoveSkippedAtTotal → False` would be provable -- with every theorem taking it.
 Under the guard a vector of an empty type has no in-range index, so the
 question does not arise (`Translation/Satisfiability.lean` keeps the
 refutation of the unguarded shape, and exhibits a model of this one: the
 operation that returns the element in range and panics otherwise, which is
 the real one). -/
-def VecRemoveTotal : Prop :=
-  ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize), i.val < v.val.length →
-    ∃ r, alloc.vec.Vec.remove A v i = ok r ∧ r.2.val = v.val.eraseIdx i.val
+def RemoveSkippedAtTotal : Prop :=
+  ∀ (A : Type) (v : alloc.vec.Vec SkippedKey) (i : Usize)
+    (hi : i.val < v.val.length),
+    ∃ r, remove_skipped_at v i = ok r ∧ r.1 = (v.val[i.val]'hi).key ∧ r.2.val = v.val.eraseIdx i.val
 
 /-- The length fact the loops need, derived rather than assumed: a removal in
 range shortens the vector by exactly one. Stating the assumption as the
 operation's value and deriving the rest is what refinement needs anyway, and it
 means the length cannot drift from the value. -/
-theorem VecRemoveTotal.lengths (hrm : VecRemoveTotal) {T : Type} (A : Type)
-    (v : alloc.vec.Vec T) (i : Usize) (hi : i.val < v.val.length) :
-    ∃ r, alloc.vec.Vec.remove A v i = ok r ∧ r.2.val.length + 1 = v.val.length := by
-  obtain ⟨r, hr, hv⟩ := hrm A v i hi
+theorem RemoveSkippedAtTotal.lengths (hrm : RemoveSkippedAtTotal) (A : Type)
+    (v : alloc.vec.Vec SkippedKey) (i : Usize) (hi : i.val < v.val.length) :
+    ∃ r, remove_skipped_at v i = ok r ∧ r.2.val.length + 1 = v.val.length := by
+  obtain ⟨r, hr, -, hv⟩ := hrm A v i hi
   refine ⟨r, hr, ?_⟩
   simp only [hv, List.length_eraseIdx]
   split <;> omega
@@ -395,7 +463,7 @@ the cursor increment cannot overflow because the cursor stays below a length
 that is itself within `Usize.max`. The scan does not modify the store while
 looking, so the measure is simply how much of it is left to examine and the
 invariant is trivial. -/
-theorem try_skipped_loop_no_panic (hrm : VecRemoveTotal)
+theorem try_skipped_loop_no_panic (hrm : RemoveSkippedAtTotal)
     (state : State) (header : Header) (i : Usize) :
     NoPanic (try_skipped_loop state header i) := by
   unfold NoPanic try_skipped_loop
@@ -487,9 +555,9 @@ theorem derive_chain_length_count (h : HmacTotal) [DerivedKeysModel]
 
 /-- The purge scan cannot fail. Unlike the skipped-key scan it does not advance
 its index when it removes, so the measure has to be the distance left in a
-vector that is itself shrinking; that is why `VecRemoveTotal` has to say the
+vector that is itself shrinking; that is why `RemoveSkippedAtTotal` has to say the
 removal shortens the vector exactly, rather than merely not lengthening it. -/
-theorem purge_chain_range_loop_no_panic (hrm : VecRemoveTotal)
+theorem purge_chain_range_loop_no_panic (hrm : RemoveSkippedAtTotal)
     (skipped : alloc.vec.Vec SkippedKey) (dhr : Array U8 32#usize)
     (from1 upto : U32) (i : Usize) :
     NoPanic (purge_chain_range_loop skipped dhr from1 upto i) := by
@@ -507,7 +575,7 @@ theorem purge_chain_range_loop_no_panic (hrm : VecRemoveTotal)
 
 /-- The purge never grows the store, which is what carries the store-length
 precondition across it into the storing loop. -/
-theorem purge_chain_range_loop_shrinks (hrm : VecRemoveTotal)
+theorem purge_chain_range_loop_shrinks (hrm : RemoveSkippedAtTotal)
     (skipped : alloc.vec.Vec SkippedKey) (dhr : Array U8 32#usize)
     (from1 upto : U32) (i : Usize) :
     purge_chain_range_loop skipped dhr from1 upto i ⦃ fun r =>
@@ -526,7 +594,7 @@ theorem purge_chain_range_loop_shrinks (hrm : VecRemoveTotal)
   · simp
 
 @[step]
-theorem purge_chain_range_shrinks (hrm : VecRemoveTotal)
+theorem purge_chain_range_shrinks (hrm : RemoveSkippedAtTotal)
     (skipped : alloc.vec.Vec SkippedKey) (dhr : Array U8 32#usize)
     (from1 upto : U32) :
     purge_chain_range skipped dhr from1 upto ⦃ fun r =>
@@ -610,7 +678,7 @@ store's overflow obligation arises inside the bind, and the branch that bounds
 the gap is the one the stepping tactic has already walked past by then. Under
 the guard the whole call is the `TooManySkipped` return and there is no
 arithmetic to discharge; under its negation `skip_gap_le` supplies the bound. -/
-theorem skip_message_keys_no_panic (h : HmacTotal) (hrm : VecRemoveTotal)
+theorem skip_message_keys_no_panic (h : HmacTotal) (hrm : RemoveSkippedAtTotal)
     [DerivedKeysModel] (state : State) (upto : U32)
     (hs : state.skipped.val.length + MAX_SKIP.val ≤ Usize.max) :
     NoPanic (skip_message_keys state upto) := by
@@ -620,12 +688,15 @@ theorem skip_message_keys_no_panic (h : HmacTotal) (hrm : VecRemoveTotal)
   · step*
   · have hgap := skip_gap_le state.nr upto hg
     step*
-    obtain ⟨ck2, keys⟩ := v
-    step*
+    all_goals simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
+    all_goals (try omega)
+    all_goals (try rcases v with ⟨ck2, keys⟩)
+    all_goals (try (step with skip_message_keys_loop1_no_panic dhr state.events skipped2 keys 0#usize (by omega)))
+    all_goals step*
 
 /-- The scan's wrapper only repackages the tuple the loop returns, so it
 inherits the loop's proof. -/
-theorem try_skipped_no_panic (hrm : VecRemoveTotal) (state : State)
+theorem try_skipped_no_panic (hrm : RemoveSkippedAtTotal) (state : State)
     (header : Header) :
     NoPanic (try_skipped state header) := by
   unfold NoPanic try_skipped
@@ -636,13 +707,13 @@ theorem try_skipped_no_panic (hrm : VecRemoveTotal) (state : State)
 /-- The store loop, with the bound carried so a caller learns how large the
 store ends up rather than only that the loop did not fail. Same shape as the
 chain loop's length lemma. -/
-theorem skip_message_keys_loop_bound [DerivedKeysModel] (B : Nat) (hB : B ≤ Usize.max)
+theorem skip_message_keys_loop1_bound [DerivedKeysModel] (B : Nat) (hB : B ≤ Usize.max)
     (dhr : Array U8 32#usize) (v : alloc.vec.Vec SkippedKey) (now : U32)
     (keys : zeroize.Zeroizing (alloc.vec.Vec (U32 × Array U8 32#usize)))
     (i : Usize)
     (h : v.val.length + ((DerivedKeysModel.contents keys).val.length - i.val) ≤ B) :
-    skip_message_keys_loop dhr now v keys i ⦃ fun r => r.val.length ≤ B ⦄ := by
-  unfold skip_message_keys_loop
+    skip_message_keys_loop1 dhr now v keys i ⦃ fun r => r.val.length ≤ B ⦄ := by
+  unfold skip_message_keys_loop1
   apply loop.spec_decr_nat
     (measure := fun x =>
       (DerivedKeysModel.contents keys).val.length - (Prod.snd x).val)
@@ -650,7 +721,7 @@ theorem skip_message_keys_loop_bound [DerivedKeysModel] (B : Nat) (hB : B ≤ Us
       + ((DerivedKeysModel.contents keys).val.length - (Prod.snd x).val) ≤ B)
   · rintro ⟨w, j⟩ hinv
     simp only at hinv
-    simp only [skip_message_keys_loop.body]
+    simp only [skip_message_keys_loop1.body]
     -- The cursor's increment needs the wrapper's vector to be a vector: its
     -- length is within `Usize.max`, so a cursor below it has room to move.
     have hfits := (DerivedKeysModel.contents keys).property
@@ -663,22 +734,22 @@ theorem skip_message_keys_loop_bound [DerivedKeysModel] (B : Nat) (hB : B ≤ Us
 so the stepping tactic can apply it without choosing a bound, the same reason
 `derive_chain_length_count` exists. -/
 @[step]
-theorem skip_message_keys_loop_grows [DerivedKeysModel]
+theorem skip_message_keys_loop1_grows [DerivedKeysModel]
     (dhr : Array U8 32#usize) (v : alloc.vec.Vec SkippedKey) (now : U32)
     (keys : zeroize.Zeroizing (alloc.vec.Vec (U32 × Array U8 32#usize)))
     (i : Usize)
     (h : v.val.length + ((DerivedKeysModel.contents keys).val.length - i.val)
           ≤ Usize.max) :
-    skip_message_keys_loop dhr now v keys i ⦃ fun r =>
+    skip_message_keys_loop1 dhr now v keys i ⦃ fun r =>
       r.val.length ≤ v.val.length
         + ((DerivedKeysModel.contents keys).val.length - i.val) ⦄ :=
-  skip_message_keys_loop_bound _ h dhr v now keys i (le_refl _)
+  skip_message_keys_loop1_bound _ h dhr v now keys i (le_refl _)
 
 /-- Skipping forward leaves the store no larger than it was or than the limit
 the code enforces, whichever is bigger. This is what a second call needs in
 order to re-establish its own precondition, which is why panic-freedom alone was
 not enough to compose. -/
-theorem skip_message_keys_bound (h : HmacTotal) (hrm : VecRemoveTotal)
+theorem skip_message_keys_bound (h : HmacTotal) (hrm : RemoveSkippedAtTotal)
     [DerivedKeysModel] (state : State) (upto : U32)
     (hs : state.skipped.val.length + MAX_SKIP.val ≤ Usize.max) :
     skip_message_keys state upto ⦃ fun p =>
@@ -690,13 +761,15 @@ theorem skip_message_keys_bound (h : HmacTotal) (hrm : VecRemoveTotal)
     all_goals simp_all [MAX_SKIPPED_STORE]
   · have hgap := skip_gap_le state.nr upto hg
     step*
-    all_goals (try obtain ⟨ck2, keys⟩ := v)
-    all_goals ((step*; simp_all [alloc.vec.Vec.len, MAX_SKIPPED_STORE]) <;> omega)
+    all_goals (simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new, alloc.vec.Vec.len, MAX_SKIPPED_STORE] <;> try omega)
+    all_goals (try rcases v with ⟨ck2, keys⟩)
+    all_goals (try (step with skip_message_keys_loop1_bound (max state.skipped.val.length MAX_SKIPPED_STORE.val) (by omega) dhr state.events skipped2 keys 0#usize (by omega)))
+    all_goals (step* <;> simp_all [alloc.vec.Vec.len, MAX_SKIPPED_STORE] <;> omega)
 
 /-- The form used when two skips are composed: a call preserves enough room
 for another `MAX_SKIP` request. -/
 @[step]
-theorem skip_message_keys_room (h : HmacTotal) (hrm : VecRemoveTotal)
+theorem skip_message_keys_room (h : HmacTotal) (hrm : RemoveSkippedAtTotal)
     [DerivedKeysModel] (state : State) (upto : U32)
     (hs : max state.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val
       ≤ Usize.max) :
@@ -719,7 +792,7 @@ theorem skip_message_keys_room (h : HmacTotal) (hrm : VecRemoveTotal)
 /-- The scan never grows the store: it either removes the matching key or leaves
 the store alone. `receive` needs this to carry its own precondition across the
 call, which is the same reason the skip bound exists. -/
-theorem try_skipped_loop_shrinks (hrm : VecRemoveTotal) (state : State)
+theorem try_skipped_loop_shrinks (hrm : RemoveSkippedAtTotal) (state : State)
     (header : Header) (i : Usize) :
     try_skipped_loop state header i ⦃ fun r =>
       r.2.2.2.2.2.2.2.2.2.1.val.length ≤ state.skipped.val.length ⦄ := by
@@ -737,7 +810,7 @@ theorem try_skipped_loop_shrinks (hrm : VecRemoveTotal) (state : State)
 
 /-- The same for the wrapper, which only repackages the tuple. -/
 @[step]
-theorem try_skipped_shrinks (hrm : VecRemoveTotal) (state : State)
+theorem try_skipped_shrinks (hrm : RemoveSkippedAtTotal) (state : State)
     (header : Header) :
     try_skipped state header ⦃ fun p =>
       p.2.skipped.val.length ≤ state.skipped.val.length ⦄ := by
@@ -803,14 +876,14 @@ theorem dh_ratchet_spec (h : HkdfTotal) (hz : ZeroizingTotal) (state : State) (h
 /-- Ageing the store cannot fail, and cannot grow it.
 
 Every fallible step is guarded: the index by the `i < len` test, the removal by
-`VecRemoveTotal`, and the cursor's increment by the store's own length, which a
+`RemoveSkippedAtTotal`, and the cursor's increment by the store's own length, which a
 `Vec` bounds by `Usize.max`. The subtraction that decides expiry is saturating,
 so it is total by construction rather than by an invariant about `stored_at`.
 
 The measure is the entries left to scan. It falls whichever way the branch goes:
 keeping moves the cursor up, and removing shortens the store while the cursor
 stays. -/
-theorem age_store_loop_bound (hrm : VecRemoveTotal) (B : Nat)
+theorem age_store_loop_bound (hrm : RemoveSkippedAtTotal) (B : Nat)
     (v : alloc.vec.Vec SkippedKey) (now : U32) (i : Usize)
     (h : v.val.length ≤ B) :
     age_store_loop v now i ⦃ fun r => r.val.length ≤ B ⦄ := by
@@ -839,7 +912,7 @@ theorem ite_ok {a : Type} (c : Prop) [Decidable c] (x y : a) :
 /-- The wrapper: the record update replaces `skipped` with what the loop
 returned and touches nothing else that the bound mentions. -/
 @[step]
-theorem age_store_spec (hrm : VecRemoveTotal) (state : State) :
+theorem age_store_spec (hrm : RemoveSkippedAtTotal) (state : State) :
     age_store state ⦃ fun s => s.skipped.val.length ≤ state.skipped.val.length ⦄ := by
   unfold age_store
   simp only [lift]
@@ -859,7 +932,7 @@ theorem age_store_spec (hrm : VecRemoveTotal) (state : State) :
   step*
 
 theorem receive_no_panic (h : HmacTotal) (hk : HkdfTotal) (hz : ZeroizingTotal)
-    (hrm : VecRemoveTotal) [DerivedKeysModel] (state : State) (header : Header)
+    (hrm : RemoveSkippedAtTotal) [DerivedKeysModel] (state : State) (header : Header)
     (dh_out_recv dh_out_send new_dhs_pub : Array U8 32#usize)
     (hs : max state.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val ≤ Usize.max) :
     NoPanic (receive state header dh_out_recv dh_out_send new_dhs_pub) := by
@@ -894,10 +967,10 @@ each named as an assumption rather than left implicit:
   width, the second that at the derived-keys vector the wrapper holds what was
   put in it, since the two loops that build and read that vector need its
   length and not only a value; and
-* `VecRemoveTotal`: Aeneas does not model `Vec::remove`, so it reaches the
+* `RemoveSkippedAtTotal`: Aeneas does not model `remove_skipped_at`, so it reaches the
   translation as an opaque function and this hypothesis states what it does
   at an in-range index -- returns, with that index erased -- which is what
-  `Vec::remove` does. It says nothing out of range, where `Vec::remove`
+  `remove_skipped_at` does. It says nothing out of range, where `remove_skipped_at`
   panics; each use is under the scan's own length check, and the proof
   discharges the guard from that branch.
 
