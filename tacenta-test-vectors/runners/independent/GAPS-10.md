@@ -4,8 +4,10 @@
 **Implementation revision:** `44409c6`
 
 This is a maintenance run record. It does not alter the historical reports
-`GAPS.md` through `GAPS-9.md`, change the independent reader, or claim a new
-clean-room implementation or independent reviewer.
+`GAPS.md` through `GAPS-9.md`, change the reader's clean-room handlers, or
+claim a new clean-room implementation or independent reviewer. The repository
+wrapper now adds an explicit skip allowlist and gate control around those
+handlers.
 
 ## Purpose
 

@@ -25,8 +25,10 @@ EXPECTED_SKIPS = {
 _OBSERVED_SKIPS = set()
 
 
-def validate_skip_allowlist(observed, expected=EXPECTED_SKIPS):
+def validate_skip_allowlist(observed, expected=None):
     """Return unexpected and missing skip labels for the reader gate."""
+    if expected is None:
+        expected = EXPECTED_SKIPS
     observed = set(observed)
     expected = set(expected)
     return sorted(observed - expected), sorted(expected - observed)

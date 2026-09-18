@@ -629,10 +629,11 @@ editing whichever side is easier to change.
 
 ## Regenerating the protocol vectors
 
-The model is the oracle. The protocol vector files are its byte output, so
-after any change to the model they are regenerated and the result committed;
-CI regenerates them too and fails on a difference between the model and the
-committed files.
+The model is the normative oracle for the protocol vectors it generates. Those
+files are regenerated after a model change and CI fails on a difference. The
+repository also carries project-generated known answers and hand-authored
+refusal vectors; their runners check them against the live implementation and
+the named source rather than pretending they came from the model.
 
 Prerequisite: the Lean toolchain `tacenta-model/lean-toolchain` names
 (v4.31.0 at the time of writing), installed through elan, so that `lake` is
@@ -645,7 +646,8 @@ on the path and installs that toolchain on first use. Then:
 `lake build` compiles the generator along with the model; the script runs it
 once per file, writing each to a temporary path and moving it into place only
 when the generator succeeds. An empty diff means the committed vectors are
-current. Two things are not regenerated. The primitive vectors are
+current. The regeneration script does not overwrite several non-model inputs.
+The primitive vectors are
 standards' known answers, plus the XEdDSA file, which is project-generated
 by tacenta-core (`primitives/xeddsa.rs`) rather than by the model: its first
 vector is the pin the crate's own test carries; the next two (the same key
@@ -653,7 +655,9 @@ under a different nonce, and a different key over an empty message) are
 this implementation's output. The runner re-signs each with its recorded
 nonce and compares, then verifies the result through ed25519-dalek's strict
 verify, which is the check against an independent implementation; the
-file's `source` field states the same. The remaining seventeen are
+file's `source` field states the same. The project-generated `session-e2e.json`
+known answer and hand-authored `malformed-input/ratchet-reject.json` are also
+outside model regeneration and name their sources. The remaining seventeen are
 verify-only (`public`, `message`, `signature`, and a `result`): they pin the
 edges of the accepted set, where `verify` differs from XEdDSA Revision 1 by
 design -- narrower on `s` (`s < l`, not `s < 2^253`) and on small-order `R`

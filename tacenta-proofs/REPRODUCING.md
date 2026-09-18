@@ -57,8 +57,10 @@ Translates the verified zone -- six leaf crates, ratchet, session, erasure,
 protobuf, spqr and braid, the three-leaf unit `triple-unit`, which is the
 only translation of the Triple crate, and the Braid-and-erasure unit
 `braid-unit`, which nothing is proved about yet. It writes into `translation/Translation/`
-alongside the hand-written proofs. Immediately afterwards, and at no other
-time, record what it produced:
+alongside the hand-written proofs. Commit the source changes before recording
+the output: `--refresh-translation` records the current `HEAD`, and the
+attestation check requires that commit to be available in the current history.
+Then record what it produced:
 
 ```sh
 python3 tacenta-proofs/scripts/attest.py --refresh-translation
@@ -72,6 +74,11 @@ workspace inputs that shape what Charon extracts from every crate -- the
 workspace `Cargo.toml` and its `[profile]` tables, `Cargo.lock`, `.cargo/`
 if present, and the `kdf` and `kem` crates -- with the Aeneas pin. It
 refuses to record a `Tacenta*.lean` that `run-aeneas.sh` does not produce.
+The attestation check also verifies that `generated_at_commit` is a commit
+available in the checkout and an ancestor of the current `HEAD`; use a full
+clone or run `git fetch --unshallow` before reproducing it. A shallow checkout
+therefore fails closed with a history-availability message, rather than
+providing provenance it cannot inspect.
 Every other `attest.py` mode, and `scripts/check-generated-files.sh` (which
 runs `attest.py --check-translation` and nothing else), compares the tree
 against that record and fails on a file named like a generated one that the
@@ -79,8 +86,11 @@ script does not produce, on a generated file that differs from the record,
 on an axiom set that gained or lost a name, or on a Rust crate or a
 workspace input whose hash has moved since the translation was made -- the
 message names the crate and says to regenerate. Running
-`--refresh-translation` at any other time would record whatever the files
-happen to be, which is why its whole value is in when it is run. The drift
+`--refresh-translation` before committing the source changes fails closed,
+because the recorded generation commit would not contain them. Commit the
+generated files and manifests after the refresh. Running the command at any
+other time would record whatever the files happen to be, which is why its
+whole value is in when it is run. The drift
 step in the private verification workflow is the stronger check: it
 regenerates with the pinned toolchain and fails on any difference, which
 also catches a recorded generation the toolchain would no longer produce.

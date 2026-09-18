@@ -1,7 +1,7 @@
-//! Check tacenta-core's PQXDH shared-secret derivation against the vectors
-//! generated from the model (tacenta-model, `lake exe genvectors pqxdh`), so the
-//! implementation is checked against the model's byte output rather than against
-//! itself.
+//! Check tacenta-core's PQXDH and session-establishment paths against the
+//! committed vector set. The PQXDH vectors are generated from the model
+//! (`tacenta-model`, `lake exe genvectors pqxdh`); `session-e2e.json` is a
+//! project-generated known answer and names its live-session source.
 
 use std::path::Path;
 

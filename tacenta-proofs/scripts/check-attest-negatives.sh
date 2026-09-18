@@ -87,6 +87,18 @@ if len(commits) < 2:
 data["generated_at_commit"] = commits[-1]
 path.write_text(json.dumps(data, indent=2) + "\n")
 PY
-expect_fail "false-source-pairing" "manifest cannot pair a generated file with a different source tree" --check-translation
+expect_fail "mismatched-committed-source-hash" "commit the source tree before refreshing" --check-translation
 
-echo "check-attest-negatives: 5 refusal cases gave the expected result"
+make_case
+python3 - "$work/tacenta-proofs/manifests/translation-attestation.json" <<'PY'
+import json, pathlib, subprocess, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+data["generated_at_commit"] = subprocess.check_output(
+    ["git", "rev-parse", "HEAD^{tree}"], text=True
+).strip()
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+expect_fail "generation-revision-not-commit" "is not an available commit" --check-translation
+
+echo "check-attest-negatives: 6 refusal cases gave the expected result (including a mismatched committed-source hash)"

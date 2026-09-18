@@ -29,8 +29,9 @@ reader records.
 | F1 / F2 / F3 | Open fuzzing | Add accepted-bundle and responder-handshake seeds, plus assertions that fail when each guard is deleted. |
 | IP-01 / IP-02 | Open provenance decision | Publish source/version and research evidence where it may safely be published, or remove/downgrade the black-box and “ours” claims. |
 | HN-01 / HN-05 | Open claims correction | Align public “proven core” language with the named verified zone and remove unproved session encrypt/decrypt implications. |
+| IMP-01 / `HL-IMP-01` | Open independent replay | The real-session vector is implemented, but closure still requires the independent reader to replay the exact candidate and record its limits. The current allowlist only prevents silent skip drift. |
 
-## Remediated
+## Implemented changes, with limits
 
 - **IMP-01 implementation (not gap closure) / `HL-IMP-01`:** `44409c6` adds a deterministic byte-level vector
   for real X25519 and ML-KEM-1024 prekey creation, initiator establishment, the
@@ -72,8 +73,9 @@ reader records.
 - **Translation checksum limit:** `attest.py --check-translation` now also
   checks that each recorded source hash matches the committed tree named by
   `generated_at_commit` (or the recorded leaf trees for assembled units). The
-  negative suite covers a false source pairing. This narrows the residual, but
-  a checksum is still not a public regeneration proof.
+  negative suite covers a mismatched committed-source hash. This catches a
+  hand-edited hash or a refresh on an uncommitted tree, but a checksum is still
+  not a public regeneration proof.
 
 ## Evidence language
 

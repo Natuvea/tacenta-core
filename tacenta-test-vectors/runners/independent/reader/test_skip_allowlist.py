@@ -1,20 +1,44 @@
 #!/usr/bin/env python3
-"""Mutation controls for the independent reader's explicit skip gate."""
+"""Mutation controls for the independent reader's real skip gate."""
 
-from run import validate_skip_allowlist
+import contextlib
+import io
+from collections import OrderedDict
+
+import run
 
 
-EXPECTED = {"documented-vector"}
+LABEL = "documented-vector"
 
-unexpected, missing = validate_skip_allowlist(EXPECTED, EXPECTED)
-assert not unexpected and not missing, "the exact allowlist must pass"
 
-unexpected, missing = validate_skip_allowlist(EXPECTED | {"new-vector"}, EXPECTED)
-assert unexpected == ["new-vector"] and not missing, \
-    "an unreviewed skip must fail the gate"
+def invoke(expected, observed):
+    """Run ``main`` with a tiny fixture, so the test exercises its exit path."""
+    original_expected = run.EXPECTED_SKIPS
+    original_vectors = run.run_vectors
+    original_negative = run.run_negative
 
-unexpected, missing = validate_skip_allowlist(set(), EXPECTED)
-assert not unexpected and missing == ["documented-vector"], \
-    "a silently removed or bypassed skip must fail the gate"
+    def fake_vectors(totals):
+        run._OBSERVED_SKIPS.clear()
+        run._OBSERVED_SKIPS.update(observed)
+        totals["fixture"] = OrderedDict(PASS=0, FAIL=0, SKIP=len(observed))
 
-print("reader skip allowlist controls: 3 refusal cases gave the expected result")
+    try:
+        run.EXPECTED_SKIPS = set(expected)
+        run.run_vectors = fake_vectors
+        run.run_negative = lambda totals: None
+        with contextlib.redirect_stdout(io.StringIO()):
+            return run.main()
+    finally:
+        run.EXPECTED_SKIPS = original_expected
+        run.run_vectors = original_vectors
+        run.run_negative = original_negative
+
+
+if invoke({LABEL}, {LABEL}) != 0:
+    raise RuntimeError("the exact allowlist must pass the real reader gate")
+if invoke(set(), {LABEL}) == 0:
+    raise RuntimeError("an unreviewed skip must fail the real reader gate")
+if invoke({LABEL}, set()) == 0:
+    raise RuntimeError("a silently removed or bypassed skip must fail the real reader gate")
+
+print("reader skip allowlist controls: 3 real-gate cases gave the expected result")

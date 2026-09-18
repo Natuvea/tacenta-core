@@ -633,8 +633,10 @@ fails nothing, as Rejection allows (GAPS-5.md G5-03).
 
 The reasons are in `../GAPS-3.md` to `../GAPS-7.md` ("Not attempted"). The
 real-primitive `session-e2e.json` added after pass 9 needs ML-KEM-1024 and the
-end-to-end session, so this unchanged reader reports that one case as an
-explicit SKIP. `../GAPS-10.md` records the maintenance run and its boundary.
+end-to-end session, so this reader's unchanged handlers report that one case
+as an explicit SKIP. `../GAPS-10.md` records the maintenance run and its
+boundary; the repository wrapper separately enforces the documented skip
+allowlist.
 
 ## Running
 
@@ -714,7 +716,8 @@ review.
 ### Pass 10 record
 
 `../GAPS-10.md` records a maintenance re-run after the real-primitive
-end-to-end session vector was added at `44409c6`. The unchanged reader reports
+end-to-end session vector was added at `44409c6`. The reader's unchanged
+handlers report
 the new vector as one explicit skip because its documented boundary excludes
 real ML-KEM and a live end-to-end session. It makes no claim of a new
 clean-room implementation or independent review.

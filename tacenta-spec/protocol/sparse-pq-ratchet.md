@@ -224,9 +224,11 @@ that would exceed it is refused by the ratchet (`SkippedStoreFull`).
 one skip: a skip that succeeds leaves the store no longer than the larger of
 its previous length and `MAX_SKIPPED_STORE`. No theorem carries the bound
 across this ratchet's sending, receiving or advancing, or across a sequence of
-them, and it does not prove the purge-before-bound-check order, replacement
-semantics, or refusal atomicity. Those behaviours are tested rather than
-proved; over a session the bound is tested rather than proved.
+them. The current sparse implementation and model check the pre-purge store
+length; they do not yet implement resulting-store replacement semantics. The
+purge-before-check order, replacement semantics and refusal atomicity are the
+open `HL-R1-SPARSE-TRANSLATION` follow-up, not current sparse behaviour. Over
+a session, only the existing bound behaviour is tested rather than proved.
 
 The receiver then makes room as the Double Ratchet's does (ratchet.md, Skipped
 keys): it evicts keys from this store, the one stored first going first
