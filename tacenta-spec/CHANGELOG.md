@@ -141,10 +141,11 @@ is SemVer against the specified protocol (not the implementation).
 - `protocol/key-deletion.md` and `security-properties/authentication.md`:
   authentication and deletion rules now name the post-decapsulation replay
   identity rather than a public-byte fingerprint.
-- `tacenta-core/ratchet` and `tacenta-core/spqr`: skipped-key and chain-store
-  updates avoid secret-bearing vector reallocation and dead-tail copies, and
-  persisted secret vectors are sized before decode. AES-CBC buffers now use the
-  crates' zeroization features.
+- `tacenta-core/ratchet`: skipped-key removal avoids `Vec::remove`'s
+  secret-bearing dead-tail copy, and persisted secret vectors are sized before
+  decode. AES-CBC buffers now use the crates' zeroization features. The
+  analogous SPQR container hardening remains a follow-up because its verified
+  proof contracts still describe the old standard-library operations.
 - `protocol/sparse-pq-ratchet.md`, The store also has a total bound: clarified
   that the current sparse implementation checks the pre-purge store length,
   while resulting-store replacement semantics and refusal atomicity remain an

@@ -790,7 +790,7 @@ theorem init_sender_refines (h : HkdfAgrees) (hz : ZeroizingRoundTrips)
   simp_all [Model.Ratchet.initSender, Model.State.kdfRk]
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> simp_all
 
-theorem purge_chain_range_loop_refines (hrm : Tacenta.T1.VecRemoveTotal)
+theorem purge_chain_range_loop_refines (hrm : Tacenta.T1.RemoveSkippedAtTotal)
     (dhr : Array Std.U8 32#usize) (from1 upto : Std.U32)
     (target : List (Model.State.Key × Nat × Nat × Model.State.Key))
     (skipped : alloc.vec.Vec SkippedKey) (i : Usize)
@@ -848,7 +848,7 @@ theorem purge_chain_range_loop_refines (hrm : Tacenta.T1.VecRemoveTotal)
 /-- The scan lifted to the whole function: what it leaves in the store is what
 the model's filter leaves. -/
 @[step]
-theorem purge_chain_range_refines (hrm : Tacenta.T1.VecRemoveTotal)
+theorem purge_chain_range_refines (hrm : Tacenta.T1.RemoveSkippedAtTotal)
     (skipped : alloc.vec.Vec SkippedKey) (dhr : Array Std.U8 32#usize)
     (from1 upto : Std.U32) :
     purge_chain_range skipped dhr from1 upto ⦃ fun r =>
@@ -907,7 +907,7 @@ theorem keepFresh_eta (now : Nat) :
       decide (now - e.2.2.1 < Model.State.maxSkippedAge)) = keepFresh now :=
   rfl
 
-theorem age_store_loop_refines (hrm : Tacenta.T1.VecRemoveTotal)
+theorem age_store_loop_refines (hrm : Tacenta.T1.RemoveSkippedAtTotal)
     (now : Std.U32)
     (target : List (Model.State.Key × Nat × Nat × Model.State.Key))
     (skipped : alloc.vec.Vec SkippedKey) (i : Usize)
@@ -974,7 +974,7 @@ stop as well. The precondition -- `events + 1 < U32.max`, which is
 two parted company there; it is no longer what the agreement needs, and is kept
 so the statement, and every theorem composed with it, is unchanged. Below it the
 clamp never fires and `now` is the saturating step itself. -/
-theorem age_store_refines (hrm : Tacenta.T1.VecRemoveTotal)
+theorem age_store_refines (hrm : Tacenta.T1.RemoveSkippedAtTotal)
     (s : State) (m : Model.State.State) (hR : StateR s m)
     (hroom : s.events.val + 1 < U32.max) :
     age_store s ⦃ fun s' => StateR s' (Model.State.ageStore m) ⦄ := by
@@ -1011,7 +1011,7 @@ theorem age_store_refines (hrm : Tacenta.T1.VecRemoveTotal)
   · simpa [Model.State.ageStore, hmin] using hnow
 
 theorem skip_message_keys_refines (h : HmacAgrees)
-    (hrm : Tacenta.T1.VecRemoveTotal) [DerivedKeysModel] (s : State)
+    (hrm : Tacenta.T1.RemoveSkippedAtTotal) [DerivedKeysModel] (s : State)
     (m : Model.State.State) (hR : StateR s m) (upto : Std.U32)
     (hs : s.skipped.val.length + MAX_SKIP.val ≤ Usize.max) :
     skip_message_keys s upto ⦃ fun r =>
@@ -1169,7 +1169,7 @@ theorem matchesHeader_eta (mh : Model.State.Header) :
       match x with | (dh, n, _, _) => dh == mh.dh && n == mh.n) = matchesHeader mh :=
   rfl
 
-theorem try_skipped_loop_refines (hrm : Tacenta.T1.VecRemoveTotal)
+theorem try_skipped_loop_refines (hrm : Tacenta.T1.RemoveSkippedAtTotal)
     (s : State) (hdr : Header) (mh : Model.State.Header)
     (hH : HeaderR hdr mh) (i : Usize)
     (hone : ((s.skipped.val.map skippedOf).filter (matchesHeader mh)).length ≤ 1)
@@ -1269,7 +1269,7 @@ theorem try_skipped_loop_refines (hrm : Tacenta.T1.VecRemoveTotal)
 wrapper rebuilds is the one it started from with the store replaced. Separate
 from the refinement above because it is a different concern: that one is about
 what the scan found, this is about what it left alone. -/
-theorem try_skipped_loop_fields (hrm : Tacenta.T1.VecRemoveTotal)
+theorem try_skipped_loop_fields (hrm : Tacenta.T1.RemoveSkippedAtTotal)
     (s : State) (hdr : Header) (i : Usize) :
     try_skipped_loop s hdr i ⦃ fun r =>
       ({ dhs_pub := r.2.1, dhr_pub := r.2.2.1, rk := r.2.2.2.1,
@@ -1298,7 +1298,7 @@ model finds nothing either.
 The at-most-one hypothesis is what the store being a map buys, and it is proven
 rather than assumed: see `Proofs.StateInvariants.skipMessageKeys_preserves_map`
 in the functional-property package. -/
-theorem try_skipped_refines (hrm : Tacenta.T1.VecRemoveTotal)
+theorem try_skipped_refines (hrm : Tacenta.T1.RemoveSkippedAtTotal)
     (s : State) (m : Model.State.State) (hR : StateR s m)
     (hdr : Header) (mh : Model.State.Header) (hH : HeaderR hdr mh)
     (hone : (m.skipped.filter (matchesHeader mh)).length ≤ 1) :
@@ -1356,7 +1356,7 @@ The refusal (`OutOfOrder`, ratchet.md, Sending and receiving) is an `Err` on
 the Rust side and a `none` on the model's, and the two agree on when it fires
 because the skip leaves `nr` related: so a success here is never the refused
 case, and the model's test is passed exactly when the Rust's is. -/
-theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.T1.VecRemoveTotal)
+theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.T1.RemoveSkippedAtTotal)
     [DerivedKeysModel] (st : State) (mst : Model.State.State) (hR : StateR st mst) (n : Std.U32)
     (hs : st.skipped.val.length + MAX_SKIP.val ≤ Usize.max)
     (hroom : st.events.val + 1 < U32.max) :
@@ -1479,7 +1479,7 @@ theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.T1.VecRemoveTotal)
 attribute [-step] Tacenta.T1.skip_message_keys_room Tacenta.T1.dh_ratchet_spec
 
 theorem receive_refines (h : HmacAgrees) (hk : HkdfAgrees)
-    (hz : ZeroizingRoundTrips) (hrm : Tacenta.T1.VecRemoveTotal)
+    (hz : ZeroizingRoundTrips) (hrm : Tacenta.T1.RemoveSkippedAtTotal)
     [DerivedKeysModel] (s : State) (m : Model.State.State) (hR : StateR s m)
     (hdr : Header) (mh : Model.State.Header) (hH : HeaderR hdr mh)
     (dh_out_recv dh_out_send new_dhs_pub : Array Std.U8 32#usize)
@@ -1692,7 +1692,7 @@ to agree with anything, so `HmacAgrees` and `HkdfAgrees` are assumptions. If the
 Rust HMAC and the model's disagreed, every theorem here would still hold and the
 implementation would still be wrong. The model-generated byte vectors are what
 covers that, outside Lean. `ZeroizingRoundTrips`, T1's `DerivedKeysModel` and
-`VecRemoveTotal` are the other three, the first two for an external crate --
+`RemoveSkippedAtTotal` are the other three, the first two for an external crate --
 the wrapper at the root-key step's width, and the wrapper the derived keys
 travel in between the chain derivation and the store -- and the third for an
 operation Aeneas does not model.
@@ -1746,7 +1746,7 @@ assumption smuggled in through a lemma -- fails the build here rather than
 being noticed by whoever next runs `#print axioms` by hand. Everything each
 rests on beyond Lean's three standard axioms is an opaque external the
 translation declares: the key-derivation primitives, the `zeroize` wrapper,
-and `Vec::remove`. -/
+and `remove_skipped_at`. -/
 
 /-- info: 'Tacenta.T3.send_refines' depends on axioms: [propext, Classical.choice, Quot.sound, tacenta_kdf.hmac_sha256] -/
 #guard_msgs in

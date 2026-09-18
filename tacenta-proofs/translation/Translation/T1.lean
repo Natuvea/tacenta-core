@@ -608,6 +608,7 @@ theorem skip_message_keys_no_panic (h : HmacTotal) (hrm : RemoveSkippedAtTotal)
   · step*
   · have hgap := skip_gap_le state.nr upto hg
     step*
+    obtain ⟨ck2, keys⟩ := v
     step*
 
 /-- The scan's wrapper only repackages the tuple the loop returns, so it
@@ -677,6 +678,7 @@ theorem skip_message_keys_bound (h : HmacTotal) (hrm : RemoveSkippedAtTotal)
     all_goals simp_all [MAX_SKIPPED_STORE]
   · have hgap := skip_gap_le state.nr upto hg
     step*
+    all_goals (try obtain ⟨ck2, keys⟩ := v)
     all_goals ((step*; simp_all [alloc.vec.Vec.len, MAX_SKIPPED_STORE]) <;> omega)
 
 /-- The form used when two skips are composed: a call preserves enough room
@@ -929,7 +931,8 @@ info: 'Tacenta.T1.receive_no_panic' depends on axioms: [propext,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
  Pair.Insts.ZeroizeZeroize.zeroize,
- alloc.vec.Vec.remove,
+ alloc.vec.Vec.pop,
+ remove_skipped_at._native.decide.ax_1,
  zeroize.Zeroize.Blanket.zeroize,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,

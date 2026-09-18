@@ -620,6 +620,7 @@ theorem skip_message_keys_no_panic (h : HmacTotal) (hrm : RemoveSkippedAtTotal)
   · step*
   · have hgap := skip_gap_le state.nr upto hg
     step*
+    obtain ⟨ck2, keys⟩ := v
     step*
 
 /-- The scan's wrapper only repackages the tuple the loop returns, so it
@@ -689,6 +690,7 @@ theorem skip_message_keys_bound (h : HmacTotal) (hrm : RemoveSkippedAtTotal)
     all_goals simp_all [MAX_SKIPPED_STORE]
   · have hgap := skip_gap_le state.nr upto hg
     step*
+    all_goals (try obtain ⟨ck2, keys⟩ := v)
     all_goals ((step*; simp_all [alloc.vec.Vec.len, MAX_SKIPPED_STORE]) <;> omega)
 
 /-- The form used when two skips are composed: a call preserves enough room
