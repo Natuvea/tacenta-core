@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "_note": "Written only by `tacenta-proofs/scripts/attest.py --refresh-translation` after the source tree is committed and `scripts/run-aeneas.sh` has run on the pinned toolchain, and compared against by every other mode. A green `attest.py --check` establishes that each generated Translation/Tacenta*.lean is a module run-aeneas.sh produces, is byte for byte the file recorded here, declares exactly the axioms recorded here (as text; no-sorry.sh compares the same record with what the axiom audit saw in the built environment), and that the Rust verified zone it was generated from, and the workspace inputs that shape every zone's extraction (Cargo.toml and its profiles, Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed to when this was written, as recorded by whoever ran the toolchain. Where the zone is assembled rather than written (tacenta-core/triple-unit, the three-leaf translation unit), the record carries an `assembly` field naming the script and the three leaf trees it was assembled from, with their hashes, and --check fails if any of them has moved since; assemble-triple-unit.sh --check is the separate question of whether the unit crate in the tree is what those leaves assemble to. It does not establish that the toolchain was run, or run honestly: that is checked by regenerating with run-aeneas.sh and diffing, which REPRODUCING.md describes.",
-  "generated_at_commit": "e72ddbbb82017f37b48f6c65fe9131ef3d0f27b4",
+  "generated_at_commit": "356ecf178adcfbd0088ad284fd2b949a13d305ef",
   "aeneas": {
     "release": "nightly-2026.07.22-b1214ca",
     "commit": "b1214ca0a024e8121f41fe2b2ed15e26af02373b"
@@ -195,14 +195,14 @@
     },
     "tacenta-proofs/translation/Translation/TacentaSpqr.lean": {
       "module": "TacentaSpqr",
-      "sha256": "d40fccae4769eb5263919ec6d3c47f2e1e70d23237b046b5af1fbfbc490f38fd",
+      "sha256": "ea9d324f8d6bfcd0814f04bc974fed562f7a16dd8367a4c1b4698e616f2cf125",
       "axioms": [
         "Array.Insts.ZeroizeZeroize.zeroize",
         "Pair.Insts.ZeroizeZeroize.zeroize",
         "alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize",
         "alloc.vec.Vec.append",
         "alloc.vec.Vec.is_empty",
-        "alloc.vec.Vec.remove",
+        "alloc.vec.Vec.pop",
         "alloc.vec.Vec.retain",
         "core.mem.maybe_uninit.MaybeUninit",
         "core.option.Option.Insts.CoreCloneClone.clone",
@@ -216,12 +216,12 @@
         "zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop"
       ],
       "zone": "tacenta-core/spqr",
-      "zone_sha256": "85724dcce2efe34bdf08ff0d50117ef3256396ddcae4fc46d910ea9a509f14cb",
+      "zone_sha256": "582e491c1200cc91e2b7a1a0418c1039a306352eaed51738146a7f423cf809ca",
       "workspace_sha256": "63d0f87e2c8ed15e113f890556bc3ff761603683a62a4da9dde192dbe69bb073"
     },
     "tacenta-proofs/translation/Translation/TacentaTripleUnit.lean": {
       "module": "TacentaTripleUnit",
-      "sha256": "b7989e4fe918452aaa2df3f109b4e88aeb566c1f9afad46854d6f4e26e8a8c08",
+      "sha256": "7379cd2dd92a0393283b821d604389a76c0ea6d92eb4b8146ea3ad548cbc55ce",
       "axioms": [
         "Array.Insts.ZeroizeZeroize.zeroize",
         "Pair.Insts.ZeroizeZeroize.zeroize",
@@ -229,7 +229,6 @@
         "alloc.vec.Vec.append",
         "alloc.vec.Vec.is_empty",
         "alloc.vec.Vec.pop",
-        "alloc.vec.Vec.remove",
         "alloc.vec.Vec.retain",
         "core.mem.maybe_uninit.MaybeUninit",
         "core.option.Option.Insts.CoreCloneClone.clone",
@@ -252,7 +251,7 @@
         "script_sha256": "a0eab7a4e50df59d1f1aefdd5c9489419d5ffcb89109c35923edcc11a18954e5",
         "sources": {
           "tacenta-core/ratchet": "06f3d365876b9744b498acdf275cc969c1866732bf644d8df17d3d1849f4b773",
-          "tacenta-core/spqr": "85724dcce2efe34bdf08ff0d50117ef3256396ddcae4fc46d910ea9a509f14cb",
+          "tacenta-core/spqr": "582e491c1200cc91e2b7a1a0418c1039a306352eaed51738146a7f423cf809ca",
           "tacenta-core/triple": "5b8836ebd7e95776bebda01eae96fb6c31b35b180c5d8a0373425572cfd87d95"
         }
       }
