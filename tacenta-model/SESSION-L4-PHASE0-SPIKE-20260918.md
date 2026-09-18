@@ -85,8 +85,11 @@ The distinct blockers observed were:
 - a slice-pattern interpreter error in `serialization::message_type`;
 - a context error at the final store mutation in `establish_responder`;
 - generated-name clashes for the `Error::Handshake`, `Error::Decode` and
-  `Error::Triple` variants, requiring explicit Aeneas/Charon names or an
-  equivalent source naming adjustment.
+  `Error::Triple` variants. Inspection of the partial Lean showed that
+  higher-order constructor uses such as `map_err(Error::Handshake)` caused
+  Aeneas to emit wrapper functions with the constructor names; explicit
+  `match` expressions remove the wrappers without renaming the public Rust
+  variants.
 
 The partial full-leaf translation exposed 18 primitive method/function axioms
 rather than the proposed nine-function surface because the mechanically moved
