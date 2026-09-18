@@ -11,9 +11,10 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
-- `tacenta-core`: the classical and sparse ratchets’ secret-bearing working
-  copies and removal paths now allocate at their final capacity and wipe dead
-  slots before release; sparse decoder vectors are sized from checked counts.
+- `tacenta-core`: the classical ratchet’s secret-bearing working copies and
+  removal paths now allocate at their final capacity and wipe dead slots before
+  release. The analogous sparse-ratchet container hardening remains a follow-up
+  and is not claimed here. Sparse decoder vectors are sized from checked counts.
   The independent reader follows the v2 agreed-secret replay identity and
   covers fail-closed import of v4 replay records into v5.
 
