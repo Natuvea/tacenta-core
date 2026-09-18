@@ -926,3 +926,4 @@ never the counter's full range. `skip_gap_le` is that guard, stated once.
 -- three standard axioms and on the opaque key-derivation primitive, and on
 -- nothing else: no `sorry`, and no assumption about our own code. A later
 -- change that smuggled one in would fail this check.
+

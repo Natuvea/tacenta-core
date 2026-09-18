@@ -670,7 +670,8 @@ theorem from_bytes_accepts_witness :
         try clear i4_post
         try clear hi4
         try clear hq
-        simp_all [InvB, chainsOk, storeOk, keysOk, canonical_zeros, MAX_SKIPPED_STORE,
+        simp_all [InvB, chainsOk, storeOk, keysOk, canonical_zeros,
+          alloc.vec.Vec.with_capacity, MAX_SKIPPED_STORE,
           Std.U32.max_eq]
   obtain ⟨r, hr, hre⟩ := Std.WP.spec_imp_exists h
   obtain ⟨s, rfl⟩ := hre
@@ -1529,7 +1530,8 @@ info: 'Tacenta.ImportInv.Ratchet.decoded_receive_no_panic' depends on axioms: [p
  tacenta_ratchet.zeroize.Zeroizing.new,
  tacenta_ratchet.Array.Insts.ZeroizeZeroize.zeroize,
  tacenta_ratchet.Pair.Insts.ZeroizeZeroize.zeroize,
- tacenta_ratchet.alloc.vec.Vec.remove,
+ tacenta_ratchet.alloc.vec.Vec.pop,
+ tacenta_ratchet.remove_skipped_at._native.decide.ax_1,
  tacenta_ratchet.zeroize.Zeroize.Blanket.zeroize,
  tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
@@ -1548,7 +1550,8 @@ info: 'Tacenta.ImportInv.Ratchet.decoded_receive_refines' depends on axioms: [pr
  tacenta_ratchet.zeroize.Zeroizing.new,
  tacenta_ratchet.Array.Insts.ZeroizeZeroize.zeroize,
  tacenta_ratchet.Pair.Insts.ZeroizeZeroize.zeroize,
- tacenta_ratchet.alloc.vec.Vec.remove,
+ tacenta_ratchet.alloc.vec.Vec.pop,
+ tacenta_ratchet.remove_skipped_at._native.decide.ax_1,
  tacenta_ratchet.zeroize.Zeroize.Blanket.zeroize,
  tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,

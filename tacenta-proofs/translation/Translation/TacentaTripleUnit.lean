@@ -62,6 +62,15 @@ axiom alloc.vec.Vec.retain
   : core.ops.function.FnMut F T Bool) :
   alloc.vec.Vec T → F → Result (alloc.vec.Vec T)
 
+/-- [alloc::vec::{alloc::vec::Vec<T>}::pop]:
+    Source: '/rustc/library/alloc/src/vec/mod.rs', lines 2850:4-2850:38
+    Name pattern: [alloc::vec::{alloc::vec::Vec<@T>}::pop]
+    Visibility: public -/
+@[rust_fun "alloc::vec::{alloc::vec::Vec<@T>}::pop"]
+axiom alloc.vec.Vec.pop
+  {T : Type} (A : Type) :
+  alloc.vec.Vec T → Result ((Option T) × (alloc.vec.Vec T))
+
 /-- [alloc::vec::{alloc::vec::Vec<T>}::append]:
     Source: '/rustc/library/alloc/src/vec/mod.rs', lines 2927:4-2927:46
     Name pattern: [alloc::vec::{alloc::vec::Vec<@T>}::append]
@@ -787,6 +796,49 @@ def tacenta_ratchet.State.skipped_len
   (self : tacenta_ratchet.State) : Result Std.Usize := do
   ok (alloc.vec.Vec.len self.skipped)
 
+/-- [tacenta_triple_unit::tacenta_ratchet::remove_skipped_at]: loop body 0:
+    Source: 'triple-unit/src/../../ratchet/src/lib.rs', lines 1059:4-1062:5 -/
+@[rust_loop_body]
+def tacenta_ratchet.remove_skipped_at_loop.body
+  (skipped : alloc.vec.Vec tacenta_ratchet.SkippedKey) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec tacenta_ratchet.SkippedKey) × Std.Usize)
+    (alloc.vec.Vec tacenta_ratchet.SkippedKey))
+  := do
+  let i1 ← i + 1#usize
+  let i2 := alloc.vec.Vec.len skipped
+  if i1 < i2
+  then
+    let (s, deref_mut_back) ← lift (alloc.vec.Vec.deref_mut skipped)
+    let s1 ← core.slice.Slice.swap s i i1
+    let skipped1 := deref_mut_back s1
+    ok (cont (skipped1, i1))
+  else ok (done skipped)
+
+/-- [tacenta_triple_unit::tacenta_ratchet::remove_skipped_at]: loop 0:
+    Source: 'triple-unit/src/../../ratchet/src/lib.rs', lines 1059:4-1062:5 -/
+@[rust_loop]
+def tacenta_ratchet.remove_skipped_at_loop
+  (skipped : alloc.vec.Vec tacenta_ratchet.SkippedKey) (i : Std.Usize) :
+  Result (alloc.vec.Vec tacenta_ratchet.SkippedKey)
+  := do
+  loop
+    (fun (skipped1, i1) => tacenta_ratchet.remove_skipped_at_loop.body skipped1
+      i1)
+    (skipped, i)
+
+/-- [tacenta_triple_unit::tacenta_ratchet::remove_skipped_at]:
+    Source: 'triple-unit/src/../../ratchet/src/lib.rs', lines 1057:0-1064:1 -/
+def tacenta_ratchet.remove_skipped_at
+  (skipped : alloc.vec.Vec tacenta_ratchet.SkippedKey) (index : Std.Usize) :
+  Result (tacenta_ratchet.SkippedKey × (alloc.vec.Vec
+    tacenta_ratchet.SkippedKey))
+  := do
+  let skipped1 ← tacenta_ratchet.remove_skipped_at_loop skipped index
+  let (o, skipped2) ← alloc.vec.Vec.pop Global skipped1
+  let sk ←
+    core.option.Option.expect o (toStr "index is within the skipped store")
+  ok (sk, skipped2)
+
 /-- [tacenta_triple_unit::tacenta_ratchet::{tacenta_triple_unit::tacenta_ratchet::State}::evict_oldest]: loop body 1:
     Source: 'triple-unit/src/../../ratchet/src/lib.rs', lines 260:12-265:13
     Visibility: public -/
@@ -844,7 +896,7 @@ def tacenta_ratchet.State.evict_oldest_loop0.body
       let oldest ←
         tacenta_ratchet.State.evict_oldest_loop0_loop0 self.skipped 0#usize
           1#usize
-      let (_, v) ← alloc.vec.Vec.remove Global self.skipped oldest
+      let (_, v) ← tacenta_ratchet.remove_skipped_at self.skipped oldest
       let evicted1 ← evicted + 1#usize
       ok (cont ({ self with skipped := v }, evicted1))
   else ok (done (evicted, self))
@@ -1717,10 +1769,13 @@ def tacenta_ratchet.State.from_bytes
                 ok (core.result.Result.Err
                   tacenta_ratchet.RatchetDecodeError.Malformed)
               else
-                let (pos11, skipped, ok1) ←
+                let skipped :=
+                  alloc.vec.Vec.with_capacity tacenta_ratchet.SkippedKey
+                    skipped_count
+                let (pos11, skipped1, ok1) ←
                   tacenta_ratchet.State.from_bytes_loop i7
                     { start := 0#usize, «end» := skipped_count } bytes pos10
-                    (alloc.vec.Vec.new tacenta_ratchet.SkippedKey) true
+                    skipped true
                 if ok1
                 then
                   let i9 := Slice.len bytes
@@ -1740,7 +1795,7 @@ def tacenta_ratchet.State.from_bytes
                           ns,
                           nr,
                           pn,
-                          skipped,
+                          skipped := skipped1,
                           events,
                           labels
                         }
@@ -1756,7 +1811,7 @@ def tacenta_ratchet.State.from_bytes
                           ns,
                           nr,
                           pn,
-                          skipped,
+                          skipped := skipped1,
                           events,
                           labels
                         })
@@ -1956,7 +2011,7 @@ def tacenta_ratchet.purge_chain_range_loop.body
       then
         if sk.n < upto
         then
-          let (_, skipped1) ← alloc.vec.Vec.remove Global skipped i
+          let (_, skipped1) ← tacenta_ratchet.remove_skipped_at skipped i
           ok (cont (skipped1, i))
         else let i2 ← i + 1#usize
              ok (cont (skipped, i2))
@@ -2201,8 +2256,9 @@ def tacenta_ratchet.age_store_loop.body
         tacenta_ratchet.SkippedKey) v i
     let i2 ← lift (core.num.U32.saturating_sub now sk.stored_at)
     if i2 >= tacenta_ratchet.MAX_SKIPPED_AGE
-    then let (_, v1) ← alloc.vec.Vec.remove Global v i
-         ok (cont (v1, i))
+    then
+      let (_, v1) ← tacenta_ratchet.remove_skipped_at v i
+      ok (cont (v1, i))
     else let i3 ← i + 1#usize
          ok (cont (v, i3))
   else ok (done v)
@@ -2232,7 +2288,7 @@ def tacenta_ratchet.age_store
   ok { state with skipped := v, events := now }
 
 /-- [tacenta_triple_unit::tacenta_ratchet::try_skipped]: loop body 0:
-    Source: 'triple-unit/src/../../ratchet/src/lib.rs', lines 1044:4-1053:1 -/
+    Source: 'triple-unit/src/../../ratchet/src/lib.rs', lines 1044:4-1052:1 -/
 @[rust_loop_body]
 def tacenta_ratchet.try_skipped_loop.body
   (state : tacenta_ratchet.State) (header : tacenta_ratchet.Header)
@@ -2256,8 +2312,8 @@ def tacenta_ratchet.try_skipped_loop.body
     then
       if sk.n = header.n
       then
-        let (_, v) ← alloc.vec.Vec.remove Global state.skipped i
-        ok (done (some sk.key, state.dhs_pub, state.dhr_pub, state.rk,
+        let (removed, v) ← tacenta_ratchet.remove_skipped_at state.skipped i
+        ok (done (some removed.key, state.dhs_pub, state.dhr_pub, state.rk,
           state.cks, state.ckr, state.ns, state.nr, state.pn, v, state.events,
           state.labels))
       else let i2 ← i + 1#usize
@@ -2270,7 +2326,7 @@ def tacenta_ratchet.try_skipped_loop.body
       state.labels))
 
 /-- [tacenta_triple_unit::tacenta_ratchet::try_skipped]: loop 0:
-    Source: 'triple-unit/src/../../ratchet/src/lib.rs', lines 1044:4-1053:1 -/
+    Source: 'triple-unit/src/../../ratchet/src/lib.rs', lines 1044:4-1052:1 -/
 @[rust_loop]
 def tacenta_ratchet.try_skipped_loop
   (state : tacenta_ratchet.State) (header : tacenta_ratchet.Header)
@@ -2286,7 +2342,7 @@ def tacenta_ratchet.try_skipped_loop
     i
 
 /-- [tacenta_triple_unit::tacenta_ratchet::try_skipped]:
-    Source: 'triple-unit/src/../../ratchet/src/lib.rs', lines 1039:0-1053:1 -/
+    Source: 'triple-unit/src/../../ratchet/src/lib.rs', lines 1039:0-1052:1 -/
 def tacenta_ratchet.try_skipped
   (state : tacenta_ratchet.State) (header : tacenta_ratchet.Header) :
   Result ((Option (Array Std.U8 32#usize)) × tacenta_ratchet.State)
@@ -2309,7 +2365,7 @@ def tacenta_ratchet.try_skipped
     })
 
 /-- [tacenta_triple_unit::tacenta_ratchet::receive]:
-    Source: 'triple-unit/src/../../ratchet/src/lib.rs', lines 1076:0-1122:1
+    Source: 'triple-unit/src/../../ratchet/src/lib.rs', lines 1087:0-1133:1
     Visibility: public -/
 def tacenta_ratchet.receive
   (state : tacenta_ratchet.State) (header : tacenta_ratchet.Header)

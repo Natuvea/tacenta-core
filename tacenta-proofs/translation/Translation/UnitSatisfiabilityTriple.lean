@@ -39,8 +39,10 @@ they hold together:
   `ZeroizingRoundTrips64`, `UnitTripleT3.ZeroizingRoundTrips` and
   `UnitT1.DerivedKeysModel` all constrain the one `zeroize.Zeroizing` family.
   `zeroizing_joint_satisfiable` witnesses all five at once.
-* `UnitT1.RemoveSkippedAtTotal` and `UnitSpqrT3.VecRemoveAgrees` both constrain
-  `alloc.vec.Vec.remove`. `vec_remove_joint_satisfiable` witnesses both.
+* `UnitT1.RemoveSkippedAtTotal` and `UnitSpqrT3.VecRemoveAgrees` constrain
+  two different removal operations after the ratchet hardening: the classical
+  ratchet's `remove_skipped_at` wrapper and the sparse ratchet's `Vec.remove`.
+  `vec_remove_joint_satisfiable` witnesses both together.
 
 The other witnessed hypotheses, `UnitT3.HmacAgrees`, `UnitT3.HkdfAgrees` (which
 `UnitSpqrT3.SpqrHkdfAgrees` and `UnitTripleT3.TripleHkdfAgrees` are, by `Iff.rfl`),
@@ -197,23 +199,30 @@ theorem zeroizing_joint_satisfiable :
     fun _ z => ⟨z, rfl, rfl⟩, fun _ z => ⟨z, rfl, rfl⟩, ?_, ?_, ?_⟩
   all_goals intros; simp
 
-/-! ## `Vec::remove`, jointly -/
+/-! ## The two removal operations, jointly -/
+
+/-- The type of the classical ratchet's hardened removal wrapper. -/
+abbrev RemoveSkippedFn :=
+  (A : Type) → (alloc.vec.Vec tacenta_ratchet.SkippedKey) → Usize →
+    Result (tacenta_ratchet.SkippedKey × alloc.vec.Vec tacenta_ratchet.SkippedKey)
 
 /-- The type of `alloc.vec.Vec.remove`. -/
 abbrev RemoveFn :=
   {T : Type} → (A : Type) → alloc.vec.Vec T → Usize → Result (T × alloc.vec.Vec T)
 
-/-- The classical ratchet's `VecRemoveTotal` and the sparse ratchet's
-`VecRemoveAgrees`, which on the unit are about the one `remove`. -/
-def RemoveJoint (f : RemoveFn) : Prop :=
-  (∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize), i.val < v.val.length →
-    ∃ r, f A v i = ok r ∧ r.2.val = v.val.eraseIdx i.val) ∧
+/-- The classical ratchet's `RemoveSkippedAtTotal` and the sparse ratchet's
+`VecRemoveAgrees`, each stating the value and erased-vector result of its own
+removal operation. -/
+def RemoveJoint (g : RemoveSkippedFn) (f : RemoveFn) : Prop :=
+  (∀ (A : Type) (v : alloc.vec.Vec tacenta_ratchet.SkippedKey) (i : Usize)
+      (h : i.val < v.val.length),
+    ∃ r, g A v i = ok r ∧ r.1 = v.val[i.val]'h ∧ r.2.val = v.val.eraseIdx i.val) ∧
   (∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize) (h : i.val < v.val.length),
     ∃ r, f A v i = ok r ∧ r.1 = v.val[i.val]'h ∧ r.2.val = v.val.eraseIdx i.val)
 
 theorem vec_remove_joint_is :
     (Tacenta.UnitT1.RemoveSkippedAtTotal ∧ Tacenta.UnitSpqrT3.VecRemoveAgrees) ↔
-      RemoveJoint @alloc.vec.Vec.remove :=
+      RemoveJoint (fun _A => tacenta_ratchet.remove_skipped_at) @alloc.vec.Vec.remove :=
   Iff.rfl
 
 /-- What the real `Vec::remove` does: the element and the rest when the index is
@@ -223,11 +232,17 @@ def removeWitness : RemoveFn := fun {_T} _A v i =>
     ok (v.val[i.val], ⟨v.val.eraseIdx i.val, le_trans (List.length_eraseIdx_le _ _) v.property⟩)
   else fail .panic
 
-theorem vec_remove_joint_satisfiable : ∃ f, RemoveJoint f := by
-  refine ⟨@removeWitness, fun A v i h => ?_, fun A v i h => ?_⟩
-  · exact ⟨(v.val[i.val], ⟨v.val.eraseIdx i.val, le_trans (List.length_eraseIdx_le _ _) v.property⟩),
-      by simp [removeWitness, h], rfl⟩
-  · exact ⟨(v.val[i.val], ⟨v.val.eraseIdx i.val, le_trans (List.length_eraseIdx_le _ _) v.property⟩),
+theorem vec_remove_joint_satisfiable : ∃ g f, RemoveJoint g f := by
+  refine ⟨(fun _A v i => if h : i.val < v.val.length then
+      ok (v.val[i.val], ⟨v.val.eraseIdx i.val,
+        le_trans (List.length_eraseIdx_le _ _) v.property⟩)
+    else fail .panic), @removeWitness, ?_, ?_⟩
+  · intro _A v i h
+    exact ⟨(v.val[i.val], ⟨v.val.eraseIdx i.val,
+        le_trans (List.length_eraseIdx_le _ _) v.property⟩), by simp [h], rfl, rfl⟩
+  · intro _T _A v i h
+    exact ⟨(v.val[i.val], ⟨v.val.eraseIdx i.val,
+        le_trans (List.length_eraseIdx_le _ _) v.property⟩),
       by simp [removeWitness, h], rfl, rfl⟩
 
 /-! ## `Vec::append` -/
