@@ -362,8 +362,9 @@ refutation of the unguarded shape, and exhibits a model of this one: the
 operation that returns the element in range and panics otherwise, which is
 the real one). -/
 def RemoveSkippedAtTotal : Prop :=
-  ∀ (A : Type) (v : alloc.vec.Vec SkippedKey) (i : Usize), i.val < v.val.length →
-    ∃ r, remove_skipped_at v i = ok r ∧ r.2.val = v.val.eraseIdx i.val
+  ∀ (A : Type) (v : alloc.vec.Vec SkippedKey) (i : Usize)
+    (hi : i.val < v.val.length),
+    ∃ r, remove_skipped_at v i = ok r ∧ r.1 = v.val[i.val]'hi ∧ r.2.val = v.val.eraseIdx i.val
 
 /-- The length fact the loops need, derived rather than assumed: a removal in
 range shortens the vector by exactly one. Stating the assumption as the
@@ -372,7 +373,7 @@ means the length cannot drift from the value. -/
 theorem RemoveSkippedAtTotal.lengths (hrm : RemoveSkippedAtTotal) (A : Type)
     (v : alloc.vec.Vec SkippedKey) (i : Usize) (hi : i.val < v.val.length) :
     ∃ r, remove_skipped_at v i = ok r ∧ r.2.val.length + 1 = v.val.length := by
-  obtain ⟨r, hr, hv⟩ := hrm A v i hi
+  obtain ⟨r, hr, -, hv⟩ := hrm A v i hi
   refine ⟨r, hr, ?_⟩
   simp only [hv, List.length_eraseIdx]
   split <;> omega

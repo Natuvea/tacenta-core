@@ -649,22 +649,17 @@ impl State {
             Err(e) => return Err(e),
         };
         pos += OPTIONAL_KEY_LEN;
-        // Keep decoded chain material in an erasing wrapper until all later
-        // fallible fields have been checked. A malformed persisted state must
-        // not drop these keys as plain arrays on an early return.
-        let rk = Zeroizing::new(read_key(bytes, pos));
+        let rk = read_key(bytes, pos);
         pos += 32;
         let cks = match read_optional_key(bytes, pos) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
-        let cks = cks.map(Zeroizing::new);
         pos += OPTIONAL_KEY_LEN;
         let ckr = match read_optional_key(bytes, pos) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
-        let ckr = ckr.map(Zeroizing::new);
         pos += OPTIONAL_KEY_LEN;
         let ns = read_u32(bytes, pos);
         pos += 4;
@@ -723,9 +718,9 @@ impl State {
         let state = State {
             dhs_pub,
             dhr_pub,
-            rk: *rk,
-            cks: cks.map(|key| *key),
-            ckr: ckr.map(|key| *key),
+            rk,
+            cks,
+            ckr,
             ns,
             nr,
             pn,

@@ -737,7 +737,7 @@ the boundary those take: `HmacAgrees`, `HkdfAgrees`, `ZeroizingRoundTrips`,
 `OptionCloneTotal` for `clone`. -/
 theorem ratchet_agrees_for (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal)
     (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
-    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.VecRemoveTotal)
+    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.RemoveSkippedAtTotal)
     [Tacenta.UnitT1.DerivedKeysModel] :
     RatchetAgreesFor ratchetAbs := by
   unfold RatchetAgreesFor
@@ -868,7 +868,7 @@ its own proof never reaches. -/
 
 theorem send_refines_discharged
     (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
-    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.VecRemoveTotal)
+    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.RemoveSkippedAtTotal)
     [Tacenta.UnitT1.DerivedKeysModel]
     (hz96 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips64)
@@ -900,7 +900,7 @@ theorem send_refines_discharged
 
 theorem receive_refines_discharged
     (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
-    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.VecRemoveTotal)
+    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.RemoveSkippedAtTotal)
     [Tacenta.UnitT1.DerivedKeysModel]
     (hz96 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips64)

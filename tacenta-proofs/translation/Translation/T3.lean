@@ -813,7 +813,7 @@ theorem purge_chain_range_loop_refines (hrm : Tacenta.T1.RemoveSkippedAtTotal)
     -- The removal's hypothesis is available only under the guard the body
     -- checks first, so the case split comes before the removal is named.
     by_cases hlt : j.val < v.val.length
-    · obtain ⟨⟨removed, v'⟩, hrm', hv⟩ := hrm Global v j hlt
+    · obtain ⟨⟨removed, v'⟩, hrm', -, hv⟩ := hrm Global v j hlt
       simp only [hrm']
       step*
       all_goals
@@ -936,7 +936,7 @@ theorem age_store_loop_refines (hrm : Tacenta.T1.RemoveSkippedAtTotal)
       rw [List.drop_eq_nil_of_le (by simpa using hlt), List.filter_nil,
         List.append_nil, List.take_of_length_le (by simpa using hlt)] at hinv2
       exact hinv2
-    obtain ⟨⟨removed, v'⟩, hrm', hv⟩ := hrm Global v j hlt
+    obtain ⟨⟨removed, v'⟩, hrm', -, hv⟩ := hrm Global v j hlt
     simp only [hrm']
     step*
     all_goals
@@ -1124,9 +1124,16 @@ The at-most-one hypothesis is discharged for real callers by
 functional-property package next door: storing keeps the store a map, so a
 header can match at most one entry. -/
 
-/-- Nothing before the entry matches and the entry does, so the model's
-first-match lookup finds exactly it. Stated on an explicit split rather than an
-index, because rewriting a list under a dependent index breaks the motive. -/
+/-- Filtering commutes with a map whose predicate factors through it. -/
+theorem List.filter_map_comm {α β : Type} (l : List α) (f : α → β) (p : α → Bool)
+    (q : β → Bool) (hpq : ∀ x, p x = q (f x)) :
+    (l.filter p).map f = (l.map f).filter q := by
+  induction l with
+  | nil => simp
+  | cons hd tl ih =>
+    simp only [List.filter_cons, List.map_cons, hpq hd]
+    split <;> simp [ih]
+
 theorem find?_eq_of_split {α : Type} (p : α → Bool) (pre : List α) (a : α)
     (post : List α) (hpre : pre.filter p = []) (hpa : p a = true) :
     (pre ++ a :: post).find? p = some a := by
@@ -1198,7 +1205,7 @@ theorem try_skipped_loop_refines (hrm : Tacenta.T1.RemoveSkippedAtTotal)
     -- The removal's hypothesis is available only under the guard the body
     -- checks first, so the case split comes before the removal is named.
     by_cases hlt : j.val < s.skipped.val.length
-    · obtain ⟨⟨removed, v'⟩, hrm', hv⟩ := hrm Global s.skipped j hlt
+    · obtain ⟨⟨removed, v'⟩, hrm', hremoved, hv⟩ := hrm Global s.skipped j hlt
       simp only [hrm']
       step*
       -- The entry matches: the lookup finds it, and deleting every match is
@@ -1210,20 +1217,58 @@ theorem try_skipped_loop_refines (hrm : Tacenta.T1.RemoveSkippedAtTotal)
           rw [List.getElem_map, ← sk_post]
           simp only [matchesHeader, skippedOf, Bool.and_eq_true, beq_iff_eq]
           exact ⟨by rw [hdheq, hhdh], by rw [hneq, hhn]⟩
+        have hremoved' : removed = sk := by
+          simpa [sk_post] using hremoved
         refine ⟨?_, by simp⟩
         rintro mk hmk
         injection hmk with hmk
         subst hmk
+        simp [hremoved']
         constructor
-        · refine ⟨sk.stored_at.val, ?_⟩
-          have hsp : (s.skipped.val.map skippedOf)
-              = ((s.skipped.val.map skippedOf).take j.val)
-                ++ (s.skipped.val.map skippedOf)[j.val]
-                  :: (s.skipped.val.map skippedOf).drop (j.val + 1) := by
-            rw [← List.drop_eq_getElem_cons hjm, List.take_append_drop]
-          rw [hsp, find?_eq_of_split _ _ _ _ hinv2 hpj, List.getElem_map, ← sk_post]
-          simp only [skippedOf]
-          rw [hdheq, hhdh, hneq, hhn]
+        · have hsp_raw : s.skipped.val =
+              s.skipped.val.take j.val ++ s.skipped.val[j.val] ::
+                s.skipped.val.drop (j.val + 1) := by
+            have hdrop : s.skipped.val.drop j.val =
+                s.skipped.val[j.val] :: s.skipped.val.drop (j.val + 1) :=
+              List.drop_eq_getElem_cons (by simpa using hlt)
+            rw [← hdrop]
+            exact (List.take_append_drop _ _).symm
+          have hpre_raw :
+              (s.skipped.val.take j.val).filter (matchesHeader mh ∘ skippedOf) = [] := by
+            have hmap := List.filter_map_comm
+              (s.skipped.val.take j.val) skippedOf
+              (matchesHeader mh ∘ skippedOf) (matchesHeader mh)
+              (fun x => rfl)
+            have hpre_mapped :
+                ((s.skipped.val.take j.val).map skippedOf).filter (matchesHeader mh) = [] := by
+              simpa [List.map_take] using hinv2
+            have : ((s.skipped.val.take j.val).filter
+                (matchesHeader mh ∘ skippedOf)).map skippedOf = [] := by
+              rw [hmap, hpre_mapped]
+            exact List.map_eq_nil_iff.mp this
+          have hpk_raw : (matchesHeader mh ∘ skippedOf) s.skipped.val[j.val] = true := by
+            have hsk : s.skipped.val[j.val] = sk := sk_post.symm
+            rw [hsk]
+            simp only [Function.comp_def, matchesHeader, skippedOf,
+              Bool.and_eq_true, beq_iff_eq]
+            exact ⟨by rw [hdheq, hhdh], by rw [hneq, hhn]⟩
+          refine ⟨sk.stored_at.val, sk, ?_, ?_⟩
+          · have htail : List.find? (matchesHeader mh ∘ skippedOf)
+                (s.skipped.val.take j.val ++ s.skipped.val[j.val] ::
+                  s.skipped.val.drop (j.val + 1)) = some s.skipped.val[j.val] :=
+              find?_eq_of_split _ _ _ _ hpre_raw hpk_raw
+            have hfind_raw : List.find? (matchesHeader mh ∘ skippedOf) s.skipped.val =
+                some s.skipped.val[j.val] := by
+              calc
+                List.find? (matchesHeader mh ∘ skippedOf) s.skipped.val =
+                    List.find? (matchesHeader mh ∘ skippedOf)
+                      (s.skipped.val.take j.val ++ s.skipped.val[j.val] ::
+                        s.skipped.val.drop (j.val + 1)) :=
+                  congrArg (List.find? (matchesHeader mh ∘ skippedOf)) hsp_raw
+                _ = some s.skipped.val[j.val] := htail
+            exact hfind_raw.trans (congrArg some sk_post.symm)
+          · simp only [skippedOf]
+            rw [hdheq, hhdh, hneq, hhn]
         · rw [hv, map_eraseIdx,
             filter_not_eq_eraseIdx (matchesHeader mh) _ j.val hjm hpj hone]
       -- The entry's message number differs, so the scan steps past it.
@@ -1285,7 +1330,7 @@ theorem try_skipped_loop_fields (hrm : Tacenta.T1.RemoveSkippedAtTotal)
   · rintro j -
     simp only [try_skipped_loop.body]
     by_cases hlt : j.val < s.skipped.val.length
-    · obtain ⟨⟨removed, v'⟩, hrm', -⟩ := hrm Global s.skipped j hlt
+    · obtain ⟨⟨removed, v'⟩, hrm', -, -⟩ := hrm Global s.skipped j hlt
       simp only [hrm']
       step*
     · step*
@@ -1762,7 +1807,8 @@ info: 'Tacenta.T3.receive_refines' depends on axioms: [propext,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
  Pair.Insts.ZeroizeZeroize.zeroize,
- alloc.vec.Vec.remove,
+ alloc.vec.Vec.pop,
+ remove_skipped_at._native.decide.ax_1,
  zeroize.Zeroize.Blanket.zeroize,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,

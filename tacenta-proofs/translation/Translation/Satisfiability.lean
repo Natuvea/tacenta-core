@@ -123,11 +123,21 @@ theorem append_total_unguarded_unsatisfiable : ¬ ∃ f : AppendFn, AppendTotalU
 abbrev RemoveFn :=
   {T : Type} → (A : Type) → alloc.vec.Vec T → Usize → Result (T × alloc.vec.Vec T)
 
-/-- The shape of `T1.VecRemoveTotal` and `SpqrT1.VecRemoveTotal`: under the
-index guard, the operation returns with that index erased. -/
+/-- The shape of `SpqrT1.VecRemoveTotal`: under the index guard, the
+standard-library operation returns with that index erased. -/
 def RemoveTotal (f : RemoveFn) : Prop :=
   ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize), i.val < v.val.length →
     ∃ r, f A v i = ok r ∧ r.2.val = v.val.eraseIdx i.val
+
+/-- The shape of the ratchet's custom removal helper. It returns the indexed
+secret and the input with that index erased. -/
+def RemoveSkippedAtTotalShape
+    (f : alloc.vec.Vec tacenta_ratchet.SkippedKey → Usize →
+      Result (tacenta_ratchet.SkippedKey × alloc.vec.Vec tacenta_ratchet.SkippedKey)) : Prop :=
+  ∀ (A : Type) (v : alloc.vec.Vec tacenta_ratchet.SkippedKey) (i : Usize)
+    (h : i.val < v.val.length),
+      ∃ r, f v i = ok r ∧ r.1 = v.val[i.val]'h ∧
+        r.2.val = v.val.eraseIdx i.val
 
 /-- The shape of `SpqrT3.VecRemoveAgrees`: the same, naming the element
 removed, which the guard makes well-defined without an `Inhabited` bound. -/
@@ -146,8 +156,9 @@ def RemoveTotalUnguarded (f : RemoveFn) : Prop :=
   ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize),
     ∃ r, f A v i = ok r ∧ r.2.val = v.val.eraseIdx i.val
 
-theorem T1_VecRemoveTotal_is :
-    Tacenta.T1.VecRemoveTotal ↔ RemoveTotal @tacenta_ratchet.alloc.vec.Vec.remove :=
+theorem T1_RemoveSkippedAtTotal_is :
+    Tacenta.T1.RemoveSkippedAtTotal ↔
+      RemoveSkippedAtTotalShape @tacenta_ratchet.remove_skipped_at :=
   Iff.rfl
 
 theorem SpqrT1_VecRemoveTotal_is :

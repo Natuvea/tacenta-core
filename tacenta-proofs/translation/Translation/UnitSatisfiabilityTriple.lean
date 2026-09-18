@@ -39,7 +39,7 @@ they hold together:
   `ZeroizingRoundTrips64`, `UnitTripleT3.ZeroizingRoundTrips` and
   `UnitT1.DerivedKeysModel` all constrain the one `zeroize.Zeroizing` family.
   `zeroizing_joint_satisfiable` witnesses all five at once.
-* `UnitT1.VecRemoveTotal` and `UnitSpqrT3.VecRemoveAgrees` both constrain
+* `UnitT1.RemoveSkippedAtTotal` and `UnitSpqrT3.VecRemoveAgrees` both constrain
   `alloc.vec.Vec.remove`. `vec_remove_joint_satisfiable` witnesses both.
 
 The other witnessed hypotheses, `UnitT3.HmacAgrees`, `UnitT3.HkdfAgrees` (which
@@ -212,7 +212,7 @@ def RemoveJoint (f : RemoveFn) : Prop :=
     ∃ r, f A v i = ok r ∧ r.1 = v.val[i.val]'h ∧ r.2.val = v.val.eraseIdx i.val)
 
 theorem vec_remove_joint_is :
-    (Tacenta.UnitT1.VecRemoveTotal ∧ Tacenta.UnitSpqrT3.VecRemoveAgrees) ↔
+    (Tacenta.UnitT1.RemoveSkippedAtTotal ∧ Tacenta.UnitSpqrT3.VecRemoveAgrees) ↔
       RemoveJoint @alloc.vec.Vec.remove :=
   Iff.rfl
 
@@ -407,7 +407,7 @@ theorem hkdf_agrees_satisfiable : ∃ f, HkdfShape f :=
 /-! ## Coverage, checked against the discharged theorems -/
 
 example (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
-    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.VecRemoveTotal)
+    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.RemoveSkippedAtTotal)
     [Tacenta.UnitT1.DerivedKeysModel]
     (hz96 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips64)
@@ -421,7 +421,7 @@ example (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
     hzs hopt hrel
 
 example (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
-    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.VecRemoveTotal)
+    (hzr : Tacenta.UnitT3.ZeroizingRoundTrips) (hvr : Tacenta.UnitT1.RemoveSkippedAtTotal)
     [Tacenta.UnitT1.DerivedKeysModel]
     (hz96 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips64)

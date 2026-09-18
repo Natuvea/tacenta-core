@@ -758,7 +758,7 @@ theorem inv_gives_store_is_map (s : State) (m : Model.State.State)
 /-- **Decoded state → `Inv` → `hs` → `T1.receive_no_panic`.** A `receive` on a
 state that came out of `from_bytes` does not panic. -/
 theorem decoded_receive_no_panic (h : Tacenta.T1.HmacTotal) (hk : Tacenta.T1.HkdfTotal)
-    (hz : Tacenta.T1.ZeroizingTotal) (hrm : Tacenta.T1.VecRemoveTotal)
+    (hz : Tacenta.T1.ZeroizingTotal) (hrm : Tacenta.T1.RemoveSkippedAtTotal)
     [Tacenta.T1.DerivedKeysModel]
     (bytes : Slice Std.U8) (s : State)
     (hdec : State.from_bytes bytes = ok (core.result.Result.Ok s))
@@ -792,7 +792,7 @@ The relation to the model state is still a hypothesis too: `from_bytes` says
 which translated states are reachable, not which model state a caller
 means. -/
 theorem decoded_receive_refines (h : Tacenta.T3.HmacAgrees) (hk : Tacenta.T3.HkdfAgrees)
-    (hz : Tacenta.T3.ZeroizingRoundTrips) (hrm : Tacenta.T1.VecRemoveTotal)
+    (hz : Tacenta.T3.ZeroizingRoundTrips) (hrm : Tacenta.T1.RemoveSkippedAtTotal)
     [Tacenta.T1.DerivedKeysModel]
     (bytes : Slice Std.U8) (s : State)
     (hdec : State.from_bytes bytes = ok (core.result.Result.Ok s))
