@@ -307,11 +307,12 @@ Four things are not erased, and they are the honest remainder:
   Lean as a `massert` the T1 proofs discharge. On those lines the Lean is
   stricter than the binary it was translated from -- the harmless direction,
   but not the same program.
-  The verified-zone stores now build working copies at their final capacities:
-  the classical skipped-key path, the sparse chain and skipped-key decoders,
-  sparse epoch retirement, and sparse replacement all avoid growing a live
-  secret-bearing vector by repeated push. Removal also wipes the dead slot
-  before shortening the vector. These are implementation hardening measures;
+  The classical ratchet’s skipped-key path now builds its working copy at the
+  final capacity and wipes removed slots before shortening the vector. The sparse
+  ratchet still uses `Vec::remove`/`retain` and remains open for the same
+  allocator-residue review; its state destructor now wipes the live fields, but
+  that does not erase transient copies made during those operations. These are
+  implementation hardening measures;
   Charon and Aeneas ignore `Drop` and allocator behaviour, so the proofs below
   do not establish them.
 
@@ -319,22 +320,23 @@ Four things are not erased, and they are the honest remainder:
 generated Lean is byte for byte identical with and without every destructor
 above, and no T1 or T3 theorem says anything about erasure. What guards part
 of it is a static test that fails to build if a type loses the
-`zeroize::ZeroizeOnDrop` marker, and there are three, for five types: the
-classical ratchet's `State` and `SkippedKey` (`the_state_erases_when_dropped`,
-`tacenta-core/ratchet/src/lib.rs`), the ML-KEM `KeyPair`
+`zeroize::ZeroizeOnDrop` marker, and the marker checks cover the classical ratchet's `State` and `SkippedKey`
+(`the_state_erases_when_dropped`, `tacenta-core/ratchet/src/lib.rs`), the sparse
+ratchet's `State`, `Chain`, `Chains` and `Skipped`, the ML-KEM `KeyPair`
 (`the_key_pair_erases_when_dropped`, `tacenta-core/src/primitives/kem.rs`), and
 `Identity` and `PrekeyStore` (`the_identity_and_the_prekey_store_erase_when_dropped`,
 `tacenta-core/src/sessions/lifecycle.rs`). Each checks the marker, not what the
 destructor wipes, and `KeyPair` and `PrekeyStore` implement the marker by hand.
-Nothing holds the rest in place: the sparse ratchet's `State`, `Chain`,
-`Skipped` and `Output`; the Braid's `Auth` and `Output`, and the KEM state it
-holds in `Zeroizing` buffers; and the Triple Ratchet's `State`, which has no
-destructor of its own and erases through the two ratchet states it holds. Their
-derives and destructors could be removed without any build failing. Where a test exists it is a much weaker instrument than the
-proofs standing next to it, and it should not be mistaken for them. The Double Ratchet specification's own secure-deletion
-section notes that recovering deleted data is platform-dependent and outside its
-scope; the same caveat applies here. Treat forward secrecy as resting on the key
-schedule, not on guaranteed erasure of every in-memory copy.
+The Braid's `Auth` and `Output`, and the KEM state it holds in `Zeroizing`
+buffers, still need their own marker coverage; the Triple Ratchet's `State`
+erases through the two ratchet states it holds. The sparse marker checks cover
+the live state, but not transient allocator copies. Every marker check checks
+the marker, not what the destructor wipes. Where a test exists it is a much
+weaker instrument than the proofs standing next to it, and it should not be
+mistaken for them. The Double Ratchet specification's own secure-deletion
+section notes that recovering deleted data is platform-dependent and outside
+its scope; the same caveat applies here. Treat forward secrecy as resting on the
+key schedule, not on guaranteed erasure of every in-memory copy.
 
 ## Undefined behaviour: forbidden statically, checked dynamically where it can be
 

@@ -254,14 +254,81 @@ invariant is that the keys already stored plus the ones still to be read stay
 within the bound; each turn moves exactly one key from the wrapper into the
 store. The measure is the number of keys left to read. -/
 @[step]
-theorem skip_message_keys_loop_no_panic [DerivedKeysModel]
+theorem skipped_key_clone_spec0 (sk : SkippedKey) :
+    SkippedKey.Insts.CoreCloneClone.clone sk ⦃ fun r => r = sk ⦄ := by
+  unfold SkippedKey.Insts.CoreCloneClone.clone
+  step with core.array.CloneArray.clone_spec core.clone.CloneU8 sk.dh
+    (fun x _ => by rfl)
+  simp only [core.clone.impls.CloneU32.clone, lift]
+  step with core.array.CloneArray.clone_spec core.clone.CloneU8 sk.key
+    (fun x _ => by rfl)
+  simp only [← a_post, ← i_post]
+
+theorem skipped_key_clone_eq (sk : SkippedKey) :
+    SkippedKey.Insts.CoreCloneClone.clone sk = ok sk := by
+  obtain ⟨y, hy, hxy⟩ := WP.spec_imp_exists (skipped_key_clone_spec0 sk)
+  simpa [hxy] using hy
+
+theorem skip_message_keys_loop0_no_panic
+    (v skipped : alloc.vec.Vec SkippedKey) (i : Usize)
+    (h : skipped.val.length + (v.val.length - i.val) ≤ Usize.max) :
+    skip_message_keys_loop0 v skipped i ⦃ fun _ => True ⦄ := by
+  unfold skip_message_keys_loop0
+  apply loop.spec_decr_nat
+    (measure := fun x => v.val.length - (Prod.snd x).val)
+    (inv := fun x => (Prod.fst x).val.length
+      + (v.val.length - (Prod.snd x).val) ≤ Usize.max)
+  · rintro ⟨w, j⟩ hinv
+    simp only at hinv
+    simp only [skip_message_keys_loop0.body]
+    have hfits := v.property
+    by_cases hlt : j.val < v.val.length
+    · have hleft : 1 ≤ v.val.length - j.val := by omega
+      step*
+      simp_all [alloc.vec.Vec.len]
+      omega
+    · step*
+  · exact h
+
+@[step]
+theorem skip_message_keys_loop0_bound (B : Nat) (hB : B ≤ Usize.max)
+    (v skipped : alloc.vec.Vec SkippedKey) (i : Usize)
+    (h : skipped.val.length + (v.val.length - i.val) ≤ B) :
+    skip_message_keys_loop0 v skipped i ⦃ fun r => r.val.length ≤ B ⦄ := by
+  unfold skip_message_keys_loop0
+  apply loop.spec_decr_nat
+    (measure := fun x => v.val.length - (Prod.snd x).val)
+    (inv := fun x => (Prod.fst x).val.length
+      + (v.val.length - (Prod.snd x).val) ≤ B)
+  · rintro ⟨w, j⟩ hinv
+    simp only at hinv
+    simp only [skip_message_keys_loop0.body]
+    have hfits := v.property
+    by_cases hlt : j.val < v.val.length
+    · have hleft : 1 ≤ v.val.length - j.val := by omega
+      step*
+      simp_all [alloc.vec.Vec.len]
+      omega
+    · step*
+  · exact h
+
+@[step]
+theorem skip_message_keys_loop0_grows
+    (v skipped : alloc.vec.Vec SkippedKey) (i : Usize)
+    (h : skipped.val.length + (v.val.length - i.val) ≤ Usize.max) :
+    skip_message_keys_loop0 v skipped i ⦃ fun r =>
+      r.val.length ≤ skipped.val.length + (v.val.length - i.val) ⦄ := by
+  apply skip_message_keys_loop0_bound (skipped.val.length + (v.val.length - i.val)) (by omega) v skipped i (le_refl _)
+
+@[step]
+theorem skip_message_keys_loop1_no_panic [DerivedKeysModel]
     (dhr : Array U8 32#usize) (v : alloc.vec.Vec SkippedKey) (now : U32)
     (keys : zeroize.Zeroizing (alloc.vec.Vec (U32 × Array U8 32#usize)))
     (i : Usize)
     (h : v.val.length + ((DerivedKeysModel.contents keys).val.length - i.val)
           ≤ Usize.max) :
-    skip_message_keys_loop dhr now v keys i ⦃ fun _ => True ⦄ := by
-  unfold skip_message_keys_loop
+    skip_message_keys_loop1 dhr now v keys i ⦃ fun _ => True ⦄ := by
+  unfold skip_message_keys_loop1
   apply loop.spec_decr_nat
     (measure := fun x =>
       (DerivedKeysModel.contents keys).val.length - (Prod.snd x).val)
@@ -269,7 +336,7 @@ theorem skip_message_keys_loop_no_panic [DerivedKeysModel]
       + ((DerivedKeysModel.contents keys).val.length - (Prod.snd x).val) ≤ Usize.max)
   · rintro ⟨w, j⟩ hinv
     simp only at hinv
-    simp only [skip_message_keys_loop.body]
+    simp only [skip_message_keys_loop1.body]
     -- The cursor's increment needs the wrapper's vector to be a vector: its
     -- length is within `Usize.max`, so a cursor below it has room to move.
     have hfits := (DerivedKeysModel.contents keys).property
@@ -364,7 +431,7 @@ the real one). -/
 def RemoveSkippedAtTotal : Prop :=
   ∀ (A : Type) (v : alloc.vec.Vec SkippedKey) (i : Usize)
     (hi : i.val < v.val.length),
-    ∃ r, remove_skipped_at v i = ok r ∧ r.1 = v.val[i.val]'hi ∧ r.2.val = v.val.eraseIdx i.val
+    ∃ r, remove_skipped_at v i = ok r ∧ r.1 = (v.val[i.val]'hi).key ∧ r.2.val = v.val.eraseIdx i.val
 
 /-- The length fact the loops need, derived rather than assumed: a removal in
 range shortens the vector by exactly one. Stating the assumption as the
@@ -609,8 +676,11 @@ theorem skip_message_keys_no_panic (h : HmacTotal) (hrm : RemoveSkippedAtTotal)
   · step*
   · have hgap := skip_gap_le state.nr upto hg
     step*
-    obtain ⟨ck2, keys⟩ := v
-    step*
+    all_goals simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
+    all_goals (try omega)
+    all_goals (try rcases v with ⟨ck2, keys⟩)
+    all_goals (try (step with skip_message_keys_loop1_no_panic dhr state.events skipped2 keys 0#usize (by omega)))
+    all_goals step*
 
 /-- The scan's wrapper only repackages the tuple the loop returns, so it
 inherits the loop's proof. -/
@@ -625,13 +695,13 @@ theorem try_skipped_no_panic (hrm : RemoveSkippedAtTotal) (state : State)
 /-- The store loop, with the bound carried so a caller learns how large the
 store ends up rather than only that the loop did not fail. Same shape as the
 chain loop's length lemma. -/
-theorem skip_message_keys_loop_bound [DerivedKeysModel] (B : Nat) (hB : B ≤ Usize.max)
+theorem skip_message_keys_loop1_bound [DerivedKeysModel] (B : Nat) (hB : B ≤ Usize.max)
     (dhr : Array U8 32#usize) (v : alloc.vec.Vec SkippedKey) (now : U32)
     (keys : zeroize.Zeroizing (alloc.vec.Vec (U32 × Array U8 32#usize)))
     (i : Usize)
     (h : v.val.length + ((DerivedKeysModel.contents keys).val.length - i.val) ≤ B) :
-    skip_message_keys_loop dhr now v keys i ⦃ fun r => r.val.length ≤ B ⦄ := by
-  unfold skip_message_keys_loop
+    skip_message_keys_loop1 dhr now v keys i ⦃ fun r => r.val.length ≤ B ⦄ := by
+  unfold skip_message_keys_loop1
   apply loop.spec_decr_nat
     (measure := fun x =>
       (DerivedKeysModel.contents keys).val.length - (Prod.snd x).val)
@@ -639,7 +709,7 @@ theorem skip_message_keys_loop_bound [DerivedKeysModel] (B : Nat) (hB : B ≤ Us
       + ((DerivedKeysModel.contents keys).val.length - (Prod.snd x).val) ≤ B)
   · rintro ⟨w, j⟩ hinv
     simp only at hinv
-    simp only [skip_message_keys_loop.body]
+    simp only [skip_message_keys_loop1.body]
     -- The cursor's increment needs the wrapper's vector to be a vector: its
     -- length is within `Usize.max`, so a cursor below it has room to move.
     have hfits := (DerivedKeysModel.contents keys).property
@@ -652,16 +722,16 @@ theorem skip_message_keys_loop_bound [DerivedKeysModel] (B : Nat) (hB : B ≤ Us
 so the stepping tactic can apply it without choosing a bound, the same reason
 `derive_chain_length_count` exists. -/
 @[step]
-theorem skip_message_keys_loop_grows [DerivedKeysModel]
+theorem skip_message_keys_loop1_grows [DerivedKeysModel]
     (dhr : Array U8 32#usize) (v : alloc.vec.Vec SkippedKey) (now : U32)
     (keys : zeroize.Zeroizing (alloc.vec.Vec (U32 × Array U8 32#usize)))
     (i : Usize)
     (h : v.val.length + ((DerivedKeysModel.contents keys).val.length - i.val)
           ≤ Usize.max) :
-    skip_message_keys_loop dhr now v keys i ⦃ fun r =>
+    skip_message_keys_loop1 dhr now v keys i ⦃ fun r =>
       r.val.length ≤ v.val.length
         + ((DerivedKeysModel.contents keys).val.length - i.val) ⦄ :=
-  skip_message_keys_loop_bound _ h dhr v now keys i (le_refl _)
+  skip_message_keys_loop1_bound _ h dhr v now keys i (le_refl _)
 
 /-- Skipping forward leaves the store no larger than it was or than the limit
 the code enforces, whichever is bigger. This is what a second call needs in
@@ -679,8 +749,10 @@ theorem skip_message_keys_bound (h : HmacTotal) (hrm : RemoveSkippedAtTotal)
     all_goals simp_all [MAX_SKIPPED_STORE]
   · have hgap := skip_gap_le state.nr upto hg
     step*
-    all_goals (try obtain ⟨ck2, keys⟩ := v)
-    all_goals ((step*; simp_all [alloc.vec.Vec.len, MAX_SKIPPED_STORE]) <;> omega)
+    all_goals (simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new, alloc.vec.Vec.len, MAX_SKIPPED_STORE] <;> try omega)
+    all_goals (try rcases v with ⟨ck2, keys⟩)
+    all_goals (try (step with skip_message_keys_loop1_bound (max state.skipped.val.length MAX_SKIPPED_STORE.val) (by omega) dhr state.events skipped2 keys 0#usize (by omega)))
+    all_goals (step* <;> simp_all [alloc.vec.Vec.len, MAX_SKIPPED_STORE] <;> omega)
 
 /-- The form used when two skips are composed: a call preserves enough room
 for another `MAX_SKIP` request. -/
@@ -933,7 +1005,6 @@ info: 'Tacenta.T1.receive_no_panic' depends on axioms: [propext,
  Array.Insts.ZeroizeZeroize.zeroize,
  Pair.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.pop,
- remove_skipped_at._native.decide.ax_1,
  zeroize.Zeroize.Blanket.zeroize,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,

@@ -133,10 +133,10 @@ def RemoveTotal (f : RemoveFn) : Prop :=
 secret and the input with that index erased. -/
 def RemoveSkippedAtTotalShape
     (f : alloc.vec.Vec tacenta_ratchet.SkippedKey → Usize →
-      Result (tacenta_ratchet.SkippedKey × alloc.vec.Vec tacenta_ratchet.SkippedKey)) : Prop :=
+      Result (Std.Array Std.U8 32#usize × alloc.vec.Vec tacenta_ratchet.SkippedKey)) : Prop :=
   ∀ (A : Type) (v : alloc.vec.Vec tacenta_ratchet.SkippedKey) (i : Usize)
     (h : i.val < v.val.length),
-      ∃ r, f v i = ok r ∧ r.1 = v.val[i.val]'h ∧
+      ∃ r, f v i = ok r ∧ r.1 = (v.val[i.val]'h).key ∧
         r.2.val = v.val.eraseIdx i.val
 
 /-- The shape of `SpqrT3.VecRemoveAgrees`: the same, naming the element

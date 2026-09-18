@@ -204,7 +204,7 @@ theorem zeroizing_joint_satisfiable :
 /-- The type of the classical ratchet's hardened removal wrapper. -/
 abbrev RemoveSkippedFn :=
   (A : Type) → (alloc.vec.Vec tacenta_ratchet.SkippedKey) → Usize →
-    Result (tacenta_ratchet.SkippedKey × alloc.vec.Vec tacenta_ratchet.SkippedKey)
+    Result (Std.Array Std.U8 32#usize × alloc.vec.Vec tacenta_ratchet.SkippedKey)
 
 /-- The type of `alloc.vec.Vec.remove`. -/
 abbrev RemoveFn :=
@@ -216,7 +216,7 @@ removal operation. -/
 def RemoveJoint (g : RemoveSkippedFn) (f : RemoveFn) : Prop :=
   (∀ (A : Type) (v : alloc.vec.Vec tacenta_ratchet.SkippedKey) (i : Usize)
       (h : i.val < v.val.length),
-    ∃ r, g A v i = ok r ∧ r.1 = v.val[i.val]'h ∧ r.2.val = v.val.eraseIdx i.val) ∧
+    ∃ r, g A v i = ok r ∧ r.1 = (v.val[i.val]'h).key ∧ r.2.val = v.val.eraseIdx i.val) ∧
   (∀ {T : Type} (A : Type) (v : alloc.vec.Vec T) (i : Usize) (h : i.val < v.val.length),
     ∃ r, f A v i = ok r ∧ r.1 = v.val[i.val]'h ∧ r.2.val = v.val.eraseIdx i.val)
 
@@ -234,11 +234,11 @@ def removeWitness : RemoveFn := fun {_T} _A v i =>
 
 theorem vec_remove_joint_satisfiable : ∃ g f, RemoveJoint g f := by
   refine ⟨(fun _A v i => if h : i.val < v.val.length then
-      ok (v.val[i.val], ⟨v.val.eraseIdx i.val,
+      ok ((v.val[i.val]).key, ⟨v.val.eraseIdx i.val,
         le_trans (List.length_eraseIdx_le _ _) v.property⟩)
     else fail .panic), @removeWitness, ?_, ?_⟩
   · intro _A v i h
-    exact ⟨(v.val[i.val], ⟨v.val.eraseIdx i.val,
+    exact ⟨((v.val[i.val]).key, ⟨v.val.eraseIdx i.val,
         le_trans (List.length_eraseIdx_le _ _) v.property⟩), by simp [h], rfl, rfl⟩
   · intro _T _A v i h
     exact ⟨(v.val[i.val], ⟨v.val.eraseIdx i.val,

@@ -595,13 +595,56 @@ lengths is not bounded in general; the caller discharges it from its own store
 guard. The loop reads the wrapper by index, so what it appends is the part of
 the wrapper's contents from the cursor on. -/
 @[step]
-theorem skip_message_keys_loop_refines [DerivedKeysModel]
+theorem skip_message_keys_loop0_refines
+    (v skipped : alloc.vec.Vec SkippedKey) (i : Usize)
+    (hb : skipped.val.length + (v.val.length - i.val) ≤ Usize.max) :
+    skip_message_keys_loop0 v skipped i ⦃ fun r =>
+      r.val.map skippedOf = skipped.val.map skippedOf
+        ++ (v.val.drop i.val).map skippedOf ⦄ := by
+  set target := skipped.val.map skippedOf
+    ++ (v.val.drop i.val).map skippedOf with htarget
+  have hinv : skipped.val.map skippedOf
+      ++ (v.val.drop i.val).map skippedOf = target := rfl
+  unfold skip_message_keys_loop0
+  apply loop.spec_decr_nat
+    (measure := fun x => v.val.length - (Prod.snd x).val)
+    (inv := fun x =>
+      (Prod.fst x).val.map skippedOf
+        ++ (v.val.drop (Prod.snd x).val).map skippedOf = target
+      ∧ (Prod.fst x).val.length + (v.val.length - (Prod.snd x).val)
+        ≤ Usize.max)
+  · rintro ⟨vv, j⟩ ⟨hinv2, hlen⟩
+    simp only at hinv2 hlen
+    simp only [skip_message_keys_loop0.body]
+    have hfits := v.property
+    by_cases hlt : j.val < v.val.length
+    · rw [List.drop_eq_getElem_cons hlt] at hinv2
+      step*
+      have hsk := congrArg skippedOf sk1_post
+      refine ⟨?_, ?_, ?_⟩
+      · rw [skipped1_post, copied1_post, ← hinv2]
+        simp only [List.map_append, List.map_cons, List.map_nil,
+          List.append_assoc, List.singleton_append, hsk, sk_post]
+      · simp only [skipped1_post, List.length_append, List.length_singleton,
+          copied1_post]
+        omega
+      · rw [copied1_post]
+        omega
+    · have hge : v.val.length ≤ j.val := by omega
+      rw [List.drop_eq_nil_of_le hge] at hinv2
+      have hlt' : ¬ j < v.len := by simpa using hlt
+      simp [hlt']
+      simp_all [alloc.vec.Vec.len]
+  · exact ⟨hinv, hb⟩
+
+@[step]
+theorem skip_message_keys_loop1_refines [DerivedKeysModel]
     (dhr : Array Std.U8 32#usize) (v : alloc.vec.Vec SkippedKey) (now : Std.U32)
     (keys : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × Array Std.U8 32#usize)))
     (i : Usize)
     (hb : v.val.length + ((DerivedKeysModel.contents keys).val.length - i.val)
           ≤ Usize.max) :
-    skip_message_keys_loop dhr now v keys i ⦃ fun r =>
+    skip_message_keys_loop1 dhr now v keys i ⦃ fun r =>
       r.val.map skippedOf
         = v.val.map skippedOf
           ++ ((DerivedKeysModel.contents keys).val.drop i.val).map (storedOf dhr now) ⦄ := by
@@ -611,7 +654,7 @@ theorem skip_message_keys_loop_refines [DerivedKeysModel]
   have hinv : v.val.map skippedOf
     ++ ((DerivedKeysModel.contents keys).val.drop i.val).map (storedOf dhr now)
     = target := rfl
-  unfold skip_message_keys_loop
+  unfold skip_message_keys_loop1
   apply loop.spec_decr_nat
     (measure := fun x =>
       (DerivedKeysModel.contents keys).val.length - (Prod.snd x).val)
@@ -624,7 +667,7 @@ theorem skip_message_keys_loop_refines [DerivedKeysModel]
           ≤ Usize.max)
   · rintro ⟨vv, j⟩ ⟨hinv2, hlen⟩
     simp only at hinv2 hlen
-    simp only [skip_message_keys_loop.body]
+    simp only [skip_message_keys_loop1.body]
     have hfits := (DerivedKeysModel.contents keys).property
     by_cases hlt : j.val < (DerivedKeysModel.contents keys).val.length
     · -- One more key: it moves from the head of what is left to read onto
@@ -1022,6 +1065,9 @@ theorem age_store_refines (hrm : Tacenta.UnitT1.RemoveSkippedAtTotal)
     simp_all [keepFresh_eta]
   · simpa [Model.State.ageStore, hmin] using hnow
 
+attribute [-step] Tacenta.UnitT1.skip_message_keys_loop0_grows
+attribute [-step] Tacenta.UnitT1.skip_message_keys_loop0_bound
+
 theorem skip_message_keys_refines (h : HmacAgrees)
     (hrm : Tacenta.UnitT1.RemoveSkippedAtTotal) [DerivedKeysModel] (s : State)
     (m : Model.State.State) (hR : StateR s m) (upto : Std.U32)
@@ -1060,24 +1106,29 @@ theorem skip_message_keys_refines (h : HmacAgrees)
           simp [hg']
         have hgap := Tacenta.UnitT1.skip_gap_le s.nr upto hg
         step*
+        all_goals have hsmax := s.skipped.property
+        all_goals simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
         · -- The cloned store is purged before the bound check, and a filter
           -- cannot be longer than its input.
           have hlen := congrArg List.length skipped1_post
           have hfil := List.length_filter_le
             (keepOutside (keyOf dhr) s.nr.val upto.val)
             (List.map skippedOf s.skipped.val)
-          have hi2max : i2.val ≤ U32.max := by scalar_tac
           simp only [List.length_map] at hlen hfil
+          have hskiplen := congrArg List.length hskip
+          simp only [List.length_map] at hskiplen
           have hpurge : skipped1.val.length ≤ s.skipped.val.length := by
-            rw [← skipped_post] at hlen
             omega
           have hlenval : skipped1.len.val = skipped1.val.length := by
             simp [alloc.vec.Vec.len]
-          have hcast : (UScalar.cast .Usize i2).val = i2.val := by scalar_tac
+          have hlen2 := congrArg List.length skipped2_post
+          rw [← hnr, ← hskip] at hlen2
+          simp only [List.length_map] at hlen2
+          have hpurge2 : skipped2.val.length ≤ s.skipped.val.length := by
+            omega
+          have hcast : (UScalar.cast .Usize i1).val = i1.val := by scalar_tac
           omega
         · obtain ⟨ck2, keys⟩ := v
-          have hrOk : r = core.result.Result.Ok (ck2, keys) := by assumption
-          rw [hrOk] at r_post
           obtain ⟨rp, rlen⟩ := r_post
           step*
           intro _
@@ -1088,8 +1139,7 @@ theorem skip_message_keys_refines (h : HmacAgrees)
             scalar_tac
           -- The derivation was indexed by the Rust's counters; restate it at
           -- the model's before matching, or the two never line up.
-          have hi2 : i2.val = upto.val - m.nr := by rw [← hnr]; omega
-          rw [hnr, hi2] at rp
+          have hi1 : i1.val = upto.val - m.nr := by omega
           have rck := congrArg Prod.fst rp
           have rkeys := congrArg Prod.snd rp
           simp only at rck rkeys
@@ -1106,23 +1156,33 @@ theorem skip_message_keys_refines (h : HmacAgrees)
                   && decide (e.2.1 < upto.val)))
               = Model.State.skipSurvivors m (keyOf dhr) upto.val := by
             rfl
-          have hkept : List.map skippedOf skipped1.val
+          have hkept : List.map skippedOf skipped2.val
               = Model.State.skipSurvivors m (keyOf dhr) upto.val := by
-            rw [skipped1_post, ← skipped_post, hskip, hnr]
+            rw [skipped2_post]
+            change List.filter (fun e =>
+              !(e.1 == keyOf dhr && decide (m.nr ≤ e.2.1)
+                && decide (e.2.1 < upto.val))) m.skipped = _
             exact hsurvivors
           have hkeptLen := congrArg List.length hkept
           simp only [List.length_map] at hkeptLen
-          have hcast : (UScalar.cast .Usize i2).val = i2.val := by scalar_tac
-          have hi4nat : i4.val = skipped1.val.length + i2.val := by
-            simpa [alloc.vec.Vec.len, hcast] using i4_post
+          have hcast : (UScalar.cast .Usize i1).val = i1.val := by scalar_tac
+          have hi4nat : i5.val = skipped2.val.length + i1.val := by
+            omega
           have hg2 : ¬ ((Model.State.skipSurvivors m (keyOf dhr) upto.val).length
               + (upto.val - m.nr) > Model.State.maxSkippedStore) := by
-            rw [← hkeptLen, ← hnr, ← i2_post1]
+            rw [← hkeptLen]
             simp only [Model.State.maxSkippedStore, MAX_SKIPPED_STORE] at *
-            scalar_tac
-          simp only [hg1, hg2, if_false]
-          refine ⟨_, rfl, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩ <;>
-            simp_all [keysOf]
+            have hbound : (skipped2.val.length + (upto.val - m.nr)) ≤ 2000 := by
+              scalar_tac
+            omega
+          have hg2' : (Model.State.skipSurvivors m (keyOf dhr) upto.val).length
+              + (upto.val - m.nr) ≤ Model.State.maxSkippedStore := by
+            omega
+          simp [hg1, hg2']
+          constructor
+          · omega
+          · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+              simp_all [keysOf]
 
 /-! ## The skipped-key lookup refines the model's
 
@@ -1229,7 +1289,7 @@ theorem try_skipped_loop_refines (hrm : Tacenta.UnitT1.RemoveSkippedAtTotal)
           rw [List.getElem_map, ← sk_post]
           simp only [matchesHeader, skippedOf, Bool.and_eq_true, beq_iff_eq]
           exact ⟨by rw [hdheq, hhdh], by rw [hneq, hhn]⟩
-        have hremoved' : removed = sk := by
+        have hremoved' : removed = sk.key := by
           simpa [sk_post] using hremoved
         refine ⟨?_, by simp⟩
         rintro mk hmk
