@@ -834,11 +834,6 @@ fn skip_message_keys(state: &mut State, upto: u32) -> Result<(), RatchetError> {
                 // Purge a clone so the store bound is checked against the
                 // exact resulting store while every refusal remains atomic.
                 let mut skipped = state.skipped.clone();
-                // `Vec::clone` has no spare capacity. Reserve the complete
-                // incoming range before the first push so a reallocation
-                // cannot copy secret message keys into an old, unwiped
-                // backing allocation.
-                skipped.reserve((upto - state.nr) as usize);
                 purge_chain_range(&mut skipped, dhr, state.nr, upto);
                 if skipped.len() + (upto - state.nr) as usize > MAX_SKIPPED_STORE {
                     return Err(RatchetError::SkippedStoreFull);

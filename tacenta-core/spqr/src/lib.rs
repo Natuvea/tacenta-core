@@ -764,9 +764,6 @@ impl State {
                 i += 1;
             }
         }
-        // Reserve before appending so moving derived secret keys cannot cause
-        // the live store to reallocate and release an unwiped old buffer.
-        self.skipped.reserve(derived.len());
         self.skipped.append(&mut derived);
         self.set_chains(
             e,
