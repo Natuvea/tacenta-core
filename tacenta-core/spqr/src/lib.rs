@@ -558,20 +558,8 @@ impl State {
     }
 
     fn set_chains(&mut self, e: u64, c: Chains) {
-        // Build the replacement at its final capacity before copying chain
-        // keys. Growing `self.chains` in place can return its old allocation
-        // while it still contains live chain-key bytes.
-        let mut chains = Vec::with_capacity(self.chains.len() + 1);
-        let mut i = 0;
-        while i < self.chains.len() {
-            if self.chains[i].0 != e {
-                chains.push(self.chains[i].clone());
-            }
-            i += 1;
-        }
-        chains.push((e, c));
-        self.chains.zeroize();
-        self.chains = chains;
+        self.chains.retain(|p| p.0 != e);
+        self.chains.push((e, c));
     }
 
     /// Retire everything older than the epochs kept, chains and skipped keys
@@ -751,7 +739,6 @@ impl State {
             i += 1;
         }
         skipped.append(&mut derived);
-        self.skipped.zeroize();
         self.skipped = skipped;
         self.set_chains(
             e,

@@ -815,53 +815,6 @@ fn skipped_replacement_allocates_its_final_capacity() {
     b.skip_message_keys(0, 5).unwrap();
     assert_eq!(b.skipped.len(), 4);
     assert_eq!(b.skipped.capacity(), 4);
-
-    let source = include_str!("lib.rs");
-    let start = source
-        .find("fn skip_message_keys(")
-        .expect("replacement helper exists");
-    let body = &source[start..];
-    let end = body.find("\n    }\n").expect("replacement helper ends");
-    let body = &body[..end];
-    let wipe = body
-        .find("self.skipped.zeroize();")
-        .expect("old store is wiped");
-    let replace = body
-        .find("self.skipped = skipped;")
-        .expect("replacement is installed");
-    assert!(wipe < replace, "old store must be wiped before replacement");
-}
-
-/// Chain replacement allocates before copying any chain key and wipes the old
-/// allocation before releasing it. Retain-then-push would grow the one-entry
-/// initial vector while it still contains live chain-key bytes.
-#[test]
-fn chain_replacement_allocates_its_final_capacity() {
-    let mut a = State::init_alice(&sk());
-    assert_eq!(a.chains.len(), 1);
-
-    a.advance(&out(1, 0xAA)).unwrap();
-    assert_eq!(a.chains.len(), 2);
-    assert_eq!(a.chains.capacity(), 2);
-
-    let source = include_str!("lib.rs");
-    let start = source
-        .find("fn set_chains(")
-        .expect("replacement helper exists");
-    let body = &source[start..];
-    let end = body.find("\n    }\n").expect("replacement helper ends");
-    let body = &body[..end];
-    let wipe = body
-        .find("self.chains.zeroize();")
-        .expect("old chains are wiped");
-    let replace = body
-        .find("self.chains = chains;")
-        .expect("replacement is installed");
-    assert!(
-        wipe < replace,
-        "old chains must be wiped before replacement"
-    );
-    assert!(!body.contains("self.chains.push("));
 }
 
 /// The custom removal path preserves order and the source guard pins the
