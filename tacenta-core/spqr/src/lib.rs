@@ -684,7 +684,7 @@ impl State {
         let mut i = 0;
         while i < self.skipped.len() {
             if self.skipped[i].epoch == e && self.skipped[i].n == n {
-                return Some(Self::remove_skipped_at(&mut self.skipped, i));
+                return Some(Self::remove_skipped_at(&mut self.skipped, i).key);
             }
             i += 1;
         }
@@ -694,16 +694,16 @@ impl State {
     /// Remove one secret-bearing skipped entry without leaving its key in the
     /// vector's dead tail slot. Move the target to the end, copy the key out,
     /// wipe the heap slot in place, then shorten the vector.
-    fn remove_skipped_at(skipped: &mut Vec<Skipped>, index: usize) -> Key {
+    fn remove_skipped_at(skipped: &mut Vec<Skipped>, index: usize) -> Skipped {
         let mut i = index;
         while i + 1 < skipped.len() {
             skipped.swap(i, i + 1);
             i += 1;
         }
-        let key = skipped[i].key;
+        let removed = skipped[i].clone();
         skipped[i].zeroize();
         let _ = skipped.pop();
-        key
+        removed
     }
 
     /// Step the receiving chain forward to `upto`, storing every key passed.
