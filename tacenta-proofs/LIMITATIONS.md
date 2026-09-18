@@ -309,10 +309,10 @@ Four things are not erased, and they are the honest remainder:
   but not the same program.
   The classical ratchet’s skipped-key path now builds its working copy at the
   final capacity and wipes removed slots before shortening the vector. The sparse
-  ratchet still uses `Vec::remove`/`retain` and remains open for the same
-  allocator-residue review; its state destructor now wipes the live fields, but
-  that does not erase transient copies made during those operations. These are
-  implementation hardening measures;
+  ratchet now does the same for skipped-key replacement and removal, sizes its
+  decoder vectors from the checked counts, and wipes the old store before its
+  allocation is released. Its state destructor wipes the live fields as well.
+  These are implementation hardening measures;
   Charon and Aeneas ignore `Drop` and allocator behaviour, so the proofs below
   do not establish them.
 

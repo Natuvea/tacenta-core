@@ -11,11 +11,11 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
-- `tacenta-core`: the classical ratchet’s secret-bearing working copies and
-  removal path now allocate at their final capacity and wipe dead slots before
-  release; sparse-ratchet transient-copy hardening remains open. The independent
-  reader follows the v2 agreed-secret replay identity and covers fail-closed
-  import of v4 replay records into v5.
+- `tacenta-core`: the classical and sparse ratchets’ secret-bearing working
+  copies and removal paths now allocate at their final capacity and wipe dead
+  slots before release; sparse decoder vectors are sized from checked counts.
+  The independent reader follows the v2 agreed-secret replay identity and
+  covers fail-closed import of v4 replay records into v5.
 
 - `security-properties/evidence-index-format.md`: the checked JSON format for
   the P2 requirement evidence index, including the boundary between reference
