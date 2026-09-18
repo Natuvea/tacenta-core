@@ -166,6 +166,7 @@ impl Identity {
             previous_signed_prekey: None,
             previous_kem: None,
             last_resort_seen: Vec::new(),
+            legacy_last_resort_blocked: Vec::new(),
         }
     }
 }
@@ -217,37 +218,25 @@ impl Identity {
 /// the count to watch for both.
 const MAX_LAST_RESORT_SEEN: usize = 1024;
 
-/// A domain-separated fingerprint of the handshake half of an initial message.
+/// A domain-separated replay identity for a last-resort handshake.
 ///
-/// It covers the fields that vary per handshake among those that determine
-/// `SK`: both public keys, the KEM ciphertext, and the two prekey identifiers.
-/// The signed prekey identifier is bound by `SK` itself and is not included.
-/// The ratchet message is left out on purpose -- it is authenticated under
-/// keys derived from `SK`, so an attacker cannot vary it and still be
-/// accepted, and including it would let a replay evade the check by being
-/// re-framed.
+/// This is derived from the agreed `SK`, not from the public encoding of the
+/// incoming ephemeral. Canonical X25519 encodings are unique as bytes but not
+/// necessarily as agreement classes: torsion-equivalent points can have
+/// different encodings and the same clamped agreement. Binding the record to
+/// `SK` makes those spellings one replay identity.
 ///
 /// HMAC-SHA256 under a fixed label rather than a bare hash, because the label
 /// is what stops a fingerprint from colliding with any other digest this
-/// repository computes over overlapping bytes. There is no secret here and it
-/// is not a MAC: the input is entirely public.
+/// repository computes over overlapping bytes.
 ///
 /// The label is a named constant so that `tooling/check-labels.sh` finds it
 /// and `LABELS.md` registers it; as an inline literal it was outside the
 /// registry that claims to hold every domain-separation string.
-const LAST_RESORT_HANDSHAKE_LABEL: &[u8] = b"tacenta last-resort handshake v1";
+const LAST_RESORT_HANDSHAKE_LABEL: &[u8] = b"tacenta last-resort handshake v2";
 
-fn last_resort_fingerprint(decoded: &crate::serialization::DecodedInitial) -> [u8; 32] {
-    let mut input = Vec::new();
-    input.extend_from_slice(&(decoded.identity.len() as u32).to_be_bytes());
-    input.extend_from_slice(&decoded.identity);
-    input.extend_from_slice(&(decoded.ephemeral.len() as u32).to_be_bytes());
-    input.extend_from_slice(&decoded.ephemeral);
-    input.extend_from_slice(&(decoded.kem_ciphertext.len() as u32).to_be_bytes());
-    input.extend_from_slice(&decoded.kem_ciphertext);
-    input.extend_from_slice(&decoded.one_time_prekey_id.to_be_bytes());
-    input.extend_from_slice(&decoded.kem_prekey_id.to_be_bytes());
-    crate::primitives::kdf::hmac_sha256(LAST_RESORT_HANDSHAKE_LABEL, &input)
+fn last_resort_fingerprint(sk: &[u8; 32]) -> [u8; 32] {
+    crate::primitives::kdf::hmac_sha256(LAST_RESORT_HANDSHAKE_LABEL, sk)
 }
 
 /// The identifiers `create_prekeys` numbers a store with, in the order
@@ -464,6 +453,11 @@ pub struct PrekeyStore {
     /// refused before: the tag only decides when an entry is dropped, and an
     /// entry dropped a rotation late is harmless.
     last_resort_seen: Vec<(u32, [u8; 32])>,
+    /// Last-resort key identifiers whose replay records came from the old
+    /// byte-fingerprint format. Those records cannot be compared with the
+    /// new `SK`-bound identity, so imported stores fail closed for the live
+    /// keys until rotation wipes them.
+    legacy_last_resort_blocked: Vec<u32>,
 }
 
 /// Erased on drop, by hand rather than by derive.
@@ -765,6 +759,7 @@ impl PrekeyStore {
                 .replace((retired, self.kem_id, self.kem_sig))
         {
             self.last_resort_seen.retain(|(id, _)| *id != wiped_id);
+            self.legacy_last_resort_blocked.retain(|id| *id != wiped_id);
         }
         self.kem_id = id;
         self.kem_sig = sig;
@@ -815,6 +810,9 @@ impl PrekeyStore {
     /// stop; `rotate_kem` restores this number to the full budget at once,
     /// but only for as long as they take to spend it again.
     pub fn last_resort_record_remaining(&self) -> usize {
+        if self.legacy_last_resort_blocked.contains(&self.kem_id) {
+            return 0;
+        }
         // No key's entries exceed the bound -- a handshake that would take one
         // past is refused, and `from_bytes` refuses a file where any key's do
         // -- so this never saturates; saturating anyway rather than trusting
@@ -846,6 +844,9 @@ impl PrekeyStore {
                 .is_some_and(|(_, id, _)| *id == key_id);
         if !live {
             return None;
+        }
+        if self.legacy_last_resort_blocked.contains(&key_id) {
+            return Some(0);
         }
         Some(MAX_LAST_RESORT_SEEN.saturating_sub(self.last_resort_seen_for(key_id)))
     }
@@ -1051,6 +1052,8 @@ impl PrekeyStore {
             + 4
             + 4
             + self.last_resort_seen.len() * (4 + 32)
+            + 4
+            + self.legacy_last_resort_blocked.len() * 4
             + 1
             + self
                 .previous_signed_prekey
@@ -1092,6 +1095,13 @@ impl PrekeyStore {
         for (id, fp) in &self.last_resort_seen {
             out.extend_from_slice(&id.to_be_bytes());
             out.extend_from_slice(fp);
+        }
+
+        // v5: identifiers whose old byte-fingerprint record was imported and
+        // therefore fail closed until the corresponding key is rotated out.
+        out.extend_from_slice(&(self.legacy_last_resort_blocked.len() as u32).to_be_bytes());
+        for id in &self.legacy_last_resort_blocked {
+            out.extend_from_slice(&id.to_be_bytes());
         }
 
         // v3: the retired prekeys a rotation keeps, each behind a presence byte.
@@ -1153,6 +1163,7 @@ impl PrekeyStore {
         }
         let version = bytes[0];
         if version != PREKEY_STORE_VERSION
+            && version != PREKEY_STORE_VERSION_V4
             && version != PREKEY_STORE_VERSION_V3
             && version != PREKEY_STORE_VERSION_V2
             && version != PREKEY_STORE_VERSION_V1
@@ -1292,11 +1303,12 @@ impl PrekeyStore {
             // decoded store, once each entry's tag is known. A v4 file
             // carrying 2048 entries all tagged with one key passes here and is
             // refused there.
-            let seen_ceiling = if version == PREKEY_STORE_VERSION {
-                MAX_LAST_RESORT_SEEN.saturating_mul(2)
-            } else {
-                MAX_LAST_RESORT_SEEN
-            };
+            let seen_ceiling =
+                if version == PREKEY_STORE_VERSION || version == PREKEY_STORE_VERSION_V4 {
+                    MAX_LAST_RESORT_SEEN.saturating_mul(2)
+                } else {
+                    MAX_LAST_RESORT_SEEN
+                };
             if seen_count as usize > seen_ceiling {
                 return Err(PrekeyStoreDecodeError::Malformed);
             }
@@ -1308,7 +1320,7 @@ impl PrekeyStore {
             // every replay the older store refused is still refused, and the
             // only effect of a wrong tag is that an entry made under the
             // retired key is dropped one rotation later than it need be.
-            let tagged = version == PREKEY_STORE_VERSION;
+            let tagged = version == PREKEY_STORE_VERSION || version == PREKEY_STORE_VERSION_V4;
             let entry_len = if tagged { 4 + 32 } else { 32 };
             last_resort_seen.reserve_exact(seen_count as usize);
             for _ in 0..seen_count {
@@ -1331,10 +1343,36 @@ impl PrekeyStore {
             }
         }
 
+        // v5 records the key identifiers whose v1-v4 replay fingerprints
+        // could not be upgraded to an `SK`-bound identity. Older stores do
+        // not carry this field; their nonempty record is converted to a
+        // fail-closed marker after the retired keys have been decoded below.
+        let mut legacy_last_resort_blocked = Vec::new();
+        if version == PREKEY_STORE_VERSION {
+            let Some(blocked_count) = read_prekey_u32(bytes, pos) else {
+                return Err(PrekeyStoreDecodeError::TooShort);
+            };
+            pos += 4;
+            if blocked_count > 2 {
+                return Err(PrekeyStoreDecodeError::Malformed);
+            }
+            legacy_last_resort_blocked.reserve_exact(blocked_count as usize);
+            for _ in 0..blocked_count {
+                let Some(id) = read_prekey_u32(bytes, pos) else {
+                    return Err(PrekeyStoreDecodeError::TooShort);
+                };
+                pos += 4;
+                legacy_last_resort_blocked.push(id);
+            }
+        }
+
         // A v1 or v2 store predates rotation and has retired nothing.
         let mut previous_signed_prekey = None;
         let mut previous_kem = None;
-        if version == PREKEY_STORE_VERSION || version == PREKEY_STORE_VERSION_V3 {
+        if version == PREKEY_STORE_VERSION
+            || version == PREKEY_STORE_VERSION_V4
+            || version == PREKEY_STORE_VERSION_V3
+        {
             if bytes.len() < pos + 1 {
                 return Err(PrekeyStoreDecodeError::TooShort);
             }
@@ -1393,8 +1431,18 @@ impl PrekeyStore {
             return Err(PrekeyStoreDecodeError::Malformed);
         }
 
+        if version != PREKEY_STORE_VERSION && !last_resort_seen.is_empty() {
+            legacy_last_resort_blocked.push(kem_id);
+            if let Some((_, id, _)) = &previous_kem {
+                legacy_last_resort_blocked.push(*id);
+            }
+        }
+        legacy_last_resort_blocked.sort_unstable();
+        legacy_last_resort_blocked.dedup();
+
         let store = PrekeyStore {
             last_resort_seen,
+            legacy_last_resort_blocked,
             identity_public: dh::PublicKeyBytes::from_bytes(identity_public),
             signed_prekey_secret,
             signed_prekey_id,
@@ -1602,6 +1650,13 @@ impl PrekeyStore {
         if current_seen > MAX_LAST_RESORT_SEEN || previous_seen > MAX_LAST_RESORT_SEEN {
             return false;
         }
+        let mut blocked =
+            std::collections::HashSet::with_capacity(self.legacy_last_resort_blocked.len());
+        for id in &self.legacy_last_resort_blocked {
+            if (*id != self.kem_id && Some(*id) != previous_kem_id) || !blocked.insert(*id) {
+                return false;
+            }
+        }
         true
     }
 }
@@ -1609,16 +1664,14 @@ impl PrekeyStore {
 /// This module's own persistence-format version for `PrekeyStore::to_bytes`/
 /// `from_bytes`, separate from any on-the-wire message version.
 ///
-/// The version `to_bytes` writes. `from_bytes` also accepts the three earlier
-/// formats so an older store still restores: `PREKEY_STORE_VERSION_V3`, whose
-/// last-resort record entries are bare fingerprints with no key identifier
-/// (they read back tagged with the current last-resort key; `from_bytes` says
-/// why that is safe); `PREKEY_STORE_VERSION_V2`, which additionally lacks the
-/// retired-prekey fields (it reads back with nothing retired); and
-/// `PREKEY_STORE_VERSION_V1`, which additionally lacks the last-resort record
-/// (it reads back with none remembered). Each is the honest answer for a
-/// store written before those fields existed.
-const PREKEY_STORE_VERSION: u8 = 0x04;
+/// The version `to_bytes` writes. `from_bytes` also accepts the four earlier
+/// formats so an older store still restores. v1-v4 replay fingerprints are
+/// retained only as evidence that the live last-resort keys must fail closed;
+/// their public-byte identity cannot be upgraded to the new `SK` identity.
+const PREKEY_STORE_VERSION: u8 = 0x05;
+/// The previous current format, with tagged public-byte fingerprints but no
+/// fail-closed migration markers.
+const PREKEY_STORE_VERSION_V4: u8 = 0x04;
 /// The format before the replay record was tagged by key: each entry is a
 /// bare fingerprint, and the record was a window evicted oldest-first.
 const PREKEY_STORE_VERSION_V3: u8 = 0x03;
@@ -1732,13 +1785,17 @@ pub enum Error {
     /// message names the reusable last-resort KEM key, and its fingerprint
     /// matches one already spent. See `last_resort_seen`.
     ReplayedLastResort,
+    /// A store imported a pre-v5 replay record whose byte fingerprints cannot
+    /// be compared with the current `SK`-bound identity. Rotate the affected
+    /// last-resort key before accepting this path again.
+    LegacyLastResortRecord,
     /// A last-resort handshake this store has not seen arrived while its
     /// replay record is full, and was refused rather than recorded.
     ///
     /// The record holds at most `MAX_LAST_RESORT_SEEN` entries **for each**
     /// last-resort KEM key that can still decrypt -- the current one and the
     /// one a rotation retired -- and it never evicts: eviction was what let
-    /// anyone holding the public bundle forget a victim's fingerprint by
+    /// anyone holding the public bundle forget a victim's replay identity by
     /// completing enough handshakes of their own. So the handshake that would
     /// take its key past that key's budget is refused before anything is
     /// decrypted or changed, and the store is exactly as it was. It says
@@ -2076,11 +2133,9 @@ pub fn establish_responder<R: RngCore + CryptoRng>(
     // Deletion happens at the end of this function, once and only once the
     // ciphertext has authenticated.
     // The last-resort path has no self-defence: the key is reusable, so unlike
-    // a one-time prekey it is still there on the second delivery. Checked here,
-    // before the KEM decapsulation, because the fingerprint is over public
-    // bytes and there is no reason to do the expensive work for a message that
-    // is already spent. Recorded at the end, once authenticated, on the same
-    // discipline as the deletions.
+    // a one-time prekey it is still there on the second delivery. Imported
+    // stores whose old replay record cannot be translated fail closed until
+    // the affected key is rotated out.
     // The retired last-resort key is a last-resort key still: reusable, so
     // fingerprinted and remembered on exactly the same terms as the current.
     let previous_kem = our_prekeys
@@ -2089,37 +2144,17 @@ pub fn establish_responder<R: RngCore + CryptoRng>(
         .filter(|(_, id, _)| *id == decoded.kem_prekey_id)
         .map(|(pair, _, _)| pair);
     let last_resort = decoded.kem_prekey_id == our_prekeys.kem_id || previous_kem.is_some();
-    let fingerprint = last_resort.then(|| last_resort_fingerprint(&decoded));
-    if let Some(fp) = &fingerprint {
-        // The fingerprint alone identifies the handshake -- it covers the KEM
-        // prekey identifier -- so the tag on each entry plays no part here; it
-        // exists for `rotate_kem` to prune by. Matching on the fingerprint
-        // alone is also what lets a store upgraded from an untagged format
-        // keep refusing everything it refused before.
-        if our_prekeys
-            .last_resort_seen
-            .iter()
-            .any(|(_, seen)| seen == fp)
-        {
-            return Err(Error::ReplayedLastResort);
-        }
-        // Fail closed on a spent budget. Recording this handshake at the end
-        // would take its own key past `MAX_LAST_RESORT_SEEN`, and the record
-        // never evicts: evicting oldest-first let anyone with the public
-        // bundle push a victim's fingerprint out with a thousand cheap
-        // handshakes of their own and then replay the victim's message (the
-        // field's note says more). Refused here, before decapsulation, so the
-        // store is untouched and no plaintext is produced for a message that
-        // could not be remembered.
-        //
-        // Counted over the entries tagged with the key *this* handshake names,
-        // not over the whole record. The two live keys hold separate budgets,
-        // so a retired key that a burst filled before the last rotation cannot
-        // refuse handshakes against the current one -- which is what makes
-        // `rotate_kem` relief on the first rotation rather than the second.
-        if our_prekeys.last_resort_seen_for(decoded.kem_prekey_id) >= MAX_LAST_RESORT_SEEN {
-            return Err(Error::LastResortRecordFull);
-        }
+    if last_resort
+        && our_prekeys
+            .legacy_last_resort_blocked
+            .contains(&decoded.kem_prekey_id)
+    {
+        return Err(Error::LegacyLastResortRecord);
+    }
+    if last_resort {
+        // The budget check runs after deriving `SK`, so a replay remains a
+        // replay even when the key's budget is already full. The store is still
+        // untouched and the authenticated decrypt is never attempted.
     }
 
     let kem_one_time = if last_resort {
@@ -2164,6 +2199,27 @@ pub fn establish_responder<R: RngCore + CryptoRng>(
         )
         .map_err(Error::Handshake)?,
     );
+
+    // Replay identity is bound to the agreed secret rather than the public
+    // ephemeral encoding. This makes torsion-equivalent X25519 spellings one
+    // record entry while keeping the check before the authenticated decrypt.
+    let fingerprint = last_resort.then(|| last_resort_fingerprint(&sk));
+    if let Some(fp) = &fingerprint {
+        if our_prekeys
+            .last_resort_seen
+            .iter()
+            .any(|(_, seen)| seen == fp)
+        {
+            return Err(Error::ReplayedLastResort);
+        }
+        // Fail closed on a spent budget. Recording this handshake at the end
+        // would take its own key past `MAX_LAST_RESORT_SEEN`, and the record
+        // never evicts. Count the key this handshake names, not the whole
+        // record: the current and retired keys have separate budgets.
+        if our_prekeys.last_resort_seen_for(decoded.kem_prekey_id) >= MAX_LAST_RESORT_SEEN {
+            return Err(Error::LastResortRecordFull);
+        }
+    }
 
     let triple = tacenta_triple::State::init_receiver(
         &sk[..],
@@ -3096,6 +3152,21 @@ impl Session {
 mod tests {
     use super::*;
 
+    #[test]
+    fn last_resort_replay_identity_is_bound_to_the_agreed_secret() {
+        let first = [0x11u8; 32];
+        let same_agreement = [0x11u8; 32];
+        let different = [0x22u8; 32];
+        assert_eq!(
+            last_resort_fingerprint(&first),
+            last_resort_fingerprint(&same_agreement)
+        );
+        assert_ne!(
+            last_resort_fingerprint(&first),
+            last_resort_fingerprint(&different)
+        );
+    }
+
     /// A bundle fetched just before the signed prekey rotated still
     /// establishes; one fetched before the rotation before that does not.
     /// Multi-use bundles, so that no one-time prekey is consumed and the only
@@ -3217,6 +3288,10 @@ mod tests {
         // a v2 store: with no record entries there are no tags to strip.
         let fresh = bob.create_prekeys(2, &mut rng);
         let mut v2 = fresh.to_bytes().to_vec();
+        // Remove v5's empty legacy-block marker before applying the old
+        // v2 truncation.
+        let blocked_at = v2.len() - 2 - 4;
+        v2.drain(blocked_at..blocked_at + 4);
         assert_eq!(&v2[v2.len() - 2..], &[0x00, 0x00]);
         v2.truncate(v2.len() - 2);
         v2[0] = PREKEY_STORE_VERSION_V2;
@@ -3836,8 +3911,14 @@ mod tests {
         let mut rng = fixed_rng(0x56);
         let id = Identity::from_secret([0x32u8; 32]);
         let store = id.create_prekeys(0, &mut rng);
-        let v4 = store.to_bytes().to_vec();
-        // v4 ends `next_id(4) || seen_count(4)=0 || present(1)=0 || present(1)=0`.
+        let v5 = store.to_bytes().to_vec();
+        // Remove v5's empty legacy-block marker to obtain the prior v4
+        // spelling. v4 ends `next_id(4) || seen_count(4)=0 || present(1)=0
+        // || present(1)=0`.
+        let mut v4 = v5;
+        let blocked_at = v4.len() - 2 - 4;
+        v4.drain(blocked_at..blocked_at + 4);
+        v4[0] = PREKEY_STORE_VERSION_V4;
         // v3 writes the same bytes when the record is empty and nothing is
         // retired; v2 has no retired fields; v1 has neither those nor a record.
         assert_eq!(

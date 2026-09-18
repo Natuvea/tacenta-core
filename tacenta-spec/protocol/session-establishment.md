@@ -285,8 +285,8 @@ one. What happens next is the recipient's decision, not the session's:
 - **Establishing afresh.** The recipient can establish a new session from the
   message as on first receipt, above. The message is then taken on its own:
   the prekeys it names must still be held, the one-time prekeys it used are
-  deleted once it authenticates, and on the last-resort path it is
-  fingerprinted and recorded (Replay, below). `tacenta-core` provides this as
+  deleted once it authenticates, and on the last-resort path its replay identity
+  is recorded (Replay, below). `tacenta-core` provides this as
   `establish_responder`, which takes the party's identity, its prekey store
   and the message, and returns a new session and the first plaintext.
 - **No relation between the sessions.** `tacenta-core` keeps no record of the
@@ -297,7 +297,7 @@ one. What happens next is the recipient's decision, not the session's:
 - **A repeat does not establish twice.** Against the store its establishment
   left, a repeat of a message that already established a session does not
   establish a second one. The one-time KEM prekey it named has been deleted,
-  or, on the last-resort path, its fingerprint is in the record.
+  or, on the last-resort path, its replay identity is in the record.
 
 For the two cases message-format.md names (Message type), and for
 simultaneous initiation, the specification requires the refusal and nothing
@@ -342,17 +342,14 @@ message of an apparently fresh session. Nothing leaks, but the message is
 delivered twice.
 
 Bob therefore keeps a **record of last-resort handshakes he has already
-accepted** -- a fingerprint over `IKA`, `EKA`, `CT`, the one-time curve
-prekey identifier and the KEM prekey identifier, the fields that vary per handshake among those that determine
-`SK` (the signed prekey identifier also determines `SK`, but is bound by `SK`
-itself and omitted), tagged with the last-resort KEM key the handshake was
-made against -- and refuses a repeat. The record is
+accepted** -- a replay identity derived from the agreed `SK`, tagged with the
+last-resort KEM key the handshake was made against -- and refuses a repeat. The record is
 bounded at 1024 entries **per key**: the current last-resort key and the one
 the last rotation retired each have a budget of their own, so the record holds
 at most two of them. It fails closed rather than evicting: a new last-resort
 handshake naming a key whose budget is spent is refused
 (`LastResortRecordFull`) and nothing changes, so nobody can push a victim's
-fingerprint out by completing handshakes of their own. A key's entries are
+replay identity out by completing handshakes of their own. A key's entries are
 dropped when a rotation wipes the key.
 
 Because each key is counted separately, **one rotation is enough to relieve a
@@ -369,56 +366,43 @@ specification asks for, not a claim about it; `key-deletion.md` states what a
 spent budget costs, why rotation buys a window rather than a reset, and which
 accessor reports the room left.
 
-### The fingerprint
+### The replay identity
 
 A handshake is on the last-resort path when its `kem_prekey_id` names Bob's
 current last-resort KEM prekey or the one the last rotation retired. Its
-fingerprint is 32 bytes: HMAC-SHA256, keyed with a fixed label, over the
-handshake fields of the initial message (message-format.md, Initial message).
+replay identity is 32 bytes: HMAC-SHA256, keyed with a fixed label, over the
+agreed `SK`.
 
 ```
-input       = u32(33)                  || identity         -- EncodeEC(IKA)
-           || u32(33)                  || ephemeral        -- EncodeEC(EKA)
-           || u32(len(kem_ciphertext)) || kem_ciphertext   -- CT
-           || one_time_prekey_id (4)
-           || kem_prekey_id (4)
-fingerprint = HMAC-SHA256(key = LAST_RESORT_HANDSHAKE_LABEL, data = input)
+replay_identity = HMAC-SHA256(
+    key  = LAST_RESORT_HANDSHAKE_LABEL,
+    data = SK,
+)
 ```
 
 The input is built as follows:
 
-- **Integers.** `u32(n)` and both identifiers are 4 bytes, big-endian.
-- **Fields.** Each field is the bytes the initial message carries, in the
-  order shown. `identity` and `ephemeral` keep their curve byte and are 33
-  bytes each. `kem_ciphertext` is prefixed with its own length, the value of
-  the message's `kem_ciphertext_len`. `one_time_prekey_id` is written as
-  carried: `0` when no one-time curve prekey was used.
 - **The key.** `LAST_RESORT_HANDSHAKE_LABEL` is the 32 ASCII bytes
-  `tacenta last-resort handshake v1`, with no terminator (CONSTANTS.md). It is
-  HMAC's key and is not secret: nothing in the fingerprint is. HMAC is used as
-  a keyed hash, so that a fingerprint cannot equal any other digest computed
-  over overlapping bytes.
-- **What is left out.** `signed_prekey_id` and the ratchet message are not
-  inputs. The ratchet message is authenticated under keys derived from `SK`,
-  so nobody who cannot already derive `SK` can vary it. Leaving it out also
-  means that re-framing a captured message does not give it a new
-  fingerprint.
+  `tacenta last-resort handshake v2`, with no terminator (CONSTANTS.md). It is
+  HMAC's key and is not secret. HMAC is used as a keyed hash to domain-separate
+  this replay identity from other digests.
+- **Why `SK`.** The identity is computed after KEM decapsulation and the
+  responder's DH combination, before the initial ciphertext is decrypted. It
+  is therefore invariant under distinct canonical X25519 encodings that yield
+  the same clamped agreement, including torsion-equivalent ephemerals.
 
-Bob computes the fingerprint before he decapsulates. He refuses the message
-(`ReplayedLastResort`) if any entry in the record holds that fingerprint,
-whatever key the entry is tagged with. The tag decides only which budget an
-entry counts against and which rotation drops it. Bob adds the fingerprint,
-tagged with `kem_prekey_id`, only once the initial ciphertext has
-authenticated.
+Bob computes the replay identity after decapsulation and DH derivation but
+before decrypting the initial ciphertext. He refuses the message
+(`ReplayedLastResort`) if any entry in the record holds that identity, whatever
+key the entry is tagged with. The tag decides only which budget an entry counts
+against and which rotation drops it. Bob adds the identity, tagged with
+`kem_prekey_id`, only once the initial ciphertext has authenticated.
 
-**The curve-key inputs are the canonical encodings.** An initial message
+**Canonical encodings still matter at the wire boundary.** An initial message
 decodes only if both `identity` and `ephemeral` are canonical (message-format.md,
-Initial message), the rule `DecodeEC` states (Sending the initial message), and
-each key has one canonical encoding. So every fingerprint in the record is over
-canonical encodings. Suppose a captured message's `identity` or `ephemeral` is
-spelled another way, with bit 255 set or with p added to its value. That
-message does not decode, so it is never fingerprinted or recorded, rather than
-fingerprinted afresh and accepted as a handshake Bob has not seen.
+Initial message). That rejects alternate byte spellings, while the `SK`-bound
+identity also handles distinct canonical encodings that belong to the same
+X25519 agreement class.
 
 `CT` and the identifiers need no such rule:
 
@@ -470,7 +454,7 @@ depends on that choice.
   with a re-spelled key, or a ratchet message with a re-spelled `dh`, does not
   decode. So the masking and the reduction never apply to a peer's key, and the byte
   string that identifies a key, in a signature, the associated data, a
-  fingerprint or the skipped-key store, is the only one that names it. An
+  replay identity or the skipped-key store, is the only one that names it. An
   honest key generator never produces a refused form.
 - **Left to the library:** the Montgomery ladder, the field arithmetic, and
   computing in time independent of the private key. Any implementation that

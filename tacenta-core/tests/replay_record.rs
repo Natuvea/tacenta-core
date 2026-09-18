@@ -26,6 +26,7 @@ fn rng(seed: u64) -> rand::rngs::StdRng {
 }
 
 /// One byte per version, as `PrekeyStore::to_bytes` writes it.
+const V5: u8 = 0x05;
 const V4: u8 = 0x04;
 const V3: u8 = 0x03;
 
@@ -69,11 +70,26 @@ fn seen_count_offset(bytes: &[u8]) -> usize {
     pos + 4
 }
 
-/// The v3 spelling of a v4 store: the same bytes with the four-byte tag
+/// The v4 spelling of a v5 store: drop the empty v5 fail-closed marker list
+/// and relabel the version.
+fn strip_to_v4(v5: &[u8]) -> Vec<u8> {
+    assert_eq!(v5[0], V5);
+    let count_at = seen_count_offset(v5);
+    let count = u32::from_be_bytes(v5[count_at..count_at + 4].try_into().unwrap()) as usize;
+    let entries_end = count_at + 4 + count * ENTRY;
+    let blocked_count = u32::from_be_bytes(v5[entries_end..entries_end + 4].try_into().unwrap());
+    assert_eq!(blocked_count, 0);
+    let mut out = v5[..entries_end].to_vec();
+    out[0] = V4;
+    out.extend_from_slice(&v5[entries_end + 4..]);
+    out
+}
+
+/// The v3 spelling of a v5 store: the same bytes with the four-byte tag
 /// removed from every record entry and the version byte relabelled.
-fn strip_to_v3(v4: &[u8]) -> Vec<u8> {
-    assert_eq!(v4[0], V4);
-    let count_at = seen_count_offset(v4);
+fn strip_to_v3(v5: &[u8]) -> Vec<u8> {
+    let v4 = strip_to_v4(v5);
+    let count_at = seen_count_offset(&v4);
     let count = u32::from_be_bytes(v4[count_at..count_at + 4].try_into().unwrap()) as usize;
     let mut out = v4[..count_at + 4].to_vec();
     out[0] = V3;
@@ -174,12 +190,12 @@ fn rotation_drops_exactly_the_wiped_keys_entries() {
 
 // --------------------------------------------------------------- persistence
 
-/// A v4 round trip preserves the tags. The proof is behavioural: a restored
+/// A v5 round trip preserves the derived-secret tags. The proof is behavioural: a restored
 /// store still refuses the replay, and the rotation that wipes the entry's key
 /// still drops it -- which it could not if the tag had been lost or replaced
 /// by the current key's identifier on the way through.
 #[test]
-fn a_v4_round_trip_preserves_the_tags() {
+fn a_v5_round_trip_preserves_the_tags() {
     let mut r = rng(3);
     let bob = Identity::generate(&mut r);
     let mut store = bob.create_prekeys(0, &mut r);
@@ -191,7 +207,7 @@ fn a_v4_round_trip_preserves_the_tags() {
     control.rotate_kem(&bob, &mut r);
 
     let bytes = store.to_bytes();
-    assert_eq!(bytes[0], V4);
+    assert_eq!(bytes[0], V5);
     let mut restored = PrekeyStore::from_bytes(&bytes).unwrap();
     assert_eq!(restored.to_bytes().as_slice(), bytes.as_slice());
     assert!(matches!(
@@ -210,11 +226,36 @@ fn a_v4_round_trip_preserves_the_tags() {
     );
 }
 
-/// A v3 store's untagged entries read back tagged with the current key, so
-/// a v3 file whose entries were all made under that key upgrades to exactly
-/// the v4 bytes the same store writes.
+/// A v4 store carrying public-byte replay entries is readable, but its live
+/// last-resort key is blocked until rotation because those entries cannot be
+/// compared with v5's `SK`-bound identities.
 #[test]
-fn a_v3_store_upgrades_with_its_entries_tagged_with_the_current_key() {
+fn a_v4_store_with_entries_fails_closed_until_rotation() {
+    let mut r = rng(33);
+    let bob = Identity::generate(&mut r);
+    let mut store = bob.create_prekeys(0, &mut r);
+    let bundle = store.publish_multi_use();
+    let captured = last_resort_initial(&bundle, b"first", &mut r);
+    establish_responder(&bob, &mut store, &captured, &mut r).unwrap();
+
+    let v4 = strip_to_v4(&store.to_bytes());
+    let mut restored = PrekeyStore::from_bytes(&v4).unwrap();
+    assert_eq!(restored.last_resort_record_remaining(), 0);
+    assert!(matches!(
+        establish_responder(&bob, &mut restored, &captured, &mut r),
+        Err(LifecycleError::LegacyLastResortRecord)
+    ));
+
+    restored.rotate_kem(&bob, &mut r);
+    let fresh = last_resort_initial(&restored.publish_multi_use(), b"fresh", &mut r);
+    establish_responder(&bob, &mut restored, &fresh, &mut r)
+        .expect("rotation opens an unblocked v5 last-resort key");
+}
+
+/// A v3 store's public-byte entries cannot be upgraded to the new derived
+/// secret identity. It restores with the affected live key fail-closed.
+#[test]
+fn a_v3_store_fails_closed_until_key_rotation() {
     let mut r = rng(4);
     let bob = Identity::generate(&mut r);
     let mut store = bob.create_prekeys(0, &mut r);
@@ -223,22 +264,25 @@ fn a_v3_store_upgrades_with_its_entries_tagged_with_the_current_key() {
         let m = last_resort_initial(&bundle, text, &mut r);
         establish_responder(&bob, &mut store, &m, &mut r).unwrap();
     }
-    let v4 = store.to_bytes();
-    let v3 = strip_to_v3(&v4);
-    assert_eq!(v3.len(), v4.len() - 3 * 4);
+    let v5 = store.to_bytes();
+    let v3 = strip_to_v3(&v5);
 
     let upgraded = PrekeyStore::from_bytes(&v3).expect("a v3 store must still read");
-    assert_eq!(
-        upgraded.to_bytes().as_slice(),
-        v4.as_slice(),
-        "untagged entries must come back tagged with the current key"
-    );
+    assert_eq!(upgraded.last_resort_record_remaining(), 0);
+    let replay = last_resort_initial(&bundle, b"replay", &mut r);
+    assert!(matches!(
+        establish_responder(
+            &bob,
+            &mut PrekeyStore::from_bytes(&v3).unwrap(),
+            &replay,
+            &mut r
+        ),
+        Err(LifecycleError::LegacyLastResortRecord)
+    ));
 }
 
-/// The conservative reading is safe even when it is wrong. A v3 entry made
-/// under the key a rotation retired comes back tagged with the current key,
-/// but the fingerprint alone decides whether a handshake is a repeat, so the
-/// replay is still refused; the tag only decides when the entry is dropped.
+/// A v3 entry made under the key a rotation retired cannot be compared to the
+/// new derived-secret identity and therefore fails closed.
 #[test]
 fn a_v3_entry_made_under_the_retired_key_still_refuses_its_replay() {
     let mut r = rng(5);
@@ -253,7 +297,7 @@ fn a_v3_entry_made_under_the_retired_key_still_refuses_its_replay() {
     let mut upgraded = PrekeyStore::from_bytes(&v3).unwrap();
     assert!(matches!(
         establish_responder(&bob, &mut upgraded, &captured, &mut r),
-        Err(LifecycleError::ReplayedLastResort)
+        Err(LifecycleError::LegacyLastResortRecord)
     ));
 }
 

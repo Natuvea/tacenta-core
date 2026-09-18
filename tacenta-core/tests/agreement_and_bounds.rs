@@ -397,20 +397,20 @@ fn one_rotation_gives_the_new_key_a_full_budget_and_keeps_the_old_refusals() {
 fn from_bytes_refuses_a_last_resort_count_above_two_budgets() {
     let mut r = rng(5);
     let bob = Identity::generate(&mut r);
-    // A fresh store with no one-time keys, no rotation, and no fingerprints: its
-    // encoding ends with the four-byte seen-count (zero) followed by the two
-    // retired-prekey presence bytes (both absent).
+    // A fresh store with no one-time keys, no rotation, and no fingerprints:
+    // its v5 encoding ends with seen-count, blocked-count, and two absent
+    // retired-prekey markers.
     let store = bob.create_prekeys(0, &mut r);
     let mut bytes = store.to_bytes().to_vec();
     let n = bytes.len();
     assert_eq!(
-        &bytes[n - 6..],
-        &[0, 0, 0, 0, 0, 0],
-        "layout drift: expected a zero seen-count and two absent presence bytes at the tail"
+        &bytes[n - 10..],
+        &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "layout drift: expected zero seen/blocked counts and two absent presence bytes at the tail"
     );
 
     // Overwrite the seen-count with one past what two budgets could hold.
-    bytes[n - 6..n - 2].copy_from_slice(&(2049u32).to_be_bytes());
+    bytes[n - 10..n - 6].copy_from_slice(&(2049u32).to_be_bytes());
     assert!(
         matches!(
             PrekeyStore::from_bytes(&bytes),
@@ -438,9 +438,9 @@ fn from_bytes_refuses_more_than_one_budget_under_a_single_key() {
     let bytes = store.to_bytes().to_vec();
     let n = bytes.len();
     assert_eq!(
-        &bytes[n - 6..],
-        &[0, 0, 0, 0, 0, 0],
-        "layout drift: expected a zero seen-count and two absent presence bytes at the tail"
+        &bytes[n - 10..],
+        &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "layout drift: expected zero seen/blocked counts and two absent presence bytes at the tail"
     );
 
     // Rebuild the tail with 1025 distinct fingerprints, every one of them
@@ -449,7 +449,8 @@ fn from_bytes_refuses_more_than_one_budget_under_a_single_key() {
     // distinct, and the file re-encodes to itself, so nothing before the
     // per-key clause has grounds to refuse it.
     let over = 1025u32;
-    let mut forged = bytes[..n - 6].to_vec();
+    let count_at = n - 10;
+    let mut forged = bytes[..count_at].to_vec();
     forged.extend_from_slice(&over.to_be_bytes());
     for i in 0..over {
         forged.extend_from_slice(&kem_id.to_be_bytes());
@@ -457,7 +458,7 @@ fn from_bytes_refuses_more_than_one_budget_under_a_single_key() {
         fp[..4].copy_from_slice(&i.to_be_bytes());
         forged.extend_from_slice(&fp);
     }
-    forged.extend_from_slice(&[0, 0]);
+    forged.extend_from_slice(&[0, 0, 0, 0, 0, 0]);
 
     assert!(
         matches!(
@@ -470,7 +471,6 @@ fn from_bytes_refuses_more_than_one_budget_under_a_single_key() {
     // One entry fewer is exactly a budget, and restores: the refusal is the
     // bound and nothing incidental about the forged tail.
     let mut at_bound = forged.clone();
-    let count_at = n - 6;
     at_bound[count_at..count_at + 4].copy_from_slice(&(over - 1).to_be_bytes());
     at_bound.drain(count_at + 4 + (over as usize - 1) * 36..count_at + 4 + over as usize * 36);
     let restored = PrekeyStore::from_bytes(&at_bound).expect("a full budget must still restore");

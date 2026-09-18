@@ -162,13 +162,13 @@ compute FIPS 197, SP 800-38A and RFC 2104.
 
 These hash functions have the collision resistance, and the other properties,
 that the published analyses of the constructions using them require:
-- **SHA-256:** inside HMAC and HKDF, and in the last-resort fingerprint, used as
+- **SHA-256:** inside HMAC and HKDF, and in the last-resort replay identity, used as
   a keyed hash.
 - **SHA-512:** inside XEdDSA.
 - **SHA3-256, SHA3-512 and SHAKE:** inside ML-KEM-1024 (`libcrux-ml-kem`),
   including the hash of the encapsulation key that a Braid header carries.
 
-A collision between two fingerprints would make the record refuse a handshake it
+A collision between two replay identities would make the record refuse a handshake it
 has not seen. That is a refusal, not an acceptance.
 
 - **Relied on by:** REQ-AUTH-01, REQ-AUTH-12, REQ-CONF-06, and through ASM-04

@@ -263,7 +263,7 @@ impl State {
                 }
                 i += 1;
             }
-            self.skipped.remove(oldest);
+            let _ = remove_skipped_at(&mut self.skipped, oldest);
             evicted += 1;
         }
         evicted
@@ -649,17 +649,22 @@ impl State {
             Err(e) => return Err(e),
         };
         pos += OPTIONAL_KEY_LEN;
-        let rk = read_key(bytes, pos);
+        // Keep decoded chain material in an erasing wrapper until all later
+        // fallible fields have been checked. A malformed persisted state must
+        // not drop these keys as plain arrays on an early return.
+        let rk = Zeroizing::new(read_key(bytes, pos));
         pos += 32;
         let cks = match read_optional_key(bytes, pos) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
+        let cks = cks.map(Zeroizing::new);
         pos += OPTIONAL_KEY_LEN;
         let ckr = match read_optional_key(bytes, pos) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
+        let ckr = ckr.map(Zeroizing::new);
         pos += OPTIONAL_KEY_LEN;
         let ns = read_u32(bytes, pos);
         pos += 4;
@@ -692,7 +697,7 @@ impl State {
         // and the loop still runs to completion (every remaining call is
         // still bounds-checked by `decode_skipped_entry`, so nothing panics),
         // with the failure reported once, after the loop.
-        let mut skipped = Vec::new();
+        let mut skipped = Vec::with_capacity(skipped_count);
         let mut ok = true;
         for _ in 0..skipped_count {
             match decode_skipped_entry(bytes, pos) {
@@ -718,9 +723,9 @@ impl State {
         let state = State {
             dhs_pub,
             dhr_pub,
-            rk,
-            cks,
-            ckr,
+            rk: *rk,
+            cks: cks.map(|key| *key),
+            ckr: ckr.map(|key| *key),
             ns,
             nr,
             pn,
@@ -829,6 +834,11 @@ fn skip_message_keys(state: &mut State, upto: u32) -> Result<(), RatchetError> {
                 // Purge a clone so the store bound is checked against the
                 // exact resulting store while every refusal remains atomic.
                 let mut skipped = state.skipped.clone();
+                // `Vec::clone` has no spare capacity. Reserve the complete
+                // incoming range before the first push so a reallocation
+                // cannot copy secret message keys into an old, unwiped
+                // backing allocation.
+                skipped.reserve((upto - state.nr) as usize);
                 purge_chain_range(&mut skipped, dhr, state.nr, upto);
                 if skipped.len() + (upto - state.nr) as usize > MAX_SKIPPED_STORE {
                     return Err(RatchetError::SkippedStoreFull);
@@ -981,7 +991,7 @@ fn purge_chain_range(skipped: &mut Vec<SkippedKey>, dhr: Key, from: u32, upto: u
     let mut i = 0;
     while i < skipped.len() {
         if skipped[i].dh == dhr && skipped[i].n >= from && skipped[i].n < upto {
-            skipped.remove(i);
+            let _ = remove_skipped_at(skipped, i);
         } else {
             i += 1;
         }
@@ -1029,7 +1039,7 @@ fn age_store(state: &mut State) {
         // It also matches the model exactly, where the subtraction is over the
         // naturals and already truncates.
         if now.saturating_sub(state.skipped[i].stored_at) >= MAX_SKIPPED_AGE {
-            state.skipped.remove(i);
+            let _ = remove_skipped_at(&mut state.skipped, i);
         } else {
             i += 1;
         }
@@ -1043,13 +1053,24 @@ fn try_skipped(state: &mut State, header: &Header) -> Option<Key> {
     let mut i = 0;
     while i < state.skipped.len() {
         if state.skipped[i].dh == header.dh && state.skipped[i].n == header.n {
-            let mk = state.skipped[i].key;
-            state.skipped.remove(i);
-            return Some(mk);
+            let removed = remove_skipped_at(&mut state.skipped, i);
+            return Some(removed.key);
         }
         i += 1;
     }
     None
+}
+
+/// Remove one secret-bearing skipped entry without `Vec::remove`'s tail copy.
+/// Adjacent swaps preserve the store order, and popping the final slot drops
+/// the removed value through `ZeroizeOnDrop`.
+fn remove_skipped_at(skipped: &mut Vec<SkippedKey>, index: usize) -> SkippedKey {
+    let mut i = index;
+    while i + 1 < skipped.len() {
+        skipped.swap(i, i + 1);
+        i += 1;
+    }
+    skipped.pop().expect("index is within the skipped store")
 }
 
 /// Receive (ratchet.md): try a stored skipped key; otherwise, on a ratchet key

@@ -76,8 +76,8 @@ tacenta-triple = { path = "triple" }
 x25519-dalek = { version = "2", features = ["static_secrets", "zeroize"] }
 ed25519-dalek = { version = "2", features = ["zeroize", "rand_core"] }
 curve25519-dalek = { version = "4", features = ["zeroize"] }
-aes = "0.8"
-cbc = { version = "0.1", features = ["alloc"] }
+aes = { version = "0.8", features = ["zeroize"] }
+cbc = { version = "0.1", features = ["alloc", "zeroize"] }
 hkdf = "0.12"
 hmac = "0.12"
 sha2 = "0.10"

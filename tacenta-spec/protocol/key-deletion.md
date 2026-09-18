@@ -238,14 +238,12 @@ when that check refuses it.
   either session, but the same message is received twice and nothing marks
   the second as a repeat.
 
-  The store therefore remembers a fingerprint of each last-resort handshake it
-  has accepted, over the fields that vary per handshake among those that
-  determine `SK` (the signed prekey identifier, which also determines `SK`,
-  is bound by `SK` itself and omitted), tagged with the identifier of the
-  last-resort KEM key the handshake was made against, and refuses a repeat
-  (`ReplayedLastResort`). The fingerprint's construction, and why its
-  curve-key inputs have one encoding each, is stated once, in
-  session-establishment.md, "The fingerprint". **The record is bounded per key
+  The store therefore remembers a replay identity of each last-resort
+  handshake it has accepted, derived from the agreed `SK` and tagged with the
+  identifier of the last-resort KEM key the handshake was made against, and
+  refuses a repeat (`ReplayedLastResort`). The identity's construction, and
+  why canonical wire encodings remain necessary, is stated once, in
+  session-establishment.md, "The replay identity". **The record is bounded per key
   lifetime, and it fails closed.** It holds at most `MAX_LAST_RESORT_SEEN`
   entries *for each* last-resort KEM key that can still decrypt -- the current
   key and the one the last rotation retired, so at most two full budgets in
@@ -257,7 +255,7 @@ when that check refuses it.
   the public bundle can complete a last-resort handshake under a fresh
   identity in well under a millisecond on a current laptop, so 1024 of them
   evicted a chosen
-  victim's fingerprint in well under a second, after which the captured message
+  victim's replay identity in well under a second, after which the captured message
   replayed. What the bound measures now is how many distinct last-resort
   handshakes one key has accepted over its lifetime, not how many arrived
   recently. A key's entries leave the record when the key is wiped, which is

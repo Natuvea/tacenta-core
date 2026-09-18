@@ -11,7 +11,6 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
-### Added
 - `security-properties/evidence-index-format.md`: the checked JSON format for
   the P2 requirement evidence index, including the boundary between reference
   validation and human semantic review.
@@ -132,6 +131,20 @@ is SemVer against the specified protocol (not the implementation).
       KEM key pair, the identity and the prekey store (LIM-11).
 
 ### Changed
+- `protocol/session-establishment.md`, `protocol/session-persistence.md` and
+  `CONSTANTS.md`: the last-resort replay record now uses an `SK`-bound replay
+  identity (`tacenta last-resort handshake v2`). Stores written as v1-v4 with
+  a nonempty legacy record import with the affected live KEM keys blocked until
+  rotation; v5 is the only format written. This closes the torsion-equivalent
+  public-encoding replay gap without pretending an old byte-based record can be
+  upgraded safely.
+- `protocol/key-deletion.md` and `security-properties/authentication.md`:
+  authentication and deletion rules now name the post-decapsulation replay
+  identity rather than a public-byte fingerprint.
+- `tacenta-core/ratchet` and `tacenta-core/spqr`: skipped-key and chain-store
+  updates avoid secret-bearing vector reallocation and dead-tail copies, and
+  persisted secret vectors are sized before decode. AES-CBC buffers now use the
+  crates' zeroization features.
 - `protocol/sparse-pq-ratchet.md`, The store also has a total bound: clarified
   that the current sparse implementation checks the pre-purge store length,
   while resulting-store replacement semantics and refusal atomicity remain an

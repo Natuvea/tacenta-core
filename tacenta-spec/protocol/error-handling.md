@@ -19,8 +19,10 @@ implementation.
   or malformed, non-canonical, and, for a session, inconsistent. A storage layer
   can act on those.
 - **Conditions a caller must act on are named** by the page that defines them.
-  The last-resort handshake pages name two: a replayed handshake, and a replay
-  record with no room for the key a handshake names
+  The last-resort handshake pages name three: a replayed handshake, a replay
+  record with no room for the key a handshake names, and a pre-v5 replay record
+  that cannot be compared with the v5 `SK`-bound identity. The last of these
+  fails closed until the affected last-resort key is rotated
   (session-establishment.md, key-deletion.md). session-establishment.md names
   a third: an initial message that an existing session refuses as not a
   repeat of the one that established it (`NotARepeatedInitial`), after which

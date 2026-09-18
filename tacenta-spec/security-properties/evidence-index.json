@@ -877,7 +877,7 @@
         {
           "path": "tacenta-core/tests/full_session.rs",
           "name": "a_last_resort_handshake_cannot_be_replayed",
-          "coverage": "A last-resort initial message is fingerprinted after authentication and refused on replay."
+          "coverage": "A last-resort initial message gets an SK-bound replay identity after decapsulation and is refused on replay."
         },
         {
           "path": "tacenta-core/tests/full_session.rs",
@@ -917,7 +917,7 @@
         {
           "path": "tacenta-core/tests/replay_record.rs",
           "name": "from_bytes_refuses_a_repeated_fingerprint",
-          "coverage": "Prekey-store import refuses repeated replay-record fingerprints."
+          "coverage": "Prekey-store import refuses repeated replay-record identities and fails closed for nonempty legacy records."
         },
         {
           "path": "tacenta-core/tests/canonical_curve_keys.rs",

@@ -182,6 +182,27 @@ struct Skipped {
     key: Key,
 }
 
+/// Remove a secret-bearing vector entry without `Vec::remove`'s dead-tail
+/// copy. Adjacent swaps preserve order, and popping the final slot drops the
+/// removed value through `ZeroizeOnDrop`.
+fn remove_skipped_at(skipped: &mut Vec<Skipped>, index: usize) -> Skipped {
+    let mut i = index;
+    while i + 1 < skipped.len() {
+        skipped.swap(i, i + 1);
+        i += 1;
+    }
+    skipped.pop().expect("index is within the skipped store")
+}
+
+fn remove_chain_at(chains: &mut Vec<(u64, Chains)>, index: usize) -> (u64, Chains) {
+    let mut i = index;
+    while i + 1 < chains.len() {
+        chains.swap(i, i + 1);
+        i += 1;
+    }
+    chains.pop().expect("index is within the chain store")
+}
+
 #[cfg(test)]
 impl core::fmt::Debug for Chain {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -531,7 +552,20 @@ impl State {
     pub fn evict_oldest(&mut self, count: usize) -> usize {
         let mut evicted = 0;
         while evicted < count && !self.skipped.is_empty() {
-            self.skipped.remove(0);
+            // The store is keyed by `(epoch, n)`, not vector position. Avoid
+            // `remove(0)`, whose shift leaves a secret copy in the dead tail
+            // slot, while still evicting the oldest entry by scanning below.
+            let mut oldest = 0;
+            let mut i = 1;
+            while i < self.skipped.len() {
+                if (self.skipped[i].epoch, self.skipped[i].n)
+                    < (self.skipped[oldest].epoch, self.skipped[oldest].n)
+                {
+                    oldest = i;
+                }
+                i += 1;
+            }
+            let _ = remove_skipped_at(&mut self.skipped, oldest);
             evicted += 1;
         }
         evicted
@@ -549,17 +583,36 @@ impl State {
     }
 
     fn set_chains(&mut self, e: u64, c: Chains) {
-        self.chains.retain(|p| p.0 != e);
+        let mut i = 0;
+        while i < self.chains.len() {
+            if self.chains[i].0 == e {
+                let _ = remove_chain_at(&mut self.chains, i);
+            } else {
+                i += 1;
+            }
+        }
         self.chains.push((e, c));
     }
 
     /// Retire everything older than the epochs kept, chains and skipped keys
     /// alike. This is what bounds the store, so it is not an optimisation.
     fn clear_old_epochs(&mut self, current: u64) {
-        self.chains
-            .retain(|p| current < p.0.saturating_add(EPOCHS_KEPT));
-        self.skipped
-            .retain(|s| current < s.epoch.saturating_add(EPOCHS_KEPT));
+        let mut i = 0;
+        while i < self.chains.len() {
+            if current >= self.chains[i].0.saturating_add(EPOCHS_KEPT) {
+                let _ = remove_chain_at(&mut self.chains, i);
+            } else {
+                i += 1;
+            }
+        }
+        let mut i = 0;
+        while i < self.skipped.len() {
+            if current >= self.skipped[i].epoch.saturating_add(EPOCHS_KEPT) {
+                let _ = remove_skipped_at(&mut self.skipped, i);
+            } else {
+                i += 1;
+            }
+        }
     }
 
     /// Fold a new secret into the root key and open a fresh pair of chains under
@@ -653,7 +706,7 @@ impl State {
         let mut i = 0;
         while i < self.skipped.len() {
             if self.skipped[i].epoch == e && self.skipped[i].n == n {
-                let s = self.skipped.remove(i);
+                let s = remove_skipped_at(&mut self.skipped, i);
                 return Some(s.key);
             }
             i += 1;
@@ -703,8 +756,17 @@ impl State {
             });
         }
 
-        self.skipped
-            .retain(|s| !(s.epoch == e && ch.n < s.n && s.n <= upto));
+        let mut i = 0;
+        while i < self.skipped.len() {
+            if self.skipped[i].epoch == e && ch.n < self.skipped[i].n && self.skipped[i].n <= upto {
+                let _ = remove_skipped_at(&mut self.skipped, i);
+            } else {
+                i += 1;
+            }
+        }
+        // Reserve before appending so moving derived secret keys cannot cause
+        // the live store to reallocate and release an unwiped old buffer.
+        self.skipped.reserve(derived.len());
         self.skipped.append(&mut derived);
         self.set_chains(
             e,
@@ -976,7 +1038,7 @@ impl State {
             return Err(SpqrDecodeError::UnknownVersion);
         }
         let mut pos = 1;
-        let mut rk = [0u8; 32];
+        let mut rk = Zeroizing::new([0u8; 32]);
         rk.copy_from_slice(&bytes[pos..pos + 32]);
         pos += 32;
         let mut epoch_bytes = [0u8; 8];
@@ -1008,7 +1070,7 @@ impl State {
         // No early return inside either loop below: a failed entry sets its
         // `ok` flag and the loop still runs to completion (every remaining
         // call stays bounds-checked), with the failure reported once, after.
-        let mut chains = Vec::new();
+        let mut chains = Vec::with_capacity(chains_count);
         let mut chains_ok = true;
         for _ in 0..chains_count {
             match decode_chains_entry(bytes, pos) {
@@ -1035,7 +1097,7 @@ impl State {
             return Err(SpqrDecodeError::Malformed);
         }
 
-        let mut skipped = Vec::new();
+        let mut skipped = Vec::with_capacity(skipped_count);
         let mut skipped_ok = true;
         for _ in 0..skipped_count {
             match decode_skipped_entry(bytes, pos) {
@@ -1061,7 +1123,7 @@ impl State {
         // last, as one predicate, so what the decoder accepts and what the
         // operations keep are the same statement (CR-21).
         let state = State {
-            rk,
+            rk: *rk,
             epoch,
             chains,
             skipped,
