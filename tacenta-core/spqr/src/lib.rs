@@ -533,7 +533,7 @@ impl State {
     pub fn evict_oldest(&mut self, count: usize) -> usize {
         let mut evicted = 0;
         while evicted < count && !self.skipped.is_empty() {
-            let _ = Self::remove_skipped_at(&mut self.skipped, 0);
+            self.skipped.remove(0);
             evicted += 1;
         }
         evicted
@@ -551,46 +551,17 @@ impl State {
     }
 
     fn set_chains(&mut self, e: u64, c: Chains) {
-        // Rebuild at the final capacity. `retain` can leave copies of secret
-        // chain keys in the old tail, and a following push can reallocate the
-        // live vector. Wipe the old allocation before releasing it.
-        let mut next = Vec::with_capacity(self.chains.len() + 1);
-        let mut i = 0;
-        while i < self.chains.len() {
-            if self.chains[i].0 != e {
-                next.push(self.chains[i].clone());
-            }
-            i += 1;
-        }
-        next.push((e, c));
-        self.chains.zeroize();
-        self.chains = next;
+        self.chains.retain(|p| p.0 != e);
+        self.chains.push((e, c));
     }
 
     /// Retire everything older than the epochs kept, chains and skipped keys
     /// alike. This is what bounds the store, so it is not an optimisation.
     fn clear_old_epochs(&mut self, current: u64) {
-        let mut chains = Vec::with_capacity(self.chains.len());
-        let mut i = 0;
-        while i < self.chains.len() {
-            if current < self.chains[i].0.saturating_add(EPOCHS_KEPT) {
-                chains.push(self.chains[i].clone());
-            }
-            i += 1;
-        }
-        self.chains.zeroize();
-        self.chains = chains;
-
-        let mut skipped = Vec::with_capacity(self.skipped.len());
-        let mut j = 0;
-        while j < self.skipped.len() {
-            if current < self.skipped[j].epoch.saturating_add(EPOCHS_KEPT) {
-                skipped.push(self.skipped[j].clone());
-            }
-            j += 1;
-        }
-        self.skipped.zeroize();
-        self.skipped = skipped;
+        self.chains
+            .retain(|p| current < p.0.saturating_add(EPOCHS_KEPT));
+        self.skipped
+            .retain(|s| current < s.epoch.saturating_add(EPOCHS_KEPT));
     }
 
     /// Fold a new secret into the root key and open a fresh pair of chains under
@@ -684,26 +655,12 @@ impl State {
         let mut i = 0;
         while i < self.skipped.len() {
             if self.skipped[i].epoch == e && self.skipped[i].n == n {
-                return Some(Self::remove_skipped_at(&mut self.skipped, i).key);
+                let s = self.skipped.remove(i);
+                return Some(s.key);
             }
             i += 1;
         }
         None
-    }
-
-    /// Remove one secret-bearing skipped entry without leaving its key in the
-    /// vector's dead tail slot. Move the target to the end, copy the key out,
-    /// wipe the heap slot in place, then shorten the vector.
-    fn remove_skipped_at(skipped: &mut Vec<Skipped>, index: usize) -> Skipped {
-        let mut i = index;
-        while i + 1 < skipped.len() {
-            skipped.swap(i, i + 1);
-            i += 1;
-        }
-        let removed = skipped[i].clone();
-        skipped[i].zeroize();
-        let _ = skipped.pop();
-        removed
     }
 
     /// Step the receiving chain forward to `upto`, storing every key passed.
@@ -748,17 +705,8 @@ impl State {
             });
         }
 
-        let mut next = Vec::with_capacity(self.skipped.len() + derived.len());
-        let mut i = 0;
-        while i < self.skipped.len() {
-            let s = &self.skipped[i];
-            if !(s.epoch == e && ch.n < s.n && s.n <= upto) {
-                next.push(s.clone());
-            }
-            i += 1;
-        }
-        self.skipped.zeroize();
-        self.skipped = next;
+        self.skipped
+            .retain(|s| !(s.epoch == e && ch.n < s.n && s.n <= upto));
         self.skipped.append(&mut derived);
         self.set_chains(
             e,
@@ -1062,7 +1010,7 @@ impl State {
         // No early return inside either loop below: a failed entry sets its
         // `ok` flag and the loop still runs to completion (every remaining
         // call stays bounds-checked), with the failure reported once, after.
-        let mut chains = Vec::with_capacity(chains_count);
+        let mut chains = Vec::new();
         let mut chains_ok = true;
         for _ in 0..chains_count {
             match decode_chains_entry(bytes, pos) {
@@ -1089,7 +1037,7 @@ impl State {
             return Err(SpqrDecodeError::Malformed);
         }
 
-        let mut skipped = Vec::with_capacity(skipped_count);
+        let mut skipped = Vec::new();
         let mut skipped_ok = true;
         for _ in 0..skipped_count {
             match decode_skipped_entry(bytes, pos) {

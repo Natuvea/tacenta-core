@@ -1053,7 +1053,7 @@ fn try_skipped(state: &mut State, header: &Header) -> Option<Key> {
     let mut i = 0;
     while i < state.skipped.len() {
         if state.skipped[i].dh == header.dh && state.skipped[i].n == header.n {
-            return Some(remove_skipped_at(&mut state.skipped, i).key);
+            return Some(remove_skipped_at(&mut state.skipped, i));
         }
         i += 1;
     }
@@ -1063,16 +1063,16 @@ fn try_skipped(state: &mut State, header: &Header) -> Option<Key> {
 /// Remove one secret-bearing skipped entry without `Vec::remove`'s tail copy.
 /// Adjacent swaps preserve the store order. The key is copied for the caller,
 /// the heap slot is zeroized in place, and only then is the vector shortened.
-fn remove_skipped_at(skipped: &mut Vec<SkippedKey>, index: usize) -> SkippedKey {
+fn remove_skipped_at(skipped: &mut Vec<SkippedKey>, index: usize) -> Key {
     let mut i = index;
     while i + 1 < skipped.len() {
         skipped.swap(i, i + 1);
         i += 1;
     }
-    let removed = skipped[i].clone();
+    let key = skipped[i].key;
     skipped[i].zeroize();
     let _ = skipped.pop();
-    removed
+    key
 }
 
 /// Receive (ratchet.md): try a stored skipped key; otherwise, on a ratchet key
