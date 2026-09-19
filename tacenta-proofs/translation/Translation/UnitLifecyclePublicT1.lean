@@ -624,6 +624,205 @@ theorem responder_replay_fingerprint_no_panic
       split <;> simp
   · simp
 
+def OptionalIndexBelow (length : Nat) (found : Option Usize) : Prop :=
+  match found with
+  | none => True
+  | some index => index.val < length
+
+/-- Aeneas leaves `Vec::pop` opaque at this extraction boundary. This contract
+states only the totality needed by T1; T3 separately has to pin the returned
+value and shortened vector. The standard-library implementation is total for
+every vector, including the empty vector (where it returns `none`). -/
+def VecPopTotal : Prop :=
+  ∀ (T : Type) (v : alloc.vec.Vec T),
+    ∃ r, alloc.vec.Vec.pop Global v = ok r
+
+@[step]
+theorem slice_swap_no_panic {T : Type} (s : Slice T) (a b : Usize)
+    (ha : a.val < s.length) (hb : b.val < s.length) :
+    core.slice.Slice.swap s a b ⦃ fun _ => True ⦄ := by
+  unfold core.slice.Slice.swap
+  step
+  step
+  step
+  step
+
+theorem take_one_time_loop_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (store : lifecycle.PrekeyStore) (id : U32)
+    (found : Option Usize) (index : Usize)
+    (hindex : index.val ≤
+      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length)
+    (hfound : OptionalIndexBelow
+      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length
+      found) :
+    lifecycle.PrekeyStore.take_one_time_loop store id found index
+      ⦃ fun r =>
+        let (_, _, _, _, z, _, _, _, _, _, _, _, _, _, found1) := r
+        z = store.one_time ∧ OptionalIndexBelow
+          (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length
+          found1 ⦄ := by
+  unfold lifecycle.PrekeyStore.take_one_time_loop
+  apply loop.spec_decr_nat
+    (measure := fun p =>
+      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length -
+        (Prod.snd p).val)
+    (inv := fun p => (Prod.snd p).val ≤
+      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length ∧
+      OptionalIndexBelow
+        (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length
+        (Prod.fst p))
+  · rintro ⟨found1, index1⟩ ⟨hi, hf⟩
+    simp only at hi hf
+    simp only [lifecycle.PrekeyStore.take_one_time_loop.body]
+    step
+    split
+    · step
+      split
+      · step
+        case hmax => scalar_tac
+        case a =>
+          constructor
+          · rw [found1_post]
+            scalar_tac
+          · constructor
+            · simp [OptionalIndexBelow]
+              scalar_tac
+            · rw [found1_post]
+              scalar_tac
+      · step
+        case hmax => scalar_tac
+        case a =>
+          constructor
+          · rw [found1_post]
+            scalar_tac
+          · exact ⟨hf, by rw [found1_post]; scalar_tac⟩
+    · simp [hf]
+  · exact ⟨hindex, hfound⟩
+
+@[step]
+theorem take_one_time_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hz : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (hpop : VecPopTotal)
+    (store : lifecycle.PrekeyStore) (id : U32) :
+    lifecycle.PrekeyStore.take_one_time store id ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.PrekeyStore.take_one_time
+  step with take_one_time_loop_no_panic store id none 0#usize
+    (by simp) (by simp [OptionalIndexBelow])
+  rcases found with _ | foundIndex
+  · simp
+  · rcases pkb_post with ⟨hzstore, hfound⟩
+    simp [OptionalIndexBelow] at hfound
+    have hfoundz : foundIndex.val <
+        (Tacenta.SessionUnitT1.DerivedKeysModel.contents z).val.length := by
+      rw [hzstore]
+      exact hfound
+    step
+    rename_i values back hvalues hback
+    have hfoundValues : foundIndex.val < values.val.length := by
+      rw [hvalues]
+      exact hfoundz
+    step
+    step with Tacenta.SessionUnitTripleT1.zeroize_step hz
+    step
+    have hv5len : v5.val.length = values.val.length := by
+      rw [v5_post, hback, i4_post2]
+      simp
+    have hv5nonempty : 0 < v5.val.length := by omega
+    step
+    step
+    simp [alloc.vec.Vec.deref_mut, lift]
+    have hv6len : v6.val.length = v5.val.length := by
+      rw [v6_post1, v5_post]
+    have hfoundV6 : foundIndex.val < v6.val.length := by
+      rw [hv6len, hv5len]
+      exact hfoundValues
+    have hlastV5 : last.val < v5.val.length := by
+      simp [alloc.vec.Vec.len] at last_post1 last_post2
+      omega
+    have hlastV6 : last.val < v6.val.length := by
+      rw [hv6len]
+      exact hlastV5
+    step with core.slice.Slice.swap_spec v6 foundIndex last hfoundV6 hlastV6
+    step
+    obtain ⟨popped, hpopped⟩ := hpop _ v8
+    rw [hpopped]
+    rcases popped with ⟨poppedValue, poppedVec⟩
+    simp
+
+theorem take_one_time_kem_loop_no_panic
+    (store : lifecycle.PrekeyStore) (id : U32)
+    (found : Option Usize) (index : Usize)
+    (hindex : index.val ≤ store.kem_one_time.val.length)
+    (hfound : OptionalIndexBelow store.kem_one_time.val.length found) :
+    lifecycle.PrekeyStore.take_one_time_kem_loop store id found index
+      ⦃ fun r =>
+        let (_, _, _, _, _, _, _, _, v, _, _, _, _, _, found1) := r
+        v = store.kem_one_time ∧
+          OptionalIndexBelow store.kem_one_time.val.length found1 ⦄ := by
+  unfold lifecycle.PrekeyStore.take_one_time_kem_loop
+  apply loop.spec_decr_nat
+    (measure := fun p => store.kem_one_time.val.length - (Prod.snd p).val)
+    (inv := fun p =>
+      (Prod.snd p).val ≤ store.kem_one_time.val.length ∧
+      OptionalIndexBelow store.kem_one_time.val.length (Prod.fst p))
+  · rintro ⟨found1, index1⟩ ⟨hi, hf⟩
+    simp only at hi hf
+    simp only [lifecycle.PrekeyStore.take_one_time_kem_loop.body]
+    simp only [alloc.vec.Vec.len]
+    split
+    · step
+      split
+      · step
+        case hmax => scalar_tac
+        case a =>
+          constructor
+          · rw [found1_post]
+            scalar_tac
+          · constructor
+            · simp [OptionalIndexBelow]
+              scalar_tac
+            · rw [found1_post]
+              scalar_tac
+      · step
+        case hmax => scalar_tac
+        case a =>
+          constructor
+          · rw [found1_post]
+            scalar_tac
+          · exact ⟨hf, by rw [found1_post]; scalar_tac⟩
+    · simp [hf]
+  · exact ⟨hindex, hfound⟩
+
+@[step]
+theorem take_one_time_kem_no_panic
+    (hpop : VecPopTotal)
+    (store : lifecycle.PrekeyStore) (id : U32) :
+    lifecycle.PrekeyStore.take_one_time_kem store id ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.PrekeyStore.take_one_time_kem
+  step with take_one_time_kem_loop_no_panic store id none 0#usize
+    (by simp) (by simp [OptionalIndexBelow])
+  rcases pkb_post with ⟨hv, hfound⟩
+  rcases found with _ | foundIndex
+  · simp
+  · simp [OptionalIndexBelow] at hfound
+    have hfoundV : foundIndex.val < v.val.length := by
+      rw [hv]
+      exact hfound
+    step
+    rename_i last hlastEq hlastNonempty
+    simp [alloc.vec.Vec.deref_mut, lift]
+    have hlastV : last.val < v.val.length := by
+      simp [alloc.vec.Vec.len] at hlastEq hlastNonempty
+      omega
+    step with slice_swap_no_panic v foundIndex last hfoundV hlastV
+    obtain ⟨popped, hpopped⟩ := hpop _ s1
+    rw [hpopped]
+    rcases popped with ⟨poppedValue, poppedVec⟩
+    rcases poppedValue with _ | entry
+    · simp
+    · rcases entry with ⟨entryId, entryPair, entrySignature⟩
+      simp
+
 def ReadableOneTime
     (o : Option (zeroize.Zeroizing (Array U8 32#usize))) : Prop :=
   match o with
