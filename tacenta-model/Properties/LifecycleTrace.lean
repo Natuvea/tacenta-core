@@ -182,4 +182,19 @@ theorem failed_run_stays_failed_bob (view : CodewordView) (state : State)
       have nextFailed := failed_step_stays_failed_bob view state action hFailed
       simpa [run] using ih (step view state action).1 nextFailed
 
+/-- The old P6 trace's terminal-phase theorem is a projection of the
+    operational schedule for Alice, rather than an independent `rfl` fact. -/
+theorem observed_failed_run_alice (view : CodewordView) (state : State)
+    (actions : List Action) (hFailed : agreementFailed state.alice = true) :
+    (observe .alice (run view state actions).1).phase = .failed := by
+  have hf := failed_run_stays_failed_alice view state actions hFailed
+  simp [observe, phaseOf, hf]
+
+/-- The symmetric projection for Bob. -/
+theorem observed_failed_run_bob (view : CodewordView) (state : State)
+    (actions : List Action) (hFailed : agreementFailed state.bob = true) :
+    (observe .bob (run view state actions).1).phase = .failed := by
+  have hf := failed_run_stays_failed_bob view state actions hFailed
+  simp [observe, phaseOf, hf]
+
 end Properties.LifecycleTrace

@@ -1,4 +1,5 @@
 import Model.Lifecycle
+import Model.SessionTrace
 
 /-!
 # Executable two-party Session schedules
@@ -182,5 +183,24 @@ def run (view : CodewordView) : State → List Action → State × List Outcome
       let (next, outcome) := step view state action
       let (final, outcomes) := run view next rest
       (final, outcome :: outcomes)
+
+/-! ## Projection to the earlier bounded trace
+
+The P6 trace keeps only phase and message labels. This projection makes its
+terminal phase a derived observation of the operational Session rather than a
+separately declared fact. -/
+
+def phaseOf (session : Session) : Model.SessionTrace.Phase :=
+  if agreementFailed session then .failed else .active
+
+def queuedIds (state : State) : List Nat := state.queue.map (·.id)
+
+def acceptedIds (side : Side) (state : State) : List Nat :=
+  (state.accepted.filter (fun accepted => accepted.1 = side)).map (fun accepted => accepted.2.1)
+
+def observe (side : Side) (state : State) : Model.SessionTrace.State :=
+  { phase := phaseOf (match side with | .alice => state.alice | .bob => state.bob)
+    queued := queuedIds state
+    accepted := acceptedIds side state }
 
 end Model.LifecycleTrace
