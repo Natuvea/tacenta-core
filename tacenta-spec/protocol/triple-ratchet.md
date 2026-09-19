@@ -91,6 +91,14 @@ leaves one half moved without the other:
 In both, the session adopts the agreement's next state at the same moment, and
 on a receive the ratchet private key a Diffie-Hellman step generated.
 
+The session runs the agreement first, because its epoch and output are inputs
+to the Triple Ratchet operation. On a send it then runs the Triple Ratchet on a
+copy and adopts the agreement and Triple Ratchet next states together only if
+the Triple Ratchet produces a key. A Triple Ratchet refusal therefore discards
+the agreement's next state too. The exception is an agreement send that itself
+enters `Failed`: Failure below requires the session to keep that failed state
+and refuse the send.
+
 Every receive computes two Diffie-Hellman outputs with the header's
 ratchet public key: one under the current ratchet private key, and one under
 the freshly generated private key a step would adopt. If either is not
