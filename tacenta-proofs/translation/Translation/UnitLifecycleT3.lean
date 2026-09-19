@@ -76,6 +76,9 @@ def arrayOf {n : Usize} (a : Array Std.U8 n) : Bytes :=
 by `DhView`.  This is a representation relation for a boundary already present
 in T1, rather than a new cryptographic primitive contract. -/
 structure DhCodecOf (view : DhView) : Prop where
+  fromBytes : ∀ bytes, ∃ publicKey,
+    tacenta_boundary.dh.PublicKeyBytes.from_bytes bytes = ok publicKey ∧
+    view.publicKey publicKey = arrayOf bytes
   asBytes : ∀ publicKey, ∃ bytes,
     tacenta_boundary.dh.PublicKeyBytes.as_bytes publicKey = ok bytes ∧
     arrayOf bytes = view.publicKey publicKey
@@ -337,6 +340,67 @@ theorem triple_header_of_refines (real : tacenta_wire.Composite)
       pq_n := real.pq_n }
   refine ⟨header, rfl, ?_⟩
   exact ⟨⟨hrel.dh, hrel.pn, hrel.n⟩, hrel.pqEpoch, hrel.pqN⟩
+
+/-- The extra input relation needed for a received Braid codeword.  Wire
+decoding fixes its index and bytes; the Braid proof additionally needs the
+chunk to come from one erasure-code source, because mixed-source chunks are a
+documented model/implementation difference. -/
+def IncomingChunkRefines (view : Model.Lifecycle.CodewordView)
+    (state : Model.Braid.BraidState) (real : tacenta_wire.Composite)
+    (model : Model.CompositeHeader.Composite) : Prop :=
+  match real.ag_chunk, model.agChunk with
+  | none, none => True
+  | some realChunk, some modelChunk =>
+      ∃ source,
+        Tacenta.SessionUnitBraidT3.CodewordOf source
+          { index := realChunk.index, data := realChunk.data } ∧
+        view.receive state modelChunk.index modelChunk.data =
+          modelChunkOf source { index := realChunk.index, data := realChunk.data }
+  | _, _ => False
+
+/-- The shipping adapter from a decoded composite header to a Braid message
+agrees exactly with the lifecycle model, including the explicitly related
+incoming erasure-code chunk. -/
+theorem msg_of_refines (view : Model.Lifecycle.CodewordView)
+    (state : Model.Braid.BraidState) (real : tacenta_wire.Composite)
+    (model : Model.CompositeHeader.Composite)
+    (hrel : CompositeRefines real model)
+    (hchunk : IncomingChunkRefines view state real model) :
+    ∃ message, lifecycle.msg_of real = ok message ∧
+      Tacenta.SessionUnitBraidT3.MsgRefines message
+        (Model.Lifecycle.braidMessageOf view state model) := by
+  obtain ⟨realType, hrealType, htype⟩ := msg_type_of_refines real.ag_type
+  have htype' : Tacenta.SessionUnitBraidT3.MsgTypeRefines realType
+      (Model.Lifecycle.braidMessageOf view state model).type := by
+    change Tacenta.SessionUnitBraidT3.MsgTypeRefines realType
+      (Model.Lifecycle.braidTypeOf model.agType)
+    rw [← hrel.agType]
+    exact htype
+  cases hr : real.ag_chunk with
+  | none =>
+      cases hm : model.agChunk with
+      | none =>
+          refine ⟨{ epoch := real.ag_epoch, ty := realType, data := none }, ?_, ?_⟩
+          · simp [lifecycle.msg_of, hrealType, hr]
+          · exact ⟨hrel.agEpoch, htype', by simp [Model.Lifecycle.braidMessageOf, hm]⟩
+      | some modelChunk => simp [IncomingChunkRefines, hr, hm] at hchunk
+  | some realChunk =>
+      cases hm : model.agChunk with
+      | none => simp [IncomingChunkRefines, hr, hm] at hchunk
+      | some modelChunk =>
+          simp [IncomingChunkRefines, hr, hm] at hchunk
+          obtain ⟨source, hcodeword, hview⟩ := hchunk
+          have hwire := hrel.agChunk
+          simp [hr, hm] at hwire
+          let data : tacenta_erasure.Chunk :=
+            { index := realChunk.index, data := realChunk.data }
+          let message : tacenta_braid.Msg :=
+            { epoch := real.ag_epoch, ty := realType, data := some data }
+          refine ⟨message, ?_, ?_⟩
+          · simp [lifecycle.msg_of, hrealType, hr, message, data]
+          · refine ⟨hrel.agEpoch, htype', ?_⟩
+            simpa [Model.Lifecycle.braidMessageOf, hm, hview, modelChunkOf,
+              message, data, hwire.1] using hcodeword
 
 theorem wire_bytesOf_eq_arrayOf {n : Usize} (bytes : Array Std.U8 n) :
     Tacenta.SessionUnitWireT3.bytesOf bytes.val = arrayOf bytes := by
@@ -1808,6 +1872,85 @@ inductive RealTripleSuccess (state : tacenta_triple.State) (epoch : Std.U64)
       (hconverted : tacenta_spqr.Output.new realOutput.key_epoch realOutput.key = ok converted)
       (hsend : lifecycle.send_candidate state epoch (some converted) =
         ok (candidate, .Ok (header, mk)))
+
+/-- The two translated shapes for converting an optional Braid output before
+the receive-side DH work. -/
+inductive RealSparseConversion (output : Option tacenta_braid.Output) :
+    Option tacenta_spqr.Output → Prop where
+  | none (hout : output = none) : RealSparseConversion output none
+  | some (realOutput : tacenta_braid.Output) (sparseOutput : tacenta_spqr.Output)
+      (hout : output = some realOutput)
+      (hconverted : tacenta_spqr.Output.new realOutput.key_epoch realOutput.key =
+        ok sparseOutput) : RealSparseConversion output (some sparseOutput)
+
+/-- A non-contributory first DH agreement is an atomic receive refusal.  Braid
+and its optional sparse output have been evaluated, but neither candidate is
+committed and no random draw has occurred. -/
+theorem decrypt_ratchet_first_dh_refusal_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
+    (oracle : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (codec : DhCodecOf dh)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (decoded : tacenta_wire.DecodedMessage)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (realBraidMessage : tacenta_braid.Msg) (receivedEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output)
+    (realBraidCandidate : tacenta_braid.Braid)
+    (realSparseOutput : Option tacenta_spqr.Output)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeReal : tacenta_wire.decode_message message = ok (.Ok decoded))
+    (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (modelComposite, vecOf decoded.ciphertext))
+    (hcomposite : CompositeRefines decoded.header modelComposite)
+    (hmessageCall : lifecycle.msg_of decoded.header = ok realBraidMessage)
+    (hmessageRel : Tacenta.SessionUnitBraidT3.MsgRefines realBraidMessage
+      (Model.Lifecycle.braidMessageOf view model.braid modelComposite))
+    (hreceive : tacenta_braid.Braid.receive real.braid realBraidMessage =
+      ok (receivedEpoch, realOutput, realBraidCandidate))
+    (hsparse : RealSparseConversion realOutput realSparseOutput)
+    (hmodelDhNone : oracle.dhAgree model.ratchetPrivate modelComposite.dh = none) :
+    ∃ output,
+      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+        ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
+  have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
+    cases hb : model.braid <;>
+      simp [Model.Lifecycle.agreementFailed, Model.Lifecycle.braidFailed, hb] at hready ⊢
+  rw [hmodelReady] at hrealReady
+  obtain ⟨peer, hpeerCall, hpeerValue⟩ := codec.fromBytes decoded.header.dh
+  obtain ⟨agreement, hagreementCall, hagreementValue⟩ :=
+    oracleOf.dhAgree real.ratchet_private peer
+  have hagreementNone : agreement = none := by
+    rw [hrel.ratchetPrivate, hpeerValue, hcomposite.dh, hmodelDhNone] at hagreementValue
+    cases agreement <;> simp_all
+  subst agreement
+  have hreal : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err (.Handshake SessionError.NonContributoryAgreement), real, rng) := by
+    unfold lifecycle.Session.decrypt_ratchet
+    cases hsparse with
+    | none hout =>
+        simp [hrealReady, hdecodeReal, hmessageCall, hreceive, hout, hpeerCall,
+          hagreementCall]
+    | some realSparse converted hout hconverted =>
+        simp [hrealReady, hdecodeReal, hmessageCall, hreceive, hout, hconverted,
+          hpeerCall, hagreementCall]
+  have hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session := model,
+        result := .error (.handshake .nonContributoryAgreement),
+        oracle := oracle } := by
+    simp [Model.Lifecycle.decryptRatchet, hready, hdecodeModel, hmodelDhNone]
+  refine ⟨(.Err (.Handshake SessionError.NonContributoryAgreement), real, rng),
+    hreal, ?_⟩
+  rw [hmodel]
+  exact ⟨rfl, hrel, htrace⟩
 
 /-- The Triple refusal branch is atomic at the lifecycle boundary.  Braid has
 already produced a candidate next state, but neither implementation commits it
