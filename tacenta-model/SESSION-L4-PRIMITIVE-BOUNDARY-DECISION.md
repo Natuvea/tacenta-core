@@ -75,7 +75,7 @@ the boundary to be recut before proof work continues.
 - Drop and allocator behavior remain outside the formal proof; the public
   limitations record the corresponding implementation hardening and its test
   evidence.
-- The Phase 0 translation records the reachable opaque-call inventory for the
+- The Phase 0 spike record records the reachable opaque-call inventory for the
   five proof roots. Adding a reachable primitive call without adding it to one
   of the ten contracts is a review finding.
 - Reopen this decision if Charon traverses the boundary implementation, if a

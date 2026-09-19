@@ -55,8 +55,10 @@ their use in signatures requires.
 This supports D2's package-boundary premise. It does not establish any of the
 ten future contracts.
 
-The post-rewrite pinned Linux translation records the emitted-name inventory
-against the ten-contract proposal. `DhCodecTotal` covers five operations: the
+The post-rewrite macOS `--start-from-pub` scratch translation records the
+emitted-name inventory against the ten-contract proposal. This is an
+experiment measurement, not pinned-Linux regeneration evidence. `DhCodecTotal`
+covers five operations: the
 four names below plus the persistence byte projection, which uses the same
 `dh_public_bytes` declaration.
 
