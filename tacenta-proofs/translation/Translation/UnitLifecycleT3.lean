@@ -187,6 +187,26 @@ structure CompositeRefines (real : tacenta_wire.Composite)
     | some realChunk, some modelChunk => WireCodewordRefines realChunk modelChunk
     | _, _ => False
 
+theorem agreement_type_of_refines (real : tacenta_braid.MsgType)
+    (model : Model.Braid.MsgType)
+    (hrel : Tacenta.SessionUnitBraidT3.MsgTypeRefines real model) :
+    ∃ wire,
+      lifecycle.agreement_type_of real = ok wire ∧
+      Model.Lifecycle.compositeTypeOf model = some (agreementTypeOf wire) := by
+  cases real <;> cases model <;>
+    simp [Tacenta.SessionUnitBraidT3.MsgTypeRefines,
+      lifecycle.agreement_type_of, Model.Lifecycle.compositeTypeOf,
+      agreementTypeOf] at hrel ⊢
+
+theorem msg_type_of_refines (wire : tacenta_wire.AgreementType) :
+    ∃ real,
+      lifecycle.msg_type_of wire = ok real ∧
+      Tacenta.SessionUnitBraidT3.MsgTypeRefines real
+        (Model.Lifecycle.braidTypeOf (agreementTypeOf wire)) := by
+  cases wire <;>
+    simp [lifecycle.msg_type_of, Model.Lifecycle.braidTypeOf,
+      Tacenta.SessionUnitBraidT3.MsgTypeRefines, agreementTypeOf]
+
 /-! ## Public refusal correspondence
 
 Every concrete shipping `Err` has one public model refusal.  Keeping this as
@@ -348,5 +368,57 @@ theorem encrypt_terminal_guard_step_refines {R : Type}
   refine ⟨(.Err lifecycle.Error.AgreementFailed, real, rng), h.1, ?_⟩
   rw [h.2]
   exact ⟨rfl, hrel, htrace⟩
+
+/-- Once the Braid send step is related, its terminal transition is committed
+on both sides before `AgreementFailed` is returned.  This outer lifecycle fact
+does not depend on the unused message, epoch or sparse output. -/
+theorem encrypt_braid_failure_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle oracleNext : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (plaintext : Slice Std.U8) (rng rngNext : R)
+    (realMessage : tacenta_braid.Msg) (realEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output) (realBraidNext : tacenta_braid.Braid)
+    (modelMessage : Option Model.Braid.Msg) (modelEpoch : Nat)
+    (modelOutput : Option Model.Braid.Output) (modelBraidNext : Model.Braid.BraidState)
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
+    (hsendModel : Model.Lifecycle.sendAgreement oracle model.braid =
+      some ((modelMessage, modelEpoch, modelOutput, modelBraidNext), oracleNext))
+    (hnext : Tacenta.SessionUnitBraidT3.StateRefines K
+      realBraidNext.state modelBraidNext)
+    (hfailed : Model.Lifecycle.braidFailed modelBraidNext = true)
+    (htrace : trace rngNext = oracleNext.draws) :
+    ∃ output,
+      lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
+  have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
+  have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
+    cases hb : model.braid <;>
+      simp [Model.Lifecycle.agreementFailed, Model.Lifecycle.braidFailed, hb] at hready ⊢
+  rw [hmodelReady] at hrealReady
+  have hrealFailed := braid_failed_refines K realBraidNext modelBraidNext hnext
+  rw [hfailed] at hrealFailed
+  let realNext := { real with braid := realBraidNext }
+  let modelNext := { model with braid := modelBraidNext }
+  have hnextSession : SessionRefines dh K realNext modelNext := by
+    exact ⟨hrel.triple, hnext, hrel.ratchetPrivate, hrel.identityAd,
+      hrel.ourIdentityPublic, hrel.peerIdentityPublic, hrel.pendingInitial,
+      hrel.establishedEphemeral⟩
+  have hreal : lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng =
+      ok (.Err lifecycle.Error.AgreementFailed, realNext, rngNext) := by
+    unfold lifecycle.Session.encrypt
+    simp [hrealReady, hsendReal, hrealFailed, realNext]
+  have hmodel : Model.Lifecycle.encrypt view oracle model (sliceOf plaintext) =
+      { session := modelNext, result := .error .agreementFailed,
+        oracle := oracleNext } := by
+    simp [Model.Lifecycle.encrypt, hready, hsendModel, hfailed, modelNext]
+  refine ⟨(.Err lifecycle.Error.AgreementFailed, realNext, rngNext), hreal, ?_⟩
+  rw [hmodel]
+  exact ⟨rfl, hnextSession, htrace⟩
 
 end Tacenta.UnitLifecycleT3
