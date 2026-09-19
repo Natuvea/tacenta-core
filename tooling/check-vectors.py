@@ -19,6 +19,12 @@ is a known-answer file (`schema/vector.schema.json`). The schemas' `$id`
 values are checked to share one base, so the two cannot drift apart in how
 they name themselves.
 
+The two group files predate the shared known-answer envelope because their
+inputs include structured inventory bindings. They have explicit, closed
+shapes below and are checked by the core group-vector integration tests as
+well as by the independent reader. A file claiming either group schema cannot
+fall through to the generic reader or be accepted as an unrecognised format.
+
 No dependency. `jsonschema` is not guaranteed on a runner and this check has
 to be able to run anywhere `python3` does, so the validator below covers the
 subset of JSON Schema the two schemas use (`type`, `required`, `properties`,
@@ -201,6 +207,49 @@ def check_steps(rel, i, v, problems):
                                     % (where, key))
 
 
+GROUP_SCHEMAS = {
+    "tacenta-group-commitments-v1": {
+        "operation": str, "input_hex": str, "output_hex": str,
+    },
+    "tacenta-inventory-statements-v1": {
+        "issuer_key_id": int, "account_handle": str, "inventory_generation": int,
+        "active": list, "revocation_floor_generation": int, "revoked": list,
+        "unsigned_hex": str,
+    },
+}
+
+
+def check_group_file(doc, rel, problems):
+    """Validate the two structured group-vector envelopes explicitly."""
+    schema = doc.get("schema") if isinstance(doc, dict) else None
+    fields = GROUP_SCHEMAS.get(schema)
+    if fields is None:
+        return None
+    if set(doc) != {"schema", "comment", "cases"} or not isinstance(doc.get("comment"), str):
+        problems.append("%s: group file must contain only schema, comment and cases" % rel)
+        return []
+    cases = doc.get("cases")
+    if not isinstance(cases, list) or not cases:
+        problems.append("%s: group file needs a non-empty cases list" % rel)
+        return []
+    seen = set()
+    for i, case in enumerate(cases):
+        where = "%s.cases[%d]" % (rel, i)
+        if not isinstance(case, dict) or set(case) != ({"id"} | set(fields)):
+            problems.append("%s: fields do not match the %s schema" % (where, schema))
+            continue
+        if not isinstance(case["id"], str) or not case["id"] or case["id"] in seen:
+            problems.append("%s: id is empty or not unique" % where)
+        seen.add(case.get("id"))
+        for name, kind in fields.items():
+            if not isinstance(case[name], kind) or isinstance(case[name], bool) and kind is int:
+                problems.append("%s.%s: wrong type" % (where, name))
+        for name in ("input_hex", "output_hex", "unsigned_hex"):
+            if name in case and (len(case[name]) % 2 or not re.fullmatch(r"[0-9a-f]*", case[name])):
+                problems.append("%s.%s: not lower-case even-length hex" % (where, name))
+    return cases
+
+
 def main():
     vector_schema = load(os.path.join(SCHEMAS, "vector.schema.json"))
     ratchet_schema = load(os.path.join(SCHEMAS, "ratchet-vector.schema.json"))
@@ -232,6 +281,11 @@ def main():
             doc = load(path)
         except ValueError as e:
             problems.append("%s: not JSON: %s" % (rel, e))
+            continue
+
+        group_cases = check_group_file(doc, rel, problems)
+        if group_cases is not None:
+            checked += len(group_cases)
             continue
 
         scenario = isinstance(doc, dict) and doc.get("algorithm") == "double-ratchet"
