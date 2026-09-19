@@ -379,6 +379,22 @@ fn saturating_usize_from_u64(value: u64) -> usize {
     }
 }
 
+fn send_candidate(
+    state: &tacenta_triple::State,
+    sending_epoch: u64,
+    spqr_output: Option<tacenta_spqr::Output>,
+) -> (
+    tacenta_triple::State,
+    Result<(tacenta_triple::Header, [u8; 32]), TripleError>,
+) {
+    let mut candidate = state.clone();
+    let sent = match spqr_output {
+        Some(output) => candidate.send(sending_epoch, Some(&output)),
+        None => candidate.send(sending_epoch, None),
+    };
+    (candidate, sent)
+}
+
 fn receive_attempt(
     state: &tacenta_triple::State,
     header: &tacenta_triple::Header,
@@ -2791,11 +2807,7 @@ impl Session {
             None => None,
         };
 
-        let mut candidate = self.triple.clone();
-        let sent = match spqr_output {
-            Some(output) => candidate.send(sending_epoch, Some(&output)),
-            None => candidate.send(sending_epoch, None),
-        };
+        let (candidate, sent) = send_candidate(&self.triple, sending_epoch, spqr_output);
         let (header, mk) = match sent {
             Ok(value) => value,
             Err(error) => return Err(Error::Triple(error)),
