@@ -788,6 +788,17 @@ them, so this is the decoder the product runs.
   published prekey bundle. Its one optional field is decided by
   `one_time_prekey_at` (`one_time_prekey_at_no_panic`) over thirty-three bytes
   the decoder has already bounded. Same pinned base.
+- `Tacenta.SessionUnitWireT1.decode_composite_no_panic` (in
+  `Translation/SessionUnitWireT1.lean`),
+  `Tacenta.SessionUnitWireT1.decode_message_no_panic` (in
+  `Translation/SessionUnitWireT1.lean`),
+  `Tacenta.SessionUnitWireT1.decode_initial_no_panic` (in
+  `Translation/SessionUnitWireT1.lean`), and
+  `Tacenta.SessionUnitWireT1.decode_bundle_no_panic` (in
+  `Translation/SessionUnitWireT1.lean`): the count-checked Session-unit port
+  proves the same four totality statements against the complete eight-leaf
+  generated namespace. The port changes namespaces only; its script rejects
+  any unexpected source shape or replacement count.
 - `is_canonical_x25519_spec`: the check `decode_composite`, `decode_initial`
   and `decode_bundle` apply to every curve key they read (message-format.md,
   Curve public keys)
@@ -816,6 +827,13 @@ the code checks.
   samples, stated in full.
 - `decode_message_refines`: the same for `decode_message`, whose ciphertext
   is exactly the bytes the model leaves after the header.
+- `Tacenta.SessionUnitWireT3.decode_composite_refines` (in
+  `Translation/SessionUnitWireT3.lean`) and
+  `Tacenta.SessionUnitWireT3.decode_message_refines` (in
+  `Translation/SessionUnitWireT3.lean`): a count-checked namespace-only port
+  proves the same two decoder refinements against the complete eight-leaf
+  Session translation. The porting script rejects an unexpected source shape
+  or replacement count.
 
 Both are pinned to `propext`, `Classical.choice` and `Quot.sound` alone.
 The big-endian arithmetic relating the code's `from_be_bytes` to the model's
@@ -824,8 +842,8 @@ round-trip lemmas settle the same identities with `bv_decide`, and neither
 theorem depends on them.
 
 **What this does not give.** An end-to-end claim from wire bytes to a ratchet
-decision also needs the session's use of the decoded header, which is outside
-the translated surface (`tacenta-core/lifecycle/src`).
+decision also needs the session's use of the decoded header. That outer
+composition is in draft proof work and is not an accepted claim here.
 
 ## Proved (tier T3, the initial-message decoder computes what the model says)
 
@@ -842,6 +860,11 @@ composite header's and the bundle's decoders refuse theirs.
   message, and `Err` exactly when the model returns `none`. No hypothesis.
   Pinned to `propext`, `Classical.choice` and `Quot.sound` alone. So the code
   refuses a re-spelled key in either position exactly when the model does.
+- `Tacenta.SessionUnitWireInitialT3.decode_initial_refines` (in
+  `Translation/SessionUnitWireInitialT3.lean`): a count-checked namespace-only
+  port proves the same refinement against the complete eight-leaf Session
+  translation. The porting script rejects an unexpected source shape or
+  replacement count.
 - `decodeInitial_cases`: the model's decoder by cases, the lemma the refinement
   rewrites with. Too short, a wrong version or type byte, no room for the two
   keys, an `identity` or `ephemeral` whose first byte is not the `EncodeEC`
@@ -852,8 +875,10 @@ composite header's and the bundle's decoders refuse theirs.
   offset 68. The code's check meets the model's through
   `WireT3.canonicalKey_at`.
 
-**What this does not give.** The same limit as above: what the session does
-with a decoded initial message is outside the translated surface.
+**What this does not give.** The lifecycle draft now imports this result and
+relates the detailed model decoder's successful value. The established-session
+repeat checks, refusal reasons and inner receive still need their outer
+composition before an end-to-end claim is accepted.
 
 ## Proved (tier T3, the prekey bundle decoder computes what the model says)
 

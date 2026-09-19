@@ -1914,6 +1914,39 @@ and prove orchestration against the lifecycle model; until then,
 `Session::encrypt`, `Session::decrypt`, establishment and persistence remain
 tested and translated, not proved end to end.
 
+### The Session unit's primitive contracts are totality assumptions
+
+The eight-leaf `TacentaSessionUnit` makes the ratchet, Braid, erasure, wire,
+session and lifecycle bodies concrete in one Lean namespace. The primitive
+implementations remain outside that unit. The first Session proof layer names
+ten contracts over that boundary: `DhCodecTotal`, `DhAgreeTotal`,
+`AeadSealTotal`, `AeadOpenTotal`, `KemEncapsulateTotal`,
+`KemDecapsulateTotal`, `KemCiphertextLenTotal`, `XeddsaVerifyTotal`,
+`XeddsaSignTotal` and `Random32Total`.
+
+These contracts say that the outer Aeneas `Result` returns. They permit an
+AEAD, KEM or signature check to return its ordinary inner refusal, and permit
+DH agreement to return `None`. They do not say that encryption is secure,
+that signatures are sound, that agreement outputs match, or that an accepted
+result has the right bytes. Those value-level agreements belong to the later
+refinement relation and its oracle; the totality layer alone cannot establish
+them.
+
+`DhCodecTotal` is one joint contract over both opaque DH key types and all six
+reachable construction, projection, derivation and equality operations. Its
+non-vacuity witness interprets those types together, so the operations cannot
+be justified by mutually incompatible one-function witnesses. Randomness is
+scoped to the concrete `RngCore` instance supplied to an operation: a contract
+over every possible trait record would be false because the trait permits a
+`fill_bytes` implementation that fails.
+
+`UnitSatisfiabilitySession.lean` binds every contract shape to the generated
+constant with an `Iff.rfl`, exhibits a model for each shape, and combines all
+ten witness names in one theorem. The negative control removes one witness and
+requires elaboration to fail. This establishes only that the assumptions are
+consistent; it does not prove that the real primitive implementations satisfy
+their value-level specifications.
+
 ## The erasure coding's field is proved
 
 `Model.Gf65536` implements GF(2^16), which the post-quantum agreement's chunking

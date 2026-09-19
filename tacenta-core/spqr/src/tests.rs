@@ -853,6 +853,33 @@ fn skipped_removal_wipes_before_shortening() {
     assert!(!body.contains("skipped.remove("));
 }
 
+#[test]
+fn eviction_removes_the_oldest_sparse_keys_in_order() {
+    let mut state = State::init_bob(&sk());
+    state.skipped = vec![
+        Skipped {
+            epoch: 0,
+            n: 1,
+            key: [0x11; 32],
+        },
+        Skipped {
+            epoch: 0,
+            n: 2,
+            key: [0x22; 32],
+        },
+        Skipped {
+            epoch: 0,
+            n: 3,
+            key: [0x33; 32],
+        },
+    ];
+
+    assert_eq!(state.evict_oldest(2), 2);
+    assert_eq!(state.skipped.iter().map(|s| s.n).collect::<Vec<_>>(), [3]);
+    assert_eq!(state.evict_oldest(4), 1);
+    assert!(state.skipped.is_empty());
+}
+
 /// Decoder vectors are allocated from their checked counts. Starting them at
 /// zero would reallocate while copying persisted secret material.
 #[test]

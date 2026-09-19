@@ -1830,12 +1830,14 @@ theorem receive_refines_continuation (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRou
                match cs.receive with
                | none => none
                | some ch =>
-                 if n.val = ch.n + 1 then
-                   some (Model.SparseRatchet.setChains st2 receiving_epoch.val
-                     { cs with
-                       receive := some
-                         { ck := (Model.SparseRatchet.kdfCk ch.ck n.val).1, n := n.val } },
-                     (Model.SparseRatchet.kdfCk ch.ck n.val).2)
+                 if ch.n < Model.SparseRatchet.u64Max then
+                   if n.val = ch.n + 1 then
+                     some (Model.SparseRatchet.setChains st2 receiving_epoch.val
+                       { cs with
+                         receive := some
+                           { ck := (Model.SparseRatchet.kdfCk ch.ck n.val).1, n := n.val } },
+                       (Model.SparseRatchet.kdfCk ch.ck n.val).2)
+                   else none
                  else none) with
       | none => ∃ err, r.1 = core.result.Result.Err err
       | some (m', k) => ∃ key, r.1 = core.result.Result.Ok key ∧ keyOf key = k ∧
@@ -1902,6 +1904,10 @@ theorem receive_refines_continuation (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRou
             have hmem := findChains_mem st2 receiving_epoch.val (chainsOf cs) o1_post.symm
             have := hcb1 (receiving_epoch.val, chainsOf cs) hmem (chainOf ch) (Or.inr hcsofeq)
             simpa [chainOf] using this
+          have hcntModel : ch.n.val < Model.SparseRatchet.u64Max := by
+            rw [Model.SparseRatchet.u64Max_eq]
+            rw [Std.U64.max_eq] at hcnt
+            exact hcnt
           -- Introduce the clone first, then split the `checked_add` by hand, so
           -- the unreachable branch can be refuted from `hcnt` above rather than
           -- left for `step*` to present as a third case with no model
@@ -1924,11 +1930,11 @@ theorem receive_refines_continuation (hkr : SpqrHkdfAgrees) (hz64 : ZeroizingRou
           step*
           · have hnv : (chainOf ch).n = ch.n.val := rfl
             have hne' : ¬ n.val = ch.n.val + 1 := by scalar_tac
-            simp only [hnv, hne']
+            simp only [hcntModel, hnv, hne']
             exact ⟨_, rfl⟩
           · have hnv : (chainOf ch).n = ch.n.val := rfl
             have hne : n.val = ch.n.val + 1 := by scalar_tac
-            simp only [hnv, hne]
+            simp only [hcntModel, hnv, hne]
             step with kdf_ck_refines hkr hz64 ch1.ck n
             rw [ch1_post, hne] at next_post
             step with hopt Chain.Insts.CoreCloneClone cs.send
@@ -2000,13 +2006,13 @@ theorem receive_refines (hkr : SpqrHkdfAgrees)
     rcases hadv : (Model.SparseRatchet.advance m (outputOf o)) with _ | m1
     · rw [hadv] at r_post
       obtain ⟨o', hno, herr, hstate⟩ := r_post
-      simp only
+      simp only [hadv]
       rw [herr] at cf_post
       simp only [cf_post]
       exact ⟨_, rfl⟩
     · rw [hadv] at r_post
       obtain ⟨hrOk, hrel1⟩ := r_post
-      simp only
+      simp only [hadv]
       rw [hrOk] at cf_post
       simp only [cf_post]
       have hlen := advance_skipped_len_le m (outputOf o) m1 hadv
