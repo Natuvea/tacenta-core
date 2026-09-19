@@ -302,8 +302,53 @@ example :
       [0x00, 0, 0, 0, 1, 0, 0, 0, 2, 0xaa] = none := by
   native_decide
 
-def lifecycleRefusalName (reason : Model.Lifecycle.Refusal) : String :=
-  toString (repr reason)
+def ratchetRefusalName : Model.Lifecycle.RatchetRefusal → String
+  | .tooManySkipped => "too-many-skipped"
+  | .skippedStoreFull => "skipped-store-full"
+  | .noSendingChain => "no-sending-chain"
+  | .noReceivingChain => "no-receiving-chain"
+  | .outOfOrder => "out-of-order"
+  | .chainExhausted => "chain-exhausted"
+
+def sparseRefusalName : Model.Lifecycle.SparseRefusal → String
+  | .epochOutOfOrder => "epoch-out-of-order"
+  | .noChain => "no-chain"
+  | .chainRetired => "chain-retired"
+  | .tooManySkipped => "too-many-skipped"
+  | .skippedStoreFull => "skipped-store-full"
+  | .outOfOrder => "out-of-order"
+  | .chainExhausted => "chain-exhausted"
+
+def lifecycleRefusalName : Model.Lifecycle.Refusal → String
+  | .triple (.classical reason) => "triple-classical-" ++ ratchetRefusalName reason
+  | .triple (.postQuantum reason) => "triple-post-quantum-" ++ sparseRefusalName reason
+  | .handshake .badSignedPrekeySignature => "bad-signed-prekey-signature"
+  | .handshake .badKemPrekeySignature => "bad-kem-prekey-signature"
+  | .handshake .nonContributoryAgreement => "non-contributory-agreement"
+  | .kem => "kem"
+  | .decode .unknownVersion => "decode-unknown-version"
+  | .decode .wrongType => "decode-wrong-type"
+  | .decode .tooShort => "decode-too-short"
+  | .decode .lengthOverrun => "decode-length-overrun"
+  | .badEncoding => "bad-encoding"
+  | .inconsistentBundle => "inconsistent-bundle"
+  | .unexpectedIdentity => "unexpected-identity"
+  | .unknownPrekeyId => "unknown-prekey-id"
+  | .aead => "aead"
+  | .notARepeatedInitial => "not-a-repeated-initial"
+  | .replayedLastResort => "replayed-last-resort"
+  | .legacyLastResortRecord => "legacy-last-resort-record"
+  | .lastResortRecordFull => "last-resort-record-full"
+  | .agreementFailed => "agreement-failed"
+  | .ceiling => "ceiling"
+
+example : lifecycleRefusalName
+    (.triple (.classical .skippedStoreFull)) =
+      "triple-classical-skipped-store-full" := rfl
+
+example : lifecycleRefusalName
+    (.triple (.postQuantum .chainRetired)) =
+      "triple-post-quantum-chain-retired" := rfl
 
 def sessionOutcomeLine (index : Nat) : Model.LifecycleTrace.Outcome → String
   | .sent id bytes =>
