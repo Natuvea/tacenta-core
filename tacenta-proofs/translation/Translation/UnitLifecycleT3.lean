@@ -692,6 +692,41 @@ theorem encrypt_terminal_guard_step_refines {R : Type}
   rw [h.2]
   exact ⟨rfl, hrel, htrace⟩
 
+/-- `decrypt_ratchet` has the same terminal agreement guard as `encrypt`: it
+returns the exact public refusal without decoding attacker-controlled bytes or
+changing state/randomness. -/
+theorem decrypt_ratchet_terminal_guard_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hfailed : Model.Lifecycle.agreementFailed model = true) :
+    ∃ output,
+      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+        ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  have hm : model.braid = .failed :=
+    (Model.Lifecycle.agreementFailed_iff model).mp hfailed
+  have hbraid := braid_failed_refines K real.braid model.braid hrel.braid
+  have hbf : Model.Lifecycle.braidFailed model.braid = true :=
+    (Model.Lifecycle.braidFailed_iff model.braid).2 hm
+  rw [hbf] at hbraid
+  have hreal : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err lifecycle.Error.AgreementFailed, real, rng) := by
+    unfold lifecycle.Session.decrypt_ratchet
+    rw [hbraid]
+    simp
+  have hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session := model, result := .error .agreementFailed, oracle := oracle } := by
+    simp [Model.Lifecycle.decryptRatchet, hfailed]
+  refine ⟨(.Err lifecycle.Error.AgreementFailed, real, rng), hreal, ?_⟩
+  rw [hmodel]
+  exact ⟨rfl, hrel, htrace⟩
+
 /-- Once the Braid send step is related, its terminal transition is committed
 on both sides before `AgreementFailed` is returned.  This outer lifecycle fact
 does not depend on the unused message, epoch or sparse output. -/
