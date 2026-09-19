@@ -421,4 +421,84 @@ theorem encrypt_braid_failure_step_refines {R : Type}
   rw [hmodel]
   exact ⟨rfl, hnextSession, htrace⟩
 
+def realSparseOutputOf (output : Option tacenta_braid.Output) :
+    Result (Option tacenta_spqr.Output) :=
+  match output with
+  | none => ok none
+  | some value => do
+      let converted ← tacenta_spqr.Output.new value.key_epoch value.key
+      ok (some converted)
+
+inductive RealTripleRefusal (state : tacenta_triple.State) (epoch : Std.U64)
+    (output : Option tacenta_braid.Output) (candidate : tacenta_triple.State)
+    (reason : tacenta_triple.TripleError) : Prop where
+  | none
+      (hout : output = none)
+      (hsend : lifecycle.send_candidate state epoch none = ok (candidate, .Err reason))
+  | some (realOutput : tacenta_braid.Output) (converted : tacenta_spqr.Output)
+      (hout : output = some realOutput)
+      (hconverted : tacenta_spqr.Output.new realOutput.key_epoch realOutput.key = ok converted)
+      (hsend : lifecycle.send_candidate state epoch (some converted) =
+        ok (candidate, .Err reason))
+
+/-- The Triple refusal branch is atomic at the lifecycle boundary.  Braid has
+already produced a candidate next state, but neither implementation commits it
+when Triple send refuses; only the already-consumed RNG trace advances. -/
+theorem encrypt_triple_refusal_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle oracleNext : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (plaintext : Slice Std.U8) (rng rngNext : R)
+    (realMessage : tacenta_braid.Msg) (realEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output) (realBraidNext : tacenta_braid.Braid)
+    (candidate : tacenta_triple.State)
+    (realReason : tacenta_triple.TripleError)
+    (modelMessage : Model.Braid.Msg) (modelEpoch : Nat)
+    (modelOutput : Option Model.Braid.Output) (modelBraidNext : Model.Braid.BraidState)
+    (modelReason : Model.Triple.SendRefusal)
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
+    (htripleReal : RealTripleRefusal real.triple realEpoch realOutput
+      candidate realReason)
+    (hsendModel : Model.Lifecycle.sendAgreement oracle model.braid =
+      some ((some modelMessage, modelEpoch, modelOutput, modelBraidNext), oracleNext))
+    (hnext : Tacenta.SessionUnitBraidT3.StateRefines K
+      realBraidNext.state modelBraidNext)
+    (hnotFailed : Model.Lifecycle.braidFailed modelBraidNext = false)
+    (htripleModel : Model.Triple.sendDetailed model.triple modelEpoch
+      (Model.Lifecycle.sparseOutputOf modelOutput) = .error modelReason)
+    (hreason : refusalOf (.Triple realReason) =
+      Model.Lifecycle.tripleSendRefusalOf modelReason)
+    (htrace : trace rngNext = oracleNext.draws) :
+    ∃ output,
+      lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
+  have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
+  have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
+    cases hb : model.braid <;>
+      simp [Model.Lifecycle.agreementFailed, Model.Lifecycle.braidFailed, hb] at hready ⊢
+  rw [hmodelReady] at hrealReady
+  have hrealNext := braid_failed_refines K realBraidNext modelBraidNext hnext
+  rw [hnotFailed] at hrealNext
+  have hreal : lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng =
+      ok (.Err (.Triple realReason), real, rngNext) := by
+    unfold lifecycle.Session.encrypt
+    simp [hrealReady, hsendReal, hrealNext]
+    cases htripleReal with
+    | none hout hsend => simp [hout, hsend]
+    | some value converted hout hconverted hsend =>
+        simp [hout, hconverted, hsend]
+  have hmodel : Model.Lifecycle.encrypt view oracle model (sliceOf plaintext) =
+      { session := model,
+        result := .error (Model.Lifecycle.tripleSendRefusalOf modelReason),
+        oracle := oracleNext } := by
+    simp [Model.Lifecycle.encrypt, hready, hsendModel, hnotFailed, htripleModel]
+  refine ⟨(.Err (.Triple realReason), real, rngNext), hreal, ?_⟩
+  rw [hmodel]
+  exact ⟨hreason, hrel, htrace⟩
+
 end Tacenta.UnitLifecycleT3
