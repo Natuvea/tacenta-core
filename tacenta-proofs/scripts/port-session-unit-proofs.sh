@@ -108,6 +108,8 @@ for old, new, expected in [
     ("UnitSpqrT1", "SessionUnitSpqrT1", 46),
     ("UnitT1", "SessionUnitT1", 39),
     ("three-leaf translation unit", "eight-leaf Session translation unit", 1),
+    ("Translation/TacentaTripleUnit.lean", "Translation/TacentaSessionUnit.lean", 1),
+    ("tacenta-core/triple-unit", "tacenta-core/session-unit", 1),
 ]:
     text = replace_exact(text, old, new, expected, origin)
 note = (

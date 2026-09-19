@@ -36,14 +36,6 @@ axiom alloc.vec.Vec.pop
   {T : Type} (A : Type) :
   alloc.vec.Vec T → Result ((Option T) × (alloc.vec.Vec T))
 
-/-- [alloc::vec::{alloc::vec::Vec<T>}::is_empty]:
-    Source: '/rustc/library/alloc/src/vec/mod.rs', lines 3085:4-3085:40
-    Name pattern: [alloc::vec::{alloc::vec::Vec<@T>}::is_empty]
-    Visibility: public -/
-@[rust_fun "alloc::vec::{alloc::vec::Vec<@T>}::is_empty"]
-axiom alloc.vec.Vec.is_empty
-  {T : Type} (A : Type) : alloc.vec.Vec T → Result Bool
-
 /-- [tacenta_kdf::hkdf_sha256]:
     Source: 'kdf/src/lib.rs', lines 27:0-27:83
     Name pattern: [tacenta_kdf::hkdf_sha256]
@@ -812,15 +804,15 @@ def State.evict_oldest_loop0.body
   := do
   if evicted < count
   then
-    let b ← alloc.vec.Vec.is_empty Global self.skipped
-    if b
-    then ok (done (evicted, self))
-    else
+    let i := alloc.vec.Vec.len self.skipped
+    if i != 0#usize
+    then
       let oldest ←
         State.evict_oldest_loop0_loop0 self.skipped 0#usize 1#usize
       let (_, v) ← remove_skipped_at self.skipped oldest
       let evicted1 ← evicted + 1#usize
       ok (cont ({ self with skipped := v }, evicted1))
+    else ok (done (evicted, self))
   else ok (done (evicted, self))
 
 /-- [tacenta_ratchet::{tacenta_ratchet::State}::evict_oldest]: loop 0:

@@ -72,14 +72,6 @@ axiom alloc.vec.Vec.append
   alloc.vec.Vec T → alloc.vec.Vec T → Result ((alloc.vec.Vec T) ×
     (alloc.vec.Vec T))
 
-/-- [alloc::vec::{alloc::vec::Vec<T>}::is_empty]:
-    Source: '/rustc/library/alloc/src/vec/mod.rs', lines 3085:4-3085:40
-    Name pattern: [alloc::vec::{alloc::vec::Vec<@T>}::is_empty]
-    Visibility: public -/
-@[rust_fun "alloc::vec::{alloc::vec::Vec<@T>}::is_empty"]
-axiom alloc.vec.Vec.is_empty
-  {T : Type} (A : Type) : alloc.vec.Vec T → Result Bool
-
 /-- [tacenta_kdf::hkdf_sha256]:
     Source: 'kdf/src/lib.rs', lines 27:0-27:83
     Name pattern: [tacenta_kdf::hkdf_sha256]
@@ -895,16 +887,16 @@ def tacenta_ratchet.State.evict_oldest_loop0.body
   := do
   if evicted < count
   then
-    let b ← alloc.vec.Vec.is_empty Global self.skipped
-    if b
-    then ok (done (evicted, self))
-    else
+    let i := alloc.vec.Vec.len self.skipped
+    if i != 0#usize
+    then
       let oldest ←
         tacenta_ratchet.State.evict_oldest_loop0_loop0 self.skipped 0#usize
           1#usize
       let (_, v) ← tacenta_ratchet.remove_skipped_at self.skipped oldest
       let evicted1 ← evicted + 1#usize
       ok (cont ({ self with skipped := v }, evicted1))
+    else ok (done (evicted, self))
   else ok (done (evicted, self))
 
 /-- [tacenta_triple_unit::tacenta_ratchet::{tacenta_triple_unit::tacenta_ratchet::State}::evict_oldest]: loop 0:
@@ -3309,7 +3301,7 @@ def tacenta_spqr.State.skipped_len
   ok (alloc.vec.Vec.len self.skipped)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::find_chains]: loop body 0:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 551:8-558:5 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 545:8-552:5 -/
 @[rust_loop_body]
 def tacenta_spqr.State.find_chains_loop.body
   (self : tacenta_spqr.State) (e : Std.U64) (i : Std.Usize) :
@@ -3328,7 +3320,7 @@ def tacenta_spqr.State.find_chains_loop.body
   else ok (done none)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::find_chains]: loop 0:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 551:8-558:5 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 545:8-552:5 -/
 @[rust_loop]
 def tacenta_spqr.State.find_chains_loop
   (self : tacenta_spqr.State) (e : Std.U64) (i : Std.Usize) :
@@ -3339,7 +3331,7 @@ def tacenta_spqr.State.find_chains_loop
     i
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::find_chains]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 549:4-558:5 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 543:4-552:5 -/
 @[reducible]
 def tacenta_spqr.State.find_chains
   (self : tacenta_spqr.State) (e : Std.U64) :
@@ -3598,96 +3590,108 @@ def tacenta_spqr.State.invariant
     else ok false
   else ok false
 
-/-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::evict_oldest]: loop body 1:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 538:12-541:13
-    Visibility: public -/
+/-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::remove_skipped_at]: loop body 0:
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 671:8-674:9 -/
 @[rust_loop_body]
-def tacenta_spqr.State.evict_oldest_loop0_loop0.body
-  (last : Std.Usize) (v : alloc.vec.Vec tacenta_spqr.Skipped) (i : Std.Usize) :
+def tacenta_spqr.State.remove_skipped_at_loop.body
+  (skipped : alloc.vec.Vec tacenta_spqr.Skipped) (i : Std.Usize) :
   Result (ControlFlow ((alloc.vec.Vec tacenta_spqr.Skipped) × Std.Usize)
-    (alloc.vec.Vec tacenta_spqr.Skipped))
+    ((alloc.vec.Vec tacenta_spqr.Skipped) × Std.Usize))
   := do
-  if i < last
+  let i1 ← i + 1#usize
+  let i2 := alloc.vec.Vec.len skipped
+  if i1 < i2
   then
-    let (s, deref_mut_back) ← lift (alloc.vec.Vec.deref_mut v)
-    let i1 ← i + 1#usize
+    let (s, deref_mut_back) ← lift (alloc.vec.Vec.deref_mut skipped)
     let s1 ← core.slice.Slice.swap s i i1
-    let v1 := deref_mut_back s1
-    ok (cont (v1, i1))
-  else ok (done v)
+    let skipped1 := deref_mut_back s1
+    ok (cont (skipped1, i1))
+  else ok (done (skipped, i))
 
-/-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::evict_oldest]: loop 1:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 538:12-541:13
-    Visibility: public -/
+/-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::remove_skipped_at]: loop 0:
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 671:8-674:9 -/
 @[rust_loop]
-def tacenta_spqr.State.evict_oldest_loop0_loop0
-  (v : alloc.vec.Vec tacenta_spqr.Skipped) (last : Std.Usize) (i : Std.Usize) :
-  Result (alloc.vec.Vec tacenta_spqr.Skipped)
+def tacenta_spqr.State.remove_skipped_at_loop
+  (skipped : alloc.vec.Vec tacenta_spqr.Skipped) (i : Std.Usize) :
+  Result ((alloc.vec.Vec tacenta_spqr.Skipped) × Std.Usize)
   := do
   loop
-    (fun (v1, i1) => tacenta_spqr.State.evict_oldest_loop0_loop0.body last v1
-      i1)
-    (v, i)
+    (fun (skipped1, i1) => tacenta_spqr.State.remove_skipped_at_loop.body
+      skipped1 i1)
+    (skipped, i)
+
+/-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::remove_skipped_at]:
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 669:4-679:5 -/
+def tacenta_spqr.State.remove_skipped_at
+  (skipped : alloc.vec.Vec tacenta_spqr.Skipped) (index : Std.Usize) :
+  Result ((Array Std.U8 32#usize) × (alloc.vec.Vec tacenta_spqr.Skipped))
+  := do
+  let (skipped1, i) ← tacenta_spqr.State.remove_skipped_at_loop skipped index
+  let s ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+      tacenta_spqr.Skipped) skipped1 i
+  let (s1, index_mut_back) ←
+    alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+      tacenta_spqr.Skipped) skipped1 i
+  let s2 ← tacenta_spqr.Skipped.Insts.ZeroizeZeroize.zeroize s1
+  let skipped2 := index_mut_back s2
+  let (_, skipped3) ← alloc.vec.Vec.pop Global skipped2
+  ok (s.key, skipped3)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::evict_oldest]: loop body 0:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 535:8-545:9
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 535:8-539:9
     Visibility: public -/
 @[rust_loop_body]
-def tacenta_spqr.State.evict_oldest_loop0.body
+def tacenta_spqr.State.evict_oldest_loop.body
   (count : Std.Usize) (self : tacenta_spqr.State) (evicted : Std.Usize) :
   Result (ControlFlow (tacenta_spqr.State × Std.Usize) (Std.Usize ×
     tacenta_spqr.State))
   := do
   if evicted < count
   then
-    let b ← alloc.vec.Vec.is_empty Global self.skipped
-    if b
-    then ok (done (evicted, self))
-    else
-      let i := alloc.vec.Vec.len self.skipped
-      let last ← i - 1#usize
-      let v ←
-        tacenta_spqr.State.evict_oldest_loop0_loop0 self.skipped last 0#usize
-      let (s, index_mut_back) ←
-        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
-          tacenta_spqr.Skipped) v last
-      let s1 ← tacenta_spqr.Skipped.Insts.ZeroizeZeroize.zeroize s
-      let v1 := index_mut_back s1
-      let (_, v2) ← alloc.vec.Vec.pop Global v1
+    let i := alloc.vec.Vec.len self.skipped
+    if i != 0#usize
+    then
+      let (discarded, v) ←
+        tacenta_spqr.State.remove_skipped_at self.skipped 0#usize
+      let _ ←
+        Array.Insts.ZeroizeZeroize.zeroize (zeroize.Zeroize.Blanket
+          U8.Insts.ZeroizeDefaultIsZeroes) discarded
       let evicted1 ← evicted + 1#usize
-      ok (cont ({ self with skipped := v2 }, evicted1))
+      ok (cont ({ self with skipped := v }, evicted1))
+    else ok (done (evicted, self))
   else ok (done (evicted, self))
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::evict_oldest]: loop 0:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 535:8-545:9
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 535:8-539:9
     Visibility: public -/
 @[rust_loop]
-def tacenta_spqr.State.evict_oldest_loop0
+def tacenta_spqr.State.evict_oldest_loop
   (self : tacenta_spqr.State) (count : Std.Usize) (evicted : Std.Usize) :
   Result (Std.Usize × tacenta_spqr.State)
   := do
   loop
-    (fun (self1, evicted1) => tacenta_spqr.State.evict_oldest_loop0.body count
+    (fun (self1, evicted1) => tacenta_spqr.State.evict_oldest_loop.body count
       self1 evicted1)
     (self, evicted)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::evict_oldest]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 533:4-547:5
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 533:4-541:5
     Visibility: public -/
 @[reducible]
 def tacenta_spqr.State.evict_oldest
   (self : tacenta_spqr.State) (count : Std.Usize) :
   Result (Std.Usize × tacenta_spqr.State)
   := do
-  tacenta_spqr.State.evict_oldest_loop0 self count 0#usize
+  tacenta_spqr.State.evict_oldest_loop self count 0#usize
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::set_chains::closure]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 561:27-561:39 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 555:27-555:39 -/
 @[reducible]
 def tacenta_spqr.State.set_chains.closure := Std.U64
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::set_chains::{impl core::ops::function::FnMut<(&'_ (u64, tacenta_triple_unit::tacenta_spqr::Chains),), bool> for tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::set_chains::closure<'_0>}::call_mut]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 561:27-561:39 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 555:27-555:39 -/
 def
   tacenta_spqr.State.set_chains.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool.call_mut
   (c : tacenta_spqr.State.set_chains.closure)
@@ -3698,7 +3702,7 @@ def
   ok (i != c, c)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::set_chains::{impl core::ops::function::FnOnce<(&'_ (u64, tacenta_triple_unit::tacenta_spqr::Chains),), bool> for tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::set_chains::closure<'_0>}::call_once]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 561:27-561:39 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 555:27-555:39 -/
 def
   tacenta_spqr.State.set_chains.closure.Insts.CoreOpsFunctionFnOnceTupleSharedPairU64ChainsBool.call_once
   (c : tacenta_spqr.State.set_chains.closure)
@@ -3711,7 +3715,7 @@ def
   ok b
 
 /-- Trait implementation: [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::set_chains::{impl core::ops::function::FnOnce<(&'_ (u64, tacenta_triple_unit::tacenta_spqr::Chains),), bool> for tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::set_chains::closure<'_0>}]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 561:27-561:39 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 555:27-555:39 -/
 @[reducible]
 def
   tacenta_spqr.State.set_chains.closure.Insts.CoreOpsFunctionFnOnceTupleSharedPairU64ChainsBool
@@ -3722,7 +3726,7 @@ def
 }
 
 /-- Trait implementation: [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::set_chains::{impl core::ops::function::FnMut<(&'_ (u64, tacenta_triple_unit::tacenta_spqr::Chains),), bool> for tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::set_chains::closure<'_0>}]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 561:27-561:39 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 555:27-555:39 -/
 @[reducible]
 def
   tacenta_spqr.State.set_chains.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool
@@ -3735,7 +3739,7 @@ def
 }
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::set_chains]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 560:4-563:5 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 554:4-557:5 -/
 def tacenta_spqr.State.set_chains
   (self : tacenta_spqr.State) (e : Std.U64) (c : tacenta_spqr.Chains) :
   Result tacenta_spqr.State
@@ -3748,12 +3752,12 @@ def tacenta_spqr.State.set_chains
   ok { self with chains := v1 }
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::closure#1]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 571:20-571:69 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 565:20-565:69 -/
 @[reducible]
 def tacenta_spqr.State.clear_old_epochs.closure_1 := Std.U64
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::{impl core::ops::function::FnMut<(&'_ tacenta_triple_unit::tacenta_spqr::Skipped,), bool> for tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::closure#1<'_0>}::call_mut]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 571:20-571:69 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 565:20-565:69 -/
 def
   tacenta_spqr.State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool.call_mut
   (c : tacenta_spqr.State.clear_old_epochs.closure_1)
@@ -3766,7 +3770,7 @@ def
   ok (c < i, c)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::{impl core::ops::function::FnOnce<(&'_ tacenta_triple_unit::tacenta_spqr::Skipped,), bool> for tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::closure#1<'_0>}::call_once]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 571:20-571:69 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 565:20-565:69 -/
 def
   tacenta_spqr.State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnOnceTupleSharedSkippedBool.call_once
   (c : tacenta_spqr.State.clear_old_epochs.closure_1)
@@ -3779,7 +3783,7 @@ def
   ok b
 
 /-- Trait implementation: [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::{impl core::ops::function::FnOnce<(&'_ tacenta_triple_unit::tacenta_spqr::Skipped,), bool> for tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::closure#1<'_0>}]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 571:20-571:69 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 565:20-565:69 -/
 @[reducible]
 def
   tacenta_spqr.State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnOnceTupleSharedSkippedBool
@@ -3790,7 +3794,7 @@ def
 }
 
 /-- Trait implementation: [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::{impl core::ops::function::FnMut<(&'_ tacenta_triple_unit::tacenta_spqr::Skipped,), bool> for tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::closure#1<'_0>}]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 571:20-571:69 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 565:20-565:69 -/
 @[reducible]
 def
   tacenta_spqr.State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool
@@ -3803,12 +3807,12 @@ def
 }
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::closure]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 569:20-569:65 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 563:20-563:65 -/
 @[reducible]
 def tacenta_spqr.State.clear_old_epochs.closure := Std.U64
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::{impl core::ops::function::FnMut<(&'_ (u64, tacenta_triple_unit::tacenta_spqr::Chains),), bool> for tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::closure<'_0>}::call_mut]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 569:20-569:65 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 563:20-563:65 -/
 def
   tacenta_spqr.State.clear_old_epochs.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool.call_mut
   (c : tacenta_spqr.State.clear_old_epochs.closure)
@@ -3820,7 +3824,7 @@ def
   ok (c < i1, c)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::{impl core::ops::function::FnOnce<(&'_ (u64, tacenta_triple_unit::tacenta_spqr::Chains),), bool> for tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::closure<'_0>}::call_once]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 569:20-569:65 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 563:20-563:65 -/
 def
   tacenta_spqr.State.clear_old_epochs.closure.Insts.CoreOpsFunctionFnOnceTupleSharedPairU64ChainsBool.call_once
   (c : tacenta_spqr.State.clear_old_epochs.closure)
@@ -3833,7 +3837,7 @@ def
   ok b
 
 /-- Trait implementation: [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::{impl core::ops::function::FnOnce<(&'_ (u64, tacenta_triple_unit::tacenta_spqr::Chains),), bool> for tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::closure<'_0>}]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 569:20-569:65 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 563:20-563:65 -/
 @[reducible]
 def
   tacenta_spqr.State.clear_old_epochs.closure.Insts.CoreOpsFunctionFnOnceTupleSharedPairU64ChainsBool
@@ -3844,7 +3848,7 @@ def
 }
 
 /-- Trait implementation: [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::{impl core::ops::function::FnMut<(&'_ (u64, tacenta_triple_unit::tacenta_spqr::Chains),), bool> for tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs::closure<'_0>}]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 569:20-569:65 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 563:20-563:65 -/
 @[reducible]
 def
   tacenta_spqr.State.clear_old_epochs.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool
@@ -3857,7 +3861,7 @@ def
 }
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::clear_old_epochs]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 567:4-572:5 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 561:4-566:5 -/
 def tacenta_spqr.State.clear_old_epochs
   (self : tacenta_spqr.State) (current : Std.U64) :
   Result tacenta_spqr.State
@@ -3873,7 +3877,7 @@ def tacenta_spqr.State.clear_old_epochs
   ok { self with chains := v, skipped := v1 }
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::advance]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 589:4-616:5 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 583:4-610:5 -/
 def tacenta_spqr.State.advance
   (self : tacenta_spqr.State) (out : tacenta_spqr.Output) :
   Result ((core.result.Result Unit tacenta_spqr.SpqrError) ×
@@ -3915,7 +3919,7 @@ def tacenta_spqr.State.advance
         ok (core.result.Result.Ok (), self2)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::maybe_advance]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 618:4-623:5 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 612:4-617:5 -/
 def tacenta_spqr.State.maybe_advance
   (self : tacenta_spqr.State) (out : Option tacenta_spqr.Output) :
   Result ((core.result.Result Unit tacenta_spqr.SpqrError) ×
@@ -3926,7 +3930,7 @@ def tacenta_spqr.State.maybe_advance
   | some o => tacenta_spqr.State.advance self o
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::send]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 631:4-657:5
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 625:4-651:5
     Visibility: public -/
 def tacenta_spqr.State.send
   (self : tacenta_spqr.State) (sending_epoch : Std.U64)
@@ -3969,56 +3973,8 @@ def tacenta_spqr.State.send
         tacenta_spqr.SpqrError) residual
     ok (r1, self1)
 
-/-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::remove_skipped_at]: loop body 0:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 677:8-680:9 -/
-@[rust_loop_body]
-def tacenta_spqr.State.remove_skipped_at_loop.body
-  (skipped : alloc.vec.Vec tacenta_spqr.Skipped) (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec tacenta_spqr.Skipped) × Std.Usize)
-    ((alloc.vec.Vec tacenta_spqr.Skipped) × Std.Usize))
-  := do
-  let i1 ← i + 1#usize
-  let i2 := alloc.vec.Vec.len skipped
-  if i1 < i2
-  then
-    let (s, deref_mut_back) ← lift (alloc.vec.Vec.deref_mut skipped)
-    let s1 ← core.slice.Slice.swap s i i1
-    let skipped1 := deref_mut_back s1
-    ok (cont (skipped1, i1))
-  else ok (done (skipped, i))
-
-/-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::remove_skipped_at]: loop 0:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 677:8-680:9 -/
-@[rust_loop]
-def tacenta_spqr.State.remove_skipped_at_loop
-  (skipped : alloc.vec.Vec tacenta_spqr.Skipped) (i : Std.Usize) :
-  Result ((alloc.vec.Vec tacenta_spqr.Skipped) × Std.Usize)
-  := do
-  loop
-    (fun (skipped1, i1) => tacenta_spqr.State.remove_skipped_at_loop.body
-      skipped1 i1)
-    (skipped, i)
-
-/-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::remove_skipped_at]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 675:4-685:5 -/
-def tacenta_spqr.State.remove_skipped_at
-  (skipped : alloc.vec.Vec tacenta_spqr.Skipped) (index : Std.Usize) :
-  Result ((Array Std.U8 32#usize) × (alloc.vec.Vec tacenta_spqr.Skipped))
-  := do
-  let (skipped1, i) ← tacenta_spqr.State.remove_skipped_at_loop skipped index
-  let s ←
-    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-      tacenta_spqr.Skipped) skipped1 i
-  let (s1, index_mut_back) ←
-    alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
-      tacenta_spqr.Skipped) skipped1 i
-  let s2 ← tacenta_spqr.Skipped.Insts.ZeroizeZeroize.zeroize s1
-  let skipped2 := index_mut_back s2
-  let (_, skipped3) ← alloc.vec.Vec.pop Global skipped2
-  ok (s.key, skipped3)
-
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::try_skipped]: loop body 0:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 663:8-670:5 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 657:8-664:5 -/
 @[rust_loop_body]
 def tacenta_spqr.State.try_skipped_loop.body
   (self : tacenta_spqr.State) (e : Std.U64) (n : Std.U64) (i : Std.Usize) :
@@ -4048,7 +4004,7 @@ def tacenta_spqr.State.try_skipped_loop.body
       self.direction))
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::try_skipped]: loop 0:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 663:8-670:5 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 657:8-664:5 -/
 @[rust_loop]
 def tacenta_spqr.State.try_skipped_loop
   (self : tacenta_spqr.State) (e : Std.U64) (n : Std.U64) (i : Std.Usize) :
@@ -4061,7 +4017,7 @@ def tacenta_spqr.State.try_skipped_loop
     i
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::try_skipped]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 661:4-670:5 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 655:4-664:5 -/
 def tacenta_spqr.State.try_skipped
   (self : tacenta_spqr.State) (e : Std.U64) (n : Std.U64) :
   Result ((Option (Array Std.U8 32#usize)) × tacenta_spqr.State)
@@ -4071,7 +4027,7 @@ def tacenta_spqr.State.try_skipped
   ok (o, { rk := a, epoch := i, chains := v, skipped := v1, direction := d })
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::skip_message_keys]: loop body 0:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 717:8-727:9 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 711:8-721:9 -/
 @[rust_loop_body]
 def tacenta_spqr.State.skip_message_keys_loop0.body
   (e : Std.U64) (upto : Std.U64) (ck : Array Std.U8 32#usize)
@@ -4094,7 +4050,7 @@ def tacenta_spqr.State.skip_message_keys_loop0.body
   else ok (done (ck, derived))
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::skip_message_keys]: loop 0:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 717:8-727:9 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 711:8-721:9 -/
 @[rust_loop]
 def tacenta_spqr.State.skip_message_keys_loop0
   (e : Std.U64) (upto : Std.U64) (ck : Array Std.U8 32#usize)
@@ -4107,7 +4063,7 @@ def tacenta_spqr.State.skip_message_keys_loop0
     (ck, derived, num)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::skip_message_keys]: loop body 1:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 734:8-740:9 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 728:8-734:9 -/
 @[rust_loop_body]
 def tacenta_spqr.State.skip_message_keys_loop1.body
   (v : alloc.vec.Vec tacenta_spqr.Skipped) (e : Std.U64) (upto : Std.U64)
@@ -4146,7 +4102,7 @@ def tacenta_spqr.State.skip_message_keys_loop1.body
   else ok (done skipped)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::skip_message_keys]: loop 1:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 734:8-740:9 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 728:8-734:9 -/
 @[rust_loop]
 def tacenta_spqr.State.skip_message_keys_loop1
   (v : alloc.vec.Vec tacenta_spqr.Skipped) (e : Std.U64) (upto : Std.U64)
@@ -4160,7 +4116,7 @@ def tacenta_spqr.State.skip_message_keys_loop1
     (skipped, i1)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::skip_message_keys]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 692:4-751:5 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 686:4-745:5 -/
 def tacenta_spqr.State.skip_message_keys
   (self : tacenta_spqr.State) (e : Std.U64) (upto : Std.U64) :
   Result ((core.result.Result Unit tacenta_spqr.SpqrError) ×
@@ -4215,7 +4171,7 @@ def tacenta_spqr.State.skip_message_keys
             ok (core.result.Result.Ok (), self1)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::receive]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 765:4-803:5
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 759:4-797:5
     Visibility: public -/
 def tacenta_spqr.State.receive
   (self : tacenta_spqr.State) (receiving_epoch : Std.U64)
@@ -4282,11 +4238,11 @@ def tacenta_spqr.State.receive
     ok (r1, self1)
 
 /-- [tacenta_triple_unit::tacenta_spqr::STATE_VERSION]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 810:0-810:31 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 804:0-804:31 -/
 @[global_simps, irreducible] def tacenta_spqr.STATE_VERSION : Std.U8 := 1#u8
 
 /-- [tacenta_triple_unit::tacenta_spqr::SpqrDecodeError]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 821:0-825:1
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 815:0-819:1
     Visibility: public -/
 @[discriminant isize]
 inductive tacenta_spqr.SpqrDecodeError where
@@ -4295,7 +4251,7 @@ inductive tacenta_spqr.SpqrDecodeError where
 | Malformed : tacenta_spqr.SpqrDecodeError
 
 /-- [tacenta_triple_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_triple_unit::tacenta_spqr::SpqrDecodeError}::clone]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 820:9-820:14
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 814:9-814:14
     Visibility: public -/
 def tacenta_spqr.SpqrDecodeError.Insts.CoreCloneClone.clone
   (self : tacenta_spqr.SpqrDecodeError) :
@@ -4304,7 +4260,7 @@ def tacenta_spqr.SpqrDecodeError.Insts.CoreCloneClone.clone
   ok self
 
 /-- Trait implementation: [tacenta_triple_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_triple_unit::tacenta_spqr::SpqrDecodeError}]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 820:9-820:14 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 814:9-814:14 -/
 @[reducible]
 def tacenta_spqr.SpqrDecodeError.Insts.CoreCloneClone : core.clone.Clone
   tacenta_spqr.SpqrDecodeError := {
@@ -4312,7 +4268,7 @@ def tacenta_spqr.SpqrDecodeError.Insts.CoreCloneClone : core.clone.Clone
 }
 
 /-- Trait implementation: [tacenta_triple_unit::tacenta_spqr::{impl core::marker::Copy for tacenta_triple_unit::tacenta_spqr::SpqrDecodeError}]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 820:16-820:20 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 814:16-814:20 -/
 @[reducible]
 def tacenta_spqr.SpqrDecodeError.Insts.CoreMarkerCopy : core.marker.Copy
   tacenta_spqr.SpqrDecodeError := {
@@ -4320,14 +4276,14 @@ def tacenta_spqr.SpqrDecodeError.Insts.CoreMarkerCopy : core.marker.Copy
 }
 
 /-- Trait implementation: [tacenta_triple_unit::tacenta_spqr::{impl core::marker::StructuralPartialEq for tacenta_triple_unit::tacenta_spqr::SpqrDecodeError}]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 820:22-820:31 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 814:22-814:31 -/
 @[reducible]
 def tacenta_spqr.SpqrDecodeError.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq tacenta_spqr.SpqrDecodeError := {
 }
 
 /-- [tacenta_triple_unit::tacenta_spqr::{impl core::cmp::PartialEq<tacenta_triple_unit::tacenta_spqr::SpqrDecodeError> for tacenta_triple_unit::tacenta_spqr::SpqrDecodeError}::eq]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 820:22-820:31
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 814:22-814:31
     Visibility: public -/
 def tacenta_spqr.SpqrDecodeError.Insts.CoreCmpPartialEqSpqrDecodeError.eq
   (self : tacenta_spqr.SpqrDecodeError) (other : tacenta_spqr.SpqrDecodeError)
@@ -4339,7 +4295,7 @@ def tacenta_spqr.SpqrDecodeError.Insts.CoreCmpPartialEqSpqrDecodeError.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tacenta_triple_unit::tacenta_spqr::{impl core::cmp::PartialEq<tacenta_triple_unit::tacenta_spqr::SpqrDecodeError> for tacenta_triple_unit::tacenta_spqr::SpqrDecodeError}]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 820:22-820:31 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 814:22-814:31 -/
 @[reducible]
 impl_def tacenta_spqr.SpqrDecodeError.Insts.CoreCmpPartialEqSpqrDecodeError :
   core.cmp.PartialEq tacenta_spqr.SpqrDecodeError tacenta_spqr.SpqrDecodeError
@@ -4350,14 +4306,14 @@ impl_def tacenta_spqr.SpqrDecodeError.Insts.CoreCmpPartialEqSpqrDecodeError :
 }
 
 /-- [tacenta_triple_unit::tacenta_spqr::{impl core::cmp::Eq for tacenta_triple_unit::tacenta_spqr::SpqrDecodeError}::assert_fields_are_eq]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 820:33-820:35
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 814:33-814:35
     Visibility: public -/
 def tacenta_spqr.SpqrDecodeError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : tacenta_spqr.SpqrDecodeError) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_triple_unit::tacenta_spqr::{impl core::cmp::Eq for tacenta_triple_unit::tacenta_spqr::SpqrDecodeError}]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 820:33-820:35 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 814:33-814:35 -/
 @[reducible]
 def tacenta_spqr.SpqrDecodeError.Insts.CoreCmpEq : core.cmp.Eq
   tacenta_spqr.SpqrDecodeError := {
@@ -4368,7 +4324,7 @@ def tacenta_spqr.SpqrDecodeError.Insts.CoreCmpEq : core.cmp.Eq
 }
 
 /-- [tacenta_triple_unit::tacenta_spqr::{impl core::fmt::Debug for tacenta_triple_unit::tacenta_spqr::SpqrDecodeError}::fmt]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 820:37-820:42
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 814:37-814:42
     Visibility: public -/
 def tacenta_spqr.SpqrDecodeError.Insts.CoreFmtDebug.fmt
   (self : tacenta_spqr.SpqrDecodeError) (f : core.fmt.Formatter) :
@@ -4383,7 +4339,7 @@ def tacenta_spqr.SpqrDecodeError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "Malformed")
 
 /-- Trait implementation: [tacenta_triple_unit::tacenta_spqr::{impl core::fmt::Debug for tacenta_triple_unit::tacenta_spqr::SpqrDecodeError}]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 820:37-820:42 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 814:37-814:42 -/
 @[reducible]
 def tacenta_spqr.SpqrDecodeError.Insts.CoreFmtDebug : core.fmt.Debug
   tacenta_spqr.SpqrDecodeError := {
@@ -4391,14 +4347,14 @@ def tacenta_spqr.SpqrDecodeError.Insts.CoreFmtDebug : core.fmt.Debug
 }
 
 /-- [tacenta_triple_unit::tacenta_spqr::CHAIN_LEN]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 830:0-830:36 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 824:0-824:36 -/
 @[global_simps, irreducible]
 def tacenta_spqr.CHAIN_LEN : Result Std.Usize := do
   let i ← 1#usize + 32#usize
   i + 8#usize
 
 /-- [tacenta_triple_unit::tacenta_spqr::CHAINS_LEN]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 831:0-831:44 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 825:0-825:44 -/
 @[global_simps, irreducible]
 def tacenta_spqr.CHAINS_LEN : Result Std.Usize := do
   let i ← tacenta_spqr.CHAIN_LEN
@@ -4406,14 +4362,14 @@ def tacenta_spqr.CHAINS_LEN : Result Std.Usize := do
   8#usize + i1
 
 /-- [tacenta_triple_unit::tacenta_spqr::SKIPPED_LEN]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 832:0-832:38 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 826:0-826:38 -/
 @[global_simps, irreducible]
 def tacenta_spqr.SKIPPED_LEN : Result Std.Usize := do
   let i ← 8#usize + 8#usize
   i + 32#usize
 
 /-- [tacenta_triple_unit::tacenta_spqr::FIXED_PREFIX]
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 834:0-838:8 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 828:0-832:8 -/
 @[global_simps, irreducible]
 def tacenta_spqr.FIXED_PREFIX : Result Std.Usize := do
   let i ← 1#usize + 32#usize
@@ -4422,7 +4378,7 @@ def tacenta_spqr.FIXED_PREFIX : Result Std.Usize := do
   i2 + 4#usize
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::Direction}::to_byte]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 841:4-846:5 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 835:4-840:5 -/
 def tacenta_spqr.Direction.to_byte
   (self : tacenta_spqr.Direction) : Result Std.U8 := do
   match self with
@@ -4430,7 +4386,7 @@ def tacenta_spqr.Direction.to_byte
   | tacenta_spqr.Direction.B2a => ok 1#u8
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::Direction}::from_byte]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 848:4-854:5 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 842:4-848:5 -/
 def tacenta_spqr.Direction.from_byte
   (b : Std.U8) : Result (Option tacenta_spqr.Direction) := do
   match b with
@@ -4439,7 +4395,7 @@ def tacenta_spqr.Direction.from_byte
   | _ => ok none
 
 /-- [tacenta_triple_unit::tacenta_spqr::push_optional_chain]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 857:0-870:1 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 851:0-864:1 -/
 def tacenta_spqr.push_optional_chain
   (out : alloc.vec.Vec Std.U8) (chain : Option tacenta_spqr.Chain) :
   Result (alloc.vec.Vec Std.U8)
@@ -4462,7 +4418,7 @@ def tacenta_spqr.push_optional_chain
     alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s1
 
 /-- [tacenta_triple_unit::tacenta_spqr::decode_chain]: loop body 0:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 892:12-897:13 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 886:12-891:13 -/
 @[rust_loop_body]
 def tacenta_spqr.decode_chain_loop.body
   (i : Std.Usize) (bytes : Slice Std.U8) (pos : Std.Usize) (clean : Bool)
@@ -4481,7 +4437,7 @@ def tacenta_spqr.decode_chain_loop.body
   else ok (done clean)
 
 /-- [tacenta_triple_unit::tacenta_spqr::decode_chain]: loop 0:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 892:12-897:13 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 886:12-891:13 -/
 @[rust_loop]
 def tacenta_spqr.decode_chain_loop
   (i : Std.Usize) (bytes : Slice Std.U8) (pos : Std.Usize) (clean : Bool)
@@ -4494,7 +4450,7 @@ def tacenta_spqr.decode_chain_loop
     (clean, i1)
 
 /-- [tacenta_triple_unit::tacenta_spqr::decode_chain]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 875:0-912:1 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 869:0-906:1 -/
 def tacenta_spqr.decode_chain
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option (Option tacenta_spqr.Chain))
@@ -4538,7 +4494,7 @@ def tacenta_spqr.decode_chain
     | _ => ok none
 
 /-- [tacenta_triple_unit::tacenta_spqr::decode_chains_entry]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 916:0-931:1 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 910:0-925:1 -/
 def tacenta_spqr.decode_chains_entry
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option (Std.U64 × tacenta_spqr.Chains))
@@ -4569,7 +4525,7 @@ def tacenta_spqr.decode_chains_entry
         ok (some (i4, { send := v, receive := v1 }))
 
 /-- [tacenta_triple_unit::tacenta_spqr::decode_skipped_entry]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 934:0-949:1 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 928:0-943:1 -/
 def tacenta_spqr.decode_skipped_entry
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option tacenta_spqr.Skipped)
@@ -4609,7 +4565,7 @@ def tacenta_spqr.decode_skipped_entry
     ok (some { epoch := i6, n := i7, key := key1 })
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::encoded_len]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 997:4-1001:5 -/
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 991:4-995:5 -/
 def tacenta_spqr.State.encoded_len
   (self : tacenta_spqr.State) : Result Std.Usize := do
   let i := alloc.vec.Vec.len self.chains
@@ -4624,7 +4580,7 @@ def tacenta_spqr.State.encoded_len
   i5 + i8
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::to_bytes]: loop body 0:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 965:8-971:9
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 959:8-965:9
     Visibility: public -/
 @[rust_loop_body]
 def tacenta_spqr.State.to_bytes_loop0.body
@@ -4649,7 +4605,7 @@ def tacenta_spqr.State.to_bytes_loop0.body
   else ok (done out)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::to_bytes]: loop 0:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 965:8-971:9
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 959:8-965:9
     Visibility: public -/
 @[rust_loop]
 def tacenta_spqr.State.to_bytes_loop0
@@ -4662,7 +4618,7 @@ def tacenta_spqr.State.to_bytes_loop0
     (out, i)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::to_bytes]: loop body 1:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 974:8-980:9
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 968:8-974:9
     Visibility: public -/
 @[rust_loop_body]
 def tacenta_spqr.State.to_bytes_loop1.body
@@ -4690,7 +4646,7 @@ def tacenta_spqr.State.to_bytes_loop1.body
   else ok (done out)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::to_bytes]: loop 1:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 974:8-980:9
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 968:8-974:9
     Visibility: public -/
 @[rust_loop]
 def tacenta_spqr.State.to_bytes_loop1
@@ -4703,7 +4659,7 @@ def tacenta_spqr.State.to_bytes_loop1
     (out, j)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::to_bytes]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 956:4-989:5
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 950:4-983:5
     Visibility: public -/
 def tacenta_spqr.State.to_bytes
   (self : tacenta_spqr.State) :
@@ -4737,7 +4693,7 @@ def tacenta_spqr.State.to_bytes
     (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) out8
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::from_bytes]: loop body 0:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 1047:8-1055:9
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 1041:8-1049:9
     Visibility: public -/
 @[rust_loop_body]
 def tacenta_spqr.State.from_bytes_loop0.body
@@ -4763,7 +4719,7 @@ def tacenta_spqr.State.from_bytes_loop0.body
       ok (cont (iter1, pos1, chains1, chains_ok))
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::from_bytes]: loop 0:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 1047:8-1055:9
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 1041:8-1049:9
     Visibility: public -/
 @[rust_loop]
 def tacenta_spqr.State.from_bytes_loop0
@@ -4781,7 +4737,7 @@ def tacenta_spqr.State.from_bytes_loop0
     (iter, pos, chains, chains_ok)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::from_bytes]: loop body 1:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 1074:8-1082:9
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 1068:8-1076:9
     Visibility: public -/
 @[rust_loop_body]
 def tacenta_spqr.State.from_bytes_loop1.body
@@ -4806,7 +4762,7 @@ def tacenta_spqr.State.from_bytes_loop1.body
       ok (cont (iter1, pos1, skipped1, skipped_ok))
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::from_bytes]: loop 1:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 1074:8-1082:9
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 1068:8-1076:9
     Visibility: public -/
 @[rust_loop]
 def tacenta_spqr.State.from_bytes_loop1
@@ -4822,7 +4778,7 @@ def tacenta_spqr.State.from_bytes_loop1
     (iter, pos, skipped, skipped_ok)
 
 /-- [tacenta_triple_unit::tacenta_spqr::{tacenta_triple_unit::tacenta_spqr::State}::from_bytes]:
-    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 1005:4-1108:5
+    Source: 'triple-unit/src/../../spqr/src/lib.rs', lines 999:4-1102:5
     Visibility: public -/
 def tacenta_spqr.State.from_bytes
   (bytes : Slice Std.U8) :

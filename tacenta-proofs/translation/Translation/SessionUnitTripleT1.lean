@@ -10,8 +10,8 @@ import Translation.SessionUnitSpqrT1
 /-!
 # T1 for the Triple Ratchet, restated about the eight-leaf Session translation unit
 
-The Triple Ratchet's panic-freedom, about `Translation/TacentaTripleUnit.lean`
--- the translation of `tacenta-core/triple-unit`, where the Triple Ratchet and
+The Triple Ratchet's panic-freedom, about `Translation/TacentaSessionUnit.lean`
+-- the translation of `tacenta-core/session-unit`, where the Triple Ratchet and
 both inner ratchets compile as one crate. It began as `Translation/TripleT1.lean`,
 the proof about the Triple translated on its own, deleted after 2a89a7f. The
 difference that mattered was not the names. In `TripleT1.lean` every operation
