@@ -76,6 +76,9 @@ def arrayOf {n : Usize} (a : Array Std.U8 n) : Bytes :=
 by `DhView`.  This is a representation relation for a boundary already present
 in T1, rather than a new cryptographic primitive contract. -/
 structure DhCodecOf (view : DhView) : Prop where
+  privateFromBytes : ∀ bytes, ∃ privateKey,
+    tacenta_boundary.dh.PrivateKey.from_bytes bytes = ok privateKey ∧
+    view.privateKey privateKey = arrayOf bytes
   fromBytes : ∀ bytes, ∃ publicKey,
     tacenta_boundary.dh.PublicKeyBytes.from_bytes bytes = ok publicKey ∧
     view.publicKey publicKey = arrayOf bytes
@@ -150,6 +153,20 @@ structure OracleOf {R : Type}
     ∃ value rng',
       lifecycle.random_secret rngCore cryptoRng rng = ok (value, rng') ∧
       arrayOf value = draw ∧ trace rng' = rest
+
+/-- Exact constructor/projection behaviour needed from the external `zeroize`
+newtype at the two wrapper types used by successful Session encryption. -/
+def ZeroizingRoundTrips (T : Type) : Prop :=
+  ∀ inst : zeroize.Zeroize T,
+    (∀ value, ∃ wrapped, zeroize.Zeroizing.new inst value = ok wrapped ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst wrapped = ok value)
+
+theorem zeroizing_roundtrip (hz : ZeroizingRoundTrips T)
+    (inst : zeroize.Zeroize T) (value : T) :
+    ∃ wrapped, zeroize.Zeroizing.new inst value = ok wrapped ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst wrapped = ok value :=
+  hz inst value
+
 
 /-! ## Erasure-codeword view agreement -/
 
@@ -1952,6 +1969,113 @@ theorem decrypt_ratchet_first_dh_refusal_step_refines {R : Type}
   rw [hmodel]
   exact ⟨rfl, hrel, htrace⟩
 
+/-- A non-contributory second DH agreement is also atomic, but the
+candidate-private draw has already been consumed.  The returned session is the
+original one while the oracle/RNG trace advances by exactly that draw. -/
+theorem decrypt_ratchet_second_dh_refusal_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (codec : DhCodecOf dh)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (decoded : tacenta_wire.DecodedMessage)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (realBraidMessage : tacenta_braid.Msg) (receivedEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output)
+    (realBraidCandidate : tacenta_braid.Braid)
+    (realSparseOutput : Option tacenta_spqr.Output)
+    (draw modelDhOutRecv : Model.Lifecycle.Key)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeReal : tacenta_wire.decode_message message = ok (.Ok decoded))
+    (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (modelComposite, vecOf decoded.ciphertext))
+    (hcomposite : CompositeRefines decoded.header modelComposite)
+    (hmessageCall : lifecycle.msg_of decoded.header = ok realBraidMessage)
+    (hmessageRel : Tacenta.SessionUnitBraidT3.MsgRefines realBraidMessage
+      (Model.Lifecycle.braidMessageOf view model.braid modelComposite))
+    (hreceive : tacenta_braid.Braid.receive real.braid realBraidMessage =
+      ok (receivedEpoch, realOutput, realBraidCandidate))
+    (hsparse : RealSparseConversion realOutput realSparseOutput)
+    (hmodelFirst : oracle.dhAgree model.ratchetPrivate modelComposite.dh =
+      some modelDhOutRecv)
+    (hmodelDraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext))
+    (hmodelSecond : oracle.dhAgree draw modelComposite.dh = none) :
+    ∃ output,
+      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+        ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
+  have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
+    cases hb : model.braid <;>
+      simp [Model.Lifecycle.agreementFailed, Model.Lifecycle.braidFailed, hb] at hready ⊢
+  rw [hmodelReady] at hrealReady
+  obtain ⟨peer, hpeerCall, hpeerValue⟩ := codec.fromBytes decoded.header.dh
+  obtain ⟨firstAgreement, hfirstCall, hfirstValue⟩ :=
+    oracleOf.dhAgree real.ratchet_private peer
+  have hfirstSome : ∃ secret, firstAgreement = some secret ∧
+      arrayOf secret = modelDhOutRecv := by
+    rw [hrel.ratchetPrivate, hpeerValue, hcomposite.dh, hmodelFirst] at hfirstValue
+    cases firstAgreement with
+    | none => simp at hfirstValue
+    | some secret =>
+        refine ⟨secret, rfl, ?_⟩
+        simpa using hfirstValue
+  obtain ⟨secret, rfl, hsecretValue⟩ := hfirstSome
+  let inst32 := Array.Insts.ZeroizeZeroize 32#usize
+    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)
+  obtain ⟨wrappedSecret, hwrapSecret, hderefSecret⟩ :=
+    zeroizing_roundtrip hz32 inst32 secret
+  have hdrawTrace : ∃ rest, trace rng = draw :: rest ∧ oracleNext.draws = rest := by
+    cases hd : oracle.draws with
+    | nil => simp [Model.Lifecycle.random32, Model.Lifecycle.takeDraw, hd] at hmodelDraw
+    | cons head rest =>
+        simp only [Model.Lifecycle.random32, Model.Lifecycle.takeDraw, hd,
+          Option.some.injEq, Prod.mk.injEq] at hmodelDraw
+        obtain ⟨rfl, rfl⟩ := hmodelDraw
+        exact ⟨rest, by simpa [htrace, hd], rfl⟩
+  obtain ⟨rest, htraceDraw, horacleNextDraws⟩ := hdrawTrace
+  obtain ⟨candidateBytes, realRngNext, hrandomCall, hcandidateBytes,
+      hrealTraceNext⟩ := oracleOf.random32 rng draw rest htraceDraw
+  obtain ⟨candidatePrivate, hcandidateCall, hcandidateValue⟩ :=
+    codec.privateFromBytes candidateBytes
+  have hcandidateDraw : dh.privateKey candidatePrivate = draw := by
+    rw [hcandidateValue, hcandidateBytes]
+  obtain ⟨secondAgreement, hsecondCall, hsecondValue⟩ :=
+    oracleOf.dhAgree candidatePrivate peer
+  have hsecondNone : secondAgreement = none := by
+    rw [hcandidateDraw, hpeerValue, hcomposite.dh, hmodelSecond] at hsecondValue
+    cases secondAgreement <;> simp_all
+  subst secondAgreement
+  have hreal : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err (.Handshake SessionError.NonContributoryAgreement), real, realRngNext) := by
+    unfold lifecycle.Session.decrypt_ratchet
+    cases hsparse with
+    | none hout =>
+        simp [hrealReady, hdecodeReal, hmessageCall, hreceive, hout, hpeerCall,
+          hfirstCall, hwrapSecret, hderefSecret, hrandomCall, hcandidateCall,
+          hsecondCall, inst32]
+    | some realSparse converted hout hconverted =>
+        simp [hrealReady, hdecodeReal, hmessageCall, hreceive, hout, hconverted,
+          hpeerCall, hfirstCall, hwrapSecret, hderefSecret, hrandomCall,
+          hcandidateCall, hsecondCall, inst32]
+  have hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session := model,
+        result := .error (.handshake .nonContributoryAgreement),
+        oracle := oracleNext } := by
+    simp [Model.Lifecycle.decryptRatchet, hready, hdecodeModel, hmodelFirst,
+      hmodelDraw, hmodelSecond]
+  refine ⟨(.Err (.Handshake SessionError.NonContributoryAgreement), real, realRngNext),
+    hreal, ?_⟩
+  rw [hmodel]
+  exact ⟨rfl, hrel, by simpa [horacleNextDraws] using hrealTraceNext⟩
+
 /-- The Triple refusal branch is atomic at the lifecycle boundary.  Braid has
 already produced a candidate next state, but neither implementation commits it
 when Triple send refuses; only the already-consumed RNG trace advances. -/
@@ -2323,19 +2447,6 @@ theorem encode_initial_refines
     tacenta_wire.TYPE_INITIAL, Model.Messages.version, Model.Messages.typeInitial,
     Tacenta.SessionUnitBraidT3.u8]
   all_goals rfl
-
-/-- Exact constructor/projection behaviour needed from the external `zeroize`
-newtype at the two wrapper types used by successful Session encryption. -/
-def ZeroizingRoundTrips (T : Type) : Prop :=
-  ∀ inst : zeroize.Zeroize T,
-    (∀ value, ∃ wrapped, zeroize.Zeroizing.new inst value = ok wrapped ∧
-      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst wrapped = ok value)
-
-theorem zeroizing_roundtrip (hz : ZeroizingRoundTrips T)
-    (inst : zeroize.Zeroize T) (value : T) :
-    ∃ wrapped, zeroize.Zeroizing.new inst value = ok wrapped ∧
-      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst wrapped = ok value :=
-  hz inst value
 
 set_option maxHeartbeats 4000000 in
 /-- Successful established-session encryption refines the executable lifecycle
