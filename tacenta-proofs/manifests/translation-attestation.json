@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "_note": "Written only by `tacenta-proofs/scripts/attest.py --refresh-translation` after the source tree is committed and `scripts/run-aeneas.sh` has run on the pinned toolchain, and compared against by every other mode. A green `attest.py --check` establishes that each generated Translation/Tacenta*.lean is a module run-aeneas.sh produces, is byte for byte the file recorded here, declares exactly the axioms recorded here (as text; no-sorry.sh compares the same record with what the axiom audit saw in the built environment), and that the Rust verified zone it was generated from, and the workspace inputs that shape every zone's extraction (Cargo.toml and its profiles, Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed to when this was written, as recorded by whoever ran the toolchain. Where a zone is assembled rather than written (the Triple, Braid-and-erasure, and complete Session units), the record carries an `assembly` field naming the script and every leaf tree it was assembled from, with their hashes, and --check fails if any of them has moved since; each assembly script's --check mode is the separate question of whether the unit crate in the tree is what those leaves assemble to. It does not establish that the toolchain was run, or run honestly: that is checked by regenerating with run-aeneas.sh and diffing, which REPRODUCING.md describes.",
-  "generated_at_commit": "2d29e754e3390c633ffae61ae7144fd6c64a6b8a",
+  "generated_at_commit": "d82d923edfc4b485f01d3063fa3428d756db11dc",
   "aeneas": {
     "release": "nightly-2026.07.22-b1214ca",
     "commit": "b1214ca0a024e8121f41fe2b2ed15e26af02373b"
@@ -147,7 +147,7 @@
     },
     "tacenta-proofs/translation/Translation/TacentaLifecycle.lean": {
       "module": "TacentaLifecycle",
-      "sha256": "ac747d479dcc4fb506aa444c3aa638ca69aa974d249d0449b162c024a5f20109",
+      "sha256": "c41cd1002b772499f1d6046dc959a31806b77922fa427b403bdc00aff5abbc68",
       "axioms": [
         "Array.Insts.ZeroizeZeroize.zeroize",
         "Pair.Insts.ZeroizeZeroize.zeroize",
@@ -263,7 +263,7 @@
         "zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop"
       ],
       "zone": "tacenta-core/lifecycle",
-      "zone_sha256": "da67c14bcec50d7c19541c5b3c6d6f0cb6f372523582e58337ffd25893d8eb2b",
+      "zone_sha256": "d56bb5ac93b9a4e5f316e20863ba6a41e9453beb7049449f6db456e3bc72a4e4",
       "workspace_sha256": "a406a864157cb159a5984e67e9bd97e81ef1b69f34c605153a3c9b4d87e704ae"
     },
     "tacenta-proofs/translation/Translation/TacentaProtobuf.lean": {
@@ -315,7 +315,7 @@
     },
     "tacenta-proofs/translation/Translation/TacentaSessionUnit.lean": {
       "module": "TacentaSessionUnit",
-      "sha256": "2f9c09232f7c3c87acef6981c3939c72cb634bb7987eadd47d718e819e81c324",
+      "sha256": "ff6f79e122dfc4ebb4a46f88a110713783c5ab6e629898c23c54cee1ac052a64",
       "axioms": [
         "Array.Insts.ZeroizeZeroize.zeroize",
         "Pair.Insts.ZeroizeZeroize.zeroize",
@@ -406,7 +406,7 @@
         "zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop"
       ],
       "zone": "tacenta-core/session-unit",
-      "zone_sha256": "18278d7c611884956a88b95806dbe9959ee223f6e1d94ed5ed4dfba4a8842b96",
+      "zone_sha256": "e63ccfcf13bbbe5c96b2c536b05ce0e2bb59379a1e1b8575c93f8b16881b26bf",
       "workspace_sha256": "a406a864157cb159a5984e67e9bd97e81ef1b69f34c605153a3c9b4d87e704ae",
       "assembly": {
         "script": "tacenta-proofs/scripts/assemble-session-unit.sh",
@@ -419,7 +419,7 @@
           "tacenta-core/braid": "c04ff6f3e84e1a0359d78e673b7cc00ccc4763630bdb44f28097e883a11552e5",
           "tacenta-core/session": "8787922771750122604b33da2448b26a5cd80320a05b57eab6794013adf4bd7d",
           "tacenta-core/wire": "65a7272da73d7f6b74efaf4241d59da1297db2d95e356742dd260854a392a99e",
-          "tacenta-core/lifecycle": "da67c14bcec50d7c19541c5b3c6d6f0cb6f372523582e58337ffd25893d8eb2b"
+          "tacenta-core/lifecycle": "d56bb5ac93b9a4e5f316e20863ba6a41e9453beb7049449f6db456e3bc72a4e4"
         }
       }
     },
