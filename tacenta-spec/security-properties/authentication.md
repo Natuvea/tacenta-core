@@ -42,10 +42,10 @@ message).
 - **Rests on:** ASM-03, ASM-07, ASM-14, ASM-19.
 - **Status: tested only.**
   - `a_forged_signed_prekey_is_rejected` and `a_forged_kem_prekey_is_rejected`
-    (`tacenta-core/src/sessions/mod.rs`).
+    (`tacenta-core/lifecycle/src/lib.rs`).
   - The verifier's accepted set is pinned by the twenty vectors in
     `tacenta-test-vectors/vectors/primitives/xeddsa.json`, and by the tests in
-    `tacenta-core/src/primitives/xeddsa.rs`.
+    `tacenta-core/boundary/src/xeddsa.rs`.
   - No proof covers signature verification.
 - **Does not cover:**
   - That the identity key is the peer's (ASM-14; REQ-AUTH-02).
@@ -292,7 +292,7 @@ The refusal changes nothing.
     `establish_initiator_refuses_a_low_order_bundle_key`,
     `establish_responder_refuses_a_low_order_initiator_key_and_changes_nothing`
     and `decrypt_refuses_a_low_order_ratchet_header_and_changes_nothing`.
-  - `low_order_peer_keys_are_rejected` (`tacenta-core/src/primitives/dh.rs`).
+  - `low_order_peer_keys_are_rejected` (`tacenta-core/boundary/src/dh.rs`).
 - **Does not cover:** a contributory output the attacker knows because it holds
   the private key (ADV-02).
 

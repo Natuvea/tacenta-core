@@ -104,17 +104,20 @@ than discouraged.
 | `tacenta-core/braid/src/lib.rs::Braid::receive` | `(u64, Option<Output>, Braid)`, adopted by `commit` |
 | `tacenta-core/braid/src/lib.rs::Braid::step_receive` | the receive logic proper: `&self`, takes the current `State` by value and returns the next one; `receive` wraps it and hands back the candidate `Braid`. Registered separately because the gate matches verbs anywhere in a name. |
 | `tacenta-core/braid/src/lib.rs::Braid::commit` | the adopting half |
-| `tacenta-core/src/sessions/lifecycle.rs::PrekeyStore::signatures_verify` | a `bool`: whether every stored signature verifies under `identity_public` (session-persistence.md, Prekey store, Semantic rules). Registered here rather than among the decoders so the gate enforces the `&self` it is safe because of: the decoders heading promises no shape, so a change to `&mut self` would pass there unnoticed. Reached only through `from_bytes`, and only after the structural rules have passed, so the verification work is bounded by a store the decoder already accepted rather than by whatever an attacker wrote -- an ordering the tests pin, because it is an argument and not an accident. |
+| `tacenta-core/lifecycle/src/lifecycle.rs::PrekeyStore::signatures_verify` | a `bool`: whether every stored signature verifies under `identity_public` (session-persistence.md, Prekey store, Semantic rules). Registered here rather than among the decoders so the gate enforces the `&self` it is safe because of: the decoders heading promises no shape, so a change to `&mut self` would pass there unnoticed. Reached only through `from_bytes`, and only after the structural rules have passed, so the verification work is bounded by a store the decoder already accepted rather than by whatever an attacker wrote -- an ordering the tests pin, because it is an argument and not an accident. |
+| `tacenta-core/lifecycle/src/lifecycle.rs::receive_attempt` | takes the current Triple state by shared reference and returns a candidate state and key; it cannot commit either. |
+| `tacenta-core/lifecycle/src/lifecycle.rs::receive_with_eviction` | clones the current Triple state, evicts only from that clone, and returns a candidate state and key. The caller commits the candidate only after AEAD authentication. |
 
 ### Orchestration, transactional by construction
 
 | function | how |
 |---|---|
-| `tacenta-core/src/sessions/lifecycle.rs::Session::decrypt_ratchet` | takes `&self` candidates from `Triple::receive` and `Braid::receive`, verifies the tag, then assigns; it clones the whole ratchet itself only on the eviction-and-retry path for a full skipped-key store (CR-11). Private, and the function this registry exists for: it touches the most state on the receive path. |
-| `tacenta-core/src/sessions/lifecycle.rs::Session::decrypt` | the public wrapper; does no state change of its own beyond clearing `pending_initial` after a successful decrypt |
-| `tacenta-core/src/sessions/lifecycle.rs::establish_responder` | reads prekeys and, on the last-resort path, the replay record -- refusing a repeated fingerprint (`ReplayedLastResort`) or a full record (`LastResortRecordFull`) before decryption, and writing nothing on either refusal -- then authenticates, then deletes and records. The one consuming function here whose name does not start with a consuming verb. |
-| `tacenta-core/src/sessions/lifecycle.rs::establish_initiator` | consumes a peer's published bundle, which an attacker supplies through the directory. Verifies both prekey signatures before deriving, and holds no local state that a failure could consume: a refusal leaves this party exactly as it was. |
-| `tacenta-core/src/sessions/lifecycle.rs::establish_initiator_for` | the same, against a caller-known identity: refuses the bundle unless its identity key is the expected one (CR-27), then does everything `establish_initiator` does. `establish_initiator` delegates to it. |
+| `tacenta-core/lifecycle/src/lifecycle.rs::Session::decrypt_ratchet` | takes `&self` candidates from `Triple::receive` and `Braid::receive`, verifies the tag, then assigns; it clones the whole ratchet itself only on the eviction-and-retry path for a full skipped-key store (CR-11). Private, and the function this registry exists for: it touches the most state on the receive path. |
+| `tacenta-core/lifecycle/src/lifecycle.rs::Session::decrypt` | the public wrapper; does no state change of its own beyond clearing `pending_initial` after a successful decrypt |
+| `tacenta-core/lifecycle/src/lifecycle.rs::establish_responder` | reads prekeys and, on the last-resort path, the replay record -- refusing a repeated fingerprint (`ReplayedLastResort`) or a full record (`LastResortRecordFull`) before decryption, and writing nothing on either refusal -- then authenticates, then deletes and records. The one consuming function here whose name does not start with a consuming verb. |
+| `tacenta-core/lifecycle/src/lifecycle.rs::establish_initiator` | consumes a peer's published bundle, which an attacker supplies through the directory. Verifies both prekey signatures before deriving, and holds no local state that a failure could consume: a refusal leaves this party exactly as it was. |
+| `tacenta-core/lifecycle/src/lifecycle.rs::establish_initiator_for` | the same, against a caller-known identity: refuses the bundle unless its identity key is the expected one (CR-27), then does everything `establish_initiator` does. `establish_initiator` delegates to it. |
+| `tacenta-core/lifecycle/src/lifecycle.rs::receive_shortfall` | computes how much room a candidate receive needs from counters and store lengths; it receives no mutable state and returns only a number. |
 
 ### Orchestration, pure: they consume bundle material but hold no state
 
@@ -125,10 +128,10 @@ what the boundary is about, even though there is nothing for them to corrupt.
 
 | function | how |
 |---|---|
-| `tacenta-core/src/sessions/mod.rs::verify_bundle` | verifies both prekey signatures under the bundle's identity key; returns `Result`, mutates nothing. |
-| `tacenta-core/src/sessions/mod.rs::verify_under_identity` | verifies a caller-supplied signature under a published identity key; pure. |
-| `tacenta-core/src/sessions/mod.rs::initiator_shared_secret` | verifies the bundle, then folds the Diffie-Hellman and encapsulated secrets into `SK`; returns the key, holds no state. Named to the gate explicitly because it carries no consuming verb. |
-| `tacenta-core/src/sessions/mod.rs::responder_shared_secret` | the responder's side of the same derivation, over keys that arrive in an unauthenticated initial message; pure. Named explicitly for the same reason. |
+| `tacenta-core/lifecycle/src/lib.rs::verify_bundle` | verifies both prekey signatures under the bundle's identity key; returns `Result`, mutates nothing. |
+| `tacenta-core/lifecycle/src/lib.rs::verify_under_identity` | verifies a caller-supplied signature under a published identity key; pure. |
+| `tacenta-core/lifecycle/src/lib.rs::initiator_shared_secret` | verifies the bundle, then folds the Diffie-Hellman and encapsulated secrets into `SK`; returns the key, holds no state. Named to the gate explicitly because it carries no consuming verb. |
+| `tacenta-core/lifecycle/src/lib.rs::responder_shared_secret` | the responder's side of the same derivation, over keys that arrive in an unauthenticated initial message; pure. Named explicitly for the same reason. |
 
 ### Orchestration, persisted-state decoders
 
@@ -141,10 +144,10 @@ compare, refusing a non-canonical spelling (CR-18).
 
 | function | how |
 |---|---|
-| `tacenta-core/src/sessions/lifecycle.rs::PrekeyStore::from_bytes` | decodes a persisted prekey store; v3 re-encode-and-compare backstop. |
-| `tacenta-core/src/sessions/lifecycle.rs::PendingInitial::from_bytes` | private sub-decoder for the pending-initial field of a `Session`; reached only through `Session::import`. |
-| `tacenta-core/src/sessions/lifecycle.rs::Session::import` | decodes a persisted session; re-encodes and compares before returning. |
-| `tacenta-core/src/sessions/lifecycle.rs::Session::import_unchecked` | the nested decode `import` wraps; private, and only `import` calls it, so the canonicality check is never bypassed. |
+| `tacenta-core/lifecycle/src/lifecycle.rs::PrekeyStore::from_bytes` | decodes a persisted prekey store; v3 re-encode-and-compare backstop. |
+| `tacenta-core/lifecycle/src/lifecycle.rs::PendingInitial::from_bytes` | private sub-decoder for the pending-initial field of a `Session`; reached only through `Session::import`. |
+| `tacenta-core/lifecycle/src/lifecycle.rs::Session::import` | decodes a persisted session; re-encodes and compares before returning. |
+| `tacenta-core/lifecycle/src/lifecycle.rs::Session::import_unchecked` | the nested decode `import` wraps; private, and only `import` calls it, so the canonicality check is never bypassed. |
 | `tacenta-core/ratchet/src/lib.rs::State::from_bytes` | decodes the classical ratchet state; length- and bound-checked. |
 | `tacenta-core/spqr/src/lib.rs::State::from_bytes` | decodes the sparse post-quantum ratchet state. |
 | `tacenta-core/triple/src/lib.rs::State::from_bytes` | decodes the composite of both ratchets. |

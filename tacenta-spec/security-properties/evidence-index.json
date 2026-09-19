@@ -14,7 +14,7 @@
       "limitations": [],
       "implementation": [
         {
-          "path": "tacenta-core/src/sessions/mod.rs",
+          "path": "tacenta-core/lifecycle/src/lib.rs",
           "symbol": "associated_data"
         }
       ],
@@ -72,15 +72,15 @@
       "limitations": [],
       "implementation": [
         {
-          "path": "tacenta-core/src/sessions/mod.rs",
+          "path": "tacenta-core/lifecycle/src/lib.rs",
           "symbol": "verify_bundle"
         },
         {
-          "path": "tacenta-core/src/sessions/mod.rs",
+          "path": "tacenta-core/lifecycle/src/lib.rs",
           "symbol": "verify_under_identity"
         },
         {
-          "path": "tacenta-core/src/primitives/xeddsa.rs",
+          "path": "tacenta-core/boundary/src/xeddsa.rs",
           "symbol": "verify"
         }
       ],
@@ -98,17 +98,17 @@
       ],
       "tests": [
         {
-          "path": "tacenta-core/src/sessions/mod.rs",
+          "path": "tacenta-core/lifecycle/src/lib.rs",
           "name": "a_forged_signed_prekey_is_rejected",
           "coverage": "A bundle with a replaced signed curve prekey is refused before use."
         },
         {
-          "path": "tacenta-core/src/sessions/mod.rs",
+          "path": "tacenta-core/lifecycle/src/lib.rs",
           "name": "a_forged_kem_prekey_is_rejected",
           "coverage": "A bundle with a replaced KEM prekey is refused before use."
         },
         {
-          "path": "tacenta-core/src/primitives/xeddsa.rs",
+          "path": "tacenta-core/boundary/src/xeddsa.rs",
           "name": "revision_1_transcription_agrees_with_every_vectors_comment",
           "coverage": "The verifier transcription is checked against every XEdDSA vector comment."
         }
@@ -137,11 +137,11 @@
       ],
       "implementation": [
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "establish_initiator_for"
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "UnexpectedIdentity"
         }
       ],
@@ -191,11 +191,11 @@
       ],
       "implementation": [
         {
-          "path": "tacenta-core/src/sessions/mod.rs",
+          "path": "tacenta-core/lifecycle/src/lib.rs",
           "symbol": "initiator_shared_secret"
         },
         {
-          "path": "tacenta-core/src/sessions/mod.rs",
+          "path": "tacenta-core/lifecycle/src/lib.rs",
           "symbol": "responder_shared_secret"
         }
       ],
@@ -259,11 +259,11 @@
       "limitations": [],
       "implementation": [
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "concat_ad"
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "decrypt"
         }
       ],
@@ -321,11 +321,11 @@
       "limitations": [],
       "implementation": [
         {
-          "path": "tacenta-core/src/primitives/aead.rs",
+          "path": "tacenta-core/boundary/src/aead.rs",
           "symbol": "decrypt"
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "decrypt"
         }
       ],
@@ -595,11 +595,11 @@
           "symbol": "decode_bundle"
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "import"
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "from_bytes"
         }
       ],
@@ -693,19 +693,19 @@
       "limitations": [],
       "implementation": [
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "establish_initiator"
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "establish_responder"
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "decrypt"
         },
         {
-          "path": "tacenta-core/src/primitives/dh.rs",
+          "path": "tacenta-core/boundary/src/dh.rs",
           "symbol": "agree"
         }
       ],
@@ -729,7 +729,7 @@
           "coverage": "Ratchet receive refuses a low-order ratchet public key and leaves session state unchanged."
         },
         {
-          "path": "tacenta-core/src/primitives/dh.rs",
+          "path": "tacenta-core/boundary/src/dh.rs",
           "name": "low_order_peer_keys_are_rejected",
           "coverage": "Primitive-level test that low-order peer public keys do not produce an accepted agreement."
         }
@@ -766,7 +766,7 @@
           "symbol": "decrypt"
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "decrypt"
         }
       ],
@@ -853,15 +853,15 @@
       ],
       "implementation": [
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "establish_responder"
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "last_resort_fingerprint"
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "PrekeyStore"
         }
       ],
@@ -975,11 +975,11 @@
           "symbol": "main"
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "decrypt"
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "establish_responder"
         }
       ],
@@ -1106,7 +1106,7 @@
           "symbol": "send"
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "agreement_failed"
         }
       ],
@@ -1167,7 +1167,7 @@
           "coverage": "Session integration test for a message whose Braid receive fails while the message plaintext is otherwise authenticated."
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "name": "a_failed_agreement_refuses_further_use",
           "coverage": "Session-layer test that future encrypt/decrypt calls are refused after the Braid reaches Failed."
         }
@@ -1224,19 +1224,19 @@
       "limitations": [],
       "implementation": [
         {
-          "path": "tacenta-core/src/primitives/aead.rs",
+          "path": "tacenta-core/boundary/src/aead.rs",
           "symbol": "encrypt"
         },
         {
-          "path": "tacenta-core/src/primitives/aead.rs",
+          "path": "tacenta-core/boundary/src/aead.rs",
           "symbol": "decrypt"
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "encrypt"
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "decrypt"
         }
       ],
@@ -1339,11 +1339,11 @@
       ],
       "implementation": [
         {
-          "path": "tacenta-core/src/sessions/mod.rs",
+          "path": "tacenta-core/lifecycle/src/lib.rs",
           "symbol": "initiator_shared_secret"
         },
         {
-          "path": "tacenta-core/src/sessions/mod.rs",
+          "path": "tacenta-core/lifecycle/src/lib.rs",
           "symbol": "responder_shared_secret"
         },
         {
@@ -1525,11 +1525,11 @@
       "limitations": [],
       "implementation": [
         {
-          "path": "tacenta-core/src/sessions/mod.rs",
+          "path": "tacenta-core/lifecycle/src/lib.rs",
           "symbol": "initiator_shared_secret"
         },
         {
-          "path": "tacenta-core/src/sessions/mod.rs",
+          "path": "tacenta-core/lifecycle/src/lib.rs",
           "symbol": "responder_shared_secret"
         }
       ],
@@ -1598,7 +1598,7 @@
       "limitations": [],
       "implementation": [
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "encrypt"
         },
         {
@@ -1949,11 +1949,11 @@
       "limitations": [],
       "implementation": [
         {
-          "path": "tacenta-core/src/primitives/aead.rs",
+          "path": "tacenta-core/boundary/src/aead.rs",
           "symbol": "decrypt"
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "decrypt"
         },
         {
@@ -2196,11 +2196,11 @@
           "symbol": "Zeroize"
         },
         {
-          "path": "tacenta-core/src/primitives/kem.rs",
+          "path": "tacenta-core/boundary/src/kem.rs",
           "symbol": "Zeroize"
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "take_one_time"
         }
       ],
@@ -2214,12 +2214,12 @@
           "coverage": "Compile-time drop-erasure test for the classical ratchet state."
         },
         {
-          "path": "tacenta-core/src/primitives/kem.rs",
+          "path": "tacenta-core/boundary/src/kem.rs",
           "name": "the_key_pair_erases_when_dropped",
           "coverage": "Compile-time drop-erasure test for KEM key pairs."
         },
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "name": "the_identity_and_the_prekey_store_erase_when_dropped",
           "coverage": "Compile-time drop-erasure test for identity and prekey-store containers."
         },
@@ -2416,7 +2416,7 @@
       "limitations": [],
       "implementation": [
         {
-          "path": "tacenta-core/src/sessions/lifecycle.rs",
+          "path": "tacenta-core/lifecycle/src/lifecycle.rs",
           "symbol": "take_one_time"
         }
       ],
@@ -2721,7 +2721,7 @@
       "requirements": ["REQ-AUTH-13", "REQ-CONF-04"],
       "assumptions": ["ASM-19"],
       "headroom": "not applicable: this is a commit-order predicate, not a numeric successor bound.",
-      "implementation": [{"path": "tacenta-core/src/sessions/lifecycle.rs", "symbol": "establish_responder"}],
+      "implementation": [{"path": "tacenta-core/lifecycle/src/lifecycle.rs", "symbol": "establish_responder"}],
       "model_properties": [{"path": "tacenta-model/Model/SessionTrace.lean", "theorem": "refused_prefix", "coverage": "An ordinary abstract refusal has no committed effect before later actions."}],
       "proofs": [{"path": "tacenta-proofs/Proofs/SessionTrace.lean", "theorem": "refusal_restore_preserves_continuation", "coverage": "The trace theorem preserves later outcomes across refusal and restore."}],
       "tests": [{"path": "tacenta-core/tests/session_lifecycle_property.rs", "name": "session_lifecycle_01_establishes_restores_continues_and_refuses_replays", "coverage": "A forged message preserves the exported session and the genuine message remains deliverable."}],
@@ -2737,7 +2737,7 @@
       "requirements": ["REQ-AUTH-01", "REQ-AUTH-02", "REQ-AUTH-05", "REQ-AUTH-13"],
       "assumptions": ["ASM-19"],
       "headroom": "not applicable: identity and role bindings do not consume a numeric budget.",
-      "implementation": [{"path": "tacenta-core/src/sessions/lifecycle.rs", "symbol": "Session::import"}],
+      "implementation": [{"path": "tacenta-core/lifecycle/src/lifecycle.rs", "symbol": "Session::import"}],
       "model_properties": [],
       "proofs": [],
       "tests": [{"path": "tacenta-core/tests/canonical_curve_keys.rs", "name": "a_repeated_initial_message_must_carry_the_sessions_peer_identity", "coverage": "An initial wrapper from a different peer cannot alter the established session."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "associated_data_in_the_wrong_orientation_is_refused", "coverage": "A persisted session with reversed identity-associated data is refused."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "a_role_the_braid_disagrees_with_is_refused", "coverage": "A persisted session whose Braid role disagrees with its session role is refused."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "a_sparse_ratchet_direction_the_session_disagrees_with_is_refused", "coverage": "A persisted session whose sparse-ratchet direction disagrees with its session role is refused."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "a_session_that_is_both_an_unanswered_initiator_and_a_responder_is_refused", "coverage": "The forbidden unanswered-initiator/responder combination is refused."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "an_established_ephemeral_that_is_not_an_encoded_curve_key_is_refused", "coverage": "A non-canonical persisted established ephemeral key is refused."}],
@@ -2753,7 +2753,7 @@
       "requirements": ["REQ-AUTH-12", "REQ-AUTH-13", "REQ-FS-03"],
       "assumptions": ["ASM-19"],
       "headroom": "Each live last-resort key has the specified bounded replay-record budget; exhaustion refuses new work while preserving replay refusal.",
-      "implementation": [{"path": "tacenta-core/src/sessions/lifecycle.rs", "symbol": "PrekeyStore"}],
+      "implementation": [{"path": "tacenta-core/lifecycle/src/lifecycle.rs", "symbol": "PrekeyStore"}],
       "model_properties": [],
       "proofs": [],
       "tests": [{"path": "tacenta-core/tests/failed_decrypt_changes_nothing.rs", "name": "a_successful_initial_message_does_consume_its_prekeys", "coverage": "Only an authenticated initial message consumes the named one-time prekeys."}, {"path": "tacenta-core/tests/failed_decrypt_changes_nothing.rs", "name": "a_failed_initial_message_does_not_burn_prekeys", "coverage": "A failed initial message leaves its named one-time prekeys available."}, {"path": "tacenta-core/tests/failed_decrypt_changes_nothing.rs", "name": "repeated_failed_initial_messages_do_not_drain_the_store", "coverage": "Repeated failed initial messages do not consume the prekey store."}, {"path": "tacenta-core/tests/agreement_and_bounds.rs", "name": "a_full_last_resort_budget_refuses_new_handshakes_and_still_refuses_replays", "coverage": "A full last-resort replay-record budget refuses new work and preserves prior replay refusal."}],
@@ -2769,7 +2769,7 @@
       "requirements": ["REQ-AUTH-11", "REQ-CONF-04"],
       "assumptions": ["ASM-19"],
       "headroom": "The per-chain skip limit refuses an over-large jump; a full total skipped-key store evicts and retries, so its bound is not a refusal condition.",
-      "implementation": [{"path": "tacenta-core/src/sessions/lifecycle.rs", "symbol": "decrypt"}],
+      "implementation": [{"path": "tacenta-core/lifecycle/src/lifecycle.rs", "symbol": "decrypt"}],
       "model_properties": [{"path": "tacenta-model/Model/SessionTrace.lean", "theorem": "accepted_replay_is_no_op", "coverage": "An already accepted abstract message cannot create a second accepted observation."}],
       "proofs": [{"path": "tacenta-proofs/Proofs/SessionTrace.lean", "theorem": "replay_has_no_second_acceptance", "coverage": "The narrow trace theorem pins no operation effect for an accepted replay."}],
       "tests": [{"path": "tacenta-core/tests/session_lifecycle_property.rs", "name": "session_lifecycle_01_establishes_restores_continues_and_refuses_replays", "coverage": "A replay after restoration is refused and a later genuine message is accepted."}],
@@ -2801,7 +2801,7 @@
       "requirements": ["REQ-PCS-03", "REQ-AUTH-13", "REQ-CONF-04"],
       "assumptions": ["ASM-04", "ASM-05", "ASM-19"],
       "headroom": "Live Braid epochs reserve the terminal value; Failed carries no live epoch and is handled by a separate terminal-state rule.",
-      "implementation": [{"path": "tacenta-core/src/sessions/lifecycle.rs", "symbol": "Session::import"}],
+      "implementation": [{"path": "tacenta-core/lifecycle/src/lifecycle.rs", "symbol": "Session::import"}],
       "model_properties": [],
       "proofs": [],
       "tests": [{"path": "tacenta-core/tests/import_invariants.rs", "name": "a_failed_braid_is_exempt_from_the_epoch_and_role_clauses", "coverage": "The persisted Failed state retains exactly the documented exemption."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "an_epoch_pair_the_sparse_ratchet_cannot_follow_is_refused", "coverage": "A persisted session with an invalid sparse/Braid epoch relation is refused."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "a_role_the_braid_disagrees_with_is_refused", "coverage": "A persisted session with a Braid role mismatch is refused."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "a_ratchet_private_key_that_does_not_match_the_advertised_public_key_is_refused", "coverage": "An inconsistent nested ratchet key relation is refused."}, {"path": "tacenta-core/tests/import_invariants.rs", "name": "an_honest_session_satisfies_the_invariant_at_every_point", "coverage": "An honest composed session remains within its import invariant across operations."}],
@@ -2817,7 +2817,7 @@
       "requirements": ["REQ-PCS-03", "REQ-AUTH-13"],
       "assumptions": ["ASM-05", "ASM-19"],
       "headroom": "not applicable: terminal failure is a phase transition, not a successful successor operation.",
-      "implementation": [{"path": "tacenta-core/src/sessions/lifecycle.rs", "symbol": "agreement_failed"}],
+      "implementation": [{"path": "tacenta-core/lifecycle/src/lifecycle.rs", "symbol": "agreement_failed"}],
       "model_properties": [{"path": "tacenta-model/Model/SessionTrace.lean", "theorem": "failed_run_stays_failed", "coverage": "Every later abstract action preserves the committed failed phase."}],
       "proofs": [{"path": "tacenta-proofs/Proofs/SessionTrace.lean", "theorem": "terminal_failure_preserves_refusal", "coverage": "The narrow theorem carries terminal failure through any later trace suffix."}],
       "tests": [{"path": "tacenta-core/tests/full_session.rs", "name": "the_message_that_fails_the_agreement_still_returns_its_plaintext", "coverage": "The triggering message is delivered, then later send and receive operations refuse."}],
@@ -2833,7 +2833,7 @@
       "requirements": ["REQ-AUTH-09", "REQ-CONF-04"],
       "assumptions": ["ASM-19"],
       "headroom": "Stored-format numeric bounds are checked by readers; no claim is made that a later successor operation has spare headroom.",
-      "implementation": [{"path": "tacenta-core/src/sessions/lifecycle.rs", "symbol": "Session::import"}],
+      "implementation": [{"path": "tacenta-core/lifecycle/src/lifecycle.rs", "symbol": "Session::import"}],
       "model_properties": [],
       "proofs": [],
       "tests": [{"path": "tacenta-core/tests/session_persistence.rs", "name": "a_session_survives_export_and_import", "coverage": "A fresh imported object continues a bidirectional conversation."}],

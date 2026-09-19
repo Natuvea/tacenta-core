@@ -149,7 +149,7 @@ this section says in one place what is not proved.
 - **Which private key is agreed with which public key at a Diffie-Hellman
   ratchet step is decided outside every proof and every vector.** The
   specification's rule -- the old key pair for the receiving chain, the fresh
-  one for the sending chain -- is applied in `tacenta-core/src/sessions`,
+  one for the sending chain -- is applied in `tacenta-core/lifecycle/src`,
   which is neither translated nor modelled. `Model.Ratchet.receive`, the
   refinement theorem and the ratchet vectors all take the two agreement
   outputs as opaque bytes, so a swap in the orchestration would pass every
@@ -811,7 +811,7 @@ theorem depends on them.
 
 **What this does not give.** An end-to-end claim from wire bytes to a ratchet
 decision also needs the session's use of the decoded header, which is outside
-the translated surface (`tacenta-core/src/sessions`).
+the translated surface (`tacenta-core/lifecycle/src`).
 
 ## Proved (tier T3, the initial-message decoder computes what the model says)
 
@@ -1304,7 +1304,7 @@ and it is one step short of what the refinement asks in any case.
 `tacenta-erasure` have an `invariant()` and a `from_bytes` that calls it, and
 the same technique applies; they were not done. And in every case the subject
 is a **leaf crate's own persistence format**. `Session::from_bytes` and the
-storage layer that calls it live in `tacenta-core/src/sessions`, which is not
+storage layer that calls it live in `tacenta-core/lifecycle/src`, which is not
 translated, so nothing here says what a session restored from disk satisfies.
 
 ## Proved (tier T1, the same two ratchets compiled as one crate with the Triple)
@@ -1378,7 +1378,7 @@ it began as `TripleT1.lean`, which wrote forty-nine translated names in
 qualified form, and its proof bodies genuinely changed on the way.
 
 **This is the claim that says anything about the composed path.**
-`tacenta-core/src/sessions`, the product code that calls `tacenta-triple`, is
+`tacenta-core/lifecycle/src`, the product code that calls `tacenta-triple`, is
 not translated or proved in its own right, so the claim stops at the crate
 boundary below it.
 
@@ -1420,7 +1420,7 @@ on 2026-09-10; the six above them are pinned in `UnitPins.lean`.
 
 **Where the four preconditions land.** They are obligations, not decorations,
 and nothing on the unit island discharges them: they land on the untranslated
-session layer in `tacenta-core/src/sessions`, which decides how large a
+session layer in `tacenta-core/lifecycle/src`, which decides how large a
 skipped-key store and a chain table it lets a session carry. The classical one
 is discharged in the *other* island -- `Ratchet.inv_gives_store_bound` in
 `Translation/ImportInv.lean` gets it from the crate's own `invariant()`, and

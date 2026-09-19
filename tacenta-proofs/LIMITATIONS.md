@@ -323,9 +323,9 @@ of it is a static test that fails to build if a type loses the
 `zeroize::ZeroizeOnDrop` marker, and the marker checks cover the classical ratchet's `State` and `SkippedKey`
 (`the_state_erases_when_dropped`, `tacenta-core/ratchet/src/lib.rs`), the sparse
 ratchet's `State`, `Chain`, `Chains` and `Skipped`, the ML-KEM `KeyPair`
-(`the_key_pair_erases_when_dropped`, `tacenta-core/src/primitives/kem.rs`), and
+(`the_key_pair_erases_when_dropped`, `tacenta-core/boundary/src/kem.rs`), and
 `Identity` and `PrekeyStore` (`the_identity_and_the_prekey_store_erase_when_dropped`,
-`tacenta-core/src/sessions/lifecycle.rs`). Each checks the marker, not what the
+`tacenta-core/lifecycle/src/lifecycle.rs`). Each checks the marker, not what the
 destructor wipes, and `KeyPair` and `PrekeyStore` implement the marker by hand.
 The Braid's `Auth` and `Output`, and the KEM state it holds in `Zeroizing`
 buffers, still need their own marker coverage; the Triple Ratchet's `State`
@@ -1192,7 +1192,7 @@ body Aeneas gave up on, the same bar the rest of this list holds to.
 `evict_oldest_classical`, `evict_oldest_post_quantum`, `to_bytes` and
 `from_bytes`, and the session calls all four, from its eviction loop and its
 persistence path
-(`tacenta-core/src/sessions/lifecycle.rs`). Neither the classical ratchet's own
+(`tacenta-core/lifecycle/src/lifecycle.rs`). Neither the classical ratchet's own
 `receive_no_panic` nor the sparse ratchet's `send_no_panic`/`receive_no_panic`
 said anything about what happens when the two are composed, and the
 composition is what ships since the triple-ratchet integration -- this is that composition's
@@ -1209,7 +1209,7 @@ standalone proof was deleted after 2a89a7f.
 
 **So the session's send and receive path has a claim resting under it, at
 the crate that actually carries it.** `Session::encrypt` and
-`Session::decrypt` themselves live in `tacenta-core/src/sessions`, the product
+`Session::decrypt` themselves live in `tacenta-core/lifecycle/src`, the product
 code that calls `tacenta-triple`, and that layer is not translated or proved
 in its own right -- a separate question this does not answer.
 
@@ -1228,7 +1228,7 @@ clause of it; for the Braid, the single clause `ct1_bounded`), and the
 invariant yields as many of the T1 and T3 preconditions as it reaches. That is not a T1 theorem -- it says nothing about
 whether `from_bytes` can panic, only what is true of a state when it does
 return one -- and it is about the *leaf crate's* persistence format. The
-session layer that calls these codecs, in `tacenta-core/src/sessions`, is not
+session layer that calls these codecs, in `tacenta-core/lifecycle/src`, is not
 translated, so nothing here says what a session restored from disk satisfies.
 `to_bytes`, the entry decoders and the length helpers still have no theorem of
 any kind, as do the codecs of the other four crates, with two exceptions:
@@ -1308,7 +1308,7 @@ decoder accepts anything at all is the Rust round-trip tests.
   `receive_refines` and the ratchet vectors. The choice of which key pair
   produces which output (the old pair for the receiving chain, the fresh one
   for the sending chain, as the specification requires) is made in
-  `tacenta-core/src/sessions/lifecycle.rs`, which is neither translated nor
+  `tacenta-core/lifecycle/src/lifecycle.rs`, which is neither translated nor
   modelled, so a swap there would pass every proof, every vector and
   `attest`. The pairing is tested, not proved:
   `a_session_dh_step_pairs_the_old_key_with_the_peers_new_key`
@@ -1639,7 +1639,7 @@ the standalone proof's unconditional bundles hid: `State.send` on the unit needs
 `self.post_quantum.chains.length + 2 < Usize.max` and
 `self.post_quantum.skipped.length + MAX_SKIP.val ≤ Usize.max`. Nothing on the
 unit island discharges them. They are obligations on the **untranslated session
-layer** in `tacenta-core/src/sessions`, which decides how large a skipped-key
+layer** in `tacenta-core/lifecycle/src`, which decides how large a skipped-key
 store and a chain table a session may carry, and that layer is not translated
 or proved in its own right. The classical one is discharged in the other
 island, by `Ratchet.inv_gives_store_bound` in `Translation/ImportInv.lean` and

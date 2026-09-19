@@ -109,9 +109,9 @@ deletable:
 - **Status: tested only.**
   - Three tests fail to build if their type stops erasing when dropped:
     `the_state_erases_when_dropped` (`tacenta-core/ratchet/src/lib.rs`),
-    `the_key_pair_erases_when_dropped` (`tacenta-core/src/primitives/kem.rs`)
+    `the_key_pair_erases_when_dropped` (`tacenta-core/boundary/src/kem.rs`)
     and `the_identity_and_the_prekey_store_erase_when_dropped`
-    (`tacenta-core/src/sessions/lifecycle.rs`).
+    (`tacenta-core/lifecycle/src/lifecycle.rs`).
   - Two tests check deletions the store makes:
     `a_successful_initial_message_does_consume_its_prekeys`
     (`tacenta-core/tests/failed_decrypt_changes_nothing.rs`) and

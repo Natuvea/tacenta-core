@@ -283,7 +283,7 @@ pub fn verifying_key(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::primitives::dh::PrivateKey;
+    use crate::dh::PrivateKey;
     use rand::rngs::OsRng;
 
     /// A deterministic byte source, so a vector is a property of *this code*
@@ -785,7 +785,7 @@ mod tests {
         // there and this test fails at the read, by design.
         let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../tacenta-test-vectors/vectors/primitives/xeddsa.json"
+            "/../../tacenta-test-vectors/vectors/primitives/xeddsa.json"
         );
         let text = std::fs::read_to_string(path)
             .unwrap_or_else(|e| panic!("the XEdDSA vectors at {path} must be readable: {e}"));

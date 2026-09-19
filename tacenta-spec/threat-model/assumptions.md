@@ -407,7 +407,7 @@ satisfiable (`Translation/Satisfiability.lean`,
 
 ### ASM-19: the untranslated orchestration
 
-`tacenta-core/src/sessions`, which is neither translated nor modelled, does what
+`tacenta-core/lifecycle/src`, which is neither translated nor modelled, does what
 the protocol pages say. In particular it:
 - pairs the old ratchet key pair with the receiving chain and a fresh one with
   the sending chain at a Diffie-Hellman step;

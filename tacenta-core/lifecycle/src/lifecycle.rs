@@ -131,10 +131,16 @@ impl Identity {
         let signed_prekey_pub = dh::PrivateKey::from_bytes(signed_prekey_secret).public_key();
         let signed_prekey_sig = self.sign(&encode_ec(&signed_prekey_pub), rng);
 
-        let one_time = numbering
+        let one_time_count = numbering
             .one_time
-            .map(|id| (id, random_secret(rng)))
-            .collect();
+            .end
+            .saturating_sub(numbering.one_time.start);
+        let mut one_time = Vec::with_capacity(one_time_count as usize);
+        let mut one_time_id = numbering.one_time.start;
+        while one_time_id < numbering.one_time.end {
+            one_time.push((one_time_id, random_secret(rng)));
+            one_time_id += 1;
+        }
 
         let kem = kem::KeyPair::generate(rng);
         let kem_id = numbering.kem;
@@ -143,14 +149,18 @@ impl Identity {
         // Every KEM prekey is signed individually, unlike the one-time curve
         // prekeys, which are not signed at all. That asymmetry is the
         // specification's, not ours.
-        let kem_one_time = numbering
+        let kem_one_time_count = numbering
             .kem_one_time
-            .map(|id| {
-                let pair = kem::KeyPair::generate(rng);
-                let sig = self.sign(&encode_kem(&pair.public_key()), rng);
-                (id, pair, sig)
-            })
-            .collect();
+            .end
+            .saturating_sub(numbering.kem_one_time.start);
+        let mut kem_one_time = Vec::with_capacity(kem_one_time_count as usize);
+        let mut kem_one_time_id = numbering.kem_one_time.start;
+        while kem_one_time_id < numbering.kem_one_time.end {
+            let pair = kem::KeyPair::generate(rng);
+            let sig = self.sign(&encode_kem(&pair.public_key()), rng);
+            kem_one_time.push((kem_one_time_id, pair, sig));
+            kem_one_time_id += 1;
+        }
 
         PrekeyStore {
             next_id: numbering.next_id,
@@ -316,6 +326,112 @@ fn full_store(e: &TripleError) -> Option<FullStore> {
         TripleError::Classical(RatchetError::SkippedStoreFull) => Some(FullStore::Classical),
         TripleError::PostQuantum(SpqrError::SkippedStoreFull) => Some(FullStore::PostQuantum),
         _ => None,
+    }
+}
+
+fn receive_shortfall(
+    half: FullStore,
+    state: &tacenta_triple::State,
+    composite: &Composite,
+) -> usize {
+    match half {
+        FullStore::Classical => {
+            let held = state.classical_skipped_len();
+            let need = (composite.n as usize).saturating_sub(state.receive_count() as usize);
+            let shortfall = held
+                .saturating_add(need)
+                .saturating_sub(crate::ratchet::MAX_SKIPPED_STORE);
+            if shortfall < 1 { 1 } else { shortfall }
+        }
+        FullStore::PostQuantum => match state.post_quantum_receive_count(composite.pq_epoch) {
+            Some(received) => {
+                let held = state.post_quantum_skipped_len();
+                let need =
+                    usize::try_from(composite.pq_n.saturating_sub(1).saturating_sub(received))
+                        .unwrap_or(usize::MAX);
+                let shortfall = held
+                    .saturating_add(need)
+                    .saturating_sub(tacenta_spqr::MAX_SKIPPED_STORE);
+                if shortfall < 1 { 1 } else { shortfall }
+            }
+            None => 1,
+        },
+    }
+}
+
+fn receive_attempt(
+    state: &tacenta_triple::State,
+    header: &tacenta_triple::Header,
+    dh_out_recv: &[u8; 32],
+    dh_out_send: &[u8; 32],
+    new_dhs_pub: [u8; 32],
+    spqr_output: Option<&tacenta_spqr::Output>,
+) -> Result<(tacenta_triple::State, [u8; 32]), TripleError> {
+    state.receive(header, dh_out_recv, dh_out_send, new_dhs_pub, spqr_output)
+}
+
+fn receive_with_eviction(
+    state: &tacenta_triple::State,
+    composite: &Composite,
+    header: &tacenta_triple::Header,
+    dh_out_recv: &[u8; 32],
+    dh_out_send: &[u8; 32],
+    new_dhs_pub: [u8; 32],
+    spqr_output: Option<&tacenta_spqr::Output>,
+) -> Result<(tacenta_triple::State, [u8; 32]), TripleError> {
+    let first = match receive_attempt(
+        state,
+        header,
+        dh_out_recv,
+        dh_out_send,
+        new_dhs_pub,
+        spqr_output,
+    ) {
+        Ok(value) => return Ok(value),
+        Err(error) => error,
+    };
+    let mut half = match full_store(&first) {
+        Some(half) => half,
+        None => return Err(first),
+    };
+    let mut work = state.clone();
+    let mut batch = receive_shortfall(half, &work, composite);
+    let mut pending = first;
+    let mut outcome = None;
+    while outcome.is_none() {
+        let evicted = match half {
+            FullStore::Classical => work.evict_oldest_classical(batch),
+            FullStore::PostQuantum => work.evict_oldest_post_quantum(batch),
+        };
+        if evicted == 0 {
+            outcome = Some(Err(pending));
+        } else {
+            batch = batch.saturating_mul(2);
+            match receive_attempt(
+                &work,
+                header,
+                dh_out_recv,
+                dh_out_send,
+                new_dhs_pub,
+                spqr_output,
+            ) {
+                Ok(value) => outcome = Some(Ok(value)),
+                Err(error) => match full_store(&error) {
+                    None => outcome = Some(Err(error)),
+                    Some(next) => {
+                        if next != half {
+                            half = next;
+                            batch = receive_shortfall(next, &work, composite);
+                        }
+                        pending = error;
+                    }
+                },
+            }
+        }
+    }
+    match outcome {
+        Some(result) => result,
+        None => Err(pending),
     }
 }
 
@@ -517,16 +633,23 @@ impl PrekeyStore {
     /// stock a pool with `publish_one_time_batch` and dispense from it, which
     /// is the intended shape.
     pub fn publish(&self) -> PublishedBundle {
-        let (one_time_prekey_id, one_time_prekey) = match self.one_time.last() {
-            Some((id, secret)) => (*id, Some(dh::PrivateKey::from_bytes(*secret).public_key())),
-            None => (ABSENT_ID, None),
+        let (one_time_prekey_id, one_time_prekey) = if self.one_time.is_empty() {
+            (ABSENT_ID, None)
+        } else {
+            let index = self.one_time.len() - 1;
+            let id = self.one_time[index].0;
+            let secret = self.one_time[index].1;
+            (id, Some(dh::PrivateKey::from_bytes(secret).public_key()))
         };
         // Prefer a one-time KEM prekey; fall back to the last-resort key only
         // once they are exhausted (session-establishment.md, Sending the
         // initial message).
-        let (kem_prekey_id, kem_prekey, kem_prekey_signature) = match self.kem_one_time.last() {
-            Some((id, pair, sig)) => (*id, pair.public_key(), *sig),
-            None => (self.kem_id, self.kem.public_key(), self.kem_sig),
+        let (kem_prekey_id, kem_prekey, kem_prekey_signature) = if self.kem_one_time.is_empty() {
+            (self.kem_id, self.kem.public_key(), self.kem_sig)
+        } else {
+            let index = self.kem_one_time.len() - 1;
+            let (id, pair, signature) = &self.kem_one_time[index];
+            (*id, pair.public_key(), *signature)
         };
         PublishedBundle {
             bundle: PreKeyBundle {
@@ -603,24 +726,37 @@ impl PrekeyStore {
         // which the hand-written `Drop` cannot reach (CR-15). The same reason
         // `to_bytes` sizes its buffer up front.
         self.one_time.reserve_exact(count);
-        for _ in 0..count {
-            let Some(next) = self.next_id.checked_add(1) else {
-                return;
-            };
-            let id = self.next_id;
-            self.next_id = next;
-            self.one_time.push((id, random_secret(rng)));
+        let mut curve_added = 0usize;
+        let mut exhausted = false;
+        while curve_added < count && !exhausted {
+            match self.next_id.checked_add(1) {
+                Some(next) => {
+                    let id = self.next_id;
+                    self.next_id = next;
+                    self.one_time.push((id, random_secret(rng)));
+                    curve_added += 1;
+                }
+                None => exhausted = true,
+            }
+        }
+        if exhausted {
+            return;
         }
         self.kem_one_time.reserve_exact(count);
-        for _ in 0..count {
-            let Some(next) = self.next_id.checked_add(1) else {
-                return;
-            };
-            let pair = kem::KeyPair::generate(rng);
-            let sig = identity.sign(&encode_kem(&pair.public_key()), rng);
-            let id = self.next_id;
-            self.next_id = next;
-            self.kem_one_time.push((id, pair, sig));
+        let mut kem_added = 0usize;
+        let mut kem_exhausted = false;
+        while kem_added < count && !kem_exhausted {
+            match self.next_id.checked_add(1) {
+                Some(next) => {
+                    let pair = kem::KeyPair::generate(rng);
+                    let sig = identity.sign(&encode_kem(&pair.public_key()), rng);
+                    let id = self.next_id;
+                    self.next_id = next;
+                    self.kem_one_time.push((id, pair, sig));
+                    kem_added += 1;
+                }
+                None => kem_exhausted = true,
+            }
         }
     }
 
@@ -860,10 +996,13 @@ impl PrekeyStore {
     /// is a vector rather than a map so that it stays in the translatable
     /// subset, as the note on the field says.
     fn last_resort_seen_for(&self, key_id: u32) -> usize {
-        self.last_resort_seen
-            .iter()
-            .filter(|(id, _)| *id == key_id)
-            .count()
+        let mut count = 0usize;
+        for (id, _) in &self.last_resort_seen {
+            if *id == key_id {
+                count += 1;
+            }
+        }
+        count
     }
 
     /// One published bundle per one-time pair the store still holds, for a
@@ -881,27 +1020,31 @@ impl PrekeyStore {
     /// long as the shorter of the two pools; the private halves stay here
     /// until an authenticated message consumes them, exactly as before.
     pub fn publish_one_time_batch(&self) -> Vec<PublishedBundle> {
-        self.one_time
-            .iter()
-            .rev()
-            .zip(self.kem_one_time.iter().rev())
-            .map(
-                |((otp_id, otp_secret), (kem_id, kem_pair, kem_sig))| PublishedBundle {
-                    bundle: PreKeyBundle {
-                        identity_key: self.identity_public,
-                        signed_prekey: dh::PrivateKey::from_bytes(self.signed_prekey_secret)
-                            .public_key(),
-                        signed_prekey_signature: self.signed_prekey_sig,
-                        kem_prekey: kem_pair.public_key(),
-                        kem_prekey_signature: *kem_sig,
-                        one_time_prekey: Some(dh::PrivateKey::from_bytes(*otp_secret).public_key()),
-                    },
-                    signed_prekey_id: self.signed_prekey_id,
-                    one_time_prekey_id: *otp_id,
-                    kem_prekey_id: *kem_id,
+        let count = core::cmp::min(self.one_time.len(), self.kem_one_time.len());
+        let mut out = Vec::with_capacity(count);
+        let mut offset = 0usize;
+        while offset < count {
+            let otp_index = self.one_time.len() - 1 - offset;
+            let kem_index = self.kem_one_time.len() - 1 - offset;
+            let (otp_id, otp_secret) = &self.one_time[otp_index];
+            let (kem_id, kem_pair, kem_sig) = &self.kem_one_time[kem_index];
+            out.push(PublishedBundle {
+                bundle: PreKeyBundle {
+                    identity_key: self.identity_public,
+                    signed_prekey: dh::PrivateKey::from_bytes(self.signed_prekey_secret)
+                        .public_key(),
+                    signed_prekey_signature: self.signed_prekey_sig,
+                    kem_prekey: kem_pair.public_key(),
+                    kem_prekey_signature: *kem_sig,
+                    one_time_prekey: Some(dh::PrivateKey::from_bytes(*otp_secret).public_key()),
                 },
-            )
-            .collect()
+                signed_prekey_id: self.signed_prekey_id,
+                one_time_prekey_id: *otp_id,
+                kem_prekey_id: *kem_id,
+            });
+            offset += 1;
+        }
+        out
     }
 
     /// The bundle to serve once the one-time pool is exhausted: no one-time
@@ -951,7 +1094,15 @@ impl PrekeyStore {
     /// means the byte range that leaves the vector holds only the zeros written
     /// into the removed entry.
     fn take_one_time(&mut self, id: u32) -> bool {
-        match self.one_time.iter().position(|(k, _)| *k == id) {
+        let mut found = None;
+        let mut index = 0usize;
+        while index < self.one_time.len() {
+            if self.one_time[index].0 == id {
+                found = Some(index);
+            }
+            index += 1;
+        }
+        match found {
             Some(i) => {
                 self.one_time[i].1.zeroize();
                 let last = self.one_time.len() - 1;
@@ -974,23 +1125,25 @@ impl PrekeyStore {
     fn peek_one_time(&self, id: u32) -> Option<Zeroizing<[u8; 32]>> {
         // The copy lives for the rest of `establish_responder`; wrapped so it
         // is wiped when that ends rather than left on the stack.
-        self.one_time
-            .iter()
-            .find(|(k, _)| *k == id)
-            .map(|(_, v)| Zeroizing::new(*v))
+        let mut found = None;
+        let mut index = 0usize;
+        while index < self.one_time.len() {
+            if self.one_time[index].0 == id {
+                found = Some(Zeroizing::new(self.one_time[index].1));
+            }
+            index += 1;
+        }
+        found
     }
 
-    /// Borrow the one-time KEM prekey with this identifier without deleting it.
-    /// The KEM half of `peek_one_time`, for the same reason.
-    ///
-    /// A borrow rather than a copy: the caller only needs it to decapsulate,
-    /// and handing out an owned copy of a KEM secret to avoid a borrow would be
-    /// the wrong trade.
-    fn peek_one_time_kem(&self, id: u32) -> Option<&kem::KeyPair> {
-        self.kem_one_time
-            .iter()
-            .find(|(k, _, _)| *k == id)
-            .map(|(_, pair, _)| pair)
+    fn one_time_kem_ids(&self) -> Vec<u32> {
+        let mut ids = Vec::with_capacity(self.kem_one_time.len());
+        let mut index = 0usize;
+        while index < self.kem_one_time.len() {
+            ids.push(self.kem_one_time[index].0);
+            index += 1;
+        }
+        ids
     }
 
     /// Remove and return the one-time KEM prekey with this identifier. Removing
@@ -1004,7 +1157,15 @@ impl PrekeyStore {
     /// the returned pair carries the sole live copy and erases it when the
     /// caller drops it. Written the same way so the two removals read alike.
     fn take_one_time_kem(&mut self, id: u32) -> Option<kem::KeyPair> {
-        let i = self.kem_one_time.iter().position(|(k, _, _)| *k == id)?;
+        let mut found = None;
+        let mut index = 0usize;
+        while index < self.kem_one_time.len() {
+            if self.kem_one_time[index].0 == id {
+                found = Some(index);
+            }
+            index += 1;
+        }
+        let i = found?;
         let last = self.kem_one_time.len() - 1;
         self.kem_one_time.swap(i, last);
         let (_, pair, _) = self.kem_one_time.pop()?;
@@ -1028,15 +1189,27 @@ impl PrekeyStore {
         // only the allocation alive at the end. The
         // KEM encodings are taken once and reused for the same reason.
         let kem_bytes = self.kem.to_bytes();
-        let kem_one_time_bytes: Vec<Zeroizing<Vec<u8>>> = self
-            .kem_one_time
-            .iter()
-            .map(|(_, pair, _)| pair.to_bytes())
-            .collect();
-        let previous_kem_bytes = self
-            .previous_kem
-            .as_ref()
-            .map(|(pair, _, _)| pair.to_bytes());
+        let mut kem_one_time_bytes: Vec<Zeroizing<Vec<u8>>> =
+            Vec::with_capacity(self.kem_one_time.len());
+        for (_, pair, _) in &self.kem_one_time {
+            kem_one_time_bytes.push(pair.to_bytes());
+        }
+        let previous_kem_bytes = match &self.previous_kem {
+            Some((pair, _, _)) => Some(pair.to_bytes()),
+            None => None,
+        };
+        let mut kem_one_time_encoded_len = 0usize;
+        for bytes in &kem_one_time_bytes {
+            kem_one_time_encoded_len += 4 + (4 + bytes.len()) + 64;
+        }
+        let previous_signed_len = match &self.previous_signed_prekey {
+            Some(_) => 32 + 4 + 64,
+            None => 0,
+        };
+        let previous_kem_len = match &previous_kem_bytes {
+            Some(bytes) => (4 + bytes.len()) + 4 + 64,
+            None => 0,
+        };
         let capacity = 1
             + 32
             + (32 + 4 + 64)
@@ -1045,24 +1218,16 @@ impl PrekeyStore {
             + (4 + kem_bytes.len())
             + (4 + 64)
             + 4
-            + kem_one_time_bytes
-                .iter()
-                .map(|b| 4 + (4 + b.len()) + 64)
-                .sum::<usize>()
+            + kem_one_time_encoded_len
             + 4
             + 4
             + self.last_resort_seen.len() * (4 + 32)
             + 4
             + self.legacy_last_resort_blocked.len() * 4
             + 1
-            + self
-                .previous_signed_prekey
-                .as_ref()
-                .map_or(0, |_| 32 + 4 + 64)
+            + previous_signed_len
             + 1
-            + previous_kem_bytes
-                .as_ref()
-                .map_or(0, |b| (4 + b.len()) + 4 + 64);
+            + previous_kem_len;
         let mut out = Vec::with_capacity(capacity);
         out.push(PREKEY_STORE_VERSION);
         out.extend_from_slice(self.identity_public.as_bytes());
@@ -1081,10 +1246,14 @@ impl PrekeyStore {
         out.extend_from_slice(&self.kem_sig);
 
         out.extend_from_slice(&(self.kem_one_time.len() as u32).to_be_bytes());
-        for ((id, _, sig), pair_bytes) in self.kem_one_time.iter().zip(&kem_one_time_bytes) {
+        let mut kem_index = 0usize;
+        while kem_index < self.kem_one_time.len() {
+            let (id, _, sig) = &self.kem_one_time[kem_index];
+            let pair_bytes = &kem_one_time_bytes[kem_index];
             out.extend_from_slice(&id.to_be_bytes());
             push_len_prefixed(&mut out, pair_bytes);
             out.extend_from_slice(sig);
+            kem_index += 1;
         }
 
         out.extend_from_slice(&self.next_id.to_be_bytes());
@@ -1092,16 +1261,22 @@ impl PrekeyStore {
         // v4: each entry is the identifier of the last-resort KEM key the
         // handshake was made against, then the handshake's fingerprint.
         out.extend_from_slice(&(self.last_resort_seen.len() as u32).to_be_bytes());
-        for (id, fp) in &self.last_resort_seen {
+        let mut seen_index = 0usize;
+        while seen_index < self.last_resort_seen.len() {
+            let (id, fp) = &self.last_resort_seen[seen_index];
             out.extend_from_slice(&id.to_be_bytes());
             out.extend_from_slice(fp);
+            seen_index += 1;
         }
 
         // v5: identifiers whose old byte-fingerprint record was imported and
         // therefore fail closed until the corresponding key is rotated out.
         out.extend_from_slice(&(self.legacy_last_resort_blocked.len() as u32).to_be_bytes());
-        for id in &self.legacy_last_resort_blocked {
+        let mut blocked_index = 0usize;
+        while blocked_index < self.legacy_last_resort_blocked.len() {
+            let id = self.legacy_last_resort_blocked[blocked_index];
             out.extend_from_slice(&id.to_be_bytes());
+            blocked_index += 1;
         }
 
         // v3: the retired prekeys a rotation keeps, each behind a presence byte.
@@ -1158,277 +1333,24 @@ impl PrekeyStore {
     /// than a refused bundle, because the peer commits before it finds out.
     /// The format survives more corruption than it did and not all of it.
     pub fn from_bytes(bytes: &[u8]) -> Result<PrekeyStore, PrekeyStoreDecodeError> {
-        if bytes.is_empty() {
-            return Err(PrekeyStoreDecodeError::TooShort);
-        }
-        let version = bytes[0];
-        if version != PREKEY_STORE_VERSION
-            && version != PREKEY_STORE_VERSION_V4
-            && version != PREKEY_STORE_VERSION_V3
-            && version != PREKEY_STORE_VERSION_V2
-            && version != PREKEY_STORE_VERSION_V1
-        {
-            return Err(PrekeyStoreDecodeError::UnknownVersion);
-        }
-        let mut pos = 1;
-
-        if bytes.len() < pos + 32 {
-            return Err(PrekeyStoreDecodeError::TooShort);
-        }
-        let mut identity_public = [0u8; 32];
-        identity_public.copy_from_slice(&bytes[pos..pos + 32]);
-        pos += 32;
-
-        if bytes.len() < pos + 32 {
-            return Err(PrekeyStoreDecodeError::TooShort);
-        }
-        let mut signed_prekey_secret = [0u8; 32];
-        signed_prekey_secret.copy_from_slice(&bytes[pos..pos + 32]);
-        pos += 32;
-
-        let Some(signed_prekey_id) = read_prekey_u32(bytes, pos) else {
-            return Err(PrekeyStoreDecodeError::TooShort);
-        };
-        pos += 4;
-
-        if bytes.len() < pos + 64 {
-            return Err(PrekeyStoreDecodeError::TooShort);
-        }
-        let mut signed_prekey_sig = [0u8; 64];
-        signed_prekey_sig.copy_from_slice(&bytes[pos..pos + 64]);
-        pos += 64;
-
-        let Some(one_time_count) = read_prekey_u32(bytes, pos) else {
-            return Err(PrekeyStoreDecodeError::TooShort);
-        };
-        pos += 4;
-        // Sized up front so the vector never grows as the loop pushes and never
-        // strands an outgrown block of one-time secrets un-wiped (CR-15). The
-        // count is untrusted, so the capacity is clamped to what the remaining
-        // bytes could actually hold -- each entry is exactly 36 bytes on the
-        // wire -- rather than trusting the header to size an allocation.
-        let one_time_capacity = (one_time_count as usize).min(bytes.len().saturating_sub(pos) / 36);
-        // Keep decoded curve secrets in a zeroizing owner from the first
-        // allocation. A later malformed KEM or rotation field must not free a
-        // valid prefix of this vector as ordinary bytes.
-        let mut one_time = Zeroizing::new(Vec::with_capacity(one_time_capacity));
-        for _ in 0..one_time_count {
-            if bytes.len() < pos + 36 {
-                return Err(PrekeyStoreDecodeError::TooShort);
-            }
-            let Some(id) = read_prekey_u32(bytes, pos) else {
-                return Err(PrekeyStoreDecodeError::TooShort);
-            };
-            let mut secret = [0u8; 32];
-            secret.copy_from_slice(&bytes[pos + 4..pos + 36]);
-            one_time.push((id, secret));
-            pos += 36;
-        }
-
-        let Some((kem_bytes, next_pos)) = take_len_prefixed(bytes, pos) else {
-            return Err(PrekeyStoreDecodeError::TooShort);
-        };
-        let Ok(kem_keypair) = kem::KeyPair::from_bytes(kem_bytes) else {
-            return Err(PrekeyStoreDecodeError::Malformed);
-        };
-        pos = next_pos;
-
-        let Some(kem_id) = read_prekey_u32(bytes, pos) else {
-            return Err(PrekeyStoreDecodeError::TooShort);
-        };
-        pos += 4;
-
-        if bytes.len() < pos + 64 {
-            return Err(PrekeyStoreDecodeError::TooShort);
-        }
-        let mut kem_sig = [0u8; 64];
-        kem_sig.copy_from_slice(&bytes[pos..pos + 64]);
-        pos += 64;
-
-        let Some(kem_one_time_count) = read_prekey_u32(bytes, pos) else {
-            return Err(PrekeyStoreDecodeError::TooShort);
-        };
-        pos += 4;
-        // Sized up front like the curve vector above (CR-15). A KEM one-time
-        // entry is at least 72 bytes on the wire (id, a length prefix, a
-        // signature), so the untrusted count is clamped to what the remaining
-        // bytes could hold rather than trusted to size the allocation.
-        let kem_one_time_capacity =
-            (kem_one_time_count as usize).min(bytes.len().saturating_sub(pos) / 72);
-        let mut kem_one_time = Vec::with_capacity(kem_one_time_capacity);
-        for _ in 0..kem_one_time_count {
-            let Some(id) = read_prekey_u32(bytes, pos) else {
-                return Err(PrekeyStoreDecodeError::TooShort);
-            };
-            pos += 4;
-            let Some((pair_bytes, next_pos)) = take_len_prefixed(bytes, pos) else {
-                return Err(PrekeyStoreDecodeError::TooShort);
-            };
-            let Ok(pair) = kem::KeyPair::from_bytes(pair_bytes) else {
-                return Err(PrekeyStoreDecodeError::Malformed);
-            };
-            pos = next_pos;
-            if bytes.len() < pos + 64 {
-                return Err(PrekeyStoreDecodeError::TooShort);
-            }
-            let mut sig = [0u8; 64];
-            sig.copy_from_slice(&bytes[pos..pos + 64]);
-            pos += 64;
-            kem_one_time.push((id, pair, sig));
-        }
-
-        let Some(next_id) = read_prekey_u32(bytes, pos) else {
-            return Err(PrekeyStoreDecodeError::TooShort);
-        };
-        pos += 4;
-
-        // A v1 store predates the fingerprints and simply has none.
-        let mut last_resort_seen = Vec::new();
-        if version != PREKEY_STORE_VERSION_V1 {
-            let Some(seen_count) = read_prekey_u32(bytes, pos) else {
-                return Err(PrekeyStoreDecodeError::TooShort);
-            };
-            pos += 4;
-            // Refuse a count the encoder could never have written, before
-            // trusting it to size anything. The bound is per key and no key's
-            // entries exceed it in memory -- a handshake that would take one
-            // past is refused rather than recorded -- so the ceiling here is
-            // the bound times the number of keys the entries can name. A v4
-            // entry names its own key and at most two can still decrypt, the
-            // current one and the one the last rotation retired, so two full
-            // budgets. An untagged v2 or v3 entry reads back under the current
-            // key alone (see below), so such a file has one budget's worth at
-            // most. Anything larger is corruption.
-            //
-            // This is only the cheap ceiling that stops a bogus count sizing
-            // an allocation; the per-key bound itself is a clause of
-            // `invariant`, which runs at the end of this function over the
-            // decoded store, once each entry's tag is known. A v4 file
-            // carrying 2048 entries all tagged with one key passes here and is
-            // refused there.
-            let seen_ceiling =
-                if version == PREKEY_STORE_VERSION || version == PREKEY_STORE_VERSION_V4 {
-                    MAX_LAST_RESORT_SEEN.saturating_mul(2)
-                } else {
-                    MAX_LAST_RESORT_SEEN
-                };
-            if seen_count as usize > seen_ceiling {
-                return Err(PrekeyStoreDecodeError::Malformed);
-            }
-            // A v4 entry carries the identifier of the last-resort KEM key it
-            // was recorded under; a v2 or v3 entry is a bare fingerprint. The
-            // untagged ones are tagged with the *current* key's identifier,
-            // which is the conservative reading: the fingerprint alone decides
-            // whether a handshake is a repeat (it covers the identifier), so
-            // every replay the older store refused is still refused, and the
-            // only effect of a wrong tag is that an entry made under the
-            // retired key is dropped one rotation later than it need be.
-            let tagged = version == PREKEY_STORE_VERSION || version == PREKEY_STORE_VERSION_V4;
-            let entry_len = if tagged { 4 + 32 } else { 32 };
-            last_resort_seen.reserve_exact(seen_count as usize);
-            for _ in 0..seen_count {
-                if bytes.len() < pos + entry_len {
-                    return Err(PrekeyStoreDecodeError::TooShort);
-                }
-                let id = if tagged {
-                    let Some(id) = read_prekey_u32(bytes, pos) else {
-                        return Err(PrekeyStoreDecodeError::TooShort);
-                    };
-                    pos += 4;
-                    id
-                } else {
-                    kem_id
-                };
-                let mut fp = [0u8; 32];
-                fp.copy_from_slice(&bytes[pos..pos + 32]);
-                pos += 32;
-                last_resort_seen.push((id, fp));
-            }
-        }
-
-        // v5 records the key identifiers whose v1-v4 replay fingerprints
-        // could not be upgraded to an `SK`-bound identity. Older stores do
-        // not carry this field; their nonempty record is converted to a
-        // fail-closed marker after the retired keys have been decoded below.
-        let mut legacy_last_resort_blocked = Vec::new();
-        if version == PREKEY_STORE_VERSION {
-            let Some(blocked_count) = read_prekey_u32(bytes, pos) else {
-                return Err(PrekeyStoreDecodeError::TooShort);
-            };
-            pos += 4;
-            if blocked_count > 2 {
-                return Err(PrekeyStoreDecodeError::Malformed);
-            }
-            legacy_last_resort_blocked.reserve_exact(blocked_count as usize);
-            for _ in 0..blocked_count {
-                let Some(id) = read_prekey_u32(bytes, pos) else {
-                    return Err(PrekeyStoreDecodeError::TooShort);
-                };
-                pos += 4;
-                legacy_last_resort_blocked.push(id);
-            }
-        }
-
-        // A v1 or v2 store predates rotation and has retired nothing.
-        let mut previous_signed_prekey = None;
-        let mut previous_kem = None;
-        if version == PREKEY_STORE_VERSION
-            || version == PREKEY_STORE_VERSION_V4
-            || version == PREKEY_STORE_VERSION_V3
-        {
-            if bytes.len() < pos + 1 {
-                return Err(PrekeyStoreDecodeError::TooShort);
-            }
-            match bytes[pos] {
-                0x00 => pos += 1,
-                0x01 => {
-                    pos += 1;
-                    if bytes.len() < pos + 32 + 4 + 64 {
-                        return Err(PrekeyStoreDecodeError::TooShort);
-                    }
-                    let mut secret = [0u8; 32];
-                    secret.copy_from_slice(&bytes[pos..pos + 32]);
-                    pos += 32;
-                    let Some(id) = read_prekey_u32(bytes, pos) else {
-                        return Err(PrekeyStoreDecodeError::TooShort);
-                    };
-                    pos += 4;
-                    let mut sig = [0u8; 64];
-                    sig.copy_from_slice(&bytes[pos..pos + 64]);
-                    pos += 64;
-                    previous_signed_prekey = Some((secret, id, sig));
-                }
-                _ => return Err(PrekeyStoreDecodeError::Malformed),
-            }
-            if bytes.len() < pos + 1 {
-                return Err(PrekeyStoreDecodeError::TooShort);
-            }
-            match bytes[pos] {
-                0x00 => pos += 1,
-                0x01 => {
-                    pos += 1;
-                    let Some((pair_bytes, next_pos)) = take_len_prefixed(bytes, pos) else {
-                        return Err(PrekeyStoreDecodeError::TooShort);
-                    };
-                    let Ok(pair) = kem::KeyPair::from_bytes(pair_bytes) else {
-                        return Err(PrekeyStoreDecodeError::Malformed);
-                    };
-                    pos = next_pos;
-                    let Some(id) = read_prekey_u32(bytes, pos) else {
-                        return Err(PrekeyStoreDecodeError::TooShort);
-                    };
-                    pos += 4;
-                    if bytes.len() < pos + 64 {
-                        return Err(PrekeyStoreDecodeError::TooShort);
-                    }
-                    let mut sig = [0u8; 64];
-                    sig.copy_from_slice(&bytes[pos..pos + 64]);
-                    pos += 64;
-                    previous_kem = Some((pair, id, sig));
-                }
-                _ => return Err(PrekeyStoreDecodeError::Malformed),
-            }
-        }
+        let DecodedPrekeyHead {
+            version,
+            pos,
+            identity_public,
+            signed_prekey_secret,
+            signed_prekey_id,
+            signed_prekey_sig,
+            one_time,
+            kem_keypair,
+            kem_id,
+            kem_sig,
+            kem_one_time,
+            next_id,
+        } = decode_prekey_head(bytes)?;
+        let (last_resort_seen, mut legacy_last_resort_blocked, pos) =
+            decode_prekey_replay(bytes, pos, version, kem_id)?;
+        let (previous_signed_prekey, previous_kem, pos) =
+            decode_previous_prekeys(bytes, pos, version)?;
 
         if pos != bytes.len() {
             return Err(PrekeyStoreDecodeError::Malformed);
@@ -1460,51 +1382,15 @@ impl PrekeyStore {
             next_id,
         };
 
-        // Canonicality backstop for the current version, the same one
-        // `Session::import` applies (CR-18): if the decoded store does not
-        // re-encode to the exact bytes it came from, they were not produced by
-        // `to_bytes` and are refused. Skipped for v1 through v3, which
-        // legitimately re-encode to v4 (they gain the fields the newer format
-        // added, and the record its tags), so a re-encode comparison there
-        // would reject every honest upgrade.
-        //
-        // For v4 as the decoder above stands, this is unreachable by
-        // construction: every field is fixed-width or length-prefixed and
-        // re-encoded exactly as read, the presence bytes admit only 0x00 and
-        // 0x01, and trailing bytes are refused, so any byte string that decodes
-        // re-encodes to itself. It is kept as insurance: a future field with
-        // two encodings of one value would otherwise pass unnoticed, and the
-        // check costs nothing to reason about. What it does cost is one full
-        // re-encode per load, every held KEM key pair included, paid once at
-        // restore and never on the wire.
         if version == PREKEY_STORE_VERSION && store.to_bytes().as_slice() != bytes {
             return Err(PrekeyStoreDecodeError::NonCanonical);
         }
-
-        // The relations between fields that the reads above take on trust --
-        // the identifier namespace and the record's shape -- checked last,
-        // over the decoded store, by the same predicate the tests and the
-        // fuzz targets assert after every operation. `invariant` says what
-        // each clause prevents. A record entry under an unknown key, a
-        // repeated fingerprint, a repeated or wound-back identifier: none
-        // can come out of `to_bytes`, so all are refused as malformed.
         if !store.invariant() {
             return Err(PrekeyStoreDecodeError::Malformed);
         }
-
-        // What the signatures authenticate, checked here and not in
-        // `invariant` (session-persistence.md, Prekey store, Semantic rules,
-        // "Every stored signature verifies under `identity_public`"). The five
-        // rules above are cheap predicates over identifiers, tags and a key's
-        // encoding, which
-        // is why the tests and the fuzz targets can assert them after every
-        // operation; this one costs a signature verification per stored
-        // prekey. Reading is the moment worth paying it at, and the only
-        // moment the bytes could have been corrupted.
         if !store.signatures_verify() {
             return Err(PrekeyStoreDecodeError::Incoherent);
         }
-
         Ok(store)
     }
 
@@ -1531,34 +1417,32 @@ impl PrekeyStore {
     /// carry no signature, and `create_prekeys` says why only the KEM prekeys
     /// are signed individually.
     fn signatures_verify(&self) -> bool {
-        let signed_ok = |secret: &[u8; 32], sig: &[u8; 64]| {
-            let public = dh::PrivateKey::from_bytes(*secret).public_key();
-            xeddsa::verify(&self.identity_public, &encode_ec(&public), sig).is_ok()
-        };
-        let kem_ok = |pair: &kem::KeyPair, sig: &[u8; 64]| {
-            xeddsa::verify(&self.identity_public, &encode_kem(&pair.public_key()), sig).is_ok()
-        };
-
-        if !signed_ok(&self.signed_prekey_secret, &self.signed_prekey_sig) {
+        if !signed_prekey_signature_ok(
+            &self.identity_public,
+            &self.signed_prekey_secret,
+            &self.signed_prekey_sig,
+        ) {
             return false;
         }
-        if !kem_ok(&self.kem, &self.kem_sig) {
+        if !kem_prekey_signature_ok(&self.identity_public, &self.kem, &self.kem_sig) {
             return false;
         }
-        if self
-            .kem_one_time
-            .iter()
-            .any(|(_, pair, sig)| !kem_ok(pair, sig))
-        {
+        let mut one_time_ok = true;
+        for (_, pair, sig) in &self.kem_one_time {
+            if !kem_prekey_signature_ok(&self.identity_public, pair, sig) {
+                one_time_ok = false;
+            }
+        }
+        if !one_time_ok {
             return false;
         }
         if let Some((secret, _, sig)) = &self.previous_signed_prekey {
-            if !signed_ok(secret, sig) {
+            if !signed_prekey_signature_ok(&self.identity_public, secret, sig) {
                 return false;
             }
         }
         if let Some((pair, _, sig)) = &self.previous_kem {
-            if !kem_ok(pair, sig) {
+            if !kem_prekey_signature_ok(&self.identity_public, pair, sig) {
                 return false;
             }
         }
@@ -1615,53 +1499,140 @@ impl PrekeyStore {
         if !is_canonical_key(&self.identity_public) {
             return false;
         }
-        let previous_signed_id = self.previous_signed_prekey.as_ref().map(|(_, id, _)| *id);
-        let previous_kem_id = self.previous_kem.as_ref().map(|(_, id, _)| *id);
+        let previous_signed_id = match &self.previous_signed_prekey {
+            Some((_, id, _)) => Some(*id),
+            None => None,
+        };
+        let previous_kem_id = match &self.previous_kem {
+            Some((_, id, _)) => Some(*id),
+            None => None,
+        };
 
-        let mut ids: Vec<u32> = vec![self.signed_prekey_id, self.kem_id];
-        ids.extend(previous_signed_id);
-        ids.extend(previous_kem_id);
-        ids.extend(self.one_time.iter().map(|(id, _)| *id));
-        ids.extend(self.kem_one_time.iter().map(|(id, _, _)| *id));
-        let mut distinct = std::collections::HashSet::with_capacity(ids.len());
-        for id in &ids {
-            if *id == ABSENT_ID || *id >= self.next_id || !distinct.insert(*id) {
-                return false;
-            }
+        let mut ids = Vec::with_capacity(4 + self.one_time.len() + self.kem_one_time.len());
+        ids.push(self.signed_prekey_id);
+        ids.push(self.kem_id);
+        if let Some(id) = previous_signed_id {
+            ids.push(id);
+        }
+        if let Some(id) = previous_kem_id {
+            ids.push(id);
+        }
+        for (id, _) in &*self.one_time {
+            ids.push(*id);
+        }
+        for (id, _, _) in &self.kem_one_time {
+            ids.push(*id);
         }
 
-        // Counted per key as the entries are walked, rather than by a scan
-        // per key: the two live keys are the only tags a valid record carries,
-        // so two counters cover it, and an entry naming anything else is
-        // refused on sight.
-        let mut current_seen: usize = 0;
-        let mut previous_seen: usize = 0;
-        let mut fingerprints =
-            std::collections::HashSet::with_capacity(self.last_resort_seen.len());
-        for (id, fp) in &self.last_resort_seen {
+        let mut ids_valid = true;
+        let mut i = 0usize;
+        while i < ids.len() {
+            if ids[i] == ABSENT_ID || ids[i] >= self.next_id {
+                ids_valid = false;
+            }
+            if u32_prefix_contains(&ids, i, ids[i]) {
+                ids_valid = false;
+            }
+            i += 1;
+        }
+        if !ids_valid {
+            return false;
+        }
+
+        let mut current_seen = 0usize;
+        let mut previous_seen = 0usize;
+        let mut record_valid = true;
+        let mut fingerprints = Vec::with_capacity(self.last_resort_seen.len());
+        let mut record_index = 0usize;
+        while record_index < self.last_resort_seen.len() {
+            let (id, fingerprint) = &self.last_resort_seen[record_index];
             if *id == self.kem_id {
                 current_seen += 1;
             } else if Some(*id) == previous_kem_id {
                 previous_seen += 1;
             } else {
-                return false;
+                record_valid = false;
             }
-            if !fingerprints.insert(*fp) {
-                return false;
+            if fingerprint_prefix_contains(&fingerprints, fingerprint) {
+                record_valid = false;
             }
+            fingerprints.push(*fingerprint);
+            record_index += 1;
         }
-        if current_seen > MAX_LAST_RESORT_SEEN || previous_seen > MAX_LAST_RESORT_SEEN {
+        if !record_valid
+            || current_seen > MAX_LAST_RESORT_SEEN
+            || previous_seen > MAX_LAST_RESORT_SEEN
+        {
             return false;
         }
-        let mut blocked =
-            std::collections::HashSet::with_capacity(self.legacy_last_resort_blocked.len());
-        for id in &self.legacy_last_resort_blocked {
-            if (*id != self.kem_id && Some(*id) != previous_kem_id) || !blocked.insert(*id) {
-                return false;
+
+        let mut blocked_valid = true;
+        let mut blocked_index = 0usize;
+        while blocked_index < self.legacy_last_resort_blocked.len() {
+            let id = self.legacy_last_resort_blocked[blocked_index];
+            if id != self.kem_id && Some(id) != previous_kem_id {
+                blocked_valid = false;
             }
+            if u32_prefix_contains(&self.legacy_last_resort_blocked, blocked_index, id) {
+                blocked_valid = false;
+            }
+            blocked_index += 1;
         }
-        true
+        blocked_valid
     }
+}
+
+fn u32_prefix_contains(values: &[u32], end: usize, needle: u32) -> bool {
+    let mut found = false;
+    let mut index = 0usize;
+    while index < end {
+        if values[index] == needle {
+            found = true;
+        }
+        index += 1;
+    }
+    found
+}
+
+fn fingerprint_prefix_contains(entries: &[[u8; 32]], needle: &[u8; 32]) -> bool {
+    let mut found = false;
+    let mut index = 0usize;
+    while index < entries.len() {
+        if fingerprint_eq(&entries[index], needle) {
+            found = true;
+        }
+        index += 1;
+    }
+    found
+}
+
+fn fingerprint_eq(left: &[u8; 32], right: &[u8; 32]) -> bool {
+    let mut equal = true;
+    let mut index = 0usize;
+    while index < 32 {
+        if left[index] != right[index] {
+            equal = false;
+        }
+        index += 1;
+    }
+    equal
+}
+
+fn signed_prekey_signature_ok(
+    identity_public: &dh::PublicKeyBytes,
+    secret: &[u8; 32],
+    signature: &[u8; 64],
+) -> bool {
+    let public = dh::PrivateKey::from_bytes(*secret).public_key();
+    xeddsa::verify(identity_public, &encode_ec(&public), signature).is_ok()
+}
+
+fn kem_prekey_signature_ok(
+    identity_public: &dh::PublicKeyBytes,
+    pair: &kem::KeyPair,
+    signature: &[u8; 64],
+) -> bool {
+    xeddsa::verify(identity_public, &encode_kem(&pair.public_key()), signature).is_ok()
 }
 
 /// This module's own persistence-format version for `PrekeyStore::to_bytes`/
@@ -1730,6 +1701,379 @@ fn read_prekey_u32(bytes: &[u8], pos: usize) -> Option<u32> {
     let mut b = [0u8; 4];
     b.copy_from_slice(&bytes[pos..pos + 4]);
     Some(u32::from_be_bytes(b))
+}
+
+struct DecodedPrekeyHead {
+    version: u8,
+    pos: usize,
+    identity_public: [u8; 32],
+    signed_prekey_secret: [u8; 32],
+    signed_prekey_id: u32,
+    signed_prekey_sig: [u8; 64],
+    one_time: Zeroizing<Vec<(u32, [u8; 32])>>,
+    kem_keypair: kem::KeyPair,
+    kem_id: u32,
+    kem_sig: [u8; 64],
+    kem_one_time: Vec<(u32, kem::KeyPair, [u8; 64])>,
+    next_id: u32,
+}
+
+fn decode_prekey_head(bytes: &[u8]) -> Result<DecodedPrekeyHead, PrekeyStoreDecodeError> {
+    if bytes.is_empty() {
+        return Err(PrekeyStoreDecodeError::TooShort);
+    }
+    let version = bytes[0];
+    if version != PREKEY_STORE_VERSION
+        && version != PREKEY_STORE_VERSION_V4
+        && version != PREKEY_STORE_VERSION_V3
+        && version != PREKEY_STORE_VERSION_V2
+        && version != PREKEY_STORE_VERSION_V1
+    {
+        return Err(PrekeyStoreDecodeError::UnknownVersion);
+    }
+    let mut pos = 1;
+    if bytes.len() < pos + 32 {
+        return Err(PrekeyStoreDecodeError::TooShort);
+    }
+    let mut identity_public = [0u8; 32];
+    identity_public.copy_from_slice(&bytes[pos..pos + 32]);
+    pos += 32;
+    if bytes.len() < pos + 32 {
+        return Err(PrekeyStoreDecodeError::TooShort);
+    }
+    let mut signed_prekey_secret = [0u8; 32];
+    signed_prekey_secret.copy_from_slice(&bytes[pos..pos + 32]);
+    pos += 32;
+    let Some(signed_prekey_id) = read_prekey_u32(bytes, pos) else {
+        return Err(PrekeyStoreDecodeError::TooShort);
+    };
+    pos += 4;
+    if bytes.len() < pos + 64 {
+        return Err(PrekeyStoreDecodeError::TooShort);
+    }
+    let mut signed_prekey_sig = [0u8; 64];
+    signed_prekey_sig.copy_from_slice(&bytes[pos..pos + 64]);
+    pos += 64;
+    let Some(one_time_count) = read_prekey_u32(bytes, pos) else {
+        return Err(PrekeyStoreDecodeError::TooShort);
+    };
+    pos += 4;
+    let one_time_capacity = (one_time_count as usize).min(bytes.len().saturating_sub(pos) / 36);
+    let Some(one_time_wire_len) = (one_time_count as usize).checked_mul(36) else {
+        return Err(PrekeyStoreDecodeError::TooShort);
+    };
+    if bytes.len().saturating_sub(pos) < one_time_wire_len {
+        return Err(PrekeyStoreDecodeError::TooShort);
+    }
+    let mut one_time = Zeroizing::new(Vec::with_capacity(one_time_capacity));
+    let mut one_time_decoded = 0u32;
+    while one_time_decoded < one_time_count {
+        let mut id_bytes = [0u8; 4];
+        id_bytes.copy_from_slice(&bytes[pos..pos + 4]);
+        let id = u32::from_be_bytes(id_bytes);
+        let mut secret = [0u8; 32];
+        secret.copy_from_slice(&bytes[pos + 4..pos + 36]);
+        one_time.push((id, secret));
+        pos += 36;
+        one_time_decoded += 1;
+    }
+    let Some((kem_bytes, next_pos)) = take_len_prefixed(bytes, pos) else {
+        return Err(PrekeyStoreDecodeError::TooShort);
+    };
+    let Ok(kem_keypair) = kem::KeyPair::from_bytes(kem_bytes) else {
+        return Err(PrekeyStoreDecodeError::Malformed);
+    };
+    pos = next_pos;
+    let Some(kem_id) = read_prekey_u32(bytes, pos) else {
+        return Err(PrekeyStoreDecodeError::TooShort);
+    };
+    pos += 4;
+    if bytes.len() < pos + 64 {
+        return Err(PrekeyStoreDecodeError::TooShort);
+    }
+    let mut kem_sig = [0u8; 64];
+    kem_sig.copy_from_slice(&bytes[pos..pos + 64]);
+    pos += 64;
+    let Some(kem_one_time_count) = read_prekey_u32(bytes, pos) else {
+        return Err(PrekeyStoreDecodeError::TooShort);
+    };
+    pos += 4;
+    let kem_one_time_capacity =
+        (kem_one_time_count as usize).min(bytes.len().saturating_sub(pos) / 72);
+    let (kem_one_time, next_pos) =
+        decode_kem_one_time_entries(bytes, pos, kem_one_time_count, kem_one_time_capacity)?;
+    pos = next_pos;
+    let Some(next_id) = read_prekey_u32(bytes, pos) else {
+        return Err(PrekeyStoreDecodeError::TooShort);
+    };
+    pos += 4;
+    Ok(DecodedPrekeyHead {
+        version,
+        pos,
+        identity_public,
+        signed_prekey_secret,
+        signed_prekey_id,
+        signed_prekey_sig,
+        one_time,
+        kem_keypair,
+        kem_id,
+        kem_sig,
+        kem_one_time,
+        next_id,
+    })
+}
+
+fn decode_tagged_seen(
+    bytes: &[u8],
+    mut pos: usize,
+    count: u32,
+) -> Result<(Vec<(u32, [u8; 32])>, usize), PrekeyStoreDecodeError> {
+    let mut entries = Vec::with_capacity(count as usize);
+    let mut decoded = 0u32;
+    while decoded < count {
+        let mut id_bytes = [0u8; 4];
+        id_bytes.copy_from_slice(&bytes[pos..pos + 4]);
+        pos += 4;
+        let mut fingerprint = [0u8; 32];
+        fingerprint.copy_from_slice(&bytes[pos..pos + 32]);
+        pos += 32;
+        entries.push((u32::from_be_bytes(id_bytes), fingerprint));
+        decoded += 1;
+    }
+    Ok((entries, pos))
+}
+
+fn decode_untagged_seen(
+    bytes: &[u8],
+    mut pos: usize,
+    count: u32,
+    kem_id: u32,
+) -> Result<(Vec<(u32, [u8; 32])>, usize), PrekeyStoreDecodeError> {
+    let mut entries = Vec::with_capacity(count as usize);
+    let mut decoded = 0u32;
+    while decoded < count {
+        let mut fingerprint = [0u8; 32];
+        fingerprint.copy_from_slice(&bytes[pos..pos + 32]);
+        pos += 32;
+        entries.push((kem_id, fingerprint));
+        decoded += 1;
+    }
+    Ok((entries, pos))
+}
+
+fn decode_prekey_replay(
+    bytes: &[u8],
+    mut pos: usize,
+    version: u8,
+    kem_id: u32,
+) -> Result<(Vec<(u32, [u8; 32])>, Vec<u32>, usize), PrekeyStoreDecodeError> {
+    let mut last_resort_seen = Vec::new();
+    if version != PREKEY_STORE_VERSION_V1 {
+        let Some(seen_count) = read_prekey_u32(bytes, pos) else {
+            return Err(PrekeyStoreDecodeError::TooShort);
+        };
+        pos += 4;
+        let seen_ceiling = if version == PREKEY_STORE_VERSION || version == PREKEY_STORE_VERSION_V4
+        {
+            MAX_LAST_RESORT_SEEN.saturating_mul(2)
+        } else {
+            MAX_LAST_RESORT_SEEN
+        };
+        if seen_count as usize > seen_ceiling {
+            return Err(PrekeyStoreDecodeError::Malformed);
+        }
+        if version == PREKEY_STORE_VERSION {
+            let Some(seen_wire_len) = (seen_count as usize).checked_mul(36) else {
+                return Err(PrekeyStoreDecodeError::TooShort);
+            };
+            if bytes.len().saturating_sub(pos) < seen_wire_len {
+                return Err(PrekeyStoreDecodeError::TooShort);
+            }
+            let (decoded, next_pos) = decode_tagged_seen(bytes, pos, seen_count)?;
+            last_resort_seen = decoded;
+            pos = next_pos;
+        } else if version == PREKEY_STORE_VERSION_V4 {
+            let Some(seen_wire_len) = (seen_count as usize).checked_mul(36) else {
+                return Err(PrekeyStoreDecodeError::TooShort);
+            };
+            if bytes.len().saturating_sub(pos) < seen_wire_len {
+                return Err(PrekeyStoreDecodeError::TooShort);
+            }
+            let (decoded, next_pos) = decode_tagged_seen(bytes, pos, seen_count)?;
+            last_resort_seen = decoded;
+            pos = next_pos;
+        } else {
+            let Some(seen_wire_len) = (seen_count as usize).checked_mul(32) else {
+                return Err(PrekeyStoreDecodeError::TooShort);
+            };
+            if bytes.len().saturating_sub(pos) < seen_wire_len {
+                return Err(PrekeyStoreDecodeError::TooShort);
+            }
+            let (decoded, next_pos) = decode_untagged_seen(bytes, pos, seen_count, kem_id)?;
+            last_resort_seen = decoded;
+            pos = next_pos;
+        }
+    }
+    let mut legacy_last_resort_blocked = Vec::new();
+    if version == PREKEY_STORE_VERSION {
+        let Some(blocked_count) = read_prekey_u32(bytes, pos) else {
+            return Err(PrekeyStoreDecodeError::TooShort);
+        };
+        pos += 4;
+        if blocked_count > 2 {
+            return Err(PrekeyStoreDecodeError::Malformed);
+        }
+        let Some(blocked_wire_len) = (blocked_count as usize).checked_mul(4) else {
+            return Err(PrekeyStoreDecodeError::TooShort);
+        };
+        if bytes.len().saturating_sub(pos) < blocked_wire_len {
+            return Err(PrekeyStoreDecodeError::TooShort);
+        }
+        legacy_last_resort_blocked.reserve_exact(blocked_count as usize);
+        let mut blocked_decoded = 0u32;
+        while blocked_decoded < blocked_count {
+            let mut id_bytes = [0u8; 4];
+            id_bytes.copy_from_slice(&bytes[pos..pos + 4]);
+            legacy_last_resort_blocked.push(u32::from_be_bytes(id_bytes));
+            pos += 4;
+            blocked_decoded += 1;
+        }
+    }
+    Ok((last_resort_seen, legacy_last_resort_blocked, pos))
+}
+
+type PreviousSignedPrekey = Option<([u8; 32], u32, [u8; 64])>;
+type PreviousKemPrekey = Option<(kem::KeyPair, u32, [u8; 64])>;
+
+fn decode_previous_prekeys(
+    bytes: &[u8],
+    mut pos: usize,
+    version: u8,
+) -> Result<(PreviousSignedPrekey, PreviousKemPrekey, usize), PrekeyStoreDecodeError> {
+    let mut previous_signed_prekey = None;
+    let mut previous_kem = None;
+    if version == PREKEY_STORE_VERSION
+        || version == PREKEY_STORE_VERSION_V4
+        || version == PREKEY_STORE_VERSION_V3
+    {
+        if bytes.len() < pos + 1 {
+            return Err(PrekeyStoreDecodeError::TooShort);
+        }
+        match bytes[pos] {
+            0x00 => pos += 1,
+            0x01 => {
+                pos += 1;
+                if bytes.len() < pos + 100 {
+                    return Err(PrekeyStoreDecodeError::TooShort);
+                }
+                let mut secret = [0u8; 32];
+                secret.copy_from_slice(&bytes[pos..pos + 32]);
+                pos += 32;
+                let Some(id) = read_prekey_u32(bytes, pos) else {
+                    return Err(PrekeyStoreDecodeError::TooShort);
+                };
+                pos += 4;
+                let mut sig = [0u8; 64];
+                sig.copy_from_slice(&bytes[pos..pos + 64]);
+                pos += 64;
+                previous_signed_prekey = Some((secret, id, sig));
+            }
+            _ => return Err(PrekeyStoreDecodeError::Malformed),
+        }
+        if bytes.len() < pos + 1 {
+            return Err(PrekeyStoreDecodeError::TooShort);
+        }
+        match bytes[pos] {
+            0x00 => pos += 1,
+            0x01 => {
+                pos += 1;
+                let Some((pair_bytes, next_pos)) = take_len_prefixed(bytes, pos) else {
+                    return Err(PrekeyStoreDecodeError::TooShort);
+                };
+                let Ok(pair) = kem::KeyPair::from_bytes(pair_bytes) else {
+                    return Err(PrekeyStoreDecodeError::Malformed);
+                };
+                pos = next_pos;
+                let Some(id) = read_prekey_u32(bytes, pos) else {
+                    return Err(PrekeyStoreDecodeError::TooShort);
+                };
+                pos += 4;
+                if bytes.len() < pos + 64 {
+                    return Err(PrekeyStoreDecodeError::TooShort);
+                }
+                let mut sig = [0u8; 64];
+                sig.copy_from_slice(&bytes[pos..pos + 64]);
+                pos += 64;
+                previous_kem = Some((pair, id, sig));
+            }
+            _ => return Err(PrekeyStoreDecodeError::Malformed),
+        }
+    }
+    Ok((previous_signed_prekey, previous_kem, pos))
+}
+
+fn decode_kem_one_time_entries(
+    bytes: &[u8],
+    mut pos: usize,
+    count: u32,
+    capacity: usize,
+) -> Result<(Vec<(u32, kem::KeyPair, [u8; 64])>, usize), PrekeyStoreDecodeError> {
+    let mut entries = Vec::with_capacity(capacity);
+    let mut decoded = 0u32;
+    let mut failure = None;
+    while decoded < count && failure.is_none() {
+        let id = match read_prekey_u32(bytes, pos) {
+            Some(id) => {
+                pos += 4;
+                Some(id)
+            }
+            None => {
+                failure = Some(PrekeyStoreDecodeError::TooShort);
+                None
+            }
+        };
+        let pair = if failure.is_none() {
+            match take_len_prefixed(bytes, pos) {
+                Some((pair_bytes, next_pos)) => match kem::KeyPair::from_bytes(pair_bytes) {
+                    Ok(pair) => {
+                        pos = next_pos;
+                        Some(pair)
+                    }
+                    Err(_) => {
+                        failure = Some(PrekeyStoreDecodeError::Malformed);
+                        None
+                    }
+                },
+                None => {
+                    failure = Some(PrekeyStoreDecodeError::TooShort);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        let signature = if failure.is_none() {
+            if bytes.len() < pos + 64 {
+                failure = Some(PrekeyStoreDecodeError::TooShort);
+                None
+            } else {
+                let mut signature = [0u8; 64];
+                signature.copy_from_slice(&bytes[pos..pos + 64]);
+                pos += 64;
+                Some(signature)
+            }
+        } else {
+            None
+        };
+        if let (Some(id), Some(pair), Some(signature)) = (id, pair, signature) {
+            entries.push((id, pair, signature));
+            decoded += 1;
+        }
+    }
+    match failure {
+        Some(error) => Err(error),
+        None => Ok((entries, pos)),
+    }
 }
 
 /// What can go wrong establishing or advancing a session.
@@ -2031,7 +2375,10 @@ pub fn establish_initiator_for<R: RngCore + CryptoRng>(
     // so does this, rather than spending a KEM encapsulation against a prekey
     // nobody has vouched for. `initiator_shared_secret` still verifies for its
     // own callers; the second check is cheap beside the encapsulation.
-    super::verify_bundle(bundle).map_err(Error::Handshake)?;
+    match super::verify_bundle(bundle) {
+        Ok(()) => {}
+        Err(error) => return Err(Error::Handshake(error)),
+    }
     let ephemeral = dh::PrivateKey::from_bytes(random_secret(rng));
     // Wiped on the way out: the encapsulated secret is one of the values the
     // specifications require deleting once the shared secret is derived.
@@ -2040,8 +2387,10 @@ pub fn establish_initiator_for<R: RngCore + CryptoRng>(
     // `SK` is the root of every key this session will ever derive, so it is
     // wrapped like `ss` beside it.
     let sk = Zeroizing::new(
-        initiator_shared_secret(&our_identity.dh_key(), &ephemeral, bundle, &ss)
-            .map_err(Error::Handshake)?,
+        match initiator_shared_secret(&our_identity.dh_key(), &ephemeral, bundle, &ss) {
+            Ok(secret) => secret,
+            Err(error) => return Err(Error::Handshake(error)),
+        },
     );
 
     let ratchet_private = dh::PrivateKey::from_bytes(random_secret(rng));
@@ -2084,6 +2433,125 @@ pub fn establish_initiator_for<R: RngCore + CryptoRng>(
     })
 }
 
+fn responder_signed_prekey_secret(
+    store: &PrekeyStore,
+    id: u32,
+) -> Result<Zeroizing<[u8; 32]>, Error> {
+    if id == store.signed_prekey_id {
+        Ok(Zeroizing::new(store.signed_prekey_secret))
+    } else {
+        match &store.previous_signed_prekey {
+            Some((secret, previous_id, _)) if *previous_id == id => Ok(Zeroizing::new(*secret)),
+            _ => Err(Error::UnknownPrekeyId),
+        }
+    }
+}
+
+fn responder_kem_secret(
+    store: &PrekeyStore,
+    id: u32,
+    ciphertext: &[u8],
+) -> Result<([u8; 32], bool), Error> {
+    if id == store.kem_id {
+        if store.legacy_last_resort_blocked.contains(&id) {
+            Err(Error::LegacyLastResortRecord)
+        } else {
+            match kem::decapsulate(&store.kem, ciphertext) {
+                Ok(secret) => Ok((secret, true)),
+                Err(_) => Err(Error::Kem),
+            }
+        }
+    } else {
+        match &store.previous_kem {
+            Some((pair, previous_id, _)) if *previous_id == id => {
+                if store.legacy_last_resort_blocked.contains(&id) {
+                    Err(Error::LegacyLastResortRecord)
+                } else {
+                    match kem::decapsulate(pair, ciphertext) {
+                        Ok(secret) => Ok((secret, true)),
+                        Err(_) => Err(Error::Kem),
+                    }
+                }
+            }
+            _ => {
+                let ids = store.one_time_kem_ids();
+                match u32_index(&ids, id) {
+                    Some(index) => {
+                        match kem::decapsulate(&store.kem_one_time[index].1, ciphertext) {
+                            Ok(value) => Ok((value, false)),
+                            Err(_) => Err(Error::Kem),
+                        }
+                    }
+                    None => Err(Error::UnknownPrekeyId),
+                }
+            }
+        }
+    }
+}
+
+fn u32_index(values: &[u32], needle: u32) -> Option<usize> {
+    let mut found = None;
+    let mut index = 0usize;
+    while index < values.len() {
+        if values[index] == needle {
+            found = Some(index);
+        }
+        index += 1;
+    }
+    found
+}
+
+fn responder_curve_inputs(
+    identity: &[u8],
+    ephemeral: &[u8],
+) -> Result<(dh::PublicKeyBytes, dh::PublicKeyBytes), Error> {
+    let initiator_identity = match decode_ec(identity) {
+        Some(value) => value,
+        None => return Err(Error::BadEncoding),
+    };
+    let initiator_ephemeral = match decode_ec(ephemeral) {
+        Some(value) => value,
+        None => return Err(Error::BadEncoding),
+    };
+    Ok((initiator_identity, initiator_ephemeral))
+}
+
+fn responder_one_time_key(store: &PrekeyStore, id: u32) -> Result<Option<dh::PrivateKey>, Error> {
+    if id == ABSENT_ID {
+        Ok(None)
+    } else {
+        match store.peek_one_time(id) {
+            Some(secret) => Ok(Some(dh::PrivateKey::from_bytes(*secret))),
+            None => Err(Error::UnknownPrekeyId),
+        }
+    }
+}
+
+fn responder_replay_fingerprint(
+    store: &PrekeyStore,
+    kem_id: u32,
+    sk: &[u8; 32],
+    last_resort: bool,
+) -> Result<Option<[u8; 32]>, Error> {
+    if !last_resort {
+        return Ok(None);
+    }
+    let fingerprint = last_resort_fingerprint(sk);
+    let mut replayed = false;
+    for (_, seen) in &store.last_resort_seen {
+        if *seen == fingerprint {
+            replayed = true;
+        }
+    }
+    if replayed {
+        Err(Error::ReplayedLastResort)
+    } else if store.last_resort_seen_for(kem_id) >= MAX_LAST_RESORT_SEEN {
+        Err(Error::LastResortRecordFull)
+    } else {
+        Ok(Some(fingerprint))
+    }
+}
+
 /// Establish a session as the responder, from an incoming initial message. The
 /// message carries the first ratchet message, so this returns the session and the
 /// first plaintext together.
@@ -2101,7 +2569,10 @@ pub fn establish_responder<R: RngCore + CryptoRng>(
     initial_message: &[u8],
     rng: &mut R,
 ) -> Result<(Session, Vec<u8>), Error> {
-    let decoded = decode_initial(initial_message).map_err(Error::Decode)?;
+    let decoded = match decode_initial(initial_message) {
+        Ok(decoded) => decoded,
+        Err(error) => return Err(Error::Decode(error)),
+    };
 
     // The current signed prekey, or the one a rotation just retired: a bundle
     // fetched before `rotate_signed_prekey` names the latter, and it is
@@ -2111,16 +2582,8 @@ pub fn establish_responder<R: RngCore + CryptoRng>(
     // transient copy each, which is the accepted class.
     // A guarded `match` rather than a let-chain: the workspace promises Rust
     // 1.87, and let-chains are stable only from 1.88.
-    let signed_prekey_secret: Zeroizing<[u8; 32]> = Zeroizing::new(
-        if decoded.signed_prekey_id == our_prekeys.signed_prekey_id {
-            our_prekeys.signed_prekey_secret
-        } else {
-            match &our_prekeys.previous_signed_prekey {
-                Some((secret, id, _)) if *id == decoded.signed_prekey_id => *secret,
-                _ => return Err(Error::UnknownPrekeyId),
-            }
-        },
-    );
+    let signed_prekey_secret =
+        responder_signed_prekey_secret(our_prekeys, decoded.signed_prekey_id)?;
 
     // **The one-time prekeys named here are read, not deleted.**
     //
@@ -2141,88 +2604,42 @@ pub fn establish_responder<R: RngCore + CryptoRng>(
     // the affected key is rotated out.
     // The retired last-resort key is a last-resort key still: reusable, so
     // fingerprinted and remembered on exactly the same terms as the current.
-    let previous_kem = our_prekeys
-        .previous_kem
-        .as_ref()
-        .filter(|(_, id, _)| *id == decoded.kem_prekey_id)
-        .map(|(pair, _, _)| pair);
-    let last_resort = decoded.kem_prekey_id == our_prekeys.kem_id || previous_kem.is_some();
-    if last_resort
-        && our_prekeys
-            .legacy_last_resort_blocked
-            .contains(&decoded.kem_prekey_id)
-    {
-        return Err(Error::LegacyLastResortRecord);
-    }
+    let (kem_secret, last_resort) =
+        responder_kem_secret(our_prekeys, decoded.kem_prekey_id, &decoded.kem_ciphertext)?;
     if last_resort {
         // The budget check runs after deriving `SK`, so a replay remains a
         // replay even when the key's budget is already full. The store is still
         // untouched and the authenticated decrypt is never attempted.
     }
 
-    let kem_one_time = if last_resort {
-        None
-    } else {
-        Some(
-            our_prekeys
-                .peek_one_time_kem(decoded.kem_prekey_id)
-                .ok_or(Error::UnknownPrekeyId)?,
-        )
-    };
-
-    let initiator_identity = decode_ec(&decoded.identity).ok_or(Error::BadEncoding)?;
-    let initiator_ephemeral = decode_ec(&decoded.ephemeral).ok_or(Error::BadEncoding)?;
+    let (initiator_identity, initiator_ephemeral) =
+        responder_curve_inputs(&decoded.identity, &decoded.ephemeral)?;
 
     // Read, not deleted, for the reason given above the KEM prekey.
-    let one_time = if decoded.one_time_prekey_id == ABSENT_ID {
-        None
-    } else {
-        Some(
-            our_prekeys
-                .peek_one_time(decoded.one_time_prekey_id)
-                .ok_or(Error::UnknownPrekeyId)?,
-        )
-    };
-    let one_time_key = one_time.as_ref().map(|s| dh::PrivateKey::from_bytes(**s));
-
-    let kem_key = kem_one_time.or(previous_kem).unwrap_or(&our_prekeys.kem);
+    let one_time_key = responder_one_time_key(our_prekeys, decoded.one_time_prekey_id)?;
     // Wiped on the way out, for the same reason as the initiator's.
-    let ss =
-        Zeroizing::new(kem::decapsulate(kem_key, &decoded.kem_ciphertext).map_err(|_| Error::Kem)?);
+    let ss = Zeroizing::new(kem_secret);
     let signed_prekey = dh::PrivateKey::from_bytes(*signed_prekey_secret);
     // Wrapped for the same reason as the initiator's.
     let sk = Zeroizing::new(
-        responder_shared_secret(
+        match responder_shared_secret(
             &our_identity.dh_key(),
             &signed_prekey,
             one_time_key.as_ref(),
             &initiator_identity,
             &initiator_ephemeral,
             &ss,
-        )
-        .map_err(Error::Handshake)?,
+        ) {
+            Ok(secret) => secret,
+            Err(error) => return Err(Error::Handshake(error)),
+        },
     );
 
     // Replay identity is bound to the agreed secret rather than the public
     // ephemeral encoding. This makes torsion-equivalent X25519 spellings one
     // record entry while keeping the check before the authenticated decrypt.
-    let fingerprint = last_resort.then(|| last_resort_fingerprint(&sk));
-    if let Some(fp) = &fingerprint {
-        if our_prekeys
-            .last_resort_seen
-            .iter()
-            .any(|(_, seen)| seen == fp)
-        {
-            return Err(Error::ReplayedLastResort);
-        }
-        // Fail closed on a spent budget. Recording this handshake at the end
-        // would take its own key past `MAX_LAST_RESORT_SEEN`, and the record
-        // never evicts. Count the key this handshake names, not the whole
-        // record: the current and retired keys have separate budgets.
-        if our_prekeys.last_resort_seen_for(decoded.kem_prekey_id) >= MAX_LAST_RESORT_SEEN {
-            return Err(Error::LastResortRecordFull);
-        }
-    }
+    let fingerprint =
+        responder_replay_fingerprint(our_prekeys, decoded.kem_prekey_id, &sk, last_resort)?;
 
     let triple = tacenta_triple::State::init_receiver(
         &sk[..],
@@ -2318,9 +2735,10 @@ impl Session {
             .map(|o| tacenta_spqr::Output::new(o.key_epoch, o.key));
 
         let mut candidate = self.triple.clone();
-        let (header, mk) = candidate
-            .send(sending_epoch, spqr_output.as_ref())
-            .map_err(Error::Triple)?;
+        let (header, mk) = match candidate.send(sending_epoch, spqr_output.as_ref()) {
+            Ok(value) => value,
+            Err(error) => return Err(Error::Triple(error)),
+        };
 
         let composite = composite_of(&header, &ag_msg);
         // Wiped on the way out, as on the receive side.
@@ -2376,7 +2794,10 @@ impl Session {
     ) -> Result<Vec<u8>, Error> {
         let inner = match message_type(message) {
             Some(MessageType::Initial) => {
-                let decoded = decode_initial(message).map_err(Error::Decode)?;
+                let decoded = match decode_initial(message) {
+                    Ok(decoded) => decoded,
+                    Err(error) => return Err(Error::Decode(error)),
+                };
                 match self.established_ephemeral.as_ref() {
                     Some(e)
                         if *e == decoded.ephemeral
@@ -2409,7 +2830,10 @@ impl Session {
             return Err(Error::AgreementFailed);
         }
 
-        let decoded = decode_message(message).map_err(Error::Decode)?;
+        let decoded = match decode_message(message) {
+            Ok(decoded) => decoded,
+            Err(error) => return Err(Error::Decode(error)),
+        };
 
         // **Every state change here is provisional until the tag verifies.**
         //
@@ -2548,89 +2972,17 @@ impl Session {
         // store never touches the other, so they agree on every later one too,
         // but reading `work` makes that true by construction rather than by
         // argument.
-        let shortfall = |half: FullStore, state: &tacenta_triple::State| -> usize {
-            match half {
-                FullStore::Classical => {
-                    let held = state.classical_skipped_len();
-                    let need =
-                        (composite.n as usize).saturating_sub(state.receive_count() as usize);
-                    held.saturating_add(need)
-                        .saturating_sub(crate::ratchet::MAX_SKIPPED_STORE)
-                        .max(1)
-                }
-                // `None` is the epoch the state holds no receiving chain for,
-                // which is the fallback case above: nothing to compute from, so
-                // the ramp starts at one.
-                FullStore::PostQuantum => {
-                    match state.post_quantum_receive_count(composite.pq_epoch) {
-                        Some(received) => {
-                            let held = state.post_quantum_skipped_len();
-                            // The skip count the sparse ratchet computes, in its
-                            // own arithmetic: it steps the chain to `n - 1`
-                            // saturating, so a message numbered zero asks to skip
-                            // nothing rather than wrapping. Widened saturating
-                            // too, for the platforms where a `u64` does not fit a
-                            // `usize`; the value is under `MAX_SKIP` on every path
-                            // that reaches here.
-                            let need = usize::try_from(
-                                composite.pq_n.saturating_sub(1).saturating_sub(received),
-                            )
-                            .unwrap_or(usize::MAX);
-                            held.saturating_add(need)
-                                .saturating_sub(tacenta_spqr::MAX_SKIPPED_STORE)
-                                .max(1)
-                        }
-                        None => 1,
-                    }
-                }
-            }
-        };
-        let receive = |state: &tacenta_triple::State| {
-            state.receive(
-                &header,
-                &dh_out_recv,
-                &dh_out_send,
-                new_dhs_pub,
-                spqr_output.as_ref(),
-            )
-        };
-        let (triple_candidate, mk) = match receive(&self.triple) {
-            Ok(v) => v,
-            Err(first) => {
-                let Some(mut half) = full_store(&first) else {
-                    return Err(Error::Triple(first));
-                };
-                let mut work = self.triple.clone();
-                let mut batch: usize = shortfall(half, &work);
-                let mut pending = first;
-                loop {
-                    let evicted = match half {
-                        FullStore::Classical => work.evict_oldest_classical(batch),
-                        FullStore::PostQuantum => work.evict_oldest_post_quantum(batch),
-                    };
-                    if evicted == 0 {
-                        return Err(Error::Triple(pending));
-                    }
-                    // Bounded: the stores hold at most `MAX_SKIPPED_STORE`
-                    // keys each, so this doubles a dozen times at most before
-                    // an eviction returns zero. Saturating so it cannot
-                    // overflow when the initial batch is already large.
-                    batch = batch.saturating_mul(2);
-                    match receive(&work) {
-                        Ok(v) => break v,
-                        Err(e) => {
-                            let Some(next) = full_store(&e) else {
-                                return Err(Error::Triple(e));
-                            };
-                            if next != half {
-                                half = next;
-                                batch = shortfall(next, &work);
-                            }
-                            pending = e;
-                        }
-                    }
-                }
-            }
+        let (triple_candidate, mk) = match receive_with_eviction(
+            &self.triple,
+            &composite,
+            &header,
+            &dh_out_recv,
+            &dh_out_send,
+            new_dhs_pub,
+            spqr_output.as_ref(),
+        ) {
+            Ok(value) => value,
+            Err(error) => return Err(Error::Triple(error)),
         };
 
         // Wiped on the way out: the message key and the AEAD material derived

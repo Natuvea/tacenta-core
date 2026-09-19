@@ -6,9 +6,6 @@
 //! primitives themselves are assumed correct and are named in the proofs'
 //! trusted computing base. Standard cryptography is not reimplemented here.
 
-pub mod aead;
-pub mod dh;
+pub use tacenta_boundary::{aead, dh, kem, xeddsa};
 pub mod kdf;
-pub mod kem;
 pub mod kem_incremental;
-pub mod xeddsa;

@@ -108,7 +108,7 @@ New labels are not bound by the four facts above. They must:
 - name the protocol layer and the purpose, in that order,
 - and be prefix-free against every label in the table, including each other.
 
-`APPLICATION_SIGNING_LABEL` in `tacenta-core/src/sessions/mod.rs`
+`APPLICATION_SIGNING_LABEL` in `tacenta-core/lifecycle/src/lib.rs`
 (`tacenta:application-signature:v1\xff`) already follows this shape and shows
 the intent: a version segment, plus a terminator byte that cannot occur in the
 prefix, which makes prefix-freedom structural rather than a property to check.

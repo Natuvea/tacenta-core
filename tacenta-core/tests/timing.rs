@@ -769,7 +769,7 @@ fn the_tag_comparison_does_not_leak_how_much_of_the_tag_was_right() {
         &reject,
         "A short-circuiting comparison would let an attacker recover the tag one \
          byte at a time; check that `Mac::verify_slice` is still what does the \
-         comparison in primitives/aead.rs.",
+         comparison in boundary/src/aead.rs.",
         Floor::Absolute,
     );
 }
