@@ -9,6 +9,7 @@ import Translation.SessionUnitRatchetImportInv
 import Translation.SessionUnitBraidImportInv
 import Translation.UnitSatisfiabilitySession
 import Translation.UnitLifecyclePublicT1
+import Translation.UnitLifecycleT3
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
