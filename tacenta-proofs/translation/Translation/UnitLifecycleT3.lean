@@ -989,6 +989,25 @@ theorem encode_ec_refines (dh : DhView) (codec : DhCodecOf dh)
     simp [vecOf, arrayOf, hvalue, tacenta_session.ENCODE_EC_CURVE25519,
       Model.Messages.ecCurveByte, Tacenta.SessionUnitBraidT3.u8]
 
+/-- The candidate ratchet private key's public bytes are exactly the model
+oracle's public-key result.  Receive uses both opaque calls in sequence, so the
+bridge records both call equations rather than assuming a byte value after the
+fact. -/
+theorem candidate_public_bytes_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (oracle : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (codec : DhCodecOf dh) (privateKey : tacenta_boundary.dh.PrivateKey) :
+    ∃ publicKey bytes,
+      tacenta_boundary.dh.PrivateKey.public_key privateKey = ok publicKey ∧
+      tacenta_boundary.dh.PublicKeyBytes.as_bytes publicKey = ok bytes ∧
+      arrayOf bytes = oracle.dhPublic (dh.privateKey privateKey) := by
+  obtain ⟨publicKey, hpublic, hpublicValue⟩ := oracleOf.dhPublic privateKey
+  obtain ⟨bytes, hbytes, hbytesValue⟩ := codec.asBytes publicKey
+  refine ⟨publicKey, bytes, hpublic, hbytes, ?_⟩
+  rw [hbytesValue, hpublicValue]
+
 /-- The two concrete checks for an accepted repeated-initial wrapper agree
 with the model predicate.  The result exposes the exact translated call
 equations needed by the public decrypt proof. -/
@@ -2075,6 +2094,121 @@ theorem decrypt_ratchet_second_dh_refusal_step_refines {R : Type}
     hreal, ?_⟩
   rw [hmodel]
   exact ⟨rfl, hrel, by simpa [horacleNextDraws] using hrealTraceNext⟩
+
+/-- Once both DH agreements and the candidate public key are related,
+a Triple receive refusal discards the Braid, Triple and ratchet-private
+candidates.  Only the already-consumed candidate-key draw is committed. -/
+theorem decrypt_ratchet_triple_refusal_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle oracleNext : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng rngNext : R)
+    (decoded : tacenta_wire.DecodedMessage)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (realBraidMessage : tacenta_braid.Msg) (receivedEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output)
+    (realBraidCandidate : tacenta_braid.Braid)
+    (realSparseOutput : Option tacenta_spqr.Output)
+    (peer : tacenta_boundary.dh.PublicKeyBytes)
+    (recvSecret sendSecret candidateBytes newPublicBytes before : Array Std.U8 32#usize)
+    (candidatePrivate : tacenta_boundary.dh.PrivateKey)
+    (candidatePublic : tacenta_boundary.dh.PublicKeyBytes)
+    (realHeader : tacenta_triple.Header)
+    (wrappedRecv wrappedSend : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (realReason : tacenta_triple.TripleError)
+    (modelReason : Model.Triple.ReceiveRefusal)
+    (draw modelDhOutRecv modelDhOutSend : Model.Lifecycle.Key)
+    (hrel : SessionRefines dh K real model)
+    (htraceNext : trace rngNext = oracleNext.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeReal : tacenta_wire.decode_message message = ok (.Ok decoded))
+    (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (modelComposite, vecOf decoded.ciphertext))
+    (hmessageCall : lifecycle.msg_of decoded.header = ok realBraidMessage)
+    (hreceive : tacenta_braid.Braid.receive real.braid realBraidMessage =
+      ok (receivedEpoch, realOutput, realBraidCandidate))
+    (hsparse : RealSparseConversion realOutput realSparseOutput)
+    (hpeerCall : tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh = ok peer)
+    (hfirstCall : tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer =
+      ok (some recvSecret))
+    (hwrapRecv : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) recvSecret =
+      ok wrappedRecv)
+    (hderefRecv : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedRecv =
+      ok recvSecret)
+    (hrandomCall : lifecycle.random_secret rngCore cryptoRng rng =
+      ok (candidateBytes, rngNext))
+    (hcandidateCall : tacenta_boundary.dh.PrivateKey.from_bytes candidateBytes =
+      ok candidatePrivate)
+    (hsecondCall : tacenta_boundary.dh.PrivateKey.agree candidatePrivate peer =
+      ok (some sendSecret))
+    (hwrapSend : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sendSecret =
+      ok wrappedSend)
+    (hderefSend : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedSend =
+      ok sendSecret)
+    (hbeforeCall : tacenta_triple.State.sending_public real.triple = ok before)
+    (hheaderCall : lifecycle.triple_header_of decoded.header = ok realHeader)
+    (hpublicCall : tacenta_boundary.dh.PrivateKey.public_key candidatePrivate =
+      ok candidatePublic)
+    (hpublicBytesCall : tacenta_boundary.dh.PublicKeyBytes.as_bytes candidatePublic =
+      ok newPublicBytes)
+    (htripleReal : lifecycle.receive_with_eviction real.triple decoded.header realHeader
+      recvSecret sendSecret newPublicBytes realSparseOutput = ok (.Err realReason))
+    (hmodelFirst : oracle.dhAgree model.ratchetPrivate modelComposite.dh =
+      some modelDhOutRecv)
+    (hmodelDraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext))
+    (hmodelSecond : oracle.dhAgree draw modelComposite.dh = some modelDhOutSend)
+    (hmodelPublic : oracle.dhPublic draw = arrayOf newPublicBytes)
+    (hmodelTriple : Model.Lifecycle.receiveWithEviction model.triple modelComposite
+      (Model.Lifecycle.tripleHeaderOf modelComposite) modelDhOutRecv modelDhOutSend
+      (oracle.dhPublic draw)
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.1) =
+        .error modelReason)
+    (hreason : tripleReceiveRefusalOfReal realReason = some modelReason) :
+    ∃ output,
+      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
+  have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
+    cases hb : model.braid <;>
+      simp [Model.Lifecycle.agreementFailed, Model.Lifecycle.braidFailed, hb] at hready ⊢
+  rw [hmodelReady] at hrealReady
+  have hreal : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err (.Triple realReason), real, rngNext) := by
+    unfold lifecycle.Session.decrypt_ratchet
+    cases hsparse with
+    | none hout =>
+        simp [hrealReady, hdecodeReal, hmessageCall, hreceive, hout, hpeerCall,
+          hfirstCall, hwrapRecv, hderefRecv, hrandomCall, hcandidateCall,
+          hsecondCall, hwrapSend, hderefSend, hbeforeCall, hheaderCall,
+          hpublicCall, hpublicBytesCall, htripleReal]
+    | some realSparse converted hout hconverted =>
+        simp [hrealReady, hdecodeReal, hmessageCall, hreceive, hout, hconverted,
+          hpeerCall, hfirstCall, hwrapRecv, hderefRecv, hrandomCall,
+          hcandidateCall, hsecondCall, hwrapSend, hderefSend, hbeforeCall,
+          hheaderCall, hpublicCall, hpublicBytesCall, htripleReal]
+  have hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session := model,
+        result := .error (Model.Lifecycle.tripleReceiveRefusalOf modelReason),
+        oracle := oracleNext } := by
+    have hmodelTriple' := hmodelTriple
+    rw [hmodelPublic] at hmodelTriple'
+    simp [Model.Lifecycle.decryptRatchet, hready, hdecodeModel, hmodelFirst,
+      hmodelDraw, hmodelSecond, hmodelPublic, hmodelTriple']
+  refine ⟨(.Err (.Triple realReason), real, rngNext), hreal, ?_⟩
+  rw [hmodel]
+  exact ⟨tripleReceiveRefusalOfReal_sound hreason, hrel, htraceNext⟩
 
 /-- The Triple refusal branch is atomic at the lifecycle boundary.  Braid has
 already produced a candidate next state, but neither implementation commits it
