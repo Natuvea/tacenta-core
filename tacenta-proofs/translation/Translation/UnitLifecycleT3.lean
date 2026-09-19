@@ -4,6 +4,7 @@ import Translation.SessionUnitWireT3
 import Translation.SessionUnitWireInitialT3
 import Translation.SessionUnitSessionT1
 import Model.Lifecycle
+import Mathlib.Tactic.IntervalCases
 
 /-!
 # Session lifecycle T3 relation
@@ -1794,6 +1795,20 @@ inductive RealTripleRefusal (state : tacenta_triple.State) (epoch : Std.U64)
       (hsend : lifecycle.send_candidate state epoch (some converted) =
         ok (candidate, .Err reason))
 
+/-- The two implementation shapes that can produce a successful Triple send. -/
+inductive RealTripleSuccess (state : tacenta_triple.State) (epoch : Std.U64)
+    (output : Option tacenta_braid.Output) (candidate : tacenta_triple.State)
+    (header : tacenta_triple.Header) (mk : Array Std.U8 32#usize) : Prop where
+  | none
+      (hout : output = none)
+      (hsend : lifecycle.send_candidate state epoch none =
+        ok (candidate, .Ok (header, mk)))
+  | some (realOutput : tacenta_braid.Output) (converted : tacenta_spqr.Output)
+      (hout : output = some realOutput)
+      (hconverted : tacenta_spqr.Output.new realOutput.key_epoch realOutput.key = ok converted)
+      (hsend : lifecycle.send_candidate state epoch (some converted) =
+        ok (candidate, .Ok (header, mk)))
+
 /-- The Triple refusal branch is atomic at the lifecycle boundary.  Braid has
 already produced a candidate next state, but neither implementation commits it
 when Triple send refuses; only the already-consumed RNG trace advances. -/
@@ -1852,5 +1867,789 @@ theorem encrypt_triple_refusal_step_refines {R : Type}
   refine ⟨(.Err (.Triple realReason), real, rngNext), hreal, ?_⟩
   rw [hmodel]
   exact ⟨tripleSendRefusalOfReal_sound hreason, hrel, htrace⟩
+
+attribute [-step] Tacenta.SessionUnitErasureT1.extend_slice32_spec
+
+private theorem beByte64_eq (v : BitVec 64) (i : Nat) (hi : i < 8) :
+    v.toBEBytes[i]! = (v >>> (8 * (7 - i))).setWidth 8 := by
+  rw [BitVec.eq_iff]
+  intro j hj
+  have hlen : v.toLEBytes.length = 8 := by simp [BitVec.toLEBytes_length]
+  have hib : i < v.toBEBytes.length := by simp [BitVec.toBEBytes_length]; omega
+  have hb : 7 - i < v.toLEBytes.length := by omega
+  have hrw : v.toBEBytes[i]! = v.toLEBytes[7 - i]! := by
+    rw [← List.Inhabited_getElem_eq_getElem! v.toBEBytes i hib]
+    unfold BitVec.toBEBytes
+    rw [List.getElem_reverse]
+    simp only [hlen]
+    exact List.Inhabited_getElem_eq_getElem! v.toLEBytes (7 - i) hb
+  have hbit := BitVec.toLEBytes_getElem!_testBit v (7 - i) j hj
+  simp only [Byte.testBit, BitVec.getElem!_eq_testBit_toNat] at hbit
+  rw [hrw, BitVec.getElem!_setWidth 8 _ j hj, BitVec.getElem!_eq_testBit_toNat,
+    BitVec.getElem!_eq_testBit_toNat, BitVec.toNat_ushiftRight, hbit,
+    Nat.testBit_shiftRight]
+
+private theorem beByte32_eq (v : BitVec 32) (i : Nat) (hi : i < 4) :
+    v.toBEBytes[i]! = (v >>> (8 * (3 - i))).setWidth 8 := by
+  rw [BitVec.eq_iff]
+  intro j hj
+  have hlen : v.toLEBytes.length = 4 := by simp [BitVec.toLEBytes_length]
+  have hib : i < v.toBEBytes.length := by simp [BitVec.toBEBytes_length]; omega
+  have hb : 3 - i < v.toLEBytes.length := by omega
+  have hrw : v.toBEBytes[i]! = v.toLEBytes[3 - i]! := by
+    rw [← List.Inhabited_getElem_eq_getElem! v.toBEBytes i hib]
+    unfold BitVec.toBEBytes
+    rw [List.getElem_reverse]
+    simp only [hlen]
+    exact List.Inhabited_getElem_eq_getElem! v.toLEBytes (3 - i) hb
+  have hbit := BitVec.toLEBytes_getElem!_testBit v (3 - i) j hj
+  simp only [Byte.testBit, BitVec.getElem!_eq_testBit_toNat] at hbit
+  rw [hrw, BitVec.getElem!_setWidth 8 _ j hj, BitVec.getElem!_eq_testBit_toNat,
+    BitVec.getElem!_eq_testBit_toNat, BitVec.toNat_ushiftRight, hbit,
+    Nat.testBit_shiftRight]
+
+private theorem beByte16_eq (v : BitVec 16) (i : Nat) (hi : i < 2) :
+    v.toBEBytes[i]! = (v >>> (8 * (1 - i))).setWidth 8 := by
+  rw [BitVec.eq_iff]
+  intro j hj
+  have hlen : v.toLEBytes.length = 2 := by simp [BitVec.toLEBytes_length]
+  have hib : i < v.toBEBytes.length := by simp [BitVec.toBEBytes_length]; omega
+  have hb : 1 - i < v.toLEBytes.length := by omega
+  have hrw : v.toBEBytes[i]! = v.toLEBytes[1 - i]! := by
+    rw [← List.Inhabited_getElem_eq_getElem! v.toBEBytes i hib]
+    unfold BitVec.toBEBytes
+    rw [List.getElem_reverse]
+    simp only [hlen]
+    exact List.Inhabited_getElem_eq_getElem! v.toLEBytes (1 - i) hb
+  have hbit := BitVec.toLEBytes_getElem!_testBit v (1 - i) j hj
+  simp only [Byte.testBit, BitVec.getElem!_eq_testBit_toNat] at hbit
+  rw [hrw, BitVec.getElem!_setWidth 8 _ j hj, BitVec.getElem!_eq_testBit_toNat,
+    BitVec.getElem!_eq_testBit_toNat, BitVec.toNat_ushiftRight, hbit,
+    Nat.testBit_shiftRight]
+
+private theorem u32_be_agrees (n : Std.U32) :
+    List.map Tacenta.SessionUnitBraidT3.u8
+        (List.map UScalar.mk n.bv.toBEBytes) =
+      Model.Messages.be32 (UInt32.ofNat n.val) := by
+  apply List.ext_getElem
+  · simp [Model.Messages.be32, BitVec.toBEBytes_length]
+  · intro i hleft hright
+    have hi : i < 4 := by simpa [Model.Messages.be32] using hright
+    have hib : i < n.bv.toBEBytes.length := by simp [BitVec.toBEBytes_length]; omega
+    rw [List.getElem_map, List.getElem_map,
+      ← getElem!_pos _ i hib, beByte32_eq n.bv i hi]
+    interval_cases i <;>
+      apply UInt8.toNat.inj <;>
+      simp only [Tacenta.SessionUnitBraidT3.u8, Model.Messages.be32,
+        List.getElem_cons_zero, List.getElem_cons_succ, UInt8.toNat_ofNat,
+        UInt32.toNat_toUInt8, UInt32.toNat_shiftRight, UInt32.toNat_ofNat]
+    all_goals simp only [UScalar.val, UInt8.toNat_ofNat,
+      BitVec.toNat_setWidth, BitVec.toNat_ushiftRight]
+    all_goals norm_num
+
+private theorem u64_be_agrees (n : Std.U64) :
+    List.map Tacenta.SessionUnitBraidT3.u8
+        (List.map UScalar.mk n.bv.toBEBytes) =
+      Model.CompositeHeader.be64 (UInt64.ofNat n.val) := by
+  apply List.ext_getElem
+  · simp [Model.CompositeHeader.be64, BitVec.toBEBytes_length]
+  · intro i hleft hright
+    have hi : i < 8 := by simpa [Model.CompositeHeader.be64] using hright
+    have hib : i < n.bv.toBEBytes.length := by simp [BitVec.toBEBytes_length]; omega
+    rw [List.getElem_map, List.getElem_map,
+      ← getElem!_pos _ i hib,
+      beByte64_eq n.bv i hi]
+    interval_cases i <;>
+      apply UInt8.toNat.inj <;>
+      simp only [Tacenta.SessionUnitBraidT3.u8, Model.CompositeHeader.be64,
+        List.getElem_cons_zero, List.getElem_cons_succ, UInt8.toNat_ofNat,
+        UInt64.toNat_toUInt8, UInt64.toNat_shiftRight, UInt64.toNat_ofNat]
+    all_goals simp only [UScalar.val, UInt8.toNat_ofNat,
+      BitVec.toNat_setWidth, BitVec.toNat_ushiftRight]
+    all_goals norm_num
+
+private theorem u16_be_agrees (n : Std.U16) :
+    List.map Tacenta.SessionUnitBraidT3.u8
+        (List.map UScalar.mk n.bv.toBEBytes) =
+      Model.CompositeHeader.be16 (UInt16.ofNat n.val) := by
+  apply List.ext_getElem
+  · simp [Model.CompositeHeader.be16, BitVec.toBEBytes_length]
+  · intro i hleft hright
+    have hi : i < 2 := by simpa [Model.CompositeHeader.be16] using hright
+    have hib : i < n.bv.toBEBytes.length := by simp [BitVec.toBEBytes_length]; omega
+    rw [List.getElem_map, List.getElem_map,
+      ← getElem!_pos _ i hib, beByte16_eq n.bv i hi]
+    interval_cases i <;>
+      apply UInt8.toNat.inj <;>
+      simp only [Tacenta.SessionUnitBraidT3.u8, Model.CompositeHeader.be16,
+        List.getElem_cons_zero, List.getElem_cons_succ, UInt8.toNat_ofNat,
+        UInt16.toNat_toUInt8, UInt16.toNat_shiftRight, UInt16.toNat_ofNat]
+    all_goals simp only [UScalar.val, UInt8.toNat_ofNat,
+      BitVec.toNat_setWidth, BitVec.toNat_ushiftRight]
+    all_goals norm_num
+
+private theorem u32_be_agrees_map (n : Std.U32) :
+    List.map (Tacenta.SessionUnitBraidT3.u8 ∘ UScalar.mk) n.bv.toBEBytes =
+      Model.Messages.be32 (UInt32.ofNat n.val) := by
+  simpa only [List.map_map] using u32_be_agrees n
+
+private theorem u64_be_agrees_map (n : Std.U64) :
+    List.map (Tacenta.SessionUnitBraidT3.u8 ∘ UScalar.mk) n.bv.toBEBytes =
+      Model.CompositeHeader.be64 (UInt64.ofNat n.val) := by
+  simpa only [List.map_map] using u64_be_agrees n
+
+private theorem u16_be_agrees_map (n : Std.U16) :
+    List.map (Tacenta.SessionUnitBraidT3.u8 ∘ UScalar.mk) n.bv.toBEBytes =
+      Model.CompositeHeader.be16 (UInt16.ofNat n.val) := by
+  simpa only [List.map_map] using u16_be_agrees n
+
+private theorem braid_bytes_eq_wire_bytes (l : List Std.U8) :
+    List.map Tacenta.SessionUnitBraidT3.u8 l =
+      List.map SessionUnitWireT3.byteOf l := rfl
+
+private theorem compositeOf_encode_length (real : tacenta_wire.Composite) :
+    (Model.CompositeHeader.encode (SessionUnitWireT3.compositeOf real)).length = 102 := by
+  cases hchunk : real.ag_chunk <;>
+    simp [Model.CompositeHeader.encode, Model.CompositeHeader.encodeChunk,
+      SessionUnitWireT3.compositeOf, SessionUnitWireT3.bytesOf,
+      Model.CompositeHeader.chunkBytes, Model.Messages.be32,
+      Model.CompositeHeader.be64, Model.CompositeHeader.be16, hchunk]
+
+private theorem cast_usize_u32_model (n : Usize) :
+    UInt32.ofNat (UScalar.cast UScalarTy.U32 n).val = UInt32.ofNat n.val := by
+  apply UInt32.toNat.inj
+  unfold UScalar.cast
+  change (BitVec.setWidth 32 n.bv).toNat % 2 ^ 32 = n.bv.toNat % 2 ^ 32
+  rw [BitVec.toNat_setWidth]
+  simp only [Nat.mod_mod]
+
+private theorem setWidth32_usize_model (n : Usize) :
+    UInt32.ofNat (BitVec.setWidth 32 n.bv).toNat = UInt32.ofNat n.val := by
+  simpa only [UScalar.cast, UScalar.val, UScalarTy.U32_numBits_eq] using
+    cast_usize_u32_model n
+
+private theorem setWidth32_usize_scalar_model (n : Usize) :
+    UInt32.ofNat (UScalar.mk (BitVec.setWidth 32 n.bv) : U32).val =
+      UInt32.ofNat n.val := by
+  simpa only [UScalar.val] using setWidth32_usize_model n
+
+set_option maxHeartbeats 2000000 in
+/-- Encoding a related shipping composite header produces exactly the model's
+fixed-width header bytes. -/
+theorem encode_composite_refines (real : tacenta_wire.Composite)
+    (model : Model.CompositeHeader.Composite)
+    (hrel : CompositeRefines real model) :
+    tacenta_wire.encode_composite real ⦃ fun encoded =>
+      vecOf encoded = Model.CompositeHeader.encode model ⦄ := by
+  rw [← wire_compositeOf_eq real model hrel]
+  unfold tacenta_wire.encode_composite
+  step*
+  all_goals (try simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new,
+    Array.to_slice, Slice.length])
+  all_goals (try scalar_tac)
+  all_goals step*
+  all_goals (try simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new,
+    Array.to_slice, Slice.length])
+  all_goals (try scalar_tac)
+  all_goals cases htype : real.ag_type <;> cases hchunk : real.ag_chunk
+  all_goals simp only [tacenta_wire.AgreementType.to_byte, pure]
+  all_goals step*
+  all_goals (try simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new,
+    Array.to_slice, Slice.length])
+  all_goals (try scalar_tac)
+  all_goals step*
+  all_goals (try simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new,
+    Array.to_slice, Slice.length])
+  all_goals (try scalar_tac)
+  all_goals (try simp only [lift, WP.spec_ok])
+  all_goals step*
+  all_goals (try simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new,
+    Array.to_slice, Slice.length])
+  all_goals (try scalar_tac)
+  all_goals (try simp only [lift, WP.spec_ok])
+  all_goals step*
+  all_goals (try simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new,
+    Array.to_slice, Slice.length])
+  all_goals (try scalar_tac)
+  all_goals simp_all only [vecOf, List.map_cons, List.map_append, List.map_map]
+  all_goals rw [u32_be_agrees_map real.pn, u32_be_agrees_map real.n,
+    u64_be_agrees_map real.pq_epoch, u64_be_agrees_map real.pq_n,
+    u64_be_agrees_map real.ag_epoch]
+  all_goals (try rw [u16_be_agrees_map _])
+  all_goals simp_all [vecOf, Model.CompositeHeader.encode,
+    Model.CompositeHeader.encodeChunk, SessionUnitWireT3.compositeOf,
+    SessionUnitWireT3.bytesOf, SessionUnitWireT3.byteOf,
+    Tacenta.SessionUnitBraidT3.u8, u32_be_agrees_map, u64_be_agrees_map,
+    u16_be_agrees_map, tacenta_wire.VERSION, tacenta_wire.TYPE_RATCHET,
+    Model.Messages.version, Model.Messages.typeRatchet,
+    Model.CompositeHeader.chunkBytes, Model.CompositeHeader.encodeAgreementType,
+    SessionUnitWireT3.agTypeOf, Model.CompositeHeader.be16]
+  all_goals rfl
+
+/-- Appending the AEAD output to a related composite header produces exactly
+the model ratchet-message encoding. -/
+theorem encode_message_refines (real : tacenta_wire.Composite)
+    (model : Model.CompositeHeader.Composite) (ciphertext : Slice Std.U8)
+    (hrel : CompositeRefines real model)
+    (hroom : 102 + ciphertext.val.length ≤ Usize.max) :
+    serialization.encode_message real ciphertext ⦃ fun encoded =>
+      vecOf encoded = Model.CompositeHeader.encodeMessage model
+        (Tacenta.SessionUnitBraidT3.sliceOf ciphertext) ⦄ := by
+  unfold serialization.encode_message
+  step with encode_composite_refines real model hrel
+  rw [← wire_compositeOf_eq real model hrel] at out_post ⊢
+  step with Tacenta.SessionUnitSessionT1.extend_from_slice_spec out ciphertext (by
+    have hlen : out.val.length = 102 := by
+      have h := congrArg List.length out_post
+      cases hchunk : real.ag_chunk <;>
+        simp [vecOf, Model.CompositeHeader.encode,
+          Model.CompositeHeader.encodeChunk, SessionUnitWireT3.compositeOf,
+          SessionUnitWireT3.bytesOf, Model.CompositeHeader.chunkBytes,
+          hchunk] at h
+      · exact h
+      · exact h
+    omega)
+  have hencoded : vecOf encoded = vecOf out ++
+      Tacenta.SessionUnitBraidT3.sliceOf ciphertext := by
+    simp [vecOf, Tacenta.SessionUnitBraidT3.sliceOf, encoded_post,
+      List.map_append]
+  rw [hencoded, out_post]
+  rfl
+
+/-- Associated data is framed by its four-byte length and followed by the
+exact shipping composite header, matching the lifecycle model. -/
+theorem concat_ad_refines (ad : Slice Std.U8)
+    (real : tacenta_wire.Composite) (model : Model.CompositeHeader.Composite)
+    (hrel : CompositeRefines real model)
+    (hroom : ad.val.length + 106 ≤ Usize.max) :
+    serialization.concat_ad ad real ⦃ fun encoded =>
+      vecOf encoded = Model.Messages.concatAd
+        (Tacenta.SessionUnitBraidT3.sliceOf ad)
+        (Model.CompositeHeader.encode model) ⦄ := by
+  unfold serialization.concat_ad
+  step with encode_composite_refines real model hrel
+  rw [← wire_compositeOf_eq real model hrel] at encoded_post ⊢
+  have hencoded_len : encoded.val.length = 102 := by
+    have h := congrArg List.length encoded_post
+    simp only [List.length_map, compositeOf_encode_length] at h
+    simpa [vecOf] using h
+  step*
+  all_goals (try simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new,
+    alloc.vec.Vec.deref, Array.to_slice, Slice.length])
+  all_goals (try scalar_tac)
+  all_goals (try omega)
+  all_goals simp_all only [vecOf, List.map_append, List.map_map]
+  all_goals (try rw [u32_be_agrees_map _])
+  all_goals (try rw [setWidth32_usize_scalar_model ad.len])
+  all_goals simp_all [Model.Messages.concatAd,
+    Tacenta.SessionUnitBraidT3.sliceOf, SessionUnitWireT3.compositeOf,
+    SessionUnitWireT3.bytesOf, alloc.vec.Vec.deref, cast_usize_u32_model]
+  all_goals rfl
+
+/-- The initial-message wrapper emitted by the shipping serializer is exactly
+the lifecycle model's version/type, two EncodeEC values, length-prefixed KEM
+ciphertext, three identifiers, and inner ratchet message. -/
+theorem encode_initial_refines
+    (identity ephemeral kemCiphertext message : Slice Std.U8)
+    (signedPrekeyId oneTimePrekeyId kemPrekeyId : U32)
+    (hroom : identity.val.length + ephemeral.val.length
+      + kemCiphertext.val.length + message.val.length + 18 ≤ Usize.max) :
+    serialization.encode_initial identity ephemeral kemCiphertext signedPrekeyId
+      oneTimePrekeyId kemPrekeyId message ⦃ fun encoded =>
+        vecOf encoded = Model.Messages.encodeInitial
+          (Tacenta.SessionUnitBraidT3.sliceOf identity)
+          (Tacenta.SessionUnitBraidT3.sliceOf ephemeral)
+          (Tacenta.SessionUnitBraidT3.sliceOf kemCiphertext)
+          (UInt32.ofNat signedPrekeyId.val)
+          (UInt32.ofNat oneTimePrekeyId.val)
+          (UInt32.ofNat kemPrekeyId.val)
+          (Tacenta.SessionUnitBraidT3.sliceOf message) ⦄ := by
+  unfold serialization.encode_initial
+  step*
+  all_goals (try simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new,
+    Array.to_slice, Slice.length])
+  all_goals (try scalar_tac)
+  all_goals (try omega)
+  all_goals simp_all only [vecOf, List.map_cons, List.map_append, List.map_map]
+  all_goals (try rw [u32_be_agrees_map signedPrekeyId,
+    u32_be_agrees_map oneTimePrekeyId, u32_be_agrees_map kemPrekeyId])
+  all_goals (try rw [u32_be_agrees_map _])
+  all_goals (try rw [setWidth32_usize_scalar_model kemCiphertext.len])
+  all_goals simp_all [Model.Messages.encodeInitial,
+    Tacenta.SessionUnitBraidT3.sliceOf, tacenta_wire.VERSION,
+    tacenta_wire.TYPE_INITIAL, Model.Messages.version, Model.Messages.typeInitial,
+    Tacenta.SessionUnitBraidT3.u8]
+  all_goals rfl
+
+/-- Exact constructor/projection behaviour needed from the external `zeroize`
+newtype at the two wrapper types used by successful Session encryption. -/
+def ZeroizingRoundTrips (T : Type) : Prop :=
+  ∀ inst : zeroize.Zeroize T,
+    (∀ value, ∃ wrapped, zeroize.Zeroizing.new inst value = ok wrapped ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst wrapped = ok value)
+
+theorem zeroizing_roundtrip (hz : ZeroizingRoundTrips T)
+    (inst : zeroize.Zeroize T) (value : T) :
+    ∃ wrapped, zeroize.Zeroizing.new inst value = ok wrapped ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref inst wrapped = ok value :=
+  hz inst value
+
+set_option maxHeartbeats 4000000 in
+/-- Successful established-session encryption refines the executable lifecycle
+model all the way to the returned wire bytes. The leaf send relations supply
+the candidate state/header/message key; this theorem composes them with the
+proved serializers and the AEAD oracle contract. -/
+theorem encrypt_success_no_initial_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle oracleNext : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (codewordView : CodewordViewOf view)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (plaintext : Slice Std.U8) (rng rngNext : R)
+    (realMessage : tacenta_braid.Msg) (realEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output) (realBraidNext : tacenta_braid.Braid)
+    (modelMessage : Model.Braid.Msg) (modelEpoch : Nat)
+    (modelOutput : Option Model.Braid.Output) (modelBraidNext : Model.Braid.BraidState)
+    (candidate : tacenta_triple.State) (realHeader : tacenta_triple.Header)
+    (realMk : Array Std.U8 32#usize) (modelTripleNext : Model.Triple.State)
+    (modelHeader : Model.Triple.Header) (modelMk : Model.Lifecycle.Key)
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
+    (hsendModel : Model.Lifecycle.sendAgreement oracle model.braid =
+      some ((some modelMessage, modelEpoch, modelOutput, modelBraidNext), oracleNext))
+    (hmessage : Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage)
+    (hbraidNext : Tacenta.SessionUnitBraidT3.StateRefines K
+      realBraidNext.state modelBraidNext)
+    (hnotFailed : Model.Lifecycle.braidFailed modelBraidNext = false)
+    (htripleReal : RealTripleSuccess real.triple realEpoch realOutput candidate
+      realHeader realMk)
+    (htripleModel : Model.Triple.sendDetailed model.triple modelEpoch
+      (Model.Lifecycle.sparseOutputOf modelOutput) =
+        .ok (modelTripleNext, modelHeader, modelMk))
+    (htripleNext : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      candidate modelTripleNext)
+    (hheader : Tacenta.SessionUnitTripleT3.TripleHeaderR realHeader modelHeader)
+    (hmk : arrayOf realMk = modelMk)
+    (hpending : real.pending_initial = none)
+    (htrace : trace rngNext = oracleNext.draws)
+    (hadRoom : model.identityAd.length + 106 ≤ Usize.max)
+    (hcipherRoom : let keys := Model.State.messageKeys modelMk .tacenta
+      let ad := Model.Messages.concatAd model.identityAd
+        (Model.CompositeHeader.encode
+          (Model.Lifecycle.compositeOf view model.braid modelHeader modelMessage).get!)
+      102 + (oracle.aeadSeal keys.1 keys.2.1 keys.2.2
+        (sliceOf plaintext) ad).length ≤ Usize.max) :
+    ∃ output,
+      lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
+  have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
+  have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
+    cases hb : model.braid <;>
+      simp [Model.Lifecycle.agreementFailed, Model.Lifecycle.braidFailed, hb] at hready ⊢
+  rw [hmodelReady] at hrealReady
+  have hrealNext := braid_failed_refines K realBraidNext modelBraidNext hbraidNext
+  rw [hnotFailed] at hrealNext
+  obtain ⟨realComposite, modelComposite, hcompositeReal, hcompositeModel,
+      hcompositeRel⟩ :=
+    composite_of_refines view model.braid realHeader modelHeader realMessage
+      modelMessage hheader hmessage codewordView
+  have hpendingModel : model.pendingInitial = none := by
+    have h := hrel.pendingInitial
+    simp [hpending] at h
+    exact h.symm
+  obtain ⟨realKeys, hkeysCall, hkeysValue⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitT3.message_keys_refines hkdf hz80 realMk
+      tacenta_ratchet.LabelSet.Tacenta)
+  have hkeysValue' :
+      (arrayOf realKeys.1, arrayOf realKeys.2.1, arrayOf realKeys.2.2) =
+        Model.State.messageKeys modelMk .tacenta := by
+    change (arrayOf realKeys.1, arrayOf realKeys.2.1, arrayOf realKeys.2.2) =
+      Model.State.messageKeys (arrayOf realMk) .tacenta at hkeysValue
+    rw [hmk] at hkeysValue
+    exact hkeysValue
+  rcases realKeys with ⟨encKey, macKey, ivKey⟩
+  let inst32 := Array.Insts.ZeroizeZeroize 32#usize
+    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)
+  let instKeys : zeroize.Zeroize
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize) :=
+    TupleABC.Insts.ZeroizeZeroize inst32 inst32
+      (Array.Insts.ZeroizeZeroize 16#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+  obtain ⟨wrappedMk, hwrapMk, hderefMk⟩ := zeroizing_roundtrip hz32 inst32 realMk
+  obtain ⟨wrappedKeys, hwrapKeys, hderefKeys⟩ :=
+    zeroizing_roundtrip hzKeys instKeys (encKey, macKey, ivKey)
+  have hadRoomReal : real.identity_ad.val.length + 106 ≤ Usize.max := by
+    have hlen := congrArg List.length hrel.identityAd
+    simp [vecOf] at hlen
+    omega
+  obtain ⟨realAd, hrealAd, hrealAdValue⟩ := Std.WP.spec_imp_exists
+    (concat_ad_refines (alloc.vec.Vec.deref real.identity_ad) realComposite
+      modelComposite hcompositeRel hadRoomReal)
+  obtain ⟨ciphertext, hciphertext, hciphertextValue⟩ :=
+    oracleOf.aeadSeal encKey macKey ivKey
+      plaintext (alloc.vec.Vec.deref realAd)
+  have hciphertextValue' : vecOf ciphertext =
+      let keys := Model.State.messageKeys modelMk .tacenta
+      oracle.aeadSeal keys.1 keys.2.1 keys.2.2 (sliceOf plaintext)
+        (Model.Messages.concatAd model.identityAd
+          (Model.CompositeHeader.encode modelComposite)) := by
+    have hk1 : arrayOf encKey =
+        (Model.State.messageKeys modelMk .tacenta).1 := by
+      simpa only using congrArg Prod.fst hkeysValue'
+    have hk2 : arrayOf macKey =
+        (Model.State.messageKeys modelMk .tacenta).2.1 := by
+      simpa only using congrArg (fun keys => keys.2.1) hkeysValue'
+    have hk3 : arrayOf ivKey =
+        (Model.State.messageKeys modelMk .tacenta).2.2 := by
+      simpa only using congrArg (fun keys => keys.2.2) hkeysValue'
+    have had : sliceOf (alloc.vec.Vec.deref realAd) =
+        Model.Messages.concatAd model.identityAd
+          (Model.CompositeHeader.encode modelComposite) := by
+      change vecOf realAd = _
+      rw [hrealAdValue]
+      change Model.Messages.concatAd (vecOf real.identity_ad)
+        (Model.CompositeHeader.encode modelComposite) = _
+      rw [hrel.identityAd]
+    rw [hciphertextValue, hk1, hk2, hk3, had]
+  have hcipherRoomReal : 102 + ciphertext.val.length ≤ Usize.max := by
+    have hlen := congrArg List.length hciphertextValue'
+    simp [vecOf] at hlen
+    rw [hcompositeModel] at hcipherRoom
+    simp only [Option.get!_some] at hcipherRoom
+    omega
+  obtain ⟨ratchetMessage, hratchet, hratchetValue⟩ := Std.WP.spec_imp_exists
+    (encode_message_refines realComposite modelComposite
+      (alloc.vec.Vec.deref ciphertext) hcompositeRel hcipherRoomReal)
+  let realNext : lifecycle.Session :=
+    { real with triple := candidate, braid := realBraidNext }
+  let modelNext : Model.Lifecycle.Session :=
+    { model with triple := modelTripleNext, braid := modelBraidNext }
+  have hnextSession : SessionRefines dh K realNext modelNext := by
+    exact ⟨htripleNext, hbraidNext, hrel.ratchetPrivate, hrel.identityAd,
+      hrel.ourIdentityPublic, hrel.peerIdentityPublic,
+      by simp [realNext, modelNext, hpending, hpendingModel],
+      hrel.establishedEphemeral⟩
+  have hreal : lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng =
+      ok (.Ok ratchetMessage, realNext, rngNext) := by
+    unfold lifecycle.Session.encrypt
+    cases htripleReal with
+    | none hout hsend =>
+        simp [hrealReady, hsendReal, hrealNext, hout, hsend, hcompositeReal,
+          hwrapMk, hderefMk, hkeysCall, hwrapKeys, hderefKeys, hrealAd,
+          hciphertext, hratchet, hpending, realNext, inst32, instKeys]
+    | some realSparse converted hout hconverted hsend =>
+        simp [hrealReady, hsendReal, hrealNext, hout, hconverted, hsend,
+          hcompositeReal, hwrapMk, hderefMk, hkeysCall, hwrapKeys, hderefKeys,
+          hrealAd, hciphertext, hratchet, hpending, realNext, inst32, instKeys]
+  have hmodel : Model.Lifecycle.encrypt view oracle model (sliceOf plaintext) =
+      { session := modelNext,
+        result := .ok (Model.CompositeHeader.encodeMessage modelComposite
+          (let keys := Model.State.messageKeys modelMk .tacenta
+           oracle.aeadSeal keys.1 keys.2.1 keys.2.2 (sliceOf plaintext)
+             (Model.Messages.concatAd model.identityAd
+               (Model.CompositeHeader.encode modelComposite))))
+        oracle := oracleNext } := by
+    simp [Model.Lifecycle.encrypt, hready, hsendModel, hnotFailed,
+      htripleModel, hcompositeModel, hpendingModel, modelNext]
+  refine ⟨(.Ok ratchetMessage, realNext, rngNext), hreal, ?_⟩
+  rw [hmodel]
+  have hratchetValue' : vecOf ratchetMessage =
+      Model.CompositeHeader.encodeMessage modelComposite
+        (let keys := Model.State.messageKeys modelMk .tacenta
+         oracle.aeadSeal keys.1 keys.2.1 keys.2.2 (sliceOf plaintext)
+           (Model.Messages.concatAd model.identityAd
+             (Model.CompositeHeader.encode modelComposite))) := by
+    rw [hratchetValue]
+    change Model.CompositeHeader.encodeMessage modelComposite (vecOf ciphertext) = _
+    rw [hciphertextValue']
+  exact ⟨by simpa [ResultRefines] using hratchetValue', hnextSession, htrace⟩
+
+
+set_option maxHeartbeats 4000000 in
+/-- Successful pending-initial encryption refines the executable lifecycle
+model all the way to the returned wire bytes. The leaf send relations supply
+the candidate state/header/message key; this theorem composes them with the
+proved serializers and the AEAD oracle contract. -/
+theorem encrypt_success_initial_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle oracleNext : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (codec : DhCodecOf dh)
+    (codewordView : CodewordViewOf view)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (plaintext : Slice Std.U8) (rng rngNext : R)
+    (realMessage : tacenta_braid.Msg) (realEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output) (realBraidNext : tacenta_braid.Braid)
+    (modelMessage : Model.Braid.Msg) (modelEpoch : Nat)
+    (modelOutput : Option Model.Braid.Output) (modelBraidNext : Model.Braid.BraidState)
+    (candidate : tacenta_triple.State) (realHeader : tacenta_triple.Header)
+    (realMk : Array Std.U8 32#usize) (modelTripleNext : Model.Triple.State)
+    (modelHeader : Model.Triple.Header) (modelMk : Model.Lifecycle.Key)
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
+    (hsendModel : Model.Lifecycle.sendAgreement oracle model.braid =
+      some ((some modelMessage, modelEpoch, modelOutput, modelBraidNext), oracleNext))
+    (hmessage : Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage)
+    (hbraidNext : Tacenta.SessionUnitBraidT3.StateRefines K
+      realBraidNext.state modelBraidNext)
+    (hnotFailed : Model.Lifecycle.braidFailed modelBraidNext = false)
+    (htripleReal : RealTripleSuccess real.triple realEpoch realOutput candidate
+      realHeader realMk)
+    (htripleModel : Model.Triple.sendDetailed model.triple modelEpoch
+      (Model.Lifecycle.sparseOutputOf modelOutput) =
+        .ok (modelTripleNext, modelHeader, modelMk))
+    (htripleNext : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      candidate modelTripleNext)
+    (hheader : Tacenta.SessionUnitTripleT3.TripleHeaderR realHeader modelHeader)
+    (hmk : arrayOf realMk = modelMk)
+    (pending : lifecycle.PendingInitial)
+    (hpending : real.pending_initial = some pending)
+    (htrace : trace rngNext = oracleNext.draws)
+    (hadRoom : model.identityAd.length + 106 ≤ Usize.max)
+    (hcipherRoom : let keys := Model.State.messageKeys modelMk .tacenta
+      let ad := Model.Messages.concatAd model.identityAd
+        (Model.CompositeHeader.encode
+          (Model.Lifecycle.compositeOf view model.braid modelHeader modelMessage).get!)
+      102 + (oracle.aeadSeal keys.1 keys.2.1 keys.2.2
+        (sliceOf plaintext) ad).length ≤ Usize.max)
+    (hinitialRoom :
+      let composite :=
+        (Model.Lifecycle.compositeOf view model.braid modelHeader modelMessage).get!
+      let keys := Model.State.messageKeys modelMk .tacenta
+      let ad := Model.Messages.concatAd model.identityAd
+        (Model.CompositeHeader.encode composite)
+      let ratchetMessage := Model.CompositeHeader.encodeMessage composite
+        (oracle.aeadSeal keys.1 keys.2.1 keys.2.2 (sliceOf plaintext) ad)
+      84 + (pendingInitialOf dh pending).kemCiphertext.length
+        + ratchetMessage.length ≤ Usize.max) :
+    ∃ output,
+      lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
+  have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
+  have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
+    cases hb : model.braid <;>
+      simp [Model.Lifecycle.agreementFailed, Model.Lifecycle.braidFailed, hb] at hready ⊢
+  rw [hmodelReady] at hrealReady
+  have hrealNext := braid_failed_refines K realBraidNext modelBraidNext hbraidNext
+  rw [hnotFailed] at hrealNext
+  obtain ⟨realComposite, modelComposite, hcompositeReal, hcompositeModel,
+      hcompositeRel⟩ :=
+    composite_of_refines view model.braid realHeader modelHeader realMessage
+      modelMessage hheader hmessage codewordView
+  have hpendingModel :
+      model.pendingInitial = some (pendingInitialOf dh pending) := by
+    have h := hrel.pendingInitial
+    simp [hpending] at h
+    exact h.symm
+  obtain ⟨realKeys, hkeysCall, hkeysValue⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitT3.message_keys_refines hkdf hz80 realMk
+      tacenta_ratchet.LabelSet.Tacenta)
+  have hkeysValue' :
+      (arrayOf realKeys.1, arrayOf realKeys.2.1, arrayOf realKeys.2.2) =
+        Model.State.messageKeys modelMk .tacenta := by
+    change (arrayOf realKeys.1, arrayOf realKeys.2.1, arrayOf realKeys.2.2) =
+      Model.State.messageKeys (arrayOf realMk) .tacenta at hkeysValue
+    rw [hmk] at hkeysValue
+    exact hkeysValue
+  rcases realKeys with ⟨encKey, macKey, ivKey⟩
+  let inst32 := Array.Insts.ZeroizeZeroize 32#usize
+    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)
+  let instKeys : zeroize.Zeroize
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize) :=
+    TupleABC.Insts.ZeroizeZeroize inst32 inst32
+      (Array.Insts.ZeroizeZeroize 16#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+  obtain ⟨wrappedMk, hwrapMk, hderefMk⟩ := zeroizing_roundtrip hz32 inst32 realMk
+  obtain ⟨wrappedKeys, hwrapKeys, hderefKeys⟩ :=
+    zeroizing_roundtrip hzKeys instKeys (encKey, macKey, ivKey)
+  have hadRoomReal : real.identity_ad.val.length + 106 ≤ Usize.max := by
+    have hlen := congrArg List.length hrel.identityAd
+    simp [vecOf] at hlen
+    omega
+  obtain ⟨realAd, hrealAd, hrealAdValue⟩ := Std.WP.spec_imp_exists
+    (concat_ad_refines (alloc.vec.Vec.deref real.identity_ad) realComposite
+      modelComposite hcompositeRel hadRoomReal)
+  obtain ⟨ciphertext, hciphertext, hciphertextValue⟩ :=
+    oracleOf.aeadSeal encKey macKey ivKey
+      plaintext (alloc.vec.Vec.deref realAd)
+  have hciphertextValue' : vecOf ciphertext =
+      let keys := Model.State.messageKeys modelMk .tacenta
+      oracle.aeadSeal keys.1 keys.2.1 keys.2.2 (sliceOf plaintext)
+        (Model.Messages.concatAd model.identityAd
+          (Model.CompositeHeader.encode modelComposite)) := by
+    have hk1 : arrayOf encKey =
+        (Model.State.messageKeys modelMk .tacenta).1 := by
+      simpa only using congrArg Prod.fst hkeysValue'
+    have hk2 : arrayOf macKey =
+        (Model.State.messageKeys modelMk .tacenta).2.1 := by
+      simpa only using congrArg (fun keys => keys.2.1) hkeysValue'
+    have hk3 : arrayOf ivKey =
+        (Model.State.messageKeys modelMk .tacenta).2.2 := by
+      simpa only using congrArg (fun keys => keys.2.2) hkeysValue'
+    have had : sliceOf (alloc.vec.Vec.deref realAd) =
+        Model.Messages.concatAd model.identityAd
+          (Model.CompositeHeader.encode modelComposite) := by
+      change vecOf realAd = _
+      rw [hrealAdValue]
+      change Model.Messages.concatAd (vecOf real.identity_ad)
+        (Model.CompositeHeader.encode modelComposite) = _
+      rw [hrel.identityAd]
+    rw [hciphertextValue, hk1, hk2, hk3, had]
+  have hcipherRoomReal : 102 + ciphertext.val.length ≤ Usize.max := by
+    have hlen := congrArg List.length hciphertextValue'
+    simp [vecOf] at hlen
+    rw [hcompositeModel] at hcipherRoom
+    simp only [Option.get!_some] at hcipherRoom
+    omega
+  obtain ⟨ratchetMessage, hratchet, hratchetValue⟩ := Std.WP.spec_imp_exists
+    (encode_message_refines realComposite modelComposite
+      (alloc.vec.Vec.deref ciphertext) hcompositeRel hcipherRoomReal)
+  have hratchetValue' : vecOf ratchetMessage =
+      Model.CompositeHeader.encodeMessage modelComposite
+        (let keys := Model.State.messageKeys modelMk .tacenta
+         oracle.aeadSeal keys.1 keys.2.1 keys.2.2 (sliceOf plaintext)
+           (Model.Messages.concatAd model.identityAd
+             (Model.CompositeHeader.encode modelComposite))) := by
+    rw [hratchetValue]
+    change Model.CompositeHeader.encodeMessage modelComposite (vecOf ciphertext) = _
+    rw [hciphertextValue']
+  obtain ⟨identityEncoded, hidentityEncoded, hidentityValue⟩ :=
+    encode_ec_refines dh codec real.our_identity_public
+  obtain ⟨ephemeralEncoded, hephemeralEncoded, hephemeralValue⟩ :=
+    encode_ec_refines dh codec pending.ephemeral_public
+  obtain ⟨identityRaw, _hidentityRawCall, hidentityRaw⟩ :=
+    codec.asBytes real.our_identity_public
+  obtain ⟨ephemeralRaw, _hephemeralRawCall, hephemeralRaw⟩ :=
+    codec.asBytes pending.ephemeral_public
+  have hidentityPublicLen : (dh.publicKey real.our_identity_public).length = 32 := by
+    have h := congrArg List.length hidentityRaw
+    simp [arrayOf] at h
+    omega
+  have hephemeralPublicLen : (dh.publicKey pending.ephemeral_public).length = 32 := by
+    have h := congrArg List.length hephemeralRaw
+    simp [arrayOf] at h
+    omega
+  have hidentityEncodedLen : identityEncoded.val.length = 33 := by
+    have h := congrArg List.length hidentityValue
+    simp [vecOf, Model.PersistedState.SessionState.encodeEc,
+      hidentityPublicLen] at h
+    omega
+  have hephemeralEncodedLen : ephemeralEncoded.val.length = 33 := by
+    have h := congrArg List.length hephemeralValue
+    simp [vecOf, Model.PersistedState.SessionState.encodeEc,
+      hephemeralPublicLen] at h
+    omega
+  have hkemLen : pending.kem_ciphertext.val.length =
+      (pendingInitialOf dh pending).kemCiphertext.length := by
+    simp [pendingInitialOf, vecOf]
+  have hratchetLen : ratchetMessage.val.length =
+      (Model.CompositeHeader.encodeMessage modelComposite
+        (let keys := Model.State.messageKeys modelMk .tacenta
+         oracle.aeadSeal keys.1 keys.2.1 keys.2.2 (sliceOf plaintext)
+           (Model.Messages.concatAd model.identityAd
+             (Model.CompositeHeader.encode modelComposite)))).length := by
+    have h := congrArg List.length hratchetValue'
+    simpa [vecOf] using h
+  have hinitialRoomReal : identityEncoded.val.length + ephemeralEncoded.val.length
+      + pending.kem_ciphertext.val.length + ratchetMessage.val.length + 18 ≤
+        Usize.max := by
+    rw [hcompositeModel] at hinitialRoom
+    simp only [Option.get!_some] at hinitialRoom
+    dsimp only at hinitialRoom hratchetLen
+    omega
+  obtain ⟨initialMessage, hinitial, hinitialValue⟩ := Std.WP.spec_imp_exists
+    (encode_initial_refines (alloc.vec.Vec.deref identityEncoded)
+      (alloc.vec.Vec.deref ephemeralEncoded)
+      (alloc.vec.Vec.deref pending.kem_ciphertext)
+      (alloc.vec.Vec.deref ratchetMessage) pending.signed_prekey_id
+      pending.one_time_prekey_id pending.kem_prekey_id hinitialRoomReal)
+  have hinitialValue' : vecOf initialMessage =
+      Model.Messages.encodeInitial
+        (Model.PersistedState.SessionState.encodeEc model.ourIdentityPublic)
+        (Model.PersistedState.SessionState.encodeEc
+          (pendingInitialOf dh pending).ephemeralPublic)
+        (pendingInitialOf dh pending).kemCiphertext
+        (UInt32.ofNat (pendingInitialOf dh pending).signedPrekeyId)
+        (UInt32.ofNat (pendingInitialOf dh pending).oneTimePrekeyId)
+        (UInt32.ofNat (pendingInitialOf dh pending).kemPrekeyId)
+        (Model.CompositeHeader.encodeMessage modelComposite
+          (let keys := Model.State.messageKeys modelMk .tacenta
+           oracle.aeadSeal keys.1 keys.2.1 keys.2.2 (sliceOf plaintext)
+             (Model.Messages.concatAd model.identityAd
+               (Model.CompositeHeader.encode modelComposite)))) := by
+    rw [hinitialValue]
+    change Model.Messages.encodeInitial (vecOf identityEncoded)
+      (vecOf ephemeralEncoded) (vecOf pending.kem_ciphertext)
+      (UInt32.ofNat pending.signed_prekey_id.val)
+      (UInt32.ofNat pending.one_time_prekey_id.val)
+      (UInt32.ofNat pending.kem_prekey_id.val) (vecOf ratchetMessage) = _
+    rw [hidentityValue, hephemeralValue, hratchetValue', hrel.ourIdentityPublic]
+    rfl
+  let realNext : lifecycle.Session :=
+    { real with triple := candidate, braid := realBraidNext }
+  let modelNext : Model.Lifecycle.Session :=
+    { model with triple := modelTripleNext, braid := modelBraidNext }
+  have hnextSession : SessionRefines dh K realNext modelNext := by
+    exact ⟨htripleNext, hbraidNext, hrel.ratchetPrivate, hrel.identityAd,
+      hrel.ourIdentityPublic, hrel.peerIdentityPublic,
+      by simp [realNext, modelNext, hpending, hpendingModel],
+      hrel.establishedEphemeral⟩
+  have hreal : lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng =
+      ok (.Ok initialMessage, realNext, rngNext) := by
+    unfold lifecycle.Session.encrypt
+    cases htripleReal with
+    | none hout hsend =>
+        simp [hrealReady, hsendReal, hrealNext, hout, hsend, hcompositeReal,
+          hwrapMk, hderefMk, hkeysCall, hwrapKeys, hderefKeys, hrealAd,
+          hciphertext, hratchet, hpending, hidentityEncoded, hephemeralEncoded,
+          hinitial, realNext, inst32, instKeys]
+    | some realSparse converted hout hconverted hsend =>
+        simp [hrealReady, hsendReal, hrealNext, hout, hconverted, hsend,
+          hcompositeReal, hwrapMk, hderefMk, hkeysCall, hwrapKeys, hderefKeys,
+          hrealAd, hciphertext, hratchet, hpending, hidentityEncoded,
+          hephemeralEncoded, hinitial, realNext, inst32, instKeys]
+  have hmodel : Model.Lifecycle.encrypt view oracle model (sliceOf plaintext) =
+      { session := modelNext,
+        result := .ok (Model.Messages.encodeInitial
+          (Model.PersistedState.SessionState.encodeEc model.ourIdentityPublic)
+          (Model.PersistedState.SessionState.encodeEc
+            (pendingInitialOf dh pending).ephemeralPublic)
+          (pendingInitialOf dh pending).kemCiphertext
+          (UInt32.ofNat (pendingInitialOf dh pending).signedPrekeyId)
+          (UInt32.ofNat (pendingInitialOf dh pending).oneTimePrekeyId)
+          (UInt32.ofNat (pendingInitialOf dh pending).kemPrekeyId)
+          (Model.CompositeHeader.encodeMessage modelComposite
+            (let keys := Model.State.messageKeys modelMk .tacenta
+             oracle.aeadSeal keys.1 keys.2.1 keys.2.2 (sliceOf plaintext)
+               (Model.Messages.concatAd model.identityAd
+                 (Model.CompositeHeader.encode modelComposite)))))
+        oracle := oracleNext } := by
+    simp [Model.Lifecycle.encrypt, hready, hsendModel, hnotFailed,
+      htripleModel, hcompositeModel, hpendingModel, modelNext]
+  refine ⟨(.Ok initialMessage, realNext, rngNext), hreal, ?_⟩
+  rw [hmodel]
+  exact ⟨by simpa [ResultRefines] using hinitialValue', hnextSession, htrace⟩
 
 end Tacenta.UnitLifecycleT3
