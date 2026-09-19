@@ -888,6 +888,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "tacenta-boundary"
+version = "0.0.0"
+dependencies = [
+ "aes",
+ "cbc",
+ "curve25519-dalek",
+ "ed25519-dalek",
+ "hmac",
+ "libcrux-ml-kem",
+ "rand_core 0.6.4",
+ "sha2",
+ "subtle",
+ "tacenta-kdf",
+ "x25519-dalek",
+ "zeroize",
+]
+
+[[package]]
 name = "tacenta-braid"
 version = "0.0.0"
 dependencies = [
@@ -912,10 +930,12 @@ dependencies = [
  "rand_core 0.6.4",
  "sha2",
  "subtle",
+ "tacenta-boundary",
  "tacenta-braid",
  "tacenta-erasure",
  "tacenta-kdf",
  "tacenta-kem",
+ "tacenta-lifecycle",
  "tacenta-ratchet",
  "tacenta-session",
  "tacenta-spqr",
@@ -944,6 +964,23 @@ version = "0.0.0"
 dependencies = [
  "libcrux-ml-kem",
  "rand_core 0.6.4",
+ "zeroize",
+]
+
+[[package]]
+name = "tacenta-lifecycle"
+version = "0.0.0"
+dependencies = [
+ "rand_core 0.6.4",
+ "tacenta-boundary",
+ "tacenta-braid",
+ "tacenta-erasure",
+ "tacenta-kdf",
+ "tacenta-ratchet",
+ "tacenta-session",
+ "tacenta-spqr",
+ "tacenta-triple",
+ "tacenta-wire",
  "zeroize",
 ]
 
