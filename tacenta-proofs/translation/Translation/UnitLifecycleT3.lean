@@ -727,6 +727,45 @@ theorem decrypt_ratchet_terminal_guard_step_refines {R : Type}
   rw [hmodel]
   exact ⟨rfl, hrel, htrace⟩
 
+/-- A rejected ratchet-message encoding is an atomic Session refusal.  The
+decoder-specific relation is kept explicit so the later decoder theorem must
+identify the exact reason, rather than merely showing that both sides fail. -/
+theorem decrypt_ratchet_decode_refusal_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (realReason : tacenta_wire.DecodeError)
+    (modelReason : Model.Messages.DecodeRefusal)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeReal : tacenta_wire.decode_message message = ok (.Err realReason))
+    (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .error modelReason)
+    (hreason : decodeRefusalOf realReason = modelReason) :
+    ∃ output,
+      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+        ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
+  have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
+    cases hb : model.braid <;>
+      simp [Model.Lifecycle.agreementFailed, Model.Lifecycle.braidFailed, hb] at hready ⊢
+  rw [hmodelReady] at hrealReady
+  have hreal : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err (.Decode realReason), real, rng) := by
+    unfold lifecycle.Session.decrypt_ratchet
+    simp [hrealReady, hdecodeReal]
+  have hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session := model, result := .error (.decode modelReason), oracle := oracle } := by
+    simp [Model.Lifecycle.decryptRatchet, hready, hdecodeModel]
+  refine ⟨(.Err (.Decode realReason), real, rng), hreal, ?_⟩
+  rw [hmodel]
+  exact ⟨congrArg Model.Lifecycle.Refusal.decode hreason, hrel, htrace⟩
+
 /-- Once the Braid send step is related, its terminal transition is committed
 on both sides before `AgreementFailed` is returned.  This outer lifecycle fact
 does not depend on the unused message, epoch or sparse output. -/
