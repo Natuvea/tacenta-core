@@ -423,6 +423,58 @@ theorem one_time_kem_ids_no_panic (store : lifecycle.PrekeyStore) :
     0#usize (by simp)
     (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new])
 
+theorem peek_one_time_loop_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
+    (store : lifecycle.PrekeyStore) (id : U32)
+    (found : Option (zeroize.Zeroizing (Array U8 32#usize))) (index : Usize)
+    (hindex : index.val ≤
+      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length) :
+    lifecycle.PrekeyStore.peek_one_time_loop store id found index
+      ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.PrekeyStore.peek_one_time_loop
+  apply loop.spec_decr_nat
+    (measure := fun p =>
+      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length -
+        (Prod.snd p).val)
+    (inv := fun p => (Prod.snd p).val ≤
+      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length)
+  · rintro ⟨found1, index1⟩ hi
+    simp only at hi
+    simp only [lifecycle.PrekeyStore.peek_one_time_loop.body]
+    step
+    split
+    · step
+      split
+      · step
+        rcases found1 with ⟨foundId, key⟩
+        step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz key
+        step
+        case hmax =>
+          scalar_tac
+        case a =>
+          constructor
+          · rw [index1_post, ← v_post]
+            scalar_tac
+          · rw [index1_post, ← v_post]
+            scalar_tac
+      · step
+        case hmax =>
+          rw [v_post] at *
+          scalar_tac
+        case a =>
+          rw [v_post] at *
+          scalar_tac
+    · simp
+  · simpa using hindex
+
+@[step]
+theorem peek_one_time_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
+    (store : lifecycle.PrekeyStore) (id : U32) :
+    lifecycle.PrekeyStore.peek_one_time store id ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.PrekeyStore.peek_one_time
+  exact peek_one_time_loop_no_panic hz store id none 0#usize (by simp)
+
 theorem responder_curve_inputs_no_panic (hdh : DhCodecTotal)
     (identity ephemeral : Slice U8) :
     lifecycle.responder_curve_inputs identity ephemeral ⦃ fun _ => True ⦄ := by
