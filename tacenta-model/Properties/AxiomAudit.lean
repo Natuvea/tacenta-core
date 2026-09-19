@@ -5,6 +5,8 @@ import Model.CompositeHeader
 import Model.Erasure
 import Model.Gf65536
 import Model.Kdf
+import Model.Lifecycle
+import Model.LifecycleTrace
 import Model.Messages
 import Model.MultiDevice
 import Model.PersistedState
@@ -24,6 +26,8 @@ import Model.Types
 import Properties.Authentication
 import Properties.ForwardSecrecy
 import Properties.Invariants
+import Properties.Lifecycle
+import Properties.LifecycleTrace
 import Properties.PostCompromise
 import Properties.Secrecy
 import Properties.StateConsistency

@@ -245,6 +245,166 @@ def send (st : State) (sendingEpoch : Nat) (out : Option Output) :
         else
           none
 
+/-- Exact public send refusals, retained alongside the compact `Option` model
+    so the session layer can refine the implementation's error vocabulary. -/
+inductive SendRefusal where
+  | epochOutOfOrder | noChain | chainRetired | chainExhausted
+  deriving Repr, DecidableEq, Inhabited
+
+def advanceDetailed (st : State) (out : Output) : Except SendRefusal State :=
+  if u64Max ≤ st.epoch + 1 then .error .chainExhausted
+  else if out.keyEpoch != st.epoch + 1 then .error .epochOutOfOrder
+  else
+    let d := kdfRk st.rk out.key
+    let cks := match st.direction with | .a2b => d.2.1 | .b2a => d.2.2
+    let ckr := match st.direction with | .a2b => d.2.2 | .b2a => d.2.1
+    .ok (clearOldEpochs
+      (setChains { st with rk := d.1, epoch := out.keyEpoch } out.keyEpoch
+        { send := some { ck := cks, n := 0 },
+          receive := some { ck := ckr, n := 0 } })
+      out.keyEpoch)
+
+def maybeAdvanceDetailed (st : State) (out : Option Output) : Except SendRefusal State :=
+  match out with
+  | none => .ok st
+  | some value => advanceDetailed st value
+
+def sendDetailed (st : State) (sendingEpoch : Nat) (out : Option Output) :
+    Except SendRefusal (State × Nat × Key) :=
+  match maybeAdvanceDetailed st out with
+  | .error reason => .error reason
+  | .ok st1 =>
+      match findChains st1 sendingEpoch with
+      | none => .error .noChain
+      | some cs =>
+          match cs.send with
+          | none => .error .chainRetired
+          | some ch =>
+              if ch.n < u64Max then
+                let stepped := kdfCk ch.ck (ch.n + 1)
+                .ok (setChains st1 sendingEpoch
+                      { cs with send := some { ck := stepped.1, n := ch.n + 1 } },
+                    ch.n + 1, stepped.2)
+              else
+                .error .chainExhausted
+
+theorem advanceDetailed_ok_iff (st : State) (out : Output) (result : State) :
+    advanceDetailed st out = .ok result ↔ advance st out = some result := by
+  by_cases he : u64Max ≤ st.epoch + 1
+  · simp [advanceDetailed, advance, he]
+    omega
+  · have hlt : st.epoch + 1 < u64Max := by omega
+    by_cases hk : out.keyEpoch = st.epoch + 1
+    · simp [advanceDetailed, advance, he, hlt, hk]
+    · simp [advanceDetailed, advance, he, hlt, hk]
+
+theorem advanceDetailed_exhausted_iff (st : State) (out : Output) :
+    advanceDetailed st out = .error .chainExhausted ↔ u64Max ≤ st.epoch + 1 := by
+  by_cases he : u64Max ≤ st.epoch + 1
+  · simp [advanceDetailed, he]
+  · by_cases hk : out.keyEpoch = st.epoch + 1 <;> simp [advanceDetailed, he, hk]
+
+theorem advanceDetailed_epoch_iff (st : State) (out : Output) :
+    advanceDetailed st out = .error .epochOutOfOrder ↔
+      st.epoch + 1 < u64Max ∧ out.keyEpoch ≠ st.epoch + 1 := by
+  by_cases he : u64Max ≤ st.epoch + 1
+  · simp [advanceDetailed, he]
+    omega
+  · have hlt : st.epoch + 1 < u64Max := by omega
+    by_cases hk : out.keyEpoch = st.epoch + 1 <;> simp [advanceDetailed, he, hlt, hk]
+
+theorem maybeAdvanceDetailed_ne_noChain (st : State) (out : Option Output) :
+    maybeAdvanceDetailed st out ≠ .error .noChain := by
+  cases out with
+  | none => simp [maybeAdvanceDetailed]
+  | some value =>
+      simp only [maybeAdvanceDetailed]
+      unfold advanceDetailed
+      split <;> simp
+      split <;> simp
+
+theorem maybeAdvanceDetailed_ne_chainRetired (st : State) (out : Option Output) :
+    maybeAdvanceDetailed st out ≠ .error .chainRetired := by
+  cases out with
+  | none => simp [maybeAdvanceDetailed]
+  | some value =>
+      simp only [maybeAdvanceDetailed]
+      unfold advanceDetailed
+      split <;> simp
+      split <;> simp
+
+theorem sendDetailed_no_chain_iff (st : State) (sendingEpoch : Nat) (out : Option Output) :
+    sendDetailed st sendingEpoch out = .error .noChain ↔
+      ∃ advanced, maybeAdvanceDetailed st out = .ok advanced
+        ∧ findChains advanced sendingEpoch = none := by
+  cases ha : maybeAdvanceDetailed st out with
+  | error reason =>
+      have hn := maybeAdvanceDetailed_ne_noChain st out
+      simp [sendDetailed, ha] at hn ⊢
+      exact hn
+  | ok advanced =>
+      cases hc : findChains advanced sendingEpoch with
+      | none => simp [sendDetailed, ha, hc]
+      | some chains =>
+          cases hs : chains.send with
+          | none => simp [sendDetailed, ha, hc, hs]
+          | some chain =>
+              by_cases hn : chain.n < u64Max <;> simp [sendDetailed, ha, hc, hs, hn]
+
+theorem sendDetailed_chain_retired_iff (st : State) (sendingEpoch : Nat)
+    (out : Option Output) :
+    sendDetailed st sendingEpoch out = .error .chainRetired ↔
+      ∃ advanced chains, maybeAdvanceDetailed st out = .ok advanced
+        ∧ findChains advanced sendingEpoch = some chains ∧ chains.send = none := by
+  cases ha : maybeAdvanceDetailed st out with
+  | error reason =>
+      have hn := maybeAdvanceDetailed_ne_chainRetired st out
+      simp [sendDetailed, ha] at hn ⊢
+      exact hn
+  | ok advanced =>
+      cases hc : findChains advanced sendingEpoch with
+      | none => simp [sendDetailed, ha, hc]
+      | some chains =>
+          cases hs : chains.send with
+          | none => simp [sendDetailed, ha, hc, hs]
+          | some chain =>
+              by_cases hn : chain.n < u64Max <;> simp [sendDetailed, ha, hc, hs, hn]
+
+theorem sendDetailed_ok_iff (st : State) (sendingEpoch : Nat) (out : Option Output)
+    (result : State × Nat × Key) :
+    sendDetailed st sendingEpoch out = .ok result ↔ send st sendingEpoch out = some result := by
+  cases out with
+  | none =>
+      simp only [sendDetailed, send, maybeAdvanceDetailed]
+      cases hc : findChains st sendingEpoch with
+      | none => simp
+      | some cs =>
+          cases hs : cs.send with
+          | none => simp [hs]
+          | some ch =>
+              by_cases hn : ch.n < u64Max <;> simp [hs, hn]
+  | some value =>
+      cases hd : advanceDetailed st value with
+      | error reason =>
+          have ha : advance st value = none := by
+            cases h : advance st value with
+            | none => rfl
+            | some result =>
+                have := (advanceDetailed_ok_iff st value result).2 h
+                rw [hd] at this
+                contradiction
+          simp [sendDetailed, send, maybeAdvanceDetailed, hd, ha]
+      | ok st1 =>
+          have ha := (advanceDetailed_ok_iff st value st1).1 hd
+          simp only [sendDetailed, send, maybeAdvanceDetailed, hd, ha]
+          cases hc : findChains st1 sendingEpoch with
+          | none => simp
+          | some cs =>
+              cases hs : cs.send with
+              | none => simp [hs]
+              | some ch =>
+                  by_cases hn : ch.n < u64Max <;> simp [hs, hn]
+
 /-- An advance leaves the epoch below `u64::MAX`. -/
 theorem advance_epoch_lt (st : State) (out : Output) (st' : State)
     (h : advance st out = some st') : st'.epoch < u64Max := by
@@ -277,6 +437,13 @@ def trySkipped (st : State) (e n : Nat) : Option (State × Key) :=
   | some x =>
     some ({ st with skipped := st.skipped.filter (fun y => !(y.1 == e && y.2.1 == n)) },
           x.2.2)
+
+/-- Delete up to `count` of the oldest sparse skipped keys. Sparse entries are
+    appended in derivation order and only removed, so the front is the oldest,
+    exactly matching the implementation's adjacent-swap-and-pop loop. -/
+def evictOldest (st : State) (count : Nat) : State × Nat :=
+  let evicted := min count st.skipped.length
+  ({ st with skipped := st.skipped.drop evicted }, evicted)
 
 /-- Step the receiving chain forward to `upto`, storing every key passed.
 
@@ -318,6 +485,163 @@ where
       let rest := deriveInto stepped.1 (start + 1) c
       (rest.1, (start + 1, stepped.2) :: rest.2)
 
+inductive ReceiveRefusal where
+  | epochOutOfOrder | noChain | chainRetired | tooManySkipped
+  | skippedStoreFull | outOfOrder | chainExhausted
+  deriving Repr, DecidableEq, Inhabited
+
+/-- The sparse skip transition with the exact public refusal retained. The
+    accepted state is still produced by the established `skipMessageKeys`
+    model; the preceding guards classify every point where that model returns
+    `none`, in the shipping order. -/
+def skipMessageKeysDetailed (st : State) (e upto : Nat) : Except ReceiveRefusal State :=
+  match skipMessageKeys st e upto with
+  | some next => .ok next
+  | none =>
+      match findChains st e with
+      | none => .error .noChain
+      | some chains =>
+          match chains.receive with
+          | none => .error .chainRetired
+          | some chain =>
+              if chain.n + maxSkip < upto then .error .tooManySkipped
+              else .error .skippedStoreFull
+
+theorem skipMessageKeysDetailed_ok_iff (st : State) (e upto : Nat) (next : State) :
+    skipMessageKeysDetailed st e upto = .ok next ↔
+      skipMessageKeys st e upto = some next := by
+  unfold skipMessageKeysDetailed skipMessageKeys
+  repeat' split <;> simp_all
+
+theorem skipMessageKeysDetailed_no_chain_iff (st : State) (e upto : Nat) :
+    skipMessageKeysDetailed st e upto = .error .noChain ↔ findChains st e = none := by
+  cases hc : findChains st e with
+  | none =>
+      cases hs : skipMessageKeys st e upto with
+      | none => simp [skipMessageKeysDetailed, hs, hc]
+      | some next =>
+          unfold skipMessageKeys at hs
+          simp [hc] at hs
+  | some chains =>
+      cases hs : skipMessageKeys st e upto with
+      | some next => simp [skipMessageKeysDetailed, hs]
+      | none =>
+          simp only [skipMessageKeysDetailed, hs, hc]
+          cases hr : chains.receive with
+          | none => simp
+          | some chain =>
+              by_cases hb : chain.n + maxSkip < upto <;>
+                simp [hb]
+
+theorem skipMessageKeysDetailed_retired_iff (st : State) (e upto : Nat) :
+    skipMessageKeysDetailed st e upto = .error .chainRetired ↔
+      ∃ chains, findChains st e = some chains ∧ chains.receive = none := by
+  cases hc : findChains st e with
+  | none =>
+      cases hs : skipMessageKeys st e upto with
+      | none => simp [skipMessageKeysDetailed, hs, hc]
+      | some next =>
+          unfold skipMessageKeys at hs
+          simp [hc] at hs
+  | some chains =>
+      cases hs : skipMessageKeys st e upto with
+      | some next =>
+          cases hr : chains.receive with
+          | none =>
+              unfold skipMessageKeys at hs
+              simp [hc, hr] at hs
+          | some chain => simp [skipMessageKeysDetailed, hs, hr]
+      | none =>
+          cases hr : chains.receive with
+          | none => simp [skipMessageKeysDetailed, hs, hc, hr]
+          | some chain =>
+              simp only [skipMessageKeysDetailed, hs, hc, hr]
+              split <;> simp_all
+
+def receiveRefusalOfSend : SendRefusal → ReceiveRefusal
+  | .epochOutOfOrder => .epochOutOfOrder
+  | .noChain => .noChain
+  | .chainRetired => .chainRetired
+  | .chainExhausted => .chainExhausted
+
+def maybeAdvanceReceiveDetailed (st : State) (out : Option Output) :
+    Except ReceiveRefusal State :=
+  match maybeAdvanceDetailed st out with
+  | .ok next => .ok next
+  | .error reason => .error (receiveRefusalOfSend reason)
+
+/-- Sparse receive with the exact shipping refusal kind retained. -/
+def receiveDetailed (st : State) (receivingEpoch : Nat) (out : Option Output) (n : Nat) :
+    Except ReceiveRefusal (State × Key) :=
+  match maybeAdvanceReceiveDetailed st out with
+  | .error reason => .error reason
+  | .ok st1 =>
+      match trySkipped st1 receivingEpoch n with
+      | some result => .ok result
+      | none =>
+          match skipMessageKeysDetailed st1 receivingEpoch (n - 1) with
+          | .error reason => .error reason
+          | .ok st2 =>
+              match findChains st2 receivingEpoch with
+              | none => .error .noChain
+              | some chains =>
+                  match chains.receive with
+                  | none => .error .chainRetired
+                  | some chain =>
+                      if u64Max ≤ chain.n then .error .chainExhausted
+                      else if n != chain.n + 1 then .error .outOfOrder
+                      else
+                        let stepped := kdfCk chain.ck n
+                        .ok (setChains st2 receivingEpoch
+                              { chains with
+                                receive := some { ck := stepped.1, n := n } },
+                            stepped.2)
+
+def detailedReceiveToOption : Except ReceiveRefusal (State × Key) → Option (State × Key)
+  | .error _ => none
+  | .ok result => some result
+
+theorem skipMessageKeysDetailed_toOption (st : State) (e upto : Nat) :
+    (match skipMessageKeysDetailed st e upto with
+      | .error _ => none
+      | .ok next => some next) = skipMessageKeys st e upto := by
+  cases h : skipMessageKeys st e upto with
+  | some next => simp [skipMessageKeysDetailed, h]
+  | none =>
+      cases hc : findChains st e with
+      | none => simp [skipMessageKeysDetailed, h, hc]
+      | some chains =>
+          cases hr : chains.receive with
+          | none => simp [skipMessageKeysDetailed, h, hc, hr]
+          | some chain =>
+              by_cases hb : chain.n + maxSkip < upto <;>
+                simp [skipMessageKeysDetailed, h, hc, hr, hb]
+
+/-- Apply an optional agreement output before a receive. -/
+abbrev receiveAdvance (st : State) (out : Option Output) : Option State :=
+  match out with | none => some st | some value => advance st value
+
+theorem maybeAdvanceReceiveDetailed_toOption (st : State) (out : Option Output) :
+    (match maybeAdvanceReceiveDetailed st out with
+      | .error _ => none
+      | .ok next => some next) = receiveAdvance st out := by
+  cases out with
+  | none => rfl
+  | some value =>
+      cases hd : advanceDetailed st value with
+      | ok next =>
+          have ho := (advanceDetailed_ok_iff st value next).1 hd
+          simp [maybeAdvanceReceiveDetailed, maybeAdvanceDetailed, receiveAdvance, hd, ho]
+      | error reason =>
+          have ho : advance st value = none := by
+            cases h : advance st value with
+            | none => rfl
+            | some next =>
+                have := (advanceDetailed_ok_iff st value next).2 h
+                rw [hd] at this
+                contradiction
+          simp [maybeAdvanceReceiveDetailed, maybeAdvanceDetailed, receiveAdvance, hd, ho]
+
 /-- Produce the message key for a received message.
 
     A stored key is tried first; only if there is none does the chain advance,
@@ -325,7 +649,7 @@ where
     still be read later. -/
 def receive (st : State) (receivingEpoch : Nat) (out : Option Output) (n : Nat) :
     Option (State × Key) :=
-  match (match out with | none => some st | some o => advance st o) with
+  match receiveAdvance st out with
   | none => none
   | some st1 =>
     match trySkipped st1 receivingEpoch n with
@@ -340,13 +664,73 @@ def receive (st : State) (receivingEpoch : Nat) (out : Option Output) (n : Nat) 
           match cs.receive with
           | none => none
           | some ch =>
-            if n = ch.n + 1 then
-              let stepped := kdfCk ch.ck n
-              some (setChains st2 receivingEpoch
-                      { cs with receive := some { ck := stepped.1, n := n } },
-                    stepped.2)
+            if ch.n < u64Max then
+              if n = ch.n + 1 then
+                let stepped := kdfCk ch.ck n
+                some (setChains st2 receivingEpoch
+                        { cs with receive := some { ck := stepped.1, n := n } },
+                      stepped.2)
+              else
+                none
             else
               none
+
+theorem receiveDetailed_toOption (st : State) (receivingEpoch : Nat)
+    (out : Option Output) (n : Nat) :
+    detailedReceiveToOption (receiveDetailed st receivingEpoch out n) =
+      receive st receivingEpoch out n := by
+  unfold receiveDetailed receive
+  cases ha : maybeAdvanceReceiveDetailed st out with
+  | error reason =>
+      have ho : receiveAdvance st out = none := by
+        have h := maybeAdvanceReceiveDetailed_toOption st out
+        rw [ha] at h
+        exact h.symm
+      simp [ho, detailedReceiveToOption]
+  | ok st1 =>
+      have ho : receiveAdvance st out = some st1 := by
+        have h := maybeAdvanceReceiveDetailed_toOption st out
+        rw [ha] at h
+        exact h.symm
+      simp only [ho]
+      cases ht : trySkipped st1 receivingEpoch n with
+      | some result => simp [detailedReceiveToOption]
+      | none =>
+          simp only
+          cases hs : skipMessageKeysDetailed st1 receivingEpoch (n - 1) with
+          | error reason =>
+              have hso : skipMessageKeys st1 receivingEpoch (n - 1) = none := by
+                have h := skipMessageKeysDetailed_toOption st1 receivingEpoch (n - 1)
+                rw [hs] at h
+                exact h.symm
+              simp [hso, detailedReceiveToOption]
+          | ok st2 =>
+              have hso : skipMessageKeys st1 receivingEpoch (n - 1) = some st2 := by
+                have h := skipMessageKeysDetailed_toOption st1 receivingEpoch (n - 1)
+                rw [hs] at h
+                exact h.symm
+              simp only [hso]
+              cases hc : findChains st2 receivingEpoch with
+              | none => simp [detailedReceiveToOption]
+              | some chains =>
+                  cases hr : chains.receive with
+                  | none => simp [hr, detailedReceiveToOption]
+                  | some chain =>
+                      by_cases hb : u64Max ≤ chain.n
+                      · have hlt : ¬ chain.n < u64Max := by omega
+                        simp [hr, hb, hlt, detailedReceiveToOption]
+                      · have hlt : chain.n < u64Max := by omega
+                        by_cases hn : n = chain.n + 1
+                        · simp [hr, hb, hlt, hn, detailedReceiveToOption]
+                        · simp [hr, hb, hlt, hn, detailedReceiveToOption]
+
+theorem receiveDetailed_ok_iff (st : State) (receivingEpoch : Nat)
+    (out : Option Output) (n : Nat) (result : State × Key) :
+    receiveDetailed st receivingEpoch out n = .ok result ↔
+      receive st receivingEpoch out n = some result := by
+  rw [← receiveDetailed_toOption st receivingEpoch out n]
+  cases receiveDetailed st receivingEpoch out n <;>
+    simp [detailedReceiveToOption]
 
 /-! ## Self-consistency checks
 
@@ -355,6 +739,30 @@ These elaborate at build time, so a wrong transition fails the build rather than
 a test run. -/
 
 private def sk : Key := List.replicate 32 0x01
+
+/-- Sparse eviction removes the oldest appended entries and reports short
+    deletion when the requested batch is larger than the store. -/
+example :
+    let state : State := { initBob sk with
+      skipped := [(0, 1, sk), (0, 2, sk), (0, 3, sk)] }
+    let result := evictOldest state 5
+    (result.2, result.1.skipped.length) = (3, 0) := by
+  native_decide
+
+private def receiveAt (n : Nat) : State :=
+  { initBob sk with
+    chains := [(0, { send := none, receive := some { ck := sk, n := n } })] }
+
+/-- The last representable receive step remains usable. This fails if the
+    exhaustion guard is tightened by one. -/
+example : (receive (receiveAt (u64Max - 1)) 0 none u64Max).isSome = true := by
+  native_decide
+
+/-- A receive chain already at `u64::MAX` refuses before considering the next
+    message number. This fails if the exhaustion guard is loosened by one. -/
+example : receiveDetailed (receiveAt u64Max) 0 none 0 =
+    .error .chainExhausted := by
+  rfl
 
 /-- In order: the key Alice derives to send is the key Bob derives to receive.
 
