@@ -136,4 +136,91 @@ structure OracleOf {R : Type}
       lifecycle.random_secret rngCore cryptoRng rng = ok (value, rng') ∧
       arrayOf value = draw ∧ trace rng' = rest
 
+/-! ## Public refusal correspondence
+
+Every concrete shipping `Err` has one public model refusal.  Keeping this as
+one total conversion prevents the operation theorems from silently omitting a
+constructor or choosing different meanings for the same error on two paths. -/
+
+def ratchetRefusalOf : tacenta_ratchet.RatchetError → Model.Lifecycle.RatchetRefusal
+  | .TooManySkipped => .tooManySkipped
+  | .SkippedStoreFull => .skippedStoreFull
+  | .NoSendingChain => .noSendingChain
+  | .NoReceivingChain => .noReceivingChain
+  | .OutOfOrder => .outOfOrder
+  | .ChainExhausted => .chainExhausted
+
+def sparseRefusalOf : tacenta_spqr.SpqrError → Model.Lifecycle.SparseRefusal
+  | .EpochOutOfOrder => .epochOutOfOrder
+  | .NoChain => .noChain
+  | .ChainRetired => .chainRetired
+  | .TooManySkipped => .tooManySkipped
+  | .SkippedStoreFull => .skippedStoreFull
+  | .OutOfOrder => .outOfOrder
+  | .ChainExhausted => .chainExhausted
+
+def tripleRefusalOf : tacenta_triple.TripleError → Model.Lifecycle.TripleRefusal
+  | .Classical reason => .classical (ratchetRefusalOf reason)
+  | .PostQuantum reason => .postQuantum (sparseRefusalOf reason)
+
+def handshakeRefusalOf : SessionError → Model.Lifecycle.HandshakeRefusal
+  | .BadSignedPrekeySignature => .badSignedPrekeySignature
+  | .BadKemPrekeySignature => .badKemPrekeySignature
+  | .NonContributoryAgreement => .nonContributoryAgreement
+
+def decodeRefusalOf : tacenta_wire.DecodeError → Model.Messages.DecodeRefusal
+  | .UnknownVersion => .unknownVersion
+  | .WrongType => .wrongType
+  | .TooShort => .tooShort
+  | .LengthOverrun => .lengthOverrun
+
+def refusalOf : lifecycle.Error → Model.Lifecycle.Refusal
+  | .Triple reason => .triple (tripleRefusalOf reason)
+  | .Handshake reason => .handshake (handshakeRefusalOf reason)
+  | .Kem => .kem
+  | .Decode reason => .decode (decodeRefusalOf reason)
+  | .BadEncoding => .badEncoding
+  | .InconsistentBundle => .inconsistentBundle
+  | .UnexpectedIdentity => .unexpectedIdentity
+  | .UnknownPrekeyId => .unknownPrekeyId
+  | .Aead => .aead
+  | .NotARepeatedInitial => .notARepeatedInitial
+  | .ReplayedLastResort => .replayedLastResort
+  | .LegacyLastResortRecord => .legacyLastResortRecord
+  | .LastResortRecordFull => .lastResortRecordFull
+  | .AgreementFailed => .agreementFailed
+
+theorem ratchetRefusalOf_injective : Function.Injective ratchetRefusalOf := by
+  intro left right h
+  cases left <;> cases right <;> simp [ratchetRefusalOf] at h ⊢
+
+theorem sparseRefusalOf_injective : Function.Injective sparseRefusalOf := by
+  intro left right h
+  cases left <;> cases right <;> simp [sparseRefusalOf] at h ⊢
+
+theorem tripleRefusalOf_injective : Function.Injective tripleRefusalOf := by
+  intro left right h
+  cases left <;> cases right <;> simp [tripleRefusalOf] at h ⊢
+  · exact ratchetRefusalOf_injective h
+  · exact sparseRefusalOf_injective h
+
+theorem handshakeRefusalOf_injective : Function.Injective handshakeRefusalOf := by
+  intro left right h
+  cases left <;> cases right <;> simp [handshakeRefusalOf] at h ⊢
+
+theorem decodeRefusalOf_injective : Function.Injective decodeRefusalOf := by
+  intro left right h
+  cases left <;> cases right <;> simp [decodeRefusalOf] at h ⊢
+
+theorem refusalOf_injective : Function.Injective refusalOf := by
+  intro left right h
+  cases left <;> cases right <;> simp [refusalOf] at h ⊢
+  · exact tripleRefusalOf_injective h
+  · exact handshakeRefusalOf_injective h
+  · exact decodeRefusalOf_injective h
+
+theorem refusalOf_ne_ceiling (reason : lifecycle.Error) :
+    refusalOf reason ≠ .ceiling := by
+  cases reason <;> simp [refusalOf]
+
 end Tacenta.UnitLifecycleT3
