@@ -1,5 +1,6 @@
 import Translation.SessionUnitTripleT3
 import Translation.SessionUnitBraidT3
+import Translation.SessionUnitWireT3
 import Model.Lifecycle
 
 /-!
@@ -325,6 +326,132 @@ theorem triple_header_of_refines (real : tacenta_wire.Composite)
       pq_n := real.pq_n }
   refine ⟨header, rfl, ?_⟩
   exact ⟨⟨hrel.dh, hrel.pn, hrel.n⟩, hrel.pqEpoch, hrel.pqN⟩
+
+theorem wire_bytesOf_eq_arrayOf {n : Usize} (bytes : Array Std.U8 n) :
+    Tacenta.SessionUnitWireT3.bytesOf bytes.val = arrayOf bytes := by
+  rfl
+
+theorem wire_agTypeOf_eq (ty : tacenta_wire.AgreementType) :
+    Tacenta.SessionUnitWireT3.agTypeOf ty = agreementTypeOf ty := by
+  cases ty <;> rfl
+
+theorem wire_bytesOf_eq_sliceOf (bytes : Slice Std.U8) :
+    Tacenta.SessionUnitWireT3.bytesOf bytes.val = sliceOf bytes := by
+  rfl
+
+theorem wire_bytesOf_eq_vecOf (bytes : alloc.vec.Vec Std.U8) :
+    Tacenta.SessionUnitWireT3.bytesOf bytes.val = vecOf bytes := by
+  rfl
+
+theorem composite_refines_wire_compositeOf (real : tacenta_wire.Composite) :
+    CompositeRefines real (Tacenta.SessionUnitWireT3.compositeOf real) := by
+  refine ⟨wire_bytesOf_eq_arrayOf real.dh,
+    (uint32_ofNat_toNat_of_u32 real.pn real.pn.val rfl).symm,
+    (uint32_ofNat_toNat_of_u32 real.n real.n.val rfl).symm,
+    (uint64_ofNat_toNat_of_u64 real.pq_epoch real.pq_epoch.val rfl).symm,
+    (uint64_ofNat_toNat_of_u64 real.pq_n real.pq_n.val rfl).symm,
+    (uint64_ofNat_toNat_of_u64 real.ag_epoch real.ag_epoch.val rfl).symm,
+    (wire_agTypeOf_eq real.ag_type).symm, ?_⟩
+  cases hchunk : real.ag_chunk with
+  | none =>
+      simp [Tacenta.SessionUnitWireT3.compositeOf, hchunk]
+  | some chunk =>
+      simp [Tacenta.SessionUnitWireT3.compositeOf, hchunk]
+      exact ⟨(uint16_ofNat_toNat_of_u16 chunk.index chunk.index.val rfl).symm,
+        wire_bytesOf_eq_arrayOf chunk.data⟩
+
+theorem wire_codewordOf_eq (real : tacenta_wire.Codeword)
+    (model : Model.CompositeHeader.Codeword)
+    (hrel : WireCodewordRefines real model) :
+    { index := UInt16.ofNat real.index.val
+      data := Tacenta.SessionUnitWireT3.bytesOf real.data.val } = model := by
+  cases model with
+  | mk index data =>
+      simp only [Model.CompositeHeader.Codeword.mk.injEq]
+      constructor
+      · apply UInt16.ext
+        exact (uint16_ofNat_toNat_of_u16 real.index real.index.val rfl).trans
+          hrel.1
+      · rw [wire_bytesOf_eq_arrayOf]
+        exact hrel.2
+
+/-- The lifecycle relation is the same concrete wire relation used by the
+deterministically ported decoder proof. -/
+theorem wire_compositeOf_eq (real : tacenta_wire.Composite)
+    (model : Model.CompositeHeader.Composite)
+    (hrel : CompositeRefines real model) :
+    Tacenta.SessionUnitWireT3.compositeOf real = model := by
+  have hdh : Tacenta.SessionUnitWireT3.bytesOf real.dh.val = model.dh := by
+    rw [wire_bytesOf_eq_arrayOf]
+    exact hrel.dh
+  have hpn : UInt32.ofNat real.pn.val = model.pn := by
+    apply UInt32.ext
+    exact (uint32_ofNat_toNat_of_u32 real.pn real.pn.val rfl).trans hrel.pn
+  have hn : UInt32.ofNat real.n.val = model.n := by
+    apply UInt32.ext
+    exact (uint32_ofNat_toNat_of_u32 real.n real.n.val rfl).trans hrel.n
+  have hpqEpoch : UInt64.ofNat real.pq_epoch.val = model.pqEpoch := by
+    apply UInt64.ext
+    exact (uint64_ofNat_toNat_of_u64 real.pq_epoch real.pq_epoch.val rfl).trans
+      hrel.pqEpoch
+  have hpqN : UInt64.ofNat real.pq_n.val = model.pqN := by
+    apply UInt64.ext
+    exact (uint64_ofNat_toNat_of_u64 real.pq_n real.pq_n.val rfl).trans hrel.pqN
+  have hagEpoch : UInt64.ofNat real.ag_epoch.val = model.agEpoch := by
+    apply UInt64.ext
+    exact (uint64_ofNat_toNat_of_u64 real.ag_epoch real.ag_epoch.val rfl).trans
+      hrel.agEpoch
+  have hagType : Tacenta.SessionUnitWireT3.agTypeOf real.ag_type = model.agType := by
+    exact (wire_agTypeOf_eq real.ag_type).trans hrel.agType
+  have hagChunk : real.ag_chunk.map (fun chunk =>
+      { index := UInt16.ofNat chunk.index.val
+        data := Tacenta.SessionUnitWireT3.bytesOf chunk.data.val }) =
+      model.agChunk := by
+    cases hr : real.ag_chunk with
+    | none =>
+        cases hm : model.agChunk with
+        | none => rfl
+        | some modelChunk =>
+            have hchunkRel := hrel.agChunk
+            simp [hr, hm] at hchunkRel
+    | some realChunk =>
+        cases hm : model.agChunk with
+        | none =>
+            have hchunkRel := hrel.agChunk
+            simp [hr, hm] at hchunkRel
+        | some modelChunk =>
+            have hchunkRel := hrel.agChunk
+            simp [hr, hm] at hchunkRel
+            apply congrArg some
+            exact wire_codewordOf_eq realChunk modelChunk hchunkRel
+  cases real
+  cases model
+  simp only [Tacenta.SessionUnitWireT3.compositeOf,
+    Model.CompositeHeader.Composite.mk.injEq]
+  exact ⟨hdh, hpn, hn, hpqEpoch, hpqN, hagEpoch, hagType, hagChunk⟩
+
+/-- The ported wire T3 theorem, expressed in the lifecycle relations used by
+the outer decrypt proof. -/
+theorem decode_message_refines_lifecycle (bytes : Slice Std.U8) :
+    tacenta_wire.decode_message bytes ⦃ fun result =>
+      match result with
+      | .Ok message => ∃ modelHeader,
+          Model.CompositeHeader.decode (sliceOf bytes) =
+            some (modelHeader, vecOf message.ciphertext) ∧
+          CompositeRefines message.header modelHeader
+      | .Err _ => Model.CompositeHeader.decode (sliceOf bytes) = none ⦄ := by
+  refine WP.spec_mono
+    (Tacenta.SessionUnitWireT3.decode_message_refines bytes) ?_
+  intro result hresult
+  cases result with
+  | Err reason =>
+      simpa [wire_bytesOf_eq_sliceOf] using hresult
+  | Ok message =>
+      refine ⟨Tacenta.SessionUnitWireT3.compositeOf message.header, ?_,
+        composite_refines_wire_compositeOf message.header⟩
+      rw [← wire_bytesOf_eq_sliceOf bytes,
+        ← wire_bytesOf_eq_vecOf message.ciphertext]
+      exact hresult
 
 /-! ## Public refusal correspondence
 
