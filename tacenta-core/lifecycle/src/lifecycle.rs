@@ -382,6 +382,19 @@ fn receive_attempt(
     state.receive(header, dh_out_recv, dh_out_send, new_dhs_pub, spqr_output)
 }
 
+#[inline(never)]
+fn evict_for_retry(
+    mut state: tacenta_triple::State,
+    half: FullStore,
+    count: usize,
+) -> (tacenta_triple::State, usize) {
+    let evicted = match half {
+        FullStore::Classical => state.evict_oldest_classical(count),
+        FullStore::PostQuantum => state.evict_oldest_post_quantum(count),
+    };
+    (state, evicted)
+}
+
 fn receive_with_eviction(
     state: &tacenta_triple::State,
     composite: &Composite,
@@ -411,10 +424,8 @@ fn receive_with_eviction(
     let mut pending = first;
     let mut outcome = None;
     while outcome.is_none() {
-        let evicted = match half {
-            FullStore::Classical => work.evict_oldest_classical(batch),
-            FullStore::PostQuantum => work.evict_oldest_post_quantum(batch),
-        };
+        let (next_work, evicted) = evict_for_retry(work, half, batch);
+        work = next_work;
         if evicted == 0 {
             outcome = Some(Err(pending));
         } else {
