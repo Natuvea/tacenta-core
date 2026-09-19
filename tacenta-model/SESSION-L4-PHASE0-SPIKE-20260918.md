@@ -195,3 +195,34 @@ This record contains the commands, inputs, binary hashes, counts and observed
 failure classes needed to repeat the experiment. A production change must
 reproduce it from committed source with the pinned Linux toolchain and normal
 attestation flow.
+
+## Production reproduction
+
+Commit `761877c` completes the carve-out and behavior-preserving rewrites to the
+shipping workspace. From that committed source, the pinned toolchain produced
+`TacentaLifecycle.lean` through `--start-from-pub`: 10,844 lines, 501,465
+bytes, from a 27 MiB LLBC artifact. The file has no generated `sorry`, and the
+translation package builds it successfully.
+
+The generated module declares 118 opaque externals. Their complete names are
+recorded, rather than summarized, in
+`tacenta-proofs/manifests/translation-attestation.json`; the separate
+`AxiomAuditLifecycle.lean` environment reproduced that exact set. The count is
+the Phase 0 boundary inventory, not a proof or a claim that those declarations
+meet contracts.
+
+`check-lifecycle-translation-coverage.py` found all 30 public lifecycle
+operations in the generated module. Its negative control renames
+`Identity::generate` in a copied gate input and requires the check to fail;
+the mutation was refused. This closes the scratch record's reproduction limit
+for the shipping leaf while leaving the session-unit and theorem work to the
+later phases.
+
+The facade continues to expose the moved items through their original
+`tacenta_core::primitives::*` and `tacenta_core::sessions::*` paths. Rustdoc
+lists a dependency reexport instead of the definition it previously listed at
+each path, so a raw `cargo-public-api` or `cargo-semver-checks` comparison
+reports metadata removals. `tests/public_api_compat.rs` is the consumer-side
+control: as an integration crate it imports and type-checks the moved types,
+methods and free functions through every old path. The product build remains
+the Phase 0 acceptance check for its own use of those paths.

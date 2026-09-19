@@ -12,7 +12,7 @@ states.
 
 ## Scope
 
-The L2 operation surface is the part of `tacenta-core/src/sessions` whose
+The L2 operation surface is the part of `tacenta-core/lifecycle/src` whose
 behaviour the security-property pages cite through ASM-19:
 
 - prekey-store creation, publication, replenishment and rotation;

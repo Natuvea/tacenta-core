@@ -56,7 +56,7 @@ PACKAGES = [
     ("tacenta-proofs", ["Proofs/AxiomAudit.lean"], ["Proofs"], []),
     ("tacenta-proofs/translation",
      ["Translation/AxiomAudit.lean", "Translation/AxiomAuditTripleUnit.lean",
-      "Translation/AxiomAuditBraidUnit.lean"],
+      "Translation/AxiomAuditBraidUnit.lean", "Translation/AxiomAuditLifecycle.lean"],
      ["Translation"], ["Translation.lean"]),
 ]
 FIRST_PARTY = ("Model", "Properties", "Proofs", "Translation")

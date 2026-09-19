@@ -88,6 +88,7 @@ VERIFIED_ZONES = [
     "tacenta-core/wire",
     "tacenta-core/spqr",
     "tacenta-core/braid",
+    "tacenta-core/lifecycle",
     "tacenta-core/triple",
     "tacenta-core/triple-unit",
     "tacenta-core/braid-unit",
@@ -135,6 +136,7 @@ ASSEMBLED_ZONES = {
 # apart from `VERIFIED_ZONES` because nothing in them is proved; they are what
 # the proofs assume.
 TRUSTED_PRIMITIVE_ZONES = [
+    "tacenta-core/boundary",
     "tacenta-core/kdf",
     "tacenta-core/kem",
 ]
@@ -158,6 +160,7 @@ WORKSPACE_INPUTS = [
     "tacenta-core/Cargo.toml",
     "tacenta-core/Cargo.lock",
     "tacenta-core/.cargo",
+    "tacenta-core/boundary",
     "tacenta-core/kdf",
     "tacenta-core/kem",
 ]
@@ -1116,8 +1119,9 @@ def compare_audit(log_path):
     (one produced by a macro, or added by a command) is an axiom to the audit,
     and a recorded axiom the environment no longer holds is missing to it. Both
     audit modules' output must be in the log: `Translation.AxiomAudit` covers
-    six generated modules and `AxiomAuditTripleUnit` the three-leaf translation
-    unit, which cannot share an environment with it.
+    the compatible generated modules; the three-leaf, Braid-unit and lifecycle
+    translations each have a separate audit because their generated names
+    cannot share an environment with the other modules.
     """
     problems = []
     log = Path(log_path).read_text(errors="replace")

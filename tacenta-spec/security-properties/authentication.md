@@ -42,10 +42,10 @@ message).
 - **Rests on:** ASM-03, ASM-07, ASM-14, ASM-19.
 - **Status: tested only.**
   - `a_forged_signed_prekey_is_rejected` and `a_forged_kem_prekey_is_rejected`
-    (`tacenta-core/src/sessions/mod.rs`).
+    (`tacenta-core/lifecycle/src/lib.rs`).
   - The verifier's accepted set is pinned by the twenty vectors in
     `tacenta-test-vectors/vectors/primitives/xeddsa.json`, and by the tests in
-    `tacenta-core/src/primitives/xeddsa.rs`.
+    `tacenta-core/boundary/src/xeddsa.rs`.
   - No proof covers signature verification.
 - **Does not cover:**
   - That the identity key is the peer's (ASM-14; REQ-AUTH-02).
@@ -135,7 +135,7 @@ identity keys never give the same `AD`.
     hypothesis.
 - **Does not cover:**
   - That every message's authenticated data carries `AD` (REQ-AUTH-05). The
-    untranslated session layer does that (ASM-19).
+    unproved session layer does that (ASM-19).
   - `EncodeKEM(PQPKB)`, which is not in `AD`. Leaving it out relies on ML-KEM
     binding its key (ASM-04).
   - People. `AD` binds keys (ASM-14).
@@ -292,7 +292,7 @@ The refusal changes nothing.
     `establish_initiator_refuses_a_low_order_bundle_key`,
     `establish_responder_refuses_a_low_order_initiator_key_and_changes_nothing`
     and `decrypt_refuses_a_low_order_ratchet_header_and_changes_nothing`.
-  - `low_order_peer_keys_are_rejected` (`tacenta-core/src/primitives/dh.rs`).
+  - `low_order_peer_keys_are_rejected` (`tacenta-core/boundary/src/dh.rs`).
 - **Does not cover:** a contributory output the attacker knows because it holds
   the private key (ADV-02).
 
@@ -398,7 +398,7 @@ error-handling.md.
     checks their signatures against it. It does not read their bodies.
   - `Model.Triple` states the candidate-and-commit shape.
     `Tacenta.UnitTripleT3.commit_refines` (T3) proves only the commit's
-    projection. The session's verify-then-adopt is untranslated.
+    projection. The session's verify-then-adopt is translated but unproved.
 - **Does not cover:**
   - A caller that calls a leaf crate's mutating receive directly
     (`AUTHENTICATION-BOUNDARY.md`, "Mutating, and safe only because of a

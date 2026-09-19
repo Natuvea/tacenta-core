@@ -90,7 +90,7 @@ REGISTRY = ROOT / "tacenta-core" / "AUTHENTICATION-BOUNDARY.md"
 # The crates on the path from the wire to a key. Deliberately not every crate:
 # a check that flags noise is a check somebody switches off.
 ZONES = [
-    "tacenta-core/src/sessions",
+    "tacenta-core/lifecycle/src",
     "tacenta-core/ratchet/src",
     "tacenta-core/spqr/src",
     "tacenta-core/triple/src",
@@ -164,7 +164,7 @@ EXEMPT = {
 # shape-checked with the rest; their rows say why each is safe (they compute a
 # value and mutate no state).
 ALSO_DISCOVER = {
-    "tacenta-core/src/sessions/mod.rs": ("initiator_shared_secret", "responder_shared_secret"),
+    "tacenta-core/lifecycle/src/lib.rs": ("initiator_shared_secret", "responder_shared_secret"),
 }
 
 

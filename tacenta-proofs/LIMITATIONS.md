@@ -179,12 +179,12 @@ excludes it.
   `run_cmd`, `#eval`, `elab`, `macro`, `syntax`, `initialize`, `addDecl`,
   and no reference to the `Lean` namespace, which is where every such API
   lives -- outside `Model/AxiomAudit.lean`'s own implementation and the
-  four `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
+  six `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
   exact line content, so that an invocation written any other way fails
   there and a second one in an audit module fails in the reach check below;
   `scripts/check-audit-reach.sh`, which fails if any first-party module is
-  outside the four audit modules' import closure, so that no module holds
-  such a declaration unwalked, and fails if the four do not all run with the
+  outside the six audit modules' import closure, so that no module holds
+  such a declaration unwalked, and fails if the six do not all run with the
   same first-party prefixes, and if any of them invokes the audit more than
   once or in a form the prefix check cannot read; and
   `scripts/check-audit-negatives.sh`, which plants one declaration for each
@@ -323,9 +323,9 @@ of it is a static test that fails to build if a type loses the
 `zeroize::ZeroizeOnDrop` marker, and the marker checks cover the classical ratchet's `State` and `SkippedKey`
 (`the_state_erases_when_dropped`, `tacenta-core/ratchet/src/lib.rs`), the sparse
 ratchet's `State`, `Chain`, `Chains` and `Skipped`, the ML-KEM `KeyPair`
-(`the_key_pair_erases_when_dropped`, `tacenta-core/src/primitives/kem.rs`), and
+(`the_key_pair_erases_when_dropped`, `tacenta-core/boundary/src/kem.rs`), and
 `Identity` and `PrekeyStore` (`the_identity_and_the_prekey_store_erase_when_dropped`,
-`tacenta-core/src/sessions/lifecycle.rs`). Each checks the marker, not what the
+`tacenta-core/lifecycle/src/lifecycle.rs`). Each checks the marker, not what the
 destructor wipes, and `KeyPair` and `PrekeyStore` implement the marker by hand.
 The Braid's `Auth` and `Output`, and the KEM state it holds in `Zeroizing`
 buffers, still need their own marker coverage; the Triple Ratchet's `State`
@@ -754,7 +754,7 @@ alone. And nothing anywhere in this project proves that an identity key belongs 
 the person a user means: that is trust on first use and the directory's problem,
 and it is the assumption a user actually bears.
 
-## Eight verified zones on the shipping path, and the orchestration runs outside them
+## Eight theorem-bearing zones on the shipping path; lifecycle is translated but unproved
 
 **Read this before the list.** Integrating the Triple Ratchet
 moved `Session::encrypt` and `Session::decrypt` off `tacenta-ratchet::send` and
@@ -1192,12 +1192,12 @@ body Aeneas gave up on, the same bar the rest of this list holds to.
 `evict_oldest_classical`, `evict_oldest_post_quantum`, `to_bytes` and
 `from_bytes`, and the session calls all four, from its eviction loop and its
 persistence path
-(`tacenta-core/src/sessions/lifecycle.rs`). Neither the classical ratchet's own
+(`tacenta-core/lifecycle/src/lifecycle.rs`). Neither the classical ratchet's own
 `receive_no_panic` nor the sparse ratchet's `send_no_panic`/`receive_no_panic`
 said anything about what happens when the two are composed, and the
 composition is what ships since the triple-ratchet integration -- this is that composition's
 own proof. It carries four preconditions, all about the inner ratchets' sizes,
-and they land on the untranslated session layer ("Four preconditions land
+and they land on the unproved session layer ("Four preconditions land
 outside the translated tree" below).
 
 **The gap the standalone proof had is closed on the unit.** Proved about the
@@ -1209,9 +1209,10 @@ standalone proof was deleted after 2a89a7f.
 
 **So the session's send and receive path has a claim resting under it, at
 the crate that actually carries it.** `Session::encrypt` and
-`Session::decrypt` themselves live in `tacenta-core/src/sessions`, the product
-code that calls `tacenta-triple`, and that layer is not translated or proved
-in its own right -- a separate question this does not answer.
+`Session::decrypt` themselves live in `tacenta-core/lifecycle/src`, the product
+code that calls `tacenta-triple`. The Phase 0 lifecycle translation now covers
+that code, but no theorem is stated about it -- a separate question this does
+not answer.
 
 The proof tiers cover **seven** leaf crates, and a claim that names only the
 ratchet understates what is proven while a claim that says "the protocol"
@@ -1228,8 +1229,9 @@ clause of it; for the Braid, the single clause `ct1_bounded`), and the
 invariant yields as many of the T1 and T3 preconditions as it reaches. That is not a T1 theorem -- it says nothing about
 whether `from_bytes` can panic, only what is true of a state when it does
 return one -- and it is about the *leaf crate's* persistence format. The
-session layer that calls these codecs, in `tacenta-core/src/sessions`, is not
-translated, so nothing here says what a session restored from disk satisfies.
+session layer that calls these codecs, in `tacenta-core/lifecycle/src`, is
+translated but has no theorem, so nothing here says what a session restored
+from disk satisfies.
 `to_bytes`, the entry decoders and the length helpers still have no theorem of
 any kind, as do the codecs of the other four crates, with two exceptions:
 `Translation/RatchetCodecT1.lean` and `Translation/SpqrCodecT1.lean` prove
@@ -1308,8 +1310,8 @@ decoder accepts anything at all is the Rust round-trip tests.
   `receive_refines` and the ratchet vectors. The choice of which key pair
   produces which output (the old pair for the receiving chain, the fresh one
   for the sending chain, as the specification requires) is made in
-  `tacenta-core/src/sessions/lifecycle.rs`, which is neither translated nor
-  modelled, so a swap there would pass every proof, every vector and
+  `tacenta-core/lifecycle/src/lifecycle.rs`, which is translated but neither
+  modelled nor proved, so a swap there would pass every proof, every vector and
   `attest`. The pairing is tested, not proved:
   `a_session_dh_step_pairs_the_old_key_with_the_peers_new_key`
   (`tacenta-core/tests/handshake_to_ratchet.rs`) runs a real `Session` through
@@ -1638,13 +1640,13 @@ the standalone proof's unconditional bundles hid: `State.send` on the unit needs
 `max self.classical.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val ≤ Usize.max`,
 `self.post_quantum.chains.length + 2 < Usize.max` and
 `self.post_quantum.skipped.length + MAX_SKIP.val ≤ Usize.max`. Nothing on the
-unit island discharges them. They are obligations on the **untranslated session
-layer** in `tacenta-core/src/sessions`, which decides how large a skipped-key
-store and a chain table a session may carry, and that layer is not translated
-or proved in its own right. The classical one is discharged in the other
+unit island discharges them. They are obligations on the **unproved session
+layer** in `tacenta-core/lifecycle/src`, which decides how large a skipped-key
+store and a chain table a session may carry. That layer is translated in the
+Phase 0 lifecycle module but is not proved in its own right. The classical one is discharged in the other
 island, by `Ratchet.inv_gives_store_bound` in `Translation/ImportInv.lean` and
 through it by `Ratchet.decoded_receive_no_panic`, for a state that came from
-`from_bytes`; "Eight verified zones on the shipping path" above describes that
+`from_bytes`; "Eight theorem-bearing zones on the shipping path" above describes that
 route. It has not been ported to the unit, so it does not reach these
 theorems. All four hold of any state that could exist, at either platform
 width. They are bounds against `usize::MAX` on quantities a real session keeps
@@ -1893,6 +1895,24 @@ standalone ones, over the opaque codec, and every assumption named above is
 still an assumption. Porting those proofs to the unit, so that the erasure
 crate's own theorems discharge them, is what the unit is for and has not been
 done.
+
+### The lifecycle leaf is a tenth translated zone, with no theorem yet
+
+`tacenta-core/lifecycle` is the shipping session orchestration behind the
+unchanged `tacenta_core::sessions` API. Charon starts from every public item,
+and `TacentaLifecycle.lean` contains all 30 public lifecycle operations and
+their reachable call graph. The coverage gate compares the Rust surface with
+the generated definitions, and its missing-root control proves that omission
+turns the gate red.
+
+This is a Phase 0 translatability result. No T1 or T3 theorem is stated about
+the lifecycle constants, and the leaf translation sees the ratchets, Braid,
+wire layer and primitive boundary as 118 opaque externals. The manifest lists
+all 118 and `AxiomAuditLifecycle.lean` checks the elaborated module against
+that exact set. Later phases assemble the lifecycle with its eight code leaves
+and prove orchestration against the lifecycle model; until then,
+`Session::encrypt`, `Session::decrypt`, establishment and persistence remain
+tested and translated, not proved end to end.
 
 ## The erasure coding's field is proved
 

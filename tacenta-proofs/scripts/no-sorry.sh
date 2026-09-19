@@ -77,6 +77,12 @@ report_time "build and scan: translation package" "$t"
 t=$SECONDS
 bash scripts/check-translation-coverage.sh || fail=1
 report_time "translation coverage" "$t"
+
+t=$SECONDS
+python3 scripts/check-lifecycle-translation-coverage.py \
+  translation/Translation/TacentaLifecycle.lean || fail=1
+bash scripts/check-lifecycle-translation-coverage-negatives.sh || fail=1
+report_time "lifecycle public-root coverage" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as
@@ -127,7 +133,7 @@ report_time "construct check" "$t"
 # audited. This asks Lean for each module's imports and fails if any
 # first-party module (the generated `Tacenta*.lean` included, since the
 # `audit-axiom:` comparison above sees only the generated modules the audit
-# reached) is outside the four audit modules' import closure.
+# reached) is outside the six audit modules' import closure.
 t=$SECONDS
 bash scripts/check-audit-reach.sh || fail=1
 report_time "audit reach" "$t"
