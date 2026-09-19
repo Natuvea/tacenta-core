@@ -182,6 +182,46 @@ inductive Refusal where
   | ceiling
   deriving Repr, DecidableEq, Inhabited
 
+def ratchetSendRefusalOf : Model.Ratchet.SendRefusal → RatchetRefusal
+  | .noSendingChain => .noSendingChain
+  | .chainExhausted => .chainExhausted
+
+def sparseSendRefusalOf : Model.SparseRatchet.SendRefusal → SparseRefusal
+  | .epochOutOfOrder => .epochOutOfOrder
+  | .noChain => .noChain
+  | .chainRetired => .chainRetired
+  | .chainExhausted => .chainExhausted
+
+def tripleSendRefusalOf : Model.Triple.SendRefusal → Refusal
+  | .classical reason => .triple (.classical (ratchetSendRefusalOf reason))
+  | .postQuantum reason => .triple (.postQuantum (sparseSendRefusalOf reason))
+
+theorem ratchetSendRefusalOf_injective : Function.Injective ratchetSendRefusalOf := by
+  intro left right h
+  cases left <;> cases right <;> simp [ratchetSendRefusalOf] at h ⊢
+
+theorem sparseSendRefusalOf_injective : Function.Injective sparseSendRefusalOf := by
+  intro left right h
+  cases left <;> cases right <;> simp [sparseSendRefusalOf] at h ⊢
+
+theorem tripleSendRefusalOf_injective : Function.Injective tripleSendRefusalOf := by
+  intro left right h
+  cases left with
+  | classical left =>
+      cases right with
+      | classical right =>
+          simp [tripleSendRefusalOf] at h
+          exact congrArg Model.Triple.SendRefusal.classical
+            (ratchetSendRefusalOf_injective h)
+      | postQuantum right => simp [tripleSendRefusalOf] at h
+  | postQuantum left =>
+      cases right with
+      | classical right => simp [tripleSendRefusalOf] at h
+      | postQuantum right =>
+          simp [tripleSendRefusalOf] at h
+          exact congrArg Model.Triple.SendRefusal.postQuantum
+            (sparseSendRefusalOf_injective h)
+
 def agreementFailed (session : Session) : Bool :=
   match session.braid with
   | .failed => true
