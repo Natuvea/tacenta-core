@@ -16,6 +16,196 @@ open Aeneas Aeneas.Std Result
 open tacenta_session_unit
 
 @[step]
+theorem is_canonical_key_no_panic (hdh : DhCodecTotal)
+    (pk : tacenta_boundary.dh.PublicKeyBytes) :
+    is_canonical_key pk ⦃ fun _ => True ⦄ := by
+  unfold is_canonical_key
+  step with public_key_as_bytes_no_panic hdh pk
+  exact WP.spec_mono
+    (Tacenta.SessionUnitSessionT1.is_canonical_x25519_spec a) (by simp)
+
+@[step]
+theorem identity_dh_key_no_panic (hdh : DhCodecTotal)
+    (identity : lifecycle.Identity) :
+    lifecycle.Identity.dh_key identity ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.Identity.dh_key
+  exact private_key_from_bytes_no_panic hdh identity.secret
+
+@[step]
+theorem identity_public_no_panic (hdh : DhCodecTotal)
+    (identity : lifecycle.Identity) :
+    lifecycle.Identity.public identity ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.Identity.public
+  step with identity_dh_key_no_panic hdh identity
+  exact private_key_public_no_panic hdh pk
+
+@[step]
+theorem encode_kem_no_panic (pk : Slice U8)
+    (hroom : pk.val.length + 1 ≤ Usize.max) :
+    encode_kem pk ⦃ fun _ => True ⦄ := by
+  unfold encode_kem
+  exact WP.spec_mono
+    (Tacenta.SessionUnitSessionT1.encode_kem_spec pk hroom) (by simp)
+
+theorem verify_bundle_no_panic (hdh : DhCodecTotal) (hx : XeddsaVerifyTotal)
+    (bundle : PreKeyBundle)
+    (hkem : bundle.kem_prekey.val.length + 1 ≤ Usize.max) :
+    verify_bundle bundle ⦃ fun _ => True ⦄ := by
+  unfold verify_bundle
+  step with encode_ec_spec hdh bundle.signed_prekey
+  step with xeddsa_verify_no_panic hx bundle.identity_key v.deref
+    bundle.signed_prekey_signature
+  rcases r with _ | _
+  · step with encode_kem_no_panic bundle.kem_prekey.deref hkem
+    rename_i encodedKem
+    step with xeddsa_verify_no_panic hx bundle.identity_key encodedKem.deref
+      bundle.kem_prekey_signature
+    rcases r1 <;> simp
+  · simp
+
+@[step]
+theorem contributory_no_panic (value : Option (Array U8 32#usize)) :
+    contributory value ⦃ fun _ => True ⦄ := by
+  rcases value with _ | _ <;> simp [contributory]
+
+theorem initiator_shared_secret_no_panic
+    (hdh : DhCodecTotal) (hagree : DhAgreeTotal) (hx : XeddsaVerifyTotal)
+    (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
+    (hkdf : Tacenta.SessionUnitSessionT1.HkdfTotal)
+    [Tacenta.SessionUnitSessionT1.ZeroizingModel]
+    (identityPrivate ephemeralPrivate : tacenta_boundary.dh.PrivateKey)
+    (bundle : PreKeyBundle) (encapsulated : Array U8 32#usize)
+    (hkem : bundle.kem_prekey.val.length + 1 ≤ Usize.max) :
+    initiator_shared_secret identityPrivate ephemeralPrivate bundle encapsulated
+      ⦃ fun _ => True ⦄ := by
+  unfold initiator_shared_secret
+  step with verify_bundle_no_panic hdh hx bundle hkem
+  rcases r with verified | verifyError
+  · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec verified
+    simp only [cf_post]
+    step with private_key_agree_no_panic hagree identityPrivate bundle.signed_prekey
+    step with contributory_no_panic o
+    rcases r1 with dh1Value | dh1Error
+    · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec dh1Value
+      simp only [cf1_post]
+      step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz dh1Value
+      step with private_key_agree_no_panic hagree ephemeralPrivate bundle.identity_key
+      step with contributory_no_panic o1
+      rcases r2 with dh2Value | dh2Error
+      · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec dh2Value
+        simp only [cf2_post]
+        step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz dh2Value
+        step with private_key_agree_no_panic hagree ephemeralPrivate bundle.signed_prekey
+        step with contributory_no_panic o2
+        rcases r3 with dh3Value | dh3Error
+        · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec dh3Value
+          simp only [cf3_post]
+          step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz dh3Value
+          rcases bundle.one_time_prekey with _ | opk
+          · have hss := Tacenta.SessionUnitSessionT1.shared_secret_no_panic hkdf
+              dh1Value dh2Value dh3Value encapsulated none
+            obtain ⟨shared, hshared⟩ :=
+              (Tacenta.SessionUnitT1.noPanic_iff _).mp hss
+            simp [dh1_post, dh2_post, dh3_post, hshared]
+          · step with private_key_agree_no_panic hagree ephemeralPrivate opk
+            rename_i o3
+            step with contributory_no_panic o3
+            rcases r4 with dh4Value | dh4Error
+            · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec dh4Value
+              simp only [cf4_post]
+              step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz dh4Value
+              have hss := Tacenta.SessionUnitSessionT1.shared_secret_no_panic hkdf
+                dh1Value dh2Value dh3Value encapsulated (some dh4Value)
+              obtain ⟨shared, hshared⟩ :=
+                (Tacenta.SessionUnitT1.noPanic_iff _).mp hss
+              simp [dh1_post, dh2_post, dh3_post, secret_post, hshared]
+            · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec dh4Error
+              simp only [cf4_post]
+              simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+                core.convert.FromSame.from]
+        · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec dh3Error
+          simp only [cf3_post]
+          simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+            core.convert.FromSame.from]
+      · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec dh2Error
+        simp only [cf2_post]
+        simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+          core.convert.FromSame.from]
+    · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec dh1Error
+      simp only [cf1_post]
+      simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+        core.convert.FromSame.from]
+  · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec verifyError
+    simp only [cf_post]
+    simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+      core.convert.FromSame.from]
+
+theorem responder_shared_secret_no_panic
+    (hagree : DhAgreeTotal)
+    (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
+    (hkdf : Tacenta.SessionUnitSessionT1.HkdfTotal)
+    [Tacenta.SessionUnitSessionT1.ZeroizingModel]
+    (identityPrivate signedPrekeyPrivate : tacenta_boundary.dh.PrivateKey)
+    (oneTimePrekeyPrivate : Option tacenta_boundary.dh.PrivateKey)
+    (initiatorIdentity initiatorEphemeral : tacenta_boundary.dh.PublicKeyBytes)
+    (encapsulated : Array U8 32#usize) :
+    responder_shared_secret identityPrivate signedPrekeyPrivate oneTimePrekeyPrivate
+      initiatorIdentity initiatorEphemeral encapsulated ⦃ fun _ => True ⦄ := by
+  unfold responder_shared_secret
+  step with private_key_agree_no_panic hagree signedPrekeyPrivate initiatorIdentity
+  step with contributory_no_panic o
+  rcases r with dh1Value | dh1Error
+  · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec dh1Value
+    simp only [cf_post]
+    step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz dh1Value
+    step with private_key_agree_no_panic hagree identityPrivate initiatorEphemeral
+    step with contributory_no_panic o1
+    rcases r1 with dh2Value | dh2Error
+    · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec dh2Value
+      simp only [cf1_post]
+      step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz dh2Value
+      step with private_key_agree_no_panic hagree signedPrekeyPrivate initiatorEphemeral
+      step with contributory_no_panic o2
+      rcases r2 with dh3Value | dh3Error
+      · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec dh3Value
+        simp only [cf2_post]
+        step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz dh3Value
+        rcases oneTimePrekeyPrivate with _ | opk
+        · have hss := Tacenta.SessionUnitSessionT1.shared_secret_no_panic hkdf
+            dh1Value dh2Value dh3Value encapsulated none
+          obtain ⟨shared, hshared⟩ :=
+            (Tacenta.SessionUnitT1.noPanic_iff _).mp hss
+          simp [dh1_post, dh2_post, dh3_post, hshared]
+        · step with private_key_agree_no_panic hagree opk initiatorEphemeral
+          rename_i o3
+          step with contributory_no_panic o3
+          rcases r3 with dh4Value | dh4Error
+          · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec dh4Value
+            simp only [cf3_post]
+            step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz dh4Value
+            have hss := Tacenta.SessionUnitSessionT1.shared_secret_no_panic hkdf
+              dh1Value dh2Value dh3Value encapsulated (some dh4Value)
+            obtain ⟨shared, hshared⟩ :=
+              (Tacenta.SessionUnitT1.noPanic_iff _).mp hss
+            simp [dh1_post, dh2_post, dh3_post, secret_post, hshared]
+          · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec dh4Error
+            simp only [cf3_post]
+            simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+              core.convert.FromSame.from]
+      · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec dh3Error
+        simp only [cf2_post]
+        simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+          core.convert.FromSame.from]
+    · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec dh2Error
+      simp only [cf1_post]
+      simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+        core.convert.FromSame.from]
+  · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec dh1Error
+    simp only [cf_post]
+    simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+      core.convert.FromSame.from]
+
+@[step]
 theorem agreement_failed_no_panic (self : lifecycle.Session) :
     lifecycle.Session.agreement_failed self ⦃ fun _ => True ⦄ := by
   unfold lifecycle.Session.agreement_failed
