@@ -3372,6 +3372,13 @@ impl Session {
     /// That is at-rest protection, which session-persistence.md places with
     /// the caller.
     pub fn invariant(&self) -> bool {
+        self.structural_invariant() && self.leaf_invariants()
+    }
+
+    // Keep the structural checks behind one translated call so the public
+    // predicate has a single proof boundary for these clauses and one for
+    // the two leaf invariants.
+    fn structural_invariant(&self) -> bool {
         // (a) The ratchet private key is the private half of the public key
         // the classical ratchet advertises in its headers. The peer agrees
         // against the advertised key and this side against the private one,
@@ -3517,7 +3524,7 @@ impl Session {
         // role; the Braid's covers its twelve states and the coders inside
         // them. Both decoders refuse on their own predicate, so at import
         // this is a second reading, and after a message it is the only one.
-        self.leaf_invariants()
+        true
     }
 
     // Keep the final leaf checks behind one translated call.  This preserves
