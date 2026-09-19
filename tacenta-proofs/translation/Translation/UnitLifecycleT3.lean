@@ -136,6 +136,57 @@ structure OracleOf {R : Type}
       lifecycle.random_secret rngCore cryptoRng rng = ok (value, rng') ∧
       arrayOf value = draw ∧ trace rng' = rest
 
+/-! ## Erasure-codeword view agreement -/
+
+def modelChunkOf (source : Bytes) (chunk : tacenta_erasure.Chunk) :
+    Model.Braid.Chunk where
+  source := source
+  index := chunk.index.val
+
+def modelCodewordOf (chunk : tacenta_erasure.Chunk) :
+    Model.CompositeHeader.Codeword where
+  index := UInt16.ofNat chunk.index.val
+  data := arrayOf chunk.data
+
+/-- The lifecycle model's wire view names exactly the source and bytes of an
+honest chunk from the existing Braid refinement.  Both directions use the same
+relation, so receive cannot reinterpret a codeword differently from send. -/
+structure CodewordViewOf (view : Model.Lifecycle.CodewordView) : Prop where
+  receive : ∀ state source chunk,
+    Tacenta.SessionUnitBraidT3.CodewordOf source chunk →
+    view.receive state (UInt16.ofNat chunk.index.val) (arrayOf chunk.data) =
+      modelChunkOf source chunk
+  send : ∀ state source chunk,
+    Tacenta.SessionUnitBraidT3.CodewordOf source chunk →
+    view.send state (modelChunkOf source chunk) = modelCodewordOf chunk
+
+def agreementTypeOf : tacenta_wire.AgreementType →
+    Model.CompositeHeader.AgreementType
+  | .None => .none
+  | .Hdr => .hdr
+  | .Ek => .ek
+  | .EkCt1Ack => .ekCt1Ack
+  | .Ct1 => .ct1
+  | .Ct2 => .ct2
+
+def WireCodewordRefines (real : tacenta_wire.Codeword)
+    (model : Model.CompositeHeader.Codeword) : Prop :=
+  real.index.val = model.index.toNat ∧ arrayOf real.data = model.data
+
+structure CompositeRefines (real : tacenta_wire.Composite)
+    (model : Model.CompositeHeader.Composite) : Prop where
+  dh : arrayOf real.dh = model.dh
+  pn : real.pn.val = model.pn.toNat
+  n : real.n.val = model.n.toNat
+  pqEpoch : real.pq_epoch.val = model.pqEpoch.toNat
+  pqN : real.pq_n.val = model.pqN.toNat
+  agEpoch : real.ag_epoch.val = model.agEpoch.toNat
+  agType : agreementTypeOf real.ag_type = model.agType
+  agChunk : match real.ag_chunk, model.agChunk with
+    | none, none => True
+    | some realChunk, some modelChunk => WireCodewordRefines realChunk modelChunk
+    | _, _ => False
+
 /-! ## Public refusal correspondence
 
 Every concrete shipping `Err` has one public model refusal.  Keeping this as
@@ -223,6 +274,25 @@ theorem refusalOf_ne_ceiling (reason : lifecycle.Error) :
     refusalOf reason ≠ .ceiling := by
   cases reason <;> simp [refusalOf]
 
+def ResultRefines
+    (real : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error)
+    (model : Except Model.Lifecycle.Refusal Bytes) : Prop :=
+  match real, model with
+  | .Ok bytes, .ok modelBytes => vecOf bytes = modelBytes
+  | .Err reason, .error modelReason => refusalOf reason = modelReason
+  | _, _ => False
+
+/-- Common target for every stateful Session operation: public result, full
+state and remaining randomness all agree after the translated call. -/
+structure StepRefines {R : Type} (trace : R → List Model.Lifecycle.Key)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (real : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.Session × R)
+    (model : Model.Lifecycle.Step Bytes) : Prop where
+  result : ResultRefines real.1 model.result
+  session : SessionRefines dh K real.2.1 model.session
+  draws : trace real.2.2 = model.oracle.draws
+
 /-! ## Lifecycle observations -/
 
 theorem braid_failed_refines (K : Model.Braid.Kem)
@@ -259,5 +329,24 @@ theorem encrypt_terminal_guard_refines {R : Type}
     simp
   · exact Model.Lifecycle.encrypt_terminal_guard view oracle model
       (sliceOf plaintext) hfailed
+
+theorem encrypt_terminal_guard_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (plaintext : Slice Std.U8) (rng : R)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hfailed : Model.Lifecycle.agreementFailed model = true) :
+    ∃ output,
+      lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
+  have h := encrypt_terminal_guard_refines rngCore cryptoRng dh K view oracle
+    real model plaintext rng hrel hfailed
+  refine ⟨(.Err lifecycle.Error.AgreementFailed, real, rng), h.1, ?_⟩
+  rw [h.2]
+  exact ⟨rfl, hrel, htrace⟩
 
 end Tacenta.UnitLifecycleT3
