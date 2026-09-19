@@ -1209,6 +1209,45 @@ theorem decrypt_aead_refusal_keeps_state (view : CodewordView)
       { session, result := .error .aead, oracle := oracleNext } := by
   simp [decryptRatchet, hf, hd, hr, hdraw, hs, ht, ha]
 
+/-! The corresponding success branch is kept as a named model theorem so the
+translation proof can consume the authenticated plaintext and the exact
+conditional ratchet-private update without re-proving the lifecycle match. -/
+theorem decrypt_aead_success_commits (view : CodewordView)
+    (oracle oracleNext : Oracle) (session : Session) (message ciphertext : Bytes)
+    (composite : Model.CompositeHeader.Composite) (dhOutRecv candidatePrivate dhOutSend : Key)
+    (tripleCandidate : Model.Triple.State) (messageKey plaintext : Key)
+    (hd : Model.CompositeHeader.decodeDetailed message = .ok (composite, ciphertext))
+    (hf : agreementFailed session = false)
+    (hr : oracle.dhAgree session.ratchetPrivate composite.dh = some dhOutRecv)
+    (hdraw : random32 oracle = some (candidatePrivate, oracleNext))
+    (hs : oracle.dhAgree candidatePrivate composite.dh = some dhOutSend)
+    (ht : receiveWithEviction session.triple composite (tripleHeaderOf composite)
+      dhOutRecv dhOutSend (oracle.dhPublic candidatePrivate)
+      (sparseOutputOf
+        (Model.Braid.receive oracle.braidKem session.braid
+          (braidMessageOf view session.braid composite)).2.1) =
+        .ok (tripleCandidate, messageKey))
+    (ha : oracle.aeadOpen
+      (Model.State.messageKeys messageKey .tacenta).1
+      (Model.State.messageKeys messageKey .tacenta).2.1
+      (Model.State.messageKeys messageKey .tacenta).2.2 ciphertext
+      (Model.Messages.concatAd session.identityAd
+        (Model.CompositeHeader.encode composite)) = some plaintext) :
+    decryptRatchet view oracle session message =
+      { session :=
+          { session with
+            triple := tripleCandidate
+            braid :=
+              (Model.Braid.receive oracle.braidKem session.braid
+                (braidMessageOf view session.braid composite)).2.2
+            ratchetPrivate :=
+              if tripleCandidate.classical.dhsPub == session.triple.classical.dhsPub then
+                session.ratchetPrivate
+              else candidatePrivate }
+        result := .ok plaintext
+        oracle := oracleNext } := by
+  simp [decryptRatchet, hf, hd, hr, hdraw, hs, ht, ha]
+
 /-! ## Responder establishment -/
 
 def finishResponderReceive (store : PrekeyStore) (oneTimeId kemId : Nat)
