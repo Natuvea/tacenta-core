@@ -365,6 +365,46 @@ theorem responder_success_store_effect (view : CodewordView) (oracle : Oracle)
               · simpa [establishResponder, hp, finishResponderReceive, hr] using hOk.symm
               · simp [establishResponder, hp, finishResponderReceive, hr]
 
+/-- Read-only responder preparation binds the Session role and identities to
+    the decoded initial message. This is the construction fact used below to
+    carry those bindings through the authenticated ratchet receive. -/
+theorem prepareResponder_success_shape (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (message : Bytes) (prepared : PreparedResponder)
+    (hOk : prepareResponder oracle identity store message = .ok prepared) :
+    ∃ initial,
+      Model.Messages.decodeInitialDetailed message = .ok initial
+        ∧ prepared.session.ourIdentityPublic = identity.publicKey
+        ∧ prepared.session.peerIdentityPublic = initial.identity.drop 1
+        ∧ prepared.session.pendingInitial = none
+        ∧ prepared.session.establishedEphemeral = some initial.ephemeral := by
+  grind (config := { gen := 30, splits := 50 }) [prepareResponder]
+
+/-- Successful responder establishment preserves the identity orientation
+    fixed by the decoded initial message, marks the Session as a responder and
+    leaves no pending initial wrapper. The authenticated ratchet receive may
+    advance ratchet state, but cannot change these bindings. -/
+theorem responder_success_shape (view : CodewordView) (oracle : Oracle)
+    (identity : Identity) (store : PrekeyStore) (message : Bytes)
+    (value : Session × Bytes)
+    (hOk : (establishResponder view oracle identity store message).result = .ok value) :
+    ∃ initial,
+      Model.Messages.decodeInitialDetailed message = .ok initial
+        ∧ value.1.ourIdentityPublic = identity.publicKey
+        ∧ value.1.peerIdentityPublic = initial.identity.drop 1
+        ∧ value.1.pendingInitial = none
+        ∧ value.1.establishedEphemeral = some initial.ephemeral := by
+  obtain ⟨prepared, plaintext, hPrepared, hReceive, hValue, _⟩ :=
+    responder_success_store_effect view oracle identity store message value hOk
+  obtain ⟨initial, hDecode, hOur, hPeer, hPending, hEstablished⟩ :=
+    prepareResponder_success_shape oracle identity store message prepared hPrepared
+  have hFrame :=
+    decryptRatchet_frame view oracle prepared.session prepared.ratchetMessage
+  refine ⟨initial, hDecode, ?_, ?_, ?_, ?_⟩
+  · simpa [hValue] using hFrame.1.1.trans hOur
+  · simpa [hValue] using hFrame.1.2.1.trans hPeer
+  · simpa [hValue] using hFrame.2.trans hPending
+  · simpa [hValue] using hFrame.1.2.2.trans hEstablished
+
 /-- Successful initiator establishment binds the two identities, carries the
     selected bundle identifiers in a pending initial wrapper, and has no
     responder replay marker. -/
