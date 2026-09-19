@@ -154,6 +154,30 @@ structure OracleOf {R : Type}
       lifecycle.random_secret rngCore cryptoRng rng = ok (value, rng') ∧
       arrayOf value = draw ∧ trace rng' = rest
 
+/-- An authentication failure at the translated AEAD boundary is the model
+oracle's `none` verdict for those same keys, ciphertext and associated data.
+Keeping this small consequence separate makes the receive-side commit proof
+use the exact boundary result rather than treating `Error.Aead` as an
+uninterpreted branch label. -/
+theorem aead_open_error_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (dh : DhView) (kem : KemView) (trace : R → List Model.Lifecycle.Key)
+    (oracle : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (key1 key2 : Array Std.U8 32#usize) (iv : Array Std.U8 16#usize)
+    (ciphertext associatedData : Slice Std.U8) (error : Unit)
+    (herror : tacenta_boundary.aead.decrypt key1 key2 iv ciphertext associatedData =
+      ok (.Err error)) :
+    oracle.aeadOpen (arrayOf key1) (arrayOf key2) (arrayOf iv)
+      (sliceOf ciphertext) (sliceOf associatedData) = none := by
+  obtain ⟨result, hcall, hresult⟩ :=
+    oracleOf.aeadOpen key1 key2 iv ciphertext associatedData
+  rw [herror] at hcall
+  have heq : result = .Err error := by
+    simpa using hcall.symm
+  subst result
+  simpa [resultOptionOf] using hresult.symm
+
 /-- Exact constructor/projection behaviour needed from the external `zeroize`
 newtype at the two wrapper types used by successful Session encryption. -/
 def ZeroizingRoundTrips (T : Type) : Prop :=
