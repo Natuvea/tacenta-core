@@ -71,7 +71,24 @@ stored peer identity match the wrapper byte for byte. The KEM ciphertext and
 the three prekey identifiers are deliberately absent from this predicate.
 -/
 
-abbrev Session := Model.PersistedState.SessionState.Session
+abbrev PendingInitial := Model.PersistedState.SessionState.PendingInitial
+
+/-- The executable session state. It has the shipping session's fields, but its
+    Braid is the operational `Model.Braid.BraidState` rather than the stored
+    format's opaque byte fields. Most persisted Braid states deliberately have
+    no generic conversion back to the operational model: their KEM internals
+    are delegated to the implementation. Refinement relates this field directly
+    through `BraidT3.StateRefines`; persistence is a separate relation. -/
+structure Session where
+  triple : Model.Triple.State
+  braid : Model.Braid.BraidState
+  ratchetPrivate : Bytes
+  identityAd : Bytes
+  ourIdentityPublic : Bytes
+  peerIdentityPublic : Bytes
+  pendingInitial : Option PendingInitial
+  establishedEphemeral : Option Bytes
+
 abbrev Initial := Model.Messages.Initial
 
 /-- Whether an initial wrapper is the repeat belonging to this responder
