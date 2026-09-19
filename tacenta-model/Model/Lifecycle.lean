@@ -28,6 +28,7 @@ abbrev Iv := Bytes
     changes the model result. -/
 structure Oracle where
   draws : List Key
+  braidKem : Model.Braid.Kem
   dhPublic : Key → Key
   dhAgree : Key → Key → Option Key
   aeadSeal : Key → Key → Iv → Bytes → Bytes → Bytes
@@ -92,6 +93,44 @@ def sign (oracle : Oracle) (secret : Key) (message : Bytes) :
     Option (Bytes × Oracle) := do
   let (draw, rest) ← takeDraw oracle
   some (oracle.sigSign secret message draw, rest)
+
+/-- The two Braid send states that make a fresh 32-byte random draw. Other
+    states accept a `rand` argument in the leaf model but do not inspect it, so
+    the lifecycle must not consume a caller draw there. -/
+def braidSendNeedsDraw : Model.Braid.BraidState → Bool
+  | .keysUnsampled .. => true
+  | .headerReceived .. => true
+  | _ => false
+
+/-- Interpret the Braid's 32-byte draw as the natural-number randomness used
+    by its existing model. This is the same complete byte string, little-endian,
+    rather than a fresh or reordered value. -/
+def braidRandomness (draw : Key) : Nat := Model.Messages.leValue draw
+
+/-- Run the agreement send and consume exactly the randomness the shipping
+    state consumes. The KEM record is the existing Braid model boundary carried
+    by the oracle; it is not an additional shipping primitive. -/
+def sendAgreement (oracle : Oracle) (state : Model.Braid.BraidState) :
+    Option ((Option Model.Braid.Msg × Nat × Option Model.Braid.Output ×
+      Model.Braid.BraidState) × Oracle) :=
+  if braidSendNeedsDraw state then do
+    let (draw, rest) ← takeDraw oracle
+    some (Model.Braid.send oracle.braidKem (braidRandomness draw) state, rest)
+  else
+    some (Model.Braid.send oracle.braidKem 0 state, oracle)
+
+theorem sendAgreement_no_draw (oracle : Oracle) (state : Model.Braid.BraidState)
+    (h : braidSendNeedsDraw state = false) :
+    sendAgreement oracle state = some (Model.Braid.send oracle.braidKem 0 state, oracle) := by
+  simp [sendAgreement, h]
+
+theorem sendAgreement_draw (oracle : Oracle) (state : Model.Braid.BraidState)
+    (draw : Key) (rest : List Key) (hn : braidSendNeedsDraw state = true)
+    (hd : oracle.draws = draw :: rest) :
+    sendAgreement oracle state =
+      some (Model.Braid.send oracle.braidKem (braidRandomness draw) state,
+        { oracle with draws := rest }) := by
+  simp [sendAgreement, hn, takeDraw, hd]
 
 theorem kemEncapsulate_cons (oracle : Oracle) (draw : Key) (rest : List Key)
     (publicKey : Bytes) (h : oracle.draws = draw :: rest) :

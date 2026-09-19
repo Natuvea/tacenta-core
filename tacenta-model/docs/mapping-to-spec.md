@@ -161,7 +161,7 @@ Source pages: `tacenta-spec/protocol/session-establishment.md`,
 
 | Spec section | Model definition | File |
 |---|---|---|
-| Primitive calls delegated by the session algorithms; ordered caller randomness | `Oracle`, `takeDraw`, `random32`, `kemEncapsulate`, `sign` | `Model/Lifecycle.lean` |
+| Primitive calls delegated by the session algorithms; ordered caller randomness | `Oracle`, `takeDraw`, `random32`, `kemEncapsulate`, `sign`, `braidSendNeedsDraw`, `sendAgreement` | `Model/Lifecycle.lean` |
 | Receiving the initial message; exact repeated-initial recognition and ignored wrapper fields | `repeatedInitial`, `repeatedInitial_iff`, `repeatedInitial_ignores_other_fields` | `Model/Lifecycle.lean` |
 | Initial message; detailed decoder result | `DecodeRefusal`, `initialDecodeRefusal`, `decodeInitialDetailed` | `Model/Messages.lean` |
 | Ratchet message composite header; detailed decoder result | `decodeRefusal`, `decodeDetailed` | `Model/CompositeHeader.lean` |
