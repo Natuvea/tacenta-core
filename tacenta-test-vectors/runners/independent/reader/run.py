@@ -1090,6 +1090,10 @@ def _u64(value, field):
 def _inventory_binding(binding):
     if not isinstance(binding, dict):
         raise Fail("binding is not an object")
+    required = {"device_id", "identity_hex", "capabilities"}
+    allowed = required | {"replacement_predecessor_hex"}
+    if not required <= set(binding) or set(binding) - allowed:
+        raise Fail("binding fields do not match the v1 shape")
     try:
         identity = bx(binding["identity_hex"])
     except (KeyError, ValueError) as e:
