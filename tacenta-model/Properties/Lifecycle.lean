@@ -64,6 +64,17 @@ theorem agreement_failed_decrypt_sticky (view : CodewordView) (oracle : Oracle)
       { session, result := .error .agreementFailed, oracle } := by
   simp [decrypt, hDispatch, decryptRatchet, hFailed]
 
+/-- Outer-frame refusals can precede the terminal guard, so the public refusal
+    need not always be `agreementFailed`. Whichever refusal is observed, a
+    terminal Session remains byte-for-byte unchanged. -/
+theorem agreement_failed_decrypt_keeps_session (view : CodewordView)
+    (oracle : Oracle) (session : Session) (message : Bytes)
+    (hFailed : agreementFailed session = true) :
+    (decrypt view oracle session message).session = session := by
+  cases hDispatch : dispatchDecrypt session message with
+  | error reason => simp [decrypt, hDispatch]
+  | ok inner => simp [decrypt, hDispatch, decryptRatchet, hFailed]
+
 /-- Ordinary decrypt refusals are state no-ops at the executable Session
     boundary. Oracle draws remain observable separately. -/
 theorem refusal_is_no_op (view : CodewordView) (oracle : Oracle)
