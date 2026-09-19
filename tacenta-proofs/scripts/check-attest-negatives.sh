@@ -101,4 +101,30 @@ path.write_text(json.dumps(data, indent=2) + "\n")
 PY
 expect_fail "generation-revision-not-commit" "is not an available commit" --check-translation
 
-echo "check-attest-negatives: 6 refusal cases gave the expected result (including a mismatched committed-source hash)"
+make_case
+python3 - "$work/tacenta-proofs/manifests/translation-attestation.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+record = data["generated_files"][
+    "tacenta-proofs/translation/Translation/TacentaSessionUnit.lean"
+]
+del record["assembly"]["sources"]["tacenta-core/lifecycle"]
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+expect_fail "missing-session-unit-leaf" "is recorded as assembled from" --check-translation
+
+make_case
+python3 - "$work/tacenta-proofs/manifests/translation-attestation.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text())
+record = data["generated_files"][
+    "tacenta-proofs/translation/Translation/TacentaSessionUnit.lean"
+]
+record["assembly"]["script_sha256"] = "00" * 32
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+expect_fail "stale-session-unit-assembler" "its assembly script" --check-translation
+
+echo "check-attest-negatives: 8 refusal cases gave the expected result (including session-unit assembly provenance)"

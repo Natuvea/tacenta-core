@@ -25,10 +25,11 @@ SHA-256 of the Rust verified zone it was generated from, and the SHA-256 of
 the workspace inputs that shape what Charon extracts from every zone (the
 workspace `Cargo.toml` and its profiles, `Cargo.lock`, `.cargo/`, and the
 `kdf` and `kem` crates whose signatures become the opaque externals), with
-the Aeneas pin. One zone is generated rather than written -- the three-leaf
-translation unit `tacenta-core/triple-unit` -- and its record carries its
-provenance as well as its bytes: the assembly script and all three leaf trees
-it was assembled from, so that a leaf edited without re-assembling fails. It is written only by `--refresh-translation`, which is meant
+the Aeneas pin. Three zones are assembled rather than written -- the Triple,
+Braid-and-erasure, and complete Session translation units -- and each record
+carries its provenance as well as its bytes: the assembly script and every
+leaf tree it was assembled from, so that a leaf edited without re-assembling
+fails. It is written only by `--refresh-translation`, which is meant
 to be run immediately after `scripts/run-aeneas.sh`, refuses a `Tacenta*.lean`
 that `run-aeneas.sh` does not produce, and every other mode compares the
 tree against it. That is what makes it provenance rather than self-description:
@@ -69,15 +70,15 @@ TRANSLATION_SCHEMA_VERSION = 3
 # The crates the proofs are about. A proof about translated Rust is a proof
 # about *these* bytes, so their hashes belong in the attestation.
 #
-# The six `scripts/run-aeneas.sh` translates on their own, the three-leaf unit
-# it translates, and `tacenta-core/triple`, which it translates only inside the
-# unit: the Triple Ratchet's proofs are about the unit's translation, and the
-# unit is generated from these bytes. If `run-aeneas.sh` gains a crate, this
+# The leaf crates `scripts/run-aeneas.sh` translates on their own, the assembled
+# units it translates, and `tacenta-core/triple`, which it translates only
+# inside a unit: the Triple Ratchet's proofs are about the unit's translation,
+# and the unit is generated from these bytes. If `run-aeneas.sh` gains a crate, this
 # list must gain it too; the two are checked against each other below, counting
 # an assembled zone's sources as translated with it.
 #
-# `triple-unit` is the three-leaf translation unit, generated rather than
-# written, and hashing it is how a hand-edited generated crate is caught. Where its *sources* are hashed is
+# The `*-unit` zones are generated rather than written, and hashing them is how
+# a hand-edited generated crate is caught. Where their *sources* are hashed is
 # `ASSEMBLED_ZONES`, immediately below, because hashing a generated tree says
 # only that it is the tree somebody generated, not what it was generated from.
 VERIFIED_ZONES = [
@@ -882,12 +883,12 @@ def translation_attestation():
             "that shape every zone's extraction (Cargo.toml and its profiles, "
             "Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed "
             "to when this was written, as recorded by whoever ran the toolchain. "
-            "Where the zone is assembled rather than written (tacenta-core/triple-unit, "
-            "the three-leaf translation unit), the record carries an `assembly` "
-            "field naming the script and the three leaf trees it was assembled from, "
+            "Where a zone is assembled rather than written (the Triple, Braid-and-erasure, "
+            "and complete Session units), the record carries an `assembly` "
+            "field naming the script and every leaf tree it was assembled from, "
             "with their hashes, and --check fails if any of them has moved since; "
-            "assemble-triple-unit.sh --check is the separate question of whether the "
-            "unit crate in the tree is what those leaves assemble to. It "
+            "each assembly script's --check mode is the separate question of whether "
+            "the unit crate in the tree is what those leaves assemble to. It "
             "does not establish that the toolchain was run, or run honestly: that is "
             "checked by regenerating with run-aeneas.sh and diffing, which "
             "REPRODUCING.md describes."
@@ -1134,7 +1135,7 @@ def compare_audit(log_path):
     (one produced by a macro, or added by a command) is an axiom to the audit,
     and a recorded axiom the environment no longer holds is missing to it. Both
     audit modules' output must be in the log: `Translation.AxiomAudit` covers
-    the compatible generated modules; the three-leaf, Braid-unit and lifecycle
+    the compatible generated modules; the Triple, Braid, Session, and lifecycle
     translations each have a separate audit because their generated names
     cannot share an environment with the other modules.
     """

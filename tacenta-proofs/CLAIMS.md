@@ -2130,7 +2130,7 @@ and cannot tell a planted one, added by such code with its name assembled
 from string literals, from a real one, so the absence of such code is what
 excludes it (`LIMITATIONS.md`, "Trusted, not verified").
 `scripts/check-audit-reach.sh` fails if any first-party module, generated
-ones included, is outside the six audit modules' import closure, since
+ones included, is outside the seven audit modules' import closure, since
 the audit walks only what its invoking module imports, and fails if the
 six do not all run with the same first-party prefixes, since the audit's
 waiver for an unmentioned compiler-trust axiom asks whether any first-party

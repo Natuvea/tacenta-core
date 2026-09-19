@@ -183,7 +183,7 @@ excludes it.
   exact line content, so that an invocation written any other way fails
   there and a second one in an audit module fails in the reach check below;
   `scripts/check-audit-reach.sh`, which fails if any first-party module is
-  outside the six audit modules' import closure, so that no module holds
+  outside the seven audit modules' import closure, so that no module holds
   such a declaration unwalked, and fails if the six do not all run with the
   same first-party prefixes, and if any of them invokes the audit more than
   once or in a form the prefix check cannot read; and

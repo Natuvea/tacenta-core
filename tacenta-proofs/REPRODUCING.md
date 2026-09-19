@@ -53,10 +53,11 @@ Locally it is three steps, and the first needs Charon and Aeneas on `PATH`:
 bash tacenta-proofs/scripts/run-aeneas.sh
 ```
 
-Translates the verified zone -- six leaf crates, ratchet, session, erasure,
-protobuf, spqr and braid, the three-leaf unit `triple-unit`, which is the
-only translation of the Triple crate, and the Braid-and-erasure unit
-`braid-unit`, which nothing is proved about yet. It writes into `translation/Translation/`
+Translates the verified zones -- ratchet, session, erasure, protobuf, spqr,
+braid, and lifecycle -- plus three assembled units: the three-leaf
+`triple-unit`, which is the only translation of the Triple crate; the
+Braid-and-erasure `braid-unit`; and the eight-leaf `session-unit` used to put
+the complete session call graph in one generated namespace. It writes into `translation/Translation/`
 alongside the hand-written proofs. Commit the source changes before recording
 the output: `--refresh-translation` records the current `HEAD`, and the
 attestation check requires that commit to be available in the current history.
@@ -150,7 +151,7 @@ Model.AxiomAudit.run` lines, which it allow-lists by file path and exact
 line content, because such code could plant an axiom in the one shape the
 audit accepts; `check-audit-reach.sh`, which asks Lean for every
 first-party module's imports and fails if any module (the generated
-`Tacenta*.lean` included) is outside the six audit modules' import
+`Tacenta*.lean` included) is outside the seven audit modules' import
 closure, since the audit walks only what its invoking module imports, and
 which also requires all six to run with the same first-party prefixes, so
 that no declaration is first-party to the audit that declares an axiom and
@@ -166,7 +167,7 @@ Expected tail:
 ```
 no-sorry: the translation and its T1/T3 proofs is complete
 translation-coverage: all 46 Translation/*.lean modules are in the build target and built
-attest: the axiom audit's opaque-external list matches translation-attestation.json for 10 generated modules (199 compiler-trust axioms in them, from Aeneas's toStr bound, are not externals and are listed in the build log)
+attest: the axiom audit's opaque-external list matches translation-attestation.json for 11 generated modules
 no-sorry: the model-layer proofs is complete
 no-sorry: the model and its property theorems is complete
 check-lean-constructs: 79 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 6 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
