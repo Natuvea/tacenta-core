@@ -722,6 +722,22 @@ def receiveWithEviction (state : Model.Triple.State)
             (Model.Triple.classicalSkippedLength state
               + Model.Triple.postQuantumSkippedLength state + 1)
 
+/-- A classical consumed-message refusal is not an eviction case, so the
+    Session retry policy preserves it exactly. -/
+theorem receiveWithEviction_classical_outOfOrder (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (hReplay : Model.Ratchet.receiveDetailed state.classical header.dr
+      dhOutRecv dhOutSend newDhsPub = .error .outOfOrder) :
+    receiveWithEviction state composite header dhOutRecv dhOutSend newDhsPub output =
+      .error (.classical .outOfOrder) := by
+  have ht : Model.Triple.receiveDetailed state header dhOutRecv dhOutSend
+      newDhsPub output = .error (.classical .outOfOrder) :=
+    (Model.Triple.receiveDetailed_classical_iff state header dhOutRecv dhOutSend
+      newDhsPub output .outOfOrder).2 hReplay
+  simp [receiveWithEviction, ht, fullStore]
+
 /-- `Session::encrypt`, through the executable leaf models and the primitive
     oracle. The Braid runs first, a terminal Braid is committed on refusal, the
     Triple candidate commits only on success, and the initial wrapper remains

@@ -197,6 +197,32 @@ theorem one_time_path_has_no_replay_record (store : PrekeyStore) (kemId : Nat)
     lastResortReplayCheck store kemId sharedSecret false = .ok none := by
   simp [lastResortReplayCheck]
 
+/-- A ratchet message whose classical `(dh, n)` has already been consumed is
+    refused at the public Session boundary. The sparse output cannot mask the
+    classical refusal, and the eviction policy does not retry it. -/
+theorem replay_refused (view : CodewordView) (oracle oracleNext : Oracle)
+    (session : Session) (message ciphertext : Bytes)
+    (composite : Model.CompositeHeader.Composite)
+    (candidatePrivate dhOutRecv dhOutSend : Key)
+    (hLive : agreementFailed session = false)
+    (hDecode : Model.CompositeHeader.decodeDetailed message =
+      .ok (composite, ciphertext))
+    (hRecvDh : oracle.dhAgree session.ratchetPrivate composite.dh = some dhOutRecv)
+    (hDraw : random32 oracle = some (candidatePrivate, oracleNext))
+    (hSendDh : oracle.dhAgree candidatePrivate composite.dh = some dhOutSend)
+    (hReplay : Model.Ratchet.receiveDetailed session.triple.classical
+      (tripleHeaderOf composite).dr dhOutRecv dhOutSend
+      (oracle.dhPublic candidatePrivate) = .error .outOfOrder) :
+    (decryptRatchet view oracle session message).result =
+      .error (.triple (.classical .outOfOrder)) := by
+  let agreement := Model.Braid.receive oracle.braidKem session.braid
+    (braidMessageOf view session.braid composite)
+  have ht := receiveWithEviction_classical_outOfOrder session.triple composite
+    (tripleHeaderOf composite) dhOutRecv dhOutSend
+    (oracle.dhPublic candidatePrivate) (sparseOutputOf agreement.2.1) hReplay
+  simp [decryptRatchet, hLive, hDecode, hRecvDh, hDraw, hSendDh, agreement, ht,
+    tripleReceiveRefusalOf, ratchetReceiveRefusalOf]
+
 /-- An initiator that still has a pending initial clears it exactly when an
     authenticated decrypt succeeds. The premise excludes a responder or an
     initiator that has already received its first reply, where `none` is not a
