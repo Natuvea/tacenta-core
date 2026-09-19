@@ -264,11 +264,14 @@ def advanceDetailed (st : State) (out : Output) : Except SendRefusal State :=
           receive := some { ck := ckr, n := 0 } })
       out.keyEpoch)
 
+def maybeAdvanceDetailed (st : State) (out : Option Output) : Except SendRefusal State :=
+  match out with
+  | none => .ok st
+  | some value => advanceDetailed st value
+
 def sendDetailed (st : State) (sendingEpoch : Nat) (out : Option Output) :
     Except SendRefusal (State × Nat × Key) :=
-  let advanced : Except SendRefusal State :=
-    match out with | none => .ok st | some value => advanceDetailed st value
-  match advanced with
+  match maybeAdvanceDetailed st out with
   | .error reason => .error reason
   | .ok st1 =>
       match findChains st1 sendingEpoch with
@@ -295,12 +298,84 @@ theorem advanceDetailed_ok_iff (st : State) (out : Output) (result : State) :
     · simp [advanceDetailed, advance, he, hlt, hk]
     · simp [advanceDetailed, advance, he, hlt, hk]
 
+theorem advanceDetailed_exhausted_iff (st : State) (out : Output) :
+    advanceDetailed st out = .error .chainExhausted ↔ u64Max ≤ st.epoch + 1 := by
+  by_cases he : u64Max ≤ st.epoch + 1
+  · simp [advanceDetailed, he]
+  · by_cases hk : out.keyEpoch = st.epoch + 1 <;> simp [advanceDetailed, he, hk]
+
+theorem advanceDetailed_epoch_iff (st : State) (out : Output) :
+    advanceDetailed st out = .error .epochOutOfOrder ↔
+      st.epoch + 1 < u64Max ∧ out.keyEpoch ≠ st.epoch + 1 := by
+  by_cases he : u64Max ≤ st.epoch + 1
+  · simp [advanceDetailed, he]
+    omega
+  · have hlt : st.epoch + 1 < u64Max := by omega
+    by_cases hk : out.keyEpoch = st.epoch + 1 <;> simp [advanceDetailed, he, hlt, hk]
+
+theorem maybeAdvanceDetailed_ne_noChain (st : State) (out : Option Output) :
+    maybeAdvanceDetailed st out ≠ .error .noChain := by
+  cases out with
+  | none => simp [maybeAdvanceDetailed]
+  | some value =>
+      simp only [maybeAdvanceDetailed]
+      unfold advanceDetailed
+      split <;> simp
+      split <;> simp
+
+theorem maybeAdvanceDetailed_ne_chainRetired (st : State) (out : Option Output) :
+    maybeAdvanceDetailed st out ≠ .error .chainRetired := by
+  cases out with
+  | none => simp [maybeAdvanceDetailed]
+  | some value =>
+      simp only [maybeAdvanceDetailed]
+      unfold advanceDetailed
+      split <;> simp
+      split <;> simp
+
+theorem sendDetailed_no_chain_iff (st : State) (sendingEpoch : Nat) (out : Option Output) :
+    sendDetailed st sendingEpoch out = .error .noChain ↔
+      ∃ advanced, maybeAdvanceDetailed st out = .ok advanced
+        ∧ findChains advanced sendingEpoch = none := by
+  cases ha : maybeAdvanceDetailed st out with
+  | error reason =>
+      have hn := maybeAdvanceDetailed_ne_noChain st out
+      simp [sendDetailed, ha] at hn ⊢
+      exact hn
+  | ok advanced =>
+      cases hc : findChains advanced sendingEpoch with
+      | none => simp [sendDetailed, ha, hc]
+      | some chains =>
+          cases hs : chains.send with
+          | none => simp [sendDetailed, ha, hc, hs]
+          | some chain =>
+              by_cases hn : chain.n < u64Max <;> simp [sendDetailed, ha, hc, hs, hn]
+
+theorem sendDetailed_chain_retired_iff (st : State) (sendingEpoch : Nat)
+    (out : Option Output) :
+    sendDetailed st sendingEpoch out = .error .chainRetired ↔
+      ∃ advanced chains, maybeAdvanceDetailed st out = .ok advanced
+        ∧ findChains advanced sendingEpoch = some chains ∧ chains.send = none := by
+  cases ha : maybeAdvanceDetailed st out with
+  | error reason =>
+      have hn := maybeAdvanceDetailed_ne_chainRetired st out
+      simp [sendDetailed, ha] at hn ⊢
+      exact hn
+  | ok advanced =>
+      cases hc : findChains advanced sendingEpoch with
+      | none => simp [sendDetailed, ha, hc]
+      | some chains =>
+          cases hs : chains.send with
+          | none => simp [sendDetailed, ha, hc, hs]
+          | some chain =>
+              by_cases hn : chain.n < u64Max <;> simp [sendDetailed, ha, hc, hs, hn]
+
 theorem sendDetailed_ok_iff (st : State) (sendingEpoch : Nat) (out : Option Output)
     (result : State × Nat × Key) :
     sendDetailed st sendingEpoch out = .ok result ↔ send st sendingEpoch out = some result := by
   cases out with
   | none =>
-      simp only [sendDetailed, send]
+      simp only [sendDetailed, send, maybeAdvanceDetailed]
       cases hc : findChains st sendingEpoch with
       | none => simp
       | some cs =>
@@ -318,10 +393,10 @@ theorem sendDetailed_ok_iff (st : State) (sendingEpoch : Nat) (out : Option Outp
                 have := (advanceDetailed_ok_iff st value result).2 h
                 rw [hd] at this
                 contradiction
-          simp [sendDetailed, send, hd, ha]
+          simp [sendDetailed, send, maybeAdvanceDetailed, hd, ha]
       | ok st1 =>
           have ha := (advanceDetailed_ok_iff st value st1).1 hd
-          simp only [sendDetailed, send, hd, ha]
+          simp only [sendDetailed, send, maybeAdvanceDetailed, hd, ha]
           cases hc : findChains st1 sendingEpoch with
           | none => simp
           | some cs =>
