@@ -1,0 +1,186 @@
+import Model.Lifecycle
+
+/-!
+# Executable two-party Session schedules
+
+This layer runs the public lifecycle operations over a small network queue. It
+does not decide which schedules are valid evidence: the differential runner
+supplies actions and primitive-oracle answers. Keeping delivery, loss, replay,
+reordering and byte forgery here makes those choices explicit and reusable by
+the Phase 1 trace replay and the later Rust differential harness.
+-/
+
+namespace Model.LifecycleTrace
+
+open Model.Lifecycle
+
+inductive Side where
+  | alice | bob
+  deriving Repr, DecidableEq, Inhabited
+
+def Side.other : Side → Side
+  | .alice => .bob
+  | .bob => .alice
+
+structure Envelope where
+  id : Nat
+  sender : Side
+  bytes : Bytes
+  deriving Repr, DecidableEq
+
+structure State where
+  alice : Session
+  bob : Session
+  aliceOracle : Oracle
+  bobOracle : Oracle
+  queue : List Envelope
+  history : List Envelope
+  accepted : List (Side × Nat × Bytes)
+
+inductive Action where
+  | send (sender : Side) (id : Nat) (plaintext : Bytes)
+  | receive (receiver : Side) (id : Nat)
+  | drop (id : Nat)
+  | replay (id : Nat)
+  | reorderFirst (id : Nat)
+  | forge (id offset : Nat) (value : UInt8)
+  | failAgreement (side : Side)
+  deriving Repr, DecidableEq
+
+inductive Outcome where
+  | sent (id : Nat) (bytes : Bytes)
+  | delivered (id : Nat) (plaintext : Bytes)
+  | refused (id : Nat) (reason : Refusal)
+  | dropped (id : Nat)
+  | replayed (id : Nat)
+  | reordered (id : Nat)
+  | forged (id : Nat)
+  | missing (id : Nat)
+  | agreementFailed (side : Side)
+  deriving Repr, DecidableEq
+
+/-- Remove the first envelope with `id`, retaining the order of every other
+    envelope. This is delivery and drop's network effect. -/
+def takeEnvelope (id : Nat) : List Envelope → Option (Envelope × List Envelope)
+  | [] => none
+  | envelope :: rest =>
+      if envelope.id = id then some (envelope, rest)
+      else (takeEnvelope id rest).map fun (found, tail) => (found, envelope :: tail)
+
+def findEnvelope (id : Nat) (messages : List Envelope) : Option Envelope :=
+  messages.find? (fun envelope => envelope.id = id)
+
+def replaceByte (bytes : Bytes) (offset : Nat) (value : UInt8) : Bytes :=
+  if offset < bytes.length then bytes.set offset value else bytes
+
+def forgeEnvelope (id offset : Nat) (value : UInt8) : List Envelope → List Envelope
+  | [] => []
+  | envelope :: rest =>
+      if envelope.id = id then
+        { envelope with bytes := replaceByte envelope.bytes offset value } :: rest
+      else envelope :: forgeEnvelope id offset value rest
+
+def failSession (session : Session) : Session :=
+  { session with braid := .failed }
+
+/-- One scheduled action. A delivery leaves the queue even when decryption
+    refuses; replay is an explicit later action from immutable history. -/
+def step (view : CodewordView) (state : State) : Action → State × Outcome
+  | .send .alice id plaintext =>
+      let sent := encrypt view state.aliceOracle state.alice plaintext
+      match sent.result with
+      | .error reason =>
+          ({ state with alice := sent.session, aliceOracle := sent.oracle },
+            .refused id reason)
+      | .ok bytes =>
+          let envelope := { id, sender := .alice, bytes }
+          ({ state with
+              alice := sent.session
+              aliceOracle := sent.oracle
+              queue := state.queue ++ [envelope]
+              history := state.history ++ [envelope] },
+            .sent id bytes)
+  | .send .bob id plaintext =>
+      let sent := encrypt view state.bobOracle state.bob plaintext
+      match sent.result with
+      | .error reason =>
+          ({ state with bob := sent.session, bobOracle := sent.oracle },
+            .refused id reason)
+      | .ok bytes =>
+          let envelope := { id, sender := .bob, bytes }
+          ({ state with
+              bob := sent.session
+              bobOracle := sent.oracle
+              queue := state.queue ++ [envelope]
+              history := state.history ++ [envelope] },
+            .sent id bytes)
+  | .receive .alice id =>
+      match takeEnvelope id state.queue with
+      | none => (state, .missing id)
+      | some (envelope, rest) =>
+          let received := decrypt view state.aliceOracle state.alice envelope.bytes
+          match received.result with
+          | .error reason =>
+              ({ state with
+                  alice := received.session
+                  aliceOracle := received.oracle
+                  queue := rest },
+                .refused id reason)
+          | .ok plaintext =>
+              ({ state with
+                  alice := received.session
+                  aliceOracle := received.oracle
+                  queue := rest
+                  accepted := state.accepted ++ [(.alice, id, plaintext)] },
+                .delivered id plaintext)
+  | .receive .bob id =>
+      match takeEnvelope id state.queue with
+      | none => (state, .missing id)
+      | some (envelope, rest) =>
+          let received := decrypt view state.bobOracle state.bob envelope.bytes
+          match received.result with
+          | .error reason =>
+              ({ state with
+                  bob := received.session
+                  bobOracle := received.oracle
+                  queue := rest },
+                .refused id reason)
+          | .ok plaintext =>
+              ({ state with
+                  bob := received.session
+                  bobOracle := received.oracle
+                  queue := rest
+                  accepted := state.accepted ++ [(.bob, id, plaintext)] },
+                .delivered id plaintext)
+  | .drop id =>
+      match takeEnvelope id state.queue with
+      | none => (state, .missing id)
+      | some (_, rest) => ({ state with queue := rest }, .dropped id)
+  | .replay id =>
+      match findEnvelope id state.history with
+      | none => (state, .missing id)
+      | some envelope =>
+          ({ state with queue := state.queue ++ [envelope] }, .replayed id)
+  | .reorderFirst id =>
+      match takeEnvelope id state.queue with
+      | none => (state, .missing id)
+      | some (envelope, rest) =>
+          ({ state with queue := envelope :: rest }, .reordered id)
+  | .forge id offset value =>
+      match findEnvelope id state.queue with
+      | none => (state, .missing id)
+      | some _ =>
+          ({ state with queue := forgeEnvelope id offset value state.queue }, .forged id)
+  | .failAgreement .alice =>
+      ({ state with alice := failSession state.alice }, .agreementFailed .alice)
+  | .failAgreement .bob =>
+      ({ state with bob := failSession state.bob }, .agreementFailed .bob)
+
+def run (view : CodewordView) : State → List Action → State × List Outcome
+  | state, [] => (state, [])
+  | state, action :: rest =>
+      let (next, outcome) := step view state action
+      let (final, outcomes) := run view next rest
+      (final, outcome :: outcomes)
+
+end Model.LifecycleTrace
