@@ -118,8 +118,8 @@ reported two remaining body failures: a KEM selection loop and two `for` loops
 in `PrekeyStore::to_bytes`. Both were subsequently rewritten and passed when
 measured through smaller call-graph roots.
 
-Charon's `--start-from` option made the useful unit visible. Disposable free
-functions rooted inherent methods that Charon cannot name directly. Each row
+Charon's call-graph rooting made the useful unit visible. Disposable free
+functions first rooted inherent methods individually for diagnosis. Each row
 below passed Charon, Aeneas with zero errors and zero generated `sorry`, and
 `lake env lean` against the pinned Aeneas Lean library:
 
@@ -151,12 +151,19 @@ kernel. The largest rooted LLBC was the split store decoder at 13 MiB. This is
 a translatability result only; no refinement or panic-freedom theorem is
 claimed by it.
 
+For production, Charon's `--start-from-pub` removes the need for those
+disposable wrappers or a hand-maintained root list: it selects every public
+free function and inherent method. On the rewritten scratch leaf it emitted a
+27 MiB LLBC file covering the whole public surface; Aeneas completed with zero
+errors and zero generated `sorry`, and the Lean kernel passed. The production
+gate should pin that flag and compare the generated public definitions with
+the crate's public lifecycle API.
+
 This measurement changes the proposed translation layout: the pinned command
-should use an explicit, reviewed list of public call-graph roots (with tiny
-free roots for inherent methods), and CI must verify that the list covers the
-shipping lifecycle API. Translating `crate` is both wasteful and unsafe for the
-runner. The coverage gate is part of the change, because a missing root would
-otherwise silently omit shipping code.
+should use `--start-from-pub`, and CI must verify that the generated public
+definitions cover the shipping lifecycle API. Translating `crate` is both
+wasteful and unsafe for the runner. The coverage gate is part of the change,
+because an accidental filter could otherwise silently omit shipping code.
 
 ## Decision impact
 

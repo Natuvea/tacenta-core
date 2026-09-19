@@ -52,13 +52,15 @@ The Phase 0 spike is disposable and may compare candidate rewrites before an
 implementation is selected. Production rewrites are allowed only after this
 decision's review.
 
-Translate from a checked-in manifest of call-graph roots rather than from the
-whole crate. Tiny free functions root inherent methods that Charon cannot name
-directly. A coverage gate compares that manifest with the shipping lifecycle
-API and must fail if a public operation has no root. The spike translated and
-kernel-checked all 30 public lifecycle operations independently; translating
-the whole package produced an approximately 10 GiB LLBC and an impractical
-Aeneas memory footprint.
+Translate with Charon's `--start-from-pub` rather than from the whole crate.
+That option includes public free functions and inherent methods without adding
+wrapper functions or maintaining a second root list. A coverage gate compares
+the generated public definitions with the shipping lifecycle API and must fail
+if a public operation has no translated definition. The spike translated and
+kernel-checked all 30 public lifecycle operations independently, then passed
+the unified `--start-from-pub` translation at 27 MiB; translating the whole
+package produced an approximately 10 GiB LLBC and an impractical Aeneas memory
+footprint.
 
 ## Validation and stop conditions
 
@@ -67,10 +69,11 @@ vector runners with byte-identical vector and persistence files. A mutation
 which changes a refusal, check order or commit point is a behavior change and
 must not be folded into this work.
 
-The root-coverage gate needs a negative control which removes one operation
-from the manifest and requires the gate to fail. Record LLBC size, translation
-wall time and peak memory in addition to pass/fail, so a technically successful
-translation cannot silently make the pinned CI runner unusable.
+The root-coverage gate needs a negative control which removes one generated
+public definition from its input and requires the gate to fail. Record LLBC
+size, translation wall time and peak memory in addition to pass/fail, so a
+technically successful translation cannot silently make the pinned CI runner
+unusable.
 
 If a construct remains untranslatable after two reasonable rewrite attempts,
 record the exact tool failure. A pure helper may cross the primitive boundary
