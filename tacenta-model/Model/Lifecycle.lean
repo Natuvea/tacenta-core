@@ -449,11 +449,79 @@ structure Identity where
   publicKey : Key
 
 abbrev Bundle := Model.Messages.Bundle
+abbrev StoredPrekeys := Model.PersistedState.PrekeyStoreState.Store
+
+structure PrekeyStore where
+  state : StoredPrekeys
+  legacyLastResortBlocked : List Nat
+
+structure ResponderStep where
+  store : PrekeyStore
+  result : Except Refusal (Session × Bytes)
+  oracle : Oracle
 
 def absentId : UInt32 :=
   UInt32.ofNat Model.PersistedState.PrekeyStoreState.absentId
 
 def encodeKem (publicKey : Bytes) : Bytes := 0x08 :: publicKey
+
+def responderSignedPrekeySecret (store : PrekeyStore) (id : Nat) : Option Key :=
+  if id = store.state.signedPrekeyId then some store.state.signedPrekeySecret
+  else
+    match store.state.previousSigned with
+    | some (secret, previousId, _) => if id = previousId then some secret else none
+    | none => none
+
+def responderKemPair (store : PrekeyStore) (id : Nat) :
+    Except Refusal (Bytes × Bool) :=
+  if id = store.state.kemId then
+    if store.legacyLastResortBlocked.contains id then
+      .error .legacyLastResortRecord
+    else .ok (store.state.kemPair, true)
+  else
+    match store.state.previousKem with
+    | some (pair, previousId, _) =>
+        if id = previousId then
+          if store.legacyLastResortBlocked.contains id then
+            .error .legacyLastResortRecord
+          else .ok (pair, true)
+        else
+          match store.state.kemOneTime.find? (fun entry => entry.1 = id) with
+          | some entry => .ok (entry.2.1, false)
+          | none => .error .unknownPrekeyId
+    | none =>
+        match store.state.kemOneTime.find? (fun entry => entry.1 = id) with
+        | some entry => .ok (entry.2.1, false)
+        | none => .error .unknownPrekeyId
+
+def responderOneTimeSecret (store : PrekeyStore) (id : Nat) :
+    Except Refusal (Option Key) :=
+  if id = Model.PersistedState.PrekeyStoreState.absentId then .ok none
+  else
+    match store.state.oneTime.find? (fun entry => entry.1 = id) with
+    | some entry => .ok (some entry.2)
+    | none => .error .unknownPrekeyId
+
+/-- `LAST_RESORT_HANDSHAKE_LABEL` (CONSTANTS.md), as 32 ASCII bytes. -/
+def lastResortHandshakeLabel : Bytes :=
+  [0x74,0x61,0x63,0x65,0x6e,0x74,0x61,0x20,0x6c,0x61,0x73,0x74,0x2d,0x72,
+   0x65,0x73,0x6f,0x72,0x74,0x20,0x68,0x61,0x6e,0x64,0x73,0x68,0x61,0x6b,
+   0x65,0x20,0x76,0x32]
+
+def lastResortFingerprint (sharedSecret : Key) : Key :=
+  Model.Kdf.hmac lastResortHandshakeLabel sharedSecret
+
+def lastResortReplayCheck (store : PrekeyStore) (kemId : Nat)
+    (sharedSecret : Key) (lastResort : Bool) : Except Refusal (Option Key) :=
+  if !lastResort then .ok none
+  else
+    let fingerprint := lastResortFingerprint sharedSecret
+    if store.state.seen.any (fun entry => entry.2 = fingerprint) then
+      .error .replayedLastResort
+    else if Model.PersistedState.PrekeyStoreState.maxLastResortSeen ≤
+        (store.state.seen.filter (fun entry => entry.1 = kemId)).length then
+      .error .lastResortRecordFull
+    else .ok (some fingerprint)
 
 def establishInitiator (oracle : Oracle) (identity : Identity) (bundle : Bundle)
     (expectedIdentity : Key) : EstablishStep :=
@@ -550,6 +618,22 @@ theorem establishInitiator_presence_mismatch (oracle : Oracle) (identity : Ident
     establishInitiator oracle identity bundle expectedIdentity =
       { result := .error .inconsistentBundle, oracle } := by
   simp [establishInitiator, hi, hp]
+
+def consumeResponderPrekeys (store : PrekeyStore) (oneTimeId kemId : Nat)
+    (lastResort : Bool) (fingerprint : Option Key) : PrekeyStore :=
+  let withoutKem :=
+    if lastResort then store.state
+    else { store.state with
+      kemOneTime := store.state.kemOneTime.filter (fun entry => entry.1 != kemId) }
+  let withoutCurve :=
+    if oneTimeId = Model.PersistedState.PrekeyStoreState.absentId then withoutKem
+    else { withoutKem with
+      oneTime := withoutKem.oneTime.filter (fun entry => entry.1 != oneTimeId) }
+  let recorded :=
+    match fingerprint with
+    | none => withoutCurve
+    | some value => { withoutCurve with seen := withoutCurve.seen ++ [(kemId, value)] }
+  { store with state := recorded }
 
 def braidFailed : Model.Braid.BraidState → Bool
   | .failed => true
@@ -1050,30 +1134,201 @@ theorem decrypt_aead_refusal_keeps_state (view : CodewordView)
       { session, result := .error .aead, oracle := oracleNext } := by
   simp [decryptRatchet, hf, hd, hr, hdraw, hs, ht, ha]
 
+/-! ## Responder establishment -/
+
+def finishResponderReceive (store : PrekeyStore) (oneTimeId kemId : Nat)
+    (lastResort : Bool) (fingerprint : Option Key) (received : Step Bytes) :
+    ResponderStep :=
+  match received.result with
+  | .error reason =>
+      { store, result := .error reason, oracle := received.oracle }
+  | .ok plaintext =>
+      { store := consumeResponderPrekeys store oneTimeId kemId lastResort fingerprint
+        result := .ok (received.session, plaintext)
+        oracle := received.oracle }
+
+/-- The responder's commit boundary is after authenticated decryption. A failed
+    receive preserves every prekey-store field while retaining oracle draws. -/
+theorem finishResponderReceive_refusal_keeps_store (store : PrekeyStore)
+    (oneTimeId kemId : Nat) (lastResort : Bool) (fingerprint : Option Key)
+    (received : Step Bytes) (reason : Refusal)
+    (h : (finishResponderReceive store oneTimeId kemId lastResort fingerprint
+      received).result = .error reason) :
+    (finishResponderReceive store oneTimeId kemId lastResort fingerprint
+      received).store = store := by
+  cases received with
+  | mk session result oracle =>
+      cases result <;> simp_all [finishResponderReceive]
+
+structure PreparedResponder where
+  session : Session
+  ratchetMessage : Bytes
+  oneTimeId : Nat
+  kemId : Nat
+  lastResort : Bool
+  fingerprint : Option Key
+
+/-- Read and validate every responder-establishment input without changing the
+    prekey store. The authenticated ratchet receive and durable consumption are
+    deliberately separate operations below. -/
+def prepareResponder (oracle : Oracle) (identity : Identity) (store : PrekeyStore)
+    (initialMessage : Bytes) : Except Refusal PreparedResponder :=
+  match Model.Messages.decodeInitialDetailed initialMessage with
+  | .error reason => .error (.decode reason)
+  | .ok initial =>
+      match responderSignedPrekeySecret store initial.signedPrekeyId.toNat with
+      | none => .error .unknownPrekeyId
+      | some signedSecret =>
+          match responderKemPair store initial.kemPrekeyId.toNat with
+          | .error reason => .error reason
+          | .ok (kemPair, lastResort) =>
+              match oracle.kemDecaps kemPair initial.kemCiphertext with
+              | none => .error .kem
+              | some kemSecret =>
+                  let initiatorIdentity := initial.identity.drop 1
+                  let initiatorEphemeral := initial.ephemeral.drop 1
+                  match responderOneTimeSecret store initial.oneTimeId.toNat with
+                  | .error reason => .error reason
+                  | .ok oneTimeSecret =>
+                      match oracle.dhAgree signedSecret initiatorIdentity with
+                      | none => .error (.handshake .nonContributoryAgreement)
+                      | some dh1 =>
+                          match oracle.dhAgree identity.secret initiatorEphemeral with
+                          | none => .error (.handshake .nonContributoryAgreement)
+                          | some dh2 =>
+                              match oracle.dhAgree signedSecret initiatorEphemeral with
+                              | none => .error (.handshake .nonContributoryAgreement)
+                              | some dh3 =>
+                                  let dh4 := oneTimeSecret.map
+                                    (fun secret => oracle.dhAgree secret initiatorEphemeral)
+                                  if dh4.any Option.isNone then
+                                    .error (.handshake .nonContributoryAgreement)
+                                  else
+                                    let sharedSecret :=
+                                      Model.SessionEstablishment.sharedSecret dh1 dh2 dh3
+                                        (dh4.bind id) kemSecret
+                                    match lastResortReplayCheck store
+                                        initial.kemPrekeyId.toNat sharedSecret lastResort with
+                                    | .error reason => .error reason
+                                    | .ok fingerprint =>
+                                        let session : Session :=
+                                          { triple := Model.Triple.initBob sharedSecret
+                                              (oracle.dhPublic signedSecret) .tacenta
+                                            braid := Model.Braid.initBob sharedSecret
+                                            ratchetPrivate := signedSecret
+                                            identityAd :=
+                                              Model.SessionEstablishment.associatedData
+                                                initial.identity
+                                                (Model.PersistedState.SessionState.encodeEc
+                                                  identity.publicKey)
+                                            ourIdentityPublic := identity.publicKey
+                                            peerIdentityPublic := initiatorIdentity
+                                            pendingInitial := none
+                                            establishedEphemeral := some initial.ephemeral }
+                                        .ok
+                                          { session
+                                            ratchetMessage := initial.ratchetMessage
+                                            oneTimeId := initial.oneTimeId.toNat
+                                            kemId := initial.kemPrekeyId.toNat
+                                            lastResort
+                                            fingerprint }
+
+/-- Responder establishment keeps the prekey store unchanged through the
+    complete authenticated Session receive. Only its success branch consumes
+    the named one-time keys or records a last-resort fingerprint. -/
+def establishResponder (view : CodewordView) (oracle : Oracle) (identity : Identity)
+    (store : PrekeyStore) (initialMessage : Bytes) : ResponderStep :=
+  match prepareResponder oracle identity store initialMessage with
+  | .error reason => { store, result := .error reason, oracle }
+  | .ok prepared =>
+      finishResponderReceive store prepared.oneTimeId prepared.kemId
+        prepared.lastResort prepared.fingerprint
+        (decryptRatchet view oracle prepared.session prepared.ratchetMessage)
+
+/-- Every responder-establishment refusal is store-atomic, including decode,
+    key lookup, replay-budget, primitive and authenticated-decrypt failures. -/
+theorem establishResponder_refusal_keeps_store (view : CodewordView)
+    (oracle : Oracle) (identity : Identity) (store : PrekeyStore)
+    (initialMessage : Bytes) (reason : Refusal)
+    (h : (establishResponder view oracle identity store initialMessage).result =
+      .error reason) :
+    (establishResponder view oracle identity store initialMessage).store = store := by
+  cases hp : prepareResponder oracle identity store initialMessage with
+  | error prepareReason => simp [establishResponder, hp]
+  | ok prepared =>
+      have hs := finishResponderReceive_refusal_keeps_store store prepared.oneTimeId
+        prepared.kemId prepared.lastResort prepared.fingerprint
+        (decryptRatchet view oracle prepared.session prepared.ratchetMessage) reason
+        (by simpa [establishResponder, hp] using h)
+      simpa [establishResponder, hp] using hs
+
 /-! ## Executable lifecycle check -/
 
 private def toySecret : Key := List.replicate 32 0x42
 private def toyAgreementDraw : Key := List.replicate 32 0x31
 
-private def toyCodewordSource : Bytes :=
+private def toyPrekeyStore : PrekeyStore :=
+  { state :=
+      { (default : StoredPrekeys) with
+        oneTime := [(7, [0x71]), (9, [0x91])]
+        kemOneTime := [(8, [0x81], [0x82]), (10, [0xa1], [0xa2])] }
+    legacyLastResortBlocked := [] }
+
+/-- A successful one-time establishment consumes exactly the two named entries
+    and leaves the other entries and replay record untouched. -/
+example :
+    let consumed := consumeResponderPrekeys toyPrekeyStore 7 8 false none
+    consumed.state.oneTime.map Prod.fst = [9]
+      ∧ consumed.state.kemOneTime.map Prod.fst = [10]
+      ∧ consumed.state.seen = [] := by
+  native_decide
+
+/-- A successful last-resort establishment keeps the reusable KEM pair,
+    consumes a named curve one-time prekey, and records the fingerprint. -/
+example :
+    let fingerprint : Key := List.replicate 32 0xf1
+    let consumed := consumeResponderPrekeys toyPrekeyStore 7 8 true (some fingerprint)
+    consumed.state.oneTime.map Prod.fst = [9]
+      ∧ consumed.state.kemOneTime.map Prod.fst = [8, 10]
+      ∧ consumed.state.seen = [(8, fingerprint)] := by
+  native_decide
+
+/-- Replay matching ignores the record's budget tag. The tag controls counting
+    and rotation only; the SK-bound fingerprint decides replay globally. -/
+example :
+    let shared : Key := List.replicate 32 0x51
+    let replayStore : PrekeyStore :=
+      { toyPrekeyStore with
+        state := { toyPrekeyStore.state with
+          seen := [(99, lastResortFingerprint shared)] } }
+    lastResortReplayCheck replayStore 8 shared true = .error .replayedLastResort := by
+  simp [lastResortReplayCheck]
+
+private def toyCodewordSourceFor (secret : Key) : Bytes :=
   match (Model.Braid.send Model.Braid.toyKem (braidRandomness toyAgreementDraw)
-      (Model.Braid.initAlice toySecret)).1 with
+      (Model.Braid.initAlice secret)).1 with
   | some message => message.data.map (fun chunk => chunk.source) |>.getD []
   | none => []
 
-private def toyView : CodewordView where
-  receive := fun _ index _ => { source := toyCodewordSource, index := index.toNat }
+private def toyViewFor (secret : Key) : CodewordView where
+  receive := fun _ index _ => { source := toyCodewordSourceFor secret, index := index.toNat }
   send := fun _ chunk =>
     { index := UInt16.ofNat chunk.index
       data := chunk.source.take Model.CompositeHeader.chunkBytes }
+
+private def toyView : CodewordView := toyViewFor toySecret
 
 private def toyOracle (draws : List Key) : Oracle where
   draws
   braidKem := Model.Braid.toyKem
   dhPublic := id
   dhAgree := fun _ _ => some (List.replicate 32 0xdd)
-  aeadSeal := fun _ _ _ plaintext _ => plaintext
-  aeadOpen := fun _ _ _ ciphertext _ => some ciphertext
+  aeadSeal := fun enc mac iv plaintext ad =>
+    Model.Kdf.hmac (enc ++ mac ++ iv) ad ++ plaintext
+  aeadOpen := fun enc mac iv ciphertext ad =>
+    if ciphertext.take Model.Kdf.hashLen == Model.Kdf.hmac (enc ++ mac ++ iv) ad then
+      some (ciphertext.drop Model.Kdf.hashLen)
+    else none
   kemEncaps := fun _ _ => some ([], List.replicate 32 0xee)
   kemDecaps := fun _ _ => some (List.replicate 32 0xee)
   sigVerify := fun _ _ _ => true
@@ -1100,6 +1355,43 @@ private def toyBob (secret : Key) : Session :=
     pendingInitial := none
     establishedEphemeral := none }
 
+private def toyAliceIdentity : Identity :=
+  { secret := List.replicate 32 0x11, publicKey := List.replicate 32 0x11 }
+
+private def toyBobIdentity : Identity :=
+  { secret := List.replicate 32 0x22, publicKey := List.replicate 32 0x22 }
+
+private def toySignedPrekey : Key := List.replicate 32 0x23
+
+private def toyBundle : Bundle :=
+  { identityKey := toyBobIdentity.publicKey
+    signedPrekey := toySignedPrekey
+    signedPrekeySig := List.replicate 64 0x51
+    kemPrekey := [0x61]
+    kemPrekeySig := List.replicate 64 0x52
+    oneTimePrekey := none
+    signedPrekeyId := UInt32.ofNat 1
+    oneTimeId := absentId
+    kemPrekeyId := UInt32.ofNat 2 }
+
+private def toyResponderStore : PrekeyStore :=
+  { state :=
+      { (default : StoredPrekeys) with
+        identityPublic := toyBobIdentity.publicKey
+        signedPrekeySecret := toySignedPrekey
+        signedPrekeyId := 1
+        signedPrekeySig := List.replicate 64 0x51
+        kemPair := [0x62]
+        kemId := 2
+        kemSig := List.replicate 64 0x52
+        nextId := 3 }
+    legacyLastResortBlocked := [] }
+
+private def toyEstablishedSecret : Key :=
+  Model.SessionEstablishment.sharedSecret
+    (List.replicate 32 0xdd) (List.replicate 32 0xdd)
+    (List.replicate 32 0xdd) none (List.replicate 32 0xee)
+
 /-- One complete Session send and receive runs through both ratchets, the Braid,
     wire codecs and the AEAD boundary. Fixed toy primitives make it executable;
     the boundary-refinement work later replaces them with related Rust calls. -/
@@ -1113,6 +1405,30 @@ example :
             (toyBob toySecret) wire).result with
           | .error _ => false
           | .ok plaintext => plaintext == [0xde, 0xad]) = true := by
+  native_decide
+
+/-- A complete public lifecycle opens the initiator, sends its initial wrapper,
+    opens the responder, authenticates the first plaintext, and records the
+    accepted last-resort handshake. -/
+example :
+    let initiated := establishInitiator
+      (toyOracle [List.replicate 32 0x12, List.replicate 32 0x13,
+        List.replicate 32 0x14]) toyAliceIdentity toyBundle toyBobIdentity.publicKey
+    (match initiated.result with
+      | .error _ => false
+      | .ok alice =>
+          let sent := encrypt (toyViewFor toyEstablishedSecret)
+            (toyOracle [toyAgreementDraw]) alice [0xde, 0xad]
+          match sent.result with
+          | .error _ => false
+          | .ok wire =>
+              let responded := establishResponder (toyViewFor toyEstablishedSecret)
+                (toyOracle [List.replicate 32 0x32]) toyBobIdentity toyResponderStore wire
+              match responded.result with
+              | .error _ => false
+              | .ok (_, plaintext) =>
+                  plaintext == [0xde, 0xad]
+                    && responded.store.state.seen.length == 1) = true := by
   native_decide
 
 end Model.Lifecycle
