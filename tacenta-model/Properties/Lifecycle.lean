@@ -91,4 +91,35 @@ theorem responder_refusal_is_no_op (view : CodewordView) (oracle : Oracle)
     (establishResponder view oracle identity store message).store = store :=
   establishResponder_refusal_keeps_store view oracle identity store message reason hRefused
 
+/-- A successful responder opening has exactly one durable store effect: the
+    named one-time entries are consumed, or the accepted last-resort replay
+    identity is appended, using the values fixed by the read-only preparation
+    phase. No unmentioned store field can change. -/
+theorem responder_success_store_effect (view : CodewordView) (oracle : Oracle)
+    (identity : Identity) (store : PrekeyStore) (message : Bytes)
+    (value : Session × Bytes)
+    (hOk : (establishResponder view oracle identity store message).result = .ok value) :
+    ∃ prepared plaintext,
+      prepareResponder oracle identity store message = .ok prepared
+        ∧ (decryptRatchet view oracle prepared.session prepared.ratchetMessage).result =
+          .ok plaintext
+        ∧ value =
+          ((decryptRatchet view oracle prepared.session prepared.ratchetMessage).session,
+            plaintext)
+        ∧ (establishResponder view oracle identity store message).store =
+          consumeResponderPrekeys store prepared.oneTimeId prepared.kemId
+            prepared.lastResort prepared.fingerprint := by
+  cases hp : prepareResponder oracle identity store message with
+  | error reason => simp [establishResponder, hp] at hOk
+  | ok prepared =>
+      cases hr : decryptRatchet view oracle prepared.session prepared.ratchetMessage with
+      | mk next result remaining =>
+          cases result with
+          | error reason => simp [establishResponder, hp, finishResponderReceive, hr] at hOk
+          | ok plaintext =>
+              refine ⟨prepared, plaintext, rfl, ?_, ?_, ?_⟩
+              · simp [hr]
+              · simpa [establishResponder, hp, finishResponderReceive, hr] using hOk.symm
+              · simp [establishResponder, hp, finishResponderReceive, hr]
+
 end Properties.Lifecycle
