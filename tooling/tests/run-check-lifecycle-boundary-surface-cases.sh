@@ -52,4 +52,23 @@ Path(sys.argv[2]).write_text(text)
 PY
 python3 "$checker" --translation "$tmp/comment.lean" >/dev/null
 
-echo "3 lifecycle boundary-surface cases gave the expected result"
+# The pure header adapters must not regain the opaque Option calls that the
+# explicit Rust matches removed.
+python3 - "$source_file" "$tmp/opaque-option.lean" <<'PY'
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text()
+needle = "def lifecycle.composite_of\n"
+start = text.index(needle)
+body = text.index(":= do", start) + len(":= do")
+text = text[:body] + "\n  let _opaque := core.option.Option.as_ref m.data\n" + text[body:]
+Path(sys.argv[2]).write_text(text)
+PY
+if python3 "$checker" --translation "$tmp/opaque-option.lean" >"$tmp/out" 2>&1; then
+  echo "boundary-surface case: accepted an opaque Option call in a header adapter" >&2
+  exit 1
+fi
+grep -q 'header adapters regained opaque Option operation(s): core.option.Option.as_ref' "$tmp/out"
+
+echo "4 lifecycle boundary-surface cases gave the expected result"

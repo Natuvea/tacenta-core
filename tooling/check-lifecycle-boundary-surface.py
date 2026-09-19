@@ -33,6 +33,15 @@ SESSION_ROOTS = {
 # that operation, so keep its translated call visible too.
 SIGNING_ROOTS = {"lifecycle.Identity.sign_message"}
 
+# These two adapters are intentionally written as direct matches.  Leaving the
+# borrowed `Option::as_ref/map` chain in Rust makes Aeneas turn otherwise pure
+# conversion code into two extra opaque assumptions.
+HEADER_ADAPTER_ROOTS = {"lifecycle.composite_of", "lifecycle.msg_of"}
+FORBIDDEN_HEADER_ADAPTER_OPERATIONS = {
+    "core.option.Option.as_ref",
+    "core.option.Option.map",
+}
+
 EXPECTED_SESSION_OPERATIONS = {
     "tacenta_boundary.aead.decrypt",
     "tacenta_boundary.aead.encrypt",
@@ -97,7 +106,7 @@ def declarations(text: str) -> dict[str, Declaration]:
     return result
 
 
-def reachable_operations(
+def reachable_declarations(
     parsed: dict[str, Declaration], roots: set[str]
 ) -> set[str]:
     missing_roots = roots - parsed.keys()
@@ -106,19 +115,26 @@ def reachable_operations(
 
     seen: set[str] = set()
     pending = list(roots)
-    operations: set[str] = set()
     while pending:
         name = pending.pop()
         if name in seen:
             continue
         seen.add(name)
         declaration = parsed[name]
-        if declaration.is_boundary_operation:
-            operations.add(name)
         for token in TOKEN.findall(declaration.body):
             if token in parsed and token not in seen:
                 pending.append(token)
-    return operations
+    return seen
+
+
+def reachable_operations(
+    parsed: dict[str, Declaration], roots: set[str]
+) -> set[str]:
+    return {
+        name
+        for name in reachable_declarations(parsed, roots)
+        if parsed[name].is_boundary_operation
+    }
 
 
 def check_set(label: str, actual: set[str], expected: set[str]) -> list[str]:
@@ -141,12 +157,19 @@ def main() -> int:
         parsed = declarations(args.translation.read_text())
         session = reachable_operations(parsed, SESSION_ROOTS)
         signing = reachable_operations(parsed, SIGNING_ROOTS)
+        header_adapters = reachable_declarations(parsed, HEADER_ADAPTER_ROOTS)
     except (OSError, ValueError) as error:
         print(f"lifecycle-boundary-surface: {error}", file=sys.stderr)
         return 1
 
     errors = check_set("Session roots", session, EXPECTED_SESSION_OPERATIONS)
     errors += check_set("signing root", signing, EXPECTED_SIGNING_OPERATIONS)
+    opaque_header_adapters = header_adapters & FORBIDDEN_HEADER_ADAPTER_OPERATIONS
+    if opaque_header_adapters:
+        errors.append(
+            "header adapters regained opaque Option operation(s): "
+            + ", ".join(sorted(opaque_header_adapters))
+        )
     if errors:
         for error in errors:
             print(f"lifecycle-boundary-surface: {error}", file=sys.stderr)

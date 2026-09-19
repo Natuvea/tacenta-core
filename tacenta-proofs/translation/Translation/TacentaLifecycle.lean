@@ -3943,7 +3943,7 @@ def lifecycle.PrekeyStore.take_one_time_kem
       })
 
 /-- [tacenta_lifecycle::lifecycle::push_len_prefixed]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3053:0-3056:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3059:0-3062:1 -/
 def lifecycle.push_len_prefixed
   (out : alloc.vec.Vec Std.U8) (bytes : Slice Std.U8) :
   Result (alloc.vec.Vec Std.U8)
@@ -4397,7 +4397,7 @@ def lifecycle.PrekeyStore.to_bytes
     fail panic
 
 /-- [tacenta_lifecycle::lifecycle::take_len_prefixed]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3058:0-3075:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3064:0-3081:1 -/
 def lifecycle.take_len_prefixed
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option ((Slice Std.U8) × Std.Usize))
@@ -7958,7 +7958,7 @@ def lifecycle.Error.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "AgreementFailed")
 
 /-- [tacenta_lifecycle::lifecycle::PendingInitial]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2302:0-2308:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2308:0-2314:1 -/
 structure lifecycle.PendingInitial where
   ephemeral_public : tacenta_boundary.dh.PublicKeyBytes
   kem_ciphertext : alloc.vec.Vec Std.U8
@@ -7989,7 +7989,7 @@ structure lifecycle.PublicState where
   received : Std.U32
 
 /-- [tacenta_lifecycle::lifecycle::agreement_type_of]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2262:0-2271:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2268:0-2277:1 -/
 def lifecycle.agreement_type_of
   (t : tacenta_braid.MsgType) : Result tacenta_wire.AgreementType := do
   match t with
@@ -8000,57 +8000,41 @@ def lifecycle.agreement_type_of
   | tacenta_braid.MsgType.Ct1 => ok tacenta_wire.AgreementType.Ct1
   | tacenta_braid.MsgType.Ct2 => ok tacenta_wire.AgreementType.Ct2
 
-/-- [tacenta_lifecycle::lifecycle::composite_of::closure]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2230:38-2233:9 -/
-@[reducible]
-def lifecycle.composite_of.closure := Unit
-
-/-- [tacenta_lifecycle::lifecycle::composite_of::{impl core::ops::function::FnOnce<(&'_ tacenta_erasure::Chunk,), tacenta_wire::Codeword> for tacenta_lifecycle::lifecycle::composite_of::closure}::call_once]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2230:38-2233:9 -/
-def
-  lifecycle.composite_of.closure.Insts.CoreOpsFunctionFnOnceTupleSharedChunkCodeword.call_once
-  (c : lifecycle.composite_of.closure) (tupled_args : tacenta_erasure.Chunk) :
-  Result tacenta_wire.Codeword
-  := do
-  ok { index := tupled_args.index, data := tupled_args.data }
-
-/-- Trait implementation: [tacenta_lifecycle::lifecycle::composite_of::{impl core::ops::function::FnOnce<(&'_ tacenta_erasure::Chunk,), tacenta_wire::Codeword> for tacenta_lifecycle::lifecycle::composite_of::closure}]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2230:38-2233:9 -/
-@[reducible]
-def
-  lifecycle.composite_of.closure.Insts.CoreOpsFunctionFnOnceTupleSharedChunkCodeword
-  : core.ops.function.FnOnce lifecycle.composite_of.closure
-  tacenta_erasure.Chunk tacenta_wire.Codeword := {
-  call_once :=
-    lifecycle.composite_of.closure.Insts.CoreOpsFunctionFnOnceTupleSharedChunkCodeword.call_once
-}
-
 /-- [tacenta_lifecycle::lifecycle::composite_of]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2221:0-2235:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2221:0-2238:1 -/
 def lifecycle.composite_of
   (h : tacenta_triple.Header) (m : tacenta_braid.Msg) :
   Result tacenta_wire.Composite
   := do
   let at1 ← lifecycle.agreement_type_of m.ty
-  let o ← core.option.Option.as_ref m.data
-  let o1 ←
-    core.option.Option.map
-      lifecycle.composite_of.closure.Insts.CoreOpsFunctionFnOnceTupleSharedChunkCodeword
-      o ()
-  ok
-    {
-      dh := h.dr.dh,
-      pn := h.dr.pn,
-      n := h.dr.n,
-      pq_epoch := h.epoch,
-      pq_n := h.pq_n,
-      ag_epoch := m.epoch,
-      ag_type := at1,
-      ag_chunk := o1
-    }
+  match m.data with
+  | none =>
+    ok
+      {
+        dh := h.dr.dh,
+        pn := h.dr.pn,
+        n := h.dr.n,
+        pq_epoch := h.epoch,
+        pq_n := h.pq_n,
+        ag_epoch := m.epoch,
+        ag_type := at1,
+        ag_chunk := none
+      }
+  | some c =>
+    ok
+      {
+        dh := h.dr.dh,
+        pn := h.dr.pn,
+        n := h.dr.n,
+        pq_epoch := h.epoch,
+        pq_n := h.pq_n,
+        ag_epoch := m.epoch,
+        ag_type := at1,
+        ag_chunk := (some { index := c.index, data := c.data })
+      }
 
 /-- [tacenta_lifecycle::lifecycle::msg_type_of]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2273:0-2282:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2279:0-2288:1 -/
 def lifecycle.msg_type_of
   (t : tacenta_wire.AgreementType) : Result tacenta_braid.MsgType := do
   match t with
@@ -8061,45 +8045,23 @@ def lifecycle.msg_type_of
   | tacenta_wire.AgreementType.Ct1 => ok tacenta_braid.MsgType.Ct1
   | tacenta_wire.AgreementType.Ct2 => ok tacenta_braid.MsgType.Ct2
 
-/-- [tacenta_lifecycle::lifecycle::msg_of::closure]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2242:38-2245:9 -/
-@[reducible]
-def lifecycle.msg_of.closure := Unit
-
-/-- [tacenta_lifecycle::lifecycle::msg_of::{impl core::ops::function::FnOnce<(&'_ tacenta_wire::Codeword,), tacenta_erasure::Chunk> for tacenta_lifecycle::lifecycle::msg_of::closure}::call_once]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2242:38-2245:9 -/
-def
-  lifecycle.msg_of.closure.Insts.CoreOpsFunctionFnOnceTupleSharedCodewordChunk.call_once
-  (c : lifecycle.msg_of.closure) (tupled_args : tacenta_wire.Codeword) :
-  Result tacenta_erasure.Chunk
-  := do
-  ok { index := tupled_args.index, data := tupled_args.data }
-
-/-- Trait implementation: [tacenta_lifecycle::lifecycle::msg_of::{impl core::ops::function::FnOnce<(&'_ tacenta_wire::Codeword,), tacenta_erasure::Chunk> for tacenta_lifecycle::lifecycle::msg_of::closure}]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2242:38-2245:9 -/
-@[reducible]
-def
-  lifecycle.msg_of.closure.Insts.CoreOpsFunctionFnOnceTupleSharedCodewordChunk
-  : core.ops.function.FnOnce lifecycle.msg_of.closure tacenta_wire.Codeword
-  tacenta_erasure.Chunk := {
-  call_once :=
-    lifecycle.msg_of.closure.Insts.CoreOpsFunctionFnOnceTupleSharedCodewordChunk.call_once
-}
-
 /-- [tacenta_lifecycle::lifecycle::msg_of]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2238:0-2247:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2241:0-2253:1 -/
 def lifecycle.msg_of
   (c : tacenta_wire.Composite) : Result tacenta_braid.Msg := do
   let mt ← lifecycle.msg_type_of c.ag_type
-  let o ← core.option.Option.as_ref c.ag_chunk
-  let o1 ←
-    core.option.Option.map
-      lifecycle.msg_of.closure.Insts.CoreOpsFunctionFnOnceTupleSharedCodewordChunk
-      o ()
-  ok { epoch := c.ag_epoch, ty := mt, data := o1 }
+  match c.ag_chunk with
+  | none => ok { epoch := c.ag_epoch, ty := mt, data := none }
+  | some w =>
+    ok
+      {
+        epoch := c.ag_epoch,
+        ty := mt,
+        data := (some { index := w.index, data := w.data })
+      }
 
 /-- [tacenta_lifecycle::lifecycle::triple_header_of]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2250:0-2260:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2256:0-2266:1 -/
 def lifecycle.triple_header_of
   (c : tacenta_wire.Composite) : Result tacenta_triple.Header := do
   ok
@@ -8110,14 +8072,14 @@ def lifecycle.triple_header_of
     }
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::peer_identity]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2287:4-2289:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 2293:4-2295:5
     Visibility: public -/
 def lifecycle.Session.peer_identity
   (self : lifecycle.Session) : Result tacenta_boundary.dh.PublicKeyBytes := do
   ok self.peer_identity_public
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::public_state]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2292:4-2299:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 2298:4-2305:5
     Visibility: public -/
 def lifecycle.Session.public_state
   (self : lifecycle.Session) : Result lifecycle.PublicState := do
@@ -8133,7 +8095,7 @@ def lifecycle.Session.public_state
     }
 
 /-- [tacenta_lifecycle::lifecycle::identity_ad]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2311:0-2313:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2317:0-2319:1 -/
 def lifecycle.identity_ad
   (initiator : tacenta_boundary.dh.PublicKeyBytes)
   (responder : tacenta_boundary.dh.PublicKeyBytes) :
@@ -8146,12 +8108,12 @@ def lifecycle.identity_ad
   tacenta_session.associated_data s s1
 
 /-- [tacenta_lifecycle::lifecycle::establish_initiator_for::closure]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2391:81-2391:95 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2397:81-2397:95 -/
 @[reducible]
 def lifecycle.establish_initiator_for.closure (R : Type) := Unit
 
 /-- [tacenta_lifecycle::lifecycle::establish_initiator_for::{impl core::ops::function::FnOnce<(tacenta_boundary::kem::KemError,), tacenta_lifecycle::lifecycle::Error> for tacenta_lifecycle::lifecycle::establish_initiator_for::closure<R>}::call_once]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2391:81-2391:95 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2397:81-2397:95 -/
 def
   lifecycle.establish_initiator_for.closure.Insts.CoreOpsFunctionFnOnceTupleKemErrorError.call_once
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -8163,7 +8125,7 @@ def
   ok lifecycle.Error.Kem
 
 /-- Trait implementation: [tacenta_lifecycle::lifecycle::establish_initiator_for::{impl core::ops::function::FnOnce<(tacenta_boundary::kem::KemError,), tacenta_lifecycle::lifecycle::Error> for tacenta_lifecycle::lifecycle::establish_initiator_for::closure<R>}]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2391:81-2391:95 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2397:81-2397:95 -/
 @[reducible]
 def
   lifecycle.establish_initiator_for.closure.Insts.CoreOpsFunctionFnOnceTupleKemErrorError
@@ -8177,7 +8139,7 @@ def
 }
 
 /-- [tacenta_lifecycle::lifecycle::establish_initiator_for]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2344:0-2440:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 2350:0-2446:1
     Visibility: public -/
 def lifecycle.establish_initiator_for
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -8348,7 +8310,7 @@ def lifecycle.establish_initiator_for
       else ok (core.result.Result.Err lifecycle.Error.BadEncoding, rng)
 
 /-- [tacenta_lifecycle::lifecycle::establish_initiator]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2324:0-2334:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 2330:0-2340:1
     Visibility: public -/
 def lifecycle.establish_initiator
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -8362,7 +8324,7 @@ def lifecycle.establish_initiator
     their_bundle.bundle.identity_key rng
 
 /-- [tacenta_lifecycle::lifecycle::responder_signed_prekey_secret]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2442:0-2454:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2448:0-2460:1 -/
 def lifecycle.responder_signed_prekey_secret
   (store : lifecycle.PrekeyStore) (id : Std.U32) :
   Result (core.result.Result (zeroize.Zeroizing (Array Std.U8 32#usize))
@@ -8389,7 +8351,7 @@ def lifecycle.responder_signed_prekey_secret
       else ok (core.result.Result.Err lifecycle.Error.UnknownPrekeyId)
 
 /-- [tacenta_lifecycle::lifecycle::u32_index]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2501:4-2506:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2507:4-2512:5 -/
 @[rust_loop_body]
 def lifecycle.u32_index_loop.body
   (values : Slice Std.U32) (needle : Std.U32) (found : Option Std.Usize)
@@ -8408,7 +8370,7 @@ def lifecycle.u32_index_loop.body
   else ok (done found)
 
 /-- [tacenta_lifecycle::lifecycle::u32_index]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2501:4-2506:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2507:4-2512:5 -/
 @[rust_loop]
 def lifecycle.u32_index_loop
   (values : Slice Std.U32) (needle : Std.U32) (found : Option Std.Usize)
@@ -8421,14 +8383,14 @@ def lifecycle.u32_index_loop
     (found, index)
 
 /-- [tacenta_lifecycle::lifecycle::u32_index]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2498:0-2508:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2504:0-2514:1 -/
 @[reducible]
 def lifecycle.u32_index
   (values : Slice Std.U32) (needle : Std.U32) : Result (Option Std.Usize) := do
   lifecycle.u32_index_loop values needle none 0#usize
 
 /-- [tacenta_lifecycle::lifecycle::responder_kem_secret]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2456:0-2496:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2462:0-2502:1 -/
 def lifecycle.responder_kem_secret
   (store : lifecycle.PrekeyStore) (id : Std.U32) (ciphertext : Slice Std.U8) :
   Result (core.result.Result ((Array Std.U8 32#usize) × Bool) lifecycle.Error)
@@ -8499,7 +8461,7 @@ def lifecycle.responder_kem_secret
             ok (core.result.Result.Err lifecycle.Error.Kem)
 
 /-- [tacenta_lifecycle::lifecycle::responder_curve_inputs]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2510:0-2523:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2516:0-2529:1 -/
 def lifecycle.responder_curve_inputs
   (identity : Slice Std.U8) (ephemeral : Slice Std.U8) :
   Result (core.result.Result (tacenta_boundary.dh.PublicKeyBytes ×
@@ -8515,7 +8477,7 @@ def lifecycle.responder_curve_inputs
     | some value1 => ok (core.result.Result.Ok (value, value1))
 
 /-- [tacenta_lifecycle::lifecycle::responder_one_time_key]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2525:0-2534:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2531:0-2540:1 -/
 def lifecycle.responder_one_time_key
   (store : lifecycle.PrekeyStore) (id : Std.U32) :
   Result (core.result.Result (Option tacenta_boundary.dh.PrivateKey)
@@ -8536,7 +8498,7 @@ def lifecycle.responder_one_time_key
       ok (core.result.Result.Ok (some pk))
 
 /-- [tacenta_lifecycle::lifecycle::responder_replay_fingerprint]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2547:4-2551:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2553:4-2557:5 -/
 @[rust_loop_body]
 def lifecycle.responder_replay_fingerprint_loop.body
   (fingerprint : Array Std.U8 32#usize)
@@ -8558,7 +8520,7 @@ def lifecycle.responder_replay_fingerprint_loop.body
     else ok (cont (iter1, replayed))
 
 /-- [tacenta_lifecycle::lifecycle::responder_replay_fingerprint]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2547:4-2551:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2553:4-2557:5 -/
 @[rust_loop]
 def lifecycle.responder_replay_fingerprint_loop
   (iter : core.slice.iter.Iter (Std.U32 × (Array Std.U8 32#usize)))
@@ -8571,7 +8533,7 @@ def lifecycle.responder_replay_fingerprint_loop
     (iter, replayed)
 
 /-- [tacenta_lifecycle::lifecycle::responder_replay_fingerprint]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2536:0-2559:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2542:0-2565:1 -/
 def lifecycle.responder_replay_fingerprint
   (store : lifecycle.PrekeyStore) (kem_id : Std.U32)
   (sk : Array Std.U8 32#usize) (last_resort : Bool) :
@@ -8617,12 +8579,12 @@ def serialization.concat_ad
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s1
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::decrypt_ratchet::closure#1]
-    Source: 'lifecycle/src/lifecycle.rs', lines 3001:74-3001:89 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3007:74-3007:89 -/
 @[reducible]
 def lifecycle.Session.decrypt_ratchet.closure_1 (R : Type) := Unit
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::decrypt_ratchet::{impl core::ops::function::FnOnce<(tacenta_boundary::aead::DecryptError,), tacenta_lifecycle::lifecycle::Error> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::decrypt_ratchet::closure#1<R>}::call_once]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3001:74-3001:89 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3007:74-3007:89 -/
 def
   lifecycle.Session.decrypt_ratchet.closure_1.Insts.CoreOpsFunctionFnOnceTupleDecryptErrorError.call_once
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -8634,7 +8596,7 @@ def
   ok lifecycle.Error.Aead
 
 /-- Trait implementation: [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::decrypt_ratchet::{impl core::ops::function::FnOnce<(tacenta_boundary::aead::DecryptError,), tacenta_lifecycle::lifecycle::Error> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::decrypt_ratchet::closure#1<R>}]
-    Source: 'lifecycle/src/lifecycle.rs', lines 3001:74-3001:89 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3007:74-3007:89 -/
 @[reducible]
 def
   lifecycle.Session.decrypt_ratchet.closure_1.Insts.CoreOpsFunctionFnOnceTupleDecryptErrorError
@@ -8648,12 +8610,12 @@ def
 }
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::decrypt_ratchet::closure]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2874:17-2874:66 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2880:17-2880:66 -/
 @[reducible]
 def lifecycle.Session.decrypt_ratchet.closure (R : Type) := Unit
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::decrypt_ratchet::{impl core::ops::function::FnOnce<(&'_ tacenta_braid::Output,), tacenta_spqr::Output> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::decrypt_ratchet::closure<R>}::call_once]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2874:17-2874:66 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2880:17-2880:66 -/
 def
   lifecycle.Session.decrypt_ratchet.closure.Insts.CoreOpsFunctionFnOnceTupleSharedOutputOutput.call_once
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -8665,7 +8627,7 @@ def
   tacenta_spqr.Output.new tupled_args.key_epoch tupled_args.key
 
 /-- Trait implementation: [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::decrypt_ratchet::{impl core::ops::function::FnOnce<(&'_ tacenta_braid::Output,), tacenta_spqr::Output> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::decrypt_ratchet::closure<R>}]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2874:17-2874:66 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2880:17-2880:66 -/
 @[reducible]
 def
   lifecycle.Session.decrypt_ratchet.closure.Insts.CoreOpsFunctionFnOnceTupleSharedOutputOutput
@@ -8679,7 +8641,7 @@ def
 }
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::decrypt_ratchet]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2827:4-3011:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2833:4-3017:5 -/
 def lifecycle.Session.decrypt_ratchet
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
   (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R)
@@ -8831,7 +8793,7 @@ def lifecycle.Session.decrypt_ratchet
       ok (core.result.Result.Err (lifecycle.Error.Decode error), self, rng)
 
 /-- [tacenta_lifecycle::lifecycle::establish_responder]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2572:0-2694:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 2578:0-2700:1
     Visibility: public -/
 def lifecycle.establish_responder
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -9020,7 +8982,7 @@ def lifecycle.establish_responder
       rng)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::agreement_failed]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2700:4-2702:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 2706:4-2708:5
     Visibility: public -/
 def lifecycle.Session.agreement_failed
   (self : lifecycle.Session) : Result Bool := do
@@ -9072,12 +9034,12 @@ def serialization.encode_message
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out ciphertext
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::encrypt::closure]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2741:17-2741:66 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2747:17-2747:66 -/
 @[reducible]
 def lifecycle.Session.encrypt.closure (R : Type) := Unit
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::encrypt::{impl core::ops::function::FnOnce<(&'_ tacenta_braid::Output,), tacenta_spqr::Output> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::encrypt::closure<R>}::call_once]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2741:17-2741:66 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2747:17-2747:66 -/
 def
   lifecycle.Session.encrypt.closure.Insts.CoreOpsFunctionFnOnceTupleSharedOutputOutput.call_once
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -9089,7 +9051,7 @@ def
   tacenta_spqr.Output.new tupled_args.key_epoch tupled_args.key
 
 /-- Trait implementation: [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::encrypt::{impl core::ops::function::FnOnce<(&'_ tacenta_braid::Output,), tacenta_spqr::Output> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::encrypt::closure<R>}]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2741:17-2741:66 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2747:17-2747:66 -/
 @[reducible]
 def
   lifecycle.Session.encrypt.closure.Insts.CoreOpsFunctionFnOnceTupleSharedOutputOutput
@@ -9103,7 +9065,7 @@ def
 }
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::encrypt]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2712:4-2774:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 2718:4-2780:5
     Visibility: public -/
 def lifecycle.Session.encrypt
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -9223,7 +9185,7 @@ def serialization.message_type
         else ok none
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::decrypt]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2796:4-2825:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 2802:4-2831:5
     Visibility: public -/
 def lifecycle.Session.decrypt
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -9316,11 +9278,11 @@ def lifecycle.Session.decrypt
         ok (core.result.Result.Err (lifecycle.Error.Decode error), self, rng)
 
 /-- [tacenta_lifecycle::lifecycle::SESSION_VERSION]
-    Source: 'lifecycle/src/lifecycle.rs', lines 3018:0-3018:33 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3024:0-3024:33 -/
 @[global_simps, irreducible] def lifecycle.SESSION_VERSION : Std.U8 := 1#u8
 
 /-- [tacenta_lifecycle::lifecycle::SessionDecodeError]
-    Source: 'lifecycle/src/lifecycle.rs', lines 3026:0-3051:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 3032:0-3057:1
     Visibility: public -/
 @[discriminant isize]
 inductive lifecycle.SessionDecodeError where
@@ -9331,7 +9293,7 @@ inductive lifecycle.SessionDecodeError where
 | Inconsistent : lifecycle.SessionDecodeError
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::clone::Clone for tacenta_lifecycle::lifecycle::SessionDecodeError}::clone]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3024:9-3024:14
+    Source: 'lifecycle/src/lifecycle.rs', lines 3030:9-3030:14
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreCloneClone.clone
   (self : lifecycle.SessionDecodeError) :
@@ -9340,7 +9302,7 @@ def lifecycle.SessionDecodeError.Insts.CoreCloneClone.clone
   ok self
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::PartialEq<tacenta_lifecycle::lifecycle::SessionDecodeError> for tacenta_lifecycle::lifecycle::SessionDecodeError}::eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3024:22-3024:31
+    Source: 'lifecycle/src/lifecycle.rs', lines 3030:22-3030:31
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreCmpPartialEqSessionDecodeError.eq
   (self : lifecycle.SessionDecodeError) (other : lifecycle.SessionDecodeError)
@@ -9352,14 +9314,14 @@ def lifecycle.SessionDecodeError.Insts.CoreCmpPartialEqSessionDecodeError.eq
   ok (self1 = other1)
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::Eq for tacenta_lifecycle::lifecycle::SessionDecodeError}::assert_fields_are_eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3024:33-3024:35
+    Source: 'lifecycle/src/lifecycle.rs', lines 3030:33-3030:35
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : lifecycle.SessionDecodeError) : Result Unit := do
   ok ()
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::fmt::Debug for tacenta_lifecycle::lifecycle::SessionDecodeError}::fmt]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3024:37-3024:42
+    Source: 'lifecycle/src/lifecycle.rs', lines 3030:37-3030:42
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreFmtDebug.fmt
   (self : lifecycle.SessionDecodeError) (f : core.fmt.Formatter) :
@@ -9378,7 +9340,7 @@ def lifecycle.SessionDecodeError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "Inconsistent")
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PendingInitial}::to_bytes]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3078:4-3086:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3084:4-3092:5 -/
 def lifecycle.PendingInitial.to_bytes
   (self : lifecycle.PendingInitial) : Result (alloc.vec.Vec Std.U8) := do
   let a ← tacenta_boundary.dh.PublicKeyBytes.as_bytes self.ephemeral_public
@@ -9399,7 +9361,7 @@ def lifecycle.PendingInitial.to_bytes
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s4
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PendingInitial}::from_bytes]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3088:4-3112:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3094:4-3118:5 -/
 def lifecycle.PendingInitial.from_bytes
   (bytes : Slice Std.U8) : Result (Option lifecycle.PendingInitial) := do
   let i := Slice.len bytes
@@ -9469,12 +9431,12 @@ def lifecycle.PendingInitial.from_bytes
         lifecycle.PendingInitial residual
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export::closure#2]
-    Source: 'lifecycle/src/lifecycle.rs', lines 3175:27-3175:42 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3181:27-3181:42 -/
 @[reducible]
 def lifecycle.Session.export.closure_2 := Unit
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export::{impl core::ops::function::FnOnce<(&'_ alloc::vec::Vec<u8>,), usize> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export::closure#2}::call_once]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3175:27-3175:42 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3181:27-3181:42 -/
 def
   lifecycle.Session.export.closure_2.Insts.CoreOpsFunctionFnOnceTupleSharedVecU8Usize.call_once
   (c : lifecycle.Session.export.closure_2) (tupled_args : alloc.vec.Vec Std.U8)
@@ -9485,7 +9447,7 @@ def
   4#usize + i
 
 /-- Trait implementation: [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export::{impl core::ops::function::FnOnce<(&'_ alloc::vec::Vec<u8>,), usize> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export::closure#2}]
-    Source: 'lifecycle/src/lifecycle.rs', lines 3175:27-3175:42 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3181:27-3181:42 -/
 @[reducible]
 def
   lifecycle.Session.export.closure_2.Insts.CoreOpsFunctionFnOnceTupleSharedVecU8Usize
@@ -9496,12 +9458,12 @@ def
 }
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export::closure#1]
-    Source: 'lifecycle/src/lifecycle.rs', lines 3170:41-3170:56 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3176:41-3176:56 -/
 @[reducible]
 def lifecycle.Session.export.closure_1 := Unit
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export::{impl core::ops::function::FnOnce<(&'_ alloc::vec::Vec<u8>,), usize> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export::closure#1}::call_once]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3170:41-3170:56 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3176:41-3176:56 -/
 def
   lifecycle.Session.export.closure_1.Insts.CoreOpsFunctionFnOnceTupleSharedVecU8Usize.call_once
   (c : lifecycle.Session.export.closure_1) (tupled_args : alloc.vec.Vec Std.U8)
@@ -9512,7 +9474,7 @@ def
   4#usize + i
 
 /-- Trait implementation: [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export::{impl core::ops::function::FnOnce<(&'_ alloc::vec::Vec<u8>,), usize> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export::closure#1}]
-    Source: 'lifecycle/src/lifecycle.rs', lines 3170:41-3170:56 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3176:41-3176:56 -/
 @[reducible]
 def
   lifecycle.Session.export.closure_1.Insts.CoreOpsFunctionFnOnceTupleSharedVecU8Usize
@@ -9523,12 +9485,12 @@ def
 }
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export::closure]
-    Source: 'lifecycle/src/lifecycle.rs', lines 3161:56-3161:72 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3167:56-3167:72 -/
 @[reducible]
 def lifecycle.Session.export.closure := Unit
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export::{impl core::ops::function::FnOnce<(&'_ tacenta_lifecycle::lifecycle::PendingInitial,), alloc::vec::Vec<u8>> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export::closure}::call_once]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3161:56-3161:72 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3167:56-3167:72 -/
 def
   lifecycle.Session.export.closure.Insts.CoreOpsFunctionFnOnceTupleSharedPendingInitialVecU8.call_once
   (c : lifecycle.Session.export.closure)
@@ -9538,7 +9500,7 @@ def
   lifecycle.PendingInitial.to_bytes tupled_args
 
 /-- Trait implementation: [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export::{impl core::ops::function::FnOnce<(&'_ tacenta_lifecycle::lifecycle::PendingInitial,), alloc::vec::Vec<u8>> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export::closure}]
-    Source: 'lifecycle/src/lifecycle.rs', lines 3161:56-3161:72 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3167:56-3167:72 -/
 @[reducible]
 def
   lifecycle.Session.export.closure.Insts.CoreOpsFunctionFnOnceTupleSharedPendingInitialVecU8
@@ -9549,7 +9511,7 @@ def
 }
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3154:4-3204:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 3160:4-3210:5
     Visibility: public -/
 def lifecycle.Session.export
   (self : lifecycle.Session) :
@@ -9650,7 +9612,7 @@ def lifecycle.Session.export
     fail panic
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::import_unchecked]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3423:4-3509:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3429:4-3515:5 -/
 def lifecycle.Session.import_unchecked
   (bytes : Slice Std.U8) :
   Result (core.result.Result lifecycle.Session lifecycle.SessionDecodeError)
@@ -9921,13 +9883,13 @@ def lifecycle.Session.import_unchecked
           ok (core.result.Result.Err lifecycle.SessionDecodeError.Malformed)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::is_responder]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3419:4-3421:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3425:4-3427:5 -/
 def lifecycle.Session.is_responder
   (self : lifecycle.Session) : Result Bool := do
   ok (core.option.Option.is_some self.established_ephemeral)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::invariant]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3266:4-3413:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 3272:4-3419:5
     Visibility: public -/
 def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
   let pkb ← tacenta_boundary.dh.PrivateKey.public_key self.ratchet_private
@@ -10747,7 +10709,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
       else ok false
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::import]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3236:4-3245:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 3242:4-3251:5
     Visibility: public -/
 def lifecycle.Session.import
   (bytes : Slice Std.U8) :
