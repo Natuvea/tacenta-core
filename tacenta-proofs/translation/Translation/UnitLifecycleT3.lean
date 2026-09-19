@@ -1211,6 +1211,181 @@ theorem decrypt_initial_without_established_refines {R : Type}
   rw [hmodel]
   exact ⟨rfl, hrel, htrace⟩
 
+/-- A decoded initial wrapper with the wrong establishment ephemeral is refused
+before public-key encoding or the inner ratchet receive. -/
+theorem decrypt_initial_ephemeral_mismatch_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (established : alloc.vec.Vec Std.U8)
+    (decoded : tacenta_wire.DecodedInitial)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (htype : serialization.message_type message =
+      ok (some serialization.MessageType.Initial))
+    (hdecode : tacenta_wire.decode_initial message =
+      ok (core.result.Result.Ok decoded))
+    (hestablished : real.established_ephemeral = some established)
+    (hmismatch : vecOf established ≠ vecOf decoded.ephemeral) :
+    ∃ output,
+      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+  have htypeRel := message_type_refines message
+  rw [htype] at htypeRel
+  have hmodelType : Model.Lifecycle.messageType (sliceOf message) = some .initial := by
+    simpa [messageTypeOf] using htypeRel.symm
+  have hdecodeRel := decode_initial_refines_lifecycle message
+  rw [hdecode] at hdecodeRel
+  obtain ⟨ephemeralEqual, hephemeralCall, hephemeralPost⟩ :=
+    Std.WP.spec_imp_exists (vec_u8_eq_refines established decoded.ephemeral)
+  have hvalMismatch : established.val ≠ decoded.ephemeral.val := by
+    intro h
+    apply hmismatch
+    simp [vecOf, h]
+  have hephemeralFalse : ephemeralEqual = false := by
+    cases ephemeralEqual with
+    | false => rfl
+    | true => exact (hvalMismatch (hephemeralPost.1 rfl)).elim
+  rw [hephemeralFalse] at hephemeralCall
+  have hmodelEstablished :
+      model.establishedEphemeral = some (vecOf established) := by
+    have h := hrel.establishedEphemeral
+    rw [hestablished] at h
+    exact h.symm
+  have hrepeat : Model.Lifecycle.repeatedInitial model
+      (Tacenta.SessionUnitWireInitialT3.initialOf decoded) = false := by
+    cases hr : Model.Lifecycle.repeatedInitial model
+        (Tacenta.SessionUnitWireInitialT3.initialOf decoded) with
+    | false => rfl
+    | true =>
+        obtain ⟨ephemeral, he, heq, _⟩ :=
+          (Model.Lifecycle.repeatedInitial_iff _ _).1 hr
+        rw [hmodelEstablished] at he
+        cases he
+        have hcontra : False := by
+          apply hmismatch
+          change vecOf established =
+            Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val at heq
+          rw [wire_bytesOf_eq_vecOf] at heq
+          exact heq
+        exact hcontra.elim
+  have hdispatch := Model.Lifecycle.dispatchDecrypt_not_repeat model
+    (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
+    hmodelType hdecodeRel hrepeat
+  have hmodel := Model.Lifecycle.decrypt_dispatch_refusal_keeps_state view oracle
+    model (sliceOf message) .notARepeatedInitial hdispatch
+  let output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.Session × R :=
+    (core.result.Result.Err lifecycle.Error.NotARepeatedInitial, real, rng)
+  have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+      ok output := by
+    simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
+      hephemeralCall, output]
+  refine ⟨output, hreal, ?_⟩
+  rw [hmodel]
+  exact ⟨rfl, hrel, htrace⟩
+
+/-- A wrapper with the right establishment ephemeral but the wrong peer
+identity is refused after the exact EncodeEC comparison and before the inner
+ratchet receive. -/
+theorem decrypt_initial_identity_mismatch_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (codec : DhCodecOf dh)
+    (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (established : alloc.vec.Vec Std.U8)
+    (decoded : tacenta_wire.DecodedInitial)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (htype : serialization.message_type message =
+      ok (some serialization.MessageType.Initial))
+    (hdecode : tacenta_wire.decode_initial message =
+      ok (core.result.Result.Ok decoded))
+    (hestablished : real.established_ephemeral = some established)
+    (hephemeral : vecOf established = vecOf decoded.ephemeral)
+    (hmismatch : vecOf decoded.identity ≠
+      Model.PersistedState.SessionState.encodeEc
+        (dh.publicKey real.peer_identity_public)) :
+    ∃ output,
+      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+  have htypeRel := message_type_refines message
+  rw [htype] at htypeRel
+  have hmodelType : Model.Lifecycle.messageType (sliceOf message) = some .initial := by
+    simpa [messageTypeOf] using htypeRel.symm
+  have hdecodeRel := decode_initial_refines_lifecycle message
+  rw [hdecode] at hdecodeRel
+  obtain ⟨encoded, hencoded, hencodedValue⟩ :=
+    encode_ec_refines dh codec real.peer_identity_public
+  obtain ⟨ephemeralEqual, hephemeralCall, hephemeralPost⟩ :=
+    Std.WP.spec_imp_exists (vec_u8_eq_refines established decoded.ephemeral)
+  have hephemeralEq : established = decoded.ephemeral :=
+    vecOf_injective hephemeral
+  have hephemeralTrue : ephemeralEqual = true :=
+    hephemeralPost.2 (congrArg (fun value => value.val) hephemeralEq)
+  rw [hephemeralTrue] at hephemeralCall
+  obtain ⟨identityEqual, hidentityCall, hidentityPost⟩ :=
+    Std.WP.spec_imp_exists (vec_u8_eq_refines decoded.identity encoded)
+  have hidentityValMismatch : decoded.identity.val ≠ encoded.val := by
+    intro h
+    apply hmismatch
+    calc
+      vecOf decoded.identity = vecOf encoded := by simp [vecOf, h]
+      _ = Model.PersistedState.SessionState.encodeEc
+          (dh.publicKey real.peer_identity_public) := hencodedValue
+  have hidentityFalse : identityEqual = false := by
+    cases identityEqual with
+    | false => rfl
+    | true => exact (hidentityValMismatch (hidentityPost.1 rfl)).elim
+  rw [hidentityFalse] at hidentityCall
+  have hrepeat : Model.Lifecycle.repeatedInitial model
+      (Tacenta.SessionUnitWireInitialT3.initialOf decoded) = false := by
+    cases hr : Model.Lifecycle.repeatedInitial model
+        (Tacenta.SessionUnitWireInitialT3.initialOf decoded) with
+    | false => rfl
+    | true =>
+        obtain ⟨_, _, _, hmodelIdentity⟩ :=
+          (Model.Lifecycle.repeatedInitial_iff _ _).1 hr
+        have hcontra : False := by
+          apply hmismatch
+          have hmodelIdentity' :
+              Tacenta.SessionUnitWireT3.bytesOf decoded.identity.val =
+                Model.PersistedState.SessionState.encodeEc
+                  model.peerIdentityPublic := by
+            simpa [Tacenta.SessionUnitWireInitialT3.initialOf] using
+              hmodelIdentity
+          calc
+            vecOf decoded.identity =
+                Tacenta.SessionUnitWireT3.bytesOf decoded.identity.val :=
+              (wire_bytesOf_eq_vecOf decoded.identity).symm
+            _ = Model.PersistedState.SessionState.encodeEc
+                model.peerIdentityPublic := hmodelIdentity'
+            _ = Model.PersistedState.SessionState.encodeEc
+                (dh.publicKey real.peer_identity_public) := by
+              rw [hrel.peerIdentityPublic]
+        exact hcontra.elim
+  have hdispatch := Model.Lifecycle.dispatchDecrypt_not_repeat model
+    (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
+    hmodelType hdecodeRel hrepeat
+  have hmodel := Model.Lifecycle.decrypt_dispatch_refusal_keeps_state view oracle
+    model (sliceOf message) .notARepeatedInitial hdispatch
+  let output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.Session × R :=
+    (core.result.Result.Err lifecycle.Error.NotARepeatedInitial, real, rng)
+  have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+      ok output := by
+    simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
+      hephemeralCall, hencoded, hidentityCall, output]
+  refine ⟨output, hreal, ?_⟩
+  rw [hmodel]
+  exact ⟨rfl, hrel, htrace⟩
+
 /-- Lift an accepted repeated-initial wrapper through public decrypt.  The two
 wrapper identity checks are derived from the shared byte representation; the
 inner receive relation supplies the authenticated ratchet transition. -/
