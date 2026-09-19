@@ -9,6 +9,7 @@ skip outside the checked allowlist.
 import json
 import os
 import sys
+import hashlib
 from collections import OrderedDict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -1058,9 +1059,136 @@ HANDLERS = {
 }
 
 
+def h_group_commitment(case):
+    labels = {
+        "roster_commitment": b"Tacenta:group:roster-commitment:v1\xff",
+        "payload_commitment": b"Tacenta:group:payload-commitment:v1\xff",
+    }
+    operation = case.get("operation")
+    if operation not in labels:
+        raise Fail(f"unknown group commitment operation {operation!r}")
+    try:
+        value = bx(case["input_hex"])
+        expected = case["output_hex"]
+    except (KeyError, ValueError) as e:
+        raise Fail(f"malformed group commitment case: {e}") from e
+    check(expected, hashlib.sha256(labels[operation] + value).digest(), "commitment")
+
+
+def _u32(value, field):
+    if not isinstance(value, int) or not 0 <= value <= 0xffffffff:
+        raise Fail(f"{field} is not a u32")
+    return value.to_bytes(4, "big")
+
+
+def _u64(value, field):
+    if not isinstance(value, int) or not 0 <= value <= 0xffffffffffffffff:
+        raise Fail(f"{field} is not a u64")
+    return value.to_bytes(8, "big")
+
+
+def _inventory_binding(binding):
+    if not isinstance(binding, dict):
+        raise Fail("binding is not an object")
+    try:
+        identity = bx(binding["identity_hex"])
+    except (KeyError, ValueError) as e:
+        raise Fail(f"binding identity is malformed: {e}") from e
+    if len(identity) != 32:
+        raise Fail("binding identity is not 32 bytes")
+    device_id = binding.get("device_id")
+    capabilities = binding.get("capabilities")
+    device_bytes = _u32(device_id, "device_id")
+    capabilities_bytes = _u64(capabilities, "capabilities")
+    predecessor = binding.get("replacement_predecessor_hex")
+    if predecessor is None:
+        predecessor_bytes = b"\x00"
+        predecessor_order = (0, b"")
+    else:
+        try:
+            predecessor_value = bx(predecessor)
+        except ValueError as e:
+            raise Fail(f"binding predecessor is malformed: {e}") from e
+        if len(predecessor_value) != 32:
+            raise Fail("binding predecessor is not 32 bytes")
+        predecessor_bytes = b"\x01" + predecessor_value
+        predecessor_order = (1, predecessor_value)
+    return (device_id, identity, capabilities, predecessor_order), (
+        device_bytes + identity + capabilities_bytes + predecessor_bytes)
+
+
+def _canonical_bindings(bindings, field):
+    if not isinstance(bindings, list) or len(bindings) > 8:
+        raise Fail(f"{field} is not a bounded binding list")
+    encoded = []
+    previous = None
+    for binding in bindings:
+        order, value = _inventory_binding(binding)
+        if previous is not None and previous >= order:
+            raise Fail(f"{field} is not canonical")
+        previous = order
+        encoded.append(value)
+    return _u32(len(encoded), f"{field} count") + b"".join(encoded)
+
+
+def h_inventory_statement(case):
+    try:
+        account = case["account_handle"].encode("utf-8")
+        expected = case["unsigned_hex"]
+    except (KeyError, AttributeError) as e:
+        raise Fail(f"malformed inventory statement case: {e}") from e
+    if not account or len(account) > 256:
+        raise Fail("account handle is outside its bound")
+    active = _canonical_bindings(case.get("active"), "active")
+    revoked = case.get("revoked")
+    if not isinstance(revoked, list) or len(revoked) > 8:
+        raise Fail("revoked is not a bounded list")
+    revoked_encoded = []
+    previous = None
+    active_orders = []
+    for binding in case["active"]:
+        order, _ = _inventory_binding(binding)
+        active_orders.append(order)
+    for entry in revoked:
+        if not isinstance(entry, dict) or "binding" not in entry:
+            raise Fail("revocation is malformed")
+        order, binding = _inventory_binding(entry["binding"])
+        terminal = entry.get("terminal_generation")
+        floor = case.get("revocation_floor_generation")
+        generation = case.get("inventory_generation")
+        if (not isinstance(terminal, int) or not isinstance(floor, int)
+                or not isinstance(generation, int) or terminal <= floor or terminal > generation):
+            raise Fail("revocation generation is outside its range")
+        if order in active_orders or (previous is not None and previous >= (order, terminal)):
+            raise Fail("revocations are not canonical")
+        previous = (order, terminal)
+        revoked_encoded.append(binding + _u64(terminal, "terminal_generation"))
+    generation = case.get("inventory_generation")
+    floor = case.get("revocation_floor_generation")
+    if not isinstance(generation, int) or not isinstance(floor, int) or floor > generation:
+        raise Fail("inventory generation range is invalid")
+    encoded = (b"Tacenta Inventory Statement v1" + _u64(case.get("issuer_key_id"), "issuer_key_id")
+        + _u32(len(account), "account length") + account + _u64(generation, "inventory_generation")
+        + active + _u64(floor, "revocation_floor_generation")
+        + _u32(len(revoked_encoded), "revoked count") + b"".join(revoked_encoded))
+    check(expected, encoded, "unsigned preimage")
+
+
+GROUP_SCHEMAS = {
+    "tacenta-group-commitments-v1": h_group_commitment,
+    "tacenta-inventory-statements-v1": h_inventory_statement,
+}
+
+
 def _structure_ok(doc):
     return (doc.get("schema_version") == 1 and isinstance(doc.get("vectors"), list)
             and doc["vectors"] and all("id" in v for v in doc["vectors"]))
+
+
+def _group_structure_ok(doc):
+    return (doc.get("schema") in GROUP_SCHEMAS and isinstance(doc.get("cases"), list)
+            and doc["cases"] and all(isinstance(case, dict) and "id" in case
+                                      for case in doc["cases"]))
 
 
 def run_vectors(totals):
@@ -1074,13 +1202,18 @@ def run_vectors(totals):
         counts = totals.setdefault(rel, OrderedDict(PASS=0, FAIL=0, SKIP=0))
         with open(path) as f:
             doc = json.load(f)
-        if not _structure_ok(doc):
+        if _group_structure_ok(doc):
+            handler = GROUP_SCHEMAS[doc["schema"]]
+            cases = doc["cases"]
+        elif _structure_ok(doc):
+            handler = HANDLERS.get(doc.get("algorithm"))
+            cases = doc["vectors"]
+        else:
             print(f"FAIL  {rel}: file does not have the schema's top-level shape")
             counts["FAIL"] += 1
             continue
-        handler = HANDLERS.get(doc.get("algorithm"))
         _CURRENT["doc"] = doc
-        for v in doc["vectors"]:
+        for v in cases:
             label = f"{rel} :: {v['id']}"
             if handler is None:
                 print(f"SKIP  {label}: algorithm {doc.get('algorithm')!r} not implemented")
