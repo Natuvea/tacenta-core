@@ -205,8 +205,8 @@ for old, new, expected in [
     ("Translation.WireT3", "Translation.SessionUnitWireT3", 1),
     ("Tacenta.WireInitialT3", "Tacenta.SessionUnitWireInitialT3", 4),
     ("Tacenta.WireT3", "Tacenta.SessionUnitWireT3", 3),
-    ("Tacenta.WireT1", "Tacenta.SessionUnitWireT1", 2),
-    ("tacenta_wire", "tacenta_session_unit.tacenta_wire", 1),
+    ("Tacenta.WireT1", "Tacenta.SessionUnitWireT1", 4),
+    ("tacenta_wire", "tacenta_session_unit.tacenta_wire", 2),
 ]:
     text = replace_exact(text, old, new, expected, origin)
 note = (

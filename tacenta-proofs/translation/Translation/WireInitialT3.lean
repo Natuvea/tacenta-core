@@ -66,7 +66,8 @@ theorem be32At_lt (l : List UInt8) (k : Nat) : be32At l k < 2 ^ 32 := by
 
 
 
-theorem getElem!_drop' (l : List UInt8) (n i : Nat) : (l.drop n)[i]! = l[n + i]! := by
+theorem getElem!_drop' {α : Type} [Inhabited α] (l : List α) (n i : Nat) :
+    (l.drop n)[i]! = l[n + i]! := by
   simp [List.getElem!_eq_getElem?_getD, List.getElem?_drop]
 
 /-- The long case against a right-hand side already written in terms of `rest`. -/
@@ -487,6 +488,114 @@ theorem decode_initial_refines (bytes : Slice Std.U8) :
     List.drop_drop, bytesOf_drop, Nat.reduceAdd, Nat.reduceSub, Nat.add_sub_cancel_left]
   rw [show 2 + (82 + i6.val) = 84 + i6.val by omega]
   simp only [bytesOf, List.map_take]
+
+def decodeRefusalOf : tacenta_wire.DecodeError → DecodeRefusal
+  | .UnknownVersion => .unknownVersion
+  | .WrongType => .wrongType
+  | .TooShort => .tooShort
+  | .LengthOverrun => .lengthOverrun
+
+set_option maxHeartbeats 2000000 in
+/-- The translated initial-message decoder returns the model's exact public
+refusal for every rejected byte string. -/
+theorem decode_initial_refusal_classifies (bytes : Slice Std.U8) :
+    decode_initial bytes ⦃ fun result =>
+      match result with
+      | .Ok _ => True
+      | .Err reason => decodeRefusalOf reason =
+          initialDecodeRefusal (bytesOf bytes.val) ⦄ := by
+  unfold decode_initial
+  simp only [EC_LEN]
+  step*
+  all_goals first
+    | trivial
+    | (show Slice.length _ = Slice.length _
+       subst_vars
+       simp_all [Slice.length, Array.repeat])
+    | skip
+  all_goals simp only [decodeRefusalOf]
+  all_goals unfold initialDecodeRefusal
+  all_goals simp only [bytesOf_length]
+  all_goals first | (rw [if_pos (by scalar_tac)]) | skip
+  all_goals (
+    have h2 : 2 ≤ bytes.val.length := by scalar_tac
+    rw [if_neg (by omega)]
+    simp (disch := omega) only [bytesOf_getElem!, ← byteOf_version,
+      ← byteOf_type_initial, bne_byteOf']
+    subst_vars)
+  -- version and message-type refusals
+  all_goals first
+    | (rw [if_pos (by assumption)])
+    | (rw [if_neg (by assumption), if_pos (by assumption)])
+    | skip
+  all_goals (rw [if_neg (by assumption), if_neg (by assumption)])
+  all_goals (try simp only [cast_u32_usize_val] at *)
+  -- neither key fits
+  all_goals first | (rw [if_pos (by scalar_tac)]) | skip
+  all_goals (rw [if_neg (by scalar_tac)])
+  all_goals (
+    have hlen : 68 ≤ bytes.val.length := by scalar_tac
+    have hend1 : end1.val = 35 := by scalar_tac
+    rw [show (35 : Nat) = end1.val from hend1.symm]
+    simp (disch := omega) only [bytesOf_getElem!, ← byteOf_ec_curve, bne_byteOf'])
+  all_goals first
+    | (rw [if_pos (by assumption)])
+    | (rw [if_neg (by assumption), if_pos (by assumption)])
+    | skip
+  all_goals (rw [if_neg (by assumption), if_neg (by assumption)])
+  all_goals (
+    have hend1 : end1.val = 35 := by scalar_tac
+    have hend2 : end2.val = 68 := by scalar_tac
+    have hlen : 68 ≤ bytes.val.length := by scalar_tac
+    have hidk : (Array.from_slice (Array.repeat 32#usize 0#u8) s2).val =
+        (bytes.val.drop 3).take 32 := by
+      rw [Array.from_slice_val _ _ (by simp [s1_post1, List.slice, hend1]; omega), s1_post1]
+      simp [List.slice, hend1]
+    rw [canonicalKey_at _ 3 _ hidk])
+  all_goals first
+    | (rw [if_pos (by simpa using (by assumption : ¬ Tacenta.WireT1.canonicalX25519
+          (Array.from_slice (Array.repeat 32#usize 0#u8) s2) = true))])
+    | (rw [if_neg (by rw [← b_post]; decide)])
+  all_goals (
+    have hend1 : end1.val = 35 := by scalar_tac
+    have hend2 : end2.val = 68 := by scalar_tac
+    have hephk : (Array.from_slice (Array.repeat 32#usize 0#u8) s5).val =
+        (bytes.val.drop 36).take 32 := by
+      rw [Array.from_slice_val _ _ (by simp [s4_post1, List.slice, i5_post, hend1, hend2]; omega),
+        s4_post1]
+      simp [List.slice, i5_post, hend1, hend2]
+    rw [canonicalKey_at _ 36 _ hephk])
+  all_goals first
+    | (rw [if_pos (by simpa using (by assumption : ¬ Tacenta.WireT1.canonicalX25519
+          (Array.from_slice (Array.repeat 32#usize 0#u8) s5) = true))])
+    | (rw [if_neg (by rw [← b1_post]; decide)])
+  -- The four-byte KEM length is absent exactly when the translated decoder's
+  -- `span_end` check at offset 68 fails.
+  all_goals first
+    | (rw [readBe32_none _ (by simp [bytesOf_length, List.length_drop]; scalar_tac)])
+    | skip
+  all_goals (
+    rw [readBe32_of_length _ (by simp [bytesOf_length, List.length_drop]; scalar_tac)]
+    have hend2' : end2.val = 68 := by scalar_tac
+    simp only [hend2'] at i6_post
+    have hK : be32At ((bytesOf bytes.val).drop 68) 0 = i6.val := by
+      simp only [be32At, getElem!_drop', bytesOf_getElem!', byteOf_toNat,
+        Nat.add_zero, Nat.reduceAdd]
+      rw [i6_post]
+    have hKlt := be32At_lt ((bytesOf bytes.val).drop 68) 0
+    have hofnat : (UInt32.ofNat (be32At ((bytesOf bytes.val).drop 68) 0)).toNat = i6.val := by
+      rw [UInt32.toNat_ofNat', Nat.mod_eq_of_lt hKlt, hK]
+    have hofnat' :
+        (UInt32.ofNat (
+          ((bytesOf bytes.val).drop 68)[0]!.toNat * 2 ^ 24 +
+          ((bytesOf bytes.val).drop 68)[1]!.toNat * 2 ^ 16 +
+          ((bytesOf bytes.val).drop 68)[2]!.toNat * 2 ^ 8 +
+          ((bytesOf bytes.val).drop 68)[3]!.toNat)).toNat = i6.val := by
+      simpa only [be32At] using hofnat
+    simp only [hofnat', List.length_drop, bytesOf_length])
+  all_goals first | (rw [if_pos (by scalar_tac)]) | skip
+  all_goals (rw [if_neg (by scalar_tac)])
+  all_goals simp
 
 -- The axiom audit, enforced rather than asserted: the refinement rests on the
 -- kernel's three axioms and nothing else. A proof that starts trusting something

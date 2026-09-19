@@ -1343,6 +1343,58 @@ theorem decrypt_initial_decode_refusal_step_refines {R : Type}
   rw [hmodel]
   exact ⟨congrArg Model.Lifecycle.Refusal.decode hreason, hrel, htrace⟩
 
+/-- A concrete initial-message decoder refusal determines the model's exact
+public reason.  This discharges the reason-agreement premise at the Session
+boundary instead of leaving it to a caller. -/
+theorem decrypt_initial_decode_refusal_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (realReason : tacenta_wire.DecodeError)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (htype : serialization.message_type message =
+      ok (some serialization.MessageType.Initial))
+    (hdecodeReal : tacenta_wire.decode_initial message =
+      ok (core.result.Result.Err realReason)) :
+    ∃ output,
+      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+  obtain ⟨classified, hclassified, hreason⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitWireInitialT3.decode_initial_refusal_classifies message)
+  have hclassifiedEq : classified = .Err realReason := by
+    rw [hdecodeReal] at hclassified
+    have heq : (.Err realReason : core.result.Result tacenta_wire.DecodedInitial
+        tacenta_wire.DecodeError) = classified := by simpa using hclassified
+    exact heq.symm
+  subst classified
+  have hreason' : decodeRefusalOf realReason =
+      Model.Messages.initialDecodeRefusal (sliceOf message) := by
+    cases realReason <;>
+      simpa [decodeRefusalOf,
+        Tacenta.SessionUnitWireInitialT3.decodeRefusalOf,
+        wire_bytesOf_eq_sliceOf] using hreason
+  obtain ⟨decoded, hdecoded, hnone⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitWireInitialT3.decode_initial_refines message)
+  have hdecodedEq : decoded = .Err realReason := by
+    rw [hdecodeReal] at hdecoded
+    have heq : (.Err realReason : core.result.Result tacenta_wire.DecodedInitial
+        tacenta_wire.DecodeError) = decoded := by simpa using hdecoded
+    exact heq.symm
+  subst decoded
+  have hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf message) =
+      .error (decodeRefusalOf realReason) := by
+    simp only [Model.Messages.decodeInitialDetailed]
+    have hnone' : Model.Messages.decodeInitial (sliceOf message) = none := by
+      simpa [wire_bytesOf_eq_sliceOf] using hnone
+    rw [hnone', hreason']
+  exact decrypt_initial_decode_refusal_step_refines rngCore cryptoRng trace dh K
+    view oracle real model message rng realReason (decodeRefusalOf realReason)
+    hrel htrace htype hdecodeReal hdecodeModel rfl
+
 /-- An initial frame cannot be a repeat when the established Session has no
 recorded establishment ephemeral.  Both implementations refuse it before the
 inner ratchet receive and leave state and randomness unchanged. -/

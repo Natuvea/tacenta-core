@@ -290,26 +290,22 @@ def decodeInitial (bs : List UInt8) : Option Initial :=
     public wire decoder. This function is consulted only when `decodeInitial`
     returned `none`; keeping success in the existing decoder prevents the two
     parsers from drifting apart while retaining the public refusal detail. -/
-def initialDecodeRefusal : List UInt8 → DecodeRefusal
-  | versionByte :: typeByte :: rest =>
-      if versionByte != version then .unknownVersion
-      else if typeByte != typeInitial then .wrongType
-      else if rest.length < 66 then .tooShort
-      else
-        let identity := rest.take 33
-        let ephemeral := (rest.drop 33).take 33
-        if identity.head? != some ecCurveByte || ephemeral.head? != some ecCurveByte
-            || !canonicalKey (identity.drop 1) || !canonicalKey (ephemeral.drop 1) then
-          .wrongType
-        else
-          let afterKeys := rest.drop 66
-          match readBe32 afterKeys with
-          | none => .tooShort
-          | some (kemLen, afterLen) =>
-              if afterLen.length < kemLen.toNat then .lengthOverrun
-              else if (afterLen.drop kemLen.toNat).length < 12 then .tooShort
-              else .tooShort
-  | _ => .tooShort
+def initialDecodeRefusal (bs : List UInt8) : DecodeRefusal :=
+  if bs.length < 2 then .tooShort
+  else if bs[0]! != version then .unknownVersion
+  else if bs[1]! != typeInitial then .wrongType
+  else if bs.length < 68 then .tooShort
+  else if bs[2]! != ecCurveByte then .wrongType
+  else if bs[35]! != ecCurveByte then .wrongType
+  else if !canonicalKey ((bs.drop 3).take 32) then .wrongType
+  else if !canonicalKey ((bs.drop 36).take 32) then .wrongType
+  else
+    match readBe32 (bs.drop 68) with
+    | none => .tooShort
+    | some (kemLen, afterLen) =>
+        if afterLen.length < kemLen.toNat then .lengthOverrun
+        else if (afterLen.drop kemLen.toNat).length < 12 then .tooShort
+        else .tooShort
 
 /-- The existing byte parser with its public refusal classification restored.
     The final `.tooShort` branch in `initialDecodeRefusal` is unreachable here:
