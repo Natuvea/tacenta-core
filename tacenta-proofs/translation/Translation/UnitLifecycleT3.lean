@@ -2851,6 +2851,34 @@ theorem receive_success_next_refines_rotated
   exact ⟨htriple, hbraid, hprivate, hrel.identityAd, hrel.ourIdentityPublic,
     hrel.peerIdentityPublic, hrel.pendingInitial, hrel.establishedEphemeral⟩
 
+/-- Lift the final successful receive computation once its concrete and model
+results, byte correspondence, state relation and draw-trace relation have
+been established. Keeping this bookkeeping separate prevents the lifecycle
+proof from hiding a success/refusal mismatch inside simplification. -/
+theorem decrypt_ratchet_success_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng rngNext : R)
+    (plaintext : alloc.vec.Vec Std.U8) (modelPlaintext : Bytes)
+    (realNext : lifecycle.Session) (modelNext : Model.Lifecycle.Session)
+    (hreal : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Ok plaintext, realNext, rngNext))
+    (hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session := modelNext, result := .ok modelPlaintext, oracle := oracleNext })
+    (hbytes : vecOf plaintext = modelPlaintext)
+    (hnext : SessionRefines dh K realNext modelNext)
+    (htrace : trace rngNext = oracleNext.draws) :
+    ∃ output,
+      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  refine ⟨(.Ok plaintext, realNext, rngNext), hreal, ?_⟩
+  rw [hmodel]
+  exact ⟨by simpa [ResultRefines] using hbytes, hnext, htrace⟩
+
 set_option maxHeartbeats 4000000 in
 /-- Successful established-session encryption refines the executable lifecycle
 model all the way to the returned wire bytes. The leaf send relations supply
