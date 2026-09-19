@@ -2417,7 +2417,10 @@ pub fn establish_initiator_for<R: RngCore + CryptoRng>(
     let ephemeral = dh::PrivateKey::from_bytes(random_secret(rng));
     // Wiped on the way out: the encapsulated secret is one of the values the
     // specifications require deleting once the shared secret is derived.
-    let (kem_ciphertext, ss) = kem::encapsulate(&bundle.kem_prekey, rng).map_err(|_| Error::Kem)?;
+    let (kem_ciphertext, ss) = match kem::encapsulate(&bundle.kem_prekey, rng) {
+        Ok(value) => value,
+        Err(_) => return Err(Error::Kem),
+    };
     let ss = Zeroizing::new(ss);
     // `SK` is the root of every key this session will ever derive, so it is
     // wrapped like `ss` beside it.
@@ -2433,11 +2436,12 @@ pub fn establish_initiator_for<R: RngCore + CryptoRng>(
     // Wiped on the way out: this is the `KDF_RK` input the specifications
     // require deleting once the next root key is derived (CR-08, key-deletion.md),
     // held like every other Diffie-Hellman output in this layer.
-    let dh_out = Zeroizing::new(
-        ratchet_private
-            .agree(&peer_signed_prekey)
-            .ok_or(Error::Handshake(SessionError::NonContributoryAgreement))?,
-    );
+    let dh_out = Zeroizing::new(match ratchet_private.agree(&peer_signed_prekey) {
+        Some(secret) => secret,
+        None => {
+            return Err(Error::Handshake(SessionError::NonContributoryAgreement));
+        }
+    });
     // §7.1: the handshake secret is expanded into one secret per ratchet, which
     // `init_sender` does internally, and the agreement's authenticator is
     // initialised from the PQXDH output itself.
@@ -2656,19 +2660,28 @@ pub fn establish_responder<R: RngCore + CryptoRng>(
     let ss = Zeroizing::new(kem_secret);
     let signed_prekey = dh::PrivateKey::from_bytes(*signed_prekey_secret);
     // Wrapped for the same reason as the initiator's.
-    let sk = Zeroizing::new(
-        match responder_shared_secret(
+    let shared = match one_time_key {
+        Some(key) => responder_shared_secret(
             &our_identity.dh_key(),
             &signed_prekey,
-            one_time_key.as_ref(),
+            Some(&key),
             &initiator_identity,
             &initiator_ephemeral,
             &ss,
-        ) {
-            Ok(secret) => secret,
-            Err(error) => return Err(Error::Handshake(error)),
-        },
-    );
+        ),
+        None => responder_shared_secret(
+            &our_identity.dh_key(),
+            &signed_prekey,
+            None,
+            &initiator_identity,
+            &initiator_ephemeral,
+            &ss,
+        ),
+    };
+    let sk = Zeroizing::new(match shared {
+        Ok(secret) => secret,
+        Err(error) => return Err(Error::Handshake(error)),
+    });
 
     // Replay identity is bound to the agreed secret rather than the public
     // ephemeral encoding. This makes torsion-equivalent X25519 spellings one
@@ -2765,12 +2778,17 @@ impl Session {
             return Err(Error::AgreementFailed);
         }
 
-        let spqr_output = output
-            .as_ref()
-            .map(|o| tacenta_spqr::Output::new(o.key_epoch, o.key));
+        let spqr_output = match &output {
+            Some(o) => Some(tacenta_spqr::Output::new(o.key_epoch, o.key)),
+            None => None,
+        };
 
         let mut candidate = self.triple.clone();
-        let (header, mk) = match candidate.send(sending_epoch, spqr_output.as_ref()) {
+        let sent = match spqr_output {
+            Some(output) => candidate.send(sending_epoch, Some(&output)),
+            None => candidate.send(sending_epoch, None),
+        };
+        let (header, mk) = match sent {
             Ok(value) => value,
             Err(error) => return Err(Error::Triple(error)),
         };
@@ -2788,7 +2806,7 @@ impl Session {
         self.triple = candidate;
         self.braid = braid_next;
 
-        match self.pending_initial.as_ref() {
+        match &self.pending_initial {
             None => Ok(ratchet_message),
             Some(p) => Ok(encode_initial(
                 &encode_ec(&self.our_identity_public),
@@ -2833,7 +2851,7 @@ impl Session {
                     Ok(decoded) => decoded,
                     Err(error) => return Err(Error::Decode(error)),
                 };
-                match self.established_ephemeral.as_ref() {
+                match &self.established_ephemeral {
                     Some(e)
                         if *e == decoded.ephemeral
                             && decoded.identity == encode_ec(&self.peer_identity_public) =>
@@ -2898,24 +2916,34 @@ impl Session {
         // The agreement first, for the same reason as on the send side: the
         // ratchet needs the epoch and output it yields.
         let (ag_epoch, ag_out, braid_candidate) = self.braid.receive(&msg_of(&composite));
-        let spqr_output = ag_out
-            .as_ref()
-            .map(|o| tacenta_spqr::Output::new(o.key_epoch, o.key));
+        let spqr_output = match &ag_out {
+            Some(o) => Some(tacenta_spqr::Output::new(o.key_epoch, o.key)),
+            None => None,
+        };
         let _ = ag_epoch;
 
         // `peer` is the ratchet public key off an incoming message, so it is
         // attacker-chosen on every receive, not just at handshake time. A
         // low-order value here would hand the sender both agreements.
         let peer = dh::PublicKeyBytes::from_bytes(composite.dh);
-        let nc = Error::Handshake(SessionError::NonContributoryAgreement);
         // Wiped on the way out: `dh_out_recv` seeds the new receiving chain and
         // `dh_out_send` the new sending chain, and both are `KDF_RK` inputs the
         // specifications require deleting once the next root key is derived
         // (CR-08, key-deletion.md). `dh_out_send` is computed on every receive
         // whether or not a step happens, so it is wrapped unconditionally.
-        let dh_out_recv = Zeroizing::new(self.ratchet_private.agree(&peer).ok_or(nc)?);
+        let dh_out_recv = Zeroizing::new(match self.ratchet_private.agree(&peer) {
+            Some(secret) => secret,
+            None => {
+                return Err(Error::Handshake(SessionError::NonContributoryAgreement));
+            }
+        });
         let candidate_key = dh::PrivateKey::from_bytes(random_secret(rng));
-        let dh_out_send = Zeroizing::new(candidate_key.agree(&peer).ok_or(nc)?);
+        let dh_out_send = Zeroizing::new(match candidate_key.agree(&peer) {
+            Some(secret) => secret,
+            None => {
+                return Err(Error::Handshake(SessionError::NonContributoryAgreement));
+            }
+        });
 
         let before = self.triple.sending_public();
         let header = triple_header_of(&composite);
@@ -3007,15 +3035,27 @@ impl Session {
         // store never touches the other, so they agree on every later one too,
         // but reading `work` makes that true by construction rather than by
         // argument.
-        let (triple_candidate, mk) = match receive_with_eviction(
-            &self.triple,
-            &composite,
-            &header,
-            &dh_out_recv,
-            &dh_out_send,
-            new_dhs_pub,
-            spqr_output.as_ref(),
-        ) {
+        let received = match spqr_output {
+            Some(output) => receive_with_eviction(
+                &self.triple,
+                &composite,
+                &header,
+                &dh_out_recv,
+                &dh_out_send,
+                new_dhs_pub,
+                Some(&output),
+            ),
+            None => receive_with_eviction(
+                &self.triple,
+                &composite,
+                &header,
+                &dh_out_recv,
+                &dh_out_send,
+                new_dhs_pub,
+                None,
+            ),
+        };
+        let (triple_candidate, mk) = match received {
             Ok(value) => value,
             Err(error) => return Err(Error::Triple(error)),
         };
@@ -3026,8 +3066,10 @@ impl Session {
         let keys = Zeroizing::new(ratchet::message_keys(&mk, ratchet::LabelSet::Tacenta));
         let (enc, mac, iv) = &*keys;
         let ad = concat_ad(&self.identity_ad, &composite);
-        let plaintext =
-            aead::decrypt(enc, mac, iv, &decoded.ciphertext, &ad).map_err(|_| Error::Aead)?;
+        let plaintext = match aead::decrypt(enc, mac, iv, &decoded.ciphertext, &ad) {
+            Ok(value) => value,
+            Err(_) => return Err(Error::Aead),
+        };
 
         // Authenticated. Commit, and not before: the assignments below are the
         // only place this function writes to `self`, and they are all of it.
@@ -3187,7 +3229,18 @@ impl Session {
         let triple = self.triple.to_bytes();
         let braid = self.braid.to_bytes();
         let ratchet_private = self.ratchet_private.to_bytes();
-        let pending = self.pending_initial.as_ref().map(|p| p.to_bytes());
+        let pending = match &self.pending_initial {
+            Some(value) => Some(value.to_bytes()),
+            None => None,
+        };
+        let pending_len = match &pending {
+            Some(value) => 4 + value.len(),
+            None => 0,
+        };
+        let established_ephemeral_len = match &self.established_ephemeral {
+            Some(value) => 4 + value.len(),
+            None => 0,
+        };
         let capacity = 1
             + (4 + triple.len())
             + (4 + braid.len())
@@ -3196,12 +3249,9 @@ impl Session {
             + 32
             + 32
             + 1
-            + pending.as_ref().map_or(0, |p| 4 + p.len())
+            + pending_len
             + 1
-            + self
-                .established_ephemeral
-                .as_ref()
-                .map_or(0, |e| 4 + e.len());
+            + established_ephemeral_len;
         let mut out = Vec::with_capacity(capacity);
         out.push(SESSION_VERSION);
         push_len_prefixed(&mut out, &triple);
