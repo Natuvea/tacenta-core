@@ -71,6 +71,13 @@ python3 tooling/check_authentication_boundary.py
 echo "== Proof hygiene: no generated names in hand-written proofs =="
 bash tooling/check-proof-hygiene.sh
 
+# The Session refinement gives every opaque primitive operation a named,
+# reviewed contract.  Pin the operations actually reachable in the generated
+# lifecycle translation so a new call cannot inherit a contract by accident.
+echo "== The Session primitive boundary surface is classified =="
+python3 tooling/check-lifecycle-boundary-surface.py
+bash tooling/tests/run-check-lifecycle-boundary-surface-cases.sh
+
 # A numeric precondition of the shape `x + A.max ≤ B.max`, with `A` at least as
 # wide as `B` on some target, forces `x` to zero there and describes no state
 # that has held anything. One such bound made `receive_no_panic` vacuous on
