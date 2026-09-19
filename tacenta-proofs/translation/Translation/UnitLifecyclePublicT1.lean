@@ -357,27 +357,52 @@ theorem responder_signed_prekey_secret_no_panic
         step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz
       · simp [h]
 
+def IndexInBounds (values : Slice U32) (o : Option Usize) : Prop :=
+  match o with
+  | none => True
+  | some i => i.val < values.val.length
+
 theorem u32_index_loop_no_panic (values : Slice U32) (needle : U32)
     (found : Option Usize) (index : Usize)
-    (hindex : index.val ≤ values.val.length) :
-    lifecycle.u32_index_loop values needle found index ⦃ fun _ => True ⦄ := by
+    (hindex : index.val ≤ values.val.length)
+    (hfound : IndexInBounds values found) :
+    lifecycle.u32_index_loop values needle found index
+      ⦃ fun r => IndexInBounds values r ⦄ := by
   unfold lifecycle.u32_index_loop
   apply loop.spec_decr_nat
     (measure := fun p => values.val.length - (Prod.snd p).val)
-    (inv := fun p => (Prod.snd p).val ≤ values.val.length)
-  · rintro ⟨found1, index1⟩ hi
+    (inv := fun p => (Prod.snd p).val ≤ values.val.length ∧
+      IndexInBounds values (Prod.fst p))
+  · rintro ⟨found1, index1⟩ ⟨hi, hfound1⟩
+    simp only at hi hfound1
     simp only [lifecycle.u32_index_loop.body]
     split
-    · step*
-      split <;> step* <;> simp_all <;> omega
-    · step*
-  · exact hindex
+    · step
+      split
+      · step
+        constructor
+        · rw [found1_post]
+          scalar_tac
+        · constructor
+          · simp [IndexInBounds]
+            scalar_tac
+          · rw [found1_post]
+            scalar_tac
+      · step
+        constructor
+        · rw [found1_post]
+          scalar_tac
+        · exact ⟨hfound1, by rw [found1_post]; scalar_tac⟩
+    · simp [hfound1]
+  · exact ⟨by simpa using hindex, hfound⟩
 
 @[step]
 theorem u32_index_no_panic (values : Slice U32) (needle : U32) :
-    lifecycle.u32_index values needle ⦃ fun _ => True ⦄ := by
+    lifecycle.u32_index values needle
+      ⦃ fun r => IndexInBounds values r ⦄ := by
   unfold lifecycle.u32_index
-  exact u32_index_loop_no_panic values needle none 0#usize (by simp)
+  exact u32_index_loop_no_panic values needle none 0#usize
+    (by simp) (by simp [IndexInBounds])
 
 theorem one_time_kem_ids_loop_no_panic
     (values : alloc.vec.Vec (U32 × tacenta_boundary.kem.KeyPair × Array U8 64#usize))
@@ -385,7 +410,7 @@ theorem one_time_kem_ids_loop_no_panic
     (hindex : index.val ≤ values.val.length)
     (hlen : ids.val.length = index.val) :
     lifecycle.PrekeyStore.one_time_kem_ids_loop values ids index
-      ⦃ fun _ => True ⦄ := by
+      ⦃ fun r => r.val.length = values.val.length ⦄ := by
   unfold lifecycle.PrekeyStore.one_time_kem_ids_loop
   apply loop.spec_decr_nat
     (measure := fun p => values.val.length - (Prod.snd p).val)
@@ -411,17 +436,90 @@ theorem one_time_kem_ids_loop_no_panic
           · rw [hlen2, index1_post]
           · rw [index1_post]
             scalar_tac
-    · step*
+    · simp
+      scalar_tac
   · exact ⟨hindex, hlen⟩
 
 @[step]
 theorem one_time_kem_ids_no_panic (store : lifecycle.PrekeyStore) :
-    lifecycle.PrekeyStore.one_time_kem_ids store ⦃ fun _ => True ⦄ := by
+    lifecycle.PrekeyStore.one_time_kem_ids store
+      ⦃ fun r => r.val.length = store.kem_one_time.val.length ⦄ := by
   unfold lifecycle.PrekeyStore.one_time_kem_ids
   exact one_time_kem_ids_loop_no_panic store.kem_one_time
     (alloc.vec.Vec.with_capacity U32 (alloc.vec.Vec.len store.kem_one_time))
     0#usize (by simp)
     (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new])
+
+@[step]
+theorem u32_slice_contains_no_panic (values : Slice U32) (needle : U32) :
+    core.slice.Slice.contains core.cmp.PartialEqU32 values needle
+      ⦃ fun _ => True ⦄ := by
+  simp only [core.slice.Slice.contains]
+  induction values.val with
+  | nil => simp [List.anyM, pure, WP.spec_ok]
+  | cons value values ih =>
+      rw [List.anyM_cons]
+      by_cases h : needle = value <;>
+        simp [core.cmp.impls.PartialEqU32.eq, h, ih, pure, WP.spec_ok]
+
+@[step]
+theorem responder_one_time_kem_secret_no_panic
+    (hkem : KemDecapsulateTotal) (store : lifecycle.PrekeyStore)
+    (ids : alloc.vec.Vec U32)
+    (hlen : ids.val.length = store.kem_one_time.val.length)
+    (id : U32) (ciphertext : Slice U8) :
+    (do
+      let o ← lifecycle.u32_index ids.deref id
+      match o with
+      | none => ok (core.result.Result.Err lifecycle.Error.UnknownPrekeyId)
+      | some index => do
+        let (_, kp, _) ← store.kem_one_time.index_usize index
+        let r ← tacenta_boundary.kem.decapsulate kp ciphertext
+        match r with
+        | core.result.Result.Ok value =>
+          ok (core.result.Result.Ok (value, false))
+        | core.result.Result.Err _ =>
+          ok (core.result.Result.Err lifecycle.Error.Kem))
+      ⦃ fun _ => True ⦄ := by
+  step with u32_index_no_panic
+  rcases o with _ | index
+  · simp
+  · simp [IndexInBounds] at o_post
+    have hindex : index.val < store.kem_one_time.val.length := by
+      change index.val < ids.val.length at o_post
+      omega
+    step
+    step
+    rcases r <;> simp
+
+@[step]
+theorem responder_kem_secret_no_panic (hkem : KemDecapsulateTotal)
+    (store : lifecycle.PrekeyStore) (id : U32) (ciphertext : Slice U8) :
+    lifecycle.responder_kem_secret store id ciphertext
+      ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.responder_kem_secret
+  split
+  · step
+    split
+    · simp
+    · step
+      rcases r <;> simp
+  · cases hprevious : store.previous_kem with
+    | none =>
+      simp [hprevious]
+      step
+      exact responder_one_time_kem_secret_no_panic hkem store _ ‹_› id ciphertext
+    | some previous =>
+      rcases previous with ⟨pair, previousId, signature⟩
+      change (if previousId = id then _ else _) ⦃ fun _ => True ⦄
+      split
+      · step
+        split
+        · simp
+        · step
+          rcases r <;> simp
+      · step
+        exact responder_one_time_kem_secret_no_panic hkem store _ ‹_› id ciphertext
 
 def ReadableOneTime
     (o : Option (zeroize.Zeroizing (Array U8 32#usize))) : Prop :=
