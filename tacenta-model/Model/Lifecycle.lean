@@ -151,9 +151,7 @@ inductive HandshakeRefusal where
   | nonContributoryAgreement
   deriving Repr, DecidableEq, Inhabited
 
-inductive DecodeRefusal where
-  | unknownVersion | wrongType | tooShort | lengthOverrun
-  deriving Repr, DecidableEq, Inhabited
+abbrev DecodeRefusal := Model.Messages.DecodeRefusal
 
 inductive Refusal where
   | triple (reason : TripleRefusal)
