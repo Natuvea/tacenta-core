@@ -93,9 +93,10 @@ pub fn encode_ec(pk: &dh::PublicKeyBytes) -> Vec<u8> {
 /// `DecodeEC`: read a curve public key back from its `EncodeEC` form, or `None`
 /// if the bytes are not one.
 pub fn decode_ec(bytes: &[u8]) -> Option<dh::PublicKeyBytes> {
-    // `map` here rather than the leaf crate's spelled-out match: this module is
-    // not translated, so the closure costs nothing.
-    tacenta_session::decode_ec(bytes).map(dh::PublicKeyBytes::from_bytes)
+    match tacenta_session::decode_ec(bytes) {
+        Some(key) => Some(dh::PublicKeyBytes::from_bytes(key)),
+        None => None,
+    }
 }
 
 /// Whether a curve public key is its canonical encoding (message-format.md,
@@ -215,19 +216,28 @@ pub enum SessionError {
 /// prekeys and later compromise the identity key to recover the secret, which
 /// would defeat forward secrecy.
 pub fn verify_bundle(bundle: &PreKeyBundle) -> Result<(), SessionError> {
-    xeddsa::verify(
+    if let Err(_) = xeddsa::verify(
         &bundle.identity_key,
         &encode_ec(&bundle.signed_prekey),
         &bundle.signed_prekey_signature,
-    )
-    .map_err(|_| SessionError::BadSignedPrekeySignature)?;
-    xeddsa::verify(
+    ) {
+        return Err(SessionError::BadSignedPrekeySignature);
+    }
+    if let Err(_) = xeddsa::verify(
         &bundle.identity_key,
         &encode_kem(&bundle.kem_prekey),
         &bundle.kem_prekey_signature,
-    )
-    .map_err(|_| SessionError::BadKemPrekeySignature)?;
+    ) {
+        return Err(SessionError::BadKemPrekeySignature);
+    }
     Ok(())
+}
+
+fn contributory(value: Option<Key>) -> Result<Key, SessionError> {
+    match value {
+        Some(secret) => Ok(secret),
+        None => Err(SessionError::NonContributoryAgreement),
+    }
 }
 
 /// The initiator's side: verify the bundle, then compute the Diffie-Hellman
@@ -246,21 +256,19 @@ pub fn initiator_shared_secret(
     // scope untouched (key-deletion.md).
     // Any of these may refuse: the bundle's keys came from a directory we do
     // not trust, so a low-order prekey is a thing a hostile server can serve.
-    let nc = SessionError::NonContributoryAgreement;
-    let dh1 = Zeroizing::new(identity_private.agree(&bundle.signed_prekey).ok_or(nc)?);
-    let dh2 = Zeroizing::new(ephemeral_private.agree(&bundle.identity_key).ok_or(nc)?);
-    let dh3 = Zeroizing::new(ephemeral_private.agree(&bundle.signed_prekey).ok_or(nc)?);
-    let dh4 = match bundle.one_time_prekey.as_ref() {
-        Some(opk) => Some(Zeroizing::new(ephemeral_private.agree(opk).ok_or(nc)?)),
+    let dh1 = Zeroizing::new(contributory(identity_private.agree(&bundle.signed_prekey))?);
+    let dh2 = Zeroizing::new(contributory(ephemeral_private.agree(&bundle.identity_key))?);
+    let dh3 = Zeroizing::new(contributory(
+        ephemeral_private.agree(&bundle.signed_prekey),
+    )?);
+    let dh4 = match &bundle.one_time_prekey {
+        Some(opk) => Some(Zeroizing::new(contributory(ephemeral_private.agree(opk))?)),
         None => None,
     };
-    Ok(shared_secret(
-        &dh1,
-        &dh2,
-        &dh3,
-        dh4.as_deref(),
-        encapsulated,
-    ))
+    match dh4 {
+        Some(secret) => Ok(shared_secret(&dh1, &dh2, &dh3, Some(&secret), encapsulated)),
+        None => Ok(shared_secret(&dh1, &dh2, &dh3, None, encapsulated)),
+    }
 }
 
 /// The responder's side: the same four agreements, computed from the other
@@ -279,21 +287,23 @@ pub fn responder_shared_secret(
     // Fallible for the same reason too, and the responder's case is the one
     // that matters more: these keys arrive in an *unauthenticated* initial
     // message, so anyone who can send us bytes chooses them.
-    let nc = SessionError::NonContributoryAgreement;
-    let dh1 = Zeroizing::new(signed_prekey_private.agree(initiator_identity).ok_or(nc)?);
-    let dh2 = Zeroizing::new(identity_private.agree(initiator_ephemeral).ok_or(nc)?);
-    let dh3 = Zeroizing::new(signed_prekey_private.agree(initiator_ephemeral).ok_or(nc)?);
+    let dh1 = Zeroizing::new(contributory(
+        signed_prekey_private.agree(initiator_identity),
+    )?);
+    let dh2 = Zeroizing::new(contributory(identity_private.agree(initiator_ephemeral))?);
+    let dh3 = Zeroizing::new(contributory(
+        signed_prekey_private.agree(initiator_ephemeral),
+    )?);
     let dh4 = match one_time_prekey_private {
-        Some(opk) => Some(Zeroizing::new(opk.agree(initiator_ephemeral).ok_or(nc)?)),
+        Some(opk) => Some(Zeroizing::new(contributory(
+            opk.agree(initiator_ephemeral),
+        )?)),
         None => None,
     };
-    Ok(shared_secret(
-        &dh1,
-        &dh2,
-        &dh3,
-        dh4.as_deref(),
-        encapsulated,
-    ))
+    match dh4 {
+        Some(secret) => Ok(shared_secret(&dh1, &dh2, &dh3, Some(&secret), encapsulated)),
+        None => Ok(shared_secret(&dh1, &dh2, &dh3, None, encapsulated)),
+    }
 }
 
 #[cfg(test)]
