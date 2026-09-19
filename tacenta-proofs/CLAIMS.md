@@ -711,6 +711,10 @@ Location: `tacenta-proofs/translation/Translation/T1.lean` and
   panic, and needs no precondition, because the keying material is at most five
   fixed components so the bound it asks for is discharged from the value rather
   than passed to a caller.
+- `Tacenta.SessionUnitSessionT1.shared_secret_no_panic` (in
+  `Translation/SessionUnitSessionT1.lean`): the count-checked Session-unit port
+  proves the same statement against the complete eight-leaf generated
+  namespace.
 
 ## Proved (tier T1, the erasure coder's entry points cannot fail)
 
