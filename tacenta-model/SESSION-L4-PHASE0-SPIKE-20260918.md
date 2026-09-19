@@ -97,6 +97,56 @@ source still called the old primitive modules directly. Rewiring those calls
 to the nine functions is required before the opaque-assumption budget can be
 measured.
 
+## Follow-up rewrite and rooted-translation measurement
+
+A disposable follow-up applied behavior-preserving source-shape rewrites to
+the copied leaf and retained all 60 copied unit tests passing (two fixture
+printers ignored). This is still experiment evidence, not proposed shipping
+source. Among the rewrites were explicit constructor matches, total loop
+accumulators, proof-sized responder-selection helpers, explicit byte indexing,
+and replacing `usize::max(1)` with the equivalent comparison. The last rewrite
+matters because Aeneas accepted `Ord::max`, but the emitted Lean applied the
+trait instance where a comparison function was expected; only the Lean kernel
+check exposed it.
+
+Translating the entire package is not an acceptable production shape. Charon
+emitted an approximately 10 GiB LLBC file. A sequential Aeneas run cleared all
+410 prepasses and began translating bodies, but the process reached an
+approximately 157 GiB macOS-reported footprint while expanding the store
+decoder and was stopped after about 30 minutes. Before it was stopped it had
+reported two remaining body failures: a KEM selection loop and two `for` loops
+in `PrekeyStore::to_bytes`. Both were subsequently rewritten and passed when
+measured through smaller call-graph roots.
+
+Charon's `--start-from` option made the useful unit visible. Disposable free
+functions rooted inherent methods that Charon cannot name directly. Each row
+below passed Charon, Aeneas with zero errors and zero generated `sorry`, and
+`lake env lean` against the pinned Aeneas Lean library:
+
+| Root | LLBC size |
+| --- | ---: |
+| `establish_initiator_for` | 2.0 MiB |
+| `establish_responder` | 4.5 MiB |
+| `Session::encrypt` | 1.3 MiB |
+| `Session::decrypt` | 2.3 MiB |
+| `Session::export` | 1.7 MiB |
+| `Session::import` | 7.2 MiB |
+| `PrekeyStore::to_bytes` | 4.7 MiB |
+
+`PrekeyStore::from_bytes` remains the isolated blocker. Its call-graph root
+still emitted approximately 10 GiB, including after replacing the two
+`HashSet` checks with small prefix-search helpers. The growth therefore belongs
+to the decoder's structured control flow rather than merely to translating the
+hash-table dependency. Production Phase 0 must split the decoder into field
+and section helpers before attempting its body again.
+
+This measurement changes the proposed translation layout: the pinned command
+should use an explicit, reviewed list of public call-graph roots (with tiny
+free roots for inherent methods), and CI must verify that the list covers the
+shipping lifecycle API. Translating `crate` is both wasteful and unsafe for the
+runner. The coverage gate is part of the change, because a missing root would
+otherwise silently omit shipping code.
+
 ## Decision impact
 
 - **D1 remains viable.** The real lifecycle and serialization source compiles
@@ -107,6 +157,10 @@ measured.
   only structural rewrite. Tier-4 store and codec bodies also block a complete
   translation. Calling them "translated but unproved" still requires Aeneas
   to translate their bodies without `sorry`.
+- **The translation must be rooted and coverage-gated.** Seven central roots
+  now translate and kernel-check independently in seconds. The all-items run
+  exhausted a practical resource budget, while the store decoder remains a
+  separately measurable exception.
 - The production Phase 0 work should first rewire the primitive surface and
   remove the name clashes, then address loop/iterator/closure failures in
   dependency order. It must rerun Aeneas after each class because one ignored
