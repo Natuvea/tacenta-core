@@ -166,6 +166,7 @@ Source pages: `tacenta-spec/protocol/session-establishment.md`,
 | Initial message; detailed decoder result | `DecodeRefusal`, `initialDecodeRefusal`, `decodeInitialDetailed` | `Model/Messages.lean` |
 | Error handling; required refusals, with implementation-owned error names | `RatchetRefusal`, `SparseRefusal`, `TripleRefusal`, `HandshakeRefusal`, `Refusal` | `Model/Lifecycle.lean` |
 | Message type; dispatch from framing | `MessageType`, `messageType`, `messageType_initial_iff` | `Model/Lifecycle.lean` |
+| Established-session decrypt; repeated wrapper removal and refusal | `dispatchDecrypt`, `dispatchDecrypt_passthrough`, `dispatchDecrypt_decode_refusal`, `dispatchDecrypt_repeat`, `dispatchDecrypt_not_repeat`, `dispatchDecrypt_initial_ok_iff` | `Model/Lifecycle.lean` |
 | ML-KEM Braid, Failure; terminal state query | `agreementFailed`, `agreementFailed_iff` | `Model/Lifecycle.lean` |
 
 The oracle is modelling machinery rather than a cryptographic primitive claim.

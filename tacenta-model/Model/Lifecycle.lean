@@ -240,4 +240,71 @@ theorem repeatedInitial_ignores_other_fields (session : Session) (initial : Init
       = repeatedInitial session initial := by
   simp [repeatedInitial]
 
+/-! ## Established-session dispatch
+
+`Session.decrypt` first removes a repeated initial wrapper, when present, and
+passes every other frame unchanged to the ratchet decoder. Keeping this step
+separate makes its refusal and frame behaviour visible before the much larger
+receive transition is introduced.
+-/
+
+/-- Select the bytes that an established session gives to its ratchet
+    receiver. An initial frame must decode canonically and name this exact
+    established session; ratchet and unrecognised framing is passed through so
+    the ratchet decoder supplies the final public decode refusal. -/
+def dispatchDecrypt (session : Session) (message : Bytes) : Except Refusal Bytes :=
+  match messageType message with
+  | some .initial =>
+      match Model.Messages.decodeInitialDetailed message with
+      | .error reason => .error (.decode reason)
+      | .ok initial =>
+          if repeatedInitial session initial then .ok initial.ratchetMessage
+          else .error .notARepeatedInitial
+  | _ => .ok message
+
+theorem dispatchDecrypt_passthrough (session : Session) (message : Bytes)
+    (h : messageType message ≠ some .initial) :
+    dispatchDecrypt session message = .ok message := by
+  cases ht : messageType message with
+  | none => simp [dispatchDecrypt, ht]
+  | some kind =>
+      cases kind with
+      | ratchet => simp [dispatchDecrypt, ht]
+      | initial => exact (h ht).elim
+
+theorem dispatchDecrypt_decode_refusal (session : Session) (message : Bytes)
+    (reason : DecodeRefusal) (ht : messageType message = some .initial)
+    (hd : Model.Messages.decodeInitialDetailed message = .error reason) :
+    dispatchDecrypt session message = .error (.decode reason) := by
+  simp [dispatchDecrypt, ht, hd]
+
+theorem dispatchDecrypt_repeat (session : Session) (message : Bytes) (initial : Initial)
+    (ht : messageType message = some .initial)
+    (hd : Model.Messages.decodeInitialDetailed message = .ok initial)
+    (hr : repeatedInitial session initial = true) :
+    dispatchDecrypt session message = .ok initial.ratchetMessage := by
+  simp [dispatchDecrypt, ht, hd, hr]
+
+theorem dispatchDecrypt_not_repeat (session : Session) (message : Bytes) (initial : Initial)
+    (ht : messageType message = some .initial)
+    (hd : Model.Messages.decodeInitialDetailed message = .ok initial)
+    (hr : repeatedInitial session initial = false) :
+    dispatchDecrypt session message = .error .notARepeatedInitial := by
+  simp [dispatchDecrypt, ht, hd, hr]
+
+/-- Complete success condition for an initial frame: it has one canonical
+    decode, belongs to this established session, and contributes exactly its
+    embedded ratchet bytes. -/
+theorem dispatchDecrypt_initial_ok_iff (session : Session) (message inner : Bytes)
+    (ht : messageType message = some .initial) :
+    dispatchDecrypt session message = .ok inner ↔
+      ∃ initial, Model.Messages.decodeInitialDetailed message = .ok initial
+        ∧ repeatedInitial session initial = true
+        ∧ initial.ratchetMessage = inner := by
+  cases hd : Model.Messages.decodeInitialDetailed message with
+  | error reason => simp [dispatchDecrypt, ht, hd]
+  | ok initial =>
+      cases hr : repeatedInitial session initial <;>
+        simp [dispatchDecrypt, ht, hd, hr]
+
 end Model.Lifecycle
