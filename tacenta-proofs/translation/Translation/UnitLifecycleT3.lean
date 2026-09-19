@@ -261,6 +261,83 @@ def refusalOf : lifecycle.Error → Model.Lifecycle.Refusal
   | .LastResortRecordFull => .lastResortRecordFull
   | .AgreementFailed => .agreementFailed
 
+def ratchetSendRefusalOfReal : tacenta_ratchet.RatchetError →
+    Option Model.Ratchet.SendRefusal
+  | .NoSendingChain => some .noSendingChain
+  | .ChainExhausted => some .chainExhausted
+  | _ => none
+
+def sparseSendRefusalOfReal : tacenta_spqr.SpqrError →
+    Option Model.SparseRatchet.SendRefusal
+  | .EpochOutOfOrder => some .epochOutOfOrder
+  | .NoChain => some .noChain
+  | .ChainRetired => some .chainRetired
+  | .ChainExhausted => some .chainExhausted
+  | _ => none
+
+def tripleSendRefusalOfReal : tacenta_triple.TripleError →
+    Option Model.Triple.SendRefusal
+  | .Classical reason => (ratchetSendRefusalOfReal reason).map .classical
+  | .PostQuantum reason => (sparseSendRefusalOfReal reason).map .postQuantum
+
+def ratchetReceiveRefusalOfReal : tacenta_ratchet.RatchetError →
+    Option Model.Ratchet.ReceiveRefusal
+  | .TooManySkipped => some .tooManySkipped
+  | .SkippedStoreFull => some .skippedStoreFull
+  | .NoReceivingChain => some .noReceivingChain
+  | .OutOfOrder => some .outOfOrder
+  | .ChainExhausted => some .chainExhausted
+  | .NoSendingChain => none
+
+def sparseReceiveRefusalOfReal : tacenta_spqr.SpqrError →
+    Model.SparseRatchet.ReceiveRefusal
+  | .EpochOutOfOrder => .epochOutOfOrder
+  | .NoChain => .noChain
+  | .ChainRetired => .chainRetired
+  | .TooManySkipped => .tooManySkipped
+  | .SkippedStoreFull => .skippedStoreFull
+  | .OutOfOrder => .outOfOrder
+  | .ChainExhausted => .chainExhausted
+
+def tripleReceiveRefusalOfReal : tacenta_triple.TripleError →
+    Option Model.Triple.ReceiveRefusal
+  | .Classical reason => (ratchetReceiveRefusalOfReal reason).map .classical
+  | .PostQuantum reason => some (.postQuantum (sparseReceiveRefusalOfReal reason))
+
+theorem tripleSendRefusalOfReal_sound {realReason : tacenta_triple.TripleError}
+    {modelReason : Model.Triple.SendRefusal}
+    (h : tripleSendRefusalOfReal realReason = some modelReason) :
+    refusalOf (.Triple realReason) =
+      Model.Lifecycle.tripleSendRefusalOf modelReason := by
+  cases realReason with
+  | Classical reason =>
+      cases reason <;> cases modelReason <;>
+        simp [tripleSendRefusalOfReal, ratchetSendRefusalOfReal] at h <;>
+        cases h <;>
+        rfl
+  | PostQuantum reason =>
+      cases reason <;> cases modelReason <;>
+        simp [tripleSendRefusalOfReal, sparseSendRefusalOfReal] at h <;>
+        cases h <;>
+        rfl
+
+theorem tripleReceiveRefusalOfReal_sound {realReason : tacenta_triple.TripleError}
+    {modelReason : Model.Triple.ReceiveRefusal}
+    (h : tripleReceiveRefusalOfReal realReason = some modelReason) :
+    refusalOf (.Triple realReason) =
+      Model.Lifecycle.tripleReceiveRefusalOf modelReason := by
+  cases realReason with
+  | Classical reason =>
+      cases reason <;> cases modelReason <;>
+        simp [tripleReceiveRefusalOfReal, ratchetReceiveRefusalOfReal] at h <;>
+        cases h <;>
+        rfl
+  | PostQuantum reason =>
+      cases reason <;> cases modelReason <;>
+        simp [tripleReceiveRefusalOfReal, sparseReceiveRefusalOfReal] at h <;>
+        cases h <;>
+        rfl
+
 theorem ratchetRefusalOf_injective : Function.Injective ratchetRefusalOf := by
   intro left right h
   cases left <;> cases right <;> simp [ratchetRefusalOf] at h ⊢
@@ -470,8 +547,7 @@ theorem encrypt_triple_refusal_step_refines {R : Type}
     (hnotFailed : Model.Lifecycle.braidFailed modelBraidNext = false)
     (htripleModel : Model.Triple.sendDetailed model.triple modelEpoch
       (Model.Lifecycle.sparseOutputOf modelOutput) = .error modelReason)
-    (hreason : refusalOf (.Triple realReason) =
-      Model.Lifecycle.tripleSendRefusalOf modelReason)
+    (hreason : tripleSendRefusalOfReal realReason = some modelReason)
     (htrace : trace rngNext = oracleNext.draws) :
     ∃ output,
       lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
@@ -499,6 +575,6 @@ theorem encrypt_triple_refusal_step_refines {R : Type}
     simp [Model.Lifecycle.encrypt, hready, hsendModel, hnotFailed, htripleModel]
   refine ⟨(.Err (.Triple realReason), real, rngNext), hreal, ?_⟩
   rw [hmodel]
-  exact ⟨hreason, hrel, htrace⟩
+  exact ⟨tripleSendRefusalOfReal_sound hreason, hrel, htrace⟩
 
 end Tacenta.UnitLifecycleT3
