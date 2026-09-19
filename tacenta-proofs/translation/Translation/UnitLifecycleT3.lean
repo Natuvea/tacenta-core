@@ -178,6 +178,29 @@ theorem aead_open_error_refines {R : Type}
   subst result
   simpa [resultOptionOf] using hresult.symm
 
+/-- A successful translated AEAD open is the model oracle's `some` verdict,
+including the exact returned plaintext bytes. This is the success-side
+counterpart of `aead_open_error_refines` and is kept at the boundary so the
+receive transaction can consume one precise oracle result. -/
+theorem aead_open_success_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (dh : DhView) (kem : KemView) (trace : R → List Model.Lifecycle.Key)
+    (oracle : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (key1 key2 : Array Std.U8 32#usize) (iv : Array Std.U8 16#usize)
+    (ciphertext associatedData : Slice Std.U8) (plaintext : alloc.vec.Vec Std.U8)
+    (hsuccess : tacenta_boundary.aead.decrypt key1 key2 iv ciphertext associatedData =
+      ok (.Ok plaintext)) :
+    oracle.aeadOpen (arrayOf key1) (arrayOf key2) (arrayOf iv)
+      (sliceOf ciphertext) (sliceOf associatedData) = some (vecOf plaintext) := by
+  obtain ⟨result, hcall, hresult⟩ :=
+    oracleOf.aeadOpen key1 key2 iv ciphertext associatedData
+  rw [hsuccess] at hcall
+  have heq : result = .Ok plaintext := by
+    simpa using hcall.symm
+  subst result
+  simpa [resultOptionOf] using hresult.symm
+
 /-- Exact constructor/projection behaviour needed from the external `zeroize`
 newtype at the two wrapper types used by successful Session encryption. -/
 def ZeroizingRoundTrips (T : Type) : Prop :=
