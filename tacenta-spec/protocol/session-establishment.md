@@ -240,10 +240,12 @@ any one-time prekey private keys that were used.
 The prekey store is read-only until the ratchet message inside the initial
 message has authenticated. Every refusal before or during that authentication
 leaves the whole store exactly as it was. On success the only store change is
-the one this page requires: remove a named one-time curve prekey; remove a named
-one-time KEM prekey; and, on the last-resort path in place of the KEM removal,
-append the accepted handshake's replay identity. No other entry or store field
-changes during establishment.
+the one this page requires: remove the one-time curve prekey the message names,
+when it names one; remove the one-time KEM prekey it names; and, on the
+last-resort path in place of the KEM removal, append the accepted handshake's
+replay identity. A last-resort handshake that also named a one-time curve
+prekey therefore removes that prekey and appends the replay identity. No other
+entry or store field changes during establishment.
 
 An initial message can also arrive on a session that already exists, since
 Alice repeats it until Bob answers. It does not establish again. It must first
