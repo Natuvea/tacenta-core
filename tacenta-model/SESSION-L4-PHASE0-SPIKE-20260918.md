@@ -132,13 +132,16 @@ below passed Charon, Aeneas with zero errors and zero generated `sorry`, and
 | `Session::export` | 1.7 MiB |
 | `Session::import` | 7.2 MiB |
 | `PrekeyStore::to_bytes` | 4.7 MiB |
+| `PrekeyStore::from_bytes` | 13 MiB |
 
-`PrekeyStore::from_bytes` remains the isolated blocker. Its call-graph root
-still emitted approximately 10 GiB, including after replacing the two
-`HashSet` checks with small prefix-search helpers. The growth therefore belongs
-to the decoder's structured control flow rather than merely to translating the
-hash-table dependency. Production Phase 0 must split the decoder into field
-and section helpers before attempting its body again.
+`PrekeyStore::from_bytes` was initially the isolated blocker. Its call-graph
+root still emitted approximately 10 GiB after replacing the two `HashSet`
+checks with small prefix-search helpers. Splitting the decoder into head,
+replay-record and retired-prekey helpers reduced that root to 13 MiB; it then
+passed Aeneas with zero generated `sorry` and passed the Lean kernel. The
+growth therefore belonged to the decoder's structured control flow rather
+than merely to translating the hash-table dependency. Production Phase 0 must
+retain that split.
 
 This measurement changes the proposed translation layout: the pinned command
 should use an explicit, reviewed list of public call-graph roots (with tiny
@@ -157,10 +160,9 @@ otherwise silently omit shipping code.
   only structural rewrite. Tier-4 store and codec bodies also block a complete
   translation. Calling them "translated but unproved" still requires Aeneas
   to translate their bodies without `sorry`.
-- **The translation must be rooted and coverage-gated.** Seven central roots
-  now translate and kernel-check independently in seconds. The all-items run
-  exhausted a practical resource budget, while the store decoder remains a
-  separately measurable exception.
+- **The translation must be rooted and coverage-gated.** Eight central roots
+  now translate and kernel-check independently in seconds, including the
+  split store decoder. The all-items run exhausted a practical resource budget.
 - The production Phase 0 work should first rewire the primitive surface and
   remove the name clashes, then address loop/iterator/closure failures in
   dependency order. It must rerun Aeneas after each class because one ignored
