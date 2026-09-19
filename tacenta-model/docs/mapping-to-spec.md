@@ -24,8 +24,8 @@ Source page: `tacenta-spec/protocol/ratchet.md`.
 | The symmetric-key ratchet | `deriveChain`, the chain step in `send`/`receive` | `Model/State.lean`, `Model/Ratchet.lean` |
 | The Diffie-Hellman ratchet | `dhRatchet` | `Model/Ratchet.lean` |
 | Message format (header contents) | `Header`, built in `send` | `Model/Ratchet.lean` |
-| Sending and receiving | `send`, `sendDetailed`, `SendRefusal`, `receive`, `trySkipped` | `Model/Ratchet.lean` |
-| Skipped keys, MAX_SKIP | `skipMessageKeys`, `maxSkip` | `Model/State.lean` |
+| Sending and receiving | `send`, `sendDetailed`, `SendRefusal`, `receive`, `receiveDetailed`, `ReceiveRefusal`, `trySkipped` | `Model/Ratchet.lean` |
+| Skipped keys, MAX_SKIP | `skipMessageKeys`, `skipMessageKeysDetailed`, `maxSkip` | `Model/State.lean`, `Model/Ratchet.lean` |
 | Session initialisation | `initSender`, `initReceiver` | `Model/Ratchet.lean` |
 
 The primitives the spec's Derivations section composes are computed concretely in
