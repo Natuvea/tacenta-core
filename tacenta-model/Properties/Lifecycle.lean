@@ -45,6 +45,16 @@ theorem signed_lookup_unknown (store : PrekeyStore) (id : Nat)
     responderSignedPrekeySecret store id = none := by
   simp [responderSignedPrekeySecret, hCurrent, hPrevious]
 
+/-- An identifier distinct from both current and retained signed prekeys is
+    unknown even while the retained slot is populated. -/
+theorem signed_lookup_unknown_after_retired (store : PrekeyStore)
+    (id previousId : Nat) (secret signature : Bytes)
+    (hCurrent : id ≠ store.state.signedPrekeyId)
+    (hPrevious : store.state.previousSigned = some (secret, previousId, signature))
+    (hRetired : id ≠ previousId) :
+    responderSignedPrekeySecret store id = none := by
+  simp [responderSignedPrekeySecret, hCurrent, hPrevious, hRetired]
+
 /-- A legacy block is checked before the current last-resort KEM key can be
     used. -/
 theorem kem_lookup_current_legacy_blocked (store : PrekeyStore) (id : Nat)
@@ -79,6 +89,20 @@ theorem kem_lookup_retired (store : PrekeyStore) (id previousId : Nat)
     simpa using hAllowed
   simp [responderKemPair, hCurrent, hPrevious, hb]
 
+/-- A legacy block is also checked before a retained last-resort KEM key can
+    be used. -/
+theorem kem_lookup_retired_legacy_blocked (store : PrekeyStore)
+    (id previousId : Nat) (pair signature : Bytes)
+    (hCurrent : id ≠ store.state.kemId)
+    (hPrevious : store.state.previousKem = some (pair, previousId, signature))
+    (hId : id = previousId)
+    (hBlocked : store.legacyLastResortBlocked.contains id = true) :
+    responderKemPair store id = .error .legacyLastResortRecord := by
+  subst id
+  have hb : previousId ∈ store.legacyLastResortBlocked := by
+    simpa using hBlocked
+  simp [responderKemPair, hCurrent, hPrevious, hb]
+
 /-- A named one-time KEM key is distinguished from current and retained
     last-resort keys. -/
 theorem kem_lookup_one_time (store : PrekeyStore) (id : Nat)
@@ -90,6 +114,19 @@ theorem kem_lookup_one_time (store : PrekeyStore) (id : Nat)
     responderKemPair store id = .ok (entry.2.1, false) := by
   simp [responderKemPair, hCurrent, hPrevious, hEntry]
 
+/-- Rotation does not hide a one-time KEM key whose identifier differs from
+    the retained last-resort key. -/
+theorem kem_lookup_one_time_after_retired (store : PrekeyStore)
+    (id previousId : Nat) (pair signature : Bytes)
+    (entry : Nat × (Bytes × Bytes))
+    (hCurrent : id ≠ store.state.kemId)
+    (hPrevious : store.state.previousKem = some (pair, previousId, signature))
+    (hRetired : id ≠ previousId)
+    (hEntry : store.state.kemOneTime.find? (fun candidate => candidate.1 = id) =
+      some entry) :
+    responderKemPair store id = .ok (entry.2.1, false) := by
+  simp [responderKemPair, hCurrent, hPrevious, hRetired, hEntry]
+
 /-- If neither a current, retained nor one-time KEM key has the identifier,
     lookup returns the exact public refusal. -/
 theorem kem_lookup_unknown (store : PrekeyStore) (id : Nat)
@@ -99,11 +136,31 @@ theorem kem_lookup_unknown (store : PrekeyStore) (id : Nat)
     responderKemPair store id = .error .unknownPrekeyId := by
   simp [responderKemPair, hCurrent, hPrevious, hEntry]
 
+/-- An identifier distinct from both last-resort keys and every one-time key
+    returns the exact unknown-id refusal. -/
+theorem kem_lookup_unknown_after_retired (store : PrekeyStore)
+    (id previousId : Nat) (pair signature : Bytes)
+    (hCurrent : id ≠ store.state.kemId)
+    (hPrevious : store.state.previousKem = some (pair, previousId, signature))
+    (hRetired : id ≠ previousId)
+    (hEntry : store.state.kemOneTime.find? (fun candidate => candidate.1 = id) = none) :
+    responderKemPair store id = .error .unknownPrekeyId := by
+  simp [responderKemPair, hCurrent, hPrevious, hRetired, hEntry]
+
 /-- The sentinel curve-prekey identifier selects the no-DH4 path. -/
 theorem curve_lookup_absent (store : PrekeyStore) :
     responderOneTimeSecret store
       Model.PersistedState.PrekeyStoreState.absentId = .ok none := by
   simp [responderOneTimeSecret]
+
+/-- A named curve one-time prekey is returned by its exact identifier. -/
+theorem curve_lookup_one_time (store : PrekeyStore) (id : Nat)
+    (entry : Nat × Bytes)
+    (hId : id ≠ Model.PersistedState.PrekeyStoreState.absentId)
+    (hEntry : store.state.oneTime.find? (fun candidate => candidate.1 = id) =
+      some entry) :
+    responderOneTimeSecret store id = .ok (some entry.2) := by
+  simp [responderOneTimeSecret, hId, hEntry]
 
 /-- An absent named curve prekey returns the same exact unknown-id refusal as
     other missing responder keys. -/
