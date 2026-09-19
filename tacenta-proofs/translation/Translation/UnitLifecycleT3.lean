@@ -638,6 +638,59 @@ structure StepRefines {R : Type} (trace : R → List Model.Lifecycle.Key)
 
 /-! ## Lifecycle observations -/
 
+def messageTypeOf : serialization.MessageType → Model.Lifecycle.MessageType
+  | .Ratchet => .ratchet
+  | .Initial => .initial
+
+theorem u8_eq_u8_iff (left right : Std.U8) :
+    Tacenta.SessionUnitBraidT3.u8 left =
+      Tacenta.SessionUnitBraidT3.u8 right ↔ left.val = right.val := by
+  constructor
+  · intro h
+    exact congrArg UScalar.val (Tacenta.SessionUnitBraidT3.u8_injective h)
+  · intro h
+    simp [Tacenta.SessionUnitBraidT3.u8, h]
+
+theorem lifecycle_version_agrees :
+    Model.Messages.version = Tacenta.SessionUnitBraidT3.u8 tacenta_wire.VERSION := by
+  symm
+  simpa [Tacenta.SessionUnitWireT3.byteOf,
+    Tacenta.SessionUnitBraidT3.u8] using
+      Tacenta.SessionUnitWireT3.byteOf_version
+
+theorem lifecycle_type_ratchet_agrees :
+    Model.Messages.typeRatchet =
+      Tacenta.SessionUnitBraidT3.u8 tacenta_wire.TYPE_RATCHET := by
+  symm
+  simpa [Tacenta.SessionUnitWireT3.byteOf,
+    Tacenta.SessionUnitBraidT3.u8] using
+      Tacenta.SessionUnitWireT3.byteOf_type_ratchet
+
+theorem lifecycle_type_initial_agrees :
+    Model.Messages.typeInitial =
+      Tacenta.SessionUnitBraidT3.u8 tacenta_wire.TYPE_INITIAL := by
+  simp [Model.Messages.typeInitial, tacenta_wire.TYPE_INITIAL,
+    Tacenta.SessionUnitBraidT3.u8]
+
+theorem message_type_refines (bytes : Slice Std.U8) :
+    serialization.message_type bytes ⦃ fun result =>
+      result.map messageTypeOf = Model.Lifecycle.messageType (sliceOf bytes) ⦄ := by
+  rcases bytes with ⟨bytes, hbound⟩
+  cases bytes with
+  | nil =>
+      simp [serialization.message_type, sliceOf, Model.Lifecycle.messageType]
+  | cons first rest =>
+      cases rest with
+      | nil =>
+          simp [serialization.message_type, sliceOf, Model.Lifecycle.messageType]
+      | cons second tail =>
+          unfold serialization.message_type
+          step*
+          all_goals
+            simp_all [sliceOf, Model.Lifecycle.messageType, messageTypeOf,
+              lifecycle_version_agrees, lifecycle_type_ratchet_agrees,
+              lifecycle_type_initial_agrees, u8_eq_u8_iff]
+
 theorem braid_failed_refines (K : Model.Braid.Kem)
     (real : tacenta_braid.Braid) (model : Model.Braid.BraidState)
     (hrel : Tacenta.SessionUnitBraidT3.StateRefines K real.state model) :
