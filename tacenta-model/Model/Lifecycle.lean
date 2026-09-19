@@ -619,6 +619,65 @@ theorem establishInitiator_presence_mismatch (oracle : Oracle) (identity : Ident
       { result := .error .inconsistentBundle, oracle } := by
   simp [establishInitiator, hi, hp]
 
+/-- A bundle with any non-canonical curve key is rejected before signatures,
+    draws or agreement. -/
+theorem establishInitiator_noncanonical (oracle : Oracle) (identity : Identity)
+    (bundle : Bundle) (expectedIdentity : Key)
+    (hi : bundle.identityKey = expectedIdentity)
+    (hp : bundle.oneTimePrekey.isSome = (bundle.oneTimeId != absentId))
+    (hc : (!(Model.Messages.canonicalKey bundle.identityKey)
+      || !(Model.Messages.canonicalKey bundle.signedPrekey)
+      || !(bundle.oneTimePrekey.all Model.Messages.canonicalKey)) = true) :
+    establishInitiator oracle identity bundle expectedIdentity =
+      { result := .error .badEncoding, oracle } := by
+  subst expectedIdentity
+  grind [establishInitiator]
+
+/-- A failed signed-prekey signature is rejected before any random draw or
+    agreement. -/
+theorem establishInitiator_bad_signed_prekey_signature (oracle : Oracle)
+    (identity : Identity) (bundle : Bundle) (expectedIdentity : Key)
+    (hi : bundle.identityKey = expectedIdentity)
+    (hp : bundle.oneTimePrekey.isSome = (bundle.oneTimeId != absentId))
+    (hc : Model.Messages.canonicalKey bundle.identityKey = true)
+    (hs : Model.Messages.canonicalKey bundle.signedPrekey = true)
+    (ho : bundle.oneTimePrekey.all Model.Messages.canonicalKey = true)
+    (hSig : oracle.sigVerify bundle.identityKey
+      (Model.PersistedState.SessionState.encodeEc bundle.signedPrekey)
+      bundle.signedPrekeySig = false) :
+    establishInitiator oracle identity bundle expectedIdentity =
+      { result := .error (.handshake .badSignedPrekeySignature), oracle } := by
+  subst expectedIdentity
+  simp [establishInitiator, hp, hc, hs, ho, hSig]
+
+/-- A non-contributory initiator-ephemeral/signed-prekey agreement is rejected
+    after the preceding draws and agreements, retaining their remaining oracle
+    state and constructing no Session. -/
+theorem establishInitiator_ephemeral_signed_noncontributory (oracle afterEphemeral
+    afterKem : Oracle) (identity : Identity) (bundle : Bundle)
+    (expectedIdentity ephemeralPrivate kemCiphertext kemSecret dh1 dh2 : Key)
+    (hi : bundle.identityKey = expectedIdentity)
+    (hp : bundle.oneTimePrekey.isSome = (bundle.oneTimeId != absentId))
+    (hc : Model.Messages.canonicalKey bundle.identityKey = true)
+    (hs : Model.Messages.canonicalKey bundle.signedPrekey = true)
+    (ho : bundle.oneTimePrekey.all Model.Messages.canonicalKey = true)
+    (hSignedSig : oracle.sigVerify bundle.identityKey
+      (Model.PersistedState.SessionState.encodeEc bundle.signedPrekey)
+      bundle.signedPrekeySig = true)
+    (hKemSig : oracle.sigVerify bundle.identityKey (encodeKem bundle.kemPrekey)
+      bundle.kemPrekeySig = true)
+    (hDraw : random32 oracle = some (ephemeralPrivate, afterEphemeral))
+    (hKem : kemEncapsulate afterEphemeral bundle.kemPrekey =
+      some (some (kemCiphertext, kemSecret), afterKem))
+    (hDh1 : oracle.dhAgree identity.secret bundle.signedPrekey = some dh1)
+    (hDh2 : oracle.dhAgree ephemeralPrivate bundle.identityKey = some dh2)
+    (hDh3 : oracle.dhAgree ephemeralPrivate bundle.signedPrekey = none) :
+    establishInitiator oracle identity bundle expectedIdentity =
+      { result := .error (.handshake .nonContributoryAgreement), oracle := afterKem } := by
+  subst expectedIdentity
+  simp [establishInitiator, hp, hc, hs, ho, hSignedSig, hKemSig, hDraw,
+    hKem, hDh1, hDh2, hDh3]
+
 def consumeResponderPrekeys (store : PrekeyStore) (oneTimeId kemId : Nat)
     (lastResort : Bool) (fingerprint : Option Key) : PrekeyStore :=
   let withoutKem :=
