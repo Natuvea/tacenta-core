@@ -367,4 +367,59 @@ theorem encrypt_no_panic {R : Type}
         simp
 
 
+set_option maxHeartbeats 800000 in
+@[step]
+theorem vec_u8_eq_no_panic (a b : alloc.vec.Vec U8) :
+    alloc.vec.partial_eq.PartialEqVec.eq core.cmp.PartialEqU8 a b
+      ⦃ fun _ => True ⦄ := by
+  unfold alloc.vec.partial_eq.PartialEqVec.eq
+  split
+  · generalize List.zip a.val b.val = xs
+    induction xs with
+    | nil => simp [List.allM, pure, WP.spec_ok]
+    | cons x xs ih =>
+      simp only [List.allM]
+      by_cases h : decide (x.1 = x.2) = true
+      · simp [h, ih, pure, WP.spec_ok]
+      · simp [h, pure, WP.spec_ok]
+  · simp [pure, WP.spec_ok]
+
+set_option maxHeartbeats 800000 in
+theorem decrypt_no_panic {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (boundary : DecryptRatchetContracts rc)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (self : lifecycle.Session) (message : Slice U8) (rng : R)
+    (headroom : DecryptRatchetHeadroom self) :
+    lifecycle.Session.decrypt rc crc self message rng ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.Session.decrypt
+  step with message_type_no_panic message
+  rcases o with _ | mt
+  · step
+    rename_i inner _
+    step with decrypt_ratchet_no_panic rc crc boundary self inner.deref rng headroom
+    step*
+  · rcases mt with _ | _
+    · step
+      rename_i inner _
+      step with decrypt_ratchet_no_panic rc crc boundary self inner.deref rng headroom
+      step*
+    · step with decode_initial_no_panic message
+      rename_i decodedResult
+      rcases decodedResult with decoded | error
+      · rcases self.established_ephemeral with _ | established
+        · simp
+        · step
+          split
+          · step with encode_ec_spec boundary.dhCodec self.peer_identity_public
+            step
+            split
+            · step with decrypt_ratchet_no_panic rc crc boundary self
+                decoded.message.deref rng headroom
+              step*
+            · simp
+          · simp
+      · simp
+
+
 end Tacenta.UnitLifecycleT1
