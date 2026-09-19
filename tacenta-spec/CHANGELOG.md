@@ -11,6 +11,10 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+- `tacenta-core`: session lifecycle orchestration moved into a shipping leaf
+  crate and now translates from all 30 public roots. This is a Phase 0
+  translatability result only; no session theorem or assurance level changes.
+
 - `tacenta-core`: the classical and sparse ratchets’ secret-bearing working
   copies and removal paths now allocate at their final capacity and wipe dead
   slots before release; sparse decoder vectors are sized from checked counts.

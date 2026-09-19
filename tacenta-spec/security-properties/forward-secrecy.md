@@ -184,7 +184,7 @@ epochs):
   - The count's last step. `age_store_refines` needs a step of room, and once
     the count stops at `u32::MAX - 1`, stored keys no longer age
     (limitations.md, LIM-18).
-  - Eviction by the session to make room, which is untranslated. It is tested
+  - Eviction by the session to make room, which is translated but unproved. It is tested
     in `tacenta-core/tests/store_eviction.rs`.
   - Erasure of the deleted bytes (REQ-FS-03).
 

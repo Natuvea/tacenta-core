@@ -18,7 +18,9 @@ module imports plus the modules it cannot (`SpqrT3`, `BraidT3`,
 glob builds on their own). The three-leaf unit's proofs cannot be imported
 alongside these -- `TacentaTripleUnit` and `TacentaRatchet` both define
 `instDiscriminantRatchetErrorIsize`, the same limit `lakefile.toml` records --
-so they have their own audit in `Translation/AxiomAuditTripleUnit.lean`.
+so they have their own audit in `Translation/AxiomAuditTripleUnit.lean`. The
+lifecycle translation likewise has `AxiomAuditLifecycle.lean`, because its
+dependency declarations collide with the separately generated leaves.
 
 `Model.AxiomAudit` refuses any first-party hand-written declaration that is
 an axiom, opaque, unsafe or partial, or carries `implemented_by`/`extern`.

@@ -116,7 +116,7 @@
       "missing_evidence": [
         {
           "kind": "proof",
-          "reason": "No proof covers signature verification or the untranslated session-layer bundle check.",
+          "reason": "No proof covers signature verification or the translated-but-unproved session-layer bundle check.",
           "references": [
             "ASM-19"
           ]
@@ -158,7 +158,7 @@
       "missing_evidence": [
         {
           "kind": "proof",
-          "reason": "No proof covers the untranslated session-layer named-identity check.",
+          "reason": "No proof covers the translated-but-unproved session-layer named-identity check.",
           "references": [
             "ASM-19",
             "LIM-13"
@@ -301,7 +301,7 @@
       "missing_evidence": [
         {
           "kind": "proof",
-          "reason": "The untranslated session-layer construction of per-message associated data has no proof coverage.",
+          "reason": "The translated-but-unproved session-layer construction of per-message associated data has no proof coverage.",
           "references": [
             "ASM-19"
           ]
@@ -561,7 +561,7 @@
       "missing_evidence": [
         {
           "kind": "session-use-proof",
-          "reason": "The decoder refinements prove the wire decoders; what the untranslated session layer does after decoding remains outside the proof surface.",
+          "reason": "The decoder refinements prove the wire decoders; what the translated-but-unproved session layer does after decoding remains outside the proof surface.",
           "references": [
             "ASM-19"
           ]

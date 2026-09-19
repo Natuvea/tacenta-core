@@ -40,7 +40,8 @@ this section says in one place what is not proved.
   bullet below says why the three counter bounds cannot be); `tacenta-triple`,
   `tacenta-erasure`, `tacenta-session` and `tacenta-protobuf` have no such
   theorem; and the subject throughout is a leaf crate's own persistence
-  format, not the session layer above it, which is untranslated. Wherever that
+  format, not the session layer above it. That layer now has a Phase 0
+  translation but no theorem. Wherever that
   chain does not reach, the sentence in bold still stands unchanged.
 - **A decoded state is panic-free unconditionally; it refines the model
   provided the relevant counter has a step of headroom left.** That is the
@@ -150,7 +151,8 @@ this section says in one place what is not proved.
   ratchet step is decided outside every proof and every vector.** The
   specification's rule -- the old key pair for the receiving chain, the fresh
   one for the sending chain -- is applied in `tacenta-core/lifecycle/src`,
-  which is neither translated nor modelled. `Model.Ratchet.receive`, the
+  which is translated in the lifecycle leaf but neither modelled nor proved.
+  `Model.Ratchet.receive`, the
   refinement theorem and the ratchet vectors all take the two agreement
   outputs as opaque bytes, so a swap in the orchestration would pass every
   proof, every vector and `attest`. The pairing is tested, not proved:
@@ -1304,8 +1306,9 @@ and it is one step short of what the refinement asks in any case.
 `tacenta-erasure` have an `invariant()` and a `from_bytes` that calls it, and
 the same technique applies; they were not done. And in every case the subject
 is a **leaf crate's own persistence format**. `Session::from_bytes` and the
-storage layer that calls it live in `tacenta-core/lifecycle/src`, which is not
-translated, so nothing here says what a session restored from disk satisfies.
+storage layer that calls it live in `tacenta-core/lifecycle/src`. Its Phase 0
+translation carries no theorem, so nothing here says what a session restored
+from disk satisfies.
 
 ## Proved (tier T1, the same two ratchets compiled as one crate with the Triple)
 
@@ -2121,15 +2124,15 @@ line, in every hand-written module including the package roots and
 refuses every elaboration-time construct (`run_cmd`, `#eval`, `elab`,
 `macro`, `syntax`, `initialize`, `addDecl`, any reference to the `Lean`
 namespace) outside `Model/AxiomAudit.lean`'s own implementation and the
-four `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
+six `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
 exact line content: the audit accepts the compiler-trust axioms by shape
 and cannot tell a planted one, added by such code with its name assembled
 from string literals, from a real one, so the absence of such code is what
 excludes it (`LIMITATIONS.md`, "Trusted, not verified").
 `scripts/check-audit-reach.sh` fails if any first-party module, generated
-ones included, is outside the four audit modules' import closure, since
+ones included, is outside the six audit modules' import closure, since
 the audit walks only what its invoking module imports, and fails if the
-four do not all run with the same first-party prefixes, since the audit's
+six do not all run with the same first-party prefixes, since the audit's
 waiver for an unmentioned compiler-trust axiom asks whether any first-party
 declaration mentions it and only sees the modules in its own environment.
 `scripts/check-audit-negatives.sh` plants thirteen declarations: one for each

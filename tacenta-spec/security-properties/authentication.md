@@ -135,7 +135,7 @@ identity keys never give the same `AD`.
     hypothesis.
 - **Does not cover:**
   - That every message's authenticated data carries `AD` (REQ-AUTH-05). The
-    untranslated session layer does that (ASM-19).
+    unproved session layer does that (ASM-19).
   - `EncodeKEM(PQPKB)`, which is not in `AD`. Leaving it out relies on ML-KEM
     binding its key (ASM-04).
   - People. `AD` binds keys (ASM-14).
@@ -398,7 +398,7 @@ error-handling.md.
     checks their signatures against it. It does not read their bodies.
   - `Model.Triple` states the candidate-and-commit shape.
     `Tacenta.UnitTripleT3.commit_refines` (T3) proves only the commit's
-    projection. The session's verify-then-adopt is untranslated.
+    projection. The session's verify-then-adopt is translated but unproved.
 - **Does not cover:**
   - A caller that calls a leaf crate's mutating receive directly
     (`AUTHENTICATION-BOUNDARY.md`, "Mutating, and safe only because of a
