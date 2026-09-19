@@ -1,5 +1,6 @@
 import Translation.UnitLifecycleT1
 import Translation.SessionUnitBraidT1
+import Translation.SessionUnitBraidImportInv
 
 /-!
 # Public Session lifecycle T1 proofs
@@ -1105,6 +1106,84 @@ structure DecryptRatchetHeadroom (self : lifecycle.Session) : Prop where
   triple : ReceiveHeadroom self.triple
   braid : Tacenta.SessionUnitBraidT1.State.ct1_bounded self.braid.state
   associatedData : self.identity_ad.val.length + 106 ≤ Usize.max
+
+/-- The Triple invariant discharges every receive-capacity premise inherited
+from the classical and sparse ratchets.  These are consequences of the
+leaf-store bounds and platform constants, rather than assumptions clients
+must carry alongside an invariant state. -/
+theorem triple_invariant_gives_receive_headroom
+    (state : tacenta_triple.State)
+    (h : tacenta_triple.State.invariant state = ok true) :
+    ReceiveHeadroom state := by
+  unfold tacenta_triple.State.invariant at h
+  repeat' first
+    | (replace h := Tacenta.SessionUnitRatchetImportInv.bind_eq_ok_inv h;
+       obtain ⟨_, _, h⟩ := h)
+    | split at h
+    | simp at h
+  all_goals
+    constructor
+    · exact Tacenta.SessionUnitRatchetImportInv.Ratchet.inv_gives_store_bound
+        state.classical
+        ((Tacenta.SessionUnitRatchetImportInv.Ratchet.invariant_true_iff
+          state.classical).mp (by simp_all))
+    · constructor
+      · exact Tacenta.SessionUnitRatchetImportInv.Spqr.inv_gives_chain_room
+          state.post_quantum
+          ((Tacenta.SessionUnitRatchetImportInv.Spqr.invariant_true_iff
+            state.post_quantum).mp (by simp_all))
+      · exact Tacenta.SessionUnitRatchetImportInv.Spqr.inv_gives_skip_room
+          state.post_quantum
+          ((Tacenta.SessionUnitRatchetImportInv.Spqr.invariant_true_iff
+            state.post_quantum).mp (by simp_all))
+
+/-- The part of lifecycle headroom fixed by a valid persisted session.  Size
+ceilings involving caller-provided plaintext or associated data remain on the
+public operation theorem, as do counter ceilings that valid states may
+eventually reach. -/
+structure InvariantPreconditions (self : lifecycle.Session) : Prop where
+  triple : ReceiveHeadroom self.triple
+  braid : Tacenta.SessionUnitBraidT1.State.ct1_bounded self.braid.state
+
+/-- A successful whole-session invariant check necessarily traversed and
+accepted the common leaf-invariant boundary. -/
+theorem session_invariant_gives_leaf_check (self : lifecycle.Session)
+    (h : lifecycle.Session.invariant self = ok true) :
+    lifecycle.Session.leaf_invariants self = ok true := by
+  rw [lifecycle.Session.invariant] at h
+  repeat' first
+    | (replace h := Tacenta.SessionUnitRatchetImportInv.bind_eq_ok_inv h;
+       obtain ⟨_, _, h⟩ := h)
+    | split at h
+    | simp at h
+  all_goals unfold lifecycle.Session.leaf_invariants; simp_all
+
+/-- The common leaf boundary is exactly the conjunction needed by the
+capacity proof. -/
+theorem leaf_check_gives_leaf_invariants (self : lifecycle.Session)
+    (h : lifecycle.Session.leaf_invariants self = ok true) :
+    tacenta_triple.State.invariant self.triple = ok true ∧
+      tacenta_braid.Braid.invariant self.braid = ok true := by
+  unfold lifecycle.Session.leaf_invariants at h
+  replace h := Tacenta.SessionUnitRatchetImportInv.bind_eq_ok_inv h
+  obtain ⟨tripleOk, htriple, h⟩ := h
+  split at h
+  · exact ⟨by simp_all, h⟩
+  · simp at h
+
+/-- `Session.invariant` supplies all leaf-implied capacity preconditions.
+This is the session boundary promised by D5: callers do not restate ratchet
+store bounds that the persisted-state invariant already enforces. -/
+theorem invariant_gives_preconditions
+    (hct1 : Tacenta.SessionUnitBraidT1.Ct1LenTotal)
+    (self : lifecycle.Session)
+    (h : lifecycle.Session.invariant self = ok true) :
+    InvariantPreconditions self := by
+  have hleaf := session_invariant_gives_leaf_check self h
+  obtain ⟨htriple, hbraid⟩ := leaf_check_gives_leaf_invariants self hleaf
+  exact ⟨triple_invariant_gives_receive_headroom self.triple htriple,
+    (Tacenta.SessionUnitBraidImportInv.Braid.invariant_true_gives_inv
+      hct1 self.braid hbraid).ct1_bounded⟩
 
 theorem ratchet_init_receiver_empty
     (sk ourPub : Array U8 32#usize) (labels : tacenta_ratchet.LabelSet) :

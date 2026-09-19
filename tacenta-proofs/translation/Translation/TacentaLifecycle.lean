@@ -9325,7 +9325,7 @@ def lifecycle.Session.export
     fail panic
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::import_unchecked]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3531:4-3617:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3546:4-3632:5 -/
 def lifecycle.Session.import_unchecked
   (bytes : Slice Std.U8) :
   Result (core.result.Result lifecycle.Session lifecycle.SessionDecodeError)
@@ -9595,16 +9595,25 @@ def lifecycle.Session.import_unchecked
         | core.result.Result.Err _ =>
           ok (core.result.Result.Err lifecycle.SessionDecodeError.Malformed)
 
+/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::leaf_invariants]:
+    Source: 'lifecycle/src/lifecycle.rs', lines 3534:4-3536:5 -/
+def lifecycle.Session.leaf_invariants
+  (self : lifecycle.Session) : Result Bool := do
+  let b ← tacenta_triple.State.invariant self.triple
+  if b
+  then tacenta_braid.Braid.invariant self.braid
+  else ok false
+
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::is_responder]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3527:4-3529:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3542:4-3544:5 -/
 def lifecycle.Session.is_responder
   (self : lifecycle.Session) : Result Bool := do
   ok (core.option.Option.is_some self.established_ephemeral)
 
-/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::invariant]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3374:4-3521:5
-    Visibility: public -/
-def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
+/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::structural_invariant]:
+    Source: 'lifecycle/src/lifecycle.rs', lines 3381:4-3528:5 -/
+def lifecycle.Session.structural_invariant
+  (self : lifecycle.Session) : Result Bool := do
   let pkb ← tacenta_boundary.dh.PrivateKey.public_key self.ratchet_private
   let a ← tacenta_boundary.dh.PublicKeyBytes.as_bytes pkb
   let a1 ← tacenta_triple.State.sending_public self.triple
@@ -9653,11 +9662,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                     then
                       let b8 ← is_canonical_key self.peer_identity_public
                       if b8
-                      then
-                        let b9 ← tacenta_triple.State.invariant self.triple
-                        if b9
-                        then tacenta_braid.Braid.invariant self.braid
-                        else ok false
+                      then ok true
                       else ok false
                     else ok false
                   | some e =>
@@ -9672,12 +9677,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                       then
                         let b9 ← is_canonical_key self.peer_identity_public
                         if b9
-                        then
-                          let b10 ←
-                            tacenta_triple.State.invariant self.triple
-                          if b10
-                          then tacenta_braid.Braid.invariant self.braid
-                          else ok false
+                        then ok true
                         else ok false
                       else ok false
                 | some p =>
@@ -9696,12 +9696,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                         then
                           let b9 ← is_canonical_key p.ephemeral_public
                           if b9
-                          then
-                            let b10 ←
-                              tacenta_triple.State.invariant self.triple
-                            if b10
-                            then tacenta_braid.Braid.invariant self.braid
-                            else ok false
+                          then ok true
                           else ok false
                         else ok false
                       else ok false
@@ -9720,12 +9715,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                           then
                             let b10 ← is_canonical_key p.ephemeral_public
                             if b10
-                            then
-                              let b11 ←
-                                tacenta_triple.State.invariant self.triple
-                              if b11
-                              then tacenta_braid.Braid.invariant self.braid
-                              else ok false
+                            then ok true
                             else ok false
                           else ok false
                         else ok false
@@ -9739,11 +9729,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                   then
                     let b7 ← is_canonical_key self.peer_identity_public
                     if b7
-                    then
-                      let b8 ← tacenta_triple.State.invariant self.triple
-                      if b8
-                      then tacenta_braid.Braid.invariant self.braid
-                      else ok false
+                    then ok true
                     else ok false
                   else ok false
                 | some e =>
@@ -9758,11 +9744,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                     then
                       let b8 ← is_canonical_key self.peer_identity_public
                       if b8
-                      then
-                        let b9 ← tacenta_triple.State.invariant self.triple
-                        if b9
-                        then tacenta_braid.Braid.invariant self.braid
-                        else ok false
+                      then ok true
                       else ok false
                     else ok false
               | some p =>
@@ -9781,11 +9763,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                       then
                         let b8 ← is_canonical_key p.ephemeral_public
                         if b8
-                        then
-                          let b9 ← tacenta_triple.State.invariant self.triple
-                          if b9
-                          then tacenta_braid.Braid.invariant self.braid
-                          else ok false
+                        then ok true
                         else ok false
                       else ok false
                     else ok false
@@ -9804,12 +9782,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                         then
                           let b9 ← is_canonical_key p.ephemeral_public
                           if b9
-                          then
-                            let b10 ←
-                              tacenta_triple.State.invariant self.triple
-                            if b10
-                            then tacenta_braid.Braid.invariant self.braid
-                            else ok false
+                          then ok true
                           else ok false
                         else ok false
                       else ok false
@@ -9840,11 +9813,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                       then
                         let b8 ← is_canonical_key self.peer_identity_public
                         if b8
-                        then
-                          let b9 ← tacenta_triple.State.invariant self.triple
-                          if b9
-                          then tacenta_braid.Braid.invariant self.braid
-                          else ok false
+                        then ok true
                         else ok false
                       else ok false
                     | some e =>
@@ -9859,12 +9828,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                         then
                           let b9 ← is_canonical_key self.peer_identity_public
                           if b9
-                          then
-                            let b10 ←
-                              tacenta_triple.State.invariant self.triple
-                            if b10
-                            then tacenta_braid.Braid.invariant self.braid
-                            else ok false
+                          then ok true
                           else ok false
                         else ok false
                   | some p =>
@@ -9883,12 +9847,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                           then
                             let b9 ← is_canonical_key p.ephemeral_public
                             if b9
-                            then
-                              let b10 ←
-                                tacenta_triple.State.invariant self.triple
-                              if b10
-                              then tacenta_braid.Braid.invariant self.braid
-                              else ok false
+                            then ok true
                             else ok false
                           else ok false
                         else ok false
@@ -9908,12 +9867,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                             then
                               let b10 ← is_canonical_key p.ephemeral_public
                               if b10
-                              then
-                                let b11 ←
-                                  tacenta_triple.State.invariant self.triple
-                                if b11
-                                then tacenta_braid.Braid.invariant self.braid
-                                else ok false
+                              then ok true
                               else ok false
                             else ok false
                           else ok false
@@ -9927,11 +9881,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                     then
                       let b7 ← is_canonical_key self.peer_identity_public
                       if b7
-                      then
-                        let b8 ← tacenta_triple.State.invariant self.triple
-                        if b8
-                        then tacenta_braid.Braid.invariant self.braid
-                        else ok false
+                      then ok true
                       else ok false
                     else ok false
                   | some e =>
@@ -9946,11 +9896,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                       then
                         let b8 ← is_canonical_key self.peer_identity_public
                         if b8
-                        then
-                          let b9 ← tacenta_triple.State.invariant self.triple
-                          if b9
-                          then tacenta_braid.Braid.invariant self.braid
-                          else ok false
+                        then ok true
                         else ok false
                       else ok false
                 | some p =>
@@ -9969,12 +9915,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                         then
                           let b8 ← is_canonical_key p.ephemeral_public
                           if b8
-                          then
-                            let b9 ←
-                              tacenta_triple.State.invariant self.triple
-                            if b9
-                            then tacenta_braid.Braid.invariant self.braid
-                            else ok false
+                          then ok true
                           else ok false
                         else ok false
                       else ok false
@@ -9993,12 +9934,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                           then
                             let b9 ← is_canonical_key p.ephemeral_public
                             if b9
-                            then
-                              let b10 ←
-                                tacenta_triple.State.invariant self.triple
-                              if b10
-                              then tacenta_braid.Braid.invariant self.braid
-                              else ok false
+                            then ok true
                             else ok false
                           else ok false
                         else ok false
@@ -10061,11 +9997,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                       then
                         let b8 ← is_canonical_key self.peer_identity_public
                         if b8
-                        then
-                          let b9 ← tacenta_triple.State.invariant self.triple
-                          if b9
-                          then tacenta_braid.Braid.invariant self.braid
-                          else ok false
+                        then ok true
                         else ok false
                       else ok false
                     | some e =>
@@ -10080,12 +10012,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                         then
                           let b9 ← is_canonical_key self.peer_identity_public
                           if b9
-                          then
-                            let b10 ←
-                              tacenta_triple.State.invariant self.triple
-                            if b10
-                            then tacenta_braid.Braid.invariant self.braid
-                            else ok false
+                          then ok true
                           else ok false
                         else ok false
                   | some p =>
@@ -10104,12 +10031,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                           then
                             let b9 ← is_canonical_key p.ephemeral_public
                             if b9
-                            then
-                              let b10 ←
-                                tacenta_triple.State.invariant self.triple
-                              if b10
-                              then tacenta_braid.Braid.invariant self.braid
-                              else ok false
+                            then ok true
                             else ok false
                           else ok false
                         else ok false
@@ -10129,12 +10051,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                             then
                               let b10 ← is_canonical_key p.ephemeral_public
                               if b10
-                              then
-                                let b11 ←
-                                  tacenta_triple.State.invariant self.triple
-                                if b11
-                                then tacenta_braid.Braid.invariant self.braid
-                                else ok false
+                              then ok true
                               else ok false
                             else ok false
                           else ok false
@@ -10148,11 +10065,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                     then
                       let b7 ← is_canonical_key self.peer_identity_public
                       if b7
-                      then
-                        let b8 ← tacenta_triple.State.invariant self.triple
-                        if b8
-                        then tacenta_braid.Braid.invariant self.braid
-                        else ok false
+                      then ok true
                       else ok false
                     else ok false
                   | some e =>
@@ -10167,11 +10080,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                       then
                         let b8 ← is_canonical_key self.peer_identity_public
                         if b8
-                        then
-                          let b9 ← tacenta_triple.State.invariant self.triple
-                          if b9
-                          then tacenta_braid.Braid.invariant self.braid
-                          else ok false
+                        then ok true
                         else ok false
                       else ok false
                 | some p =>
@@ -10190,12 +10099,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                         then
                           let b8 ← is_canonical_key p.ephemeral_public
                           if b8
-                          then
-                            let b9 ←
-                              tacenta_triple.State.invariant self.triple
-                            if b9
-                            then tacenta_braid.Braid.invariant self.braid
-                            else ok false
+                          then ok true
                           else ok false
                         else ok false
                       else ok false
@@ -10214,12 +10118,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                           then
                             let b9 ← is_canonical_key p.ephemeral_public
                             if b9
-                            then
-                              let b10 ←
-                                tacenta_triple.State.invariant self.triple
-                              if b10
-                              then tacenta_braid.Braid.invariant self.braid
-                              else ok false
+                            then ok true
                             else ok false
                           else ok false
                         else ok false
@@ -10251,12 +10150,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                         then
                           let b8 ← is_canonical_key self.peer_identity_public
                           if b8
-                          then
-                            let b9 ←
-                              tacenta_triple.State.invariant self.triple
-                            if b9
-                            then tacenta_braid.Braid.invariant self.braid
-                            else ok false
+                          then ok true
                           else ok false
                         else ok false
                       | some e =>
@@ -10272,12 +10166,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                             let b9 ←
                               is_canonical_key self.peer_identity_public
                             if b9
-                            then
-                              let b10 ←
-                                tacenta_triple.State.invariant self.triple
-                              if b10
-                              then tacenta_braid.Braid.invariant self.braid
-                              else ok false
+                            then ok true
                             else ok false
                           else ok false
                     | some p =>
@@ -10297,12 +10186,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                             then
                               let b9 ← is_canonical_key p.ephemeral_public
                               if b9
-                              then
-                                let b10 ←
-                                  tacenta_triple.State.invariant self.triple
-                                if b10
-                                then tacenta_braid.Braid.invariant self.braid
-                                else ok false
+                              then ok true
                               else ok false
                             else ok false
                           else ok false
@@ -10323,12 +10207,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                               then
                                 let b10 ← is_canonical_key p.ephemeral_public
                                 if b10
-                                then
-                                  let b11 ←
-                                    tacenta_triple.State.invariant self.triple
-                                  if b11
-                                  then tacenta_braid.Braid.invariant self.braid
-                                  else ok false
+                                then ok true
                                 else ok false
                               else ok false
                             else ok false
@@ -10342,11 +10221,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                       then
                         let b7 ← is_canonical_key self.peer_identity_public
                         if b7
-                        then
-                          let b8 ← tacenta_triple.State.invariant self.triple
-                          if b8
-                          then tacenta_braid.Braid.invariant self.braid
-                          else ok false
+                        then ok true
                         else ok false
                       else ok false
                     | some e =>
@@ -10361,12 +10236,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                         then
                           let b8 ← is_canonical_key self.peer_identity_public
                           if b8
-                          then
-                            let b9 ←
-                              tacenta_triple.State.invariant self.triple
-                            if b9
-                            then tacenta_braid.Braid.invariant self.braid
-                            else ok false
+                          then ok true
                           else ok false
                         else ok false
                   | some p =>
@@ -10385,12 +10255,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                           then
                             let b8 ← is_canonical_key p.ephemeral_public
                             if b8
-                            then
-                              let b9 ←
-                                tacenta_triple.State.invariant self.triple
-                              if b9
-                              then tacenta_braid.Braid.invariant self.braid
-                              else ok false
+                            then ok true
                             else ok false
                           else ok false
                         else ok false
@@ -10410,16 +10275,20 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
                             then
                               let b9 ← is_canonical_key p.ephemeral_public
                               if b9
-                              then
-                                let b10 ←
-                                  tacenta_triple.State.invariant self.triple
-                                if b10
-                                then tacenta_braid.Braid.invariant self.braid
-                                else ok false
+                              then ok true
                               else ok false
                             else ok false
                           else ok false
       else ok false
+
+/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::invariant]:
+    Source: 'lifecycle/src/lifecycle.rs', lines 3374:4-3376:5
+    Visibility: public -/
+def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
+  let b ← lifecycle.Session.structural_invariant self
+  if b
+  then lifecycle.Session.leaf_invariants self
+  else ok false
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::import]:
     Source: 'lifecycle/src/lifecycle.rs', lines 3344:4-3353:5
