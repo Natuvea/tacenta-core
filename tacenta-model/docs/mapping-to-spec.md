@@ -175,6 +175,7 @@ Source pages: `tacenta-spec/protocol/session-establishment.md`,
 | Session encrypt; Braid-first execution, terminal-failure commit and Triple-refusal rollback | `Step`, `encrypt`, `encrypt_terminal_guard`, `encrypt_braid_failure_commits`, `encrypt_triple_refusal_keeps_state` | `Model/Lifecycle.lean` |
 | Session decrypt; working-copy eviction, AEAD commit boundary and pending-initial clearing | `receiveShortfall`, `receiveWithEviction`, `decryptRatchet`, `decrypt`, `decryptRatchet_refusal_keeps_session`, `decrypt_refusal_keeps_session`, `decrypt_success_clears_pending` | `Model/Lifecycle.lean`; leaf eviction transitions in `Model/Ratchet.lean`, `Model/SparseRatchet.lean` and `Model/Triple.lean` |
 | Initiator establishment; identity pinning, bundle validation, ordered primitive calls and pending Session construction | `Identity`, `EstablishStep`, `establishInitiator`, `establishInitiator_identity_mismatch`, `establishInitiator_presence_mismatch` | `Model/Lifecycle.lean` |
+| Executable Session integration check across Braid, Triple, wire codec and AEAD boundary | `toyView`, `toyOracle`, `toyAlice`, `toyBob` and the closing `native_decide` example | `Model/Lifecycle.lean` |
 | ML-KEM Braid, Failure; terminal state query | `agreementFailed`, `agreementFailed_iff` | `Model/Lifecycle.lean` |
 
 The oracle is modelling machinery rather than a cryptographic primitive claim.

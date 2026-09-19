@@ -1050,4 +1050,69 @@ theorem decrypt_aead_refusal_keeps_state (view : CodewordView)
       { session, result := .error .aead, oracle := oracleNext } := by
   simp [decryptRatchet, hf, hd, hr, hdraw, hs, ht, ha]
 
+/-! ## Executable lifecycle check -/
+
+private def toySecret : Key := List.replicate 32 0x42
+private def toyAgreementDraw : Key := List.replicate 32 0x31
+
+private def toyCodewordSource : Bytes :=
+  match (Model.Braid.send Model.Braid.toyKem (braidRandomness toyAgreementDraw)
+      (Model.Braid.initAlice toySecret)).1 with
+  | some message => message.data.map (fun chunk => chunk.source) |>.getD []
+  | none => []
+
+private def toyView : CodewordView where
+  receive := fun _ index _ => { source := toyCodewordSource, index := index.toNat }
+  send := fun _ chunk =>
+    { index := UInt16.ofNat chunk.index
+      data := chunk.source.take Model.CompositeHeader.chunkBytes }
+
+private def toyOracle (draws : List Key) : Oracle where
+  draws
+  braidKem := Model.Braid.toyKem
+  dhPublic := id
+  dhAgree := fun _ _ => some (List.replicate 32 0xdd)
+  aeadSeal := fun _ _ _ plaintext _ => plaintext
+  aeadOpen := fun _ _ _ ciphertext _ => some ciphertext
+  kemEncaps := fun _ _ => some ([], List.replicate 32 0xee)
+  kemDecaps := fun _ _ => some (List.replicate 32 0xee)
+  sigVerify := fun _ _ _ => true
+  sigSign := fun _ _ _ => List.replicate 64 0x55
+
+private def toyAlice (secret : Key) : Session :=
+  { triple := Model.Triple.initAlice secret (List.replicate 32 0x21)
+      (List.replicate 32 0x22) (List.replicate 32 0xdd) .tacenta
+    braid := Model.Braid.initAlice secret
+    ratchetPrivate := List.replicate 32 0xa1
+    identityAd := [0x01, 0x02]
+    ourIdentityPublic := List.replicate 32 0x11
+    peerIdentityPublic := List.replicate 32 0x22
+    pendingInitial := none
+    establishedEphemeral := none }
+
+private def toyBob (secret : Key) : Session :=
+  { triple := Model.Triple.initBob secret (List.replicate 32 0x22) .tacenta
+    braid := Model.Braid.initBob secret
+    ratchetPrivate := List.replicate 32 0xb1
+    identityAd := [0x01, 0x02]
+    ourIdentityPublic := List.replicate 32 0x22
+    peerIdentityPublic := List.replicate 32 0x11
+    pendingInitial := none
+    establishedEphemeral := none }
+
+/-- One complete Session send and receive runs through both ratchets, the Braid,
+    wire codecs and the AEAD boundary. Fixed toy primitives make it executable;
+    the boundary-refinement work later replaces them with related Rust calls. -/
+example :
+    let sent := encrypt toyView (toyOracle [toyAgreementDraw])
+      (toyAlice toySecret) [0xde, 0xad]
+    (match sent.result with
+      | .error _ => false
+      | .ok wire =>
+          match (decrypt toyView (toyOracle [List.replicate 32 0x32])
+            (toyBob toySecret) wire).result with
+          | .error _ => false
+          | .ok plaintext => plaintext == [0xde, 0xad]) = true := by
+  native_decide
+
 end Model.Lifecycle
