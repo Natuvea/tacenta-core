@@ -169,6 +169,7 @@ Source pages: `tacenta-spec/protocol/session-establishment.md`,
 | Message type; dispatch from framing | `MessageType`, `messageType`, `messageType_initial_iff` | `Model/Lifecycle.lean` |
 | Triple/Braid composite header correspondence; erasure codeword view | `CodewordView`, `braidTypeOf`, `compositeTypeOf`, `braidMessageOf`, `tripleHeaderOf`, `compositeOf` | `Model/Lifecycle.lean` |
 | Established-session decrypt; repeated wrapper removal and refusal | `dispatchDecrypt`, `dispatchDecrypt_passthrough`, `dispatchDecrypt_decode_refusal`, `dispatchDecrypt_repeat`, `dispatchDecrypt_not_repeat`, `dispatchDecrypt_initial_ok_iff` | `Model/Lifecycle.lean` |
+| Established-session decrypt; non-mutating terminal guard and ratchet decode prefix | `prepareDecrypt`, `prepareDecrypt_dispatch_refusal`, `prepareDecrypt_failed`, `prepareDecrypt_decode_refusal`, `prepareDecrypt_ok` | `Model/Lifecycle.lean` |
 | ML-KEM Braid, Failure; terminal state query | `agreementFailed`, `agreementFailed_iff` | `Model/Lifecycle.lean` |
 
 The oracle is modelling machinery rather than a cryptographic primitive claim.

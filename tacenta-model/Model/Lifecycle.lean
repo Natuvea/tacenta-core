@@ -394,4 +394,50 @@ theorem dispatchDecrypt_initial_ok_iff (session : Session) (message inner : Byte
       cases hr : repeatedInitial session initial <;>
         simp [dispatchDecrypt, ht, hd, hr]
 
+/-! ## Receive preparation
+
+This is the complete non-mutating prefix of `Session.decrypt`: remove a valid
+repeat wrapper, apply the terminal agreement guard, and decode the composite
+ratchet frame. The remaining ratchet/agreement/AEAD transition is added after
+the codeword view and leaf refusal results are frozen.
+-/
+
+abbrev DecodedRatchet := Model.CompositeHeader.Composite × Bytes
+
+def prepareDecrypt (session : Session) (message : Bytes) :
+    Except Refusal DecodedRatchet :=
+  match dispatchDecrypt session message with
+  | .error reason => .error reason
+  | .ok inner =>
+      if agreementFailed session then .error .agreementFailed
+      else
+        match Model.CompositeHeader.decodeDetailed inner with
+        | .error reason => .error (.decode reason)
+        | .ok decoded => .ok decoded
+
+theorem prepareDecrypt_dispatch_refusal (session : Session) (message : Bytes)
+    (reason : Refusal) (h : dispatchDecrypt session message = .error reason) :
+    prepareDecrypt session message = .error reason := by
+  simp [prepareDecrypt, h]
+
+theorem prepareDecrypt_failed (session : Session) (message inner : Bytes)
+    (hd : dispatchDecrypt session message = .ok inner)
+    (hf : agreementFailed session = true) :
+    prepareDecrypt session message = .error .agreementFailed := by
+  simp [prepareDecrypt, hd, hf]
+
+theorem prepareDecrypt_decode_refusal (session : Session) (message inner : Bytes)
+    (reason : DecodeRefusal) (hd : dispatchDecrypt session message = .ok inner)
+    (hf : agreementFailed session = false)
+    (hw : Model.CompositeHeader.decodeDetailed inner = .error reason) :
+    prepareDecrypt session message = .error (.decode reason) := by
+  simp [prepareDecrypt, hd, hf, hw]
+
+theorem prepareDecrypt_ok (session : Session) (message inner : Bytes)
+    (decoded : DecodedRatchet) (hd : dispatchDecrypt session message = .ok inner)
+    (hf : agreementFailed session = false)
+    (hw : Model.CompositeHeader.decodeDetailed inner = .ok decoded) :
+    prepareDecrypt session message = .ok decoded := by
+  simp [prepareDecrypt, hd, hf, hw]
+
 end Model.Lifecycle
