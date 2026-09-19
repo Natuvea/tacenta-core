@@ -79,14 +79,6 @@ theorem dh_agree_satisfiable : ∃ (D P : Type) (f : DhAgreeFn D P), DhAgreeShap
 
 abbrev AeadSealFn := Array U8 32#usize → Array U8 32#usize →
   Array U8 16#usize → Slice U8 → Slice U8 → Result (alloc.vec.Vec U8)
-def AeadSealShape (f : AeadSealFn) : Prop := ∀ ek mk n p ad, Np (f ek mk n p ad)
-
-theorem AeadSealTotal_is : Tacenta.UnitLifecycleT1.AeadSealTotal ↔
-    AeadSealShape tacenta_boundary.aead.encrypt := Iff.rfl
-
-theorem aead_seal_satisfiable : ∃ f : AeadSealFn, AeadSealShape f :=
-  ⟨fun _ _ _ _ _ => ok (alloc.vec.Vec.new U8), by simp [AeadSealShape, Np]⟩
-
 def AeadSealBoundedShape (f : AeadSealFn) : Prop :=
   ∀ ek mk iv plaintext ad, ∃ r,
     f ek mk iv plaintext ad = ok r ∧
@@ -219,10 +211,10 @@ theorem message_key_material_round_trip_satisfiable :
 /-! ## Coverage
 
 This conjunction is intentionally repetitive.  It makes the module depend on
-all twelve named witnesses, so deleting one witness makes the kernel build fail
+all eleven named witnesses, so deleting one witness makes the kernel build fail
 instead of silently reducing the recorded assumption coverage. -/
 
-theorem all_twelve_contracts_satisfiable :
+theorem all_eleven_contracts_satisfiable :
     (∃ (D P : Type) (W : Type → Type)
       (privateFromBytes : DhPrivateFromBytesFn D)
       (publicKey : DhPublicFn D P)
@@ -233,7 +225,6 @@ theorem all_twelve_contracts_satisfiable :
       DhCodecShape D P W privateFromBytes publicKey privateToBytes
         publicFromBytes publicAsBytes eq) ∧
     (∃ (D P : Type) (f : DhAgreeFn D P), DhAgreeShape f) ∧
-    (∃ f : AeadSealFn, AeadSealShape f) ∧
     (∃ f : AeadSealFn, AeadSealBoundedShape f) ∧
     (∃ f : AeadOpenFn, AeadOpenShape f) ∧
     (∃ f : KemEncapsulateFn, KemEncapsulateShape f) ∧
@@ -245,7 +236,7 @@ theorem all_twelve_contracts_satisfiable :
     (∃ (W : Type → Type) (new : MessageKeyMaterialNewFn W)
       (deref : MessageKeyMaterialDerefFn W),
       MessageKeyMaterialRoundTripShape W new deref) :=
-  ⟨dh_codec_satisfiable, dh_agree_satisfiable, aead_seal_satisfiable,
+  ⟨dh_codec_satisfiable, dh_agree_satisfiable,
     aead_seal_bounded_satisfiable, aead_open_satisfiable, kem_encapsulate_satisfiable,
     kem_decapsulate_satisfiable, kem_ciphertext_len_satisfiable,
     xeddsa_verify_satisfiable, xeddsa_sign_satisfiable,

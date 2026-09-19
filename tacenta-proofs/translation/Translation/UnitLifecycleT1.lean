@@ -6,7 +6,7 @@ import Translation.SessionUnitWireT1
 /-!
 # Session lifecycle primitive boundary
 
-The complete Session unit leaves primitive implementations opaque.  These ten
+The complete Session unit leaves primitive implementations opaque.  These nine
 contracts state only that each call returns through Aeneas's outer `Result`;
 an inner `Err` or a non-contributory `None` remains an ordinary result.  They
 do not assume cryptographic correctness.
@@ -35,10 +35,6 @@ def DhCodecTotal : Prop :=
 
 def DhAgreeTotal : Prop :=
   ∀ k p, NoPanic (tacenta_boundary.dh.PrivateKey.agree k p)
-
-def AeadSealTotal : Prop :=
-  ∀ ek mk nonce plaintext ad,
-    NoPanic (tacenta_boundary.aead.encrypt ek mk nonce plaintext ad)
 
 def AeadOpenTotal : Prop :=
   ∀ ek mk nonce ciphertext ad,
@@ -98,12 +94,6 @@ def Random32Total {R : Type} (rngCore : rand_core_1.RngCore R) : Prop :=
     (p : tacenta_boundary.dh.PublicKeyBytes) :
     tacenta_boundary.dh.PrivateKey.agree k p ⦃ fun _ => True ⦄ :=
   (Tacenta.SessionUnitT1.noPanic_iff _).2 (h k p)
-
-@[step] theorem aead_seal_no_panic (h : AeadSealTotal)
-    (ek mk : Array U8 32#usize) (nonce : Array U8 16#usize)
-    (plaintext ad : Slice U8) :
-    tacenta_boundary.aead.encrypt ek mk nonce plaintext ad ⦃ fun _ => True ⦄ :=
-  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h ek mk nonce plaintext ad)
 
 @[step] theorem aead_open_no_panic (h : AeadOpenTotal)
     (ek mk : Array U8 32#usize) (nonce : Array U8 16#usize)
