@@ -112,6 +112,8 @@ echo "== The Session unit's PQXDH proof is the deterministic leaf port =="
 bash tacenta-proofs/scripts/port-session-pqxdh-proof.sh --check
 echo "== The Session unit's erasure proof is the deterministic leaf port =="
 bash tacenta-proofs/scripts/port-session-erasure-proof.sh --check
+echo "== The Session unit's ratchet import proofs are the deterministic partial port =="
+bash tacenta-proofs/scripts/port-session-ratchet-import-proof.sh --check
 
 # Derivation labels are protocol constants, and a codebase that cannot enumerate
 # its own is one nobody can review. `tacenta-core/LABELS.md` is the freeze;
