@@ -427,6 +427,122 @@ theorem tripleHeaderOf_fields (header : Model.CompositeHeader.Composite) :
       ∧ (tripleHeaderOf header).pqN = header.pqN.toNat := by
   exact ⟨rfl, rfl, rfl, rfl, rfl⟩
 
+/-! ## Session operations
+
+An operation returns the state and remaining oracle trace even when its public
+result is a refusal. This is necessary for the two effects Rust exposes on an
+error: random draws have happened, and a Braid that reaches its terminal state
+is committed before `AgreementFailed` is returned. -/
+
+structure Step (Result : Type) where
+  session : Session
+  result : Except Refusal Result
+  oracle : Oracle
+
+def braidFailed : Model.Braid.BraidState → Bool
+  | .failed => true
+  | _ => false
+
+theorem braidFailed_iff (state : Model.Braid.BraidState) :
+    braidFailed state = true ↔ state = .failed := by
+  cases state <;> simp [braidFailed]
+
+def sparseOutputOf : Option Model.Braid.Output → Option Model.SparseRatchet.Output :=
+  Option.map fun value => { keyEpoch := value.keyEpoch, key := value.key }
+
+/-- `Session::encrypt`, through the executable leaf models and the primitive
+    oracle. The Braid runs first, a terminal Braid is committed on refusal, the
+    Triple candidate commits only on success, and the initial wrapper remains
+    present until a successful receive clears it. -/
+def encrypt (view : CodewordView) (oracle : Oracle) (session : Session)
+    (plaintext : Bytes) : Step Bytes :=
+  if agreementFailed session then
+    { session, result := .error .agreementFailed, oracle }
+  else
+    match sendAgreement oracle session.braid with
+    | none => { session, result := .error .ceiling, oracle }
+    | some ((message, sendingEpoch, output, braidNext), oracleNext) =>
+        if braidFailed braidNext then
+          { session := { session with braid := braidNext }
+            result := .error .agreementFailed
+            oracle := oracleNext }
+        else
+          match message with
+          | none => { session, result := .error .ceiling, oracle := oracleNext }
+          | some agreementMessage =>
+              match Model.Triple.sendDetailed session.triple sendingEpoch
+                  (sparseOutputOf output) with
+              | .error reason =>
+                  { session
+                    result := .error (tripleSendRefusalOf reason)
+                    oracle := oracleNext }
+              | .ok (tripleNext, header, messageKey) =>
+                  match compositeOf view session.braid header agreementMessage with
+                  | none => { session, result := .error .ceiling, oracle := oracleNext }
+                  | some composite =>
+                      let keys := Model.State.messageKeys messageKey .tacenta
+                      let associatedData := Model.Messages.concatAd session.identityAd
+                        (Model.CompositeHeader.encode composite)
+                      let ciphertext := oracle.aeadSeal keys.1 keys.2.1 keys.2.2
+                        plaintext associatedData
+                      let ratchetMessage := Model.CompositeHeader.encodeMessage
+                        composite ciphertext
+                      let wireMessage :=
+                        match session.pendingInitial with
+                        | none => ratchetMessage
+                        | some pending =>
+                            Model.Messages.encodeInitial
+                              (Model.PersistedState.SessionState.encodeEc
+                                session.ourIdentityPublic)
+                              (Model.PersistedState.SessionState.encodeEc
+                                pending.ephemeralPublic)
+                              pending.kemCiphertext
+                              (UInt32.ofNat pending.signedPrekeyId)
+                              (UInt32.ofNat pending.oneTimePrekeyId)
+                              (UInt32.ofNat pending.kemPrekeyId)
+                              ratchetMessage
+                      { session := { session with triple := tripleNext, braid := braidNext }
+                        result := .ok wireMessage
+                        oracle := oracleNext }
+
+theorem encrypt_terminal_guard (view : CodewordView) (oracle : Oracle)
+    (session : Session) (plaintext : Bytes)
+    (h : agreementFailed session = true) :
+    encrypt view oracle session plaintext =
+      { session, result := .error .agreementFailed, oracle } := by
+  simp [encrypt, h]
+
+theorem encrypt_braid_failure_commits (view : CodewordView) (oracle oracleNext : Oracle)
+    (session : Session) (plaintext : Bytes)
+    (message : Option Model.Braid.Msg) (sendingEpoch : Nat)
+    (output : Option Model.Braid.Output) (braidNext : Model.Braid.BraidState)
+    (hg : agreementFailed session = false)
+    (hs : sendAgreement oracle session.braid =
+      some ((message, sendingEpoch, output, braidNext), oracleNext))
+    (hf : braidFailed braidNext = true) :
+    encrypt view oracle session plaintext =
+      { session := { session with braid := braidNext }
+        result := .error .agreementFailed
+        oracle := oracleNext } := by
+  simp [encrypt, hg, hs, hf]
+
+theorem encrypt_triple_refusal_keeps_state (view : CodewordView)
+    (oracle oracleNext : Oracle) (session : Session) (plaintext : Bytes)
+    (message : Model.Braid.Msg) (sendingEpoch : Nat)
+    (output : Option Model.Braid.Output) (braidNext : Model.Braid.BraidState)
+    (reason : Model.Triple.SendRefusal)
+    (hg : agreementFailed session = false)
+    (hs : sendAgreement oracle session.braid =
+      some ((some message, sendingEpoch, output, braidNext), oracleNext))
+    (hf : braidFailed braidNext = false)
+    (ht : Model.Triple.sendDetailed session.triple sendingEpoch
+      (sparseOutputOf output) = .error reason) :
+    encrypt view oracle session plaintext =
+      { session
+        result := .error (tripleSendRefusalOf reason)
+        oracle := oracleNext } := by
+  simp [encrypt, hg, hs, hf, ht]
+
 /-- Whether an initial wrapper is the repeat belonging to this responder
     session (session-establishment.md, Receiving the initial message). -/
 def repeatedInitial (session : Session) (initial : Initial) : Bool :=
