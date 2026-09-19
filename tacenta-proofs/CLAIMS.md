@@ -788,6 +788,17 @@ them, so this is the decoder the product runs.
   published prekey bundle. Its one optional field is decided by
   `one_time_prekey_at` (`one_time_prekey_at_no_panic`) over thirty-three bytes
   the decoder has already bounded. Same pinned base.
+- `Tacenta.SessionUnitWireT1.decode_composite_no_panic` (in
+  `Translation/SessionUnitWireT1.lean`),
+  `Tacenta.SessionUnitWireT1.decode_message_no_panic` (in
+  `Translation/SessionUnitWireT1.lean`),
+  `Tacenta.SessionUnitWireT1.decode_initial_no_panic` (in
+  `Translation/SessionUnitWireT1.lean`), and
+  `Tacenta.SessionUnitWireT1.decode_bundle_no_panic` (in
+  `Translation/SessionUnitWireT1.lean`): the count-checked Session-unit port
+  proves the same four totality statements against the complete eight-leaf
+  generated namespace. The port changes namespaces only; its script rejects
+  any unexpected source shape or replacement count.
 - `is_canonical_x25519_spec`: the check `decode_composite`, `decode_initial`
   and `decode_bundle` apply to every curve key they read (message-format.md,
   Curve public keys)
