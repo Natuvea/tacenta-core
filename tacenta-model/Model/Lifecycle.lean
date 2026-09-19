@@ -122,6 +122,57 @@ structure Session where
 
 abbrev Initial := Model.Messages.Initial
 
+/-! ## Public refusal vocabulary
+
+`error-handling.md` makes the refusal behaviour normative while leaving the
+Rust error type to the implementation. These constructors mirror that public
+type so T3 can cover every concrete `Err` branch without making the names part
+of the protocol. `ceiling` is the model's explicit result outside theorem
+headroom; no Rust `Error` maps to it on a discharged proof path.
+-/
+
+inductive RatchetRefusal where
+  | tooManySkipped | skippedStoreFull | noSendingChain | noReceivingChain
+  | outOfOrder | chainExhausted
+  deriving Repr, DecidableEq, Inhabited
+
+inductive SparseRefusal where
+  | epochOutOfOrder | noChain | chainRetired | tooManySkipped
+  | skippedStoreFull | outOfOrder | chainExhausted
+  deriving Repr, DecidableEq, Inhabited
+
+inductive TripleRefusal where
+  | classical (reason : RatchetRefusal)
+  | postQuantum (reason : SparseRefusal)
+  deriving Repr, DecidableEq, Inhabited
+
+inductive HandshakeRefusal where
+  | badSignedPrekeySignature | badKemPrekeySignature
+  | nonContributoryAgreement
+  deriving Repr, DecidableEq, Inhabited
+
+inductive DecodeRefusal where
+  | unknownVersion | wrongType | tooShort | lengthOverrun
+  deriving Repr, DecidableEq, Inhabited
+
+inductive Refusal where
+  | triple (reason : TripleRefusal)
+  | handshake (reason : HandshakeRefusal)
+  | kem
+  | decode (reason : DecodeRefusal)
+  | badEncoding
+  | inconsistentBundle
+  | unexpectedIdentity
+  | unknownPrekeyId
+  | aead
+  | notARepeatedInitial
+  | replayedLastResort
+  | legacyLastResortRecord
+  | lastResortRecordFull
+  | agreementFailed
+  | ceiling
+  deriving Repr, DecidableEq, Inhabited
+
 /-- Whether an initial wrapper is the repeat belonging to this responder
     session (session-establishment.md, Receiving the initial message). -/
 def repeatedInitial (session : Session) (initial : Initial) : Bool :=
