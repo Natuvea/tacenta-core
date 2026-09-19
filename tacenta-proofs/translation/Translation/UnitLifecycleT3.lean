@@ -527,6 +527,145 @@ def decodeRefusalOf : tacenta_wire.DecodeError → Model.Messages.DecodeRefusal
   | .TooShort => .tooShort
   | .LengthOverrun => .lengthOverrun
 
+theorem wireByte_ne_zero (x : Std.U8) :
+    Tacenta.SessionUnitWireT3.byteOf x ≠ 0 ↔ x ≠ 0#u8 := by
+  rw [show (0 : UInt8) = Tacenta.SessionUnitWireT3.byteOf 0#u8 from rfl]
+  exact not_congr (Tacenta.SessionUnitWireT3.byteOf_inj x 0#u8)
+
+theorem wireByte_ne_one (x : Std.U8) :
+    Tacenta.SessionUnitWireT3.byteOf x ≠ 1 ↔ x ≠ 1#u8 := by
+  rw [show (1 : UInt8) = Tacenta.SessionUnitWireT3.byteOf 1#u8 from rfl]
+  exact not_congr (Tacenta.SessionUnitWireT3.byteOf_inj x 1#u8)
+
+set_option maxHeartbeats 1000000 in
+theorem decode_composite_refusal_classifies (bytes : Slice Std.U8) :
+    tacenta_wire.decode_composite bytes ⦃ fun result =>
+      match result with
+      | .Ok _ => True
+      | .Err reason => decodeRefusalOf reason =
+          Model.CompositeHeader.decodeRefusal
+            (Tacenta.SessionUnitWireT3.bytesOf bytes.val) ⦄ := by
+  unfold tacenta_wire.decode_composite
+  simp only [tacenta_wire.CHUNK_BYTES]
+  step*
+  all_goals first
+    | trivial
+    | (simp_all [Slice.length, Array.repeat]; done)
+    | skip
+  all_goals first | scalar_tac | skip
+  all_goals simp only [decodeRefusalOf]
+  all_goals first
+    | (unfold Model.CompositeHeader.decodeRefusal
+       rw [if_pos (by simp only [Tacenta.SessionUnitWireT3.bytesOf_length,
+         Model.CompositeHeader.size, Model.CompositeHeader.chunkBytes]; scalar_tac)])
+    | skip
+  all_goals (
+    have hlong : 102 ≤ bytes.val.length := by scalar_tac
+    unfold Model.CompositeHeader.decodeRefusal
+    rw [if_neg (by simp only [Tacenta.SessionUnitWireT3.bytesOf_length,
+      Model.CompositeHeader.size, Model.CompositeHeader.chunkBytes]; omega)]
+    simp (disch := omega) only [Tacenta.SessionUnitWireT3.bytesOf_getElem!,
+      ← Tacenta.SessionUnitWireT3.byteOf_version,
+      ← Tacenta.SessionUnitWireT3.byteOf_type_ratchet,
+      Tacenta.SessionUnitWireT3.bne_byteOf]
+    subst_vars)
+  -- version and message-type refusals
+  all_goals first
+    | (rw [if_pos (by assumption)])
+    | (rw [if_neg (by assumption), if_pos (by assumption)])
+    | skip
+  -- the copied key and the model inspect the same thirty-two bytes
+  all_goals (
+    have hdhk : (Array.from_slice (Array.repeat 32#usize 0#u8) s2).val =
+        (bytes.val.drop 2).take 32 := by
+      rw [Array.from_slice_val _ _ (by simp [s1_post1, List.slice]; omega), s1_post1]
+      rfl
+    rw [Tacenta.SessionUnitWireT3.canonicalKey_at _ 2 _ hdhk])
+  all_goals first
+    | (rw [if_neg (by assumption), if_neg (by assumption),
+        if_pos (Tacenta.SessionUnitWireT3.not_eq_true_of_eq_false'
+          (by assumption : ¬ Tacenta.SessionUnitWireT1.canonicalX25519
+            (Array.from_slice (Array.repeat 32#usize 0#u8) s2) = true))])
+    | (have hkt : Tacenta.SessionUnitWireT1.canonicalX25519
+          (Array.from_slice (Array.repeat 32#usize 0#u8) s2) = true := by
+         rw [← b_post]
+       rw [if_neg (by assumption), if_neg (by assumption), hkt, Bool.not_true,
+         if_neg Bool.false_ne_true, ← o_post])
+  all_goals (simp only [Option.map, Option.isNone,
+    Tacenta.SessionUnitWireT3.byteOf_beq_zero])
+  all_goals first | rfl | skip
+  all_goals (simp only [bne_iff_ne, ne_eq, not_not] at *)
+  all_goals simp only [Bool.false_eq_true, if_false]
+  -- absent codewords must have a zero index and zero payload
+  on_goal 1 =>
+    rw [if_pos (by
+      simp only [Bool.and_eq_true, bne_iff_ne]
+      constructor
+      · exact (wireByte_ne_zero _).mpr (by assumption)
+      · exact (wireByte_ne_one _).mpr (by assumption))]
+  on_goal 1 =>
+    rw [if_neg (by
+      simp only [Bool.and_eq_true, bne_iff_ne]
+      intro hboth
+      exact (wireByte_ne_zero _).mp hboth.1 (by assumption))]
+    rw [if_pos (by
+      simp only [Bool.and_eq_true, beq_iff_eq]
+      constructor
+      · assumption
+      · simp only [Bool.or_eq_true, bne_iff_ne]
+        left
+        rw [wireByte_ne_zero, wireByte_ne_zero]
+        by_contra hz
+        push Not at hz
+        scalar_tac)]
+  on_goal 1 =>
+    rw [if_neg (by
+      simp only [Bool.and_eq_true, bne_iff_ne]
+      intro hboth
+      exact (wireByte_ne_zero _).mp hboth.1 (by assumption))]
+    rw [if_pos (by
+      simp only [Bool.and_eq_true, beq_iff_eq]
+      constructor
+      · assumption
+      · simp only [Bool.or_eq_true, bne_iff_ne]
+        right
+        simp only [List.any_eq_true]
+        have hi15 : i15 ≠ 0#u8 := by assumption
+        have hnall : ¬ ∀ j < 32, bytes.val[70 + j]! = 0#u8 := by
+          intro hall
+          exact hi15 (i15_post.mpr hall)
+        push Not at hnall
+        obtain ⟨j, hj, hjne⟩ := hnall
+        refine ⟨Tacenta.SessionUnitWireT3.byteOf bytes.val[70 + j]!, ?_, ?_⟩
+        · rw [Tacenta.SessionUnitWireT3.bytesOf_drop_take]
+          simp only [Tacenta.SessionUnitWireT3.bytesOf, List.mem_map]
+          refine ⟨bytes.val[70 + j]!, ?_, rfl⟩
+          rw [List.mem_iff_getElem]
+          refine ⟨j, by simp [Model.CompositeHeader.chunkBytes]; omega, ?_⟩
+          simp [List.getElem!_eq_getElem?_getD,
+            List.getElem?_eq_getElem (by omega : 70 + j < bytes.val.length)]
+        · simpa only [bne_iff_ne] using (wireByte_ne_zero _).mpr hjne)]
+
+/-- The message wrapper preserves the composite decoder's exact public refusal.
+Copying the accepted ciphertext is infallible and therefore introduces no new
+refusal class. -/
+theorem decode_message_refusal_classifies (bytes : Slice Std.U8) :
+    tacenta_wire.decode_message bytes ⦃ fun result =>
+      match result with
+      | .Ok _ => True
+      | .Err reason => decodeRefusalOf reason =
+          Model.CompositeHeader.decodeRefusal
+            (Tacenta.SessionUnitWireT3.bytesOf bytes.val) ⦄ := by
+  unfold tacenta_wire.decode_message
+  apply WP.spec_bind (decode_composite_refusal_classifies bytes)
+  intro result hresult
+  cases result with
+  | Err reason => simpa using hresult
+  | Ok pair =>
+      obtain ⟨header, rest⟩ := pair
+      simp only
+      step with alloc.slice.Slice.to_vec_spec
+
 def refusalOf : lifecycle.Error → Model.Lifecycle.Refusal
   | .Triple reason => .triple (tripleRefusalOf reason)
   | .Handshake reason => .handshake (handshakeRefusalOf reason)
@@ -972,6 +1111,48 @@ theorem decrypt_ratchet_decode_refusal_step_refines {R : Type}
   refine ⟨(.Err (.Decode realReason), real, rng), hreal, ?_⟩
   rw [hmodel]
   exact ⟨congrArg Model.Lifecycle.Refusal.decode hreason, hrel, htrace⟩
+
+/-- A concrete ratchet-message decoder refusal determines the model's detailed
+refusal without an agreement premise at the Session boundary. -/
+theorem decrypt_ratchet_decode_refusal_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (realReason : tacenta_wire.DecodeError)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeReal : tacenta_wire.decode_message message = ok (.Err realReason)) :
+    ∃ output,
+      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+        ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  obtain ⟨classified, hclassified, hreason⟩ := Std.WP.spec_imp_exists
+    (decode_message_refusal_classifies message)
+  have hclassifiedEq : classified = .Err realReason := by
+    rw [hdecodeReal] at hclassified
+    have heq : (.Err realReason : core.result.Result tacenta_wire.DecodedMessage
+        tacenta_wire.DecodeError) = classified := by simpa using hclassified
+    exact heq.symm
+  subst classified
+  obtain ⟨decoded, hdecoded, hnone⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitWireT3.decode_message_refines message)
+  have hdecodedEq : decoded = .Err realReason := by
+    rw [hdecodeReal] at hdecoded
+    have heq : (.Err realReason : core.result.Result tacenta_wire.DecodedMessage
+        tacenta_wire.DecodeError) = decoded := by simpa using hdecoded
+    exact heq.symm
+  subst decoded
+  have hmodelDecode : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .error (decodeRefusalOf realReason) := by
+    rw [← wire_bytesOf_eq_sliceOf]
+    simp [Model.CompositeHeader.decodeDetailed, hnone, ← hreason]
+  exact decrypt_ratchet_decode_refusal_step_refines rngCore cryptoRng trace dh K
+    view oracle real model message rng realReason (decodeRefusalOf realReason)
+    hrel htrace hready hdecodeReal hmodelDecode rfl
 
 /-- Lift an already-related ratchet receive through the public decrypt
 dispatcher's passthrough arms (`none` and explicit ratchet).  Refusals preserve

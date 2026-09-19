@@ -197,7 +197,8 @@ def decodeRefusal (bs : List UInt8) : Model.Messages.DecodeRefusal :=
   else if !Model.Messages.canonicalKey ((bs.drop 2).take 32) then .wrongType
   else if (decodeAgreementType bs[66]!).isNone then .wrongType
   else if bs[67]! != 0x00 && bs[67]! != 0x01 then .wrongType
-  else if bs[67]! == 0x00 && ((bs.drop 68).take (2 + chunkBytes)).any (· != 0) then
+  else if bs[67]! == 0x00 &&
+      (bs[68]! != 0 || bs[69]! != 0 || ((bs.drop 70).take chunkBytes).any (· != 0)) then
     .lengthOverrun
   else .tooShort
 
