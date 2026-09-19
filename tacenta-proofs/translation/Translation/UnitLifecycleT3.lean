@@ -2784,6 +2784,50 @@ theorem decrypt_ratchet_aead_refusal_step_refines {R : Type}
   rw [hmodel]
   exact ⟨rfl, hrel, htraceNext⟩
 
+/-- When a successful receive keeps the existing sending public key, the
+candidate Triple and Braid states commit while the ratchet private key and all
+session metadata retain their existing refinement witnesses. -/
+theorem receive_success_next_refines_same
+    (dh : DhView) (K : Model.Braid.Kem)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (realTriple : tacenta_triple.State) (realBraid : tacenta_braid.Braid)
+    (modelTriple : Model.Triple.State) (modelBraid : Model.Braid.BraidState)
+    (hrel : SessionRefines dh K real model)
+    (htriple : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      realTriple modelTriple)
+    (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K realBraid.state modelBraid) :
+    SessionRefines dh K
+      { real with triple := realTriple, braid := realBraid }
+      { model with triple := modelTriple, braid := modelBraid } := by
+  exact ⟨htriple, hbraid, hrel.ratchetPrivate, hrel.identityAd,
+    hrel.ourIdentityPublic, hrel.peerIdentityPublic, hrel.pendingInitial,
+    hrel.establishedEphemeral⟩
+
+/-- When a successful receive rotates the sending public key, the fresh
+translated private key and the consumed model draw become the new related
+ratchet-private fields; all other metadata retains its prior witness. -/
+theorem receive_success_next_refines_rotated
+    (dh : DhView) (K : Model.Braid.Kem)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (realTriple : tacenta_triple.State) (realBraid : tacenta_braid.Braid)
+    (realPrivate : tacenta_boundary.dh.PrivateKey)
+    (modelTriple : Model.Triple.State) (modelBraid : Model.Braid.BraidState)
+    (modelPrivate : Model.Lifecycle.Key)
+    (hrel : SessionRefines dh K real model)
+    (htriple : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      realTriple modelTriple)
+    (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K realBraid.state modelBraid)
+    (hprivate : dh.privateKey realPrivate = modelPrivate) :
+    SessionRefines dh K
+      { { real with triple := realTriple, braid := realBraid } with
+        ratchet_private := realPrivate }
+      { { model with triple := modelTriple, braid := modelBraid } with
+        ratchetPrivate := modelPrivate } := by
+  exact ⟨htriple, hbraid, hprivate, hrel.identityAd, hrel.ourIdentityPublic,
+    hrel.peerIdentityPublic, hrel.pendingInitial, hrel.establishedEphemeral⟩
+
 set_option maxHeartbeats 4000000 in
 /-- Successful established-session encryption refines the executable lifecycle
 model all the way to the returned wire bytes. The leaf send relations supply
