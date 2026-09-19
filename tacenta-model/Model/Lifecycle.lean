@@ -235,6 +235,26 @@ def tripleSendRefusalOf : Model.Triple.SendRefusal → Refusal
   | .classical reason => .triple (.classical (ratchetSendRefusalOf reason))
   | .postQuantum reason => .triple (.postQuantum (sparseSendRefusalOf reason))
 
+def ratchetReceiveRefusalOf : Model.Ratchet.ReceiveRefusal → RatchetRefusal
+  | .tooManySkipped => .tooManySkipped
+  | .skippedStoreFull => .skippedStoreFull
+  | .noReceivingChain => .noReceivingChain
+  | .outOfOrder => .outOfOrder
+  | .chainExhausted => .chainExhausted
+
+def sparseReceiveRefusalOf : Model.SparseRatchet.ReceiveRefusal → SparseRefusal
+  | .epochOutOfOrder => .epochOutOfOrder
+  | .noChain => .noChain
+  | .chainRetired => .chainRetired
+  | .tooManySkipped => .tooManySkipped
+  | .skippedStoreFull => .skippedStoreFull
+  | .outOfOrder => .outOfOrder
+  | .chainExhausted => .chainExhausted
+
+def tripleReceiveRefusalOf : Model.Triple.ReceiveRefusal → Refusal
+  | .classical reason => .triple (.classical (ratchetReceiveRefusalOf reason))
+  | .postQuantum reason => .triple (.postQuantum (sparseReceiveRefusalOf reason))
+
 theorem ratchetSendRefusalOf_injective : Function.Injective ratchetSendRefusalOf := by
   intro left right h
   cases left <;> cases right <;> simp [ratchetSendRefusalOf] at h ⊢
@@ -260,6 +280,35 @@ theorem tripleSendRefusalOf_injective : Function.Injective tripleSendRefusalOf :
           simp [tripleSendRefusalOf] at h
           exact congrArg Model.Triple.SendRefusal.postQuantum
             (sparseSendRefusalOf_injective h)
+
+theorem ratchetReceiveRefusalOf_injective :
+    Function.Injective ratchetReceiveRefusalOf := by
+  intro left right h
+  cases left <;> cases right <;> simp [ratchetReceiveRefusalOf] at h ⊢
+
+theorem sparseReceiveRefusalOf_injective :
+    Function.Injective sparseReceiveRefusalOf := by
+  intro left right h
+  cases left <;> cases right <;> simp [sparseReceiveRefusalOf] at h ⊢
+
+theorem tripleReceiveRefusalOf_injective :
+    Function.Injective tripleReceiveRefusalOf := by
+  intro left right h
+  cases left with
+  | classical left =>
+      cases right with
+      | classical right =>
+          simp [tripleReceiveRefusalOf] at h
+          exact congrArg Model.Triple.ReceiveRefusal.classical
+            (ratchetReceiveRefusalOf_injective h)
+      | postQuantum right => simp [tripleReceiveRefusalOf] at h
+  | postQuantum left =>
+      cases right with
+      | classical right => simp [tripleReceiveRefusalOf] at h
+      | postQuantum right =>
+          simp [tripleReceiveRefusalOf] at h
+          exact congrArg Model.Triple.ReceiveRefusal.postQuantum
+            (sparseReceiveRefusalOf_injective h)
 
 def agreementFailed (session : Session) : Bool :=
   match session.braid with

@@ -16,10 +16,10 @@ and the two initialisers.
 
 `send`/`receive` do not decide which ratchet's output to trust: both must
 succeed, in order (classical first, matching the real code), or the whole
-call fails. Neither reports *which* side failed -- the real `TripleError`
-tags it, but nothing downstream of this model needs to distinguish a
-classical failure from a post-quantum one, the same way `Model.Ratchet.send`/
-`Model.SparseRatchet.send` themselves collapse every failure mode to `none`.
+call fails. Their compact forms collapse failures to `none`; the corresponding
+`sendDetailed`/`receiveDetailed` forms retain the public leaf and refusal kind
+for session refinement, and equivalence theorems keep the accepted states
+identical.
 
 `receive` does not mutate its input, mirroring the real `&self`-only method:
 it returns a candidate state and a key, and `commit` is a separate step, a
@@ -159,6 +159,106 @@ def receive (st : State) (header : Header) (dhOutRecv dhOutSend newDhsPub : Key)
     | none => none
     | some (s1, mkPq) =>
       some ({ classical := s, postQuantum := s1 }, Model.TripleRatchet.combine mkEc mkPq)
+
+/-- Which contributing ratchet refused a receive, retaining that ratchet's
+    exact public reason for the session layer. -/
+inductive ReceiveRefusal where
+  | classical (reason : Model.Ratchet.ReceiveRefusal)
+  | postQuantum (reason : Model.SparseRatchet.ReceiveRefusal)
+  deriving Repr, DecidableEq, Inhabited
+
+def receiveDetailed (st : State) (header : Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (out : Option Model.SparseRatchet.Output) :
+    Except ReceiveRefusal (State × Key) :=
+  match Model.Ratchet.receiveDetailed st.classical header.dr
+      dhOutRecv dhOutSend newDhsPub with
+  | .error reason => .error (.classical reason)
+  | .ok (classical, mkEc) =>
+      match Model.SparseRatchet.receiveDetailed st.postQuantum
+          header.epoch out header.pqN with
+      | .error reason => .error (.postQuantum reason)
+      | .ok (postQuantum, mkPq) =>
+          .ok ({ classical, postQuantum }, Model.TripleRatchet.combine mkEc mkPq)
+
+theorem receiveDetailed_classical_iff (st : State) (header : Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (out : Option Model.SparseRatchet.Output)
+    (reason : Model.Ratchet.ReceiveRefusal) :
+    receiveDetailed st header dhOutRecv dhOutSend newDhsPub out =
+        .error (.classical reason) ↔
+      Model.Ratchet.receiveDetailed st.classical header.dr
+        dhOutRecv dhOutSend newDhsPub = .error reason := by
+  cases hc : Model.Ratchet.receiveDetailed st.classical header.dr
+      dhOutRecv dhOutSend newDhsPub with
+  | error actual => simp [receiveDetailed, hc]
+  | ok result =>
+      cases hp : Model.SparseRatchet.receiveDetailed st.postQuantum
+          header.epoch out header.pqN <;>
+        simp [receiveDetailed, hc, hp]
+
+theorem receiveDetailed_post_quantum_iff (st : State) (header : Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (out : Option Model.SparseRatchet.Output)
+    (reason : Model.SparseRatchet.ReceiveRefusal) :
+    receiveDetailed st header dhOutRecv dhOutSend newDhsPub out =
+        .error (.postQuantum reason) ↔
+      ∃ classical mkEc,
+        Model.Ratchet.receiveDetailed st.classical header.dr
+          dhOutRecv dhOutSend newDhsPub = .ok (classical, mkEc) ∧
+        Model.SparseRatchet.receiveDetailed st.postQuantum
+          header.epoch out header.pqN = .error reason := by
+  cases hc : Model.Ratchet.receiveDetailed st.classical header.dr
+      dhOutRecv dhOutSend newDhsPub with
+  | error actual => simp [receiveDetailed, hc]
+  | ok result =>
+      obtain ⟨classical, mkEc⟩ := result
+      cases hp : Model.SparseRatchet.receiveDetailed st.postQuantum
+          header.epoch out header.pqN <;>
+        simp [receiveDetailed, hc, hp]
+
+theorem receiveDetailed_ok_iff (st : State) (header : Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (out : Option Model.SparseRatchet.Output) (result : State × Key) :
+    receiveDetailed st header dhOutRecv dhOutSend newDhsPub out = .ok result ↔
+      receive st header dhOutRecv dhOutSend newDhsPub out = some result := by
+  cases hc : Model.Ratchet.receiveDetailed st.classical header.dr
+      dhOutRecv dhOutSend newDhsPub with
+  | error reason =>
+      have ho : Model.Ratchet.receive st.classical header.dr
+          dhOutRecv dhOutSend newDhsPub = none := by
+        cases h : Model.Ratchet.receive st.classical header.dr
+            dhOutRecv dhOutSend newDhsPub with
+        | none => rfl
+        | some result =>
+            have := (Model.Ratchet.receiveDetailed_ok_iff st.classical header.dr
+              dhOutRecv dhOutSend newDhsPub result).2 h
+            rw [hc] at this
+            contradiction
+      simp [receiveDetailed, receive, hc, ho]
+  | ok classicalResult =>
+      obtain ⟨classical, mkEc⟩ := classicalResult
+      have ho := (Model.Ratchet.receiveDetailed_ok_iff st.classical header.dr
+        dhOutRecv dhOutSend newDhsPub (classical, mkEc)).1 hc
+      cases hp : Model.SparseRatchet.receiveDetailed st.postQuantum
+          header.epoch out header.pqN with
+      | error reason =>
+          have hpo : Model.SparseRatchet.receive st.postQuantum
+              header.epoch out header.pqN = none := by
+            cases h : Model.SparseRatchet.receive st.postQuantum
+                header.epoch out header.pqN with
+            | none => rfl
+            | some result =>
+                have := (Model.SparseRatchet.receiveDetailed_ok_iff st.postQuantum
+                  header.epoch out header.pqN result).2 h
+                rw [hp] at this
+                contradiction
+          simp [receiveDetailed, receive, hc, ho, hp, hpo]
+      | ok postQuantumResult =>
+          obtain ⟨postQuantum, mkPq⟩ := postQuantumResult
+          have hpo := (Model.SparseRatchet.receiveDetailed_ok_iff st.postQuantum
+            header.epoch out header.pqN (postQuantum, mkPq)).1 hp
+          simp [receiveDetailed, receive, hc, ho, hp, hpo]
 
 /-! ## Committing
 
