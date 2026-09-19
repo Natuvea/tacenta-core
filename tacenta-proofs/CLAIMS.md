@@ -827,6 +827,13 @@ the code checks.
   samples, stated in full.
 - `decode_message_refines`: the same for `decode_message`, whose ciphertext
   is exactly the bytes the model leaves after the header.
+- `Tacenta.SessionUnitWireT3.decode_composite_refines` (in
+  `Translation/SessionUnitWireT3.lean`) and
+  `Tacenta.SessionUnitWireT3.decode_message_refines` (in
+  `Translation/SessionUnitWireT3.lean`): a count-checked namespace-only port
+  proves the same two decoder refinements against the complete eight-leaf
+  Session translation. The porting script rejects an unexpected source shape
+  or replacement count.
 
 Both are pinned to `propext`, `Classical.choice` and `Quot.sound` alone.
 The big-endian arithmetic relating the code's `from_be_bytes` to the model's
@@ -835,8 +842,8 @@ round-trip lemmas settle the same identities with `bv_decide`, and neither
 theorem depends on them.
 
 **What this does not give.** An end-to-end claim from wire bytes to a ratchet
-decision also needs the session's use of the decoded header, which is outside
-the translated surface (`tacenta-core/lifecycle/src`).
+decision also needs the session's use of the decoded header. That outer
+composition is in draft proof work and is not an accepted claim here.
 
 ## Proved (tier T3, the initial-message decoder computes what the model says)
 
