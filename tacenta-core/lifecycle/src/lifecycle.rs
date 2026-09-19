@@ -346,9 +346,9 @@ fn receive_shortfall(
         FullStore::PostQuantum => match state.post_quantum_receive_count(composite.pq_epoch) {
             Some(received) => {
                 let held = state.post_quantum_skipped_len();
-                let need =
-                    usize::try_from(composite.pq_n.saturating_sub(1).saturating_sub(received))
-                        .unwrap_or(usize::MAX);
+                let need = saturating_usize_from_u64(
+                    composite.pq_n.saturating_sub(1).saturating_sub(received),
+                );
                 let shortfall = held
                     .saturating_add(need)
                     .saturating_sub(tacenta_spqr::MAX_SKIPPED_STORE);
@@ -356,6 +356,18 @@ fn receive_shortfall(
             }
             None => 1,
         },
+    }
+}
+
+/// Convert the wire's 64-bit sparse counter without an opaque `TryFrom`
+/// boundary in the translated lifecycle. This is the same saturating result
+/// as `usize::try_from(value).unwrap_or(usize::MAX)` on both supported pointer
+/// widths.
+fn saturating_usize_from_u64(value: u64) -> usize {
+    if value > usize::MAX as u64 {
+        usize::MAX
+    } else {
+        value as usize
     }
 }
 
@@ -3518,6 +3530,16 @@ impl Session {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn u64_to_usize_conversion_saturates_at_the_platform_limit() {
+        for value in [0, u32::MAX as u64, u32::MAX as u64 + 1, u64::MAX] {
+            assert_eq!(
+                saturating_usize_from_u64(value),
+                usize::try_from(value).unwrap_or(usize::MAX)
+            );
+        }
+    }
 
     #[test]
     fn last_resort_replay_identity_is_bound_to_the_agreed_secret() {
