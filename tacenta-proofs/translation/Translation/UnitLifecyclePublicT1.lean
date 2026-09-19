@@ -40,6 +40,22 @@ theorem identity_public_no_panic (hdh : DhCodecTotal)
   exact private_key_public_no_panic hdh pk
 
 @[step]
+theorem public_key_eq_no_panic (hdh : DhCodecTotal)
+    (a b : tacenta_boundary.dh.PublicKeyBytes) :
+    tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq a b
+      ⦃ fun _ => True ⦄ :=
+  (Tacenta.SessionUnitT1.noPanic_iff _).2 (hdh.2.2.2.2.2 a b)
+
+@[step]
+theorem public_key_ne_no_panic (hdh : DhCodecTotal)
+    (a b : tacenta_boundary.dh.PublicKeyBytes) :
+    core.cmp.PartialEq.ne.trait_default
+      tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes a b
+      ⦃ fun _ => True ⦄ := by
+  unfold core.cmp.PartialEq.ne.trait_default core.cmp.PartialEq.ne.default
+  step with public_key_eq_no_panic hdh a b
+
+@[step]
 theorem encode_kem_no_panic (pk : Slice U8)
     (hroom : pk.val.length + 1 ≤ Usize.max) :
     encode_kem pk ⦃ fun _ => True ⦄ := by
@@ -62,6 +78,14 @@ theorem verify_bundle_no_panic (hdh : DhCodecTotal) (hx : XeddsaVerifyTotal)
       bundle.kem_prekey_signature
     rcases r1 <;> simp
   · simp
+
+theorem verify_bundle_with_one_time_no_panic
+    (hdh : DhCodecTotal) (hx : XeddsaVerifyTotal) (bundle : PreKeyBundle)
+    {oneTime : Option tacenta_boundary.dh.PublicKeyBytes}
+    (hkem : bundle.kem_prekey.val.length + 1 ≤ Usize.max) :
+    verify_bundle { bundle with one_time_prekey := oneTime }
+      ⦃ fun _ => True ⦄ :=
+  verify_bundle_no_panic hdh hx _ hkem
 
 @[step]
 theorem contributory_no_panic (value : Option (Array U8 32#usize)) :
@@ -140,6 +164,20 @@ theorem initiator_shared_secret_no_panic
     simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
       core.convert.FromSame.from]
 
+theorem initiator_shared_secret_with_one_time_no_panic
+    (hdh : DhCodecTotal) (hagree : DhAgreeTotal) (hx : XeddsaVerifyTotal)
+    (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
+    (hkdf : Tacenta.SessionUnitSessionT1.HkdfTotal)
+    [Tacenta.SessionUnitSessionT1.ZeroizingModel]
+    (identityPrivate ephemeralPrivate : tacenta_boundary.dh.PrivateKey)
+    (bundle : PreKeyBundle) {oneTime : Option tacenta_boundary.dh.PublicKeyBytes}
+    (encapsulated : Array U8 32#usize)
+    (hkem : bundle.kem_prekey.val.length + 1 ≤ Usize.max) :
+    initiator_shared_secret identityPrivate ephemeralPrivate
+      { bundle with one_time_prekey := oneTime } encapsulated
+      ⦃ fun _ => True ⦄ :=
+  initiator_shared_secret_no_panic hdh hagree hx hz hkdf _ _ _ _ hkem
+
 theorem responder_shared_secret_no_panic
     (hagree : DhAgreeTotal)
     (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
@@ -204,6 +242,97 @@ theorem responder_shared_secret_no_panic
     simp only [cf_post]
     simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
       core.convert.FromSame.from]
+
+structure EstablishInitiatorContracts {R : Type}
+    (rngCore : rand_core_1.RngCore R) where
+  dhCodec : DhCodecTotal
+  dhAgree : DhAgreeTotal
+  kemEncapsulate : KemEncapsulateTotal
+  xeddsaVerify : XeddsaVerifyTotal
+  random32 : Random32Total rngCore
+  sessionHkdf : Tacenta.SessionUnitSessionT1.HkdfTotal
+  sessionZeroizing : Tacenta.SessionUnitSessionT1.ZeroizingModel
+  tripleZeroizing : Tacenta.SessionUnitT1.ZeroizingTotal
+  spqrKdfInit : Tacenta.SessionUnitTripleT1.KdfInitTotal
+  spqrZeroize : Tacenta.SessionUnitSpqrT1.ZeroizeTotal
+  braidHkdf : Tacenta.SessionUnitBraidT1.HkdfSha256Total
+  zeroizingArray : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip
+  rangeFullIndex : Tacenta.SessionUnitBraidT1.RangeFullIndexTotal
+
+structure EstablishInitiatorHeadroom
+    (theirBundle : lifecycle.PublishedBundle) : Prop where
+  kemPrekey : theirBundle.bundle.kem_prekey.val.length + 1 ≤ Usize.max
+
+theorem establish_initiator_for_no_panic {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (contracts : EstablishInitiatorContracts rngCore)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (expectedIdentity : tacenta_boundary.dh.PublicKeyBytes) (rng : R)
+    (headroom : EstablishInitiatorHeadroom theirBundle) :
+    lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
+      expectedIdentity rng ⦃ fun _ => True ⦄ := by
+  rcases contracts with
+    ⟨hdh, hagree, hkem, hx, hrng, hkdf, hzero, htripleZero, hkdfInit,
+      hspqrZero, hbraidKdf, hzeroArray, hindex⟩
+  let _ : Tacenta.SessionUnitSessionT1.ZeroizingModel := hzero
+  unfold lifecycle.establish_initiator_for
+  step with public_key_ne_no_panic hdh theirBundle.bundle.identity_key expectedIdentity
+  split <;> simp
+  step*
+  rcases hopt : theirBundle.bundle.one_time_prekey with _ | oneTime
+  all_goals simp only [hopt]
+  all_goals (try (step with is_canonical_key_no_panic hdh))
+  all_goals (try split <;> try simp)
+  all_goals (try (step with is_canonical_key_no_panic hdh))
+  all_goals (try split <;> try simp)
+  all_goals (try (step with is_canonical_key_no_panic hdh))
+  all_goals (try split <;> try simp)
+  all_goals (step with verify_bundle_with_one_time_no_panic hdh hx theirBundle.bundle headroom.kemPrekey)
+  all_goals (rcases r with verified | verifyError)
+  all_goals simp
+  all_goals (step with random_secret_no_panic rngCore cryptoRng hrng)
+  all_goals (step with private_key_from_bytes_no_panic hdh)
+  all_goals (step with kem_encapsulate_no_panic hkem rngCore cryptoRng)
+  all_goals (rcases r1 with value | kemError)
+  all_goals simp
+  all_goals (rcases value with ⟨kemCiphertext, encapsulated⟩)
+  all_goals (step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hzeroArray encapsulated)
+  all_goals (step with identity_dh_key_no_panic hdh ourIdentity)
+  all_goals (step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec ‹_›)
+  all_goals (step with initiator_shared_secret_with_one_time_no_panic hdh hagree hx hzeroArray hkdf pk ephemeral theirBundle.bundle a1 headroom.kemPrekey)
+  all_goals (rcases r2 with secret | handshakeError)
+  all_goals simp
+  all_goals (step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hzeroArray secret)
+  all_goals (step with random_secret_no_panic rngCore cryptoRng hrng)
+  all_goals (step with private_key_from_bytes_no_panic hdh)
+  all_goals (step with private_key_agree_no_panic hagree)
+  all_goals (rcases o1 with _ | ratchetSecret)
+  all_goals simp
+  all_goals (step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hzeroArray ratchetSecret)
+  all_goals (step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec sk_post)
+  all_goals (step with Tacenta.SessionUnitBraidT1.index_full_spec hindex)
+  all_goals (step with private_key_public_no_panic hdh ratchet_private)
+  all_goals (step with public_key_as_bytes_no_panic hdh pkb)
+  all_goals (step with public_key_as_bytes_no_panic hdh theirBundle.bundle.signed_prekey)
+  all_goals (step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec dh_out_post)
+  all_goals (step with Tacenta.SessionUnitTripleT1.State.init_sender_no_panic hkdf htripleZero hkdfInit hspqrZero)
+  all_goals (step with Tacenta.SessionUnitBraidT1.index_full_spec hindex)
+  all_goals (step with Tacenta.SessionUnitBraidT1.Braid.initiator_no_panic hbraidKdf hzeroArray)
+  all_goals (step with identity_public_no_panic hdh ourIdentity)
+  all_goals (step with identity_ad_no_panic hdh)
+  all_goals (step with private_key_public_no_panic hdh ephemeral)
+
+theorem establish_initiator_no_panic {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (contracts : EstablishInitiatorContracts rngCore)
+    (ourIdentity : lifecycle.Identity) (theirBundle : lifecycle.PublishedBundle)
+    (rng : R) (headroom : EstablishInitiatorHeadroom theirBundle) :
+    lifecycle.establish_initiator rngCore cryptoRng ourIdentity theirBundle rng
+      ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.establish_initiator
+  exact establish_initiator_for_no_panic rngCore cryptoRng contracts ourIdentity
+    theirBundle theirBundle.bundle.identity_key rng headroom
+
 
 @[step]
 theorem agreement_failed_no_panic (self : lifecycle.Session) :
