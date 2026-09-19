@@ -208,6 +208,50 @@ example :
       | _ => false) = true := by
   native_decide
 
+open Model.Lifecycle.Examples in
+/-- Explicit out-of-order delivery of two honest queued messages accepts each
+    plaintext once: the later message stores the skipped classical key and the
+    earlier one consumes it. -/
+example :
+    let start : State :=
+      { alice := toyAlice toySecret
+        bob := toyBob toySecret
+        aliceOracle := toyOracle [toyAgreementDraw]
+        bobOracle := toyOracle [List.replicate 32 0x32, List.replicate 32 0x33]
+        queue := []
+        history := []
+        accepted := [] }
+    let result := run toyView start
+      [.send .alice 1 [0x01], .send .alice 2 [0x02], .reorderFirst 2,
+        .receive .bob 2, .receive .bob 1]
+    (match result.2 with
+      | [.sent 1 _, .sent 2 _, .reordered 2, .delivered 2 second,
+          .delivered 1 first] =>
+          second == [0x02] && first == [0x01]
+            && result.1.accepted == [(.bob, 2, [0x02]), (.bob, 1, [0x01])]
+      | _ => false) = true := by
+  native_decide
+
+open Model.Lifecycle.Examples in
+/-- A forged frame is consumed by the network but cannot change the receiving
+    Session or add an accepted plaintext. -/
+example :
+    let start : State :=
+      { alice := toyAlice toySecret
+        bob := toyBob toySecret
+        aliceOracle := toyOracle [toyAgreementDraw]
+        bobOracle := toyOracle [List.replicate 32 0x32]
+        queue := []
+        history := []
+        accepted := [] }
+    let result := run toyView start
+      [.send .alice 1 [0xde, 0xad], .forge 1 0 0xff, .receive .bob 1]
+    (match result.2 with
+      | [.sent 1 _, .forged 1, .refused 1 _] =>
+          result.1.accepted.isEmpty
+      | _ => false) = true := by
+  native_decide
+
 /-! ## Projection to the earlier bounded trace
 
 The P6 trace keeps only phase and message labels. This projection makes its
