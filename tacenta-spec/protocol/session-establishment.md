@@ -237,6 +237,16 @@ computations, and deletes the DH outputs and `SS`. He rebuilds `AD` and decrypts
 If decryption fails he aborts and deletes `SK`. On success he deletes `CT` and
 any one-time prekey private keys that were used.
 
+The prekey store is read-only until the ratchet message inside the initial
+message has authenticated. Every refusal before or during that authentication
+leaves the whole store exactly as it was. On success the only store change is
+the one this page requires: remove the one-time curve prekey the message names,
+when it names one; remove the one-time KEM prekey it names; and, on the
+last-resort path in place of the KEM removal, append the accepted handshake's
+replay identity. A last-resort handshake that also named a one-time curve
+prekey therefore removes that prekey and appends the replay identity. No other
+entry or store field changes during establishment.
+
 An initial message can also arrive on a session that already exists, since
 Alice repeats it until Bob answers. It does not establish again. It must first
 decode, so a message whose `identity` or `ephemeral` is re-spelled is refused
