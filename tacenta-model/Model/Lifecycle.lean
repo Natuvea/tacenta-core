@@ -1394,6 +1394,27 @@ def toyEstablishedSecret : Key :=
     (List.replicate 32 0xdd) (List.replicate 32 0xdd)
     (List.replicate 32 0xdd) none (List.replicate 32 0xee)
 
+def toyOneTimeBundle : Bundle :=
+  { toyBundle with
+    kemPrekey := [0x64]
+    oneTimePrekey := some (List.replicate 32 0x24)
+    oneTimeId := UInt32.ofNat 3
+    kemPrekeyId := UInt32.ofNat 4 }
+
+def toyOneTimeResponderStore : PrekeyStore :=
+  { toyResponderStore with
+    state :=
+      { toyResponderStore.state with
+        oneTime := [(3, List.replicate 32 0x24)]
+        kemOneTime := [(4, [0x65], List.replicate 64 0x54)]
+        nextId := 5 } }
+
+def toyOneTimeEstablishedSecret : Key :=
+  Model.SessionEstablishment.sharedSecret
+    (List.replicate 32 0xdd) (List.replicate 32 0xdd)
+    (List.replicate 32 0xdd) (some (List.replicate 32 0xdd))
+    (List.replicate 32 0xee)
+
 /-- One complete Session send and receive runs through both ratchets, the Braid,
     wire codecs and the AEAD boundary. Fixed toy primitives make it executable;
     the boundary-refinement work later replaces them with related Rust calls. -/
@@ -1431,6 +1452,33 @@ example :
               | .ok (_, plaintext) =>
                   plaintext == [0xde, 0xad]
                     && responded.store.state.seen.length == 1) = true := by
+  native_decide
+
+/-- The full one-time path uses DH4 and consumes both named one-time entries
+    only after the first ciphertext authenticates. It records no replay entry. -/
+example :
+    let initiated := establishInitiator
+      (toyOracle [List.replicate 32 0x12, List.replicate 32 0x13,
+        List.replicate 32 0x14]) toyAliceIdentity toyOneTimeBundle
+        toyBobIdentity.publicKey
+    (match initiated.result with
+      | .error _ => false
+      | .ok alice =>
+          let sent := encrypt (toyViewFor toyOneTimeEstablishedSecret)
+            (toyOracle [toyAgreementDraw]) alice [0xca, 0xfe]
+          match sent.result with
+          | .error _ => false
+          | .ok wire =>
+              let responded := establishResponder (toyViewFor toyOneTimeEstablishedSecret)
+                (toyOracle [List.replicate 32 0x32]) toyBobIdentity
+                toyOneTimeResponderStore wire
+              match responded.result with
+              | .error _ => false
+              | .ok (_, plaintext) =>
+                  plaintext == [0xca, 0xfe]
+                    && responded.store.state.oneTime.isEmpty
+                    && responded.store.state.kemOneTime.isEmpty
+                    && responded.store.state.seen.isEmpty) = true := by
   native_decide
 
 end Examples
