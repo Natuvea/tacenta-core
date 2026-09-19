@@ -58,4 +58,82 @@ structure SessionRefines (view : DhView) (K : Model.Braid.Kem)
   pendingInitial : real.pending_initial.map (pendingInitialOf view) = model.pendingInitial
   establishedEphemeral : real.established_ephemeral.map vecOf = model.establishedEphemeral
 
+/-! ## Primitive oracle agreement
+
+The lifecycle model has nine primitive functions.  Each clause below names
+the complete translated argument list.  Randomness is one ordered trace:
+`random_secret`, KEM encapsulation and signing must each consume exactly its
+head and return a state interpreted by the tail. -/
+
+def arrayOf {n : Usize} (a : Array Std.U8 n) : Bytes :=
+  a.val.map Tacenta.SessionUnitBraidT3.u8
+
+def sliceOf (s : Slice Std.U8) : Bytes :=
+  s.val.map Tacenta.SessionUnitBraidT3.u8
+
+structure KemView where
+  keyPair : tacenta_boundary.kem.KeyPair → Bytes
+
+def resultOptionOf {A B : Type} (f : A → B) : core.result.Result A Unit → Option B
+  | .Ok value => some (f value)
+  | .Err _ => none
+
+def verified : core.result.Result Unit Unit → Bool
+  | .Ok _ => true
+  | .Err _ => false
+
+def encapsulationOf :
+    core.result.Result (alloc.vec.Vec Std.U8 × Array Std.U8 32#usize) Unit →
+      Option (Bytes × Model.Lifecycle.Key) :=
+  resultOptionOf (fun value => (vecOf value.1, arrayOf value.2))
+
+/-- Agreement between all nine translated primitive calls and one executable
+model oracle.  `trace` interprets the threaded RNG state; the three random
+clauses make call order observable rather than allowing a fresh existential
+draw at each call. -/
+structure OracleOf {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (dh : DhView) (kem : KemView) (trace : R → List Model.Lifecycle.Key)
+    (oracle : Model.Lifecycle.Oracle) : Prop where
+  dhPublic : ∀ secret,
+    ∃ publicKey, tacenta_boundary.dh.PrivateKey.public_key secret = ok publicKey ∧
+      dh.publicKey publicKey = oracle.dhPublic (dh.privateKey secret)
+  dhAgree : ∀ secret publicKey,
+    ∃ result, tacenta_boundary.dh.PrivateKey.agree secret publicKey = ok result ∧
+      result.map arrayOf = oracle.dhAgree (dh.privateKey secret) (dh.publicKey publicKey)
+  aeadSeal : ∀ key1 key2 iv ad plaintext,
+    ∃ ciphertext,
+      tacenta_boundary.aead.encrypt key1 key2 iv ad plaintext = ok ciphertext ∧
+      vecOf ciphertext = oracle.aeadSeal (arrayOf key1) (arrayOf key2)
+        (arrayOf iv) (sliceOf ad) (sliceOf plaintext)
+  aeadOpen : ∀ key1 key2 iv ad ciphertext,
+    ∃ result,
+      tacenta_boundary.aead.decrypt key1 key2 iv ad ciphertext = ok result ∧
+      resultOptionOf vecOf result = oracle.aeadOpen (arrayOf key1) (arrayOf key2)
+        (arrayOf iv) (sliceOf ad) (sliceOf ciphertext)
+  kemEncapsulate : ∀ publicKey rng draw rest, trace rng = draw :: rest →
+    ∃ result rng',
+      tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng = ok (result, rng') ∧
+      trace rng' = rest ∧
+      encapsulationOf result = oracle.kemEncaps (sliceOf publicKey) draw
+  kemDecapsulate : ∀ keyPair ciphertext,
+    ∃ result,
+      tacenta_boundary.kem.decapsulate keyPair ciphertext = ok result ∧
+      resultOptionOf arrayOf result =
+        oracle.kemDecaps (kem.keyPair keyPair) (sliceOf ciphertext)
+  sigVerify : ∀ publicKey message signature,
+    ∃ result,
+      tacenta_boundary.xeddsa.verify publicKey message signature = ok result ∧
+      verified result = oracle.sigVerify (dh.publicKey publicKey)
+        (sliceOf message) (arrayOf signature)
+  sigSign : ∀ secret message rng draw rest, trace rng = draw :: rest →
+    ∃ signature rng',
+      tacenta_boundary.xeddsa.sign rngCore cryptoRng secret message rng = ok (signature, rng') ∧
+      trace rng' = rest ∧
+      arrayOf signature = oracle.sigSign (arrayOf secret) (sliceOf message) draw
+  random32 : ∀ rng draw rest, trace rng = draw :: rest →
+    ∃ value rng',
+      lifecycle.random_secret rngCore cryptoRng rng = ok (value, rng') ∧
+      arrayOf value = draw ∧ trace rng' = rest
+
 end Tacenta.UnitLifecycleT3
