@@ -7,7 +7,7 @@ src="translation/Translation/UnitSatisfiabilitySession.lean"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT INT TERM
 
-# Rename one witness while leaving the ten-contract coverage theorem intact.
+# Rename one witness while leaving the twelve-contract coverage theorem intact.
 # The copy must stop elaborating at the missing name.
 python3 - "$src" "$tmp/UnitSatisfiabilitySessionMissingWitness.lean" <<'PY'
 from pathlib import Path

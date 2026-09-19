@@ -208,13 +208,26 @@ theorem message_key_material_round_trip_satisfiable :
   refine ⟨(fun Z => Z), (fun t => ok t), (fun t => ok t), ?_⟩
   simp [MessageKeyMaterialRoundTripShape]
 
+abbrev VecPopFn := {T : Type} → alloc.vec.Vec T →
+  Result (Option T × alloc.vec.Vec T)
+
+def VecPopShape (f : VecPopFn) : Prop :=
+  ∀ (T : Type) (v : alloc.vec.Vec T), Np (f v)
+
+theorem VecPopTotal_is : Tacenta.UnitLifecycleT1.VecPopTotal ↔
+    VecPopShape (fun {T} v => alloc.vec.Vec.pop Global v) := Iff.rfl
+
+theorem vec_pop_satisfiable : ∃ f : VecPopFn, VecPopShape f := by
+  refine ⟨(fun {T} v => ok (none, v)), ?_⟩
+  simp [VecPopShape, Np]
+
 /-! ## Coverage
 
 This conjunction is intentionally repetitive.  It makes the module depend on
-all eleven named witnesses, so deleting one witness makes the kernel build fail
+all twelve named witnesses, so deleting one witness makes the kernel build fail
 instead of silently reducing the recorded assumption coverage. -/
 
-theorem all_eleven_contracts_satisfiable :
+theorem all_twelve_contracts_satisfiable :
     (∃ (D P : Type) (W : Type → Type)
       (privateFromBytes : DhPrivateFromBytesFn D)
       (publicKey : DhPublicFn D P)
@@ -235,11 +248,13 @@ theorem all_eleven_contracts_satisfiable :
     (∃ (R : Type) (rc : rand_core_1.RngCore R), Random32Shape rc) ∧
     (∃ (W : Type → Type) (new : MessageKeyMaterialNewFn W)
       (deref : MessageKeyMaterialDerefFn W),
-      MessageKeyMaterialRoundTripShape W new deref) :=
+      MessageKeyMaterialRoundTripShape W new deref) ∧
+    (∃ f : VecPopFn, VecPopShape f) :=
   ⟨dh_codec_satisfiable, dh_agree_satisfiable,
     aead_seal_bounded_satisfiable, aead_open_satisfiable, kem_encapsulate_satisfiable,
     kem_decapsulate_satisfiable, kem_ciphertext_len_satisfiable,
     xeddsa_verify_satisfiable, xeddsa_sign_satisfiable,
-    random32_satisfiable, message_key_material_round_trip_satisfiable⟩
+    random32_satisfiable, message_key_material_round_trip_satisfiable,
+    vec_pop_satisfiable⟩
 
 end Tacenta.UnitSatisfiabilitySession
