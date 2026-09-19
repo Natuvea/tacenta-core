@@ -33,6 +33,9 @@ pub mod sessions {
 use crate::primitives::{dh, xeddsa};
 use zeroize::Zeroizing;
 
+// Explicit matches keep the translation boundary free of opaque `Try::branch`
+// calls. Clippy prefers `?`, but that form is intentionally not used here.
+#[allow(clippy::question_mark)]
 mod lifecycle;
 pub use lifecycle::{
     Error as LifecycleError, Identity, PrekeyStore, PrekeyStoreDecodeError, PublicState,
