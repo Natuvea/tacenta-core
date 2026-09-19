@@ -1,15 +1,25 @@
 # Changelog
 
+All notable changes to the specification. Format: Keep a Changelog; the version
+is SemVer against the specified protocol (not the implementation).
+
+## [Unreleased]
+
 - `security-properties/evidence-index.json`: migrated `REQ-FS-01` through
   `REQ-FS-06` and `REQ-PCS-01` through `REQ-PCS-03` into the checked evidence
   index, completing coverage for all 32 security-property requirements. The
   traceability checker now fails if any requirement lacks an evidence-index
   entry, and its case runner includes a missing-entry negative control.
 
-All notable changes to the specification. Format: Keep a Changelog; the version
-is SemVer against the specified protocol (not the implementation).
-
-## [Unreleased]
+- `protocol/triple-ratchet.md` and `protocol/session-establishment.md`: make
+  the session transaction boundary explicit for end-to-end refinement. The
+  agreement runs before the Triple Ratchet and both next states commit
+  together after a successful send, except that an agreement send entering
+  `Failed` commits that terminal state. Responder establishment treats the
+  prekey store as read-only until the inner message authenticates; every
+  refusal leaves it unchanged, and success performs only the specified
+  one-time-key removals and, on the last-resort path, replay-record append.
+  Register row `E2E-07`.
 
 - `tacenta-core`: the classical and sparse ratchets’ secret-bearing working
   copies and removal paths now allocate at their final capacity and wipe dead
