@@ -418,7 +418,7 @@ fn receive_with_eviction(
         if evicted == 0 {
             outcome = Some(Err(pending));
         } else {
-            batch = batch.saturating_mul(2);
+            batch = batch.saturating_add(batch);
             match receive_attempt(
                 &work,
                 header,
