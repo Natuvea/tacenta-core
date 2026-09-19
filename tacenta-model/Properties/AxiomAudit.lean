@@ -25,6 +25,7 @@ import Model.Types
 import Properties.Authentication
 import Properties.ForwardSecrecy
 import Properties.Invariants
+import Properties.Lifecycle
 import Properties.PostCompromise
 import Properties.Secrecy
 import Properties.StateConsistency
