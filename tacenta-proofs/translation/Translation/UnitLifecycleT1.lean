@@ -1,5 +1,6 @@
 import Translation.TacentaSessionUnit
 import Translation.SessionUnitSessionT1
+import Translation.SessionUnitWireT1
 
 /-!
 # Session lifecycle primitive boundary
@@ -134,5 +135,73 @@ theorem identity_ad_no_panic (hdh : DhCodecTotal)
   change v.val.length + v1.val.length ≤ Usize.max
   rw [v_post, v1_post]
   exact Tacenta.SessionUnitSessionT1.small_le_usize_max (by omega)
+
+@[step]
+theorem message_type_no_panic (bytes : Slice U8) :
+    serialization.message_type bytes ⦃ fun _ => True ⦄ := by
+  unfold serialization.message_type
+  step*
+
+@[step]
+theorem decode_initial_no_panic (bytes : Slice U8) :
+    tacenta_wire.decode_initial bytes ⦃ fun _ => True ⦄ :=
+  Tacenta.SessionUnitWireT1.decode_initial_no_panic bytes
+
+@[step]
+theorem decode_message_no_panic (bytes : Slice U8) :
+    tacenta_wire.decode_message bytes ⦃ fun _ => True ⦄ :=
+  Tacenta.SessionUnitWireT1.decode_message_no_panic bytes
+
+@[step]
+theorem agreement_type_to_byte_no_panic (t : tacenta_wire.AgreementType) :
+    tacenta_wire.AgreementType.to_byte t ⦃ fun _ => True ⦄ := by
+  rcases t with _ | _ | _ | _ | _ | _ <;>
+    simp [tacenta_wire.AgreementType.to_byte]
+
+@[step]
+theorem encode_composite_no_panic (h : tacenta_wire.Composite) :
+    tacenta_wire.encode_composite h ⦃ fun out => out.val.length = 102 ⦄ := by
+  unfold tacenta_wire.encode_composite
+  step*
+  all_goals
+    simp_all [alloc.vec.Vec.with_capacity, Array.repeat] <;>
+      try (have hmax : 102 ≤ Usize.max :=
+        Tacenta.SessionUnitSessionT1.small_le_usize_max (by omega); omega)
+
+@[step]
+theorem concat_ad_no_panic (ad : Slice U8) (header : tacenta_wire.Composite)
+    (hroom : ad.val.length + 106 ≤ Usize.max) :
+    serialization.concat_ad ad header ⦃ fun out =>
+      out.val.length = ad.val.length + 106 ⦄ := by
+  unfold serialization.concat_ad
+  step with encode_composite_no_panic header
+  have hencoded : encoded.deref.val.length = 102 := by
+    change encoded.val.length = 102
+    exact encoded_post
+  step*
+  all_goals (simp_all [alloc.vec.Vec.with_capacity]; omega)
+
+@[step]
+theorem encode_message_no_panic (header : tacenta_wire.Composite)
+    (ciphertext : Slice U8)
+    (hroom : 102 + ciphertext.val.length ≤ Usize.max) :
+    serialization.encode_message header ciphertext ⦃ fun out =>
+      out.val.length = 102 + ciphertext.val.length ⦄ := by
+  unfold serialization.encode_message
+  step*
+
+@[step]
+theorem encode_initial_no_panic
+    (identity ephemeral kemCiphertext message : Slice U8)
+    (signedPrekeyId oneTimePrekeyId kemPrekeyId : U32)
+    (hroom : identity.val.length + ephemeral.val.length
+      + kemCiphertext.val.length + message.val.length + 18 ≤ Usize.max) :
+    serialization.encode_initial identity ephemeral kemCiphertext signedPrekeyId
+      oneTimePrekeyId kemPrekeyId message ⦃ fun out =>
+        out.val.length = identity.val.length + ephemeral.val.length
+          + kemCiphertext.val.length + message.val.length + 18 ⦄ := by
+  unfold serialization.encode_initial
+  step*
+  all_goals (simp_all; omega)
 
 end Tacenta.UnitLifecycleT1
