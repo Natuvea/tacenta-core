@@ -207,6 +207,125 @@ theorem msg_type_of_refines (wire : tacenta_wire.AgreementType) :
     simp [lifecycle.msg_type_of, Model.Lifecycle.braidTypeOf,
       Tacenta.SessionUnitBraidT3.MsgTypeRefines, agreementTypeOf]
 
+theorem uint32_ofNat_toNat_of_u32 (real : Std.U32) (value : Nat)
+    (h : real.val = value) : (UInt32.ofNat value).toNat = real.val := by
+  rw [UInt32.toNat_ofNat', ← h, Nat.mod_eq_of_lt]
+  have hbound := UScalar.hrBounds real
+  simp [UScalar.rMax, U32.rMax] at hbound
+  omega
+
+theorem uint64_ofNat_toNat_of_u64 (real : Std.U64) (value : Nat)
+    (h : real.val = value) : (UInt64.ofNat value).toNat = real.val := by
+  rw [UInt64.toNat_ofNat', ← h, Nat.mod_eq_of_lt]
+  have hbound := UScalar.hrBounds real
+  simp [UScalar.rMax, U64.rMax] at hbound
+  omega
+
+theorem uint16_ofNat_toNat_of_u16 (real : Std.U16) (value : Nat)
+    (h : real.val = value) : (UInt16.ofNat value).toNat = real.val := by
+  rw [UInt16.toNat_ofNat', ← h, Nat.mod_eq_of_lt]
+  have hbound := UScalar.hrBounds real
+  simp [UScalar.rMax, U16.rMax] at hbound
+  omega
+
+theorem codeword_send_refines (view : Model.Lifecycle.CodewordView)
+    (state : Model.Braid.BraidState) (real : tacenta_erasure.Chunk)
+    (model : Model.Braid.Chunk)
+    (hindex : real.index.val = model.index)
+    (hcodeword : Tacenta.SessionUnitBraidT3.CodewordOf model.source real)
+    (hview : CodewordViewOf view) :
+    WireCodewordRefines { index := real.index, data := real.data }
+      (view.send state model) := by
+  have hmodel : modelChunkOf model.source real = model := by
+    cases model
+    simp [modelChunkOf, hindex]
+  rw [← hmodel, hview.send state model.source real hcodeword]
+  exact ⟨(uint16_ofNat_toNat_of_u16 real.index real.index.val rfl).symm, rfl⟩
+
+/-- The translated header constructor agrees with the lifecycle model's wire
+header.  The codeword bytes are fixed by the honest Braid chunk relation and
+the shared `CodewordViewOf`, rather than chosen independently here. -/
+theorem composite_of_refines (view : Model.Lifecycle.CodewordView)
+    (braidBefore : Model.Braid.BraidState)
+    (realHeader : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (realMessage : tacenta_braid.Msg) (modelMessage : Model.Braid.Msg)
+    (hheader : Tacenta.SessionUnitTripleT3.TripleHeaderR realHeader modelHeader)
+    (hmessage : Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage)
+    (hview : CodewordViewOf view) :
+    ∃ realComposite modelComposite,
+      lifecycle.composite_of realHeader realMessage = ok realComposite ∧
+      Model.Lifecycle.compositeOf view braidBefore modelHeader modelMessage =
+        some modelComposite ∧
+      CompositeRefines realComposite modelComposite := by
+  rcases hheader with ⟨⟨hdh, hpn, hn⟩, hpqEpoch, hpqN⟩
+  have hpn' := (uint32_ofNat_toNat_of_u32 realHeader.dr.pn modelHeader.dr.pn hpn).symm
+  have hn' := (uint32_ofNat_toNat_of_u32 realHeader.dr.n modelHeader.dr.n hn).symm
+  have hpqEpoch' :=
+    (uint64_ofNat_toNat_of_u64 realHeader.epoch modelHeader.epoch hpqEpoch).symm
+  have hpqN' :=
+    (uint64_ofNat_toNat_of_u64 realHeader.pq_n modelHeader.pqN hpqN).symm
+  rcases hmessage with ⟨hepoch, htype, hdata⟩
+  obtain ⟨wireType, hrealType, hmodelType⟩ :=
+    agreement_type_of_refines realMessage.ty modelMessage.type htype
+  have hepoch' :=
+    (uint64_ofNat_toNat_of_u64 realMessage.epoch modelMessage.epoch hepoch).symm
+  let realComposite : tacenta_wire.Composite :=
+    { dh := realHeader.dr.dh
+      pn := realHeader.dr.pn
+      n := realHeader.dr.n
+      pq_epoch := realHeader.epoch
+      pq_n := realHeader.pq_n
+      ag_epoch := realMessage.epoch
+      ag_type := wireType
+      ag_chunk := realMessage.data.map
+        (fun chunk => { index := chunk.index, data := chunk.data }) }
+  let modelComposite : Model.CompositeHeader.Composite :=
+    { dh := modelHeader.dr.dh
+      pn := UInt32.ofNat modelHeader.dr.pn
+      n := UInt32.ofNat modelHeader.dr.n
+      pqEpoch := UInt64.ofNat modelHeader.epoch
+      pqN := UInt64.ofNat modelHeader.pqN
+      agEpoch := UInt64.ofNat modelMessage.epoch
+      agType := agreementTypeOf wireType
+      agChunk := modelMessage.data.map (view.send braidBefore) }
+  refine ⟨realComposite, modelComposite, ?_, ?_, ?_⟩
+  · unfold lifecycle.composite_of
+    rw [hrealType]
+    cases hr : realMessage.data <;> simp [realComposite, hr]
+  · simp [Model.Lifecycle.compositeOf, hmodelType, modelComposite]
+  · cases hr : realMessage.data with
+    | none =>
+        cases hm : modelMessage.data with
+        | none =>
+            refine ⟨hdh, hpn', hn', hpqEpoch', hpqN', hepoch', rfl, ?_⟩
+            simp [realComposite, modelComposite, hr, hm]
+        | some modelChunk => simp [hr, hm] at hdata
+    | some realChunk =>
+        cases hm : modelMessage.data with
+        | none => simp [hr, hm] at hdata
+        | some modelChunk =>
+            simp [hr, hm] at hdata
+            refine ⟨hdh, hpn', hn', hpqEpoch', hpqN', hepoch', rfl, ?_⟩
+            simpa [realComposite, modelComposite, hr, hm] using
+              (codeword_send_refines view braidBefore realChunk modelChunk
+                hdata.1 hdata.2 hview)
+
+/-- Splitting a received composite header for the Triple ratchet preserves all
+five wire fields exactly. -/
+theorem triple_header_of_refines (real : tacenta_wire.Composite)
+    (model : Model.CompositeHeader.Composite)
+    (hrel : CompositeRefines real model) :
+    ∃ header,
+      lifecycle.triple_header_of real = ok header ∧
+      Tacenta.SessionUnitTripleT3.TripleHeaderR header
+        (Model.Lifecycle.tripleHeaderOf model) := by
+  let header : tacenta_triple.Header :=
+    { dr := { dh := real.dh, pn := real.pn, n := real.n }
+      epoch := real.pq_epoch
+      pq_n := real.pq_n }
+  refine ⟨header, rfl, ?_⟩
+  exact ⟨⟨hrel.dh, hrel.pn, hrel.n⟩, hrel.pqEpoch, hrel.pqN⟩
+
 /-! ## Public refusal correspondence
 
 Every concrete shipping `Err` has one public model refusal.  Keeping this as
