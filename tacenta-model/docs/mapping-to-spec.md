@@ -152,3 +152,19 @@ Session establishment is modelled: PQXDH is in
 shipped Rust (`Translation/SessionT3.lean`). The mapping rows above cover the
 Double Ratchet slice; the session-establishment and post-quantum rows are not
 written yet, which is a gap in *this page* rather than in the model.
+
+## Session lifecycle (in progress)
+
+Source pages: `tacenta-spec/protocol/session-establishment.md`,
+`triple-ratchet.md`, `message-format.md`, `key-deletion.md` and
+`error-handling.md`.
+
+| Spec section | Model definition | File |
+|---|---|---|
+| Primitive calls delegated by the session algorithms; ordered caller randomness | `Oracle`, `takeDraw` | `Model/Lifecycle.lean` |
+
+The oracle is modelling machinery rather than a cryptographic primitive claim.
+Each function records the complete argument list of the corresponding boundary
+call, and each random operation consumes the head of `draws`. Lifecycle
+transition rows will be added here with the operations; until then this section
+does not claim that session orchestration is modelled.

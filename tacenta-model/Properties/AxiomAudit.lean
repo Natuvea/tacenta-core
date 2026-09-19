@@ -5,6 +5,7 @@ import Model.CompositeHeader
 import Model.Erasure
 import Model.Gf65536
 import Model.Kdf
+import Model.Lifecycle
 import Model.Messages
 import Model.MultiDevice
 import Model.PersistedState
