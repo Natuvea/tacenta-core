@@ -223,4 +223,41 @@ theorem refusalOf_ne_ceiling (reason : lifecycle.Error) :
     refusalOf reason ≠ .ceiling := by
   cases reason <;> simp [refusalOf]
 
+/-! ## Lifecycle observations -/
+
+theorem braid_failed_refines (K : Model.Braid.Kem)
+    (real : tacenta_braid.Braid) (model : Model.Braid.BraidState)
+    (hrel : Tacenta.SessionUnitBraidT3.StateRefines K real.state model) :
+    tacenta_braid.Braid.failed real = ok (Model.Lifecycle.braidFailed model) := by
+  cases hr : real.state <;> cases hm : model <;>
+    simp [tacenta_braid.Braid.failed, Model.Lifecycle.braidFailed,
+      Tacenta.SessionUnitBraidT3.StateRefines, hr, hm] at hrel ⊢
+
+/-- The first `encrypt` refusal branch agrees exactly: a terminal Braid returns
+`AgreementFailed`, leaves the complete Session and RNG untouched, and performs
+no primitive call. -/
+theorem encrypt_terminal_guard_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (dh : DhView) (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
+    (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)
+    (model : Model.Lifecycle.Session) (plaintext : Slice Std.U8) (rng : R)
+    (hrel : SessionRefines dh K real model)
+    (hfailed : Model.Lifecycle.agreementFailed model = true) :
+    lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng =
+        ok (.Err lifecycle.Error.AgreementFailed, real, rng) ∧
+      Model.Lifecycle.encrypt view oracle model (sliceOf plaintext) =
+        { session := model, result := .error .agreementFailed, oracle := oracle } := by
+  have hm : model.braid = .failed :=
+    (Model.Lifecycle.agreementFailed_iff model).mp hfailed
+  have hbraid := braid_failed_refines K real.braid model.braid hrel.braid
+  have hbf : Model.Lifecycle.braidFailed model.braid = true :=
+    (Model.Lifecycle.braidFailed_iff model.braid).2 hm
+  rw [hbf] at hbraid
+  constructor
+  · unfold lifecycle.Session.encrypt
+    rw [hbraid]
+    simp
+  · exact Model.Lifecycle.encrypt_terminal_guard view oracle model
+      (sliceOf plaintext) hfailed
+
 end Tacenta.UnitLifecycleT3
