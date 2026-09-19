@@ -109,10 +109,17 @@ persisted states.
 
 A malformed request is an error and stops the run, rather than an answer that
 could be mistaken for the model's.
+
+The Session schedule's byte decoder and model-side transcript are also fixed
+in this file. They are not yet exposed as a CLI request: relating a serialized
+shipping Session to the operational Braid model requires the translated
+Session unit. `runSession` takes that already-related operational start state,
+so Phase 5 can add the Rust half without changing the action language.
 -/
 import Model.PersistedState
 import Model.PrekeyOperations
 import Model.SessionOperations
+import Model.LifecycleTrace
 import Model.Ratchet
 import Model.SparseRatchet
 
@@ -225,6 +232,107 @@ def decodeSparseSteps : Nat → Bytes → Option (List SparseStep)
             (decodeSparseSteps fuel (rest.drop 57)).map
               (SparseStep.receive e out (beValue (slice rest 49 8)) :: ·)
         else none
+
+/-! ## Session schedule operations
+
+The model-side schedule encoding is fixed here before the Rust generator is
+added. Identifiers and lengths are four-byte big-endian naturals.
+
+* `00|01 || id || len || plaintext`: Alice/Bob send.
+* `02|03 || id`: Alice/Bob receive the named queued message.
+* `04|05|06 || id`: drop, replay, or move the named message to the front.
+* `07 || id || offset || value`: replace one queued byte.
+* `08|09`: force Alice/Bob's agreement into terminal failure.
+-/
+
+abbrev SessionStep := Model.LifecycleTrace.Action
+
+def decodeSessionSteps : Nat → Bytes → Option (List SessionStep)
+  | _, [] => some []
+  | 0, _ => none
+  | fuel + 1, op :: rest =>
+      if op == 0x00 || op == 0x01 then
+        if rest.length < 8 then none
+        else
+          let id := beValue (slice rest 0 4)
+          let len := beValue (slice rest 4 4)
+          if rest.length < 8 + len then none
+          else
+            let side := if op == 0x00 then Model.LifecycleTrace.Side.alice
+              else Model.LifecycleTrace.Side.bob
+            (decodeSessionSteps fuel (rest.drop (8 + len))).map
+              (Model.LifecycleTrace.Action.send side id (slice rest 8 len) :: ·)
+      else if op == 0x02 || op == 0x03 then
+        if rest.length < 4 then none
+        else
+          let side := if op == 0x02 then Model.LifecycleTrace.Side.alice
+            else Model.LifecycleTrace.Side.bob
+          (decodeSessionSteps fuel (rest.drop 4)).map
+            (Model.LifecycleTrace.Action.receive side (beValue (slice rest 0 4)) :: ·)
+      else if op == 0x04 || op == 0x05 || op == 0x06 then
+        if rest.length < 4 then none
+        else
+          let id := beValue (slice rest 0 4)
+          let action := if op == 0x04 then Model.LifecycleTrace.Action.drop id
+            else if op == 0x05 then Model.LifecycleTrace.Action.replay id
+            else Model.LifecycleTrace.Action.reorderFirst id
+          (decodeSessionSteps fuel (rest.drop 4)).map (action :: ·)
+      else if op == 0x07 then
+        if rest.length < 9 then none
+        else
+          (decodeSessionSteps fuel (rest.drop 9)).map
+            (Model.LifecycleTrace.Action.forge (beValue (slice rest 0 4))
+              (beValue (slice rest 4 4)) (rest.getD 8 0) :: ·)
+      else if op == 0x08 then
+        (decodeSessionSteps fuel rest).map
+          (Model.LifecycleTrace.Action.failAgreement .alice :: ·)
+      else if op == 0x09 then
+        (decodeSessionSteps fuel rest).map
+          (Model.LifecycleTrace.Action.failAgreement .bob :: ·)
+      else none
+
+example :
+    decodeSessionSteps 11
+      [0x00, 0, 0, 0, 1, 0, 0, 0, 2, 0xaa, 0xbb] =
+      some [.send .alice 1 [0xaa, 0xbb]] := by
+  native_decide
+
+example :
+    decodeSessionSteps 10
+      [0x00, 0, 0, 0, 1, 0, 0, 0, 2, 0xaa] = none := by
+  native_decide
+
+def lifecycleRefusalName (reason : Model.Lifecycle.Refusal) : String :=
+  toString (repr reason)
+
+def sessionOutcomeLine (index : Nat) : Model.LifecycleTrace.Outcome → String
+  | .sent id bytes =>
+      "step " ++ toString index ++ " sent " ++ toString id ++ " " ++ toHex bytes
+  | .delivered id plaintext =>
+      "step " ++ toString index ++ " delivered " ++ toString id ++ " " ++ toHex plaintext
+  | .refused id reason =>
+      "step " ++ toString index ++ " refused " ++ toString id ++ " " ++
+        lifecycleRefusalName reason
+  | .dropped id => "step " ++ toString index ++ " dropped " ++ toString id
+  | .replayed id => "step " ++ toString index ++ " replayed " ++ toString id
+  | .reordered id => "step " ++ toString index ++ " reordered " ++ toString id
+  | .forged id => "step " ++ toString index ++ " forged " ++ toString id
+  | .missing id => "step " ++ toString index ++ " missing " ++ toString id
+  | .agreementFailed side =>
+      "step " ++ toString index ++ " agreement-failed " ++ toString (repr side)
+
+/-- Run already-decoded Session state through the differential schedule. The
+    CLI start-state relation is added with the translated Session unit; this
+    function fixes the model algorithm and transcript now. -/
+def runSession (view : Model.Lifecycle.CodewordView)
+    (start : Model.LifecycleTrace.State) (steps : Bytes) :
+    Except String (Model.LifecycleTrace.State × List String) :=
+  match decodeSessionSteps steps.length steps with
+  | none => .error "difftest: the session steps are not a whole number of operations"
+  | some actions =>
+      let result := Model.LifecycleTrace.run view start actions
+      .ok (result.1, (result.2.zipIdx.map fun (outcome, index) =>
+        sessionOutcomeLine index outcome) ++ ["end"])
 
 /-! ## Running one operation
 
