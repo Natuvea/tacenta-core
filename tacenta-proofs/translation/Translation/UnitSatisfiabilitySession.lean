@@ -87,6 +87,19 @@ theorem AeadSealTotal_is : Tacenta.UnitLifecycleT1.AeadSealTotal ↔
 theorem aead_seal_satisfiable : ∃ f : AeadSealFn, AeadSealShape f :=
   ⟨fun _ _ _ _ _ => ok (alloc.vec.Vec.new U8), by simp [AeadSealShape, Np]⟩
 
+def AeadSealBoundedShape (f : AeadSealFn) : Prop :=
+  ∀ ek mk iv plaintext ad, ∃ r,
+    f ek mk iv plaintext ad = ok r ∧
+    r.val.length ≤ plaintext.val.length + 16
+
+theorem AeadSealBounded_is : Tacenta.UnitLifecycleT1.AeadSealBounded ↔
+    AeadSealBoundedShape tacenta_boundary.aead.encrypt := Iff.rfl
+
+theorem aead_seal_bounded_satisfiable :
+    ∃ f : AeadSealFn, AeadSealBoundedShape f := by
+  refine ⟨fun _ _ _ _ _ => ok (alloc.vec.Vec.new U8), ?_⟩
+  simp [AeadSealBoundedShape]
+
 abbrev AeadOpenFn := Array U8 32#usize → Array U8 32#usize →
   Array U8 16#usize → Slice U8 → Slice U8 →
     Result (core.result.Result (alloc.vec.Vec U8) tacenta_boundary.aead.DecryptError)
@@ -206,10 +219,10 @@ theorem message_key_material_round_trip_satisfiable :
 /-! ## Coverage
 
 This conjunction is intentionally repetitive.  It makes the module depend on
-all eleven named witnesses, so deleting one witness makes the kernel build fail
+all twelve named witnesses, so deleting one witness makes the kernel build fail
 instead of silently reducing the recorded assumption coverage. -/
 
-theorem all_eleven_contracts_satisfiable :
+theorem all_twelve_contracts_satisfiable :
     (∃ (D P : Type) (W : Type → Type)
       (privateFromBytes : DhPrivateFromBytesFn D)
       (publicKey : DhPublicFn D P)
@@ -221,6 +234,7 @@ theorem all_eleven_contracts_satisfiable :
         publicFromBytes publicAsBytes eq) ∧
     (∃ (D P : Type) (f : DhAgreeFn D P), DhAgreeShape f) ∧
     (∃ f : AeadSealFn, AeadSealShape f) ∧
+    (∃ f : AeadSealFn, AeadSealBoundedShape f) ∧
     (∃ f : AeadOpenFn, AeadOpenShape f) ∧
     (∃ f : KemEncapsulateFn, KemEncapsulateShape f) ∧
     (∃ (K : Type) (f : KemDecapsulateFn K), KemDecapsulateShape f) ∧
@@ -232,7 +246,7 @@ theorem all_eleven_contracts_satisfiable :
       (deref : MessageKeyMaterialDerefFn W),
       MessageKeyMaterialRoundTripShape W new deref) :=
   ⟨dh_codec_satisfiable, dh_agree_satisfiable, aead_seal_satisfiable,
-    aead_open_satisfiable, kem_encapsulate_satisfiable,
+    aead_seal_bounded_satisfiable, aead_open_satisfiable, kem_encapsulate_satisfiable,
     kem_decapsulate_satisfiable, kem_ciphertext_len_satisfiable,
     xeddsa_verify_satisfiable, xeddsa_sign_satisfiable,
     random32_satisfiable, message_key_material_round_trip_satisfiable⟩

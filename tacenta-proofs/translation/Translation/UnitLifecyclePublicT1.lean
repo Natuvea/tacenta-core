@@ -201,4 +201,170 @@ theorem decrypt_ratchet_no_panic {R : Type}
       all_goals split <;> simp
     · simp
 
+
+open Aeneas Aeneas.Std Result
+open tacenta_session_unit
+
+structure BraidSendContracts {R : Type} (rc : rand_core_1.RngCore R) : Prop where
+  rng : Tacenta.SessionUnitBraidT1.RngTotal rc
+  encoderClone : Tacenta.SessionUnitBraidT1.EncoderCloneTotal
+  decoderClone : Tacenta.SessionUnitBraidT1.DecoderCloneTotal
+  keyPairClone : Tacenta.SessionUnitBraidT1.KeyPairCloneTotal
+  encapsStateClone : Tacenta.SessionUnitBraidT1.EncapsStateCloneTotal
+  keyPairGenerate : Tacenta.SessionUnitBraidT1.KeyPairGenerateTotal
+  keyPairHeader : Tacenta.SessionUnitBraidT1.KeyPairHeaderTotal
+  hmac : Tacenta.SessionUnitBraidT1.HmacSha256Total
+  encoderNew : Tacenta.SessionUnitBraidT1.EncoderNewTotal
+  encoderNext : Tacenta.SessionUnitBraidT1.EncoderNextChunkTotal
+  hkdf : Tacenta.SessionUnitBraidT1.HkdfSha256Total
+  encapsulate1 : Tacenta.SessionUnitBraidT1.Encapsulate1Total
+  zeroizingArray : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip
+  arrayZeroize : Tacenta.SessionUnitBraidT1.ArrayZeroizeTotal
+  rangeFullIndex : Tacenta.SessionUnitBraidT1.RangeFullIndexTotal
+
+structure TripleSendContracts : Prop where
+  hmac : Tacenta.SessionUnitT1.HmacTotal
+  hkdf : Tacenta.SessionUnitT1.HkdfTotal
+  zeroize : Tacenta.SessionUnitSpqrT1.ZeroizeTotal
+  vecRetain : Tacenta.SessionUnitSpqrT1.VecRetainTotal
+  kdfRk : Tacenta.SessionUnitSpqrT1.KdfRkTotal
+  kdfCk : Tacenta.SessionUnitSpqrT1.KdfCkTotal
+  optionClone : Tacenta.SessionUnitSpqrT1.OptionCloneTotal
+
+theorem send_candidate_no_panic
+    (boundary : TripleSendContracts) (self : tacenta_triple.State)
+    (sendingEpoch : U64) (output : Option tacenta_spqr.Output)
+    (hroom : self.post_quantum.chains.val.length + 1 < Usize.max) :
+    lifecycle.send_candidate self sendingEpoch output ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.send_candidate
+  rw [Tacenta.SessionUnitTripleT1.triple_state_clone_id boundary.optionClone self]
+  rcases output with _ | o
+  · step with Tacenta.SessionUnitTripleT1.State.send_no_panic
+      boundary.hmac boundary.hkdf boundary.zeroize boundary.vecRetain
+      boundary.kdfRk boundary.kdfCk boundary.optionClone self sendingEpoch none hroom
+  · step with Tacenta.SessionUnitTripleT1.State.send_no_panic
+      boundary.hmac boundary.hkdf boundary.zeroize boundary.vecRetain
+      boundary.kdfRk boundary.kdfCk boundary.optionClone self sendingEpoch
+      (some o) hroom
+
+theorem prepare_send_candidate_no_panic
+    (boundary : TripleSendContracts) (self : tacenta_triple.State)
+    (sendingEpoch : U64) (output : Option tacenta_braid.Output)
+    (hroom : self.post_quantum.chains.val.length + 1 < Usize.max) :
+    (do
+      let spqrOutput ← match output with
+        | none => ok none
+        | some o => do
+          let o1 ← tacenta_spqr.Output.new o.key_epoch o.key
+          ok (some o1)
+      lifecycle.send_candidate self sendingEpoch spqrOutput)
+      ⦃ fun _ => True ⦄ := by
+  rcases output with _ | o
+  · simp only [Aeneas.Std.bind_tc_ok]
+    exact send_candidate_no_panic boundary self sendingEpoch none hroom
+  · simp only [tacenta_spqr.Output.new, Aeneas.Std.bind_tc_ok]
+    exact send_candidate_no_panic boundary self sendingEpoch
+      (some { key_epoch := o.key_epoch, key := o.key }) hroom
+
+def AeadSealBounded : Prop :=
+  ∀ ek mk : Array U8 32#usize, ∀ iv : Array U8 16#usize,
+    ∀ plaintext ad : Slice U8, ∃ r,
+      tacenta_boundary.aead.encrypt ek mk iv plaintext ad = ok r ∧
+      r.val.length ≤ plaintext.val.length + 16
+
+theorem aead_seal_bounded_spec (h : AeadSealBounded)
+    (ek mk : Array U8 32#usize) (iv : Array U8 16#usize)
+    (plaintext ad : Slice U8) :
+    tacenta_boundary.aead.encrypt ek mk iv plaintext ad ⦃ fun r =>
+      r.val.length ≤ plaintext.val.length + 16 ⦄ := by
+  obtain ⟨r, hr, hb⟩ := h ek mk iv plaintext ad
+  rw [hr]
+  simpa
+
+structure EncryptContracts {R : Type} (rc : rand_core_1.RngCore R) : Prop where
+  braid : BraidSendContracts rc
+  triple : TripleSendContracts
+  aeadSeal : AeadSealBounded
+  messageKeyMaterial : MessageKeyMaterialRoundTrip
+  dhCodec : DhCodecTotal
+
+structure EncryptHeadroom (self : lifecycle.Session) (plaintext : Slice U8) : Prop where
+  triple : self.triple.post_quantum.chains.val.length + 1 < Usize.max
+  associatedData : self.identity_ad.val.length + 106 ≤ Usize.max
+  ratchetMessage : 102 + (plaintext.val.length + 16) ≤ Usize.max
+  initial : match self.pending_initial with
+    | none => True
+    | some p => 33 + 33 + p.kem_ciphertext.val.length +
+        (102 + (plaintext.val.length + 16)) + 18 ≤ Usize.max
+
+set_option maxHeartbeats 800000 in
+theorem encrypt_no_panic {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (boundary : EncryptContracts rc)
+    (self : lifecycle.Session) (plaintext : Slice U8) (rng : R)
+    (headroom : EncryptHeadroom self plaintext) :
+    lifecycle.Session.encrypt rc crc self plaintext rng ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.Session.encrypt
+  step with Tacenta.SessionUnitBraidT1.Braid.failed_no_panic self.braid
+  split
+  · simp
+  · step with Tacenta.SessionUnitBraidT1.Braid.send_no_panic rc crc
+      boundary.braid.rng boundary.braid.encoderClone boundary.braid.decoderClone
+      boundary.braid.keyPairClone boundary.braid.encapsStateClone
+      boundary.braid.keyPairGenerate boundary.braid.keyPairHeader
+      boundary.braid.hmac boundary.braid.encoderNew boundary.braid.encoderNext
+      boundary.braid.hkdf boundary.braid.encapsulate1
+      boundary.braid.zeroizingArray boundary.braid.arrayZeroize
+      boundary.braid.rangeFullIndex self.braid rng
+    step with Tacenta.SessionUnitBraidT1.Braid.failed_no_panic braid_next
+    split
+    · simp
+    · rw [← Aeneas.Std.bind_assoc_eq]
+      apply Aeneas.Std.WP.spec_bind
+        (prepare_send_candidate_no_panic boundary.triple self.triple sending_epoch output
+          (EncryptHeadroom.triple headroom))
+      rintro ⟨candidate, sent⟩ _
+      change (match sent with
+        | core.result.Result.Ok value => _
+        | core.result.Result.Err error => _) ⦃ fun _ => True ⦄
+      rcases sent with value | error
+      · rcases value with ⟨header, mk⟩
+        step with composite_of_no_panic header ag_msg
+        rename_i composite
+        step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec boundary.braid.zeroizingArray mk
+        rename_i mk1 mk1_post
+        step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec mk1_post
+        step with message_keys_no_panic boundary.triple.hkdf boundary.braid.zeroizingArray
+        step with message_key_material_new_spec boundary.messageKeyMaterial
+        rename_i keys keys_post
+        step with message_key_material_deref_spec keys_post
+        step with concat_ad_no_panic self.identity_ad.deref composite
+          (EncryptHeadroom.associatedData headroom)
+        step with aead_seal_bounded_spec boundary.aeadSeal
+        step with encode_message_no_panic composite ciphertext.deref
+          (by
+            change 102 + ciphertext.val.length ≤ Usize.max
+            have h := EncryptHeadroom.ratchetMessage headroom
+            omega)
+        rcases hp : self.pending_initial with _ | p
+        · simp
+        · step with encode_ec_spec boundary.dhCodec self.our_identity_public
+          rename_i identityEncoded identityEncoded_post
+          step with encode_ec_spec boundary.dhCodec p.ephemeral_public
+          step with encode_initial_no_panic
+          change identityEncoded.val.length + v1.val.length + p.kem_ciphertext.val.length +
+            ratchet_message.val.length + 18 ≤ Usize.max
+          have hinit := EncryptHeadroom.initial headroom
+          rw [hp] at hinit
+          have hratchet : ratchet_message.val.length =
+              102 + ciphertext.val.length := by
+            change ratchet_message.val.length = 102 + ciphertext.val.length
+            exact ratchet_message_post
+          rw [identityEncoded_post, v1_post, hratchet]
+          omega
+      · change (ok (core.result.Result.Err (lifecycle.Error.Triple error), self, rng1))
+          ⦃ fun _ => True ⦄
+        simp
+
+
 end Tacenta.UnitLifecycleT1
