@@ -27,6 +27,8 @@ source, fixed before the protocol is frozen.
 | `tacenta-core` | `LAST_RESORT_HANDSHAKE_LABEL` | `tacenta last-resort handshake v2` |
 | `tacenta-core` | `GROUP_ROSTER_COMMITMENT_LABEL` | `Tacenta:group:roster-commitment:v1\xff` |
 | `tacenta-core` | `GROUP_PAYLOAD_COMMITMENT_LABEL` | `Tacenta:group:payload-commitment:v1\xff` |
+| `tacenta-core` | `INVENTORY_SIGNING_LABEL` | `Tacenta:inventory-statement:v1\xff` |
+| `tacenta-core` | `BINDING_COMMITMENT_LABEL` | `Tacenta:inventory-binding-commitment:v1\xff` |
 
 `tooling/check-labels.sh`, which `tooling/ci.sh` runs, extracts these from source
 and fails if
