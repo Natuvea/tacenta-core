@@ -56,7 +56,8 @@ PACKAGES = [
     ("tacenta-proofs", ["Proofs/AxiomAudit.lean"], ["Proofs"], []),
     ("tacenta-proofs/translation",
      ["Translation/AxiomAudit.lean", "Translation/AxiomAuditTripleUnit.lean",
-      "Translation/AxiomAuditBraidUnit.lean", "Translation/AxiomAuditLifecycle.lean"],
+      "Translation/AxiomAuditBraidUnit.lean", "Translation/AxiomAuditSessionUnit.lean",
+      "Translation/AxiomAuditLifecycle.lean"],
      ["Translation"], ["Translation.lean"]),
 ]
 FIRST_PARTY = ("Model", "Properties", "Proofs", "Translation")
@@ -169,8 +170,7 @@ for pkg, audits, subdirs, roots in PACKAGES:
         for m in missing:
             sys.stderr.write(f"    {m}\n")
         sys.stderr.write(
-            "  Add each to the audit module's imports (or, for the three-leaf unit, "
-            "to Translation/AxiomAuditTripleUnit.lean).\n")
+            "  Add each to the audit module that owns its generated-name island.\n")
     n = len(required & reached)
     total_reached += n
     summary.append(f"{pkg} {n}")

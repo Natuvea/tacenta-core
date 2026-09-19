@@ -92,6 +92,7 @@ VERIFIED_ZONES = [
     "tacenta-core/triple",
     "tacenta-core/triple-unit",
     "tacenta-core/braid-unit",
+    "tacenta-core/session-unit",
 ]
 
 # Verified zones that are *assembled*, and what from.
@@ -124,6 +125,19 @@ ASSEMBLED_ZONES = {
         "sources": [
             "tacenta-core/braid",
             "tacenta-core/erasure",
+        ],
+    },
+    "tacenta-core/session-unit": {
+        "script": "tacenta-proofs/scripts/assemble-session-unit.sh",
+        "sources": [
+            "tacenta-core/ratchet",
+            "tacenta-core/spqr",
+            "tacenta-core/triple",
+            "tacenta-core/erasure",
+            "tacenta-core/braid",
+            "tacenta-core/session",
+            "tacenta-core/wire",
+            "tacenta-core/lifecycle",
         ],
     },
 }
@@ -784,6 +798,7 @@ def check_zones_match_translation():
 ASSEMBLY_SOURCE_RES = (
     re.compile(r'#\[path = "\.\./\.\./([a-z0-9-]+)/src/lib\.rs"\]'),
     re.compile(r"\$core/([a-z0-9-]+)/src/lib\.rs"),
+    re.compile(r"assembly-source: ([a-z0-9-]+)"),
 )
 
 

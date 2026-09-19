@@ -214,6 +214,8 @@ ALLOW = {
     "tacenta-proofs/translation/Translation/AxiomAuditTripleUnit.lean": [AUDIT_CALL],
     # The Braid-and-erasure translation unit, for the same reason.
     "tacenta-proofs/translation/Translation/AxiomAuditBraidUnit.lean": [AUDIT_CALL],
+    # The lifecycle and all seven verified leaves compiled as one unit.
+    "tacenta-proofs/translation/Translation/AxiomAuditSessionUnit.lean": [AUDIT_CALL],
     "tacenta-proofs/translation/Translation/AxiomAuditLifecycle.lean": [AUDIT_CALL],
     "tacenta-model/Model/AxiomAudit.lean": [
         "import Lean",

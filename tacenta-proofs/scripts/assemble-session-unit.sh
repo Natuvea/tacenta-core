@@ -7,6 +7,14 @@
 # sparse ratchet, Triple Ratchet, erasure codec, Braid, session derivation and
 # wire codec as one Charon unit, so orchestration proofs can use the leaf bodies.
 # Nothing links against this crate and it is never published.
+# assembly-source: ratchet
+# assembly-source: spqr
+# assembly-source: triple
+# assembly-source: erasure
+# assembly-source: braid
+# assembly-source: session
+# assembly-source: wire
+# assembly-source: lifecycle
 #
 # Usage: assemble-session-unit.sh [--check]
 set -eu
