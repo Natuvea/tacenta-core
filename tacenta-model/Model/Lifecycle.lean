@@ -63,4 +63,43 @@ theorem takeDraw_keeps_dhPublic (oracle oracle' : Oracle) (draw : Key)
       simp only [takeDraw, hd, Option.some.injEq, Prod.mk.injEq] at h
       rw [← h.2]
 
+/-! ## Repeated initial recognition
+
+An established responder retains the initiator's ephemeral. An initial wrapper
+reaches the inner ratchet message exactly when that retained value and the
+stored peer identity match the wrapper byte for byte. The KEM ciphertext and
+the three prekey identifiers are deliberately absent from this predicate.
+-/
+
+abbrev Session := Model.PersistedState.SessionState.Session
+abbrev Initial := Model.Messages.Initial
+
+/-- Whether an initial wrapper is the repeat belonging to this responder
+    session (session-establishment.md, Receiving the initial message). -/
+def repeatedInitial (session : Session) (initial : Initial) : Bool :=
+  match session.establishedEphemeral with
+  | none => false
+  | some ephemeral =>
+      ephemeral == initial.ephemeral
+        && initial.identity == Model.PersistedState.SessionState.encodeEc session.peerIdentityPublic
+
+theorem repeatedInitial_iff (session : Session) (initial : Initial) :
+    repeatedInitial session initial = true ↔
+      ∃ ephemeral, session.establishedEphemeral = some ephemeral
+        ∧ ephemeral = initial.ephemeral
+        ∧ initial.identity =
+          Model.PersistedState.SessionState.encodeEc session.peerIdentityPublic := by
+  cases h : session.establishedEphemeral with
+  | none => simp [repeatedInitial, h]
+  | some ephemeral => simp [repeatedInitial, h]
+
+/-- Recognition does not inspect the KEM ciphertext, identifiers or inner
+    ratchet message. This is an intentional part of the protocol rule. -/
+theorem repeatedInitial_ignores_other_fields (session : Session) (initial : Initial)
+    (kemCiphertext ratchetMessage : Bytes) (signedPrekeyId oneTimeId kemPrekeyId : UInt32) :
+    repeatedInitial session
+      { initial with kemCiphertext, signedPrekeyId, oneTimeId, kemPrekeyId, ratchetMessage }
+      = repeatedInitial session initial := by
+  simp [repeatedInitial]
+
 end Model.Lifecycle
