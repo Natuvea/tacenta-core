@@ -166,6 +166,7 @@ Source pages: `tacenta-spec/protocol/session-establishment.md`,
 | Initial message; detailed decoder result | `DecodeRefusal`, `initialDecodeRefusal`, `decodeInitialDetailed` | `Model/Messages.lean` |
 | Ratchet message composite header; detailed decoder result | `decodeRefusal`, `decodeDetailed` | `Model/CompositeHeader.lean` |
 | Ratchet send refusal kinds retained through composition | `Ratchet.sendDetailed`, `SparseRatchet.sendDetailed`, `Triple.sendDetailed` and their `SendRefusal` types | `Model/Ratchet.lean`, `Model/SparseRatchet.lean`, `Model/Triple.lean` |
+| Sparse-ratchet receive refusal kinds and counter ceiling | `SparseRatchet.receiveDetailed`, `SparseRatchet.ReceiveRefusal`, `SparseRatchet.receiveDetailed_toOption`, `SparseRatchet.receiveDetailed_ok_iff` | `Model/SparseRatchet.lean` |
 | Error handling; required refusals, with implementation-owned error names | `RatchetRefusal`, `SparseRefusal`, `TripleRefusal`, `HandshakeRefusal`, `Refusal`, `ratchetSendRefusalOf`, `sparseSendRefusalOf`, `tripleSendRefusalOf` | `Model/Lifecycle.lean` |
 | Message type; dispatch from framing | `MessageType`, `messageType`, `messageType_initial_iff` | `Model/Lifecycle.lean` |
 | Triple/Braid composite header correspondence; erasure codeword view | `CodewordView`, `braidTypeOf`, `compositeTypeOf`, `braidMessageOf`, `tripleHeaderOf`, `compositeOf` | `Model/Lifecycle.lean` |
