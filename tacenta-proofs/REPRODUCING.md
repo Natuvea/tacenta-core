@@ -166,15 +166,15 @@ Expected tail:
 
 ```
 no-sorry: the translation and its T1/T3 proofs is complete
-translation-coverage: all 53 Translation/*.lean modules are in the build target and built
+translation-coverage: all 54 Translation/*.lean modules are in the build target and built
 attest: the axiom audit's opaque-external list matches translation-attestation.json for 11 generated modules (338 compiler-trust axioms in them, from Aeneas's toStr bound, are not externals and are listed in the build log)
 no-sorry: the model-layer proofs is complete
 no-sorry: the model and its property theorems is complete
-check-lean-constructs: 85 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 7 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
-audit-reach: the 7 audit modules, all with the same first-party prefixes, reach all 95 first-party modules (tacenta-model 30, tacenta-proofs 11, tacenta-proofs/translation 54)
+check-lean-constructs: 86 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 7 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
+audit-reach: the 7 audit modules, all with the same first-party prefixes, reach all 96 first-party modules (tacenta-model 30, tacenta-proofs 11, tacenta-proofs/translation 55)
 audit-negatives: the audit called all 13 planted cases correctly
 no-sorry: replaying the translation and its T1/T3 proofs through the kernel (leanchecker)
-no-sorry: the translation and its T1/T3 proofs replays clean (53 modules)
+no-sorry: the translation and its T1/T3 proofs replays clean (54 modules)
 no-sorry: replaying the model-layer proofs through the kernel (leanchecker)
 no-sorry: the model-layer proofs replays clean (11 modules)
 no-sorry: replaying the model and its property theorems through the kernel (leanchecker)

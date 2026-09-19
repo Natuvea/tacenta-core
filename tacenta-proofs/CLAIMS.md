@@ -724,11 +724,19 @@ Location: `Translation/ErasureT1.lean`.
   encoder state, and it needs no hypothesis at all. Pinned to `propext`,
   `Classical.choice` and `Quot.sound` alone: this crate has no opaque
   primitive of its own.
+- `Tacenta.SessionUnitErasureT1.next_chunk_no_panic` (in
+  `Translation/SessionUnitErasureT1.lean`): the count-checked Session-unit port
+  proves the same encoder statement against the complete eight-leaf generated
+  namespace.
 - `message_no_panic`: the decoder's entry point -- the one that consumes
   codewords an attacker supplies, with every index and length computed from
   what they sent -- cannot panic, given only that `Vec::truncate` returns
   (`TruncateTotal`, the one library call the translation does not see
   through). Pinned to the three kernel axioms plus that one external.
+- `Tacenta.SessionUnitErasureT1.message_no_panic` (in
+  `Translation/SessionUnitErasureT1.lean`): the count-checked Session-unit port
+  proves the same decoder statement against the complete eight-leaf generated
+  namespace.
 - `add_chunk_no_panic`, `has_message_no_panic`, `interpolate_no_panic`,
   `weights_no_panic`, `coefficients_no_panic`, `evaluate_no_panic`,
   `mul_no_panic`: the decoder's other public call, the field, and the
