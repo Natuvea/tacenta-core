@@ -19,6 +19,33 @@ def identityFrame (before after : Session) : Prop :=
     ∧ after.peerIdentityPublic = before.peerIdentityPublic
     ∧ after.establishedEphemeral = before.establishedEphemeral
 
+/-- A repeated SK-bound identity is the first last-resort refusal, even when
+    the named key's budget is also full. -/
+theorem replayed_last_resort_refused (store : PrekeyStore) (kemId : Nat)
+    (sharedSecret : Key)
+    (hReplay : store.state.seen.any
+      (fun entry => entry.2 = lastResortFingerprint sharedSecret) = true) :
+    lastResortReplayCheck store kemId sharedSecret true = .error .replayedLastResort := by
+  simp [lastResortReplayCheck, hReplay]
+
+/-- A fresh identity at a spent per-key budget is refused without producing a
+    fingerprint for later commit. -/
+theorem full_last_resort_record_refused (store : PrekeyStore) (kemId : Nat)
+    (sharedSecret : Key)
+    (hFresh : store.state.seen.any
+      (fun entry => entry.2 = lastResortFingerprint sharedSecret) = false)
+    (hFull : Model.PersistedState.PrekeyStoreState.maxLastResortSeen ≤
+      (store.state.seen.filter (fun entry => entry.1 = kemId)).length) :
+    lastResortReplayCheck store kemId sharedSecret true =
+      .error .lastResortRecordFull := by
+  simp [lastResortReplayCheck, hFresh, hFull]
+
+/-- A one-time KEM path neither consults nor modifies the replay record. -/
+theorem one_time_path_has_no_replay_record (store : PrekeyStore) (kemId : Nat)
+    (sharedSecret : Key) :
+    lastResortReplayCheck store kemId sharedSecret false = .ok none := by
+  simp [lastResortReplayCheck]
+
 /-- An initiator that still has a pending initial clears it exactly when an
     authenticated decrypt succeeds. The premise excludes a responder or an
     initiator that has already received its first reply, where `none` is not a

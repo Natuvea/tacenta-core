@@ -252,6 +252,24 @@ example :
       | _ => false) = true := by
   native_decide
 
+open Model.Lifecycle.Examples in
+/-- Once terminal failure is present, a later send is refused and the P6
+    observation remains failed. -/
+example :
+    let start : State :=
+      { alice := toyAlice toySecret
+        bob := toyBob toySecret
+        aliceOracle := toyOracle [toyAgreementDraw]
+        bobOracle := toyOracle []
+        queue := []
+        history := []
+        accepted := [] }
+    let result := run toyView start
+      [.failAgreement .alice, .send .alice 1 [0xde, 0xad]]
+    result.2 = [.agreementFailed .alice, .refused 1 .agreementFailed]
+      ∧ agreementFailed result.1.alice = true := by
+  native_decide
+
 /-! ## Projection to the earlier bounded trace
 
 The P6 trace keeps only phase and message labels. This projection makes its
