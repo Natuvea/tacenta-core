@@ -83,6 +83,13 @@ python3 scripts/check-lifecycle-translation-coverage.py \
   translation/Translation/TacentaLifecycle.lean || fail=1
 bash scripts/check-lifecycle-translation-coverage-negatives.sh || fail=1
 report_time "lifecycle public-root coverage" "$t"
+
+# Each new Session primitive contract has a non-vacuity witness, and one
+# theorem depends on all ten names.  Mutation-test that coverage so deleting a
+# witness cannot leave the package green.
+t=$SECONDS
+bash scripts/check-session-satisfiability-negatives.sh || fail=1
+report_time "Session contract satisfiability control" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as
