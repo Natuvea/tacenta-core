@@ -11,6 +11,15 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+- `protocol/triple-ratchet.md` and `protocol/session-establishment.md`: make
+  the session transaction boundary explicit for end-to-end refinement. The
+  agreement runs before the Triple Ratchet and both next states commit
+  together after a successful send, except that an agreement send entering
+  `Failed` commits that terminal state. Responder establishment treats the
+  prekey store as read-only until the inner message authenticates; every
+  refusal leaves it unchanged, and success performs only the specified
+  one-time-key removals and, on the last-resort path, replay-record append.
+
 - `tacenta-core`: the classical and sparse ratchets’ secret-bearing working
   copies and removal paths now allocate at their final capacity and wipe dead
   slots before release; sparse decoder vectors are sized from checked counts.
