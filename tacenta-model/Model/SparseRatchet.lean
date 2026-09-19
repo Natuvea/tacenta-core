@@ -478,6 +478,79 @@ where
       let rest := deriveInto stepped.1 (start + 1) c
       (rest.1, (start + 1, stepped.2) :: rest.2)
 
+inductive ReceiveRefusal where
+  | epochOutOfOrder | noChain | chainRetired | tooManySkipped
+  | skippedStoreFull | outOfOrder | chainExhausted
+  deriving Repr, DecidableEq, Inhabited
+
+/-- The sparse skip transition with the exact public refusal retained. The
+    accepted state is still produced by the established `skipMessageKeys`
+    model; the preceding guards classify every point where that model returns
+    `none`, in the shipping order. -/
+def skipMessageKeysDetailed (st : State) (e upto : Nat) : Except ReceiveRefusal State :=
+  match skipMessageKeys st e upto with
+  | some next => .ok next
+  | none =>
+      match findChains st e with
+      | none => .error .noChain
+      | some chains =>
+          match chains.receive with
+          | none => .error .chainRetired
+          | some chain =>
+              if chain.n + maxSkip < upto then .error .tooManySkipped
+              else .error .skippedStoreFull
+
+theorem skipMessageKeysDetailed_ok_iff (st : State) (e upto : Nat) (next : State) :
+    skipMessageKeysDetailed st e upto = .ok next ↔
+      skipMessageKeys st e upto = some next := by
+  unfold skipMessageKeysDetailed skipMessageKeys
+  repeat' split <;> simp_all
+
+theorem skipMessageKeysDetailed_no_chain_iff (st : State) (e upto : Nat) :
+    skipMessageKeysDetailed st e upto = .error .noChain ↔ findChains st e = none := by
+  cases hc : findChains st e with
+  | none =>
+      cases hs : skipMessageKeys st e upto with
+      | none => simp [skipMessageKeysDetailed, hs, hc]
+      | some next =>
+          unfold skipMessageKeys at hs
+          simp [hc] at hs
+  | some chains =>
+      cases hs : skipMessageKeys st e upto with
+      | some next => simp [skipMessageKeysDetailed, hs]
+      | none =>
+          simp only [skipMessageKeysDetailed, hs, hc]
+          cases hr : chains.receive with
+          | none => simp
+          | some chain =>
+              by_cases hb : chain.n + maxSkip < upto <;>
+                simp [hb]
+
+theorem skipMessageKeysDetailed_retired_iff (st : State) (e upto : Nat) :
+    skipMessageKeysDetailed st e upto = .error .chainRetired ↔
+      ∃ chains, findChains st e = some chains ∧ chains.receive = none := by
+  cases hc : findChains st e with
+  | none =>
+      cases hs : skipMessageKeys st e upto with
+      | none => simp [skipMessageKeysDetailed, hs, hc]
+      | some next =>
+          unfold skipMessageKeys at hs
+          simp [hc] at hs
+  | some chains =>
+      cases hs : skipMessageKeys st e upto with
+      | some next =>
+          cases hr : chains.receive with
+          | none =>
+              unfold skipMessageKeys at hs
+              simp [hc, hr] at hs
+          | some chain => simp [skipMessageKeysDetailed, hs, hr]
+      | none =>
+          cases hr : chains.receive with
+          | none => simp [skipMessageKeysDetailed, hs, hc, hr]
+          | some chain =>
+              simp only [skipMessageKeysDetailed, hs, hc, hr]
+              split <;> simp_all
+
 /-- Produce the message key for a received message.
 
     A stored key is tried first; only if there is none does the chain advance,
