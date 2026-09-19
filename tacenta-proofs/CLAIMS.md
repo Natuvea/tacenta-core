@@ -987,6 +987,17 @@ Location: `tacenta-proofs/translation/Translation/BraidT1.lean`.
 - `Braid.send_no_panic` and `Braid.receive_no_panic` are pinned under
   `#guard_msgs` at the end of the file, to the kernel's three axioms and the
   crate's opaque constants; no `native_decide` reaches either.
+- `Tacenta.SessionUnitBraidT1.Braid.send_no_panic` (in
+  `Translation/SessionUnitBraidT1.lean`): the count-checked port of the send
+  entry-point theorem to the complete eight-leaf Session namespace.
+- `Tacenta.SessionUnitBraidT1.Braid.receive_no_panic` (in
+  `Translation/SessionUnitBraidT1.lean`): the corresponding count-checked
+  receive entry-point theorem. In that unit the erasure functions are
+  concrete translated code, so the pinned
+  axiom lists drop the standalone Braid translation's opaque erasure
+  declarations. The port explicitly unregisters three narrower global tactic
+  rules from imported leaf proofs; its negative control checks that removing
+  that aggregate adaptation makes the proof fail.
 
 ## Proved (tier T1, the Double Ratchet's persistence codec cannot fail)
 
@@ -1302,6 +1313,15 @@ theorems take.
   axiom base is the union of the erasure coder's and the KEM's opaque
   constants with the Braid's own KDF calls and `zeroize` touches, and it is
   pinned under `#guard_msgs` with that list.
+- `Tacenta.SessionUnitBraidImportInv.Braid.from_bytes_establishes_inv` (in
+  `Translation/SessionUnitBraidImportInv.lean`): the decoded-state invariant
+  theorem in the complete Session unit. Its exact pin omits the standalone
+  Braid translation's opaque erasure declarations because that code is
+  concrete in the aggregate translation.
+- `Tacenta.SessionUnitBraidImportInv.Braid.decoded_receive_no_panic` (in
+  `Translation/SessionUnitBraidImportInv.lean`): the aggregate decoded-state
+  chain into the Session-unit Braid receive theorem, with its remaining KEM,
+  KDF, zeroize and generated-library boundaries pinned exactly.
 
 **What this does not give.** `BraidT3.step_receive_refines` also takes
 `hepoch : epoch + 1 < u64::MAX`, which the Rust `invariant` does not check at
@@ -1878,6 +1898,15 @@ What a reader has to grant:
 - `Braid.send_refines` and `Braid.receive_refines` are pinned under
   `#guard_msgs` at the end of the file, to the kernel's three axioms and the
   crate's opaque constants; no `native_decide` reaches either.
+- `Tacenta.SessionUnitBraidT3.Braid.send_refines` (in
+  `Translation/SessionUnitBraidT3.lean`): the count-checked Session-unit port
+  proves the same send refinement against the complete eight-leaf generated
+  namespace.
+- `Tacenta.SessionUnitBraidT3.Braid.receive_refines` (in
+  `Translation/SessionUnitBraidT3.lean`): the corresponding receive
+  refinement. Both aggregate theorems use the concrete translated erasure
+  implementation, so their pinned axiom lists omit the standalone Braid
+  translation's opaque erasure declarations.
 - **Carried over from T1, new with CR-15:** `ZeroizingArrayRoundTrip`,
   `ArrayZeroizeTotal` and `RangeFullIndexTotal`, `BraidT1.lean`'s own copies
   of the `zeroize` wrapper's round trip, the in-place wipe, and the
