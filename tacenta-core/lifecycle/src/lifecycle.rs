@@ -1036,10 +1036,12 @@ impl PrekeyStore {
     /// subset, as the note on the field says.
     fn last_resort_seen_for(&self, key_id: u32) -> usize {
         let mut count = 0usize;
-        for (id, _) in &self.last_resort_seen {
-            if *id == key_id {
+        let mut index = 0usize;
+        while index < self.last_resort_seen.len() {
+            if self.last_resort_seen[index].0 == key_id {
                 count += 1;
             }
+            index += 1;
         }
         count
     }
@@ -2595,10 +2597,12 @@ fn responder_replay_fingerprint(
     }
     let fingerprint = last_resort_fingerprint(sk);
     let mut replayed = false;
-    for (_, seen) in &store.last_resort_seen {
-        if *seen == fingerprint {
+    let mut index = 0usize;
+    while index < store.last_resort_seen.len() {
+        if store.last_resort_seen[index].1 == fingerprint {
             replayed = true;
         }
+        index += 1;
     }
     if replayed {
         Err(Error::ReplayedLastResort)
