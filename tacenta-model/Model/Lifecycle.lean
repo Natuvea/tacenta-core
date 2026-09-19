@@ -13,6 +13,7 @@ intended to quantify over every oracle; real-crypto vectors instantiate one.
 -/
 import Model.PersistedState
 import Model.CompositeHeader
+import Model.SessionEstablishment
 
 namespace Model.Lifecycle
 
@@ -438,6 +439,117 @@ structure Step (Result : Type) where
   session : Session
   result : Except Refusal Result
   oracle : Oracle
+
+structure EstablishStep where
+  result : Except Refusal Session
+  oracle : Oracle
+
+structure Identity where
+  secret : Key
+  publicKey : Key
+
+abbrev Bundle := Model.Messages.Bundle
+
+def absentId : UInt32 :=
+  UInt32.ofNat Model.PersistedState.PrekeyStoreState.absentId
+
+def encodeKem (publicKey : Bytes) : Bytes := 0x08 :: publicKey
+
+def establishInitiator (oracle : Oracle) (identity : Identity) (bundle : Bundle)
+    (expectedIdentity : Key) : EstablishStep :=
+  if bundle.identityKey != expectedIdentity then
+    { result := .error .unexpectedIdentity, oracle }
+  else if bundle.oneTimePrekey.isSome != (bundle.oneTimeId != absentId) then
+    { result := .error .inconsistentBundle, oracle }
+  else if !(Model.Messages.canonicalKey bundle.identityKey)
+      || !(Model.Messages.canonicalKey bundle.signedPrekey)
+      || !(bundle.oneTimePrekey.all Model.Messages.canonicalKey) then
+    { result := .error .badEncoding, oracle }
+  else if !(oracle.sigVerify bundle.identityKey
+      (Model.PersistedState.SessionState.encodeEc bundle.signedPrekey)
+      bundle.signedPrekeySig) then
+    { result := .error (.handshake .badSignedPrekeySignature), oracle }
+  else if !(oracle.sigVerify bundle.identityKey (encodeKem bundle.kemPrekey)
+      bundle.kemPrekeySig) then
+    { result := .error (.handshake .badKemPrekeySignature), oracle }
+  else
+    match random32 oracle with
+    | none => { result := .error .ceiling, oracle }
+    | some (ephemeralPrivate, afterEphemeral) =>
+        match kemEncapsulate afterEphemeral bundle.kemPrekey with
+        | none => { result := .error .ceiling, oracle := afterEphemeral }
+        | some (none, afterKem) => { result := .error .kem, oracle := afterKem }
+        | some (some (kemCiphertext, kemSecret), afterKem) =>
+            match oracle.dhAgree identity.secret bundle.signedPrekey with
+            | none =>
+                { result := .error (.handshake .nonContributoryAgreement)
+                  oracle := afterKem }
+            | some dh1 =>
+                match oracle.dhAgree ephemeralPrivate bundle.identityKey with
+                | none =>
+                    { result := .error (.handshake .nonContributoryAgreement)
+                      oracle := afterKem }
+                | some dh2 =>
+                    match oracle.dhAgree ephemeralPrivate bundle.signedPrekey with
+                    | none =>
+                        { result := .error (.handshake .nonContributoryAgreement)
+                          oracle := afterKem }
+                    | some dh3 =>
+                        let dh4 := bundle.oneTimePrekey.map
+                          (oracle.dhAgree ephemeralPrivate)
+                        if dh4.any Option.isNone then
+                          { result := .error (.handshake .nonContributoryAgreement)
+                            oracle := afterKem }
+                        else
+                          let sharedSecret := Model.SessionEstablishment.sharedSecret
+                            dh1 dh2 dh3 (dh4.bind id) kemSecret
+                          match random32 afterKem with
+                          | none => { result := .error .ceiling, oracle := afterKem }
+                          | some (ratchetPrivate, afterRatchet) =>
+                              match oracle.dhAgree ratchetPrivate bundle.signedPrekey with
+                              | none =>
+                                  { result := .error
+                                      (.handshake .nonContributoryAgreement)
+                                    oracle := afterRatchet }
+                              | some dhOut =>
+                                  let ourRatchetPublic := oracle.dhPublic ratchetPrivate
+                                  let ephemeralPublic := oracle.dhPublic ephemeralPrivate
+                                  { result := .ok
+                                      { triple := Model.Triple.initAlice sharedSecret
+                                          ourRatchetPublic bundle.signedPrekey dhOut .tacenta
+                                        braid := Model.Braid.initAlice sharedSecret
+                                        ratchetPrivate
+                                        identityAd :=
+                                          Model.SessionEstablishment.associatedData
+                                            (Model.PersistedState.SessionState.encodeEc
+                                              identity.publicKey)
+                                            (Model.PersistedState.SessionState.encodeEc
+                                              bundle.identityKey)
+                                        ourIdentityPublic := identity.publicKey
+                                        peerIdentityPublic := bundle.identityKey
+                                        pendingInitial := some
+                                          { ephemeralPublic
+                                            kemCiphertext
+                                            signedPrekeyId := bundle.signedPrekeyId.toNat
+                                            oneTimePrekeyId := bundle.oneTimeId.toNat
+                                            kemPrekeyId := bundle.kemPrekeyId.toNat }
+                                        establishedEphemeral := none }
+                                    oracle := afterRatchet }
+
+theorem establishInitiator_identity_mismatch (oracle : Oracle) (identity : Identity)
+    (bundle : Bundle) (expectedIdentity : Key)
+    (h : (bundle.identityKey != expectedIdentity) = true) :
+    establishInitiator oracle identity bundle expectedIdentity =
+      { result := .error .unexpectedIdentity, oracle } := by
+  simp [establishInitiator, h]
+
+theorem establishInitiator_presence_mismatch (oracle : Oracle) (identity : Identity)
+    (bundle : Bundle) (expectedIdentity : Key)
+    (hi : bundle.identityKey = expectedIdentity)
+    (hp : (bundle.oneTimePrekey.isSome != (bundle.oneTimeId != absentId)) = true) :
+    establishInitiator oracle identity bundle expectedIdentity =
+      { result := .error .inconsistentBundle, oracle } := by
+  simp [establishInitiator, hi, hp]
 
 def braidFailed : Model.Braid.BraidState → Bool
   | .failed => true

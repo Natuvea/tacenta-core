@@ -174,6 +174,7 @@ Source pages: `tacenta-spec/protocol/session-establishment.md`,
 | Established-session decrypt; non-mutating terminal guard and ratchet decode prefix | `prepareDecrypt`, `prepareDecrypt_dispatch_refusal`, `prepareDecrypt_failed`, `prepareDecrypt_decode_refusal`, `prepareDecrypt_ok` | `Model/Lifecycle.lean` |
 | Session encrypt; Braid-first execution, terminal-failure commit and Triple-refusal rollback | `Step`, `encrypt`, `encrypt_terminal_guard`, `encrypt_braid_failure_commits`, `encrypt_triple_refusal_keeps_state` | `Model/Lifecycle.lean` |
 | Session decrypt; working-copy eviction, AEAD commit boundary and pending-initial clearing | `receiveShortfall`, `receiveWithEviction`, `decryptRatchet`, `decrypt`, `decryptRatchet_refusal_keeps_session`, `decrypt_refusal_keeps_session`, `decrypt_success_clears_pending` | `Model/Lifecycle.lean`; leaf eviction transitions in `Model/Ratchet.lean`, `Model/SparseRatchet.lean` and `Model/Triple.lean` |
+| Initiator establishment; identity pinning, bundle validation, ordered primitive calls and pending Session construction | `Identity`, `EstablishStep`, `establishInitiator`, `establishInitiator_identity_mismatch`, `establishInitiator_presence_mismatch` | `Model/Lifecycle.lean` |
 | ML-KEM Braid, Failure; terminal state query | `agreementFailed`, `agreementFailed_iff` | `Model/Lifecycle.lean` |
 
 The oracle is modelling machinery rather than a cryptographic primitive claim.
