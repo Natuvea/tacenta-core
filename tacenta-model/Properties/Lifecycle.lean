@@ -122,4 +122,21 @@ theorem responder_success_store_effect (view : CodewordView) (oracle : Oracle)
               · simpa [establishResponder, hp, finishResponderReceive, hr] using hOk.symm
               · simp [establishResponder, hp, finishResponderReceive, hr]
 
+/-- Successful initiator establishment binds the two identities, carries the
+    selected bundle identifiers in a pending initial wrapper, and has no
+    responder replay marker. -/
+theorem initiator_success_shape (oracle : Oracle) (identity : Identity)
+    (bundle : Bundle) (expectedIdentity : Key) (session : Session)
+    (hOk : (establishInitiator oracle identity bundle expectedIdentity).result =
+      .ok session) :
+    session.ourIdentityPublic = identity.publicKey
+      ∧ session.peerIdentityPublic = bundle.identityKey
+      ∧ session.pendingInitial.isSome = true
+      ∧ session.establishedEphemeral = none
+      ∧ session.pendingInitial.map (fun pending =>
+          (pending.signedPrekeyId, pending.oneTimePrekeyId, pending.kemPrekeyId)) =
+        some (bundle.signedPrekeyId.toNat, bundle.oneTimeId.toNat,
+          bundle.kemPrekeyId.toNat) := by
+  grind (config := { gen := 20, splits := 30 }) [establishInitiator]
+
 end Properties.Lifecycle
