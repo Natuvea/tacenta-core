@@ -15,12 +15,12 @@
 #
 # What it does. For the host target and, when installed, for
 # x86_64-unknown-linux-gnu and aarch64-unknown-linux-gnu, it builds
-# `tacenta-braid` and `tacenta-core` in release with
+# `tacenta-braid` and `tacenta-boundary` in release with
 # `cargo rustc --release --lib -- --emit=asm -C codegen-units=1` (the release
 # profile is what ships, one codegen unit so each crate is one file, and
 # `--emit=asm` needs no linker, so a target needs only its `rust-std`), then
 # extracts from the assembly every function whose symbol names
-# `mac_eq` (tacenta_braid) or `calculate_key_pair` (tacenta_core's xeddsa),
+# `mac_eq` (tacenta_braid) or `calculate_key_pair` (tacenta_boundary's xeddsa),
 # from its label to its `.cfi_endproc`, and:
 #
 # 1. fails if either symbol is absent -- inlined away, renamed, or dropped --
@@ -216,7 +216,7 @@ for t in "${targets[@]}"; do
     *) fail "no branch mnemonics known for target $t" ;;
   esac
   echo "== $t =="
-  for crate in tacenta-braid tacenta-core; do
+  for crate in tacenta-braid tacenta-boundary; do
     file_stem="${crate//-/_}"
     # Start from nothing for this crate, target and profile: see the header
     # on why a warm target directory otherwise yields no assembly.
@@ -231,8 +231,8 @@ for t in "${targets[@]}"; do
       tacenta-braid)
         sym=mac_eq; allow=1; label="tacenta_braid::mac_eq"
         callee_allow="" ;;
-      tacenta-core)
-        sym=calculate_key_pair; allow=0; label="tacenta_core::primitives::xeddsa::calculate_key_pair"
+      tacenta-boundary)
+        sym=calculate_key_pair; allow=0; label="tacenta_boundary::xeddsa::calculate_key_pair"
         callee_allow='Neg|mul_base|compress|from_bytes_mod_order|black_box|zeroize|drop_in_place|panic_in_cleanup|_Unwind_Resume' ;;
     esac
     out="$(analyse "${files[0]}" "$sym" "$arch" "$allow" "$callee_allow")"
