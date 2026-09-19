@@ -63,6 +63,37 @@ theorem takeDraw_keeps_dhPublic (oracle oracle' : Oracle) (draw : Key)
       simp only [takeDraw, hd, Option.some.injEq, Prod.mk.injEq] at h
       rw [← h.2]
 
+/-- The `random32` boundary call. Named separately from `takeDraw` so
+    refinement can relate that shipping function to this exact trace step. -/
+def random32 (oracle : Oracle) : Option (Key × Oracle) := takeDraw oracle
+
+/-- Encapsulation consumes exactly one draw, then calls the oracle with the KEM
+    public key and that draw. A primitive refusal still consumes the draw: the
+    shipping RNG call happened before the primitive returned its result. -/
+def kemEncapsulate (oracle : Oracle) (publicKey : Bytes) :
+    Option (Option (Bytes × Key) × Oracle) := do
+  let (draw, rest) ← takeDraw oracle
+  some (oracle.kemEncaps publicKey draw, rest)
+
+/-- Signing consumes exactly one draw and binds the result to the secret,
+    message and draw supplied to the primitive. -/
+def sign (oracle : Oracle) (secret : Key) (message : Bytes) :
+    Option (Bytes × Oracle) := do
+  let (draw, rest) ← takeDraw oracle
+  some (oracle.sigSign secret message draw, rest)
+
+theorem kemEncapsulate_cons (oracle : Oracle) (draw : Key) (rest : List Key)
+    (publicKey : Bytes) (h : oracle.draws = draw :: rest) :
+    kemEncapsulate oracle publicKey =
+      some (oracle.kemEncaps publicKey draw, { oracle with draws := rest }) := by
+  simp [kemEncapsulate, takeDraw, h]
+
+theorem sign_cons (oracle : Oracle) (draw : Key) (rest : List Key)
+    (secret : Key) (message : Bytes) (h : oracle.draws = draw :: rest) :
+    sign oracle secret message =
+      some (oracle.sigSign secret message draw, { oracle with draws := rest }) := by
+  simp [sign, takeDraw, h]
+
 /-! ## Repeated initial recognition
 
 An established responder retains the initiator's ephemeral. An initial wrapper

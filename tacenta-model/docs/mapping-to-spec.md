@@ -161,7 +161,7 @@ Source pages: `tacenta-spec/protocol/session-establishment.md`,
 
 | Spec section | Model definition | File |
 |---|---|---|
-| Primitive calls delegated by the session algorithms; ordered caller randomness | `Oracle`, `takeDraw` | `Model/Lifecycle.lean` |
+| Primitive calls delegated by the session algorithms; ordered caller randomness | `Oracle`, `takeDraw`, `random32`, `kemEncapsulate`, `sign` | `Model/Lifecycle.lean` |
 | Receiving the initial message; exact repeated-initial recognition and ignored wrapper fields | `repeatedInitial`, `repeatedInitial_iff`, `repeatedInitial_ignores_other_fields` | `Model/Lifecycle.lean` |
 
 The oracle is modelling machinery rather than a cryptographic primitive claim.
