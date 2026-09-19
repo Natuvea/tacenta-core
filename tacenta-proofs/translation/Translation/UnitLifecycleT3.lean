@@ -2,6 +2,7 @@ import Translation.SessionUnitTripleT3
 import Translation.SessionUnitBraidT3
 import Translation.SessionUnitWireT3
 import Translation.SessionUnitWireInitialT3
+import Translation.SessionUnitSessionT1
 import Model.Lifecycle
 
 /-!
@@ -69,6 +70,14 @@ head and return a state interpreted by the tail. -/
 
 def arrayOf {n : Usize} (a : Array Std.U8 n) : Bytes :=
   a.val.map Tacenta.SessionUnitBraidT3.u8
+
+/-- The opaque public-key byte projection agrees with the interpretation used
+by `DhView`.  This is a representation relation for a boundary already present
+in T1, rather than a new cryptographic primitive contract. -/
+structure DhCodecOf (view : DhView) : Prop where
+  asBytes : ∀ publicKey, ∃ bytes,
+    tacenta_boundary.dh.PublicKeyBytes.as_bytes publicKey = ok bytes ∧
+    arrayOf bytes = view.publicKey publicKey
 
 def sliceOf (s : Slice Std.U8) : Bytes :=
   s.val.map Tacenta.SessionUnitBraidT3.u8
@@ -665,9 +674,53 @@ structure StepRefines {R : Type} (trace : R → List Model.Lifecycle.Key)
 
 /-! ## Lifecycle observations -/
 
+/-- Equality on translated byte vectors returns exactly list equality. -/
+theorem vec_u8_eq_refines (left right : alloc.vec.Vec Std.U8) :
+    alloc.vec.partial_eq.PartialEqVec.eq core.cmp.PartialEqU8 left right
+      ⦃ fun equal => equal = true ↔ left.val = right.val ⦄ := by
+  rcases left with ⟨left, hleft⟩
+  rcases right with ⟨right, hright⟩
+  induction left generalizing right with
+  | nil =>
+      cases right <;>
+        simp [alloc.vec.partial_eq.PartialEqVec.eq, alloc.vec.Vec.length,
+          pure, WP.spec_ok]
+  | cons x xs ih =>
+      cases right with
+      | nil =>
+          simp [alloc.vec.partial_eq.PartialEqVec.eq, alloc.vec.Vec.length,
+            WP.spec_ok]
+      | cons y ys =>
+          by_cases hxy : x = y
+          · subst y
+            simp [alloc.vec.partial_eq.PartialEqVec.eq, alloc.vec.Vec.length,
+              pure]
+            have hxs : xs.length ≤ Usize.max :=
+              Nat.le_trans (Nat.le_succ xs.length) hleft
+            have hys : ys.length ≤ Usize.max :=
+              Nat.le_trans (Nat.le_succ ys.length) hright
+            simpa [alloc.vec.partial_eq.PartialEqVec.eq, alloc.vec.Vec.length] using
+              (ih hxs ys hys)
+          · simp [alloc.vec.partial_eq.PartialEqVec.eq, alloc.vec.Vec.length,
+              pure, WP.spec_ok, hxy]
+
+
 def messageTypeOf : serialization.MessageType → Model.Lifecycle.MessageType
   | .Ratchet => .ratchet
   | .Initial => .initial
+
+theorem vecOf_injective : Function.Injective vecOf := by
+  intro left right h
+  cases left with
+  | mk left hleft =>
+      cases right with
+      | mk right hright =>
+          simp only [vecOf] at h
+          have hl : left = right :=
+            List.map_injective_iff.mpr
+              (fun _ _ => Tacenta.SessionUnitBraidT3.u8_injective) h
+          subst right
+          rfl
 
 theorem u8_eq_u8_iff (left right : Std.U8) :
     Tacenta.SessionUnitBraidT3.u8 left =
@@ -698,6 +751,80 @@ theorem lifecycle_type_initial_agrees :
       Tacenta.SessionUnitBraidT3.u8 tacenta_wire.TYPE_INITIAL := by
   simp [Model.Messages.typeInitial, tacenta_wire.TYPE_INITIAL,
     Tacenta.SessionUnitBraidT3.u8]
+
+/-- Encoding an opaque curve public key produces the model's exact EncodeEC
+bytes under the shared public-key representation. -/
+theorem encode_ec_refines (dh : DhView) (codec : DhCodecOf dh)
+    (publicKey : tacenta_boundary.dh.PublicKeyBytes) :
+    ∃ encoded, encode_ec publicKey = ok encoded ∧
+      vecOf encoded =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey publicKey) := by
+  obtain ⟨bytes, hbytes, hview⟩ := codec.asBytes publicKey
+  have hspec := Tacenta.SessionUnitSessionT1.encode_ec_spec bytes
+  obtain ⟨encoded, hencoded, hvalue⟩ := Std.WP.spec_imp_exists hspec
+  refine ⟨encoded, ?_, ?_⟩
+  · simp [encode_ec, hbytes, hencoded]
+  · rw [Model.PersistedState.SessionState.encodeEc, ← hview]
+    simp [vecOf, arrayOf, hvalue, tacenta_session.ENCODE_EC_CURVE25519,
+      Model.Messages.ecCurveByte, Tacenta.SessionUnitBraidT3.u8]
+
+/-- The two concrete checks for an accepted repeated-initial wrapper agree
+with the model predicate.  The result exposes the exact translated call
+equations needed by the public decrypt proof. -/
+theorem repeated_initial_checks_refine (dh : DhView) (codec : DhCodecOf dh)
+    (K : Model.Braid.Kem)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (established : alloc.vec.Vec Std.U8)
+    (decoded : tacenta_wire.DecodedInitial)
+    (hrel : SessionRefines dh K real model)
+    (hestablished : real.established_ephemeral = some established)
+    (hephemeral : vecOf established = vecOf decoded.ephemeral)
+    (hidentity : vecOf decoded.identity =
+      Model.PersistedState.SessionState.encodeEc
+        (dh.publicKey real.peer_identity_public)) :
+    ∃ encoded,
+      encode_ec real.peer_identity_public = ok encoded ∧
+      alloc.vec.partial_eq.PartialEqVec.eq core.cmp.PartialEqU8
+        established decoded.ephemeral = ok true ∧
+      alloc.vec.partial_eq.PartialEqVec.eq core.cmp.PartialEqU8
+        decoded.identity encoded = ok true ∧
+      Model.Lifecycle.repeatedInitial model
+        (Tacenta.SessionUnitWireInitialT3.initialOf decoded) = true := by
+  obtain ⟨encoded, hencoded, hencodedValue⟩ :=
+    encode_ec_refines dh codec real.peer_identity_public
+  have hephemeralEq : established = decoded.ephemeral :=
+    vecOf_injective hephemeral
+  have hidentityEq : decoded.identity = encoded := by
+    apply vecOf_injective
+    exact hidentity.trans hencodedValue.symm
+  obtain ⟨ephemeralEqual, hephemeralCall, hephemeralPost⟩ :=
+    Std.WP.spec_imp_exists (vec_u8_eq_refines established decoded.ephemeral)
+  have hephemeralTrue : ephemeralEqual = true :=
+    hephemeralPost.2 (congrArg (fun value => value.val) hephemeralEq)
+  rw [hephemeralTrue] at hephemeralCall
+  obtain ⟨identityEqual, hidentityCall, hidentityPost⟩ :=
+    Std.WP.spec_imp_exists (vec_u8_eq_refines decoded.identity encoded)
+  have hidentityTrue : identityEqual = true :=
+    hidentityPost.2 (congrArg (fun value => value.val) hidentityEq)
+  rw [hidentityTrue] at hidentityCall
+  have hmodelEstablished :
+      model.establishedEphemeral = some (vecOf established) := by
+    have h := hrel.establishedEphemeral
+    rw [hestablished] at h
+    exact h.symm
+  have hmodelRepeat : Model.Lifecycle.repeatedInitial model
+      (Tacenta.SessionUnitWireInitialT3.initialOf decoded) = true := by
+    apply (Model.Lifecycle.repeatedInitial_iff _ _).2
+    refine ⟨vecOf established, hmodelEstablished, ?_, ?_⟩
+    · change vecOf established =
+        Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val
+      rw [wire_bytesOf_eq_vecOf]
+      exact hephemeral
+    · change Tacenta.SessionUnitWireT3.bytesOf decoded.identity.val =
+        Model.PersistedState.SessionState.encodeEc model.peerIdentityPublic
+      rw [wire_bytesOf_eq_vecOf, ← hrel.peerIdentityPublic]
+      exact hidentity
+  exact ⟨encoded, hencoded, hephemeralCall, hidentityCall, hmodelRepeat⟩
 
 theorem message_type_refines (bytes : Slice Std.U8) :
     serialization.message_type bytes ⦃ fun result =>
@@ -1083,6 +1210,109 @@ theorem decrypt_initial_without_established_refines {R : Type}
   refine ⟨output, hreal, ?_⟩
   rw [hmodel]
   exact ⟨rfl, hrel, htrace⟩
+
+/-- Lift an accepted repeated-initial wrapper through public decrypt.  The two
+wrapper identity checks are derived from the shared byte representation; the
+inner receive relation supplies the authenticated ratchet transition. -/
+theorem decrypt_initial_repeat_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (codec : DhCodecOf dh)
+    (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (established : alloc.vec.Vec Std.U8)
+    (decoded : tacenta_wire.DecodedInitial)
+    (innerOutput : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.Session × R)
+    (hrel : SessionRefines dh K real model)
+    (htype : serialization.message_type message =
+      ok (some serialization.MessageType.Initial))
+    (hdecode : tacenta_wire.decode_initial message =
+      ok (core.result.Result.Ok decoded))
+    (hestablished : real.established_ephemeral = some established)
+    (hephemeral : vecOf established = vecOf decoded.ephemeral)
+    (hidentity : vecOf decoded.identity =
+      Model.PersistedState.SessionState.encodeEc
+        (dh.publicKey real.peer_identity_public))
+    (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
+      (alloc.vec.Vec.deref decoded.message) rng = ok innerOutput)
+    (hstep : StepRefines trace dh K innerOutput
+      (Model.Lifecycle.decryptRatchet view oracle model
+        (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)) :
+    ∃ output,
+      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+  have htypeRel := message_type_refines message
+  rw [htype] at htypeRel
+  have hmodelType : Model.Lifecycle.messageType (sliceOf message) = some .initial := by
+    simpa [messageTypeOf] using htypeRel.symm
+  have hdecodeRel := decode_initial_refines_lifecycle message
+  rw [hdecode] at hdecodeRel
+  obtain ⟨encoded, hencoded, hephemeralCall, hidentityCall, hrepeat⟩ :=
+    repeated_initial_checks_refine dh codec K real model established decoded hrel
+      hestablished hephemeral hidentity
+  have hdispatch := Model.Lifecycle.dispatchDecrypt_repeat model
+    (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
+    hmodelType hdecodeRel hrepeat
+  rcases innerOutput with ⟨realResult, realNext, rngNext⟩
+  cases hmodelStep : Model.Lifecycle.decryptRatchet view oracle model
+      (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage with
+  | mk modelNext modelResult oracleNext =>
+      rw [hmodelStep] at hstep
+      cases realResult with
+      | Err realReason =>
+          cases modelResult with
+          | ok modelBytes =>
+              have himpossible := hstep.result
+              simp [ResultRefines] at himpossible
+          | error modelReason =>
+              let output : core.result.Result (alloc.vec.Vec Std.U8)
+                  lifecycle.Error × lifecycle.Session × R :=
+                (core.result.Result.Err realReason, realNext, rngNext)
+              have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+                  ok output := by
+                simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
+                  hephemeralCall, hencoded, hidentityCall, hinner, output,
+                  core.result.Result.Insts.CoreOpsTry.branch,
+                  core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+                  core.convert.FromSame.from]
+              have hmodel : Model.Lifecycle.decrypt view oracle model (sliceOf message) =
+                  { session := modelNext, result := .error modelReason,
+                    oracle := oracleNext } := by
+                simp [Model.Lifecycle.decrypt, hdispatch, hmodelStep]
+              refine ⟨output, hreal, ?_⟩
+              rw [hmodel]
+              exact hstep
+      | Ok realBytes =>
+          cases modelResult with
+          | error modelReason =>
+              have himpossible := hstep.result
+              simp [ResultRefines] at himpossible
+          | ok modelBytes =>
+              let realFinal := { realNext with pending_initial := none }
+              let modelFinal := { modelNext with pendingInitial := none }
+              let output : core.result.Result (alloc.vec.Vec Std.U8)
+                  lifecycle.Error × lifecycle.Session × R :=
+                (core.result.Result.Ok realBytes, realFinal, rngNext)
+              have hfinal : SessionRefines dh K realFinal modelFinal := by
+                exact ⟨hstep.session.triple, hstep.session.braid,
+                  hstep.session.ratchetPrivate, hstep.session.identityAd,
+                  hstep.session.ourIdentityPublic, hstep.session.peerIdentityPublic,
+                  rfl, hstep.session.establishedEphemeral⟩
+              have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+                  ok output := by
+                simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
+                  hephemeralCall, hencoded, hidentityCall, hinner, output, realFinal,
+                  core.result.Result.Insts.CoreOpsTry.branch]
+              have hmodel : Model.Lifecycle.decrypt view oracle model (sliceOf message) =
+                  { session := modelFinal, result := .ok modelBytes,
+                    oracle := oracleNext } := by
+                simp [Model.Lifecycle.decrypt, hdispatch, hmodelStep, modelFinal]
+              refine ⟨output, hreal, ?_⟩
+              rw [hmodel]
+              exact ⟨hstep.result, hfinal, hstep.draws⟩
 
 /-- Once the Braid send step is related, its terminal transition is committed
 on both sides before `AgreementFailed` is returned.  This outer lifecycle fact
