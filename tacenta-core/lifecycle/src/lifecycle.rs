@@ -1206,10 +1206,18 @@ impl PrekeyStore {
             }
             index += 1;
         }
-        let i = found?;
+        // Spell out the option branches: Aeneas otherwise lowers `?` through
+        // an opaque external `Try::branch` call.
+        let i = match found {
+            Some(i) => i,
+            None => return None,
+        };
         let last = self.kem_one_time.len() - 1;
         self.kem_one_time.swap(i, last);
-        let (_, pair, _) = self.kem_one_time.pop()?;
+        let (_, pair, _) = match self.kem_one_time.pop() {
+            Some(entry) => entry,
+            None => return None,
+        };
         Some(pair)
     }
 
