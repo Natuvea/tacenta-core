@@ -530,6 +530,7 @@ impl State {
     /// `#[must_use]`: a caller that ignores the count cannot tell an eviction
     /// from an empty store, and retries against the latter loop (CR-20).
     #[must_use]
+    #[allow(clippy::len_zero)] // `is_empty` is outside the pinned Aeneas subset.
     pub fn evict_oldest(&mut self, count: usize) -> usize {
         let mut evicted = 0;
         while evicted < count && self.skipped.len() != 0 {

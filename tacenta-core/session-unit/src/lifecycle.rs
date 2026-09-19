@@ -2265,6 +2265,7 @@ pub struct PublicState {
 }
 
 /// The composite header: the Triple Ratchet's own, plus the agreement's message.
+#[allow(clippy::manual_map)] // Explicit matches stay in the pinned Aeneas subset.
 fn composite_of(h: &tacenta_triple::Header, m: &tacenta_braid::Msg) -> Composite {
     Composite {
         dh: h.dr.dh,
@@ -2285,6 +2286,7 @@ fn composite_of(h: &tacenta_triple::Header, m: &tacenta_braid::Msg) -> Composite
 }
 
 /// And back, for a header that arrived.
+#[allow(clippy::manual_map)] // Explicit matches stay in the pinned Aeneas subset.
 fn msg_of(c: &Composite) -> tacenta_braid::Msg {
     tacenta_braid::Msg {
         epoch: c.ag_epoch,
@@ -2775,6 +2777,7 @@ impl Session {
     /// peer with no session and every later message undecryptable. The
     /// conformance suite exercises this by asking a responder to read a third
     /// message first.
+    #[allow(clippy::manual_map)] // Explicit matches stay in the pinned Aeneas subset.
     pub fn encrypt<R: RngCore + CryptoRng>(
         &mut self,
         plaintext: &[u8],
@@ -2891,6 +2894,7 @@ impl Session {
         Ok(plaintext)
     }
 
+    #[allow(clippy::manual_map)] // Explicit matches stay in the pinned Aeneas subset.
     fn decrypt_ratchet<R: RngCore + CryptoRng>(
         &mut self,
         message: &[u8],
@@ -3242,6 +3246,7 @@ impl Session {
     ///    secret; the last-resort fingerprint record exists to refuse exactly
     ///    that on the multi-use path, and it too must be persisted for it to
     ///    hold across a restart.
+    #[allow(clippy::manual_map)] // Explicit matches stay in the pinned Aeneas subset.
     pub fn export(&self) -> Zeroizing<Vec<u8>> {
         // Each part encoded once, then the buffer sized exactly, so it never
         // grows and leaves an outgrown allocation of secret bytes un-wiped

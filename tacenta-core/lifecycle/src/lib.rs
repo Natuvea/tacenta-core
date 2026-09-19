@@ -59,6 +59,7 @@ pub fn encode_ec(pk: &dh::PublicKeyBytes) -> Vec<u8> {
 
 /// `DecodeEC`: read a curve public key back from its `EncodeEC` form, or `None`
 /// if the bytes are not one.
+#[allow(clippy::manual_map)] // Explicit match stays in the pinned Aeneas subset.
 pub fn decode_ec(bytes: &[u8]) -> Option<dh::PublicKeyBytes> {
     match tacenta_session::decode_ec(bytes) {
         Some(key) => Some(dh::PublicKeyBytes::from_bytes(key)),
@@ -182,6 +183,7 @@ pub enum SessionError {
 /// this before using a bundle: without it a malicious server could serve forged
 /// prekeys and later compromise the identity key to recover the secret, which
 /// would defeat forward secrecy.
+#[allow(clippy::redundant_pattern_matching)] // Explicit branches keep translated refusal paths stable.
 pub fn verify_bundle(bundle: &PreKeyBundle) -> Result<(), SessionError> {
     if let Err(_) = xeddsa::verify(
         &bundle.identity_key,
