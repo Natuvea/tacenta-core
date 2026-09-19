@@ -1490,7 +1490,7 @@
       "missing_evidence": [
         {
           "kind": "session-orchestration-proof",
-          "reason": "The derivation proofs stop below Session::encrypt and Session::decrypt, which remain untranslated orchestration.",
+          "reason": "The derivation proofs stop below Session::encrypt and Session::decrypt, which are translated since the Phase 0 carve-out (Translation/TacentaLifecycle.lean) but carry no theorem.",
           "references": [
             "ASM-19",
             "LIM-05"

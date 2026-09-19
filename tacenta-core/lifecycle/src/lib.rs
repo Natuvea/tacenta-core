@@ -12,6 +12,11 @@
 //! `primitives::kem` (ML-KEM-1024). The full handshake is exercised end to end
 //! in this module's tests and in tests/handshake_to_ratchet.rs.
 
+#![forbid(unsafe_code)]
+// The translated form: `?` desugars through `Try` into Lean that will not
+// typecheck, so the leaf writes the `match` the lint would collapse.
+#![allow(clippy::question_mark)]
+
 pub mod primitives {
     pub use tacenta_boundary::{aead, dh, kem, xeddsa};
     pub mod kdf {

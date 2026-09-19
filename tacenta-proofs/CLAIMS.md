@@ -193,7 +193,13 @@ this section says in one place what is not proved.
   `Decoder` (see the three "persistence codec" sections). Every other codec
   named above still has no T1 theorem. The Braid-and-erasure translation
   unit, `tacenta-core/braid-unit`, is translated and audited and carries no
-  theorem of any kind yet (`LIMITATIONS.md`).
+  theorem of any kind yet (`LIMITATIONS.md`). So is the session lifecycle
+  leaf, `tacenta-core/lifecycle` (`Translation/TacentaLifecycle.lean`): all
+  thirty public operations, `Session::encrypt` and `decrypt` among them, are
+  translated and audited, and none has a theorem; it stands on the ratchets,
+  the Braid, the wire codecs and the primitive boundary as opaque externals
+  until the session unit exists (`LIMITATIONS.md`, "The lifecycle leaf is a
+  tenth translated zone").
   `LIMITATIONS.md` says the same where each crate is discussed.
 - **T3 carries a third hypothesis besides the two it names.** Besides "modulo
   KDF agreement" and "excluding where `u32` and `Nat` part company", every

@@ -251,6 +251,14 @@ excludes it.
 
 ## Secret deletion is partial
 
+The primitive boundary crate, `tacenta-core/boundary` (`tacenta-boundary`),
+is part of this base since the session carve-out: it holds the X25519, AEAD,
+ML-KEM-1024 and XEdDSA implementations the lifecycle calls, `attest.py`
+lists it under the trusted primitive zones, and Charon leaves every one of
+its functions opaque when it translates the lifecycle. Moving the code into
+its own crate changed what is trusted by nothing: the same bodies were
+trusted before behind `tacenta-core/src/primitives`.
+
 Both specifications call for deleting key material once it has been used: the
 Diffie-Hellman outputs and the encapsulated secret after the handshake derives
 its secret, and each message key and superseded chain key as the ratchet
@@ -1909,7 +1917,24 @@ This is a Phase 0 translatability result. No T1 or T3 theorem is stated about
 the lifecycle constants, and the leaf translation sees the ratchets, Braid,
 wire layer and primitive boundary as 118 opaque externals. The manifest lists
 all 118 and `AxiomAuditLifecycle.lean` checks the elaborated module against
-that exact set. Later phases assemble the lifecycle with its eight code leaves
+that exact set. Of the 118, 74 are first-party leaf operations the lifecycle
+calls across a crate boundary (`tacenta_session`, `tacenta_wire`,
+`tacenta_triple::State`, `tacenta_braid::Braid`, `tacenta_ratchet`,
+`tacenta_spqr`, `tacenta_kdf`): each has a body and, for most, a theorem in
+its own translation, but on this island they are bare axioms with no
+precondition, exactly the standalone-Triple shape the three-leaf unit was
+built to remove. Twenty are `tacenta_boundary` declarations, the primitive
+boundary this carve-out created: three key types and seventeen operations
+over X25519, the AEAD, ML-KEM-1024 and XEdDSA, whose bodies are trusted and
+never translated ("Trusted, not verified" above now lists the crate). The
+rest are standard-library, `zeroize` and `rand_core` items. Randomness
+reaches the lifecycle as a `rand_core::RngCore` trait dictionary rather than
+a boundary function, which is why no `random32` declaration exists and why
+`tooling/check-lifecycle-boundary-surface.py`, which follows only
+`tacenta_boundary` names, cannot see that route.
+`tacenta-model/SESSION-L4-PHASE0-SPIKE-20260918.md` maps the reachable
+boundary declarations to the ten contracts the primitive-boundary decision
+names. Later phases assemble the lifecycle with its eight code leaves
 and prove orchestration against the lifecycle model; until then,
 `Session::encrypt`, `Session::decrypt`, establishment and persistence remain
 tested and translated, not proved end to end.
@@ -1945,7 +1970,8 @@ that assembly possible.
 
 - T1 (panic-freedom and memory safety of the core's verified zone via the
   Charon and Aeneas translation) **is proven**, under the stated assumptions and
-  for the verified zone only, which is the eight leaf crates and not the
+  for the verified zone only, which is the eight proved leaf crates (the
+  translated lifecycle leaf has no theorem) and not the
   product. The assumptions it rests on are not all ones anybody chose. Where
   it stands, precisely:
   - **The ratchet, the verified zone, translates.** Charon extracts and Aeneas

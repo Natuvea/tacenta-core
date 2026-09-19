@@ -22,7 +22,7 @@
 # translated on their own below; the lifecycle leaf is translated in Phase 0
 # and deliberately has no theorem yet (see CLAIMS.md).
 #
-# A ninth translation comes from a crate nobody wrote: `tacenta-core/triple-unit`,
+# An eighth translation comes from a crate nobody wrote: `tacenta-core/triple-unit`,
 # the Triple Ratchet and both inner ratchets compiled as one crate, assembled
 # from the three leaf sources by `scripts/assemble-triple-unit.sh` (run below,
 # before anything is translated) so that Charon sees the composition together
@@ -30,7 +30,7 @@
 # the Triple Ratchet, and the Triple's T1 and T3 proofs are about it. Read that
 # script's header for what the unit is and, just as importantly, what it is not.
 #
-# A tenth, `tacenta-core/braid-unit`, is assembled the same way by
+# A ninth, `tacenta-core/braid-unit`, is assembled the same way by
 # `scripts/assemble-braid-unit.sh`: the ML-KEM Braid and its erasure codec as one
 # crate, so that the Braid translates over the codec's bodies rather than
 # twenty-three opaque axioms. Nothing is proved about it yet; the Braid's

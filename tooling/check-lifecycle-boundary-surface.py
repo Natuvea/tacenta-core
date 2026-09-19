@@ -33,6 +33,15 @@ SESSION_ROOTS = {
 # that operation, so keep its translated call visible too.
 SIGNING_ROOTS = {"lifecycle.Identity.sign_message"}
 
+# The thirteen boundary operations reachable from the five Session proof
+# roots, grouped as tacenta-model/SESSION-L4-PRIMITIVE-BOUNDARY-DECISION.md
+# names them: DhCodecTotal (the six dh.* codec items), DhAgreeTotal (agree),
+# AeadSealTotal/AeadOpenTotal (aead.encrypt/decrypt), KemEncapsulateTotal,
+# KemDecapsulateTotal, KemCiphertextLenTotal, XeddsaVerifyTotal. Signing is
+# XeddsaSignTotal, reachable from publication rather than from a root, and
+# Random32Total has no boundary name (the RngCore trait dictionary carries it),
+# so neither appears in this set. The mapping is recorded in
+# tacenta-model/SESSION-L4-PHASE0-SPIKE-20260918.md.
 EXPECTED_SESSION_OPERATIONS = {
     "tacenta_boundary.aead.decrypt",
     "tacenta_boundary.aead.encrypt",
