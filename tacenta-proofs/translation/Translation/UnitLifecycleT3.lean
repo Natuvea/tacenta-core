@@ -931,6 +931,41 @@ theorem decrypt_passthrough_step_refines {R : Type}
               rw [hmodel]
               exact ⟨hstep.result, hfinal, hstep.draws⟩
 
+/-- The public decrypt passthrough proof with the infallible byte-copy step
+discharged.  Callers reason about the copied bytes by value rather than carrying
+an implementation-level `Slice::to_vec` equation. -/
+theorem decrypt_passthrough_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (realType : Option serialization.MessageType)
+    (innerOutput : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.Session × R)
+    (htype : serialization.message_type message = ok realType)
+    (hnotInitial : realType ≠ some .Initial)
+    (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
+      (alloc.vec.Vec.deref (show alloc.vec.Vec Std.U8 from message)) rng =
+        ok innerOutput)
+    (hstep : StepRefines trace dh K innerOutput
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+    ∃ output,
+      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+  have hclone : ∀ x ∈ message.val, core.clone.CloneU8.clone x = ok x := by
+    intro x _
+    rfl
+  obtain ⟨inner, hcopy, hsame⟩ := Std.WP.spec_imp_exists
+    (alloc.slice.Slice.to_vec_spec core.clone.CloneU8 message hclone)
+  have hinnerEq : inner = (show alloc.vec.Vec Std.U8 from message) := by
+    exact hsame.symm
+  subst inner
+  exact decrypt_passthrough_step_refines rngCore cryptoRng trace dh K view oracle
+    real model message rng realType (show alloc.vec.Vec Std.U8 from message)
+    innerOutput htype hnotInitial hcopy hinner hstep
+
 /-- Once the Braid send step is related, its terminal transition is committed
 on both sides before `AgreementFailed` is returned.  This outer lifecycle fact
 does not depend on the unused message, epoch or sparse output. -/
