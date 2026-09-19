@@ -2227,10 +2227,13 @@ fn composite_of(h: &tacenta_triple::Header, m: &tacenta_braid::Msg) -> Composite
         pq_n: h.pq_n,
         ag_epoch: m.epoch,
         ag_type: agreement_type_of(m.ty),
-        ag_chunk: m.data.as_ref().map(|c| Codeword {
-            index: c.index,
-            data: c.data,
-        }),
+        ag_chunk: match &m.data {
+            Some(c) => Some(Codeword {
+                index: c.index,
+                data: c.data,
+            }),
+            None => None,
+        },
     }
 }
 
@@ -2239,10 +2242,13 @@ fn msg_of(c: &Composite) -> tacenta_braid::Msg {
     tacenta_braid::Msg {
         epoch: c.ag_epoch,
         ty: msg_type_of(c.ag_type),
-        data: c.ag_chunk.as_ref().map(|w| tacenta_erasure::Chunk {
-            index: w.index,
-            data: w.data,
-        }),
+        data: match &c.ag_chunk {
+            Some(w) => Some(tacenta_erasure::Chunk {
+                index: w.index,
+                data: w.data,
+            }),
+            None => None,
+        },
     }
 }
 
