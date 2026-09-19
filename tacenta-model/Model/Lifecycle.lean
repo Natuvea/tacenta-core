@@ -1264,10 +1264,12 @@ theorem establishResponder_refusal_keeps_store (view : CodewordView)
 
 /-! ## Executable lifecycle check -/
 
-private def toySecret : Key := List.replicate 32 0x42
-private def toyAgreementDraw : Key := List.replicate 32 0x31
+namespace Examples
 
-private def toyPrekeyStore : PrekeyStore :=
+def toySecret : Key := List.replicate 32 0x42
+def toyAgreementDraw : Key := List.replicate 32 0x31
+
+def toyPrekeyStore : PrekeyStore :=
   { state :=
       { (default : StoredPrekeys) with
         oneTime := [(7, [0x71]), (9, [0x91])]
@@ -1304,21 +1306,21 @@ example :
     lastResortReplayCheck replayStore 8 shared true = .error .replayedLastResort := by
   simp [lastResortReplayCheck]
 
-private def toyCodewordSourceFor (secret : Key) : Bytes :=
+def toyCodewordSourceFor (secret : Key) : Bytes :=
   match (Model.Braid.send Model.Braid.toyKem (braidRandomness toyAgreementDraw)
       (Model.Braid.initAlice secret)).1 with
   | some message => message.data.map (fun chunk => chunk.source) |>.getD []
   | none => []
 
-private def toyViewFor (secret : Key) : CodewordView where
+def toyViewFor (secret : Key) : CodewordView where
   receive := fun _ index _ => { source := toyCodewordSourceFor secret, index := index.toNat }
   send := fun _ chunk =>
     { index := UInt16.ofNat chunk.index
       data := chunk.source.take Model.CompositeHeader.chunkBytes }
 
-private def toyView : CodewordView := toyViewFor toySecret
+def toyView : CodewordView := toyViewFor toySecret
 
-private def toyOracle (draws : List Key) : Oracle where
+def toyOracle (draws : List Key) : Oracle where
   draws
   braidKem := Model.Braid.toyKem
   dhPublic := id
@@ -1334,7 +1336,7 @@ private def toyOracle (draws : List Key) : Oracle where
   sigVerify := fun _ _ _ => true
   sigSign := fun _ _ _ => List.replicate 64 0x55
 
-private def toyAlice (secret : Key) : Session :=
+def toyAlice (secret : Key) : Session :=
   { triple := Model.Triple.initAlice secret (List.replicate 32 0x21)
       (List.replicate 32 0x22) (List.replicate 32 0xdd) .tacenta
     braid := Model.Braid.initAlice secret
@@ -1345,7 +1347,7 @@ private def toyAlice (secret : Key) : Session :=
     pendingInitial := none
     establishedEphemeral := none }
 
-private def toyBob (secret : Key) : Session :=
+def toyBob (secret : Key) : Session :=
   { triple := Model.Triple.initBob secret (List.replicate 32 0x22) .tacenta
     braid := Model.Braid.initBob secret
     ratchetPrivate := List.replicate 32 0xb1
@@ -1355,15 +1357,15 @@ private def toyBob (secret : Key) : Session :=
     pendingInitial := none
     establishedEphemeral := none }
 
-private def toyAliceIdentity : Identity :=
+def toyAliceIdentity : Identity :=
   { secret := List.replicate 32 0x11, publicKey := List.replicate 32 0x11 }
 
-private def toyBobIdentity : Identity :=
+def toyBobIdentity : Identity :=
   { secret := List.replicate 32 0x22, publicKey := List.replicate 32 0x22 }
 
-private def toySignedPrekey : Key := List.replicate 32 0x23
+def toySignedPrekey : Key := List.replicate 32 0x23
 
-private def toyBundle : Bundle :=
+def toyBundle : Bundle :=
   { identityKey := toyBobIdentity.publicKey
     signedPrekey := toySignedPrekey
     signedPrekeySig := List.replicate 64 0x51
@@ -1374,7 +1376,7 @@ private def toyBundle : Bundle :=
     oneTimeId := absentId
     kemPrekeyId := UInt32.ofNat 2 }
 
-private def toyResponderStore : PrekeyStore :=
+def toyResponderStore : PrekeyStore :=
   { state :=
       { (default : StoredPrekeys) with
         identityPublic := toyBobIdentity.publicKey
@@ -1387,7 +1389,7 @@ private def toyResponderStore : PrekeyStore :=
         nextId := 3 }
     legacyLastResortBlocked := [] }
 
-private def toyEstablishedSecret : Key :=
+def toyEstablishedSecret : Key :=
   Model.SessionEstablishment.sharedSecret
     (List.replicate 32 0xdd) (List.replicate 32 0xdd)
     (List.replicate 32 0xdd) none (List.replicate 32 0xee)
@@ -1430,5 +1432,7 @@ example :
                   plaintext == [0xde, 0xad]
                     && responded.store.state.seen.length == 1) = true := by
   native_decide
+
+end Examples
 
 end Model.Lifecycle

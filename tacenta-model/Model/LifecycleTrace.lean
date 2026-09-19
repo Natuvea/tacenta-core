@@ -184,6 +184,30 @@ def run (view : CodewordView) : State → List Action → State × List Outcome
       let (final, outcomes) := run view next rest
       (final, outcome :: outcomes)
 
+/-! ## Executable schedule check -/
+
+open Model.Lifecycle.Examples in
+/-- An accepted message is delivered once. Re-inserting its original wire
+    bytes and delivering them again produces a refusal and no second accepted
+    plaintext. -/
+example :
+    let start : State :=
+      { alice := toyAlice toySecret
+        bob := toyBob toySecret
+        aliceOracle := toyOracle [toyAgreementDraw]
+        bobOracle := toyOracle [List.replicate 32 0x32, List.replicate 32 0x33]
+        queue := []
+        history := []
+        accepted := [] }
+    let result := run toyView start
+      [.send .alice 1 [0xde, 0xad], .receive .bob 1, .replay 1, .receive .bob 1]
+    (match result.2 with
+      | [.sent 1 _, .delivered 1 plaintext, .replayed 1, .refused 1 _] =>
+          plaintext == [0xde, 0xad]
+            && result.1.accepted == [(.bob, 1, [0xde, 0xad])]
+      | _ => false) = true := by
+  native_decide
+
 /-! ## Projection to the earlier bounded trace
 
 The P6 trace keeps only phase and message labels. This projection makes its
