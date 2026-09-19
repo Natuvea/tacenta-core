@@ -164,8 +164,10 @@ Source pages: `tacenta-spec/protocol/session-establishment.md`,
 | Primitive calls delegated by the session algorithms; ordered caller randomness | `Oracle`, `takeDraw`, `random32`, `kemEncapsulate`, `sign` | `Model/Lifecycle.lean` |
 | Receiving the initial message; exact repeated-initial recognition and ignored wrapper fields | `repeatedInitial`, `repeatedInitial_iff`, `repeatedInitial_ignores_other_fields` | `Model/Lifecycle.lean` |
 | Initial message; detailed decoder result | `DecodeRefusal`, `initialDecodeRefusal`, `decodeInitialDetailed` | `Model/Messages.lean` |
+| Ratchet message composite header; detailed decoder result | `decodeRefusal`, `decodeDetailed` | `Model/CompositeHeader.lean` |
 | Error handling; required refusals, with implementation-owned error names | `RatchetRefusal`, `SparseRefusal`, `TripleRefusal`, `HandshakeRefusal`, `Refusal` | `Model/Lifecycle.lean` |
 | Message type; dispatch from framing | `MessageType`, `messageType`, `messageType_initial_iff` | `Model/Lifecycle.lean` |
+| Triple/Braid composite header correspondence; erasure codeword view | `CodewordView`, `braidTypeOf`, `compositeTypeOf`, `braidMessageOf`, `tripleHeaderOf`, `compositeOf` | `Model/Lifecycle.lean` |
 | Established-session decrypt; repeated wrapper removal and refusal | `dispatchDecrypt`, `dispatchDecrypt_passthrough`, `dispatchDecrypt_decode_refusal`, `dispatchDecrypt_repeat`, `dispatchDecrypt_not_repeat`, `dispatchDecrypt_initial_ok_iff` | `Model/Lifecycle.lean` |
 | ML-KEM Braid, Failure; terminal state query | `agreementFailed`, `agreementFailed_iff` | `Model/Lifecycle.lean` |
 

@@ -12,6 +12,7 @@ The primitive algorithms are deliberately outside this model. The theorem is
 intended to quantify over every oracle; real-crypto vectors instantiate one.
 -/
 import Model.PersistedState
+import Model.CompositeHeader
 
 namespace Model.Lifecycle
 
@@ -35,6 +36,16 @@ structure Oracle where
   kemDecaps : Bytes → Bytes → Option Key
   sigVerify : Key → Bytes → Bytes → Bool
   sigSign : Key → Bytes → Key → Bytes
+
+/-- Executable view of the erasure codeword relation already used by the Braid
+    refinement. A wire codeword does not reveal the Braid model's ghost source,
+    and a model chunk does not contain its wire bytes. The current Braid state
+    is part of each complete argument list because it supplies the encoder or
+    decoder context. `CodewordViewOf` in the refinement layer will constrain
+    these choices by the existing `BraidT3.CodewordOf` relation. -/
+structure CodewordView where
+  receive : Model.Braid.BraidState → UInt16 → Bytes → Model.Braid.Chunk
+  send : Model.Braid.BraidState → Model.Braid.Chunk → Model.CompositeHeader.Codeword
 
 /-- Consume one named 32-byte random draw. Exhaustion is a model refusal rather
     than an invented value; callers decide which public refusal it maps to. -/
@@ -211,6 +222,82 @@ theorem messageType_initial_iff (bytes : Bytes) :
             by_cases hr : second = 0x01 <;>
             by_cases hi : second = 0x02 <;>
             simp [hv, hr, hi, Model.Messages.typeRatchet, Model.Messages.typeInitial]
+
+/-! ## Composite-header adapters
+
+The session owns the correspondence between the wire header, the Triple
+Ratchet header and the Braid message. Codeword payloads cross the explicit
+`CodewordView`; all remaining fields are direct, total conversions.
+-/
+
+def braidTypeOf : Model.CompositeHeader.AgreementType → Model.Braid.MsgType
+  | .none => .none
+  | .hdr => .hdr
+  | .ek => .ek
+  | .ekCt1Ack => .ekCt1Ack
+  | .ct1 => .ct1
+  | .ct2 => .ct2
+
+/-- The Braid model contains `ct1Ack` for the published state machine, but the
+    shipping wire format deliberately gives it no byte because no send
+    transition emits it. All emitted message types have a wire image. -/
+def compositeTypeOf : Model.Braid.MsgType → Option Model.CompositeHeader.AgreementType
+  | .none => some .none
+  | .hdr => some .hdr
+  | .ek => some .ek
+  | .ekCt1Ack => some .ekCt1Ack
+  | .ct1Ack => none
+  | .ct1 => some .ct1
+  | .ct2 => some .ct2
+
+theorem compositeTypeOf_braidTypeOf (ty : Model.CompositeHeader.AgreementType) :
+    compositeTypeOf (braidTypeOf ty) = some ty := by
+  cases ty <;> rfl
+
+def braidMessageOf (view : CodewordView) (state : Model.Braid.BraidState)
+    (header : Model.CompositeHeader.Composite) : Model.Braid.Msg :=
+  { epoch := header.agEpoch.toNat
+    type := braidTypeOf header.agType
+    data := header.agChunk.map (fun chunk => view.receive state chunk.index chunk.data) }
+
+def tripleHeaderOf (header : Model.CompositeHeader.Composite) : Model.Triple.Header :=
+  { dr :=
+      { dh := header.dh
+        pn := header.pn.toNat
+        n := header.n.toNat }
+    epoch := header.pqEpoch.toNat
+    pqN := header.pqN.toNat }
+
+/-- Build the wire header for a message emitted by the two operational models.
+    `none` is reachable only for the Braid model's unencodable `ct1Ack`, which
+    its send transition never produces. -/
+def compositeOf (view : CodewordView) (braidBefore : Model.Braid.BraidState)
+    (header : Model.Triple.Header) (message : Model.Braid.Msg) :
+    Option Model.CompositeHeader.Composite := do
+  let ty ← compositeTypeOf message.type
+  some
+    { dh := header.dr.dh
+      pn := UInt32.ofNat header.dr.pn
+      n := UInt32.ofNat header.dr.n
+      pqEpoch := UInt64.ofNat header.epoch
+      pqN := UInt64.ofNat header.pqN
+      agEpoch := UInt64.ofNat message.epoch
+      agType := ty
+      agChunk := message.data.map (view.send braidBefore) }
+
+theorem braidMessageOf_fields (view : CodewordView) (state : Model.Braid.BraidState)
+    (header : Model.CompositeHeader.Composite) :
+    (braidMessageOf view state header).epoch = header.agEpoch.toNat
+      ∧ (braidMessageOf view state header).type = braidTypeOf header.agType := by
+  exact ⟨rfl, rfl⟩
+
+theorem tripleHeaderOf_fields (header : Model.CompositeHeader.Composite) :
+    (tripleHeaderOf header).dr.dh = header.dh
+      ∧ (tripleHeaderOf header).dr.pn = header.pn.toNat
+      ∧ (tripleHeaderOf header).dr.n = header.n.toNat
+      ∧ (tripleHeaderOf header).epoch = header.pqEpoch.toNat
+      ∧ (tripleHeaderOf header).pqN = header.pqN.toNat := by
+  exact ⟨rfl, rfl, rfl, rfl, rfl⟩
 
 /-- Whether an initial wrapper is the repeat belonging to this responder
     session (session-establishment.md, Receiving the initial message). -/
