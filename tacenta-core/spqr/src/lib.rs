@@ -533,14 +533,8 @@ impl State {
     pub fn evict_oldest(&mut self, count: usize) -> usize {
         let mut evicted = 0;
         while evicted < count && self.skipped.len() != 0 {
-            let last = self.skipped.len() - 1;
-            let mut i = 0;
-            while i < last {
-                self.skipped.swap(i, i + 1);
-                i += 1;
-            }
-            self.skipped[last].zeroize();
-            let _ = self.skipped.pop();
+            let mut discarded = Self::remove_skipped_at(&mut self.skipped, 0);
+            discarded.zeroize();
             evicted += 1;
         }
         evicted
