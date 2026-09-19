@@ -521,6 +521,109 @@ theorem responder_kem_secret_no_panic (hkem : KemDecapsulateTotal)
       · step
         exact responder_one_time_kem_secret_no_panic hkem store _ ‹_› id ciphertext
 
+@[step]
+theorem hmac_sha256_no_panic (h : Tacenta.SessionUnitT1.HmacTotal)
+    (key data : Slice U8) :
+    tacenta_kdf.hmac_sha256 key data ⦃ fun _ => True ⦄ :=
+  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h key data)
+
+@[step]
+theorem last_resort_fingerprint_no_panic
+    (h : Tacenta.SessionUnitT1.HmacTotal) (sk : Array U8 32#usize) :
+    lifecycle.last_resort_fingerprint sk ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.last_resort_fingerprint
+  step
+  exact hmac_sha256_no_panic h lifecycle.LAST_RESORT_HANDSHAKE_LABEL s
+
+theorem last_resort_seen_for_loop_no_panic
+    (store : lifecycle.PrekeyStore) (keyId : U32)
+    (count index : Usize)
+    (hindex : index.val ≤ store.last_resort_seen.val.length)
+    (hcount : count.val ≤ index.val) :
+    lifecycle.PrekeyStore.last_resort_seen_for_loop store keyId count index
+      ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.PrekeyStore.last_resort_seen_for_loop
+  apply loop.spec_decr_nat
+    (measure := fun p => store.last_resort_seen.val.length - (Prod.snd p).val)
+    (inv := fun p => (Prod.snd p).val ≤ store.last_resort_seen.val.length ∧
+      (Prod.fst p).val ≤ (Prod.snd p).val)
+  · rintro ⟨count1, index1⟩ ⟨hi, hc⟩
+    simp only at hi hc
+    simp only [lifecycle.PrekeyStore.last_resort_seen_for_loop.body]
+    split
+    · step
+      split
+      · step
+        case hmax => scalar_tac
+        case a =>
+          step
+          case hmax => scalar_tac
+          case a =>
+            constructor
+            · scalar_tac
+            · constructor <;> scalar_tac
+      · step
+        case hmax => scalar_tac
+        case a =>
+          constructor
+          · scalar_tac
+          · constructor <;> scalar_tac
+    · simp
+  · exact ⟨hindex, hcount⟩
+
+@[step]
+theorem last_resort_seen_for_no_panic
+    (store : lifecycle.PrekeyStore) (keyId : U32) :
+    lifecycle.PrekeyStore.last_resort_seen_for store keyId
+      ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.PrekeyStore.last_resort_seen_for
+  exact last_resort_seen_for_loop_no_panic store keyId 0#usize 0#usize
+    (by simp) (by simp)
+
+theorem responder_replay_fingerprint_loop_no_panic
+    (store : lifecycle.PrekeyStore) (fingerprint : Array U8 32#usize)
+    (replayed : Bool) (index : Usize)
+    (hindex : index.val ≤ store.last_resort_seen.val.length) :
+    lifecycle.responder_replay_fingerprint_loop store fingerprint replayed index
+      ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.responder_replay_fingerprint_loop
+  apply loop.spec_decr_nat
+    (measure := fun p => store.last_resort_seen.val.length - (Prod.snd p).val)
+    (inv := fun p => (Prod.snd p).val ≤ store.last_resort_seen.val.length)
+  · rintro ⟨replayed1, index1⟩ hi
+    simp only at hi
+    simp only [lifecycle.responder_replay_fingerprint_loop.body]
+    split
+    · step
+      step with Tacenta.SessionUnitT1.array_eq_total
+      split
+      · step
+        case hmax => scalar_tac
+        case a => exact ⟨by scalar_tac, by scalar_tac⟩
+      · step
+        case hmax => scalar_tac
+        case a => exact ⟨by scalar_tac, by scalar_tac⟩
+    · simp
+  · exact hindex
+
+@[step]
+theorem responder_replay_fingerprint_no_panic
+    (h : Tacenta.SessionUnitT1.HmacTotal)
+    (store : lifecycle.PrekeyStore) (kemId : U32)
+    (sk : Array U8 32#usize) (lastResort : Bool) :
+    lifecycle.responder_replay_fingerprint store kemId sk lastResort
+      ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.responder_replay_fingerprint
+  split
+  · step
+    step with responder_replay_fingerprint_loop_no_panic store fingerprint false
+      0#usize (by simp)
+    split
+    · simp
+    · step
+      split <;> simp
+  · simp
+
 def ReadableOneTime
     (o : Option (zeroize.Zeroizing (Array U8 32#usize))) : Prop :=
   match o with
