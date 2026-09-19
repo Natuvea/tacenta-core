@@ -1182,6 +1182,7 @@ impl PrekeyStore {
     /// After `establish_responder`, persist the session it returned *before*
     /// this store, and both before acting on the message: `Session::export`
     /// states the ordering rules and what each crash window costs.
+    #[allow(clippy::manual_map)] // Explicit match remains translatable by Aeneas.
     pub fn to_bytes(&self) -> Zeroizing<Vec<u8>> {
         // Sized exactly before the first write so the buffer never grows: a
         // `Vec` that outgrows its allocation moves to a larger one and hands
@@ -1495,6 +1496,7 @@ impl PrekeyStore {
     ///   a peer's bundle decoder refuses any other spelling. `create_prekeys`
     ///   takes it from the identity's secret, so X25519 computed it, and no
     ///   operation changes it.
+    #[allow(clippy::manual_map)] // Explicit matches remain translatable by Aeneas.
     pub fn invariant(&self) -> bool {
         if !is_canonical_key(&self.identity_public) {
             return false;
@@ -1823,6 +1825,7 @@ fn decode_prekey_head(bytes: &[u8]) -> Result<DecodedPrekeyHead, PrekeyStoreDeco
     })
 }
 
+#[allow(clippy::type_complexity)] // Keep the translation leaf free of aliases.
 fn decode_tagged_seen(
     bytes: &[u8],
     mut pos: usize,
@@ -1843,6 +1846,7 @@ fn decode_tagged_seen(
     Ok((entries, pos))
 }
 
+#[allow(clippy::type_complexity)] // Keep the translation leaf free of aliases.
 fn decode_untagged_seen(
     bytes: &[u8],
     mut pos: usize,
@@ -1861,6 +1865,7 @@ fn decode_untagged_seen(
     Ok((entries, pos))
 }
 
+#[allow(clippy::type_complexity, clippy::if_same_then_else)] // Branches mirror wire versions for the proof model.
 fn decode_prekey_replay(
     bytes: &[u8],
     mut pos: usize,
@@ -2012,6 +2017,7 @@ fn decode_previous_prekeys(
     Ok((previous_signed_prekey, previous_kem, pos))
 }
 
+#[allow(clippy::type_complexity)] // Keep the translation leaf free of aliases.
 fn decode_kem_one_time_entries(
     bytes: &[u8],
     mut pos: usize,
