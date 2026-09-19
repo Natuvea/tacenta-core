@@ -59,6 +59,24 @@ proof roots. `Identity::sign`, `sign_message` and the store publication and
 rotation methods move with the lifecycle leaf, so the translation and its
 audit still encounter that opaque call.
 
+The emitted opaque declarations map to the contracts as follows:
+
+| Emitted opaque names | Contract |
+| --- | --- |
+| `dh_public`, `dh_public_bytes`, `dh_public_from_bytes`, `dh_public_eq` | `DhCodecTotal` |
+| `dh_agree` | `DhAgreeTotal` |
+| `aead_seal` | `AeadSealTotal` |
+| `aead_open` | `AeadOpenTotal` |
+| `kem_encapsulate` | `KemEncapsulateTotal` |
+| `kem_decapsulate` | `KemDecapsulateTotal` |
+| `kem_ciphertext_len` | `KemCiphertextLenTotal` |
+| `xeddsa_verify` | `XeddsaVerifyTotal` |
+| `xeddsa_sign` | `XeddsaSignTotal` |
+| `random32` | `Random32Total` |
+
+This is the post-rewrite inventory; the pre-rewrite 18-axiom experiment is
+recorded only as a translation failure measurement.
+
 ## Assumption budget
 
 The complete translation requires ten new primitive contracts. Existing KDF
@@ -71,8 +89,9 @@ the boundary to be recut before proof work continues.
 
 - The boundary contracts establish termination and the shape of returned
   values. They do not prove the cryptographic primitives correct or secure.
-- Zeroization and heap-residue behavior remain outside the formal proof and
-  stay governed by their tests and security process.
+- Drop and allocator behavior remain outside the formal proof; the public
+  limitations record the corresponding implementation hardening and its test
+  evidence.
 - The Phase 0 translation records the reachable opaque-call inventory for the
   five proof roots. Adding a reachable primitive call without adding it to one
   of the ten contracts is a review finding.

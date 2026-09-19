@@ -31,7 +31,7 @@ replace the pinned Linux regeneration required for evidence.
 ## Primitive-boundary probe
 
 The scratch tree copied the four existing primitive implementations into a
-`tacenta-boundary` dependency and exposed the nine functions proposed in
+`tacenta-boundary` dependency and exposed the ten functions proposed in
 `SESSION-L4-PRIMITIVE-BOUNDARY-DECISION.md`. A small lifecycle probe called
 all nine.
 
@@ -53,7 +53,7 @@ transparent. No primitive function body was translated. The public
 their use in signatures requires.
 
 This supports D2's package-boundary premise. It does not establish any of the
-nine future contracts.
+ten future contracts.
 
 ## Shipping-shaped lifecycle probe
 
@@ -94,7 +94,7 @@ The distinct blockers observed were:
 The partial full-leaf translation exposed 18 primitive method/function axioms
 rather than the proposed nine-function surface because the mechanically moved
 source still called the old primitive modules directly. Rewiring those calls
-to the nine functions is required before the opaque-assumption budget can be
+to the ten functions is required before the opaque-assumption budget can be
 measured.
 
 ## Follow-up rewrite and rooted-translation measurement
