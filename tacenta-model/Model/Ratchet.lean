@@ -155,6 +155,34 @@ def trySkipped (st : State) (header : Header) : Option (State × Key) :=
     some ({ st with skipped := rest }, mk)
   | none => none
 
+private abbrev SkippedEntry := Key × Nat × Nat × Key
+
+private def olderSkipped (left right : SkippedEntry) : SkippedEntry :=
+  if right.2.2.1 < left.2.2.1 then right else left
+
+def oldestSkipped? : List SkippedEntry → Option SkippedEntry
+  | [] => none
+  | first :: rest => some (rest.foldl olderSkipped first)
+
+private def eraseFirstSkipped (target : SkippedEntry) :
+    List SkippedEntry → List SkippedEntry
+  | [] => []
+  | entry :: rest =>
+      if entry = target then rest else entry :: eraseFirstSkipped target rest
+
+/-- Delete up to `count` entries with the smallest store-clock value, matching
+    the implementation's `evict_oldest`. The returned count is observable to
+    the session retry loop: zero stops it. -/
+def evictOldest : State → Nat → State × Nat
+  | st, 0 => (st, 0)
+  | st, count + 1 =>
+      match oldestSkipped? st.skipped with
+      | none => (st, 0)
+      | some oldest =>
+          let one := { st with skipped := eraseFirstSkipped oldest st.skipped }
+          let rest := evictOldest one count
+          (rest.1, rest.2 + 1)
+
 /-- Taking a stored skipped key does not touch the store's clock: it removes an
 entry and leaves every other field alone. Needed where a later step has to know
 the counter still has room. -/
@@ -368,6 +396,15 @@ private def bPub : Key := List.replicate 32 0x0b
 private def b2Pub : Key := List.replicate 32 0x2b
 private def dhAB : Key := List.replicate 32 0xab   -- DH(a, B) = DH(b, A)
 private def dhB2A : Key := List.replicate 32 0xba  -- DH(b2, A)
+
+/-- Eviction follows the store clock rather than list position and reports the
+    number actually removed, which the Session retry loop uses as progress. -/
+example :
+    let state : State := { initReceiver sk bPub .tacenta with
+      skipped := [(aPub, 1, 5, sk), (aPub, 2, 1, sk), (aPub, 3, 3, sk)] }
+    let result := evictOldest state 2
+    (result.2, result.1.skipped.map (fun entry => entry.2.2.1)) = (2, [5]) := by
+  native_decide
 
 /-- In order: the first message A sends is recovered with the same message key by
     B, whose first receive takes the opening DH ratchet step. -/

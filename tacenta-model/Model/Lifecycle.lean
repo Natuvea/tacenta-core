@@ -450,6 +450,82 @@ theorem braidFailed_iff (state : Model.Braid.BraidState) :
 def sparseOutputOf : Option Model.Braid.Output → Option Model.SparseRatchet.Output :=
   Option.map fun value => { keyEpoch := value.keyEpoch, key := value.key }
 
+inductive FullStore where
+  | classical | postQuantum
+  deriving Repr, DecidableEq, Inhabited
+
+def fullStore : Model.Triple.ReceiveRefusal → Option FullStore
+  | .classical .skippedStoreFull => some .classical
+  | .postQuantum .skippedStoreFull => some .postQuantum
+  | _ => none
+
+def receiveShortfall (half : FullStore) (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) : Nat :=
+  match half with
+  | .classical =>
+      max 1 (Model.Triple.classicalSkippedLength state
+        + (composite.n.toNat - Model.Triple.receiveCount state)
+        - Model.State.maxSkippedStore)
+  | .postQuantum =>
+      match Model.Triple.postQuantumReceiveCount state composite.pqEpoch.toNat with
+      | none => 1
+      | some received =>
+          max 1 (Model.Triple.postQuantumSkippedLength state
+            + (composite.pqN.toNat - 1 - received)
+            - Model.SparseRatchet.maxSkippedStore)
+
+private def receiveWithEvictionLoop (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending : Model.Triple.ReceiveRefusal) (half : FullStore) (batch : Nat) :
+    Nat → Except Model.Triple.ReceiveRefusal (Model.Triple.State × Key)
+  | 0 => .error pending
+  | fuel + 1 =>
+      let evicted :=
+        match half with
+        | .classical => Model.Triple.evictOldestClassical state batch
+        | .postQuantum => Model.Triple.evictOldestPostQuantum state batch
+      if evicted.2 = 0 then .error pending
+      else
+        match Model.Triple.receiveDetailed evicted.1 header
+            dhOutRecv dhOutSend newDhsPub output with
+        | .ok result => .ok result
+        | .error reason =>
+            match fullStore reason with
+            | none => .error reason
+            | some next =>
+                if next = half then
+                  receiveWithEvictionLoop evicted.1 composite header
+                    dhOutRecv dhOutSend newDhsPub output reason next (batch * 2) fuel
+                else
+                  receiveWithEvictionLoop evicted.1 composite header
+                    dhOutRecv dhOutSend newDhsPub output reason next
+                    (receiveShortfall next evicted.1 composite) fuel
+
+/-- The Session receive retry policy. A full leaf store is evicted only on this
+    working Triple copy. The fuel is one more than the total entries held; every
+    recursive retry has deleted at least one, so the fuel boundary is
+    unreachable for a well-formed execution and supplies structural recursion
+    without changing the Rust loop's result. -/
+def receiveWithEviction (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output) :
+    Except Model.Triple.ReceiveRefusal (Model.Triple.State × Key) :=
+  match Model.Triple.receiveDetailed state header
+      dhOutRecv dhOutSend newDhsPub output with
+  | .ok result => .ok result
+  | .error reason =>
+      match fullStore reason with
+      | none => .error reason
+      | some half =>
+          receiveWithEvictionLoop state composite header
+            dhOutRecv dhOutSend newDhsPub output reason half
+            (receiveShortfall half state composite)
+            (Model.Triple.classicalSkippedLength state
+              + Model.Triple.postQuantumSkippedLength state + 1)
+
 /-- `Session::encrypt`, through the executable leaf models and the primitive
     oracle. The Braid runs first, a terminal Braid is committed on refusal, the
     Triple candidate commits only on success, and the initial wrapper remains
@@ -683,5 +759,183 @@ theorem prepareDecrypt_ok (session : Session) (message inner : Bytes)
     (hw : Model.CompositeHeader.decodeDetailed inner = .ok decoded) :
     prepareDecrypt session message = .ok decoded := by
   simp [prepareDecrypt, hd, hf, hw]
+
+/-- The inner `Session::decrypt_ratchet` transaction. Every candidate change,
+    including eviction, stays local until the AEAD opens. The fresh ratchet
+    private draw is consumed after the incoming DH succeeds, matching the call
+    order in Rust, and remains consumed on every later refusal. -/
+def decryptRatchet (view : CodewordView) (oracle : Oracle) (session : Session)
+    (message : Bytes) : Step Bytes :=
+  if agreementFailed session then
+    { session, result := .error .agreementFailed, oracle }
+  else
+    match Model.CompositeHeader.decodeDetailed message with
+    | .error reason => { session, result := .error (.decode reason), oracle }
+    | .ok (composite, ciphertext) =>
+        let agreement := Model.Braid.receive oracle.braidKem session.braid
+          (braidMessageOf view session.braid composite)
+        let output := sparseOutputOf agreement.2.1
+        let braidCandidate := agreement.2.2
+        match oracle.dhAgree session.ratchetPrivate composite.dh with
+        | none =>
+            { session
+              result := .error (.handshake .nonContributoryAgreement)
+              oracle }
+        | some dhOutRecv =>
+            match random32 oracle with
+            | none => { session, result := .error .ceiling, oracle }
+            | some (candidatePrivate, oracleNext) =>
+                match oracle.dhAgree candidatePrivate composite.dh with
+                | none =>
+                    { session
+                      result := .error (.handshake .nonContributoryAgreement)
+                      oracle := oracleNext }
+                | some dhOutSend =>
+                    let header := tripleHeaderOf composite
+                    let candidatePublic := oracle.dhPublic candidatePrivate
+                    match receiveWithEviction session.triple composite header
+                        dhOutRecv dhOutSend candidatePublic output with
+                    | .error reason =>
+                        { session
+                          result := .error (tripleReceiveRefusalOf reason)
+                          oracle := oracleNext }
+                    | .ok (tripleCandidate, messageKey) =>
+                        let keys := Model.State.messageKeys messageKey .tacenta
+                        let associatedData := Model.Messages.concatAd session.identityAd
+                          (Model.CompositeHeader.encode composite)
+                        match oracle.aeadOpen keys.1 keys.2.1 keys.2.2
+                            ciphertext associatedData with
+                        | none => { session, result := .error .aead, oracle := oracleNext }
+                        | some plaintext =>
+                            let ratchetPrivate :=
+                              if tripleCandidate.classical.dhsPub ==
+                                  session.triple.classical.dhsPub then
+                                session.ratchetPrivate
+                              else candidatePrivate
+                            { session :=
+                                { session with
+                                  triple := tripleCandidate
+                                  braid := braidCandidate
+                                  ratchetPrivate }
+                              result := .ok plaintext
+                              oracle := oracleNext }
+
+theorem decryptRatchet_refusal_keeps_session (view : CodewordView)
+    (oracle : Oracle) (session : Session) (message : Bytes) (reason : Refusal)
+    (h : (decryptRatchet view oracle session message).result = .error reason) :
+    (decryptRatchet view oracle session message).session = session := by
+  by_cases hf : agreementFailed session = true
+  · simp [decryptRatchet, hf]
+  · cases hd : Model.CompositeHeader.decodeDetailed message with
+    | error decodeReason => simp [decryptRatchet, hf, hd]
+    | ok decoded =>
+        obtain ⟨composite, ciphertext⟩ := decoded
+        cases hr : oracle.dhAgree session.ratchetPrivate composite.dh with
+        | none => simp [decryptRatchet, hf, hd, hr]
+        | some dhOutRecv =>
+            cases hdraw : random32 oracle with
+            | none => simp [decryptRatchet, hf, hd, hr, hdraw]
+            | some drawn =>
+                obtain ⟨candidatePrivate, oracleNext⟩ := drawn
+                cases hs : oracle.dhAgree candidatePrivate composite.dh with
+                | none => simp [decryptRatchet, hf, hd, hr, hdraw, hs]
+                | some dhOutSend =>
+                    cases ht : receiveWithEviction session.triple composite
+                        (tripleHeaderOf composite) dhOutRecv dhOutSend
+                        (oracle.dhPublic candidatePrivate)
+                        (sparseOutputOf
+                          (Model.Braid.receive oracle.braidKem session.braid
+                            (braidMessageOf view session.braid composite)).2.1) with
+                    | error tripleReason =>
+                        simp [decryptRatchet, hf, hd, hr, hdraw, hs, ht]
+                    | ok candidate =>
+                        obtain ⟨tripleCandidate, messageKey⟩ := candidate
+                        cases ha : oracle.aeadOpen
+                            (Model.State.messageKeys messageKey .tacenta).1
+                            (Model.State.messageKeys messageKey .tacenta).2.1
+                            (Model.State.messageKeys messageKey .tacenta).2.2 ciphertext
+                            (Model.Messages.concatAd session.identityAd
+                              (Model.CompositeHeader.encode composite)) with
+                        | none =>
+                            simp [decryptRatchet, hf, hd, hr, hdraw, hs, ht, ha]
+                        | some plaintext =>
+                            simp [decryptRatchet, hf, hd, hr, hdraw, hs, ht, ha] at h
+
+/-- Public `Session::decrypt`: remove an accepted repeated-initial wrapper,
+    run the authenticated ratchet transaction, and clear `pendingInitial` only
+    after that transaction succeeds. -/
+def decrypt (view : CodewordView) (oracle : Oracle) (session : Session)
+    (message : Bytes) : Step Bytes :=
+  match dispatchDecrypt session message with
+  | .error reason => { session, result := .error reason, oracle }
+  | .ok inner =>
+      let step := decryptRatchet view oracle session inner
+      match step.result with
+      | .error _ => step
+      | .ok plaintext =>
+          { step with
+            session := { step.session with pendingInitial := none }
+            result := .ok plaintext }
+
+theorem decrypt_dispatch_refusal_keeps_state (view : CodewordView)
+    (oracle : Oracle) (session : Session) (message : Bytes) (reason : Refusal)
+    (h : dispatchDecrypt session message = .error reason) :
+    decrypt view oracle session message =
+      { session, result := .error reason, oracle } := by
+  simp [decrypt, h]
+
+theorem decrypt_refusal_keeps_session (view : CodewordView)
+    (oracle : Oracle) (session : Session) (message : Bytes) (reason : Refusal)
+    (h : (decrypt view oracle session message).result = .error reason) :
+    (decrypt view oracle session message).session = session := by
+  cases hd : dispatchDecrypt session message with
+  | error dispatchReason => simp [decrypt, hd]
+  | ok inner =>
+      cases hr : decryptRatchet view oracle session inner with
+      | mk next result oracleNext =>
+          cases result with
+          | error ratchetReason =>
+              have hk := decryptRatchet_refusal_keeps_session view oracle session
+                inner ratchetReason (by simp [hr])
+              simpa [decrypt, hd, hr] using hk
+          | ok plaintext => simp [decrypt, hd, hr] at h
+
+theorem decrypt_success_clears_pending (view : CodewordView)
+    (oracle : Oracle) (session : Session) (message plaintext : Bytes)
+    (h : (decrypt view oracle session message).result = .ok plaintext) :
+    (decrypt view oracle session message).session.pendingInitial = none := by
+  cases hd : dispatchDecrypt session message with
+  | error reason => simp [decrypt, hd] at h
+  | ok inner =>
+      cases hr : decryptRatchet view oracle session inner with
+      | mk next result oracleNext =>
+          cases result with
+          | error reason => simp [decrypt, hd, hr] at h
+          | ok actual => simp [decrypt, hd, hr]
+
+theorem decrypt_aead_refusal_keeps_state (view : CodewordView)
+    (oracle oracleNext : Oracle) (session : Session) (message ciphertext : Bytes)
+    (composite : Model.CompositeHeader.Composite) (dhOutRecv candidatePrivate dhOutSend : Key)
+    (tripleCandidate : Model.Triple.State) (messageKey : Key)
+    (hd : Model.CompositeHeader.decodeDetailed message = .ok (composite, ciphertext))
+    (hf : agreementFailed session = false)
+    (hr : oracle.dhAgree session.ratchetPrivate composite.dh = some dhOutRecv)
+    (hdraw : random32 oracle = some (candidatePrivate, oracleNext))
+    (hs : oracle.dhAgree candidatePrivate composite.dh = some dhOutSend)
+    (ht : receiveWithEviction session.triple composite (tripleHeaderOf composite)
+      dhOutRecv dhOutSend (oracle.dhPublic candidatePrivate)
+      (sparseOutputOf
+        (Model.Braid.receive oracle.braidKem session.braid
+          (braidMessageOf view session.braid composite)).2.1) =
+        .ok (tripleCandidate, messageKey))
+    (ha : oracle.aeadOpen
+      (Model.State.messageKeys messageKey .tacenta).1
+      (Model.State.messageKeys messageKey .tacenta).2.1
+      (Model.State.messageKeys messageKey .tacenta).2.2 ciphertext
+      (Model.Messages.concatAd session.identityAd
+        (Model.CompositeHeader.encode composite)) = none) :
+    decryptRatchet view oracle session message =
+      { session, result := .error .aead, oracle := oracleNext } := by
+  simp [decryptRatchet, hf, hd, hr, hdraw, hs, ht, ha]
 
 end Model.Lifecycle

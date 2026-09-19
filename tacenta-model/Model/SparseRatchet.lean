@@ -438,6 +438,13 @@ def trySkipped (st : State) (e n : Nat) : Option (State × Key) :=
     some ({ st with skipped := st.skipped.filter (fun y => !(y.1 == e && y.2.1 == n)) },
           x.2.2)
 
+/-- Delete up to `count` of the oldest sparse skipped keys. Sparse entries are
+    appended in derivation order and only removed, so the front is the oldest,
+    exactly matching the implementation's adjacent-swap-and-pop loop. -/
+def evictOldest (st : State) (count : Nat) : State × Nat :=
+  let evicted := min count st.skipped.length
+  ({ st with skipped := st.skipped.drop evicted }, evicted)
+
 /-- Step the receiving chain forward to `upto`, storing every key passed.
 
     `none` when the request exceeds `maxSkip`, or when the chain has been
@@ -732,6 +739,15 @@ These elaborate at build time, so a wrong transition fails the build rather than
 a test run. -/
 
 private def sk : Key := List.replicate 32 0x01
+
+/-- Sparse eviction removes the oldest appended entries and reports short
+    deletion when the requested batch is larger than the store. -/
+example :
+    let state : State := { initBob sk with
+      skipped := [(0, 1, sk), (0, 2, sk), (0, 3, sk)] }
+    let result := evictOldest state 5
+    (result.2, result.1.skipped.length) = (3, 0) := by
+  native_decide
 
 private def receiveAt (n : Nat) : State :=
   { initBob sk with

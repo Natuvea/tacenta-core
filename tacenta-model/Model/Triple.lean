@@ -150,6 +150,25 @@ method. `dhOutRecv`/`dhOutSend`/`newDhsPub` are the classical DH ratchet's own
 boundary inputs, threaded straight through as `Model.Ratchet.receive` already
 asks for them. -/
 
+def classicalSkippedLength (st : State) : Nat := st.classical.skipped.length
+
+def receiveCount (st : State) : Nat := st.classical.nr
+
+def postQuantumSkippedLength (st : State) : Nat := st.postQuantum.skipped.length
+
+def postQuantumReceiveCount (st : State) (epoch : Nat) : Option Nat := do
+  let chains ← Model.SparseRatchet.findChains st.postQuantum epoch
+  let receive ← chains.receive
+  some receive.n
+
+def evictOldestClassical (st : State) (count : Nat) : State × Nat :=
+  let result := Model.Ratchet.evictOldest st.classical count
+  ({ st with classical := result.1 }, result.2)
+
+def evictOldestPostQuantum (st : State) (count : Nat) : State × Nat :=
+  let result := Model.SparseRatchet.evictOldest st.postQuantum count
+  ({ st with postQuantum := result.1 }, result.2)
+
 def receive (st : State) (header : Header) (dhOutRecv dhOutSend newDhsPub : Key)
     (out : Option Model.SparseRatchet.Output) : Option (State × Key) :=
   match Model.Ratchet.receive st.classical header.dr dhOutRecv dhOutSend newDhsPub with
