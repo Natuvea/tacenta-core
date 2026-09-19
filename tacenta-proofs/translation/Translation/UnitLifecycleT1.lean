@@ -71,6 +71,88 @@ the trait permits an implementation whose `fill_bytes` itself fails. -/
 def Random32Total {R : Type} (rngCore : rand_core_1.RngCore R) : Prop :=
   ∀ rng bytes, bytes.val.length = 32 → NoPanic (rngCore.fill_bytes rng bytes)
 
+/-! ## Primitive-boundary stepping rules -/
+
+@[step] theorem private_key_from_bytes_no_panic (h : DhCodecTotal)
+    (a : Array U8 32#usize) :
+    tacenta_boundary.dh.PrivateKey.from_bytes a ⦃ fun _ => True ⦄ :=
+  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h.1 a)
+
+@[step] theorem private_key_public_no_panic (h : DhCodecTotal)
+    (k : tacenta_boundary.dh.PrivateKey) :
+    tacenta_boundary.dh.PrivateKey.public_key k ⦃ fun _ => True ⦄ :=
+  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h.2.1 k)
+
+@[step] theorem private_key_to_bytes_no_panic (h : DhCodecTotal)
+    (k : tacenta_boundary.dh.PrivateKey) :
+    tacenta_boundary.dh.PrivateKey.to_bytes k ⦃ fun _ => True ⦄ :=
+  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h.2.2.1 k)
+
+@[step] theorem public_key_from_bytes_no_panic (h : DhCodecTotal)
+    (a : Array U8 32#usize) :
+    tacenta_boundary.dh.PublicKeyBytes.from_bytes a ⦃ fun _ => True ⦄ :=
+  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h.2.2.2.1 a)
+
+@[step] theorem private_key_agree_no_panic (h : DhAgreeTotal)
+    (k : tacenta_boundary.dh.PrivateKey)
+    (p : tacenta_boundary.dh.PublicKeyBytes) :
+    tacenta_boundary.dh.PrivateKey.agree k p ⦃ fun _ => True ⦄ :=
+  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h k p)
+
+@[step] theorem aead_seal_no_panic (h : AeadSealTotal)
+    (ek mk : Array U8 32#usize) (nonce : Array U8 16#usize)
+    (plaintext ad : Slice U8) :
+    tacenta_boundary.aead.encrypt ek mk nonce plaintext ad ⦃ fun _ => True ⦄ :=
+  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h ek mk nonce plaintext ad)
+
+@[step] theorem aead_open_no_panic (h : AeadOpenTotal)
+    (ek mk : Array U8 32#usize) (nonce : Array U8 16#usize)
+    (ciphertext ad : Slice U8) :
+    tacenta_boundary.aead.decrypt ek mk nonce ciphertext ad ⦃ fun _ => True ⦄ :=
+  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h ek mk nonce ciphertext ad)
+
+@[step] theorem kem_encapsulate_no_panic {R : Type}
+    (h : KemEncapsulateTotal) (rc : rand_core_1.RngCore R)
+    (crc : rand_core_1.CryptoRng R) (pk : Slice U8) (rng : R) :
+    tacenta_boundary.kem.encapsulate rc crc pk rng ⦃ fun _ => True ⦄ :=
+  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h rc crc pk rng)
+
+@[step] theorem kem_decapsulate_no_panic (h : KemDecapsulateTotal)
+    (kp : tacenta_boundary.kem.KeyPair) (ct : Slice U8) :
+    tacenta_boundary.kem.decapsulate kp ct ⦃ fun _ => True ⦄ :=
+  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h kp ct)
+
+@[step] theorem kem_ciphertext_len_no_panic (h : KemCiphertextLenTotal) :
+    tacenta_boundary.kem.ciphertext_len ⦃ fun _ => True ⦄ :=
+  (Tacenta.SessionUnitT1.noPanic_iff _).2 h
+
+@[step] theorem xeddsa_verify_no_panic (h : XeddsaVerifyTotal)
+    (pk : tacenta_boundary.dh.PublicKeyBytes) (message : Slice U8)
+    (sig : Array U8 64#usize) :
+    tacenta_boundary.xeddsa.verify pk message sig ⦃ fun _ => True ⦄ :=
+  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h pk message sig)
+
+@[step] theorem xeddsa_sign_no_panic {R : Type} (h : XeddsaSignTotal)
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (secret : Array U8 32#usize) (message : Slice U8) (rng : R) :
+    tacenta_boundary.xeddsa.sign rc crc secret message rng ⦃ fun _ => True ⦄ :=
+  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h rc crc secret message rng)
+
+@[step] theorem random_secret_no_panic {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (h : Random32Total rc) (rng : R) :
+    lifecycle.random_secret rc crc rng ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.random_secret
+  step
+  rename_i buffer back hbuffer hback
+  have hlen : buffer.val.length = 32 := by
+    rw [hbuffer]
+    simp
+  obtain ⟨result, hresult⟩ := h rng buffer hlen
+  rw [hresult]
+  rcases result
+  simp
+
 /-! ## Pure lifecycle adapters
 
 These conversions sit above the primitive boundary and cannot fail.  Keeping
