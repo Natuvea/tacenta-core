@@ -819,6 +819,118 @@ theorem decrypt_ratchet_decode_refusal_step_refines {R : Type}
   rw [hmodel]
   exact ⟨congrArg Model.Lifecycle.Refusal.decode hreason, hrel, htrace⟩
 
+/-- Lift an already-related ratchet receive through the public decrypt
+dispatcher's passthrough arms (`none` and explicit ratchet).  Refusals preserve
+the inner state; success clears `pending_initial` on both sides. -/
+theorem decrypt_passthrough_step_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (realType : Option serialization.MessageType)
+    (inner : alloc.vec.Vec Std.U8)
+    (innerOutput : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.Session × R)
+    (htype : serialization.message_type message = ok realType)
+    (hnotInitial : realType ≠ some .Initial)
+    (hcopy : alloc.slice.Slice.to_vec core.clone.CloneU8 message = ok inner)
+    (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
+      (alloc.vec.Vec.deref inner) rng = ok innerOutput)
+    (hstep : StepRefines trace dh K innerOutput
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+    ∃ output,
+      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+  have htypeRel := message_type_refines message
+  rw [htype] at htypeRel
+  have hmodelNot : Model.Lifecycle.messageType (sliceOf message) ≠ some .initial := by
+    rw [← htypeRel]
+    cases realType with
+    | none => simp
+    | some ty =>
+        cases ty with
+        | Ratchet => simp [messageTypeOf]
+        | Initial => exact (hnotInitial rfl).elim
+  have hdispatch := Model.Lifecycle.dispatchDecrypt_passthrough model
+    (sliceOf message) hmodelNot
+  rcases innerOutput with ⟨realResult, realNext, rngNext⟩
+  cases hmodelStep : Model.Lifecycle.decryptRatchet view oracle model
+      (sliceOf message) with
+  | mk modelNext modelResult oracleNext =>
+      rw [hmodelStep] at hstep
+      cases realResult with
+      | Err realReason =>
+          cases modelResult with
+          | ok modelBytes =>
+              have himpossible := hstep.result
+              simp [ResultRefines] at himpossible
+          | error modelReason =>
+              let output : core.result.Result (alloc.vec.Vec Std.U8)
+                  lifecycle.Error × lifecycle.Session × R :=
+                (core.result.Result.Err realReason, realNext, rngNext)
+              have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+                  ok output := by
+                unfold lifecycle.Session.decrypt
+                cases realType with
+                | none =>
+                    simp [htype, hcopy, hinner, output,
+                      core.result.Result.Insts.CoreOpsTry.branch,
+                      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+                      core.convert.FromSame.from]
+                | some ty =>
+                    cases ty with
+                    | Ratchet =>
+                        simp [htype, hcopy, hinner, output,
+                          core.result.Result.Insts.CoreOpsTry.branch,
+                          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+                          core.convert.FromSame.from]
+                    | Initial => exact (hnotInitial rfl).elim
+              have hmodel : Model.Lifecycle.decrypt view oracle model (sliceOf message) =
+                  { session := modelNext, result := .error modelReason,
+                    oracle := oracleNext } := by
+                simp [Model.Lifecycle.decrypt, hdispatch, hmodelStep]
+              refine ⟨output, hreal, ?_⟩
+              rw [hmodel]
+              exact hstep
+      | Ok realBytes =>
+          cases modelResult with
+          | error modelReason =>
+              have himpossible := hstep.result
+              simp [ResultRefines] at himpossible
+          | ok modelBytes =>
+              let realFinal := { realNext with pending_initial := none }
+              let modelFinal := { modelNext with pendingInitial := none }
+              let output : core.result.Result (alloc.vec.Vec Std.U8)
+                  lifecycle.Error × lifecycle.Session × R :=
+                (core.result.Result.Ok realBytes, realFinal, rngNext)
+              have hfinal : SessionRefines dh K realFinal modelFinal := by
+                exact ⟨hstep.session.triple, hstep.session.braid,
+                  hstep.session.ratchetPrivate, hstep.session.identityAd,
+                  hstep.session.ourIdentityPublic, hstep.session.peerIdentityPublic,
+                  rfl, hstep.session.establishedEphemeral⟩
+              have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+                  ok output := by
+                unfold lifecycle.Session.decrypt
+                cases realType with
+                | none =>
+                    simp [htype, hcopy, hinner, output, realFinal,
+                      core.result.Result.Insts.CoreOpsTry.branch]
+                | some ty =>
+                    cases ty with
+                    | Ratchet =>
+                        simp [htype, hcopy, hinner, output, realFinal,
+                          core.result.Result.Insts.CoreOpsTry.branch]
+                    | Initial => exact (hnotInitial rfl).elim
+              have hmodel : Model.Lifecycle.decrypt view oracle model (sliceOf message) =
+                  { session := modelFinal, result := .ok modelBytes,
+                    oracle := oracleNext } := by
+                simp [Model.Lifecycle.decrypt, hdispatch, hmodelStep, modelFinal]
+              refine ⟨output, hreal, ?_⟩
+              rw [hmodel]
+              exact ⟨hstep.result, hfinal, hstep.draws⟩
+
 /-- Once the Braid send step is related, its terminal transition is committed
 on both sides before `AgreementFailed` is returned.  This outer lifecycle fact
 does not depend on the unused message, epoch or sparse output. -/
