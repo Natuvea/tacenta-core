@@ -24,7 +24,7 @@ Source page: `tacenta-spec/protocol/ratchet.md`.
 | The symmetric-key ratchet | `deriveChain`, the chain step in `send`/`receive` | `Model/State.lean`, `Model/Ratchet.lean` |
 | The Diffie-Hellman ratchet | `dhRatchet` | `Model/Ratchet.lean` |
 | Message format (header contents) | `Header`, built in `send` | `Model/Ratchet.lean` |
-| Sending and receiving | `send`, `receive`, `trySkipped` | `Model/Ratchet.lean` |
+| Sending and receiving | `send`, `sendDetailed`, `SendRefusal`, `receive`, `trySkipped` | `Model/Ratchet.lean` |
 | Skipped keys, MAX_SKIP | `skipMessageKeys`, `maxSkip` | `Model/State.lean` |
 | Session initialisation | `initSender`, `initReceiver` | `Model/Ratchet.lean` |
 
@@ -165,6 +165,7 @@ Source pages: `tacenta-spec/protocol/session-establishment.md`,
 | Receiving the initial message; exact repeated-initial recognition and ignored wrapper fields | `repeatedInitial`, `repeatedInitial_iff`, `repeatedInitial_ignores_other_fields` | `Model/Lifecycle.lean` |
 | Initial message; detailed decoder result | `DecodeRefusal`, `initialDecodeRefusal`, `decodeInitialDetailed` | `Model/Messages.lean` |
 | Ratchet message composite header; detailed decoder result | `decodeRefusal`, `decodeDetailed` | `Model/CompositeHeader.lean` |
+| Ratchet send refusal kinds retained through composition | `Ratchet.sendDetailed`, `SparseRatchet.sendDetailed`, `Triple.sendDetailed` and their `SendRefusal` types | `Model/Ratchet.lean`, `Model/SparseRatchet.lean`, `Model/Triple.lean` |
 | Error handling; required refusals, with implementation-owned error names | `RatchetRefusal`, `SparseRefusal`, `TripleRefusal`, `HandshakeRefusal`, `Refusal` | `Model/Lifecycle.lean` |
 | Message type; dispatch from framing | `MessageType`, `messageType`, `messageType_initial_iff` | `Model/Lifecycle.lean` |
 | Triple/Braid composite header correspondence; erasure codeword view | `CodewordView`, `braidTypeOf`, `compositeTypeOf`, `braidMessageOf`, `tripleHeaderOf`, `compositeOf` | `Model/Lifecycle.lean` |

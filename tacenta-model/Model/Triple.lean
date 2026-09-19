@@ -89,6 +89,60 @@ def send (st : State) (sendingEpoch : Nat) (out : Option Model.SparseRatchet.Out
             { dr, epoch := sendingEpoch, pqN },
             Model.TripleRatchet.combine mkEc mkPq)
 
+/-- Which contributing ratchet refused a send, retaining that ratchet's exact
+    public reason for the session layer. -/
+inductive SendRefusal where
+  | classical (reason : Model.Ratchet.SendRefusal)
+  | postQuantum (reason : Model.SparseRatchet.SendRefusal)
+  deriving Repr, DecidableEq, Inhabited
+
+def sendDetailed (st : State) (sendingEpoch : Nat)
+    (out : Option Model.SparseRatchet.Output) :
+    Except SendRefusal (State × Header × Key) :=
+  match Model.Ratchet.sendDetailed st.classical with
+  | .error reason => .error (.classical reason)
+  | .ok (classical, dr, mkEc) =>
+      match Model.SparseRatchet.sendDetailed st.postQuantum sendingEpoch out with
+      | .error reason => .error (.postQuantum reason)
+      | .ok (postQuantum, pqN, mkPq) =>
+          .ok ({ classical, postQuantum }, { dr, epoch := sendingEpoch, pqN },
+            Model.TripleRatchet.combine mkEc mkPq)
+
+theorem sendDetailed_ok_iff (st : State) (sendingEpoch : Nat)
+    (out : Option Model.SparseRatchet.Output) (result : State × Header × Key) :
+    sendDetailed st sendingEpoch out = .ok result ↔
+      send st sendingEpoch out = some result := by
+  cases hc : Model.Ratchet.sendDetailed st.classical with
+  | error reason =>
+      have ho : Model.Ratchet.send st.classical = none := by
+        cases h : Model.Ratchet.send st.classical with
+        | none => rfl
+        | some result =>
+            have := (Model.Ratchet.sendDetailed_ok_iff st.classical result).2 h
+            rw [hc] at this
+            contradiction
+      simp [sendDetailed, send, hc, ho]
+  | ok classicalResult =>
+      obtain ⟨classical, dr, mkEc⟩ := classicalResult
+      have ho := (Model.Ratchet.sendDetailed_ok_iff st.classical
+        (classical, dr, mkEc)).1 hc
+      cases hp : Model.SparseRatchet.sendDetailed st.postQuantum sendingEpoch out with
+      | error reason =>
+          have hpo : Model.SparseRatchet.send st.postQuantum sendingEpoch out = none := by
+            cases h : Model.SparseRatchet.send st.postQuantum sendingEpoch out with
+            | none => rfl
+            | some result =>
+                have := (Model.SparseRatchet.sendDetailed_ok_iff st.postQuantum
+                  sendingEpoch out result).2 h
+                rw [hp] at this
+                contradiction
+          simp [sendDetailed, send, hc, ho, hp, hpo]
+      | ok postQuantumResult =>
+          obtain ⟨postQuantum, pqN, mkPq⟩ := postQuantumResult
+          have hpo := (Model.SparseRatchet.sendDetailed_ok_iff st.postQuantum
+            sendingEpoch out (postQuantum, pqN, mkPq)).1 hp
+          simp [sendDetailed, send, hc, ho, hp, hpo]
+
 /-! ## Receiving
 
 Non-mutating: a candidate state and the key, mirroring the real `&self`-only

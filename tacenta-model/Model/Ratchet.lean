@@ -46,6 +46,49 @@ def send (st : State) : Option (State × Header × Key) :=
     else
       none
 
+/-- The two observable reasons the shipping send operation can refuse. The
+    older `send` remains the compact state-machine definition; this detailed
+    result lets a lifecycle refinement preserve the public error kind. -/
+inductive SendRefusal where
+  | noSendingChain | chainExhausted
+  deriving Repr, DecidableEq, Inhabited
+
+def sendDetailed (st : State) : Except SendRefusal (State × Header × Key) :=
+  match st.cks with
+  | none => .error .noSendingChain
+  | some ck =>
+      if st.ns < u32Max then
+        let (ck', mk) := kdfCk ck
+        let header : Header := { dh := st.dhsPub, pn := st.pn, n := st.ns }
+        .ok ({ st with cks := some ck', ns := st.ns + 1 }, header, mk)
+      else
+        .error .chainExhausted
+
+theorem sendDetailed_ok_iff (st : State) (result : State × Header × Key) :
+    sendDetailed st = .ok result ↔ send st = some result := by
+  cases hc : st.cks with
+  | none => simp [sendDetailed, send, hc]
+  | some ck =>
+      by_cases hn : st.ns < u32Max <;> simp [sendDetailed, send, hc, hn]
+
+theorem sendDetailed_no_chain_iff (st : State) :
+    sendDetailed st = .error .noSendingChain ↔ st.cks = none := by
+  cases hc : st.cks with
+  | none => simp [sendDetailed, hc]
+  | some ck =>
+      by_cases hn : st.ns < u32Max <;> simp [sendDetailed, hc, hn]
+
+theorem sendDetailed_exhausted_iff (st : State) :
+    sendDetailed st = .error .chainExhausted ↔
+      st.cks.isSome ∧ u32Max ≤ st.ns := by
+  cases hc : st.cks with
+  | none => simp [sendDetailed, hc]
+  | some ck =>
+      by_cases hn : st.ns < u32Max
+      · simp [sendDetailed, hc, hn]
+      · simp [sendDetailed, hc, hn]
+        omega
+
 /-- A Diffie-Hellman ratchet step (ratchet.md). `dhOutRecv = DH(DHs.priv,
     header.dh)` seeds the new receiving chain; `dhOutSend = DH(newDhs.priv,
     header.dh)` seeds the new sending chain under the fresh public key

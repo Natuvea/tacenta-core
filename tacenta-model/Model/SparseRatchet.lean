@@ -245,6 +245,91 @@ def send (st : State) (sendingEpoch : Nat) (out : Option Output) :
         else
           none
 
+/-- Exact public send refusals, retained alongside the compact `Option` model
+    so the session layer can refine the implementation's error vocabulary. -/
+inductive SendRefusal where
+  | epochOutOfOrder | noChain | chainRetired | chainExhausted
+  deriving Repr, DecidableEq, Inhabited
+
+def advanceDetailed (st : State) (out : Output) : Except SendRefusal State :=
+  if u64Max ≤ st.epoch + 1 then .error .chainExhausted
+  else if out.keyEpoch != st.epoch + 1 then .error .epochOutOfOrder
+  else
+    let d := kdfRk st.rk out.key
+    let cks := match st.direction with | .a2b => d.2.1 | .b2a => d.2.2
+    let ckr := match st.direction with | .a2b => d.2.2 | .b2a => d.2.1
+    .ok (clearOldEpochs
+      (setChains { st with rk := d.1, epoch := out.keyEpoch } out.keyEpoch
+        { send := some { ck := cks, n := 0 },
+          receive := some { ck := ckr, n := 0 } })
+      out.keyEpoch)
+
+def sendDetailed (st : State) (sendingEpoch : Nat) (out : Option Output) :
+    Except SendRefusal (State × Nat × Key) :=
+  let advanced : Except SendRefusal State :=
+    match out with | none => .ok st | some value => advanceDetailed st value
+  match advanced with
+  | .error reason => .error reason
+  | .ok st1 =>
+      match findChains st1 sendingEpoch with
+      | none => .error .noChain
+      | some cs =>
+          match cs.send with
+          | none => .error .chainRetired
+          | some ch =>
+              if ch.n < u64Max then
+                let stepped := kdfCk ch.ck (ch.n + 1)
+                .ok (setChains st1 sendingEpoch
+                      { cs with send := some { ck := stepped.1, n := ch.n + 1 } },
+                    ch.n + 1, stepped.2)
+              else
+                .error .chainExhausted
+
+theorem advanceDetailed_ok_iff (st : State) (out : Output) (result : State) :
+    advanceDetailed st out = .ok result ↔ advance st out = some result := by
+  by_cases he : u64Max ≤ st.epoch + 1
+  · simp [advanceDetailed, advance, he]
+    omega
+  · have hlt : st.epoch + 1 < u64Max := by omega
+    by_cases hk : out.keyEpoch = st.epoch + 1
+    · simp [advanceDetailed, advance, he, hlt, hk]
+    · simp [advanceDetailed, advance, he, hlt, hk]
+
+theorem sendDetailed_ok_iff (st : State) (sendingEpoch : Nat) (out : Option Output)
+    (result : State × Nat × Key) :
+    sendDetailed st sendingEpoch out = .ok result ↔ send st sendingEpoch out = some result := by
+  cases out with
+  | none =>
+      simp only [sendDetailed, send]
+      cases hc : findChains st sendingEpoch with
+      | none => simp
+      | some cs =>
+          cases hs : cs.send with
+          | none => simp [hs]
+          | some ch =>
+              by_cases hn : ch.n < u64Max <;> simp [hs, hn]
+  | some value =>
+      cases hd : advanceDetailed st value with
+      | error reason =>
+          have ha : advance st value = none := by
+            cases h : advance st value with
+            | none => rfl
+            | some result =>
+                have := (advanceDetailed_ok_iff st value result).2 h
+                rw [hd] at this
+                contradiction
+          simp [sendDetailed, send, hd, ha]
+      | ok st1 =>
+          have ha := (advanceDetailed_ok_iff st value st1).1 hd
+          simp only [sendDetailed, send, hd, ha]
+          cases hc : findChains st1 sendingEpoch with
+          | none => simp
+          | some cs =>
+              cases hs : cs.send with
+              | none => simp [hs]
+              | some ch =>
+                  by_cases hn : ch.n < u64Max <;> simp [hs, hn]
+
 /-- An advance leaves the epoch below `u64::MAX`. -/
 theorem advance_epoch_lt (st : State) (out : Output) (st' : State)
     (h : advance st out = some st') : st'.epoch < u64Max := by
