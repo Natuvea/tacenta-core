@@ -342,20 +342,32 @@ theorem establish_initiator_no_panic {R : Type}
   exact establish_initiator_for_no_panic rngCore cryptoRng contracts ourIdentity
     theirBundle theirBundle.bundle.identity_key rng headroom
 
+def ReadableSecretResult
+    (r : core.result.Result (zeroize.Zeroizing (Array U8 32#usize)) lifecycle.Error) : Prop :=
+  match r with
+  | core.result.Result.Ok z => ∃ a,
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) z = ok a
+  | core.result.Result.Err _ => True
+
 theorem responder_signed_prekey_secret_no_panic
     (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
     (store : lifecycle.PrekeyStore) (id : U32) :
-    lifecycle.responder_signed_prekey_secret store id ⦃ fun _ => True ⦄ := by
+    lifecycle.responder_signed_prekey_secret store id
+      ⦃ fun r => ReadableSecretResult r ⦄ := by
   unfold lifecycle.responder_signed_prekey_secret
   split
   · step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz
+    exact ⟨_, z_post⟩
   · rcases store.previous_signed_prekey with _ | previous
-    · simp
+    · simp [ReadableSecretResult]
     · rcases previous with ⟨secret, previousId, signature⟩
       by_cases h : previousId = id
       · simp [h]
         step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz
-      · simp [h]
+        exact ⟨_, z_post⟩
+      · simp [h, ReadableSecretResult]
 
 def IndexInBounds (values : Slice U32) (o : Option Usize) : Prop :=
   match o with
@@ -580,12 +592,42 @@ theorem last_resort_seen_for_no_panic
   exact last_resort_seen_for_loop_no_panic store keyId 0#usize 0#usize
     (by simp) (by simp)
 
+theorem last_resort_seen_for_eq_of_seen_eq
+    (left right : lifecycle.PrekeyStore) (keyId : U32)
+    (hseen : left.last_resort_seen = right.last_resort_seen) :
+    lifecycle.PrekeyStore.last_resort_seen_for left keyId =
+      lifecycle.PrekeyStore.last_resort_seen_for right keyId := by
+  unfold lifecycle.PrekeyStore.last_resort_seen_for
+  unfold lifecycle.PrekeyStore.last_resort_seen_for_loop
+  congr 1
+  funext p
+  rcases p with ⟨count, index⟩
+  simp only [lifecycle.PrekeyStore.last_resort_seen_for_loop.body]
+  rw [hseen]
+
 theorem responder_replay_fingerprint_loop_no_panic
     (store : lifecycle.PrekeyStore) (fingerprint : Array U8 32#usize)
     (replayed : Bool) (index : Usize)
     (hindex : index.val ≤ store.last_resort_seen.val.length) :
     lifecycle.responder_replay_fingerprint_loop store fingerprint replayed index
-      ⦃ fun _ => True ⦄ := by
+      ⦃ fun r =>
+        let (pkb, a, i, a1, z, kp, i1, a2, v, o, o1, i2, v1, v2, _) := r
+        ({
+          identity_public := pkb,
+          signed_prekey_secret := a,
+          signed_prekey_id := i,
+          signed_prekey_sig := a1,
+          one_time := z,
+          kem := kp,
+          kem_id := i1,
+          kem_sig := a2,
+          kem_one_time := v,
+          previous_signed_prekey := o,
+          previous_kem := o1,
+          next_id := i2,
+          last_resort_seen := v1,
+          legacy_last_resort_blocked := v2
+        } : lifecycle.PrekeyStore) = store ⦄ := by
   unfold lifecycle.responder_replay_fingerprint_loop
   apply loop.spec_decr_nat
     (measure := fun p => store.last_resort_seen.val.length - (Prod.snd p).val)
@@ -606,23 +648,54 @@ theorem responder_replay_fingerprint_loop_no_panic
     · simp
   · exact hindex
 
+def ReplayFingerprintSafe (store : lifecycle.PrekeyStore) (kemId : U32)
+    (r : core.result.Result (Option (Array U8 32#usize)) lifecycle.Error) : Prop :=
+  match r with
+  | core.result.Result.Ok (some _) =>
+      ∃ count, lifecycle.PrekeyStore.last_resort_seen_for store kemId = ok count ∧
+        count < lifecycle.MAX_LAST_RESORT_SEEN
+  | _ => True
+
 @[step]
 theorem responder_replay_fingerprint_no_panic
     (h : Tacenta.SessionUnitT1.HmacTotal)
     (store : lifecycle.PrekeyStore) (kemId : U32)
     (sk : Array U8 32#usize) (lastResort : Bool) :
     lifecycle.responder_replay_fingerprint store kemId sk lastResort
-      ⦃ fun _ => True ⦄ := by
+      ⦃ ReplayFingerprintSafe store kemId ⦄ := by
   unfold lifecycle.responder_replay_fingerprint
   split
   · step
     step with responder_replay_fingerprint_loop_no_panic store fingerprint false
       0#usize (by simp)
     split
-    · simp
-    · step
-      split <;> simp
-  · simp
+    · simp [ReplayFingerprintSafe]
+    · obtain ⟨count, hcount, _⟩ := Std.WP.spec_imp_exists
+        (last_resort_seen_for_no_panic
+          {
+            identity_public := pkb,
+            signed_prekey_secret := a,
+            signed_prekey_id := i,
+            signed_prekey_sig := a1,
+            one_time := z,
+            kem := kp,
+            kem_id := i1,
+            kem_sig := a2,
+            kem_one_time := v,
+            previous_signed_prekey := o,
+            previous_kem := o1,
+            next_id := i2,
+            last_resort_seen := v1,
+            legacy_last_resort_blocked := v2
+          } kemId)
+      rw [hcount]
+      simp only [Aeneas.Std.bind_tc_ok]
+      split
+      · simp [ReplayFingerprintSafe]
+      · simp [ReplayFingerprintSafe]
+        refine ⟨count, ?_, by scalar_tac⟩
+        simpa [pkb_post] using hcount
+  · simp [ReplayFingerprintSafe]
 
 def OptionalIndexBelow (length : Nat) (found : Option Usize) : Prop :=
   match found with
@@ -657,8 +730,8 @@ theorem take_one_time_loop_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
       found) :
     lifecycle.PrekeyStore.take_one_time_loop store id found index
       ⦃ fun r =>
-        let (_, _, _, _, z, _, _, _, _, _, _, _, _, _, found1) := r
-        z = store.one_time ∧ OptionalIndexBelow
+        let (_, _, _, _, z, _, _, _, _, _, _, _, seen, _, found1) := r
+        z = store.one_time ∧ seen = store.last_resort_seen ∧ OptionalIndexBelow
           (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length
           found1 ⦄ := by
   unfold lifecycle.PrekeyStore.take_one_time_loop
@@ -704,28 +777,29 @@ theorem take_one_time_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
     (hz : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
     (hpop : VecPopTotal)
     (store : lifecycle.PrekeyStore) (id : U32) :
-    lifecycle.PrekeyStore.take_one_time store id ⦃ fun _ => True ⦄ := by
+    lifecycle.PrekeyStore.take_one_time store id
+      ⦃ fun r => r.2.last_resort_seen = store.last_resort_seen ⦄ := by
   unfold lifecycle.PrekeyStore.take_one_time
   step with take_one_time_loop_no_panic store id none 0#usize
     (by simp) (by simp [OptionalIndexBelow])
+  rcases pkb_post with ⟨hzstore, hseen, hfound⟩
   rcases found with _ | foundIndex
-  · simp
-  · rcases pkb_post with ⟨hzstore, hfound⟩
+  · simpa using hseen
+  ·
     simp [OptionalIndexBelow] at hfound
     have hfoundz : foundIndex.val <
         (Tacenta.SessionUnitT1.DerivedKeysModel.contents z).val.length := by
       rw [hzstore]
       exact hfound
     step
-    rename_i values back hvalues hback
-    have hfoundValues : foundIndex.val < values.val.length := by
-      rw [hvalues]
+    have hfoundValues : foundIndex.val < r.val.length := by
+      rw [r_post1]
       exact hfoundz
     step
     step with Tacenta.SessionUnitTripleT1.zeroize_step hz
     step
-    have hv5len : v5.val.length = values.val.length := by
-      rw [v5_post, hback, i4_post2]
+    have hv5len : v5.val.length = r.val.length := by
+      rw [v5_post, r_post2, i4_post2]
       simp
     have hv5nonempty : 0 < v5.val.length := by omega
     step
@@ -747,7 +821,7 @@ theorem take_one_time_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
     obtain ⟨popped, hpopped⟩ := hpop _ v8
     rw [hpopped]
     rcases popped with ⟨poppedValue, poppedVec⟩
-    simp
+    simpa using hseen
 
 theorem take_one_time_kem_loop_no_panic
     (store : lifecycle.PrekeyStore) (id : U32)
@@ -756,8 +830,8 @@ theorem take_one_time_kem_loop_no_panic
     (hfound : OptionalIndexBelow store.kem_one_time.val.length found) :
     lifecycle.PrekeyStore.take_one_time_kem_loop store id found index
       ⦃ fun r =>
-        let (_, _, _, _, _, _, _, _, v, _, _, _, _, _, found1) := r
-        v = store.kem_one_time ∧
+        let (_, _, _, _, _, _, _, _, v, _, _, _, seen, _, found1) := r
+        v = store.kem_one_time ∧ seen = store.last_resort_seen ∧
           OptionalIndexBelow store.kem_one_time.val.length found1 ⦄ := by
   unfold lifecycle.PrekeyStore.take_one_time_kem_loop
   apply loop.spec_decr_nat
@@ -797,31 +871,31 @@ theorem take_one_time_kem_loop_no_panic
 theorem take_one_time_kem_no_panic
     (hpop : VecPopTotal)
     (store : lifecycle.PrekeyStore) (id : U32) :
-    lifecycle.PrekeyStore.take_one_time_kem store id ⦃ fun _ => True ⦄ := by
+    lifecycle.PrekeyStore.take_one_time_kem store id
+      ⦃ fun r => r.2.last_resort_seen = store.last_resort_seen ⦄ := by
   unfold lifecycle.PrekeyStore.take_one_time_kem
   step with take_one_time_kem_loop_no_panic store id none 0#usize
     (by simp) (by simp [OptionalIndexBelow])
-  rcases pkb_post with ⟨hv, hfound⟩
+  rcases pkb_post with ⟨hv, hseen, hfound⟩
   rcases found with _ | foundIndex
-  · simp
+  · simpa using hseen
   · simp [OptionalIndexBelow] at hfound
     have hfoundV : foundIndex.val < v.val.length := by
       rw [hv]
       exact hfound
     step
-    rename_i last hlastEq hlastNonempty
     simp [alloc.vec.Vec.deref_mut, lift]
-    have hlastV : last.val < v.val.length := by
-      simp [alloc.vec.Vec.len] at hlastEq hlastNonempty
+    have hlastV : r.val < v.val.length := by
+      simp [alloc.vec.Vec.len] at r_post1 r_post2
       omega
-    step with slice_swap_no_panic v foundIndex last hfoundV hlastV
+    step with slice_swap_no_panic v foundIndex r hfoundV hlastV
     obtain ⟨popped, hpopped⟩ := hpop _ s1
     rw [hpopped]
     rcases popped with ⟨poppedValue, poppedVec⟩
     rcases poppedValue with _ | entry
-    · simp
+    · simpa using hseen
     · rcases entry with ⟨entryId, entryPair, entrySignature⟩
-      simp
+      simpa using hseen
 
 def ReadableOneTime
     (o : Option (zeroize.Zeroizing (Array U8 32#usize))) : Prop :=
@@ -1032,6 +1106,63 @@ structure DecryptRatchetHeadroom (self : lifecycle.Session) : Prop where
   braid : Tacenta.SessionUnitBraidT1.State.ct1_bounded self.braid.state
   associatedData : self.identity_ad.val.length + 106 ≤ Usize.max
 
+theorem ratchet_init_receiver_empty
+    (sk ourPub : Array U8 32#usize) (labels : tacenta_ratchet.LabelSet) :
+    tacenta_ratchet.init_receiver sk ourPub labels
+      ⦃ fun state => state.skipped.val.length = 0 ⦄ := by
+  simp [tacenta_ratchet.init_receiver]
+
+theorem spqr_init_bob_headroom
+    (hki : Tacenta.SessionUnitTripleT1.KdfInitTotal) (sk : Slice U8) :
+    tacenta_spqr.State.init_bob sk ⦃ fun state =>
+      state.chains.val.length = 1 ∧ state.skipped.val.length = 0 ⦄ := by
+  obtain ⟨⟨rk, k1, k2⟩, hkdf⟩ := hki sk
+  simp [tacenta_spqr.State.init_bob, tacenta_spqr.State.init, hkdf, lift,
+    alloc.slice.Slice.into_vec, Array.to_slice, Array.make]
+
+theorem triple_init_receiver_headroom
+    (hss : Tacenta.SessionUnitT1.HkdfTotal)
+    (hzw : Tacenta.SessionUnitT1.ZeroizingTotal)
+    (hki : Tacenta.SessionUnitTripleT1.KdfInitTotal)
+    (hz : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (sk : Slice U8) (ourPub : Array U8 32#usize)
+    (labels : tacenta_ratchet.LabelSet) :
+    tacenta_triple.State.init_receiver sk ourPub labels
+      ⦃ fun state => ReceiveHeadroom state ⦄ := by
+  unfold tacenta_triple.State.init_receiver
+  step with Tacenta.SessionUnitTripleT1.split_secret_no_panic hss hzw sk
+  step with ratchet_init_receiver_empty ec ourPub labels
+  step
+  step with spqr_init_bob_headroom hki s1
+  step with Tacenta.SessionUnitTripleT1.zeroize_step hz
+  step with Tacenta.SessionUnitTripleT1.zeroize_step hz
+  unfold ReceiveHeadroom
+  rw [s_post, s2_post1, s2_post2]
+  simp [tacenta_ratchet.MAX_SKIPPED_STORE, tacenta_ratchet.MAX_SKIP,
+    tacenta_spqr.MAX_SKIP]
+  scalar_tac
+
+theorem braid_responder_headroom
+    (hkdf : Tacenta.SessionUnitBraidT1.HkdfSha256Total)
+    (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
+    (hdec : Tacenta.SessionUnitBraidT1.DecoderNewTotal)
+    (hhl : Tacenta.SessionUnitBraidT1.HeaderLenTotal)
+    (secret : Slice U8) :
+    tacenta_braid.Braid.responder secret ⦃ fun braid =>
+      Tacenta.SessionUnitBraidT1.State.ct1_bounded braid.state ⦄ := by
+  unfold tacenta_braid.Braid.responder
+  step with Tacenta.SessionUnitBraidT1.Auth.init_no_panic hkdf hz 1#u64 secret
+  step with Tacenta.SessionUnitBraidT1.hdr_decoder_no_panic hdec hhl
+  simp [Tacenta.SessionUnitBraidT1.State.ct1_bounded]
+
+theorem identity_ad_length (hdh : DhCodecTotal)
+    (initiator responder : tacenta_boundary.dh.PublicKeyBytes) :
+    lifecycle.identity_ad initiator responder ⦃ fun r => r.val.length = 66 ⦄ := by
+  unfold lifecycle.identity_ad
+  step*
+  all_goals simp_all [alloc.vec.Vec.deref]
+  exact Tacenta.SessionUnitSessionT1.small_le_usize_max (by omega)
+
 set_option maxHeartbeats 800000 in
 theorem decrypt_ratchet_no_panic {R : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
@@ -1108,6 +1239,239 @@ theorem decrypt_ratchet_no_panic {R : Type}
       all_goals step with Tacenta.SessionUnitT1.array_ne_total
       all_goals split <;> simp
     · simp
+
+structure EstablishResponderContracts {R : Type}
+    (rngCore : rand_core_1.RngCore R) where
+  decrypt : DecryptRatchetContracts rngCore
+  kemDecapsulate : KemDecapsulateTotal
+  sessionHkdf : Tacenta.SessionUnitSessionT1.HkdfTotal
+  sessionZeroizing : Tacenta.SessionUnitSessionT1.ZeroizingModel
+  spqrKdfInit : Tacenta.SessionUnitTripleT1.KdfInitTotal
+  vecPop : VecPopTotal
+
+structure EstablishResponderHeadroom (store : lifecycle.PrekeyStore) : Prop where
+  lastResortSeen : store.last_resort_seen.val.length + 1 ≤ Usize.max
+
+theorem copy_bool_eq (value : Bool) :
+    (if value then ok true else ok false) = (ok value : Result Bool) := by
+  cases value <;> rfl
+
+theorem maybe_take_one_time_kem_no_panic
+    (hpop : VecPopTotal) (store : lifecycle.PrekeyStore) (id : U32)
+    (keep : Bool) :
+    (if keep then ok store else do
+      let (_, store1) ← lifecycle.PrekeyStore.take_one_time_kem store id
+      ok store1) ⦃ fun store1 =>
+        store1.last_resort_seen = store.last_resort_seen ⦄ := by
+  split
+  · simp
+  ·
+    step with take_one_time_kem_no_panic hpop store id
+    assumption
+
+theorem maybe_take_one_time_no_panic
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hz : Tacenta.SessionUnitSpqrT1.ZeroizeTotal) (hpop : VecPopTotal)
+    (store : lifecycle.PrekeyStore) (id : U32) (take : Bool) :
+    (if take then do
+      let (_, store1) ← lifecycle.PrekeyStore.take_one_time store id
+      ok store1
+    else ok store) ⦃ fun store1 =>
+      store1.last_resort_seen = store.last_resort_seen ⦄ := by
+  split
+  ·
+    step with take_one_time_no_panic hz hpop store id
+    assumption
+  · simp
+
+theorem maybe_take_one_time_normalized_no_panic
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hz : Tacenta.SessionUnitSpqrT1.ZeroizeTotal) (hpop : VecPopTotal)
+    (store : lifecycle.PrekeyStore) (id : U32) :
+    (if id.val = serialization.ABSENT_ID.val then ok store else do
+      let (_, store1) ← lifecycle.PrekeyStore.take_one_time store id
+      ok store1) ⦃ fun store1 =>
+      store1.last_resort_seen = store.last_resort_seen ⦄ := by
+  split
+  · simp
+  · step with take_one_time_no_panic hz hpop store id
+    assumption
+
+theorem finish_responder_prekeys_no_panic {R : Type}
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hz : Tacenta.SessionUnitSpqrT1.ZeroizeTotal) (hpop : VecPopTotal)
+    (store : lifecycle.PrekeyStore) (kemId oneTimeId : U32)
+    (lastResort : Bool) (replayValue : Option (Array U8 32#usize))
+    (session : lifecycle.Session) (plaintext : alloc.vec.Vec U8) (rng : R)
+    (hreplay : ReplayFingerprintSafe store kemId
+      (core.result.Result.Ok replayValue))
+    (headroom : EstablishResponderHeadroom store) :
+    (do
+      let store1 ← if lastResort then ok store else do
+        let (_, next) ← lifecycle.PrekeyStore.take_one_time_kem store kemId
+        ok next
+      let store2 ← if oneTimeId.val = serialization.ABSENT_ID.val then ok store1
+        else do
+          let (_, next) ← lifecycle.PrekeyStore.take_one_time store1 oneTimeId
+          ok next
+      match replayValue with
+      | none => ok (core.result.Result.Ok (E := lifecycle.Error)
+          (session, plaintext), store2, rng)
+      | some fp => do
+        let count ← lifecycle.PrekeyStore.last_resort_seen_for store2 kemId
+        massert (count < lifecycle.MAX_LAST_RESORT_SEEN)
+        let seen ← alloc.vec.Vec.push store2.last_resort_seen (kemId, fp)
+        ok (core.result.Result.Ok (E := lifecycle.Error) (session, plaintext),
+          { store2 with last_resort_seen := seen }, rng))
+      ⦃ fun _ => True ⦄ := by
+  step with maybe_take_one_time_kem_no_panic hpop store kemId lastResort
+  step with maybe_take_one_time_normalized_no_panic hz hpop store1 oneTimeId
+  rcases replayValue with _ | fingerprint
+  · simp
+  · simp [ReplayFingerprintSafe] at hreplay
+    obtain ⟨checked, hchecked, hbound⟩ := hreplay
+    have hseen : store2.last_resort_seen = store.last_resort_seen := by
+      rw [store2_post, store1_post]
+    have hcount := last_resort_seen_for_eq_of_seen_eq store2 store kemId hseen
+    rw [hchecked] at hcount
+    rw [hcount]
+    simp only [Aeneas.Std.bind_tc_ok]
+    step
+    step
+    case h => simpa [hseen] using headroom.lastResortSeen
+
+theorem responder_initial_decrypt_headroom
+    (triple : tacenta_triple.State) (braid : tacenta_braid.Braid)
+    (pk : tacenta_boundary.dh.PrivateKey) (identityAd : alloc.vec.Vec U8)
+    (ourPublic peerPublic : tacenta_boundary.dh.PublicKeyBytes)
+    (ephemeral : alloc.vec.Vec U8)
+    (htriple : ReceiveHeadroom triple)
+    (hbraid : Tacenta.SessionUnitBraidT1.State.ct1_bounded braid.state)
+    (had : identityAd.val.length = 66) :
+    DecryptRatchetHeadroom
+      {
+        triple,
+        braid,
+        ratchet_private := pk,
+        identity_ad := identityAd,
+        our_identity_public := ourPublic,
+        peer_identity_public := peerPublic,
+        pending_initial := none,
+        established_ephemeral := some ephemeral
+      } := by
+  constructor
+  · exact htriple
+  · exact hbraid
+  · rw [had]
+    exact Tacenta.SessionUnitSessionT1.small_le_usize_max (by omega)
+
+set_option maxHeartbeats 1000000 in
+theorem establish_responder_no_panic {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (contracts : EstablishResponderContracts rngCore)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (ourIdentity : lifecycle.Identity) (ourPrekeys : lifecycle.PrekeyStore)
+    (initialMessage : Slice U8) (rng : R)
+    (headroom : EstablishResponderHeadroom ourPrekeys) :
+    lifecycle.establish_responder rngCore cryptoRng ourIdentity ourPrekeys
+      initialMessage rng ⦃ fun _ => True ⦄ := by
+  let _ : Tacenta.SessionUnitSessionT1.ZeroizingModel := contracts.sessionZeroizing
+  unfold lifecycle.establish_responder
+  step with decode_initial_no_panic initialMessage
+  rcases r with decoded | decodeError
+  · step with responder_signed_prekey_secret_no_panic
+      contracts.decrypt.braid.zeroizingArray ourPrekeys decoded.signed_prekey_id
+    rename_i signedResult signedResult_post
+    rcases signedResult with signedSecret | signedError
+    · simp [ReadableSecretResult] at signedResult_post
+      obtain ⟨signedBytes, hsignedBytes⟩ := signedResult_post
+      step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec signedSecret
+      simp only [cf_post]
+      step with responder_kem_secret_no_panic contracts.kemDecapsulate ourPrekeys
+        decoded.kem_prekey_id decoded.kem_ciphertext.deref
+      rcases r2 with kemValue | kemError
+      · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec kemValue
+        simp only [cf1_post]
+        rcases kemValue with ⟨kemSecret, lastResort⟩
+        simp only [copy_bool_eq]
+        step with responder_curve_inputs_no_panic contracts.decrypt.dhCodec
+          decoded.identity.deref decoded.ephemeral.deref
+        rename_i curveResult
+        rcases curveResult with curveInputs | curveError
+        · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec curveInputs
+          simp only [cf2_post]
+          rcases curveInputs with ⟨initiatorIdentity, initiatorEphemeral⟩
+          step with responder_one_time_key_no_panic contracts.decrypt.dhCodec
+            contracts.decrypt.braid.zeroizingArray ourPrekeys decoded.one_time_prekey_id
+          rename_i oneTimeResult
+          rcases oneTimeResult with oneTime | oneTimeError
+          · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec oneTime
+            simp only [cf3_post]
+            step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec
+              contracts.decrypt.braid.zeroizingArray kemSecret
+            step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec hsignedBytes
+            step with private_key_from_bytes_no_panic contracts.decrypt.dhCodec a
+            rcases oneTime with _ | oneTimeKey
+            all_goals step with identity_dh_key_no_panic contracts.decrypt.dhCodec ourIdentity
+            all_goals step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec ss_post
+            all_goals first
+              | step with responder_shared_secret_no_panic contracts.decrypt.dhAgree
+                  contracts.decrypt.braid.zeroizingArray contracts.sessionHkdf shared
+                  signed_prekey none initiatorIdentity initiatorEphemeral x
+              | step with responder_shared_secret_no_panic contracts.decrypt.dhAgree
+                  contracts.decrypt.braid.zeroizingArray contracts.sessionHkdf shared
+                  signed_prekey (some oneTimeKey) initiatorIdentity initiatorEphemeral x
+            all_goals (rcases shared with secret | handshakeError)
+            all_goals try simp
+            all_goals step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec contracts.decrypt.braid.zeroizingArray secret
+            all_goals step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec sk_post
+            all_goals step with responder_replay_fingerprint_no_panic contracts.decrypt.triple.hmac ourPrekeys decoded.kem_prekey_id a1 lastResort
+            all_goals (rcases r5 with replayValue | replayError)
+            all_goals try
+              { step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec replayError
+                simp only [cf4_post]
+                simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+                  core.convert.FromSame.from] }
+            all_goals step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec replayValue
+            all_goals simp only [cf4_post]
+            all_goals step with Tacenta.SessionUnitBraidT1.index_full_spec contracts.decrypt.braid.rangeFullIndex
+            all_goals step with private_key_public_no_panic contracts.decrypt.dhCodec signed_prekey
+            all_goals step with public_key_as_bytes_no_panic contracts.decrypt.dhCodec pkb
+            all_goals step with triple_init_receiver_headroom contracts.decrypt.triple.hkdf contracts.decrypt.triple.zeroizing contracts.spqrKdfInit contracts.decrypt.triple.spqrZeroize s3 a2 tacenta_ratchet.LabelSet.Tacenta
+            all_goals step with Tacenta.SessionUnitBraidT1.index_full_spec contracts.decrypt.braid.rangeFullIndex
+            all_goals step with braid_responder_headroom contracts.decrypt.braid.hkdf contracts.decrypt.braid.zeroizingArray contracts.decrypt.braid.decoderNew contracts.decrypt.braid.headerLen s4
+            all_goals step with private_key_from_bytes_no_panic contracts.decrypt.dhCodec a
+            all_goals step with identity_public_no_panic contracts.decrypt.dhCodec ourIdentity
+            all_goals step with identity_ad_length contracts.decrypt.dhCodec initiatorIdentity pkb1
+            all_goals step with Tacenta.SessionUnitBraidT1.vecU8_clone_no_panic decoded.ephemeral
+            all_goals have decryptHeadroom := responder_initial_decrypt_headroom triple braid pk v pkb1 initiatorIdentity v1 triple_post braid_post v_post
+            all_goals step with decrypt_ratchet_no_panic rngCore cryptoRng contracts.decrypt _ decoded.message.deref rng decryptHeadroom
+            all_goals (rcases r6 with decrypted | decryptError)
+            all_goals try
+              { step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec decryptError
+                simp only [cf5_post]
+                simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+                  core.convert.FromSame.from] }
+            all_goals step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec decrypted
+            all_goals rw [cf5_post]
+            all_goals exact finish_responder_prekeys_no_panic contracts.decrypt.triple.spqrZeroize contracts.vecPop ourPrekeys decoded.kem_prekey_id decoded.one_time_prekey_id lastResort replayValue session decrypted rng1 r5_post headroom
+          · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec oneTimeError
+            simp only [cf3_post]
+            simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+              core.convert.FromSame.from]
+        · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec curveError
+          simp only [cf2_post]
+          simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+            core.convert.FromSame.from]
+      · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec kemError
+        simp only [cf1_post]
+        simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+          core.convert.FromSame.from]
+    · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec signedError
+      simp only [cf_post]
+      simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+        core.convert.FromSame.from]
+  · simp
 
 
 open Aeneas Aeneas.Std Result
