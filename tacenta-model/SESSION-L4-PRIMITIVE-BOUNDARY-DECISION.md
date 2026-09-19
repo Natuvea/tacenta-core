@@ -43,9 +43,10 @@ surface is covered by these ten named contracts:
 `DhCodecTotal` groups operations over the same two opaque DH types so their
 non-vacuity is witnessed jointly; separate witnesses would not show that all
 of the contracts can hold in one interpretation. The other contracts each
-cover one opaque call. Every contract has a concrete non-vacuity witness in
-the session unit's satisfiability module and a corresponding entry in
-`LIMITATIONS.md`. Returning `None` or `Err` is an ordinary result of a
+cover one opaque call. The proposal requires every contract to have a concrete
+non-vacuity witness in the session unit's satisfiability module and a
+corresponding entry in `LIMITATIONS.md`;
+returning `None` or `Err` is an ordinary result of a
 boundary call and is not assumed away.
 
 The executable lifecycle model represents every boundary operation as a
@@ -58,24 +59,6 @@ XEdDSA signing is included even though prekey publication is outside the five
 proof roots. `Identity::sign`, `sign_message` and the store publication and
 rotation methods move with the lifecycle leaf, so the translation and its
 audit still encounter that opaque call.
-
-The emitted opaque declarations map to the contracts as follows:
-
-| Emitted opaque names | Contract |
-| --- | --- |
-| `dh_public`, `dh_public_bytes`, `dh_public_from_bytes`, `dh_public_eq` | `DhCodecTotal` |
-| `dh_agree` | `DhAgreeTotal` |
-| `aead_seal` | `AeadSealTotal` |
-| `aead_open` | `AeadOpenTotal` |
-| `kem_encapsulate` | `KemEncapsulateTotal` |
-| `kem_decapsulate` | `KemDecapsulateTotal` |
-| `kem_ciphertext_len` | `KemCiphertextLenTotal` |
-| `xeddsa_verify` | `XeddsaVerifyTotal` |
-| `xeddsa_sign` | `XeddsaSignTotal` |
-| `random32` | `Random32Total` |
-
-This is the post-rewrite inventory; the pre-rewrite 18-axiom experiment is
-recorded only as a translation failure measurement.
 
 ## Assumption budget
 

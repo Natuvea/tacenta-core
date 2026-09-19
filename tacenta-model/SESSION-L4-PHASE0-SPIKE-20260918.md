@@ -31,9 +31,9 @@ replace the pinned Linux regeneration required for evidence.
 ## Primitive-boundary probe
 
 The scratch tree copied the four existing primitive implementations into a
-`tacenta-boundary` dependency and exposed the ten functions proposed in
-`SESSION-L4-PRIMITIVE-BOUNDARY-DECISION.md`. A small lifecycle probe called
-all nine.
+`tacenta-boundary` dependency and exposed the nine functions proposed in
+`SESSION-L4-PRIMITIVE-BOUNDARY-DECISION.md` as it stood at `639c1d8`. A small
+lifecycle probe called all nine.
 
 Commands:
 
@@ -54,6 +54,24 @@ their use in signatures requires.
 
 This supports D2's package-boundary premise. It does not establish any of the
 ten future contracts.
+
+The post-rewrite pinned Linux translation records the emitted-name inventory
+against the ten-contract proposal. `DhCodecTotal` covers five operations: the
+four names below plus the persistence byte projection, which uses the same
+`dh_public_bytes` declaration.
+
+| Emitted opaque name | Contract |
+| --- | --- |
+| `dh_public`, `dh_public_bytes`, `dh_public_from_bytes`, `dh_public_eq` | `DhCodecTotal` |
+| `dh_agree` | `DhAgreeTotal` |
+| `aead_seal` | `AeadSealTotal` |
+| `aead_open` | `AeadOpenTotal` |
+| `kem_encapsulate` | `KemEncapsulateTotal` |
+| `kem_decapsulate` | `KemDecapsulateTotal` |
+| `kem_ciphertext_len` | `KemCiphertextLenTotal` |
+| `xeddsa_verify` | `XeddsaVerifyTotal` |
+| `xeddsa_sign` | `XeddsaSignTotal` |
+| `random32` | `Random32Total` |
 
 ## Shipping-shaped lifecycle probe
 
@@ -94,7 +112,7 @@ The distinct blockers observed were:
 The partial full-leaf translation exposed 18 primitive method/function axioms
 rather than the proposed nine-function surface because the mechanically moved
 source still called the old primitive modules directly. Rewiring those calls
-to the ten functions is required before the opaque-assumption budget can be
+to the nine functions is required before the opaque-assumption budget can be
 measured.
 
 ## Follow-up rewrite and rooted-translation measurement
