@@ -25,6 +25,15 @@ theorem is_canonical_key_no_panic (hdh : DhCodecTotal)
     (Tacenta.SessionUnitSessionT1.is_canonical_x25519_spec a) (by simp)
 
 @[step]
+theorem decode_ec_no_panic (hdh : DhCodecTotal) (bytes : Slice U8) :
+    decode_ec bytes ⦃ fun _ => True ⦄ := by
+  unfold decode_ec
+  step with Tacenta.SessionUnitSessionT1.decode_ec_spec bytes
+  split
+  · simp
+  · step with public_key_from_bytes_no_panic hdh
+
+@[step]
 theorem identity_dh_key_no_panic (hdh : DhCodecTotal)
     (identity : lifecycle.Identity) :
     lifecycle.Identity.dh_key identity ⦃ fun _ => True ⦄ := by
@@ -332,6 +341,98 @@ theorem establish_initiator_no_panic {R : Type}
   unfold lifecycle.establish_initiator
   exact establish_initiator_for_no_panic rngCore cryptoRng contracts ourIdentity
     theirBundle theirBundle.bundle.identity_key rng headroom
+
+theorem responder_signed_prekey_secret_no_panic
+    (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
+    (store : lifecycle.PrekeyStore) (id : U32) :
+    lifecycle.responder_signed_prekey_secret store id ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.responder_signed_prekey_secret
+  split
+  · step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz
+  · rcases store.previous_signed_prekey with _ | previous
+    · simp
+    · rcases previous with ⟨secret, previousId, signature⟩
+      by_cases h : previousId = id
+      · simp [h]
+        step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz
+      · simp [h]
+
+theorem u32_index_loop_no_panic (values : Slice U32) (needle : U32)
+    (found : Option Usize) (index : Usize)
+    (hindex : index.val ≤ values.val.length) :
+    lifecycle.u32_index_loop values needle found index ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.u32_index_loop
+  apply loop.spec_decr_nat
+    (measure := fun p => values.val.length - (Prod.snd p).val)
+    (inv := fun p => (Prod.snd p).val ≤ values.val.length)
+  · rintro ⟨found1, index1⟩ hi
+    simp only [lifecycle.u32_index_loop.body]
+    split
+    · step*
+      split <;> step* <;> simp_all <;> omega
+    · step*
+  · exact hindex
+
+@[step]
+theorem u32_index_no_panic (values : Slice U32) (needle : U32) :
+    lifecycle.u32_index values needle ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.u32_index
+  exact u32_index_loop_no_panic values needle none 0#usize (by simp)
+
+theorem one_time_kem_ids_loop_no_panic
+    (values : alloc.vec.Vec (U32 × tacenta_boundary.kem.KeyPair × Array U8 64#usize))
+    (ids : alloc.vec.Vec U32) (index : Usize)
+    (hindex : index.val ≤ values.val.length)
+    (hlen : ids.val.length = index.val) :
+    lifecycle.PrekeyStore.one_time_kem_ids_loop values ids index
+      ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.PrekeyStore.one_time_kem_ids_loop
+  apply loop.spec_decr_nat
+    (measure := fun p => values.val.length - (Prod.snd p).val)
+    (inv := fun p => (Prod.snd p).val ≤ values.val.length ∧
+      (Prod.fst p).val.length = (Prod.snd p).val)
+  · rintro ⟨ids1, index1⟩ ⟨hi, hlen1⟩
+    simp only at hi hlen1
+    simp only [lifecycle.PrekeyStore.one_time_kem_ids_loop.body]
+    split
+    · step
+      step
+      case h => scalar_tac
+      case a =>
+        have hlen2 : ids1.val.length = index1.val + 1 := by
+          rw [ids1_post]
+          simp [hlen1]
+        step
+        clear ids index hindex hlen
+        constructor
+        · rw [index1_post]
+          scalar_tac
+        · constructor
+          · rw [hlen2, index1_post]
+          · rw [index1_post]
+            scalar_tac
+    · step*
+  · exact ⟨hindex, hlen⟩
+
+@[step]
+theorem one_time_kem_ids_no_panic (store : lifecycle.PrekeyStore) :
+    lifecycle.PrekeyStore.one_time_kem_ids store ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.PrekeyStore.one_time_kem_ids
+  exact one_time_kem_ids_loop_no_panic store.kem_one_time
+    (alloc.vec.Vec.with_capacity U32 (alloc.vec.Vec.len store.kem_one_time))
+    0#usize (by simp)
+    (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new])
+
+theorem responder_curve_inputs_no_panic (hdh : DhCodecTotal)
+    (identity ephemeral : Slice U8) :
+    lifecycle.responder_curve_inputs identity ephemeral ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.responder_curve_inputs
+  step with decode_ec_no_panic hdh identity
+  rcases o with _ | identityKey
+  · simp
+  · step with decode_ec_no_panic hdh ephemeral
+    rename_i decodedEphemeral
+    rcases decodedEphemeral <;> simp
 
 
 @[step]
