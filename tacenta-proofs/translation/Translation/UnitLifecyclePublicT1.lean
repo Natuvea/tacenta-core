@@ -423,23 +423,33 @@ theorem one_time_kem_ids_no_panic (store : lifecycle.PrekeyStore) :
     0#usize (by simp)
     (by simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new])
 
+def ReadableOneTime
+    (o : Option (zeroize.Zeroizing (Array U8 32#usize))) : Prop :=
+  match o with
+  | none => True
+  | some z => ∃ a, zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) z = ok a
+
 theorem peek_one_time_loop_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
     (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
     (store : lifecycle.PrekeyStore) (id : U32)
     (found : Option (zeroize.Zeroizing (Array U8 32#usize))) (index : Usize)
     (hindex : index.val ≤
-      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length) :
+      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length)
+    (hfound : ReadableOneTime found) :
     lifecycle.PrekeyStore.peek_one_time_loop store id found index
-      ⦃ fun _ => True ⦄ := by
+      ⦃ fun r => ReadableOneTime r ⦄ := by
   unfold lifecycle.PrekeyStore.peek_one_time_loop
   apply loop.spec_decr_nat
     (measure := fun p =>
       (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length -
         (Prod.snd p).val)
     (inv := fun p => (Prod.snd p).val ≤
-      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length)
-  · rintro ⟨found1, index1⟩ hi
-    simp only at hi
+      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length ∧
+        ReadableOneTime (Prod.fst p))
+  · rintro ⟨found1, index1⟩ ⟨hi, hfound1⟩
+    simp only at hi hfound1
     simp only [lifecycle.PrekeyStore.peek_one_time_loop.body]
     step
     split
@@ -455,25 +465,51 @@ theorem peek_one_time_loop_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
           constructor
           · rw [index1_post, ← v_post]
             scalar_tac
-          · rw [index1_post, ← v_post]
-            scalar_tac
+          · constructor
+            · simp only [ReadableOneTime]
+              exact ⟨key, found1_post⟩
+            · rw [index1_post, ← v_post]
+              scalar_tac
       · step
         case hmax =>
           rw [v_post] at *
           scalar_tac
         case a =>
           rw [v_post] at *
-          scalar_tac
-    · simp
-  · simpa using hindex
+          constructor
+          · scalar_tac
+          · exact ⟨hfound1, by scalar_tac⟩
+    · simp [hfound1]
+  · exact ⟨by simpa using hindex, hfound⟩
 
 @[step]
 theorem peek_one_time_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
     (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
     (store : lifecycle.PrekeyStore) (id : U32) :
-    lifecycle.PrekeyStore.peek_one_time store id ⦃ fun _ => True ⦄ := by
+    lifecycle.PrekeyStore.peek_one_time store id
+      ⦃ fun r => ReadableOneTime r ⦄ := by
   unfold lifecycle.PrekeyStore.peek_one_time
-  exact peek_one_time_loop_no_panic hz store id none 0#usize (by simp)
+  exact peek_one_time_loop_no_panic hz store id none 0#usize
+    (by simp) (by simp [ReadableOneTime])
+
+theorem responder_one_time_key_no_panic
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hdh : DhCodecTotal)
+    (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
+    (store : lifecycle.PrekeyStore) (id : U32) :
+    lifecycle.responder_one_time_key store id ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.responder_one_time_key
+  split
+  · simp
+  · step with peek_one_time_no_panic hz store id
+    rcases o with _ | secret
+    · simp
+    · simp only [ReadableOneTime] at o_post
+      obtain ⟨key, hkey⟩ := o_post
+      step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec hkey
+      rename_i derefed hderef
+      rw [hderef]
+      step with private_key_from_bytes_no_panic hdh key
 
 theorem responder_curve_inputs_no_panic (hdh : DhCodecTotal)
     (identity ephemeral : Slice U8) :
