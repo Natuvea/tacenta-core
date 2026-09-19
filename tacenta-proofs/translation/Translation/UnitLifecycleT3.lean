@@ -1,6 +1,7 @@
 import Translation.SessionUnitTripleT3
 import Translation.SessionUnitBraidT3
 import Translation.SessionUnitWireT3
+import Translation.SessionUnitWireInitialT3
 import Model.Lifecycle
 
 /-!
@@ -452,6 +453,32 @@ theorem decode_message_refines_lifecycle (bytes : Slice Std.U8) :
       rw [← wire_bytesOf_eq_sliceOf bytes,
         ← wire_bytesOf_eq_vecOf message.ciphertext]
       exact hresult
+
+/-- The deterministically ported initial-message decoder computes the lifecycle
+model's detailed success value exactly.  On refusal the model's classifier also
+returns a reason, whose exact correspondence is proved separately from this
+success bridge. -/
+theorem decode_initial_refines_lifecycle (bytes : Slice Std.U8) :
+    tacenta_wire.decode_initial bytes ⦃ fun result =>
+      match result with
+      | .Ok initial =>
+          Model.Messages.decodeInitialDetailed (sliceOf bytes) =
+            .ok (Tacenta.SessionUnitWireInitialT3.initialOf initial)
+      | .Err _ => ∃ reason,
+          Model.Messages.decodeInitialDetailed (sliceOf bytes) = .error reason ⦄ := by
+  refine WP.spec_mono
+    (Tacenta.SessionUnitWireInitialT3.decode_initial_refines bytes) ?_
+  intro result hresult
+  cases result with
+  | Ok initial =>
+      apply (Model.Messages.decodeInitialDetailed_ok_iff _ _).2
+      simpa [wire_bytesOf_eq_sliceOf] using hresult
+  | Err reason =>
+      refine ⟨Model.Messages.initialDecodeRefusal (sliceOf bytes), ?_⟩
+      simp only [Model.Messages.decodeInitialDetailed]
+      have hnone : Model.Messages.decodeInitial (sliceOf bytes) = none := by
+        simpa [wire_bytesOf_eq_sliceOf] using hresult
+      rw [hnone]
 
 /-! ## Public refusal correspondence
 
