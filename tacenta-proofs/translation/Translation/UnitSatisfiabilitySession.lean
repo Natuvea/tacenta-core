@@ -1,4 +1,4 @@
-import Translation.UnitLifecycleT1
+import Translation.UnitLifecyclePublicT1
 
 /-!
 # Non-vacuity of the Session primitive contracts
@@ -177,13 +177,39 @@ theorem random32_satisfiable :
     ∃ (R : Type) (rc : rand_core_1.RngCore R), Random32Shape rc :=
   ⟨Unit, totalRngCore, by simp [Random32Shape, Np, totalRngCore]⟩
 
+abbrev MessageKeyMaterial := Tacenta.UnitLifecycleT1.MessageKeyMaterial
+abbrev MessageKeyMaterialNewFn (W : Type → Type) :=
+  MessageKeyMaterial → Result (W MessageKeyMaterial)
+abbrev MessageKeyMaterialDerefFn (W : Type → Type) :=
+  W MessageKeyMaterial → Result MessageKeyMaterial
+
+def MessageKeyMaterialRoundTripShape (W : Type → Type)
+    (new : MessageKeyMaterialNewFn W)
+    (deref : MessageKeyMaterialDerefFn W) : Prop :=
+  ∀ t, ∃ z, new t = ok z ∧ deref z = ok t
+
+theorem MessageKeyMaterialRoundTrip_is :
+    Tacenta.UnitLifecycleT1.MessageKeyMaterialRoundTrip ↔
+      MessageKeyMaterialRoundTripShape zeroize.Zeroizing
+        (zeroize.Zeroizing.new Tacenta.UnitLifecycleT1.messageKeyMaterialZeroize)
+        (zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+          Tacenta.UnitLifecycleT1.messageKeyMaterialZeroize) :=
+  Iff.rfl
+
+theorem message_key_material_round_trip_satisfiable :
+    ∃ (W : Type → Type) (new : MessageKeyMaterialNewFn W)
+      (deref : MessageKeyMaterialDerefFn W),
+      MessageKeyMaterialRoundTripShape W new deref := by
+  refine ⟨(fun Z => Z), (fun t => ok t), (fun t => ok t), ?_⟩
+  simp [MessageKeyMaterialRoundTripShape]
+
 /-! ## Coverage
 
 This conjunction is intentionally repetitive.  It makes the module depend on
-all ten named witnesses, so deleting one witness makes the kernel build fail
+all eleven named witnesses, so deleting one witness makes the kernel build fail
 instead of silently reducing the recorded assumption coverage. -/
 
-theorem all_ten_contracts_satisfiable :
+theorem all_eleven_contracts_satisfiable :
     (∃ (D P : Type) (W : Type → Type)
       (privateFromBytes : DhPrivateFromBytesFn D)
       (publicKey : DhPublicFn D P)
@@ -201,11 +227,14 @@ theorem all_ten_contracts_satisfiable :
     (∃ e : Result Usize, KemCiphertextLenShape e) ∧
     (∃ (P : Type) (f : XeddsaVerifyFn P), XeddsaVerifyShape f) ∧
     (∃ f : XeddsaSignFn, XeddsaSignShape f) ∧
-    (∃ (R : Type) (rc : rand_core_1.RngCore R), Random32Shape rc) :=
+    (∃ (R : Type) (rc : rand_core_1.RngCore R), Random32Shape rc) ∧
+    (∃ (W : Type → Type) (new : MessageKeyMaterialNewFn W)
+      (deref : MessageKeyMaterialDerefFn W),
+      MessageKeyMaterialRoundTripShape W new deref) :=
   ⟨dh_codec_satisfiable, dh_agree_satisfiable, aead_seal_satisfiable,
     aead_open_satisfiable, kem_encapsulate_satisfiable,
     kem_decapsulate_satisfiable, kem_ciphertext_len_satisfiable,
     xeddsa_verify_satisfiable, xeddsa_sign_satisfiable,
-    random32_satisfiable⟩
+    random32_satisfiable, message_key_material_round_trip_satisfiable⟩
 
 end Tacenta.UnitSatisfiabilitySession
