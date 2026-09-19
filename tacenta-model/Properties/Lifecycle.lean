@@ -12,6 +12,13 @@ namespace Properties.Lifecycle
 
 open Model.Lifecycle
 
+/-- Identity orientation and responder role marker never change after a
+    Session has been constructed. -/
+def identityFrame (before after : Session) : Prop :=
+  after.ourIdentityPublic = before.ourIdentityPublic
+    ∧ after.peerIdentityPublic = before.peerIdentityPublic
+    ∧ after.establishedEphemeral = before.establishedEphemeral
+
 /-- An initiator that still has a pending initial clears it exactly when an
     authenticated decrypt succeeds. The premise excludes a responder or an
     initiator that has already received its first reply, where `none` is not a
@@ -33,6 +40,38 @@ theorem pending_cleared_iff_ok (view : CodewordView) (oracle : Oracle)
     | ok plaintext => exact ⟨plaintext, rfl⟩
   · rintro ⟨plaintext, hOk⟩
     exact decrypt_success_clears_pending view oracle session message plaintext hOk
+
+/-- Encrypt preserves both identity bindings, the responder marker and the
+    pending initial wrapper on every branch. -/
+theorem encrypt_frame (view : CodewordView) (oracle : Oracle)
+    (session : Session) (plaintext : Bytes) :
+    identityFrame session (encrypt view oracle session plaintext).session
+      ∧ (encrypt view oracle session plaintext).session.pendingInitial =
+        session.pendingInitial := by
+  grind (config := { gen := 20, splits := 30 }) [encrypt, identityFrame]
+
+/-- The authenticated ratchet transaction can replace ratchet keys and both
+    ratchet states, but it cannot change identities, role or pending wrapper. -/
+theorem decryptRatchet_frame (view : CodewordView) (oracle : Oracle)
+    (session : Session) (message : Bytes) :
+    identityFrame session (decryptRatchet view oracle session message).session
+      ∧ (decryptRatchet view oracle session message).session.pendingInitial =
+        session.pendingInitial := by
+  grind (config := { gen := 30, splits := 50 }) [decryptRatchet, identityFrame]
+
+/-- Public decrypt preserves identities and the responder marker on every
+    branch. Its only wrapper-field change is the separately proved successful
+    clearing of `pendingInitial`. -/
+theorem decrypt_identity_frame (view : CodewordView) (oracle : Oracle)
+    (session : Session) (message : Bytes) :
+    identityFrame session (decrypt view oracle session message).session := by
+  cases hd : dispatchDecrypt session message with
+  | error reason => simp [decrypt, hd, identityFrame]
+  | ok inner =>
+      have hf := (decryptRatchet_frame view oracle session inner).1
+      cases hr : decryptRatchet view oracle session inner with
+      | mk next result remaining =>
+          cases result <;> simpa [decrypt, hd, hr, identityFrame] using hf
 
 /-- The exact repeated-initial recognition rule: both stored key fields must
     match byte for byte; the ciphertext and three identifiers are ignored. -/
