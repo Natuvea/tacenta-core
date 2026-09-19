@@ -89,6 +89,51 @@ theorem sendDetailed_exhausted_iff (st : State) :
       · simp [sendDetailed, hc, hn]
         omega
 
+/-! ## Detailed receive refusals -/
+
+inductive ReceiveRefusal where
+  | tooManySkipped | skippedStoreFull | noReceivingChain
+  | outOfOrder | chainExhausted
+  deriving Repr, DecidableEq, Inhabited
+
+/-- Restore the two public skip refusal kinds without duplicating the accepted
+    transition. `skipMessageKeys` checks the per-chain distance before the
+    absolute store bound, so a failure meeting both conditions reports
+    `tooManySkipped`. -/
+def skipMessageKeysDetailed (st : State) (upto : Nat) : Except ReceiveRefusal State :=
+  match skipMessageKeys st upto with
+  | some next => .ok next
+  | none =>
+      if st.nr + maxSkip < upto then .error .tooManySkipped
+      else .error .skippedStoreFull
+
+theorem skipMessageKeysDetailed_ok_iff (st : State) (upto : Nat) (next : State) :
+    skipMessageKeysDetailed st upto = .ok next ↔ skipMessageKeys st upto = some next := by
+  cases h : skipMessageKeys st upto with
+  | none =>
+      by_cases hd : st.nr + maxSkip < upto <;> simp [skipMessageKeysDetailed, h, hd]
+  | some result => simp [skipMessageKeysDetailed, h]
+
+theorem skipMessageKeysDetailed_too_many_iff (st : State) (upto : Nat) :
+    skipMessageKeysDetailed st upto = .error .tooManySkipped ↔
+      skipMessageKeys st upto = none ∧ st.nr + maxSkip < upto := by
+  cases h : skipMessageKeys st upto with
+  | none =>
+      by_cases hd : st.nr + maxSkip < upto <;>
+        simp [skipMessageKeysDetailed, h, hd]
+  | some next => simp [skipMessageKeysDetailed, h]
+
+theorem skipMessageKeysDetailed_store_full_iff (st : State) (upto : Nat) :
+    skipMessageKeysDetailed st upto = .error .skippedStoreFull ↔
+      skipMessageKeys st upto = none ∧ upto ≤ st.nr + maxSkip := by
+  cases h : skipMessageKeys st upto with
+  | none =>
+      by_cases hd : st.nr + maxSkip < upto
+      · simp [skipMessageKeysDetailed, h, hd]
+      · simp [skipMessageKeysDetailed, h, hd]
+        omega
+  | some next => simp [skipMessageKeysDetailed, h]
+
 /-- A Diffie-Hellman ratchet step (ratchet.md). `dhOutRecv = DH(DHs.priv,
     header.dh)` seeds the new receiving chain; `dhOutSend = DH(newDhs.priv,
     header.dh)` seeds the new sending chain under the fresh public key
