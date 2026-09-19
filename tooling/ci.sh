@@ -95,6 +95,8 @@ echo "== The three-leaf translation unit is what its leaves assemble to =="
 sh tacenta-proofs/scripts/assemble-triple-unit.sh --check
 echo "== The Braid-and-erasure translation unit is what its leaves assemble to =="
 sh tacenta-proofs/scripts/assemble-braid-unit.sh --check
+echo "== The eight-leaf Session translation unit is what its leaves assemble to =="
+sh tacenta-proofs/scripts/assemble-session-unit.sh --check
 
 # The unit's copies of the two leaf panic-freedom proofs are generated from
 # those proofs, not maintained beside them: the constants differ, so the
