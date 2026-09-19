@@ -23,7 +23,7 @@
 # the leaf crates', and `LABELS.md` can say every domain-separation string is
 # in one place.
 #
-# **Two directories are left out, and they are the only ones.** `tacenta-core/braid-unit`
+# **Three directories are left out, and they are the only ones.** `tacenta-core/braid-unit`
 # is generated from the Braid and its erasure codec by `assemble-braid-unit.sh` and
 # carries the Braid's `lib.rs` a second time; everything below about
 # `tacenta-core/triple-unit` applies to it unchanged. `tacenta-core/triple-unit`
@@ -40,6 +40,9 @@
 # `attest.py --check` both hold it to that), so a label added, changed or
 # removed there is a label added, changed or removed in
 # `tacenta-core/triple/src/lib.rs`, which is scanned.
+# `tacenta-core/session-unit` is generated from those same leaves plus the
+# lifecycle, session and wire leaves; its assembly check holds every copied
+# lifecycle file to its source, so scanning it would only count labels twice.
 set -euo pipefail
 
 cd "$(cd "$(dirname "$0")/.." && pwd)"
@@ -55,6 +58,7 @@ for d in tacenta-core/src tacenta-core/*/src; do
   case "$d" in
     tacenta-core/triple-unit/src) continue ;;
     tacenta-core/braid-unit/src) continue ;;
+    tacenta-core/session-unit/src) continue ;;
   esac
   [ -d "$d" ] && scan_dirs+=("$d")
 done

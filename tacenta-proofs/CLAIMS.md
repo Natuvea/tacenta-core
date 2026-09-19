@@ -711,6 +711,10 @@ Location: `tacenta-proofs/translation/Translation/T1.lean` and
   panic, and needs no precondition, because the keying material is at most five
   fixed components so the bound it asks for is discharged from the value rather
   than passed to a caller.
+- `Tacenta.SessionUnitSessionT1.shared_secret_no_panic` (in
+  `Translation/SessionUnitSessionT1.lean`): the count-checked Session-unit port
+  proves the same statement against the complete eight-leaf generated
+  namespace.
 
 ## Proved (tier T1, the erasure coder's entry points cannot fail)
 
@@ -720,11 +724,19 @@ Location: `Translation/ErasureT1.lean`.
   encoder state, and it needs no hypothesis at all. Pinned to `propext`,
   `Classical.choice` and `Quot.sound` alone: this crate has no opaque
   primitive of its own.
+- `Tacenta.SessionUnitErasureT1.next_chunk_no_panic` (in
+  `Translation/SessionUnitErasureT1.lean`): the count-checked Session-unit port
+  proves the same encoder statement against the complete eight-leaf generated
+  namespace.
 - `message_no_panic`: the decoder's entry point -- the one that consumes
   codewords an attacker supplies, with every index and length computed from
   what they sent -- cannot panic, given only that `Vec::truncate` returns
   (`TruncateTotal`, the one library call the translation does not see
   through). Pinned to the three kernel axioms plus that one external.
+- `Tacenta.SessionUnitErasureT1.message_no_panic` (in
+  `Translation/SessionUnitErasureT1.lean`): the count-checked Session-unit port
+  proves the same decoder statement against the complete eight-leaf generated
+  namespace.
 - `add_chunk_no_panic`, `has_message_no_panic`, `interpolate_no_panic`,
   `weights_no_panic`, `coefficients_no_panic`, `evaluate_no_panic`,
   `mul_no_panic`: the decoder's other public call, the field, and the
@@ -975,6 +987,17 @@ Location: `tacenta-proofs/translation/Translation/BraidT1.lean`.
 - `Braid.send_no_panic` and `Braid.receive_no_panic` are pinned under
   `#guard_msgs` at the end of the file, to the kernel's three axioms and the
   crate's opaque constants; no `native_decide` reaches either.
+- `Tacenta.SessionUnitBraidT1.Braid.send_no_panic` (in
+  `Translation/SessionUnitBraidT1.lean`): the count-checked port of the send
+  entry-point theorem to the complete eight-leaf Session namespace.
+- `Tacenta.SessionUnitBraidT1.Braid.receive_no_panic` (in
+  `Translation/SessionUnitBraidT1.lean`): the corresponding count-checked
+  receive entry-point theorem. In that unit the erasure functions are
+  concrete translated code, so the pinned
+  axiom lists drop the standalone Braid translation's opaque erasure
+  declarations. The port explicitly unregisters three narrower global tactic
+  rules from imported leaf proofs; its negative control checks that removing
+  that aggregate adaptation makes the proof fail.
 
 ## Proved (tier T1, the Double Ratchet's persistence codec cannot fail)
 
@@ -1290,6 +1313,15 @@ theorems take.
   axiom base is the union of the erasure coder's and the KEM's opaque
   constants with the Braid's own KDF calls and `zeroize` touches, and it is
   pinned under `#guard_msgs` with that list.
+- `Tacenta.SessionUnitBraidImportInv.Braid.from_bytes_establishes_inv` (in
+  `Translation/SessionUnitBraidImportInv.lean`): the decoded-state invariant
+  theorem in the complete Session unit. Its exact pin omits the standalone
+  Braid translation's opaque erasure declarations because that code is
+  concrete in the aggregate translation.
+- `Tacenta.SessionUnitBraidImportInv.Braid.decoded_receive_no_panic` (in
+  `Translation/SessionUnitBraidImportInv.lean`): the aggregate decoded-state
+  chain into the Session-unit Braid receive theorem, with its remaining KEM,
+  KDF, zeroize and generated-library boundaries pinned exactly.
 
 **What this does not give.** `BraidT3.step_receive_refines` also takes
 `hepoch : epoch + 1 < u64::MAX`, which the Rust `invariant` does not check at
@@ -1866,6 +1898,15 @@ What a reader has to grant:
 - `Braid.send_refines` and `Braid.receive_refines` are pinned under
   `#guard_msgs` at the end of the file, to the kernel's three axioms and the
   crate's opaque constants; no `native_decide` reaches either.
+- `Tacenta.SessionUnitBraidT3.Braid.send_refines` (in
+  `Translation/SessionUnitBraidT3.lean`): the count-checked Session-unit port
+  proves the same send refinement against the complete eight-leaf generated
+  namespace.
+- `Tacenta.SessionUnitBraidT3.Braid.receive_refines` (in
+  `Translation/SessionUnitBraidT3.lean`): the corresponding receive
+  refinement. Both aggregate theorems use the concrete translated erasure
+  implementation, so their pinned axiom lists omit the standalone Braid
+  translation's opaque erasure declarations.
 - **Carried over from T1, new with CR-15:** `ZeroizingArrayRoundTrip`,
   `ArrayZeroizeTotal` and `RangeFullIndexTotal`, `BraidT1.lean`'s own copies
   of the `zeroize` wrapper's round trip, the in-place wipe, and the
@@ -2130,7 +2171,7 @@ and cannot tell a planted one, added by such code with its name assembled
 from string literals, from a real one, so the absence of such code is what
 excludes it (`LIMITATIONS.md`, "Trusted, not verified").
 `scripts/check-audit-reach.sh` fails if any first-party module, generated
-ones included, is outside the six audit modules' import closure, since
+ones included, is outside the seven audit modules' import closure, since
 the audit walks only what its invoking module imports, and fails if the
 six do not all run with the same first-party prefixes, since the audit's
 waiver for an unmentioned compiler-trust axiom asks whether any first-party

@@ -35,6 +35,10 @@
 # crate, so that the Braid translates over the codec's bodies rather than
 # twenty-three opaque axioms. Nothing is proved about it yet; the Braid's
 # proofs are still about its own translation (see LIMITATIONS.md).
+#
+# An eleventh, `tacenta-core/session-unit`, assembles the lifecycle with all
+# seven verified leaves. This is the unit the Session T1/T3 proofs will use:
+# the lifecycle's calls cross no opaque leaf-crate boundary inside it.
 set -eu
 # **The pin, and it must match the verification workflow.** Keeping the
 # release name here rather than only in the workflow is what makes a local run
@@ -77,6 +81,8 @@ echo "run-aeneas: assembling the three-leaf translation unit"
 sh "$here/scripts/assemble-triple-unit.sh"
 echo "run-aeneas: assembling the Braid-and-erasure translation unit"
 sh "$here/scripts/assemble-braid-unit.sh"
+echo "run-aeneas: assembling the eight-leaf Session translation unit"
+sh "$here/scripts/assemble-session-unit.sh"
 out="$here/Generated/aeneas-output"
 # Stage the results where the translation lake package builds them (see
 # tacenta-proofs/translation/lakefile.toml).
@@ -205,6 +211,12 @@ translate triple-unit tacenta-triple-unit tacenta_triple_unit.llbc TacentaTriple
 # three-leaf unit it has an audit module of its own,
 # `Translation/AxiomAuditBraidUnit.lean`. Nothing is proved about it yet.
 translate braid-unit tacenta-braid-unit tacenta_braid_unit.llbc TacentaBraidUnit
+
+# The shipping lifecycle plus all seven verified leaves in one generated
+# crate. Its assembly script checks the copied lifecycle sources byte for byte
+# and consumes the separately checked Triple and Braid copies. Like the smaller
+# units, this is proof input rather than a crate any product links.
+translate session-unit tacenta-session-unit tacenta_session_unit.llbc TacentaSessionUnit
 
 echo "run-aeneas: next, record what was just generated:"
 echo "run-aeneas:   python3 tacenta-proofs/scripts/attest.py --refresh-translation"

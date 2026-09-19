@@ -1210,6 +1210,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tacenta-session-unit"
+version = "0.0.0"
+dependencies = [
+ "rand_core 0.6.4",
+ "tacenta-boundary",
+ "tacenta-kdf",
+ "tacenta-kem",
+ "zeroize",
+]
+
+[[package]]
 name = "tacenta-spqr"
 version = "0.0.0"
 dependencies = [

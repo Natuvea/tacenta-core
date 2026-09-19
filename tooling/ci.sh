@@ -102,6 +102,8 @@ echo "== The three-leaf translation unit is what its leaves assemble to =="
 sh tacenta-proofs/scripts/assemble-triple-unit.sh --check
 echo "== The Braid-and-erasure translation unit is what its leaves assemble to =="
 sh tacenta-proofs/scripts/assemble-braid-unit.sh --check
+echo "== The eight-leaf Session translation unit is what its leaves assemble to =="
+sh tacenta-proofs/scripts/assemble-session-unit.sh --check
 
 # The unit's copies of the two leaf panic-freedom proofs are generated from
 # those proofs, not maintained beside them: the constants differ, so the
@@ -111,6 +113,20 @@ sh tacenta-proofs/scripts/assemble-braid-unit.sh --check
 # anything.
 echo "== The unit's copies of the leaf panic-freedom proofs are the ported originals =="
 bash tacenta-proofs/scripts/port-unit-proofs.sh --check
+echo "== The Session unit's ratchet proofs are the deterministic second port =="
+bash tacenta-proofs/scripts/port-session-unit-proofs.sh --check
+echo "== The Session unit's PQXDH proof is the deterministic leaf port =="
+bash tacenta-proofs/scripts/port-session-pqxdh-proof.sh --check
+echo "== The Session unit's erasure proof is the deterministic leaf port =="
+bash tacenta-proofs/scripts/port-session-erasure-proof.sh --check
+echo "== The Session unit's Braid proof is the deterministic aggregate port =="
+bash tacenta-proofs/scripts/port-session-braid-proof.sh --check
+echo "== The Session unit's Braid refinement is the deterministic aggregate port =="
+bash tacenta-proofs/scripts/port-session-braid-refinement.sh --check
+echo "== The Session unit's ratchet import proofs are the deterministic partial port =="
+bash tacenta-proofs/scripts/port-session-ratchet-import-proof.sh --check
+echo "== The Session unit's Braid import proof is the deterministic aggregate port =="
+bash tacenta-proofs/scripts/port-session-braid-import-proof.sh --check
 
 # Derivation labels are protocol constants, and a codebase that cannot enumerate
 # its own is one nobody can review. `tacenta-core/LABELS.md` is the freeze;
