@@ -35,6 +35,12 @@ The initial rewrite set is:
 - replace `?` and translation-hostile combinators with explicit `match`;
 - replace captured closures and iterator closures with named helpers or
   explicit loops;
+- split the prekey-store decoder into head, replay-record and retired-prekey
+  helpers, the shape the Phase 0 spike showed reduces its rooted LLBC from
+  about 10 GiB to 13 MiB;
+- replace the two `create_prekeys` iterator pipelines with explicit loops and
+  replace `usize::max(1)` in receive shortfall with the equivalent comparison,
+  because both produced Lean that Aeneas accepted but the kernel refused;
 - replace the eviction loop with either a bounded loop or a fuelled helper,
   chosen by the Phase 0 spike;
 - remove the responder `debug_assert!` only when its condition is represented
@@ -46,12 +52,25 @@ The Phase 0 spike is disposable and may compare candidate rewrites before an
 implementation is selected. Production rewrites are allowed only after this
 decision's review.
 
+Translate from a checked-in manifest of call-graph roots rather than from the
+whole crate. Tiny free functions root inherent methods that Charon cannot name
+directly. A coverage gate compares that manifest with the shipping lifecycle
+API and must fail if a public operation has no root. The spike translated and
+kernel-checked all 30 public lifecycle operations independently; translating
+the whole package produced an approximately 10 GiB LLBC and an impractical
+Aeneas memory footprint.
+
 ## Validation and stop conditions
 
 Every production rewrite must pass the full workspace tests and all existing
 vector runners with byte-identical vector and persistence files. A mutation
 which changes a refusal, check order or commit point is a behavior change and
 must not be folded into this work.
+
+The root-coverage gate needs a negative control which removes one operation
+from the manifest and requires the gate to fail. Record LLBC size, translation
+wall time and peak memory in addition to pass/fail, so a technically successful
+translation cannot silently make the pinned CI runner unusable.
 
 If a construct remains untranslatable after two reasonable rewrite attempts,
 record the exact tool failure. A pure helper may cross the primitive boundary

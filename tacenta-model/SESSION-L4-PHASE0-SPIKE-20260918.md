@@ -143,6 +143,14 @@ growth therefore belonged to the decoder's structured control flow rather
 than merely to translating the hash-table dependency. Production Phase 0 must
 retain that split.
 
+A final per-root sweep covered all 30 public operations in the copied
+lifecycle API: six `Identity` operations, thirteen `PrekeyStore` operations,
+the three establishment functions, and eight `Session` operations. Every root
+passed Charon, Aeneas with zero errors and zero generated `sorry`, and the Lean
+kernel. The largest rooted LLBC was the split store decoder at 13 MiB. This is
+a translatability result only; no refinement or panic-freedom theorem is
+claimed by it.
+
 This measurement changes the proposed translation layout: the pinned command
 should use an explicit, reviewed list of public call-graph roots (with tiny
 free roots for inherent methods), and CI must verify that the list covers the
@@ -160,9 +168,10 @@ otherwise silently omit shipping code.
   only structural rewrite. Tier-4 store and codec bodies also block a complete
   translation. Calling them "translated but unproved" still requires Aeneas
   to translate their bodies without `sorry`.
-- **The translation must be rooted and coverage-gated.** Eight central roots
-  now translate and kernel-check independently in seconds, including the
-  split store decoder. The all-items run exhausted a practical resource budget.
+- **The translation must be rooted and coverage-gated.** All 30 public
+  lifecycle operations now translate and kernel-check independently, including
+  the split store decoder. The all-items run exhausted a practical resource
+  budget.
 - The production Phase 0 work should first rewire the primitive surface and
   remove the name clashes, then address loop/iterator/closure failures in
   dependency order. It must rerun Aeneas after each class because one ignored
