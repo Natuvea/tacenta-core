@@ -3517,6 +3517,14 @@ impl Session {
         // role; the Braid's covers its twelve states and the coders inside
         // them. Both decoders refuse on their own predicate, so at import
         // this is a second reading, and after a message it is the only one.
+        self.leaf_invariants()
+    }
+
+    // Keep the final leaf checks behind one translated call.  This preserves
+    // the executable predicate while giving the proof of clause (g) a single
+    // boundary instead of duplicating both checks into every early-return
+    // branch above.
+    fn leaf_invariants(&self) -> bool {
         self.triple.invariant() && self.braid.invariant()
     }
 
