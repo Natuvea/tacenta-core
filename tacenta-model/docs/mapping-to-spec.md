@@ -164,6 +164,8 @@ Source pages: `tacenta-spec/protocol/session-establishment.md`,
 | Primitive calls delegated by the session algorithms; ordered caller randomness | `Oracle`, `takeDraw`, `random32`, `kemEncapsulate`, `sign` | `Model/Lifecycle.lean` |
 | Receiving the initial message; exact repeated-initial recognition and ignored wrapper fields | `repeatedInitial`, `repeatedInitial_iff`, `repeatedInitial_ignores_other_fields` | `Model/Lifecycle.lean` |
 | Error handling; required refusals, with implementation-owned error names | `RatchetRefusal`, `SparseRefusal`, `TripleRefusal`, `HandshakeRefusal`, `DecodeRefusal`, `Refusal` | `Model/Lifecycle.lean` |
+| Message type; dispatch from framing | `MessageType`, `messageType`, `messageType_initial_iff` | `Model/Lifecycle.lean` |
+| ML-KEM Braid, Failure; terminal state query | `agreementFailed`, `agreementFailed_iff` | `Model/Lifecycle.lean` |
 
 The oracle is modelling machinery rather than a cryptographic primitive claim.
 Each function records the complete argument list of the corresponding boundary

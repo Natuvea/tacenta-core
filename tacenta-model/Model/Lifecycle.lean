@@ -173,6 +173,47 @@ inductive Refusal where
   | ceiling
   deriving Repr, DecidableEq, Inhabited
 
+def agreementFailed (session : Session) : Bool :=
+  match session.braid with
+  | .failed => true
+  | _ => false
+
+theorem agreementFailed_iff (session : Session) :
+    agreementFailed session = true ↔ session.braid = .failed := by
+  cases h : session.braid <;> simp [agreementFailed, h]
+
+inductive MessageType where
+  | ratchet | initial
+  deriving Repr, DecidableEq, Inhabited
+
+/-- Read only the two framing bytes used for session dispatch. A malformed or
+    unknown frame returns `none`; `decrypt` then sends it to the ratchet decoder,
+    which supplies the public decode refusal. -/
+def messageType : Bytes → Option MessageType
+  | version :: ty :: _ =>
+      if version != Model.Messages.version then none
+      else if ty == Model.Messages.typeRatchet then some .ratchet
+      else if ty == Model.Messages.typeInitial then some .initial
+      else none
+  | _ => none
+
+theorem messageType_initial_iff (bytes : Bytes) :
+    messageType bytes = some .initial ↔
+      bytes.length ≥ 2 ∧ bytes[0]? = some Model.Messages.version
+        ∧ bytes[1]? = some Model.Messages.typeInitial := by
+  cases bytes with
+  | nil => simp [messageType]
+  | cons first rest =>
+      cases rest with
+      | nil => simp [messageType]
+      | cons second tail =>
+          simp only [messageType, List.length_cons, List.getElem?_cons_zero,
+            List.getElem?_cons_succ, ge_iff_le]
+          by_cases hv : first = Model.Messages.version <;>
+            by_cases hr : second = 0x01 <;>
+            by_cases hi : second = 0x02 <;>
+            simp [hv, hr, hi, Model.Messages.typeRatchet, Model.Messages.typeInitial]
+
 /-- Whether an initial wrapper is the repeat belonging to this responder
     session (session-establishment.md, Receiving the initial message). -/
 def repeatedInitial (session : Session) (initial : Initial) : Bool :=
