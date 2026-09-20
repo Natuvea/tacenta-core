@@ -23,7 +23,7 @@ reader records.
 | Finding family | Disposition | Next evidence needed |
 | --- | --- | --- |
 | FM-02 / FM-04 | Open proof scope | Per-headline theorem satisfiability witnesses and explicit success-path-only wording until refusal refinement exists. |
-| FM-03 | Open correctness cleanup | Remove the unused perfect-correctness KEM hypothesis after the Lean proof set is rebuilt and pinned. |
+| FM-03 | Closed | `KemAgreesFor` no longer carries the `K.Correct` conjunct: neither Braid refinement proof used it, and it asked for a decapsulation guarantee that holds of ML-KEM-1024 only up to the FIPS 203 failure bound. `toyKem_correct` remains a fact about the toy model. |
 | SC-05 / SC-08 / SC-09 | Open supply-chain evidence | Replace candidate-written receipt claims with an independently derived record; distinguish checksum from regeneration; pin the Lean toolchain artefact. |
 | SC-01 / SC-02 / SC-03 | Open governance/process | Enforce protected `main`, record the historic exceptions, and require a named reviewer who is not the change author before claiming independent review. |
 | F1 / F2 / F3 | Closed (`HL-FUZZ-01`) | The `wire_decoders` corpus carries a 1,811-byte canonical bundle that reaches `decode_bundle` acceptance, pinned by a normal decode/re-encode test; `session_receive` overlays fuzz bytes onto a genuine initial message and its zero-mutation seed must complete an accepted responder handshake; the ratchet and sparse-ratchet decoder tests start from valid encodings, overwrite the count fields and require `Malformed`, and each fails when its bound is disabled. |

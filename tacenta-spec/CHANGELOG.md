@@ -5,6 +5,13 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+- `tacenta-proofs`: the Braid refinement boundary `KemAgreesFor` no longer
+  assumes `K.Correct`. No proof used the conjunct, and it asserted perfect
+  decapsulation, which ML-KEM-1024 satisfies only up to the FIPS 203 failure
+  bound. The four Braid refinement theorems now rest on the two
+  operation-agreement clauses alone; `toyKem_correct` stays a model fact.
+  Closes hostile-lens item FM-03.
+
 - Workflow checks now fail when the workflow or case corpus is absent, with an
   explicit empty-repository control. Vector currency uses `git status` with
   untracked files included, so a newly generated uncommitted vector cannot be

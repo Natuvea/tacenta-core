@@ -124,11 +124,11 @@ this section says in one place what is not proved.
   model (a Reed-Solomon code over `GF(2^256)`, built from Mathlib).
 - **The KEM agreement binds the model's randomness existentially per RNG
   state, for encapsulation as for key generation.** `Model.Braid.Kem.encaps1`
-  takes a randomness argument, `Kem.Correct` quantifies over both parties'
-  randomness, and the encapsulation clause of `BraidT3.lean`'s `KemAgreesFor`
-  says that for each RNG state *some* model randomness makes `K.encaps1`'s
-  ciphertext and shared secret the real `encapsulate1`'s -- the same shape
-  the key-generation clause always had. An earlier revision's clause fixed
+  takes a randomness argument, and the encapsulation clause of
+  `BraidT3.lean`'s `KemAgreesFor` says that for each RNG state *some* model
+  randomness makes `K.encaps1`'s ciphertext and shared secret the real
+  `encapsulate1`'s -- the same shape the key-generation clause always had.
+  An earlier revision's clause fixed
   one pair per header for every RNG state, which ML-KEM's fresh randomness
   makes false of the real operation, so the four Braid refinement theorems
   described a Braid over a derandomised KEM; `LIMITATIONS.md`'s KEM entry
@@ -1901,12 +1901,12 @@ What a reader has to grant:
   fully translated Rust (no opaque call in the ones that matter for value,
   only in the KEM/erasure primitives they call), and the epoch fact is a
   finite case split over the model alone.
-- **The KEM boundary, `KemAgreesFor`:** one bundled existential -- a
-  `Model.Braid.Kem` witness satisfying `Kem.Correct`, whose fields the real
-  `IncrementalKeyPair`/`EncapsState` operations equal -- rather than one axiom
-  per KEM operation, since the model's own `Kem` record is itself
-  uninterpreted functions with no separate reference computation to equate a
-  per-op axiom against. Two clauses, for the two operations that draw
+- **The KEM boundary, `KemAgreesFor`:** two relations between a specific
+  `Model.Braid.Kem` witness and the real `IncrementalKeyPair`/`EncapsState`
+  operations, rather than one axiom per KEM operation, since the model's own
+  `Kem` record is itself uninterpreted functions with no separate reference
+  computation to equate a per-op axiom against. The two clauses cover the
+  operations that draw
   randomness (`generate`, `encapsulate1`), each binding the model's
   randomness existentially per RNG state and each under `RngTotal rc`; the
   encapsulation clause used to fix one `(ct1, ss)` per header across every
@@ -1915,7 +1915,10 @@ What a reader has to grant:
   existential meaningful. A third clause, over every `IncrementalKeyPair`
   whether or not `generate` built it, was false of `from_bytes`-built pairs
   and applied by no proof, and is gone (`LIMITATIONS.md`'s KEM entry has the
-  record).
+  record). A former `K.Correct` conjunct was also applied by no proof and was
+  false of ML-KEM's probabilistic correctness bound; it has been removed from
+  the refinement boundary while `toyKem_correct` remains a separate model
+  fact.
 - **The erasure boundary, `ErasureAgrees`:** one freestanding relational
   invariant over `tacenta_erasure`'s `Encoder`/`Decoder`, in the same trust
   category as the ratchet's `HmacAgrees`/`HkdfAgrees` -- an assumed agreement
