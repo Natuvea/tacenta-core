@@ -940,6 +940,24 @@ structure StepRefines {R : Type} (trace : R → List Model.Lifecycle.Key)
   session : SessionRefines dh K real.2.1 model.session
   draws : trace real.2.2 = model.oracle.draws
 
+/-! A refusal branch must retain the wrapper relation as well as the inner
+state relation.  The dispatcher uses this small lemma after the model-side
+atomicity theorem has established that its refusal session is unchanged. -/
+
+theorem step_refines_unchanged_pending_initial
+    {R : Type} {trace : R → List Model.Lifecycle.Key}
+    {dh : DhView} {K : Model.Braid.Kem}
+    {realResult : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error}
+    {realSession : lifecycle.Session} {rng : R}
+    {model : Model.Lifecycle.Session}
+    {modelStep : Model.Lifecycle.Step Bytes}
+    (hstep : StepRefines trace dh K
+      (realResult, realSession, rng) modelStep)
+    (hmodel : modelStep.session = model) :
+    realSession.pending_initial.map (pendingInitialOf dh) = model.pendingInitial := by
+  rw [← hmodel]
+  exact hstep.session.pendingInitial
+
 /-! ## Lifecycle observations -/
 
 /-- Equality on translated byte vectors returns exactly list equality. -/
