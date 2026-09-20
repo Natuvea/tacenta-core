@@ -4295,3 +4295,35 @@ theorem initial_dispatch_select_decode
   rcases initial_decode_cases message with ⟨reason, hdecode⟩ | ⟨decoded, hdecode⟩
   · exact initial_dispatch_select_and_join (onRefusal reason hdecode)
   · exact initial_dispatch_select_and_join (onDecoded decoded hdecode)
+
+/-- Continue the direct selector through the generated established-ephemeral
+branch.  The decoder and state splits are performed by the theorem; callers
+supply only the corresponding route refinements. -/
+theorem initial_dispatch_select_decode_established
+    {R : Type} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (ctx : InitialDispatchContext rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onRefusal : ∀ (reason : tacenta_wire.DecodeError)
+      (hdecode : tacenta_wire.decode_initial message =
+        ok (core.result.Result.Err reason)),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onNone : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message =
+        ok (core.result.Result.Ok decoded))
+      (hnone : real.established_ephemeral = none),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onSome : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message =
+        ok (core.result.Result.Ok decoded))
+      (established : alloc.vec.Vec Std.U8)
+      (hestablished : real.established_ephemeral = some established),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng := by
+  refine initial_dispatch_select_decode ctx onRefusal (fun decoded hdecode => ?_)
+  rcases initial_established_ephemeral_cases real with hnone | ⟨established, hestablished⟩
+  · exact onNone decoded hdecode hnone
+  · exact onSome decoded hdecode established hestablished
