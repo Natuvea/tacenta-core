@@ -11,9 +11,14 @@ still finish with a stronger impression than the sum of its parts supports, so
 this section says in one place what is not proved.
 
 - **`Session::encrypt` and `Session::decrypt` are not proved end to end.** They
-  are the functions a product actually calls. Their orchestration -- choosing a
-  path, sequencing the crates, handling the failure branches -- has no theorem.
-  What is proved lies underneath them, in the ratchet, the sparse post-quantum
+  are the functions a product actually calls. On the eight-leaf session unit
+  their orchestration now has panic-freedom theorems (T1, below), conditional
+  on twelve named boundary contracts and explicit headroom, and a set of
+  refinement branch lemmas that each take the leaf outcomes as hypotheses
+  (`Translation/UnitLifecycleT3.lean`; not accepted as claims here and not
+  composed with the leaf theorems). No theorem says what the two functions
+  return as a whole, on every branch, against the model. What is proved
+  outright lies underneath them, in the ratchet, the sparse post-quantum
   ratchet, the ML-KEM braid and their composition.
 - **The composed Triple Ratchet proofs rest on stated opaque cross-crate
   assumptions.** They are declared rather than hidden, and each is named where
@@ -169,8 +174,9 @@ this section says in one place what is not proved.
   `read_key`, `read_u32`, `read_u64`, `decode_skipped_entry`,
   `decode_chain`, `decode_chains_entry`), `init`,
   `init_alice`, `init_bob`, `Output::new`, `Encoder::new`, `Decoder::new`,
-  `needed`, `received`, `encode_prekey_body`, the small accessors, and the
-  `evict_oldest` calls. (The erasure crate's `weights`, `coefficients` and
+  `needed`, `received`, `encode_prekey_body` and the small accessors; the
+  `evict_oldest` calls carry a T1 theorem only on the session unit
+  (`Translation/UnitLifecycleT1.lean`). (The erasure crate's `weights`, `coefficients` and
   `evaluate` *are* proved:
   `ErasureT1.lean` carries a totality theorem for each and the two entry
   points that call them are re-stepped; and the classical ratchet's
@@ -717,6 +723,10 @@ Location: `tacenta-proofs/translation/Translation/T1.lean` and
   panic, and needs no precondition, because the keying material is at most five
   fixed components so the bound it asks for is discharged from the value rather
   than passed to a caller.
+- `Tacenta.SessionUnitSessionT1.shared_secret_no_panic` (in
+  `Translation/SessionUnitSessionT1.lean`): the count-checked Session-unit port
+  proves the same statement against the complete eight-leaf generated
+  namespace.
 
 ## Proved (tier T1, the erasure coder's entry points cannot fail)
 
@@ -726,11 +736,19 @@ Location: `Translation/ErasureT1.lean`.
   encoder state, and it needs no hypothesis at all. Pinned to `propext`,
   `Classical.choice` and `Quot.sound` alone: this crate has no opaque
   primitive of its own.
+- `Tacenta.SessionUnitErasureT1.next_chunk_no_panic` (in
+  `Translation/SessionUnitErasureT1.lean`): the count-checked Session-unit port
+  proves the same encoder statement against the complete eight-leaf generated
+  namespace.
 - `message_no_panic`: the decoder's entry point -- the one that consumes
   codewords an attacker supplies, with every index and length computed from
   what they sent -- cannot panic, given only that `Vec::truncate` returns
   (`TruncateTotal`, the one library call the translation does not see
   through). Pinned to the three kernel axioms plus that one external.
+- `Tacenta.SessionUnitErasureT1.message_no_panic` (in
+  `Translation/SessionUnitErasureT1.lean`): the count-checked Session-unit port
+  proves the same decoder statement against the complete eight-leaf generated
+  namespace.
 - `add_chunk_no_panic`, `has_message_no_panic`, `interpolate_no_panic`,
   `weights_no_panic`, `coefficients_no_panic`, `evaluate_no_panic`,
   `mul_no_panic`: the decoder's other public call, the field, and the
@@ -782,6 +800,17 @@ them, so this is the decoder the product runs.
   published prekey bundle. Its one optional field is decided by
   `one_time_prekey_at` (`one_time_prekey_at_no_panic`) over thirty-three bytes
   the decoder has already bounded. Same pinned base.
+- `Tacenta.SessionUnitWireT1.decode_composite_no_panic` (in
+  `Translation/SessionUnitWireT1.lean`),
+  `Tacenta.SessionUnitWireT1.decode_message_no_panic` (in
+  `Translation/SessionUnitWireT1.lean`),
+  `Tacenta.SessionUnitWireT1.decode_initial_no_panic` (in
+  `Translation/SessionUnitWireT1.lean`), and
+  `Tacenta.SessionUnitWireT1.decode_bundle_no_panic` (in
+  `Translation/SessionUnitWireT1.lean`): the count-checked Session-unit port
+  proves the same four totality statements against the complete eight-leaf
+  generated namespace. The port changes namespaces only; its script rejects
+  any unexpected source shape or replacement count.
 - `is_canonical_x25519_spec`: the check `decode_composite`, `decode_initial`
   and `decode_bundle` apply to every curve key they read (message-format.md,
   Curve public keys)
@@ -810,6 +839,13 @@ the code checks.
   samples, stated in full.
 - `decode_message_refines`: the same for `decode_message`, whose ciphertext
   is exactly the bytes the model leaves after the header.
+- `Tacenta.SessionUnitWireT3.decode_composite_refines` (in
+  `Translation/SessionUnitWireT3.lean`) and
+  `Tacenta.SessionUnitWireT3.decode_message_refines` (in
+  `Translation/SessionUnitWireT3.lean`): a count-checked namespace-only port
+  proves the same two decoder refinements against the complete eight-leaf
+  Session translation. The porting script rejects an unexpected source shape
+  or replacement count.
 
 Both are pinned to `propext`, `Classical.choice` and `Quot.sound` alone.
 The big-endian arithmetic relating the code's `from_be_bytes` to the model's
@@ -818,8 +854,8 @@ round-trip lemmas settle the same identities with `bv_decide`, and neither
 theorem depends on them.
 
 **What this does not give.** An end-to-end claim from wire bytes to a ratchet
-decision also needs the session's use of the decoded header, which is outside
-the translated surface (`tacenta-core/lifecycle/src`).
+decision also needs the session's use of the decoded header. That outer
+composition is in draft proof work and is not an accepted claim here.
 
 ## Proved (tier T3, the initial-message decoder computes what the model says)
 
@@ -836,6 +872,11 @@ composite header's and the bundle's decoders refuse theirs.
   message, and `Err` exactly when the model returns `none`. No hypothesis.
   Pinned to `propext`, `Classical.choice` and `Quot.sound` alone. So the code
   refuses a re-spelled key in either position exactly when the model does.
+- `Tacenta.SessionUnitWireInitialT3.decode_initial_refines` (in
+  `Translation/SessionUnitWireInitialT3.lean`): a count-checked namespace-only
+  port proves the same refinement against the complete eight-leaf Session
+  translation. The porting script rejects an unexpected source shape or
+  replacement count.
 - `decodeInitial_cases`: the model's decoder by cases, the lemma the refinement
   rewrites with. Too short, a wrong version or type byte, no room for the two
   keys, an `identity` or `ephemeral` whose first byte is not the `EncodeEC`
@@ -846,8 +887,10 @@ composite header's and the bundle's decoders refuse theirs.
   offset 68. The code's check meets the model's through
   `WireT3.canonicalKey_at`.
 
-**What this does not give.** The same limit as above: what the session does
-with a decoded initial message is outside the translated surface.
+**What this does not give.** The lifecycle draft now imports this result and
+relates the detailed model decoder's successful value. The established-session
+repeat checks, refusal reasons and inner receive still need their outer
+composition before an end-to-end claim is accepted.
 
 ## Proved (tier T3, the prekey bundle decoder computes what the model says)
 
@@ -981,6 +1024,17 @@ Location: `tacenta-proofs/translation/Translation/BraidT1.lean`.
 - `Braid.send_no_panic` and `Braid.receive_no_panic` are pinned under
   `#guard_msgs` at the end of the file, to the kernel's three axioms and the
   crate's opaque constants; no `native_decide` reaches either.
+- `Tacenta.SessionUnitBraidT1.Braid.send_no_panic` (in
+  `Translation/SessionUnitBraidT1.lean`): the count-checked port of the send
+  entry-point theorem to the complete eight-leaf Session namespace.
+- `Tacenta.SessionUnitBraidT1.Braid.receive_no_panic` (in
+  `Translation/SessionUnitBraidT1.lean`): the corresponding count-checked
+  receive entry-point theorem. In that unit the erasure functions are
+  concrete translated code, so the pinned
+  axiom lists drop the standalone Braid translation's opaque erasure
+  declarations. The port explicitly unregisters three narrower global tactic
+  rules from imported leaf proofs; its negative control checks that removing
+  that aggregate adaptation makes the proof fail.
 
 ## Proved (tier T1, the Double Ratchet's persistence codec cannot fail)
 
@@ -1296,6 +1350,15 @@ theorems take.
   axiom base is the union of the erasure coder's and the KEM's opaque
   constants with the Braid's own KDF calls and `zeroize` touches, and it is
   pinned under `#guard_msgs` with that list.
+- `Tacenta.SessionUnitBraidImportInv.Braid.from_bytes_establishes_inv` (in
+  `Translation/SessionUnitBraidImportInv.lean`): the decoded-state invariant
+  theorem in the complete Session unit. Its exact pin omits the standalone
+  Braid translation's opaque erasure declarations because that code is
+  concrete in the aggregate translation.
+- `Tacenta.SessionUnitBraidImportInv.Braid.decoded_receive_no_panic` (in
+  `Translation/SessionUnitBraidImportInv.lean`): the aggregate decoded-state
+  chain into the Session-unit Braid receive theorem, with its remaining KEM,
+  KDF, zeroize and generated-library boundaries pinned exactly.
 
 **What this does not give.** `BraidT3.step_receive_refines` also takes
 `hepoch : epoch + 1 < u64::MAX`, which the Rust `invariant` does not check at
@@ -1466,8 +1529,10 @@ covers, so this file declares `KdfInitTotal` in the same shape as
 with one trusted-KDF assumption of the kind already relied on everywhere else.
 
 **What is still not proved.** The four remaining public functions without a
-T1 theorem -- `State.evict_oldest_classical`,
-`State.evict_oldest_post_quantum`, `State.to_bytes` and `State.from_bytes`.
+T1 theorem on this unit -- `State.evict_oldest_classical`,
+`State.evict_oldest_post_quantum`, `State.to_bytes` and `State.from_bytes`
+(the two eviction functions have one on the eight-leaf session unit,
+`Translation/UnitLifecycleT1.lean`, under `RemoveSkippedAtTotal`).
 Being inside the unit does not make them fall out: the eviction loops and the
 length-prefixed framing are their own proof obligations, unrelated to the crate
 boundary this file removes.
@@ -1872,6 +1937,15 @@ What a reader has to grant:
 - `Braid.send_refines` and `Braid.receive_refines` are pinned under
   `#guard_msgs` at the end of the file, to the kernel's three axioms and the
   crate's opaque constants; no `native_decide` reaches either.
+- `Tacenta.SessionUnitBraidT3.Braid.send_refines` (in
+  `Translation/SessionUnitBraidT3.lean`): the count-checked Session-unit port
+  proves the same send refinement against the complete eight-leaf generated
+  namespace.
+- `Tacenta.SessionUnitBraidT3.Braid.receive_refines` (in
+  `Translation/SessionUnitBraidT3.lean`): the corresponding receive
+  refinement. Both aggregate theorems use the concrete translated erasure
+  implementation, so their pinned axiom lists omit the standalone Braid
+  translation's opaque erasure declarations.
 - **Carried over from T1, new with CR-15:** `ZeroizingArrayRoundTrip`,
   `ArrayZeroizeTotal` and `RangeFullIndexTotal`, `BraidT1.lean`'s own copies
   of the `zeroize` wrapper's round trip, the in-place wipe, and the
@@ -2051,6 +2125,29 @@ are what the refinement theorems are *about*.
   the induction forced into the open; every real call starts at one and only
   multiplies.
 
+## Proved (tier T1, the session lifecycle on the eight-leaf unit cannot fail, under its contracts)
+
+Location: `Translation/UnitLifecyclePublicT1.lean`.
+
+The five operations a
+product calls, translated inside `tacenta-core/session-unit` where the
+ratchets, the Braid, the wire codecs and the PQXDH derivation are real
+bodies rather than axioms. Each theorem is conditional on the twelve boundary
+contracts (`LIMITATIONS.md`, "The Session unit's primitive contracts") and on
+an explicit headroom record; `invariant_gives_preconditions` derives the
+leaf preconditions from `Session::invariant`. Nothing here relates a result
+to the model: that is `UnitLifecycleT3.lean`'s conditional branch lemmas,
+which are not listed as claims.
+
+- `encrypt_no_panic`, `decrypt_no_panic`, `decrypt_ratchet_no_panic`:
+  `Session::encrypt`, `Session::decrypt` and `decrypt_ratchet` return, for a
+  session satisfying `Session::invariant` with room in its counters.
+- `establish_initiator_for_no_panic`, `establish_responder_no_panic`: the two
+  establishment entry points return, the responder's with room in its
+  last-resort record.
+- `invariant_gives_preconditions`: `Session::invariant` yields the
+  preconditions the inner Triple and Braid theorems carry.
+
 ## Proved (bounded P6 session lifecycle observations)
 
 Location: `Proofs/SessionTrace.lean`. These are the three narrow theorems for
@@ -2133,13 +2230,13 @@ line, in every hand-written module including the package roots and
 refuses every elaboration-time construct (`run_cmd`, `#eval`, `elab`,
 `macro`, `syntax`, `initialize`, `addDecl`, any reference to the `Lean`
 namespace) outside `Model/AxiomAudit.lean`'s own implementation and the
-six `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
+seven `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
 exact line content: the audit accepts the compiler-trust axioms by shape
 and cannot tell a planted one, added by such code with its name assembled
 from string literals, from a real one, so the absence of such code is what
 excludes it (`LIMITATIONS.md`, "Trusted, not verified").
 `scripts/check-audit-reach.sh` fails if any first-party module, generated
-ones included, is outside the six audit modules' import closure, since
+ones included, is outside the seven audit modules' import closure, since
 the audit walks only what its invoking module imports, and fails if the
 six do not all run with the same first-party prefixes, since the audit's
 waiver for an unmentioned compiler-trust axiom asks whether any first-party

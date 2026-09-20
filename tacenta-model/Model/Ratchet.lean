@@ -46,6 +46,94 @@ def send (st : State) : Option (State × Header × Key) :=
     else
       none
 
+/-- The two observable reasons the shipping send operation can refuse. The
+    older `send` remains the compact state-machine definition; this detailed
+    result lets a lifecycle refinement preserve the public error kind. -/
+inductive SendRefusal where
+  | noSendingChain | chainExhausted
+  deriving Repr, DecidableEq, Inhabited
+
+def sendDetailed (st : State) : Except SendRefusal (State × Header × Key) :=
+  match st.cks with
+  | none => .error .noSendingChain
+  | some ck =>
+      if st.ns < u32Max then
+        let (ck', mk) := kdfCk ck
+        let header : Header := { dh := st.dhsPub, pn := st.pn, n := st.ns }
+        .ok ({ st with cks := some ck', ns := st.ns + 1 }, header, mk)
+      else
+        .error .chainExhausted
+
+theorem sendDetailed_ok_iff (st : State) (result : State × Header × Key) :
+    sendDetailed st = .ok result ↔ send st = some result := by
+  cases hc : st.cks with
+  | none => simp [sendDetailed, send, hc]
+  | some ck =>
+      by_cases hn : st.ns < u32Max <;> simp [sendDetailed, send, hc, hn]
+
+theorem sendDetailed_no_chain_iff (st : State) :
+    sendDetailed st = .error .noSendingChain ↔ st.cks = none := by
+  cases hc : st.cks with
+  | none => simp [sendDetailed, hc]
+  | some ck =>
+      by_cases hn : st.ns < u32Max <;> simp [sendDetailed, hc, hn]
+
+theorem sendDetailed_exhausted_iff (st : State) :
+    sendDetailed st = .error .chainExhausted ↔
+      st.cks.isSome ∧ u32Max ≤ st.ns := by
+  cases hc : st.cks with
+  | none => simp [sendDetailed, hc]
+  | some ck =>
+      by_cases hn : st.ns < u32Max
+      · simp [sendDetailed, hc, hn]
+      · simp [sendDetailed, hc, hn]
+        omega
+
+/-! ## Detailed receive refusals -/
+
+inductive ReceiveRefusal where
+  | tooManySkipped | skippedStoreFull | noReceivingChain
+  | outOfOrder | chainExhausted
+  deriving Repr, DecidableEq, Inhabited
+
+/-- Restore the two public skip refusal kinds without duplicating the accepted
+    transition. `skipMessageKeys` checks the per-chain distance before the
+    absolute store bound, so a failure meeting both conditions reports
+    `tooManySkipped`. -/
+def skipMessageKeysDetailed (st : State) (upto : Nat) : Except ReceiveRefusal State :=
+  match skipMessageKeys st upto with
+  | some next => .ok next
+  | none =>
+      if st.nr + maxSkip < upto then .error .tooManySkipped
+      else .error .skippedStoreFull
+
+theorem skipMessageKeysDetailed_ok_iff (st : State) (upto : Nat) (next : State) :
+    skipMessageKeysDetailed st upto = .ok next ↔ skipMessageKeys st upto = some next := by
+  cases h : skipMessageKeys st upto with
+  | none =>
+      by_cases hd : st.nr + maxSkip < upto <;> simp [skipMessageKeysDetailed, h, hd]
+  | some result => simp [skipMessageKeysDetailed, h]
+
+theorem skipMessageKeysDetailed_too_many_iff (st : State) (upto : Nat) :
+    skipMessageKeysDetailed st upto = .error .tooManySkipped ↔
+      skipMessageKeys st upto = none ∧ st.nr + maxSkip < upto := by
+  cases h : skipMessageKeys st upto with
+  | none =>
+      by_cases hd : st.nr + maxSkip < upto <;>
+        simp [skipMessageKeysDetailed, h, hd]
+  | some next => simp [skipMessageKeysDetailed, h]
+
+theorem skipMessageKeysDetailed_store_full_iff (st : State) (upto : Nat) :
+    skipMessageKeysDetailed st upto = .error .skippedStoreFull ↔
+      skipMessageKeys st upto = none ∧ upto ≤ st.nr + maxSkip := by
+  cases h : skipMessageKeys st upto with
+  | none =>
+      by_cases hd : st.nr + maxSkip < upto
+      · simp [skipMessageKeysDetailed, h, hd]
+      · simp [skipMessageKeysDetailed, h, hd]
+        omega
+  | some next => simp [skipMessageKeysDetailed, h]
+
 /-- A Diffie-Hellman ratchet step (ratchet.md). `dhOutRecv = DH(DHs.priv,
     header.dh)` seeds the new receiving chain; `dhOutSend = DH(newDhs.priv,
     header.dh)` seeds the new sending chain under the fresh public key
@@ -66,6 +154,34 @@ def trySkipped (st : State) (header : Header) : Option (State × Key) :=
     let rest := st.skipped.filter (fun (dh, n, _, _) => !(dh == header.dh && n == header.n))
     some ({ st with skipped := rest }, mk)
   | none => none
+
+private abbrev SkippedEntry := Key × Nat × Nat × Key
+
+private def olderSkipped (left right : SkippedEntry) : SkippedEntry :=
+  if right.2.2.1 < left.2.2.1 then right else left
+
+def oldestSkipped? : List SkippedEntry → Option SkippedEntry
+  | [] => none
+  | first :: rest => some (rest.foldl olderSkipped first)
+
+private def eraseFirstSkipped (target : SkippedEntry) :
+    List SkippedEntry → List SkippedEntry
+  | [] => []
+  | entry :: rest =>
+      if entry = target then rest else entry :: eraseFirstSkipped target rest
+
+/-- Delete up to `count` entries with the smallest store-clock value, matching
+    the implementation's `evict_oldest`. The returned count is observable to
+    the session retry loop: zero stops it. -/
+def evictOldest : State → Nat → State × Nat
+  | st, 0 => (st, 0)
+  | st, count + 1 =>
+      match oldestSkipped? st.skipped with
+      | none => (st, 0)
+      | some oldest =>
+          let one := { st with skipped := eraseFirstSkipped oldest st.skipped }
+          let rest := evictOldest one count
+          (rest.1, rest.2 + 1)
 
 /-- Taking a stored skipped key does not touch the store's clock: it removes an
 entry and leaves every other field alone. Needed where a later step has to know
@@ -122,6 +238,123 @@ def receive (st : State) (header : Header) (dhOutRecv dhOutSend newDhsPub : Key)
             else
               none
 
+/-- Receive with the shipping refusal kind retained. Like the leaf Rust
+    operation, the returned candidate may have advanced before a refusal; the
+    Triple Ratchet and session discard that candidate unless authentication
+    later succeeds. -/
+def receiveDetailed (st : State) (header : Header)
+    (dhOutRecv dhOutSend newDhsPub : Key) : Except ReceiveRefusal (State × Key) :=
+  match trySkipped st header with
+  | some (next, mk) => .ok (ageStore next, mk)
+  | none =>
+      let stepped : Except ReceiveRefusal State :=
+        if st.dhrPub == some header.dh then .ok st
+        else
+          match skipMessageKeysDetailed st header.pn with
+          | .error reason => .error reason
+          | .ok skipped => .ok (dhRatchet skipped header dhOutRecv dhOutSend newDhsPub)
+      match stepped with
+      | .error reason => .error reason
+      | .ok st1 =>
+          match skipMessageKeysDetailed st1 header.n with
+          | .error reason => .error reason
+          | .ok st2 =>
+              if header.n < st2.nr then .error .outOfOrder
+              else
+                match st2.ckr with
+                | none => .error .noReceivingChain
+                | some ck =>
+                    if st2.nr < u32Max then
+                      let (ck', mk) := kdfCk ck
+                      .ok (ageStore { st2 with ckr := some ck', nr := st2.nr + 1 }, mk)
+                    else
+                      .error .chainExhausted
+
+def detailedToOption : Except ReceiveRefusal (State × Key) → Option (State × Key)
+  | .error _ => none
+  | .ok result => some result
+
+theorem skipMessageKeysDetailed_toOption (st : State) (upto : Nat) :
+    (match skipMessageKeysDetailed st upto with
+      | .error _ => none
+      | .ok next => some next) = skipMessageKeys st upto := by
+  cases h : skipMessageKeys st upto with
+  | none =>
+      by_cases hd : st.nr + maxSkip < upto <;>
+        simp [skipMessageKeysDetailed, h, hd]
+  | some next => simp [skipMessageKeysDetailed, h]
+
+theorem receiveDetailed_toOption (st : State) (header : Header)
+    (dhOutRecv dhOutSend newDhsPub : Key) :
+    detailedToOption (receiveDetailed st header dhOutRecv dhOutSend newDhsPub) =
+      receive st header dhOutRecv dhOutSend newDhsPub := by
+  unfold receiveDetailed receive
+  cases hs : trySkipped st header with
+  | some found =>
+      obtain ⟨next, mk⟩ := found
+      simp [detailedToOption]
+  | none =>
+      cases hr : (st.dhrPub == some header.dh) with
+      | true =>
+          cases hn : skipMessageKeys st header.n with
+          | none =>
+              by_cases hb : st.nr + maxSkip < header.n <;>
+                simp [skipMessageKeysDetailed, hn, hb, detailedToOption]
+          | some st2 =>
+              by_cases ho : header.n < st2.nr
+              · simp [skipMessageKeysDetailed, hn, ho, detailedToOption]
+              · cases hc : st2.ckr with
+                | none =>
+                    simp [skipMessageKeysDetailed, hn, ho, hc, detailedToOption]
+                | some ck =>
+                    by_cases he : st2.nr < u32Max <;>
+                      simp [skipMessageKeysDetailed, hn, ho, hc, he,
+                        detailedToOption]
+      | false =>
+          cases hp : skipMessageKeys st header.pn with
+          | none =>
+              by_cases hb : st.nr + maxSkip < header.pn <;>
+                simp [skipMessageKeysDetailed, hp, hb, detailedToOption]
+          | some skipped =>
+              let stepped := dhRatchet skipped header dhOutRecv dhOutSend newDhsPub
+              cases hn : skipMessageKeys stepped header.n with
+              | none =>
+                  by_cases hb : stepped.nr + maxSkip < header.n <;>
+                    simp [skipMessageKeysDetailed, hp, hn, hb, stepped,
+                      detailedToOption]
+              | some st2 =>
+                  by_cases ho : header.n < st2.nr
+                  · simp [skipMessageKeysDetailed, hp, hn, ho, stepped,
+                      detailedToOption]
+                  · cases hc : st2.ckr with
+                    | none =>
+                        simp [skipMessageKeysDetailed, hp, hn, ho, hc, stepped,
+                          detailedToOption]
+                    | some ck =>
+                        by_cases he : st2.nr < u32Max <;>
+                          simp [skipMessageKeysDetailed, hp, hn, ho, hc, he,
+                            stepped, detailedToOption]
+
+theorem receiveDetailed_ok_iff (st : State) (header : Header)
+    (dhOutRecv dhOutSend newDhsPub : Key) (result : State × Key) :
+    receiveDetailed st header dhOutRecv dhOutSend newDhsPub = .ok result ↔
+      receive st header dhOutRecv dhOutSend newDhsPub = some result := by
+  have h := receiveDetailed_toOption st header dhOutRecv dhOutSend newDhsPub
+  constructor
+  · intro hok
+    rw [hok] at h
+    exact h.symm
+  · intro hok
+    cases hd : receiveDetailed st header dhOutRecv dhOutSend newDhsPub with
+    | error reason => simp [hd, hok, detailedToOption] at h
+    | ok actual =>
+        rw [hd] at h
+        simp only [detailedToOption] at h
+        rw [hok] at h
+        injection h with heq
+        subst actual
+        rfl
+
 /-! ## The counters stay inside their 32 bits
 
 What the ceilings buy: no state the operations produce holds a counter its
@@ -163,6 +396,15 @@ private def bPub : Key := List.replicate 32 0x0b
 private def b2Pub : Key := List.replicate 32 0x2b
 private def dhAB : Key := List.replicate 32 0xab   -- DH(a, B) = DH(b, A)
 private def dhB2A : Key := List.replicate 32 0xba  -- DH(b2, A)
+
+/-- Eviction follows the store clock rather than list position and reports the
+    number actually removed, which the Session retry loop uses as progress. -/
+example :
+    let state : State := { initReceiver sk bPub .tacenta with
+      skipped := [(aPub, 1, 5, sk), (aPub, 2, 1, sk), (aPub, 3, 3, sk)] }
+    let result := evictOldest state 2
+    (result.2, result.1.skipped.map (fun entry => entry.2.2.1)) = (2, [5]) := by
+  native_decide
 
 /-- In order: the first message A sends is recovered with the same message key by
     B, whose first receive takes the opening DH ratchet step. -/

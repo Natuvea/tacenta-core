@@ -197,6 +197,71 @@ fn decrypt_refuses_a_low_order_ratchet_header_and_changes_nothing() {
     );
 }
 
+/// Authentication is the receive transaction's commit point.  A forged
+/// ciphertext may drive all candidate ratchets, but it must leave the live
+/// session byte-identical so the genuine packet it was copied from remains
+/// deliverable.
+#[test]
+fn decrypt_refuses_a_tampered_ciphertext_and_changes_nothing() {
+    let mut r = rng(30);
+    let (mut alice, mut bob) = established_pair(&mut r);
+
+    let genuine = alice.encrypt(b"the authenticated message", &mut r).unwrap();
+    let decoded = decode_message(&genuine).expect("a plain ratchet message");
+    let mut tampered_ciphertext = decoded.ciphertext.clone();
+    tampered_ciphertext[0] ^= 0x01;
+    let forged = encode_message(&decoded.header, &tampered_ciphertext);
+
+    let before = bob.export().to_vec();
+    assert!(
+        matches!(bob.decrypt(&forged, &mut r), Err(LifecycleError::Aead)),
+        "a changed ciphertext must fail authentication"
+    );
+    assert_eq!(
+        bob.export().to_vec(),
+        before,
+        "an AEAD refusal must not commit any receive-side candidate state"
+    );
+    assert_eq!(
+        bob.decrypt(&genuine, &mut r).unwrap(),
+        b"the authenticated message",
+        "the rejected forgery must not consume the genuine message key"
+    );
+}
+
+/// The authenticated data covers the composite header as well as ciphertext.
+/// A syntactically valid header change therefore has the same atomic refusal
+/// behavior as a ciphertext change.
+#[test]
+fn decrypt_refuses_a_tampered_header_and_changes_nothing() {
+    let mut r = rng(31);
+    let (mut alice, mut bob) = established_pair(&mut r);
+
+    let genuine = alice.encrypt(b"the authenticated header", &mut r).unwrap();
+    let decoded = decode_message(&genuine).expect("a plain ratchet message");
+    let forged_header = Composite {
+        pn: decoded.header.pn ^ 1,
+        ..decoded.header
+    };
+    let forged = encode_message(&forged_header, &decoded.ciphertext);
+
+    let before = bob.export().to_vec();
+    assert!(
+        matches!(bob.decrypt(&forged, &mut r), Err(LifecycleError::Aead)),
+        "a changed authenticated header must fail authentication"
+    );
+    assert_eq!(
+        bob.export().to_vec(),
+        before,
+        "an AEAD refusal must not commit header-driven candidate state"
+    );
+    assert_eq!(
+        bob.decrypt(&genuine, &mut r).unwrap(),
+        b"the authenticated header",
+        "the rejected header forgery must not consume the genuine message key"
+    );
+}
+
 // --------------------------------------------------------- last-resort bound
 
 /// The 1024-entry bound fails closed (CR-28; external review, 2026-09). The

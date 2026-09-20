@@ -252,9 +252,10 @@ impl State {
     /// that does not look at the count retries against an empty store
     /// forever (CR-20).
     #[must_use]
+    #[allow(clippy::len_zero)] // `is_empty` is outside the pinned Aeneas subset.
     pub fn evict_oldest(&mut self, count: usize) -> usize {
         let mut evicted = 0;
-        while evicted < count && !self.skipped.is_empty() {
+        while evicted < count && self.skipped.len() != 0 {
             let mut oldest = 0;
             let mut i = 1;
             while i < self.skipped.len() {

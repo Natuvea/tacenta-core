@@ -346,9 +346,9 @@ fn receive_shortfall(
         FullStore::PostQuantum => match state.post_quantum_receive_count(composite.pq_epoch) {
             Some(received) => {
                 let held = state.post_quantum_skipped_len();
-                let need =
-                    usize::try_from(composite.pq_n.saturating_sub(1).saturating_sub(received))
-                        .unwrap_or(usize::MAX);
+                let need = saturating_usize_from_u64(
+                    composite.pq_n.saturating_sub(1).saturating_sub(received),
+                );
                 let shortfall = held
                     .saturating_add(need)
                     .saturating_sub(tacenta_spqr::MAX_SKIPPED_STORE);
@@ -357,6 +357,34 @@ fn receive_shortfall(
             None => 1,
         },
     }
+}
+
+/// Convert the wire's 64-bit sparse counter without an opaque `TryFrom`
+/// boundary in the translated lifecycle. This is the same saturating result
+/// as `usize::try_from(value).unwrap_or(usize::MAX)` on both supported pointer
+/// widths.
+fn saturating_usize_from_u64(value: u64) -> usize {
+    if value > usize::MAX as u64 {
+        usize::MAX
+    } else {
+        value as usize
+    }
+}
+
+fn send_candidate(
+    state: &tacenta_triple::State,
+    sending_epoch: u64,
+    spqr_output: Option<tacenta_spqr::Output>,
+) -> (
+    tacenta_triple::State,
+    Result<(tacenta_triple::Header, [u8; 32]), TripleError>,
+) {
+    let mut candidate = state.clone();
+    let sent = match spqr_output {
+        Some(output) => candidate.send(sending_epoch, Some(&output)),
+        None => candidate.send(sending_epoch, None),
+    };
+    (candidate, sent)
 }
 
 fn receive_attempt(
@@ -368,6 +396,19 @@ fn receive_attempt(
     spqr_output: Option<&tacenta_spqr::Output>,
 ) -> Result<(tacenta_triple::State, [u8; 32]), TripleError> {
     state.receive(header, dh_out_recv, dh_out_send, new_dhs_pub, spqr_output)
+}
+
+#[inline(never)]
+fn evict_for_retry(
+    mut state: tacenta_triple::State,
+    half: FullStore,
+    count: usize,
+) -> (tacenta_triple::State, usize) {
+    let evicted = match half {
+        FullStore::Classical => state.evict_oldest_classical(count),
+        FullStore::PostQuantum => state.evict_oldest_post_quantum(count),
+    };
+    (state, evicted)
 }
 
 fn receive_with_eviction(
@@ -399,14 +440,12 @@ fn receive_with_eviction(
     let mut pending = first;
     let mut outcome = None;
     while outcome.is_none() {
-        let evicted = match half {
-            FullStore::Classical => work.evict_oldest_classical(batch),
-            FullStore::PostQuantum => work.evict_oldest_post_quantum(batch),
-        };
+        let (next_work, evicted) = evict_for_retry(work, half, batch);
+        work = next_work;
         if evicted == 0 {
             outcome = Some(Err(pending));
         } else {
-            batch = batch.saturating_mul(2);
+            batch = batch.saturating_add(batch);
             match receive_attempt(
                 &work,
                 header,
@@ -997,10 +1036,12 @@ impl PrekeyStore {
     /// subset, as the note on the field says.
     fn last_resort_seen_for(&self, key_id: u32) -> usize {
         let mut count = 0usize;
-        for (id, _) in &self.last_resort_seen {
-            if *id == key_id {
+        let mut index = 0usize;
+        while index < self.last_resort_seen.len() {
+            if self.last_resort_seen[index].0 == key_id {
                 count += 1;
             }
+            index += 1;
         }
         count
     }
@@ -1168,10 +1209,18 @@ impl PrekeyStore {
             }
             index += 1;
         }
-        let i = found?;
+        // Spell out the option branches: Aeneas otherwise lowers `?` through
+        // an opaque external `Try::branch` call.
+        let i = match found {
+            Some(i) => i,
+            None => return None,
+        };
         let last = self.kem_one_time.len() - 1;
         self.kem_one_time.swap(i, last);
-        let (_, pair, _) = self.kem_one_time.pop()?;
+        let (_, pair, _) = match self.kem_one_time.pop() {
+            Some(entry) => entry,
+            None => return None,
+        };
         Some(pair)
     }
 
@@ -2221,6 +2270,7 @@ pub struct PublicState {
 }
 
 /// The composite header: the Triple Ratchet's own, plus the agreement's message.
+#[allow(clippy::manual_map)] // Explicit matches stay in the pinned Aeneas subset.
 fn composite_of(h: &tacenta_triple::Header, m: &tacenta_braid::Msg) -> Composite {
     Composite {
         dh: h.dr.dh,
@@ -2230,22 +2280,29 @@ fn composite_of(h: &tacenta_triple::Header, m: &tacenta_braid::Msg) -> Composite
         pq_n: h.pq_n,
         ag_epoch: m.epoch,
         ag_type: agreement_type_of(m.ty),
-        ag_chunk: m.data.as_ref().map(|c| Codeword {
-            index: c.index,
-            data: c.data,
-        }),
+        ag_chunk: match &m.data {
+            Some(c) => Some(Codeword {
+                index: c.index,
+                data: c.data,
+            }),
+            None => None,
+        },
     }
 }
 
 /// And back, for a header that arrived.
+#[allow(clippy::manual_map)] // Explicit matches stay in the pinned Aeneas subset.
 fn msg_of(c: &Composite) -> tacenta_braid::Msg {
     tacenta_braid::Msg {
         epoch: c.ag_epoch,
         ty: msg_type_of(c.ag_type),
-        data: c.ag_chunk.as_ref().map(|w| tacenta_erasure::Chunk {
-            index: w.index,
-            data: w.data,
-        }),
+        data: match &c.ag_chunk {
+            Some(w) => Some(tacenta_erasure::Chunk {
+                index: w.index,
+                data: w.data,
+            }),
+            None => None,
+        },
     }
 }
 
@@ -2391,7 +2448,10 @@ pub fn establish_initiator_for<R: RngCore + CryptoRng>(
     let ephemeral = dh::PrivateKey::from_bytes(random_secret(rng));
     // Wiped on the way out: the encapsulated secret is one of the values the
     // specifications require deleting once the shared secret is derived.
-    let (kem_ciphertext, ss) = kem::encapsulate(&bundle.kem_prekey, rng).map_err(|_| Error::Kem)?;
+    let (kem_ciphertext, ss) = match kem::encapsulate(&bundle.kem_prekey, rng) {
+        Ok(value) => value,
+        Err(_) => return Err(Error::Kem),
+    };
     let ss = Zeroizing::new(ss);
     // `SK` is the root of every key this session will ever derive, so it is
     // wrapped like `ss` beside it.
@@ -2407,11 +2467,12 @@ pub fn establish_initiator_for<R: RngCore + CryptoRng>(
     // Wiped on the way out: this is the `KDF_RK` input the specifications
     // require deleting once the next root key is derived (CR-08, key-deletion.md),
     // held like every other Diffie-Hellman output in this layer.
-    let dh_out = Zeroizing::new(
-        ratchet_private
-            .agree(&peer_signed_prekey)
-            .ok_or(Error::Handshake(SessionError::NonContributoryAgreement))?,
-    );
+    let dh_out = Zeroizing::new(match ratchet_private.agree(&peer_signed_prekey) {
+        Some(secret) => secret,
+        None => {
+            return Err(Error::Handshake(SessionError::NonContributoryAgreement));
+        }
+    });
     // §7.1: the handshake secret is expanded into one secret per ratchet, which
     // `init_sender` does internally, and the agreement's authenticator is
     // initialised from the PQXDH output itself.
@@ -2565,10 +2626,12 @@ fn responder_replay_fingerprint(
     }
     let fingerprint = last_resort_fingerprint(sk);
     let mut replayed = false;
-    for (_, seen) in &store.last_resort_seen {
-        if *seen == fingerprint {
+    let mut index = 0usize;
+    while index < store.last_resort_seen.len() {
+        if store.last_resort_seen[index].1 == fingerprint {
             replayed = true;
         }
+        index += 1;
     }
     if replayed {
         Err(Error::ReplayedLastResort)
@@ -2654,19 +2717,28 @@ pub fn establish_responder<R: RngCore + CryptoRng>(
     )?);
     let signed_prekey = dh::PrivateKey::from_bytes(*signed_prekey_secret);
     // Wrapped for the same reason as the initiator's.
-    let sk = Zeroizing::new(
-        match responder_shared_secret(
+    let shared = match one_time_key {
+        Some(key) => responder_shared_secret(
             &our_identity.dh_key(),
             &signed_prekey,
-            one_time_key.as_ref(),
+            Some(&key),
             &initiator_identity,
             &initiator_ephemeral,
             &ss,
-        ) {
-            Ok(secret) => secret,
-            Err(error) => return Err(Error::Handshake(error)),
-        },
-    );
+        ),
+        None => responder_shared_secret(
+            &our_identity.dh_key(),
+            &signed_prekey,
+            None,
+            &initiator_identity,
+            &initiator_ephemeral,
+            &ss,
+        ),
+    };
+    let sk = Zeroizing::new(match shared {
+        Ok(secret) => secret,
+        Err(error) => return Err(Error::Handshake(error)),
+    });
 
     // Replay identity is bound to the agreed secret rather than the public
     // ephemeral encoding. This makes torsion-equivalent X25519 spellings one
@@ -2736,6 +2808,7 @@ impl Session {
     /// peer with no session and every later message undecryptable. The
     /// conformance suite exercises this by asking a responder to read a third
     /// message first.
+    #[allow(clippy::manual_map)] // Explicit matches stay in the pinned Aeneas subset.
     pub fn encrypt<R: RngCore + CryptoRng>(
         &mut self,
         plaintext: &[u8],
@@ -2763,12 +2836,13 @@ impl Session {
             return Err(Error::AgreementFailed);
         }
 
-        let spqr_output = output
-            .as_ref()
-            .map(|o| tacenta_spqr::Output::new(o.key_epoch, o.key));
+        let spqr_output = match &output {
+            Some(o) => Some(tacenta_spqr::Output::new(o.key_epoch, o.key)),
+            None => None,
+        };
 
-        let mut candidate = self.triple.clone();
-        let (header, mk) = match candidate.send(sending_epoch, spqr_output.as_ref()) {
+        let (candidate, sent) = send_candidate(&self.triple, sending_epoch, spqr_output);
+        let (header, mk) = match sent {
             Ok(value) => value,
             Err(error) => return Err(Error::Triple(error)),
         };
@@ -2786,7 +2860,7 @@ impl Session {
         self.triple = candidate;
         self.braid = braid_next;
 
-        match self.pending_initial.as_ref() {
+        match &self.pending_initial {
             None => Ok(ratchet_message),
             Some(p) => Ok(encode_initial(
                 &encode_ec(&self.our_identity_public),
@@ -2831,7 +2905,7 @@ impl Session {
                     Ok(decoded) => decoded,
                     Err(error) => return Err(Error::Decode(error)),
                 };
-                match self.established_ephemeral.as_ref() {
+                match &self.established_ephemeral {
                     Some(e)
                         if *e == decoded.ephemeral
                             && decoded.identity == encode_ec(&self.peer_identity_public) =>
@@ -2851,6 +2925,7 @@ impl Session {
         Ok(plaintext)
     }
 
+    #[allow(clippy::manual_map)] // Explicit matches stay in the pinned Aeneas subset.
     fn decrypt_ratchet<R: RngCore + CryptoRng>(
         &mut self,
         message: &[u8],
@@ -2896,24 +2971,34 @@ impl Session {
         // The agreement first, for the same reason as on the send side: the
         // ratchet needs the epoch and output it yields.
         let (ag_epoch, ag_out, braid_candidate) = self.braid.receive(&msg_of(&composite));
-        let spqr_output = ag_out
-            .as_ref()
-            .map(|o| tacenta_spqr::Output::new(o.key_epoch, o.key));
+        let spqr_output = match &ag_out {
+            Some(o) => Some(tacenta_spqr::Output::new(o.key_epoch, o.key)),
+            None => None,
+        };
         let _ = ag_epoch;
 
         // `peer` is the ratchet public key off an incoming message, so it is
         // attacker-chosen on every receive, not just at handshake time. A
         // low-order value here would hand the sender both agreements.
         let peer = dh::PublicKeyBytes::from_bytes(composite.dh);
-        let nc = Error::Handshake(SessionError::NonContributoryAgreement);
         // Wiped on the way out: `dh_out_recv` seeds the new receiving chain and
         // `dh_out_send` the new sending chain, and both are `KDF_RK` inputs the
         // specifications require deleting once the next root key is derived
         // (CR-08, key-deletion.md). `dh_out_send` is computed on every receive
         // whether or not a step happens, so it is wrapped unconditionally.
-        let dh_out_recv = Zeroizing::new(self.ratchet_private.agree(&peer).ok_or(nc)?);
+        let dh_out_recv = Zeroizing::new(match self.ratchet_private.agree(&peer) {
+            Some(secret) => secret,
+            None => {
+                return Err(Error::Handshake(SessionError::NonContributoryAgreement));
+            }
+        });
         let candidate_key = dh::PrivateKey::from_bytes(random_secret(rng));
-        let dh_out_send = Zeroizing::new(candidate_key.agree(&peer).ok_or(nc)?);
+        let dh_out_send = Zeroizing::new(match candidate_key.agree(&peer) {
+            Some(secret) => secret,
+            None => {
+                return Err(Error::Handshake(SessionError::NonContributoryAgreement));
+            }
+        });
 
         let before = self.triple.sending_public();
         let header = triple_header_of(&composite);
@@ -3005,15 +3090,27 @@ impl Session {
         // store never touches the other, so they agree on every later one too,
         // but reading `work` makes that true by construction rather than by
         // argument.
-        let (triple_candidate, mk) = match receive_with_eviction(
-            &self.triple,
-            &composite,
-            &header,
-            &dh_out_recv,
-            &dh_out_send,
-            new_dhs_pub,
-            spqr_output.as_ref(),
-        ) {
+        let received = match spqr_output {
+            Some(output) => receive_with_eviction(
+                &self.triple,
+                &composite,
+                &header,
+                &dh_out_recv,
+                &dh_out_send,
+                new_dhs_pub,
+                Some(&output),
+            ),
+            None => receive_with_eviction(
+                &self.triple,
+                &composite,
+                &header,
+                &dh_out_recv,
+                &dh_out_send,
+                new_dhs_pub,
+                None,
+            ),
+        };
+        let (triple_candidate, mk) = match received {
             Ok(value) => value,
             Err(error) => return Err(Error::Triple(error)),
         };
@@ -3024,8 +3121,10 @@ impl Session {
         let keys = Zeroizing::new(ratchet::message_keys(&mk, ratchet::LabelSet::Tacenta));
         let (enc, mac, iv) = &*keys;
         let ad = concat_ad(&self.identity_ad, &composite);
-        let plaintext =
-            aead::decrypt(enc, mac, iv, &decoded.ciphertext, &ad).map_err(|_| Error::Aead)?;
+        let plaintext = match aead::decrypt(enc, mac, iv, &decoded.ciphertext, &ad) {
+            Ok(value) => value,
+            Err(_) => return Err(Error::Aead),
+        };
 
         // Authenticated. Commit, and not before: the assignments below are the
         // only place this function writes to `self`, and they are all of it.
@@ -3178,6 +3277,7 @@ impl Session {
     ///    secret; the last-resort fingerprint record exists to refuse exactly
     ///    that on the multi-use path, and it too must be persisted for it to
     ///    hold across a restart.
+    #[allow(clippy::manual_map)] // Explicit matches stay in the pinned Aeneas subset.
     pub fn export(&self) -> Zeroizing<Vec<u8>> {
         // Each part encoded once, then the buffer sized exactly, so it never
         // grows and leaves an outgrown allocation of secret bytes un-wiped
@@ -3185,7 +3285,18 @@ impl Session {
         let triple = self.triple.to_bytes();
         let braid = self.braid.to_bytes();
         let ratchet_private = self.ratchet_private.to_bytes();
-        let pending = self.pending_initial.as_ref().map(|p| p.to_bytes());
+        let pending = match &self.pending_initial {
+            Some(value) => Some(value.to_bytes()),
+            None => None,
+        };
+        let pending_len = match &pending {
+            Some(value) => 4 + value.len(),
+            None => 0,
+        };
+        let established_ephemeral_len = match &self.established_ephemeral {
+            Some(value) => 4 + value.len(),
+            None => 0,
+        };
         let capacity = 1
             + (4 + triple.len())
             + (4 + braid.len())
@@ -3194,12 +3305,9 @@ impl Session {
             + 32
             + 32
             + 1
-            + pending.as_ref().map_or(0, |p| 4 + p.len())
+            + pending_len
             + 1
-            + self
-                .established_ephemeral
-                .as_ref()
-                .map_or(0, |e| 4 + e.len());
+            + established_ephemeral_len;
         let mut out = Vec::with_capacity(capacity);
         out.push(SESSION_VERSION);
         push_len_prefixed(&mut out, &triple);
@@ -3291,6 +3399,13 @@ impl Session {
     /// That is at-rest protection, which session-persistence.md places with
     /// the caller.
     pub fn invariant(&self) -> bool {
+        self.structural_invariant() && self.leaf_invariants()
+    }
+
+    // Keep the structural checks behind one translated call so the public
+    // predicate has a single proof boundary for these clauses and one for
+    // the two leaf invariants.
+    fn structural_invariant(&self) -> bool {
         // (a) The ratchet private key is the private half of the public key
         // the classical ratchet advertises in its headers. The peer agrees
         // against the advertised key and this side against the private one,
@@ -3436,6 +3551,14 @@ impl Session {
         // role; the Braid's covers its twelve states and the coders inside
         // them. Both decoders refuse on their own predicate, so at import
         // this is a second reading, and after a message it is the only one.
+        true
+    }
+
+    // Keep the final leaf checks behind one translated call.  This preserves
+    // the executable predicate while giving the proof of clause (g) a single
+    // boundary instead of duplicating both checks into every early-return
+    // branch above.
+    fn leaf_invariants(&self) -> bool {
         self.triple.invariant() && self.braid.invariant()
     }
 
@@ -3539,6 +3662,16 @@ impl Session {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn u64_to_usize_conversion_saturates_at_the_platform_limit() {
+        for value in [0, u32::MAX as u64, u32::MAX as u64 + 1, u64::MAX] {
+            assert_eq!(
+                saturating_usize_from_u64(value),
+                usize::try_from(value).unwrap_or(usize::MAX)
+            );
+        }
+    }
 
     #[test]
     fn last_resort_replay_identity_is_bound_to_the_agreed_secret() {

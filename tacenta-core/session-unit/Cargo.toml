@@ -1,0 +1,25 @@
+# GENERATED FILE -- DO NOT EDIT.
+# Written by tacenta-proofs/scripts/assemble-session-unit.sh.
+
+[package]
+name = "tacenta-session-unit"
+license = "Apache-2.0"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.87"
+description = "Eight Session leaves compiled as one crate for translation; generated and not shipped."
+publish = false
+
+[dependencies]
+tacenta-boundary = { path = "../boundary" }
+tacenta-kdf = { path = "../kdf" }
+tacenta-kem = { path = "../kem" }
+rand_core = "0.6"
+zeroize = { version = "1", features = ["derive"] }
+
+[features]
+conformance = []
+
+[lib]
+test = false
+doctest = false

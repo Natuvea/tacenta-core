@@ -187,6 +187,34 @@ def decode (bs : List UInt8) : Option (Composite × List UInt8) := do
       | _ => Option.none
   | _ => Option.none
 
+/-- Classify a composite-header failure in the shipping decoder's check order.
+    This is consulted only when `decode` returned `none`; the final branch is
+    therefore unreachable, as every remaining fixed-width header is accepted. -/
+def decodeRefusal (bs : List UInt8) : Model.Messages.DecodeRefusal :=
+  if bs.length < size then .tooShort
+  else if bs[0]! != Model.Messages.version then .unknownVersion
+  else if bs[1]! != Model.Messages.typeRatchet then .wrongType
+  else if !Model.Messages.canonicalKey ((bs.drop 2).take 32) then .wrongType
+  else if (decodeAgreementType bs[66]!).isNone then .wrongType
+  else if bs[67]! != 0x00 && bs[67]! != 0x01 then .wrongType
+  else if bs[67]! == 0x00 &&
+      (bs[68]! != 0 || bs[69]! != 0 || ((bs.drop 70).take chunkBytes).any (· != 0)) then
+    .lengthOverrun
+  else .tooShort
+
+/-- The composite decoder with its exact public refusal restored. Success is
+    delegated to the existing parser so the two accepted languages cannot
+    drift apart. -/
+def decodeDetailed (bs : List UInt8) :
+    Except Model.Messages.DecodeRefusal (Composite × List UInt8) :=
+  match decode bs with
+  | some parsed => .ok parsed
+  | none => .error (decodeRefusal bs)
+
+theorem decodeDetailed_ok_iff (bs : List UInt8) (parsed : Composite × List UInt8) :
+    decodeDetailed bs = .ok parsed ↔ decode bs = some parsed := by
+  cases h : decode bs <;> simp [decodeDetailed, h]
+
 /-! ## Known answers
 
 The round-trip on concrete values. A general theorem for this encoding needs the
@@ -213,6 +241,21 @@ example : (encode sample).length = (encode sampleNoChunk).length := by native_de
 example : decode (encode sample) = some (sample, []) := by native_decide
 
 example : decode (encode sampleNoChunk) = some (sampleNoChunk, []) := by native_decide
+
+example : decodeDetailed [] =
+    (Except.error .tooShort : Except Model.Messages.DecodeRefusal (Composite × List UInt8)) := by
+  rfl
+
+example : decodeDetailed (0xff :: (encode sample).drop 1) =
+    (Except.error .unknownVersion :
+      Except Model.Messages.DecodeRefusal (Composite × List UInt8)) := by
+  rfl
+
+example : decodeDetailed
+    ((encode sampleNoChunk).take 68 ++ [0x00, 0x01] ++ (encode sampleNoChunk).drop 70) =
+    (Except.error .lengthOverrun :
+      Except Model.Messages.DecodeRefusal (Composite × List UInt8)) := by
+  rfl
 
 /-- Trailing bytes are returned rather than consumed, so a header can be read off
     the front of a message and the ciphertext follows. -/

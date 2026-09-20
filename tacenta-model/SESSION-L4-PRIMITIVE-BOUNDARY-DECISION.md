@@ -62,6 +62,14 @@ audit still encounter that opaque call.
 
 ## Assumption budget
 
+Note, 2026-09-20: the complete translation and its T1 layer required twelve
+contracts, the cap: the nine above less `AeadSealTotal`, plus `AeadSealBounded`
+(the AEAD call returns and its ciphertext is at most sixteen bytes longer than
+the plaintext, which the framing headroom needs), `VecPopTotal` and
+`MessageKeyMaterialRoundTrip` over standard-library and `zeroize` operations
+Aeneas leaves opaque. `LIMITATIONS.md` and `UnitSatisfiabilitySession.lean`
+(`all_twelve_contracts_satisfiable`) carry the twelve.
+
 The complete translation requires ten new primitive contracts. Existing KDF
 and unit-composition contracts are inherited and named separately; the one
 fixed-width RNG contract above replaces a generic new RNG assumption. More

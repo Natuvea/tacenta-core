@@ -69,7 +69,7 @@ with the pinned binaries reproduces it byte for byte), is the set of
 | --- | --- |
 | `dh.PrivateKey.from_bytes`, `dh.PrivateKey.public_key`, `dh.PrivateKey.to_bytes`, `dh.PublicKeyBytes.from_bytes`, `dh.PublicKeyBytes.as_bytes`, `dh.PublicKeyBytes` equality (`CoreCmpPartialEqPublicKeyBytes.eq`) | `DhCodecTotal` (construction, public derivation, byte and persistence projection, equality; one joint witness) |
 | `dh.PrivateKey.agree` | `DhAgreeTotal` |
-| `aead.encrypt` | `AeadSealTotal` |
+| `aead.encrypt` | `AeadSealTotal` in the decision; the T1 layer states it as `AeadSealBounded`, which also bounds the ciphertext length (decision note, 2026-09-20) |
 | `aead.decrypt` | `AeadOpenTotal` |
 | `kem.encapsulate` | `KemEncapsulateTotal` |
 | `kem.decapsulate` | `KemDecapsulateTotal` |

@@ -22,7 +22,8 @@ collect_labels() {
   local d
   for d in "$root"/tacenta-core/src "$root"/tacenta-core/*/src; do
     case "$d" in
-      "$root"/tacenta-core/triple-unit/src|"$root"/tacenta-core/braid-unit/src) continue ;;
+      "$root"/tacenta-core/triple-unit/src|"$root"/tacenta-core/braid-unit/src|\
+        "$root"/tacenta-core/session-unit/src) continue ;;
     esac
     [ -d "$d" ] && dirs+=("$d")
   done

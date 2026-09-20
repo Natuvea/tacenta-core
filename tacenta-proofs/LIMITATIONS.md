@@ -179,12 +179,12 @@ excludes it.
   `run_cmd`, `#eval`, `elab`, `macro`, `syntax`, `initialize`, `addDecl`,
   and no reference to the `Lean` namespace, which is where every such API
   lives -- outside `Model/AxiomAudit.lean`'s own implementation and the
-  six `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
+  seven `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
   exact line content, so that an invocation written any other way fails
   there and a second one in an audit module fails in the reach check below;
   `scripts/check-audit-reach.sh`, which fails if any first-party module is
-  outside the six audit modules' import closure, so that no module holds
-  such a declaration unwalked, and fails if the six do not all run with the
+  outside the seven audit modules' import closure, so that no module holds
+  such a declaration unwalked, and fails if the seven do not all run with the
   same first-party prefixes, and if any of them invokes the audit more than
   once or in a form the prefix check cannot read; and
   `scripts/check-audit-negatives.sh`, which plants one declaration for each
@@ -774,7 +774,9 @@ the retranslation in the verification workflow rather than passing quietly.
 **T1 covers all of `tacenta-spqr`'s protocol surface** (not the
 persistence codecs `from_bytes`/`to_bytes` and their entry decoders, nor
 `init`/`init_alice`/`init_bob`, `Output::new`, `epoch`, `skipped_len` or
-`evict_oldest`, which are translated and have no theorem; see CLAIMS.md's
+`evict_oldest`, which are translated and have no theorem on this island (the
+session unit's `UnitLifecycleT1.lean` proves `evict_oldest` panic-free under
+`RemoveSkippedAtTotal`); see CLAIMS.md's
 "Translated is not proved"): the three loops
 (`find_chains`, `try_skipped`, `skip_message_keys` -- the last being the one
 that would be a remote memory exhaustion if the gap it walks were unbounded),
@@ -1198,7 +1200,9 @@ body Aeneas gave up on, the same bar the rest of this list holds to.
 `post_quantum_receive_count`. Four public functions do not:
 `evict_oldest_classical`, `evict_oldest_post_quantum`, `to_bytes` and
 `from_bytes`, and the session calls all four, from its eviction loop and its
-persistence path
+persistence path. On the eight-leaf session unit the two eviction functions
+now carry T1 theorems (`UnitLifecycleT1.lean`, under `RemoveSkippedAtTotal`
+and `ZeroizeTotal`); the codecs still have none
 (`tacenta-core/lifecycle/src/lifecycle.rs`). Neither the classical ratchet's own
 `receive_no_panic` nor the sparse ratchet's `send_no_panic`/`receive_no_panic`
 said anything about what happens when the two are composed, and the
@@ -1903,7 +1907,7 @@ still an assumption. Porting those proofs to the unit, so that the erasure
 crate's own theorems discharge them, is what the unit is for and has not been
 done.
 
-### The lifecycle leaf is a tenth translated zone, with no theorem yet
+### The lifecycle leaf is a tenth translated zone, with no theorem on its own island
 
 `tacenta-core/lifecycle` is the shipping session orchestration behind the
 unchanged `tacenta_core::sessions` API. Charon starts from every public item,
@@ -1913,7 +1917,8 @@ the generated definitions, and its missing-root control proves that omission
 turns the gate red.
 
 This is a Phase 0 translatability result. No T1 or T3 theorem is stated about
-the lifecycle constants, and the leaf translation sees the ratchets, Braid,
+the standalone `TacentaLifecycle` constants (the theorems about the lifecycle
+live on the eight-leaf session unit, next section), and the leaf translation sees the ratchets, Braid,
 wire layer and primitive boundary as 118 opaque externals. The manifest lists
 all 118 and `AxiomAuditLifecycle.lean` checks the elaborated module against
 that exact set. Of the 118, 74 are first-party leaf operations the lifecycle
@@ -1932,11 +1937,51 @@ a boundary function, which is why no `random32` declaration exists and why
 `tooling/check-lifecycle-boundary-surface.py`, which follows only
 `tacenta_boundary` names, cannot see that route.
 `tacenta-model/SESSION-L4-PHASE0-SPIKE-20260918.md` maps the reachable
-boundary declarations to the ten contracts the primitive-boundary decision
-names. Later phases assemble the lifecycle with its eight code leaves
+boundary declarations to the contracts the primitive-boundary decision
+names (ten in the record, twelve after its dated note). Later phases assemble the lifecycle with its eight code leaves
 and prove orchestration against the lifecycle model; until then,
 `Session::encrypt`, `Session::decrypt`, establishment and persistence remain
 tested and translated, not proved end to end.
+
+### The Session unit's primitive contracts are totality assumptions
+
+The eight-leaf `TacentaSessionUnit` makes the ratchet, Braid, erasure, wire,
+session and lifecycle bodies concrete in one Lean namespace. The primitive
+implementations remain outside that unit. The first Session proof layer names
+twelve contracts, the cap the primitive-boundary decision set: nine over the
+primitive boundary, `DhCodecTotal`, `DhAgreeTotal`, `AeadOpenTotal`,
+`KemEncapsulateTotal`, `KemDecapsulateTotal`, `KemCiphertextLenTotal`,
+`XeddsaVerifyTotal`, `XeddsaSignTotal` and `Random32Total`; one over the
+AEAD's output shape, `AeadSealBounded`, which says the call returns and that
+the ciphertext is at most sixteen bytes longer than the plaintext (a length
+bound the framing headroom needs, so it is not a totality contract); and two
+over standard-library and `zeroize` operations Aeneas leaves opaque,
+`VecPopTotal` and `MessageKeyMaterialRoundTrip`. The decision record named ten
+and `AeadSealTotal`; the complete translation and its T1 layer showed the
+twelve, and the record carries a dated note.
+
+Apart from `AeadSealBounded`, these contracts say that the outer Aeneas `Result` returns. They permit an
+AEAD, KEM or signature check to return its ordinary inner refusal, and permit
+DH agreement to return `None`. They do not say that encryption is secure,
+that signatures are sound, that agreement outputs match, or that an accepted
+result has the right bytes. Those value-level agreements belong to the later
+refinement relation and its oracle; the totality layer alone cannot establish
+them.
+
+`DhCodecTotal` is one joint contract over both opaque DH key types and all six
+reachable construction, projection, derivation and equality operations. Its
+non-vacuity witness interprets those types together, so the operations cannot
+be justified by mutually incompatible one-function witnesses. Randomness is
+scoped to the concrete `RngCore` instance supplied to an operation: a contract
+over every possible trait record would be false because the trait permits a
+`fill_bytes` implementation that fails.
+
+`UnitSatisfiabilitySession.lean` binds every contract shape to the generated
+constant with an `Iff.rfl`, exhibits a model for each shape, and combines all
+twelve witness names in one theorem (`all_twelve_contracts_satisfiable`). The negative control removes one witness and
+requires elaboration to fail. This establishes only that the assumptions are
+consistent; it does not prove that the real primitive implementations satisfy
+their value-level specifications.
 
 ## The erasure coding's field is proved
 

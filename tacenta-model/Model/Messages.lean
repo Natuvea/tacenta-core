@@ -238,6 +238,13 @@ structure Initial where
   ratchetMessage : List UInt8
   deriving Repr, Inhabited, DecidableEq
 
+/-- The implementation's four wire-decoder refusals. The specification makes
+    decode refusal distinct from authentication refusal while leaving these
+    local names to the implementation (error-handling.md). -/
+inductive DecodeRefusal where
+  | unknownVersion | wrongType | tooShort | lengthOverrun
+  deriving Repr, DecidableEq, Inhabited
+
 /-- `some ()` when `k` begins with the `EncodeEC` curve byte, `none` otherwise
     (the empty list included).
 
@@ -278,6 +285,59 @@ def decodeInitial (bs : List UInt8) : Option Initial :=
       pure { identity, ephemeral, kemCiphertext, signedPrekeyId, oneTimeId,
              kemPrekeyId, ratchetMessage := rest }
   | _ => none
+
+/-- Classify an initial-message decode failure in the same check order as the
+    public wire decoder. This function is consulted only when `decodeInitial`
+    returned `none`; keeping success in the existing decoder prevents the two
+    parsers from drifting apart while retaining the public refusal detail. -/
+def initialDecodeRefusal (bs : List UInt8) : DecodeRefusal :=
+  if bs.length < 2 then .tooShort
+  else if bs[0]! != version then .unknownVersion
+  else if bs[1]! != typeInitial then .wrongType
+  else if bs.length < 68 then .tooShort
+  else if bs[2]! != ecCurveByte then .wrongType
+  else if bs[35]! != ecCurveByte then .wrongType
+  else if !canonicalKey ((bs.drop 3).take 32) then .wrongType
+  else if !canonicalKey ((bs.drop 36).take 32) then .wrongType
+  else
+    match readBe32 (bs.drop 68) with
+    | none => .tooShort
+    | some (kemLen, afterLen) =>
+        if afterLen.length < kemLen.toNat then .lengthOverrun
+        else if (afterLen.drop kemLen.toNat).length < 12 then .tooShort
+        else .tooShort
+
+/-- The existing byte parser with its public refusal classification restored.
+    The final `.tooShort` branch in `initialDecodeRefusal` is unreachable here:
+    a buffer with both keys, its ciphertext and all three identifiers is exactly
+    a success of `decodeInitial`, whatever follows as the inner message. -/
+def decodeInitialDetailed (bs : List UInt8) : Except DecodeRefusal Initial :=
+  match decodeInitial bs with
+  | some initial => .ok initial
+  | none => .error (initialDecodeRefusal bs)
+
+theorem decodeInitialDetailed_ok_iff (bs : List UInt8) (initial : Initial) :
+    decodeInitialDetailed bs = .ok initial ↔ decodeInitial bs = some initial := by
+  cases h : decodeInitial bs <;> simp [decodeInitialDetailed, h]
+
+private def detailedKey : List UInt8 := ecCurveByte :: List.replicate 32 0x11
+
+example : decodeInitialDetailed [] =
+    (Except.error .tooShort : Except DecodeRefusal Initial) := by rfl
+example : decodeInitialDetailed [0xff, typeInitial] =
+    (Except.error .unknownVersion : Except DecodeRefusal Initial) := by rfl
+example : decodeInitialDetailed [version, 0xff] =
+    (Except.error .wrongType : Except DecodeRefusal Initial) := by rfl
+example : decodeInitialDetailed ([version, typeInitial] ++ List.replicate 65 0x11)
+    = (Except.error .tooShort : Except DecodeRefusal Initial) := by rfl
+example : decodeInitialDetailed ([version, typeInitial] ++ detailedKey ++ detailedKey)
+    = (Except.error .tooShort : Except DecodeRefusal Initial) := by rfl
+example : decodeInitialDetailed
+    ([version, typeInitial] ++ detailedKey ++ detailedKey ++ be32 2 ++ [0xaa])
+    = (Except.error .lengthOverrun : Except DecodeRefusal Initial) := by rfl
+example : decodeInitialDetailed
+    ([version, typeInitial] ++ detailedKey ++ detailedKey ++ be32 0 ++ List.replicate 11 0)
+    = (Except.error .tooShort : Except DecodeRefusal Initial) := by rfl
 
 /-- `CONCAT(ad, header)`: the length of the application's associated data, then
     that data, then the serialized header. The length is what makes the pair
