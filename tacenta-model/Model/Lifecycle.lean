@@ -12,6 +12,7 @@ The primitive algorithms are deliberately outside this model. The theorem is
 intended to quantify over every oracle; real-crypto vectors instantiate one.
 -/
 import Model.PersistedState
+import Model.XEdDSA
 import Model.CompositeHeader
 import Model.SessionEstablishment
 
@@ -1531,6 +1532,14 @@ def toyAliceIdentity : Identity :=
 
 def toyBobIdentity : Identity :=
   { secret := List.replicate 32 0x22, publicKey := List.replicate 32 0x22 }
+
+/-- The toy oracle's identity public-key function is explicit, so the lifecycle
+    fixtures carry the same identity relation as a real establishment. -/
+example : Model.XEdDSA.IdentityOf (toyOracle []).dhPublic toyAliceIdentity.secret toyAliceIdentity.publicKey := by
+  rfl
+
+example : Model.XEdDSA.IdentityOf (toyOracle []).dhPublic toyBobIdentity.secret toyBobIdentity.publicKey := by
+  rfl
 
 def toySignedPrekey : Key := List.replicate 32 0x23
 
