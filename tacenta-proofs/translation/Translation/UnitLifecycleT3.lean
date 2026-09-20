@@ -1106,6 +1106,35 @@ def initial_dispatch_repeat_refusal_route
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng :=
   .repeatRefusal w
 
+def initial_dispatch_repeat_success_route
+    {R : Type} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (ctx : InitialDispatchContext rngCore cryptoRng trace dh K view oracle real model message rng)
+    (established : alloc.vec.Vec Std.U8) (decoded : tacenta_wire.DecodedInitial)
+    (plaintext : alloc.vec.Vec Std.U8) (modelPlaintext : Bytes)
+    (realNext : lifecycle.Session) (modelNext : Model.Lifecycle.Session) (rngNext : R)
+    (hdecode : tacenta_wire.decode_initial message =
+      ok (core.result.Result.Ok decoded))
+    (hestablished : real.established_ephemeral = some established)
+    (hephemeral : vecOf established = vecOf decoded.ephemeral)
+    (hidentity : vecOf decoded.identity =
+      Model.PersistedState.SessionState.encodeEc
+        (dh.publicKey real.peer_identity_public))
+    (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
+      (alloc.vec.Vec.deref decoded.message) rng =
+      ok (.Ok plaintext, realNext, rngNext))
+    (hmodelStep : Model.Lifecycle.decryptRatchet view oracle model
+      (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage =
+      { session := modelNext, result := .ok modelPlaintext, oracle := oracle })
+    (hbytes : vecOf plaintext = modelPlaintext)
+    (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
+    InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng :=
+  .repeatSuccess w
+
 /-! A refusal branch must retain the wrapper relation as well as the inner
 state relation.  The dispatcher uses this small lemma after the model-side
 atomicity theorem has established that its refusal session is unchanged. -/
