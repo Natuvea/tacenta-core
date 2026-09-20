@@ -406,6 +406,16 @@ jobs:
       # The Braid-and-erasure unit, `tacenta-core/braid-unit`, likewise.
       - run: sh tacenta-proofs/scripts/assemble-braid-unit.sh --check
       - run: bash tacenta-proofs/scripts/port-unit-proofs.sh --check
+      # The eight-leaf Session unit and its seven ported proof modules are
+      # deterministic copies; a stale copy is refused here, as tooling/ci.sh does.
+      - run: sh tacenta-proofs/scripts/assemble-session-unit.sh --check
+      - run: bash tacenta-proofs/scripts/port-session-unit-proofs.sh --check
+      - run: bash tacenta-proofs/scripts/port-session-pqxdh-proof.sh --check
+      - run: bash tacenta-proofs/scripts/port-session-erasure-proof.sh --check
+      - run: bash tacenta-proofs/scripts/port-session-braid-proof.sh --check
+      - run: bash tacenta-proofs/scripts/port-session-braid-refinement.sh --check
+      - run: bash tacenta-proofs/scripts/port-session-ratchet-import-proof.sh --check
+      - run: bash tacenta-proofs/scripts/port-session-braid-import-proof.sh --check
       - run: bash tooling/check-labels.sh
       - run: bash tooling/tests/run-check-labels-cases.sh
       - run: python3 tooling/check-traceability.py

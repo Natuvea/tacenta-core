@@ -85,7 +85,7 @@ bash scripts/check-lifecycle-translation-coverage-negatives.sh || fail=1
 report_time "lifecycle public-root coverage" "$t"
 
 # Each new Session primitive contract has a non-vacuity witness, and one
-# theorem depends on all ten names.  Mutation-test that coverage so deleting a
+# theorem depends on all twelve names.  Mutation-test that coverage so deleting a
 # witness cannot leave the package green.
 t=$SECONDS
 bash scripts/check-session-satisfiability-negatives.sh || fail=1

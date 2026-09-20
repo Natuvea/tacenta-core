@@ -1296,14 +1296,19 @@ def prepareResponder (oracle : Oracle) (identity : Identity) (store : PrekeyStor
           match responderKemPair store initial.kemPrekeyId.toNat with
           | .error reason => .error reason
           | .ok (kemPair, lastResort) =>
-              match oracle.kemDecaps kemPair initial.kemCiphertext with
-              | none => .error .kem
-              | some kemSecret =>
-                  let initiatorIdentity := initial.identity.drop 1
-                  let initiatorEphemeral := initial.ephemeral.drop 1
-                  match responderOneTimeSecret store initial.oneTimeId.toNat with
-                  | .error reason => .error reason
-                  | .ok oneTimeSecret =>
+              -- Every identifier the message names is resolved before the
+              -- decapsulation is spent on it, the order `establish_responder`
+              -- has and session-establishment.md states ("uses the identifiers
+              -- to load the matching private keys, recovers SS"): an unknown
+              -- one-time identifier is refused as `unknownPrekeyId`, not `kem`.
+              let initiatorIdentity := initial.identity.drop 1
+              let initiatorEphemeral := initial.ephemeral.drop 1
+              match responderOneTimeSecret store initial.oneTimeId.toNat with
+              | .error reason => .error reason
+              | .ok oneTimeSecret =>
+                  match oracle.kemDecaps kemPair initial.kemCiphertext with
+                  | none => .error .kem
+                  | some kemSecret =>
                       match oracle.dhAgree signedSecret initiatorIdentity with
                       | none => .error (.handshake .nonContributoryAgreement)
                       | some dh1 =>

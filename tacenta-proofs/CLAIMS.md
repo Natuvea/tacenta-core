@@ -11,9 +11,14 @@ still finish with a stronger impression than the sum of its parts supports, so
 this section says in one place what is not proved.
 
 - **`Session::encrypt` and `Session::decrypt` are not proved end to end.** They
-  are the functions a product actually calls. Their orchestration -- choosing a
-  path, sequencing the crates, handling the failure branches -- has no theorem.
-  What is proved lies underneath them, in the ratchet, the sparse post-quantum
+  are the functions a product actually calls. On the eight-leaf session unit
+  their orchestration now has panic-freedom theorems (T1, below), conditional
+  on twelve named boundary contracts and explicit headroom, and a set of
+  refinement branch lemmas that each take the leaf outcomes as hypotheses
+  (`Translation/UnitLifecycleT3.lean`; not accepted as claims here and not
+  composed with the leaf theorems). No theorem says what the two functions
+  return as a whole, on every branch, against the model. What is proved
+  outright lies underneath them, in the ratchet, the sparse post-quantum
   ratchet, the ML-KEM braid and their composition.
 - **The composed Triple Ratchet proofs rest on stated opaque cross-crate
   assumptions.** They are declared rather than hidden, and each is named where
@@ -169,8 +174,9 @@ this section says in one place what is not proved.
   `read_key`, `read_u32`, `read_u64`, `decode_skipped_entry`,
   `decode_chain`, `decode_chains_entry`), `init`,
   `init_alice`, `init_bob`, `Output::new`, `Encoder::new`, `Decoder::new`,
-  `needed`, `received`, `encode_prekey_body`, the small accessors, and the
-  `evict_oldest` calls. (The erasure crate's `weights`, `coefficients` and
+  `needed`, `received`, `encode_prekey_body` and the small accessors; the
+  `evict_oldest` calls carry a T1 theorem only on the session unit
+  (`Translation/UnitLifecycleT1.lean`). (The erasure crate's `weights`, `coefficients` and
   `evaluate` *are* proved:
   `ErasureT1.lean` carries a totality theorem for each and the two entry
   points that call them are re-stepped; and the classical ratchet's
@@ -1523,8 +1529,10 @@ covers, so this file declares `KdfInitTotal` in the same shape as
 with one trusted-KDF assumption of the kind already relied on everywhere else.
 
 **What is still not proved.** The four remaining public functions without a
-T1 theorem -- `State.evict_oldest_classical`,
-`State.evict_oldest_post_quantum`, `State.to_bytes` and `State.from_bytes`.
+T1 theorem on this unit -- `State.evict_oldest_classical`,
+`State.evict_oldest_post_quantum`, `State.to_bytes` and `State.from_bytes`
+(the two eviction functions have one on the eight-leaf session unit,
+`Translation/UnitLifecycleT1.lean`, under `RemoveSkippedAtTotal`).
 Being inside the unit does not make them fall out: the eviction loops and the
 length-prefixed framing are their own proof obligations, unrelated to the crate
 boundary this file removes.
@@ -2116,6 +2124,29 @@ are what the refinement theorems are *about*.
   It holds for place values of one or more. At factor zero it is false, which
   the induction forced into the open; every real call starts at one and only
   multiplies.
+
+## Proved (tier T1, the session lifecycle on the eight-leaf unit cannot fail, under its contracts)
+
+Location: `Translation/UnitLifecyclePublicT1.lean`.
+
+The five operations a
+product calls, translated inside `tacenta-core/session-unit` where the
+ratchets, the Braid, the wire codecs and the PQXDH derivation are real
+bodies rather than axioms. Each theorem is conditional on the twelve boundary
+contracts (`LIMITATIONS.md`, "The Session unit's primitive contracts") and on
+an explicit headroom record; `invariant_gives_preconditions` derives the
+leaf preconditions from `Session::invariant`. Nothing here relates a result
+to the model: that is `UnitLifecycleT3.lean`'s conditional branch lemmas,
+which are not listed as claims.
+
+- `encrypt_no_panic`, `decrypt_no_panic`, `decrypt_ratchet_no_panic`:
+  `Session::encrypt`, `Session::decrypt` and `decrypt_ratchet` return, for a
+  session satisfying `Session::invariant` with room in its counters.
+- `establish_initiator_for_no_panic`, `establish_responder_no_panic`: the two
+  establishment entry points return, the responder's with room in its
+  last-resort record.
+- `invariant_gives_preconditions`: `Session::invariant` yields the
+  preconditions the inner Triple and Braid theorems carry.
 
 ## Proved (bounded P6 session lifecycle observations)
 

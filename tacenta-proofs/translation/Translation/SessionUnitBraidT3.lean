@@ -24,11 +24,10 @@ what `Model.Braid` states and what this file connects the translated code to.
 
 ## Two boundaries, two different kinds of assumption
 
-`Model.Braid.Kem` is a record of **uninterpreted** functions constrained by
-one law, `Kem.Correct`. There is no concrete reference computation for any
-of its fields (including `hashEk`), so the right assumption is a single
-bundled existential: some `Kem` witness satisfying `Kem.Correct` whose fields
-the real `IncrementalKeyPair`/`EncapsState` operations equal. See `KemAgrees`.
+`Model.Braid.Kem` is a record of **uninterpreted** functions. There is no
+concrete reference computation for any of its fields (including `hashEk`), so
+the boundary assumption directly relates each field the proof uses to the real
+`IncrementalKeyPair`/`EncapsState` operation. See `KemAgrees`.
 
 `Model.Braid.Encoder`/`Decoder` are concrete, but deliberately not a
 byte-level reimplementation of the real Reed-Solomon code (a modelled
@@ -183,10 +182,9 @@ private theorem setWidth8_toNat (x : BitVec 64) : (x.setWidth 8).toNat = x.toNat
 `.header`, `.ek_vector`, `.decapsulate`). It stands for the hidden
 decapsulation key exactly the way `BraidState`'s own `dk : Vec U8` field
 never leaves the state machine except as an argument to `decapsulate`
-itself. `generate`'s randomness source isn't threaded through to `K.keyGen`:
-`Kem.Correct` is a property of `encaps`/`decaps` agreeing, not of what
-`generate` returns for a given seed, so nothing here needs to relate the
-real RNG to the model's `Nat` seed. What the two randomness-drawing clauses
+itself. `generate`'s randomness source isn't threaded through to `K.keyGen`,
+so its clause existentially chooses the model's `Nat` seed for each real RNG
+state. What the two randomness-drawing clauses
 do carry is `BraidT1.RngTotal rc`: the real `generate` and `encapsulate1`
 fill their randomness from the caller's RNG, and return only if it does.
 
@@ -218,8 +216,7 @@ one, since almost everything downstream (`StateRefines`, `KeyPairRefines`,
 once, at the top, and threads the one resulting `K` through everything else
 via `KemAgreesFor`. -/
 def KemAgreesFor (K : Model.Braid.Kem) : Prop :=
-  K.Correct ∧
-    (∀ {R : Type} (rc : tacenta_session_unit.rand_core_1.RngCore R) (crc : tacenta_session_unit.rand_core_1.CryptoRng R) (rng : R),
+  (∀ {R : Type} (rc : tacenta_session_unit.rand_core_1.RngCore R) (crc : tacenta_session_unit.rand_core_1.CryptoRng R) (rng : R),
       Tacenta.SessionUnitBraidT1.RngTotal rc →
       ∃ kp rng' rand,
         tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate rc crc rng =
@@ -1217,7 +1214,7 @@ theorem step_send_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
           MsgRefines msg modelMsg) ∧
         OptionOutputRefines out (Model.Braid.send K rand model).2.2.1 ∧
         StateRefines K next (Model.Braid.send K rand model).2.2.2 ⦄ := by
-  obtain ⟨hKcorrect, hgen, hencaps⟩ := hka
+  obtain ⟨hgen, hencaps⟩ := hka
   rcases state with _|_|_|_|_|_|_|_|_|_|_|_ <;> cases model <;>
     simp only [StateRefines] at hrel <;>
     try exact hrel.elim
@@ -1697,7 +1694,7 @@ theorem step_receive_refines (hka : KemAgreesFor K) (hea : ErasureAgrees)
     Braid.step_receive self state msg ⦃ fun (out, next) =>
       OptionOutputRefines out (Model.Braid.receive K model modelMsg).2.1 ∧
       StateRefines K next (Model.Braid.receive K model modelMsg).2.2 ⦄ := by
-  obtain ⟨hKcorrect, hgen, hencaps⟩ := hka
+  obtain ⟨hgen, hencaps⟩ := hka
   obtain ⟨hheaderlen, hekveclen, hct1len, hct2len⟩ := hlens
   rcases state with _|_|_|_|_|_|_|_|_|_|_|_ <;> cases model <;>
     simp only [StateRefines] at hrel <;>

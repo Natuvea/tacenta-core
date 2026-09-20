@@ -18,10 +18,13 @@ therefore cannot share their environment. The imported T1/T3 results cover
 the classical and sparse ratchet leaves, all three decoded-state invariants,
 the PQXDH derivation, the erasure coder and the Braid in this namespace. The
 public lifecycle T1 roots and the session-invariant precondition bridge are
-also audited here. The T3 roots now cover every refusal before the ratchet
-receive and the complete successful `Session::encrypt` path, including exact
-ratchet and pending-initial wire bytes; the remaining receive branches are not
-yet claimed. Every generated declaration and opaque boundary is visible to the
+also audited here. The lifecycle T3 results are conditional branch lemmas:
+each takes the leaf outcomes (`Braid::send`/`receive`, the Triple send or the
+eviction receive, the model's twin of each) as hypotheses and relates one
+step of the orchestration around them; they do not yet compose with the
+unit's Braid and Triple refinements, and no lemma covers a successful
+receive, the establishment paths or the public `decrypt` as a whole. Every
+generated declaration and opaque boundary is visible to the
 same elaborated-environment audit used by the smaller units.
 -/
 
