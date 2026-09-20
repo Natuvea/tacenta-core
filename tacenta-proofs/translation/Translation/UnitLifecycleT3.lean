@@ -1283,10 +1283,10 @@ theorem decrypt_ratchet_terminal_guard_step_refines {R : Type}
     (hrel : SessionRefines dh K real model)
     (htrace : trace rng = oracle.draws)
     (hfailed : Model.Lifecycle.agreementFailed model = true) :
-    ∃ output,
-      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
-        ok output ∧
-      StepRefines trace dh K output
+    lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+        ok (.Err lifecycle.Error.AgreementFailed, real, rng) ∧
+      StepRefines trace dh K
+        (.Err lifecycle.Error.AgreementFailed, real, rng)
         (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
   have hm : model.braid = .failed :=
     (Model.Lifecycle.agreementFailed_iff model).mp hfailed
@@ -1302,7 +1302,7 @@ theorem decrypt_ratchet_terminal_guard_step_refines {R : Type}
   have hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
       { session := model, result := .error .agreementFailed, oracle := oracle } := by
     simp [Model.Lifecycle.decryptRatchet, hfailed]
-  refine ⟨(.Err lifecycle.Error.AgreementFailed, real, rng), hreal, ?_⟩
+  refine ⟨hreal, ?_⟩
   rw [hmodel]
   exact ⟨rfl, hrel, htrace⟩
 
@@ -1343,10 +1343,10 @@ theorem decrypt_ratchet_decode_refusal_step_refines {R : Type}
     (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
       .error modelReason)
     (hreason : decodeRefusalOf realReason = modelReason) :
-    ∃ output,
-      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
-        ok output ∧
-      StepRefines trace dh K output
+    lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+        ok (.Err (.Decode realReason), real, rng) ∧
+      StepRefines trace dh K
+        (.Err (.Decode realReason), real, rng)
         (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
   have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
   have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
@@ -1360,7 +1360,7 @@ theorem decrypt_ratchet_decode_refusal_step_refines {R : Type}
   have hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
       { session := model, result := .error (.decode modelReason), oracle := oracle } := by
     simp [Model.Lifecycle.decryptRatchet, hready, hdecodeModel]
-  refine ⟨(.Err (.Decode realReason), real, rng), hreal, ?_⟩
+  refine ⟨hreal, ?_⟩
   rw [hmodel]
   exact ⟨congrArg Model.Lifecycle.Refusal.decode hreason, hrel, htrace⟩
 
@@ -1421,9 +1421,10 @@ theorem decrypt_ratchet_decode_refusal_refines {R : Type}
       .error (decodeRefusalOf realReason) := by
     rw [← wire_bytesOf_eq_sliceOf]
     simp [Model.CompositeHeader.decodeDetailed, hnone, ← hreason]
-  exact decrypt_ratchet_decode_refusal_step_refines rngCore cryptoRng trace dh K
+  have hexact := decrypt_ratchet_decode_refusal_step_refines rngCore cryptoRng trace dh K
     view oracle real model message rng realReason (decodeRefusalOf realReason)
     hrel htrace hready hdecodeReal hmodelDecode rfl
+  exact ⟨(.Err (.Decode realReason), real, rng), hexact.1, hexact.2⟩
 
 /-- Lift an already-related ratchet receive through the public decrypt
 dispatcher's passthrough arms (`none` and explicit ratchet).  Refusals preserve
