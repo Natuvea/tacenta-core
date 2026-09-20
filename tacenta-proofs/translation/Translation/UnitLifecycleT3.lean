@@ -4460,3 +4460,27 @@ theorem initial_dispatch_ratchet_payload_cases
       exact Or.inl ⟨reason, output.2.1, output.2.2, by cases output <;> simp [hresult]⟩
   | Ok plaintext =>
       exact Or.inr ⟨plaintext, output.2.1, output.2.2, by cases output <;> simp [hresult]⟩
+
+/-- Single exhaustive composition point for the initial dispatcher.  All
+control-flow splits are performed by the selector chain; the six callbacks are
+only the branch-specific refinement obligations already proved by the route
+adapters. -/
+theorem initial_dispatch_select_exhaustive
+    {R : Type} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (ctx : InitialDispatchContext rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onRefusal : ∀ reason hdecode, InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onNone : ∀ decoded hdecode hnone, InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onEphemeralMismatch : ∀ decoded established hdecode hestablished hmismatch,
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onIdentityMismatch : ∀ decoded established hdecode hestablished hequal hmismatch,
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onIdentityEqual : ∀ decoded established hdecode hestablished hequal hequalIdentity,
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng :=
+  initial_dispatch_select_identity ctx onRefusal onNone onEphemeralMismatch
+    onIdentityMismatch onIdentityEqual
