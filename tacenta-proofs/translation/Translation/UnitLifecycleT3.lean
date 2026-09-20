@@ -1046,6 +1046,23 @@ theorem decrypt_initial_repeat_refusal_preserves_pending
   decrypt_step_refines_unchanged_pending_initial view oracle model message reason
     hstep herror
 
+theorem decrypt_initial_repeat_success_clears_pending
+    {R : Type} {trace : R → List Model.Lifecycle.Key}
+    {dh : DhView} {K : Model.Braid.Kem}
+    {realResult : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error}
+    {realSession : lifecycle.Session} {rng : R}
+    (view : Model.Lifecycle.CodewordView)
+    (oracle : Model.Lifecycle.Oracle) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (plaintext : Bytes)
+    (hstep : StepRefines trace dh K
+      (realResult, realSession, rng)
+      (Model.Lifecycle.decrypt view oracle model (sliceOf message)))
+    (hsuccess : (Model.Lifecycle.decrypt view oracle model
+      (sliceOf message)).result = .ok plaintext) :
+    realSession.pending_initial.map (pendingInitialOf dh) = none :=
+  decrypt_step_refines_cleared_pending_initial view oracle model message plaintext
+    hstep hsuccess
+
 /-! ## Lifecycle observations -/
 
 /-- Equality on translated byte vectors returns exactly list equality. -/
