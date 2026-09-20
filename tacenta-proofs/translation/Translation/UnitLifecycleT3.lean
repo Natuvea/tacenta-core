@@ -2647,6 +2647,38 @@ theorem decrypt_initial_repeat_refusal_exact
   exact ⟨(.Err realReason, real, rngNext), hreal,
     by rw [hmodel]; simpa [Model.Lifecycle.decrypt, hdispatch, hmodelStep] using hstep⟩
 
+def initial_dispatch_repeat_refusal_from_premises
+    {R : Type} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R} {trace : R → List Model.Lifecycle.Key}
+    {dh : DhView} {codec : DhCodecOf dh} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    (ctx : InitialDispatchContext rngCore cryptoRng trace dh K view oracle real model message rng)
+    (established : alloc.vec.Vec Std.U8) (decoded : tacenta_wire.DecodedInitial)
+    (realReason : lifecycle.Error) (modelReason : Model.Lifecycle.Refusal)
+    (modelNext : Model.Lifecycle.Session)
+    (htraceNext : trace rngNext = oracleNext.draws)
+    (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
+    (hestablished : real.established_ephemeral = some established)
+    (hephemeral : vecOf established = vecOf decoded.ephemeral)
+    (hidentity : vecOf decoded.identity =
+      Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public))
+    (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
+      (alloc.vec.Vec.deref decoded.message) rng = ok (.Err realReason, real, rngNext))
+    (hmodelStep : Model.Lifecycle.decryptRatchet view oracle model
+      (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage =
+      { session := modelNext, result := .error modelReason, oracle := oracleNext })
+    (hstep : StepRefines trace dh K (.Err realReason, real, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model
+        (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)) :
+    InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng := by
+  refine InitialDispatchRoute.repeatRefusal ?_
+  exact decrypt_initial_repeat_refusal_exact rngCore cryptoRng trace dh codec K view oracle
+    oracleNext real model message rng rngNext established decoded realReason modelReason modelNext
+    ctx.hrel htraceNext ctx.htype hdecode hestablished
+    hephemeral hidentity hinner hmodelStep hstep
+
 theorem decrypt_initial_repeat_success_exact
     {R : Type} (rngCore : rand_core_1.RngCore R)
     (cryptoRng : rand_core_1.CryptoRng R)
