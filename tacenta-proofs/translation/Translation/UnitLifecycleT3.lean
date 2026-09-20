@@ -4244,12 +4244,9 @@ theorem encrypt_success_initial_step_refines {R : Type}
   rw [hmodel]
   exact ⟨by simpa [ResultRefines] using hinitialValue', hnextSession, htrace⟩
 
-end Tacenta.UnitLifecycleT3
 
-/-- Exhaustive public view of the six generated initial-dispatch outcomes.
-This keeps the route tag observable at the composition boundary: callers can
-case-split on the concrete branch selected by the translated dispatcher before
-using the common witness or atomicity theorem. -/
+/-- The typed route is exhaustively one of the six generated initial-dispatch
+branches.  This is the public composition boundary for the route adapters. -/
 theorem initial_dispatch_route_cases
     {R : Type} {rngCore : rand_core_1.RngCore R}
     {cryptoRng : rand_core_1.CryptoRng R}
@@ -4272,199 +4269,7 @@ theorem initial_dispatch_route_cases
   | repeatRefusal w => exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨w, rfl⟩))))
   | repeatSuccess w => exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨w, rfl⟩))))
 
-/-- The first executable selector boundary for the generated initial
- dispatcher.  The caller supplies only branch refinements; the decoder split
- itself is derived from the translated implementation and cannot be skipped. -/
-theorem initial_dispatch_select_decode
-    {R : Type} {rngCore : rand_core_1.RngCore R}
-    {cryptoRng : rand_core_1.CryptoRng R}
-    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
-    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
-    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
-    {message : Slice Std.U8} {rng : R}
-    (ctx : InitialDispatchContext rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onRefusal : ∀ (reason : tacenta_wire.DecodeError)
-      (hdecode : tacenta_wire.decode_initial message =
-        ok (core.result.Result.Err reason)),
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onDecoded : ∀ (decoded : tacenta_wire.DecodedInitial)
-      (hdecode : tacenta_wire.decode_initial message =
-        ok (core.result.Result.Ok decoded)),
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
-    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng := by
-  rcases initial_decode_cases message with ⟨reason, hdecode⟩ | ⟨decoded, hdecode⟩
-  · exact initial_dispatch_select_and_join (onRefusal reason hdecode)
-  · exact initial_dispatch_select_and_join (onDecoded decoded hdecode)
-
-/-- Continue the direct selector through the generated established-ephemeral
-branch.  The decoder and state splits are performed by the theorem; callers
-supply only the corresponding route refinements. -/
-theorem initial_dispatch_select_decode_established
-    {R : Type} {rngCore : rand_core_1.RngCore R}
-    {cryptoRng : rand_core_1.CryptoRng R}
-    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
-    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
-    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
-    {message : Slice Std.U8} {rng : R}
-    (ctx : InitialDispatchContext rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onRefusal : ∀ (reason : tacenta_wire.DecodeError)
-      (hdecode : tacenta_wire.decode_initial message =
-        ok (core.result.Result.Err reason)),
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onNone : ∀ (decoded : tacenta_wire.DecodedInitial)
-      (hdecode : tacenta_wire.decode_initial message =
-        ok (core.result.Result.Ok decoded))
-      (hnone : real.established_ephemeral = none),
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onSome : ∀ (decoded : tacenta_wire.DecodedInitial)
-      (hdecode : tacenta_wire.decode_initial message =
-        ok (core.result.Result.Ok decoded))
-      (established : alloc.vec.Vec Std.U8)
-      (hestablished : real.established_ephemeral = some established),
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
-    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng := by
-  refine initial_dispatch_select_decode ctx onRefusal (fun decoded hdecode => ?_)
-  rcases initial_established_ephemeral_cases real with hnone | ⟨established, hestablished⟩
-  · exact onNone decoded hdecode hnone
-  · exact onSome decoded hdecode established hestablished
-
-/-- Directly select the established-ephemeral comparison branch after the
- decoder and presence splits. -/
-theorem initial_dispatch_select_ephemeral
-    {R : Type} {rngCore : rand_core_1.RngCore R}
-    {cryptoRng : rand_core_1.CryptoRng R}
-    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
-    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
-    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
-    {message : Slice Std.U8} {rng : R}
-    (ctx : InitialDispatchContext rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onRefusal : ∀ (reason : tacenta_wire.DecodeError)
-      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Err reason)),
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onNone : ∀ (decoded : tacenta_wire.DecodedInitial)
-      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
-      (hnone : real.established_ephemeral = none),
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onMismatch : ∀ (decoded : tacenta_wire.DecodedInitial)
-      (established : alloc.vec.Vec Std.U8)
-      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
-      (hestablished : real.established_ephemeral = some established)
-      (hmismatch : vecOf established ≠ vecOf decoded.ephemeral),
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onEqual : ∀ (decoded : tacenta_wire.DecodedInitial)
-      (established : alloc.vec.Vec Std.U8)
-      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
-      (hestablished : real.established_ephemeral = some established)
-      (hequal : vecOf established = vecOf decoded.ephemeral),
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
-    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng := by
-  exact initial_dispatch_select_decode_established ctx onRefusal onNone (fun decoded hdecode established hestablished => by
-    rcases initial_vec_equality_cases established.vec decoded.ephemeral.vec with hequal | hmismatch
-    · exact onEqual decoded established hdecode hestablished hequal
-    · exact onMismatch decoded established hdecode hestablished hmismatch)
-
-/-- Directly select the identity comparison branch after established
- ephemeral equality has been derived. -/
-theorem initial_dispatch_select_identity
-    {R : Type} {rngCore : rand_core_1.RngCore R}
-    {cryptoRng : rand_core_1.CryptoRng R}
-    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
-    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
-    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
-    {message : Slice Std.U8} {rng : R}
-    (ctx : InitialDispatchContext rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onRefusal : ∀ (reason : tacenta_wire.DecodeError)
-      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Err reason)),
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onNone : ∀ (decoded : tacenta_wire.DecodedInitial)
-      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
-      (hnone : real.established_ephemeral = none),
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onEphemeralMismatch : ∀ (decoded : tacenta_wire.DecodedInitial)
-      (established : alloc.vec.Vec Std.U8)
-      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
-      (hestablished : real.established_ephemeral = some established)
-      (hmismatch : vecOf established ≠ vecOf decoded.ephemeral),
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onIdentityMismatch : ∀ (decoded : tacenta_wire.DecodedInitial)
-      (established : alloc.vec.Vec Std.U8)
-      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
-      (hestablished : real.established_ephemeral = some established)
-      (hequal : vecOf established = vecOf decoded.ephemeral)
-      (hmismatch : vecOf decoded.identity ≠
-        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public)),
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onIdentityEqual : ∀ (decoded : tacenta_wire.DecodedInitial)
-      (established : alloc.vec.Vec Std.U8)
-      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
-      (hestablished : real.established_ephemeral = some established)
-      (hequal : vecOf established = vecOf decoded.ephemeral)
-      (hequalIdentity : vecOf decoded.identity =
-        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public)),
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
-    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng := by
-  exact initial_dispatch_select_ephemeral ctx onRefusal onNone onEphemeralMismatch
-    (fun decoded established hdecode hestablished hequal => by
-      rcases initial_vec_equality_cases decoded.identity.vec
-        (Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public)).vec with
-        hid | hnot
-      · exact onIdentityEqual decoded established hdecode hestablished hequal hid
-      · exact onIdentityMismatch decoded established hdecode hestablished hequal hnot)
-
-/-- Exhaustive shape split for the translated ratchet call.  The initial
-selector must first rule out the outer operation error using the decoded-frame
-premises before it can choose the inner refusal or success route. -/
-theorem initial_ratchet_result_cases
-    {R : Type} (rngCore : rand_core_1.RngCore R)
-    (cryptoRng : rand_core_1.CryptoRng R) (real : lifecycle.Session)
-    (message : Slice Std.U8) (rng : R) :
-    (∃ error, lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng = .Err error) ∨
-    (∃ output, lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng = .Ok output) := by
-  cases h : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng with
-  | Err error => exact Or.inl ⟨error, h⟩
-  | Ok output => exact Or.inr ⟨output, h⟩
-
-/-- Compose the identity-equal branch once the ratchet wrapper has been shown
-not to return an outer operation error.  The concrete output is passed to the
-route refinement, so the selector cannot silently discard that result. -/
-theorem initial_dispatch_select_after_ratchet_ok
-    {R : Type} {rngCore : rand_core_1.RngCore R}
-    {cryptoRng : rand_core_1.CryptoRng R}
-    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
-    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
-    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
-    {message : Slice Std.U8} {rng : R}
-    (houtput : ∃ output,
-      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng = ok output)
-    (onOutput : ∀ output,
-      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng = ok output →
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
-    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng := by
-  rcases houtput with ⟨output, houtput⟩
-  exact initial_dispatch_select_and_join (onOutput output houtput)
-
-/-- Once the outer ratchet operation is successful, its returned payload is
-exhaustively either an inner refusal or plaintext success. -/
-theorem initial_dispatch_ratchet_payload_cases
-    {R : Type} {rngCore : rand_core_1.RngCore R}
-    {cryptoRng : rand_core_1.CryptoRng R}
-    {real : lifecycle.Session} {message : Slice Std.U8} {rng : R}
-    (output : (core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error) ×
-      lifecycle.Session × R) :
-    (∃ reason next rngNext,
-      output = (.Err reason, next, rngNext)) ∨
-    (∃ plaintext next rngNext,
-      output = (.Ok plaintext, next, rngNext)) := by
-  cases hresult : output.1 with
-  | Err reason =>
-      exact Or.inl ⟨reason, output.2.1, output.2.2, by cases output <;> simp [hresult]⟩
-  | Ok plaintext =>
-      exact Or.inr ⟨plaintext, output.2.1, output.2.2, by cases output <;> simp [hresult]⟩
-
-/-- Single exhaustive composition point for the initial dispatcher.  All
-control-flow splits are performed by the selector chain; the six callbacks are
-only the branch-specific refinement obligations already proved by the route
-adapters. -/
+/-- One composition point for all six route-specific refinement obligations. -/
 theorem initial_dispatch_select_exhaustive
     {R : Type} {rngCore : rand_core_1.RngCore R}
     {cryptoRng : rand_core_1.CryptoRng R}
@@ -4472,15 +4277,8 @@ theorem initial_dispatch_select_exhaustive
     {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
     {real : lifecycle.Session} {model : Model.Lifecycle.Session}
     {message : Slice Std.U8} {rng : R}
-    (ctx : InitialDispatchContext rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onRefusal : ∀ reason hdecode, InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onNone : ∀ decoded hdecode hnone, InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onEphemeralMismatch : ∀ decoded established hdecode hestablished hmismatch,
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onIdentityMismatch : ∀ decoded established hdecode hestablished hequal hmismatch,
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
-    (onIdentityEqual : ∀ decoded established hdecode hestablished hequal hequalIdentity,
-      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
+    (route : InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
     PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng :=
-  initial_dispatch_select_identity ctx onRefusal onNone onEphemeralMismatch
-    onIdentityMismatch onIdentityEqual
+  initial_dispatch_select_and_join route
+
+end Tacenta.UnitLifecycleT3
