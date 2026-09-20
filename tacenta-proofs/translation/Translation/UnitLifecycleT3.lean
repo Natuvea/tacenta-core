@@ -4271,3 +4271,27 @@ theorem initial_dispatch_route_cases
   | identityMismatch w => exact Or.inr (Or.inr (Or.inr (Or.inl ⟨w, rfl⟩)))
   | repeatRefusal w => exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨w, rfl⟩))))
   | repeatSuccess w => exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨w, rfl⟩))))
+
+/-- The first executable selector boundary for the generated initial
+ dispatcher.  The caller supplies only branch refinements; the decoder split
+ itself is derived from the translated implementation and cannot be skipped. -/
+theorem initial_dispatch_select_decode
+    {R : Type} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (ctx : InitialDispatchContext rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onRefusal : ∀ (reason : tacenta_wire.DecodeError)
+      (hdecode : tacenta_wire.decode_initial message =
+        ok (core.result.Result.Err reason)),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onDecoded : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message =
+        ok (core.result.Result.Ok decoded)),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng := by
+  rcases initial_decode_cases message with ⟨reason, hdecode⟩ | ⟨decoded, hdecode⟩
+  · exact initial_dispatch_select_and_join (onRefusal reason hdecode)
+  · exact initial_dispatch_select_and_join (onDecoded decoded hdecode)
