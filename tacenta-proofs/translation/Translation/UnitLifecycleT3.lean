@@ -988,6 +988,10 @@ theorem initial_established_ephemeral_cases (real : lifecycle.Session) :
   | none => exact Or.inl rfl
   | some established => exact Or.inr ⟨established, rfl⟩
 
+theorem initial_vec_equality_cases (left right : alloc.vec.Vec Std.U8) :
+    vecOf left = vecOf right ∨ vecOf left ≠ vecOf right := by
+  exact Classical.em _
+
 inductive InitialDispatchRoute {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
