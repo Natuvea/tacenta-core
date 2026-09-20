@@ -972,6 +972,24 @@ theorem step_refines_cleared_pending_initial
   rw [← hmodel]
   exact hstep.session.pendingInitial
 
+theorem decrypt_ratchet_step_refines_unchanged_pending_initial
+    {R : Type} {trace : R → List Model.Lifecycle.Key}
+    {dh : DhView} {K : Model.Braid.Kem}
+    {realResult : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error}
+    {realSession : lifecycle.Session} {rng : R}
+    (view : Model.Lifecycle.CodewordView)
+    (oracle : Model.Lifecycle.Oracle) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (reason : Model.Lifecycle.Refusal)
+    (hstep : StepRefines trace dh K
+      (realResult, realSession, rng)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)))
+    (herror : (Model.Lifecycle.decryptRatchet view oracle model
+      (sliceOf message)).result = .error reason) :
+    realSession.pending_initial.map (pendingInitialOf dh) = model.pendingInitial := by
+  apply step_refines_unchanged_pending_initial hstep
+  exact Model.Lifecycle.decryptRatchet_refusal_keeps_session
+    view oracle model (sliceOf message) reason herror
+
 /-! ## Lifecycle observations -/
 
 /-- Equality on translated byte vectors returns exactly list equality. -/
