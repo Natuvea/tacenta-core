@@ -5,6 +5,13 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+- `security-properties/forward-secrecy.md`, `security-properties/confidentiality.md`
+  and `security-properties/limitations.md` now scope the classical and
+  composed-Triple T3 citations to their successful-operation cases, and name
+  the narrower `NoSendingChain` send-refusal correspondence. The underlying
+  theorems and requirement statuses are unchanged; this closes the
+  success-path-only wording ambiguity recorded as `HL-FM-04`.
+
 - `tacenta-proofs`: the Braid refinement boundary `KemAgreesFor` no longer
   assumes `K.Correct`. No proof used the conjunct, and it asserted perfect
   decapsulation, which ML-KEM-1024 satisfies only up to the FIPS 203 failure

@@ -68,14 +68,16 @@ An implementation derives the keys the pages specify:
     `shared_secret_refines_none`, `shared_secret_refines_some`.
   - "Proved (tier T3, the classical Double Ratchet refines the model)":
     `kdf_ck_refines`, `kdf_rk_refines`, `message_keys_refines`,
-    `send_refines`, `receive_refines`.
+    successful `send_refines` and `receive_refines` (the send refusal
+    correspondence is only `NoSendingChain`).
   - "Proved (tier T3, the sparse post-quantum ratchet's translated code refines
     the model)": `kdf_init_refines`, `send_refines`, `receive_refines`.
   - "Proved (tier T3, the Triple Ratchet's composed session on the unit, with
     both inner bundles discharged)": `Tacenta.UnitTripleT3.split_secret_refines`,
     `Tacenta.UnitTripleT3.combine_refines`,
-    `Tacenta.UnitTripleT3.send_refines_discharged`,
-    `Tacenta.UnitTripleT3.receive_refines_discharged`.
+    the successful cases of `Tacenta.UnitTripleT3.send_refines_discharged`
+    and `Tacenta.UnitTripleT3.receive_refines_discharged` (the send refusal
+    correspondence is scoped to the cases stated in CLAIMS.md).
   - "Proved (tier T3, the ML-KEM Braid's translated code refines the model)":
     `Braid.send_refines`, `Braid.receive_refines`.
 

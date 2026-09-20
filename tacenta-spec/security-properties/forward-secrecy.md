@@ -73,12 +73,17 @@ must be deleted, and when):
 - **Protects:** AS-05, AS-06, AS-08.
 - **Holds against:** ADV-02.
 - **Rests on:** ASM-15, ASM-16, ASM-17, ASM-18.
-- **Status: proved (T3),** for the classical and sparse ratchets. The code's
-  state after `send` and `receive` is related, field by field, to the model's:
+- **Status: proved (T3),** for the classical and sparse ratchets, with the
+  classical refinement statements covering successful operations (and only the
+  `NoSendingChain` refusal correspondence for `send`). The code's state after
+  `send` and `receive` is related, field by field, to the model's:
   - "Proved (tier T3, the classical Double Ratchet refines the model)":
-    `send_refines`, `receive_refines`, `try_skipped_refines`;
+    successful `send_refines` and `receive_refines`, plus
+    `try_skipped_refines`;
   - "Proved (tier T3, the sparse post-quantum ratchet's translated code refines
-    the model)": `send_refines`, `receive_refines`, `try_skipped_refines`.
+    the model)": `send_refines`, `receive_refines`,
+    `try_skipped_refines`, including the refusal result stated by those sparse
+    theorems.
 
   The model's state holds one root key and one chain key per direction.
   Its lookup removes the key it returns

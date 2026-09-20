@@ -453,6 +453,9 @@ and `clearOldEpochs_store_le`, on `propext` alone.
 
 ## Proved (tier T3, the classical Double Ratchet refines the model)
 
+**Scope:** the refinement statements in this section cover successful operations;
+refusal correspondence is stated only where each theorem names it.
+
 Location: `Translation/T3.lean`, against `Model.Ratchet` and `Model.State` in
 `tacenta-model`. This is the central refinement of the project, and until
 this section existed it had no ledger entry and no pin, so nothing in it was
@@ -1567,8 +1570,9 @@ the copy.
 
 - `Tacenta.UnitT3.send_refines`: `send` on the classical ratchet, compiled inside
   the unit, refines the model's send.
-- `Tacenta.UnitT3.receive_refines`: likewise for receive, under the hypotheses
-  `T3.receive_refines` takes.
+- `Tacenta.UnitT3.receive_refines`: likewise for the successful receive case,
+  under the hypotheses `T3.receive_refines` takes; its refusal branches are not
+  related here.
 - `Tacenta.UnitT3.message_keys_refines`: likewise for the message-key expansion.
 - `Tacenta.UnitSpqrT3.send_refines` and `Tacenta.UnitSpqrT3.receive_refines`:
   the sparse ratchet's two refinements, compiled inside the unit, under the
@@ -1622,11 +1626,14 @@ says how little they cover.
 - `Tacenta.UnitTripleT3.spqr_agrees_for`: likewise for the sparse bundle, from
   `UnitSpqrT3.lean`'s refinements and a refinement of the sparse initialiser this
   file proves.
-- `Tacenta.UnitTripleT3.send_refines_discharged`: the composed `send` refines
-  `Model.Triple.send`, as the bundle-taking `send_refines` states it, with both
-  bundles discharged. It assumes the receive path's boundary as well, because each bundle
-  covers its ratchet's whole calling surface.
-- `Tacenta.UnitTripleT3.receive_refines_discharged`: likewise for `receive`.
+- `Tacenta.UnitTripleT3.send_refines_discharged`: the successful composed
+  `send` refines `Model.Triple.send`, as the bundle-taking `send_refines`
+  states it, with both bundles discharged. Its refusal correspondence is only
+  the `NoSendingChain` classical case (and the post-quantum refusal cases), as
+  described below. It assumes the receive path's boundary as well, because
+  each bundle covers its ratchet's whole calling surface.
+- `Tacenta.UnitTripleT3.receive_refines_discharged`: likewise for the
+  successful `receive` case; the refusal branches are not related here.
 
 Each of these four is pinned in `UnitPins.lean`.
 

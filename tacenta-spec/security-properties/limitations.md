@@ -34,7 +34,7 @@ Of the 32 requirements:
 | REQ-AUTH-13: unauthenticated input changes nothing durable | Tested only |
 | REQ-AUTH-14: an authenticator failure ends the agreement | Proved (T3) |
 | REQ-CONF-01: messages are confidential against an outsider | Assumed |
-| REQ-CONF-02: the key schedule is the specified one | Proved (T3) |
+| REQ-CONF-02: the key schedule is the specified one | Proved (T3; classical and composed-Triple refinement cases are success-side, with the send refusal scope stated in CLAIMS.md) |
 | REQ-CONF-03: PQXDH's derivation input is unambiguous | Proved (T2) |
 | REQ-CONF-04: no key and IV encrypt twice | Assumed |
 | REQ-CONF-05: the encryption key needs both message keys | Assumed |
@@ -43,7 +43,7 @@ Of the 32 requirements:
 | REQ-CONF-08: one session reveals nothing of another | Proved, model-level, symbolic |
 | REQ-CONF-09: a refusal reveals only that it was a refusal | Tested only |
 | REQ-FS-01: a chain key does not reveal the chain's past | Proved, model-level, symbolic |
-| REQ-FS-02: spent keys are replaced in the state | Proved (T3) |
+| REQ-FS-02: spent keys are replaced in the state | Proved (T3; classical refinement cases are success-side, with the send refusal scope stated in CLAIMS.md) |
 | REQ-FS-03: spent secrets are erased from memory | Tested only |
 | REQ-FS-04: stored keys are bounded and expire | Proved (T2, T3), except the store bound across a session |
 | REQ-FS-05: the handshake is forward secret once a prekey secret is gone | Assumed |
