@@ -963,7 +963,6 @@ theorem step_refines_cleared_pending_initial
     {dh : DhView} {K : Model.Braid.Kem}
     {realResult : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error}
     {realSession : lifecycle.Session} {rng : R}
-    {model : Model.Lifecycle.Session}
     {modelStep : Model.Lifecycle.Step Bytes}
     (hstep : StepRefines trace dh K
       (realResult, realSession, rng) modelStep)
@@ -989,6 +988,24 @@ theorem decrypt_ratchet_step_refines_unchanged_pending_initial
   apply step_refines_unchanged_pending_initial hstep
   exact Model.Lifecycle.decryptRatchet_refusal_keeps_session
     view oracle model (sliceOf message) reason herror
+
+theorem decrypt_step_refines_cleared_pending_initial
+    {R : Type} {trace : R → List Model.Lifecycle.Key}
+    {dh : DhView} {K : Model.Braid.Kem}
+    {realResult : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error}
+    {realSession : lifecycle.Session} {rng : R}
+    (view : Model.Lifecycle.CodewordView)
+    (oracle : Model.Lifecycle.Oracle) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (plaintext : Bytes)
+    (hstep : StepRefines trace dh K
+      (realResult, realSession, rng)
+      (Model.Lifecycle.decrypt view oracle model (sliceOf message)))
+    (hsuccess : (Model.Lifecycle.decrypt view oracle model
+      (sliceOf message)).result = .ok plaintext) :
+    realSession.pending_initial.map (pendingInitialOf dh) = none := by
+  have hmodelPending := Model.Lifecycle.decrypt_success_clears_pending
+    view oracle model (sliceOf message) plaintext hsuccess
+  exact step_refines_cleared_pending_initial hstep hmodelPending
 
 /-! ## Lifecycle observations -/
 
