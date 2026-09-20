@@ -162,6 +162,16 @@ fn a_repeated_initial_message_must_carry_the_sessions_peer_identity() {
     let carol = Identity::generate(&mut r);
     let mut other = repeat.clone();
     other[2..2 + 33].copy_from_slice(&encode_ec(&carol.public()));
+    let before_initiator_refusal = session.export();
+    assert!(matches!(
+        session.decrypt(&other, &mut r),
+        Err(LifecycleError::NotARepeatedInitial)
+    ));
+    assert_eq!(
+        session.export(),
+        before_initiator_refusal,
+        "a refused initial changed the initiator's pending session"
+    );
     let before_wrong_identity = responder.export();
     assert!(
         matches!(
