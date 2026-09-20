@@ -291,6 +291,203 @@ theorem decrypt_ratchet_triple_refusal_from_braid
     hsecondCall hwrapSend hderefSend hbeforeCall hheaderCall hpublicCall hpublicBytesCall
     htripleReal hmodelFirst hmodelDraw hmodelSecond hmodelPublic hmodelTriple hreason
 
+
+/-! The AEAD refusal adapter keeps its Triple and Braid values independent
+so the `RealSparseConversion` split remains eliminable. Explicit equalities
+tie those values back to the shared Braid evidence before the translated
+receive body is simplified. -/
+
+theorem decrypt_ratchet_aead_refusal_from_braid {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng rngNext : R)
+    (decoded : tacenta_wire.DecodedMessage)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (realComposite : tacenta_wire.Composite)
+    (evidence : BraidReceiveEvidence K view real model realComposite modelComposite)
+    (hrealComposite : realComposite = decoded.header)
+    (realBraidMessage : tacenta_braid.Msg) (receivedEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output)
+    (realBraidCandidate : tacenta_braid.Braid)
+    (realSparseOutput : Option tacenta_spqr.Output)
+    (peer : tacenta_boundary.dh.PublicKeyBytes)
+    (recvSecret sendSecret candidateBytes newPublicBytes before realMk :
+      Array Std.U8 32#usize)
+    (candidatePrivate : tacenta_boundary.dh.PrivateKey)
+    (candidatePublic : tacenta_boundary.dh.PublicKeyBytes)
+    (realHeader : tacenta_triple.Header)
+    (wrappedRecv wrappedSend wrappedMk : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (realTripleCandidate : tacenta_triple.State)
+    (modelTripleCandidate : Model.Triple.State)
+    (modelMk draw modelDhOutRecv modelDhOutSend : Model.Lifecycle.Key)
+    (realKeys : Array Std.U8 32#usize × Array Std.U8 32#usize ×
+      Array Std.U8 16#usize)
+    (wrappedKeys : zeroize.Zeroizing
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (realAd : alloc.vec.Vec Std.U8) (aeadError : Unit)
+    (hrel : SessionRefines dh K real model)
+    (htraceNext : trace rngNext = oracleNext.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeReal : tacenta_wire.decode_message message = ok (.Ok decoded))
+    (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (modelComposite, vecOf decoded.ciphertext))
+    (hmessageEq : realBraidMessage = evidence.message)
+    (hreceivedEpochEq : receivedEpoch = evidence.receivedEpoch)
+    (houtputEq : realOutput = evidence.output)
+    (hcandidateEq : realBraidCandidate = evidence.next)
+    (hsparseEq : realSparseOutput = evidence.sparseOutput)
+    (hpeerCall : tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh = ok peer)
+    (hfirstCall : tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer =
+      ok (some recvSecret))
+    (hwrapRecv : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) recvSecret =
+      ok wrappedRecv)
+    (hderefRecv : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedRecv =
+      ok recvSecret)
+    (hrandomCall : lifecycle.random_secret rngCore cryptoRng rng =
+      ok (candidateBytes, rngNext))
+    (hcandidateCall : tacenta_boundary.dh.PrivateKey.from_bytes candidateBytes =
+      ok candidatePrivate)
+    (hsecondCall : tacenta_boundary.dh.PrivateKey.agree candidatePrivate peer =
+      ok (some sendSecret))
+    (hwrapSend : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sendSecret =
+      ok wrappedSend)
+    (hderefSend : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedSend =
+      ok sendSecret)
+    (hbeforeCall : tacenta_triple.State.sending_public real.triple = ok before)
+    (hheaderCall : lifecycle.triple_header_of decoded.header = ok realHeader)
+    (hpublicCall : tacenta_boundary.dh.PrivateKey.public_key candidatePrivate =
+      ok candidatePublic)
+    (hpublicBytesCall : tacenta_boundary.dh.PublicKeyBytes.as_bytes candidatePublic =
+      ok newPublicBytes)
+    (htripleReal : lifecycle.receive_with_eviction real.triple decoded.header realHeader
+      recvSecret sendSecret newPublicBytes realSparseOutput =
+        ok (.Ok (realTripleCandidate, realMk)))
+    (hmodelFirst : oracle.dhAgree model.ratchetPrivate modelComposite.dh =
+      some modelDhOutRecv)
+    (hmodelDraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext))
+    (hmodelSecond : oracle.dhAgree draw modelComposite.dh = some modelDhOutSend)
+    (hmodelPublic : oracle.dhPublic draw = arrayOf newPublicBytes)
+    (hmodelTriple : Model.Lifecycle.receiveWithEviction model.triple modelComposite
+      (Model.Lifecycle.tripleHeaderOf modelComposite) modelDhOutRecv modelDhOutSend
+      (oracle.dhPublic draw)
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.1) =
+        .ok (modelTripleCandidate, modelMk))
+    (hkeysCall : tacenta_ratchet.message_keys realMk tacenta_ratchet.LabelSet.Tacenta =
+      ok realKeys)
+    (hkeysValue : (arrayOf realKeys.1, arrayOf realKeys.2.1,
+      arrayOf realKeys.2.2) = Model.State.messageKeys modelMk .tacenta)
+    (hwrapMk : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) realMk = ok wrappedMk)
+    (hderefMk : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedMk = ok realMk)
+    (hwrapKeys : zeroize.Zeroizing.new
+      (TupleABC.Insts.ZeroizeZeroize
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+        (Array.Insts.ZeroizeZeroize 16#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))) realKeys =
+      ok wrappedKeys)
+    (hderefKeys : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (TupleABC.Insts.ZeroizeZeroize
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+        (Array.Insts.ZeroizeZeroize 16#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))) wrappedKeys =
+      ok realKeys)
+    (hrealAd : serialization.concat_ad (alloc.vec.Vec.deref real.identity_ad)
+      decoded.header = ok realAd)
+    (hrealAdValue : vecOf realAd = Model.Messages.concatAd model.identityAd
+      (Model.CompositeHeader.encode modelComposite))
+    (haead : tacenta_boundary.aead.decrypt realKeys.1 realKeys.2.1 realKeys.2.2
+      (alloc.vec.Vec.deref decoded.ciphertext) (alloc.vec.Vec.deref realAd) =
+        ok (.Err aeadError)) :
+    lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err .Aead, real, rngNext) ∧
+    StepRefines trace dh K
+      (.Err .Aead, real, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  subst realComposite
+  have hmessageCall : lifecycle.msg_of decoded.header = ok realBraidMessage := by
+    rw [hmessageEq]
+    exact evidence.hmessageCall
+  have hreceive : tacenta_braid.Braid.receive real.braid realBraidMessage =
+      ok (receivedEpoch, realOutput, realBraidCandidate) := by
+    rw [hmessageEq, hreceivedEpochEq, houtputEq, hcandidateEq]
+    exact evidence.hreceive
+  have hsparse : RealSparseConversion realOutput realSparseOutput := by
+    rw [houtputEq, hsparseEq]
+    exact evidence.hsparse
+  have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
+  have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
+    cases hb : model.braid <;>
+      simp [Model.Lifecycle.agreementFailed, Model.Lifecycle.braidFailed, hb] at hready ⊢
+  rw [hmodelReady] at hrealReady
+  rcases realKeys with ⟨encKey, macKey, ivKey⟩
+  have hk1 : arrayOf encKey = (Model.State.messageKeys modelMk .tacenta).1 :=
+    congrArg Prod.fst hkeysValue
+  have hk2 : arrayOf macKey = (Model.State.messageKeys modelMk .tacenta).2.1 :=
+    congrArg (fun keys => keys.2.1) hkeysValue
+  have hk3 : arrayOf ivKey = (Model.State.messageKeys modelMk .tacenta).2.2 :=
+    congrArg (fun keys => keys.2.2) hkeysValue
+  have hcipher : sliceOf (alloc.vec.Vec.deref decoded.ciphertext) =
+      vecOf decoded.ciphertext := by rfl
+  have had : sliceOf (alloc.vec.Vec.deref realAd) =
+      Model.Messages.concatAd model.identityAd
+        (Model.CompositeHeader.encode modelComposite) := by
+    change vecOf realAd = _
+    exact hrealAdValue
+  have haeadModel := aead_open_error_refines rngCore cryptoRng dh kem trace
+    oracle oracleOf encKey macKey ivKey
+    (alloc.vec.Vec.deref decoded.ciphertext) (alloc.vec.Vec.deref realAd)
+    aeadError haead
+  rw [hk1, hk2, hk3, hcipher, had] at haeadModel
+  have hreal : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err .Aead, real, rngNext) := by
+    unfold lifecycle.Session.decrypt_ratchet
+    cases hsparse with
+    | none hout =>
+        simp [hrealReady, hdecodeReal, hmessageCall, hreceive, hout, hpeerCall,
+          hfirstCall, hwrapRecv, hderefRecv, hrandomCall, hcandidateCall,
+          hsecondCall, hwrapSend, hderefSend, hbeforeCall, hheaderCall,
+          hpublicCall, hpublicBytesCall, htripleReal, hwrapMk, hderefMk,
+          hkeysCall, hwrapKeys, hderefKeys, hrealAd, haead]
+    | some realSparse converted hout hconverted =>
+        simp [hrealReady, hdecodeReal, hmessageCall, hreceive, hout, hconverted,
+          hpeerCall, hfirstCall, hwrapRecv, hderefRecv, hrandomCall,
+          hcandidateCall, hsecondCall, hwrapSend, hderefSend, hbeforeCall,
+          hheaderCall, hpublicCall, hpublicBytesCall, htripleReal, hwrapMk,
+          hderefMk, hkeysCall, hwrapKeys, hderefKeys, hrealAd, haead]
+  have hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session := model, result := .error .aead, oracle := oracleNext } := by
+    have hmodelTriple' := hmodelTriple
+    rw [hmodelPublic] at hmodelTriple'
+    simp [Model.Lifecycle.decryptRatchet, hready, hdecodeModel, hmodelFirst,
+      hmodelDraw, hmodelSecond, hmodelPublic, hmodelTriple', haeadModel]
+  refine ⟨hreal, ?_⟩
+  rw [hmodel]
+  exact ⟨rfl, hrel, htraceNext⟩
+
+
 /-- Inner-call evidence is needed only after all initial-wrapper guards pass. -/
 def InitialRatchetRefines {R : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
