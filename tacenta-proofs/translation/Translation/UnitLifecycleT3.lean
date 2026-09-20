@@ -2194,10 +2194,11 @@ theorem decrypt_ratchet_second_dh_refusal_step_refines {R : Type}
       some modelDhOutRecv)
     (hmodelDraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext))
     (hmodelSecond : oracle.dhAgree draw modelComposite.dh = none) :
-    ∃ output,
+    ∃ rngAfter,
       lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
-        ok output ∧
-      StepRefines trace dh K output
+        ok (.Err (.Handshake SessionError.NonContributoryAgreement), real, rngAfter) ∧
+      StepRefines trace dh K
+        (.Err (.Handshake SessionError.NonContributoryAgreement), real, rngAfter)
         (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
   have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
   have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
@@ -2259,8 +2260,7 @@ theorem decrypt_ratchet_second_dh_refusal_step_refines {R : Type}
         oracle := oracleNext } := by
     simp [Model.Lifecycle.decryptRatchet, hready, hdecodeModel, hmodelFirst,
       hmodelDraw, hmodelSecond]
-  refine ⟨(.Err (.Handshake SessionError.NonContributoryAgreement), real, realRngNext),
-    hreal, ?_⟩
+  refine ⟨realRngNext, hreal, ?_⟩
   rw [hmodel]
   exact ⟨rfl, hrel, by simpa [horacleNextDraws] using hrealTraceNext⟩
 
