@@ -2121,11 +2121,11 @@ theorem decrypt_ratchet_first_dh_refusal_step_refines {R : Type}
       ok (receivedEpoch, realOutput, realBraidCandidate))
     (hsparse : RealSparseConversion realOutput realSparseOutput)
     (hmodelDhNone : oracle.dhAgree model.ratchetPrivate modelComposite.dh = none) :
-    ∃ output,
-      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
-        ok output ∧
-      StepRefines trace dh K output
-        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+    lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err (.Handshake SessionError.NonContributoryAgreement), real, rng) ∧
+    StepRefines trace dh K
+      (.Err (.Handshake SessionError.NonContributoryAgreement), real, rng)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
   have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
   have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
     cases hb : model.braid <;>
@@ -2153,8 +2153,7 @@ theorem decrypt_ratchet_first_dh_refusal_step_refines {R : Type}
         result := .error (.handshake .nonContributoryAgreement),
         oracle := oracle } := by
     simp [Model.Lifecycle.decryptRatchet, hready, hdecodeModel, hmodelDhNone]
-  refine ⟨(.Err (.Handshake SessionError.NonContributoryAgreement), real, rng),
-    hreal, ?_⟩
+  refine ⟨hreal, ?_⟩
   rw [hmodel]
   exact ⟨rfl, hrel, htrace⟩
 
