@@ -4327,3 +4327,38 @@ theorem initial_dispatch_select_decode_established
   rcases initial_established_ephemeral_cases real with hnone | ⟨established, hestablished⟩
   · exact onNone decoded hdecode hnone
   · exact onSome decoded hdecode established hestablished
+
+/-- Directly select the established-ephemeral comparison branch after the
+ decoder and presence splits. -/
+theorem initial_dispatch_select_ephemeral
+    {R : Type} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (ctx : InitialDispatchContext rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onRefusal : ∀ (reason : tacenta_wire.DecodeError)
+      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Err reason)),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onNone : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
+      (hnone : real.established_ephemeral = none),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onMismatch : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8)
+      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hmismatch : vecOf established ≠ vecOf decoded.ephemeral),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onEqual : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8)
+      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hequal : vecOf established = vecOf decoded.ephemeral),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng := by
+  exact initial_dispatch_select_decode_established ctx onRefusal onNone (fun decoded hdecode established hestablished => by
+    rcases initial_vec_equality_cases established.vec decoded.ephemeral.vec with hequal | hmismatch
+    · exact onEqual decoded established hdecode hestablished hequal
+    · exact onMismatch decoded established hdecode hestablished hmismatch)
