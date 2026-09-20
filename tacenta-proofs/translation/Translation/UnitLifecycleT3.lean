@@ -1263,6 +1263,23 @@ theorem message_type_refines_initial (bytes : Slice Std.U8)
   rw [htype] at h
   simpa [messageTypeOf] using h.symm
 
+theorem message_type_refines_noninitial (bytes : Slice Std.U8)
+    (realType : Option serialization.MessageType)
+    (htype : serialization.message_type bytes = ok realType)
+    (hnotInitial : realType ≠ some .Initial) :
+    Model.Lifecycle.messageType (sliceOf bytes) ≠ some .initial := by
+  intro hmodel
+  have h := message_type_refines bytes
+  rw [htype] at h
+  have hinitial : Option.map messageTypeOf realType = some .initial :=
+    h.trans hmodel
+  cases realType with
+  | none => simp at hinitial
+  | some ty =>
+      cases ty with
+      | Ratchet => simp [messageTypeOf] at hinitial
+      | Initial => exact hnotInitial rfl
+
 theorem braid_failed_refines (K : Model.Braid.Kem)
     (real : tacenta_braid.Braid) (model : Model.Braid.BraidState)
     (hrel : Tacenta.SessionUnitBraidT3.StateRefines K real.state model) :
