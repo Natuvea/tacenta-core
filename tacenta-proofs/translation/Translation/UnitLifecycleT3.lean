@@ -1656,6 +1656,58 @@ theorem decrypt_passthrough_refusal_exact
         | Initial => exact (hnotInitial rfl).elim
   exact ⟨hreal, by rw [hmodel]; simpa [hmodelStep] using hstep⟩
 
+theorem decrypt_passthrough_success_exact
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle oracleNext : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (inner : alloc.vec.Vec Std.U8) (rng rngNext : R)
+    (realType : Option serialization.MessageType)
+    (plaintext : alloc.vec.Vec Std.U8) (modelPlaintext : Bytes)
+    (realNext : lifecycle.Session) (modelNext : Model.Lifecycle.Session)
+    (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
+      (alloc.vec.Vec.deref inner) rng = ok (.Ok plaintext, realNext, rngNext))
+    (hstep : StepRefines trace dh K
+      (.Ok plaintext, realNext, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)))
+    (hmodelStep : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session := modelNext, result := .ok modelPlaintext, oracle := oracleNext })
+    (hmodel : Model.Lifecycle.decrypt view oracle model (sliceOf message) =
+      { session := { modelNext with pendingInitial := none },
+        result := .ok modelPlaintext, oracle := oracleNext })
+    (hbytes : vecOf plaintext = modelPlaintext)
+    (htrace : trace rngNext = oracleNext.draws)
+    (htype : serialization.message_type message = ok realType)
+    (hnotInitial : realType ≠ some .Initial)
+    (hcopy : alloc.slice.Slice.to_vec core.clone.CloneU8 message = ok inner) :
+    lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+        ok (.Ok plaintext, { realNext with pending_initial := none }, rngNext) ∧
+      StepRefines trace dh K
+        (.Ok plaintext, { realNext with pending_initial := none }, rngNext)
+        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+  have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+      ok (.Ok plaintext, { realNext with pending_initial := none }, rngNext) := by
+    unfold lifecycle.Session.decrypt
+    cases realType with
+    | none =>
+        simp [htype, hcopy, hinner,
+          core.result.Result.Insts.CoreOpsTry.branch]
+    | some ty =>
+        cases ty with
+        | Ratchet =>
+            simp [htype, hcopy, hinner,
+              core.result.Result.Insts.CoreOpsTry.branch]
+        | Initial => exact (hnotInitial rfl).elim
+  have hstepSession : SessionRefines dh K realNext modelNext := by
+    simpa [hmodelStep] using hstep.session
+  have hfinal : SessionRefines dh K { realNext with pending_initial := none }
+      { modelNext with pendingInitial := none } := by
+    exact ⟨hstepSession.triple, hstepSession.braid, hstepSession.ratchetPrivate,
+      hstepSession.identityAd, hstepSession.ourIdentityPublic,
+      hstepSession.peerIdentityPublic, rfl, hstepSession.establishedEphemeral⟩
+  exact ⟨hreal, by rw [hmodel]; exact ⟨by simpa [ResultRefines] using hbytes, hfinal, htrace⟩⟩
+
 /-- Lift an exact initial-wrapper decoder refusal through public decrypt.
 Like the ratchet decoder branch, this isolates the remaining obligation: prove
 the detailed concrete and model decoders choose the same public reason. -/
