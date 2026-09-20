@@ -1364,6 +1364,25 @@ theorem decrypt_ratchet_decode_refusal_step_refines {R : Type}
   rw [hmodel]
   exact ⟨congrArg Model.Lifecycle.Refusal.decode hreason, hrel, htrace⟩
 
+theorem decrypt_ratchet_decode_refusal_atomicity {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (realReason : tacenta_wire.DecodeError)
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeReal : tacenta_wire.decode_message message = ok (.Err realReason)) :
+    lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err (.Decode realReason), real, rng) := by
+  have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
+  have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
+    cases hb : model.braid <;>
+      simp [Model.Lifecycle.agreementFailed, Model.Lifecycle.braidFailed, hb] at hready ⊢
+  rw [hmodelReady] at hrealReady
+  unfold lifecycle.Session.decrypt_ratchet
+  simp [hrealReady, hdecodeReal]
+
 /-- A concrete ratchet-message decoder refusal determines the model's detailed
 refusal without an agreement premise at the Session boundary. -/
 theorem decrypt_ratchet_decode_refusal_refines {R : Type}
