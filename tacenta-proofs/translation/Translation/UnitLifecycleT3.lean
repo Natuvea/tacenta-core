@@ -1034,6 +1034,20 @@ theorem initial_dispatch_join
   | repeatRefusal w => exact w
   | repeatSuccess w => exact w
 
+/-- Final composition step for the initial dispatcher.  The selector supplies
+the typed route after proving the generated control-flow premises; this lemma
+connects that route to the common public witness. -/
+theorem initial_dispatch_select_and_join
+    {R : Type} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (route : InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng :=
+  initial_dispatch_join route
+
 def initial_dispatch_decode_refusal_route
     {R : Type} {rngCore : rand_core_1.RngCore R}
     {cryptoRng : rand_core_1.CryptoRng R}
