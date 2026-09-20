@@ -4442,3 +4442,21 @@ theorem initial_dispatch_select_after_ratchet_ok
     PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng := by
   rcases houtput with ⟨output, houtput⟩
   exact initial_dispatch_select_and_join (onOutput output houtput)
+
+/-- Once the outer ratchet operation is successful, its returned payload is
+exhaustively either an inner refusal or plaintext success. -/
+theorem initial_dispatch_ratchet_payload_cases
+    {R : Type} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {real : lifecycle.Session} {message : Slice Std.U8} {rng : R}
+    (output : (core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error) ×
+      lifecycle.Session × R) :
+    (∃ reason next rngNext,
+      output = (.Err reason, next, rngNext)) ∨
+    (∃ plaintext next rngNext,
+      output = (.Ok plaintext, next, rngNext)) := by
+  cases hresult : output.1 with
+  | Err reason =>
+      exact Or.inl ⟨reason, output.2.1, output.2.2, by cases output <;> simp [hresult]⟩
+  | Ok plaintext =>
+      exact Or.inr ⟨plaintext, output.2.1, output.2.2, by cases output <;> simp [hresult]⟩
