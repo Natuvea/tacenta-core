@@ -126,6 +126,7 @@ theorem decrypt_ratchet_first_dh_refusal_from_braid
     (modelComposite : Model.CompositeHeader.Composite)
     (realComposite : tacenta_wire.Composite)
     (evidence : BraidReceiveEvidence K view real model realComposite modelComposite)
+    (hrealComposite : realComposite = decoded.header)
     (hrel : SessionRefines dh K real model)
     (htrace : trace rng = oracle.draws)
     (hready : Model.Lifecycle.agreementFailed model = false)
@@ -188,6 +189,102 @@ theorem decrypt_ratchet_second_dh_refusal_from_braid
     draw modelDhOutRecv hrel htrace hready hdecodeReal hdecodeModel hcomposite
     evidence.hmessageCall evidence.hmessageRel evidence.hreceive evidence.hsparse
     hmodelFirst hmodelDraw hmodelSecond
+
+/-! The Triple branch consumes the same Braid evidence as the two DH
+refusal adapters.  Keeping this splice explicit prevents the caller from
+silently replacing the translated `msg_of`/`Braid.receive` result with an
+unrelated model candidate; the remaining arguments are the complete Triple
+boundary call and model refusal facts required by the leaf theorem. -/
+
+theorem decrypt_ratchet_triple_refusal_from_braid
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng rngNext : R)
+    (decoded : tacenta_wire.DecodedMessage)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (realComposite : tacenta_wire.Composite)
+    (evidence : BraidReceiveEvidence K view real model realComposite modelComposite)
+    (hrealComposite : realComposite = decoded.header)
+    (peer : tacenta_boundary.dh.PublicKeyBytes)
+    (recvSecret sendSecret candidateBytes newPublicBytes before : Array Std.U8 32#usize)
+    (candidatePrivate : tacenta_boundary.dh.PrivateKey)
+    (candidatePublic : tacenta_boundary.dh.PublicKeyBytes)
+    (realHeader : tacenta_triple.Header)
+    (wrappedRecv wrappedSend : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (realReason : tacenta_triple.TripleError)
+    (modelReason : Model.Triple.ReceiveRefusal)
+    (draw modelDhOutRecv modelDhOutSend : Model.Lifecycle.Key)
+    (hrel : SessionRefines dh K real model)
+    (htraceNext : trace rngNext = oracleNext.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeReal : tacenta_wire.decode_message message = ok (.Ok decoded))
+    (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (modelComposite, vecOf decoded.ciphertext))
+    (hpeerCall : tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh = ok peer)
+    (hfirstCall : tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer =
+      ok (some recvSecret))
+    (hwrapRecv : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) recvSecret =
+      ok wrappedRecv)
+    (hderefRecv : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedRecv =
+      ok recvSecret)
+    (hrandomCall : lifecycle.random_secret rngCore cryptoRng rng =
+      ok (candidateBytes, rngNext))
+    (hcandidateCall : tacenta_boundary.dh.PrivateKey.from_bytes candidateBytes =
+      ok candidatePrivate)
+    (hsecondCall : tacenta_boundary.dh.PrivateKey.agree candidatePrivate peer =
+      ok (some sendSecret))
+    (hwrapSend : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sendSecret =
+      ok wrappedSend)
+    (hderefSend : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedSend =
+      ok sendSecret)
+    (hbeforeCall : tacenta_triple.State.sending_public real.triple = ok before)
+    (hheaderCall : lifecycle.triple_header_of decoded.header = ok realHeader)
+    (hpublicCall : tacenta_boundary.dh.PrivateKey.public_key candidatePrivate =
+      ok candidatePublic)
+    (hpublicBytesCall : tacenta_boundary.dh.PublicKeyBytes.as_bytes candidatePublic =
+      ok newPublicBytes)
+    (htripleReal : lifecycle.receive_with_eviction real.triple decoded.header realHeader
+      recvSecret sendSecret newPublicBytes evidence.sparseOutput = ok (.Err realReason))
+    (hmodelFirst : oracle.dhAgree model.ratchetPrivate modelComposite.dh =
+      some modelDhOutRecv)
+    (hmodelDraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext))
+    (hmodelSecond : oracle.dhAgree draw modelComposite.dh = some modelDhOutSend)
+    (hmodelPublic : oracle.dhPublic draw = arrayOf newPublicBytes)
+    (hmodelTriple : Model.Lifecycle.receiveWithEviction model.triple modelComposite
+      (Model.Lifecycle.tripleHeaderOf modelComposite) modelDhOutRecv modelDhOutSend
+      (oracle.dhPublic draw)
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.1) =
+      .error modelReason)
+    (hreason : tripleReceiveRefusalOfReal realReason = some modelReason) :
+    lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+        ok (.Err (.Triple realReason), real, rngNext) ∧
+      StepRefines trace dh K
+        (.Err (.Triple realReason), real, rngNext)
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  subst realComposite
+  exact decrypt_ratchet_triple_refusal_step_refines rngCore cryptoRng trace dh K view
+    oracle oracleNext real model message rng rngNext decoded modelComposite
+    evidence.message evidence.receivedEpoch evidence.output evidence.next evidence.sparseOutput
+    peer recvSecret sendSecret candidateBytes newPublicBytes before candidatePrivate candidatePublic
+    realHeader wrappedRecv wrappedSend realReason modelReason draw modelDhOutRecv modelDhOutSend
+    hrel htraceNext hready hdecodeReal hdecodeModel evidence.hmessageCall evidence.hreceive
+    evidence.hsparse hpeerCall hfirstCall hwrapRecv hderefRecv hrandomCall hcandidateCall
+    hsecondCall hwrapSend hderefSend hbeforeCall hheaderCall hpublicCall hpublicBytesCall
+    htripleReal hmodelFirst hmodelDraw hmodelSecond hmodelPublic hmodelTriple hreason
 
 /-- Inner-call evidence is needed only after all initial-wrapper guards pass. -/
 def InitialRatchetRefines {R : Type}
