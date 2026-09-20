@@ -2471,6 +2471,27 @@ theorem decrypt_initial_identity_mismatch_refines {R : Type}
 /-- Lift an accepted repeated-initial wrapper through public decrypt.  The two
 wrapper identity checks are derived from the shared byte representation; the
 inner receive relation supplies the authenticated ratchet transition. -/
+def initial_dispatch_identity_mismatch_from_premises
+    {R : Type} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {codec : DhCodecOf dh}
+    {K : Model.Braid.Kem} {view : Model.Lifecycle.CodewordView}
+    {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
+    {model : Model.Lifecycle.Session} {message : Slice Std.U8} {rng : R}
+    (ctx : InitialDispatchContext rngCore cryptoRng trace dh K view oracle real model message rng)
+    (established : alloc.vec.Vec Std.U8) (decoded : tacenta_wire.DecodedInitial)
+    (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
+    (hestablished : real.established_ephemeral = some established)
+    (hephemeral : vecOf established = vecOf decoded.ephemeral)
+    (hmismatch : vecOf decoded.identity ≠
+      Model.PersistedState.SessionState.encodeEc
+        (dh.publicKey real.peer_identity_public)) :
+    InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng := by
+  refine InitialDispatchRoute.identityMismatch ?_
+  exact decrypt_initial_identity_mismatch_refines rngCore cryptoRng trace dh codec K view oracle
+    real model message rng established decoded ctx.hrel ctx.htrace ctx.htype hdecode
+    hestablished hephemeral hmismatch
+
 theorem decrypt_initial_repeat_step_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (codec : DhCodecOf dh)
