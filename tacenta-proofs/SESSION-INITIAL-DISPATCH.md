@@ -93,6 +93,11 @@ semantic contracts, honest-chunk evidence and the successor-epoch bound. This
 closes only the model `dhAgree = none` refusal branch; the second-DH, Triple,
 AEAD and success branches still require their own evidence.
 
+`decrypt_ratchet_second_dh_refusal_from_braid` now reuses the same adapter for
+the second-DH refusal. Its consumed draw and first/second DH oracle results
+remain explicit, including the advanced trace; it does not treat the refusal
+as state-preserving without accounting for that draw.
+
 The full `no-sorry.sh` gate runs the controls and includes this module in the
 Session unit's axiom-audit closure and kernel replay.
 

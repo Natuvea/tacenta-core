@@ -147,6 +147,48 @@ theorem decrypt_ratchet_first_dh_refusal_from_braid
     hready hdecodeReal hdecodeModel hcomposite evidence.hmessageCall evidence.hmessageRel
     evidence.hreceive evidence.hsparse hmodelDhNone
 
+theorem decrypt_ratchet_second_dh_refusal_from_braid
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (codec : DhCodecOf dh)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (decoded : tacenta_wire.DecodedMessage)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (realComposite : tacenta_wire.Composite)
+    (evidence : BraidReceiveEvidence K view real model realComposite modelComposite)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeReal : tacenta_wire.decode_message message = ok (.Ok decoded))
+    (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (modelComposite, vecOf decoded.ciphertext))
+    (hrealComposite : realComposite = decoded.header)
+    (hcomposite : CompositeRefines decoded.header modelComposite)
+    (draw modelDhOutRecv : Model.Lifecycle.Key)
+    (hmodelFirst : oracle.dhAgree model.ratchetPrivate modelComposite.dh =
+      some modelDhOutRecv)
+    (hmodelDraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext))
+    (hmodelSecond : oracle.dhAgree draw modelComposite.dh = none) :
+    ∃ rngAfter,
+      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+        ok (.Err (.Handshake SessionError.NonContributoryAgreement), real, rngAfter) ∧
+      StepRefines trace dh K
+        (.Err (.Handshake SessionError.NonContributoryAgreement), real, rngAfter)
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  subst realComposite
+  exact decrypt_ratchet_second_dh_refusal_step_refines rngCore cryptoRng trace dh kem K view
+    oracle oracleNext oracleOf codec hz32 real model message rng decoded modelComposite
+    evidence.message evidence.receivedEpoch evidence.output evidence.next evidence.sparseOutput
+    draw modelDhOutRecv hrel htrace hready hdecodeReal hdecodeModel hcomposite
+    evidence.hmessageCall evidence.hmessageRel evidence.hreceive evidence.hsparse
+    hmodelFirst hmodelDraw hmodelSecond
+
 /-- Inner-call evidence is needed only after all initial-wrapper guards pass. -/
 def InitialRatchetRefines {R : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
