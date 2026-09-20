@@ -2344,10 +2344,11 @@ theorem decrypt_ratchet_triple_refusal_step_refines {R : Type}
           (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.1) =
         .error modelReason)
     (hreason : tripleReceiveRefusalOfReal realReason = some modelReason) :
-    ∃ output,
-      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng = ok output ∧
-      StepRefines trace dh K output
-        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+    lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err (.Triple realReason), real, rngNext) ∧
+    StepRefines trace dh K
+      (.Err (.Triple realReason), real, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
   have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
   have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
     cases hb : model.braid <;>
@@ -2375,7 +2376,7 @@ theorem decrypt_ratchet_triple_refusal_step_refines {R : Type}
     rw [hmodelPublic] at hmodelTriple'
     simp [Model.Lifecycle.decryptRatchet, hready, hdecodeModel, hmodelFirst,
       hmodelDraw, hmodelSecond, hmodelPublic, hmodelTriple']
-  refine ⟨(.Err (.Triple realReason), real, rngNext), hreal, ?_⟩
+  refine ⟨hreal, ?_⟩
   rw [hmodel]
   exact ⟨tripleReceiveRefusalOfReal_sound hreason, hrel, htraceNext⟩
 
@@ -2875,10 +2876,11 @@ theorem decrypt_ratchet_aead_refusal_step_refines {R : Type}
     (haead : tacenta_boundary.aead.decrypt realKeys.1 realKeys.2.1 realKeys.2.2
       (alloc.vec.Vec.deref decoded.ciphertext) (alloc.vec.Vec.deref realAd) =
         ok (.Err aeadError)) :
-    ∃ output,
-      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng = ok output ∧
-      StepRefines trace dh K output
-        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+    lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err .Aead, real, rngNext) ∧
+    StepRefines trace dh K
+      (.Err .Aead, real, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
   have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
   have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
     cases hb : model.braid <;>
@@ -2925,7 +2927,7 @@ theorem decrypt_ratchet_aead_refusal_step_refines {R : Type}
     rw [hmodelPublic] at hmodelTriple'
     simp [Model.Lifecycle.decryptRatchet, hready, hdecodeModel, hmodelFirst,
       hmodelDraw, hmodelSecond, hmodelPublic, hmodelTriple', haeadModel]
-  refine ⟨(.Err .Aead, real, rngNext), hreal, ?_⟩
+  refine ⟨hreal, ?_⟩
   rw [hmodel]
   exact ⟨rfl, hrel, htraceNext⟩
 
