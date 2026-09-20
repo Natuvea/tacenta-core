@@ -48,7 +48,6 @@ pub mod tacenta_triple;
 #[path = "../../wire/src/lib.rs"]
 pub mod tacenta_wire;
 
-
 pub mod primitives {
     pub use tacenta_boundary::{aead, dh, kem, xeddsa};
     pub mod kdf {

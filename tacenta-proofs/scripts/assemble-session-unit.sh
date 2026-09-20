@@ -94,30 +94,37 @@ LIFECYCLE_IMPORT = "use crate::{tacenta_braid, tacenta_erasure, tacenta_spqr, ta
 WIRE_IMPORT = "use crate::tacenta_wire;\n\n"
 
 
-def after_module_docs(source: str, block: str) -> str:
+def after_module_docs(source: str, block: str) -> tuple[str, str]:
     lines = source.splitlines(keepends=True)
     at = 0
     # Skip the module docs and the crate's inner attributes (`#![...]`, with
     # any comment lines among them): the inserted block holds items, and an
     # inner attribute after an item is an error (E0753), as the triple-unit
     # assembler's header explains.
+    saw_attribute = False
     while at < len(lines) and (
         lines[at].startswith("//!")
         or lines[at].startswith("#![")
         or lines[at].startswith("//")
         or not lines[at].strip()
     ):
+        saw_attribute = saw_attribute or lines[at].startswith("#![")
         at += 1
-    # rustfmt wants no blank line between the crate's inner attributes and the
-    # inserted `#![cfg(not(test))]`, so back up over any trailing blank lines.
-    while at > 0 and not lines[at - 1].strip():
-        at -= 1
+    inserted = block
+    if saw_attribute:
+        # rustfmt keeps a crate's inner attributes contiguous, so the block
+        # goes directly after the last one, and the source's own blank line
+        # then separates it from the first item: the block's trailing blank
+        # line would double it.
+        while at > 0 and not lines[at - 1].strip():
+            at -= 1
+        inserted = block.rstrip("\n") + "\n"
     if at == 0:
         raise SystemExit("assemble-session-unit: source has no leading module docs")
-    result = "".join(lines[:at]) + block + "".join(lines[at:])
-    if result.count(block) != 1 or result.replace(block, "", 1) != source:
+    result = "".join(lines[:at]) + inserted + "".join(lines[at:])
+    if result.count(inserted) != 1 or result.replace(inserted, "", 1) != source:
         raise SystemExit("assemble-session-unit: inserted block does not strip to source")
-    return result
+    return result, inserted
 
 
 def write(relative: str, contents: str) -> None:
@@ -159,13 +166,13 @@ doctest = false
 """)
 
     lifecycle_root = (core / "lifecycle/src/lib.rs").read_text()
-    assembled_root = after_module_docs(lifecycle_root, ROOT_BLOCK)
+    assembled_root, root_block = after_module_docs(lifecycle_root, ROOT_BLOCK)
     anchor = "pub mod ratchet {\n    pub use tacenta_ratchet::*;\n}"
     replacement = "pub mod ratchet {\n" + RATCHET_IMPORT + "    pub use tacenta_ratchet::*;\n}"
     if assembled_root.count(anchor) != 1:
         raise SystemExit("assemble-session-unit: lifecycle ratchet re-export anchor changed")
     assembled_root = assembled_root.replace(anchor, replacement)
-    stripped_root = assembled_root.replace(ROOT_BLOCK, "", 1).replace(RATCHET_IMPORT, "", 1)
+    stripped_root = assembled_root.replace(root_block, "", 1).replace(RATCHET_IMPORT, "", 1)
     if stripped_root != lifecycle_root:
         raise SystemExit("assemble-session-unit: lifecycle root is not source plus insertions")
     write("src/lib.rs", NOTE + assembled_root)
@@ -190,7 +197,7 @@ doctest = false
     ]
     for relative, block in copied:
         source = (core / "lifecycle/src" / relative).read_text()
-        assembled = after_module_docs(source, block)
+        assembled, _ = after_module_docs(source, block)
         if assembled.replace(block, "", 1) != source:
             raise SystemExit(f"assemble-session-unit: {relative} does not strip to source")
         write("src/" + relative, NOTE + assembled)

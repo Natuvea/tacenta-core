@@ -17,8 +17,8 @@
 //! bytes, so on each receive this layer computes the agreement, generates a fresh
 //! ratchet key pair as a candidate, and adopts it only if the ratchet actually
 //! took a DH step (observed through `State::sending_public`).
-use crate::{tacenta_braid, tacenta_erasure, tacenta_spqr, tacenta_triple};
 
+use crate::{tacenta_braid, tacenta_erasure, tacenta_spqr, tacenta_triple};
 
 use rand_core::{CryptoRng, RngCore};
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};

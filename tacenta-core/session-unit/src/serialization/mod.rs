@@ -15,8 +15,8 @@
 //! decoder that rejects anything else rather than repairing it. Fixed-width
 //! counters rather than variable-length integers keep the decoder loop-free and
 //! inside the subset the Charon and Aeneas translation models.
-use crate::tacenta_wire;
 
+use crate::tacenta_wire;
 
 use crate::ratchet::Header;
 

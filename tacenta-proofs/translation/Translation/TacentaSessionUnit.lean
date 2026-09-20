@@ -9645,7 +9645,7 @@ def tacenta_wire.decode_bundle
                   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [tacenta_session_unit::encode_ec]:
-    Source: 'session-unit/src/lib.rs', lines 97:0-99:1
+    Source: 'session-unit/src/lib.rs', lines 96:0-98:1
     Visibility: public -/
 def encode_ec
   (pk : tacenta_boundary.dh.PublicKeyBytes) :
@@ -9655,7 +9655,7 @@ def encode_ec
   tacenta_session.encode_ec a
 
 /-- [tacenta_session_unit::decode_ec]:
-    Source: 'session-unit/src/lib.rs', lines 104:0-109:1
+    Source: 'session-unit/src/lib.rs', lines 103:0-108:1
     Visibility: public -/
 def decode_ec
   (bytes : Slice Std.U8) :
@@ -9669,20 +9669,20 @@ def decode_ec
     ok (some pkb)
 
 /-- [tacenta_session_unit::is_canonical_key]:
-    Source: 'session-unit/src/lib.rs', lines 115:0-117:1 -/
+    Source: 'session-unit/src/lib.rs', lines 114:0-116:1 -/
 def is_canonical_key
   (pk : tacenta_boundary.dh.PublicKeyBytes) : Result Bool := do
   let a ← tacenta_boundary.dh.PublicKeyBytes.as_bytes pk
   tacenta_session.is_canonical_x25519 a
 
 /-- [tacenta_session_unit::encode_kem]:
-    Source: 'session-unit/src/lib.rs', lines 125:0-127:1
+    Source: 'session-unit/src/lib.rs', lines 124:0-126:1
     Visibility: public -/
 def encode_kem (pk : Slice Std.U8) : Result (alloc.vec.Vec Std.U8) := do
   tacenta_session.encode_kem pk
 
 /-- [tacenta_session_unit::decode_kem]:
-    Source: 'session-unit/src/lib.rs', lines 131:0-140:1
+    Source: 'session-unit/src/lib.rs', lines 130:0-139:1
     Visibility: public -/
 def decode_kem
   (bytes : Slice Std.U8) : Result (Option (alloc.vec.Vec Std.U8)) := do
@@ -9702,7 +9702,7 @@ def decode_kem
     else ok none
 
 /-- [tacenta_session_unit::APPLICATION_SIGNING_LABEL]
-    Source: 'session-unit/src/lib.rs', lines 182:0-182:81 -/
+    Source: 'session-unit/src/lib.rs', lines 181:0-181:81 -/
 @[global_simps, irreducible]
 def APPLICATION_SIGNING_LABEL : Slice Std.U8 :=
   Array.to_slice
@@ -9714,7 +9714,7 @@ def APPLICATION_SIGNING_LABEL : Slice Std.U8 :=
       ])
 
 /-- [tacenta_session_unit::application_signing_input]:
-    Source: 'session-unit/src/lib.rs', lines 184:0-189:1 -/
+    Source: 'session-unit/src/lib.rs', lines 183:0-188:1 -/
 def application_signing_input
   (message : Slice Std.U8) : Result (alloc.vec.Vec Std.U8) := do
   let i := Slice.len APPLICATION_SIGNING_LABEL
@@ -9727,7 +9727,7 @@ def application_signing_input
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 input1 message
 
 /-- [tacenta_session_unit::verify_under_identity]:
-    Source: 'session-unit/src/lib.rs', lines 149:0-155:1
+    Source: 'session-unit/src/lib.rs', lines 148:0-154:1
     Visibility: public -/
 def verify_under_identity
   (identity : tacenta_boundary.dh.PublicKeyBytes) (message : Slice Std.U8)
@@ -9740,7 +9740,7 @@ def verify_under_identity
   core.result.Result.is_ok r
 
 /-- [tacenta_session_unit::PreKeyBundle]
-    Source: 'session-unit/src/lib.rs', lines 197:0-204:1
+    Source: 'session-unit/src/lib.rs', lines 196:0-203:1
     Visibility: public -/
 structure PreKeyBundle where
   identity_key : tacenta_boundary.dh.PublicKeyBytes
@@ -9751,7 +9751,7 @@ structure PreKeyBundle where
   one_time_prekey : Option tacenta_boundary.dh.PublicKeyBytes
 
 /-- [tacenta_session_unit::SessionError]
-    Source: 'session-unit/src/lib.rs', lines 212:0-221:1
+    Source: 'session-unit/src/lib.rs', lines 211:0-220:1
     Visibility: public -/
 @[discriminant isize]
 inductive SessionError where
@@ -9760,35 +9760,35 @@ inductive SessionError where
 | NonContributoryAgreement : SessionError
 
 /-- [tacenta_session_unit::{impl core::clone::Clone for tacenta_session_unit::SessionError}::clone]:
-    Source: 'session-unit/src/lib.rs', lines 210:9-210:14
+    Source: 'session-unit/src/lib.rs', lines 209:9-209:14
     Visibility: public -/
 def SessionError.Insts.CoreCloneClone.clone
   (self : SessionError) : Result SessionError := do
   ok self
 
 /-- Trait implementation: [tacenta_session_unit::{impl core::clone::Clone for tacenta_session_unit::SessionError}]
-    Source: 'session-unit/src/lib.rs', lines 210:9-210:14 -/
+    Source: 'session-unit/src/lib.rs', lines 209:9-209:14 -/
 @[reducible]
 def SessionError.Insts.CoreCloneClone : core.clone.Clone SessionError := {
   clone := SessionError.Insts.CoreCloneClone.clone
 }
 
 /-- Trait implementation: [tacenta_session_unit::{impl core::marker::Copy for tacenta_session_unit::SessionError}]
-    Source: 'session-unit/src/lib.rs', lines 210:16-210:20 -/
+    Source: 'session-unit/src/lib.rs', lines 209:16-209:20 -/
 @[reducible]
 def SessionError.Insts.CoreMarkerCopy : core.marker.Copy SessionError := {
   cloneInst := SessionError.Insts.CoreCloneClone
 }
 
 /-- Trait implementation: [tacenta_session_unit::{impl core::marker::StructuralPartialEq for tacenta_session_unit::SessionError}]
-    Source: 'session-unit/src/lib.rs', lines 210:22-210:31 -/
+    Source: 'session-unit/src/lib.rs', lines 209:22-209:31 -/
 @[reducible]
 def SessionError.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq SessionError := {
 }
 
 /-- [tacenta_session_unit::{impl core::cmp::PartialEq<tacenta_session_unit::SessionError> for tacenta_session_unit::SessionError}::eq]:
-    Source: 'session-unit/src/lib.rs', lines 210:22-210:31
+    Source: 'session-unit/src/lib.rs', lines 209:22-209:31
     Visibility: public -/
 def SessionError.Insts.CoreCmpPartialEqSessionError.eq
   (self : SessionError) (other : SessionError) : Result Bool := do
@@ -9797,7 +9797,7 @@ def SessionError.Insts.CoreCmpPartialEqSessionError.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tacenta_session_unit::{impl core::cmp::PartialEq<tacenta_session_unit::SessionError> for tacenta_session_unit::SessionError}]
-    Source: 'session-unit/src/lib.rs', lines 210:22-210:31 -/
+    Source: 'session-unit/src/lib.rs', lines 209:22-209:31 -/
 @[reducible]
 impl_def SessionError.Insts.CoreCmpPartialEqSessionError : core.cmp.PartialEq
   SessionError SessionError := {
@@ -9807,14 +9807,14 @@ impl_def SessionError.Insts.CoreCmpPartialEqSessionError : core.cmp.PartialEq
 }
 
 /-- [tacenta_session_unit::{impl core::cmp::Eq for tacenta_session_unit::SessionError}::assert_fields_are_eq]:
-    Source: 'session-unit/src/lib.rs', lines 210:33-210:35
+    Source: 'session-unit/src/lib.rs', lines 209:33-209:35
     Visibility: public -/
 def SessionError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : SessionError) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_session_unit::{impl core::cmp::Eq for tacenta_session_unit::SessionError}]
-    Source: 'session-unit/src/lib.rs', lines 210:33-210:35 -/
+    Source: 'session-unit/src/lib.rs', lines 209:33-209:35 -/
 @[reducible]
 def SessionError.Insts.CoreCmpEq : core.cmp.Eq SessionError := {
   partialEqInst := SessionError.Insts.CoreCmpPartialEqSessionError
@@ -9822,7 +9822,7 @@ def SessionError.Insts.CoreCmpEq : core.cmp.Eq SessionError := {
 }
 
 /-- [tacenta_session_unit::{impl core::fmt::Debug for tacenta_session_unit::SessionError}::fmt]:
-    Source: 'session-unit/src/lib.rs', lines 210:37-210:42
+    Source: 'session-unit/src/lib.rs', lines 209:37-209:42
     Visibility: public -/
 def SessionError.Insts.CoreFmtDebug.fmt
   (self : SessionError) (f : core.fmt.Formatter) :
@@ -9837,14 +9837,14 @@ def SessionError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "NonContributoryAgreement")
 
 /-- Trait implementation: [tacenta_session_unit::{impl core::fmt::Debug for tacenta_session_unit::SessionError}]
-    Source: 'session-unit/src/lib.rs', lines 210:37-210:42 -/
+    Source: 'session-unit/src/lib.rs', lines 209:37-209:42 -/
 @[reducible]
 def SessionError.Insts.CoreFmtDebug : core.fmt.Debug SessionError := {
   fmt := SessionError.Insts.CoreFmtDebug.fmt
 }
 
 /-- [tacenta_session_unit::verify_bundle]:
-    Source: 'session-unit/src/lib.rs', lines 228:0-244:1
+    Source: 'session-unit/src/lib.rs', lines 227:0-243:1
     Visibility: public -/
 def verify_bundle
   (bundle : PreKeyBundle) : Result (core.result.Result Unit SessionError) := do
@@ -9869,7 +9869,7 @@ def verify_bundle
     ok (core.result.Result.Err SessionError.BadSignedPrekeySignature)
 
 /-- [tacenta_session_unit::contributory]:
-    Source: 'session-unit/src/lib.rs', lines 246:0-251:1 -/
+    Source: 'session-unit/src/lib.rs', lines 245:0-250:1 -/
 def contributory
   (value : Option (Array Std.U8 32#usize)) :
   Result (core.result.Result (Array Std.U8 32#usize) SessionError)
@@ -9879,7 +9879,7 @@ def contributory
   | some secret => ok (core.result.Result.Ok secret)
 
 /-- [tacenta_session_unit::initiator_shared_secret]:
-    Source: 'session-unit/src/lib.rs', lines 256:0-282:1
+    Source: 'session-unit/src/lib.rs', lines 255:0-281:1
     Visibility: public -/
 def initiator_shared_secret
   (identity_private : tacenta_boundary.dh.PrivateKey)
@@ -9986,7 +9986,7 @@ def initiator_shared_secret
       (Array Std.U8 32#usize) (core.convert.FromSame SessionError) residual
 
 /-- [tacenta_session_unit::responder_shared_secret]:
-    Source: 'session-unit/src/lib.rs', lines 287:0-317:1
+    Source: 'session-unit/src/lib.rs', lines 286:0-316:1
     Visibility: public -/
 def responder_shared_secret
   (identity_private : tacenta_boundary.dh.PrivateKey)
