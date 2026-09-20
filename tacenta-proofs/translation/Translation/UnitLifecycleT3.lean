@@ -955,6 +955,17 @@ def PublicDecryptWitness {R : Type}
     StepRefines trace dh K output
       (Model.Lifecycle.decrypt view oracle model (sliceOf message))
 
+structure InitialDispatchContext {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R) where
+  hrel : SessionRefines dh K real model
+  htrace : trace rng = oracle.draws
+  htype : serialization.message_type message =
+    ok (some serialization.MessageType.Initial)
+
 inductive InitialDispatchRoute {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
