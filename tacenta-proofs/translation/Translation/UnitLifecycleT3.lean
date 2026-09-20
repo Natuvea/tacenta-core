@@ -966,6 +966,21 @@ structure InitialDispatchContext {R : Type}
   htype : serialization.message_type message =
     ok (some serialization.MessageType.Initial)
 
+theorem initial_decode_cases (message : Slice Std.U8) :
+    (∃ reason, tacenta_wire.decode_initial message =
+      ok (core.result.Result.Err reason)) ∨
+    (∃ decoded, tacenta_wire.decode_initial message =
+      ok (core.result.Result.Ok decoded)) := by
+  by_cases h : ∃ reason, tacenta_wire.decode_initial message =
+      ok (core.result.Result.Err reason)
+  · exact Or.inl h
+  · right
+    obtain ⟨result, hresult⟩ :=
+      Std.WP.spec_imp_exists (Tacenta.SessionUnitWireInitialT3.decode_initial_refines message)
+    cases result with
+    | Err reason => exact False.elim (h ⟨reason, hresult.1⟩)
+    | Ok decoded => exact ⟨decoded, hresult.1⟩
+
 inductive InitialDispatchRoute {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
