@@ -108,6 +108,9 @@ interoperating with anyone.
   place to change them. A fourth follows from rotation: persist the store
   after `rotate_signed_prekey` or `rotate_kem` and before republishing, or a
   restart forgets the rotation while the directory serves the new key.
+  `rotate_kem` also removes the wiped key's identifier from
+  `legacy_blocked`, just as it removes that key's `seen` entries; a marker for
+  a retired key therefore cannot survive the rotation that makes it non-live.
 
 ## Ratchet state
 
@@ -630,6 +633,17 @@ key first.
   writer never emits anything else. (The count is also refused before it
   sizes anything, as noted above; the rule here is over what was read, which
   is the only point at which the tags can be counted by.)
+- **The v5 `legacy_blocked` list has at most two entries.** The count is
+  limited to two before the reader sizes or decodes the entries: at most the
+  current and the retained previous last-resort KEM identity can be live at
+  once (`lifecycle.rs:1976-1981`).
+- **Every `legacy_blocked` entry names a live last-resort KEM identity.** It is
+  either the current `kem_id`, or the `previous_kem` identifier while that
+  retired key is retained (`lifecycle.rs:1623-1636`). A marker for any other
+  identifier is refused; rotation removes the marker when it wipes that key.
+- **The v5 `legacy_blocked` list is canonical.** Its identifiers are sorted in
+  ascending order with no duplicate, and the v5 whole-buffer re-encode check
+  rejects any other spelling (`lifecycle.rs:1418-1419`, `:1438`).
 - **`identity_public` is canonical**: the canonical encoding of a curve public
   key (message-format.md, Curve public keys). Every bundle the store publishes
   carries it, and a peer's bundle decoder refuses it in any other spelling
@@ -719,7 +733,7 @@ failure already present, not a new one. It is reported as "incoherent" rather
 than as malformed so a caller can tell it from a corrupt file and read the
 secrets out by hand if that matters.
 
-**The reading this rejects** is that the five rules above are exhaustive because
+**The reading this rejects** is that the rules above are exhaustive because
 they are the rules a reader can check without doing any cryptography. That
 reading does not survive contact with what is in the file: the store holds the
 identity's public key and each prekey's secret, so the public half and the

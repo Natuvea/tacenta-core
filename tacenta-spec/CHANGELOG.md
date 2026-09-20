@@ -5,6 +5,13 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+- `protocol/session-persistence.md`: the v5 `legacy_blocked` field now has
+  explicit semantic rules for its two-entry bound, live-key references and
+  sorted duplicate-free canonical form. The page also states that `rotate_kem`
+  removes the marker for the key it wipes. The layout and implementation are
+  unchanged; this records the existing fail-closed migration behavior for the
+  Phase 2 model and vector work.
+
 - `security-properties/forward-secrecy.md`, `security-properties/confidentiality.md`
   and `security-properties/limitations.md` now scope the classical and
   composed-Triple T3 citations to their successful-operation cases, and name
