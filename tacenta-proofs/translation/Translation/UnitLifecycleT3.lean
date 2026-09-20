@@ -1773,10 +1773,7 @@ theorem decrypt_initial_decode_refusal_step_refines {R : Type}
       StepRefines trace dh K
         (.Err (.Decode realReason), real, rng)
         (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
-  have htypeRel := message_type_refines message
-  rw [htype] at htypeRel
-  have hmodelType : Model.Lifecycle.messageType (sliceOf message) = some .initial := by
-    simpa [messageTypeOf] using htypeRel.symm
+  have hmodelType := message_type_refines_initial message htype
   have hdispatch := Model.Lifecycle.dispatchDecrypt_decode_refusal model
     (sliceOf message) modelReason hmodelType hdecodeModel
   have hmodel := Model.Lifecycle.decrypt_dispatch_refusal_keeps_state view oracle
