@@ -1280,6 +1280,21 @@ theorem message_type_refines_noninitial (bytes : Slice Std.U8)
       | Ratchet => simp [messageTypeOf] at hinitial
       | Initial => exact hnotInitial rfl
 
+theorem message_type_refines_none (bytes : Slice Std.U8)
+    (htype : serialization.message_type bytes = ok none) :
+    Model.Lifecycle.messageType (sliceOf bytes) = none := by
+  have h := message_type_refines bytes
+  rw [htype] at h
+  simpa using h.symm
+
+theorem message_type_refines_ratchet (bytes : Slice Std.U8)
+    (htype : serialization.message_type bytes =
+      ok (some serialization.MessageType.Ratchet)) :
+    Model.Lifecycle.messageType (sliceOf bytes) = some .ratchet := by
+  have h := message_type_refines bytes
+  rw [htype] at h
+  simpa [messageTypeOf] using h.symm
+
 theorem braid_failed_refines (K : Model.Braid.Kem)
     (real : tacenta_braid.Braid) (model : Model.Braid.BraidState)
     (hrel : Tacenta.SessionUnitBraidT3.StateRefines K real.state model) :
