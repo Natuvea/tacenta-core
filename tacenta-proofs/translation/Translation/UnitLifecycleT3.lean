@@ -4362,3 +4362,51 @@ theorem initial_dispatch_select_ephemeral
     rcases initial_vec_equality_cases established.vec decoded.ephemeral.vec with hequal | hmismatch
     · exact onEqual decoded established hdecode hestablished hequal
     · exact onMismatch decoded established hdecode hestablished hmismatch)
+
+/-- Directly select the identity comparison branch after established
+ ephemeral equality has been derived. -/
+theorem initial_dispatch_select_identity
+    {R : Type} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (ctx : InitialDispatchContext rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onRefusal : ∀ (reason : tacenta_wire.DecodeError)
+      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Err reason)),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onNone : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
+      (hnone : real.established_ephemeral = none),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onEphemeralMismatch : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8)
+      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hmismatch : vecOf established ≠ vecOf decoded.ephemeral),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onIdentityMismatch : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8)
+      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hequal : vecOf established = vecOf decoded.ephemeral)
+      (hmismatch : vecOf decoded.identity ≠
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public)),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onIdentityEqual : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8)
+      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hequal : vecOf established = vecOf decoded.ephemeral)
+      (hequalIdentity : vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public)),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng := by
+  exact initial_dispatch_select_ephemeral ctx onRefusal onNone onEphemeralMismatch
+    (fun decoded established hdecode hestablished hequal => by
+      rcases initial_vec_equality_cases decoded.identity.vec
+        (Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public)).vec with
+        hid | hnot
+      · exact onIdentityEqual decoded established hdecode hestablished hequal hid
+      · exact onIdentityMismatch decoded established hdecode hestablished hequal hnot)
