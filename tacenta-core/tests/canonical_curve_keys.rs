@@ -190,7 +190,13 @@ fn a_repeated_initial_message_must_carry_the_sessions_peer_identity() {
         );
     }
 
+    let before_honest_repeat = responder.export();
     assert_eq!(responder.decrypt(&repeat, &mut r).unwrap(), b"second");
+    assert_ne!(
+        responder.export(),
+        before_honest_repeat,
+        "an accepted repeated initial did not advance the responder session"
+    );
 }
 
 /// A published bundle's three curve keys, each re-spelled both ways, and the
