@@ -2090,6 +2090,76 @@ theorem decrypt_initial_repeat_refusal_exact
       core.convert.FromSame.from]
   exact ⟨hreal, by rw [hmodel]; simpa [Model.Lifecycle.decrypt, hdispatch, hmodelStep] using hstep⟩
 
+theorem decrypt_initial_repeat_success_exact
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView)
+    (codec : DhCodecOf dh) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng rngNext : R)
+    (established : alloc.vec.Vec Std.U8)
+    (decoded : tacenta_wire.DecodedInitial)
+    (plaintext : alloc.vec.Vec Std.U8) (modelPlaintext : Bytes)
+    (realNext : lifecycle.Session) (modelNext : Model.Lifecycle.Session)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rngNext = oracleNext.draws)
+    (htype : serialization.message_type message =
+      ok (some serialization.MessageType.Initial))
+    (hdecode : tacenta_wire.decode_initial message =
+      ok (core.result.Result.Ok decoded))
+    (hestablished : real.established_ephemeral = some established)
+    (hephemeral : vecOf established = vecOf decoded.ephemeral)
+    (hidentity : vecOf decoded.identity =
+      Model.PersistedState.SessionState.encodeEc
+        (dh.publicKey real.peer_identity_public))
+    (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
+      (alloc.vec.Vec.deref decoded.message) rng =
+      ok (.Ok plaintext, realNext, rngNext))
+    (hmodelStep : Model.Lifecycle.decryptRatchet view oracle model
+      (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage =
+      { session := modelNext, result := .ok modelPlaintext, oracle := oracleNext })
+    (hbytes : vecOf plaintext = modelPlaintext)
+    (hstep : StepRefines trace dh K
+      (.Ok plaintext, realNext, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model
+        (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)) :
+    lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+        ok (.Ok plaintext,
+          { realNext with pending_initial := none }, rngNext) ∧
+      StepRefines trace dh K
+        (.Ok plaintext, { realNext with pending_initial := none }, rngNext)
+        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+  have htypeRel := message_type_refines message
+  rw [htype] at htypeRel
+  have hmodelType : Model.Lifecycle.messageType (sliceOf message) = some .initial := by
+    simpa [messageTypeOf] using htypeRel.symm
+  have hdecodeRel := decode_initial_refines_lifecycle message
+  rw [hdecode] at hdecodeRel
+  obtain ⟨encoded, hencoded, hephemeralCall, hidentityCall, hrepeat⟩ :=
+    repeated_initial_checks_refine dh codec K real model established decoded hrel
+      hestablished hephemeral hidentity
+  have hdispatch := Model.Lifecycle.dispatchDecrypt_repeat model
+    (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
+    hmodelType hdecodeRel hrepeat
+  let realFinal := { realNext with pending_initial := none }
+  let modelFinal := { modelNext with pendingInitial := none }
+  have hs : SessionRefines dh K realNext modelNext := by
+    simpa [hmodelStep] using hstep.session
+  have hfinal : SessionRefines dh K realFinal modelFinal := by
+    exact ⟨hs.triple, hs.braid, hs.ratchetPrivate, hs.identityAd,
+      hs.ourIdentityPublic, hs.peerIdentityPublic, rfl, hs.establishedEphemeral⟩
+  have hmodel : Model.Lifecycle.decrypt view oracle model (sliceOf message) =
+      { session := modelFinal, result := .ok modelPlaintext, oracle := oracleNext } := by
+    simp [Model.Lifecycle.decrypt, hdispatch, hmodelStep, modelFinal]
+  have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+      ok (.Ok plaintext, realFinal, rngNext) := by
+    simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
+      hephemeralCall, hencoded, hidentityCall, hinner, realFinal,
+      core.result.Result.Insts.CoreOpsTry.branch]
+  exact ⟨hreal, by rw [hmodel]; exact ⟨by simpa [ResultRefines] using hbytes, hfinal, htrace⟩⟩
+
 /-- Once the Braid send step is related, its terminal transition is committed
 on both sides before `AgreementFailed` is returned.  This outer lifecycle fact
 does not depend on the unused message, epoch or sparse output. -/
