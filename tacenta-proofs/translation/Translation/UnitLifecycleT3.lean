@@ -1255,6 +1255,14 @@ theorem message_type_refines (bytes : Slice Std.U8) :
               lifecycle_version_agrees, lifecycle_type_ratchet_agrees,
               lifecycle_type_initial_agrees, u8_eq_u8_iff]
 
+theorem message_type_refines_initial (bytes : Slice Std.U8)
+    (htype : serialization.message_type bytes =
+      ok (some serialization.MessageType.Initial)) :
+    Model.Lifecycle.messageType (sliceOf bytes) = some .initial := by
+  have h := message_type_refines bytes
+  rw [htype] at h
+  simpa [messageTypeOf] using h.symm
+
 theorem braid_failed_refines (K : Model.Braid.Kem)
     (real : tacenta_braid.Braid) (model : Model.Braid.BraidState)
     (hrel : Tacenta.SessionUnitBraidT3.StateRefines K real.state model) :
