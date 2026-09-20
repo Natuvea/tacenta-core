@@ -1040,6 +1040,29 @@ theorem decrypt_step_refines_unchanged_pending_initial
   exact Model.Lifecycle.decrypt_refusal_keeps_session
     view oracle model (sliceOf message) reason herror
 
+/-- Public decrypt refusals preserve the pending-initial relation.  This is
+the dispatcher-level atomicity consequence shared by decoder, repeat-check,
+and inner-ratchet refusal branches. -/
+theorem public_decrypt_witness_refusal_preserves_pending
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (reason : Model.Lifecycle.Refusal)
+    (hw : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model
+      message rng)
+    (hresult : (Model.Lifecycle.decrypt view oracle model (sliceOf message)).result
+      = .error reason) :
+    ∃ output, lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
+      output.2.1.pending_initial.map (pendingInitialOf dh) = model.pendingInitial := by
+  obtain ⟨output, hreal, hstep⟩ := hw
+  refine ⟨output, hreal, ?_⟩
+  exact decrypt_step_refines_unchanged_pending_initial view oracle model message
+    reason hstep hresult
+
+
 /-! The repeated-initial dispatcher has a refusal arm and a success arm.  Keep
 the refusal-side pending relation named separately so the eventual split of
 `decrypt_initial_repeat_step_refines` cannot accidentally reuse the success
