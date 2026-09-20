@@ -17,6 +17,136 @@ namespace Tacenta.UnitLifecycleT3
 open Aeneas Aeneas.Std Result
 open tacenta_session_unit
 
+/-! ## Braid receive adapter
+
+This adapter is the first concrete part of the nonterminal aggregate. It
+discharges the translated `msg_of` and `Braid.receive` calls from the existing
+Braid T3 theorem and the lifecycle's boundary contracts. The Triple, DH and
+AEAD branches remain separate obligations below; this record deliberately
+does not assert that a receive succeeded or that it contributed an agreement.
+-/
+
+structure BraidReceiveEvidence
+    (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (realComposite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite) : Type where
+  message : tacenta_braid.Msg
+  receivedEpoch : Std.U64
+  output : Option tacenta_braid.Output
+  next : tacenta_braid.Braid
+  sparseOutput : Option tacenta_spqr.Output
+  hmessageCall : lifecycle.msg_of realComposite = ok message
+  hmessageRel : Tacenta.SessionUnitBraidT3.MsgRefines message
+    (Model.Lifecycle.braidMessageOf view model.braid modelComposite)
+  hreceive : tacenta_braid.Braid.receive real.braid message =
+    ok (receivedEpoch, output, next)
+  hsparse : RealSparseConversion output sparseOutput
+  hnext : Tacenta.SessionUnitBraidT3.StateRefines K next.state
+    (Model.Braid.receive K model.braid
+      (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.2
+
+theorem braid_receive_evidence
+    {K : Model.Braid.Kem}
+    (view : Model.Lifecycle.CodewordView)
+    (contracts : Tacenta.UnitLifecycleT1.BraidReceiveContracts)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (realComposite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (hka : Tacenta.SessionUnitBraidT3.KemAgreesFor K)
+    (hea : Tacenta.SessionUnitBraidT3.ErasureAgrees)
+    (hmac : Tacenta.SessionUnitBraidT3.BraidHmacAgrees)
+    (hkdf : Tacenta.SessionUnitBraidT3.BraidHkdfAgrees)
+    (hlens : Tacenta.SessionUnitBraidT3.KemLenAgrees K)
+    (hvalek : Tacenta.SessionUnitBraidT3.ValidateEkAgrees K)
+    (hct1len : Tacenta.SessionUnitBraidT1.Ct1LenTotal)
+    (hct2len : Tacenta.SessionUnitBraidT1.Ct2LenTotal)
+    (hheaderlen : Tacenta.SessionUnitBraidT1.HeaderLenTotal)
+    (hkcl : Tacenta.SessionUnitBraidT3.KemCloneAgrees)
+    (hecl : Tacenta.SessionUnitBraidT3.ErasureCloneAgrees)
+    (hrel : SessionRefines dh K real model)
+    (hcomposite : CompositeRefines realComposite modelComposite)
+    (hchunk : IncomingChunkRefines view model.braid realComposite modelComposite)
+    (hhonest : Tacenta.SessionUnitBraidT3.HonestChunk model.braid
+      (Model.Lifecycle.braidMessageOf view model.braid modelComposite))
+    (hepoch : (Tacenta.SessionUnitBraidT1.State.epoch_val real.braid.state).val + 1
+      < Std.U64.max) :
+    Nonempty (BraidReceiveEvidence K view real model realComposite modelComposite) := by
+  obtain ⟨message, hmessageCall, hmessageRel⟩ :=
+    msg_of_refines view model.braid realComposite modelComposite hcomposite hchunk
+  obtain ⟨result, hreceiveCall, hreceivePost⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitBraidT3.Braid.receive_refines
+      (K := K)
+      hka hea hmac hkdf hlens hvalek contracts.encapsulate2
+      contracts.decoderAdd contracts.decoderMessage hct1len hct2len hheaderlen
+      hkcl hecl contracts.encoderClone contracts.decoderClone contracts.keyPairClone
+      contracts.encapsStateClone contracts.optionClone contracts.zeroizingArray
+      contracts.arrayZeroize contracts.rangeFullIndex
+      real.braid message
+        (Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom.braid headroom)
+        hepoch hrel.braid
+      hmessageRel hhonest)
+  rcases result with ⟨receivedEpoch, output, next⟩
+  have hreceive : tacenta_braid.Braid.receive real.braid message =
+      ok (receivedEpoch, output, next) := hreceiveCall
+  have hpost := hreceivePost
+  have hnext : Tacenta.SessionUnitBraidT3.StateRefines K next.state
+      (Model.Braid.receive K model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.2 := hpost.2.2
+  cases output with
+  | none =>
+      exact ⟨⟨message, receivedEpoch, none, next, none, hmessageCall, hmessageRel,
+        hreceive, .none rfl, hnext⟩⟩
+  | some output =>
+      let converted : tacenta_spqr.Output :=
+        { key_epoch := output.key_epoch, key := output.key }
+      have hconverted : tacenta_spqr.Output.new output.key_epoch output.key = ok converted := by
+        simp [converted, tacenta_spqr.Output.new]
+      exact ⟨⟨message, receivedEpoch, some output, next, some converted,
+        hmessageCall, hmessageRel, hreceive,
+        .some output converted rfl hconverted, hnext⟩⟩
+
+/-! The first nonterminal branch can now consume the Braid adapter directly.
+The only remaining branch-specific fact is the model's first DH result; the
+adapter has discharged message construction, Braid receive, and sparse-output
+conversion from the shared contracts above. -/
+
+theorem decrypt_ratchet_first_dh_refusal_from_braid
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
+    (oracle : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (codec : DhCodecOf dh)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (decoded : tacenta_wire.DecodedMessage)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (realComposite : tacenta_wire.Composite)
+    (evidence : BraidReceiveEvidence K view real model realComposite modelComposite)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeReal : tacenta_wire.decode_message message = ok (.Ok decoded))
+    (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (modelComposite, vecOf decoded.ciphertext))
+    (hrealComposite : realComposite = decoded.header)
+    (hcomposite : CompositeRefines decoded.header modelComposite)
+    (hmodelDhNone : oracle.dhAgree model.ratchetPrivate modelComposite.dh = none) :
+    lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+        ok (.Err (.Handshake SessionError.NonContributoryAgreement), real, rng) ∧
+      StepRefines trace dh K
+        (.Err (.Handshake SessionError.NonContributoryAgreement), real, rng)
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  subst realComposite
+  exact decrypt_ratchet_first_dh_refusal_step_refines rngCore cryptoRng trace dh kem K view
+    oracle oracleOf codec real model message rng decoded modelComposite evidence.message
+    evidence.receivedEpoch evidence.output evidence.next evidence.sparseOutput hrel htrace
+    hready hdecodeReal hdecodeModel hcomposite evidence.hmessageCall evidence.hmessageRel
+    evidence.hreceive evidence.hsparse hmodelDhNone
+
 /-- Inner-call evidence is needed only after all initial-wrapper guards pass. -/
 def InitialRatchetRefines {R : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)

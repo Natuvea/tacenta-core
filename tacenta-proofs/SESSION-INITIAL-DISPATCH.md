@@ -32,6 +32,15 @@ call. It obtains the concrete result from `decrypt_ratchet_no_panic` under
 then applies the semantic `StepRefines` obligation to that result. The initial
 wrapper theorem uses this bridge rather than duplicating the existence proof.
 
+`braid_receive_evidence` is the first nonterminal adapter. It derives
+`msg_of`, `Braid.receive`, the Braid message relation, next-state relation, and
+the optional sparse-output conversion from the existing Braid T3 theorem. Its
+additional inputs are explicit Braid semantic contracts (`KemAgreesFor`,
+`ErasureAgrees`, the length/clone contracts, and the honest-chunk/epoch
+conditions). `decrypt_ratchet_first_dh_refusal_from_braid` consumes that record
+and closes the first non-contributory-DH refusal branch. Triple, second-DH,
+AEAD, and success composition remain open.
+
 ## Discharged obligations
 
 - `initial_ratchet_refines_of_t1` obtains the actual inner result using
