@@ -1642,6 +1642,27 @@ theorem decrypt_passthrough_refines {R : Type}
     real model message rng realType (show alloc.vec.Vec Std.U8 from message)
     innerOutput htype hnotInitial hcopy hinner hstep
 
+theorem decrypt_none_refines {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (innerOutput : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.Session × R)
+    (htype : serialization.message_type message = ok none)
+    (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
+      (alloc.vec.Vec.deref (show alloc.vec.Vec Std.U8 from message)) rng =
+      ok innerOutput)
+    (hstep : StepRefines trace dh K innerOutput
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+    ∃ output,
+      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+  exact decrypt_passthrough_refines rngCore cryptoRng trace dh K view oracle
+    real model message rng none innerOutput htype (by simp) hinner hstep
+
 theorem decrypt_passthrough_refusal_exact
     {R : Type} (rngCore : rand_core_1.RngCore R)
     (cryptoRng : rand_core_1.CryptoRng R)
