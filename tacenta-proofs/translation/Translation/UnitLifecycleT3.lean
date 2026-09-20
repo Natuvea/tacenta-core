@@ -1593,9 +1593,10 @@ theorem decrypt_initial_decode_refusal_step_refines {R : Type}
     (hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf message) =
       .error modelReason)
     (hreason : decodeRefusalOf realReason = modelReason) :
-    ∃ output,
-      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
-      StepRefines trace dh K output
+    lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+        ok (.Err (.Decode realReason), real, rng) ∧
+      StepRefines trace dh K
+        (.Err (.Decode realReason), real, rng)
         (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
   have htypeRel := message_type_refines message
   rw [htype] at htypeRel
@@ -1605,13 +1606,10 @@ theorem decrypt_initial_decode_refusal_step_refines {R : Type}
     (sliceOf message) modelReason hmodelType hdecodeModel
   have hmodel := Model.Lifecycle.decrypt_dispatch_refusal_keeps_state view oracle
     model (sliceOf message) (.decode modelReason) hdispatch
-  let output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
-      lifecycle.Session × R :=
-    (core.result.Result.Err (.Decode realReason), real, rng)
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
-      ok output := by
-    simp [lifecycle.Session.decrypt, htype, hdecodeReal, output]
-  refine ⟨output, hreal, ?_⟩
+      ok (.Err (.Decode realReason), real, rng) := by
+    simp [lifecycle.Session.decrypt, htype, hdecodeReal]
+  refine ⟨hreal, ?_⟩
   rw [hmodel]
   exact ⟨congrArg Model.Lifecycle.Refusal.decode hreason, hrel, htrace⟩
 
@@ -1663,9 +1661,10 @@ theorem decrypt_initial_decode_refusal_refines {R : Type}
     have hnone' : Model.Messages.decodeInitial (sliceOf message) = none := by
       simpa [wire_bytesOf_eq_sliceOf] using hnone
     rw [hnone', hreason']
-  exact decrypt_initial_decode_refusal_step_refines rngCore cryptoRng trace dh K
+  have hexact := decrypt_initial_decode_refusal_step_refines rngCore cryptoRng trace dh K
     view oracle real model message rng realReason (decodeRefusalOf realReason)
     hrel htrace htype hdecodeReal hdecodeModel rfl
+  exact ⟨(.Err (.Decode realReason), real, rng), hexact.1, hexact.2⟩
 
 /-- An initial frame cannot be a repeat when the established Session has no
 recorded establishment ephemeral.  Both implementations refuse it before the
