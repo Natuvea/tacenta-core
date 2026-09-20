@@ -8,7 +8,8 @@
 
 use rand::SeedableRng;
 use tacenta_core::serialization::{
-    DecodeError, WireBundle, decode_bundle, decode_initial, decode_message, encode_bundle,
+    DecodeError, MessageType, WireBundle, decode_bundle, decode_initial, decode_message,
+    encode_bundle, message_type,
 };
 use tacenta_core::sessions::{
     Identity, LifecycleError, encode_ec, establish_initiator, establish_responder,
@@ -207,6 +208,10 @@ fn a_repeated_initial_message_must_carry_the_sessions_peer_identity() {
         before_honest_repeat,
         "an accepted repeated initial did not advance the responder session"
     );
+    let reply = responder.encrypt(b"reply", &mut r).unwrap();
+    assert_eq!(session.decrypt(&reply, &mut r).unwrap(), b"reply");
+    let after_reply = session.encrypt(b"after reply", &mut r).unwrap();
+    assert_eq!(message_type(&after_reply), Some(MessageType::Ratchet));
 }
 
 /// A published bundle's three curve keys, each re-spelled both ways, and the
