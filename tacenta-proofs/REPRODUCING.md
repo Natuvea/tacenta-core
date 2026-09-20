@@ -162,11 +162,21 @@ compiler-trust condition -- in a throwaway first-party module, and fails if
 the audit calls any of them wrongly -- and then replays every first-party module
 through the kernel with `leanchecker` (below).
 
+The session lifecycle leaf (`tacenta-core/lifecycle`) is translated from its
+public items only: `run-aeneas.sh` passes Charon `--start-from-pub`, because
+extracting every private and test-only item of that crate produced an LLBC
+file three orders of magnitude larger. Private helpers reachable from a
+public item are still translated; `scripts/check-lifecycle-translation-coverage.py`
+fails the run if any of the thirty public operations has no generated
+definition, and its negative control shows that it can.
+
 Expected tail:
 
 ```
 no-sorry: the translation and its T1/T3 proofs is complete
 translation-coverage: all 55 Translation/*.lean modules are in the build target and built
+lifecycle-translation-coverage: all 30 public operations generated
+lifecycle-translation-coverage-negatives: missing-root mutation refused
 attest: the axiom audit's opaque-external list matches translation-attestation.json for 11 generated modules (338 compiler-trust axioms in them, from Aeneas's toStr bound, are not externals and are listed in the build log)
 no-sorry: the model-layer proofs is complete
 no-sorry: the model and its property theorems is complete

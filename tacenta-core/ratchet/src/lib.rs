@@ -1157,14 +1157,16 @@ mod decode_bounds_tests {
     /// accommodation appears in `tacenta-erasure`, with the same bound.
     #[test]
     fn a_skipped_count_the_buffer_cannot_hold_is_refused_at_once() {
-        // Enough bytes for the fixed header, then a count of `u32::MAX` and
-        // nothing to satisfy it.
-        let mut buf = vec![0u8; 128];
-        buf[0] = STATE_VERSION;
-        let end = buf.len();
-        buf[end - 4..].copy_from_slice(&u32::MAX.to_be_bytes());
-        // Whatever it decides about the rest, it must decide it promptly.
-        let _ = State::from_bytes(&buf);
+        // Start from a valid state so the decoder reaches the count field,
+        // then claim four billion entries without adding any entry bytes.
+        let state = init_receiver(&[1u8; 32], [2u8; 32], LabelSet::Tacenta);
+        let mut bytes = state.to_bytes().to_vec();
+        assert_eq!(bytes.len(), FIXED_LEN);
+        bytes[FIXED_LEN - 4..FIXED_LEN].copy_from_slice(&u32::MAX.to_be_bytes());
+        assert_eq!(
+            State::from_bytes(&bytes),
+            Err(RatchetDecodeError::Malformed)
+        );
     }
 }
 

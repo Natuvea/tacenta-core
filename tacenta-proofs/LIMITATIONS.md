@@ -245,11 +245,18 @@ excludes it.
   `add_chunk` and `message` carry `Usize.max` headroom preconditions the
   Braid cannot state through the opaque types (the Rust documents the
   constructible-but-unreachable overflow at `Decoder::new(usize::MAX)`);
-  the domain check `ValidateEkAgrees` does not see (under the Braid's KEM
-  hypotheses, below); and `Kem.Correct`'s idealisation of ML-KEM's
-  decapsulation-failure probability to zero (same section).
+  and the domain check `ValidateEkAgrees` does not see (under the Braid's KEM
+  hypotheses, below).
 
 ## Secret deletion is partial
+
+The primitive boundary crate, `tacenta-core/boundary` (`tacenta-boundary`),
+is part of this base since the session carve-out: it holds the X25519, AEAD,
+ML-KEM-1024 and XEdDSA implementations the lifecycle calls, `attest.py`
+lists it under the trusted primitive zones, and Charon leaves every one of
+its functions opaque when it translates the lifecycle. Moving the code into
+its own crate changed what is trusted by nothing: the same bodies were
+trusted before behind `tacenta-core/src/primitives`.
 
 Both specifications call for deleting key material once it has been used: the
 Diffie-Hellman outputs and the encapsulated secret after the handshake derives
@@ -1042,9 +1049,9 @@ for zero bytes (which the real decoder does); so a `Kem` whose operations
 produce outputs of lengths other than its declared
 `ekSize`/`ct1Size`/`ct2Size` -- possible for an arbitrary `Model.Braid.Kem`,
 not for `toyKem` or ML-KEM -- stalls in the model. The refinement theorems
-exclude such a `K` through `KemLenAgrees` and `HonestChunk`; nothing in
-`Kem.Correct` does, and a whole-run composition of the Braid theorems would
-need size laws on `K` (`hashEk` output 32 bytes, `keyGen` seed 32 bytes,
+exclude such a `K` through `KemLenAgrees` and `HonestChunk`; nothing in the
+operation-agreement clauses does, and a whole-run composition of the Braid
+theorems would need size laws on `K` (`hashEk` output 32 bytes, `keyGen` seed 32 bytes,
 `encaps1`'s `ct1` of `ct1Size`, and so on) that the model does not state --
 an open item, not a falsity. And the KEM agreements are guarded by the
 lengths the real crate checks (`decapsulate` on `ct1Size`/`ct2Size`,
@@ -1059,9 +1066,8 @@ existentially per RNG state, as its key-generation clause does; an earlier
 revision's did not, and admitted no real KEM.** Real ML-KEM encapsulation
 draws 32 random bytes and returns a different `(ct1, ss)` pair under a
 different RNG state. `Model.Braid.Kem.encaps1` now takes that randomness
-(`encaps1 : Nat → Bytes → Bytes → …`), `Kem.Correct` quantifies over both
-parties' randomness, `Model.Braid.send K rand` passes its `rand` to
-transition (7)'s encapsulation as it already did to transition (1)'s key
+(`encaps1 : Nat → Bytes → Bytes → …`), and `Model.Braid.send K rand` passes
+its `rand` to transition (7)'s encapsulation as it already did to transition (1)'s key
 generation, and the clause reads `∃ es ct1raw ssraw rng' rand', encapsulate1
 … = ok (…, rng') ∧ … (K.encaps1 rand' ekSeed hek) …`: for each RNG state,
 *some* model randomness makes the model's answer the real one, which is
@@ -1081,13 +1087,14 @@ its randomness, which is now a legitimate model of the clause (a KEM that
 draws no randomness satisfies "some randomness makes the model agree" with
 any value), and the witness picks `0`. What the two randomness-drawing
 clauses assume beyond agreement is `BraidT1.RngTotal rc`: that the caller's
-`fill_bytes` returns, which the real `generate`/`encapsulate1` need. One
-idealisation remains: `Kem.Correct` asks that decapsulation recover the
-secret for *every* pair of randomness values, and ML-KEM-1024 is only
-δ-correct, with a decapsulation-failure probability FIPS 203 bounds at
-2^-174. So the real KEM satisfies `KemAgreesFor` up to that probability,
-which the model rounds to zero; the randomness-shape gap is closed, and
-this is what is left. The
+`fill_bytes` returns, which the real `generate`/`encapsulate1` need. A former
+`K.Correct` conjunct asked that decapsulation recover the secret for *every*
+pair of randomness values, while ML-KEM-1024 is δ-correct with the
+decapsulation-failure probability bounded by FIPS 203. Neither refinement
+proof used that conjunct: both destructured and discarded it. It is now
+removed from `KemAgreesFor`, so the four Braid refinement theorems no longer
+assume a property false of the shipped KEM. `Model.Braid.toyKem_correct`
+remains a fact about the toy model rather than a boundary premise. The
 definition's former `∀ kp` clause -- that *every* `IncrementalKeyPair`
 decodes as some `dk`, `ekSeed` and `ekVector` whose header is `ekSeed ++
 hashEk ekSeed ekVector` -- was applied by no proof in `BraidT3.lean` and is
@@ -1909,7 +1916,24 @@ This is a Phase 0 translatability result. No T1 or T3 theorem is stated about
 the lifecycle constants, and the leaf translation sees the ratchets, Braid,
 wire layer and primitive boundary as 118 opaque externals. The manifest lists
 all 118 and `AxiomAuditLifecycle.lean` checks the elaborated module against
-that exact set. Later phases assemble the lifecycle with its eight code leaves
+that exact set. Of the 118, 74 are first-party leaf operations the lifecycle
+calls across a crate boundary (`tacenta_session`, `tacenta_wire`,
+`tacenta_triple::State`, `tacenta_braid::Braid`, `tacenta_ratchet`,
+`tacenta_spqr`, `tacenta_kdf`): each has a body and, for most, a theorem in
+its own translation, but on this island they are bare axioms with no
+precondition, exactly the standalone-Triple shape the three-leaf unit was
+built to remove. Twenty are `tacenta_boundary` declarations, the primitive
+boundary this carve-out created: three key types and seventeen operations
+over X25519, the AEAD, ML-KEM-1024 and XEdDSA, whose bodies are trusted and
+never translated ("Trusted, not verified" above now lists the crate). The
+rest are standard-library, `zeroize` and `rand_core` items. Randomness
+reaches the lifecycle as a `rand_core::RngCore` trait dictionary rather than
+a boundary function, which is why no `random32` declaration exists and why
+`tooling/check-lifecycle-boundary-surface.py`, which follows only
+`tacenta_boundary` names, cannot see that route.
+`tacenta-model/SESSION-L4-PHASE0-SPIKE-20260918.md` maps the reachable
+boundary declarations to the ten contracts the primitive-boundary decision
+names. Later phases assemble the lifecycle with its eight code leaves
 and prove orchestration against the lifecycle model; until then,
 `Session::encrypt`, `Session::decrypt`, establishment and persistence remain
 tested and translated, not proved end to end.
@@ -1978,7 +2002,8 @@ that assembly possible.
 
 - T1 (panic-freedom and memory safety of the core's verified zone via the
   Charon and Aeneas translation) **is proven**, under the stated assumptions and
-  for the verified zone only, which is the eight leaf crates and not the
+  for the verified zone only, which is the eight proved leaf crates (the
+  translated lifecycle leaf has no theorem) and not the
   product. The assumptions it rests on are not all ones anybody chose. Where
   it stands, precisely:
   - **The ratchet, the verified zone, translates.** Charon extracts and Aeneas

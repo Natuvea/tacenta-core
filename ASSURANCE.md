@@ -7,7 +7,7 @@ comes next. It is a summary. For what is proven, `tacenta-proofs/CLAIMS.md` and
 `tacenta-test-vectors/conformance-manifest.md` is. For current gate and target
 obligations, see [ASSURANCE-OBLIGATIONS.md](ASSURANCE-OBLIGATIONS.md).
 
-Last assessed: 2026-09-18, at `dd6710e`.
+Last assessed: 2026-09-18, at `abd0c3b`.
 
 ## Practices
 
@@ -49,7 +49,7 @@ A summary by component. A tick means the component has that kind of evidence, no
 | Erasure code | ✓ | ✓ (through the Braid) | ✓ | ✓ | ✓ | ✓ | field only | L3 | L3, by [recorded target decision](tacenta-proofs/ERASURE-CODEC-TARGET-DECISION.md) |
 | Protobuf profile | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | L4 | L4 |
 | PQXDH derivation | ✓ | ✓ (through the session) | ✓ | ✓ | ✓ | ✓ | ✓ | L4 | L4 |
-| Session orchestration and prekey store | ✓ | ✓ | bounded lifecycle model | decoders; prekey lifecycle/replay; initiator/responder establishment structural checks | isolated operation reader | narrow model theorem | — | L2 | L2, by [recorded target decision](tacenta-model/P6-L2-TARGET-DECISION.md): modelled and pinned, not translated |
+| Session orchestration and prekey store | ✓ | ✓ | bounded lifecycle model | decoders; prekey lifecycle/replay; initiator/responder establishment structural checks | isolated operation reader | narrow model theorem | — | L2 | L2, by [recorded target decision](tacenta-model/P6-L2-TARGET-DECISION.md): modelled and pinned; since the Phase 0 carve-out the lifecycle is also translated (`tacenta-core/lifecycle`), with no theorem yet, which does not raise the level |
 | Persisted formats: ratchet, sparse ratchet | ✓ | ✓ | ✓ | ✓, including the counter ceilings | ✓ | codec | — | L3 | L3 |
 | Persisted formats: erasure coders | ✓ | ✓ | ✓ | ✓ | ✓ | codec | — | L3 | L3 |
 | Persisted formats: triple ratchet, Braid | ✓ | ✓ | ✓ | ✓; the Braid's `key_pair` content clause is scoped to implementations with the delegated KEM layout and no vector can pin it | ✓ | — | — | L2 | L2 |
@@ -91,9 +91,9 @@ omission, and the pack says so rather than letting a reviewer find them:
   computational one (`LIMITATIONS.md`, and LIM-01 in the requirements);
 - the Braid's `key_pair` content clause is scoped to implementations that know
   the delegated KEM layout, and no vector can pin it;
-- session orchestration is modelled and pinned rather than translated, so ASM-19
-  carries it and the five requirements resting on it reach "pinned", not
-  "proved".
+- session orchestration is modelled, pinned and, since the Phase 0 carve-out,
+  translated without a theorem, so ASM-19 carries it and the five requirements
+  resting on it reach "pinned", not "proved".
 
 Gate 3 is deliberately the last thing done before the second engagement, because
 it is only true of the ledger as it stands on the day.

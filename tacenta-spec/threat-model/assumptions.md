@@ -423,7 +423,8 @@ This is established by tests and by reading, not by proof. The bounded P6 L2
 operation model, vectors, concrete checks and independent reader provide
 evidence for its recorded surface; `tacenta-model/P6-L2-TARGET-DECISION.md`
 states that surface and its exclusions. ASM-19 remains an assumption for the
-untranslated orchestration beyond that bounded target.
+orchestration beyond that bounded target, which is translated since the
+Phase 0 carve-out but has no theorem.
 
 - **Relied on by:** every requirement, as a statement about `tacenta-core`; in
   particular REQ-AUTH-01, REQ-AUTH-02, REQ-AUTH-05, REQ-AUTH-09 to

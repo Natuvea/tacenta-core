@@ -1,23 +1,57 @@
 # Changelog
 
+All notable changes to the specification. Format: Keep a Changelog; the version
+is SemVer against the specified protocol (not the implementation).
+
+## [Unreleased]
+
+- `tacenta-proofs`: the Braid refinement boundary `KemAgreesFor` no longer
+  assumes `K.Correct`. No proof used the conjunct, and it asserted perfect
+  decapsulation, which ML-KEM-1024 satisfies only up to the FIPS 203 failure
+  bound. The four Braid refinement theorems now rest on the two
+  operation-agreement clauses alone; `toyKem_correct` stays a model fact.
+  Closes hostile-lens item FM-03.
+
+- Workflow checks now fail when the workflow or case corpus is absent, with an
+  explicit empty-repository control. Vector currency uses `git status` with
+  untracked files included, so a newly generated uncommitted vector cannot be
+  hidden from the local or hosted gate. This closes hostile-lens item SC-14.
+
+- The constant-time assembly reader's callee allow-list now matches whole
+  length-prefixed Rust identifier components, rather than substring regular
+  expressions. Its production-reader controls require an exact `compress`
+  callee to pass while `compress_sign_fixup` and an empty allow-list fail.
+  This closes hostile-lens item HL-SC-16.
+
+- The DCO gate now fails if its comparison base is missing and checks merge
+  commits instead of silently excluding them. A production-script case runner
+  pins a signed pass plus missing-base, unsigned-commit and unsigned-merge
+  refusals. This closes hostile-lens item SC-10.
+
+- `tacenta-core`: session lifecycle orchestration moved into a shipping leaf
+  crate and now translates from all 30 public roots. This is a Phase 0
+  translatability result only; no session theorem or assurance level changes.
+
 - `security-properties/evidence-index.json`: migrated `REQ-FS-01` through
   `REQ-FS-06` and `REQ-PCS-01` through `REQ-PCS-03` into the checked evidence
   index, completing coverage for all 32 security-property requirements. The
   traceability checker now fails if any requirement lacks an evidence-index
   entry, and its case runner includes a missing-entry negative control.
 
-All notable changes to the specification. Format: Keep a Changelog; the version
-is SemVer against the specified protocol (not the implementation).
+- `protocol/triple-ratchet.md` and `protocol/session-establishment.md`: make
+  the session transaction boundary explicit for end-to-end refinement. The
+  agreement runs before the Triple Ratchet and both next states commit
+  together after a successful send, except that an agreement send entering
+  `Failed` commits that terminal state. Responder establishment treats the
+  prekey store as read-only until the inner message authenticates; every
+  refusal leaves it unchanged, and success performs only the specified
+  one-time-key removals and, on the last-resort path, replay-record append.
+  Register row `E2E-07`.
 
-## [Unreleased]
-
-- `tacenta-core`: session lifecycle orchestration moved into a shipping leaf
-  crate and now translates from all 30 public roots. This is a Phase 0
-  translatability result only; no session theorem or assurance level changes.
-
-- `tacenta-core`: the classical and sparse ratchets’ secret-bearing working
-  copies and removal paths now allocate at their final capacity and wipe dead
-  slots before release; sparse decoder vectors are sized from checked counts.
+- `tacenta-core`: the classical ratchet’s secret-bearing working copies and
+  removal paths now allocate at their final capacity and wipe dead slots before
+  release. The analogous sparse-ratchet container hardening remains a follow-up
+  and is not claimed here. Sparse decoder vectors are sized from checked counts.
   The independent reader follows the v2 agreed-secret replay identity and
   covers fail-closed import of v4 replay records into v5.
 

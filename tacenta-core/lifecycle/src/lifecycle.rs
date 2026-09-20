@@ -1140,6 +1140,7 @@ impl PrekeyStore {
         while index < self.one_time.len() {
             if self.one_time[index].0 == id {
                 found = Some(index);
+                break;
             }
             index += 1;
         }
@@ -1171,6 +1172,7 @@ impl PrekeyStore {
         while index < self.one_time.len() {
             if self.one_time[index].0 == id {
                 found = Some(Zeroizing::new(self.one_time[index].1));
+                break;
             }
             index += 1;
         }
@@ -1203,6 +1205,7 @@ impl PrekeyStore {
         while index < self.kem_one_time.len() {
             if self.kem_one_time[index].0 == id {
                 found = Some(index);
+                break;
             }
             index += 1;
         }
@@ -2514,45 +2517,62 @@ fn responder_signed_prekey_secret(
     }
 }
 
-fn responder_kem_secret(
-    store: &PrekeyStore,
-    id: u32,
-    ciphertext: &[u8],
-) -> Result<([u8; 32], bool), Error> {
+/// Which KEM private key an initial message names: the current last-resort
+/// key, the one a rotation just retired, or a one-time entry by position.
+/// Resolved before any curve key is decoded and before the one-time curve
+/// prekey is looked up, and decapsulated only after both, so the identifier
+/// checks keep the order and the refusal kinds `establish_responder` had
+/// before the carve-out: an unknown identifier is refused as
+/// `UnknownPrekeyId` before a decapsulation is spent on the message.
+enum KemKeySlot {
+    Current,
+    Previous,
+    OneTime(usize),
+}
+
+fn responder_kem_slot(store: &PrekeyStore, id: u32) -> Result<(KemKeySlot, bool), Error> {
     if id == store.kem_id {
         if store.legacy_last_resort_blocked.contains(&id) {
             Err(Error::LegacyLastResortRecord)
         } else {
-            match kem::decapsulate(&store.kem, ciphertext) {
-                Ok(secret) => Ok((secret, true)),
-                Err(_) => Err(Error::Kem),
-            }
+            Ok((KemKeySlot::Current, true))
         }
     } else {
         match &store.previous_kem {
-            Some((pair, previous_id, _)) if *previous_id == id => {
+            Some((_, previous_id, _)) if *previous_id == id => {
                 if store.legacy_last_resort_blocked.contains(&id) {
                     Err(Error::LegacyLastResortRecord)
                 } else {
-                    match kem::decapsulate(pair, ciphertext) {
-                        Ok(secret) => Ok((secret, true)),
-                        Err(_) => Err(Error::Kem),
-                    }
+                    Ok((KemKeySlot::Previous, true))
                 }
             }
             _ => {
                 let ids = store.one_time_kem_ids();
                 match u32_index(&ids, id) {
-                    Some(index) => {
-                        match kem::decapsulate(&store.kem_one_time[index].1, ciphertext) {
-                            Ok(value) => Ok((value, false)),
-                            Err(_) => Err(Error::Kem),
-                        }
-                    }
+                    Some(index) => Ok((KemKeySlot::OneTime(index), false)),
                     None => Err(Error::UnknownPrekeyId),
                 }
             }
         }
+    }
+}
+
+fn responder_decapsulate(
+    store: &PrekeyStore,
+    slot: KemKeySlot,
+    ciphertext: &[u8],
+) -> Result<[u8; 32], Error> {
+    let pair = match slot {
+        KemKeySlot::Current => &store.kem,
+        KemKeySlot::Previous => match &store.previous_kem {
+            Some((pair, _, _)) => pair,
+            None => return Err(Error::UnknownPrekeyId),
+        },
+        KemKeySlot::OneTime(index) => &store.kem_one_time[index].1,
+    };
+    match kem::decapsulate(pair, ciphertext) {
+        Ok(secret) => Ok(secret),
+        Err(_) => Err(Error::Kem),
     }
 }
 
@@ -2562,6 +2582,7 @@ fn u32_index(values: &[u32], needle: u32) -> Option<usize> {
     while index < values.len() {
         if values[index] == needle {
             found = Some(index);
+            break;
         }
         index += 1;
     }
@@ -2673,8 +2694,7 @@ pub fn establish_responder<R: RngCore + CryptoRng>(
     // the affected key is rotated out.
     // The retired last-resort key is a last-resort key still: reusable, so
     // fingerprinted and remembered on exactly the same terms as the current.
-    let (kem_secret, last_resort) =
-        responder_kem_secret(our_prekeys, decoded.kem_prekey_id, &decoded.kem_ciphertext)?;
+    let (kem_slot, last_resort) = responder_kem_slot(our_prekeys, decoded.kem_prekey_id)?;
     if last_resort {
         // The budget check runs after deriving `SK`, so a replay remains a
         // replay even when the key's budget is already full. The store is still
@@ -2686,8 +2706,15 @@ pub fn establish_responder<R: RngCore + CryptoRng>(
 
     // Read, not deleted, for the reason given above the KEM prekey.
     let one_time_key = responder_one_time_key(our_prekeys, decoded.one_time_prekey_id)?;
+    // Decapsulated only now, after every identifier the message names has
+    // been found: the order the function had before the carve-out, so an
+    // unknown identifier costs no ML-KEM work and keeps its refusal kind.
     // Wiped on the way out, for the same reason as the initiator's.
-    let ss = Zeroizing::new(kem_secret);
+    let ss = Zeroizing::new(responder_decapsulate(
+        our_prekeys,
+        kem_slot,
+        &decoded.kem_ciphertext,
+    )?);
     let signed_prekey = dh::PrivateKey::from_bytes(*signed_prekey_secret);
     // Wrapped for the same reason as the initiator's.
     let shared = match one_time_key {

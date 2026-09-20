@@ -43,9 +43,10 @@ surface is covered by these ten named contracts:
 `DhCodecTotal` groups operations over the same two opaque DH types so their
 non-vacuity is witnessed jointly; separate witnesses would not show that all
 of the contracts can hold in one interpretation. The other contracts each
-cover one opaque call. Every contract has a concrete non-vacuity witness in
-the session unit's satisfiability module and a corresponding entry in
-`LIMITATIONS.md`. Returning `None` or `Err` is an ordinary result of a
+cover one opaque call. The proposal requires every contract to have a concrete
+non-vacuity witness in the session unit's satisfiability module and a
+corresponding entry in `LIMITATIONS.md`;
+returning `None` or `Err` is an ordinary result of a
 boundary call and is not assumed away.
 
 The executable lifecycle model represents every boundary operation as a
@@ -71,9 +72,10 @@ the boundary to be recut before proof work continues.
 
 - The boundary contracts establish termination and the shape of returned
   values. They do not prove the cryptographic primitives correct or secure.
-- Zeroization and heap-residue behavior remain outside the formal proof and
-  stay governed by their tests and security process.
-- The Phase 0 translation records the reachable opaque-call inventory for the
+- Drop and allocator behavior remain outside the formal proof; the public
+  limitations record the corresponding implementation hardening and its test
+  evidence.
+- The Phase 0 spike record records the reachable opaque-call inventory for the
   five proof roots. Adding a reachable primitive call without adding it to one
   of the ten contracts is a review finding.
 - Reopen this decision if Charon traverses the boundary implementation, if a

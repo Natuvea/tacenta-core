@@ -32,8 +32,8 @@ replace the pinned Linux regeneration required for evidence.
 
 The scratch tree copied the four existing primitive implementations into a
 `tacenta-boundary` dependency and exposed the nine functions proposed in
-`SESSION-L4-PRIMITIVE-BOUNDARY-DECISION.md`. A small lifecycle probe called
-all nine.
+`SESSION-L4-PRIMITIVE-BOUNDARY-DECISION.md` as it stood at `639c1d8`. A small
+lifecycle probe called all nine.
 
 Commands:
 
@@ -53,7 +53,40 @@ transparent. No primitive function body was translated. The public
 their use in signatures requires.
 
 This supports D2's package-boundary premise. It does not establish any of the
-nine future contracts.
+ten future contracts.
+
+The scratch probe called nine free wrapper functions. The carve-out that
+followed (`tacenta-core/lifecycle`, Phase 0) does not: the lifecycle calls the
+boundary crate's module API directly, and the wrapper functions were removed
+as dead code once that was seen. The surface that ships, read from the
+committed `Translation/TacentaLifecycle.lean` (the file `run-aeneas.sh`
+generates from committed source with `--start-from-pub`; a local regeneration
+with the pinned binaries reproduces it byte for byte), is the set of
+`tacenta_boundary` declarations reachable from the five proof roots, which
+`tooling/check-lifecycle-boundary-surface.py` pins:
+
+| Reachable opaque declaration | Contract |
+| --- | --- |
+| `dh.PrivateKey.from_bytes`, `dh.PrivateKey.public_key`, `dh.PrivateKey.to_bytes`, `dh.PublicKeyBytes.from_bytes`, `dh.PublicKeyBytes.as_bytes`, `dh.PublicKeyBytes` equality (`CoreCmpPartialEqPublicKeyBytes.eq`) | `DhCodecTotal` (construction, public derivation, byte and persistence projection, equality; one joint witness) |
+| `dh.PrivateKey.agree` | `DhAgreeTotal` |
+| `aead.encrypt` | `AeadSealTotal` |
+| `aead.decrypt` | `AeadOpenTotal` |
+| `kem.encapsulate` | `KemEncapsulateTotal` |
+| `kem.decapsulate` | `KemDecapsulateTotal` |
+| `kem.ciphertext_len` | `KemCiphertextLenTotal` |
+| `xeddsa.verify` | `XeddsaVerifyTotal` |
+| `xeddsa.sign` (reachable from `Identity` and `PrekeyStore` publication, not from the five roots; the gate classifies it separately) | `XeddsaSignTotal` |
+| no declaration: randomness enters as the `rand_core::RngCore` trait dictionary (`fill_bytes`), which the gate cannot see | `Random32Total`, stated over that trait use |
+
+Thirteen operations reach the five roots and map onto nine contracts;
+signing is the tenth. Four further boundary declarations,
+`kem.KeyPair.{generate, public_key, to_bytes, from_bytes}`, are reachable
+only from the `Identity` and `PrekeyStore` operations outside the five roots
+and are outside the ten contracts by the decision's scope; they are listed
+here so that a later change that makes one reachable from a root is seen as
+the review finding the decision calls it. The three type declarations
+(`dh.PrivateKey`, `dh.PublicKeyBytes`, `kem.KeyPair`) are the opaque types
+the contracts range over.
 
 ## Shipping-shaped lifecycle probe
 
@@ -195,34 +228,3 @@ This record contains the commands, inputs, binary hashes, counts and observed
 failure classes needed to repeat the experiment. A production change must
 reproduce it from committed source with the pinned Linux toolchain and normal
 attestation flow.
-
-## Production reproduction
-
-Commit `761877c` completes the carve-out and behavior-preserving rewrites to the
-shipping workspace. From that committed source, the pinned toolchain produced
-`TacentaLifecycle.lean` through `--start-from-pub`: 10,844 lines, 501,465
-bytes, from a 27 MiB LLBC artifact. The file has no generated `sorry`, and the
-translation package builds it successfully.
-
-The generated module declares 118 opaque externals. Their complete names are
-recorded, rather than summarized, in
-`tacenta-proofs/manifests/translation-attestation.json`; the separate
-`AxiomAuditLifecycle.lean` environment reproduced that exact set. The count is
-the Phase 0 boundary inventory, not a proof or a claim that those declarations
-meet contracts.
-
-`check-lifecycle-translation-coverage.py` found all 30 public lifecycle
-operations in the generated module. Its negative control renames
-`Identity::generate` in a copied gate input and requires the check to fail;
-the mutation was refused. This closes the scratch record's reproduction limit
-for the shipping leaf while leaving the session-unit and theorem work to the
-later phases.
-
-The facade continues to expose the moved items through their original
-`tacenta_core::primitives::*` and `tacenta_core::sessions::*` paths. Rustdoc
-lists a dependency reexport instead of the definition it previously listed at
-each path, so a raw `cargo-public-api` or `cargo-semver-checks` comparison
-reports metadata removals. `tests/public_api_compat.rs` is the consumer-side
-control: as an integration crate it imports and type-checks the moved types,
-methods and free functions through every old path. The product build remains
-the Phase 0 acceptance check for its own use of those paths.
