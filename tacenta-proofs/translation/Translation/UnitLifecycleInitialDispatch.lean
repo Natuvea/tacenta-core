@@ -133,7 +133,6 @@ theorem decrypt_ratchet_first_dh_refusal_from_braid
     (hdecodeReal : tacenta_wire.decode_message message = ok (.Ok decoded))
     (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
       .ok (modelComposite, vecOf decoded.ciphertext))
-    (hrealComposite : realComposite = decoded.header)
     (hcomposite : CompositeRefines decoded.header modelComposite)
     (hmodelDhNone : oracle.dhAgree model.ratchetPrivate modelComposite.dh = none) :
     lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
