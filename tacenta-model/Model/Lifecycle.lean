@@ -678,21 +678,57 @@ theorem establishInitiator_ephemeral_signed_noncontributory (oracle afterEphemer
   simp [establishInitiator, hp, hc, hs, ho, hSignedSig, hKemSig, hDraw,
     hKem, hDh1, hDh2, hDh3]
 
+/-! The Rust prekey store uses `Vec::swap_remove`: consuming an entry replaces
+    it with the final entry before shortening the vector.  Keeping that order
+    in the executable model matters because the persisted store bytes include
+    list order. -/
+def swapRemoveAt {α : Type} (xs : List α) (index : Nat) : List α :=
+  if _h : index < xs.length then
+    match xs.getLast? with
+    | none => xs
+    | some last => xs.dropLast.set index last
+  else xs
+
+def swapRemoveById {α : Type} (id : Nat) (xs : List (Nat × α)) : List (Nat × α) :=
+  match xs.findIdx? (fun entry => entry.1 == id) with
+  | none => xs
+  | some index => swapRemoveAt xs index
+
+theorem swapRemoveAt_eq_set_dropLast {α : Type} (xs : List α) (index : Nat)
+    (last : α) (hi : index < xs.length) (hl : xs.getLast? = some last) :
+    swapRemoveAt xs index = xs.dropLast.set index last := by
+  simp [swapRemoveAt, hi, hl]
+
+theorem swapRemoveById_eq_swapRemoveAt_of_findIdx {α : Type} (id : Nat)
+    (xs : List (Nat × α)) (index : Nat)
+    (h : xs.findIdx? (fun entry => entry.1 == id) = some index) :
+    swapRemoveById id xs = swapRemoveAt xs index := by
+  simp [swapRemoveById, h]
+
 def consumeResponderPrekeys (store : PrekeyStore) (oneTimeId kemId : Nat)
     (lastResort : Bool) (fingerprint : Option Key) : PrekeyStore :=
   let withoutKem :=
     if lastResort then store.state
     else { store.state with
-      kemOneTime := store.state.kemOneTime.filter (fun entry => entry.1 != kemId) }
+      kemOneTime := swapRemoveById kemId store.state.kemOneTime }
   let withoutCurve :=
     if oneTimeId = Model.PersistedState.PrekeyStoreState.absentId then withoutKem
     else { withoutKem with
-      oneTime := withoutKem.oneTime.filter (fun entry => entry.1 != oneTimeId) }
+      oneTime := swapRemoveById oneTimeId withoutKem.oneTime }
   let recorded :=
     match fingerprint with
     | none => withoutCurve
     | some value => { withoutCurve with seen := withoutCurve.seen ++ [(kemId, value)] }
   { store with state := recorded }
+
+theorem consumeResponderPrekeys_oneTime_swapRemove (store : PrekeyStore)
+    (oneTimeId kemId : Nat) (index : Nat)
+    (hOneTime : oneTimeId ≠ Model.PersistedState.PrekeyStoreState.absentId)
+    (hFind : store.state.oneTime.findIdx? (fun entry => entry.1 == oneTimeId) =
+      some index) :
+    (consumeResponderPrekeys store oneTimeId kemId true none).state.oneTime =
+      swapRemoveAt store.state.oneTime index := by
+  simp [consumeResponderPrekeys, hOneTime, swapRemoveById, hFind]
 
 def braidFailed : Model.Braid.BraidState → Bool
   | .failed => true
@@ -1402,6 +1438,20 @@ example :
     consumed.state.oneTime.map Prod.fst = [9]
       ∧ consumed.state.kemOneTime.map Prod.fst = [10]
       ∧ consumed.state.seen = [] := by
+  native_decide
+
+/- A non-last entry is replaced by the final entry, matching `swap_remove`.
+   This catches a model that merely filters the identifier out. -/
+example :
+    let store : PrekeyStore :=
+      { toyPrekeyStore with
+        state := { toyPrekeyStore.state with
+          oneTime := [(7, [0x71]), (9, [0x91]), (11, [0xb1])]
+          kemOneTime := [(8, [0x81], [0x82]), (10, [0xa1], [0xa2]),
+            (12, [0xc1], [0xc2])] } }
+    let consumed := consumeResponderPrekeys store 9 10 false none
+    consumed.state.oneTime.map Prod.fst = [7, 11]
+      ∧ consumed.state.kemOneTime.map Prod.fst = [8, 12] := by
   native_decide
 
 /-- A successful last-resort establishment keeps the reusable KEM pair,
