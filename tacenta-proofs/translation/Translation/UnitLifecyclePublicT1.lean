@@ -376,46 +376,31 @@ def IndexInBounds (values : Slice U32) (o : Option Usize) : Prop :=
   | some i => i.val < values.val.length
 
 theorem u32_index_loop_no_panic (values : Slice U32) (needle : U32)
-    (found : Option Usize) (index : Usize)
-    (hindex : index.val ≤ values.val.length)
-    (hfound : IndexInBounds values found) :
-    lifecycle.u32_index_loop values needle found index
+    (index : Usize) (hindex : index.val ≤ values.val.length) :
+    lifecycle.u32_index_loop values needle index
       ⦃ fun r => IndexInBounds values r ⦄ := by
   unfold lifecycle.u32_index_loop
   apply loop.spec_decr_nat
-    (measure := fun p => values.val.length - (Prod.snd p).val)
-    (inv := fun p => (Prod.snd p).val ≤ values.val.length ∧
-      IndexInBounds values (Prod.fst p))
-  · rintro ⟨found1, index1⟩ ⟨hi, hfound1⟩
-    simp only at hi hfound1
+    (measure := fun i => values.val.length - i.val)
+    (inv := fun i => i.val ≤ values.val.length)
+  · intro index1 hi
     simp only [lifecycle.u32_index_loop.body]
     split
     · step
       split
+      · simp [IndexInBounds]
+        scalar_tac
       · step
-        constructor
-        · rw [found1_post]
-          scalar_tac
-        · constructor
-          · simp [IndexInBounds]
-            scalar_tac
-          · rw [found1_post]
-            scalar_tac
-      · step
-        constructor
-        · rw [found1_post]
-          scalar_tac
-        · exact ⟨hfound1, by rw [found1_post]; scalar_tac⟩
-    · simp [hfound1]
-  · exact ⟨by simpa using hindex, hfound⟩
+        constructor <;> scalar_tac
+    · simp [IndexInBounds]
+  · exact hindex
 
 @[step]
 theorem u32_index_no_panic (values : Slice U32) (needle : U32) :
     lifecycle.u32_index values needle
       ⦃ fun r => IndexInBounds values r ⦄ := by
   unfold lifecycle.u32_index
-  exact u32_index_loop_no_panic values needle none 0#usize
-    (by simp) (by simp [IndexInBounds])
+  exact u32_index_loop_no_panic values needle 0#usize (by simp)
 
 theorem one_time_kem_ids_loop_no_panic
     (values : alloc.vec.Vec (U32 × tacenta_boundary.kem.KeyPair × Array U8 64#usize))
@@ -475,64 +460,91 @@ theorem u32_slice_contains_no_panic (values : Slice U32) (needle : U32) :
       by_cases h : needle = value <;>
         simp [core.cmp.impls.PartialEqU32.eq, h, ih, pure, WP.spec_ok]
 
-@[step]
-theorem responder_one_time_kem_secret_no_panic
-    (hkem : KemDecapsulateTotal) (store : lifecycle.PrekeyStore)
-    (ids : alloc.vec.Vec U32)
-    (hlen : ids.val.length = store.kem_one_time.val.length)
-    (id : U32) (ciphertext : Slice U8) :
+/-- The slot a responder resolves for a KEM identifier names a real entry
+when it is a one-time slot. `responder_decapsulate` indexes the store with
+it, so this is the bound that call needs. -/
+def SlotResultInBounds (store : lifecycle.PrekeyStore)
+    (r : core.result.Result (lifecycle.KemKeySlot × Bool) lifecycle.Error) : Prop :=
+  match r with
+  | core.result.Result.Ok (lifecycle.KemKeySlot.OneTime index, _) =>
+      index.val < store.kem_one_time.val.length
+  | _ => True
+
+theorem responder_one_time_slot_no_panic
+    (store : lifecycle.PrekeyStore) (ids : alloc.vec.Vec U32)
+    (hlen : ids.val.length = store.kem_one_time.val.length) (id : U32) :
     (do
       let o ← lifecycle.u32_index ids.deref id
       match o with
       | none => ok (core.result.Result.Err lifecycle.Error.UnknownPrekeyId)
-      | some index => do
-        let (_, kp, _) ← store.kem_one_time.index_usize index
-        let r ← tacenta_boundary.kem.decapsulate kp ciphertext
-        match r with
-        | core.result.Result.Ok value =>
-          ok (core.result.Result.Ok (value, false))
-        | core.result.Result.Err _ =>
-          ok (core.result.Result.Err lifecycle.Error.Kem))
-      ⦃ fun _ => True ⦄ := by
+      | some index =>
+        ok (core.result.Result.Ok (lifecycle.KemKeySlot.OneTime index, false)))
+      ⦃ fun r => SlotResultInBounds store r ⦄ := by
   step with u32_index_no_panic
   rcases o with _ | index
-  · simp
+  · simp [SlotResultInBounds]
   · simp [IndexInBounds] at o_post
     have hindex : index.val < store.kem_one_time.val.length := by
       change index.val < ids.val.length at o_post
       omega
-    step
-    step
-    rcases r <;> simp
+    simp [SlotResultInBounds, hindex]
 
 @[step]
-theorem responder_kem_secret_no_panic (hkem : KemDecapsulateTotal)
-    (store : lifecycle.PrekeyStore) (id : U32) (ciphertext : Slice U8) :
-    lifecycle.responder_kem_secret store id ciphertext
-      ⦃ fun _ => True ⦄ := by
-  unfold lifecycle.responder_kem_secret
+theorem responder_kem_slot_no_panic (store : lifecycle.PrekeyStore) (id : U32) :
+    lifecycle.responder_kem_slot store id
+      ⦃ fun r => SlotResultInBounds store r ⦄ := by
+  unfold lifecycle.responder_kem_slot
   split
   · step
     split
-    · simp
-    · step
-      rcases r <;> simp
+    · simp [SlotResultInBounds]
+    · simp [SlotResultInBounds]
   · cases hprevious : store.previous_kem with
     | none =>
       simp [hprevious]
       step
-      exact responder_one_time_kem_secret_no_panic hkem store _ ‹_› id ciphertext
+      exact responder_one_time_slot_no_panic store _ ‹_› id
     | some previous =>
       rcases previous with ⟨pair, previousId, signature⟩
-      change (if previousId = id then _ else _) ⦃ fun _ => True ⦄
+      change (if previousId = id then _ else _) ⦃ fun r => SlotResultInBounds store r ⦄
       split
       · step
         split
-        · simp
-        · step
-          rcases r <;> simp
+        · simp [SlotResultInBounds]
+        · simp [SlotResultInBounds]
       · step
-        exact responder_one_time_kem_secret_no_panic hkem store _ ‹_› id ciphertext
+        exact responder_one_time_slot_no_panic store _ ‹_› id
+
+@[step]
+theorem responder_decapsulate_no_panic (hkem : KemDecapsulateTotal)
+    (store : lifecycle.PrekeyStore) (slot : lifecycle.KemKeySlot)
+    (ciphertext : Slice U8)
+    (hslot : ∀ index, slot = lifecycle.KemKeySlot.OneTime index →
+      index.val < store.kem_one_time.val.length) :
+    lifecycle.responder_decapsulate store slot ciphertext
+      ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.responder_decapsulate
+  cases slot with
+  | Current =>
+    try dsimp only
+    step
+    rcases r <;> simp
+  | Previous =>
+    try dsimp only
+    cases hprevious : store.previous_kem with
+    | none => simp
+    | some t =>
+      rcases t with ⟨pair, previousId, signature⟩
+      try dsimp only
+      step with kem_decapsulate_no_panic hkem pair ciphertext
+      rename_i r
+      rcases r <;> simp
+  | OneTime index =>
+    have hindex := hslot index rfl
+    try dsimp only
+    step
+    step
+    rcases r <;> simp
 
 @[step]
 theorem hmac_sha256_no_panic (h : Tacenta.SessionUnitT1.HmacTotal)
@@ -722,14 +734,10 @@ theorem slice_swap_no_panic {T : Type} (s : Slice T) (a b : Usize)
   step
 
 theorem take_one_time_loop_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
-    (store : lifecycle.PrekeyStore) (id : U32)
-    (found : Option Usize) (index : Usize)
+    (store : lifecycle.PrekeyStore) (id : U32) (index : Usize)
     (hindex : index.val ≤
-      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length)
-    (hfound : OptionalIndexBelow
-      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length
-      found) :
-    lifecycle.PrekeyStore.take_one_time_loop store id found index
+      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length) :
+    lifecycle.PrekeyStore.take_one_time_loop store id index
       ⦃ fun r =>
         let (_, _, _, _, z, _, _, _, _, _, _, _, seen, _, found1) := r
         z = store.one_time ∧ seen = store.last_resort_seen ∧ OptionalIndexBelow
@@ -737,41 +745,24 @@ theorem take_one_time_loop_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
           found1 ⦄ := by
   unfold lifecycle.PrekeyStore.take_one_time_loop
   apply loop.spec_decr_nat
-    (measure := fun p =>
+    (measure := fun i =>
       (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length -
-        (Prod.snd p).val)
-    (inv := fun p => (Prod.snd p).val ≤
-      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length ∧
-      OptionalIndexBelow
-        (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length
-        (Prod.fst p))
-  · rintro ⟨found1, index1⟩ ⟨hi, hf⟩
-    simp only at hi hf
+        i.val)
+    (inv := fun i => i.val ≤
+      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length)
+  · intro index1 hi
     simp only [lifecycle.PrekeyStore.take_one_time_loop.body]
     step
     split
     · step
       split
+      · simp [OptionalIndexBelow]
+        scalar_tac
       · step
         case hmax => scalar_tac
-        case a =>
-          constructor
-          · rw [found1_post]
-            scalar_tac
-          · constructor
-            · simp [OptionalIndexBelow]
-              scalar_tac
-            · rw [found1_post]
-              scalar_tac
-      · step
-        case hmax => scalar_tac
-        case a =>
-          constructor
-          · rw [found1_post]
-            scalar_tac
-          · exact ⟨hf, by rw [found1_post]; scalar_tac⟩
-    · simp [hf]
-  · exact ⟨hindex, hfound⟩
+        case a => constructor <;> scalar_tac
+    · simp [OptionalIndexBelow]
+  · exact hindex
 
 @[step]
 theorem take_one_time_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
@@ -781,8 +772,7 @@ theorem take_one_time_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
     lifecycle.PrekeyStore.take_one_time store id
       ⦃ fun r => r.2.last_resort_seen = store.last_resort_seen ⦄ := by
   unfold lifecycle.PrekeyStore.take_one_time
-  step with take_one_time_loop_no_panic store id none 0#usize
-    (by simp) (by simp [OptionalIndexBelow])
+  step with take_one_time_loop_no_panic store id 0#usize (by simp)
   rcases pkb_post with ⟨hzstore, hseen, hfound⟩
   rcases found with _ | foundIndex
   · simpa using hseen
@@ -825,48 +815,30 @@ theorem take_one_time_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
     simpa using hseen
 
 theorem take_one_time_kem_loop_no_panic
-    (store : lifecycle.PrekeyStore) (id : U32)
-    (found : Option Usize) (index : Usize)
-    (hindex : index.val ≤ store.kem_one_time.val.length)
-    (hfound : OptionalIndexBelow store.kem_one_time.val.length found) :
-    lifecycle.PrekeyStore.take_one_time_kem_loop store id found index
+    (store : lifecycle.PrekeyStore) (id : U32) (index : Usize)
+    (hindex : index.val ≤ store.kem_one_time.val.length) :
+    lifecycle.PrekeyStore.take_one_time_kem_loop store id index
       ⦃ fun r =>
         let (_, _, _, _, _, _, _, _, v, _, _, _, seen, _, found1) := r
         v = store.kem_one_time ∧ seen = store.last_resort_seen ∧
           OptionalIndexBelow store.kem_one_time.val.length found1 ⦄ := by
   unfold lifecycle.PrekeyStore.take_one_time_kem_loop
   apply loop.spec_decr_nat
-    (measure := fun p => store.kem_one_time.val.length - (Prod.snd p).val)
-    (inv := fun p =>
-      (Prod.snd p).val ≤ store.kem_one_time.val.length ∧
-      OptionalIndexBelow store.kem_one_time.val.length (Prod.fst p))
-  · rintro ⟨found1, index1⟩ ⟨hi, hf⟩
-    simp only at hi hf
+    (measure := fun i => store.kem_one_time.val.length - i.val)
+    (inv := fun i => i.val ≤ store.kem_one_time.val.length)
+  · intro index1 hi
     simp only [lifecycle.PrekeyStore.take_one_time_kem_loop.body]
     simp only [alloc.vec.Vec.len]
     split
     · step
       split
+      · simp [OptionalIndexBelow]
+        scalar_tac
       · step
         case hmax => scalar_tac
-        case a =>
-          constructor
-          · rw [found1_post]
-            scalar_tac
-          · constructor
-            · simp [OptionalIndexBelow]
-              scalar_tac
-            · rw [found1_post]
-              scalar_tac
-      · step
-        case hmax => scalar_tac
-        case a =>
-          constructor
-          · rw [found1_post]
-            scalar_tac
-          · exact ⟨hf, by rw [found1_post]; scalar_tac⟩
-    · simp [hf]
-  · exact ⟨hindex, hfound⟩
+        case a => constructor <;> scalar_tac
+    · simp [OptionalIndexBelow]
+  · exact hindex
 
 @[step]
 theorem take_one_time_kem_no_panic
@@ -875,8 +847,7 @@ theorem take_one_time_kem_no_panic
     lifecycle.PrekeyStore.take_one_time_kem store id
       ⦃ fun r => r.2.last_resort_seen = store.last_resort_seen ⦄ := by
   unfold lifecycle.PrekeyStore.take_one_time_kem
-  step with take_one_time_kem_loop_no_panic store id none 0#usize
-    (by simp) (by simp [OptionalIndexBelow])
+  step with take_one_time_kem_loop_no_panic store id 0#usize (by simp)
   rcases pkb_post with ⟨hv, hseen, hfound⟩
   rcases found with _ | foundIndex
   · simpa using hseen
@@ -908,54 +879,37 @@ def ReadableOneTime
 
 theorem peek_one_time_loop_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
     (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
-    (store : lifecycle.PrekeyStore) (id : U32)
-    (found : Option (zeroize.Zeroizing (Array U8 32#usize))) (index : Usize)
+    (store : lifecycle.PrekeyStore) (id : U32) (index : Usize)
     (hindex : index.val ≤
-      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length)
-    (hfound : ReadableOneTime found) :
-    lifecycle.PrekeyStore.peek_one_time_loop store id found index
+      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length) :
+    lifecycle.PrekeyStore.peek_one_time_loop store id index
       ⦃ fun r => ReadableOneTime r ⦄ := by
   unfold lifecycle.PrekeyStore.peek_one_time_loop
   apply loop.spec_decr_nat
-    (measure := fun p =>
+    (measure := fun i =>
       (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length -
-        (Prod.snd p).val)
-    (inv := fun p => (Prod.snd p).val ≤
-      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length ∧
-        ReadableOneTime (Prod.fst p))
-  · rintro ⟨found1, index1⟩ ⟨hi, hfound1⟩
-    simp only at hi hfound1
+        i.val)
+    (inv := fun i => i.val ≤
+      (Tacenta.SessionUnitT1.DerivedKeysModel.contents store.one_time).val.length)
+  · intro index1 hi
     simp only [lifecycle.PrekeyStore.peek_one_time_loop.body]
     step
     split
     · step
       split
       · step
-        rcases found1 with ⟨foundId, key⟩
-        step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz key
-        step
-        case hmax =>
-          scalar_tac
-        case a =>
-          constructor
-          · rw [index1_post, ← v_post]
-            scalar_tac
-          · constructor
-            · simp only [ReadableOneTime]
-              exact ⟨key, found1_post⟩
-            · rw [index1_post, ← v_post]
-              scalar_tac
+        step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz a
+        simp only [ReadableOneTime]
+        exact ⟨a, z_post⟩
       · step
         case hmax =>
           rw [v_post] at *
           scalar_tac
         case a =>
           rw [v_post] at *
-          constructor
-          · scalar_tac
-          · exact ⟨hfound1, by scalar_tac⟩
-    · simp [hfound1]
-  · exact ⟨by simpa using hindex, hfound⟩
+          constructor <;> scalar_tac
+    · simp [ReadableOneTime]
+  · exact hindex
 
 @[step]
 theorem peek_one_time_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
@@ -964,8 +918,7 @@ theorem peek_one_time_no_panic [Tacenta.SessionUnitT1.DerivedKeysModel]
     lifecycle.PrekeyStore.peek_one_time store id
       ⦃ fun r => ReadableOneTime r ⦄ := by
   unfold lifecycle.PrekeyStore.peek_one_time
-  exact peek_one_time_loop_no_panic hz store id none 0#usize
-    (by simp) (by simp [ReadableOneTime])
+  exact peek_one_time_loop_no_panic hz store id 0#usize (by simp)
 
 theorem responder_one_time_key_no_panic
     [Tacenta.SessionUnitT1.DerivedKeysModel]
@@ -1466,12 +1419,11 @@ theorem establish_responder_no_panic {R : Type}
       obtain ⟨signedBytes, hsignedBytes⟩ := signedResult_post
       step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec signedSecret
       simp only [cf_post]
-      step with responder_kem_secret_no_panic contracts.kemDecapsulate ourPrekeys
-        decoded.kem_prekey_id decoded.kem_ciphertext.deref
+      step with responder_kem_slot_no_panic ourPrekeys decoded.kem_prekey_id
       rcases r2 with kemValue | kemError
       · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec kemValue
         simp only [cf1_post]
-        rcases kemValue with ⟨kemSecret, lastResort⟩
+        rcases kemValue with ⟨kemSlot, lastResort⟩
         simp only [copy_bool_eq]
         step with responder_curve_inputs_no_panic contracts.decrypt.dhCodec
           decoded.identity.deref decoded.ephemeral.deref
@@ -1486,54 +1438,67 @@ theorem establish_responder_no_panic {R : Type}
           rcases oneTimeResult with oneTime | oneTimeError
           · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec oneTime
             simp only [cf3_post]
-            step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec
-              contracts.decrypt.braid.zeroizingArray kemSecret
-            step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec hsignedBytes
-            step with private_key_from_bytes_no_panic contracts.decrypt.dhCodec a
-            rcases oneTime with _ | oneTimeKey
-            all_goals step with identity_dh_key_no_panic contracts.decrypt.dhCodec ourIdentity
-            all_goals step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec ss_post
-            all_goals first
-              | step with responder_shared_secret_no_panic contracts.decrypt.dhAgree
-                  contracts.decrypt.braid.zeroizingArray contracts.sessionHkdf shared
-                  signed_prekey none initiatorIdentity initiatorEphemeral x
-              | step with responder_shared_secret_no_panic contracts.decrypt.dhAgree
-                  contracts.decrypt.braid.zeroizingArray contracts.sessionHkdf shared
-                  signed_prekey (some oneTimeKey) initiatorIdentity initiatorEphemeral x
-            all_goals (rcases shared with secret | handshakeError)
-            all_goals try simp
-            all_goals step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec contracts.decrypt.braid.zeroizingArray secret
-            all_goals step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec sk_post
-            all_goals step with responder_replay_fingerprint_no_panic contracts.decrypt.triple.hmac ourPrekeys decoded.kem_prekey_id a1 lastResort
-            all_goals (rcases r5 with replayValue | replayError)
-            all_goals try
-              { step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec replayError
-                simp only [cf4_post]
-                simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
-                  core.convert.FromSame.from] }
-            all_goals step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec replayValue
-            all_goals simp only [cf4_post]
-            all_goals step with Tacenta.SessionUnitBraidT1.index_full_spec contracts.decrypt.braid.rangeFullIndex
-            all_goals step with private_key_public_no_panic contracts.decrypt.dhCodec signed_prekey
-            all_goals step with public_key_as_bytes_no_panic contracts.decrypt.dhCodec pkb
-            all_goals step with triple_init_receiver_headroom contracts.decrypt.triple.hkdf contracts.decrypt.triple.zeroizing contracts.spqrKdfInit contracts.decrypt.triple.spqrZeroize s3 a2 tacenta_ratchet.LabelSet.Tacenta
-            all_goals step with Tacenta.SessionUnitBraidT1.index_full_spec contracts.decrypt.braid.rangeFullIndex
-            all_goals step with braid_responder_headroom contracts.decrypt.braid.hkdf contracts.decrypt.braid.zeroizingArray contracts.decrypt.braid.decoderNew contracts.decrypt.braid.headerLen s4
-            all_goals step with private_key_from_bytes_no_panic contracts.decrypt.dhCodec a
-            all_goals step with identity_public_no_panic contracts.decrypt.dhCodec ourIdentity
-            all_goals step with identity_ad_length contracts.decrypt.dhCodec initiatorIdentity pkb1
-            all_goals step with Tacenta.SessionUnitBraidT1.vecU8_clone_no_panic decoded.ephemeral
-            all_goals have decryptHeadroom := responder_initial_decrypt_headroom triple braid pk v pkb1 initiatorIdentity v1 triple_post braid_post v_post
-            all_goals step with decrypt_ratchet_no_panic rngCore cryptoRng contracts.decrypt _ decoded.message.deref rng decryptHeadroom
-            all_goals (rcases r6 with decrypted | decryptError)
-            all_goals try
-              { step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec decryptError
-                simp only [cf5_post]
-                simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
-                  core.convert.FromSame.from] }
-            all_goals step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec decrypted
-            all_goals rw [cf5_post]
-            all_goals exact finish_responder_prekeys_no_panic contracts.decrypt.triple.spqrZeroize contracts.vecPop ourPrekeys decoded.kem_prekey_id decoded.one_time_prekey_id lastResort replayValue session decrypted rng1 r5_post headroom
+            step with responder_decapsulate_no_panic contracts.kemDecapsulate ourPrekeys
+              kemSlot decoded.kem_ciphertext.deref
+              (by
+                intro index hslot
+                subst hslot
+                simpa [SlotResultInBounds] using r2_post)
+            rcases r5 with kemSecret | kemDecapsulateError
+            · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec kemSecret
+              simp only [cf4_post]
+              step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec
+                contracts.decrypt.braid.zeroizingArray kemSecret
+              step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec hsignedBytes
+              step with private_key_from_bytes_no_panic contracts.decrypt.dhCodec a
+              rcases oneTime with _ | oneTimeKey
+              all_goals step with identity_dh_key_no_panic contracts.decrypt.dhCodec ourIdentity
+              all_goals step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec ss_post
+              all_goals first
+                | step with responder_shared_secret_no_panic contracts.decrypt.dhAgree
+                    contracts.decrypt.braid.zeroizingArray contracts.sessionHkdf shared
+                    signed_prekey none initiatorIdentity initiatorEphemeral x
+                | step with responder_shared_secret_no_panic contracts.decrypt.dhAgree
+                    contracts.decrypt.braid.zeroizingArray contracts.sessionHkdf shared
+                    signed_prekey (some oneTimeKey) initiatorIdentity initiatorEphemeral x
+              all_goals (rcases shared with secret | handshakeError)
+              all_goals try simp
+              all_goals step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec contracts.decrypt.braid.zeroizingArray secret
+              all_goals step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec sk_post
+              all_goals step with responder_replay_fingerprint_no_panic contracts.decrypt.triple.hmac ourPrekeys decoded.kem_prekey_id a1 lastResort
+              all_goals (rcases r6 with replayValue | replayError)
+              all_goals try
+                { step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec replayError
+                  simp only [cf5_post]
+                  simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+                    core.convert.FromSame.from] }
+              all_goals step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec replayValue
+              all_goals simp only [cf5_post]
+              all_goals step with Tacenta.SessionUnitBraidT1.index_full_spec contracts.decrypt.braid.rangeFullIndex
+              all_goals step with private_key_public_no_panic contracts.decrypt.dhCodec signed_prekey
+              all_goals step with public_key_as_bytes_no_panic contracts.decrypt.dhCodec pkb
+              all_goals step with triple_init_receiver_headroom contracts.decrypt.triple.hkdf contracts.decrypt.triple.zeroizing contracts.spqrKdfInit contracts.decrypt.triple.spqrZeroize s3 a2 tacenta_ratchet.LabelSet.Tacenta
+              all_goals step with Tacenta.SessionUnitBraidT1.index_full_spec contracts.decrypt.braid.rangeFullIndex
+              all_goals step with braid_responder_headroom contracts.decrypt.braid.hkdf contracts.decrypt.braid.zeroizingArray contracts.decrypt.braid.decoderNew contracts.decrypt.braid.headerLen s4
+              all_goals step with private_key_from_bytes_no_panic contracts.decrypt.dhCodec a
+              all_goals step with identity_public_no_panic contracts.decrypt.dhCodec ourIdentity
+              all_goals step with identity_ad_length contracts.decrypt.dhCodec initiatorIdentity pkb1
+              all_goals step with Tacenta.SessionUnitBraidT1.vecU8_clone_no_panic decoded.ephemeral
+              all_goals have decryptHeadroom := responder_initial_decrypt_headroom triple braid pk v pkb1 initiatorIdentity v1 triple_post braid_post v_post
+              all_goals step with decrypt_ratchet_no_panic rngCore cryptoRng contracts.decrypt _ decoded.message.deref rng decryptHeadroom
+              all_goals (rcases r7 with decrypted | decryptError)
+              all_goals try
+                { step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec decryptError
+                  simp only [cf6_post]
+                  simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+                    core.convert.FromSame.from] }
+              all_goals step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec decrypted
+              all_goals rw [cf6_post]
+              all_goals exact finish_responder_prekeys_no_panic contracts.decrypt.triple.spqrZeroize contracts.vecPop ourPrekeys decoded.kem_prekey_id decoded.one_time_prekey_id lastResort replayValue session decrypted rng1 r6_post headroom
+            · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec kemDecapsulateError
+              simp only [cf4_post]
+              simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+                core.convert.FromSame.from]
           · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec oneTimeError
             simp only [cf3_post]
             simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,

@@ -18,6 +18,10 @@
 //! `primitives::kem` (ML-KEM-1024). The full handshake is exercised end to end
 //! in this module's tests and in tests/handshake_to_ratchet.rs.
 
+#![forbid(unsafe_code)]
+// The translated form: `?` desugars through `Try` into Lean that will not
+// typecheck, so the leaf writes the `match` the lint would collapse.
+#![allow(clippy::question_mark)]
 #![cfg(not(test))]
 
 // The seven sibling leaves. The lifecycle leaf is the crate root below.
@@ -43,6 +47,7 @@ pub mod tacenta_triple;
 #[cfg(not(test))]
 #[path = "../../wire/src/lib.rs"]
 pub mod tacenta_wire;
+
 
 pub mod primitives {
     pub use tacenta_boundary::{aead, dh, kem, xeddsa};

@@ -97,8 +97,21 @@ WIRE_IMPORT = "use crate::tacenta_wire;\n\n"
 def after_module_docs(source: str, block: str) -> str:
     lines = source.splitlines(keepends=True)
     at = 0
-    while at < len(lines) and (lines[at].startswith("//!") or not lines[at].strip()):
+    # Skip the module docs and the crate's inner attributes (`#![...]`, with
+    # any comment lines among them): the inserted block holds items, and an
+    # inner attribute after an item is an error (E0753), as the triple-unit
+    # assembler's header explains.
+    while at < len(lines) and (
+        lines[at].startswith("//!")
+        or lines[at].startswith("#![")
+        or lines[at].startswith("//")
+        or not lines[at].strip()
+    ):
         at += 1
+    # rustfmt wants no blank line between the crate's inner attributes and the
+    # inserted `#![cfg(not(test))]`, so back up over any trailing blank lines.
+    while at > 0 and not lines[at - 1].strip():
+        at -= 1
     if at == 0:
         raise SystemExit("assemble-session-unit: source has no leading module docs")
     result = "".join(lines[:at]) + block + "".join(lines[at:])
