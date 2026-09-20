@@ -162,12 +162,18 @@ fn a_repeated_initial_message_must_carry_the_sessions_peer_identity() {
     let carol = Identity::generate(&mut r);
     let mut other = repeat.clone();
     other[2..2 + 33].copy_from_slice(&encode_ec(&carol.public()));
+    let before_wrong_identity = responder.export();
     assert!(
         matches!(
             responder.decrypt(&other, &mut r),
             Err(LifecycleError::NotARepeatedInitial)
         ),
         "a repeat carrying another identity was accepted"
+    );
+    assert_eq!(
+        responder.export(),
+        before_wrong_identity,
+        "a refused repeated initial changed the responder session"
     );
 
     let mut honest = [0u8; 32];
