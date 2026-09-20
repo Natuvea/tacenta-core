@@ -1025,6 +1025,27 @@ theorem decrypt_step_refines_unchanged_pending_initial
   exact Model.Lifecycle.decrypt_refusal_keeps_session
     view oracle model (sliceOf message) reason herror
 
+/-! The repeated-initial dispatcher has a refusal arm and a success arm.  Keep
+the refusal-side pending relation named separately so the eventual split of
+`decrypt_initial_repeat_step_refines` cannot accidentally reuse the success
+clearance lemma. -/
+theorem decrypt_initial_repeat_refusal_preserves_pending
+    {R : Type} {trace : R → List Model.Lifecycle.Key}
+    {dh : DhView} {K : Model.Braid.Kem}
+    {realResult : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error}
+    {realSession : lifecycle.Session} {rng : R}
+    (view : Model.Lifecycle.CodewordView)
+    (oracle : Model.Lifecycle.Oracle) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (reason : Model.Lifecycle.Refusal)
+    (hstep : StepRefines trace dh K
+      (realResult, realSession, rng)
+      (Model.Lifecycle.decrypt view oracle model (sliceOf message)))
+    (herror : (Model.Lifecycle.decrypt view oracle model
+      (sliceOf message)).result = .error reason) :
+    realSession.pending_initial.map (pendingInitialOf dh) = model.pendingInitial :=
+  decrypt_step_refines_unchanged_pending_initial view oracle model message reason
+    hstep herror
+
 /-! ## Lifecycle observations -/
 
 /-- Equality on translated byte vectors returns exactly list equality. -/
