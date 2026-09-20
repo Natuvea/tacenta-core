@@ -86,6 +86,13 @@ code. They do not establish complete branch-mutation coverage or demonstrate
 that a successful receive is reachable. Runtime/vector mutations and the
 remaining aggregate receive proof stay open in the session plan.
 
+The first nonterminal branch is now composed through
+`decrypt_ratchet_first_dh_refusal_from_braid`. Its Braid evidence is derived
+by `braid_receive_evidence` from the existing Braid T3 theorem plus explicit
+semantic contracts, honest-chunk evidence and the successor-epoch bound. This
+closes only the model `dhAgree = none` refusal branch; the second-DH, Triple,
+AEAD and success branches still require their own evidence.
+
 The full `no-sorry.sh` gate runs the controls and includes this module in the
 Session unit's axiom-audit closure and kernel replay.
 
@@ -98,3 +105,8 @@ kernel replay of 68 translation/proof modules, 11 model-layer proof modules,
 and 34 model/property modules. The control harness was also checked with a
 zero-second timeout and an unavailable compiler; both returned nonzero without
 reporting a passing control. These are local results, not hosted CI results.
+
+After the first-DH adapter landed in `48610c0` (manifests refreshed in
+`8a0aeaf`), the focused 1,733-job build and the complete `no-sorry.sh` gate
+again finished with exit code 0. Kernel replay again covered 68 translation,
+11 model-layer proof, and 34 model/property modules.
