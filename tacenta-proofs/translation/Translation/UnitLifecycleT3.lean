@@ -940,6 +940,21 @@ structure StepRefines {R : Type} (trace : R → List Model.Lifecycle.Key)
   session : SessionRefines dh K real.2.1 model.session
   draws : trace real.2.2 = model.oracle.draws
 
+/-! Shared public-dispatch conclusion used by every `Session::decrypt` branch.
+Keeping the concrete output and its refinement witness together gives the
+initial dispatcher a single premise/result interface instead of six unrelated
+existential signatures. -/
+def PublicDecryptWitness {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R) : Prop :=
+  ∃ output,
+    lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
+    StepRefines trace dh K output
+      (Model.Lifecycle.decrypt view oracle model (sliceOf message))
+
 /-! A refusal branch must retain the wrapper relation as well as the inner
 state relation.  The dispatcher uses this small lemma after the model-side
 atomicity theorem has established that its refusal session is unchanged. -/
@@ -1524,10 +1539,8 @@ theorem decrypt_passthrough_step_refines {R : Type}
       (alloc.vec.Vec.deref inner) rng = ok innerOutput)
     (hstep : StepRefines trace dh K innerOutput
       (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
-    ∃ output,
-      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
-      StepRefines trace dh K output
-        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model
+      message rng := by
   have hmodelNot := message_type_refines_noninitial message realType htype hnotInitial
   have hdispatch := Model.Lifecycle.dispatchDecrypt_passthrough model
     (sliceOf message) hmodelNot
@@ -1626,10 +1639,8 @@ theorem decrypt_passthrough_refines {R : Type}
         ok innerOutput)
     (hstep : StepRefines trace dh K innerOutput
       (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
-    ∃ output,
-      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
-      StepRefines trace dh K output
-        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model
+      message rng := by
   have hclone : ∀ x ∈ message.val, core.clone.CloneU8.clone x = ok x := by
     intro x _
     rfl
@@ -1656,10 +1667,8 @@ theorem decrypt_none_refines {R : Type}
       ok innerOutput)
     (hstep : StepRefines trace dh K innerOutput
       (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
-    ∃ output,
-      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
-      StepRefines trace dh K output
-        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model
+      message rng := by
   exact decrypt_passthrough_refines rngCore cryptoRng trace dh K view oracle
     real model message rng none innerOutput htype (by simp) hinner hstep
 
@@ -1678,10 +1687,8 @@ theorem decrypt_ratchet_message_refines {R : Type}
       ok innerOutput)
     (hstep : StepRefines trace dh K innerOutput
       (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
-    ∃ output,
-      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
-      StepRefines trace dh K output
-        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model
+      message rng := by
   exact decrypt_passthrough_refines rngCore cryptoRng trace dh K view oracle
     real model message rng (some .Ratchet) innerOutput htype (by simp) hinner hstep
 
