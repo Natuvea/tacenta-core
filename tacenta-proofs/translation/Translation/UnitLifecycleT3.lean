@@ -4423,3 +4423,22 @@ theorem initial_ratchet_result_cases
   cases h : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng with
   | Err error => exact Or.inl ⟨error, h⟩
   | Ok output => exact Or.inr ⟨output, h⟩
+
+/-- Compose the identity-equal branch once the ratchet wrapper has been shown
+not to return an outer operation error.  The concrete output is passed to the
+route refinement, so the selector cannot silently discard that result. -/
+theorem initial_dispatch_select_after_ratchet_ok
+    {R : Type} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (houtput : ∃ output,
+      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng = ok output)
+    (onOutput : ∀ output,
+      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng = ok output →
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng := by
+  rcases houtput with ⟨output, houtput⟩
+  exact initial_dispatch_select_and_join (onOutput output houtput)
