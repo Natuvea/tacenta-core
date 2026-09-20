@@ -46,7 +46,7 @@
 #    that exists to stop the optimiser) or `conditional_` (a `subtle` select
 #    or negation that did not inline), and on any callee outside the
 #    function's allow-list. The allow-list is the callee set seen today, by
-#    name pattern: for `calculate_key_pair`, `Scalar`'s `Neg`,
+#    exact Rust identifier component: for `calculate_key_pair`, `Scalar`'s `Neg`,
 #    `mul_base`, `compress`, `from_bytes_mod_order`, `black_box`, `zeroize`,
 #    `drop_in_place`, and the unwind-path pair `panic_in_cleanup` and
 #    `_Unwind_Resume` that the `Zeroizing` drops bring; for `mac_eq`,
@@ -100,45 +100,36 @@
 set -euo pipefail
 shopt -s nullglob
 
-root="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$root/tacenta-core"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 say() { echo "check-constant-time-asm: $*"; }
 fail() { echo "check-constant-time-asm: $*" >&2; exit 1; }
 
-host="$(rustc -vV | sed -n 's/^host: //p')"
-[ -n "$host" ] || fail "cannot determine the host target from rustc -vV"
-installed="$(rustup target list --installed 2>/dev/null || true)"
-
-targets=("$host")
-linux_present=0
-for t in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
-  if [ "$t" = "$host" ]; then
-    linux_present=1
-  elif printf '%s\n' "$installed" | grep -qx "$t"; then
-    targets+=("$t")
-    linux_present=1
-  else
-    say "$t is not installed, skipping it (rustup target add $t)"
-  fi
-done
-if [ "$linux_present" -eq 0 ]; then
-  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
-    fail "this is CI and neither Linux target is installed; the workflow's rust job runs 'rustup target add aarch64-unknown-linux-gnu'"
-  fi
-  say "neither Linux target is installed; checking the host only"
-fi
-
 # Read one function out of a .s file: count its conditional branches and
 # indirect jumps, and collect its callees.
-#   analyse <file> <symbol-substring> <arch: x86|aarch64> <allow-length-compare: 0|1> <callee-allow-regex>
+#   analyse <file> <symbol-substring> <arch: x86|aarch64> <allow-length-compare: 0|1> <comma-separated-exact-callee-identifiers>
 # Prints one line per branch found (allowed or not), one per callee, and a
 # final line "found=<functions> branches=<disallowed> allowed=<allowed>
-# callees=<distinct> bad_callees=<refused>". An empty allow regex allows no
-# callee at all.
+# callees=<distinct> bad_callees=<refused>". An empty allow-list allows no
+# callee at all. Rust v0 and legacy mangling both length-prefix identifier
+# components, so `8compress` admits the identifier `compress` while refusing
+# `compress_sign_fixup`; unmangled external symbols must match exactly.
 analyse() {
   awk -v sym="$2" -v arch="$3" -v allow="$4" -v callee_allow="$5" '
-    BEGIN { found = 0; inbody = 0; loads = 0; branches = 0; allowed = 0; ncallees = 0; bad = 0 }
+    BEGIN {
+      found = 0; inbody = 0; loads = 0; branches = 0; allowed = 0; ncallees = 0; bad = 0
+      nallowed_callees = split(callee_allow, allowed_callees, ",")
+    }
+    function callee_is_allowed(c, i, identifier, token) {
+      if (callee_allow == "") return 0
+      for (i = 1; i <= nallowed_callees; i++) {
+        identifier = allowed_callees[i]
+        if (c == identifier) return 1
+        token = length(identifier) identifier
+        if (index(c, token) != 0) return 1
+      }
+      return 0
+    }
     # A function label: the symbol name (legacy or v0 mangling, with or
     # without the Mach-O underscore) on a line of its own.
     $0 ~ ("^[A-Za-z0-9_.$]*" sym "[A-Za-z0-9_.$]*:$") {
@@ -197,7 +188,7 @@ analyse() {
         c = order[i]
         if ((c ~ /subtle/ && c !~ /black_box/) || c ~ /conditional_/) {
           bad++; print "  REFUSED CALLEE (subtle or conditional_ outlined): " callees[c] " x " c
-        } else if (callee_allow != "" && c ~ callee_allow) {
+        } else if (callee_is_allowed(c)) {
           print "  callee: " callees[c] " x " c
         } else {
           bad++; print "  UNEXPECTED CALLEE (not on the allow-list): " callees[c] " x " c
@@ -208,8 +199,38 @@ analyse() {
   ' "$1"
 }
 
-status=0
-for t in "${targets[@]}"; do
+main() {
+  cd "$root/tacenta-core"
+
+  local host installed linux_present t arch crate file_stem sym allow label
+  local callee_allow out summary found branches allowed callees bad_callees
+  local status=0
+  local -a targets files
+
+  host="$(rustc -vV | sed -n 's/^host: //p')"
+  [ -n "$host" ] || fail "cannot determine the host target from rustc -vV"
+  installed="$(rustup target list --installed 2>/dev/null || true)"
+
+  targets=("$host")
+  linux_present=0
+  for t in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
+    if [ "$t" = "$host" ]; then
+      linux_present=1
+    elif printf '%s\n' "$installed" | grep -qx "$t"; then
+      targets+=("$t")
+      linux_present=1
+    else
+      say "$t is not installed, skipping it (rustup target add $t)"
+    fi
+  done
+  if [ "$linux_present" -eq 0 ]; then
+    if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+      fail "this is CI and neither Linux target is installed; the workflow's rust job runs 'rustup target add aarch64-unknown-linux-gnu'"
+    fi
+    say "neither Linux target is installed; checking the host only"
+  fi
+
+  for t in "${targets[@]}"; do
   case "$t" in
     x86_64-*) arch=x86 ;;
     aarch64-*) arch=aarch64 ;;
@@ -233,7 +254,7 @@ for t in "${targets[@]}"; do
         callee_allow="" ;;
       tacenta-boundary)
         sym=calculate_key_pair; allow=0; label="tacenta_boundary::xeddsa::calculate_key_pair"
-        callee_allow='Neg|mul_base|compress|from_bytes_mod_order|black_box|zeroize|drop_in_place|panic_in_cleanup|_Unwind_Resume' ;;
+        callee_allow='Neg,neg,mul_base,compress,from_bytes_mod_order,black_box,zeroize,drop_in_place,drop_glue,panic_in_cleanup,_Unwind_Resume,__Unwind_Resume' ;;
     esac
     out="$(analyse "${files[0]}" "$sym" "$arch" "$allow" "$callee_allow")"
     summary="$(printf '%s\n' "$out" | tail -n 1)"
@@ -256,7 +277,12 @@ for t in "${targets[@]}"; do
       say "$t: $label: 0 conditional branches, 0 indirect jumps ($found function(s), $allowed allowed length compare, $callees distinct callee(s), all on the allow-list)"
     fi
   done
-done
+  done
 
-[ "$status" -eq 0 ] || fail "a constant-time function does not compile to straight-line code"
-say "every constant-time function compiles to straight-line code on: ${targets[*]}"
+  [ "$status" -eq 0 ] || fail "a constant-time function does not compile to straight-line code"
+  say "every constant-time function compiles to straight-line code on: ${targets[*]}"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi
