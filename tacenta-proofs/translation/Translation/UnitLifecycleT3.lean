@@ -1057,6 +1057,27 @@ def initial_dispatch_ephemeral_mismatch_route
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng :=
   .ephemeralMismatch w
 
+def initial_dispatch_identity_mismatch_route
+    {R : Type} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (ctx : InitialDispatchContext rngCore cryptoRng trace dh K view oracle real model message rng)
+    (established : alloc.vec.Vec Std.U8)
+    (decoded : tacenta_wire.DecodedInitial)
+    (hdecode : tacenta_wire.decode_initial message =
+      ok (core.result.Result.Ok decoded))
+    (hestablished : real.established_ephemeral = some established)
+    (hephemeral : vecOf established = vecOf decoded.ephemeral)
+    (hmismatch : vecOf decoded.identity ≠
+      Model.PersistedState.SessionState.encodeEc
+        (dh.publicKey real.peer_identity_public))
+    (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
+    InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng :=
+  .identityMismatch w
+
 /-! A refusal branch must retain the wrapper relation as well as the inner
 state relation.  The dispatcher uses this small lemma after the model-side
 atomicity theorem has established that its refusal session is unchanged. -/
