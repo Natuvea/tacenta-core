@@ -55,25 +55,38 @@ their use in signatures requires.
 This supports D2's package-boundary premise. It does not establish any of the
 ten future contracts.
 
-The post-rewrite macOS `--start-from-pub` scratch translation records the
-emitted-name inventory against the ten-contract proposal. This is an
-experiment measurement, not pinned-Linux regeneration evidence. `DhCodecTotal`
-covers five operations: the
-four names below plus the persistence byte projection, which uses the same
-`dh_public_bytes` declaration.
+The scratch probe called nine free wrapper functions. The carve-out that
+followed (`tacenta-core/lifecycle`, Phase 0) does not: the lifecycle calls the
+boundary crate's module API directly, and the wrapper functions were removed
+as dead code once that was seen. The surface that ships, read from the
+committed `Translation/TacentaLifecycle.lean` (the file `run-aeneas.sh`
+generates from committed source with `--start-from-pub`; a local regeneration
+with the pinned binaries reproduces it byte for byte), is the set of
+`tacenta_boundary` declarations reachable from the five proof roots, which
+`tooling/check-lifecycle-boundary-surface.py` pins:
 
-| Emitted opaque name | Contract |
+| Reachable opaque declaration | Contract |
 | --- | --- |
-| `dh_public`, `dh_public_bytes`, `dh_public_from_bytes`, `dh_public_eq` | `DhCodecTotal` |
-| `dh_agree` | `DhAgreeTotal` |
-| `aead_seal` | `AeadSealTotal` |
-| `aead_open` | `AeadOpenTotal` |
-| `kem_encapsulate` | `KemEncapsulateTotal` |
-| `kem_decapsulate` | `KemDecapsulateTotal` |
-| `kem_ciphertext_len` | `KemCiphertextLenTotal` |
-| `xeddsa_verify` | `XeddsaVerifyTotal` |
-| `xeddsa_sign` | `XeddsaSignTotal` |
-| `random32` | `Random32Total` |
+| `dh.PrivateKey.from_bytes`, `dh.PrivateKey.public_key`, `dh.PrivateKey.to_bytes`, `dh.PublicKeyBytes.from_bytes`, `dh.PublicKeyBytes.as_bytes`, `dh.PublicKeyBytes` equality (`CoreCmpPartialEqPublicKeyBytes.eq`) | `DhCodecTotal` (construction, public derivation, byte and persistence projection, equality; one joint witness) |
+| `dh.PrivateKey.agree` | `DhAgreeTotal` |
+| `aead.encrypt` | `AeadSealTotal` |
+| `aead.decrypt` | `AeadOpenTotal` |
+| `kem.encapsulate` | `KemEncapsulateTotal` |
+| `kem.decapsulate` | `KemDecapsulateTotal` |
+| `kem.ciphertext_len` | `KemCiphertextLenTotal` |
+| `xeddsa.verify` | `XeddsaVerifyTotal` |
+| `xeddsa.sign` (reachable from `Identity` and `PrekeyStore` publication, not from the five roots; the gate classifies it separately) | `XeddsaSignTotal` |
+| no declaration: randomness enters as the `rand_core::RngCore` trait dictionary (`fill_bytes`), which the gate cannot see | `Random32Total`, stated over that trait use |
+
+Thirteen operations reach the five roots and map onto nine contracts;
+signing is the tenth. Four further boundary declarations,
+`kem.KeyPair.{generate, public_key, to_bytes, from_bytes}`, are reachable
+only from the `Identity` and `PrekeyStore` operations outside the five roots
+and are outside the ten contracts by the decision's scope; they are listed
+here so that a later change that makes one reachable from a root is seen as
+the review finding the decision calls it. The three type declarations
+(`dh.PrivateKey`, `dh.PublicKeyBytes`, `kem.KeyPair`) are the opaque types
+the contracts range over.
 
 ## Shipping-shaped lifecycle probe
 

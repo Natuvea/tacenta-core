@@ -179,12 +179,12 @@ excludes it.
   `run_cmd`, `#eval`, `elab`, `macro`, `syntax`, `initialize`, `addDecl`,
   and no reference to the `Lean` namespace, which is where every such API
   lives -- outside `Model/AxiomAudit.lean`'s own implementation and the
-  four `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
+  six `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
   exact line content, so that an invocation written any other way fails
   there and a second one in an audit module fails in the reach check below;
   `scripts/check-audit-reach.sh`, which fails if any first-party module is
-  outside the four audit modules' import closure, so that no module holds
-  such a declaration unwalked, and fails if the four do not all run with the
+  outside the six audit modules' import closure, so that no module holds
+  such a declaration unwalked, and fails if the six do not all run with the
   same first-party prefixes, and if any of them invokes the audit more than
   once or in a form the prefix check cannot read; and
   `scripts/check-audit-negatives.sh`, which plants one declaration for each
@@ -245,11 +245,18 @@ excludes it.
   `add_chunk` and `message` carry `Usize.max` headroom preconditions the
   Braid cannot state through the opaque types (the Rust documents the
   constructible-but-unreachable overflow at `Decoder::new(usize::MAX)`);
-  the domain check `ValidateEkAgrees` does not see (under the Braid's KEM
-  hypotheses, below); and `Kem.Correct`'s idealisation of ML-KEM's
-  decapsulation-failure probability to zero (same section).
+  and the domain check `ValidateEkAgrees` does not see (under the Braid's KEM
+  hypotheses, below).
 
 ## Secret deletion is partial
+
+The primitive boundary crate, `tacenta-core/boundary` (`tacenta-boundary`),
+is part of this base since the session carve-out: it holds the X25519, AEAD,
+ML-KEM-1024 and XEdDSA implementations the lifecycle calls, `attest.py`
+lists it under the trusted primitive zones, and Charon leaves every one of
+its functions opaque when it translates the lifecycle. Moving the code into
+its own crate changed what is trusted by nothing: the same bodies were
+trusted before behind `tacenta-core/src/primitives`.
 
 Both specifications call for deleting key material once it has been used: the
 Diffie-Hellman outputs and the encapsulated secret after the handshake derives
@@ -323,9 +330,9 @@ of it is a static test that fails to build if a type loses the
 `zeroize::ZeroizeOnDrop` marker, and the marker checks cover the classical ratchet's `State` and `SkippedKey`
 (`the_state_erases_when_dropped`, `tacenta-core/ratchet/src/lib.rs`), the sparse
 ratchet's `State`, `Chain`, `Chains` and `Skipped`, the ML-KEM `KeyPair`
-(`the_key_pair_erases_when_dropped`, `tacenta-core/src/primitives/kem.rs`), and
+(`the_key_pair_erases_when_dropped`, `tacenta-core/boundary/src/kem.rs`), and
 `Identity` and `PrekeyStore` (`the_identity_and_the_prekey_store_erase_when_dropped`,
-`tacenta-core/src/sessions/lifecycle.rs`). Each checks the marker, not what the
+`tacenta-core/lifecycle/src/lifecycle.rs`). Each checks the marker, not what the
 destructor wipes, and `KeyPair` and `PrekeyStore` implement the marker by hand.
 The Braid's `Auth` and `Output`, and the KEM state it holds in `Zeroizing`
 buffers, still need their own marker coverage; the Triple Ratchet's `State`
@@ -754,7 +761,7 @@ alone. And nothing anywhere in this project proves that an identity key belongs 
 the person a user means: that is trust on first use and the directory's problem,
 and it is the assumption a user actually bears.
 
-## Eight verified zones on the shipping path, and the orchestration runs outside them
+## Eight theorem-bearing zones on the shipping path; lifecycle is translated but unproved
 
 **Read this before the list.** Integrating the Triple Ratchet
 moved `Session::encrypt` and `Session::decrypt` off `tacenta-ratchet::send` and
@@ -1042,9 +1049,9 @@ for zero bytes (which the real decoder does); so a `Kem` whose operations
 produce outputs of lengths other than its declared
 `ekSize`/`ct1Size`/`ct2Size` -- possible for an arbitrary `Model.Braid.Kem`,
 not for `toyKem` or ML-KEM -- stalls in the model. The refinement theorems
-exclude such a `K` through `KemLenAgrees` and `HonestChunk`; nothing in
-`Kem.Correct` does, and a whole-run composition of the Braid theorems would
-need size laws on `K` (`hashEk` output 32 bytes, `keyGen` seed 32 bytes,
+exclude such a `K` through `KemLenAgrees` and `HonestChunk`; nothing in the
+operation-agreement clauses does, and a whole-run composition of the Braid
+theorems would need size laws on `K` (`hashEk` output 32 bytes, `keyGen` seed 32 bytes,
 `encaps1`'s `ct1` of `ct1Size`, and so on) that the model does not state --
 an open item, not a falsity. And the KEM agreements are guarded by the
 lengths the real crate checks (`decapsulate` on `ct1Size`/`ct2Size`,
@@ -1059,9 +1066,8 @@ existentially per RNG state, as its key-generation clause does; an earlier
 revision's did not, and admitted no real KEM.** Real ML-KEM encapsulation
 draws 32 random bytes and returns a different `(ct1, ss)` pair under a
 different RNG state. `Model.Braid.Kem.encaps1` now takes that randomness
-(`encaps1 : Nat → Bytes → Bytes → …`), `Kem.Correct` quantifies over both
-parties' randomness, `Model.Braid.send K rand` passes its `rand` to
-transition (7)'s encapsulation as it already did to transition (1)'s key
+(`encaps1 : Nat → Bytes → Bytes → …`), and `Model.Braid.send K rand` passes
+its `rand` to transition (7)'s encapsulation as it already did to transition (1)'s key
 generation, and the clause reads `∃ es ct1raw ssraw rng' rand', encapsulate1
 … = ok (…, rng') ∧ … (K.encaps1 rand' ekSeed hek) …`: for each RNG state,
 *some* model randomness makes the model's answer the real one, which is
@@ -1081,13 +1087,14 @@ its randomness, which is now a legitimate model of the clause (a KEM that
 draws no randomness satisfies "some randomness makes the model agree" with
 any value), and the witness picks `0`. What the two randomness-drawing
 clauses assume beyond agreement is `BraidT1.RngTotal rc`: that the caller's
-`fill_bytes` returns, which the real `generate`/`encapsulate1` need. One
-idealisation remains: `Kem.Correct` asks that decapsulation recover the
-secret for *every* pair of randomness values, and ML-KEM-1024 is only
-δ-correct, with a decapsulation-failure probability FIPS 203 bounds at
-2^-174. So the real KEM satisfies `KemAgreesFor` up to that probability,
-which the model rounds to zero; the randomness-shape gap is closed, and
-this is what is left. The
+`fill_bytes` returns, which the real `generate`/`encapsulate1` need. A former
+`K.Correct` conjunct asked that decapsulation recover the secret for *every*
+pair of randomness values, while ML-KEM-1024 is δ-correct with the
+decapsulation-failure probability bounded by FIPS 203. Neither refinement
+proof used that conjunct: both destructured and discarded it. It is now
+removed from `KemAgreesFor`, so the four Braid refinement theorems no longer
+assume a property false of the shipped KEM. `Model.Braid.toyKem_correct`
+remains a fact about the toy model rather than a boundary premise. The
 definition's former `∀ kp` clause -- that *every* `IncrementalKeyPair`
 decodes as some `dk`, `ekSeed` and `ekVector` whose header is `ekSeed ++
 hashEk ekSeed ekVector` -- was applied by no proof in `BraidT3.lean` and is
@@ -1192,12 +1199,12 @@ body Aeneas gave up on, the same bar the rest of this list holds to.
 `evict_oldest_classical`, `evict_oldest_post_quantum`, `to_bytes` and
 `from_bytes`, and the session calls all four, from its eviction loop and its
 persistence path
-(`tacenta-core/src/sessions/lifecycle.rs`). Neither the classical ratchet's own
+(`tacenta-core/lifecycle/src/lifecycle.rs`). Neither the classical ratchet's own
 `receive_no_panic` nor the sparse ratchet's `send_no_panic`/`receive_no_panic`
 said anything about what happens when the two are composed, and the
 composition is what ships since the triple-ratchet integration -- this is that composition's
 own proof. It carries four preconditions, all about the inner ratchets' sizes,
-and they land on the untranslated session layer ("Four preconditions land
+and they land on the unproved session layer ("Four preconditions land
 outside the translated tree" below).
 
 **The gap the standalone proof had is closed on the unit.** Proved about the
@@ -1209,9 +1216,10 @@ standalone proof was deleted after 2a89a7f.
 
 **So the session's send and receive path has a claim resting under it, at
 the crate that actually carries it.** `Session::encrypt` and
-`Session::decrypt` themselves live in `tacenta-core/src/sessions`, the product
-code that calls `tacenta-triple`, and that layer is not translated or proved
-in its own right -- a separate question this does not answer.
+`Session::decrypt` themselves live in `tacenta-core/lifecycle/src`, the product
+code that calls `tacenta-triple`. The Phase 0 lifecycle translation now covers
+that code, but no theorem is stated about it -- a separate question this does
+not answer.
 
 The proof tiers cover **seven** leaf crates, and a claim that names only the
 ratchet understates what is proven while a claim that says "the protocol"
@@ -1228,8 +1236,9 @@ clause of it; for the Braid, the single clause `ct1_bounded`), and the
 invariant yields as many of the T1 and T3 preconditions as it reaches. That is not a T1 theorem -- it says nothing about
 whether `from_bytes` can panic, only what is true of a state when it does
 return one -- and it is about the *leaf crate's* persistence format. The
-session layer that calls these codecs, in `tacenta-core/src/sessions`, is not
-translated, so nothing here says what a session restored from disk satisfies.
+session layer that calls these codecs, in `tacenta-core/lifecycle/src`, is
+translated but has no theorem, so nothing here says what a session restored
+from disk satisfies.
 `to_bytes`, the entry decoders and the length helpers still have no theorem of
 any kind, as do the codecs of the other four crates, with two exceptions:
 `Translation/RatchetCodecT1.lean` and `Translation/SpqrCodecT1.lean` prove
@@ -1308,8 +1317,8 @@ decoder accepts anything at all is the Rust round-trip tests.
   `receive_refines` and the ratchet vectors. The choice of which key pair
   produces which output (the old pair for the receiving chain, the fresh one
   for the sending chain, as the specification requires) is made in
-  `tacenta-core/src/sessions/lifecycle.rs`, which is neither translated nor
-  modelled, so a swap there would pass every proof, every vector and
+  `tacenta-core/lifecycle/src/lifecycle.rs`, which is translated but neither
+  modelled nor proved, so a swap there would pass every proof, every vector and
   `attest`. The pairing is tested, not proved:
   `a_session_dh_step_pairs_the_old_key_with_the_peers_new_key`
   (`tacenta-core/tests/handshake_to_ratchet.rs`) runs a real `Session` through
@@ -1638,13 +1647,13 @@ the standalone proof's unconditional bundles hid: `State.send` on the unit needs
 `max self.classical.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val ≤ Usize.max`,
 `self.post_quantum.chains.length + 2 < Usize.max` and
 `self.post_quantum.skipped.length + MAX_SKIP.val ≤ Usize.max`. Nothing on the
-unit island discharges them. They are obligations on the **untranslated session
-layer** in `tacenta-core/src/sessions`, which decides how large a skipped-key
-store and a chain table a session may carry, and that layer is not translated
-or proved in its own right. The classical one is discharged in the other
+unit island discharges them. They are obligations on the **unproved session
+layer** in `tacenta-core/lifecycle/src`, which decides how large a skipped-key
+store and a chain table a session may carry. That layer is translated in the
+Phase 0 lifecycle module but is not proved in its own right. The classical one is discharged in the other
 island, by `Ratchet.inv_gives_store_bound` in `Translation/ImportInv.lean` and
 through it by `Ratchet.decoded_receive_no_panic`, for a state that came from
-`from_bytes`; "Eight verified zones on the shipping path" above describes that
+`from_bytes`; "Eight theorem-bearing zones on the shipping path" above describes that
 route. It has not been ported to the unit, so it does not reach these
 theorems. All four hold of any state that could exist, at either platform
 width. They are bounds against `usize::MAX` on quantities a real session keeps
@@ -1894,6 +1903,41 @@ still an assumption. Porting those proofs to the unit, so that the erasure
 crate's own theorems discharge them, is what the unit is for and has not been
 done.
 
+### The lifecycle leaf is a tenth translated zone, with no theorem yet
+
+`tacenta-core/lifecycle` is the shipping session orchestration behind the
+unchanged `tacenta_core::sessions` API. Charon starts from every public item,
+and `TacentaLifecycle.lean` contains all 30 public lifecycle operations and
+their reachable call graph. The coverage gate compares the Rust surface with
+the generated definitions, and its missing-root control proves that omission
+turns the gate red.
+
+This is a Phase 0 translatability result. No T1 or T3 theorem is stated about
+the lifecycle constants, and the leaf translation sees the ratchets, Braid,
+wire layer and primitive boundary as 118 opaque externals. The manifest lists
+all 118 and `AxiomAuditLifecycle.lean` checks the elaborated module against
+that exact set. Of the 118, 74 are first-party leaf operations the lifecycle
+calls across a crate boundary (`tacenta_session`, `tacenta_wire`,
+`tacenta_triple::State`, `tacenta_braid::Braid`, `tacenta_ratchet`,
+`tacenta_spqr`, `tacenta_kdf`): each has a body and, for most, a theorem in
+its own translation, but on this island they are bare axioms with no
+precondition, exactly the standalone-Triple shape the three-leaf unit was
+built to remove. Twenty are `tacenta_boundary` declarations, the primitive
+boundary this carve-out created: three key types and seventeen operations
+over X25519, the AEAD, ML-KEM-1024 and XEdDSA, whose bodies are trusted and
+never translated ("Trusted, not verified" above now lists the crate). The
+rest are standard-library, `zeroize` and `rand_core` items. Randomness
+reaches the lifecycle as a `rand_core::RngCore` trait dictionary rather than
+a boundary function, which is why no `random32` declaration exists and why
+`tooling/check-lifecycle-boundary-surface.py`, which follows only
+`tacenta_boundary` names, cannot see that route.
+`tacenta-model/SESSION-L4-PHASE0-SPIKE-20260918.md` maps the reachable
+boundary declarations to the ten contracts the primitive-boundary decision
+names. Later phases assemble the lifecycle with its eight code leaves
+and prove orchestration against the lifecycle model; until then,
+`Session::encrypt`, `Session::decrypt`, establishment and persistence remain
+tested and translated, not proved end to end.
+
 ## The erasure coding's field is proved
 
 `Model.Gf65536` implements GF(2^16), which the post-quantum agreement's chunking
@@ -1925,7 +1969,8 @@ that assembly possible.
 
 - T1 (panic-freedom and memory safety of the core's verified zone via the
   Charon and Aeneas translation) **is proven**, under the stated assumptions and
-  for the verified zone only, which is the eight leaf crates and not the
+  for the verified zone only, which is the eight proved leaf crates (the
+  translated lifecycle leaf has no theorem) and not the
   product. The assumptions it rests on are not all ones anybody chose. Where
   it stands, precisely:
   - **The ratchet, the verified zone, translates.** Charon extracts and Aeneas

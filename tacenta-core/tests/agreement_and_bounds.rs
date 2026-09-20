@@ -21,7 +21,7 @@
 //!   its key through rotation and persistence is `replay_record.rs`.
 //!
 //! The AEAD padding-versus-tag indistinguishability the same finding asks for
-//! is a unit test in `src/primitives/aead.rs`, where the HMAC internals needed
+//! is a unit test in `boundary/src/aead.rs`, where the HMAC internals needed
 //! to build the case are in scope.
 
 use rand::SeedableRng;

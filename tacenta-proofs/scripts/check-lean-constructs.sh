@@ -214,6 +214,7 @@ ALLOW = {
     "tacenta-proofs/translation/Translation/AxiomAuditTripleUnit.lean": [AUDIT_CALL],
     # The Braid-and-erasure translation unit, for the same reason.
     "tacenta-proofs/translation/Translation/AxiomAuditBraidUnit.lean": [AUDIT_CALL],
+    "tacenta-proofs/translation/Translation/AxiomAuditLifecycle.lean": [AUDIT_CALL],
     "tacenta-model/Model/AxiomAudit.lean": [
         "import Lean",
         "open Lean",
@@ -353,6 +354,6 @@ fi
 
 count=$(echo "$lean_files" | wc -l | tr -d ' ')
 if [ "$status" -eq 0 ]; then
-  echo "check-lean-constructs: $count first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 4 allow-listed invocations and its implementation; 3 lakefiles set no Lean option"
+  echo "check-lean-constructs: $count first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 6 allow-listed invocations and its implementation; 3 lakefiles set no Lean option"
 fi
 exit "$status"

@@ -68,9 +68,10 @@ recorded in ADR-0002 and LIMITATIONS.md, "Trusted, not verified". Not assumed
 against ADV-03.
 
 - **Relied on by:** REQ-AUTH-01, REQ-AUTH-03.
-- **Proofs:** none. The signature check is outside every translated crate
-  (LIMITATIONS.md, "Eight verified zones on the shipping path, and the
-  orchestration runs outside them").
+- **Proofs:** none. The signature check is translated in the lifecycle leaf
+  but no refinement theorem proves it
+  (LIMITATIONS.md, "Eight theorem-bearing zones on the shipping path;
+  lifecycle is translated but unproved").
 
 ### ASM-04: ML-KEM-1024
 
@@ -405,9 +406,9 @@ satisfiable (`Translation/Satisfiability.lean`,
 - **Proofs:** the theorems whose signatures name them. The signature is the
   authoritative list.
 
-### ASM-19: the untranslated orchestration
+### ASM-19: the unproved orchestration
 
-`tacenta-core/src/sessions`, which is neither translated nor modelled, does what
+`tacenta-core/lifecycle/src`, which is translated but neither modelled nor proved, does what
 the protocol pages say. In particular it:
 - pairs the old ratchet key pair with the receiving chain and a fresh one with
   the sending chain at a Diffie-Hellman step;
@@ -422,7 +423,8 @@ This is established by tests and by reading, not by proof. The bounded P6 L2
 operation model, vectors, concrete checks and independent reader provide
 evidence for its recorded surface; `tacenta-model/P6-L2-TARGET-DECISION.md`
 states that surface and its exclusions. ASM-19 remains an assumption for the
-untranslated orchestration beyond that bounded target.
+orchestration beyond that bounded target, which is translated since the
+Phase 0 carve-out but has no theorem.
 
 - **Relied on by:** every requirement, as a statement about `tacenta-core`; in
   particular REQ-AUTH-01, REQ-AUTH-02, REQ-AUTH-05, REQ-AUTH-09 to

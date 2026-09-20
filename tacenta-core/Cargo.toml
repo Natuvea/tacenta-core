@@ -1,5 +1,5 @@
 [workspace]
-members = ["ratchet", "session", "kdf", "erasure", "kem", "braid", "spqr", "triple", "protobuf", "wire", "triple-unit", "braid-unit"]
+members = ["boundary", "lifecycle", "ratchet", "session", "kdf", "erasure", "kem", "braid", "spqr", "triple", "protobuf", "wire", "triple-unit", "braid-unit"]
 
 # `triple-unit` is generated, not written: `tacenta-proofs/scripts/assemble-triple-unit.sh`
 # assembles the Triple Ratchet and both inner ratchets into one crate so that
@@ -57,6 +57,8 @@ publish = false
 # boundary: the protocol logic built on them is what we specify and verify, and
 # standard cryptography is not reimplemented here.
 [dependencies]
+tacenta-boundary = { path = "boundary" }
+tacenta-lifecycle = { path = "lifecycle" }
 # The verified zone (the Double Ratchet and its key derivation), isolated as a
 # leaf crate so the T1 translation covers it alone. See ratchet/src/lib.rs.
 tacenta-ratchet = { path = "ratchet" }
@@ -100,7 +102,7 @@ rand = "0.8"
 hex = "0.4"
 proptest = "1"
 # Reads the XEdDSA vectors file so the Revision 1 transcription in
-# primitives/xeddsa.rs can be run over every vector as an oracle for the
+# boundary/src/xeddsa.rs can be run over every vector as an oracle for the
 # file's "Revision 1 accepts" comments. Already in the lockfile through the
 # conformance runner's graph; a test-only dependency here.
 serde_json = "1"

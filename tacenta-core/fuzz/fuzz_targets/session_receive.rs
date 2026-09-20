@@ -6,7 +6,7 @@
 //! that has not been authenticated yet. Together they are the whole of what a
 //! hostile peer can reach without holding a key.
 //!
-//! Two entry points, and the second is the more interesting one.
+//! Three entry points, and the responder paths are the more interesting ones.
 //! `establish_responder` reads prekey identifiers out of an unauthenticated
 //! message and looks them up in a store it holds mutably, which is the shape
 //! where the authenticate-then-delete ordering it enforces matters;
@@ -40,11 +40,11 @@ fuzz_target!(|data: &[u8]| {
     let bob = Identity::generate(&mut rng);
     let mut bob_prekeys = bob.create_prekeys(4, &mut rng);
 
-    // Path one: an unauthenticated initial message against a live prekey store.
-    // Whatever it does, it must not panic and it must not consume a one-time
-    // prekey for a message that fails to authenticate -- the second is not
-    // asserted here (a fuzz target has no oracle for it) but the first is what
-    // a crash would show.
+    // Path one: the raw, unauthenticated initial message against a live prekey
+    // store. Whatever it does, it must not panic and it must not consume a
+    // one-time prekey for a message that fails to authenticate -- the second
+    // is not asserted here (a fuzz target has no oracle for it) but the first
+    // is what a crash would show.
     if let Ok((session, _)) = establish_responder(&bob, &mut bob_prekeys, data, &mut rng) {
         assert!(
             session.invariant(),
@@ -53,10 +53,50 @@ fuzz_target!(|data: &[u8]| {
     }
     assert!(
         bob_prekeys.invariant(),
-        "establish_responder broke the store invariant"
+        "raw establish_responder broke the store invariant"
     );
 
-    // Path two: a message arriving on a session that is already established,
+    // Path two: a responder handshake that the fuzzer can actually reach.
+    //
+    // A valid initial message contains an ML-KEM ciphertext, so feeding raw
+    // corpus bytes to `establish_responder` leaves coverage trapped in its
+    // length checks. Start with a genuine initial message and xor the supplied
+    // bytes over it instead. A one-byte zero seed therefore reaches acceptance,
+    // while every other mutation still crosses the unauthenticated parser and
+    // authentication boundary with attacker-controlled bytes.
+    let mut mutated_prekeys = bob.create_prekeys(4, &mut rng);
+    let mutated_alice = Identity::generate(&mut rng);
+    let mutated_bundle = mutated_prekeys.publish();
+    if let Ok(mutated_initiator) = establish_initiator(&mutated_alice, &mutated_bundle, &mut rng) {
+        let mut mutated_initiator = mutated_initiator;
+        let Ok(mutated_initial) = mutated_initiator.encrypt(b"fuzz", &mut rng) else {
+            return;
+        };
+        let mut candidate = mutated_initial;
+        for (offset, byte) in data.iter().enumerate() {
+            let index = offset % candidate.len();
+            candidate[index] ^= byte;
+        }
+        let accepted = establish_responder(&bob, &mut mutated_prekeys, &candidate, &mut rng);
+        if data.len() == 1 && data[0] == 0 {
+            assert!(
+                accepted.is_ok(),
+                "the committed zero-mutation seed must reach an accepted responder handshake"
+            );
+        }
+        if let Ok((session, _)) = accepted {
+            assert!(
+                session.invariant(),
+                "mutated accepted handshake violates its invariant"
+            );
+        }
+        assert!(
+            mutated_prekeys.invariant(),
+            "mutated establish_responder broke the store invariant"
+        );
+    }
+
+    // Path three: a message arriving on a session that is already established,
     // on either side. Alice opens one against Bob's real bundle so the ratchet
     // state is genuine, Bob establishes from her first message, each sends
     // once more so both are past their opening state with an actual chain to

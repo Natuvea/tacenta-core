@@ -100,7 +100,7 @@ fn a_tampered_message_is_rejected() {
 /// the refusals begin with the next one (mlkem-braid.md, "Failure").
 ///
 /// The setup is `a_failed_agreement_refuses_further_use`'s, in
-/// `src/sessions/lifecycle.rs`. That test puts Bob's Braid in `Failed`
+/// `lifecycle/src/lifecycle.rs`. That test puts Bob's Braid in `Failed`
 /// directly. This one reaches `Failed` through a receive, which is the only
 /// way to show what that receive returns. Bob's saved Braid has one bit of its
 /// MAC key flipped, so when Alice's header completes on his side its MAC does

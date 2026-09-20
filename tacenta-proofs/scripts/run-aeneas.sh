@@ -18,8 +18,9 @@
 # ~/tools/aeneas-nightly). The scratch output under Generated/aeneas-output is
 # gitignored; the translation the proofs are about is *committed* under
 # translation/Translation/ and the verification workflow fails if regenerating it here
-# produces different files. T1 and T3 are done for the seven crates translated
-# on their own below (see CLAIMS.md).
+# produces different files. T1 and T3 are done for seven of the eight crates
+# translated on their own below; the lifecycle leaf is translated in Phase 0
+# and deliberately has no theorem yet (see CLAIMS.md).
 #
 # An eighth translation comes from a crate nobody wrote: `tacenta-core/triple-unit`,
 # the Triple Ratchet and both inner ratchets compiled as one crate, assembled
@@ -90,11 +91,16 @@ translate() {
   package="$2"
   llbc="$3"
   module="$4"
+  roots="${5:-}"
 
   echo "run-aeneas: charon extracting $package (a verified zone) to LLBC"
   # The leaf crate is a workspace member, so charon runs there but writes the
   # LLBC to the workspace root.
-  ( cd "$core/$leaf_dir" && "$tools/charon" cargo --preset=aeneas -- --package "$package" )
+  if [ "$roots" = "--start-from-pub" ]; then
+    ( cd "$core/$leaf_dir" && "$tools/charon" cargo --preset=aeneas --start-from-pub -- --package "$package" )
+  else
+    ( cd "$core/$leaf_dir" && "$tools/charon" cargo --preset=aeneas -- --package "$package" )
+  fi
 
   echo "run-aeneas: aeneas translating $llbc to Lean"
   "$tools/aeneas" -backend lean -dest "$out" "$core/$llbc"
@@ -147,6 +153,16 @@ translate wire tacenta-wire tacenta_wire.llbc TacentaWire
 # integration.
 translate spqr tacenta-spqr tacenta_spqr.llbc TacentaSpqr
 translate braid tacenta-braid tacenta_braid.llbc TacentaBraid
+
+# The shipping session orchestration leaf. Unlike the smaller verified zones,
+# translating every private and test-only item makes Charon's LLBC grow by
+# orders of magnitude. Public roots cover the API that callers can reach and
+# their complete call graph; check-lifecycle-translation-coverage.py compares
+# those roots with the Rust surface so an omitted or newly added operation
+# fails rather than silently escaping translation.
+translate lifecycle tacenta-lifecycle tacenta_lifecycle.llbc TacentaLifecycle --start-from-pub
+python3 "$here/scripts/check-lifecycle-translation-coverage.py" \
+  "$staged/TacentaLifecycle.lean"
 
 # The composition, `tacenta-triple`, is not translated on its own. Charon
 # translates one crate at a time, so on its own the Triple sees both inner

@@ -145,39 +145,49 @@ and `Vectors.lean` included), refuses a lakefile that sets any Lean option,
 is the only one that sees `set_option debug.skipKernelTC`, and refuses
 every elaboration-time construct (`run_cmd`, `#eval`, `elab`, `macro`,
 `syntax`, `initialize`, `addDecl`, any reference to the `Lean` namespace)
-outside `Model/AxiomAudit.lean`'s own implementation and the four `run_cmd
+outside `Model/AxiomAudit.lean`'s own implementation and the six `run_cmd
 Model.AxiomAudit.run` lines, which it allow-lists by file path and exact
 line content, because such code could plant an axiom in the one shape the
 audit accepts; `check-audit-reach.sh`, which asks Lean for every
 first-party module's imports and fails if any module (the generated
-`Tacenta*.lean` included) is outside the four audit modules' import
+`Tacenta*.lean` included) is outside the six audit modules' import
 closure, since the audit walks only what its invoking module imports, and
-which also requires all four to run with the same first-party prefixes, so
+which also requires all six to run with the same first-party prefixes, so
 that no declaration is first-party to the audit that declares an axiom and
 foreign to the audit that uses it; and `check-audit-negatives.sh`, which
 plants declarations the audit's rule says to refuse, and the one shape it
-says to allow -- twelve in all, one per refusal kind and one per
+says to allow -- thirteen in all, one per refusal kind and one per
 compiler-trust condition -- in a throwaway first-party module, and fails if
 the audit calls any of them wrongly -- and then replays every first-party module
 through the kernel with `leanchecker` (below).
+
+The session lifecycle leaf (`tacenta-core/lifecycle`) is translated from its
+public items only: `run-aeneas.sh` passes Charon `--start-from-pub`, because
+extracting every private and test-only item of that crate produced an LLBC
+file three orders of magnitude larger. Private helpers reachable from a
+public item are still translated; `scripts/check-lifecycle-translation-coverage.py`
+fails the run if any of the thirty public operations has no generated
+definition, and its negative control shows that it can.
 
 Expected tail:
 
 ```
 no-sorry: the translation and its T1/T3 proofs is complete
-translation-coverage: all 34 Translation/*.lean modules are in the build target and built
-attest: the axiom audit's opaque-external list matches translation-attestation.json for 7 generated modules (93 compiler-trust axioms in them, from Aeneas's toStr bound, are not externals and are listed in the build log)
+translation-coverage: all 46 Translation/*.lean modules are in the build target and built
+lifecycle-translation-coverage: all 30 public operations generated
+lifecycle-translation-coverage-negatives: missing-root mutation refused
+attest: the axiom audit's opaque-external list matches translation-attestation.json for 10 generated modules (199 compiler-trust axioms in them, from Aeneas's toStr bound, are not externals and are listed in the build log)
 no-sorry: the model-layer proofs is complete
 no-sorry: the model and its property theorems is complete
-check-lean-constructs: 64 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 4 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
-audit-reach: the 4 audit modules, all with the same first-party prefixes, reach all 70 first-party modules (tacenta-model 25, tacenta-proofs 10, tacenta-proofs/translation 35)
-audit-negatives: the audit called all 12 planted cases correctly
+check-lean-constructs: 79 first-party Lean files declare no axiom, opaque, implemented_by, extern, partial, unsafe, compiler-namespace name or debug option, and carry no elaboration-time code outside the audit's 6 allow-listed invocations and its implementation; 3 lakefiles set no Lean option
+audit-reach: the 6 audit modules, all with the same first-party prefixes, reach all 88 first-party modules (tacenta-model 30, tacenta-proofs 11, tacenta-proofs/translation 47)
+audit-negatives: the audit called all 13 planted cases correctly
 no-sorry: replaying the translation and its T1/T3 proofs through the kernel (leanchecker)
-no-sorry: the translation and its T1/T3 proofs replays clean (34 modules)
+no-sorry: the translation and its T1/T3 proofs replays clean (46 modules)
 no-sorry: replaying the model-layer proofs through the kernel (leanchecker)
-no-sorry: the model-layer proofs replays clean (10 modules)
+no-sorry: the model-layer proofs replays clean (11 modules)
 no-sorry: replaying the model and its property theorems through the kernel (leanchecker)
-no-sorry: the model and its property theorems replays clean (25 modules)
+no-sorry: the model and its property theorems replays clean (30 modules)
 ```
 
 ## Replaying through the kernel

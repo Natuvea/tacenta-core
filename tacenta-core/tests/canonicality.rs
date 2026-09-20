@@ -225,7 +225,7 @@ fn every_decoder_is_covered() {
         // leaf crate, re-exported by `serialization`; the sweep reads their
         // source where it is.
         root.join("wire/src/lib.rs"),
-        root.join("src/sessions/mod.rs"),
+        root.join("lifecycle/src/lib.rs"),
     ];
 
     let mut found = Vec::new();
@@ -330,7 +330,7 @@ fn every_persisted_decoder_is_covered() {
     use std::path::PathBuf;
 
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let text = fs::read_to_string(root.join("src/sessions/lifecycle.rs")).expect("source");
+    let text = fs::read_to_string(root.join("lifecycle/src/lifecycle.rs")).expect("source");
 
     // The type each `impl` block is for, tracked so a bare `from_bytes` is
     // reported as `Type::from_bytes` rather than by name alone.

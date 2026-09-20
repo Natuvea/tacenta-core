@@ -5,6 +5,33 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+- `tacenta-proofs`: the Braid refinement boundary `KemAgreesFor` no longer
+  assumes `K.Correct`. No proof used the conjunct, and it asserted perfect
+  decapsulation, which ML-KEM-1024 satisfies only up to the FIPS 203 failure
+  bound. The four Braid refinement theorems now rest on the two
+  operation-agreement clauses alone; `toyKem_correct` stays a model fact.
+  Closes hostile-lens item FM-03.
+
+- Workflow checks now fail when the workflow or case corpus is absent, with an
+  explicit empty-repository control. Vector currency uses `git status` with
+  untracked files included, so a newly generated uncommitted vector cannot be
+  hidden from the local or hosted gate. This closes hostile-lens item SC-14.
+
+- The constant-time assembly reader's callee allow-list now matches whole
+  length-prefixed Rust identifier components, rather than substring regular
+  expressions. Its production-reader controls require an exact `compress`
+  callee to pass while `compress_sign_fixup` and an empty allow-list fail.
+  This closes hostile-lens item HL-SC-16.
+
+- The DCO gate now fails if its comparison base is missing and checks merge
+  commits instead of silently excluding them. A production-script case runner
+  pins a signed pass plus missing-base, unsigned-commit and unsigned-merge
+  refusals. This closes hostile-lens item SC-10.
+
+- `tacenta-core`: session lifecycle orchestration moved into a shipping leaf
+  crate and now translates from all 30 public roots. This is a Phase 0
+  translatability result only; no session theorem or assurance level changes.
+
 - `security-properties/evidence-index.json`: migrated `REQ-FS-01` through
   `REQ-FS-06` and `REQ-PCS-01` through `REQ-PCS-03` into the checked evidence
   index, completing coverage for all 32 security-property requirements. The
