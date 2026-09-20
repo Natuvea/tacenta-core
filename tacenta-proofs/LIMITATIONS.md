@@ -1937,8 +1937,8 @@ a boundary function, which is why no `random32` declaration exists and why
 `tooling/check-lifecycle-boundary-surface.py`, which follows only
 `tacenta_boundary` names, cannot see that route.
 `tacenta-model/SESSION-L4-PHASE0-SPIKE-20260918.md` maps the reachable
-boundary declarations to the ten contracts the primitive-boundary decision
-names. Later phases assemble the lifecycle with its eight code leaves
+boundary declarations to the contracts the primitive-boundary decision
+names (ten in the record, twelve after its dated note). Later phases assemble the lifecycle with its eight code leaves
 and prove orchestration against the lifecycle model; until then,
 `Session::encrypt`, `Session::decrypt`, establishment and persistence remain
 tested and translated, not proved end to end.

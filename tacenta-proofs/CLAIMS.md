@@ -2230,7 +2230,7 @@ line, in every hand-written module including the package roots and
 refuses every elaboration-time construct (`run_cmd`, `#eval`, `elab`,
 `macro`, `syntax`, `initialize`, `addDecl`, any reference to the `Lean`
 namespace) outside `Model/AxiomAudit.lean`'s own implementation and the
-six `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
+seven `run_cmd Model.AxiomAudit.run` lines, allow-listed by file path and
 exact line content: the audit accepts the compiler-trust axioms by shape
 and cannot tell a planted one, added by such code with its name assembled
 from string literals, from a real one, so the absence of such code is what
