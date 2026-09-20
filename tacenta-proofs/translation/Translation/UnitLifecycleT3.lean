@@ -1370,7 +1370,7 @@ theorem vec_u8_eq_refines (left right : alloc.vec.Vec Std.U8) :
       cases right <;>
         simp [alloc.vec.partial_eq.PartialEqVec.eq, alloc.vec.Vec.length,
           pure, WP.spec_ok]
-  | cons x xs ih =>
+      | cons x xs ih =>
       cases right with
       | nil =>
           simp [alloc.vec.partial_eq.PartialEqVec.eq, alloc.vec.Vec.length,
@@ -1389,6 +1389,29 @@ theorem vec_u8_eq_refines (left right : alloc.vec.Vec Std.U8) :
           · simp [alloc.vec.partial_eq.PartialEqVec.eq, alloc.vec.Vec.length,
               pure, WP.spec_ok, hxy]
 
+theorem vec_u8_eq_result_cases (left right : alloc.vec.Vec Std.U8) :
+    ∃ equal,
+      alloc.vec.partial_eq.PartialEqVec.eq core.cmp.PartialEqU8 left right =
+        ok equal ∧
+      (equal = true → left.val = right.val) ∧
+      (equal = false → left.val ≠ right.val) := by
+  obtain ⟨equal, hcall, hpost⟩ :=
+    Std.WP.spec_imp_exists (vec_u8_eq_refines left right)
+  cases equal with
+  | false =>
+      refine ⟨false, hcall, ?_, ?_⟩
+      · intro h
+        cases h
+      · intro _
+        intro hEq
+        have hfalse : false = true := hpost.mpr hEq
+        cases hfalse
+  | true =>
+      refine ⟨true, hcall, ?_, ?_⟩
+      · intro _
+        exact hpost.mp rfl
+      · intro hEq
+        cases hEq
 
 def messageTypeOf : serialization.MessageType → Model.Lifecycle.MessageType
   | .Ratchet => .ratchet
