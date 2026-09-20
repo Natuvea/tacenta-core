@@ -2213,10 +2213,8 @@ theorem decrypt_initial_repeat_refusal_exact
       (.Err realReason, real, rngNext)
       (Model.Lifecycle.decryptRatchet view oracle model
         (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)) :
-    lifecycle.Session.decrypt rngCore cryptoRng real message rng =
-        ok (.Err realReason, real, rngNext) ∧
-      StepRefines trace dh K (.Err realReason, real, rngNext)
-        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model
+      message rng := by
   have hmodelType := message_type_refines_initial message htype
   have hdecodeRel := decode_initial_refines_lifecycle message
   rw [hdecode] at hdecodeRel
@@ -2236,7 +2234,8 @@ theorem decrypt_initial_repeat_refusal_exact
       core.result.Result.Insts.CoreOpsTry.branch,
       core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
       core.convert.FromSame.from]
-  exact ⟨hreal, by rw [hmodel]; simpa [Model.Lifecycle.decrypt, hdispatch, hmodelStep] using hstep⟩
+  exact ⟨(.Err realReason, real, rngNext), hreal,
+    by rw [hmodel]; simpa [Model.Lifecycle.decrypt, hdispatch, hmodelStep] using hstep⟩
 
 theorem decrypt_initial_repeat_success_exact
     {R : Type} (rngCore : rand_core_1.RngCore R)
@@ -2273,12 +2272,8 @@ theorem decrypt_initial_repeat_success_exact
       (.Ok plaintext, realNext, rngNext)
       (Model.Lifecycle.decryptRatchet view oracle model
         (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)) :
-    lifecycle.Session.decrypt rngCore cryptoRng real message rng =
-        ok (.Ok plaintext,
-          { realNext with pending_initial := none }, rngNext) ∧
-      StepRefines trace dh K
-        (.Ok plaintext, { realNext with pending_initial := none }, rngNext)
-        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model
+      message rng := by
   have hmodelType := message_type_refines_initial message htype
   have hdecodeRel := decode_initial_refines_lifecycle message
   rw [hdecode] at hdecodeRel
@@ -2303,7 +2298,8 @@ theorem decrypt_initial_repeat_success_exact
     simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
       hephemeralCall, hencoded, hidentityCall, hinner, realFinal,
       core.result.Result.Insts.CoreOpsTry.branch]
-  exact ⟨hreal, by rw [hmodel]; exact ⟨by simpa [ResultRefines] using hbytes, hfinal, htrace⟩⟩
+  exact ⟨(.Ok plaintext, realFinal, rngNext), hreal,
+    by rw [hmodel]; exact ⟨by simpa [ResultRefines] using hbytes, hfinal, htrace⟩⟩
 
 /-- Once the Braid send step is related, its terminal transition is committed
 on both sides before `AgreementFailed` is returned.  This outer lifecycle fact
