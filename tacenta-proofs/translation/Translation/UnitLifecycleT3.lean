@@ -981,6 +981,13 @@ theorem initial_decode_cases (message : Slice Std.U8) :
     | Err reason => exact False.elim (h ⟨reason, hresult.1⟩)
     | Ok decoded => exact ⟨decoded, hresult.1⟩
 
+theorem initial_established_ephemeral_cases (real : lifecycle.Session) :
+    real.established_ephemeral = none ∨
+      ∃ established, real.established_ephemeral = some established := by
+  cases h : real.established_ephemeral with
+  | none => exact Or.inl rfl
+  | some established => exact Or.inr ⟨established, rfl⟩
+
 inductive InitialDispatchRoute {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
