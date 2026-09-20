@@ -411,7 +411,7 @@ theorem responder_success_shape (view : CodewordView) (oracle : Oracle)
     responder replay marker. -/
 theorem initiator_success_shape (oracle : Oracle) (identity : Identity)
     (bundle : Bundle) (expectedIdentity : Key) (session : Session)
-    (hIdentity : Model.XEdDSA.IdentityOf oracle.dhPublic identity.secret identity.publicKey)
+    (_hIdentity : Model.XEdDSA.IdentityOf oracle.dhPublic identity.secret identity.publicKey)
     (hOk : (establishInitiator oracle identity bundle expectedIdentity).result =
       .ok session) :
     session.ourIdentityPublic = identity.publicKey
