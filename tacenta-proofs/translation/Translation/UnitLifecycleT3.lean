@@ -1306,6 +1306,25 @@ theorem decrypt_ratchet_terminal_guard_step_refines {R : Type}
   rw [hmodel]
   exact ⟨rfl, hrel, htrace⟩
 
+theorem decrypt_ratchet_terminal_guard_atomicity {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (hrel : SessionRefines dh K real model)
+    (hfailed : Model.Lifecycle.agreementFailed model = true) :
+    lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err lifecycle.Error.AgreementFailed, real, rng) := by
+  have hm : model.braid = .failed :=
+    (Model.Lifecycle.agreementFailed_iff model).mp hfailed
+  have hbraid := braid_failed_refines K real.braid model.braid hrel.braid
+  have hbf : Model.Lifecycle.braidFailed model.braid = true :=
+    (Model.Lifecycle.braidFailed_iff model.braid).2 hm
+  rw [hbf] at hbraid
+  unfold lifecycle.Session.decrypt_ratchet
+  rw [hbraid]
+  simp
+
 /-- A rejected ratchet-message encoding is an atomic Session refusal.  The
 decoder-specific relation is kept explicit so the later decoder theorem must
 identify the exact reason, rather than merely showing that both sides fail. -/
