@@ -1528,16 +1528,7 @@ theorem decrypt_passthrough_step_refines {R : Type}
       lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
       StepRefines trace dh K output
         (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
-  have htypeRel := message_type_refines message
-  rw [htype] at htypeRel
-  have hmodelNot : Model.Lifecycle.messageType (sliceOf message) ≠ some .initial := by
-    rw [← htypeRel]
-    cases realType with
-    | none => simp
-    | some ty =>
-        cases ty with
-        | Ratchet => simp [messageTypeOf]
-        | Initial => exact (hnotInitial rfl).elim
+  have hmodelNot := message_type_refines_noninitial message realType htype hnotInitial
   have hdispatch := Model.Lifecycle.dispatchDecrypt_passthrough model
     (sliceOf message) hmodelNot
   rcases innerOutput with ⟨realResult, realNext, rngNext⟩
@@ -1861,10 +1852,7 @@ theorem decrypt_initial_without_established_refines {R : Type}
       StepRefines trace dh K
         (.Err lifecycle.Error.NotARepeatedInitial, real, rng)
         (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
-  have htypeRel := message_type_refines message
-  rw [htype] at htypeRel
-  have hmodelType : Model.Lifecycle.messageType (sliceOf message) = some .initial := by
-    simpa [messageTypeOf] using htypeRel.symm
+  have hmodelType := message_type_refines_initial message htype
   have hdecodeRel := decode_initial_refines_lifecycle message
   rw [hdecode] at hdecodeRel
   have hmodelNone : model.establishedEphemeral = none := by
@@ -1909,10 +1897,7 @@ theorem decrypt_initial_ephemeral_mismatch_refines {R : Type}
       StepRefines trace dh K
         (.Err lifecycle.Error.NotARepeatedInitial, real, rng)
         (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
-  have htypeRel := message_type_refines message
-  rw [htype] at htypeRel
-  have hmodelType : Model.Lifecycle.messageType (sliceOf message) = some .initial := by
-    simpa [messageTypeOf] using htypeRel.symm
+  have hmodelType := message_type_refines_initial message htype
   have hdecodeRel := decode_initial_refines_lifecycle message
   rw [hdecode] at hdecodeRel
   obtain ⟨ephemeralEqual, hephemeralCall, hephemeralPost⟩ :=
@@ -1989,10 +1974,7 @@ theorem decrypt_initial_identity_mismatch_refines {R : Type}
       StepRefines trace dh K
         (.Err lifecycle.Error.NotARepeatedInitial, real, rng)
         (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
-  have htypeRel := message_type_refines message
-  rw [htype] at htypeRel
-  have hmodelType : Model.Lifecycle.messageType (sliceOf message) = some .initial := by
-    simpa [messageTypeOf] using htypeRel.symm
+  have hmodelType := message_type_refines_initial message htype
   have hdecodeRel := decode_initial_refines_lifecycle message
   rw [hdecode] at hdecodeRel
   obtain ⟨encoded, hencoded, hencodedValue⟩ :=
@@ -2090,10 +2072,7 @@ theorem decrypt_initial_repeat_step_refines {R : Type}
       lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
       StepRefines trace dh K output
         (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
-  have htypeRel := message_type_refines message
-  rw [htype] at htypeRel
-  have hmodelType : Model.Lifecycle.messageType (sliceOf message) = some .initial := by
-    simpa [messageTypeOf] using htypeRel.symm
+  have hmodelType := message_type_refines_initial message htype
   have hdecodeRel := decode_initial_refines_lifecycle message
   rw [hdecode] at hdecodeRel
   obtain ⟨encoded, hencoded, hephemeralCall, hidentityCall, hrepeat⟩ :=
@@ -2200,10 +2179,7 @@ theorem decrypt_initial_repeat_refusal_exact
         ok (.Err realReason, real, rngNext) ∧
       StepRefines trace dh K (.Err realReason, real, rngNext)
         (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
-  have htypeRel := message_type_refines message
-  rw [htype] at htypeRel
-  have hmodelType : Model.Lifecycle.messageType (sliceOf message) = some .initial := by
-    simpa [messageTypeOf] using htypeRel.symm
+  have hmodelType := message_type_refines_initial message htype
   have hdecodeRel := decode_initial_refines_lifecycle message
   rw [hdecode] at hdecodeRel
   obtain ⟨encoded, hencoded', hephemeralCall, hidentityCall, hrepeat⟩ :=
@@ -2265,10 +2241,7 @@ theorem decrypt_initial_repeat_success_exact
       StepRefines trace dh K
         (.Ok plaintext, { realNext with pending_initial := none }, rngNext)
         (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
-  have htypeRel := message_type_refines message
-  rw [htype] at htypeRel
-  have hmodelType : Model.Lifecycle.messageType (sliceOf message) = some .initial := by
-    simpa [messageTypeOf] using htypeRel.symm
+  have hmodelType := message_type_refines_initial message htype
   have hdecodeRel := decode_initial_refines_lifecycle message
   rw [hdecode] at hdecodeRel
   obtain ⟨encoded, hencoded, hephemeralCall, hidentityCall, hrepeat⟩ :=
