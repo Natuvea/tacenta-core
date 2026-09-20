@@ -1953,8 +1953,9 @@ primitive boundary, `DhCodecTotal`, `DhAgreeTotal`, `AeadOpenTotal`,
 `KemEncapsulateTotal`, `KemDecapsulateTotal`, `KemCiphertextLenTotal`,
 `XeddsaVerifyTotal`, `XeddsaSignTotal` and `Random32Total`; one over the
 AEAD's output shape, `AeadSealBounded`, which says the call returns and that
-the ciphertext is at most sixteen bytes longer than the plaintext (a length
-bound the framing headroom needs, so it is not a totality contract); and two
+the sealed output is at most forty-eight bytes longer than the plaintext (a
+length bound: PKCS7 adds at most one 16-byte block and the full HMAC tag adds
+32 bytes; the framing headroom needs this, so it is not a totality contract); and two
 over standard-library and `zeroize` operations Aeneas leaves opaque,
 `VecPopTotal` and `MessageKeyMaterialRoundTrip`. The decision record named ten
 and `AeadSealTotal`; the complete translation and its T1 layer showed the
@@ -1982,6 +1983,12 @@ twelve witness names in one theorem (`all_twelve_contracts_satisfiable`). The ne
 requires elaboration to fail. This establishes only that the assumptions are
 consistent; it does not prove that the real primitive implementations satisfy
 their value-level specifications.
+
+For `AeadSealBounded` specifically, the witness is a placeholder function that
+always returns an empty vector; it does not model the real AES-CBC/HMAC call.
+The real `encrypt` output is `16 * (plaintext.len() / 16 + 1) + 32` bytes, or
+33 to 48 bytes longer than the plaintext. The boundary property test
+`sealed_output_length_matches_pkcs7_and_tag_formula` pins that relationship.
 
 ## The erasure coding's field is proved
 

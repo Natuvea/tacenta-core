@@ -1582,11 +1582,13 @@ theorem prepare_send_candidate_no_panic
     exact send_candidate_no_panic boundary self sendingEpoch
       (some { key_epoch := o.key_epoch, key := o.key }) hroom
 
+/-- The AES-CBC/PKCS7 ciphertext adds at most one 16-byte padding block,
+then the construction appends the full 32-byte HMAC-SHA256 tag. -/
 def AeadSealBounded : Prop :=
   ∀ ek mk : Array U8 32#usize, ∀ iv : Array U8 16#usize,
     ∀ plaintext ad : Slice U8, ∃ r,
       tacenta_boundary.aead.encrypt ek mk iv plaintext ad = ok r ∧
-      r.val.length ≤ plaintext.val.length + 16
+      r.val.length ≤ plaintext.val.length + 48
 
 theorem aead_seal_bounded_spec (h : AeadSealBounded)
     (ek mk : Array U8 32#usize) (iv : Array U8 16#usize)
@@ -1607,11 +1609,11 @@ structure EncryptContracts {R : Type} (rc : rand_core_1.RngCore R) : Prop where
 structure EncryptHeadroom (self : lifecycle.Session) (plaintext : Slice U8) : Prop where
   triple : self.triple.post_quantum.chains.val.length + 1 < Usize.max
   associatedData : self.identity_ad.val.length + 106 ≤ Usize.max
-  ratchetMessage : 102 + (plaintext.val.length + 16) ≤ Usize.max
+  ratchetMessage : 102 + (plaintext.val.length + 48) ≤ Usize.max
   initial : match self.pending_initial with
     | none => True
     | some p => 33 + 33 + p.kem_ciphertext.val.length +
-        (102 + (plaintext.val.length + 16)) + 18 ≤ Usize.max
+        (102 + (plaintext.val.length + 48)) + 18 ≤ Usize.max
 
 set_option maxHeartbeats 800000 in
 theorem encrypt_no_panic {R : Type}

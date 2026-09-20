@@ -123,6 +123,18 @@ mod tests {
     }
 
     #[test]
+    fn sealed_output_length_matches_pkcs7_and_tag_formula() {
+        // PKCS7 always adds one block, even when the plaintext is already
+        // block-aligned; the construction then appends the full 32-byte tag.
+        for len in [0usize, 1, 15, 16, 17, 32, 33, 64] {
+            let plaintext = vec![0xA5; len];
+            let output = encrypt(&ENC, &MAC, &IV, &plaintext, b"header");
+            let expected = 16 * (len / 16 + 1) + 32;
+            assert_eq!(output.len(), expected, "plaintext length {len}");
+        }
+    }
+
+    #[test]
     fn round_trips_with_associated_data() {
         let ct = encrypt(&ENC, &MAC, &IV, b"a secret message", b"header");
         let pt = decrypt(&ENC, &MAC, &IV, &ct, b"header").unwrap();
