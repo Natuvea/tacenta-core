@@ -4269,19 +4269,6 @@ theorem initial_dispatch_route_cases
   | repeatRefusal w => exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨w, rfl⟩))))
   | repeatSuccess w => exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨w, rfl⟩))))
 
-/-- One composition point for all six route-specific refinement obligations. -/
-theorem initial_dispatch_select_exhaustive
-    {R : Type} {rngCore : rand_core_1.RngCore R}
-    {cryptoRng : rand_core_1.CryptoRng R}
-    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
-    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
-    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
-    {message : Slice Std.U8} {rng : R}
-    (route : InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
-    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng :=
-  initial_dispatch_select_and_join route
-
-
 /-- Direct selector for the generated initial decoder. -/
 theorem initial_dispatch_select_decode
     {R : Type} {rngCore : rand_core_1.RngCore R}
@@ -4368,6 +4355,55 @@ theorem initial_dispatch_select_ephemeral
 
 /-- Continue the direct selector through the identity equality comparison. -/
 theorem initial_dispatch_select_identity
+    {R : Type} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (ctx : InitialDispatchContext rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onRefusal : ∀ (reason : tacenta_wire.DecodeError)
+      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Err reason)),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onNone : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
+      (hnone : real.established_ephemeral = none),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onEphemeralMismatch : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8)
+      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hmismatch : vecOf established ≠ vecOf decoded.ephemeral),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onIdentityMismatch : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8)
+      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hequal : vecOf established = vecOf decoded.ephemeral)
+      (hmismatch : vecOf decoded.identity ≠
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public)),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng)
+    (onIdentityEqual : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8)
+      (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hequal : vecOf established = vecOf decoded.ephemeral)
+      (hequalIdentity : vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public)),
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng := by
+  exact initial_dispatch_select_ephemeral ctx onRefusal onNone onEphemeralMismatch
+    (fun decoded established hdecode hestablished hequal => by
+      by_cases hid : vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public)
+      · exact onIdentityEqual decoded established hdecode hestablished hequal hid
+      · exact onIdentityMismatch decoded established hdecode hestablished hequal hid)
+
+
+/-- Exhaustive composition of the four generated initial-dispatch splits. The
+branch callbacks are precisely the six route-specific refinement obligations;
+the selector itself owns all control-flow case selection. -/
+theorem initial_dispatch_select_exhaustive
     {R : Type} {rngCore : rand_core_1.RngCore R}
     {cryptoRng : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
