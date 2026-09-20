@@ -5,6 +5,10 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+- `tacenta-core`: session lifecycle orchestration moved into a shipping leaf
+  crate and now translates from all 30 public roots. This is a Phase 0
+  translatability result only; no session theorem or assurance level changes.
+
 - `security-properties/evidence-index.json`: migrated `REQ-FS-01` through
   `REQ-FS-06` and `REQ-PCS-01` through `REQ-PCS-03` into the checked evidence
   index, completing coverage for all 32 security-property requirements. The
@@ -21,13 +25,10 @@ is SemVer against the specified protocol (not the implementation).
   one-time-key removals and, on the last-resort path, replay-record append.
   Register row `E2E-07`.
 
-- `tacenta-core`: session lifecycle orchestration moved into a shipping leaf
-  crate and now translates from all 30 public roots. This is a Phase 0
-  translatability result only; no session theorem or assurance level changes.
-
-- `tacenta-core`: the classical and sparse ratchets’ secret-bearing working
-  copies and removal paths now allocate at their final capacity and wipe dead
-  slots before release; sparse decoder vectors are sized from checked counts.
+- `tacenta-core`: the classical ratchet’s secret-bearing working copies and
+  removal paths now allocate at their final capacity and wipe dead slots before
+  release. The analogous sparse-ratchet container hardening remains a follow-up
+  and is not claimed here. Sparse decoder vectors are sized from checked counts.
   The independent reader follows the v2 agreed-secret replay identity and
   covers fail-closed import of v4 replay records into v5.
 
