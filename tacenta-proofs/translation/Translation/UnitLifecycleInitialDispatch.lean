@@ -224,6 +224,7 @@ theorem decrypt_ratchet_triple_refusal_from_braid
     (hdecodeReal : tacenta_wire.decode_message message = ok (.Ok decoded))
     (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
       .ok (modelComposite, vecOf decoded.ciphertext))
+    (hcomposite : CompositeRefines decoded.header modelComposite)
     (hpeerCall : tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh = ok peer)
     (hfirstCall : tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer =
       ok (some recvSecret))
@@ -276,6 +277,11 @@ theorem decrypt_ratchet_triple_refusal_from_braid
         (.Err (.Triple realReason), real, rngNext)
         (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
   subst realComposite
+  obtain ⟨derivedHeader, hderivedCall, _⟩ :=
+    triple_header_of_refines decoded.header modelComposite hcomposite
+  have hheaderEq : derivedHeader = realHeader := by
+    injection (hderivedCall.symm.trans hheaderCall)
+  cases hheaderEq
   exact decrypt_ratchet_triple_refusal_step_refines rngCore cryptoRng trace dh K view
     oracle oracleNext real model message rng rngNext decoded modelComposite
     evidence.message evidence.receivedEpoch evidence.output evidence.next evidence.sparseOutput
