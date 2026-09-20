@@ -700,7 +700,13 @@ impl State {
         if count > MAX_SKIP {
             return Err(SpqrError::TooManySkipped);
         }
-        if self.skipped.len() + (count as usize) > MAX_SKIPPED_STORE {
+
+        // A key in (ch.n, upto] is about to be re-derived and replaced. Purge
+        // those survivors before applying the total bound, but keep the
+        // working copy local so a refusal leaves the receiver unchanged.
+        let mut skipped = self.skipped.clone();
+        skipped.retain(|s| !(s.epoch == e && ch.n < s.n && s.n <= upto));
+        if skipped.len() + (count as usize) > MAX_SKIPPED_STORE {
             return Err(SpqrError::SkippedStoreFull);
         }
 
@@ -724,15 +730,7 @@ impl State {
         // Rebuild at the final capacity before copying secret-bearing entries.
         // Appending to a cloned or undersized vector can reallocate and return
         // the old skipped-key buffer to the allocator without wiping it.
-        let mut skipped = Vec::with_capacity(self.skipped.len() + count as usize);
-        let mut i = 0;
-        while i < self.skipped.len() {
-            let s = &self.skipped[i];
-            if !(s.epoch == e && ch.n < s.n && s.n <= upto) {
-                skipped.push(s.clone());
-            }
-            i += 1;
-        }
+        skipped.reserve_exact(count as usize);
         skipped.append(&mut derived);
         self.skipped = skipped;
         self.set_chains(

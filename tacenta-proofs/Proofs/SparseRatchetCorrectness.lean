@@ -140,8 +140,9 @@ already over the cap, which it cannot make worse because it refuses. -/
 The interesting case is a request inside `maxSkip` that the total check
 refuses. -/
 theorem skipMessageKeys_store_bounded (st : State) (e upto : Nat) (st' : State)
+    (hpre : st.skipped.length ≤ maxSkippedStore)
     (h : skipMessageKeys st e upto = some st') :
-    st'.skipped.length ≤ max st.skipped.length maxSkippedStore := by
+    st'.skipped.length ≤ maxSkippedStore := by
   unfold skipMessageKeys at h
   split at h
   · exact absurd h (by simp)
@@ -150,7 +151,7 @@ theorem skipMessageKeys_store_bounded (st : State) (e upto : Nat) (st' : State)
     · exact absurd h (by simp)
     · rename_i ch _
       split at h
-      · injection h with h'; subst h'; exact Nat.le_max_left _ _
+      · injection h with h'; subst h'; exact hpre
       · split at h
         · exact absurd h (by simp)
         · split at h
@@ -159,15 +160,7 @@ theorem skipMessageKeys_store_bounded (st : State) (e upto : Nat) (st' : State)
             subst h'
             simp only [setChains, List.length_append, List.length_map,
               deriveInto_length]
-            -- Written with `==` rather than `decide (· = ·)`: the two are the
-            -- same proposition and not the same term, and the goal uses this one.
-            have hfil := List.length_filter_le
-              (fun x : Nat × Nat × Key =>
-                !(x.1 == e && decide (ch.n < x.2.1) && decide (x.2.1 ≤ upto)))
-              st.skipped
-            rename_i hcap _
-            simp only [Nat.not_lt] at hcap
-            omega
+            simp_all [skipSurvivors]
 
 /-- Retiring old epochs never grows the store. Trivial, and worth stating
 because the bound above is only half the argument: the other half is that
@@ -226,7 +219,8 @@ theorem skipMessageKeys_preserves_map (st : State) (e upto : Nat) (st' : State)
             subst h'
             simp only [setChains, StoreIsMap]
             rw [List.pairwise_append]
-            refine ⟨hpre.filter _, ?_, ?_⟩
+            refine ⟨?_, ?_, ?_⟩
+            · simpa [skipSurvivors] using List.Pairwise.filter _ hpre
             · -- the batch shares an epoch, and its numbers are distinct
               have hnd := deriveInto_nodup ch.ck ch.n (upto - ch.n)
               refine List.Pairwise.map _ ?_ hnd
@@ -236,7 +230,7 @@ theorem skipMessageKeys_preserves_map (st : State) (e upto : Nat) (st' : State)
               exact hab hn
             · -- what survived was outside the replaced range; the batch is inside
               intro a ha b hb
-              simp only [List.mem_filter] at ha
+              simp only [skipSurvivors, List.mem_filter] at ha
               simp only [List.mem_map] at hb
               obtain ⟨hamem, hakeep⟩ := ha
               obtain ⟨y, hy, rfl⟩ := hb

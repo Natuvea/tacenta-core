@@ -1529,9 +1529,9 @@ fn generate_sparse(rng: &mut Rng, template: usize, long: bool) -> SparseSequence
     let ckr = rng.key();
     let ceiling = u64::MAX;
 
-    let (start, mut steps, mut epoch, mut send_n, mut recv_n) = match template % 10 {
+    let (start, mut steps, mut epoch, mut send_n, mut recv_n) = match template % 12 {
         0 | 1 => {
-            let direction = (template % 10) as u8;
+            let direction = (template % 2) as u8;
             let mut p = vec![direction];
             p.extend_from_slice(&rng.key());
             (Start::Fresh(p), Vec::new(), 0u64, 0u64, 0u64)
@@ -1612,7 +1612,7 @@ fn generate_sparse(rng: &mut Rng, template: usize, long: bool) -> SparseSequence
                 0,
             )
         }
-        _ => {
+        9 => {
             // Retirement takes an epoch's stored keys with it: `EPOCHS_KEPT`
             // is 2 on both sides, so the second advance puts epoch 0 outside
             // the window and its two stored keys must go with its chains.
@@ -1640,6 +1640,45 @@ fn generate_sparse(rng: &mut Rng, template: usize, long: bool) -> SparseSequence
             ];
             (Start::Stored(b), opening, 2, 0, 1)
         }
+        10 => {
+            // A near-full store with two held keys in (ch.n, 3]. The next
+            // receive re-derives both, so the resulting store remains at
+            // 1,999 rather than being rejected on its pre-purge length.
+            let mut store = Vec::with_capacity(tacenta_spqr::MAX_SKIPPED_STORE - 1);
+            store.push((0, 1, rng.key()));
+            store.push((0, 2, rng.key()));
+            for n in 5_000..6_997 {
+                store.push((0, n, rng.key()));
+            }
+            let b = sparse_state_bytes(&rk, 0, 0x01, Some((&cks, 0)), Some((&ckr, 0)), &store);
+            (
+                Start::Stored(b),
+                vec![SStep::Receive { epoch: 0, out: None, n: 3 }],
+                0,
+                0,
+                0,
+            )
+        }
+        11 => {
+            // Two held keys plus 1,998 unrelated entries start exactly at the
+            // cap. Re-deriving three keys would leave 2,001, so refusal must
+            // be atomic and must not be masked by the generator.
+            let mut store = Vec::with_capacity(tacenta_spqr::MAX_SKIPPED_STORE);
+            store.push((0, 1, rng.key()));
+            store.push((0, 2, rng.key()));
+            for n in 5_000..6_998 {
+                store.push((0, n, rng.key()));
+            }
+            let b = sparse_state_bytes(&rk, 0, 0x01, Some((&cks, 0)), Some((&ckr, 0)), &store);
+            (
+                Start::Stored(b),
+                vec![SStep::Receive { epoch: 0, out: None, n: 4 }],
+                0,
+                0,
+                0,
+            )
+        }
+        _ => unreachable!("template modulo 12"),
     };
 
     while steps.len() < STEPS {

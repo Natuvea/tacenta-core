@@ -219,15 +219,16 @@ messages.
 
 The Double Ratchet caps its store's total size ([ratchet.md](ratchet.md),
 Skipped keys). The same cap applies here, for the same reason, and a request
-that would exceed it is refused by the ratchet (`SkippedStoreFull`).
+that would exceed it is refused by the ratchet (`SkippedStoreFull`). Before
+that check, the sparse ratchet removes held entries in the same chain and the
+strict range `(ch.n, upto]` that the request will re-derive; each replacement
+therefore consumes one store slot. The check is made on the resulting working
+copy, and a refusal from this skip step leaves the sparse ratchet state
+unchanged.
 `Proofs.SparseRatchetCorrectness.skipMessageKeys_store_bounded` proves this of
-one skip: a skip that succeeds leaves the store no longer than the larger of
-its previous length and `MAX_SKIPPED_STORE`. No theorem carries the bound
-across this ratchet's sending, receiving or advancing, or across a sequence of
-them. The current sparse implementation and model check the pre-purge store
-length; they do not yet implement resulting-store replacement semantics. The
-purge-before-check order, replacement semantics and refusal atomicity are the
-open `HL-R1-SPARSE-TRANSLATION` follow-up, not current sparse behaviour. Over
+one skip: a skip that succeeds leaves the store within `MAX_SKIPPED_STORE` when
+the incoming store was within it. No theorem carries the bound across this
+ratchet's sending, receiving or advancing, or across a sequence of them. Over
 a session, only the existing bound behaviour is tested rather than proved.
 
 The receiver then makes room as the Double Ratchet's does (ratchet.md, Skipped

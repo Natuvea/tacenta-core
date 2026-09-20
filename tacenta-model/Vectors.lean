@@ -1529,6 +1529,20 @@ def sparseRatchetStateFile (_ : Unit) : Except String String := do
     { st with chains := st.chains.map fun p =>
         (p.1, if sendSide then { p.2 with send := p.2.send.map f } else { p.2 with receive := p.2.receive.map f }) }
   let bobStore ← reachSparse "Bob's stored keys" .bob [.receive 0 none 3]
+  let sparseReplacementBase := withChain bob (fun c => { c with n := 0 }) false
+  let sparseReplacementStart : Model.SparseRatchet.State :=
+    { sparseReplacementBase with
+        skipped := [(0, 1, fill 0x51), (0, 2, fill 0x52)] ++
+          (List.range (maxSkippedStore - 3)).map fun i =>
+            (0, 5_000 + i, fill 0x53) }
+  let sparseReplacementRefusal : Model.SparseRatchet.State :=
+    { sparseReplacementBase with
+        skipped := [(0, 1, fill 0x61), (0, 2, fill 0x62)] ++
+          (List.range (maxSkippedStore - 2)).map fun i =>
+            (0, 5_000 + i, fill 0x63) }
+  let sparseLowerEndpoint : Model.SparseRatchet.State :=
+    { sparseReplacementBase with
+        skipped := [(0, 0, fill 0x71), (0, 1, fill 0x72)] }
   let ops ← [
     sparseOps "fresh-alice" "init with direction A2b: epoch 0's two chains, nothing stored" .alice [],
     sparseOps "fresh-bob" "init with direction B2a: the same chain keys, assigned the other way" .bob [],
@@ -1544,6 +1558,12 @@ def sparseRatchetStateFile (_ : Unit) : Except String String := do
     sparseOps "bob-retires-an-epoch-with-its-keys"
       "keys 1 and 2 of epoch 0 stored, then epochs 1 and 2 opened: epoch 0's chains and keys are retired" .bob
       [.receive 0 none 3, .receive 0 (out 1 0xa1) 4, .receive 1 (out 2 0xa2) 1],
+    sparseOps "replacement-bound-counts-resulting-store"
+      "a 1,999-key sparse store re-derives two held pairs: replacement keeps the resulting store at 1,999 rather than refusing on the pre-replacement count"
+      (.stored sparseReplacementStart) [.receive 0 none 3],
+    sparseOps "lower-purge-endpoint-survives"
+      "a held key at the chain's current number is outside the strict replacement range and survives"
+      (.stored sparseLowerEndpoint) [.receive 0 none 3],
     sparseOps "epoch-reaches-one-below-the-ceiling"
       "from epoch u64::MAX - 2, a receive carrying epoch u64::MAX - 1's secret: the window's sum saturates, and epochs u64::MAX - 2 and u64::MAX - 1 are kept"
       (.stored { bob with epoch := u64Max - 2, chains := [(u64Max - 3, bobCs), (u64Max - 2, bobCs)] })
@@ -1559,6 +1579,10 @@ def sparseRatchetStateFile (_ : Unit) : Except String String := do
   let retired ← reachSparse "Bob's retired epoch" .bob
     [.receive 0 none 3, .receive 0 (out 1 0xa1) 4, .receive 1 (out 2 0xa2) 1]
   let refusals ← [
+    sparseRefused "replacement-bound-still-overflow-refused"
+      "a 2,000-key store whose two held keys are replaced by three fresh keys still exceeds the total cap"
+      (.stored sparseReplacementRefusal) [] (.receive 0 none 4) "inconsistent" (fun st =>
+        st.skipped.length == maxSkippedStore),
     sparseRefused "advance-onto-u64-max-refused"
       "from epoch u64::MAX - 1, a receive carrying epoch u64::MAX's secret: refused as counter exhaustion (ChainExhausted), since epoch u64::MAX is reserved"
       (.stored { bob with epoch := u64Max - 1, chains := [(u64Max - 2, bobCs), (u64Max - 1, bobCs)] })
