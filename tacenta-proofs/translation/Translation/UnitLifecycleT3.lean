@@ -2106,10 +2106,8 @@ theorem decrypt_initial_repeat_step_refines {R : Type}
     (hstep : StepRefines trace dh K innerOutput
       (Model.Lifecycle.decryptRatchet view oracle model
         (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)) :
-    ∃ output,
-      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
-      StepRefines trace dh K output
-        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model
+      message rng := by
   have hmodelType := message_type_refines_initial message htype
   have hdecodeRel := decode_initial_refines_lifecycle message
   rw [hdecode] at hdecodeRel
