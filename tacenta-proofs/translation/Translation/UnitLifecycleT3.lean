@@ -1081,6 +1081,37 @@ theorem public_decrypt_witness_success_clears_pending
   exact decrypt_step_refines_cleared_pending_initial view oracle model message
     plaintext hstep hresult
 
+theorem public_decrypt_witness_atomicity_cases
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (hw : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model
+      message rng) :
+    (∃ reason output,
+      (Model.Lifecycle.decrypt view oracle model (sliceOf message)).result
+        = .error reason ∧
+      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
+      output.2.1.pending_initial.map (pendingInitialOf dh) = model.pendingInitial) ∨
+    (∃ plaintext output,
+      (Model.Lifecycle.decrypt view oracle model (sliceOf message)).result
+        = .ok plaintext ∧
+      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
+      output.2.1.pending_initial.map (pendingInitialOf dh) = none) := by
+  cases hresult : (Model.Lifecycle.decrypt view oracle model (sliceOf message)).result with
+  | error reason =>
+      obtain ⟨output, hreal, hpending⟩ :=
+        public_decrypt_witness_refusal_preserves_pending rngCore cryptoRng trace dh K
+          view oracle real model message rng reason hw hresult
+      exact Or.inl ⟨reason, output, rfl, hreal, hpending⟩
+  | ok plaintext =>
+      obtain ⟨output, hreal, hpending⟩ :=
+        public_decrypt_witness_success_clears_pending rngCore cryptoRng trace dh K
+          view oracle real model message rng plaintext hw hresult
+      exact Or.inr ⟨plaintext, output, rfl, hreal, hpending⟩
+
 
 /-! The repeated-initial dispatcher has a refusal arm and a success arm.  Keep
 the refusal-side pending relation named separately so the eventual split of
