@@ -2218,6 +2218,25 @@ theorem decrypt_initial_decode_refusal_refines {R : Type}
 /-- An initial frame cannot be a repeat when the established Session has no
 recorded establishment ephemeral.  Both implementations refuse it before the
 inner ratchet receive and leave state and randomness unchanged. -/
+def initial_dispatch_decode_refusal_from_premises
+    {R : Type} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (ctx : InitialDispatchContext rngCore cryptoRng trace dh K view oracle real model message rng)
+    (reason : tacenta_wire.DecodeError)
+    (hdecode : tacenta_wire.decode_initial message =
+      ok (core.result.Result.Err reason))
+    (hdecodeModel : Model.Messages.decodeInitialDetailed (sliceOf message) =
+      .error (Tacenta.SessionUnitWireInitialT3.decodeRefusalOf reason)) :
+    InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng := by
+  refine InitialDispatchRoute.decodeRefusal ?_
+  exact decrypt_initial_decode_refusal_refines rngCore cryptoRng trace dh K view oracle
+    real model message rng reason ctx.hrel ctx.htrace ctx.htype hdecode
+
+
 theorem decrypt_initial_without_established_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
