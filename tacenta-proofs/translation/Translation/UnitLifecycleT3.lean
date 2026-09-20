@@ -1062,6 +1062,25 @@ theorem public_decrypt_witness_refusal_preserves_pending
   exact decrypt_step_refines_unchanged_pending_initial view oracle model message
     reason hstep hresult
 
+theorem public_decrypt_witness_success_clears_pending
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (plaintext : Bytes)
+    (hw : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model
+      message rng)
+    (hresult : (Model.Lifecycle.decrypt view oracle model (sliceOf message)).result
+      = .ok plaintext) :
+    ∃ output, lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
+      output.2.1.pending_initial.map (pendingInitialOf dh) = none := by
+  obtain ⟨output, hreal, hstep⟩ := hw
+  refine ⟨output, hreal, ?_⟩
+  exact decrypt_step_refines_cleared_pending_initial view oracle model message
+    plaintext hstep hresult
+
 
 /-! The repeated-initial dispatcher has a refusal arm and a success arm.  Keep
 the refusal-side pending relation named separately so the eventual split of
