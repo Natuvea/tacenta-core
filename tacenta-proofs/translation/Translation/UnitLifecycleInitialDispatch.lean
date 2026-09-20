@@ -488,6 +488,174 @@ theorem decrypt_ratchet_aead_refusal_from_braid {R : Type}
   exact ⟨rfl, hrel, htraceNext⟩
 
 
+/-! The successful receive adapter keeps the concrete commit visible.  It
+reuses the same Braid evidence and primitive call facts as the refusal
+adapters, but returns the exact post-AEAD session selected by the lifecycle's
+ratchet-private branch.  The model relation and plaintext correspondence are
+left to the next composition theorem. -/
+
+theorem decrypt_ratchet_success_result_from_braid {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (dh : DhView) (K : Model.Braid.Kem)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng rngNext : R)
+    (decoded : tacenta_wire.DecodedMessage)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (realComposite : tacenta_wire.Composite)
+    (evidence : BraidReceiveEvidence K view real model realComposite modelComposite)
+    (hrealComposite : realComposite = decoded.header)
+    (realBraidMessage : tacenta_braid.Msg) (receivedEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output)
+    (realBraidCandidate : tacenta_braid.Braid)
+    (realSparseOutput : Option tacenta_spqr.Output)
+    (peer : tacenta_boundary.dh.PublicKeyBytes)
+    (recvSecret sendSecret candidateBytes newPublicBytes before realMk :
+      Array Std.U8 32#usize)
+    (candidatePrivate : tacenta_boundary.dh.PrivateKey)
+    (candidatePublic : tacenta_boundary.dh.PublicKeyBytes)
+    (realHeader : tacenta_triple.Header)
+    (wrappedRecv wrappedSend wrappedMk : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (realTripleCandidate : tacenta_triple.State)
+    (realKeys : Array Std.U8 32#usize × Array Std.U8 32#usize ×
+      Array Std.U8 16#usize)
+    (wrappedKeys : zeroize.Zeroizing
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (realAd : alloc.vec.Vec Std.U8) (plaintext : alloc.vec.Vec Std.U8)
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeReal : tacenta_wire.decode_message message = ok (.Ok decoded))
+    (hmessageEq : realBraidMessage = evidence.message)
+    (hreceivedEpochEq : receivedEpoch = evidence.receivedEpoch)
+    (houtputEq : realOutput = evidence.output)
+    (hcandidateEq : realBraidCandidate = evidence.next)
+    (hsparseEq : realSparseOutput = evidence.sparseOutput)
+    (hpeerCall : tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh = ok peer)
+    (hfirstCall : tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer =
+      ok (some recvSecret))
+    (hwrapRecv : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) recvSecret =
+      ok wrappedRecv)
+    (hderefRecv : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedRecv =
+      ok recvSecret)
+    (hrandomCall : lifecycle.random_secret rngCore cryptoRng rng =
+      ok (candidateBytes, rngNext))
+    (hcandidateCall : tacenta_boundary.dh.PrivateKey.from_bytes candidateBytes =
+      ok candidatePrivate)
+    (hsecondCall : tacenta_boundary.dh.PrivateKey.agree candidatePrivate peer =
+      ok (some sendSecret))
+    (hbeforeCall : tacenta_triple.State.sending_public real.triple = ok before)
+    (hwrapSend : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sendSecret =
+      ok wrappedSend)
+    (hderefSend : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedSend =
+      ok sendSecret)
+    (hheaderCall : lifecycle.triple_header_of decoded.header = ok realHeader)
+    (hpublicCall : tacenta_boundary.dh.PrivateKey.public_key candidatePrivate =
+      ok candidatePublic)
+    (hpublicBytesCall : tacenta_boundary.dh.PublicKeyBytes.as_bytes candidatePublic =
+      ok newPublicBytes)
+    (htripleReal : lifecycle.receive_with_eviction real.triple decoded.header realHeader
+      recvSecret sendSecret newPublicBytes realSparseOutput =
+        ok (.Ok (realTripleCandidate, realMk)))
+    (hkeysCall : tacenta_ratchet.message_keys realMk tacenta_ratchet.LabelSet.Tacenta =
+      ok realKeys)
+    (hwrapMk : zeroize.Zeroizing.new
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) realMk = ok wrappedMk)
+    (hderefMk : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedMk =
+      ok realMk)
+    (hwrapKeys : zeroize.Zeroizing.new
+      (TupleABC.Insts.ZeroizeZeroize
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+        (Array.Insts.ZeroizeZeroize 16#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))) realKeys =
+      ok wrappedKeys)
+    (hderefKeys : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (TupleABC.Insts.ZeroizeZeroize
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+        (Array.Insts.ZeroizeZeroize 16#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))) wrappedKeys =
+      ok realKeys)
+    (hrealAd : serialization.concat_ad (alloc.vec.Vec.deref real.identity_ad)
+      decoded.header = ok realAd)
+    (haead : tacenta_boundary.aead.decrypt realKeys.1 realKeys.2.1 realKeys.2.2
+      (alloc.vec.Vec.deref decoded.ciphertext) (alloc.vec.Vec.deref realAd) =
+        ok (.Ok plaintext)) :
+    lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Ok plaintext,
+        { { real with triple := realTripleCandidate, braid := evidence.next } with
+          ratchet_private :=
+            if realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
+              real.ratchet_private else candidatePrivate }, rngNext) := by
+  subst realComposite
+  have hmessageCall : lifecycle.msg_of decoded.header = ok realBraidMessage := by
+    rw [hmessageEq]
+    exact evidence.hmessageCall
+  have hreceive : tacenta_braid.Braid.receive real.braid realBraidMessage =
+      ok (receivedEpoch, realOutput, realBraidCandidate) := by
+    rw [hmessageEq, hreceivedEpochEq, houtputEq, hcandidateEq]
+    exact evidence.hreceive
+  have hsparse : RealSparseConversion realOutput realSparseOutput := by
+    rw [houtputEq, hsparseEq]
+    exact evidence.hsparse
+  have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
+  have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
+    cases hb : model.braid <;>
+      simp [Model.Lifecycle.agreementFailed, Model.Lifecycle.braidFailed, hb] at hready hrealReady ⊢
+  rw [hmodelReady] at hrealReady
+  rcases realKeys with ⟨encKey, macKey, ivKey⟩
+  have hne : core.array.equality.PartialEqArray.ne core.cmp.PartialEqU8
+      realTripleCandidate.classical.dhs_pub real.triple.classical.dhs_pub =
+      ok (decide (realTripleCandidate.classical.dhs_pub ≠ real.triple.classical.dhs_pub)) := by
+    obtain ⟨b, hb, hiff⟩ := Std.WP.spec_imp_exists
+      (Tacenta.SessionUnitT3.array_ne_val
+        realTripleCandidate.classical.dhs_pub real.triple.classical.dhs_pub)
+    rw [hb]
+    cases b <;> simp_all
+  have hreal : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Ok plaintext,
+        { { real with triple := realTripleCandidate, braid := realBraidCandidate } with
+          ratchet_private :=
+            if realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
+              real.ratchet_private else candidatePrivate }, rngNext) := by
+    unfold lifecycle.Session.decrypt_ratchet
+    cases hsparse with
+    | none hout =>
+        by_cases hsame : realTripleCandidate.classical.dhs_pub = real.triple.classical.dhs_pub <;>
+          (try rw [hsame] at hne ⊢) <;>
+          simp [hne, hsame, hrealReady, hdecodeReal, hmessageCall, hreceive, hout, hpeerCall,
+          hfirstCall, hwrapRecv, hderefRecv, hrandomCall, hcandidateCall,
+          hsecondCall, hwrapSend, hderefSend, hbeforeCall, hheaderCall,
+          hpublicCall, hpublicBytesCall, htripleReal, tacenta_triple.State.sending_public,
+          tacenta_ratchet.State.sending_public, hwrapMk, hderefMk,
+          hkeysCall, hwrapKeys, hderefKeys, hrealAd, haead]
+    | some realSparse converted hout hconverted =>
+        by_cases hsame : realTripleCandidate.classical.dhs_pub = real.triple.classical.dhs_pub <;>
+          (try rw [hsame] at hne ⊢) <;>
+          simp [hne, hsame, hrealReady, hdecodeReal, hmessageCall, hreceive, hout, hconverted,
+          hpeerCall, hfirstCall, hwrapRecv, hderefRecv, hrandomCall,
+          hcandidateCall, hsecondCall, hwrapSend, hderefSend, hbeforeCall,
+          hheaderCall, hpublicCall, hpublicBytesCall, htripleReal,
+          tacenta_triple.State.sending_public, tacenta_ratchet.State.sending_public, hwrapMk,
+          hderefMk, hkeysCall, hwrapKeys, hderefKeys, hrealAd, haead]
+  rw [← hcandidateEq]
+  exact hreal
+
+
 /-- Inner-call evidence is needed only after all initial-wrapper guards pass. -/
 def InitialRatchetRefines {R : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
