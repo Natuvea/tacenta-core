@@ -1373,6 +1373,28 @@ theorem decrypt_initial_repeat_success_clears_pending
 
 /-! ## Lifecycle observations -/
 
+
+theorem initial_dispatch_select_atomicity
+    {R : Type} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (route : InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
+    (∃ reason output,
+      (Model.Lifecycle.decrypt view oracle model (sliceOf message)).result =
+        .error reason ∧
+      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
+      output.2.1.pending_initial.map (pendingInitialOf dh) = model.pendingInitial) ∨
+    (∃ plaintext output,
+      (Model.Lifecycle.decrypt view oracle model (sliceOf message)).result =
+        .ok plaintext ∧
+      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
+      output.2.1.pending_initial.map (pendingInitialOf dh) = none) :=
+  public_decrypt_witness_atomicity_cases rngCore cryptoRng trace dh K view oracle
+    real model message rng (initial_dispatch_select_and_join route)
+
 /-- Equality on translated byte vectors returns exactly list equality. -/
 theorem vec_u8_eq_refines (left right : alloc.vec.Vec Std.U8) :
     alloc.vec.partial_eq.PartialEqVec.eq core.cmp.PartialEqU8 left right
