@@ -4410,3 +4410,16 @@ theorem initial_dispatch_select_identity
         hid | hnot
       · exact onIdentityEqual decoded established hdecode hestablished hequal hid
       · exact onIdentityMismatch decoded established hdecode hestablished hequal hnot)
+
+/-- Exhaustive shape split for the translated ratchet call.  The initial
+selector must first rule out the outer operation error using the decoded-frame
+premises before it can choose the inner refusal or success route. -/
+theorem initial_ratchet_result_cases
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R) (real : lifecycle.Session)
+    (message : Slice Std.U8) (rng : R) :
+    (∃ error, lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng = .Err error) ∨
+    (∃ output, lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng = .Ok output) := by
+  cases h : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng with
+  | Err error => exact Or.inl ⟨error, h⟩
+  | Ok output => exact Or.inr ⟨output, h⟩
