@@ -1396,10 +1396,10 @@ theorem decrypt_ratchet_decode_refusal_refines {R : Type}
     (htrace : trace rng = oracle.draws)
     (hready : Model.Lifecycle.agreementFailed model = false)
     (hdecodeReal : tacenta_wire.decode_message message = ok (.Err realReason)) :
-    ∃ output,
-      lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
-        ok output ∧
-      StepRefines trace dh K output
+    lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+        ok (.Err (.Decode realReason), real, rng) ∧
+      StepRefines trace dh K
+        (.Err (.Decode realReason), real, rng)
         (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
   obtain ⟨classified, hclassified, hreason⟩ := Std.WP.spec_imp_exists
     (decode_message_refusal_classifies message)
@@ -1424,7 +1424,7 @@ theorem decrypt_ratchet_decode_refusal_refines {R : Type}
   have hexact := decrypt_ratchet_decode_refusal_step_refines rngCore cryptoRng trace dh K
     view oracle real model message rng realReason (decodeRefusalOf realReason)
     hrel htrace hready hdecodeReal hmodelDecode rfl
-  exact ⟨(.Err (.Decode realReason), real, rng), hexact.1, hexact.2⟩
+  exact hexact
 
 /-- Lift an already-related ratchet receive through the public decrypt
 dispatcher's passthrough arms (`none` and explicit ratchet).  Refusals preserve
