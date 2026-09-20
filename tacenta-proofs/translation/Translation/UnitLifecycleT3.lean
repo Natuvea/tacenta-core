@@ -1683,9 +1683,10 @@ theorem decrypt_initial_without_established_refines {R : Type}
     (hdecode : tacenta_wire.decode_initial message =
       ok (core.result.Result.Ok decoded))
     (hnone : real.established_ephemeral = none) :
-    ∃ output,
-      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
-      StepRefines trace dh K output
+    lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+        ok (.Err lifecycle.Error.NotARepeatedInitial, real, rng) ∧
+      StepRefines trace dh K
+        (.Err lifecycle.Error.NotARepeatedInitial, real, rng)
         (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
   have htypeRel := message_type_refines message
   rw [htype] at htypeRel
@@ -1705,13 +1706,10 @@ theorem decrypt_initial_without_established_refines {R : Type}
     hmodelType hdecodeRel hrepeat
   have hmodel := Model.Lifecycle.decrypt_dispatch_refusal_keeps_state view oracle
     model (sliceOf message) .notARepeatedInitial hdispatch
-  let output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
-      lifecycle.Session × R :=
-    (core.result.Result.Err lifecycle.Error.NotARepeatedInitial, real, rng)
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
-      ok output := by
-    simp [lifecycle.Session.decrypt, htype, hdecode, hnone, output]
-  refine ⟨output, hreal, ?_⟩
+      ok (.Err lifecycle.Error.NotARepeatedInitial, real, rng) := by
+    simp [lifecycle.Session.decrypt, htype, hdecode, hnone]
+  refine ⟨hreal, ?_⟩
   rw [hmodel]
   exact ⟨rfl, hrel, htrace⟩
 
