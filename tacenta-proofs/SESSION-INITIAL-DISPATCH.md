@@ -26,6 +26,12 @@ inner receives reached after all wrapper checks pass. The latter remains a
 semantic obligation for general receive; it is not a primitive axiom or an
 unconditional proof of receive correctness.
 
+`decrypt_ratchet_refines_of_t1` is the shared T1-to-T3 bridge for that inner
+call. It obtains the concrete result from `decrypt_ratchet_no_panic` under
+`DecryptRatchetContracts`, `DecryptRatchetHeadroom`, and `DerivedKeysModel`,
+then applies the semantic `StepRefines` obligation to that result. The initial
+wrapper theorem uses this bridge rather than duplicating the existence proof.
+
 ## Discharged obligations
 
 - `initial_ratchet_refines_of_t1` obtains the actual inner result using

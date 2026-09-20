@@ -35,6 +35,35 @@ def InitialRatchetRefines {R : Type}
       StepRefines trace dh K output (Model.Lifecycle.decryptRatchet view oracle model
         (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)
 
+/-! ## T1-to-T3 bridge for the inner ratchet call
+
+The generated T1 theorem proves that `decrypt_ratchet` returns some concrete
+result under the boundary contracts and headroom conditions.  Keeping that
+existence step separate means the aggregate T3 work only has to establish the
+semantic relation for the result selected by the translated computation.
+-/
+
+theorem decrypt_ratchet_refines_of_t1
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hrefines : ∀ output,
+      lifecycle.Session.decrypt_ratchet rc crc real message rng = ok output →
+      StepRefines trace dh K output
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+    ∃ output,
+      lifecycle.Session.decrypt_ratchet rc crc real message rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  obtain ⟨output, hcall, _⟩ := Std.WP.spec_imp_exists
+    (Tacenta.UnitLifecycleT1.decrypt_ratchet_no_panic rc crc boundary real message rng headroom)
+  exact ⟨output, hcall, hrefines output hcall⟩
+
 /-- Construct all six routes from the decoded input and state. The existential
 route is a proposition so decoder proofs can be eliminated without choosing a
 route supplied by the caller. -/
@@ -109,10 +138,8 @@ theorem initial_ratchet_refines_of_t1
           (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)) :
     InitialRatchetRefines rc crc trace dh K view oracle real model message rng := by
   intro decoded established hdecode hestablished he hi
-  obtain ⟨output, hcall, _⟩ := Std.WP.spec_imp_exists
-    (Tacenta.UnitLifecycleT1.decrypt_ratchet_no_panic rc crc boundary real
-      decoded.message.deref rng headroom)
-  exact ⟨output, hcall, hrefines decoded established hdecode hestablished he hi output hcall⟩
+  exact decrypt_ratchet_refines_of_t1 boundary headroom (fun output hcall =>
+    hrefines decoded established hdecode hestablished he hi output hcall)
 
 /-- A concrete discharge of the inner semantic premise for terminal Braid
 states, with no assumed inner output or StepRefines witness. -/
