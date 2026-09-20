@@ -1731,9 +1731,10 @@ theorem decrypt_initial_ephemeral_mismatch_refines {R : Type}
       ok (core.result.Result.Ok decoded))
     (hestablished : real.established_ephemeral = some established)
     (hmismatch : vecOf established ≠ vecOf decoded.ephemeral) :
-    ∃ output,
-      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
-      StepRefines trace dh K output
+    lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+        ok (.Err lifecycle.Error.NotARepeatedInitial, real, rng) ∧
+      StepRefines trace dh K
+        (.Err lifecycle.Error.NotARepeatedInitial, real, rng)
         (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
   have htypeRel := message_type_refines message
   rw [htype] at htypeRel
@@ -1779,14 +1780,11 @@ theorem decrypt_initial_ephemeral_mismatch_refines {R : Type}
     hmodelType hdecodeRel hrepeat
   have hmodel := Model.Lifecycle.decrypt_dispatch_refusal_keeps_state view oracle
     model (sliceOf message) .notARepeatedInitial hdispatch
-  let output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
-      lifecycle.Session × R :=
-    (core.result.Result.Err lifecycle.Error.NotARepeatedInitial, real, rng)
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
-      ok output := by
+      ok (.Err lifecycle.Error.NotARepeatedInitial, real, rng) := by
     simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
-      hephemeralCall, output]
-  refine ⟨output, hreal, ?_⟩
+      hephemeralCall]
+  refine ⟨hreal, ?_⟩
   rw [hmodel]
   exact ⟨rfl, hrel, htrace⟩
 
