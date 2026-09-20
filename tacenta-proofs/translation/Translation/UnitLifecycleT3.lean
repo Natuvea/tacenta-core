@@ -955,6 +955,48 @@ def PublicDecryptWitness {R : Type}
     StepRefines trace dh K output
       (Model.Lifecycle.decrypt view oracle model (sliceOf message))
 
+inductive InitialDispatchRoute {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R) : Type where
+  | decodeRefusal
+      (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng
+  | noEstablished
+      (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng
+  | ephemeralMismatch
+      (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng
+  | identityMismatch
+      (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng
+  | repeatRefusal
+      (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng
+  | repeatSuccess
+      (w : PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng) :
+      InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng
+
+theorem initial_dispatch_join
+    {R : Type} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (route : InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model message rng := by
+  cases route with
+  | decodeRefusal w => exact w
+  | noEstablished w => exact w
+  | ephemeralMismatch w => exact w
+  | identityMismatch w => exact w
+  | repeatRefusal w => exact w
+  | repeatSuccess w => exact w
+
 /-! A refusal branch must retain the wrapper relation as well as the inner
 state relation.  The dispatcher uses this small lemma after the model-side
 atomicity theorem has established that its refusal session is unchanged. -/
