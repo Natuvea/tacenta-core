@@ -1611,6 +1611,51 @@ theorem decrypt_passthrough_refines {R : Type}
     real model message rng realType (show alloc.vec.Vec Std.U8 from message)
     innerOutput htype hnotInitial hcopy hinner hstep
 
+theorem decrypt_passthrough_refusal_exact
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle oracleNext : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (inner : alloc.vec.Vec Std.U8) (rng rngNext : R)
+    (realType : Option serialization.MessageType)
+    (realReason : lifecycle.Error) (modelReason : Model.Lifecycle.Refusal)
+    (realNext : lifecycle.Session) (modelNext : Model.Lifecycle.Session)
+    (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
+      (alloc.vec.Vec.deref inner) rng = ok (.Err realReason, realNext, rngNext))
+    (hstep : StepRefines trace dh K
+      (.Err realReason, realNext, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)))
+    (hmodelStep : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session := modelNext, result := .error modelReason, oracle := oracleNext })
+    (hmodel : Model.Lifecycle.decrypt view oracle model (sliceOf message) =
+      { session := modelNext, result := .error modelReason, oracle := oracleNext })
+    (htype : serialization.message_type message = ok realType)
+    (hnotInitial : realType ≠ some .Initial)
+    (hcopy : alloc.slice.Slice.to_vec core.clone.CloneU8 message = ok inner) :
+    lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+        ok (.Err realReason, realNext, rngNext) ∧
+      StepRefines trace dh K (.Err realReason, realNext, rngNext)
+        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+  have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+      ok (.Err realReason, realNext, rngNext) := by
+    unfold lifecycle.Session.decrypt
+    cases realType with
+    | none =>
+        simp [htype, hcopy, hinner,
+          core.result.Result.Insts.CoreOpsTry.branch,
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+          core.convert.FromSame.from]
+    | some ty =>
+        cases ty with
+        | Ratchet =>
+            simp [htype, hcopy, hinner,
+              core.result.Result.Insts.CoreOpsTry.branch,
+              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+              core.convert.FromSame.from]
+        | Initial => exact (hnotInitial rfl).elim
+  exact ⟨hreal, by rw [hmodel]; simpa [hmodelStep] using hstep⟩
+
 /-- Lift an exact initial-wrapper decoder refusal through public decrypt.
 Like the ratchet decoder branch, this isolates the remaining obligation: prove
 the detailed concrete and model decoders choose the same public reason. -/
