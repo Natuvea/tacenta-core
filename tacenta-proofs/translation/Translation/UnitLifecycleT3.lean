@@ -1629,9 +1629,10 @@ theorem decrypt_initial_decode_refusal_refines {R : Type}
       ok (some serialization.MessageType.Initial))
     (hdecodeReal : tacenta_wire.decode_initial message =
       ok (core.result.Result.Err realReason)) :
-    ∃ output,
-      lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
-      StepRefines trace dh K output
+    lifecycle.Session.decrypt rngCore cryptoRng real message rng =
+        ok (.Err (.Decode realReason), real, rng) ∧
+      StepRefines trace dh K
+        (.Err (.Decode realReason), real, rng)
         (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
   obtain ⟨classified, hclassified, hreason⟩ := Std.WP.spec_imp_exists
     (Tacenta.SessionUnitWireInitialT3.decode_initial_refusal_classifies message)
@@ -1664,7 +1665,7 @@ theorem decrypt_initial_decode_refusal_refines {R : Type}
   have hexact := decrypt_initial_decode_refusal_step_refines rngCore cryptoRng trace dh K
     view oracle real model message rng realReason (decodeRefusalOf realReason)
     hrel htrace htype hdecodeReal hdecodeModel rfl
-  exact ⟨(.Err (.Decode realReason), real, rng), hexact.1, hexact.2⟩
+  exact hexact
 
 /-- An initial frame cannot be a repeat when the established Session has no
 recorded establishment ephemeral.  Both implementations refuse it before the
