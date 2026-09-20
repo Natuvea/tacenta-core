@@ -4245,3 +4245,29 @@ theorem encrypt_success_initial_step_refines {R : Type}
   exact ⟨by simpa [ResultRefines] using hinitialValue', hnextSession, htrace⟩
 
 end Tacenta.UnitLifecycleT3
+
+/-- Exhaustive public view of the six generated initial-dispatch outcomes.
+This keeps the route tag observable at the composition boundary: callers can
+case-split on the concrete branch selected by the translated dispatcher before
+using the common witness or atomicity theorem. -/
+theorem initial_dispatch_route_cases
+    {R : Type} {rngCore : rand_core_1.RngCore R}
+    {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (route : InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng) :
+    (∃ w, route = .decodeRefusal w) ∨
+    (∃ w, route = .noEstablished w) ∨
+    (∃ w, route = .ephemeralMismatch w) ∨
+    (∃ w, route = .identityMismatch w) ∨
+    (∃ w, route = .repeatRefusal w) ∨
+    (∃ w, route = .repeatSuccess w) := by
+  cases route with
+  | decodeRefusal w => exact Or.inl ⟨w, rfl⟩
+  | noEstablished w => exact Or.inr (Or.inl ⟨w, rfl⟩)
+  | ephemeralMismatch w => exact Or.inr (Or.inr (Or.inl ⟨w, rfl⟩))
+  | identityMismatch w => exact Or.inr (Or.inr (Or.inr (Or.inl ⟨w, rfl⟩)))
+  | repeatRefusal w => exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨w, rfl⟩))))
+  | repeatSuccess w => exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨w, rfl⟩))))
