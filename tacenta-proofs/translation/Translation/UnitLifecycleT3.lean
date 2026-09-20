@@ -1939,11 +1939,8 @@ theorem decrypt_initial_ephemeral_mismatch_refines {R : Type}
       ok (core.result.Result.Ok decoded))
     (hestablished : real.established_ephemeral = some established)
     (hmismatch : vecOf established ≠ vecOf decoded.ephemeral) :
-    lifecycle.Session.decrypt rngCore cryptoRng real message rng =
-        ok (.Err lifecycle.Error.NotARepeatedInitial, real, rng) ∧
-      StepRefines trace dh K
-        (.Err lifecycle.Error.NotARepeatedInitial, real, rng)
-        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model
+      message rng := by
   have hmodelType := message_type_refines_initial message htype
   have hdecodeRel := decode_initial_refines_lifecycle message
   rw [hdecode] at hdecodeRel
@@ -1989,7 +1986,7 @@ theorem decrypt_initial_ephemeral_mismatch_refines {R : Type}
       ok (.Err lifecycle.Error.NotARepeatedInitial, real, rng) := by
     simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
       hephemeralCall]
-  refine ⟨hreal, ?_⟩
+  refine ⟨(.Err lifecycle.Error.NotARepeatedInitial, real, rng), hreal, ?_⟩
   rw [hmodel]
   exact ⟨rfl, hrel, htrace⟩
 
@@ -2016,11 +2013,8 @@ theorem decrypt_initial_identity_mismatch_refines {R : Type}
     (hmismatch : vecOf decoded.identity ≠
       Model.PersistedState.SessionState.encodeEc
         (dh.publicKey real.peer_identity_public)) :
-    lifecycle.Session.decrypt rngCore cryptoRng real message rng =
-        ok (.Err lifecycle.Error.NotARepeatedInitial, real, rng) ∧
-      StepRefines trace dh K
-        (.Err lifecycle.Error.NotARepeatedInitial, real, rng)
-        (Model.Lifecycle.decrypt view oracle model (sliceOf message)) := by
+    PublicDecryptWitness rngCore cryptoRng trace dh K view oracle real model
+      message rng := by
   have hmodelType := message_type_refines_initial message htype
   have hdecodeRel := decode_initial_refines_lifecycle message
   rw [hdecode] at hdecodeRel
@@ -2082,7 +2076,7 @@ theorem decrypt_initial_identity_mismatch_refines {R : Type}
       ok (.Err lifecycle.Error.NotARepeatedInitial, real, rng) := by
     simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
       hephemeralCall, hencoded, hidentityCall]
-  refine ⟨hreal, ?_⟩
+  refine ⟨(.Err lifecycle.Error.NotARepeatedInitial, real, rng), hreal, ?_⟩
   rw [hmodel]
   exact ⟨rfl, hrel, htrace⟩
 
