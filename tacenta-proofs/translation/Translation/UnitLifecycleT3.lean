@@ -958,6 +958,20 @@ theorem step_refines_unchanged_pending_initial
   rw [← hmodel]
   exact hstep.session.pendingInitial
 
+theorem step_refines_cleared_pending_initial
+    {R : Type} {trace : R → List Model.Lifecycle.Key}
+    {dh : DhView} {K : Model.Braid.Kem}
+    {realResult : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error}
+    {realSession : lifecycle.Session} {rng : R}
+    {model : Model.Lifecycle.Session}
+    {modelStep : Model.Lifecycle.Step Bytes}
+    (hstep : StepRefines trace dh K
+      (realResult, realSession, rng) modelStep)
+    (hmodel : modelStep.session.pendingInitial = none) :
+    realSession.pending_initial.map (pendingInitialOf dh) = none := by
+  rw [← hmodel]
+  exact hstep.session.pendingInitial
+
 /-! ## Lifecycle observations -/
 
 /-- Equality on translated byte vectors returns exactly list equality. -/
