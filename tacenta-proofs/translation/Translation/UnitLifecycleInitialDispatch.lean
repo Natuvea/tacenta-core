@@ -1505,6 +1505,41 @@ theorem concrete_receive_with_eviction_of_receive
   rw [hcall]
   simp
 
+/-! The first inner eviction loop chooses an index by scanning the skipped-key
+vector.  This safety lemma is the concrete fact needed before relating that
+index to the model's `oldestSkipped?`; it keeps the scan's termination and
+in-range result visible instead of treating the whole eviction helper as an
+opaque successful call. -/
+theorem concrete_evict_oldest_scan_bound
+    (v : alloc.vec.Vec tacenta_ratchet.SkippedKey)
+    (oldest i : Std.Usize)
+    (hi : i.val ≤ v.val.length)
+    (ho : oldest.val < v.val.length) :
+    tacenta_ratchet.State.evict_oldest_loop0_loop0 v oldest i ⦃ fun r =>
+      r.val < v.val.length ⦄ := by
+  unfold tacenta_ratchet.State.evict_oldest_loop0_loop0
+  apply loop.spec_decr_nat
+    (measure := fun x => v.val.length - x.2.val)
+    (inv := fun x => x.2.val ≤ v.val.length ∧ x.1.val < v.val.length)
+  · rintro ⟨oldest1, i1⟩ ⟨hi1, ho1⟩
+    simp only at hi1 ho1 ⊢
+    simp only [tacenta_ratchet.State.evict_oldest_loop0_loop0.body]
+    by_cases hlt : i1.val < v.val.length
+    · step*
+      by_cases hs : sk.stored_at < sk1.stored_at
+      · simp [hs]
+        repeat' (first | simp only [Aeneas.Std.WP.spec_ok] | step | split)
+        all_goals simp_all
+        all_goals try omega
+      · simp [hs]
+        repeat' (first | simp only [Aeneas.Std.WP.spec_ok] | step | split)
+        all_goals simp_all
+        all_goals try omega
+    · have hge : v.val.length ≤ i1.val := by omega
+      simp [alloc.vec.Vec.len, hge, hlt]
+      exact ho1
+  · exact ⟨hi, ho⟩
+
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
 so the theorem states the exact result of every terminating run while the
