@@ -1540,6 +1540,79 @@ theorem concrete_evict_oldest_scan_bound
       exact ho1
   · exact ⟨hi, ho⟩
 
+/-! The same scan also preserves the semantic minimum.  The postcondition is
+stated with explicit index proofs because `SkippedKey` has no arbitrary default
+value: every comparison is against an element known to be in the vector. -/
+theorem concrete_evict_oldest_scan_min
+    (v : alloc.vec.Vec tacenta_ratchet.SkippedKey)
+    (oldest i : Std.Usize)
+    (hi : i.val ≤ v.val.length)
+    (ho : oldest.val < v.val.length)
+    (hmin : ∀ (j : Std.Usize) (hj : j.val < i.val)
+      (hjlen : j.val < v.val.length),
+      (v.val[oldest.val]'ho).stored_at.val ≤
+        (v.val[j.val]'hjlen).stored_at.val) :
+    tacenta_ratchet.State.evict_oldest_loop0_loop0 v oldest i ⦃ fun r =>
+      r.val < v.val.length ∧
+      ∀ (hr : r.val < v.val.length) (j : Std.Usize)
+        (hj : j.val < v.val.length),
+        (v.val[r.val]'hr).stored_at.val ≤
+          (v.val[j.val]'hj).stored_at.val ⦄ := by
+  unfold tacenta_ratchet.State.evict_oldest_loop0_loop0
+  apply loop.spec_decr_nat
+    (measure := fun x => v.val.length - x.2.val)
+    (inv := fun x => x.2.val ≤ v.val.length ∧ x.1.val < v.val.length ∧
+      ∀ (hc : x.1.val < v.val.length) (j : Std.Usize)
+        (hj : j.val < x.2.val) (hjlen : j.val < v.val.length),
+        (v.val[x.1.val]'hc).stored_at.val ≤
+          (v.val[j.val]'hjlen).stored_at.val)
+  · rintro ⟨oldest1, i1⟩ ⟨hi1, ho1, hmin1⟩
+    simp only at hi1 ho1 hmin1 ⊢
+    simp only [tacenta_ratchet.State.evict_oldest_loop0_loop0.body]
+    by_cases hlt : i1.val < v.val.length
+    · step*
+      by_cases hs : sk.stored_at < sk1.stored_at
+      · simp [hs]
+        repeat' (first | simp only [Aeneas.Std.WP.spec_ok] | step | split)
+        all_goals simp_all
+        all_goals try omega
+        all_goals
+          constructor
+          · intro (j : Std.Usize) hj hjlen
+            by_cases hji : j.val < i1.val
+            · have hold := hmin1 j hji hjlen
+              have hnewold : (v.val[i1.val]'(by omega)).stored_at.val ≤
+                  (v.val[oldest1.val]'ho1).stored_at.val := Nat.le_of_lt hs
+              exact Nat.le_trans hnewold hold
+            · have hjeq : j.val = i1.val := by omega
+              simpa [hjeq] using
+                (Nat.le_refl ((v.val[i1.val]'(by omega)).stored_at.val))
+          · omega
+      · simp [hs]
+        repeat' (first | simp only [Aeneas.Std.WP.spec_ok] | step | split)
+        all_goals simp_all
+        all_goals try omega
+        all_goals
+          constructor
+          · intro (j : Std.Usize) hj hjlen
+            by_cases hji : j.val < i1.val
+            · exact hmin1 j hji hjlen
+            · have hjeq : j.val = i1.val := by omega
+              simpa [hjeq] using hs
+          · omega
+    · have hge : v.val.length ≤ i1.val := by omega
+      simp [alloc.vec.Vec.len, hge, hlt]
+      constructor
+      · exact ho1
+      · intro _hr (j : Std.Usize) hj
+        exact hmin1 ho1 j (by omega) hj
+  · constructor
+    · exact hi
+    · constructor
+      · exact ho
+      · intro (hc : oldest.val < v.val.length) (j : Std.Usize) hj hjlen
+        exact hmin j hj hjlen
+
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
 so the theorem states the exact result of every terminating run while the
