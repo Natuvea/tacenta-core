@@ -1031,6 +1031,139 @@ theorem decrypt_ratchet_success_keys_prefix {R : Type} (rngCore : rand_core_1.Rn
               by simpa using hpublicBytes, htripleReal, by simpa using hk, hwrapMk, hderefMk,
               hwrapKeys, hderefKeys⟩
 
+theorem decrypt_ratchet_success_aead_prefix {R : Type} (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (real : lifecycle.Session) (message : Slice Std.U8) (rng rngNext : R)
+    (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Ok plaintext, next, rngNext)) :
+    ∃ decoded m receivedEpoch output braidCandidate sparseOutput peer recvSecret wrappedRecv
+      candidateBytes rng1 candidatePrivate sendSecret wrappedSend before realHeader candidatePublic
+      newPublicBytes realTripleCandidate realMk wrappedMk realKeys wrappedKeys aeadPlaintext realAd,
+      tacenta_wire.decode_message message = ok (.Ok decoded) ∧
+      lifecycle.msg_of decoded.header = ok m ∧
+      tacenta_braid.Braid.receive real.braid m = ok (receivedEpoch, output, braidCandidate) ∧
+      RealSparseConversion output sparseOutput ∧
+      tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh = ok peer ∧
+      tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer = ok (some recvSecret) ∧
+      zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) recvSecret = ok wrappedRecv ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedRecv = ok recvSecret ∧
+      lifecycle.random_secret rngCore cryptoRng rng = ok (candidateBytes, rng1) ∧
+      tacenta_boundary.dh.PrivateKey.from_bytes candidateBytes = ok candidatePrivate ∧
+      tacenta_boundary.dh.PrivateKey.agree candidatePrivate peer = ok (some sendSecret) ∧
+      zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sendSecret = ok wrappedSend ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedSend = ok sendSecret ∧
+      tacenta_triple.State.sending_public real.triple = ok before ∧
+      lifecycle.triple_header_of decoded.header = ok realHeader ∧
+      tacenta_boundary.dh.PrivateKey.public_key candidatePrivate = ok candidatePublic ∧
+      tacenta_boundary.dh.PublicKeyBytes.as_bytes candidatePublic = ok newPublicBytes ∧
+      lifecycle.receive_with_eviction real.triple decoded.header realHeader
+        recvSecret sendSecret newPublicBytes sparseOutput = ok (.Ok (realTripleCandidate, realMk)) ∧
+      tacenta_ratchet.message_keys realMk tacenta_ratchet.LabelSet.Tacenta = ok realKeys ∧
+      zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) realMk = ok wrappedMk ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedMk = ok realMk ∧
+      zeroize.Zeroizing.new
+        (TupleABC.Insts.ZeroizeZeroize
+          (Array.Insts.ZeroizeZeroize 32#usize
+            (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+          (Array.Insts.ZeroizeZeroize 32#usize
+            (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+          (Array.Insts.ZeroizeZeroize 16#usize
+            (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))) realKeys = ok wrappedKeys ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (TupleABC.Insts.ZeroizeZeroize
+          (Array.Insts.ZeroizeZeroize 32#usize
+            (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+          (Array.Insts.ZeroizeZeroize 32#usize
+            (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+          (Array.Insts.ZeroizeZeroize 16#usize
+            (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))) wrappedKeys = ok realKeys ∧
+      serialization.concat_ad (alloc.vec.Vec.deref real.identity_ad) decoded.header = ok realAd ∧
+      tacenta_boundary.aead.decrypt realKeys.1 realKeys.2.1 realKeys.2.2
+        (alloc.vec.Vec.deref decoded.ciphertext) (alloc.vec.Vec.deref realAd) = ok (.Ok aeadPlaintext) := by
+  obtain ⟨decoded, m, receivedEpoch, output, braidCandidate, sparseOutput, peer, recvSecret,
+      wrappedRecv, candidateBytes, rng1, candidatePrivate, sendSecret, wrappedSend, before,
+      realHeader, candidatePublic, newPublicBytes, realTripleCandidate, realMk, wrappedMk,
+      realKeys, wrappedKeys, hdecode, hmessage, hreceive, hsparse, hpeer, hfirst, hwrapRecv,
+      hderefRecv, hrandom, hcandidate, hsecond, hwrapSend, hderefSend, hbefore, hheader,
+      hpublic, hpublicBytes, htripleReal, hkeys, hwrapMk, hderefMk, hwrapKeys, hderefKeys⟩ :=
+    decrypt_ratchet_success_keys_prefix rngCore cryptoRng hz32 hzKeys real message rng rngNext plaintext next hcall
+  unfold lifecycle.Session.decrypt_ratchet at hcall
+  cases hf : real.braid.failed with
+  | fail e => simp [hf] at hcall
+  | div => simp [hf] at hcall
+  | ok b =>
+    cases b with
+    | true => simp_all
+    | false =>
+      cases output with
+      | none =>
+        cases hsparse with
+        | none hout =>
+          simp [hf, hdecode, hmessage, hreceive, hout, hpeer, hfirst, hwrapRecv, hderefRecv,
+            hrandom, hcandidate, hsecond, hwrapSend, hderefSend, hbefore, hheader, hpublic,
+            hpublicBytes, htripleReal, hkeys, hwrapMk, hderefMk, hwrapKeys, hderefKeys] at hcall
+          cases had : serialization.concat_ad (alloc.vec.Vec.deref real.identity_ad) decoded.header with
+          | fail e => rcases realKeys with ⟨k1, k2, k3⟩ <;> simp [had] at hcall
+          | div => rcases realKeys with ⟨k1, k2, k3⟩ <;> simp [had] at hcall
+          | ok realAd =>
+            cases ha : tacenta_boundary.aead.decrypt realKeys.1 realKeys.2.1 realKeys.2.2
+                (alloc.vec.Vec.deref decoded.ciphertext) (alloc.vec.Vec.deref realAd) with
+            | fail e => rcases realKeys with ⟨k1, k2, k3⟩ <;> simp [had, ha] at hcall
+            | div => rcases realKeys with ⟨k1, k2, k3⟩ <;> simp [had, ha] at hcall
+            | ok result =>
+              cases result with
+              | Err e => rcases realKeys with ⟨k1, k2, k3⟩ <;> simp [had, ha] at hcall
+              | Ok value1 =>
+                exact ⟨decoded, m, receivedEpoch, none, braidCandidate, none, peer, recvSecret,
+                  wrappedRecv, candidateBytes, rng1, candidatePrivate, sendSecret, wrappedSend, before,
+                  realHeader, candidatePublic, newPublicBytes, realTripleCandidate, realMk, wrappedMk,
+                  realKeys, wrappedKeys, value1, realAd, hdecode, hmessage, hreceive, .none rfl, hpeer, hfirst,
+                  hwrapRecv, hderefRecv, hrandom, hcandidate, hsecond, hwrapSend, hderefSend,
+                  by simpa using hbefore, by simpa using hheader, by simpa using hpublic,
+                  by simpa using hpublicBytes, htripleReal, hkeys, hwrapMk, hderefMk, hwrapKeys,
+                  hderefKeys, by simpa using had, by simpa using ha⟩
+        | some realOutput converted hout hconverted => simp_all
+      | some output =>
+        cases hsparse with
+        | none hout => simp_all
+        | some realOutput converted hout hconverted =>
+          cases hout
+          simp [hf, hdecode, hmessage, hreceive, hconverted, hpeer, hfirst, hwrapRecv, hderefRecv,
+            hrandom, hcandidate, hsecond, hwrapSend, hderefSend, hbefore, hheader, hpublic,
+            hpublicBytes, htripleReal, hkeys, hwrapMk, hderefMk, hwrapKeys, hderefKeys] at hcall
+          cases had : serialization.concat_ad (alloc.vec.Vec.deref real.identity_ad) decoded.header with
+          | fail e => rcases realKeys with ⟨k1, k2, k3⟩ <;> simp [had] at hcall
+          | div => rcases realKeys with ⟨k1, k2, k3⟩ <;> simp [had] at hcall
+          | ok realAd =>
+            cases ha : tacenta_boundary.aead.decrypt realKeys.1 realKeys.2.1 realKeys.2.2
+                (alloc.vec.Vec.deref decoded.ciphertext) (alloc.vec.Vec.deref realAd) with
+            | fail e => rcases realKeys with ⟨k1, k2, k3⟩ <;> simp [had, ha] at hcall
+            | div => rcases realKeys with ⟨k1, k2, k3⟩ <;> simp [had, ha] at hcall
+            | ok result =>
+              cases result with
+              | Err e => rcases realKeys with ⟨k1, k2, k3⟩ <;> simp [had, ha] at hcall
+              | Ok value1 =>
+                exact ⟨decoded, m, receivedEpoch, some output, braidCandidate, some converted, peer, recvSecret,
+                  wrappedRecv, candidateBytes, rng1, candidatePrivate, sendSecret, wrappedSend, before,
+                  realHeader, candidatePublic, newPublicBytes, realTripleCandidate, realMk, wrappedMk,
+                  realKeys, wrappedKeys, value1, realAd, hdecode, hmessage, hreceive, .some output converted rfl hconverted,
+                  hpeer, hfirst, hwrapRecv, hderefRecv, hrandom, hcandidate, hsecond, hwrapSend, hderefSend,
+                  by simpa using hbefore, by simpa using hheader, by simpa using hpublic,
+                  by simpa using hpublicBytes, htripleReal, hkeys, hwrapMk, hderefMk, hwrapKeys,
+                  hderefKeys, by simpa using had, by simpa using ha⟩
+
 /-! The successful receive adapter keeps the concrete commit visible.  It
 reuses the same Braid evidence and primitive call facts as the refusal
 adapters, but returns the exact post-AEAD session selected by the lifecycle's
