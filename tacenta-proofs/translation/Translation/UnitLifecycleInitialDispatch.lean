@@ -488,6 +488,61 @@ theorem decrypt_ratchet_aead_refusal_from_braid {R : Type}
   exact ⟨rfl, hrel, htraceNext⟩
 
 
+/-! A successful concrete ratchet result determines the generated prefix that
+the success adapter must consume.  This inversion is deliberately over the
+translated computation itself: it cannot be satisfied by supplying an
+unrelated decoded frame or Braid candidate, and it records the sparse-output
+conversion in the same form used by `BraidReceiveEvidence`. -/
+
+theorem decrypt_ratchet_success_braid_prefix {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (real : lifecycle.Session) (message : Slice Std.U8) (rng rngNext : R)
+    (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Ok plaintext, next, rngNext)) :
+    ∃ decoded m receivedEpoch output braidCandidate sparseOutput,
+      tacenta_wire.decode_message message = ok (.Ok decoded) ∧
+      lifecycle.msg_of decoded.header = ok m ∧
+      tacenta_braid.Braid.receive real.braid m =
+        ok (receivedEpoch, output, braidCandidate) ∧
+      RealSparseConversion output sparseOutput := by
+  unfold lifecycle.Session.decrypt_ratchet at hcall
+  cases hf : real.braid.failed with
+  | fail e => simp [hf] at hcall
+  | div => simp [hf] at hcall
+  | ok b =>
+    cases hd : tacenta_wire.decode_message message with
+    | fail err => simp [hf, hd] at hcall; cases b <;> simp_all
+    | div => simp [hf, hd] at hcall; cases b <;> simp_all
+    | ok r =>
+      cases r with
+      | Err err => simp [hf, hd] at hcall; cases b <;> simp_all
+      | Ok decoded =>
+        cases hm : lifecycle.msg_of decoded.header with
+        | fail err => simp [hf, hd, hm] at hcall; cases b <;> simp_all
+        | div => simp [hf, hd, hm] at hcall; cases b <;> simp_all
+        | ok m =>
+          cases hr : tacenta_braid.Braid.receive real.braid m with
+          | fail err => simp [hf, hd, hm, hr] at hcall; cases b <;> simp_all
+          | div => simp [hf, hd, hm, hr] at hcall; cases b <;> simp_all
+          | ok result =>
+            rcases result with ⟨receivedEpoch, output, braidCandidate⟩
+            cases output with
+            | none =>
+              exact ⟨decoded, m, receivedEpoch, none, braidCandidate, none,
+                by simpa using hd, by simpa using hm, by simpa using hr, .none rfl⟩
+            | some output =>
+              cases hs : tacenta_spqr.Output.new output.key_epoch output.key with
+              | fail err => simp [hf, hd, hm, hr, hs] at hcall; cases b <;> simp_all
+              | div => simp [hf, hd, hm, hr, hs] at hcall; cases b <;> simp_all
+              | ok converted =>
+                have hconverted : tacenta_spqr.Output.new output.key_epoch output.key =
+                    ok converted := by simpa using hs
+                have hsparse : RealSparseConversion (some output) (some converted) := by
+                  exact .some output converted rfl hconverted
+                exact ⟨decoded, m, receivedEpoch, some output, braidCandidate, some converted,
+                  by simpa using hd, by simpa using hm, by simpa using hr, hsparse⟩
+
 /-! The successful receive adapter keeps the concrete commit visible.  It
 reuses the same Braid evidence and primitive call facts as the refusal
 adapters, but returns the exact post-AEAD session selected by the lifecycle's
