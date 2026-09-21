@@ -1488,6 +1488,23 @@ theorem concrete_receive_with_eviction_retry_case
           have hv : value = result := by simpa [ha] using h
           exact False.elim (hnot (by simp [ha, hv]))
 
+/-- A successful direct Triple receive is returned unchanged by the generated
+lifecycle wrapper; the eviction loop is entered only after an error. -/
+theorem concrete_receive_with_eviction_of_receive
+    (state : tacenta_triple.State)
+    (composite : tacenta_wire.Composite)
+    (header : tacenta_triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (output : Option tacenta_spqr.Output)
+    (result : tacenta_triple.State × Array Std.U8 32#usize)
+    (hcall : tacenta_triple.State.receive state header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Ok result)) :
+    lifecycle.receive_with_eviction state composite header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Ok result) := by
+  unfold lifecycle.receive_with_eviction lifecycle.receive_attempt
+  rw [hcall]
+  simp
+
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
 so the theorem states the exact result of every terminating run while the
