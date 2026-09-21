@@ -1186,6 +1186,17 @@ theorem decrypt_ratchet_success_aead_bytes_from_oracle {R : Type}
   cases heq
   rfl
 
+/-- The model-byte correspondence identifies the concrete successful AEAD
+plaintext before it is fed into the lifecycle result theorem. -/
+theorem aead_success_plaintext_eq_of_model_bytes
+    (aeadPlaintext plaintext : alloc.vec.Vec Std.U8)
+    (modelPlaintext : Bytes)
+    (haeadBytes : vecOf aeadPlaintext = modelPlaintext)
+    (hplaintextBytes : vecOf plaintext = modelPlaintext) :
+    aeadPlaintext = plaintext := by
+  apply vecOf_injective
+  exact haeadBytes.trans hplaintextBytes.symm
+
 /-! The successful receive adapter keeps the concrete commit visible.  It
 reuses the same Braid evidence and primitive call facts as the refusal
 adapters, but returns the exact post-AEAD session selected by the lifecycle's
