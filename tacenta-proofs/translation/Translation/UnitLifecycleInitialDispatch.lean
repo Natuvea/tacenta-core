@@ -655,6 +655,56 @@ theorem decrypt_ratchet_success_result_from_braid {R : Type}
   rw [← hcandidateEq]
   exact hreal
 
+/-! The model-side half of the successful receive is kept separate from the
+concrete adapter above.  This is the exact result that the aggregate T3
+composition will consume; in particular, it leaves the conditional
+ratchet-private update visible instead of hiding it behind an existential. -/
+
+theorem decrypt_ratchet_success_model_result
+    (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (model : Model.Lifecycle.Session) (message : Slice Std.U8)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (ciphertext modelPlaintext : Bytes)
+    (modelDhOutRecv draw modelDhOutSend : Model.Lifecycle.Key)
+    (modelTripleCandidate : Model.Triple.State)
+    (modelMk : Model.Lifecycle.Key)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (modelComposite, ciphertext))
+    (hmodelFirst : oracle.dhAgree model.ratchetPrivate modelComposite.dh =
+      some modelDhOutRecv)
+    (hmodelDraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext))
+    (hmodelSecond : oracle.dhAgree draw modelComposite.dh =
+      some modelDhOutSend)
+    (hmodelTriple : Model.Lifecycle.receiveWithEviction model.triple modelComposite
+      (Model.Lifecycle.tripleHeaderOf modelComposite) modelDhOutRecv modelDhOutSend
+      (oracle.dhPublic draw)
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.1) =
+        .ok (modelTripleCandidate, modelMk))
+    (hmodelAead : oracle.aeadOpen
+      (Model.State.messageKeys modelMk .tacenta).1
+      (Model.State.messageKeys modelMk .tacenta).2.1
+      (Model.State.messageKeys modelMk .tacenta).2.2
+      ciphertext
+      (Model.Messages.concatAd model.identityAd
+        (Model.CompositeHeader.encode modelComposite)) = some modelPlaintext) :
+    Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session :=
+          { model with
+            triple := modelTripleCandidate
+            braid := (Model.Braid.receive oracle.braidKem model.braid
+              (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.2
+            ratchetPrivate :=
+              if modelTripleCandidate.classical.dhsPub == model.triple.classical.dhsPub then
+                model.ratchetPrivate else draw }
+        result := .ok modelPlaintext
+        oracle := oracleNext } := by
+  simp [Model.Lifecycle.decryptRatchet, hready, hdecodeModel, hmodelFirst,
+    hmodelDraw, hmodelSecond, hmodelTriple, hmodelAead]
+
 
 /-- Inner-call evidence is needed only after all initial-wrapper guards pass. -/
 def InitialRatchetRefines {R : Type}
