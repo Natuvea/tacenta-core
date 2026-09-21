@@ -164,6 +164,58 @@ def oldestSkipped? : List SkippedEntry → Option SkippedEntry
   | [] => none
   | first :: rest => some (rest.foldl olderSkipped first)
 
+private def skippedStoredAt (e : SkippedEntry) : Nat := e.2.2.1
+
+private theorem olderSkipped_le_left (left right : SkippedEntry) :
+    skippedStoredAt (olderSkipped left right) ≤ skippedStoredAt left := by
+  unfold olderSkipped skippedStoredAt
+  split <;> omega
+
+private theorem olderSkipped_le_right (left right : SkippedEntry) :
+    skippedStoredAt (olderSkipped left right) ≤ skippedStoredAt right := by
+  unfold olderSkipped skippedStoredAt
+  split <;> omega
+
+private theorem foldl_olderSkipped_min_all (first : SkippedEntry) :
+    ∀ (rest : List SkippedEntry), skippedStoredAt (rest.foldl olderSkipped first) ≤
+      skippedStoredAt first ∧
+      ∀ e ∈ rest, skippedStoredAt (rest.foldl olderSkipped first) ≤
+        skippedStoredAt e := by
+  intro rest
+  induction rest generalizing first with
+  | nil => simp
+  | cons head tail ih =>
+      simp only [List.foldl_cons]
+      obtain ⟨hacc, htail⟩ := ih (first := olderSkipped first head)
+      constructor
+      · exact Nat.le_trans hacc (olderSkipped_le_left first head)
+      · intro e he
+        by_cases hxe : e = head
+        · subst e
+          exact Nat.le_trans hacc (olderSkipped_le_right first head)
+        · have hetail : e ∈ tail := by
+            simpa [hxe] using he
+          exact htail e hetail
+
+theorem oldestSkipped?_min (l : List (Key × Nat × Nat × Key)) (e : Key × Nat × Nat × Key)
+    (h : oldestSkipped? l = some e) :
+    ∀ x ∈ l, x.2.2.1 ≥ e.2.2.1 := by
+  cases l with
+  | nil => simp [oldestSkipped?] at h
+  | cons first rest =>
+      simp only [oldestSkipped?] at h
+      injection h with he
+      subst e
+      intro x hx
+      by_cases hxf : x = first
+      · subst x
+        obtain ⟨hacc, _⟩ := foldl_olderSkipped_min_all first rest
+        exact hacc
+      · obtain ⟨_, hmin⟩ := foldl_olderSkipped_min_all first rest
+        have hxrest : x ∈ rest := by
+          simpa [hxf] using hx
+        exact hmin x hxrest
+
 private def eraseFirstSkipped (target : SkippedEntry) :
     List SkippedEntry → List SkippedEntry
   | [] => []
