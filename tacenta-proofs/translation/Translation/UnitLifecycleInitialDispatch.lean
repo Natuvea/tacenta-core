@@ -1452,6 +1452,22 @@ theorem triple_receive_success_from_contracts
   obtain ⟨modelCandidate, modelKey, hmodel, hstate, hkey⟩ := hpost realCandidate realKey rfl
   exact ⟨modelCandidate, modelKey, hmodel, hstate, hkey⟩
 
+/-- A successful direct model Triple receive never enters the retry loop; the
+lifecycle model returns the same state/key pair unchanged. -/
+theorem model_receive_with_eviction_of_receive
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite)
+    (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Model.Lifecycle.Key)
+    (output : Option Model.SparseRatchet.Output)
+    (result : Model.Triple.State × Model.Lifecycle.Key)
+    (h : Model.Triple.receive state header dhOutRecv dhOutSend newDhsPub output = some result) :
+    Model.Lifecycle.receiveWithEviction state composite header dhOutRecv dhOutSend
+      newDhsPub output = .ok result := by
+  have hd := (Model.Triple.receiveDetailed_ok_iff state header dhOutRecv dhOutSend
+    newDhsPub output result).2 h
+  simp [Model.Lifecycle.receiveWithEviction, hd]
+
 /-! The model-side half of the successful receive is kept separate from the
 concrete adapter above.  This is the exact result that the aggregate T3
 composition will consume; in particular, it leaves the conditional
