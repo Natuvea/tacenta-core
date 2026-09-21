@@ -222,6 +222,32 @@ private def eraseFirstSkipped (target : SkippedEntry) :
   | entry :: rest =>
       if entry = target then rest else entry :: eraseFirstSkipped target rest
 
+theorem eraseFirstSkipped_eq_eraseIdx_of_first
+    (l : List (Key × Nat × Nat × Key)) (target : Key × Nat × Nat × Key)
+    (i : Nat) (hi : i < l.length)
+    (hentry : l[i]? = some target)
+    (hfirst : ∀ j, j < i → l[j]? ≠ some target) :
+    eraseFirstSkipped target l = l.eraseIdx i := by
+  induction l generalizing i with
+  | nil => simp at hi
+  | cons head tail ih =>
+      cases i with
+      | zero =>
+          have hhead : head = target := by
+            simpa using hentry
+          simp [eraseFirstSkipped, hhead]
+      | succ i =>
+          have htail : i < tail.length := by simp_all
+          have hentry' : tail[i]? = some target := by simpa using hentry
+          have hfirst' : ∀ j, j < i → tail[j]? ≠ some target := by
+            intro j hj
+            exact hfirst (j + 1) (by omega)
+          have hi' := ih (i := i) htail hentry' hfirst'
+          have hneq : head ≠ target := by
+            intro hh
+            exact hfirst 0 (by omega) (by simp [hh])
+          simp [eraseFirstSkipped, hneq, hi']
+
 /-- Delete up to `count` entries with the smallest store-clock value, matching
     the implementation's `evict_oldest`. The returned count is observable to
     the session retry loop: zero stops it. -/
