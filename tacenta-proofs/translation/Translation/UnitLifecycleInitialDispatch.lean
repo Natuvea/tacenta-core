@@ -1488,6 +1488,54 @@ theorem concrete_receive_with_eviction_retry_case
           have hv : value = result := by simpa [ha] using h
           exact False.elim (hnot (by simp [ha, hv]))
 
+/-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
+specification is deliberate: the generated `loop` is a partial computation,
+so the theorem states the exact result of every terminating run while the
+existing T1 loop obligations establish that the run cannot fail. -/
+theorem concrete_receive_with_eviction_one_retry_spec
+    (composite : tacenta_wire.Composite) (header : tacenta_triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (output : Option tacenta_spqr.Output) (half : lifecycle.FullStore)
+    (state evictedState : tacenta_triple.State) (batch batch1 evicted : Std.Usize)
+    (pending : tacenta_triple.TripleError)
+    (result : tacenta_triple.State × Array Std.U8 32#usize)
+    (hEvict : lifecycle.evict_for_retry state half batch = ok (evictedState, evicted))
+    (hNonzero : evicted ≠ 0#usize)
+    (hBatch : core.num.Usize.saturating_add batch batch = batch1)
+    (hRetry : lifecycle.receive_attempt evictedState header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Ok result)) :
+    lifecycle.receive_with_eviction_loop composite header dhOutRecv dhOutSend
+      newDhsPub output half state batch pending none ⦃
+        fun r => r = (pending, some (core.result.Result.Ok result)) ⦄ := by
+  unfold lifecycle.receive_with_eviction_loop
+  have hlo : loop
+      (fun x =>
+        match x with
+        | (half1, work1, batch1, pending1, outcome1) =>
+          lifecycle.receive_with_eviction_loop.body composite header dhOutRecv dhOutSend
+            newDhsPub output half1 work1 batch1 pending1 outcome1)
+      (half, state, batch, pending, none) ⦃
+        fun r => r = (pending, some (core.result.Result.Ok result)) ⦄ := by
+    apply loop.spec_decr_nat
+      (measure := fun x => match x.2.2.2.2 with | none => 1 | some _ => 0)
+      (inv := fun x =>
+        match x.2.2.2.2 with
+        | none => x.1 = half ∧ x.2.1 = state ∧ x.2.2.1 = batch ∧
+            x.2.2.2.1 = pending
+        | some o => o = core.result.Result.Ok result ∧ x.2.2.2.1 = pending)
+    · intro x hx
+      rcases x with ⟨halfX, workX, batchX, pendingX, outcomeX⟩
+      simp only at hx ⊢
+      unfold lifecycle.receive_with_eviction_loop.body
+      cases outcomeX with
+      | none =>
+        simp_all [lifecycle.receive_with_eviction_loop.body, Aeneas.Std.lift,
+          hEvict, hNonzero, hBatch, hRetry]
+      | some o =>
+        simp_all [lifecycle.receive_with_eviction_loop.body]
+    · simp
+  exact hlo
+
 /-- Expose the model retry branch: a successful `receiveWithEviction` that is
 not the direct `receiveDetailed` success must enter the bounded eviction loop. -/
 theorem model_receive_with_eviction_retry_case
