@@ -1390,6 +1390,68 @@ theorem decrypt_ratchet_success_result_from_braid {R : Type}
   rw [← hcandidateEq]
   exact hreal
 
+/-- The discharged Triple contracts turn an actual successful classical/SpQR
+receive into the exact model receive result and its state/key witnesses. -/
+theorem triple_receive_success_from_contracts
+    (hmac : Tacenta.SessionUnitT3.HmacAgrees)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hzr : Tacenta.SessionUnitT3.ZeroizingRoundTrips)
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hz96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
+    (hz64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64)
+    (hret : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
+    (happ : Tacenta.SessionUnitSpqrT3.VecAppendAgrees)
+    (hrm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
+    (hzs : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (hopt : Tacenta.SessionUnitSpqrT1.OptionCloneTotal)
+    {s : tacenta_triple.State}
+    {m : Model.Triple.State}
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (header : tacenta_triple.Header)
+    (mh : Model.State.Header)
+    (hheader : Tacenta.SessionUnitTripleT3.RatchetHeaderR header.dr mh)
+    (dh_out_recv dh_out_send new_dhs_pub : Array Std.U8 32#usize)
+    (output : Option tacenta_spqr.Output)
+    (hone : (m.classical.skipped.filter (fun x => x.1 == mh.dh && x.2.1 == mh.n)).length ≤ 1)
+    (hs : max m.classical.skipped.length Model.State.maxSkippedStore + Model.State.maxSkip ≤ Usize.max)
+    (hevents : m.classical.events + 1 < Std.U32.max)
+    (hepoch : m.postQuantum.epoch + 1 < Std.U64.max)
+    (hroom : m.postQuantum.chains.length + 2 < Usize.max)
+    (hcb : ∀ p ∈ m.postQuantum.chains, p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hsb : ∀ sk ∈ m.postQuantum.skipped, sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hnewb : ∀ o : tacenta_spqr.Output, output = some o →
+      o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hskiproom : m.postQuantum.skipped.length + Model.SparseRatchet.maxSkip ≤ Usize.max)
+    (hone2 : (m.postQuantum.skipped.filter (fun x => x.1 == header.epoch.val && x.2.1 == header.pq_n.val)).length ≤ 1)
+    (hcounter : ∀ p ∈ m.postQuantum.chains, ∀ ch : Model.SparseRatchet.Chain,
+      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
+    (realCandidate : tacenta_triple.State)
+    (realKey : Array Std.U8 32#usize)
+    (hcall : tacenta_triple.State.receive s header dh_out_recv dh_out_send
+      new_dhs_pub output = ok (.Ok (realCandidate, realKey))) :
+    ∃ modelCandidate modelKey,
+      Model.Triple.receive m
+          { dr := mh, epoch := header.epoch.val, pqN := header.pq_n.val }
+          (Tacenta.SessionUnitTripleT3.keyOf dh_out_recv)
+          (Tacenta.SessionUnitTripleT3.keyOf dh_out_send)
+          (Tacenta.SessionUnitTripleT3.keyOf new_dhs_pub)
+          (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = some (modelCandidate, modelKey) ∧
+      Tacenta.SessionUnitTripleT3.StateRefines
+        Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+        realCandidate modelCandidate ∧
+      Tacenta.SessionUnitTripleT3.keyOf realKey = modelKey := by
+  have hpost := Tacenta.SessionUnitTripleT3.receive_refines_discharged
+    hmac hkdf hzr hvr hz96 hz64 hret happ hrm hzs hopt hrel header mh hheader
+    dh_out_recv dh_out_send new_dhs_pub output hone hs hevents hepoch hroom hcb hsb
+    hnewb hskiproom hone2 hcounter
+  obtain ⟨r, hr, hpost⟩ := Std.WP.spec_imp_exists hpost
+  rw [hcall] at hr
+  cases hr
+  obtain ⟨modelCandidate, modelKey, hmodel, hstate, hkey⟩ := hpost realCandidate realKey rfl
+  exact ⟨modelCandidate, modelKey, hmodel, hstate, hkey⟩
+
 /-! The model-side half of the successful receive is kept separate from the
 concrete adapter above.  This is the exact result that the aggregate T3
 composition will consume; in particular, it leaves the conditional
