@@ -1633,6 +1633,10 @@ theorem concrete_evict_oldest_scan_first
     tacenta_ratchet.State.evict_oldest_loop0_loop0 v oldest i ⦃ fun r =>
       r.val < v.val.length ∧
       (∀ (hr : r.val < v.val.length) (j : Std.Usize)
+        (hj : j.val < v.val.length) (hjlen : j.val < v.val.length),
+        (v.val[r.val]'hr).stored_at.val ≤
+          (v.val[j.val]'hjlen).stored_at.val) ∧
+      (∀ (hr : r.val < v.val.length) (j : Std.Usize)
         (hj : j.val < r.val) (hjlen : j.val < v.val.length),
         (v.val[r.val]'hr).stored_at.val <
           (v.val[j.val]'hjlen).stored_at.val) ⦄ := by
@@ -1709,7 +1713,9 @@ theorem concrete_evict_oldest_scan_first
           · omega
     · have hge : v.val.length ≤ i1.val := by omega
       simp [alloc.vec.Vec.len, hge, hlt]
-      exact ⟨ho1, hfirst1⟩
+      refine ⟨ho1, ?_, hfirst1⟩
+      intro _hc j hjlen
+      exact hmin1 (by omega) j (by omega) hjlen
   · refine ⟨hi, ho, ?_, ?_⟩
     · intro _hc j hj hjlen
       exact hmin j hj hjlen
