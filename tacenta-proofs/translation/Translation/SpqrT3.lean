@@ -469,6 +469,36 @@ def RemoveSkippedAtAgrees : Prop :=
     ∃ r, State.remove_skipped_at v i = ok r ∧ r.1 = (v.val[i.val]'h).key ∧
       r.2.val = v.val.eraseIdx i.val
 
+/-! The sparse eviction loop always removes index zero. Its custom
+    swap-and-pop helper therefore has the same mapped result as dropping the
+    first model entry; keeping this as a separate boundary lemma avoids
+    smuggling that fact into the outer loop induction. -/
+theorem remove_skipped_at_zero_map_tail
+    (hrm : RemoveSkippedAtAgrees)
+    (v : alloc.vec.Vec Skipped)
+    (h : 0 < v.val.length) :
+    ∃ r, State.remove_skipped_at v 0#usize = ok r ∧
+      r.2.val.map skippedOf = (v.val.map skippedOf).tail := by
+  obtain ⟨r, hcall, _, herase⟩ := hrm v 0#usize h
+  refine ⟨r, hcall, ?_⟩
+  rw [herase]
+  simp
+
+theorem remove_skipped_at_zero_state_refines_tail
+    (hrm : RemoveSkippedAtAgrees)
+    {s : State} {m : Model.SparseRatchet.State}
+    (hrel : StateRefines s m)
+    (h : 0 < s.skipped.val.length) :
+    ∃ discarded v,
+      State.remove_skipped_at s.skipped 0#usize = ok (discarded, v) ∧
+      StateRefines { s with skipped := v }
+        { m with skipped := m.skipped.tail } := by
+  obtain ⟨r, hcall, hmap⟩ := remove_skipped_at_zero_map_tail hrm s.skipped h
+  rcases r with ⟨discarded, v⟩
+  refine ⟨discarded, v, hcall, ?_⟩
+  refine ⟨hrel.rk, hrel.epoch, hrel.chains, ?_, hrel.direction⟩
+  rw [hmap, ← hrel.skipped]
+
 /-- Filtering commutes with a map whose predicate factors through it. Needed
 every time a chain- or skipped-table entry's translated form is filtered on
 one side and its model form on the other. -/

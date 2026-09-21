@@ -497,7 +497,7 @@ def RemoveSkippedAtAgrees : Prop :=
     ∃ r, State.remove_skipped_at v i = ok r ∧ r.1 = (v.val[i.val]'h).key ∧
       r.2.val = v.val.eraseIdx i.val
 
-/-! The sparse eviction loop always removes index zero.  Its custom
+/-! The sparse eviction loop always removes index zero. Its custom
     swap-and-pop helper therefore has the same mapped result as dropping the
     first model entry; keeping this as a separate boundary lemma avoids
     smuggling that fact into the outer loop induction. -/
