@@ -781,6 +781,33 @@ def receiveWithEviction (state : Model.Triple.State)
             (Model.Triple.classicalSkippedLength state
               + Model.Triple.postQuantumSkippedLength state + 1)
 
+/-- A single successful retry is exposed for the translation composition.
+The theorem names the direct refusal, the selected full-store half, the
+working-copy eviction and the successful retry; it does not hide those facts
+inside the private recursive loop. -/
+theorem receiveWithEviction_one_retry
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (result : Model.Triple.State × Key)
+    (evictedState : Model.Triple.State)
+    (reason : Model.Triple.ReceiveRefusal) (half : FullStore)
+    (evicted : Nat)
+    (hDirect : Model.Triple.receiveDetailed state header dhOutRecv dhOutSend
+      newDhsPub output = .error reason)
+    (hFull : fullStore reason = some half)
+    (hEvict : (match half with
+      | .classical => (Model.Triple.evictOldestClassical state (receiveShortfall half state composite))
+      | .postQuantum => (Model.Triple.evictOldestPostQuantum state (receiveShortfall half state composite))) =
+      (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header dhOutRecv dhOutSend
+      newDhsPub output = .ok result) :
+    receiveWithEviction state composite header dhOutRecv dhOutSend newDhsPub output = .ok result := by
+  simp [receiveWithEviction, hDirect, hFull]
+  cases half <;> simp [receiveWithEvictionLoop, hEvict, hNonzero, hRetry]
+
 /-- A classical consumed-message refusal is not an eviction case, so the
     Session retry policy preserves it exactly. -/
 theorem receiveWithEviction_classical_outOfOrder (state : Model.Triple.State)
