@@ -1613,6 +1613,109 @@ theorem concrete_evict_oldest_scan_min
       · intro (hc : oldest.val < v.val.length) (j : Std.Usize) hj hjlen
         exact hmin j hj hjlen
 
+/-! The same induction records the tie rule: when a candidate has the same
+    clock as the current minimum, the generated scan keeps the earlier index.
+    Thus the returned minimum is the first minimum, which is the fact needed
+    to match `oldestSkipped?` rather than merely its clock value. -/
+theorem concrete_evict_oldest_scan_first
+    (v : alloc.vec.Vec tacenta_ratchet.SkippedKey)
+    (oldest i : Std.Usize)
+    (hi : i.val ≤ v.val.length)
+    (ho : oldest.val < v.val.length)
+    (hmin : ∀ (j : Std.Usize) (hj : j.val < i.val)
+      (hjlen : j.val < v.val.length),
+      (v.val[oldest.val]'ho).stored_at.val ≤
+        (v.val[j.val]'hjlen).stored_at.val)
+    (hfirst : ∀ (hc : oldest.val < v.val.length) (j : Std.Usize)
+      (hj : j.val < oldest.val) (hjlen : j.val < v.val.length),
+      (v.val[oldest.val]'hc).stored_at.val <
+        (v.val[j.val]'hjlen).stored_at.val) :
+    tacenta_ratchet.State.evict_oldest_loop0_loop0 v oldest i ⦃ fun r =>
+      r.val < v.val.length ∧
+      (∀ (hr : r.val < v.val.length) (j : Std.Usize)
+        (hj : j.val < r.val) (hjlen : j.val < v.val.length),
+        (v.val[r.val]'hr).stored_at.val <
+          (v.val[j.val]'hjlen).stored_at.val) ⦄ := by
+  unfold tacenta_ratchet.State.evict_oldest_loop0_loop0
+  apply loop.spec_decr_nat
+    (measure := fun x => v.val.length - x.2.val)
+    (inv := fun x =>
+      x.2.val ≤ v.val.length ∧
+      x.1.val < v.val.length ∧
+      (∀ (hc : x.1.val < v.val.length) (j : Std.Usize) (hj : j.val < x.2.val)
+        (hjlen : j.val < v.val.length),
+        (v.val[x.1.val]'hc).stored_at.val ≤
+          (v.val[j.val]'hjlen).stored_at.val) ∧
+      (∀ (hc : x.1.val < v.val.length) (j : Std.Usize)
+        (hj : j.val < x.1.val) (hjlen : j.val < v.val.length),
+        (v.val[x.1.val]'hc).stored_at.val <
+          (v.val[j.val]'hjlen).stored_at.val))
+  · rintro ⟨oldest1, i1⟩ ⟨hi1, ho1, hmin1, hfirst1⟩
+    simp only at hi1 ho1 hmin1 hfirst1 ⊢
+    simp only [tacenta_ratchet.State.evict_oldest_loop0_loop0.body]
+    by_cases hlt : i1.val < v.val.length
+    · step*
+      by_cases hs : sk.stored_at < sk1.stored_at
+      · simp [hs]
+        repeat' (first | simp only [Aeneas.Std.WP.spec_ok] | step | split)
+        all_goals simp_all
+        all_goals try omega
+        all_goals
+          refine ⟨?_, ?_, ?_⟩
+          · intro (j : Std.Usize) hj hjlen
+            by_cases hji : j.val < oldest1.val
+            · have hold := hfirst1 j hji hjlen
+              have hnewold : (v.val[i1.val]'(by omega)).stored_at.val <
+                  (v.val[oldest1.val]'ho1).stored_at.val := by
+                simpa using hs
+              exact Nat.le_of_lt (Nat.lt_trans hnewold hold)
+            · by_cases hji1 : j.val < i1.val
+              · have hold : (v.val[oldest1.val]'ho1).stored_at.val ≤
+                    (v.val[j.val]'hjlen).stored_at.val :=
+                  hmin1 j hji1 hjlen
+                have hnewold : (v.val[i1.val]'(by omega)).stored_at.val ≤
+                    (v.val[oldest1.val]'ho1).stored_at.val := by
+                  exact Nat.le_of_lt (by simpa using hs)
+                exact Nat.le_trans hnewold hold
+              · have hjeq : j.val = i1.val := by omega
+                simpa [hjeq] using
+                  (Nat.le_refl ((v.val[i1.val]'(by omega)).stored_at.val))
+          · intro (j : Std.Usize) hj hjlen
+            by_cases hji : j.val < oldest1.val
+            · have hold := hfirst1 j hji hjlen
+              have hnewold : (v.val[i1.val]'(by omega)).stored_at.val <
+                  (v.val[oldest1.val]'ho1).stored_at.val := by
+                simpa using hs
+              exact Nat.lt_trans hnewold hold
+            · have hnewold : (v.val[i1.val]'(by omega)).stored_at.val <
+                  (v.val[oldest1.val]'ho1).stored_at.val := by
+                simpa using hs
+              have hold : (v.val[oldest1.val]'ho1).stored_at.val ≤
+                  (v.val[j.val]'hjlen).stored_at.val :=
+                hmin1 j hj hjlen
+              exact Nat.lt_of_lt_of_le hnewold hold
+          · omega
+      · simp [hs]
+        repeat' (first | simp only [Aeneas.Std.WP.spec_ok] | step | split)
+        all_goals simp_all
+        all_goals try omega
+        all_goals
+          constructor
+          · intro (j : Std.Usize) hj hjlen
+            by_cases hji : j.val < i1.val
+            · exact hmin1 j hji hjlen
+            · have hjeq : j.val = i1.val := by omega
+              simpa [hjeq] using hs
+          · omega
+    · have hge : v.val.length ≤ i1.val := by omega
+      simp [alloc.vec.Vec.len, hge, hlt]
+      exact ⟨ho1, hfirst1⟩
+  · refine ⟨hi, ho, ?_, ?_⟩
+    · intro _hc j hj hjlen
+      exact hmin j hj hjlen
+    · intro hc j hj hjlen
+      exact hfirst hc j hj hjlen
+
 /-! The opaque removal boundary now has the exact list-level shape needed by
 the model bridge: after `remove_skipped_at` returns, mapping the resulting
 vector is the original mapped skipped list with the selected index erased. -/

@@ -216,6 +216,73 @@ theorem oldestSkipped?_min (l : List (Key × Nat × Nat × Key)) (e : Key × Nat
           simpa [hxf] using hx
         exact hmin x hxrest
 
+/-! The fold keeps the first entry when clocks tie.  This companion to
+    `oldestSkipped?_min` exposes that tie rule to the translated eviction
+    bridge: an entry that is strictly below every earlier entry and no greater
+    than every later entry is the selected oldest entry. -/
+
+theorem oldestSkipped?_eq_of_first_min
+    (l : List (Key × Nat × Nat × Key)) (e : Key × Nat × Nat × Key)
+    (pre post : List (Key × Nat × Nat × Key))
+    (h : l = pre ++ e :: post)
+    (hpre : ∀ x ∈ pre, e.2.2.1 < x.2.2.1)
+    (hpost : ∀ x ∈ post, e.2.2.1 ≤ x.2.2.1) :
+    oldestSkipped? l = some e := by
+  subst l
+  have keep : ∀ (xs : List (Key × Nat × Nat × Key)),
+      (∀ x ∈ xs, e.2.2.1 ≤ x.2.2.1) →
+      xs.foldl olderSkipped e = e := by
+    intro xs
+    induction xs with
+    | nil => intro _; rfl
+    | cons x xs ih =>
+        intro hall
+        simp only [List.foldl_cons]
+        have hx := hall x (by simp)
+        have hkeep : olderSkipped e x = e := by
+          unfold olderSkipped
+          split <;> simp_all <;> omega
+        rw [hkeep]
+        apply ih
+        intro y hy
+        exact hall y (by simp [hy])
+  have consume : ∀ (xs : List (Key × Nat × Nat × Key))
+      (a : Key × Nat × Nat × Key),
+      e.2.2.1 < a.2.2.1 →
+      (∀ x ∈ xs, e.2.2.1 < x.2.2.1) →
+      (xs ++ e :: post).foldl olderSkipped a = e := by
+    intro xs
+    induction xs with
+    | nil =>
+        intro a ha _
+        simp only [List.nil_append, List.foldl_cons]
+        have hpick : olderSkipped a e = e := by
+          unfold olderSkipped
+          split <;> simp_all <;> omega
+        rw [hpick]
+        exact keep post hpost
+    | cons x xs ih =>
+        intro a ha hall
+        simp only [List.cons_append, List.foldl_cons]
+        have hx := hall x (by simp)
+        have hlt : e.2.2.1 < (olderSkipped a x).2.2.1 := by
+          unfold olderSkipped
+          split <;> simp_all <;> omega
+        apply ih (a := olderSkipped a x) hlt
+        intro y hy
+        exact hall y (by simp [hy])
+  simp only [oldestSkipped?]
+  cases pre with
+  | nil =>
+      simp [List.foldl_append]
+      rw [keep post hpost]
+  | cons x xs =>
+      have hxe : e.2.2.1 < x.2.2.1 := hpre x (by simp)
+      have hconsume := consume xs x hxe (by
+        intro y hy
+        exact hpre y (by simp [hy]))
+      simpa [List.foldl_cons, List.foldl_append] using hconsume
+
 def eraseFirstSkipped (target : SkippedEntry) :
     List SkippedEntry → List SkippedEntry
   | [] => []
