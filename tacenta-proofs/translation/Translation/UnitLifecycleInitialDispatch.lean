@@ -778,6 +778,86 @@ theorem receive_success_session_refines
         realBraidCandidate candidatePrivate modelTripleCandidate modelBraidCandidate
         draw hrel htriple hbraid hprivate)
 
+/-! Final bookkeeping for the successful receive branch.  The concrete and
+model computations are supplied by the branch adapters; this theorem supplies
+the missing `StepRefines` package and makes the successor relation above part
+of the result rather than a caller-side assertion. -/
+
+theorem decrypt_ratchet_success_step_from_results {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng rngNext : R)
+    (plaintext : alloc.vec.Vec Std.U8) (modelPlaintext : Bytes)
+    (realTripleCandidate : tacenta_triple.State)
+    (realBraidCandidate : tacenta_braid.Braid)
+    (candidatePrivate : tacenta_boundary.dh.PrivateKey)
+    (draw : Model.Lifecycle.Key)
+    (modelTripleCandidate : Model.Triple.State)
+    (modelBraidCandidate : Model.Braid.BraidState)
+    (hrel : SessionRefines dh K real model)
+    (hreal : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Ok plaintext,
+        { { real with triple := realTripleCandidate, braid := realBraidCandidate } with
+          ratchet_private :=
+            if realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
+              real.ratchet_private else candidatePrivate }, rngNext))
+    (hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session :=
+          { model with
+            triple := modelTripleCandidate
+            braid := modelBraidCandidate
+            ratchetPrivate :=
+              if modelTripleCandidate.classical.dhsPub == model.triple.classical.dhsPub then
+                model.ratchetPrivate else draw }
+        result := .ok modelPlaintext
+        oracle := oracleNext })
+    (htriple : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      realTripleCandidate modelTripleCandidate)
+    (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K
+      realBraidCandidate.state modelBraidCandidate)
+    (hprivate : dh.privateKey candidatePrivate = draw)
+    (hbytes : vecOf plaintext = modelPlaintext)
+    (htrace : trace rngNext = oracleNext.draws) :
+    StepRefines trace dh K
+      (.Ok plaintext,
+        { { real with triple := realTripleCandidate, braid := realBraidCandidate } with
+          ratchet_private :=
+            if realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
+              real.ratchet_private else candidatePrivate }, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  have hnext := receive_success_session_refines dh K real model
+    realTripleCandidate realBraidCandidate candidatePrivate draw
+    modelTripleCandidate modelBraidCandidate hrel htriple hbraid hprivate
+  obtain ⟨output, hcall, hstep⟩ := decrypt_ratchet_success_step_refines
+    rngCore cryptoRng trace dh K view oracle
+    oracleNext real model message rng rngNext plaintext modelPlaintext
+    ({ { real with triple := realTripleCandidate, braid := realBraidCandidate } with
+      ratchet_private :=
+        if realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
+          real.ratchet_private else candidatePrivate })
+    ({ model with
+      triple := modelTripleCandidate
+      braid := modelBraidCandidate
+      ratchetPrivate :=
+        if modelTripleCandidate.classical.dhsPub == model.triple.classical.dhsPub then
+      model.ratchetPrivate else draw })
+    hreal hmodel hbytes hnext htrace
+  have hout : output =
+      (.Ok plaintext,
+        { { real with triple := realTripleCandidate, braid := realBraidCandidate } with
+          ratchet_private :=
+            if realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
+              real.ratchet_private else candidatePrivate }, rngNext) := by
+    have heq := hreal.symm.trans hcall
+    injection heq with htarget
+    exact htarget.symm
+  subst output
+  exact hstep
+
 
 /-- Inner-call evidence is needed only after all initial-wrapper guards pass. -/
 def InitialRatchetRefines {R : Type}
