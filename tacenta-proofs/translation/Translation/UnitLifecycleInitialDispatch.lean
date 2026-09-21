@@ -1518,6 +1518,61 @@ theorem decrypt_ratchet_success_model_result
   simp [Model.Lifecycle.decryptRatchet, hready, hdecodeModel, hmodelFirst,
     hmodelDraw, hmodelSecond, hmodelTriple, hmodelAead]
 
+/-- The aggregate model result can consume the direct Triple receive fact
+returned by the contract bridge; the lifecycle retry policy is discharged by
+its successful-direct-result lemma. -/
+theorem decrypt_ratchet_success_model_result_from_direct_triple
+    (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (model : Model.Lifecycle.Session) (message : Slice Std.U8)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (ciphertext modelPlaintext : Bytes)
+    (modelDhOutRecv draw modelDhOutSend : Model.Lifecycle.Key)
+    (modelTripleCandidate : Model.Triple.State)
+    (modelMk : Model.Lifecycle.Key)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (modelComposite, ciphertext))
+    (hmodelFirst : oracle.dhAgree model.ratchetPrivate modelComposite.dh =
+      some modelDhOutRecv)
+    (hmodelDraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext))
+    (hmodelSecond : oracle.dhAgree draw modelComposite.dh = some modelDhOutSend)
+    (hmodelReceive : Model.Triple.receive model.triple
+      (Model.Lifecycle.tripleHeaderOf modelComposite)
+      modelDhOutRecv modelDhOutSend (oracle.dhPublic draw)
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.1) =
+      some (modelTripleCandidate, modelMk))
+    (hmodelAead : oracle.aeadOpen
+      (Model.State.messageKeys modelMk .tacenta).1
+      (Model.State.messageKeys modelMk .tacenta).2.1
+      (Model.State.messageKeys modelMk .tacenta).2.2
+      ciphertext
+      (Model.Messages.concatAd model.identityAd
+        (Model.CompositeHeader.encode modelComposite)) = some modelPlaintext) :
+    Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session :=
+          { model with
+            triple := modelTripleCandidate
+            braid := (Model.Braid.receive oracle.braidKem model.braid
+              (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.2
+            ratchetPrivate :=
+              if modelTripleCandidate.classical.dhsPub == model.triple.classical.dhsPub then
+                model.ratchetPrivate else draw }
+        result := .ok modelPlaintext
+        oracle := oracleNext } := by
+  have hmodelTriple := model_receive_with_eviction_of_receive model.triple modelComposite
+    (Model.Lifecycle.tripleHeaderOf modelComposite) modelDhOutRecv modelDhOutSend
+    (oracle.dhPublic draw)
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.1)
+    (modelTripleCandidate, modelMk) hmodelReceive
+  exact decrypt_ratchet_success_model_result view oracle oracleNext model message modelComposite
+    ciphertext modelPlaintext modelDhOutRecv draw modelDhOutSend modelTripleCandidate modelMk
+    hready hdecodeModel hmodelFirst hmodelDraw hmodelSecond hmodelTriple hmodelAead
+
 /-! The concrete and model success states use the same public-key branch, but
 the translated state carries byte arrays while the model carries `Key`s.  This
 small bridge makes that branch explicit for the aggregate receive theorem. -/
