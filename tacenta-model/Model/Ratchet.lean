@@ -283,6 +283,38 @@ theorem oldestSkipped?_eq_of_first_min
         exact hpre y (by simp [hy]))
       simpa [List.foldl_cons, List.foldl_append] using hconsume
 
+/-! Index form of the selector rule.  Translation proofs naturally obtain a
+    vector index from the concrete scan; this packages the corresponding
+    `take`/`drop` split without making that list plumbing part of the
+    implementation theorem. -/
+theorem oldestSkipped?_eq_of_index_first_min
+    (l : List (Key × Nat × Nat × Key)) (i : Nat) (hi : i < l.length)
+    (hpre : ∀ (j : Nat) (hj : j < i),
+      l[i].2.2.1 < l[j].2.2.1)
+    (hpost : ∀ (j : Nat) (hj : i ≤ j) (hjlen : j < l.length),
+      l[i].2.2.1 ≤ l[j].2.2.1) :
+    oldestSkipped? l = some l[i] := by
+  let target := l[i]
+  have hsplit : l = l.take i ++ target :: l.drop (i + 1) := by
+    have hdrop : l.drop i = target :: l.drop (i + 1) := by
+      simpa [target] using (List.drop_eq_getElem_cons hi)
+    rw [← hdrop]
+    exact (List.take_append_drop i l).symm
+  apply oldestSkipped?_eq_of_first_min l target (l.take i) (l.drop (i + 1)) hsplit
+  · intro x hx
+    rw [List.mem_take_iff_getElem] at hx
+    obtain ⟨j, hj, hval⟩ := hx
+    subst x
+    have hj' : j < i := by omega
+    simpa [target] using hpre j hj'
+  · intro x hx
+    rw [List.mem_drop_iff_getElem] at hx
+    obtain ⟨j, hj, hval⟩ := hx
+    subst x
+    have hj' : i ≤ i + 1 + j := by omega
+    have hjlen : i + 1 + j < l.length := by omega
+    simpa [target] using hpost (i + 1 + j) hj' hjlen
+
 def eraseFirstSkipped (target : SkippedEntry) :
     List SkippedEntry → List SkippedEntry
   | [] => []

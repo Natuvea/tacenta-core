@@ -1722,6 +1722,48 @@ theorem concrete_evict_oldest_scan_first
     · intro hc j hj hjlen
       exact hfirst hc j hj hjlen
 
+/-! Once the scan postcondition is viewed through `StateR`, its returned
+    index is exactly the model selector.  The small width premise is the
+    concrete vector bound needed to reify a model list index as `Usize`; the
+    ratchet headroom invariant supplies it at the outer eviction call. -/
+theorem concrete_scan_selector_refines_oldest
+    (s : tacenta_ratchet.State) (m : Model.State.State)
+    (hrel : Tacenta.SessionUnitT3.StateR s m)
+    (r : Std.Usize)
+    (hwidth : s.skipped.val.length ≤ UScalar.cMax UScalarTy.Usize)
+    (hr : r.val < s.skipped.val.length)
+    (hmin : ∀ (hr : r.val < s.skipped.val.length) (j : Std.Usize)
+      (hj : j.val < s.skipped.val.length) (hjlen : j.val < s.skipped.val.length),
+      (s.skipped.val[r.val]'hr).stored_at.val ≤
+        (s.skipped.val[j.val]'hjlen).stored_at.val)
+    (hfirst : ∀ (hr : r.val < s.skipped.val.length) (j : Std.Usize)
+      (hj : j.val < r.val) (hjlen : j.val < s.skipped.val.length),
+      (s.skipped.val[r.val]'hr).stored_at.val <
+        (s.skipped.val[j.val]'hjlen).stored_at.val) :
+    Model.Ratchet.oldestSkipped? m.skipped =
+      some ((s.skipped.val.map Tacenta.SessionUnitT3.skippedOf)[r.val]'
+        (by simpa [List.length_map] using hr)) := by
+  rw [← hrel.skipped]
+  apply Model.Ratchet.oldestSkipped?_eq_of_index_first_min
+    (hi := by simpa [List.length_map] using hr)
+  · intro j hj
+    let ju : Std.Usize := UScalar.ofNat j (by omega)
+    have hju : ju.val = j := by simp [ju]
+    have hjlen : j < s.skipped.val.length := by omega
+    have hju_lt : ju.val < r.val := by simpa [hju] using hj
+    have hju_len : ju.val < s.skipped.val.length := by simpa [hju] using hjlen
+    simpa [Tacenta.SessionUnitT3.skippedOf, hju] using
+      hfirst hr ju hju_lt hju_len
+  · intro j hj hjlen
+    have hjlen' : j < s.skipped.val.length := by
+      simpa [List.length_map] using hjlen
+    let ju : Std.Usize := UScalar.ofNat j (by omega)
+    have hju : ju.val = j := by simp [ju]
+    have hju_len : ju.val < s.skipped.val.length := by simpa [hju] using hjlen'
+    have hju_ge : r.val ≤ ju.val := by simpa [hju] using hj
+    simpa [Tacenta.SessionUnitT3.skippedOf, hju] using
+      hmin hr ju (by omega) hju_len
+
 /-! The opaque removal boundary now has the exact list-level shape needed by
 the model bridge: after `remove_skipped_at` returns, mapping the resulting
 vector is the original mapped skipped list with the selected index erased. -/
