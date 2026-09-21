@@ -527,6 +527,110 @@ theorem remove_skipped_at_zero_state_refines_tail
   refine ⟨hrel.rk, hrel.epoch, hrel.chains, ?_, hrel.direction⟩
   rw [hmap, ← hrel.skipped]
 
+/-! The model removes the first `min count length` entries in one pure step.
+    The translated loop removes the same front entry one turn at a time.  This
+    relation is the semantic bridge used by the session retry path; the T1
+    theorem above only establishes that the loop cannot panic. -/
+
+def evictModelAt (m : Model.SparseRatchet.State) (n : Nat) : Model.SparseRatchet.State :=
+  { m with skipped := m.skipped.drop n }
+
+theorem evict_oldest_loop_refines
+    (hrm : RemoveSkippedAtAgrees)
+    (hz : Tacenta.UnitSpqrT1.ZeroizeTotal)
+    {s : State} {m : Model.SparseRatchet.State} (hrel : StateRefines s m)
+    (count : Usize) :
+    State.evict_oldest_loop s count 0#usize ⦃ fun r =>
+      r.1.val = min count.val m.skipped.length ∧
+      StateRefines r.2 (evictModelAt m r.1.val) ⦄ := by
+  unfold State.evict_oldest_loop
+  apply loop.spec_decr_nat
+    (measure := fun p => count.val - (Prod.snd p).val)
+    (inv := fun p =>
+      (Prod.snd p).val ≤ count.val ∧
+      (Prod.snd p).val ≤ m.skipped.length ∧
+      StateRefines (Prod.fst p) (evictModelAt m (Prod.snd p).val))
+  · rintro ⟨state, n⟩ hinv
+    simp only at hinv
+    simp only [State.evict_oldest_loop.body]
+    by_cases hcount : n.val < count.val
+    · have hcountU : n < count := by scalar_tac
+      simp only [hcountU]
+      by_cases hlen : state.skipped.val.length = 0
+      · have hlenU : alloc.vec.Vec.len state.skipped = 0#usize := by
+          simp [alloc.vec.Vec.len, hlen]
+          rfl
+        simp only [hlenU]
+        have hmlen : state.skipped.val.length = (evictModelAt m n.val).skipped.length := by
+          have hh := congrArg List.length hinv.2.2.skipped
+          simpa [List.length_map] using hh
+        have hmn : min count.val m.skipped.length = n.val := by
+          simp [evictModelAt, hmlen] at hlen
+          omega
+        refine ⟨?_, ?_⟩
+        · simpa using hmn.symm
+        · simpa [hmn] using hinv.2.2
+      · have hpos : 0 < state.skipped.val.length := Nat.pos_of_ne_zero hlen
+        have hlenU : alloc.vec.Vec.len state.skipped ≠ 0#usize := by
+          intro hz0
+          apply hlen
+          simpa [alloc.vec.Vec.len] using congrArg UScalar.val hz0
+        have hlenU' : (alloc.vec.Vec.len state.skipped != 0#usize) = true := by
+          simp [bne_iff_ne, hlenU]
+        simp only [hlenU']
+        obtain ⟨discarded, v, hcall, href⟩ :=
+          remove_skipped_at_zero_state_refines_tail hrm hinv.2.2 hpos
+        simp only [hcall]
+        obtain ⟨_, hzr⟩ := hz (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) discarded
+        simp [hzr]
+        step*
+        all_goals
+          have hmlen : state.skipped.val.length = (evictModelAt m n.val).skipped.length := by
+            have hh := congrArg List.length hinv.2.2.skipped
+            simpa [List.length_map] using hh
+          have hnlt : n.val < m.skipped.length := by
+            by_contra hle
+            have hnil : (evictModelAt m n.val).skipped = [] := by
+              simp [evictModelAt, List.drop_eq_nil_of_le (Nat.le_of_not_gt hle)]
+            have hs0 : state.skipped.val.length = 0 := by
+              rw [hmlen]
+              simp [hnil]
+            exact hlen hs0
+          have hmodel :
+              { evictModelAt m n.val with skipped := (evictModelAt m n.val).skipped.tail } =
+                evictModelAt m (n.val + 1) := by
+            simp [evictModelAt]
+          refine ⟨?_, ?_, ?_, ?_⟩
+          · rw [evicted1_post]; omega
+          · rw [evicted1_post]; omega
+          · rw [evicted1_post]
+            rw [← hmodel]
+            exact href
+          · rw [evicted1_post]; omega
+    · have hnotU : ¬ n < count := by scalar_tac
+      simp only [hnotU]
+      step*
+  · refine ⟨?_, ?_, ?_⟩
+    · simp
+    · simp
+    · simpa [evictModelAt] using hrel
+
+@[step]
+theorem evict_oldest_refines
+    (hrm : RemoveSkippedAtAgrees)
+    (hz : Tacenta.UnitSpqrT1.ZeroizeTotal)
+    {s : State} {m : Model.SparseRatchet.State} (hrel : StateRefines s m)
+    (count : Usize) :
+    State.evict_oldest s count ⦃ fun r =>
+      r.1.val = (Model.SparseRatchet.evictOldest m count.val).2 ∧
+      StateRefines r.2 (Model.SparseRatchet.evictOldest m count.val).1 ⦄ := by
+  unfold State.evict_oldest
+  step with evict_oldest_loop_refines hrm hz hrel count
+  refine ⟨r_post1, ?_⟩
+  rw [r_post1] at r_post2
+  change StateRefines r.2 (evictModelAt m (min count.val m.skipped.length))
+  exact r_post2
+
 /-- Filtering commutes with a map whose predicate factors through it. Needed
 every time a chain- or skipped-table entry's translated form is filtered on
 one side and its model form on the other. -/

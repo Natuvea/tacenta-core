@@ -482,7 +482,7 @@ JOBS = [
              "-- and they are left. The removal is local to this file: a module that\n"
              "-- imports it has the rule back.\n"
              "attribute [-step] Tacenta.UnitT1.zeroizing_deref_step", 1),
-        ] + renames(0, 25, 0, 4),
+        ] + renames(0, 27, 0, 4),
     ),
 ]
 
