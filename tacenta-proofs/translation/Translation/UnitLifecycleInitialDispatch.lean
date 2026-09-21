@@ -1452,6 +1452,37 @@ theorem triple_receive_success_from_contracts
   obtain ⟨modelCandidate, modelKey, hmodel, hstate, hkey⟩ := hpost realCandidate realKey rfl
   exact ⟨modelCandidate, modelKey, hmodel, hstate, hkey⟩
 
+/-- Expose the model retry branch: a successful `receiveWithEviction` that is
+not the direct `receiveDetailed` success must enter the bounded eviction loop. -/
+theorem model_receive_with_eviction_retry_case
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite)
+    (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Model.Lifecycle.Key)
+    (output : Option Model.SparseRatchet.Output)
+    (result : Model.Triple.State × Model.Lifecycle.Key)
+    (h : Model.Lifecycle.receiveWithEviction state composite header dhOutRecv dhOutSend
+      newDhsPub output = .ok result)
+    (hnot : Model.Triple.receiveDetailed state header dhOutRecv dhOutSend newDhsPub output ≠
+      .ok result) :
+    ∃ reason half,
+      Model.Triple.receiveDetailed state header dhOutRecv dhOutSend newDhsPub output =
+        .error reason ∧
+      Model.Lifecycle.fullStore reason = some half := by
+  unfold Model.Lifecycle.receiveWithEviction at h
+  cases hd : Model.Triple.receiveDetailed state header dhOutRecv dhOutSend newDhsPub output with
+  | error reason =>
+      cases hs : Model.Lifecycle.fullStore reason with
+      | none => simp [hd, hs] at h
+      | some half =>
+          simp [hd, hs] at h
+          exact ⟨reason, half, by simpa [hd], by simpa [hs]⟩
+  | ok value =>
+      have hv : value = result := by simpa [hd] using h
+      exfalso
+      apply hnot
+      rw [hd, hv]
+
 /-- A successful direct model Triple receive never enters the retry loop; the
 lifecycle model returns the same state/key pair unchanged. -/
 theorem model_receive_with_eviction_of_receive
