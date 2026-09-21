@@ -617,6 +617,77 @@ theorem decrypt_ratchet_success_dh_prefix {R : Type}
                     hdecode, hmessage, hreceive, .some output converted' rfl hs,
                     by simpa using hp, by simpa using ha⟩
 
+/-! The random draw is the next generated boundary.  Here the stated
+zeroizing round-trip contract is used to justify that the value dereferenced
+by the translated code is the DH secret recovered above; execution alone does
+not provide that representation fact. -/
+
+theorem decrypt_ratchet_success_random_prefix {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (real : lifecycle.Session) (message : Slice Std.U8) (rng rngNext : R)
+    (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Ok plaintext, next, rngNext)) :
+    ∃ decoded m receivedEpoch output braidCandidate sparseOutput peer recvSecret
+      wrappedRecv candidateBytes rng1,
+      tacenta_wire.decode_message message = ok (.Ok decoded) ∧
+      lifecycle.msg_of decoded.header = ok m ∧
+      tacenta_braid.Braid.receive real.braid m = ok (receivedEpoch, output, braidCandidate) ∧
+      RealSparseConversion output sparseOutput ∧
+      tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh = ok peer ∧
+      tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer = ok (some recvSecret) ∧
+      zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) recvSecret = ok wrappedRecv ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedRecv = ok recvSecret ∧
+      lifecycle.random_secret rngCore cryptoRng rng = ok (candidateBytes, rng1) := by
+  obtain ⟨decoded, m, receivedEpoch, output, braidCandidate, sparseOutput, peer, recvSecret,
+      hdecode, hmessage, hreceive, hsparse, hpeer, hfirst⟩ :=
+    decrypt_ratchet_success_dh_prefix rngCore cryptoRng real message rng rngNext plaintext next hcall
+  let inst32 := Array.Insts.ZeroizeZeroize 32#usize
+    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)
+  obtain ⟨wrappedRecv, hwrap, hderef⟩ := zeroizing_roundtrip hz32 inst32 recvSecret
+  dsimp [inst32] at hwrap hderef
+  unfold lifecycle.Session.decrypt_ratchet at hcall
+  cases hf : real.braid.failed with
+  | fail e => simp [hf] at hcall
+  | div => simp [hf] at hcall
+  | ok b =>
+    cases b with
+    | true => simp_all
+    | false =>
+      cases output with
+      | none =>
+        cases hsparse with
+        | none hout =>
+          simp [hf, hdecode, hmessage, hreceive, hout, hpeer, hfirst, hwrap, hderef] at hcall
+          cases hr : lifecycle.random_secret rngCore cryptoRng rng with
+          | fail e => simp [hwrap, hderef, hr] at hcall
+          | div => simp [hwrap, hderef, hr] at hcall
+          | ok draw =>
+            rcases draw with ⟨candidateBytes, rng1⟩
+            exact ⟨decoded, m, receivedEpoch, none, braidCandidate, none, peer, recvSecret,
+              wrappedRecv, candidateBytes, rng1, hdecode, hmessage, hreceive, .none rfl, hpeer, hfirst,
+              hwrap, hderef, by simpa using hr⟩
+        | some realOutput converted hout hconverted => simp_all
+      | some output =>
+        cases hsparse with
+        | none hout => simp_all
+        | some realOutput converted hout hconverted =>
+          cases hout
+          simp [hf, hdecode, hmessage, hreceive, hconverted, hpeer, hfirst, hwrap, hderef] at hcall
+          cases hr : lifecycle.random_secret rngCore cryptoRng rng with
+          | fail e => simp [hwrap, hderef, hr] at hcall
+          | div => simp [hwrap, hderef, hr] at hcall
+          | ok draw =>
+            rcases draw with ⟨candidateBytes, rng1⟩
+            exact ⟨decoded, m, receivedEpoch, some output, braidCandidate, some converted, peer, recvSecret,
+              wrappedRecv, candidateBytes, rng1, hdecode, hmessage, hreceive,
+              .some output converted rfl hconverted, hpeer, hfirst, hwrap, hderef,
+              by simpa using hr⟩
+
 /-! The successful receive adapter keeps the concrete commit visible.  It
 reuses the same Braid evidence and primitive call facts as the refusal
 adapters, but returns the exact post-AEAD session selected by the lifecycle's
