@@ -705,6 +705,79 @@ theorem decrypt_ratchet_success_model_result
   simp [Model.Lifecycle.decryptRatchet, hready, hdecodeModel, hmodelFirst,
     hmodelDraw, hmodelSecond, hmodelTriple, hmodelAead]
 
+/-! The concrete and model success states use the same public-key branch, but
+the translated state carries byte arrays while the model carries `Key`s.  This
+small bridge makes that branch explicit for the aggregate receive theorem. -/
+
+theorem receive_success_session_refines
+    (dh : DhView) (K : Model.Braid.Kem)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (realTripleCandidate : tacenta_triple.State)
+    (realBraidCandidate : tacenta_braid.Braid)
+    (candidatePrivate : tacenta_boundary.dh.PrivateKey)
+    (draw : Model.Lifecycle.Key)
+    (modelTripleCandidate : Model.Triple.State)
+    (modelBraidCandidate : Model.Braid.BraidState)
+    (hrel : SessionRefines dh K real model)
+    (htriple : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      realTripleCandidate modelTripleCandidate)
+    (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K
+      realBraidCandidate.state modelBraidCandidate)
+    (hprivate : dh.privateKey candidatePrivate = draw) :
+    SessionRefines dh K
+      { { real with triple := realTripleCandidate, braid := realBraidCandidate } with
+        ratchet_private :=
+          if realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
+            real.ratchet_private else candidatePrivate }
+      { model with
+        triple := modelTripleCandidate
+        braid := modelBraidCandidate
+        ratchetPrivate :=
+          if modelTripleCandidate.classical.dhsPub == model.triple.classical.dhsPub then
+            model.ratchetPrivate else draw } := by
+  have hsameModel :
+      modelTripleCandidate.classical.dhsPub = model.triple.classical.dhsPub ↔
+      realTripleCandidate.classical.dhs_pub = real.triple.classical.dhs_pub := by
+    constructor
+    · intro h
+      have hc := congrArg (fun s => s.dhsPub) htriple.1
+      have hp := congrArg (fun s => s.dhsPub) hrel.triple.1
+      change Tacenta.SessionUnitT3.keyOf realTripleCandidate.classical.dhs_pub =
+        modelTripleCandidate.classical.dhsPub at hc
+      change Tacenta.SessionUnitT3.keyOf real.triple.classical.dhs_pub =
+        model.triple.classical.dhsPub at hp
+      have hk : Tacenta.SessionUnitT3.keyOf realTripleCandidate.classical.dhs_pub =
+          Tacenta.SessionUnitT3.keyOf real.triple.classical.dhs_pub := by
+        rw [hc, hp]
+        exact h
+      exact (Tacenta.SessionUnitT3.keyOf_eq_iff _ _).mp hk
+    · intro h
+      have hc := congrArg (fun s => s.dhsPub) htriple.1
+      have hp := congrArg (fun s => s.dhsPub) hrel.triple.1
+      change Tacenta.SessionUnitT3.keyOf realTripleCandidate.classical.dhs_pub =
+        modelTripleCandidate.classical.dhsPub at hc
+      change Tacenta.SessionUnitT3.keyOf real.triple.classical.dhs_pub =
+        model.triple.classical.dhsPub at hp
+      have hk := congrArg Tacenta.SessionUnitT3.keyOf h
+      calc
+        modelTripleCandidate.classical.dhsPub =
+            Tacenta.SessionUnitT3.keyOf realTripleCandidate.classical.dhs_pub := hc.symm
+        _ = Tacenta.SessionUnitT3.keyOf real.triple.classical.dhs_pub := hk
+        _ = model.triple.classical.dhsPub := hp
+  by_cases hsame : realTripleCandidate.classical.dhs_pub =
+      real.triple.classical.dhs_pub
+  · have hsameModel' := hsameModel.mpr hsame
+    simpa [hsame, hsameModel'] using
+      (receive_success_next_refines_same dh K real model realTripleCandidate
+        realBraidCandidate modelTripleCandidate modelBraidCandidate hrel htriple hbraid)
+  · have hsameModel' : ¬ modelTripleCandidate.classical.dhsPub =
+        model.triple.classical.dhsPub := fun h => hsame (hsameModel.mp h)
+    simpa [hsame, hsameModel'] using
+      (receive_success_next_refines_rotated dh K real model realTripleCandidate
+        realBraidCandidate candidatePrivate modelTripleCandidate modelBraidCandidate
+        draw hrel htriple hbraid hprivate)
+
 
 /-- Inner-call evidence is needed only after all initial-wrapper guards pass. -/
 def InitialRatchetRefines {R : Type}
