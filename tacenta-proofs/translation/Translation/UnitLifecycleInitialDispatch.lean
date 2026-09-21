@@ -1452,6 +1452,42 @@ theorem triple_receive_success_from_contracts
   obtain ⟨modelCandidate, modelKey, hmodel, hstate, hkey⟩ := hpost realCandidate realKey rfl
   exact ⟨modelCandidate, modelKey, hmodel, hstate, hkey⟩
 
+/-- Expose the generated retry entry: a successful lifecycle receive that is
+not the direct attempt must first produce a full-store refusal and select a
+retry half. -/
+theorem concrete_receive_with_eviction_retry_case
+    (state : tacenta_triple.State)
+    (composite : tacenta_wire.Composite)
+    (header : tacenta_triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (output : Option tacenta_spqr.Output)
+    (result : tacenta_triple.State × Array Std.U8 32#usize)
+    (h : lifecycle.receive_with_eviction state composite header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Ok result))
+    (hnot : lifecycle.receive_attempt state header dhOutRecv dhOutSend newDhsPub output ≠
+      ok (.Ok result)) :
+    ∃ reason half,
+      lifecycle.receive_attempt state header dhOutRecv dhOutSend newDhsPub output =
+        ok (.Err reason) ∧
+      lifecycle.full_store reason = ok (some half) := by
+  unfold lifecycle.receive_with_eviction at h
+  cases ha : lifecycle.receive_attempt state header dhOutRecv dhOutSend newDhsPub output with
+  | fail e => simp [ha] at h
+  | div => simp [ha] at h
+  | ok value =>
+      cases value with
+      | Err reason =>
+          cases hs : lifecycle.full_store reason with
+          | fail e => simp [ha, hs] at h
+          | div => simp [ha, hs] at h
+          | ok store =>
+              cases hstore : store with
+              | none => simp [ha, hs, hstore] at h
+              | some half => exact ⟨reason, half, by simp [ha], by simp [hs, hstore]⟩
+      | Ok value =>
+          have hv : value = result := by simpa [ha] using h
+          exact False.elim (hnot (by simp [ha, hv]))
+
 /-- Expose the model retry branch: a successful `receiveWithEviction` that is
 not the direct `receiveDetailed` success must enter the bounded eviction loop. -/
 theorem model_receive_with_eviction_retry_case
