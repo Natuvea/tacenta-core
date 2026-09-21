@@ -1800,6 +1800,32 @@ theorem concrete_remove_skipped_at_matches_eraseFirst
     (by simpa using hi) hentry hfirst
   exact ⟨r, hcall, hmap.trans hmodel.symm⟩
 
+/-! The concrete deletion and the selector bridge compose into one ratchet
+    state step.  This is the reusable body of the classical outer eviction
+    induction; it leaves the loop fuel and count arithmetic to that induction.
+    Every state field other than the mapped skipped store is carried by the
+    existing `StateR` relation. -/
+theorem concrete_remove_oldest_state_refines
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    {s : tacenta_ratchet.State} {m : Model.State.State}
+    (hrel : Tacenta.SessionUnitT3.StateR s m)
+    (i : Std.Usize) (target : Model.State.Key × Nat × Nat × Model.State.Key)
+    (hi : i.val < s.skipped.val.length)
+    (hentry : (s.skipped.val.map Tacenta.SessionUnitT3.skippedOf)[i.val]? = some target)
+    (hfirst : ∀ j, j < i.val →
+      (s.skipped.val.map Tacenta.SessionUnitT3.skippedOf)[j]? ≠ some target) :
+    ∃ discarded v,
+      tacenta_ratchet.remove_skipped_at s.skipped i = ok (discarded, v) ∧
+      Tacenta.SessionUnitT3.StateR { s with skipped := v }
+        { m with skipped := Model.Ratchet.eraseFirstSkipped target m.skipped } := by
+  obtain ⟨r, hcall, hmap⟩ := concrete_remove_skipped_at_matches_eraseFirst
+    hvr s.skipped i target hi hentry hfirst
+  rcases r with ⟨discarded, v⟩
+  refine ⟨discarded, v, hcall, ?_⟩
+  refine ⟨hrel.dhs_pub, hrel.dhr_pub, hrel.rk, hrel.cks, hrel.ckr,
+    hrel.ns, hrel.nr, hrel.pn, ?_, hrel.events, hrel.labels⟩
+  rw [hmap, ← hrel.skipped]
+
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
 so the theorem states the exact result of every terminating run while the
