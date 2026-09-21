@@ -543,6 +543,80 @@ theorem decrypt_ratchet_success_braid_prefix {R : Type}
                 exact ⟨decoded, m, receivedEpoch, some output, braidCandidate, some converted,
                   by simpa using hd, by simpa using hm, by simpa using hr, hsparse⟩
 
+/-! Continue inversion through the first public-key decode and DH agreement.
+The result is still tied to the same concrete success equation; a failed or
+diverging boundary call cannot be hidden behind a caller-supplied witness. -/
+
+theorem decrypt_ratchet_success_dh_prefix {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (real : lifecycle.Session) (message : Slice Std.U8) (rng rngNext : R)
+    (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Ok plaintext, next, rngNext)) :
+    ∃ decoded m receivedEpoch output braidCandidate sparseOutput peer recvSecret,
+      tacenta_wire.decode_message message = ok (.Ok decoded) ∧
+      lifecycle.msg_of decoded.header = ok m ∧
+      tacenta_braid.Braid.receive real.braid m =
+        ok (receivedEpoch, output, braidCandidate) ∧
+      RealSparseConversion output sparseOutput ∧
+      tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh = ok peer ∧
+      tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer =
+        ok (some recvSecret) := by
+  obtain ⟨decoded, m, receivedEpoch, output, braidCandidate, sparseOutput,
+      hdecode, hmessage, hreceive, hsparse⟩ :=
+    decrypt_ratchet_success_braid_prefix rngCore cryptoRng real message rng rngNext plaintext next hcall
+  unfold lifecycle.Session.decrypt_ratchet at hcall
+  cases hf : real.braid.failed with
+  | fail e => simp [hf] at hcall
+  | div => simp [hf] at hcall
+  | ok b =>
+    cases b with
+    | true => simp_all
+    | false =>
+      cases output with
+      | none =>
+        cases hsparse with
+        | none hout =>
+          simp [hf, hdecode, hmessage, hreceive, hout] at hcall
+          cases hp : tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh with
+          | fail e => simp [hp] at hcall
+          | div => simp [hp] at hcall
+          | ok peer =>
+            cases ha : tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer with
+            | fail e => simp [hp, ha] at hcall
+            | div => simp [hp, ha] at hcall
+            | ok result =>
+              cases result with
+              | none => simp [hp, ha] at hcall
+              | some recvSecret =>
+                exact ⟨decoded, m, receivedEpoch, none, braidCandidate, none, peer, recvSecret,
+                  hdecode, hmessage, hreceive, .none rfl, by simpa using hp, by simpa using ha⟩
+        | some realOutput converted hout hconverted => simp_all
+      | some output =>
+        cases hsparse with
+        | none hout => simp_all
+        | some realOutput converted hout hconverted =>
+          cases hout
+          cases hs : tacenta_spqr.Output.new output.key_epoch output.key with
+          | fail e => simp [hf, hdecode, hmessage, hreceive, hs] at hcall
+          | div => simp [hf, hdecode, hmessage, hreceive, hs] at hcall
+          | ok converted' =>
+            simp [hf, hdecode, hmessage, hreceive, hs] at hcall
+            cases hp : tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh with
+            | fail e => simp [hp] at hcall
+            | div => simp [hp] at hcall
+            | ok peer =>
+              cases ha : tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer with
+              | fail e => simp [hp, ha] at hcall
+              | div => simp [hp, ha] at hcall
+              | ok result =>
+                cases result with
+                | none => simp [hp, ha] at hcall
+                | some recvSecret =>
+                  exact ⟨decoded, m, receivedEpoch, some output, braidCandidate, some converted', peer, recvSecret,
+                    hdecode, hmessage, hreceive, .some output converted' rfl hs,
+                    by simpa using hp, by simpa using ha⟩
+
 /-! The successful receive adapter keeps the concrete commit visible.  It
 reuses the same Braid evidence and primitive call facts as the refusal
 adapters, but returns the exact post-AEAD session selected by the lifecycle's
