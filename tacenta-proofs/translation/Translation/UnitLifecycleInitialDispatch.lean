@@ -688,6 +688,91 @@ theorem decrypt_ratchet_success_random_prefix {R : Type}
               .some output converted rfl hconverted, hpeer, hfirst, hwrap, hderef,
               by simpa using hr⟩
 
+/-! Candidate-key decoding and the second DH agreement are likewise inverted
+from the concrete successful call.  This leaves the remaining Triple and AEAD
+calls as the only generated success-prefix work before the existing result
+adapter can be invoked. -/
+
+theorem decrypt_ratchet_success_second_dh_prefix {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (real : lifecycle.Session) (message : Slice Std.U8) (rng rngNext : R)
+    (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Ok plaintext, next, rngNext)) :
+    ∃ decoded m receivedEpoch output braidCandidate sparseOutput peer recvSecret
+      wrappedRecv candidateBytes rng1 candidatePrivate sendSecret,
+      tacenta_wire.decode_message message = ok (.Ok decoded) ∧
+      lifecycle.msg_of decoded.header = ok m ∧
+      tacenta_braid.Braid.receive real.braid m = ok (receivedEpoch, output, braidCandidate) ∧
+      RealSparseConversion output sparseOutput ∧
+      tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh = ok peer ∧
+      tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer = ok (some recvSecret) ∧
+      zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) recvSecret = ok wrappedRecv ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedRecv = ok recvSecret ∧
+      lifecycle.random_secret rngCore cryptoRng rng = ok (candidateBytes, rng1) ∧
+      tacenta_boundary.dh.PrivateKey.from_bytes candidateBytes = ok candidatePrivate ∧
+      tacenta_boundary.dh.PrivateKey.agree candidatePrivate peer = ok (some sendSecret) := by
+  obtain ⟨decoded, m, receivedEpoch, output, braidCandidate, sparseOutput, peer, recvSecret,
+      wrappedRecv, candidateBytes, rng1, hdecode, hmessage, hreceive, hsparse, hpeer, hfirst,
+      hwrap, hderef, hrandom⟩ :=
+    decrypt_ratchet_success_random_prefix rngCore cryptoRng hz32 real message rng rngNext plaintext next hcall
+  let inst32 := Array.Insts.ZeroizeZeroize 32#usize
+    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)
+  unfold lifecycle.Session.decrypt_ratchet at hcall
+  cases hf : real.braid.failed with
+  | fail e => simp [hf] at hcall
+  | div => simp [hf] at hcall
+  | ok b =>
+    cases b with
+    | true => simp_all
+    | false =>
+      cases output with
+      | none =>
+        cases hsparse with
+        | none hout =>
+          simp [hf, hdecode, hmessage, hreceive, hout, hpeer, hfirst, hwrap, hderef, hrandom] at hcall
+          cases hc : tacenta_boundary.dh.PrivateKey.from_bytes candidateBytes with
+          | fail e => simp [hc] at hcall
+          | div => simp [hc] at hcall
+          | ok candidatePrivate =>
+            cases ha : tacenta_boundary.dh.PrivateKey.agree candidatePrivate peer with
+            | fail e => simp [hc, ha] at hcall
+            | div => simp [hc, ha] at hcall
+            | ok result =>
+              cases result with
+              | none => simp [hc, ha] at hcall
+              | some sendSecret =>
+                exact ⟨decoded, m, receivedEpoch, none, braidCandidate, none, peer, recvSecret,
+                  wrappedRecv, candidateBytes, rng1, candidatePrivate, sendSecret,
+                  hdecode, hmessage, hreceive, .none rfl, hpeer, hfirst, hwrap, hderef,
+                  hrandom, by simpa using hc, by simpa using ha⟩
+        | some realOutput converted hout hconverted => simp_all
+      | some output =>
+        cases hsparse with
+        | none hout => simp_all
+        | some realOutput converted hout hconverted =>
+          cases hout
+          simp [hf, hdecode, hmessage, hreceive, hconverted, hpeer, hfirst, hwrap, hderef, hrandom] at hcall
+          cases hc : tacenta_boundary.dh.PrivateKey.from_bytes candidateBytes with
+          | fail e => simp [hc] at hcall
+          | div => simp [hc] at hcall
+          | ok candidatePrivate =>
+            cases ha : tacenta_boundary.dh.PrivateKey.agree candidatePrivate peer with
+            | fail e => simp [hc, ha] at hcall
+            | div => simp [hc, ha] at hcall
+            | ok result =>
+              cases result with
+              | none => simp [hc, ha] at hcall
+              | some sendSecret =>
+                exact ⟨decoded, m, receivedEpoch, some output, braidCandidate, some converted, peer, recvSecret,
+                  wrappedRecv, candidateBytes, rng1, candidatePrivate, sendSecret,
+                  hdecode, hmessage, hreceive, .some output converted rfl hconverted,
+                  hpeer, hfirst, hwrap, hderef, hrandom, by simpa using hc, by simpa using ha⟩
+
 /-! The successful receive adapter keeps the concrete commit visible.  It
 reuses the same Braid evidence and primitive call facts as the refusal
 adapters, but returns the exact post-AEAD session selected by the lifecycle's
