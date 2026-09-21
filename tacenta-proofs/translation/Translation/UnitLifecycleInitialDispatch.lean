@@ -1164,6 +1164,28 @@ theorem decrypt_ratchet_success_aead_prefix {R : Type} (rngCore : rand_core_1.Rn
                   by simpa using hpublicBytes, htripleReal, hkeys, hwrapMk, hderefMk, hwrapKeys,
                   hderefKeys, by simpa using had, by simpa using ha⟩
 
+theorem decrypt_ratchet_success_aead_bytes_from_oracle {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (dh : DhView) (kem : KemView) (trace : R → List Model.Lifecycle.Key)
+    (oracle : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (key1 key2 : Array Std.U8 32#usize) (iv : Array Std.U8 16#usize)
+    (ciphertext associatedData : Slice Std.U8)
+    (aeadPlaintext : alloc.vec.Vec Std.U8) (modelCiphertext modelAd modelPlaintext : Bytes)
+    (haead : tacenta_boundary.aead.decrypt key1 key2 iv ciphertext associatedData =
+      ok (.Ok aeadPlaintext))
+    (hcipher : sliceOf ciphertext = modelCiphertext)
+    (had : sliceOf associatedData = modelAd)
+    (hmodelAead : oracle.aeadOpen (arrayOf key1) (arrayOf key2) (arrayOf iv)
+      modelCiphertext modelAd = some modelPlaintext) :
+    vecOf aeadPlaintext = modelPlaintext := by
+  have hreal := aead_open_success_refines rngCore cryptoRng dh kem trace oracle oracleOf
+    key1 key2 iv ciphertext associatedData aeadPlaintext haead
+  rw [hcipher, had] at hreal
+  have heq := hmodelAead.symm.trans hreal
+  cases heq
+  rfl
+
 /-! The successful receive adapter keeps the concrete commit visible.  It
 reuses the same Braid evidence and primitive call facts as the refusal
 adapters, but returns the exact post-AEAD session selected by the lifecycle's
