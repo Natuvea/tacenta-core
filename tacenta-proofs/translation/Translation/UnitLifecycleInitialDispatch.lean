@@ -1627,6 +1627,28 @@ theorem concrete_remove_skipped_at_map_eraseIdx
   refine ⟨r, hcall, ?_⟩
   rw [hv, Tacenta.SessionUnitT3.map_eraseIdx]
 
+/-! The concrete deletion boundary now composes with the model's first-match
+erasure rule.  The first-occurrence premise is explicit: this theorem does
+not silently identify an arbitrary vector index with the model's selector. -/
+theorem concrete_remove_skipped_at_matches_eraseFirst
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    (v : alloc.vec.Vec tacenta_ratchet.SkippedKey) (i : Std.Usize)
+    (target : Model.State.Key × Nat × Nat × Model.State.Key)
+    (hi : i.val < v.val.length)
+    (hentry : (v.val.map Tacenta.SessionUnitT3.skippedOf)[i.val]? = some target)
+    (hfirst : ∀ j, j < i.val →
+      (v.val.map Tacenta.SessionUnitT3.skippedOf)[j]? ≠ some target) :
+    ∃ r, tacenta_ratchet.remove_skipped_at v i = ok r ∧
+      r.2.val.map Tacenta.SessionUnitT3.skippedOf =
+        Model.Ratchet.eraseFirstSkipped target
+          (v.val.map Tacenta.SessionUnitT3.skippedOf) := by
+  obtain ⟨r, hcall, hmap⟩ :=
+    concrete_remove_skipped_at_map_eraseIdx hvr v i hi
+  have hmodel := Model.Ratchet.eraseFirstSkipped_eq_eraseIdx_of_first
+    (v.val.map Tacenta.SessionUnitT3.skippedOf) target i.val
+    (by simpa using hi) hentry hfirst
+  exact ⟨r, hcall, hmap.trans hmodel.symm⟩
+
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
 so the theorem states the exact result of every terminating run while the

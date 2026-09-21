@@ -155,7 +155,7 @@ def trySkipped (st : State) (header : Header) : Option (State × Key) :=
     some ({ st with skipped := rest }, mk)
   | none => none
 
-private abbrev SkippedEntry := Key × Nat × Nat × Key
+abbrev SkippedEntry := Key × Nat × Nat × Key
 
 private def olderSkipped (left right : SkippedEntry) : SkippedEntry :=
   if right.2.2.1 < left.2.2.1 then right else left
@@ -216,7 +216,7 @@ theorem oldestSkipped?_min (l : List (Key × Nat × Nat × Key)) (e : Key × Nat
           simpa [hxf] using hx
         exact hmin x hxrest
 
-private def eraseFirstSkipped (target : SkippedEntry) :
+def eraseFirstSkipped (target : SkippedEntry) :
     List SkippedEntry → List SkippedEntry
   | [] => []
   | entry :: rest =>
