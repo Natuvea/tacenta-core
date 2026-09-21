@@ -1613,6 +1613,20 @@ theorem concrete_evict_oldest_scan_min
       · intro (hc : oldest.val < v.val.length) (j : Std.Usize) hj hjlen
         exact hmin j hj hjlen
 
+/-! The opaque removal boundary now has the exact list-level shape needed by
+the model bridge: after `remove_skipped_at` returns, mapping the resulting
+vector is the original mapped skipped list with the selected index erased. -/
+theorem concrete_remove_skipped_at_map_eraseIdx
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    (v : alloc.vec.Vec tacenta_ratchet.SkippedKey) (i : Std.Usize)
+    (hi : i.val < v.val.length) :
+    ∃ r, tacenta_ratchet.remove_skipped_at v i = ok r ∧
+      r.2.val.map Tacenta.SessionUnitT3.skippedOf =
+        (v.val.map Tacenta.SessionUnitT3.skippedOf).eraseIdx i.val := by
+  obtain ⟨r, hcall, _, hv⟩ := hvr Global v i hi
+  refine ⟨r, hcall, ?_⟩
+  rw [hv, Tacenta.SessionUnitT3.map_eraseIdx]
+
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
 so the theorem states the exact result of every terminating run while the
