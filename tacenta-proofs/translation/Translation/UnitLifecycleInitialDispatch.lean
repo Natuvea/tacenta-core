@@ -1930,6 +1930,52 @@ theorem concrete_classical_evict_body_empty
     rfl
   simp [hcount, hlenU]
 
+/-! With one unit of fuel, the outer loop consumes the certified scan/removal
+and then terminates on its second body turn.  This is the first bounded case
+of the arbitrary-fuel invariant: the first turn performs one eviction, and
+the second sees the empty skipped-key vector. -/
+theorem concrete_classical_evict_outer_one
+    (s : tacenta_ratchet.State) (oldest : Std.Usize)
+    (discarded : Array Std.U8 32#usize)
+    (v : alloc.vec.Vec tacenta_ratchet.SkippedKey)
+    (hscan : tacenta_ratchet.State.evict_oldest_loop0_loop0
+      s.skipped 0#usize 1#usize = ok oldest)
+    (hremove : tacenta_ratchet.remove_skipped_at s.skipped oldest =
+      ok (discarded, v))
+    (hlen : s.skipped.val.length ≠ 0) :
+    tacenta_ratchet.State.evict_oldest_loop0 s 1#usize 0#usize
+      ⦃ fun r => r = (1#usize, { s with skipped := v }) ⦄ := by
+  unfold tacenta_ratchet.State.evict_oldest_loop0
+  apply loop.spec_decr_nat
+    (measure := fun p => 1 - (Prod.snd p).val)
+    (inv := fun p =>
+      (Prod.snd p).val = 0 ∧ Prod.fst p = s ∨
+      (Prod.snd p).val = 1 ∧ Prod.fst p = { s with skipped := v })
+  · rintro ⟨state, evicted⟩ hinv
+    simp only at hinv
+    rcases hinv with hzero | hone
+    · rcases hzero with ⟨he, hs⟩
+      have hev : evicted = 0#usize := UScalar.eq_of_val_eq he
+      rw [hs, hev]
+      unfold tacenta_ratchet.State.evict_oldest_loop0.body
+      have hlenU : alloc.vec.Vec.len s.skipped ≠ 0#usize := by
+        intro hz
+        apply hlen
+        simpa [alloc.vec.Vec.len] using congrArg UScalar.val hz
+      have hlenU' : (alloc.vec.Vec.len s.skipped != 0#usize) = true := by
+        simp [bne_iff_ne, hlenU]
+      simp [hlenU', hscan, hremove]
+      step with Usize.add_spec
+        (by scalar_tac : (0#usize).val + (1#usize).val ≤ Usize.max)
+      have hevicted : evicted1 = 1#usize :=
+        UScalar.eq_of_val_eq (by simpa using evicted1_post)
+      simp [hevicted]
+    · rcases hone with ⟨he, hs⟩
+      have hev : evicted = 1#usize := UScalar.eq_of_val_eq he
+      rw [hs, hev]
+      simp [tacenta_ratchet.State.evict_oldest_loop0.body]
+  · exact Or.inl ⟨rfl, rfl⟩
+
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
 so the theorem states the exact result of every terminating run while the
