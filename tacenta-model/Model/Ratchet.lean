@@ -419,6 +419,15 @@ theorem evictOldest_fuel_step
   rw [evictOldest_append]
   simp [hfirst, evictOldest, hsel]
 
+theorem evictOldest_fuel_step_pair
+    (base m : State) (n : Nat) (target : SkippedEntry)
+    (hfirst : evictOldest base n = (m, n))
+    (hsel : oldestSkipped? m.skipped = some target) :
+    evictOldest base (n + 1) =
+      ({ m with skipped := eraseFirstSkipped target m.skipped }, n + 1) := by
+  rw [evictOldest_append]
+  simp [hfirst, evictOldest, hsel]
+
 theorem evictOldest_count_le (st : State) (n : Nat) :
     (evictOldest st n).2 ≤ n := by
   induction n generalizing st with
