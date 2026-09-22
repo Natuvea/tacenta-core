@@ -1902,8 +1902,8 @@ theorem concrete_classical_evict_body_one
     (hremove : tacenta_ratchet.remove_skipped_at s.skipped oldest =
       ok (discarded, v))
     (hlen : s.skipped.val.length ≠ 0) :
-    tacenta_ratchet.State.evict_oldest_loop0.body 1#usize s 0#usize =
-      ok (ControlFlow.cont ({ s with skipped := v }, 1#usize)) := by
+    tacenta_ratchet.State.evict_oldest_loop0.body 1#usize s 0#usize ⦃ fun r =>
+      r = ControlFlow.cont ({ s with skipped := v }, 1#usize) ⦄ := by
   unfold tacenta_ratchet.State.evict_oldest_loop0.body
   have hlenU : alloc.vec.Vec.len s.skipped ≠ 0#usize := by
     intro hz
@@ -1911,7 +1911,12 @@ theorem concrete_classical_evict_body_one
     simpa [alloc.vec.Vec.len] using congrArg UScalar.val hz
   have hlenU' : (alloc.vec.Vec.len s.skipped != 0#usize) = true := by
     simp [bne_iff_ne, hlenU]
-  simp [hlenU', hscan, hremove, Usize.add_spec]
+  simp [hlenU', hscan, hremove]
+  step with Usize.add_spec
+    (by scalar_tac : (0#usize).val + (1#usize).val ≤ Usize.max)
+  have hevicted : evicted1 = 1#usize :=
+    UScalar.eq_of_val_eq (by simpa using evicted1_post)
+  simp [hevicted]
 
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
