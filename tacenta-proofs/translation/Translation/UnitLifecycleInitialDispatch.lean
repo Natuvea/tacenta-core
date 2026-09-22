@@ -3206,6 +3206,27 @@ theorem concrete_post_quantum_receive_with_eviction_retry_matches_model
     that conclusion in one proposition so the enclosing lifecycle proof can
     select the generated store half once and then consume either branch
     without duplicating the Session-level result plumbing. -/
+def AggregateReceiveCoreRefinement
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (realState : tacenta_triple.State)
+    (modelState : Model.Triple.State)
+    (realResult : tacenta_triple.State × Array Std.U8 32#usize)
+    (modelResult : Model.Triple.State × Model.Lifecycle.Key) : Prop :=
+  lifecycle.receive_with_eviction realState composite header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Ok realResult) ∧
+    Model.Lifecycle.receiveWithEviction modelState modelComposite modelHeader
+      modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput = .ok modelResult ∧
+    Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      realResult.1 modelResult.1 ∧
+    Tacenta.SessionUnitTripleT3.keyOf realResult.2 = modelResult.2
+
 def AggregateReceiveRetryRefinement
     (composite : tacenta_wire.Composite)
     (modelComposite : Model.CompositeHeader.Composite)
@@ -3220,16 +3241,42 @@ def AggregateReceiveRetryRefinement
     (modelReason : Model.Triple.ReceiveRefusal)
     (realResult : tacenta_triple.State × Array Std.U8 32#usize)
     (modelResult : Model.Triple.State × Model.Lifecycle.Key) : Prop :=
-  lifecycle.receive_with_eviction realState composite header dhOutRecv dhOutSend
-      newDhsPub output = ok (.Ok realResult) ∧
-    Model.Lifecycle.receiveWithEviction modelState modelComposite modelHeader
-      modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput = .ok modelResult ∧
-    Tacenta.SessionUnitTripleT3.StateRefines
-      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
-      realResult.1 modelResult.1 ∧
-    Tacenta.SessionUnitTripleT3.keyOf realResult.2 = modelResult.2 ∧
+  AggregateReceiveCoreRefinement composite modelComposite header modelHeader
+    dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+    output modelOutput realState modelState realResult modelResult ∧
     Tacenta.UnitLifecycleT3.refusalOf (.Triple realReason) =
       Model.Lifecycle.tripleReceiveRefusalOf modelReason
+
+/-! The direct Triple path has no full-store refusal to classify, but it feeds
+    the same core result relation used by the retry path. -/
+theorem aggregate_receive_core_refinement_of_direct
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (realState : tacenta_triple.State)
+    (modelState : Model.Triple.State)
+    (realResult : tacenta_triple.State × Array Std.U8 32#usize)
+    (modelResult : Model.Triple.State × Model.Lifecycle.Key)
+    (hreal : tacenta_triple.State.receive realState header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Ok realResult))
+    (hmodel : Model.Triple.receive modelState modelHeader modelDhOutRecv modelDhOutSend
+      modelNewDhsPub modelOutput = some modelResult)
+    (hstate : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      realResult.1 modelResult.1)
+    (hkey : Tacenta.SessionUnitTripleT3.keyOf realResult.2 = modelResult.2) :
+    AggregateReceiveCoreRefinement composite modelComposite header modelHeader
+      dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+      output modelOutput realState modelState realResult modelResult := by
+  exact ⟨concrete_receive_with_eviction_of_receive realState composite header
+    dhOutRecv dhOutSend newDhsPub output realResult hreal,
+    model_receive_with_eviction_of_receive modelState modelComposite modelHeader
+      modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput modelResult hmodel,
+    hstate, hkey⟩
 
 /-! Select the branch reported by the generated `full_store` classifier.  The
     branch callbacks are deliberately supplied by the concrete classical and
@@ -3578,7 +3625,7 @@ theorem decrypt_ratchet_success_step_from_aggregate_retry {R : Type}
   exact decrypt_ratchet_success_step_from_results rngCore cryptoRng trace dh K view
     oracle oracleNext real model message rng rngNext plaintext modelPlaintext
     realTripleCandidate realBraidCandidate candidatePrivate draw modelTripleCandidate
-    modelBraidCandidate hrel hreal hmodel haggregate.2.2.1 hbraid hprivate hbytes htrace
+    modelBraidCandidate hrel hreal hmodel haggregate.1.2.2.1 hbraid hprivate hbytes htrace
 
 
 /-- Inner-call evidence is needed only after all initial-wrapper guards pass. -/
