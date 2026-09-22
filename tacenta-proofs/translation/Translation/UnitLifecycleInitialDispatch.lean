@@ -2088,6 +2088,101 @@ theorem concrete_classical_evict_outer_progress
         omega
   · simp
 
+/-! The progress shell can preserve the concrete/model relation as well as
+    its counter invariant.  The per-state witness is intentionally stated in
+    terms of the generated body: the next semantic step can discharge it with
+    `concrete_classical_evict_one_step_model` without reopening the loop
+    arithmetic. -/
+theorem concrete_classical_evict_outer_stateR
+    (s : tacenta_ratchet.State) (m : Model.State.State) (count : Std.Usize)
+    (hrel : Tacenta.SessionUnitT3.StateR s m)
+    (hstep : ∀ (state : tacenta_ratchet.State) (mstate : Model.State.State)
+      (evicted : Std.Usize),
+      Tacenta.SessionUnitT3.StateR state mstate →
+      evicted.val < count.val → state.skipped.val.length ≠ 0 →
+      ∃ (nextState : tacenta_ratchet.State) (nextModel : Model.State.State)
+        (evicted1 : Std.Usize),
+        tacenta_ratchet.State.evict_oldest_loop0.body count state evicted
+          ⦃ fun r => r = ControlFlow.cont (nextState, evicted1) ⦄ ∧
+        Tacenta.SessionUnitT3.StateR nextState nextModel ∧
+        evicted1.val ≤ count.val ∧ evicted.val < evicted1.val) :
+    tacenta_ratchet.State.evict_oldest_loop0 s count 0#usize
+      ⦃ fun r => ∃ mstate, Tacenta.SessionUnitT3.StateR r.2 mstate ⦄ := by
+  unfold tacenta_ratchet.State.evict_oldest_loop0
+  apply loop.spec_decr_nat
+    (measure := fun p => count.val - (Prod.snd p).val)
+    (inv := fun p => ∃ mstate, Tacenta.SessionUnitT3.StateR p.1 mstate ∧
+      p.2.val ≤ count.val)
+  · rintro ⟨state, evicted⟩ ⟨mstate, hstate, hbound⟩
+    change evicted.val ≤ count.val at hbound
+    by_cases hdone : count.val ≤ evicted.val
+    · have heq : evicted.val = count.val := by omega
+      have hev : evicted = count := UScalar.eq_of_val_eq heq
+      simp [tacenta_ratchet.State.evict_oldest_loop0.body, hev]
+      exact ⟨mstate, hstate⟩
+    · have hlt : evicted.val < count.val := by omega
+      by_cases hempty : state.skipped.val.length = 0
+      · unfold tacenta_ratchet.State.evict_oldest_loop0.body
+        have hlenU : alloc.vec.Vec.len state.skipped = 0#usize := by
+          simp [alloc.vec.Vec.len, hempty]
+          rfl
+        simp [hlt, hlenU]
+        exact ⟨mstate, hstate⟩
+      · obtain ⟨nextState, nextModel, evicted1, hbody, hnext, ⟨hbound1, hinc⟩⟩ :=
+          hstep state mstate evicted hstate hlt hempty
+        refine Std.WP.spec_mono hbody ?_
+        intro r hr
+        simp [hr]
+        exact ⟨⟨nextModel, hnext⟩, hbound1, by omega⟩
+  · refine ⟨m, hrel, by simp⟩
+
+/-! A concrete scan/removal certificate now supplies the per-state witness
+    expected by `concrete_classical_evict_outer_stateR`.  This is the first
+    fully composed step: the generated body, the one-entry selector bridge,
+    and the StateR relation all agree on the same post-state. -/
+theorem concrete_classical_evict_stateR_step
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    {s : tacenta_ratchet.State} {m : Model.State.State}
+    (hrel : Tacenta.SessionUnitT3.StateR s m)
+    (count evicted evicted1 oldest : Std.Usize)
+    (discarded : Array Std.U8 32#usize)
+    (v : alloc.vec.Vec tacenta_ratchet.SkippedKey)
+    (hcount : evicted.val < count.val)
+    (hwidth : s.skipped.val.length ≤ UScalar.cMax UScalarTy.Usize)
+    (hr : oldest.val < s.skipped.val.length)
+    (hmin : ∀ (hr : oldest.val < s.skipped.val.length) (j : Std.Usize)
+      (hj : j.val < s.skipped.val.length) (hjlen : j.val < s.skipped.val.length),
+      (s.skipped.val[oldest.val]'hr).stored_at.val ≤
+        (s.skipped.val[j.val]'hjlen).stored_at.val)
+    (hfirst : ∀ (hr : oldest.val < s.skipped.val.length) (j : Std.Usize)
+      (hj : j.val < oldest.val) (hjlen : j.val < s.skipped.val.length),
+      (s.skipped.val[oldest.val]'hr).stored_at.val <
+        (s.skipped.val[j.val]'hjlen).stored_at.val)
+    (hscan : tacenta_ratchet.State.evict_oldest_loop0_loop0
+      s.skipped 0#usize 1#usize = ok oldest)
+    (hremove : tacenta_ratchet.remove_skipped_at s.skipped oldest =
+      ok (discarded, v))
+    (hadd : evicted + 1#usize = ok evicted1)
+    (hval : evicted1.val = evicted.val + 1)
+    (hbound : evicted1.val ≤ count.val) :
+    ∃ nextState nextModel,
+      tacenta_ratchet.State.evict_oldest_loop0.body count s evicted
+        ⦃ fun r => r = ControlFlow.cont (nextState, evicted1) ⦄ ∧
+      Tacenta.SessionUnitT3.StateR nextState nextModel ∧
+      evicted1.val ≤ count.val ∧ evicted.val < evicted1.val := by
+  have hlen : s.skipped.val.length ≠ 0 := by omega
+  obtain ⟨target, discarded', v', htarget, hsel, hremove', hstate⟩ :=
+    concrete_classical_evict_one_step_model hvr hrel oldest hwidth hr hmin hfirst
+  have hpair : (discarded', v') = (discarded, v) := by
+    have hEq := hremove'.symm.trans hremove
+    injection hEq
+  rcases hpair with ⟨rfl, rfl⟩
+  have hbody := concrete_classical_evict_body_step s count evicted evicted1 oldest
+    discarded v hcount hscan hremove hadd hlen
+  refine ⟨{ s with skipped := v }, (Model.Ratchet.evictOldest m 1).1, ?_, ?_, hbound, by omega⟩
+  · exact hbody
+  · exact hstate
+
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
 so the theorem states the exact result of every terminating run while the
