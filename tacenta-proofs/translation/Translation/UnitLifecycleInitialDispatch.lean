@@ -5187,6 +5187,65 @@ theorem initial_ratchet_refines_of_t1_result_split_with_success_evidence
   exact initial_ratchet_success_step_from_evidence (R := R)
     (hsuccess decoded established hdecode hestablished he hi plaintext next rngNext hcall)
 
+/-! The caller-facing success composition.  The success callback is no longer
+allowed to hand this theorem an already-built evidence record: it must first
+return model facts indexed by the same decoded message and then a splice
+indexed by the generated success prefix extracted from the actual result. -/
+theorem initial_ratchet_refines_of_t1_result_split_with_result_splice
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (hrefusal : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Err reason, next, rngNext) →
+        InitialRatchetRefusalEvidence rc crc trace dh K view oracle real model
+          decoded.message.deref rng reason next rngNext)
+    (hsuccess : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        ∃ oracleNext, ∃ facts : InitialRatchetModelSuccessFacts view oracle oracleNext
+          model decoded.message.deref,
+          Nonempty (∀ successPrefix : InitialRatchetSuccessPrefix rc crc real
+              decoded.message.deref rng rngNext plaintext next,
+            InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
+              successPrefix facts)) :
+    InitialRatchetRefines rc crc trace dh K view oracle real model message rng := by
+  apply initial_ratchet_refines_of_t1_result_split_with_evidence boundary headroom
+  · exact hrefusal
+  · intro decoded established hdecode hestablished he hi plaintext next rngNext hcall
+    have hdata :=
+      hsuccess decoded established hdecode hestablished he hi plaintext next rngNext hcall
+    let oracleNext := Classical.choose hdata
+    have hfactsData := Classical.choose_spec hdata
+    let facts : InitialRatchetModelSuccessFacts view oracle oracleNext model
+        decoded.message.deref := Classical.choose hfactsData
+    have hspliceData := Classical.choose_spec hfactsData
+    let hsplice := Classical.choice hspliceData
+    exact initial_ratchet_success_evidence_of_result_and_splice hz32 hzKeys hcall
+      facts hsplice
+
 /-- Derive the inner call's existence from T1. The supplied semantic relation
 must hold for every actual output; it cannot assume the call succeeds or pick
 an output independently of the generated call. -/
