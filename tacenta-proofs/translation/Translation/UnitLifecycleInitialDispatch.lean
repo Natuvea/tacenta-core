@@ -4425,6 +4425,44 @@ theorem initial_ratchet_aligned_case_of_branch
       modelNewDhsPub output modelOutput realState modelState realResult modelResult
       hreal hmodel realReason modelReason hretry
 
+/-! Convert the aggregate receive result, already indexed by both lifecycle
+    calls, back into the branch consumed by the session success splice.  This
+    direction is intentionally separate from `initial_ratchet_aligned_case_of_branch`:
+    the splice must be able to consume a case extracted from the actual result,
+    rather than a branch proposition supplied independently of those results. -/
+theorem initial_ratchet_success_branch_of_aligned_case
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (realState : tacenta_triple.State)
+    (modelState : Model.Triple.State)
+    (realResult : tacenta_triple.State × Array Std.U8 32#usize)
+    (modelResult : Model.Triple.State × Model.Lifecycle.Key)
+    (hreal : lifecycle.receive_with_eviction realState composite header
+      dhOutRecv dhOutSend newDhsPub output = ok (.Ok realResult))
+    (hmodel : Model.Lifecycle.receiveWithEviction modelState modelComposite
+      modelHeader modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput =
+      .ok modelResult)
+    (hcase : AggregateReceiveAlignedCase composite modelComposite header modelHeader
+      dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+      output modelOutput realState modelState realResult modelResult hreal hmodel) :
+    InitialRatchetSuccessReceiveBranch composite modelComposite header modelHeader
+      dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+      output modelOutput realState modelState realResult modelResult := by
+  unfold AggregateReceiveAlignedCase at hcase
+  rcases hcase with hdirect | hretry
+  · obtain ⟨directReal, directModel, hrealDirect, hmodelDirect, hrealEq,
+      hmodelEq, hstate, hkey⟩ := hdirect
+    subst directReal
+    subst directModel
+    exact Or.inl ⟨hrealDirect, hmodelDirect, hstate, hkey⟩
+  · obtain ⟨realReason, modelReason, hretry⟩ := hretry
+    exact Or.inr ⟨realReason, modelReason, hretry⟩
+
 /-! Instantiate the branch provider with the exact generated/model success
     witnesses.  The aggregate equalities come from the typed prefix and model
     facts, while the branch relation supplies only the direct-vs-retry
@@ -4683,9 +4721,8 @@ structure InitialRatchetSuccessSplice {R : Type}
     (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message) : Type where
   candidatePrivate : tacenta_boundary.dh.PrivateKey
   modelBraidCandidate : Model.Braid.BraidState
-  hbranch : InitialRatchetSuccessReceiveBranch
-      successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
-      (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+  hcase : AggregateReceiveAlignedCase successPrefix.decoded.header facts.modelComposite
+      successPrefix.realHeader (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
       successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
       facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
       successPrefix.sparseOutput
@@ -4695,6 +4732,7 @@ structure InitialRatchetSuccessSplice {R : Type}
       real.triple model.triple
       (successPrefix.realTripleCandidate, successPrefix.realMk)
       (facts.modelTripleCandidate, facts.modelMk)
+      successPrefix.htriple facts.hmodelTriple
   hrel : SessionRefines dh K real model
   hnext : next =
       { { real with triple := successPrefix.realTripleCandidate, braid :=
@@ -4734,8 +4772,21 @@ def initial_ratchet_success_evidence_of_splice {R : Type}
       ok (.Ok plaintext, next, rngNext)) :
     InitialRatchetSuccessEvidence rc crc trace dh K view oracle real model message rng
       plaintext next rngNext :=
+  let hbranch := initial_ratchet_success_branch_of_aligned_case
+    successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
+    (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+    successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+    facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+    successPrefix.sparseOutput
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+    real.triple model.triple
+    (successPrefix.realTripleCandidate, successPrefix.realMk)
+    (facts.modelTripleCandidate, facts.modelMk)
+    successPrefix.htriple facts.hmodelTriple splice.hcase
   initial_ratchet_success_evidence_of_prefix_and_branch successPrefix facts
-    splice.candidatePrivate splice.modelBraidCandidate splice.hbranch splice.hrel hreal
+    splice.candidatePrivate splice.modelBraidCandidate hbranch splice.hrel hreal
     splice.hnext splice.hmodel splice.hbraid splice.hprivate splice.hbytes splice.htrace
 
 /-! Derive the indexed splice from the actual generated success result.  The
