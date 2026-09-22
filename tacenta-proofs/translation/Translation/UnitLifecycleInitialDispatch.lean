@@ -4036,6 +4036,63 @@ theorem decrypt_ratchet_success_step_from_aligned_receive_cases {R : Type}
       hprivate hbytes htrace
 
 
+/-! Model-side success facts are kept separate from the generated prefix.  The
+    record is exactly the premise set of the model lifecycle success theorem,
+    so a caller cannot replace one model draw or successor with an unrelated
+    value. -/
+structure InitialRatchetModelSuccessFacts
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (oracleNext : Model.Lifecycle.Oracle) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) : Type where
+  modelComposite : Model.CompositeHeader.Composite
+  ciphertext : Bytes
+  modelPlaintext : Bytes
+  modelDhOutRecv : Model.Lifecycle.Key
+  draw : Model.Lifecycle.Key
+  modelDhOutSend : Model.Lifecycle.Key
+  modelTripleCandidate : Model.Triple.State
+  modelMk : Model.Lifecycle.Key
+  hready : Model.Lifecycle.agreementFailed model = false
+  hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+    .ok (modelComposite, ciphertext)
+  hmodelFirst : oracle.dhAgree model.ratchetPrivate modelComposite.dh =
+    some modelDhOutRecv
+  hmodelDraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext)
+  hmodelSecond : oracle.dhAgree draw modelComposite.dh = some modelDhOutSend
+  hmodelTriple : Model.Lifecycle.receiveWithEviction model.triple modelComposite
+    (Model.Lifecycle.tripleHeaderOf modelComposite) modelDhOutRecv modelDhOutSend
+    (oracle.dhPublic draw)
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.1) =
+    .ok (modelTripleCandidate, modelMk)
+  hmodelAead : oracle.aeadOpen
+    (Model.State.messageKeys modelMk .tacenta).1
+    (Model.State.messageKeys modelMk .tacenta).2.1
+    (Model.State.messageKeys modelMk .tacenta).2.2
+    ciphertext
+    (Model.Messages.concatAd model.identityAd
+      (Model.CompositeHeader.encode modelComposite)) = some modelPlaintext
+
+theorem initial_ratchet_model_success_result_of_facts
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message) :
+    Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session :=
+          { model with
+            triple := facts.modelTripleCandidate
+            braid := (Model.Braid.receive oracle.braidKem model.braid
+              (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.2
+            ratchetPrivate :=
+              if facts.modelTripleCandidate.classical.dhsPub == model.triple.classical.dhsPub then
+                model.ratchetPrivate else facts.draw }
+        result := .ok facts.modelPlaintext
+        oracle := oracleNext } := by
+  exact decrypt_ratchet_success_model_result view oracle oracleNext model message
+    facts.modelComposite facts.ciphertext facts.modelPlaintext facts.modelDhOutRecv
+    facts.draw facts.modelDhOutSend facts.modelTripleCandidate facts.modelMk
+    facts.hready facts.hdecodeModel facts.hmodelFirst facts.hmodelDraw facts.hmodelSecond
+    facts.hmodelTriple facts.hmodelAead
+
 /-! The generated success inversion is kept as a typed record so the later
     model/contract splice consumes facts from this exact computation. -/
 structure InitialRatchetSuccessPrefix {R : Type}
