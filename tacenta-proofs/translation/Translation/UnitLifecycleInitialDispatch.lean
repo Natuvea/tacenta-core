@@ -2288,6 +2288,38 @@ theorem concrete_triple_evict_oldest_classical_refines
       · exact hrel.2
     · simpa [Model.Triple.evictOldestClassical, hclassEq]
 
+/-! The post-quantum eviction wrapper is the analogous lift for the SPQR
+    branch.  Its inner T3 result already includes the returned count and the
+    sparse StateRefines relation; the triple relation adds the unchanged
+    classical component. -/
+theorem concrete_triple_evict_oldest_post_quantum_refines
+    (s : tacenta_triple.State) (m : Model.Triple.State) (count : Std.Usize)
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (hspqr : tacenta_spqr.State.evict_oldest s.post_quantum count
+      ⦃ fun r => r.1.val = (Model.SparseRatchet.evictOldest m.postQuantum count.val).2 ∧
+        Tacenta.SessionUnitSpqrT3.StateRefines r.2
+          (Model.SparseRatchet.evictOldest m.postQuantum count.val).1 ⦄) :
+    tacenta_triple.State.evict_oldest_post_quantum s count
+      ⦃ fun r => r.1.val = (Model.Triple.evictOldestPostQuantum m count.val).2 ∧
+        Tacenta.SessionUnitTripleT3.StateRefines
+          Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs r.2
+          (Model.Triple.evictOldestPostQuantum m count.val).1 ⦄ := by
+  unfold tacenta_triple.State.evict_oldest_post_quantum
+  apply Aeneas.Std.WP.spec_bind
+  · exact hspqr
+  · intro r hr
+    rcases r with ⟨i, s1⟩
+    change i.val = (Model.Triple.evictOldestPostQuantum m count.val).2 ∧
+      Tacenta.SessionUnitTripleT3.StateRefines
+        Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+        { classical := s.classical, post_quantum := s1 }
+        (Model.Triple.evictOldestPostQuantum m count.val).1
+    rcases hr with ⟨hcount, hspqrState⟩
+    constructor
+    · simpa [Model.Triple.evictOldestPostQuantum] using hcount
+    · exact ⟨hrel.1, Tacenta.SessionUnitTripleT3.spqrAbs_eq hspqrState⟩
+
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
 so the theorem states the exact result of every terminating run while the
