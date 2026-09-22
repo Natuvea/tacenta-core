@@ -3342,6 +3342,55 @@ theorem aggregate_receive_core_refinement_of_direct
       modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput modelResult hmodel,
     hstate, hkey⟩
 
+/-! Match the concrete and model lifecycle partitions before exposing the
+    branch-independent receive core.  The direct arm contains the raw Triple
+    receive facts needed by `aggregate_receive_core_refinement_of_direct`; the
+    retry arm contains the already-composed full-store adapter.  This keeps the
+    branch choice tied to the actual generated/model results instead of
+    allowing a caller to choose a convenient route independently. -/
+theorem aggregate_receive_core_refinement_of_aligned_success_cases
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (realState : tacenta_triple.State)
+    (modelState : Model.Triple.State)
+    (realResult : tacenta_triple.State × Array Std.U8 32#usize)
+    (modelResult : Model.Triple.State × Model.Lifecycle.Key)
+    (hcase :
+      (∃ directReal directModel,
+        tacenta_triple.State.receive realState header dhOutRecv dhOutSend
+          newDhsPub output = ok (.Ok directReal) ∧
+        Model.Triple.receive modelState modelHeader modelDhOutRecv
+          modelDhOutSend modelNewDhsPub modelOutput = some directModel ∧
+        directReal = realResult ∧ directModel = modelResult ∧
+        Tacenta.SessionUnitTripleT3.StateRefines
+          Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+          directReal.1 directModel.1 ∧
+        Tacenta.SessionUnitTripleT3.keyOf directReal.2 = directModel.2) ∨
+      (∃ realReason modelReason,
+        AggregateReceiveRetryRefinement composite modelComposite header modelHeader
+          dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+          output modelOutput realState modelState realReason modelReason realResult
+          modelResult)) :
+    AggregateReceiveCoreRefinement composite modelComposite header modelHeader
+      dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+      output modelOutput realState modelState realResult modelResult := by
+  rcases hcase with hdirect | hretry
+  · obtain ⟨directReal, directModel, hrealDirect, hmodelDirect, hrealEq,
+      hmodelEq, hstate, hkey⟩ := hdirect
+    subst directReal
+    subst directModel
+    exact aggregate_receive_core_refinement_of_direct composite modelComposite header
+      modelHeader dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend
+      modelNewDhsPub output modelOutput realState modelState realResult modelResult
+      hrealDirect hmodelDirect hstate hkey
+  · obtain ⟨realReason, modelReason, haggregate⟩ := hretry
+    exact haggregate.1
+
 /-! Select the branch reported by the generated `full_store` classifier.  The
     branch callbacks are deliberately supplied by the concrete classical and
     post-quantum adapters above; this theorem only performs the shared
@@ -3854,6 +3903,60 @@ theorem decrypt_initial_refines_from_ratchet
     PublicDecryptWitness rc crc trace dh K view oracle real model message rng := by
   obtain ⟨route⟩ := initial_dispatch_route_from_ratchet codec ctx hreceive
   exact initial_dispatch_join route
+
+/-! Split the T1-produced inner result before applying its semantic adapter.
+    The two callbacks are intentionally result-shaped: a refusal proof cannot
+    be reused for a success result, and vice versa.  This is the outer
+    `InitialRatchetRefines` case split that the direct/retry receive adapters
+    feed once their actual Triple branch has been classified. -/
+theorem initial_ratchet_refines_of_t1_result_split
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hrefusal : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Err reason, next, rngNext) →
+        StepRefines trace dh K (.Err reason, next, rngNext)
+          (Model.Lifecycle.decryptRatchet view oracle model
+            (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage))
+    (hsuccess : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        StepRefines trace dh K (.Ok plaintext, next, rngNext)
+          (Model.Lifecycle.decryptRatchet view oracle model
+            (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)) :
+    InitialRatchetRefines rc crc trace dh K view oracle real model message rng := by
+  intro decoded established hdecode hestablished he hi
+  obtain ⟨output, hcall, _⟩ := Std.WP.spec_imp_exists
+    (Tacenta.UnitLifecycleT1.decrypt_ratchet_no_panic rc crc boundary real
+      decoded.message.deref rng headroom)
+  rcases output with ⟨result, next, rngNext⟩
+  cases result with
+  | Err reason =>
+      exact ⟨(.Err reason, next, rngNext), hcall,
+        hrefusal decoded established hdecode hestablished he hi reason next rngNext hcall⟩
+  | Ok plaintext =>
+      exact ⟨(.Ok plaintext, next, rngNext), hcall,
+        hsuccess decoded established hdecode hestablished he hi plaintext next rngNext hcall⟩
 
 /-- Derive the inner call's existence from T1. The supplied semantic relation
 must hold for every actual output; it cannot assume the call succeeds or pick
