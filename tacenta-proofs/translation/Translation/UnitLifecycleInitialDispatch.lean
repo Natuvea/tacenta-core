@@ -2677,6 +2677,115 @@ theorem model_receive_detailed_of_receive
       .ok result :=
   (Model.Triple.receiveDetailed_ok_iff state header dhOutRecv dhOutSend newDhsPub output result).2 h
 
+/-! Classical retry composition with an explicit shortfall equality.  Keeping
+    the half fixed avoids dependent elimination over the two full-store
+    constructors while making the model's requested count visible. -/
+theorem concrete_classical_retry_loop_matches_model_one_retry
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (state evictedState : tacenta_triple.State)
+    (modelState modelEvictedState : Model.Triple.State)
+    (batch : Std.Usize) (batch1 evicted : Std.Usize)
+    (pending : tacenta_triple.TripleError)
+    (reason : Model.Triple.ReceiveRefusal)
+    (realResult : tacenta_triple.State × Array Std.U8 32#usize)
+    (modelResult : Model.Triple.State × Model.Lifecycle.Key)
+    (hDirect : Model.Triple.receiveDetailed modelState modelHeader
+      modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput = .error reason)
+    (hFull : Model.Lifecycle.fullStore reason = some .classical)
+    (hBatchModel : batch.val = Model.Lifecycle.receiveShortfall
+      .classical modelState modelComposite)
+    (hEvictModel : Model.Triple.evictOldestClassical modelState batch.val =
+      (modelEvictedState, evicted.val))
+    (hNonzero : evicted ≠ 0#usize)
+    (hNonzeroModel : evicted.val ≠ 0)
+    (hEvict : lifecycle.evict_for_retry state lifecycle.FullStore.Classical batch =
+      ok (evictedState, evicted))
+    (hBatch : core.num.Usize.saturating_add batch batch = batch1)
+    (hRetry : lifecycle.receive_attempt evictedState header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Ok realResult))
+    (hRetryModel : Model.Triple.receiveDetailed modelEvictedState modelHeader
+      modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput = .ok modelResult)
+    (hState : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      realResult.1 modelResult.1)
+    (hKey : Tacenta.SessionUnitTripleT3.keyOf realResult.2 = modelResult.2) :
+    lifecycle.receive_with_eviction_loop composite header dhOutRecv dhOutSend
+      newDhsPub output lifecycle.FullStore.Classical state batch pending none ⦃
+        fun r => r = (pending, some (core.result.Result.Ok realResult)) ⦄ ∧
+      Model.Lifecycle.receiveWithEviction modelState modelComposite modelHeader
+        modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput = .ok modelResult ∧
+      Tacenta.SessionUnitTripleT3.StateRefines
+        Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+        realResult.1 modelResult.1 ∧
+      Tacenta.SessionUnitTripleT3.keyOf realResult.2 = modelResult.2 := by
+  have hloop := concrete_receive_with_eviction_one_retry_spec composite header
+    dhOutRecv dhOutSend newDhsPub output lifecycle.FullStore.Classical state evictedState
+    batch batch1 evicted pending realResult hEvict hNonzero hBatch hRetry
+  have hmodel := Model.Lifecycle.receiveWithEviction_one_retry modelState
+    modelComposite modelHeader modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput
+    modelResult modelEvictedState reason .classical evicted.val hDirect hFull
+    (by simpa [hBatchModel] using hEvictModel) hNonzeroModel hRetryModel
+  exact ⟨hloop, hmodel, hState, hKey⟩
+
+theorem concrete_post_quantum_retry_loop_matches_model_one_retry
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (state evictedState : tacenta_triple.State)
+    (modelState modelEvictedState : Model.Triple.State)
+    (batch : Std.Usize) (batch1 evicted : Std.Usize)
+    (pending : tacenta_triple.TripleError)
+    (reason : Model.Triple.ReceiveRefusal)
+    (realResult : tacenta_triple.State × Array Std.U8 32#usize)
+    (modelResult : Model.Triple.State × Model.Lifecycle.Key)
+    (hDirect : Model.Triple.receiveDetailed modelState modelHeader
+      modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput = .error reason)
+    (hFull : Model.Lifecycle.fullStore reason = some .postQuantum)
+    (hBatchModel : batch.val = Model.Lifecycle.receiveShortfall
+      .postQuantum modelState modelComposite)
+    (hEvictModel : Model.Triple.evictOldestPostQuantum modelState batch.val =
+      (modelEvictedState, evicted.val))
+    (hNonzero : evicted ≠ 0#usize)
+    (hNonzeroModel : evicted.val ≠ 0)
+    (hEvict : lifecycle.evict_for_retry state lifecycle.FullStore.PostQuantum batch =
+      ok (evictedState, evicted))
+    (hBatch : core.num.Usize.saturating_add batch batch = batch1)
+    (hRetry : lifecycle.receive_attempt evictedState header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Ok realResult))
+    (hRetryModel : Model.Triple.receiveDetailed modelEvictedState modelHeader
+      modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput = .ok modelResult)
+    (hState : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      realResult.1 modelResult.1)
+    (hKey : Tacenta.SessionUnitTripleT3.keyOf realResult.2 = modelResult.2) :
+    lifecycle.receive_with_eviction_loop composite header dhOutRecv dhOutSend
+      newDhsPub output lifecycle.FullStore.PostQuantum state batch pending none ⦃
+        fun r => r = (pending, some (core.result.Result.Ok realResult)) ⦄ ∧
+      Model.Lifecycle.receiveWithEviction modelState modelComposite modelHeader
+        modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput = .ok modelResult ∧
+      Tacenta.SessionUnitTripleT3.StateRefines
+        Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+        realResult.1 modelResult.1 ∧
+      Tacenta.SessionUnitTripleT3.keyOf realResult.2 = modelResult.2 := by
+  have hloop := concrete_receive_with_eviction_one_retry_spec composite header
+    dhOutRecv dhOutSend newDhsPub output lifecycle.FullStore.PostQuantum state evictedState
+    batch batch1 evicted pending realResult hEvict hNonzero hBatch hRetry
+  have hmodel := Model.Lifecycle.receiveWithEviction_one_retry modelState
+    modelComposite modelHeader modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput
+    modelResult modelEvictedState reason .postQuantum evicted.val hDirect hFull
+    (by simpa [hBatchModel] using hEvictModel) hNonzeroModel hRetryModel
+  exact ⟨hloop, hmodel, hState, hKey⟩
+
 /-! The model-side half of the successful receive is kept separate from the
 concrete adapter above.  This is the exact result that the aggregate T3
 composition will consume; in particular, it leaves the conditional
