@@ -2002,6 +2002,46 @@ theorem concrete_classical_evict_outer_one
       simp [tacenta_ratchet.State.evict_oldest_loop0.body]
   · exact Or.inl ⟨rfl, rfl⟩
 
+/-! Under a per-state scan/removal witness, the generated outer loop either
+reaches its requested count or stops when the skipped-key store is empty.
+This is the termination and progress shell for the later StateR/model
+refinement; the witness deliberately leaves the semantic selected entry to
+the one-step bridge above. -/
+theorem concrete_classical_evict_outer_progress
+    (s : tacenta_ratchet.State) (count : Std.Usize)
+    (hstep : ∀ (state : tacenta_ratchet.State) (evicted : Std.Usize),
+      evicted.val < count.val → state.skipped.val.length ≠ 0 →
+      ∃ (oldest : Std.Usize) (discarded : Array Std.U8 32#usize)
+        (v : alloc.vec.Vec tacenta_ratchet.SkippedKey) (evicted1 : Std.Usize),
+        tacenta_ratchet.State.evict_oldest_loop0_loop0
+          state.skipped 0#usize 1#usize = ok oldest ∧
+        tacenta_ratchet.remove_skipped_at state.skipped oldest =
+          ok (discarded, v) ∧
+        evicted + 1#usize = ok evicted1) :
+    tacenta_ratchet.State.evict_oldest_loop0 s count 0#usize
+      ⦃ fun r => r.1.val = count.val ∨ r.2.skipped.val.length = 0 ⦄ := by
+  unfold tacenta_ratchet.State.evict_oldest_loop0
+  apply loop.spec_decr_nat
+    (measure := fun p => count.val - (Prod.snd p).val)
+    (inv := fun p => (Prod.snd p).val ≤ count.val)
+  · rintro ⟨state, evicted⟩ hinv
+    simp only at hinv
+    by_cases hdone : count.val ≤ evicted.val
+    · have heq : evicted.val = count.val := by omega
+      have hev : evicted = count := UScalar.eq_of_val_eq heq
+      simp [tacenta_ratchet.State.evict_oldest_loop0.body, hev, hdone]
+    · have hlt : evicted.val < count.val := by omega
+      by_cases hempty : state.skipped.val.length = 0
+      · have hb := concrete_classical_evict_body_empty state count evicted hlt hempty
+        simpa [tacenta_ratchet.State.evict_oldest_loop0.body] using hb
+      · obtain ⟨oldest, discarded, v, evicted1, hscan, hremove, hadd⟩ :=
+          hstep state evicted hlt hempty
+        have hb := concrete_classical_evict_body_step state count evicted evicted1
+          oldest discarded v hlt hscan hremove hadd hempty
+        simpa [tacenta_ratchet.State.evict_oldest_loop0.body] using hb
+  · simp
+    omega
+
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
 so the theorem states the exact result of every terminating run while the
