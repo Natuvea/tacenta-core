@@ -2666,6 +2666,17 @@ theorem model_receive_with_eviction_of_receive
     newDhsPub output result).2 h
   simp [Model.Lifecycle.receiveWithEviction, hd]
 
+theorem model_receive_detailed_of_receive
+    (state : Model.Triple.State) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Model.Lifecycle.Key)
+    (output : Option Model.SparseRatchet.Output)
+    (result : Model.Triple.State × Model.Lifecycle.Key)
+    (h : Model.Triple.receive state header dhOutRecv dhOutSend newDhsPub output =
+      some result) :
+    Model.Triple.receiveDetailed state header dhOutRecv dhOutSend newDhsPub output =
+      .ok result :=
+  (Model.Triple.receiveDetailed_ok_iff state header dhOutRecv dhOutSend newDhsPub output result).2 h
+
 /-! The model-side half of the successful receive is kept separate from the
 concrete adapter above.  This is the exact result that the aggregate T3
 composition will consume; in particular, it leaves the conditional
