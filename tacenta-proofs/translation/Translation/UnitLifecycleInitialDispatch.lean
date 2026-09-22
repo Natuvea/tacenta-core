@@ -2697,6 +2697,38 @@ theorem concrete_evict_for_retry_measure_decreases
   have hevicted : 0 < evicted.val := by scalar_tac
   exact hpost.2.2 hevicted
 
+/-! Package the classical eviction's two induction facts together: the
+    translated working copy still refines a model state, and the retry measure
+    decreases.  The post-quantum adapter below has the same shape; keeping the
+    halves separate preserves the leaf-specific contracts at the call site. -/
+theorem model_evict_for_retry_classical_measured
+    (s : tacenta_triple.State) (m : Model.Triple.State) (count : Std.Usize)
+    (state1 : tacenta_triple.State) (evicted : Std.Usize)
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (hratchet : tacenta_ratchet.State.evict_oldest s.classical count
+      ⦃ fun r => ∃ mstate, Tacenta.SessionUnitT3.StateR r.2 mstate ∧
+        (Model.Ratchet.evictOldest m.classical count.val) = (mstate, r.1.val) ⦄)
+    (hrmRatchet : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    (hrmSpqr : Tacenta.SessionUnitSpqrT1.RemoveSkippedAtTotal)
+    (hz : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (hroom : Tacenta.UnitLifecycleT1.ReceiveHeadroom s)
+    (hconcrete : lifecycle.evict_for_retry s lifecycle.FullStore.Classical count =
+      ok (state1, evicted))
+    (hNonzero : evicted ≠ 0#usize) :
+    ∃ mstate, Tacenta.SessionUnitTripleT3.StateRefines
+        Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+        state1 mstate ∧
+      Model.Triple.evictOldestClassical m count.val = (mstate, evicted.val) ∧
+      Tacenta.UnitLifecycleT1.skippedTotal state1 <
+        Tacenta.UnitLifecycleT1.skippedTotal s := by
+  obtain ⟨mstate, hstate, hpair⟩ :=
+    model_evict_for_retry_classical_of_concrete s m count state1 evicted hrel hratchet
+      hconcrete
+  have hmeasure := concrete_evict_for_retry_measure_decreases s lifecycle.FullStore.Classical
+    count state1 evicted hrmRatchet hrmSpqr hz hroom hconcrete hNonzero
+  exact ⟨mstate, hstate, hpair, hmeasure⟩
+
 /-! One generated loop-body step mirrors the model continuation equation when
     the retry fails with another refusal from the same full-store half. -/
 theorem concrete_receive_with_eviction_loop_same_half_step
