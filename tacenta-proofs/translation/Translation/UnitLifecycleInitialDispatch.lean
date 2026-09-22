@@ -321,8 +321,6 @@ theorem decrypt_ratchet_aead_refusal_from_braid {R : Type}
     (candidatePublic : tacenta_boundary.dh.PublicKeyBytes)
     (realHeader : tacenta_triple.Header)
     (wrappedRecv wrappedSend wrappedMk : zeroize.Zeroizing (Array Std.U8 32#usize))
-    (realState : tacenta_triple.State)
-    (modelState : Model.Triple.State)
     (realTripleCandidate : tacenta_triple.State)
     (modelTripleCandidate : Model.Triple.State)
     (modelMk draw modelDhOutRecv modelDhOutSend : Model.Lifecycle.Key)
