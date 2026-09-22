@@ -4233,6 +4233,80 @@ structure InitialRatchetSuccessEvidence {R : Type}
   hbytes : vecOf plaintext = modelPlaintext
   htrace : trace rngNext = oracleNext.draws
 
+def initial_ratchet_success_evidence_of_prefix {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext plaintext next)
+    (modelPlaintext : Bytes) (oracleNext : Model.Lifecycle.Oracle)
+    (candidatePrivate : tacenta_boundary.dh.PrivateKey)
+    (draw : Model.Lifecycle.Key)
+    (modelTripleCandidate : Model.Triple.State)
+    (modelBraidCandidate : Model.Braid.BraidState)
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (modelMk : Model.Lifecycle.Key)
+    (hreceiveReal : lifecycle.receive_with_eviction successPrefix.realTripleCandidate composite header
+      dhOutRecv dhOutSend newDhsPub output = ok (.Ok (successPrefix.realTripleCandidate, successPrefix.realMk)))
+    (hreceiveModel : Model.Lifecycle.receiveWithEviction modelTripleCandidate modelComposite
+      modelHeader modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput =
+      .ok (modelTripleCandidate, modelMk))
+    (hcase : AggregateReceiveAlignedCase composite modelComposite header modelHeader
+      dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+      output modelOutput successPrefix.realTripleCandidate modelTripleCandidate
+      (successPrefix.realTripleCandidate, successPrefix.realMk) (modelTripleCandidate, modelMk)
+      hreceiveReal hreceiveModel)
+    (hrel : SessionRefines dh K real model)
+    (hreal : lifecycle.Session.decrypt_ratchet rc crc real message rng =
+      ok (.Ok plaintext, next, rngNext))
+    (hnext : next =
+      { { real with triple := successPrefix.realTripleCandidate, braid := successPrefix.braidCandidate } with
+        ratchet_private :=
+          if successPrefix.realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
+            real.ratchet_private else candidatePrivate })
+    (hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session :=
+          { model with
+            triple := modelTripleCandidate
+            braid := modelBraidCandidate
+            ratchetPrivate :=
+              if modelTripleCandidate.classical.dhsPub == model.triple.classical.dhsPub then
+                model.ratchetPrivate else draw }
+        result := .ok modelPlaintext
+        oracle := oracleNext })
+    (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K
+      successPrefix.braidCandidate.state modelBraidCandidate)
+    (hprivate : dh.privateKey candidatePrivate = draw)
+    (hbytes : vecOf plaintext = modelPlaintext)
+    (htrace : trace rngNext = oracleNext.draws) :
+    InitialRatchetSuccessEvidence rc crc trace dh K view oracle real model message rng
+      plaintext next rngNext := by
+  exact {
+    modelPlaintext := modelPlaintext, oracleNext := oracleNext,
+    realTripleCandidate := successPrefix.realTripleCandidate,
+    realBraidCandidate := successPrefix.braidCandidate,
+    candidatePrivate := candidatePrivate, draw := draw,
+    modelTripleCandidate := modelTripleCandidate,
+    modelBraidCandidate := modelBraidCandidate,
+    composite := composite, modelComposite := modelComposite,
+    header := header, modelHeader := modelHeader,
+    dhOutRecv := dhOutRecv, dhOutSend := dhOutSend, newDhsPub := newDhsPub,
+    modelDhOutRecv := modelDhOutRecv, modelDhOutSend := modelDhOutSend,
+    modelNewDhsPub := modelNewDhsPub, output := output, modelOutput := modelOutput,
+    realMk := successPrefix.realMk, modelMk := modelMk,
+    hreceiveReal := hreceiveReal, hreceiveModel := hreceiveModel,
+    hcase := hcase, hrel := hrel, hreal := hreal, hnext := hnext,
+    hmodel := hmodel, hbraid := hbraid, hprivate := hprivate,
+    hbytes := hbytes, htrace := htrace }
+
  theorem initial_ratchet_success_step_from_evidence {R : Type}
     (evidence : InitialRatchetSuccessEvidence rc crc trace dh K view oracle real model
       message rng plaintext next rngNext) :
