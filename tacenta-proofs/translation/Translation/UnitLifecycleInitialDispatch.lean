@@ -4784,6 +4784,39 @@ def initial_ratchet_refusal_evidence_of_pair {R : Type}
       message rng reason next rngNext :=
   { hcall := hcall, hstep := hstep }
 
+def initial_ratchet_triple_refusal_evidence_of_pair {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (realReason : tacenta_triple.TripleError)
+    (next : lifecycle.Session) (rngNext : R)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err (.Triple realReason), next, rngNext))
+    (hstep : StepRefines trace dh K (.Err (.Triple realReason), next, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+    InitialRatchetRefusalEvidence rngCore cryptoRng trace dh K view oracle real model
+      message rng (.Triple realReason) next rngNext :=
+  initial_ratchet_refusal_evidence_of_pair rngCore cryptoRng trace dh K view oracle
+    real model message rng (.Triple realReason) next rngNext hcall hstep
+
+def initial_ratchet_aead_refusal_evidence_of_pair {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (next : lifecycle.Session) (rngNext : R)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err .Aead, next, rngNext))
+    (hstep : StepRefines trace dh K (.Err .Aead, next, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+    InitialRatchetRefusalEvidence rngCore cryptoRng trace dh K view oracle real model
+      message rng .Aead next rngNext :=
+  initial_ratchet_refusal_evidence_of_pair rngCore cryptoRng trace dh K view oracle
+    real model message rng .Aead next rngNext hcall hstep
+
 def initial_ratchet_first_dh_refusal_evidence
     {R : Type} (rngCore : rand_core_1.RngCore R)
     (cryptoRng : rand_core_1.CryptoRng R)
