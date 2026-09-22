@@ -2473,6 +2473,45 @@ theorem concrete_lifecycle_evict_for_retry_post_quantum_requested_refines
     · exact ⟨hstate.1, hstate.2⟩
     · simpa [Model.Triple.evictOldestPostQuantum] using And.intro hcount hstate
 
+theorem model_evict_for_retry_classical_of_concrete
+    (s : tacenta_triple.State) (m : Model.Triple.State) (count : Std.Usize)
+    (state1 : tacenta_triple.State) (evicted : Std.Usize)
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (hratchet : tacenta_ratchet.State.evict_oldest s.classical count
+      ⦃ fun r => ∃ mstate, Tacenta.SessionUnitT3.StateR r.2 mstate ∧
+        (Model.Ratchet.evictOldest m.classical count.val) = (mstate, r.1.val) ⦄)
+    (hconcrete : lifecycle.evict_for_retry s lifecycle.FullStore.Classical count =
+      ok (state1, evicted)) :
+    ∃ mstate, Tacenta.SessionUnitTripleT3.StateRefines
+        Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs state1 mstate ∧
+      Model.Triple.evictOldestClassical m count.val = (mstate, evicted.val) := by
+  obtain ⟨r, hr, hpost⟩ := Std.WP.spec_imp_exists
+    (concrete_lifecycle_evict_for_retry_classical_requested_refines s m count hrel hratchet)
+  rw [hconcrete] at hr
+  cases hr
+  exact hpost
+
+theorem model_evict_for_retry_post_quantum_of_concrete
+    (s : tacenta_triple.State) (m : Model.Triple.State) (count : Std.Usize)
+    (state1 : tacenta_triple.State) (evicted : Std.Usize)
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (hspqr : tacenta_spqr.State.evict_oldest s.post_quantum count
+      ⦃ fun r => r.1.val = (Model.SparseRatchet.evictOldest m.postQuantum count.val).2 ∧
+        Tacenta.SessionUnitSpqrT3.StateRefines r.2
+          (Model.SparseRatchet.evictOldest m.postQuantum count.val).1 ⦄)
+    (hconcrete : lifecycle.evict_for_retry s lifecycle.FullStore.PostQuantum count =
+      ok (state1, evicted)) :
+    ∃ mstate, Tacenta.SessionUnitTripleT3.StateRefines
+        Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs state1 mstate ∧
+      Model.Triple.evictOldestPostQuantum m count.val = (mstate, evicted.val) := by
+  obtain ⟨r, hr, hpost⟩ := Std.WP.spec_imp_exists
+    (concrete_lifecycle_evict_for_retry_post_quantum_requested_refines s m count hrel hspqr)
+  rw [hconcrete] at hr
+  cases hr
+  exact hpost
+
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
 so the theorem states the exact result of every terminating run while the
