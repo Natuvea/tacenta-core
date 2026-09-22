@@ -4585,6 +4585,23 @@ structure InitialRatchetRefusalEvidence {R : Type}
   hstep : StepRefines trace dh K (.Err reason, next, rngNext)
     (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))
 
+def initial_ratchet_decode_refusal_evidence {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (realReason : tacenta_wire.DecodeError)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeReal : tacenta_wire.decode_message message = ok (.Err realReason)) :
+    InitialRatchetRefusalEvidence rngCore cryptoRng trace dh K view oracle real model
+      message rng (.Decode realReason) real rng := by
+  obtain ⟨hcall, hstep⟩ := decrypt_ratchet_decode_refusal_refines rngCore cryptoRng
+    trace dh K view oracle real model message rng realReason hrel htrace hready hdecodeReal
+  exact ⟨hcall, hstep⟩
+
 /-! Result-shaped T1 composition with the concrete success router and the
     refusal-family evidence boundary. -/
 theorem initial_ratchet_refines_of_t1_result_split_with_evidence
