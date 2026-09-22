@@ -2673,6 +2673,30 @@ theorem concrete_receive_with_eviction_one_retry_spec_measured
     · simp [Tacenta.UnitLifecycleT1.retryMeasure]
   exact hlo
 
+/-! Discharge the measured-step premise from the existing T1 eviction
+    contract.  This is the adapter that turns the generated `Usize` count into
+    the natural-number decrease used by `retryMeasure`. -/
+theorem concrete_evict_for_retry_measure_decreases
+    (state : tacenta_triple.State) (half : lifecycle.FullStore)
+    (batch : Std.Usize) (evictedState : tacenta_triple.State)
+    (evicted : Std.Usize)
+    (hrmRatchet : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    (hrmSpqr : Tacenta.SessionUnitSpqrT1.RemoveSkippedAtTotal)
+    (hz : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (hroom : Tacenta.UnitLifecycleT1.ReceiveHeadroom state)
+    (hEvict : lifecycle.evict_for_retry state half batch = ok (evictedState, evicted))
+    (hNonzero : evicted ≠ 0#usize) :
+    Tacenta.UnitLifecycleT1.skippedTotal evictedState <
+    Tacenta.UnitLifecycleT1.skippedTotal state := by
+  obtain ⟨r, hr, hpost⟩ := Std.WP.spec_imp_exists
+    (Tacenta.UnitLifecycleT1.evict_for_retry_no_panic
+      hrmRatchet hrmSpqr hz
+      state half batch hroom)
+  rw [hEvict] at hr
+  cases hr
+  have hevicted : 0 < evicted.val := by scalar_tac
+  exact hpost.2.2 hevicted
+
 /-! One generated loop-body step mirrors the model continuation equation when
     the retry fails with another refusal from the same full-store half. -/
 theorem concrete_receive_with_eviction_loop_same_half_step
