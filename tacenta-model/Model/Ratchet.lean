@@ -463,8 +463,20 @@ theorem evictOldest_stops_at_empty (st : State) (n : Nat) :
           rcases hi with hi | hi
           · left
             omega
+
           · right
             exact hi
+
+/-! Once the skipped store is empty, additional bounded eviction is a
+    no-op.  This is the model fact needed to turn the concrete loop's
+    early-empty result into the requested-fuel result. -/
+theorem evictOldest_empty (st : Model.State.State) (n : Nat)
+    (h : st.skipped = []) :
+    evictOldest st n = (st, 0) := by
+  induction n generalizing st with
+  | zero => simp [evictOldest]
+  | succ n ih =>
+      simp [evictOldest, oldestSkipped?, h]
 
 /-- Taking a stored skipped key does not touch the store's clock: it removes an
 entry and leaves every other field alone. Needed where a later step has to know
