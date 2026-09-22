@@ -4817,7 +4817,7 @@ structure InitialRatchetSuccessSplice {R : Type}
       (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.2
   hbraid : Tacenta.SessionUnitBraidT3.StateRefines K
     successPrefix.braidCandidate.state modelBraidCandidate
-  hprivate : dh.privateKey candidatePrivate = facts.draw
+  hprivate : dh.privateKey successPrefix.candidatePrivate = facts.draw
   hbytes : vecOf plaintext = facts.modelPlaintext
   htrace : trace rngNext = oracleNext.draws
 
