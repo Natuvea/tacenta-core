@@ -2365,6 +2365,35 @@ theorem concrete_triple_evict_oldest_classical_refines
       · exact hrel.2
     · simpa [Model.Triple.evictOldestClassical, hclassEq]
 
+/-! With the requested-fuel pair theorem, the classical Triple wrapper also
+    exposes the model's exact returned count. -/
+theorem concrete_triple_evict_oldest_classical_requested_refines
+    (s : tacenta_triple.State) (m : Model.Triple.State) (count : Std.Usize)
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (hratchet : tacenta_ratchet.State.evict_oldest s.classical count
+      ⦃ fun r => ∃ mstate, Tacenta.SessionUnitT3.StateR r.2 mstate ∧
+        (Model.Ratchet.evictOldest m.classical count.val) = (mstate, r.1.val) ⦄) :
+    tacenta_triple.State.evict_oldest_classical s count
+      ⦃ fun r => ∃ mstate, Tacenta.SessionUnitTripleT3.StateRefines
+          Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs r.2 mstate ∧
+        (Model.Triple.evictOldestClassical m count.val) = (mstate, r.1.val) ⦄ := by
+  unfold tacenta_triple.State.evict_oldest_classical
+  apply Aeneas.Std.WP.spec_bind
+  · exact hratchet
+  · intro r hr
+    rcases r with ⟨i, s1⟩
+    change ∃ mstate, Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      { classical := s1, post_quantum := s.post_quantum } mstate ∧
+      (Model.Triple.evictOldestClassical m count.val) = (mstate, i.val)
+    obtain ⟨mclass, hclass, hclassEq⟩ := hr
+    refine ⟨{ m with classical := mclass }, ?_, ?_⟩
+    · constructor
+      · rw [Tacenta.SessionUnitTripleT3.ratchetAbs_eq hclass]
+      · exact hrel.2
+    · simpa [Model.Triple.evictOldestClassical, hclassEq]
+
 /-! The post-quantum eviction wrapper is the analogous lift for the SPQR
     branch.  Its inner T3 result already includes the returned count and the
     sparse StateRefines relation; the triple relation adds the unchanged
