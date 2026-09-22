@@ -4036,6 +4036,93 @@ theorem decrypt_ratchet_success_step_from_aligned_receive_cases {R : Type}
       hprivate hbytes htrace
 
 
+/-! The nonterminal success callback carries the actual generated result and the
+    exact model alignment needed by the direct/retry router.  Keeping these as
+    fields prevents a caller from supplying a `StepRefines` proof detached from
+    the result returned by `decrypt_ratchet`. -/
+structure InitialRatchetSuccessEvidence {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R) : Type where
+  modelPlaintext : Bytes
+  oracleNext : Model.Lifecycle.Oracle
+  realTripleCandidate : tacenta_triple.State
+  realBraidCandidate : tacenta_braid.Braid
+  candidatePrivate : tacenta_boundary.dh.PrivateKey
+  draw : Model.Lifecycle.Key
+  modelTripleCandidate : Model.Triple.State
+  modelBraidCandidate : Model.Braid.BraidState
+  composite : tacenta_wire.Composite
+  modelComposite : Model.CompositeHeader.Composite
+  header : tacenta_triple.Header
+  modelHeader : Model.Triple.Header
+  dhOutRecv : Array Std.U8 32#usize
+  dhOutSend : Array Std.U8 32#usize
+  newDhsPub : Array Std.U8 32#usize
+  modelDhOutRecv : Model.Lifecycle.Key
+  modelDhOutSend : Model.Lifecycle.Key
+  modelNewDhsPub : Model.Lifecycle.Key
+  output : Option tacenta_spqr.Output
+  modelOutput : Option Model.SparseRatchet.Output
+  realMk : Array Std.U8 32#usize
+  modelMk : Model.Lifecycle.Key
+  hreceiveReal : lifecycle.receive_with_eviction realTripleCandidate composite header
+    dhOutRecv dhOutSend newDhsPub output = ok (.Ok (realTripleCandidate, realMk))
+  hreceiveModel : Model.Lifecycle.receiveWithEviction modelTripleCandidate modelComposite
+    modelHeader modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput =
+    .ok (modelTripleCandidate, modelMk)
+  hcase : AggregateReceiveAlignedCase composite modelComposite header modelHeader
+    dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+    output modelOutput realTripleCandidate modelTripleCandidate
+    (realTripleCandidate, realMk) (modelTripleCandidate, modelMk)
+    hreceiveReal hreceiveModel
+  hrel : SessionRefines dh K real model
+  hreal : lifecycle.Session.decrypt_ratchet rc crc real message rng =
+    ok (.Ok plaintext, next, rngNext)
+  hnext : next =
+      { { real with triple := realTripleCandidate, braid := realBraidCandidate } with
+        ratchet_private :=
+          if realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
+            real.ratchet_private else candidatePrivate }
+  hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+    { session :=
+        { model with
+          triple := modelTripleCandidate
+          braid := modelBraidCandidate
+          ratchetPrivate :=
+            if modelTripleCandidate.classical.dhsPub == model.triple.classical.dhsPub then
+              model.ratchetPrivate else draw }
+      result := .ok modelPlaintext
+      oracle := oracleNext }
+  hbraid : Tacenta.SessionUnitBraidT3.StateRefines K
+    realBraidCandidate.state modelBraidCandidate
+  hprivate : dh.privateKey candidatePrivate = draw
+  hbytes : vecOf plaintext = modelPlaintext
+  htrace : trace rngNext = oracleNext.draws
+
+ theorem initial_ratchet_success_step_from_evidence {R : Type}
+    (evidence : InitialRatchetSuccessEvidence rc crc trace dh K view oracle real model
+      message rng plaintext next rngNext) :
+    StepRefines trace dh K (.Ok plaintext, next, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  have hreal := evidence.hreal
+  rw [evidence.hnext] at hreal
+  have hstep := decrypt_ratchet_success_step_from_aligned_receive_cases
+    rc crc trace dh K view oracle evidence.oracleNext real model message rng rngNext
+    plaintext evidence.modelPlaintext evidence.realTripleCandidate
+    evidence.realBraidCandidate evidence.candidatePrivate evidence.draw
+    evidence.modelTripleCandidate evidence.modelBraidCandidate evidence.composite
+    evidence.modelComposite evidence.header evidence.modelHeader evidence.dhOutRecv
+    evidence.dhOutSend evidence.newDhsPub evidence.modelDhOutRecv
+    evidence.modelDhOutSend evidence.modelNewDhsPub evidence.output evidence.modelOutput
+    evidence.realMk evidence.modelMk evidence.hreceiveReal evidence.hreceiveModel
+    evidence.hcase evidence.hrel hreal evidence.hmodel evidence.hbraid
+    evidence.hprivate evidence.hbytes evidence.htrace
+  simpa [evidence.hnext] using hstep
+
 /-- Inner-call evidence is needed only after all initial-wrapper guards pass. -/
 def InitialRatchetRefines {R : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
@@ -4187,6 +4274,49 @@ theorem initial_ratchet_refines_of_t1_result_split
   | Ok plaintext =>
       exact ⟨(.Ok plaintext, next, rngNext), hcall,
         hsuccess decoded established hdecode hestablished he hi plaintext next rngNext hcall⟩
+
+/-! Result-shaped T1 composition with the concrete success router.  The
+    success callback now returns typed evidence for the actual result, so the
+    callback cannot silently replace it with an independently chosen route. -/
+theorem initial_ratchet_refines_of_t1_result_split_with_success_evidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hrefusal : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Err reason, next, rngNext) →
+        StepRefines trace dh K (.Err reason, next, rngNext)
+          (Model.Lifecycle.decryptRatchet view oracle model
+            (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage))
+    (hsuccess : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        InitialRatchetSuccessEvidence rc crc trace dh K view oracle real model
+          decoded.message.deref rng plaintext next rngNext) :
+    InitialRatchetRefines rc crc trace dh K view oracle real model message rng := by
+  apply initial_ratchet_refines_of_t1_result_split boundary headroom hrefusal
+  intro decoded established hdecode hestablished he hi plaintext next rngNext hcall
+  exact initial_ratchet_success_step_from_evidence (R := R)
+    (hsuccess decoded established hdecode hestablished he hi plaintext next rngNext hcall)
 
 /-- Derive the inner call's existence from T1. The supplied semantic relation
 must hold for every actual output; it cannot assume the call succeeds or pick
