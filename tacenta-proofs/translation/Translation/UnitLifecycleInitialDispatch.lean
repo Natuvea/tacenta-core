@@ -1547,6 +1547,42 @@ theorem concrete_receive_with_eviction_retry_case
           have hv : value = result := by simpa [ha] using h
           exact False.elim (hnot (by simp [ha, hv]))
 
+/-! A successful generated lifecycle receive is either a direct Triple result
+    or an actual full-store refusal that entered the retry loop. -/
+theorem concrete_receive_with_eviction_success_cases
+    (state : tacenta_triple.State)
+    (composite : tacenta_wire.Composite)
+    (header : tacenta_triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (output : Option tacenta_spqr.Output)
+    (result : tacenta_triple.State × Array Std.U8 32#usize)
+    (h : lifecycle.receive_with_eviction state composite header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Ok result)) :
+    (∃ direct,
+      lifecycle.receive_attempt state header dhOutRecv dhOutSend newDhsPub output =
+        ok (.Ok direct) ∧ direct = result) ∨
+    (∃ reason half,
+      lifecycle.receive_attempt state header dhOutRecv dhOutSend newDhsPub output =
+        ok (.Err reason) ∧ lifecycle.full_store reason = ok (some half)) := by
+  unfold lifecycle.receive_with_eviction at h
+  cases ha : lifecycle.receive_attempt state header dhOutRecv dhOutSend newDhsPub output with
+  | fail e => simp [ha] at h
+  | div => simp [ha] at h
+  | ok value =>
+      cases value with
+      | Err reason =>
+          cases hs : lifecycle.full_store reason with
+          | fail e => simp [ha, hs] at h
+          | div => simp [ha, hs] at h
+          | ok store =>
+              cases hstore : store with
+              | none => simp [ha, hs, hstore] at h
+              | some half =>
+                  exact Or.inr ⟨reason, half, by simp [ha], by simp [hs, hstore]⟩
+      | Ok value =>
+          have hv : value = result := by simpa [ha] using h
+          exact Or.inl ⟨value, by simp [ha], hv⟩
+
 /-- A successful direct Triple receive is returned unchanged by the generated
 lifecycle wrapper; the eviction loop is entered only after an error. -/
 theorem concrete_receive_with_eviction_of_receive
@@ -2918,6 +2954,34 @@ theorem model_receive_with_eviction_retry_case
       exfalso
       apply hnot
       rw [hd, hv]
+
+/-! The model lifecycle success has the same direct-or-retry partition. -/
+theorem model_receive_with_eviction_success_cases
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite)
+    (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Model.Lifecycle.Key)
+    (output : Option Model.SparseRatchet.Output)
+    (result : Model.Triple.State × Model.Lifecycle.Key)
+    (h : Model.Lifecycle.receiveWithEviction state composite header dhOutRecv dhOutSend
+      newDhsPub output = .ok result) :
+    (∃ direct,
+      Model.Triple.receiveDetailed state header dhOutRecv dhOutSend newDhsPub output =
+        .ok direct ∧ direct = result) ∨
+    (∃ reason half,
+      Model.Triple.receiveDetailed state header dhOutRecv dhOutSend newDhsPub output =
+        .error reason ∧ Model.Lifecycle.fullStore reason = some half) := by
+  unfold Model.Lifecycle.receiveWithEviction at h
+  cases hd : Model.Triple.receiveDetailed state header dhOutRecv dhOutSend newDhsPub output with
+  | error reason =>
+      cases hs : Model.Lifecycle.fullStore reason with
+      | none => simp [hd, hs] at h
+      | some half =>
+          simp [hd, hs] at h
+          exact Or.inr ⟨reason, half, by simpa [hd], by simpa [hs]⟩
+  | ok value =>
+      have hv : value = result := by simpa [hd] using h
+      exact Or.inl ⟨value, by simpa [hd], hv⟩
 
 /-- A successful direct model Triple receive never enters the retry loop; the
 lifecycle model returns the same state/key pair unchanged. -/
