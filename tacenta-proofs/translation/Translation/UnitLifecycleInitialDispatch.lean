@@ -1889,6 +1889,30 @@ theorem concrete_classical_evict_one_step
     hvr hrel oldest target hr hentry hfirst_model
   exact ⟨target, discarded, v, htarget, hcall, hstate⟩
 
+/-! The generated outer body consumes exactly one classical eviction: once the
+scan and removal boundaries return, it increments the `evicted` fuel and
+continues with the updated state.  This is the concrete body fact used by the
+fuel-decreasing loop proof below. -/
+theorem concrete_classical_evict_body_one
+    (s : tacenta_ratchet.State) (oldest : Std.Usize)
+    (discarded : Array Std.U8 32#usize)
+    (v : alloc.vec.Vec tacenta_ratchet.SkippedKey)
+    (hscan : tacenta_ratchet.State.evict_oldest_loop0_loop0
+      s.skipped 0#usize 1#usize = ok oldest)
+    (hremove : tacenta_ratchet.remove_skipped_at s.skipped oldest =
+      ok (discarded, v))
+    (hlen : s.skipped.val.length ≠ 0) :
+    tacenta_ratchet.State.evict_oldest_loop0.body 1#usize s 0#usize =
+      ok (ControlFlow.cont ({ s with skipped := v }, 1#usize)) := by
+  unfold tacenta_ratchet.State.evict_oldest_loop0.body
+  have hlenU : alloc.vec.Vec.len s.skipped ≠ 0#usize := by
+    intro hz
+    apply hlen
+    simpa [alloc.vec.Vec.len] using congrArg UScalar.val hz
+  have hlenU' : (alloc.vec.Vec.len s.skipped != 0#usize) = true := by
+    simp [bne_iff_ne, hlenU]
+  simp [hlenU', hscan, hremove] <;> step*
+
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
 so the theorem states the exact result of every terminating run while the
