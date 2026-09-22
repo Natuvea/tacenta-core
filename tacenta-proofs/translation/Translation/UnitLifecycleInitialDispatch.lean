@@ -3131,6 +3131,77 @@ theorem concrete_post_quantum_retry_loop_matches_model_one_retry
     (by simpa [hBatchModel] using hEvictModel) hNonzeroModel hRetryModel
   exact ⟨hloop, hmodel, hState, hKey⟩
 
+theorem concrete_post_quantum_receive_with_eviction_retry_matches_model
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (realState work evictedState : tacenta_triple.State)
+    (modelState modelEvictedState : Model.Triple.State)
+    (batch : Std.Usize) (batch1 evicted : Std.Usize)
+    (realReason : tacenta_triple.TripleError)
+    (modelReason : Model.Triple.ReceiveRefusal)
+    (realResult : tacenta_triple.State × Array Std.U8 32#usize)
+    (modelResult : Model.Triple.State × Model.Lifecycle.Key)
+    (hAttempt : lifecycle.receive_attempt realState header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Err realReason))
+    (hFullReal : lifecycle.full_store realReason = ok (some lifecycle.FullStore.PostQuantum))
+    (hClone : tacenta_triple.State.Insts.CoreCloneClone.clone realState = ok work)
+    (hBatchReal : lifecycle.receive_shortfall lifecycle.FullStore.PostQuantum work composite =
+      ok batch)
+    (hDirect : Model.Triple.receiveDetailed modelState modelHeader
+      modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput = .error modelReason)
+    (hFull : Model.Lifecycle.fullStore modelReason = some .postQuantum)
+    (hBatchModel : batch.val = Model.Lifecycle.receiveShortfall
+      .postQuantum modelState modelComposite)
+    (hEvictModel : Model.Triple.evictOldestPostQuantum modelState batch.val =
+      (modelEvictedState, evicted.val))
+    (hNonzero : evicted ≠ 0#usize)
+    (hNonzeroModel : evicted.val ≠ 0)
+    (hEvict : lifecycle.evict_for_retry work lifecycle.FullStore.PostQuantum batch =
+      ok (evictedState, evicted))
+    (hBatch : core.num.Usize.saturating_add batch batch = batch1)
+    (hRetry : lifecycle.receive_attempt evictedState header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Ok realResult))
+    (hRetryModel : Model.Triple.receiveDetailed modelEvictedState modelHeader
+      modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput = .ok modelResult)
+    (hState : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      realResult.1 modelResult.1)
+    (hKey : Tacenta.SessionUnitTripleT3.keyOf realResult.2 = modelResult.2)
+    (hReason : tripleReceiveRefusalOfReal realReason = some modelReason) :
+    lifecycle.receive_with_eviction realState composite header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Ok realResult) ∧
+      Model.Lifecycle.receiveWithEviction modelState modelComposite modelHeader
+        modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput = .ok modelResult ∧
+      Tacenta.SessionUnitTripleT3.StateRefines
+        Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+        realResult.1 modelResult.1 ∧
+      Tacenta.SessionUnitTripleT3.keyOf realResult.2 = modelResult.2 ∧
+      Tacenta.UnitLifecycleT3.refusalOf (.Triple realReason) =
+        Model.Lifecycle.tripleReceiveRefusalOf modelReason := by
+  have hloop := concrete_post_quantum_retry_loop_matches_model_one_retry composite
+    modelComposite header modelHeader dhOutRecv dhOutSend newDhsPub modelDhOutRecv
+    modelDhOutSend modelNewDhsPub output modelOutput work evictedState modelState
+    modelEvictedState batch batch1 evicted realReason modelReason realResult modelResult
+    hDirect hFull hBatchModel hEvictModel hNonzero hNonzeroModel hEvict hBatch hRetry
+    hRetryModel hState hKey
+  obtain ⟨loopResult, hLoopCall, hLoopPost⟩ :=
+    Std.WP.spec_imp_exists hloop.1
+  have hLoop : lifecycle.receive_with_eviction_loop composite header dhOutRecv
+      dhOutSend newDhsPub output lifecycle.FullStore.PostQuantum work batch realReason none =
+      ok (realReason, some (core.result.Result.Ok realResult)) := by
+    rw [hLoopPost] at hLoopCall
+    exact hLoopCall
+  have houter := concrete_receive_with_eviction_from_retry_loop realState work composite
+    header dhOutRecv dhOutSend newDhsPub output realReason lifecycle.FullStore.PostQuantum
+    batch realResult hAttempt hFullReal hClone hBatchReal hLoop
+  exact ⟨houter, hloop.2.1, hloop.2.2.1, hloop.2.2.2,
+    Tacenta.UnitLifecycleT3.tripleReceiveRefusalOfReal_sound hReason⟩
+
 /-! The model-side half of the successful receive is kept separate from the
 concrete adapter above.  This is the exact result that the aggregate T3
 composition will consume; in particular, it leaves the conditional
