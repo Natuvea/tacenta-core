@@ -478,6 +478,13 @@ theorem evictOldest_empty (st : Model.State.State) (n : Nat)
   | succ n ih =>
       simp [evictOldest, oldestSkipped?, h]
 
+theorem evictOldest_empty_suffix (st m : Model.State.State) (n k : Nat)
+    (hfirst : evictOldest st n = (m, n)) (h : m.skipped = []) :
+    evictOldest st (n + k) = (m, n) := by
+  rw [evictOldest_append]
+  rw [hfirst]
+  simp [evictOldest_empty m k h]
+
 /-- Taking a stored skipped key does not touch the store's clock: it removes an
 entry and leaves every other field alone. Needed where a later step has to know
 the counter still has room. -/
