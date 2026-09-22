@@ -2017,7 +2017,8 @@ theorem concrete_classical_evict_outer_progress
           state.skipped 0#usize 1#usize = ok oldest ∧
         tacenta_ratchet.remove_skipped_at state.skipped oldest =
           ok (discarded, v) ∧
-        evicted + 1#usize = ok evicted1) :
+        evicted + 1#usize = ok evicted1 ∧
+        evicted1.val = evicted.val + 1) :
     tacenta_ratchet.State.evict_oldest_loop0 s count 0#usize
       ⦃ fun r => r.1.val = count.val ∨ r.2.skipped.val.length = 0 ⦄ := by
   unfold tacenta_ratchet.State.evict_oldest_loop0
@@ -2032,15 +2033,24 @@ theorem concrete_classical_evict_outer_progress
       simp [tacenta_ratchet.State.evict_oldest_loop0.body, hev, hdone]
     · have hlt : evicted.val < count.val := by omega
       by_cases hempty : state.skipped.val.length = 0
-      · have hb := concrete_classical_evict_body_empty state count evicted hlt hempty
-        simpa [tacenta_ratchet.State.evict_oldest_loop0.body] using hb
-      · obtain ⟨oldest, discarded, v, evicted1, hscan, hremove, hadd⟩ :=
+      · unfold tacenta_ratchet.State.evict_oldest_loop0.body
+        have hlenU : alloc.vec.Vec.len state.skipped = 0#usize := by
+          simp [alloc.vec.Vec.len, hempty]
+          rfl
+        simp [hlt, hlenU]
+        exact Or.inr (List.eq_nil_of_length_eq_zero hempty)
+      · obtain ⟨oldest, discarded, v, evicted1, hscan, hremove, hadd, hval⟩ :=
           hstep state evicted hlt hempty
-        have hb := concrete_classical_evict_body_step state count evicted evicted1
-          oldest discarded v hlt hscan hremove hadd hempty
-        simpa [tacenta_ratchet.State.evict_oldest_loop0.body] using hb
+        unfold tacenta_ratchet.State.evict_oldest_loop0.body
+        have hlenU : alloc.vec.Vec.len state.skipped ≠ 0#usize := by
+          intro hz
+          apply hempty
+          simpa [alloc.vec.Vec.len] using congrArg UScalar.val hz
+        have hlenU' : (alloc.vec.Vec.len state.skipped != 0#usize) = true := by
+          simp [bne_iff_ne, hlenU]
+        simp [hlt, hlenU', hscan, hremove, hadd]
+        omega
   · simp
-    omega
 
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
