@@ -1911,7 +1911,7 @@ theorem concrete_classical_evict_body_one
     simpa [alloc.vec.Vec.len] using congrArg UScalar.val hz
   have hlenU' : (alloc.vec.Vec.len s.skipped != 0#usize) = true := by
     simp [bne_iff_ne, hlenU]
-  simp [hlenU', hscan, hremove] <;> step*
+  simp [hlenU', hscan, hremove, Usize.add_spec]
 
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
