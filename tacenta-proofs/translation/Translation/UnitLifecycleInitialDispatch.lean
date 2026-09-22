@@ -1918,6 +1918,32 @@ theorem concrete_classical_evict_body_one
     UScalar.eq_of_val_eq (by simpa using evicted1_post)
   simp [hevicted]
 
+/-! The same generated-body fact with symbolic fuel and counter.  Keeping the
+successful addition as an explicit result hypothesis lets the outer-loop
+induction reuse this theorem without unfolding the fallible `Usize` addition
+at every step. -/
+theorem concrete_classical_evict_body_step
+    (s : tacenta_ratchet.State) (count evicted evicted1 oldest : Std.Usize)
+    (discarded : Array Std.U8 32#usize)
+    (v : alloc.vec.Vec tacenta_ratchet.SkippedKey)
+    (hcount : evicted.val < count.val)
+    (hscan : tacenta_ratchet.State.evict_oldest_loop0_loop0
+      s.skipped 0#usize 1#usize = ok oldest)
+    (hremove : tacenta_ratchet.remove_skipped_at s.skipped oldest =
+      ok (discarded, v))
+    (hadd : evicted + 1#usize = ok evicted1)
+    (hlen : s.skipped.val.length ≠ 0) :
+    tacenta_ratchet.State.evict_oldest_loop0.body count s evicted
+      ⦃ fun r => r = ControlFlow.cont ({ s with skipped := v }, evicted1) ⦄ := by
+  unfold tacenta_ratchet.State.evict_oldest_loop0.body
+  have hlenU : alloc.vec.Vec.len s.skipped ≠ 0#usize := by
+    intro hz
+    apply hlen
+    simpa [alloc.vec.Vec.len] using congrArg UScalar.val hz
+  have hlenU' : (alloc.vec.Vec.len s.skipped != 0#usize) = true := by
+    simp [bne_iff_ne, hlenU]
+  simp [hcount, hlenU', hscan, hremove, hadd]
+
 theorem concrete_classical_evict_body_empty
     (s : tacenta_ratchet.State) (count evicted : Std.Usize)
     (hcount : evicted.val < count.val)
