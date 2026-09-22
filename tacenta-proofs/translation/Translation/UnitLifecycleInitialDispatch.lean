@@ -3202,6 +3202,60 @@ theorem concrete_post_quantum_receive_with_eviction_retry_matches_model
   exact ⟨houter, hloop.2.1, hloop.2.2.1, hloop.2.2.2,
     Tacenta.UnitLifecycleT3.tripleReceiveRefusalOfReal_sound hReason⟩
 
+/-! The two full-store proofs above have the same public conclusion.  Keep
+    that conclusion in one proposition so the enclosing lifecycle proof can
+    select the generated store half once and then consume either branch
+    without duplicating the Session-level result plumbing. -/
+def AggregateReceiveRetryRefinement
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (realState : tacenta_triple.State)
+    (modelState : Model.Triple.State)
+    (realReason : tacenta_triple.TripleError)
+    (modelReason : Model.Triple.ReceiveRefusal)
+    (realResult : tacenta_triple.State × Array Std.U8 32#usize)
+    (modelResult : Model.Triple.State × Model.Lifecycle.Key) : Prop :=
+  lifecycle.receive_with_eviction realState composite header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Ok realResult) ∧
+    Model.Lifecycle.receiveWithEviction modelState modelComposite modelHeader
+      modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput = .ok modelResult ∧
+    Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      realResult.1 modelResult.1 ∧
+    Tacenta.SessionUnitTripleT3.keyOf realResult.2 = modelResult.2 ∧
+    Tacenta.UnitLifecycleT3.refusalOf (.Triple realReason) =
+      Model.Lifecycle.tripleReceiveRefusalOf modelReason
+
+/-! Select the branch reported by the generated `full_store` classifier.  The
+    branch callbacks are deliberately supplied by the concrete classical and
+    post-quantum adapters above; this theorem only performs the shared
+    elimination and exposes their common result to the public decrypt route. -/
+theorem aggregate_receive_retry_refinement_of_full_store
+    (half : lifecycle.FullStore)
+    (realReason : tacenta_triple.TripleError)
+    (hFullReal : lifecycle.full_store realReason = ok (some half))
+    (hclassical : half = lifecycle.FullStore.Classical →
+      lifecycle.full_store realReason = ok (some lifecycle.FullStore.Classical) →
+      AggregateReceiveRetryRefinement composite modelComposite header modelHeader
+        dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+        output modelOutput realState modelState realReason modelReason realResult modelResult)
+    (hpostQuantum : half = lifecycle.FullStore.PostQuantum →
+      lifecycle.full_store realReason = ok (some lifecycle.FullStore.PostQuantum) →
+      AggregateReceiveRetryRefinement composite modelComposite header modelHeader
+        dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+        output modelOutput realState modelState realReason modelReason realResult modelResult) :
+    AggregateReceiveRetryRefinement composite modelComposite header modelHeader
+      dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+      output modelOutput realState modelState realReason modelReason realResult modelResult := by
+  cases half with
+  | Classical => exact hclassical rfl hFullReal
+  | PostQuantum => exact hpostQuantum rfl hFullReal
+
 /-! The model-side half of the successful receive is kept separate from the
 concrete adapter above.  This is the exact result that the aggregate T3
 composition will consume; in particular, it leaves the conditional
