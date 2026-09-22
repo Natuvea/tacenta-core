@@ -4600,6 +4600,74 @@ def initial_ratchet_refusal_evidence_of_pair {R : Type}
       message rng reason next rngNext :=
   { hcall := hcall, hstep := hstep }
 
+def initial_ratchet_first_dh_refusal_evidence
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
+    (oracle : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (codec : DhCodecOf dh)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (decoded : tacenta_wire.DecodedMessage)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (realComposite : tacenta_wire.Composite)
+    (evidence : BraidReceiveEvidence K view real model realComposite modelComposite)
+    (hrealComposite : realComposite = decoded.header)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeReal : tacenta_wire.decode_message message = ok (.Ok decoded))
+    (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (modelComposite, vecOf decoded.ciphertext))
+    (hcomposite : CompositeRefines decoded.header modelComposite)
+    (hmodelDhNone : oracle.dhAgree model.ratchetPrivate modelComposite.dh = none) :
+    InitialRatchetRefusalEvidence rngCore cryptoRng trace dh K view oracle real model
+      message rng (.Handshake SessionError.NonContributoryAgreement) real rng := by
+  obtain ⟨hcall, hstep⟩ := decrypt_ratchet_first_dh_refusal_from_braid
+    rngCore cryptoRng trace dh kem K view oracle oracleOf codec real model message rng
+    decoded modelComposite realComposite evidence hrealComposite hrel htrace hready
+    hdecodeReal hdecodeModel hcomposite hmodelDhNone
+  exact ⟨hcall, hstep⟩
+
+theorem initial_ratchet_second_dh_refusal_evidence
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (codec : DhCodecOf dh)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (decoded : tacenta_wire.DecodedMessage)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (realComposite : tacenta_wire.Composite)
+    (evidence : BraidReceiveEvidence K view real model realComposite modelComposite)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeReal : tacenta_wire.decode_message message = ok (.Ok decoded))
+    (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (modelComposite, vecOf decoded.ciphertext))
+    (hrealComposite : realComposite = decoded.header)
+    (hcomposite : CompositeRefines decoded.header modelComposite)
+    (draw modelDhOutRecv : Model.Lifecycle.Key)
+    (hmodelFirst : oracle.dhAgree model.ratchetPrivate modelComposite.dh =
+      some modelDhOutRecv)
+    (hmodelDraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext))
+    (hmodelSecond : oracle.dhAgree draw modelComposite.dh = none) :
+    ∃ rngAfter, Nonempty (InitialRatchetRefusalEvidence rngCore cryptoRng trace dh K view oracle
+      real model message rng (.Handshake SessionError.NonContributoryAgreement) real rngAfter) := by
+  obtain ⟨rngAfter, hcall, hstep⟩ := decrypt_ratchet_second_dh_refusal_from_braid
+    rngCore cryptoRng trace dh kem K view oracle oracleNext oracleOf codec hz32 real model
+    message rng decoded modelComposite realComposite evidence hrel htrace hready hdecodeReal
+    hdecodeModel hrealComposite hcomposite draw modelDhOutRecv hmodelFirst hmodelDraw
+    hmodelSecond
+  exact ⟨rngAfter, ⟨⟨hcall, hstep⟩⟩⟩
+
 def initial_ratchet_terminal_refusal_evidence {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
