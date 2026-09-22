@@ -369,6 +369,13 @@ theorem evictOldest_none_state (st : State) (n : Nat)
       simp only [evictOldest]
       rw [h]
 
+theorem evictOldest_none (st : State) (n : Nat)
+    (h : oldestSkipped? st.skipped = none) :
+    evictOldest st n = (st, 0) := by
+  induction n with
+  | zero => rfl
+  | succ n ih => simp [evictOldest, h]
+
 theorem evictOldest_one_some_state (st : State) (target : SkippedEntry)
     (h : oldestSkipped? st.skipped = some target) :
     (evictOldest st 1).1 =
