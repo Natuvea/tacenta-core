@@ -68,12 +68,21 @@ def main():
         results['baseline_exit'] = status
         print('PASS: unmodified source elaborates', flush=True)
         for name, before, after, premise in mutants:
-            expected = 2 if name == 'weaken-terminal-guard' else 1
-            if source.count(before) != expected:
-                raise SystemExit(f'Target changed for {name}: expected {expected} occurrences')
+            # The guard premise occurs once: the mutation must target the
+            # concrete terminal-discharge theorem, not a duplicated signature.
             # For the terminal guard, mutate its concrete-discharge theorem only.
             mutated = tmp / f'{name}.lean'
-            mutated.write_text(source.replace(before, after, 1))
+            if name == 'weaken-terminal-guard':
+                marker = 'theorem initial_ratchet_refines_terminal'
+                start = source.find(marker)
+                target = source.find(before, start)
+                if start < 0 or target < 0:
+                    raise SystemExit(f'Target changed for {name}: named discharge premise is missing')
+                mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
+            else:
+                if source.count(before) != 1:
+                    raise SystemExit(f'Target changed for {name}: expected 1 occurrence')
+                mutated.write_text(source.replace(before, after, 1))
             log = logs / f'{name}.log'
             status, output = run_lean(mutated, log, args.timeout)
             mismatch = re.search(

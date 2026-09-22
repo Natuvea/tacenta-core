@@ -321,6 +321,8 @@ theorem decrypt_ratchet_aead_refusal_from_braid {R : Type}
     (candidatePublic : tacenta_boundary.dh.PublicKeyBytes)
     (realHeader : tacenta_triple.Header)
     (wrappedRecv wrappedSend wrappedMk : zeroize.Zeroizing (Array Std.U8 32#usize))
+    (realState : tacenta_triple.State)
+    (modelState : Model.Triple.State)
     (realTripleCandidate : tacenta_triple.State)
     (modelTripleCandidate : Model.Triple.State)
     (modelMk draw modelDhOutRecv modelDhOutSend : Model.Lifecycle.Key)
@@ -3830,6 +3832,8 @@ theorem decrypt_ratchet_success_step_from_aggregate_core {R : Type}
     (real : lifecycle.Session) (model : Model.Lifecycle.Session)
     (message : Slice Std.U8) (rng rngNext : R)
     (plaintext : alloc.vec.Vec Std.U8) (modelPlaintext : Bytes)
+    (realState : tacenta_triple.State)
+    (modelState : Model.Triple.State)
     (realTripleCandidate : tacenta_triple.State)
     (realBraidCandidate : tacenta_braid.Braid)
     (candidatePrivate : tacenta_boundary.dh.PrivateKey)
@@ -3846,7 +3850,7 @@ theorem decrypt_ratchet_success_step_from_aggregate_core {R : Type}
     (realMk : Array Std.U8 32#usize) (modelMk : Model.Lifecycle.Key)
     (haggregate : AggregateReceiveCoreRefinement composite modelComposite header modelHeader
       dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
-      output modelOutput realTripleCandidate modelTripleCandidate
+      output modelOutput realState modelState
       (realTripleCandidate, realMk) (modelTripleCandidate, modelMk))
     (hrel : SessionRefines dh K real model)
     (hreal : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
@@ -3895,6 +3899,8 @@ theorem decrypt_ratchet_success_step_from_aggregate_retry {R : Type}
     (real : lifecycle.Session) (model : Model.Lifecycle.Session)
     (message : Slice Std.U8) (rng rngNext : R)
     (plaintext : alloc.vec.Vec Std.U8) (modelPlaintext : Bytes)
+    (realState : tacenta_triple.State)
+    (modelState : Model.Triple.State)
     (realTripleCandidate : tacenta_triple.State)
     (realBraidCandidate : tacenta_braid.Braid)
     (candidatePrivate : tacenta_boundary.dh.PrivateKey)
@@ -3913,7 +3919,7 @@ theorem decrypt_ratchet_success_step_from_aggregate_retry {R : Type}
     (realMk : Array Std.U8 32#usize) (modelMk : Model.Lifecycle.Key)
     (haggregate : AggregateReceiveRetryRefinement composite modelComposite header modelHeader
       dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
-      output modelOutput realTripleCandidate modelTripleCandidate realReason modelReason
+      output modelOutput realState modelState realReason modelReason
       (realTripleCandidate, realMk) (modelTripleCandidate, modelMk))
     (hrel : SessionRefines dh K real model)
     (hreal : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
@@ -3958,6 +3964,7 @@ theorem decrypt_ratchet_success_step_from_aligned_receive_cases {R : Type}
     (real : lifecycle.Session) (model : Model.Lifecycle.Session)
     (message : Slice Std.U8) (rng rngNext : R)
     (plaintext : alloc.vec.Vec Std.U8) (modelPlaintext : Bytes)
+    (realState : tacenta_triple.State)
     (realTripleCandidate : tacenta_triple.State)
     (realBraidCandidate : tacenta_braid.Braid)
     (candidatePrivate : tacenta_boundary.dh.PrivateKey)
@@ -3972,15 +3979,15 @@ theorem decrypt_ratchet_success_step_from_aligned_receive_cases {R : Type}
     (output : Option tacenta_spqr.Output)
     (modelOutput : Option Model.SparseRatchet.Output)
     (realMk : Array Std.U8 32#usize) (modelMk : Model.Lifecycle.Key)
-    (hreceiveReal : lifecycle.receive_with_eviction realTripleCandidate composite header
+    (hreceiveReal : lifecycle.receive_with_eviction realState composite header
       dhOutRecv dhOutSend newDhsPub output =
       ok (.Ok (realTripleCandidate, realMk)))
-    (hreceiveModel : Model.Lifecycle.receiveWithEviction modelTripleCandidate modelComposite
+    (hreceiveModel : Model.Lifecycle.receiveWithEviction model.triple modelComposite
       modelHeader modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput =
       .ok (modelTripleCandidate, modelMk))
     (hcase : AggregateReceiveAlignedCase composite modelComposite header modelHeader
       dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
-      output modelOutput realTripleCandidate modelTripleCandidate
+      output modelOutput realState model.triple
       (realTripleCandidate, realMk) (modelTripleCandidate, modelMk)
       hreceiveReal hreceiveModel)
     (hrel : SessionRefines dh K real model)
@@ -4017,19 +4024,19 @@ theorem decrypt_ratchet_success_step_from_aligned_receive_cases {R : Type}
   · have haggregate := aggregate_receive_core_refinement_of_aligned_success_cases
       composite modelComposite header modelHeader dhOutRecv dhOutSend newDhsPub
       modelDhOutRecv modelDhOutSend modelNewDhsPub output modelOutput
-      realTripleCandidate modelTripleCandidate (realTripleCandidate, realMk)
+      realState model.triple (realTripleCandidate, realMk)
       (modelTripleCandidate, modelMk) hreceiveReal hreceiveModel
       (Or.inl hdirect)
     exact decrypt_ratchet_success_step_from_aggregate_core rngCore cryptoRng trace dh K view
       oracle oracleNext real model message rng rngNext plaintext modelPlaintext
-      realTripleCandidate realBraidCandidate candidatePrivate draw modelTripleCandidate
+      realState model.triple realTripleCandidate realBraidCandidate candidatePrivate draw modelTripleCandidate
       modelBraidCandidate composite modelComposite header modelHeader dhOutRecv dhOutSend
       newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub output modelOutput realMk modelMk
       haggregate hrel hreal hmodel hbraid hprivate hbytes htrace
   · obtain ⟨realReason, modelReason, haggregate⟩ := hretry
     exact decrypt_ratchet_success_step_from_aggregate_retry rngCore cryptoRng trace dh K view
       oracle oracleNext real model message rng rngNext plaintext modelPlaintext
-      realTripleCandidate realBraidCandidate candidatePrivate draw modelTripleCandidate
+      realState model.triple realTripleCandidate realBraidCandidate candidatePrivate draw modelTripleCandidate
       modelBraidCandidate composite modelComposite header modelHeader dhOutRecv dhOutSend
       newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub output modelOutput
       realReason modelReason realMk modelMk haggregate hrel hreal hmodel hbraid
@@ -4289,14 +4296,14 @@ structure InitialRatchetSuccessEvidence {R : Type}
   modelOutput : Option Model.SparseRatchet.Output
   realMk : Array Std.U8 32#usize
   modelMk : Model.Lifecycle.Key
-  hreceiveReal : lifecycle.receive_with_eviction realTripleCandidate composite header
+  hreceiveReal : lifecycle.receive_with_eviction real.triple composite header
     dhOutRecv dhOutSend newDhsPub output = ok (.Ok (realTripleCandidate, realMk))
-  hreceiveModel : Model.Lifecycle.receiveWithEviction modelTripleCandidate modelComposite
+  hreceiveModel : Model.Lifecycle.receiveWithEviction model.triple modelComposite
     modelHeader modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput =
     .ok (modelTripleCandidate, modelMk)
   hcase : AggregateReceiveAlignedCase composite modelComposite header modelHeader
     dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
-    output modelOutput realTripleCandidate modelTripleCandidate
+    output modelOutput real.triple model.triple
     (realTripleCandidate, realMk) (modelTripleCandidate, modelMk)
     hreceiveReal hreceiveModel
   hrel : SessionRefines dh K real model
@@ -4323,6 +4330,120 @@ structure InitialRatchetSuccessEvidence {R : Type}
   hbytes : vecOf plaintext = modelPlaintext
   htrace : trace rngNext = oracleNext.draws
 
+/-! This is the branch fact consumed by the success router.  Its direct arm
+    names the raw concrete and model Triple successes; its retry arm carries
+    the shared full-store relation.  In particular, callers cannot select a
+    retry proof for a direct result (or vice versa) and then hide that choice
+    behind the lifecycle wrapper. -/
+def InitialRatchetSuccessReceiveBranch
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (realState : tacenta_triple.State)
+    (modelState : Model.Triple.State)
+    (realResult : tacenta_triple.State × Array Std.U8 32#usize)
+    (modelResult : Model.Triple.State × Model.Lifecycle.Key) : Prop :=
+  (∃ hrealDirect : tacenta_triple.State.receive realState header dhOutRecv
+      dhOutSend newDhsPub output = ok (.Ok realResult),
+    ∃ hmodelDirect : Model.Triple.receive modelState modelHeader modelDhOutRecv
+      modelDhOutSend modelNewDhsPub modelOutput = some modelResult,
+      Tacenta.SessionUnitTripleT3.StateRefines
+        Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+        realResult.1 modelResult.1 ∧
+      Tacenta.SessionUnitTripleT3.keyOf realResult.2 = modelResult.2) ∨
+  (∃ realReason modelReason,
+    AggregateReceiveRetryRefinement composite modelComposite header modelHeader
+      dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+      output modelOutput realState modelState realReason modelReason realResult
+      modelResult)
+
+theorem initial_ratchet_aligned_case_of_branch
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (realState : tacenta_triple.State)
+    (modelState : Model.Triple.State)
+    (realResult : tacenta_triple.State × Array Std.U8 32#usize)
+    (modelResult : Model.Triple.State × Model.Lifecycle.Key)
+    (hreal : lifecycle.receive_with_eviction realState composite header
+      dhOutRecv dhOutSend newDhsPub output = ok (.Ok realResult))
+    (hmodel : Model.Lifecycle.receiveWithEviction modelState modelComposite
+      modelHeader modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput =
+      .ok modelResult)
+    (hbranch : InitialRatchetSuccessReceiveBranch composite modelComposite header
+      modelHeader dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend
+      modelNewDhsPub output modelOutput realState modelState realResult modelResult) :
+    AggregateReceiveAlignedCase composite modelComposite header modelHeader
+      dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+      output modelOutput realState modelState realResult modelResult hreal hmodel := by
+  unfold InitialRatchetSuccessReceiveBranch at hbranch
+  rcases hbranch with ⟨hrealDirect, hmodelDirect, hstate, hkey⟩ | ⟨realReason,
+    modelReason, hretry⟩
+  · exact aggregate_receive_aligned_case_of_direct composite modelComposite header
+      modelHeader dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend
+      modelNewDhsPub output modelOutput realState modelState realResult modelResult
+      hreal hmodel hrealDirect hmodelDirect hstate hkey
+  · exact aggregate_receive_aligned_case_of_retry composite modelComposite header
+      modelHeader dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend
+      modelNewDhsPub output modelOutput realState modelState realResult modelResult
+      hreal hmodel realReason modelReason hretry
+
+/-! Instantiate the branch provider with the exact generated/model success
+    witnesses.  The aggregate equalities come from the typed prefix and model
+    facts, while the branch relation supplies only the direct-vs-retry
+    semantic splice. -/
+theorem initial_ratchet_success_aligned_case_of_prefix_and_branch {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext plaintext next)
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (hbranch : InitialRatchetSuccessReceiveBranch
+      successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
+      (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+      successPrefix.sparseOutput
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+      real.triple model.triple
+      (successPrefix.realTripleCandidate, successPrefix.realMk)
+      (facts.modelTripleCandidate, facts.modelMk)) :
+    AggregateReceiveAlignedCase successPrefix.decoded.header facts.modelComposite
+      successPrefix.realHeader (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes facts.modelDhOutRecv
+      facts.modelDhOutSend (oracle.dhPublic facts.draw) successPrefix.sparseOutput
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+      real.triple model.triple
+      (successPrefix.realTripleCandidate, successPrefix.realMk)
+      (facts.modelTripleCandidate, facts.modelMk) successPrefix.htriple facts.hmodelTriple := by
+  exact initial_ratchet_aligned_case_of_branch
+    successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
+    (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+    successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+    facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+    successPrefix.sparseOutput
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+    real.triple model.triple
+    (successPrefix.realTripleCandidate, successPrefix.realMk)
+    (facts.modelTripleCandidate, facts.modelMk)
+    successPrefix.htriple facts.hmodelTriple hbranch
+
 def initial_ratchet_success_evidence_of_prefix {R : Type}
     {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -4344,14 +4465,14 @@ def initial_ratchet_success_evidence_of_prefix {R : Type}
     (output : Option tacenta_spqr.Output)
     (modelOutput : Option Model.SparseRatchet.Output)
     (modelMk : Model.Lifecycle.Key)
-    (hreceiveReal : lifecycle.receive_with_eviction successPrefix.realTripleCandidate composite header
+    (hreceiveReal : lifecycle.receive_with_eviction real.triple composite header
       dhOutRecv dhOutSend newDhsPub output = ok (.Ok (successPrefix.realTripleCandidate, successPrefix.realMk)))
-    (hreceiveModel : Model.Lifecycle.receiveWithEviction modelTripleCandidate modelComposite
+    (hreceiveModel : Model.Lifecycle.receiveWithEviction model.triple modelComposite
       modelHeader modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput =
       .ok (modelTripleCandidate, modelMk))
     (hcase : AggregateReceiveAlignedCase composite modelComposite header modelHeader
       dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
-      output modelOutput successPrefix.realTripleCandidate modelTripleCandidate
+      output modelOutput real.triple model.triple
       (successPrefix.realTripleCandidate, successPrefix.realMk) (modelTripleCandidate, modelMk)
       hreceiveReal hreceiveModel)
     (hrel : SessionRefines dh K real model)
@@ -4397,6 +4518,71 @@ def initial_ratchet_success_evidence_of_prefix {R : Type}
     hmodel := hmodel, hbraid := hbraid, hprivate := hprivate,
     hbytes := hbytes, htrace := htrace }
 
+/-! Final success-evidence constructor.  This is the intended public splice:
+    the generated prefix and model facts fix every value at the call site, and
+    only the direct/retry branch relation remains to be supplied. -/
+def initial_ratchet_success_evidence_of_prefix_and_branch {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext plaintext next)
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (candidatePrivate : tacenta_boundary.dh.PrivateKey)
+    (modelBraidCandidate : Model.Braid.BraidState)
+    (hbranch : InitialRatchetSuccessReceiveBranch
+      successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
+      (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+      successPrefix.sparseOutput
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+      real.triple model.triple
+      (successPrefix.realTripleCandidate, successPrefix.realMk)
+      (facts.modelTripleCandidate, facts.modelMk))
+    (hrel : SessionRefines dh K real model)
+    (hreal : lifecycle.Session.decrypt_ratchet rc crc real message rng =
+      ok (.Ok plaintext, next, rngNext))
+    (hnext : next =
+      { { real with triple := successPrefix.realTripleCandidate, braid := successPrefix.braidCandidate } with
+        ratchet_private :=
+          if successPrefix.realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
+            real.ratchet_private else candidatePrivate })
+    (hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session :=
+          { model with
+            triple := facts.modelTripleCandidate
+            braid := modelBraidCandidate
+            ratchetPrivate :=
+              if facts.modelTripleCandidate.classical.dhsPub == model.triple.classical.dhsPub then
+                model.ratchetPrivate else facts.draw }
+        result := .ok facts.modelPlaintext
+        oracle := oracleNext })
+    (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K
+      successPrefix.braidCandidate.state modelBraidCandidate)
+    (hprivate : dh.privateKey candidatePrivate = facts.draw)
+    (hbytes : vecOf plaintext = facts.modelPlaintext)
+    (htrace : trace rngNext = oracleNext.draws) :
+    InitialRatchetSuccessEvidence rc crc trace dh K view oracle real model message rng
+      plaintext next rngNext := by
+  have hcase := initial_ratchet_success_aligned_case_of_prefix_and_branch
+    successPrefix facts hbranch
+  exact initial_ratchet_success_evidence_of_prefix successPrefix facts.modelPlaintext
+    oracleNext candidatePrivate facts.draw facts.modelTripleCandidate modelBraidCandidate
+    successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
+    (Model.Lifecycle.tripleHeaderOf facts.modelComposite) successPrefix.recvSecret
+    successPrefix.sendSecret successPrefix.newPublicBytes facts.modelDhOutRecv
+    facts.modelDhOutSend (oracle.dhPublic facts.draw) successPrefix.sparseOutput
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+    facts.modelMk successPrefix.htriple facts.hmodelTriple hcase hrel hreal hnext hmodel
+    hbraid hprivate hbytes htrace
+
  theorem initial_ratchet_success_step_from_evidence {R : Type}
     (evidence : InitialRatchetSuccessEvidence rc crc trace dh K view oracle real model
       message rng plaintext next rngNext) :
@@ -4406,7 +4592,7 @@ def initial_ratchet_success_evidence_of_prefix {R : Type}
   rw [evidence.hnext] at hreal
   have hstep := decrypt_ratchet_success_step_from_aligned_receive_cases
     rc crc trace dh K view oracle evidence.oracleNext real model message rng rngNext
-    plaintext evidence.modelPlaintext evidence.realTripleCandidate
+    plaintext evidence.modelPlaintext real.triple evidence.realTripleCandidate
     evidence.realBraidCandidate evidence.candidatePrivate evidence.draw
     evidence.modelTripleCandidate evidence.modelBraidCandidate evidence.composite
     evidence.modelComposite evidence.header evidence.modelHeader evidence.dhOutRecv
