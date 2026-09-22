@@ -875,6 +875,26 @@ theorem receiveWithEvictionLoop_zero_evict
       pending half batch (fuel + 1) = .error pending := by
   cases half <;> simp [receiveWithEvictionLoop, hEvict]
 
+theorem receiveWithEviction_zero_evict
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (reason : Model.Triple.ReceiveRefusal) (half : FullStore)
+    (evictedState : Model.Triple.State)
+    (hDirect : Model.Triple.receiveDetailed state header dhOutRecv dhOutSend
+      newDhsPub output = .error reason)
+    (hFull : fullStore reason = some half)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state
+          (receiveShortfall half state composite)
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state
+          (receiveShortfall half state composite)) = (evictedState, 0)) :
+    receiveWithEviction state composite header dhOutRecv dhOutSend newDhsPub output =
+      .error reason := by
+  simp [receiveWithEviction, hDirect, hFull]
+  cases half <;> simp [receiveWithEvictionLoop, hEvict]
+
 /-- A classical consumed-message refusal is not an eviction case, so the
     Session retry policy preserves it exactly. -/
 theorem receiveWithEviction_classical_outOfOrder (state : Model.Triple.State)
