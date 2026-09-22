@@ -2619,6 +2619,29 @@ theorem concrete_receive_with_eviction_one_retry_spec
     · simp
   exact hlo
 
+/-! Reattach a proved loop result to the generated public wrapper.  The outer
+    function clones the Triple state and computes the initial shortfall before
+    entering the loop; this adapter records those three concrete equalities so
+    the retry refinement can be consumed by the Session theorem. -/
+theorem concrete_receive_with_eviction_from_retry_loop
+    (state cloned : tacenta_triple.State)
+    (composite : tacenta_wire.Composite) (header : tacenta_triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (output : Option tacenta_spqr.Output)
+    (reason : tacenta_triple.TripleError) (half : lifecycle.FullStore)
+    (batch : Std.Usize) (result : tacenta_triple.State × Array Std.U8 32#usize)
+    (hAttempt : lifecycle.receive_attempt state header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Err reason))
+    (hFull : lifecycle.full_store reason = ok (some half))
+    (hClone : tacenta_triple.State.clone state = ok cloned)
+    (hShortfall : lifecycle.receive_shortfall half cloned composite = ok batch)
+    (hLoop : lifecycle.receive_with_eviction_loop composite header dhOutRecv dhOutSend
+      newDhsPub output half cloned batch reason none = ok (.Ok result)) :
+    lifecycle.receive_with_eviction state composite header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Ok result) := by
+  unfold lifecycle.receive_with_eviction
+  simp [hAttempt, hFull, hClone, hShortfall, hLoop]
+
 /-! The measured variant uses the same fuel accounting as the totality proof in
     `UnitLifecycleT1`.  It is the form needed when this one-step result is
     inserted into the enclosing retry induction: the evicted working copy
