@@ -410,6 +410,15 @@ theorem evictOldest_append (st : State) (n k : Nat) :
           rw [ih (st := { st with skipped := eraseFirstSkipped target st.skipped })]
           simp [Nat.add_assoc, Nat.add_comm]
 
+theorem evictOldest_fuel_step
+    (base m : State) (n : Nat) (target : SkippedEntry)
+    (hfirst : evictOldest base n = (m, n))
+    (hsel : oldestSkipped? m.skipped = some target) :
+    (evictOldest base (n + 1)).1 =
+      { m with skipped := eraseFirstSkipped target m.skipped } := by
+  rw [evictOldest_append]
+  simp [hfirst, evictOldest, hsel]
+
 /-- Taking a stored skipped key does not touch the store's clock: it removes an
 entry and leaves every other field alone. Needed where a later step has to know
 the counter still has room. -/
