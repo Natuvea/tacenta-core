@@ -3447,6 +3447,30 @@ theorem aggregate_receive_aligned_case_of_direct_receive
       modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput modelResult hmodelDirect)
     hrealDirect hmodelDirect hstate hkey
 
+theorem aggregate_receive_aligned_case_of_retry_refinement
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (realState : tacenta_triple.State)
+    (modelState : Model.Triple.State)
+    (realReason : tacenta_triple.TripleError)
+    (modelReason : Model.Triple.ReceiveRefusal)
+    (realResult : tacenta_triple.State × Array Std.U8 32#usize)
+    (modelResult : Model.Triple.State × Model.Lifecycle.Key)
+    (hretry : AggregateReceiveRetryRefinement composite modelComposite header
+      modelHeader dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend
+      modelNewDhsPub output modelOutput realState modelState realReason modelReason
+      realResult modelResult) :
+    AggregateReceiveAlignedCase composite modelComposite header modelHeader
+      dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+      output modelOutput realState modelState realResult modelResult
+      hretry.1.1 hretry.1.2.1 := by
+  exact Or.inr ⟨realReason, modelReason, hretry⟩
+
 theorem aggregate_receive_aligned_case_of_retry
     (composite : tacenta_wire.Composite)
     (modelComposite : Model.CompositeHeader.Composite)
