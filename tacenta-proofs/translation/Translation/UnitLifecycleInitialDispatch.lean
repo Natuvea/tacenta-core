@@ -3348,6 +3348,34 @@ theorem aggregate_receive_core_refinement_of_direct
     retry arm contains the already-composed full-store adapter.  This keeps the
     branch choice tied to the actual generated/model results instead of
     allowing a caller to choose a convenient route independently. -/
+def AggregateReceiveAlignedCase
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (realState : tacenta_triple.State)
+    (modelState : Model.Triple.State)
+    (realResult : tacenta_triple.State × Array Std.U8 32#usize)
+    (modelResult : Model.Triple.State × Model.Lifecycle.Key) : Prop :=
+  (∃ directReal directModel,
+    tacenta_triple.State.receive realState header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Ok directReal) ∧
+    Model.Triple.receive modelState modelHeader modelDhOutRecv
+      modelDhOutSend modelNewDhsPub modelOutput = some directModel ∧
+    directReal = realResult ∧ directModel = modelResult ∧
+    Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      directReal.1 directModel.1 ∧
+    Tacenta.SessionUnitTripleT3.keyOf directReal.2 = directModel.2) ∨
+  (∃ realReason modelReason,
+    AggregateReceiveRetryRefinement composite modelComposite header modelHeader
+      dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+      output modelOutput realState modelState realReason modelReason realResult
+      modelResult)
+
 theorem aggregate_receive_core_refinement_of_aligned_success_cases
     (composite : tacenta_wire.Composite)
     (modelComposite : Model.CompositeHeader.Composite)
@@ -3360,25 +3388,13 @@ theorem aggregate_receive_core_refinement_of_aligned_success_cases
     (modelState : Model.Triple.State)
     (realResult : tacenta_triple.State × Array Std.U8 32#usize)
     (modelResult : Model.Triple.State × Model.Lifecycle.Key)
-    (hcase :
-      (∃ directReal directModel,
-        tacenta_triple.State.receive realState header dhOutRecv dhOutSend
-          newDhsPub output = ok (.Ok directReal) ∧
-        Model.Triple.receive modelState modelHeader modelDhOutRecv
-          modelDhOutSend modelNewDhsPub modelOutput = some directModel ∧
-        directReal = realResult ∧ directModel = modelResult ∧
-        Tacenta.SessionUnitTripleT3.StateRefines
-          Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
-          directReal.1 directModel.1 ∧
-        Tacenta.SessionUnitTripleT3.keyOf directReal.2 = directModel.2) ∨
-      (∃ realReason modelReason,
-        AggregateReceiveRetryRefinement composite modelComposite header modelHeader
-          dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
-          output modelOutput realState modelState realReason modelReason realResult
-          modelResult)) :
+    (hcase : AggregateReceiveAlignedCase composite modelComposite header modelHeader
+      dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+      output modelOutput realState modelState realResult modelResult) :
     AggregateReceiveCoreRefinement composite modelComposite header modelHeader
       dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
       output modelOutput realState modelState realResult modelResult := by
+  unfold AggregateReceiveAlignedCase at hcase
   rcases hcase with hdirect | hretry
   · obtain ⟨directReal, directModel, hrealDirect, hmodelDirect, hrealEq,
       hmodelEq, hstate, hkey⟩ := hdirect
@@ -3388,7 +3404,7 @@ theorem aggregate_receive_core_refinement_of_aligned_success_cases
       modelHeader dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend
       modelNewDhsPub output modelOutput realState modelState realResult modelResult
       hrealDirect hmodelDirect hstate hkey
-  · obtain ⟨realReason, modelReason, haggregate⟩ := hretry
+  · obtain ⟨_, _, haggregate⟩ := hretry
     exact haggregate.1
 
 /-! Select the branch reported by the generated `full_store` classifier.  The
@@ -3737,6 +3753,85 @@ theorem decrypt_ratchet_success_step_from_aggregate_core {R : Type}
     oracle oracleNext real model message rng rngNext plaintext modelPlaintext
     realTripleCandidate realBraidCandidate candidatePrivate draw modelTripleCandidate
     modelBraidCandidate hrel hreal hmodel haggregate.2.2.1 hbraid hprivate hbytes htrace
+
+
+theorem decrypt_ratchet_success_step_from_aligned_receive_cases {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng rngNext : R)
+    (plaintext : alloc.vec.Vec Std.U8) (modelPlaintext : Bytes)
+    (realTripleCandidate : tacenta_triple.State)
+    (realBraidCandidate : tacenta_braid.Braid)
+    (candidatePrivate : tacenta_boundary.dh.PrivateKey)
+    (draw : Model.Lifecycle.Key)
+    (modelTripleCandidate : Model.Triple.State)
+    (modelBraidCandidate : Model.Braid.BraidState)
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (realMk : Array Std.U8 32#usize) (modelMk : Model.Lifecycle.Key)
+    (hcase : AggregateReceiveAlignedCase composite modelComposite header modelHeader
+      dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+      output modelOutput realTripleCandidate modelTripleCandidate
+      (realTripleCandidate, realMk) (modelTripleCandidate, modelMk))
+    (hrel : SessionRefines dh K real model)
+    (hreal : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Ok plaintext,
+        { { real with triple := realTripleCandidate, braid := realBraidCandidate } with
+          ratchet_private :=
+            if realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
+              real.ratchet_private else candidatePrivate }, rngNext))
+    (hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session :=
+          { model with
+            triple := modelTripleCandidate
+            braid := modelBraidCandidate
+            ratchetPrivate :=
+              if modelTripleCandidate.classical.dhsPub == model.triple.classical.dhsPub then
+                model.ratchetPrivate else draw }
+        result := .ok modelPlaintext
+        oracle := oracleNext })
+    (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K
+      realBraidCandidate.state modelBraidCandidate)
+    (hprivate : dh.privateKey candidatePrivate = draw)
+    (hbytes : vecOf plaintext = modelPlaintext)
+    (htrace : trace rngNext = oracleNext.draws) :
+    StepRefines trace dh K
+      (.Ok plaintext,
+        { { real with triple := realTripleCandidate, braid := realBraidCandidate } with
+          ratchet_private :=
+            if realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
+              real.ratchet_private else candidatePrivate }, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  unfold AggregateReceiveAlignedCase at hcase
+  rcases hcase with hdirect | hretry
+  · have haggregate := aggregate_receive_core_refinement_of_aligned_success_cases
+      composite modelComposite header modelHeader dhOutRecv dhOutSend newDhsPub
+      modelDhOutRecv modelDhOutSend modelNewDhsPub output modelOutput
+      realTripleCandidate modelTripleCandidate (realTripleCandidate, realMk)
+      (modelTripleCandidate, modelMk) (Or.inl hdirect)
+    exact decrypt_ratchet_success_step_from_aggregate_core rngCore cryptoRng trace dh K view
+      oracle oracleNext real model message rng rngNext plaintext modelPlaintext
+      realTripleCandidate realBraidCandidate candidatePrivate draw modelTripleCandidate
+      modelBraidCandidate composite modelComposite header modelHeader dhOutRecv dhOutSend
+      newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub output modelOutput realMk modelMk
+      haggregate hrel hreal hmodel hbraid hprivate hbytes htrace
+  · obtain ⟨realReason, modelReason, haggregate⟩ := hretry
+    exact decrypt_ratchet_success_step_from_aggregate_retry rngCore cryptoRng trace dh K view
+      oracle oracleNext real model message rng rngNext plaintext modelPlaintext
+      realTripleCandidate realBraidCandidate candidatePrivate draw modelTripleCandidate
+      modelBraidCandidate composite modelComposite header modelHeader dhOutRecv dhOutSend
+      newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub output modelOutput
+      realReason modelReason realMk modelMk haggregate hrel hreal hmodel hbraid
+      hprivate hbytes htrace
+
 
 
 /-! The aggregate retry result is the Triple part of the public decrypt
