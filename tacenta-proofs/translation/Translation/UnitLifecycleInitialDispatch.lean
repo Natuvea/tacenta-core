@@ -2666,6 +2666,21 @@ theorem concrete_receive_with_eviction_loop_switch_half_step
   simp [lifecycle.receive_with_eviction_loop.body, Aeneas.Std.lift,
     hEvict, hNonzero, hRetry, hFull, hDifferent, hShortfall]
 
+theorem concrete_receive_with_eviction_loop_zero_evict
+    (composite : tacenta_wire.Composite) (header : tacenta_triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (output : Option tacenta_spqr.Output)
+    (half : lifecycle.FullStore)
+    (state : tacenta_triple.State)
+    (batch : Std.Usize)
+    (pending : tacenta_triple.TripleError)
+    (hEvict : lifecycle.evict_for_retry state half batch = ok (state, 0#usize)) :
+    lifecycle.receive_with_eviction_loop.body composite header dhOutRecv dhOutSend
+      newDhsPub output half state batch pending none =
+      ok (ControlFlow.cont (half, state, batch, pending,
+        some (core.result.Result.Err pending))) := by
+  simp [lifecycle.receive_with_eviction_loop.body, Aeneas.Std.lift, hEvict]
+
 /-- Expose the model retry branch: a successful `receiveWithEviction` that is
 not the direct `receiveDetailed` success must enter the bounded eviction loop. -/
 theorem model_receive_with_eviction_retry_case
