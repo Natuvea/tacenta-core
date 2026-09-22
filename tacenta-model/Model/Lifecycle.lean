@@ -808,6 +808,33 @@ theorem receiveWithEviction_one_retry
   simp [receiveWithEviction, hDirect, hFull]
   cases half <;> simp [receiveWithEvictionLoop, hEvict, hNonzero, hRetry]
 
+/-! The fuel-indexed form is the induction-facing companion to
+    `receiveWithEviction_one_retry`.  It keeps the successor fuel visible so
+    the concrete loop's decreasing measure can be related to the model loop
+    without re-proving the first successful retry at each induction step. -/
+theorem receiveWithEvictionLoop_one_retry
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (result : Model.Triple.State × Key)
+    (evictedState : Model.Triple.State)
+    (reason : Model.Triple.ReceiveRefusal) (half : FullStore)
+    (evicted fuel : Nat)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state
+          (receiveShortfall half state composite)
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state
+          (receiveShortfall half state composite)) =
+        (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header
+      dhOutRecv dhOutSend newDhsPub output = .ok result) :
+    receiveWithEvictionLoop state composite header dhOutRecv dhOutSend
+      newDhsPub output reason half
+      (receiveShortfall half state composite) (fuel + 1) = .ok result := by
+  cases half <;> simp [receiveWithEvictionLoop, hEvict, hNonzero, hRetry]
+
 /-! Expose the recursive continuation after a retry fails with another
     full-store refusal.  This equation is the induction step for the bounded
     lifecycle retry invariant; it leaves the decremented fuel and doubled
