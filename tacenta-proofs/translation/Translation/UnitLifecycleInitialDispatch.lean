@@ -2729,6 +2729,35 @@ theorem model_evict_for_retry_classical_measured
     count state1 evicted hrmRatchet hrmSpqr hz hroom hconcrete hNonzero
   exact ⟨mstate, hstate, hpair, hmeasure⟩
 
+theorem model_evict_for_retry_post_quantum_measured
+    (s : tacenta_triple.State) (m : Model.Triple.State) (count : Std.Usize)
+    (state1 : tacenta_triple.State) (evicted : Std.Usize)
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (hspqr : tacenta_spqr.State.evict_oldest s.post_quantum count
+      ⦃ fun r => r.1.val = (Model.SparseRatchet.evictOldest m.postQuantum count.val).2 ∧
+        Tacenta.SessionUnitSpqrT3.StateRefines r.2
+          (Model.SparseRatchet.evictOldest m.postQuantum count.val).1 ⦄)
+    (hrmRatchet : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    (hrmSpqr : Tacenta.SessionUnitSpqrT1.RemoveSkippedAtTotal)
+    (hz : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (hroom : Tacenta.UnitLifecycleT1.ReceiveHeadroom s)
+    (hconcrete : lifecycle.evict_for_retry s lifecycle.FullStore.PostQuantum count =
+      ok (state1, evicted))
+    (hNonzero : evicted ≠ 0#usize) :
+    ∃ mstate, Tacenta.SessionUnitTripleT3.StateRefines
+        Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+        state1 mstate ∧
+      Model.Triple.evictOldestPostQuantum m count.val = (mstate, evicted.val) ∧
+      Tacenta.UnitLifecycleT1.skippedTotal state1 <
+        Tacenta.UnitLifecycleT1.skippedTotal s := by
+  obtain ⟨mstate, hstate, hpair⟩ :=
+    model_evict_for_retry_post_quantum_of_concrete s m count state1 evicted hrel hspqr
+      hconcrete
+  have hmeasure := concrete_evict_for_retry_measure_decreases s lifecycle.FullStore.PostQuantum
+    count state1 evicted hrmRatchet hrmSpqr hz hroom hconcrete hNonzero
+  exact ⟨mstate, hstate, hpair, hmeasure⟩
+
 /-! One generated loop-body step mirrors the model continuation equation when
     the retry fails with another refusal from the same full-store half. -/
 theorem concrete_receive_with_eviction_loop_same_half_step
