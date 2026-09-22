@@ -1889,6 +1889,42 @@ theorem concrete_classical_evict_one_step
     hvr hrel oldest target hr hentry hfirst_model
   exact ⟨target, discarded, v, htarget, hcall, hstate⟩
 
+/-! The one-entry bridge also exposes the model selector and packages the
+result as the model's one-fuel `evictOldest` state.  This is the semantic
+step consumed by the arbitrary-fuel StateR invariant; callers still provide
+the scan certificates that establish the concrete index and tie rule. -/
+theorem concrete_classical_evict_one_step_model
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    {s : tacenta_ratchet.State} {m : Model.State.State}
+    (hrel : Tacenta.SessionUnitT3.StateR s m)
+    (oldest : Std.Usize)
+    (hwidth : s.skipped.val.length ≤ UScalar.cMax UScalarTy.Usize)
+    (hr : oldest.val < s.skipped.val.length)
+    (hmin : ∀ (hr : oldest.val < s.skipped.val.length) (j : Std.Usize)
+      (hj : j.val < s.skipped.val.length) (hjlen : j.val < s.skipped.val.length),
+      (s.skipped.val[oldest.val]'hr).stored_at.val ≤
+        (s.skipped.val[j.val]'hjlen).stored_at.val)
+    (hfirst : ∀ (hr : oldest.val < s.skipped.val.length) (j : Std.Usize)
+      (hj : j.val < oldest.val) (hjlen : j.val < s.skipped.val.length),
+      (s.skipped.val[oldest.val]'hr).stored_at.val <
+        (s.skipped.val[j.val]'hjlen).stored_at.val) :
+    ∃ target discarded v,
+      target = ((s.skipped.val.map Tacenta.SessionUnitT3.skippedOf)[oldest.val]'
+        (by simpa [List.length_map] using hr)) ∧
+      Model.Ratchet.oldestSkipped? m.skipped = some target ∧
+      tacenta_ratchet.remove_skipped_at s.skipped oldest = ok (discarded, v) ∧
+      Tacenta.SessionUnitT3.StateR { s with skipped := v }
+        (Model.Ratchet.evictOldest m 1).1 := by
+  have hsel := concrete_scan_selector_refines_oldest s m hrel oldest hwidth hr hmin hfirst
+  obtain ⟨target, discarded, v, htarget, hcall, hstate⟩ :=
+    concrete_classical_evict_one_step hvr hrel oldest hwidth hr hmin hfirst
+  have hsel' : Model.Ratchet.oldestSkipped? m.skipped = some target := by
+    simpa [htarget] using hsel
+  have hevict := Model.Ratchet.evictOldest_one_some_state m target hsel'
+  refine ⟨target, discarded, v, htarget, hsel', hcall, ?_⟩
+  rw [hevict]
+  exact hstate
+
 /-! The generated outer body consumes exactly one classical eviction: once the
 scan and removal boundaries return, it increments the `evicted` fuel and
 continues with the updated state.  This is the concrete body fact used by the
