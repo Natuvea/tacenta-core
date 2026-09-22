@@ -3531,8 +3531,11 @@ theorem aggregate_receive_aligned_case_of_direct_contracts
   · simpa using hmodelDirect
   exact aggregate_receive_aligned_case_of_direct_receive composite modelComposite header
     { dr := mh, epoch := header.epoch.val, pqN := header.pq_n.val }
-    dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
-    output modelOutput realState modelState realResult (modelCandidate, modelKey)
+    dhOutRecv dhOutSend newDhsPub (Tacenta.SessionUnitTripleT3.keyOf dhOutRecv)
+    (Tacenta.SessionUnitTripleT3.keyOf dhOutSend)
+    (Tacenta.SessionUnitTripleT3.keyOf newDhsPub) output
+    (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf)
+    realState modelState realResult (modelCandidate, modelKey)
     hcall hmodelDirect hstate hkey
 
 theorem aggregate_receive_aligned_case_of_retry_refinement
@@ -3647,6 +3650,60 @@ theorem aggregate_receive_retry_refinement_of_full_store
   cases half with
   | Classical => exact hclassical rfl hFullReal
   | PostQuantum => exact hpostQuantum rfl hFullReal
+
+/-! Reattach the shared full-store adapter to the indexed lifecycle case.  The
+    caller supplies the leaf-specific classical and post-quantum retry proofs,
+    while this theorem performs the only branch elimination and keeps the
+    resulting `StateRefines` witness tied to the exact successful calls. -/
+theorem aggregate_receive_aligned_case_of_full_store_retry
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (realState : tacenta_triple.State)
+    (modelState : Model.Triple.State)
+    (realReason : tacenta_triple.TripleError)
+    (modelReason : Model.Triple.ReceiveRefusal)
+    (realResult : tacenta_triple.State × Array Std.U8 32#usize)
+    (modelResult : Model.Triple.State × Model.Lifecycle.Key)
+    (hreal : lifecycle.receive_with_eviction realState composite header
+      dhOutRecv dhOutSend newDhsPub output = ok (.Ok realResult))
+    (hmodel : Model.Lifecycle.receiveWithEviction modelState modelComposite
+      modelHeader modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput =
+      .ok modelResult)
+    (half : lifecycle.FullStore)
+    (hFullReal : lifecycle.full_store realReason = ok (some half))
+    (hclassical : half = lifecycle.FullStore.Classical →
+      lifecycle.full_store realReason = ok (some lifecycle.FullStore.Classical) →
+      AggregateReceiveRetryRefinement composite modelComposite header modelHeader
+        dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+        output modelOutput realState modelState realReason modelReason realResult
+        modelResult)
+    (hpostQuantum : half = lifecycle.FullStore.PostQuantum →
+      lifecycle.full_store realReason = ok (some lifecycle.FullStore.PostQuantum) →
+      AggregateReceiveRetryRefinement composite modelComposite header modelHeader
+        dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+        output modelOutput realState modelState realReason modelReason realResult
+        modelResult) :
+    AggregateReceiveAlignedCase composite modelComposite header modelHeader
+      dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+      output modelOutput realState modelState realResult modelResult hreal hmodel := by
+  have hretry := aggregate_receive_retry_refinement_of_full_store
+    (composite := composite) (modelComposite := modelComposite) (header := header)
+    (modelHeader := modelHeader) (dhOutRecv := dhOutRecv) (dhOutSend := dhOutSend)
+    (newDhsPub := newDhsPub) (modelDhOutRecv := modelDhOutRecv)
+    (modelDhOutSend := modelDhOutSend) (modelNewDhsPub := modelNewDhsPub)
+    (output := output) (modelOutput := modelOutput) (realState := realState)
+    (modelState := modelState) (modelReason := modelReason)
+    (realResult := realResult) (modelResult := modelResult) half realReason hFullReal
+    hclassical hpostQuantum
+  exact aggregate_receive_aligned_case_of_retry composite modelComposite header
+    modelHeader dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend
+    modelNewDhsPub output modelOutput realState modelState realResult modelResult
+    hreal hmodel realReason modelReason hretry
 
 /-! The model-side half of the successful receive is kept separate from the
 concrete adapter above.  This is the exact result that the aggregate T3
@@ -4611,6 +4668,55 @@ theorem initial_ratchet_success_branch_of_aligned_case
     exact Or.inl ⟨hrealDirect, hmodelDirect, hstate, hkey⟩
   · obtain ⟨realReason, modelReason, hretry⟩ := hretry
     exact Or.inr ⟨realReason, modelReason, hretry⟩
+
+/-! Public success-router entry for a full-store retry.  This keeps the
+    classical/post-quantum choice below the router: the shared adapter first
+    builds the indexed aggregate case, and only then is it projected into the
+    branch consumed by `InitialRatchetSuccessSplice`. -/
+theorem initial_ratchet_success_branch_of_full_store_retry
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (realState : tacenta_triple.State)
+    (modelState : Model.Triple.State)
+    (realReason : tacenta_triple.TripleError)
+    (modelReason : Model.Triple.ReceiveRefusal)
+    (realResult : tacenta_triple.State × Array Std.U8 32#usize)
+    (modelResult : Model.Triple.State × Model.Lifecycle.Key)
+    (hreal : lifecycle.receive_with_eviction realState composite header
+      dhOutRecv dhOutSend newDhsPub output = ok (.Ok realResult))
+    (hmodel : Model.Lifecycle.receiveWithEviction modelState modelComposite
+      modelHeader modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput =
+      .ok modelResult)
+    (half : lifecycle.FullStore)
+    (hFullReal : lifecycle.full_store realReason = ok (some half))
+    (hclassical : half = lifecycle.FullStore.Classical →
+      lifecycle.full_store realReason = ok (some lifecycle.FullStore.Classical) →
+      AggregateReceiveRetryRefinement composite modelComposite header modelHeader
+        dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+        output modelOutput realState modelState realReason modelReason realResult
+        modelResult)
+    (hpostQuantum : half = lifecycle.FullStore.PostQuantum →
+      lifecycle.full_store realReason = ok (some lifecycle.FullStore.PostQuantum) →
+      AggregateReceiveRetryRefinement composite modelComposite header modelHeader
+        dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+        output modelOutput realState modelState realReason modelReason realResult
+        modelResult) :
+    InitialRatchetSuccessReceiveBranch composite modelComposite header modelHeader
+      dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+      output modelOutput realState modelState realResult modelResult := by
+  apply initial_ratchet_success_branch_of_aligned_case composite modelComposite header
+    modelHeader dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend
+    modelNewDhsPub output modelOutput realState modelState realResult modelResult
+    hreal hmodel
+  exact aggregate_receive_aligned_case_of_full_store_retry composite modelComposite
+    header modelHeader dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend
+    modelNewDhsPub output modelOutput realState modelState realReason modelReason
+    realResult modelResult hreal hmodel half hFullReal hclassical hpostQuantum
 
 /-! Instantiate the branch provider with the exact generated/model success
     witnesses.  The aggregate equalities come from the typed prefix and model
