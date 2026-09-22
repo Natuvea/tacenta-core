@@ -2448,7 +2448,7 @@ theorem concrete_lifecycle_evict_for_retry_classical_requested_refines
     rcases r with ⟨evicted, state1⟩
     rcases hr with ⟨mstate, hstate, hpair⟩
     simp [hpair]
-    exact ⟨mstate, hstate, hpair⟩
+    simpa using hstate
 
 theorem concrete_lifecycle_evict_for_retry_post_quantum_requested_refines
     (s : tacenta_triple.State) (m : Model.Triple.State) (count : Std.Usize)
