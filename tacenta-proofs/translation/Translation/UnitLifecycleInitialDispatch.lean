@@ -1918,6 +1918,18 @@ theorem concrete_classical_evict_body_one
     UScalar.eq_of_val_eq (by simpa using evicted1_post)
   simp [hevicted]
 
+theorem concrete_classical_evict_body_empty
+    (s : tacenta_ratchet.State) (count evicted : Std.Usize)
+    (hcount : evicted.val < count.val)
+    (hlen : s.skipped.val.length = 0) :
+    tacenta_ratchet.State.evict_oldest_loop0.body count s evicted ⦃ fun r =>
+      r = ControlFlow.done (evicted, s) ⦄ := by
+  unfold tacenta_ratchet.State.evict_oldest_loop0.body
+  have hlenU : alloc.vec.Vec.len s.skipped = 0#usize := by
+    simp [alloc.vec.Vec.len, hlen]
+    rfl
+  simp [hcount, hlenU]
+
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
 so the theorem states the exact result of every terminating run while the
