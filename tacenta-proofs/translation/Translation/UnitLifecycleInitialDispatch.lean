@@ -2258,6 +2258,36 @@ theorem concrete_classical_evict_outer_model_stateR
         exact ⟨hnext, hbound1, by omega⟩
   · refine ⟨base, hrel, by rfl, by simp⟩
 
+/-! The triple wrapper lifts the classical ratchet result into the lifecycle
+    StateRefines relation.  Once the ratchet loop supplies its exact model
+    fuel state, the untouched post-quantum component is carried verbatim. -/
+theorem concrete_triple_evict_oldest_classical_refines
+    (s : tacenta_triple.State) (m : Model.Triple.State) (count : Std.Usize)
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (hratchet : tacenta_ratchet.State.evict_oldest s.classical count
+      ⦃ fun r => ∃ mstate, Tacenta.SessionUnitT3.StateR r.2 mstate ∧
+        mstate = (Model.Ratchet.evictOldest m.classical r.1.val).1 ⦄) :
+    tacenta_triple.State.evict_oldest_classical s count
+      ⦃ fun r => ∃ mstate, Tacenta.SessionUnitTripleT3.StateRefines
+          Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs r.2 mstate ∧
+        mstate = (Model.Triple.evictOldestClassical m r.1.val).1 ⦄ := by
+  unfold tacenta_triple.State.evict_oldest_classical
+  apply Aeneas.Std.WP.spec_bind
+  · exact hratchet
+  · intro r hr
+    rcases r with ⟨i, s1⟩
+    change ∃ mstate, Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      { classical := s1, post_quantum := s.post_quantum } mstate ∧
+      mstate = (Model.Triple.evictOldestClassical m i.val).1
+    obtain ⟨mclass, hclass, hclassEq⟩ := hr
+    refine ⟨{ m with classical := mclass }, ?_, ?_⟩
+    · constructor
+      · rw [Tacenta.SessionUnitTripleT3.ratchetAbs_eq hclass]
+      · exact hrel.2
+    · simpa [Model.Triple.evictOldestClassical, hclassEq]
+
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
 so the theorem states the exact result of every terminating run while the
