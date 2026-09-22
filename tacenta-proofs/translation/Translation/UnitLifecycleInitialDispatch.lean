@@ -4479,6 +4479,65 @@ theorem initial_ratchet_refines_of_t1_result_split
       exact ⟨(.Ok plaintext, next, rngNext), hcall,
         hsuccess decoded established hdecode hestablished he hi plaintext next rngNext hcall⟩
 
+/-! Refusal evidence uses the same actual-result boundary.  The refusal
+    family is intentionally left open to the four concrete adapters (DH,
+    Triple, AEAD and decode); each adapter must provide this exact call/result
+    pair before the dispatcher can consume it. -/
+structure InitialRatchetRefusalEvidence {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R) : Type where
+  hcall : lifecycle.Session.decrypt_ratchet rc crc real message rng =
+    ok (.Err reason, next, rngNext)
+  hstep : StepRefines trace dh K (.Err reason, next, rngNext)
+    (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))
+
+/-! Result-shaped T1 composition with the concrete success router and the
+    refusal-family evidence boundary. -/
+theorem initial_ratchet_refines_of_t1_result_split_with_evidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hrefusal : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Err reason, next, rngNext) →
+        InitialRatchetRefusalEvidence rc crc trace dh K view oracle real model
+          decoded.message.deref rng reason next rngNext)
+    (hsuccess : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        InitialRatchetSuccessEvidence rc crc trace dh K view oracle real model
+          decoded.message.deref rng plaintext next rngNext) :
+    InitialRatchetRefines rc crc trace dh K view oracle real model message rng := by
+  apply initial_ratchet_refines_of_t1_result_split boundary headroom
+  · intro decoded established hdecode hestablished he hi reason next rngNext hcall
+    exact (hrefusal decoded established hdecode hestablished he hi reason next rngNext hcall).hstep
+  · intro decoded established hdecode hestablished he hi plaintext next rngNext hcall
+    exact initial_ratchet_success_step_from_evidence (R := R)
+      (hsuccess decoded established hdecode hestablished he hi plaintext next rngNext hcall)
+
 /-! Result-shaped T1 composition with the concrete success router.  The
     success callback now returns typed evidence for the actual result, so the
     callback cannot silently replace it with an independently chosen route. -/
