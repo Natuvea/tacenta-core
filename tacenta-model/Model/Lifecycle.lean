@@ -861,6 +861,53 @@ theorem receiveWithEvictionLoop_continue_same_half
         newDhsPub output reason half (batch * 2) fuel := by
   cases half <;> simp [receiveWithEvictionLoop, hEvict, hNonzero, hRetry, hFull]
 
+/-! Public proposition wrapper for the private loop equation.  Translation
+    proofs can carry this relation across the model boundary without naming
+    the implementation-private recursive function. -/
+def receiveWithEvictionLoopSameHalf
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending reason : Model.Triple.ReceiveRefusal)
+    (half : FullStore) (batch fuel : Nat)
+    (evictedState : Model.Triple.State) (evicted : Nat)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header
+      dhOutRecv dhOutSend newDhsPub output = .error reason)
+    (hFull : fullStore reason = some half) : Prop :=
+  receiveWithEvictionLoop state composite header dhOutRecv dhOutSend newDhsPub output
+    pending half batch (fuel + 1) =
+    receiveWithEvictionLoop evictedState composite header dhOutRecv dhOutSend
+      newDhsPub output reason half (batch * 2) fuel
+
+theorem receiveWithEvictionLoopSameHalf_of_continue
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending reason : Model.Triple.ReceiveRefusal)
+    (half : FullStore) (batch fuel : Nat)
+    (evictedState : Model.Triple.State) (evicted : Nat)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header
+      dhOutRecv dhOutSend newDhsPub output = .error reason)
+    (hFull : fullStore reason = some half) :
+    receiveWithEvictionLoopSameHalf state composite header dhOutRecv dhOutSend
+      newDhsPub output pending reason half batch fuel evictedState evicted
+      hEvict hNonzero hRetry hFull := by
+  exact receiveWithEvictionLoop_continue_same_half state composite header
+    dhOutRecv dhOutSend newDhsPub output pending reason half batch fuel evictedState
+    evicted hEvict hNonzero hRetry hFull
+
 theorem receiveWithEvictionLoop_continue_switch_half
     (state : Model.Triple.State)
     (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
