@@ -2633,12 +2633,13 @@ theorem concrete_receive_with_eviction_from_retry_loop
     (hAttempt : lifecycle.receive_attempt state header dhOutRecv dhOutSend
       newDhsPub output = ok (.Err reason))
     (hFull : lifecycle.full_store reason = ok (some half))
-    (hClone : tacenta_triple.State.clone state = ok cloned)
+    (hClone : tacenta_triple.State.Insts.CoreCloneClone.clone state = ok cloned)
     (hShortfall : lifecycle.receive_shortfall half cloned composite = ok batch)
     (hLoop : lifecycle.receive_with_eviction_loop composite header dhOutRecv dhOutSend
-      newDhsPub output half cloned batch reason none = ok (.Ok result)) :
+      newDhsPub output half cloned batch reason none =
+        ok (core.result.Result.Ok result)) :
     lifecycle.receive_with_eviction state composite header dhOutRecv dhOutSend
-      newDhsPub output = ok (.Ok result) := by
+      newDhsPub output = ok (core.result.Result.Ok result) := by
   unfold lifecycle.receive_with_eviction
   simp [hAttempt, hFull, hClone, hShortfall, hLoop]
 
