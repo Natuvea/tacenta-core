@@ -2258,6 +2258,83 @@ theorem concrete_classical_evict_outer_model_stateR
         exact ⟨hnext, hbound1, by omega⟩
   · refine ⟨base, hrel, by rfl, by simp⟩
 
+/-! Strengthening the previous shell, this variant preserves the complete
+    model pair `(state, returned count)` for the requested fuel.  The
+    early-empty branch uses the model's empty-suffix law; the progressing
+    branch uses the one-step non-empty count law. -/
+theorem concrete_classical_evict_outer_model_pair
+    (s : tacenta_ratchet.State) (base : Model.State.State) (count : Std.Usize)
+    (hrel : Tacenta.SessionUnitT3.StateR s base)
+    (hstep : ∀ (state : tacenta_ratchet.State) (mstate : Model.State.State)
+      (evicted : Std.Usize),
+      Tacenta.SessionUnitT3.StateR state mstate →
+      evicted.val < count.val → state.skipped.val.length ≠ 0 →
+      ∃ (nextState : tacenta_ratchet.State) (nextModel : Model.State.State)
+        (evicted1 : Std.Usize),
+        tacenta_ratchet.State.evict_oldest_loop0.body count state evicted
+          ⦃ fun r => r = ControlFlow.cont (nextState, evicted1) ⦄ ∧
+        Tacenta.SessionUnitT3.StateR nextState nextModel ∧
+        nextModel = (Model.Ratchet.evictOldest mstate 1).1 ∧
+        evicted1.val ≤ count.val ∧ evicted1.val = evicted.val + 1) :
+    tacenta_ratchet.State.evict_oldest_loop0 s count 0#usize
+      ⦃ fun r => ∃ mstate, Tacenta.SessionUnitT3.StateR r.2 mstate ∧
+        (Model.Ratchet.evictOldest base count.val) = (mstate, r.1.val) ⦄ := by
+  unfold tacenta_ratchet.State.evict_oldest_loop0
+  apply loop.spec_decr_nat
+    (measure := fun p => count.val - (Prod.snd p).val)
+    (inv := fun p => ∃ mstate, Tacenta.SessionUnitT3.StateR p.1 mstate ∧
+      (Model.Ratchet.evictOldest base p.2.val) = (mstate, p.2.val) ∧
+      p.2.val ≤ count.val)
+  · rintro ⟨state, evicted⟩ ⟨mstate, hstate, hmodel, hbound⟩
+    change evicted.val ≤ count.val at hbound
+    by_cases hdone : count.val ≤ evicted.val
+    · have heq : evicted.val = count.val := by omega
+      have hev : evicted = count := UScalar.eq_of_val_eq heq
+      simp [tacenta_ratchet.State.evict_oldest_loop0.body, hev]
+      refine ⟨mstate, hstate, ?_⟩
+      simpa [hev] using hmodel
+    · have hlt : evicted.val < count.val := by omega
+      by_cases hempty : state.skipped.val.length = 0
+      · unfold tacenta_ratchet.State.evict_oldest_loop0.body
+        have hlenU : alloc.vec.Vec.len state.skipped = 0#usize := by
+          simp [alloc.vec.Vec.len, hempty]
+          rfl
+        simp [hlt, hlenU]
+        have hs_nil : state.skipped.val = [] := List.eq_nil_of_length_eq_zero hempty
+        have hmempty : mstate.skipped = [] := by
+          rw [← hstate.skipped, hs_nil]
+          rfl
+        have hsuffix := Model.Ratchet.evictOldest_empty_suffix base mstate
+          evicted.val (count.val - evicted.val) hmodel hmempty
+        have hadd : evicted.val + (count.val - evicted.val) = count.val := by omega
+        rw [hadd] at hsuffix
+        exact ⟨mstate, hstate, hsuffix⟩
+      · obtain ⟨nextState, nextModel, evicted1, hbody, hnext, hnextModel,
+          hbound1, hval⟩ := hstep state mstate evicted hstate hlt hempty
+        refine Std.WP.spec_mono hbody ?_
+        intro r hr
+        simp [hr]
+        have happend := Model.Ratchet.evictOldest_append base evicted.val 1
+        have hmnonempty : mstate.skipped ≠ [] := by
+          intro hmempty
+          apply hempty
+          have hmap : state.skipped.val.map Tacenta.SessionUnitT3.skippedOf = [] := by
+            simpa [hmempty] using hstate.skipped
+          have hlen : state.skipped.val.length = 0 := by
+            simpa [List.length_map] using congrArg List.length hmap
+          exact hlen
+        have hone : (Model.Ratchet.evictOldest mstate 1).2 = 1 :=
+          Model.Ratchet.evictOldest_one_nonempty mstate hmnonempty
+        have hfull1 : Model.Ratchet.evictOldest base (evicted.val + 1) =
+            (nextModel, evicted.val + 1) := by
+          rw [happend, hmodel]
+          simp [hnextModel, hone]
+        have hfull1' : Model.Ratchet.evictOldest base evicted1.val =
+            (nextModel, evicted1.val) := by
+          simpa [hval] using hfull1
+        refine ⟨⟨nextModel, hnext, hfull1', hbound1⟩, by omega⟩
+  · refine ⟨base, hrel, by rfl, by simp⟩
+
 /-! The triple wrapper lifts the classical ratchet result into the lifecycle
     StateRefines relation.  Once the ratchet loop supplies its exact model
     fuel state, the untouched post-quantum component is carried verbatim. -/
