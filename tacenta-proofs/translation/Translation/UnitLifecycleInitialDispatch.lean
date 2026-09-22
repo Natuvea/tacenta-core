@@ -4222,6 +4222,37 @@ structure InitialRatchetSuccessPrefix {R : Type}
     (alloc.vec.Vec.deref decoded.ciphertext) (alloc.vec.Vec.deref realAd) =
     ok (.Ok aeadPlaintext)
 
+/-! The generated success prefix already contains the complete Braid receive
+computation.  This constructor exposes it as the shared evidence record used
+by the refusal and success adapters; only the message/state relation to the
+model remains a caller obligation. -/
+def initial_ratchet_braid_evidence_of_success_prefix {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {view : Model.Lifecycle.CodewordView} {K : Model.Braid.Kem}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (hmessageRel : Tacenta.SessionUnitBraidT3.MsgRefines successPrefix.m
+      (Model.Lifecycle.braidMessageOf view model.braid modelComposite))
+    (hnext : Tacenta.SessionUnitBraidT3.StateRefines K
+      successPrefix.braidCandidate.state
+      (Model.Braid.receive K model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.2) :
+    BraidReceiveEvidence K view real model successPrefix.decoded.header modelComposite :=
+  { message := successPrefix.m
+    receivedEpoch := successPrefix.receivedEpoch
+    output := successPrefix.output
+    next := successPrefix.braidCandidate
+    sparseOutput := successPrefix.sparseOutput
+    hmessageCall := successPrefix.hmessage
+    hmessageRel := hmessageRel
+    hreceive := successPrefix.hreceive
+    hsparse := successPrefix.hsparse
+    hnext := hnext }
+
 theorem initial_ratchet_success_prefix_of_result {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
