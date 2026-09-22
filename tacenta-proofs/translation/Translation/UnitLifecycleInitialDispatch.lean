@@ -2637,7 +2637,7 @@ theorem concrete_receive_with_eviction_from_retry_loop
     (hShortfall : lifecycle.receive_shortfall half cloned composite = ok batch)
     (hLoop : lifecycle.receive_with_eviction_loop composite header dhOutRecv dhOutSend
       newDhsPub output half cloned batch reason none =
-        ok (core.result.Result.Ok result)) :
+        ok (reason, some (core.result.Result.Ok result))) :
     lifecycle.receive_with_eviction state composite header dhOutRecv dhOutSend
       newDhsPub output = ok (core.result.Result.Ok result) := by
   unfold lifecycle.receive_with_eviction
