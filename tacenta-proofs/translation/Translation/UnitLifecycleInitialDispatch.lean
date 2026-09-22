@@ -2426,6 +2426,53 @@ theorem concrete_triple_evict_oldest_post_quantum_refines
     · simpa [Model.Triple.evictOldestPostQuantum] using hcount
     · exact ⟨hrel.1, Tacenta.SessionUnitTripleT3.spqrAbs_eq hspqrState⟩
 
+/-! The lifecycle wrapper swaps the generated ratchet result from
+    `(evicted, state)` to `(state, evicted)`.  These two small adapters keep
+    the exact requested-fuel pair visible at that boundary for the retry
+    composition below. -/
+theorem concrete_lifecycle_evict_for_retry_classical_requested_refines
+    (s : tacenta_triple.State) (m : Model.Triple.State) (count : Std.Usize)
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (hratchet : tacenta_ratchet.State.evict_oldest s.classical count
+      ⦃ fun r => ∃ mstate, Tacenta.SessionUnitT3.StateR r.2 mstate ∧
+        (Model.Ratchet.evictOldest m.classical count.val) = (mstate, r.1.val) ⦄) :
+    lifecycle.evict_for_retry s lifecycle.FullStore.Classical count
+      ⦃ fun r => ∃ mstate, Tacenta.SessionUnitTripleT3.StateRefines
+          Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs r.1 mstate ∧
+        (Model.Triple.evictOldestClassical m count.val) = (mstate, r.2.val) ⦄ := by
+  unfold lifecycle.evict_for_retry
+  apply Aeneas.Std.WP.spec_bind
+  · exact concrete_triple_evict_oldest_classical_requested_refines s m count hrel hratchet
+  · intro r hr
+    rcases r with ⟨evicted, state1⟩
+    rcases hr with ⟨mstate, hstate, hpair⟩
+    simp [hpair]
+    exact ⟨mstate, hstate, hpair⟩
+
+theorem concrete_lifecycle_evict_for_retry_post_quantum_requested_refines
+    (s : tacenta_triple.State) (m : Model.Triple.State) (count : Std.Usize)
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (hspqr : tacenta_spqr.State.evict_oldest s.post_quantum count
+      ⦃ fun r => r.1.val = (Model.SparseRatchet.evictOldest m.postQuantum count.val).2 ∧
+        Tacenta.SessionUnitSpqrT3.StateRefines r.2
+          (Model.SparseRatchet.evictOldest m.postQuantum count.val).1 ⦄) :
+    lifecycle.evict_for_retry s lifecycle.FullStore.PostQuantum count
+      ⦃ fun r => ∃ mstate, Tacenta.SessionUnitTripleT3.StateRefines
+          Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs r.1 mstate ∧
+        (Model.Triple.evictOldestPostQuantum m count.val) = (mstate, r.2.val) ⦄ := by
+  unfold lifecycle.evict_for_retry
+  apply Aeneas.Std.WP.spec_bind
+  · exact concrete_triple_evict_oldest_post_quantum_refines s m count hrel hspqr
+  · intro r hr
+    rcases r with ⟨evicted, state1⟩
+    rcases hr with ⟨hcount, hstate⟩
+    simp [hcount]
+    refine ⟨{ m with postQuantum := (Model.SparseRatchet.evictOldest m.postQuantum count.val).1 }, ?_, ?_⟩
+    · exact ⟨hstate.1, hstate.2⟩
+    · simpa [Model.Triple.evictOldestPostQuantum] using And.intro hcount hstate
+
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
 so the theorem states the exact result of every terminating run while the
