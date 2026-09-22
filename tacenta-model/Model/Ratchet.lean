@@ -392,6 +392,24 @@ theorem evictOldest_succ_some
         (evictOldest { st with skipped := eraseFirstSkipped target st.skipped } n).2 + 1 := by
   simp [evictOldest, h]
 
+theorem evictOldest_append (st : State) (n k : Nat) :
+    evictOldest st (n + k) =
+      let first := evictOldest st n
+      let second := evictOldest first.1 k
+      (second.1, first.2 + second.2) := by
+  induction n generalizing st with
+  | zero => simp [evictOldest]
+  | succ n ih =>
+      cases h : oldestSkipped? st.skipped with
+      | none =>
+          simp [evictOldest, h, evictOldest_none]
+      | some target =>
+          simp only [h, evictOldest]
+          rw [show n + 1 + k = (n + k) + 1 by omega]
+          simp only [h, evictOldest]
+          rw [ih (st := { st with skipped := eraseFirstSkipped target st.skipped })]
+          simp [Nat.add_assoc, Nat.add_comm]
+
 /-- Taking a stored skipped key does not touch the store's clock: it removes an
 entry and leaves every other field alone. Needed where a later step has to know
 the counter still has room. -/
