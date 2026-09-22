@@ -4292,6 +4292,70 @@ theorem initial_ratchet_success_prefix_of_result {R : Type}
     hwrapMk := hwrapMk, hderefMk := hderefMk, hwrapKeys := hwrapKeys,
     hderefKeys := hderefKeys, hrealAd := hrealAd, haead := haead }⟩
 
+/-! The generated prefix is extracted from an actual successful call, so its
+    successor equation is recoverable by replaying that same translated call.
+    Keeping this equality here prevents a later splice from choosing a
+    convenient successor session independently of `decrypt_ratchet`. -/
+theorem initial_ratchet_success_next_of_prefix
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {view : Model.Lifecycle.CodewordView} {dh : DhView} {K : Model.Braid.Kem}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (hcall : lifecycle.Session.decrypt_ratchet rc crc real message rng =
+      ok (.Ok plaintext, next, rngNext))
+    (hrel : SessionRefines dh K real model)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (hmessageRel : Tacenta.SessionUnitBraidT3.MsgRefines successPrefix.m
+      (Model.Lifecycle.braidMessageOf view model.braid modelComposite))
+    (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K
+      successPrefix.braidCandidate.state
+      (Model.Braid.receive K model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.2)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (modelComposite, vecOf successPrefix.decoded.ciphertext))
+    (hcomposite : CompositeRefines successPrefix.decoded.header modelComposite) :
+    vecOf successPrefix.aeadPlaintext = vecOf plaintext ∧
+      next =
+        { { real with triple := successPrefix.realTripleCandidate, braid :=
+            successPrefix.braidCandidate } with
+          ratchet_private :=
+            if successPrefix.realTripleCandidate.classical.dhs_pub ==
+                real.triple.classical.dhs_pub then
+              real.ratchet_private else successPrefix.candidatePrivate } := by
+  let evidence := initial_ratchet_braid_evidence_of_success_prefix
+    successPrefix modelComposite hmessageRel hbraid
+  have hcomputed := decrypt_ratchet_success_result_from_braid
+    rc crc dh K real model message rng successPrefix.rng1 successPrefix.decoded
+    modelComposite successPrefix.decoded.header evidence rfl successPrefix.m
+    successPrefix.receivedEpoch successPrefix.output successPrefix.braidCandidate
+    successPrefix.sparseOutput successPrefix.peer successPrefix.recvSecret
+    successPrefix.sendSecret successPrefix.candidateBytes successPrefix.newPublicBytes
+    successPrefix.before successPrefix.realMk successPrefix.candidatePrivate
+    successPrefix.candidatePublic successPrefix.realHeader successPrefix.wrappedRecv
+    successPrefix.wrappedSend successPrefix.wrappedMk successPrefix.realTripleCandidate
+    successPrefix.realKeys successPrefix.wrappedKeys successPrefix.realAd
+    successPrefix.aeadPlaintext hrel hready successPrefix.hdecode
+    rfl rfl rfl rfl rfl successPrefix.hpeer successPrefix.hfirst
+    successPrefix.hwrapRecv successPrefix.hderefRecv successPrefix.hrandom
+    successPrefix.hcandidate successPrefix.hsecond successPrefix.hbefore
+    successPrefix.hwrapSend successPrefix.hderefSend successPrefix.hheader
+    successPrefix.hpublic successPrefix.hpublicBytes successPrefix.htriple
+    successPrefix.hkeys successPrefix.hwrapMk successPrefix.hderefMk
+    successPrefix.hwrapKeys successPrefix.hderefKeys successPrefix.hrealAd
+    successPrefix.haead
+  have heq := hcall.symm.trans hcomputed
+  have hvalue := Result.ok.inj heq
+  injection hvalue with hplain hnext
+  have hplain' : plaintext = successPrefix.aeadPlaintext := by
+    simpa only [core.result.Result.Ok.injEq] using hplain
+  have hnext' := (Prod.mk.inj hnext).1
+  dsimp [evidence, initial_ratchet_braid_evidence_of_success_prefix] at hnext'
+  exact ⟨congrArg vecOf hplain'.symm, hnext'⟩
+
 /-! The nonterminal success callback carries the actual generated result and the
     exact model alignment needed by the direct/retry router.  Keeping these as
     fields prevents a caller from supplying a `StepRefines` proof detached from
@@ -4719,7 +4783,6 @@ structure InitialRatchetSuccessSplice {R : Type}
     (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
       plaintext next)
     (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message) : Type where
-  candidatePrivate : tacenta_boundary.dh.PrivateKey
   modelBraidCandidate : Model.Braid.BraidState
   hcase : AggregateReceiveAlignedCase successPrefix.decoded.header facts.modelComposite
       successPrefix.realHeader (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
@@ -4734,12 +4797,8 @@ structure InitialRatchetSuccessSplice {R : Type}
       (facts.modelTripleCandidate, facts.modelMk)
       successPrefix.htriple facts.hmodelTriple
   hrel : SessionRefines dh K real model
-  hnext : next =
-      { { real with triple := successPrefix.realTripleCandidate, braid :=
-          successPrefix.braidCandidate } with
-        ratchet_private :=
-          if successPrefix.realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
-            real.ratchet_private else candidatePrivate }
+  hmessageRel : Tacenta.SessionUnitBraidT3.MsgRefines successPrefix.m
+      (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)
   hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
       { session :=
           { model with
@@ -4750,6 +4809,14 @@ structure InitialRatchetSuccessSplice {R : Type}
                 model.ratchetPrivate else facts.draw }
         result := .ok facts.modelPlaintext
         oracle := oracleNext }
+  hready : Model.Lifecycle.agreementFailed model = false
+  hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (facts.modelComposite, vecOf successPrefix.decoded.ciphertext)
+  hcomposite : CompositeRefines successPrefix.decoded.header facts.modelComposite
+  hbraidReceive : Tacenta.SessionUnitBraidT3.StateRefines K
+    successPrefix.braidCandidate.state
+    (Model.Braid.receive K model.braid
+      (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.2
   hbraid : Tacenta.SessionUnitBraidT3.StateRefines K
     successPrefix.braidCandidate.state modelBraidCandidate
   hprivate : dh.privateKey candidatePrivate = facts.draw
@@ -4771,7 +4838,7 @@ def initial_ratchet_success_evidence_of_splice {R : Type}
     (hreal : lifecycle.Session.decrypt_ratchet rc crc real message rng =
       ok (.Ok plaintext, next, rngNext)) :
     InitialRatchetSuccessEvidence rc crc trace dh K view oracle real model message rng
-      plaintext next rngNext :=
+      plaintext next rngNext := by
   let hbranch := initial_ratchet_success_branch_of_aligned_case
     successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
     (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
@@ -4785,9 +4852,12 @@ def initial_ratchet_success_evidence_of_splice {R : Type}
     (successPrefix.realTripleCandidate, successPrefix.realMk)
     (facts.modelTripleCandidate, facts.modelMk)
     successPrefix.htriple facts.hmodelTriple splice.hcase
-  initial_ratchet_success_evidence_of_prefix_and_branch successPrefix facts
-    splice.candidatePrivate splice.modelBraidCandidate hbranch splice.hrel hreal
-    splice.hnext splice.hmodel splice.hbraid splice.hprivate splice.hbytes splice.htrace
+  obtain ⟨_, hnext⟩ := initial_ratchet_success_next_of_prefix successPrefix hreal
+    splice.hrel facts.modelComposite splice.hmessageRel splice.hbraidReceive splice.hready
+    splice.hdecodeModel splice.hcomposite
+  exact initial_ratchet_success_evidence_of_prefix_and_branch successPrefix facts
+    successPrefix.candidatePrivate splice.modelBraidCandidate hbranch splice.hrel hreal
+    hnext splice.hmodel splice.hbraid splice.hprivate splice.hbytes splice.htrace
 
 /-! Derive the indexed splice from the actual generated success result.  The
 caller still supplies only the model/branch facts; the prefix itself must come
