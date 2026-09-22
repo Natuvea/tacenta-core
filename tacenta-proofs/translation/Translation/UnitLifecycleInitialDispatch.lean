@@ -3447,6 +3447,94 @@ theorem aggregate_receive_aligned_case_of_direct_receive
       modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput modelResult hmodelDirect)
     hrealDirect hmodelDirect hstate hkey
 
+/-! A direct receive can be constructed from the discharged Triple contracts,
+    rather than supplied as an already-composed lifecycle proposition.  The
+    generated direct call is fed to the contract refinement theorem; its model
+    result is then lifted through both lifecycle wrappers and indexed into the
+    shared aggregate case. -/
+theorem aggregate_receive_aligned_case_of_direct_contracts
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (realState : tacenta_triple.State)
+    (modelState : Model.Triple.State)
+    (realResult : tacenta_triple.State × Array Std.U8 32#usize)
+    (hmac : Tacenta.SessionUnitT3.HmacAgrees)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hzr : Tacenta.SessionUnitT3.ZeroizingRoundTrips)
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hz96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
+    (hz64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64)
+    (hret : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
+    (happ : Tacenta.SessionUnitSpqrT3.VecAppendAgrees)
+    (hrm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
+    (hzs : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (hopt : Tacenta.SessionUnitSpqrT1.OptionCloneTotal)
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      realState modelState)
+    (hrecvKey : modelDhOutRecv = Tacenta.SessionUnitTripleT3.keyOf dhOutRecv)
+    (hsendKey : modelDhOutSend = Tacenta.SessionUnitTripleT3.keyOf dhOutSend)
+    (hnewKey : modelNewDhsPub = Tacenta.SessionUnitTripleT3.keyOf newDhsPub)
+    (hmodelOutput : modelOutput = output.map Tacenta.SessionUnitTripleT3.spqrOutputOf)
+    (mh : Model.State.Header)
+    (hmodelHeader : modelHeader =
+      { dr := mh, epoch := header.epoch.val, pqN := header.pq_n.val })
+    (hheader : Tacenta.SessionUnitTripleT3.RatchetHeaderR header.dr mh)
+    (hone : (modelState.classical.skipped.filter
+      (fun x => x.1 == mh.dh && x.2.1 == mh.n)).length ≤ 1)
+    (hs : max modelState.classical.skipped.length Model.State.maxSkippedStore +
+      Model.State.maxSkip ≤ Usize.max)
+    (hevents : modelState.classical.events + 1 < Std.U32.max)
+    (hepoch : modelState.postQuantum.epoch + 1 < Std.U64.max)
+    (hroom : modelState.postQuantum.chains.length + 2 < Usize.max)
+    (hcb : ∀ p ∈ modelState.postQuantum.chains,
+      p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hsb : ∀ sk ∈ modelState.postQuantum.skipped,
+      sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hnewb : ∀ o : tacenta_spqr.Output, output = some o →
+      o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hskiproom : modelState.postQuantum.skipped.length +
+      Model.SparseRatchet.maxSkip ≤ Usize.max)
+    (hone2 : (modelState.postQuantum.skipped.filter
+      (fun x => x.1 == header.epoch.val && x.2.1 == header.pq_n.val)).length ≤ 1)
+    (hcounter : ∀ p ∈ modelState.postQuantum.chains, ∀ ch : Model.SparseRatchet.Chain,
+      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
+    (hcall : tacenta_triple.State.receive realState header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Ok realResult)) :
+    ∃ modelCandidate modelKey,
+      ∃ hmodelDirect : Model.Triple.receive modelState modelHeader modelDhOutRecv
+        modelDhOutSend modelNewDhsPub modelOutput = some (modelCandidate, modelKey),
+      AggregateReceiveAlignedCase composite modelComposite header modelHeader
+        dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+        output modelOutput realState modelState realResult (modelCandidate, modelKey)
+        (concrete_receive_with_eviction_of_receive realState composite header
+          dhOutRecv dhOutSend newDhsPub output realResult hcall)
+        (model_receive_with_eviction_of_receive modelState modelComposite modelHeader
+          modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput
+          (modelCandidate, modelKey) hmodelDirect) := by
+  subst modelHeader
+  subst modelDhOutRecv
+  subst modelDhOutSend
+  subst modelNewDhsPub
+  subst modelOutput
+  obtain ⟨modelCandidate, modelKey, hmodelDirect, hstate, hkey⟩ :=
+    triple_receive_success_from_contracts hmac hkdf hzr hvr hz96 hz64 hret happ hrm hzs hopt
+      hrel header mh hheader dhOutRecv dhOutSend newDhsPub output hone hs hevents hepoch hroom
+      hcb hsb hnewb hskiproom hone2 hcounter realResult.1 realResult.2 hcall
+  refine ⟨modelCandidate, modelKey, ?_, ?_⟩
+  · simpa using hmodelDirect
+  exact aggregate_receive_aligned_case_of_direct_receive composite modelComposite header
+    { dr := mh, epoch := header.epoch.val, pqN := header.pq_n.val }
+    dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+    output modelOutput realState modelState realResult (modelCandidate, modelKey)
+    hcall hmodelDirect hstate hkey
+
 theorem aggregate_receive_aligned_case_of_retry_refinement
     (composite : tacenta_wire.Composite)
     (modelComposite : Model.CompositeHeader.Composite)
