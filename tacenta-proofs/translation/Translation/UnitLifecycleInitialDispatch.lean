@@ -1826,6 +1826,69 @@ theorem concrete_remove_oldest_state_refines
     hrel.ns, hrel.nr, hrel.pn, ?_, hrel.events, hrel.labels⟩
   rw [hmap, ← hrel.skipped]
 
+/-! A scan certificate can now be consumed in one step.  The certificate is
+the exact global-minimum and strict-before-index postcondition produced by
+`concrete_evict_oldest_scan_first`; this theorem turns it into the mapped
+model entry and then applies the deletion bridge.  The outer fuel induction
+still supplies the loop arithmetic and the recursive model state. -/
+theorem concrete_classical_evict_one_step
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    {s : tacenta_ratchet.State} {m : Model.State.State}
+    (hrel : Tacenta.SessionUnitT3.StateR s m)
+    (oldest : Std.Usize)
+    (hwidth : s.skipped.val.length ≤ UScalar.cMax UScalarTy.Usize)
+    (hr : oldest.val < s.skipped.val.length)
+    (hmin : ∀ (hr0 : oldest.val < s.skipped.val.length) (j : Std.Usize)
+      (hj : j.val < s.skipped.val.length)
+      (hjlen : j.val < s.skipped.val.length),
+      (s.skipped.val[oldest.val]'hr).stored_at.val ≤
+        (s.skipped.val[j.val]'hjlen).stored_at.val)
+    (hfirst : ∀ (hr0 : oldest.val < s.skipped.val.length) (j : Std.Usize)
+      (hj : j.val < oldest.val) (hjlen : j.val < s.skipped.val.length),
+      (s.skipped.val[oldest.val]'hr).stored_at.val <
+        (s.skipped.val[j.val]'hjlen).stored_at.val) :
+    ∃ target discarded v,
+      target = ((s.skipped.val.map Tacenta.SessionUnitT3.skippedOf)[oldest.val]'
+        (by simpa [List.length_map] using hr)) ∧
+      tacenta_ratchet.remove_skipped_at s.skipped oldest = ok (discarded, v) ∧
+      Tacenta.SessionUnitT3.StateR { s with skipped := v }
+        { m with skipped := Model.Ratchet.eraseFirstSkipped target m.skipped } := by
+  let mapped := s.skipped.val.map Tacenta.SessionUnitT3.skippedOf
+  let target := Tacenta.SessionUnitT3.skippedOf (s.skipped.val[oldest.val]'hr)
+  have htarget : target = mapped[oldest.val]'
+      (by simpa [mapped, List.length_map] using hr) := by
+    simp [target, mapped, List.getElem_map]
+  have hsel : Model.Ratchet.oldestSkipped? m.skipped = some target := by
+    rw [htarget]
+    apply concrete_scan_selector_refines_oldest s m hrel oldest hwidth hr hmin hfirst
+  have hentry : mapped[oldest.val]? = some target := by
+    rw [List.getElem?_eq_getElem (by simpa [mapped, List.length_map] using hr)]
+    simp [mapped, target, List.getElem_map]
+  have hfirst_model : ∀ j, j < oldest.val → mapped[j]? ≠ some target := by
+    intro j hj hEq
+    have hjlen : j < mapped.length := by
+      simpa [mapped, List.length_map] using (lt_trans hj hr)
+    let ju : Std.Usize := UScalar.ofNat j (by omega)
+    have hju : ju.val = j := by simp [ju]
+    have hju_lt : ju.val < oldest.val := by simpa [hju] using hj
+    have hjlen' : j < s.skipped.val.length := by
+      simpa [mapped, List.length_map] using hjlen
+    have hju_len : ju.val < s.skipped.val.length := by
+      simpa [ju, hju] using hjlen'
+    have hc := hfirst hr ju hju_lt hju_len
+    have hEq' : mapped[j] = target := by
+      rw [List.getElem?_eq_getElem hjlen] at hEq
+      exact Option.some.inj hEq
+    have heqclock := congrArg (fun x => x.2.2.1) hEq'
+    have hEqClock : (s.skipped.val[oldest.val]'hr).stored_at.val =
+        (s.skipped.val[ju.val]'hju_len).stored_at.val := by
+      simpa [mapped, target, Tacenta.SessionUnitT3.skippedOf, ju, hju,
+        List.getElem_map] using heqclock.symm
+    omega
+  obtain ⟨discarded, v, hcall, hstate⟩ := concrete_remove_oldest_state_refines
+    hvr hrel oldest target hr hentry hfirst_model
+  exact ⟨target, discarded, v, htarget, hcall, hstate⟩
+
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
 so the theorem states the exact result of every terminating run while the
