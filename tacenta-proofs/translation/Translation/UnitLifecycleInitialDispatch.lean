@@ -3359,7 +3359,12 @@ def AggregateReceiveAlignedCase
     (realState : tacenta_triple.State)
     (modelState : Model.Triple.State)
     (realResult : tacenta_triple.State × Array Std.U8 32#usize)
-    (modelResult : Model.Triple.State × Model.Lifecycle.Key) : Prop :=
+    (modelResult : Model.Triple.State × Model.Lifecycle.Key)
+    (hreal : lifecycle.receive_with_eviction realState composite header
+      dhOutRecv dhOutSend newDhsPub output = ok (.Ok realResult))
+    (hmodel : Model.Lifecycle.receiveWithEviction modelState modelComposite
+      modelHeader modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput =
+      .ok modelResult) : Prop :=
   (∃ directReal directModel,
     tacenta_triple.State.receive realState header dhOutRecv dhOutSend
       newDhsPub output = ok (.Ok directReal) ∧
@@ -3388,9 +3393,14 @@ theorem aggregate_receive_core_refinement_of_aligned_success_cases
     (modelState : Model.Triple.State)
     (realResult : tacenta_triple.State × Array Std.U8 32#usize)
     (modelResult : Model.Triple.State × Model.Lifecycle.Key)
+    (hreal : lifecycle.receive_with_eviction realState composite header
+      dhOutRecv dhOutSend newDhsPub output = ok (.Ok realResult))
+    (hmodel : Model.Lifecycle.receiveWithEviction modelState modelComposite
+      modelHeader modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput =
+      .ok modelResult)
     (hcase : AggregateReceiveAlignedCase composite modelComposite header modelHeader
       dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
-      output modelOutput realState modelState realResult modelResult) :
+      output modelOutput realState modelState realResult modelResult hreal hmodel) :
     AggregateReceiveCoreRefinement composite modelComposite header modelHeader
       dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
       output modelOutput realState modelState realResult modelResult := by
@@ -3844,10 +3854,17 @@ theorem decrypt_ratchet_success_step_from_aligned_receive_cases {R : Type}
     (output : Option tacenta_spqr.Output)
     (modelOutput : Option Model.SparseRatchet.Output)
     (realMk : Array Std.U8 32#usize) (modelMk : Model.Lifecycle.Key)
+    (hreceiveReal : lifecycle.receive_with_eviction realTripleCandidate composite header
+      dhOutRecv dhOutSend newDhsPub output =
+      ok (.Ok (realTripleCandidate, realMk)))
+    (hreceiveModel : Model.Lifecycle.receiveWithEviction modelTripleCandidate modelComposite
+      modelHeader modelDhOutRecv modelDhOutSend modelNewDhsPub modelOutput =
+      .ok (modelTripleCandidate, modelMk))
     (hcase : AggregateReceiveAlignedCase composite modelComposite header modelHeader
       dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
       output modelOutput realTripleCandidate modelTripleCandidate
-      (realTripleCandidate, realMk) (modelTripleCandidate, modelMk))
+      (realTripleCandidate, realMk) (modelTripleCandidate, modelMk)
+      hreceiveReal hreceiveModel)
     (hrel : SessionRefines dh K real model)
     (hreal : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
       ok (.Ok plaintext,
@@ -3883,7 +3900,8 @@ theorem decrypt_ratchet_success_step_from_aligned_receive_cases {R : Type}
       composite modelComposite header modelHeader dhOutRecv dhOutSend newDhsPub
       modelDhOutRecv modelDhOutSend modelNewDhsPub output modelOutput
       realTripleCandidate modelTripleCandidate (realTripleCandidate, realMk)
-      (modelTripleCandidate, modelMk) (Or.inl hdirect)
+      (modelTripleCandidate, modelMk) hreceiveReal hreceiveModel
+      (Or.inl hdirect)
     exact decrypt_ratchet_success_step_from_aggregate_core rngCore cryptoRng trace dh K view
       oracle oracleNext real model message rng rngNext plaintext modelPlaintext
       realTripleCandidate realBraidCandidate candidatePrivate draw modelTripleCandidate
