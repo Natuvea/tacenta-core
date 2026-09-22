@@ -360,6 +360,15 @@ def evictOldest : State → Nat → State × Nat
           let rest := evictOldest one count
           (rest.1, rest.2 + 1)
 
+theorem evictOldest_none_state (st : State) (n : Nat)
+    (h : oldestSkipped? st.skipped = none) :
+    (evictOldest st n).1 = st := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+      simp only [evictOldest]
+      rw [h]
+
 /-- Taking a stored skipped key does not touch the store's clock: it removes an
 entry and leaves every other field alone. Needed where a later step has to know
 the counter still has room. -/
