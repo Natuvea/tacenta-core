@@ -419,6 +419,44 @@ theorem evictOldest_fuel_step
   rw [evictOldest_append]
   simp [hfirst, evictOldest, hsel]
 
+theorem evictOldest_count_le (st : State) (n : Nat) :
+    (evictOldest st n).2 ≤ n := by
+  induction n generalizing st with
+  | zero => simp [evictOldest]
+  | succ n ih =>
+      cases h : oldestSkipped? st.skipped with
+      | none => simp [evictOldest, h]
+      | some target =>
+          simp only [evictOldest, h]
+          have hi := ih
+            (st := { st with skipped := eraseFirstSkipped target st.skipped })
+          omega
+
+/-! The model's bounded eviction either uses all requested fuel or reaches an
+empty skipped store.  This is the model counterpart of the generated loop's
+progress shell and is the stopping condition used by the retry composition. -/
+theorem evictOldest_stops_at_empty (st : State) (n : Nat) :
+    (evictOldest st n).2 = n ∨ (evictOldest st n).1.skipped = [] := by
+  induction n generalizing st with
+  | zero => simp [evictOldest]
+  | succ n ih =>
+      cases h : oldestSkipped? st.skipped with
+      | none =>
+          simp only [evictOldest, h]
+          right
+          cases hs : st.skipped with
+          | nil => rfl
+          | cons head tail => simp [oldestSkipped?, hs] at h
+      | some target =>
+          simp only [evictOldest, h]
+          have hi := ih
+            (st := { st with skipped := eraseFirstSkipped target st.skipped })
+          rcases hi with hi | hi
+          · left
+            omega
+          · right
+            exact hi
+
 /-- Taking a stored skipped key does not touch the store's clock: it removes an
 entry and leaves every other field alone. Needed where a later step has to know
 the counter still has room. -/
