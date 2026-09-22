@@ -4316,8 +4316,7 @@ theorem initial_ratchet_success_next_of_prefix
         (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.2)
     (hready : Model.Lifecycle.agreementFailed model = false)
     (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
-      .ok (modelComposite, vecOf successPrefix.decoded.ciphertext))
-    (hcomposite : CompositeRefines successPrefix.decoded.header modelComposite) :
+      .ok (modelComposite, vecOf successPrefix.decoded.ciphertext)) :
     vecOf successPrefix.aeadPlaintext = vecOf plaintext ∧
       next =
         { { real with triple := successPrefix.realTripleCandidate, braid :=
@@ -4812,7 +4811,6 @@ structure InitialRatchetSuccessSplice {R : Type}
   hready : Model.Lifecycle.agreementFailed model = false
   hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
       .ok (facts.modelComposite, vecOf successPrefix.decoded.ciphertext)
-  hcomposite : CompositeRefines successPrefix.decoded.header facts.modelComposite
   hbraidReceive : Tacenta.SessionUnitBraidT3.StateRefines K
     successPrefix.braidCandidate.state
     (Model.Braid.receive K model.braid
@@ -4854,7 +4852,7 @@ def initial_ratchet_success_evidence_of_splice {R : Type}
     successPrefix.htriple facts.hmodelTriple splice.hcase
   obtain ⟨_, hnext⟩ := initial_ratchet_success_next_of_prefix successPrefix hreal
     splice.hrel facts.modelComposite splice.hmessageRel splice.hbraidReceive splice.hready
-    splice.hdecodeModel splice.hcomposite
+    splice.hdecodeModel
   exact initial_ratchet_success_evidence_of_prefix_and_branch successPrefix facts
     successPrefix.candidatePrivate splice.modelBraidCandidate hbranch splice.hrel hreal
     hnext splice.hmodel splice.hbraid splice.hprivate splice.hbytes splice.htrace
