@@ -5462,4 +5462,25 @@ theorem initial_ratchet_refines_decode_refusal
     oracle real model decoded.message.deref rng reason ctx.hrel ctx.htrace hready hbad
   exact ⟨_, hcall, hstep⟩
 
+/-! The terminal and malformed branches share the same inner-result boundary.
+    This wrapper chooses the terminal guard first and otherwise consumes the
+    proved decoder refusal; neither branch accepts a hypothesized ratchet
+    result. -/
+theorem initial_ratchet_refines_terminal_or_decode_refusal
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (hbad : ∀ decoded : tacenta_wire.DecodedInitial,
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      ∃ reason, tacenta_wire.decode_message decoded.message.deref = ok (.Err reason)) :
+    InitialRatchetRefines rc crc trace dh K view oracle real model message rng := by
+  by_cases hfailed : Model.Lifecycle.agreementFailed model = true
+  · exact initial_ratchet_refines_terminal ctx hfailed
+  · have hready : Model.Lifecycle.agreementFailed model = false := by
+      cases h : Model.Lifecycle.agreementFailed model <;> simp_all
+    exact initial_ratchet_refines_decode_refusal ctx hready hbad
+
 end Tacenta.UnitLifecycleT3
