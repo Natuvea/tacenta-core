@@ -4036,6 +4036,136 @@ theorem decrypt_ratchet_success_step_from_aligned_receive_cases {R : Type}
       hprivate hbytes htrace
 
 
+/-! The generated success inversion is kept as a typed record so the later
+    model/contract splice consumes facts from this exact computation. -/
+structure InitialRatchetSuccessPrefix {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (real : lifecycle.Session) (message : Slice Std.U8) (rng rngNext : R)
+    (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) : Type where
+  decoded : tacenta_wire.DecodedMessage
+  m : tacenta_braid.Msg
+  receivedEpoch : Std.U64
+  output : Option tacenta_braid.Output
+  braidCandidate : tacenta_braid.Braid
+  sparseOutput : Option tacenta_spqr.Output
+  peer : tacenta_boundary.dh.PublicKeyBytes
+  recvSecret : Array Std.U8 32#usize
+  wrappedRecv : zeroize.Zeroizing (Array Std.U8 32#usize)
+  candidateBytes : Array Std.U8 32#usize
+  rng1 : R
+  candidatePrivate : tacenta_boundary.dh.PrivateKey
+  sendSecret : Array Std.U8 32#usize
+  wrappedSend : zeroize.Zeroizing (Array Std.U8 32#usize)
+  before : Array Std.U8 32#usize
+  realHeader : tacenta_triple.Header
+  candidatePublic : tacenta_boundary.dh.PublicKeyBytes
+  newPublicBytes : Array Std.U8 32#usize
+  realTripleCandidate : tacenta_triple.State
+  realMk : Array Std.U8 32#usize
+  wrappedMk : zeroize.Zeroizing (Array Std.U8 32#usize)
+  realKeys : Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize
+  wrappedKeys : zeroize.Zeroizing
+    (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize)
+  aeadPlaintext : alloc.vec.Vec Std.U8
+  realAd : alloc.vec.Vec Std.U8
+  hdecode : tacenta_wire.decode_message message = ok (.Ok decoded)
+  hmessage : lifecycle.msg_of decoded.header = ok m
+  hreceive : tacenta_braid.Braid.receive real.braid m =
+    ok (receivedEpoch, output, braidCandidate)
+  hsparse : RealSparseConversion output sparseOutput
+  hpeer : tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh = ok peer
+  hfirst : tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer =
+    ok (some recvSecret)
+  hwrapRecv : zeroize.Zeroizing.new
+    (Array.Insts.ZeroizeZeroize 32#usize
+      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) recvSecret = ok wrappedRecv
+  hderefRecv : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+    (Array.Insts.ZeroizeZeroize 32#usize
+      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedRecv = ok recvSecret
+  hrandom : lifecycle.random_secret rngCore cryptoRng rng = ok (candidateBytes, rng1)
+  hcandidate : tacenta_boundary.dh.PrivateKey.from_bytes candidateBytes = ok candidatePrivate
+  hsecond : tacenta_boundary.dh.PrivateKey.agree candidatePrivate peer =
+    ok (some sendSecret)
+  hwrapSend : zeroize.Zeroizing.new
+    (Array.Insts.ZeroizeZeroize 32#usize
+      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sendSecret = ok wrappedSend
+  hderefSend : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+    (Array.Insts.ZeroizeZeroize 32#usize
+      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedSend = ok sendSecret
+  hbefore : tacenta_triple.State.sending_public real.triple = ok before
+  hheader : lifecycle.triple_header_of decoded.header = ok realHeader
+  hpublic : tacenta_boundary.dh.PrivateKey.public_key candidatePrivate = ok candidatePublic
+  hpublicBytes : tacenta_boundary.dh.PublicKeyBytes.as_bytes candidatePublic = ok newPublicBytes
+  htriple : lifecycle.receive_with_eviction real.triple decoded.header realHeader
+    recvSecret sendSecret newPublicBytes sparseOutput = ok (.Ok (realTripleCandidate, realMk))
+  hkeys : tacenta_ratchet.message_keys realMk tacenta_ratchet.LabelSet.Tacenta = ok realKeys
+  hwrapMk : zeroize.Zeroizing.new
+    (Array.Insts.ZeroizeZeroize 32#usize
+      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) realMk = ok wrappedMk
+  hderefMk : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+    (Array.Insts.ZeroizeZeroize 32#usize
+      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedMk = ok realMk
+  hwrapKeys : zeroize.Zeroizing.new
+    (TupleABC.Insts.ZeroizeZeroize
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+      (Array.Insts.ZeroizeZeroize 16#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))) realKeys = ok wrappedKeys
+  hderefKeys : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+    (TupleABC.Insts.ZeroizeZeroize
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+      (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+      (Array.Insts.ZeroizeZeroize 16#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))) wrappedKeys = ok realKeys
+  hrealAd : serialization.concat_ad (alloc.vec.Vec.deref real.identity_ad)
+    decoded.header = ok realAd
+  haead : tacenta_boundary.aead.decrypt realKeys.1 realKeys.2.1 realKeys.2.2
+    (alloc.vec.Vec.deref decoded.ciphertext) (alloc.vec.Vec.deref realAd) =
+    ok (.Ok aeadPlaintext)
+
+theorem initial_ratchet_success_prefix_of_result {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (real : lifecycle.Session) (message : Slice Std.U8) (rng rngNext : R)
+    (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Ok plaintext, next, rngNext)) :
+    Nonempty (InitialRatchetSuccessPrefix rngCore cryptoRng real message rng rngNext
+      plaintext next) := by
+  obtain ⟨decoded, m, receivedEpoch, output, braidCandidate, sparseOutput, peer,
+      recvSecret, wrappedRecv, candidateBytes, rng1, candidatePrivate, sendSecret,
+      wrappedSend, before, realHeader, candidatePublic, newPublicBytes,
+      realTripleCandidate, realMk, wrappedMk, realKeys, wrappedKeys, aeadPlaintext,
+      realAd, hdecode, hmessage, hreceive, hsparse, hpeer, hfirst, hwrapRecv,
+      hderefRecv, hrandom, hcandidate, hsecond, hwrapSend, hderefSend, hbefore,
+      hheader, hpublic, hpublicBytes, htriple, hkeys, hwrapMk, hderefMk,
+      hwrapKeys, hderefKeys, hrealAd, haead⟩ :=
+    decrypt_ratchet_success_aead_prefix rngCore cryptoRng hz32 hzKeys real message
+      rng rngNext plaintext next hcall
+  exact ⟨{
+    decoded := decoded, m := m, receivedEpoch := receivedEpoch, output := output,
+    braidCandidate := braidCandidate, sparseOutput := sparseOutput, peer := peer,
+    recvSecret := recvSecret, wrappedRecv := wrappedRecv, candidateBytes := candidateBytes,
+    rng1 := rng1, candidatePrivate := candidatePrivate, sendSecret := sendSecret,
+    wrappedSend := wrappedSend, before := before, realHeader := realHeader,
+    candidatePublic := candidatePublic, newPublicBytes := newPublicBytes,
+    realTripleCandidate := realTripleCandidate, realMk := realMk, wrappedMk := wrappedMk,
+    realKeys := realKeys, wrappedKeys := wrappedKeys, aeadPlaintext := aeadPlaintext,
+    realAd := realAd, hdecode := hdecode, hmessage := hmessage, hreceive := hreceive,
+    hsparse := hsparse, hpeer := hpeer, hfirst := hfirst, hwrapRecv := hwrapRecv,
+    hderefRecv := hderefRecv, hrandom := hrandom, hcandidate := hcandidate,
+    hsecond := hsecond, hwrapSend := hwrapSend, hderefSend := hderefSend,
+    hbefore := hbefore, hheader := hheader, hpublic := hpublic,
+    hpublicBytes := hpublicBytes, htriple := htriple, hkeys := hkeys,
+    hwrapMk := hwrapMk, hderefMk := hderefMk, hwrapKeys := hwrapKeys,
+    hderefKeys := hderefKeys, hrealAd := hrealAd, haead := haead }⟩
+
 /-! The nonterminal success callback carries the actual generated result and the
     exact model alignment needed by the direct/retry router.  Keeping these as
     fields prevents a caller from supplying a `StepRefines` proof detached from
