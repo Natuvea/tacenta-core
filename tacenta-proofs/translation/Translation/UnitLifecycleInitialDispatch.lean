@@ -4585,6 +4585,21 @@ structure InitialRatchetRefusalEvidence {R : Type}
   hstep : StepRefines trace dh K (.Err reason, next, rngNext)
     (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))
 
+def initial_ratchet_refusal_evidence_of_pair {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err reason, next, rngNext))
+    (hstep : StepRefines trace dh K (.Err reason, next, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+    InitialRatchetRefusalEvidence rngCore cryptoRng trace dh K view oracle real model
+      message rng reason next rngNext :=
+  { hcall := hcall, hstep := hstep }
+
 def initial_ratchet_terminal_refusal_evidence {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
