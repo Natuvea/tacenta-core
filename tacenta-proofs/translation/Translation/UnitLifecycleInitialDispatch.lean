@@ -4093,6 +4093,39 @@ theorem initial_ratchet_model_success_result_of_facts
     facts.hready facts.hdecodeModel facts.hmodelFirst facts.hmodelDraw facts.hmodelSecond
     facts.hmodelTriple facts.hmodelAead
 
+theorem initial_ratchet_model_success_result_of_direct_receive
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (hmodelReceive : Model.Triple.receive model.triple
+      (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+      facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1) =
+      some (facts.modelTripleCandidate, facts.modelMk)) :
+    Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session :=
+          { model with
+            triple := facts.modelTripleCandidate
+            braid := (Model.Braid.receive oracle.braidKem model.braid
+              (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.2
+            ratchetPrivate :=
+              if facts.modelTripleCandidate.classical.dhsPub == model.triple.classical.dhsPub then
+                model.ratchetPrivate else facts.draw }
+        result := .ok facts.modelPlaintext
+        oracle := oracleNext } := by
+  have hmodelTriple := model_receive_with_eviction_of_receive model.triple facts.modelComposite
+    (Model.Lifecycle.tripleHeaderOf facts.modelComposite) facts.modelDhOutRecv
+    facts.modelDhOutSend (oracle.dhPublic facts.draw)
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+    (facts.modelTripleCandidate, facts.modelMk) hmodelReceive
+  exact decrypt_ratchet_success_model_result view oracle oracleNext model message
+    facts.modelComposite facts.ciphertext facts.modelPlaintext facts.modelDhOutRecv
+    facts.draw facts.modelDhOutSend facts.modelTripleCandidate facts.modelMk facts.hready
+    facts.hdecodeModel facts.hmodelFirst facts.hmodelDraw facts.hmodelSecond hmodelTriple
+    facts.hmodelAead
+
 /-! The generated success inversion is kept as a typed record so the later
     model/contract splice consumes facts from this exact computation. -/
 structure InitialRatchetSuccessPrefix {R : Type}
