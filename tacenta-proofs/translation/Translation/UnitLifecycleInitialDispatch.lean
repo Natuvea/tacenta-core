@@ -4612,6 +4612,60 @@ def initial_ratchet_success_evidence_of_prefix_and_branch {R : Type}
     facts.modelMk successPrefix.htriple facts.hmodelTriple hcase hrel hreal hnext hmodel
     hbraid hprivate hbytes htrace
 
+/-! The model successor Braid is fixed by the model success facts themselves.
+This convenience constructor removes the last arbitrary model-successor
+parameter from the common success path; callers only prove that the concrete
+successor refines this exact `Model.Braid.receive` result. -/
+def initial_ratchet_success_evidence_of_prefix_and_branch_of_facts {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (candidatePrivate : tacenta_boundary.dh.PrivateKey)
+    (hbranch : InitialRatchetSuccessReceiveBranch
+      successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
+      (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+      successPrefix.sparseOutput
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+      real.triple model.triple
+      (successPrefix.realTripleCandidate, successPrefix.realMk)
+      (facts.modelTripleCandidate, facts.modelMk))
+    (hrel : SessionRefines dh K real model)
+    (hreal : lifecycle.Session.decrypt_ratchet rc crc real message rng =
+      ok (.Ok plaintext, next, rngNext))
+    (hnext : next =
+      { { real with triple := successPrefix.realTripleCandidate, braid :=
+          successPrefix.braidCandidate } with
+        ratchet_private :=
+          if successPrefix.realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
+            real.ratchet_private else candidatePrivate })
+    (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K
+      successPrefix.braidCandidate.state
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.2)
+    (hprivate : dh.privateKey candidatePrivate = facts.draw)
+    (hbytes : vecOf plaintext = facts.modelPlaintext)
+    (htrace : trace rngNext = oracleNext.draws) :
+    InitialRatchetSuccessEvidence rc crc trace dh K view oracle real model message rng
+      plaintext next rngNext := by
+  let modelBraidCandidate :=
+    (Model.Braid.receive oracle.braidKem model.braid
+      (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.2
+  have hmodel := initial_ratchet_model_success_result_of_facts facts
+  simpa [modelBraidCandidate] using
+    (initial_ratchet_success_evidence_of_prefix_and_branch successPrefix facts
+      candidatePrivate modelBraidCandidate hbranch hrel hreal hnext hmodel hbraid
+      hprivate hbytes htrace)
+
 /-! Package the semantic facts that are still supplied by the caller after the
 generated success prefix and model success facts have fixed every concrete
 receive input.  The package is indexed by both records, so a branch proof for
