@@ -2169,6 +2169,7 @@ theorem concrete_classical_evict_stateR_step
       tacenta_ratchet.State.evict_oldest_loop0.body count s evicted
         ⦃ fun r => r = ControlFlow.cont (nextState, evicted1) ⦄ ∧
       Tacenta.SessionUnitT3.StateR nextState nextModel ∧
+      nextModel = (Model.Ratchet.evictOldest m 1).1 ∧
       evicted1.val ≤ count.val ∧ evicted.val < evicted1.val := by
   have hlen : s.skipped.val.length ≠ 0 := by omega
   obtain ⟨target, discarded', v', htarget, hsel, hremove', hstate⟩ :=
@@ -2179,9 +2180,83 @@ theorem concrete_classical_evict_stateR_step
   rcases hpair with ⟨rfl, rfl⟩
   have hbody := concrete_classical_evict_body_step s count evicted evicted1 oldest
     discarded v hcount hscan hremove hadd hlen
-  refine ⟨{ s with skipped := v }, (Model.Ratchet.evictOldest m 1).1, ?_, ?_, hbound, by omega⟩
+  refine ⟨{ s with skipped := v }, (Model.Ratchet.evictOldest m 1).1,
+    ?_, ?_, rfl, hbound, by omega⟩
   · exact hbody
   · exact hstate
+
+/-! The StateR loop invariant can now retain the model's exact fuel state.
+    After each concrete eviction, `evictOldest_append` identifies the model
+    post-state with the same initial state run for the returned counter. -/
+theorem concrete_classical_evict_outer_model_stateR
+    (s : tacenta_ratchet.State) (base : Model.State.State) (count : Std.Usize)
+    (hrel : Tacenta.SessionUnitT3.StateR s base)
+    (hstep : ∀ (state : tacenta_ratchet.State) (mstate : Model.State.State)
+      (evicted : Std.Usize),
+      Tacenta.SessionUnitT3.StateR state mstate →
+      evicted.val < count.val → state.skipped.val.length ≠ 0 →
+      ∃ (nextState : tacenta_ratchet.State) (nextModel : Model.State.State)
+        (evicted1 : Std.Usize),
+        tacenta_ratchet.State.evict_oldest_loop0.body count state evicted
+          ⦃ fun r => r = ControlFlow.cont (nextState, evicted1) ⦄ ∧
+        Tacenta.SessionUnitT3.StateR nextState nextModel ∧
+        nextModel = (Model.Ratchet.evictOldest mstate 1).1 ∧
+        evicted1.val ≤ count.val ∧ evicted1.val = evicted.val + 1) :
+    tacenta_ratchet.State.evict_oldest_loop0 s count 0#usize
+      ⦃ fun r => ∃ mstate, Tacenta.SessionUnitT3.StateR r.2 mstate ∧
+        mstate = (Model.Ratchet.evictOldest base r.1.val).1 ⦄ := by
+  unfold tacenta_ratchet.State.evict_oldest_loop0
+  apply loop.spec_decr_nat
+    (measure := fun p => count.val - (Prod.snd p).val)
+    (inv := fun p => ∃ mstate, Tacenta.SessionUnitT3.StateR p.1 mstate ∧
+      mstate = (Model.Ratchet.evictOldest base p.2.val).1 ∧
+      p.2.val ≤ count.val)
+  · rintro ⟨state, evicted⟩ ⟨mstate, hstate, hmodel, hbound⟩
+    change evicted.val ≤ count.val at hbound
+    change mstate = (Model.Ratchet.evictOldest base evicted.val).1 at hmodel
+    by_cases hdone : count.val ≤ evicted.val
+    · have heq : evicted.val = count.val := by omega
+      have hev : evicted = count := UScalar.eq_of_val_eq heq
+      simp [tacenta_ratchet.State.evict_oldest_loop0.body, hev]
+      have hmodel' : mstate = (Model.Ratchet.evictOldest base count.val).1 := by
+        simpa [hev] using hmodel
+      rw [← hmodel']
+      exact hstate
+    · have hlt : evicted.val < count.val := by omega
+      by_cases hempty : state.skipped.val.length = 0
+      · unfold tacenta_ratchet.State.evict_oldest_loop0.body
+        have hlenU : alloc.vec.Vec.len state.skipped = 0#usize := by
+          simp [alloc.vec.Vec.len, hempty]
+          rfl
+        simp [hlt, hlenU]
+        rw [← hmodel]
+        exact hstate
+      · obtain ⟨nextState, nextModel, evicted1, hbody, hnext, hnextModel,
+          hbound1, hval⟩ := hstep state mstate evicted hstate hlt hempty
+        refine Std.WP.spec_mono hbody ?_
+        intro r hr
+        simp [hr]
+        have happend := congrArg Prod.fst
+          (Model.Ratchet.evictOldest_append base evicted.val 1)
+        simp only at happend
+        have hnextModel' : nextModel =
+            (Model.Ratchet.evictOldest
+              (Model.Ratchet.evictOldest base evicted.val).1 1).1 := by
+          calc
+            nextModel = (Model.Ratchet.evictOldest mstate 1).1 := hnextModel
+            _ = (Model.Ratchet.evictOldest
+              (Model.Ratchet.evictOldest base evicted.val).1 1).1 := by
+                rw [hmodel]
+        have hmodel1 : nextModel =
+            (Model.Ratchet.evictOldest base evicted1.val).1 := by
+          calc
+            nextModel = (Model.Ratchet.evictOldest
+              (Model.Ratchet.evictOldest base evicted.val).1 1).1 := hnextModel'
+            _ = (Model.Ratchet.evictOldest base (evicted.val + 1)).1 := happend.symm
+            _ = (Model.Ratchet.evictOldest base evicted1.val).1 := by rw [hval]
+        rw [← hmodel1]
+        exact ⟨hnext, hbound1, by omega⟩
+  · refine ⟨base, hrel, by rfl, by simp⟩
 
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,
