@@ -2619,6 +2619,60 @@ theorem concrete_receive_with_eviction_one_retry_spec
     · simp
   exact hlo
 
+/-! The measured variant uses the same fuel accounting as the totality proof in
+    `UnitLifecycleT1`.  It is the form needed when this one-step result is
+    inserted into the enclosing retry induction: the evicted working copy
+    must strictly reduce the skipped-key measure, rather than merely reducing
+    the outcome flag. -/
+theorem concrete_receive_with_eviction_one_retry_spec_measured
+    (composite : tacenta_wire.Composite) (header : tacenta_triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (output : Option tacenta_spqr.Output) (half : lifecycle.FullStore)
+    (state evictedState : tacenta_triple.State) (batch batch1 evicted : Std.Usize)
+    (pending : tacenta_triple.TripleError)
+    (result : tacenta_triple.State × Array Std.U8 32#usize)
+    (hEvict : lifecycle.evict_for_retry state half batch = ok (evictedState, evicted))
+    (hNonzero : evicted ≠ 0#usize)
+    (hMeasure : Tacenta.UnitLifecycleT1.skippedTotal evictedState <
+      Tacenta.UnitLifecycleT1.skippedTotal state)
+    (hBatch : core.num.Usize.saturating_add batch batch = batch1)
+    (hRetry : lifecycle.receive_attempt evictedState header dhOutRecv dhOutSend
+      newDhsPub output = ok (.Ok result)) :
+    lifecycle.receive_with_eviction_loop composite header dhOutRecv dhOutSend
+      newDhsPub output half state batch pending none ⦃
+        fun r => r = (pending, some (core.result.Result.Ok result)) ⦄ := by
+  unfold lifecycle.receive_with_eviction_loop
+  have hlo : loop
+      (fun x =>
+        match x with
+        | (half1, work1, batch1, pending1, outcome1) =>
+          lifecycle.receive_with_eviction_loop.body composite header dhOutRecv dhOutSend
+            newDhsPub output half1 work1 batch1 pending1 outcome1)
+      (half, state, batch, pending, none) ⦃
+        fun r => r = (pending, some (core.result.Result.Ok result)) ⦄ := by
+    apply loop.spec_decr_nat
+      (measure := Tacenta.UnitLifecycleT1.retryMeasure)
+      (inv := fun x =>
+        match x.2.2.2.2 with
+        | none => x.1 = half ∧ x.2.1 = state ∧ x.2.2.1 = batch ∧
+            x.2.2.2.1 = pending
+        | some o => o = core.result.Result.Ok result ∧
+            x.2.2.2.1 = pending)
+    · intro x hx
+      rcases x with ⟨halfX, workX, batchX, pendingX, outcomeX⟩
+      simp only at hx ⊢
+      unfold lifecycle.receive_with_eviction_loop.body
+      cases outcomeX with
+      | none =>
+        simp_all [lifecycle.receive_with_eviction_loop.body, Aeneas.Std.lift,
+          hEvict, hNonzero, hBatch, hRetry, Tacenta.UnitLifecycleT1.retryMeasure]
+        exact Nat.le_of_lt hMeasure
+      | some o =>
+        simp_all [lifecycle.receive_with_eviction_loop.body,
+          Tacenta.UnitLifecycleT1.retryMeasure]
+    · simp [Tacenta.UnitLifecycleT1.retryMeasure]
+  exact hlo
+
 /-! One generated loop-body step mirrors the model continuation equation when
     the retry fails with another refusal from the same full-store half. -/
 theorem concrete_receive_with_eviction_loop_same_half_step
