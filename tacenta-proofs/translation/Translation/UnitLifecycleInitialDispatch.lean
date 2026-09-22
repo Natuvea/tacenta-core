@@ -3755,6 +3755,73 @@ theorem decrypt_ratchet_success_step_from_aggregate_core {R : Type}
     modelBraidCandidate hrel hreal hmodel haggregate.2.2.1 hbraid hprivate hbytes htrace
 
 
+/-! The aggregate retry result is the Triple part of the public decrypt
+    success route.  This adapter projects its `StateRefines` witness into the
+    existing Session `StepRefines` constructor, so callers no longer have to
+    unpack the classical/post-quantum branch result by hand. -/
+theorem decrypt_ratchet_success_step_from_aggregate_retry {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng rngNext : R)
+    (plaintext : alloc.vec.Vec Std.U8) (modelPlaintext : Bytes)
+    (realTripleCandidate : tacenta_triple.State)
+    (realBraidCandidate : tacenta_braid.Braid)
+    (candidatePrivate : tacenta_boundary.dh.PrivateKey)
+    (draw : Model.Lifecycle.Key)
+    (modelTripleCandidate : Model.Triple.State)
+    (modelBraidCandidate : Model.Braid.BraidState)
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
+    (output : Option tacenta_spqr.Output)
+    (modelOutput : Option Model.SparseRatchet.Output)
+    (realReason : tacenta_triple.TripleError)
+    (modelReason : Model.Triple.ReceiveRefusal)
+    (realMk : Array Std.U8 32#usize) (modelMk : Model.Lifecycle.Key)
+    (haggregate : AggregateReceiveRetryRefinement composite modelComposite header modelHeader
+      dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
+      output modelOutput realTripleCandidate modelTripleCandidate realReason modelReason
+      (realTripleCandidate, realMk) (modelTripleCandidate, modelMk))
+    (hrel : SessionRefines dh K real model)
+    (hreal : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Ok plaintext,
+        { { real with triple := realTripleCandidate, braid := realBraidCandidate } with
+          ratchet_private :=
+            if realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
+              real.ratchet_private else candidatePrivate }, rngNext))
+    (hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session :=
+          { model with
+            triple := modelTripleCandidate
+            braid := modelBraidCandidate
+            ratchetPrivate :=
+              if modelTripleCandidate.classical.dhsPub == model.triple.classical.dhsPub then
+                model.ratchetPrivate else draw }
+        result := .ok modelPlaintext
+        oracle := oracleNext })
+    (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K
+      realBraidCandidate.state modelBraidCandidate)
+    (hprivate : dh.privateKey candidatePrivate = draw)
+    (hbytes : vecOf plaintext = modelPlaintext)
+    (htrace : trace rngNext = oracleNext.draws) :
+    StepRefines trace dh K
+      (.Ok plaintext,
+        { { real with triple := realTripleCandidate, braid := realBraidCandidate } with
+          ratchet_private :=
+            if realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
+              real.ratchet_private else candidatePrivate }, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  exact decrypt_ratchet_success_step_from_results rngCore cryptoRng trace dh K view
+    oracle oracleNext real model message rng rngNext plaintext modelPlaintext
+    realTripleCandidate realBraidCandidate candidatePrivate draw modelTripleCandidate
+    modelBraidCandidate hrel hreal hmodel haggregate.1.2.2.1 hbraid hprivate hbytes htrace
+
+
 theorem decrypt_ratchet_success_step_from_aligned_receive_cases {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
@@ -3831,74 +3898,6 @@ theorem decrypt_ratchet_success_step_from_aligned_receive_cases {R : Type}
       newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub output modelOutput
       realReason modelReason realMk modelMk haggregate hrel hreal hmodel hbraid
       hprivate hbytes htrace
-
-
-
-/-! The aggregate retry result is the Triple part of the public decrypt
-    success route.  This adapter projects its `StateRefines` witness into the
-    existing Session `StepRefines` constructor, so callers no longer have to
-    unpack the classical/post-quantum branch result by hand. -/
-theorem decrypt_ratchet_success_step_from_aggregate_retry {R : Type}
-    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
-    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
-    (view : Model.Lifecycle.CodewordView)
-    (oracle oracleNext : Model.Lifecycle.Oracle)
-    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
-    (message : Slice Std.U8) (rng rngNext : R)
-    (plaintext : alloc.vec.Vec Std.U8) (modelPlaintext : Bytes)
-    (realTripleCandidate : tacenta_triple.State)
-    (realBraidCandidate : tacenta_braid.Braid)
-    (candidatePrivate : tacenta_boundary.dh.PrivateKey)
-    (draw : Model.Lifecycle.Key)
-    (modelTripleCandidate : Model.Triple.State)
-    (modelBraidCandidate : Model.Braid.BraidState)
-    (composite : tacenta_wire.Composite)
-    (modelComposite : Model.CompositeHeader.Composite)
-    (header : tacenta_triple.Header) (modelHeader : Model.Triple.Header)
-    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
-    (modelDhOutRecv modelDhOutSend modelNewDhsPub : Model.Lifecycle.Key)
-    (output : Option tacenta_spqr.Output)
-    (modelOutput : Option Model.SparseRatchet.Output)
-    (realReason : tacenta_triple.TripleError)
-    (modelReason : Model.Triple.ReceiveRefusal)
-    (realMk : Array Std.U8 32#usize) (modelMk : Model.Lifecycle.Key)
-    (haggregate : AggregateReceiveRetryRefinement composite modelComposite header modelHeader
-      dhOutRecv dhOutSend newDhsPub modelDhOutRecv modelDhOutSend modelNewDhsPub
-      output modelOutput realTripleCandidate modelTripleCandidate realReason modelReason
-      (realTripleCandidate, realMk) (modelTripleCandidate, modelMk))
-    (hrel : SessionRefines dh K real model)
-    (hreal : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
-      ok (.Ok plaintext,
-        { { real with triple := realTripleCandidate, braid := realBraidCandidate } with
-          ratchet_private :=
-            if realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
-              real.ratchet_private else candidatePrivate }, rngNext))
-    (hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
-      { session :=
-          { model with
-            triple := modelTripleCandidate
-            braid := modelBraidCandidate
-            ratchetPrivate :=
-              if modelTripleCandidate.classical.dhsPub == model.triple.classical.dhsPub then
-                model.ratchetPrivate else draw }
-        result := .ok modelPlaintext
-        oracle := oracleNext })
-    (hbraid : Tacenta.SessionUnitBraidT3.StateRefines K
-      realBraidCandidate.state modelBraidCandidate)
-    (hprivate : dh.privateKey candidatePrivate = draw)
-    (hbytes : vecOf plaintext = modelPlaintext)
-    (htrace : trace rngNext = oracleNext.draws) :
-    StepRefines trace dh K
-      (.Ok plaintext,
-        { { real with triple := realTripleCandidate, braid := realBraidCandidate } with
-          ratchet_private :=
-            if realTripleCandidate.classical.dhs_pub == real.triple.classical.dhs_pub then
-              real.ratchet_private else candidatePrivate }, rngNext)
-      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
-  exact decrypt_ratchet_success_step_from_results rngCore cryptoRng trace dh K view
-    oracle oracleNext real model message rng rngNext plaintext modelPlaintext
-    realTripleCandidate realBraidCandidate candidatePrivate draw modelTripleCandidate
-    modelBraidCandidate hrel hreal hmodel haggregate.1.2.2.1 hbraid hprivate hbytes htrace
 
 
 /-- Inner-call evidence is needed only after all initial-wrapper guards pass. -/
