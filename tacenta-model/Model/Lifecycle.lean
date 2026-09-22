@@ -834,6 +834,31 @@ theorem receiveWithEvictionLoop_continue_same_half
         newDhsPub output reason half (batch * 2) fuel := by
   cases half <;> simp [receiveWithEvictionLoop, hEvict, hNonzero, hRetry, hFull]
 
+theorem receiveWithEvictionLoop_continue_switch_half
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending reason : Model.Triple.ReceiveRefusal)
+    (half nextHalf : FullStore) (batch fuel : Nat)
+    (evictedState : Model.Triple.State) (evicted : Nat)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header
+      dhOutRecv dhOutSend newDhsPub output = .error reason)
+    (hFull : fullStore reason = some nextHalf)
+    (hDifferent : nextHalf ≠ half) :
+    receiveWithEvictionLoop state composite header dhOutRecv dhOutSend newDhsPub output
+      pending half batch (fuel + 1) =
+      receiveWithEvictionLoop evictedState composite header dhOutRecv dhOutSend
+        newDhsPub output reason nextHalf
+        (receiveShortfall nextHalf evictedState composite) fuel := by
+  cases half <;> cases nextHalf <;>
+    simp_all [receiveWithEvictionLoop, hEvict, hNonzero, hRetry, hFull, hDifferent]
+
 /-- A classical consumed-message refusal is not an eviction case, so the
     Session retry policy preserves it exactly. -/
 theorem receiveWithEviction_classical_outOfOrder (state : Model.Triple.State)
