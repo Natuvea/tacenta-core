@@ -3980,9 +3980,13 @@ theorem initial_ratchet_refines_of_t1
         StepRefines trace dh K output (Model.Lifecycle.decryptRatchet view oracle model
           (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage)) :
     InitialRatchetRefines rc crc trace dh K view oracle real model message rng := by
-  intro decoded established hdecode hestablished he hi
-  exact decrypt_ratchet_refines_of_t1 boundary headroom (fun output hcall =>
-    hrefines decoded established hdecode hestablished he hi output hcall)
+  apply initial_ratchet_refines_of_t1_result_split boundary headroom
+  · intro decoded established hdecode hestablished he hi reason next rngNext hcall
+    exact hrefines decoded established hdecode hestablished he hi
+      (.Err reason, next, rngNext) hcall
+  · intro decoded established hdecode hestablished he hi plaintext next rngNext hcall
+    exact hrefines decoded established hdecode hestablished he hi
+      (.Ok plaintext, next, rngNext) hcall
 
 /-- A concrete discharge of the inner semantic premise for terminal Braid
 states, with no assumed inner output or StepRefines witness. -/
