@@ -5101,6 +5101,74 @@ structure InitialRatchetSuccessSplice {R : Type}
   hbytes : vecOf plaintext = facts.modelPlaintext
   htrace : trace rngNext = oracleNext.draws
 
+/-! Build the success splice from the aligned direct/retry branch and the
+    generated/model prefixes.  This is the concrete constructor used by the
+    public result split: the branch is already indexed by the actual Triple
+    results, while the remaining arguments are only the message, Braid, key,
+    plaintext, and oracle trace relations needed to lift that branch to the
+    session step. -/
+def initial_ratchet_success_splice_of_aligned_branch {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (hbranch : InitialRatchetSuccessReceiveBranch
+      successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
+      (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+      successPrefix.sparseOutput
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+      real.triple model.triple
+      (successPrefix.realTripleCandidate, successPrefix.realMk)
+      (facts.modelTripleCandidate, facts.modelMk))
+    (hrel : SessionRefines dh K real model)
+    (hmessageRel : Tacenta.SessionUnitBraidT3.MsgRefines successPrefix.m
+      (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite))
+    (hkem : K = oracle.braidKem)
+    (hbraidReceive : Tacenta.SessionUnitBraidT3.StateRefines K
+      successPrefix.braidCandidate.state
+      (Model.Braid.receive K model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.2)
+    (hprivate : dh.privateKey successPrefix.candidatePrivate = facts.draw)
+    (hbytes : vecOf plaintext = facts.modelPlaintext)
+    (htrace : trace rngNext = oracleNext.draws) :
+    InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
+      successPrefix facts := by
+  let modelBraidCandidate :=
+    (Model.Braid.receive oracle.braidKem model.braid
+      (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.2
+  have hcase := initial_ratchet_success_aligned_case_of_prefix_and_branch
+    successPrefix facts hbranch
+  have hmodel := initial_ratchet_model_success_result_of_facts facts
+  have hbraidReceive' : Tacenta.SessionUnitBraidT3.StateRefines K
+      successPrefix.braidCandidate.state
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.2 := by
+    simpa [hkem] using hbraidReceive
+  have hbraid : Tacenta.SessionUnitBraidT3.StateRefines K
+      successPrefix.braidCandidate.state modelBraidCandidate := by
+    simpa [modelBraidCandidate] using hbraidReceive'
+  exact {
+    modelBraidCandidate := modelBraidCandidate,
+    hcase := hcase,
+    hrel := hrel,
+    hmessageRel := hmessageRel,
+    hmodel := by simpa [modelBraidCandidate] using hmodel,
+    hready := facts.hready,
+    hbraidReceive := by simpa [hkem] using hbraidReceive',
+    hbraid := hbraid,
+    hprivate := hprivate,
+    hbytes := hbytes,
+    htrace := htrace }
+
 def initial_ratchet_success_evidence_of_splice {R : Type}
     {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
