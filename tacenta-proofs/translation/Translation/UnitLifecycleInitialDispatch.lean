@@ -5621,6 +5621,76 @@ def initial_ratchet_success_splice_of_concrete_receive_case {R : Type}
       hdirect hretry)
     hrel hmessageRel hkem hbraidReceive hprivate hbytes htrace
 
+/-! Package the concrete success obligations that remain after the generated
+    prefix and model facts have fixed the receive inputs.  Keeping the direct
+    and full-store providers in one indexed record makes it possible to pass
+    the complete success contract through the public result split without an
+    untyped existential callback. -/
+structure InitialRatchetConcreteSuccessProvider {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message) : Type where
+  hdirect : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+      rng rngNext plaintext next)
+    (direct : tacenta_triple.State × Array Std.U8 32#usize),
+    lifecycle.receive_attempt real.triple successPrefix.realHeader
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      successPrefix.sparseOutput = ok (.Ok direct) →
+    direct = (successPrefix.realTripleCandidate, successPrefix.realMk) →
+    InitialRatchetSuccessBranchAt successPrefix facts
+  hretry : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+      rng rngNext plaintext next)
+    (realReason : tacenta_triple.TripleError) (half : lifecycle.FullStore),
+    lifecycle.receive_attempt real.triple successPrefix.realHeader
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      successPrefix.sparseOutput = ok (.Err realReason) →
+    lifecycle.full_store realReason = ok (some half) →
+    InitialRatchetSuccessBranchAt successPrefix facts
+  hrel : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+      rng rngNext plaintext next), SessionRefines dh K real model
+  hmessageRel : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+      rng rngNext plaintext next),
+    Tacenta.SessionUnitBraidT3.MsgRefines successPrefix.m
+      (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)
+  hkem : K = oracle.braidKem
+  hbraidReceive : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real
+      message rng rngNext plaintext next),
+    Tacenta.SessionUnitBraidT3.StateRefines K successPrefix.braidCandidate.state
+      (Model.Braid.receive K model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.2
+  hprivate : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+      rng rngNext plaintext next), dh.privateKey successPrefix.candidatePrivate = facts.draw
+  hbytes : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+      rng rngNext plaintext next), vecOf plaintext = facts.modelPlaintext
+  htrace : trace rngNext = oracleNext.draws
+
+def initial_ratchet_success_splice_of_concrete_provider {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (provider : InitialRatchetConcreteSuccessProvider
+      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+      (view := view) (oracle := oracle) (oracleNext := oracleNext)
+      (real := real) (model := model) (message := message) (rng := rng)
+      (rngNext := rngNext) (plaintext := plaintext) (next := next) facts) :
+    InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
+      successPrefix facts := by
+  exact initial_ratchet_success_splice_of_concrete_receive_case successPrefix facts
+    (provider.hdirect successPrefix) (provider.hretry successPrefix)
+    (provider.hrel successPrefix) (provider.hmessageRel successPrefix) provider.hkem
+    (provider.hbraidReceive successPrefix) (provider.hprivate successPrefix)
+    (provider.hbytes successPrefix) provider.htrace
+
 def initial_ratchet_success_evidence_of_splice {R : Type}
     {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -5745,6 +5815,32 @@ noncomputable def initial_ratchet_success_evidence_of_result_and_concrete_case
       (hmessageRel successPrefix) hkem (hbraidReceive successPrefix)
       (hprivate successPrefix) (hbytes successPrefix) htrace
   exact initial_ratchet_success_evidence_of_splice successPrefix facts hsplice hreal
+
+noncomputable def initial_ratchet_success_evidence_of_result_and_concrete_provider
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (hreal : lifecycle.Session.decrypt_ratchet rc crc real message rng =
+      ok (.Ok plaintext, next, rngNext))
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (provider : InitialRatchetConcreteSuccessProvider
+      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+      (view := view) (oracle := oracle) (oracleNext := oracleNext)
+      (real := real) (model := model) (message := message) (rng := rng)
+      (rngNext := rngNext) (plaintext := plaintext) (next := next) facts) :
+    InitialRatchetSuccessEvidence rc crc trace dh K view oracle real model message rng
+      plaintext next rngNext := by
+  let successPrefix := Classical.choice (initial_ratchet_success_prefix_of_result
+    rc crc hz32 hzKeys real message rng rngNext plaintext next hreal)
+  exact initial_ratchet_success_evidence_of_splice successPrefix facts
+    (initial_ratchet_success_splice_of_concrete_provider successPrefix facts provider)
+    hreal
 
 theorem initial_ratchet_success_step_from_evidence {R : Type}
     (evidence : InitialRatchetSuccessEvidence rc crc trace dh K view oracle real model
