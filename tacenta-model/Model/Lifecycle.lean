@@ -120,7 +120,7 @@ def sendAgreement (oracle : Oracle) (state : Model.Braid.BraidState) :
   else
     some (Model.Braid.send oracle.braidKem 0 state, oracle)
 
-/-! In the nine Braid states which do not draw randomness, the model's
+/-! In the Braid states which do not draw randomness, the model's
     `rand` argument is deliberately ignored.  Keeping this fact explicit is
     useful at the Session boundary: the translated `Braid::send` result can
     be related to `sendAgreement` without inventing a draw or changing the
