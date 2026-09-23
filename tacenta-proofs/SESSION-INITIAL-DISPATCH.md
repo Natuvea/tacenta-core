@@ -127,20 +127,24 @@ before constructing the splice.
 The latest success boundary packages those obligations in
 `InitialRatchetConcreteSuccessProvider`. Its direct and full-store callbacks,
 state/key/plaintext relations, and oracle trace are all indexed by the exact
-`InitialRatchetSuccessPrefix` and `InitialRatchetModelSuccessFacts`; the
-`initial_ratchet_success_callback_of_concrete_provider` theorem lifts that
-package into the result-shaped callback consumed by `InitialRatchetRefines`.
-This removes an abstract splice callback from the success arm while leaving
-the concrete Triple/AEAD and model-facts premises visible to the caller.
+`InitialRatchetSuccessPrefix` and `InitialRatchetModelSuccessFacts`.
+`initial_ratchet_model_success_facts_of_result` now obtains those model facts
+by case-splitting the actual successful `decryptRatchet` result, so a caller
+cannot supply an unrelated model candidate. The
+`initial_ratchet_success_callback_of_model_step_and_provider` theorem combines
+that inversion with the concrete provider and lifts it into the result-shaped
+callback consumed by `InitialRatchetRefines`.
 
 These are composition boundaries, not a completed Session T3 claim. The
-remaining work is to supply the full Triple/AEAD leaf premises and the model
-facts for the public bridge, then record vector and mutation evidence for every
-resulting route. The exact head `c7e7b7b` has passed the complete local
-`no-sorry.sh` replay: 2,318 translation/T1/T3 jobs, 37 model proof jobs, 64
-model/property jobs, all kernel replays, audit negatives, reachability, and
-dispatcher mutation controls. Hosted run `35815035687` is validating this
-head; eight jobs are green and `translation` is still running.
+remaining work is to supply the full Triple/AEAD refusal leaf premises,
+connect the result-indexed success callback at the public Session bridge, and
+record vector and mutation evidence for every resulting route. The exact head
+`0ef6efd` passed the complete local `no-sorry.sh` replay: 2,318
+translation/T1/T3 jobs, 37 model proof jobs, 64 model/property jobs, all
+kernel replays, audit negatives, reachability, and dispatcher mutation
+controls. Hosted run `35816463173` is validating this head; checks, audit,
+proofs, sign-off, MSRV, Rust, armv7 and vectors are green, with `translation`
+still in progress.
 
 ## Verification record (2026-09-20)
 

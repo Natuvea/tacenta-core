@@ -6253,6 +6253,160 @@ def initial_ratchet_refusal_evidence_of_pair {R : Type}
       message rng reason next rngNext :=
   { hcall := hcall, hstep := hstep }
 
+/-! Invert an exact model refusal after a valid composite decode. The
+    classifier preserves the branch-local composite, DH draws, Triple result,
+    AEAD verdict and oracle successor; the ceiling arm is explicit so a caller
+    cannot silently omit a failed model random draw. -/
+inductive InitialRatchetModelRefusalCase
+    (view : Model.Lifecycle.CodewordView)
+    (oracle : Model.Lifecycle.Oracle)
+    (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) :
+    Model.Lifecycle.Refusal → Model.Lifecycle.Oracle → Prop where
+  | firstDh (composite : Model.CompositeHeader.Composite)
+      (ciphertext : Bytes)
+      (hdecode : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+        .ok (composite, ciphertext))
+      (hfirst : oracle.dhAgree model.ratchetPrivate composite.dh = none) :
+      InitialRatchetModelRefusalCase view oracle model message
+        (.handshake .nonContributoryAgreement) oracle
+  | secondDh (composite : Model.CompositeHeader.Composite)
+      (ciphertext : Bytes) (draw : Model.Lifecycle.Key)
+      (oracleNext : Model.Lifecycle.Oracle)
+      (hdecode : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+        .ok (composite, ciphertext))
+      (hfirst : ∃ dhOutRecv, oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv)
+      (hdraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext))
+      (hsecond : ∃ dhOutRecv : Model.Lifecycle.Key, oracle.dhAgree draw composite.dh = none) :
+      InitialRatchetModelRefusalCase view oracle model message
+        (.handshake .nonContributoryAgreement) oracleNext
+  | ceiling (composite : Model.CompositeHeader.Composite)
+      (ciphertext : Bytes) (dhOutRecv : Model.Lifecycle.Key)
+      (hdecode : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+        .ok (composite, ciphertext))
+      (hfirst : oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv)
+      (hdraw : Model.Lifecycle.random32 oracle = none) :
+      InitialRatchetModelRefusalCase view oracle model message .ceiling oracle
+  | triple (composite : Model.CompositeHeader.Composite)
+      (ciphertext : Bytes) (draw : Model.Lifecycle.Key)
+      (oracleNext : Model.Lifecycle.Oracle)
+      (modelReason : Model.Triple.ReceiveRefusal)
+      (dhOutRecv dhOutSend : Model.Lifecycle.Key)
+      (hdecode : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+        .ok (composite, ciphertext))
+      (hfirst : oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv)
+      (hdraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext))
+      (hsecond : oracle.dhAgree draw composite.dh = some dhOutSend)
+      (htriple : Model.Lifecycle.receiveWithEviction model.triple composite
+          (Model.Lifecycle.tripleHeaderOf composite) dhOutRecv dhOutSend
+          (oracle.dhPublic draw)
+          (Model.Lifecycle.sparseOutputOf
+            (Model.Braid.receive oracle.braidKem model.braid
+              (Model.Lifecycle.braidMessageOf view model.braid composite)).2.1) =
+          .error modelReason) :
+      InitialRatchetModelRefusalCase view oracle model message
+        (Model.Lifecycle.tripleReceiveRefusalOf modelReason) oracleNext
+  | aead (composite : Model.CompositeHeader.Composite)
+      (ciphertext : Bytes) (draw : Model.Lifecycle.Key)
+      (oracleNext : Model.Lifecycle.Oracle)
+      (messageKey : Model.Lifecycle.Key)
+      (dhOutRecv dhOutSend : Model.Lifecycle.Key)
+      (tripleCandidate : Model.Triple.State)
+      (hdecode : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+        .ok (composite, ciphertext))
+      (hfirst : oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv)
+      (hdraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext))
+      (hsecond : oracle.dhAgree draw composite.dh = some dhOutSend)
+      (htriple : Model.Lifecycle.receiveWithEviction model.triple composite
+          (Model.Lifecycle.tripleHeaderOf composite) dhOutRecv dhOutSend
+          (oracle.dhPublic draw)
+          (Model.Lifecycle.sparseOutputOf
+            (Model.Braid.receive oracle.braidKem model.braid
+              (Model.Lifecycle.braidMessageOf view model.braid composite)).2.1) =
+          .ok (tripleCandidate, messageKey))
+      (haead : oracle.aeadOpen
+        (Model.State.messageKeys messageKey .tacenta).1
+        (Model.State.messageKeys messageKey .tacenta).2.1
+        (Model.State.messageKeys messageKey .tacenta).2.2 ciphertext
+        (Model.Messages.concatAd model.identityAd
+          (Model.CompositeHeader.encode composite)) = none) :
+      InitialRatchetModelRefusalCase view oracle model message .aead oracleNext
+
+ theorem initial_ratchet_model_refusal_case_of_result
+    (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (model : Model.Lifecycle.Session) (message : Slice Std.U8)
+    (reason : Model.Lifecycle.Refusal)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecoded : ∃ composite ciphertext, Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (composite, ciphertext))
+    (hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session := model, result := .error reason, oracle := oracleNext}) :
+    Nonempty (InitialRatchetModelRefusalCase view oracle model message reason oracleNext) := by
+  obtain ⟨composite, ciphertext, hd⟩ := hdecoded
+  simp only [Model.Lifecycle.decryptRatchet, hready, hd] at hmodel
+  cases hr : oracle.dhAgree model.ratchetPrivate composite.dh with
+    | none =>
+      simp [hd, hr] at hmodel
+      have hreason : reason = .handshake .nonContributoryAgreement := hmodel.1.symm
+      have horacle : oracleNext = oracle := hmodel.2.symm
+      subst reason
+      subst oracleNext
+      exact ⟨.firstDh composite ciphertext hd hr⟩
+    | some dhOutRecv =>
+      cases hdraw : Model.Lifecycle.random32 oracle with
+      | none =>
+        simp [hd, hr, hdraw] at hmodel
+        have hreason : reason = .ceiling := hmodel.1.symm
+        have horacle : oracleNext = oracle := hmodel.2.symm
+        subst reason
+        subst oracleNext
+        exact ⟨.ceiling composite ciphertext dhOutRecv hd hr hdraw⟩
+      | some pair =>
+        obtain ⟨draw, oracleNext'⟩ := pair
+        cases hs : oracle.dhAgree draw composite.dh with
+        | none =>
+          simp [hd, hr, hdraw, hs] at hmodel
+          have hreason : reason = .handshake .nonContributoryAgreement := hmodel.1.symm
+          have horacle : oracleNext = oracleNext' := hmodel.2.symm
+          subst reason
+          subst oracleNext
+          exact ⟨.secondDh composite ciphertext draw oracleNext' hd
+            ⟨dhOutRecv, hr⟩ hdraw ⟨draw, hs⟩⟩
+        | some dhOutSend =>
+          cases ht : Model.Lifecycle.receiveWithEviction model.triple composite
+              (Model.Lifecycle.tripleHeaderOf composite) dhOutRecv dhOutSend
+              (oracle.dhPublic draw)
+              (Model.Lifecycle.sparseOutputOf
+                (Model.Braid.receive oracle.braidKem model.braid
+                  (Model.Lifecycle.braidMessageOf view model.braid composite)).2.1) with
+          | error modelReason =>
+            simp [hd, hr, hdraw, hs, ht] at hmodel
+            have hreason : reason = Model.Lifecycle.tripleReceiveRefusalOf modelReason := hmodel.1.symm
+            have horacle : oracleNext = oracleNext' := hmodel.2.symm
+            subst reason
+            subst oracleNext
+            exact ⟨.triple composite ciphertext draw oracleNext' modelReason
+              dhOutRecv dhOutSend hd hr hdraw hs ht⟩
+          | ok pair =>
+            obtain ⟨tripleCandidate, messageKey⟩ := pair
+            cases ha : oracle.aeadOpen
+                (Model.State.messageKeys messageKey .tacenta).1
+                (Model.State.messageKeys messageKey .tacenta).2.1
+                (Model.State.messageKeys messageKey .tacenta).2.2 ciphertext
+                (Model.Messages.concatAd model.identityAd
+                  (Model.CompositeHeader.encode composite)) with
+            | none =>
+              simp [hd, hr, hdraw, hs, ht, ha] at hmodel
+              have hreason : reason = .aead := hmodel.1.symm
+              have horacle : oracleNext = oracleNext' := hmodel.2.symm
+              subst reason
+              subst oracleNext
+              exact ⟨.aead composite ciphertext draw oracleNext' messageKey
+                dhOutRecv dhOutSend tripleCandidate hd hr hdraw hs ht ha⟩
+            | some plaintext => simp [hd, hr, hdraw, hs, ht, ha] at hmodel
+
+
 /-! Typed sum of the five refusal route families.  The index carries the
     exact public error, successor session, and randomness state, so a route
     cannot be re-labelled or detached from the generated refusal result when
