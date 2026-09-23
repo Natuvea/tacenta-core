@@ -161,6 +161,9 @@ second-DH calls from a concrete `.Triple` refusal. The final
 public-key, eviction, message-key, associated-data, AEAD, and post-receive
 candidate-public branches; all later successful/AEAD outcomes are eliminated
 against the requested Triple result. This is generated-call inversion only.
+It also exposes the equality between the random draw's returned RNG and the
+outer refusal result's RNG, which is required to consume the model's ordered
+draw contract without choosing a successor state independently.
 The next step is to feed this prefix into `decrypt_ratchet_triple_refusal_from_braid`
 and its shared Braid/primitive contracts, then add the analogous AEAD prefix
 before instantiating the indexed refusal provider.

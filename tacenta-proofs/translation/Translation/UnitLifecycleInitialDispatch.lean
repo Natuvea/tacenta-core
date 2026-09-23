@@ -852,6 +852,7 @@ theorem decrypt_ratchet_triple_refusal_prefix {R : Type}
         (Array.Insts.ZeroizeZeroize 32#usize
           (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedRecv = ok recvSecret ∧
       lifecycle.random_secret rngCore cryptoRng rng = ok (candidateBytes, rng1) ∧
+      rng1 = rngNext ∧
       tacenta_boundary.dh.PrivateKey.from_bytes candidateBytes = ok candidatePrivate ∧
       tacenta_boundary.dh.PrivateKey.agree candidatePrivate peer = ok (some sendSecret) ∧
       zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
@@ -917,7 +918,7 @@ theorem decrypt_ratchet_triple_refusal_prefix {R : Type}
                       exact ⟨decoded, m, receivedEpoch, none, braidCandidate, none, peer, recvSecret,
                         wrappedRecv, candidateBytes, rng1, candidatePrivate, sendSecret, wrappedSend,
                         before, realHeader, candidatePublic, newPublicBytes, hdecode, hmessage, hreceive,
-                        .none rfl, hpeer, hfirst, hwrapRecv, hderefRecv, hrandom, hcandidate, hsecond,
+                        .none rfl, hpeer, hfirst, hwrapRecv, hderefRecv, hrandom, hcall.2.2, hcandidate, hsecond,
                         hwrapSend, hderefSend, by simpa using hb, by simpa using hh, by simpa using hp,
                         by simpa using hpb, by simpa using htr⟩
                     | Ok pair =>
@@ -1022,7 +1023,7 @@ theorem decrypt_ratchet_triple_refusal_prefix {R : Type}
                         peer, recvSecret, wrappedRecv, candidateBytes, rng1, candidatePrivate,
                         sendSecret, wrappedSend, before, realHeader, candidatePublic, newPublicBytes,
                         hdecode, hmessage, hreceive, .some output converted rfl hconverted, hpeer,
-                        hfirst, hwrapRecv, hderefRecv, hrandom, hcandidate, hsecond, hwrapSend,
+                        hfirst, hwrapRecv, hderefRecv, hrandom, hcall.2.2, hcandidate, hsecond, hwrapSend,
                         hderefSend, by simpa using hb, by simpa using hh, by simpa using hp,
                         by simpa using hpb, by simpa using htr⟩
                     | Ok pair =>
