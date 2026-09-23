@@ -232,3 +232,12 @@ error branch. Focused Lean compilation and attestation checks pass on the
 pushed prefix commit. The remaining AEAD work starts at the successful Triple
 receive and continues through message-key derivation, associated-data, and the
 AEAD refusal itself.
+
+## Verification — 2026-09-23 (`2faecfe`)
+
+The exact head containing the AEAD early-prefix chain passed focused Lean and
+the complete `no-sorry.sh` replay: translation/T1/T3 replayed 68 modules,
+model proofs 11, model/property proofs 34, all 13 audit negatives, construct
+checks, reachability, and kernel replays. The post-DH AEAD extraction remains
+open; this checkpoint does not claim the refusal provider or public Session
+bridge is complete.
