@@ -4686,6 +4686,80 @@ def InitialRatchetSuccessReceiveBranch
       output modelOutput realState modelState realReason modelReason realResult
       modelResult)
 
+/-! The concrete and model receive partitions are part of the successful
+    lifecycle computations, rather than caller-selected labels.  This small
+    bridge makes that fact explicit at the branch-provider boundary: a caller
+    may still supply the semantic relation for each pair of cases, but it
+    cannot supply a branch relation without first exposing the two actual
+    `receive`/`receiveDetailed` results. -/
+theorem initial_ratchet_success_branch_of_actual_receive_cases {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (hcases :
+      ∀ (realCase :
+          (∃ direct,
+            lifecycle.receive_attempt real.triple successPrefix.realHeader
+              successPrefix.recvSecret successPrefix.sendSecret
+              successPrefix.newPublicBytes successPrefix.sparseOutput =
+              ok (.Ok direct) ∧
+            direct = (successPrefix.realTripleCandidate, successPrefix.realMk)) ∨
+          (∃ reason half,
+            lifecycle.receive_attempt real.triple successPrefix.realHeader
+              successPrefix.recvSecret successPrefix.sendSecret
+              successPrefix.newPublicBytes successPrefix.sparseOutput =
+              ok (.Err reason) ∧
+            lifecycle.full_store reason = ok (some half)))
+      (modelCase :
+          (∃ direct,
+            Model.Triple.receiveDetailed model.triple
+              (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+              facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+              (Model.Lifecycle.sparseOutputOf
+                (Model.Braid.receive oracle.braidKem model.braid
+                  (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1) =
+              .ok direct ∧ direct = (facts.modelTripleCandidate, facts.modelMk)) ∨
+          (∃ reason half,
+            Model.Triple.receiveDetailed model.triple
+              (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+              facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+              (Model.Lifecycle.sparseOutputOf
+                (Model.Braid.receive oracle.braidKem model.braid
+                  (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1) =
+              .error reason ∧ Model.Lifecycle.fullStore reason = some half)) ,
+      InitialRatchetSuccessReceiveBranch
+        successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
+        (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+        successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+        facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+        successPrefix.sparseOutput
+        (Model.Lifecycle.sparseOutputOf
+          (Model.Braid.receive oracle.braidKem model.braid
+            (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+        real.triple model.triple
+        (successPrefix.realTripleCandidate, successPrefix.realMk)
+        (facts.modelTripleCandidate, facts.modelMk)) :
+    InitialRatchetSuccessReceiveBranch
+      successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
+      (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+      successPrefix.sparseOutput
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+      real.triple model.triple
+      (successPrefix.realTripleCandidate, successPrefix.realMk)
+      (facts.modelTripleCandidate, facts.modelMk) := by
+  exact hcases (initial_ratchet_success_prefix_receive_cases successPrefix)
+    (initial_ratchet_model_success_receive_cases facts)
+
+
 theorem initial_ratchet_aligned_case_of_branch
     (composite : tacenta_wire.Composite)
     (modelComposite : Model.CompositeHeader.Composite)
@@ -5369,6 +5443,82 @@ def initial_ratchet_success_splice_of_aligned_branch {R : Type}
     hprivate := hprivate,
     hbytes := hbytes,
     htrace := htrace }
+
+/-! Public success-splice entry that makes the result split unavoidable.  The
+    caller's semantic provider is indexed by the concrete and model receive
+    partitions extracted from the same successful prefixes; the resulting
+    branch is then passed to the common splice constructor, whose aligned-case
+    projection feeds the direct core or shared retry `StateRefines` witness
+    into the session step theorem. -/
+def initial_ratchet_success_splice_of_actual_receive_cases {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (hcases :
+      ∀ (realCase :
+          (∃ direct,
+            lifecycle.receive_attempt real.triple successPrefix.realHeader
+              successPrefix.recvSecret successPrefix.sendSecret
+              successPrefix.newPublicBytes successPrefix.sparseOutput =
+              ok (.Ok direct) ∧
+            direct = (successPrefix.realTripleCandidate, successPrefix.realMk)) ∨
+          (∃ reason half,
+            lifecycle.receive_attempt real.triple successPrefix.realHeader
+              successPrefix.recvSecret successPrefix.sendSecret
+              successPrefix.newPublicBytes successPrefix.sparseOutput =
+              ok (.Err reason) ∧
+            lifecycle.full_store reason = ok (some half)))
+      (modelCase :
+          (∃ direct,
+            Model.Triple.receiveDetailed model.triple
+              (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+              facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+              (Model.Lifecycle.sparseOutputOf
+                (Model.Braid.receive oracle.braidKem model.braid
+                  (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1) =
+              .ok direct ∧ direct = (facts.modelTripleCandidate, facts.modelMk)) ∨
+          (∃ reason half,
+            Model.Triple.receiveDetailed model.triple
+              (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+              facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+              (Model.Lifecycle.sparseOutputOf
+                (Model.Braid.receive oracle.braidKem model.braid
+                  (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1) =
+              .error reason ∧ Model.Lifecycle.fullStore reason = some half)) ,
+      InitialRatchetSuccessReceiveBranch
+        successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
+        (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+        successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+        facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+        successPrefix.sparseOutput
+        (Model.Lifecycle.sparseOutputOf
+          (Model.Braid.receive oracle.braidKem model.braid
+            (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+        real.triple model.triple
+        (successPrefix.realTripleCandidate, successPrefix.realMk)
+        (facts.modelTripleCandidate, facts.modelMk))
+    (hrel : SessionRefines dh K real model)
+    (hmessageRel : Tacenta.SessionUnitBraidT3.MsgRefines successPrefix.m
+      (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite))
+    (hkem : K = oracle.braidKem)
+    (hbraidReceive : Tacenta.SessionUnitBraidT3.StateRefines K
+      successPrefix.braidCandidate.state
+      (Model.Braid.receive K model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.2)
+    (hprivate : dh.privateKey successPrefix.candidatePrivate = facts.draw)
+    (hbytes : vecOf plaintext = facts.modelPlaintext)
+    (htrace : trace rngNext = oracleNext.draws) :
+    InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
+      successPrefix facts := by
+  exact initial_ratchet_success_splice_of_aligned_branch successPrefix facts
+    (initial_ratchet_success_branch_of_actual_receive_cases successPrefix facts hcases)
+    hrel hmessageRel hkem hbraidReceive hprivate hbytes htrace
 
 def initial_ratchet_success_evidence_of_splice {R : Type}
     {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
