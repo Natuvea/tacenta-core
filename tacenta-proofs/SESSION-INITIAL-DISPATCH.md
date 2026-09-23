@@ -220,3 +220,15 @@ model proofs 11, model/property proofs 34; all 13 audit negatives, construct
 checks, reachability, and the dispatcher mutation controls passed. Hosted CI
 run `35827850983` is on this exact SHA; rust, proofs, audit, checks, msrv,
 armv7, and sign-off are green while vectors and translation finish.
+
+## Checkpoint — 2026-09-23 (AEAD early refusal inversion)
+
+The AEAD refusal path now has its own generated-call inversion chain through
+`decrypt_ratchet_aead_refusal_braid_prefix`, `_dh_prefix`, `_random_prefix`,
+and `_second_dh_prefix`. An exact `.Aead` result therefore exposes the same
+wire decode, Braid output, sparse conversion, peer decode, first DH, random
+draw, candidate-key decode, and second-DH witnesses without reusing the Triple
+error branch. Focused Lean compilation and attestation checks pass on the
+pushed prefix commit. The remaining AEAD work starts at the successful Triple
+receive and continues through message-key derivation, associated-data, and the
+AEAD refusal itself.
