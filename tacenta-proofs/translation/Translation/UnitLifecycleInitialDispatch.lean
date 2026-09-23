@@ -5880,6 +5880,80 @@ theorem initial_ratchet_refines_of_t1_result_split_with_route_evidence
       (hrefusalRoute decoded established hdecode hestablished he hi reason next rngNext hcall)
   · exact hsuccess
 
+/-! Final wrapper composition for the result-shaped split.  The model guard
+    and decoder are classified here from the actual input, so callers only
+    provide the genuinely nonterminal DH/Triple/AEAD route.  Each wrapper
+    branch is reconciled with the caller's exact `Err` result before it is
+    injected into the indexed route sum. -/
+theorem initial_ratchet_refines_of_t1_result_split_with_nonterminal_route
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (hnonterminalRoute : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R),
+        (∀ realReason,
+          tacenta_wire.decode_message decoded.message.deref ≠ ok (.Err realReason)) →
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Err reason, next, rngNext) →
+        InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
+          decoded.message.deref rng reason next rngNext)
+    (hsuccess : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        ∃ oracleNext, ∃ facts : InitialRatchetModelSuccessFacts view oracle oracleNext
+          model decoded.message.deref,
+          Nonempty (∀ successPrefix : InitialRatchetSuccessPrefix rc crc real
+              decoded.message.deref rng rngNext plaintext next,
+            InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
+              successPrefix facts)) :
+    InitialRatchetRefines rc crc trace dh K view oracle real model message rng := by
+  apply initial_ratchet_refines_of_t1_result_split_with_route_evidence boundary headroom hz32 hzKeys
+  · intro decoded established hdecode hestablished he hi reason next rngNext hcall
+    by_cases hfailed : Model.Lifecycle.agreementFailed model = true
+    · obtain ⟨hterminal, hstep⟩ := decrypt_ratchet_terminal_guard_step_refines rc crc
+        trace dh K view oracle real model decoded.message.deref rng
+        ctx.hrel ctx.htrace hfailed
+      have heq := Result.ok.inj (hcall.symm.trans hterminal)
+      cases heq
+      exact .terminal ⟨hcall, hstep⟩
+    · have hready : Model.Lifecycle.agreementFailed model = false := by
+        cases h : Model.Lifecycle.agreementFailed model <;> simp_all
+      by_cases hbad : ∃ realReason,
+          tacenta_wire.decode_message decoded.message.deref = ok (.Err realReason)
+      · let realReason := Classical.choose hbad
+        have hbadDecode := Classical.choose_spec hbad
+        obtain ⟨hdecodeCall, hdecodeStep⟩ := decrypt_ratchet_decode_refusal_refines rc crc
+          trace dh K view oracle real model decoded.message.deref rng realReason
+          ctx.hrel ctx.htrace hready hbadDecode
+        have heq := Result.ok.inj (hcall.symm.trans hdecodeCall)
+        cases heq
+        exact .decode realReason ⟨hcall, hdecodeStep⟩
+      · exact hnonterminalRoute decoded established hdecode hestablished he hi
+          reason next rngNext (by simpa using hbad) hcall
+  · exact hsuccess
+
 /-- Derive the inner call's existence from T1. The supplied semantic relation
 must hold for every actual output; it cannot assume the call succeeds or pick
 an output independently of the generated call. -/
