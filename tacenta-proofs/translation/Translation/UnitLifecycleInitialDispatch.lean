@@ -4763,6 +4763,137 @@ theorem initial_ratchet_success_branch_of_aligned_case
     classical/post-quantum choice below the router: the shared adapter first
     builds the indexed aggregate case, and only then is it projected into the
     branch consumed by `InitialRatchetSuccessSplice`. -/
+/-! Direct Triple success adapter.  The raw `State.receive` result is taken
+    from the generated success prefix, while the model candidate and its
+    `StateRefines` witness come from the direct contract theorem.  The final
+    projection is deliberately performed through `aggregate_receive_core_refinement_of_direct`
+    so the branch consumed by the session step is the same core relation used
+    by the retry path. -/
+theorem initial_ratchet_success_branch_of_direct_contracts {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (hAttempt : lifecycle.receive_attempt real.triple successPrefix.realHeader
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      successPrefix.sparseOutput = ok
+        (.Ok (successPrefix.realTripleCandidate, successPrefix.realMk)))
+    (hmodelAttempt : Model.Triple.receiveDetailed model.triple
+      (Model.Lifecycle.tripleHeaderOf facts.modelComposite) facts.modelDhOutRecv
+      facts.modelDhOutSend (oracle.dhPublic facts.draw)
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1) =
+      .ok (facts.modelTripleCandidate, facts.modelMk))
+    (hmac : Tacenta.SessionUnitT3.HmacAgrees)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hzr : Tacenta.SessionUnitT3.ZeroizingRoundTrips)
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hz96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
+    (hz64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64)
+    (hret : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
+    (happ : Tacenta.SessionUnitSpqrT3.VecAppendAgrees)
+    (hrm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
+    (hzs : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (hopt : Tacenta.SessionUnitSpqrT1.OptionCloneTotal)
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      real.triple model.triple)
+    (hrecvKey : facts.modelDhOutRecv = Tacenta.SessionUnitTripleT3.keyOf successPrefix.recvSecret)
+    (hsendKey : facts.modelDhOutSend = Tacenta.SessionUnitTripleT3.keyOf successPrefix.sendSecret)
+    (hnewKey : oracle.dhPublic facts.draw = Tacenta.SessionUnitTripleT3.keyOf
+      successPrefix.newPublicBytes)
+    (hmodelOutput :
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1) =
+      successPrefix.sparseOutput.map Tacenta.SessionUnitTripleT3.spqrOutputOf)
+    (mh : Model.State.Header)
+    (hmodelHeader : Model.Lifecycle.tripleHeaderOf facts.modelComposite =
+      { dr := mh, epoch := successPrefix.realHeader.epoch.val, pqN := successPrefix.realHeader.pq_n.val })
+    (hheader : Tacenta.SessionUnitTripleT3.RatchetHeaderR successPrefix.realHeader.dr mh)
+    (hone : (model.triple.classical.skipped.filter
+      (fun x => x.1 == mh.dh && x.2.1 == mh.n)).length ≤ 1)
+    (hs : max model.triple.classical.skipped.length Model.State.maxSkippedStore +
+      Model.State.maxSkip ≤ Usize.max)
+    (hevents : model.triple.classical.events + 1 < Std.U32.max)
+    (hepoch : model.triple.postQuantum.epoch + 1 < Std.U64.max)
+    (hroom : model.triple.postQuantum.chains.length + 2 < Usize.max)
+    (hcb : ∀ p ∈ model.triple.postQuantum.chains,
+      p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hsb : ∀ sk ∈ model.triple.postQuantum.skipped,
+      sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hnewb : ∀ o : tacenta_spqr.Output, successPrefix.sparseOutput = some o →
+      o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hskiproom : model.triple.postQuantum.skipped.length +
+      Model.SparseRatchet.maxSkip ≤ Usize.max)
+    (hone2 : (model.triple.postQuantum.skipped.filter
+      (fun x => x.1 == successPrefix.realHeader.epoch.val &&
+        x.2.1 == successPrefix.realHeader.pq_n.val)).length ≤ 1)
+    (hcounter : ∀ p ∈ model.triple.postQuantum.chains,
+      ∀ ch : Model.SparseRatchet.Chain,
+      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max) :
+    InitialRatchetSuccessReceiveBranch
+      successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
+      (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+      successPrefix.sparseOutput
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+      real.triple model.triple
+      (successPrefix.realTripleCandidate, successPrefix.realMk)
+      (facts.modelTripleCandidate, facts.modelMk) := by
+  have hrealDirect := initial_ratchet_success_prefix_direct_receive successPrefix hAttempt
+  have hmodelDirect := initial_ratchet_model_success_direct_receive facts hmodelAttempt
+  obtain ⟨modelCandidate, modelKey, hmodelCandidate, hcase⟩ :=
+    aggregate_receive_aligned_case_of_direct_contracts
+      successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
+      (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+      successPrefix.sparseOutput
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+      real.triple model.triple
+      (successPrefix.realTripleCandidate, successPrefix.realMk)
+      hmac hkdf hzr hvr hz96 hz64 hret happ hrm hzs hopt hrel
+      hrecvKey hsendKey hnewKey hmodelOutput mh hmodelHeader hheader hone hs hevents hepoch hroom
+      hcb hsb hnewb hskiproom hone2 hcounter hrealDirect
+  have hmodelEq : (modelCandidate, modelKey) =
+      (facts.modelTripleCandidate, facts.modelMk) := by
+    apply Option.some.inj
+    exact hmodelCandidate.symm.trans hmodelDirect
+  cases hmodelEq
+  unfold AggregateReceiveAlignedCase at hcase
+  rcases hcase with hdirect | hretry
+  · obtain ⟨directReal, directModel, hrealDirect', hmodelDirect', hrealEq,
+      hmodelEq', hstate, hkey⟩ := hdirect
+    subst directReal
+    subst directModel
+    have hcore := aggregate_receive_core_refinement_of_direct
+      successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
+      (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+      successPrefix.sparseOutput
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+      real.triple model.triple
+      (successPrefix.realTripleCandidate, successPrefix.realMk)
+      (facts.modelTripleCandidate, facts.modelMk)
+      hrealDirect' hmodelDirect' hstate hkey
+    exact Or.inl ⟨hrealDirect', hmodelDirect', hcore.2.2.1, hcore.2.2.2⟩
+  · exact Or.inr hretry
+
 theorem initial_ratchet_success_branch_of_full_store_retry
     (composite : tacenta_wire.Composite)
     (modelComposite : Model.CompositeHeader.Composite)
