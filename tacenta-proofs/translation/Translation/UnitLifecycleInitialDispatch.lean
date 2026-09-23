@@ -10479,6 +10479,52 @@ theorem decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
     (initial_ratchet_refines_of_t1_with_concrete_evidence codec kem oracleOf ctx boundary
       headroom hz32 hzKeys evidence modelEvidence)
 
+/-! The public initial-message composition exposes both obligations that a
+    caller needs at the Session boundary: the returned `StepRefines` witness
+    carries the complete state invariant, while the second conjunct records
+    the refusal-preserves / success-clears pending-state split.  Keeping these
+    together prevents callers from proving the inner ratchet relation and then
+    forgetting to consume its public atomicity consequence. -/
+theorem decrypt_initial_end_to_end_with_concrete_evidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (codec : DhCodecOf dh)
+    (kem : KemView)
+    (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (evidence : InitialRatchetConcreteBranchEvidence
+      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+      (view := view) (oracle := oracle) (real := real) (model := model))
+    (modelEvidence : InitialRatchetModelResultEvidence
+      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+      (view := view) (oracle := oracle) (real := real) (model := model)
+      message rng) :
+    PublicDecryptWitness rc crc trace dh K view oracle real model message rng ∧
+      ((∃ reason output,
+          (Model.Lifecycle.decrypt view oracle model (sliceOf message)).result =
+            .error reason ∧
+          lifecycle.Session.decrypt rc crc real message rng = ok output ∧
+          output.2.1.pending_initial.map (pendingInitialOf dh) = model.pendingInitial) ∨
+       (∃ plaintext output,
+          (Model.Lifecycle.decrypt view oracle model (sliceOf message)).result =
+            .ok plaintext ∧
+          lifecycle.Session.decrypt rc crc real message rng = ok output ∧
+          output.2.1.pending_initial.map (pendingInitialOf dh) = none)) := by
+  let witness := decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
+    codec kem oracleOf ctx boundary headroom hz32 hzKeys evidence modelEvidence
+  refine ⟨witness, ?_⟩
+  exact public_decrypt_witness_atomicity_cases rc crc trace dh K view oracle
+    real model message rng witness
+
 /-- Derive the inner call's existence from T1. The supplied semantic relation
 must hold for every actual output; it cannot assume the call succeeds or pick
 an output independently of the generated call. -/
