@@ -9992,11 +9992,12 @@ structure InitialRatchetConcreteBranchEvidence
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
     {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
     {real : lifecycle.Session} {model : Model.Lifecycle.Session} where
-  dhEvidence : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
+  braidEvidence : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
       (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
         (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
         (real := real) (model := model) innerMessage innerRng),
-      InitialRatchetDhConcreteProviders input
+      InitialRatchetBraidEvidenceContracts (K := K) view real model
+        input.decoded.message.deref
   tripleEvidence : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
       (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
         (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
@@ -10047,6 +10048,7 @@ noncomputable def initial_ratchet_refusal_branch_providers_of_evidence_package
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
     (hzKeys : ZeroizingRoundTrips
       (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
     (hrel : SessionRefines dh K real model)
     (evidence : InitialRatchetConcreteBranchEvidence
       (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
@@ -10057,9 +10059,11 @@ noncomputable def initial_ratchet_refusal_branch_providers_of_evidence_package
         (real := real) (model := model) innerMessage innerRng),
       InitialRatchetRefusalBranchProviders input := by
   intro innerMessage innerRng input
+  let dhEvidence := initial_ratchet_dh_concrete_providers_of_braid_contracts
+    input headroom hrel (evidence.braidEvidence input)
   exact initial_ratchet_refusal_branch_providers_of_concrete_evidence input kem codec
     oracleOf hz32 hzKeys hrel input.htrace input.hready
-    (evidence.dhEvidence input) (evidence.tripleEvidence input)
+    dhEvidence (evidence.tripleEvidence input)
     (evidence.aeadEvidence input)
     (evidence.ceiling input)
 
@@ -10575,7 +10579,7 @@ theorem initial_ratchet_refines_of_t1_with_concrete_evidence
   exact initial_ratchet_refines_of_t1_result_split_with_model_step_and_concrete_provider
     ctx boundary headroom hz32 hzKeys evidence.model.refusal
     (initial_ratchet_refusal_branch_providers_of_evidence_package
-      kem codec oracleOf hz32 hzKeys ctx.hrel evidence.concrete)
+      kem codec oracleOf hz32 hzKeys headroom ctx.hrel evidence.concrete)
     evidence.model.successStep evidence.model.successProvider
 
 /-! The public initial-message bridge now reuses that exact inner witness.  The
