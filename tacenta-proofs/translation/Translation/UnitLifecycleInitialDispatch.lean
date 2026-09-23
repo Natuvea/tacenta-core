@@ -154,8 +154,6 @@ theorem decrypt_ratchet_second_dh_refusal_from_braid
     (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
     (oracle oracleNext : Model.Lifecycle.Oracle)
     (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
-    (codec : DhCodecOf dh)
-    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
     (real : lifecycle.Session) (model : Model.Lifecycle.Session)
     (message : Slice Std.U8) (rng : R)
     (decoded : tacenta_wire.DecodedMessage)
@@ -1237,6 +1235,80 @@ theorem triple_refusal_prefix_trace_next
         exact (Prod.mk.inj hpair).2.symm
       subst realRngNext
       simpa [pref.hrng, hdrawRest] using htraceNext
+
+/-! The concrete Triple prefix now feeds the existing leaf adapter.  This is
+the first fully composed nonterminal refusal route: the prefix supplies the
+real execution witnesses, while the Braid adapter supplies the model-side
+message and state relation. -/
+
+theorem decrypt_ratchet_triple_refusal_from_prefix
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (codec : DhCodecOf dh)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng rngNext : R)
+    (decoded : tacenta_wire.DecodedMessage)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (realReason : tacenta_triple.TripleError) (next : lifecycle.Session)
+    (pref : InitialRatchetTripleRefusalPrefix rngCore cryptoRng real message rng rngNext
+      realReason next)
+    (htrace : trace rng = oracle.draws)
+    (hmessageRel : Tacenta.SessionUnitBraidT3.MsgRefines pref.m
+      (Model.Lifecycle.braidMessageOf view model.braid modelComposite))
+    (hnext : Tacenta.SessionUnitBraidT3.StateRefines K pref.braidCandidate.state
+      (Model.Braid.receive K model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.2)
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (modelComposite, vecOf pref.decoded.ciphertext))
+    (hcomposite : CompositeRefines pref.decoded.header modelComposite)
+    (draw modelDhOutRecv modelDhOutSend : Model.Lifecycle.Key)
+    (modelReason : Model.Triple.ReceiveRefusal)
+    (hmodelFirst : oracle.dhAgree model.ratchetPrivate modelComposite.dh =
+      some modelDhOutRecv)
+    (hmodelDraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext))
+    (hmodelSecond : oracle.dhAgree draw modelComposite.dh = some modelDhOutSend)
+    (hmodelPublic : oracle.dhPublic draw = arrayOf pref.newPublicBytes)
+    (hmodelTriple : Model.Lifecycle.receiveWithEviction model.triple modelComposite
+      (Model.Lifecycle.tripleHeaderOf modelComposite) modelDhOutRecv modelDhOutSend
+      (oracle.dhPublic draw)
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.1) =
+      .error modelReason)
+    (hreason : tripleReceiveRefusalOfReal realReason = some modelReason) :
+    lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+        ok (.Err (.Triple realReason), real, rngNext) ∧
+      StepRefines trace dh K
+        (.Err (.Triple realReason), real, rngNext)
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)) := by
+  let evidence := initial_ratchet_braid_evidence_of_triple_refusal_prefix
+    pref modelComposite hmessageRel hnext
+  have htraceNext : trace rngNext = oracleNext.draws :=
+    triple_refusal_prefix_trace_next oracleOf pref htrace draw hmodelDraw
+  have hrandomCall : lifecycle.random_secret rngCore cryptoRng rng =
+      ok (pref.candidateBytes, rngNext) := by
+    simpa [pref.hrng] using pref.hrandom
+  have htripleReal : lifecycle.receive_with_eviction real.triple pref.decoded.header
+      pref.realHeader pref.recvSecret pref.sendSecret pref.newPublicBytes
+      pref.sparseOutput = ok (.Err realReason) := pref.htriple
+  have hresult := decrypt_ratchet_triple_refusal_from_braid
+    rngCore cryptoRng trace dh K view oracle oracleNext real model message rng rngNext
+    pref.decoded modelComposite pref.decoded.header evidence rfl pref.peer pref.recvSecret
+    pref.sendSecret pref.candidateBytes pref.newPublicBytes pref.before pref.candidatePrivate
+    pref.candidatePublic pref.realHeader pref.wrappedRecv pref.wrappedSend realReason
+    modelReason draw modelDhOutRecv modelDhOutSend hrel htraceNext hready pref.hdecode
+    hdecodeModel hcomposite pref.hpeer pref.hfirst
+    pref.hwrapRecv pref.hderefRecv hrandomCall pref.hcandidate pref.hsecond pref.hwrapSend
+    pref.hderefSend pref.hbefore pref.hheader pref.hpublic pref.hpublicBytes htripleReal
+    hmodelFirst hmodelDraw hmodelSecond hmodelPublic hmodelTriple hreason
+  simpa [evidence, initial_ratchet_braid_evidence_of_triple_refusal_prefix] using hresult
 
 /-! Continue inversion through the first public-key decode and DH agreement.
 The result is still tied to the same concrete success equation; a failed or

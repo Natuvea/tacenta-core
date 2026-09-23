@@ -198,3 +198,15 @@ After the first-DH adapter landed in `48610c0` (manifests refreshed in
 `8a0aeaf`), the focused 1,733-job build and the complete `no-sorry.sh` gate
 again finished with exit code 0. Kernel replay again covered 68 translation,
 11 model-layer proof, and 34 model/property modules.
+
+## Checkpoint — 2026-09-23 (Triple refusal adapter)
+
+`decrypt_ratchet_triple_refusal_from_prefix` now composes
+`InitialRatchetTripleRefusalPrefix` with the existing
+`decrypt_ratchet_triple_refusal_from_braid` leaf. It builds the shared Braid
+evidence, obtains the model's post-draw trace from `OracleOf.random32`, and
+reuses the prefix's exact random-call and eviction witnesses. The result is
+therefore indexed by the concrete `.Triple` refusal and the model refusal
+facts; no detached Braid candidate or RNG successor can be substituted.
+Focused Lean compilation passes. The AEAD refusal prefix and the final indexed
+provider/public Session bridge remain the next semantic work.
