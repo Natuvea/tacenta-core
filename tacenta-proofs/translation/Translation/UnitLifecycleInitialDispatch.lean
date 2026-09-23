@@ -5366,6 +5366,50 @@ def initial_ratchet_refusal_evidence_of_pair {R : Type}
       message rng reason next rngNext :=
   { hcall := hcall, hstep := hstep }
 
+/-! Typed sum of the four nonterminal refusal families.  The index carries the
+    exact public error, successor session, and randomness state, so a route
+    cannot be re-labelled or detached from the generated refusal result when
+    it is handed to the T1 result splitter. -/
+inductive InitialRatchetNonterminalRefusalRoute
+    {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R) :
+    lifecycle.Error → lifecycle.Session → R → Type where
+  | dh (rngAfter : R)
+      (e : InitialRatchetRefusalEvidence rc crc trace dh K view oracle real model
+        message rng (.Handshake SessionError.NonContributoryAgreement) real rngAfter) :
+      InitialRatchetNonterminalRefusalRoute rc crc trace dh K view oracle real model
+        message rng (.Handshake SessionError.NonContributoryAgreement) real rngAfter
+  | triple (realReason : tacenta_triple.TripleError)
+      (next : lifecycle.Session) (rngNext : R)
+      (e : InitialRatchetRefusalEvidence rc crc trace dh K view oracle real model
+        message rng (.Triple realReason) next rngNext) :
+      InitialRatchetNonterminalRefusalRoute rc crc trace dh K view oracle real model
+        message rng (.Triple realReason) next rngNext
+  | aead (next : lifecycle.Session) (rngNext : R)
+      (e : InitialRatchetRefusalEvidence rc crc trace dh K view oracle real model
+        message rng .Aead next rngNext) :
+      InitialRatchetNonterminalRefusalRoute rc crc trace dh K view oracle real model
+        message rng .Aead next rngNext
+
+def initial_ratchet_refusal_evidence_of_nonterminal_route
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    {reason : lifecycle.Error} {next : lifecycle.Session} {rngNext : R}
+    (route : InitialRatchetNonterminalRefusalRoute rc crc trace dh K view oracle
+      real model message rng reason next rngNext) :
+    InitialRatchetRefusalEvidence rc crc trace dh K view oracle real model
+      message rng reason next rngNext := by
+  cases route with
+  | dh rngAfter e => exact e
+  | triple realReason next rngNext e => exact e
+  | aead next rngNext e => exact e
+
 def initial_ratchet_triple_refusal_evidence_of_pair {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
