@@ -5688,6 +5688,49 @@ theorem initial_ratchet_refines_of_t1_result_split_with_result_splice
     exact initial_ratchet_success_evidence_of_result_and_splice hz32 hzKeys hcall
       facts hsplice
 
+/-! Convenience composition for the two wrapper-level refusal routes.  The
+    caller supplies only the malformed-input predicate and the typed success
+    splice; terminal/decode refusal evidence is now derived from the actual
+    `Err` result by the adapter above. -/
+theorem initial_ratchet_refines_of_t1_result_split_with_terminal_decode_evidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (hbad : ∀ decoded : tacenta_wire.DecodedInitial,
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      ∃ reason, tacenta_wire.decode_message decoded.message.deref = ok (.Err reason))
+    (hsuccess : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        ∃ oracleNext, ∃ facts : InitialRatchetModelSuccessFacts view oracle oracleNext
+          model decoded.message.deref,
+          Nonempty (∀ successPrefix : InitialRatchetSuccessPrefix rc crc real
+              decoded.message.deref rng rngNext plaintext next,
+            InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
+              successPrefix facts)) :
+    InitialRatchetRefines rc crc trace dh K view oracle real model message rng := by
+  apply initial_ratchet_refines_of_t1_result_split_with_result_splice boundary headroom hz32 hzKeys
+  · intro decoded established hdecode hestablished he hi reason next rngNext hcall
+    exact initial_ratchet_terminal_or_decode_refusal_evidence ctx hbad decoded established
+      hdecode hestablished he hi reason next rngNext hcall
+  · exact hsuccess
+
 /-- Derive the inner call's existence from T1. The supplied semantic relation
 must hold for every actual output; it cannot assume the call succeeds or pick
 an output independently of the generated call. -/
