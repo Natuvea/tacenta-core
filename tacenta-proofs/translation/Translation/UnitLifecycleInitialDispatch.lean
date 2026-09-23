@@ -6268,6 +6268,61 @@ theorem model_random32_none_impossible_of_trace_head
   have horacle : oracle.draws = draw :: rest := htrace.symm.trans hhead
   simp [Model.Lifecycle.random32, Model.Lifecycle.takeDraw, horacle] at hnone
 
+theorem model_ceiling_result_impossible_of_trace_head
+    {R : Type} (trace : R → List Model.Lifecycle.Key)
+    (oracle oracleResult : Model.Lifecycle.Oracle) (rng : R)
+    (view : Model.Lifecycle.CodewordView) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecoded : ∃ composite ciphertext,
+      Model.CompositeHeader.decodeDetailed (sliceOf message) =
+        .ok (composite, ciphertext))
+    (hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session := model, result := .error .ceiling, oracle := oracleResult })
+    (htrace : trace rng = oracle.draws)
+    (hhead : ∃ draw rest, trace rng = draw :: rest) : False := by
+  obtain ⟨composite, ciphertext, hdecode⟩ := hdecoded
+  simp only [Model.Lifecycle.decryptRatchet, hready, hdecode] at hmodel
+  cases hdh : oracle.dhAgree model.ratchetPrivate composite.dh with
+  | none => simp [hdh] at hmodel
+  | some dhOutRecv =>
+      cases hdraw : Model.Lifecycle.random32 oracle with
+      | none =>
+              exact model_random32_none_impossible_of_trace_head trace oracle rng
+                htrace hhead hdraw
+      | some pair =>
+          obtain ⟨draw, oracleNext⟩ := pair
+          cases hsecond : oracle.dhAgree draw composite.dh with
+          | none =>
+              have hresult := congrArg (fun output => output.result) hmodel
+              simp [hdh, hdraw, hsecond] at hresult
+          | some dhOutSend =>
+              cases htriple : Model.Lifecycle.receiveWithEviction model.triple composite
+                  (Model.Lifecycle.tripleHeaderOf composite) dhOutRecv dhOutSend
+                  (oracle.dhPublic draw)
+                  (Model.Lifecycle.sparseOutputOf
+                    (Model.Braid.receive oracle.braidKem model.braid
+                      (Model.Lifecycle.braidMessageOf view model.braid composite)).2.1) with
+              | error modelReason =>
+                  have hresult := congrArg (fun output => output.result) hmodel
+                  simp [hdh, hdraw, hsecond, htriple, Model.Lifecycle.tripleReceiveRefusalOf]
+                    at hresult
+                  cases modelReason <;> simp at hresult
+              | ok triplePair =>
+                  obtain ⟨tripleCandidate, messageKey⟩ := triplePair
+                  cases haead : oracle.aeadOpen
+                      (Model.State.messageKeys messageKey .tacenta).1
+                      (Model.State.messageKeys messageKey .tacenta).2.1
+                      (Model.State.messageKeys messageKey .tacenta).2.2 ciphertext
+                      (Model.Messages.concatAd model.identityAd
+                        (Model.CompositeHeader.encode composite)) with
+                  | none =>
+                      have hresult := congrArg (fun output => output.result) hmodel
+                      simp [hdh, hdraw, hsecond, htriple, haead] at hresult
+                  | some plaintext =>
+                      have hresult := congrArg (fun output => output.result) hmodel
+                      simp [hdh, hdraw, hsecond, htriple, haead] at hresult
+
 /-! Invert an exact model refusal after a valid composite decode. The
     classifier preserves the branch-local composite, DH draws, Triple result,
     AEAD verdict and oracle successor; the ceiling arm is explicit so a caller
@@ -7215,6 +7270,7 @@ theorem initial_ratchet_refines_of_t1_result_split_with_model_refusal_provider
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
     (hzKeys : ZeroizingRoundTrips
       (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (htraceHead : ∃ draw rest, trace rng = draw :: rest)
     (hmodelRefusal : ∀ (hready : Model.Lifecycle.agreementFailed model = false)
       (decoded : tacenta_wire.DecodedInitial)
       (established : alloc.vec.Vec Std.U8),
@@ -7305,10 +7361,15 @@ theorem initial_ratchet_refines_of_t1_result_split_with_model_refusal_provider
         exact Classical.choice (initial_ratchet_nonterminal_route_of_model_result hready
           (hmodelRefusal hready)
           (fun decoded established hdecode hestablished he hi reason next rngNext hnotbad hcall
-              oracleNext modelReason modelComposite ciphertext hdecodeModel hmodelStep modelCase =>
-            ⟨hrefusalProvider hready decoded established hdecode hestablished he hi reason next rngNext
-              hnotbad hcall oracleNext modelReason modelComposite ciphertext hdecodeModel hmodelStep
-              modelCase⟩)
+              oracleNext modelReason modelComposite ciphertext hdecodeModel hmodelStep modelCase => by
+            by_cases hceiling : modelReason = .ceiling
+            · subst modelReason
+              exact False.elim (model_ceiling_result_impossible_of_trace_head trace oracle oracleNext rng view model
+                decoded.message.deref hready ⟨modelComposite, ciphertext, hdecodeModel⟩ hmodelStep
+                ctx.htrace htraceHead)
+            · exact ⟨hrefusalProvider hready decoded established hdecode hestablished he hi reason next rngNext
+                hnotbad hcall oracleNext modelReason modelComposite ciphertext hdecodeModel hmodelStep
+                modelCase⟩)
           decoded established hdecode hestablished he hi reason next rngNext hnotbad hcall)
   · exact hsuccess
 

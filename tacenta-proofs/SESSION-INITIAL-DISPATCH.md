@@ -141,13 +141,16 @@ It classifies terminal and malformed results before the nonterminal split,
 passes the exact decoder exclusion into the model refusal inversion, and
 hands the resulting `InitialRatchetModelRefusalCase` to an indexed DH,
 Triple, or AEAD provider. The model random-source ceiling remains explicit;
-`model_random32_none_impossible_of_trace_head` discharges it when the receive
-trace has a head, using the existing `OracleOf.random32` contract. The route
-remains indexed by the actual error, successor, and RNG state. This is still
-a composition boundary: the provider must be instantiated from the concrete
-Braid/primitive contracts, and the success callback must be supplied at the
-public Session bridge. Vector and mutation evidence then need to cover every
-resulting route.
+`model_ceiling_result_impossible_of_trace_head` now eliminates that case from
+the actual model result: it follows the model's DH, draw, Triple, and AEAD
+branches and uses `model_random32_none_impossible_of_trace_head` at the only
+ceiling-producing branch. The wrapper therefore requires an explicit
+nonempty receive-trace premise before handing a refusal to the indexed DH,
+Triple, or AEAD provider. The route remains indexed by the actual error,
+successor, and RNG state. This is still a composition boundary: the provider
+must be instantiated from the concrete Braid/primitive contracts, and the
+success callback must be supplied at the public Session bridge. Vector and
+mutation evidence then need to cover every resulting route.
 
 The exact head `a4e9a82` passed focused Lean compilation, all three dispatcher
 mutation controls, attestation refresh/check, and diff checks. The exact-head
