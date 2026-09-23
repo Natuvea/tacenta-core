@@ -8243,6 +8243,102 @@ inductive InitialRatchetRefusalRoute
       InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
         message rng .Aead next rngNext
 
+/-! Split the classifier into named branch providers before constructing a
+    route.  Keeping the five callbacks separate prevents a provider for one
+    refusal family from silently serving another family; the ceiling callback
+    must discharge the explicit impossible-random-source case. -/
+theorem initial_ratchet_refusal_case_dispatch
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    {reason : lifecycle.Error} {next : lifecycle.Session} {rngNext : R}
+    (hcase : ∃ (modelReason : Model.Lifecycle.Refusal) (oracleNext : Model.Lifecycle.Oracle),
+      InitialRatchetModelRefusalCase view oracle model message modelReason oracleNext)
+    (hceiling : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+      (dhOutRecv : Model.Lifecycle.Key),
+      Model.CompositeHeader.decodeDetailed (sliceOf message) =
+        .ok (composite, ciphertext) →
+      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
+      Model.Lifecycle.random32 oracle = none → False)
+    (hfirstDh : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
+      Model.CompositeHeader.decodeDetailed (sliceOf message) =
+        .ok (composite, ciphertext) →
+      oracle.dhAgree model.ratchetPrivate composite.dh = none →
+      Nonempty (InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
+        message rng reason next rngNext))
+    (hsecondDh : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+      (draw : Model.Lifecycle.Key) (oracleAfter : Model.Lifecycle.Oracle),
+      Model.CompositeHeader.decodeDetailed (sliceOf message) =
+        .ok (composite, ciphertext) →
+      (∃ dhOutRecv, oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv) →
+      Model.Lifecycle.random32 oracle = some (draw, oracleAfter) →
+      (∃ dhOutRecv : Model.Lifecycle.Key, oracle.dhAgree draw composite.dh = none) →
+      Nonempty (InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
+        message rng reason next rngNext))
+    (htripleProvider : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+      (draw : Model.Lifecycle.Key) (oracleAfter : Model.Lifecycle.Oracle)
+      (modelReason : Model.Triple.ReceiveRefusal)
+      (dhOutRecv dhOutSend : Model.Lifecycle.Key),
+      Model.CompositeHeader.decodeDetailed (sliceOf message) =
+        .ok (composite, ciphertext) →
+      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
+      Model.Lifecycle.random32 oracle = some (draw, oracleAfter) →
+      oracle.dhAgree draw composite.dh = some dhOutSend →
+      Model.Lifecycle.receiveWithEviction model.triple composite
+        (Model.Lifecycle.tripleHeaderOf composite) dhOutRecv dhOutSend
+        (oracle.dhPublic draw)
+        (Model.Lifecycle.sparseOutputOf
+          (Model.Braid.receive oracle.braidKem model.braid
+            (Model.Lifecycle.braidMessageOf view model.braid composite)).2.1) =
+        .error modelReason →
+      Nonempty (InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
+        message rng reason next rngNext))
+    (haeadProvider : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+      (draw : Model.Lifecycle.Key) (oracleAfter : Model.Lifecycle.Oracle)
+      (messageKey : Model.Lifecycle.Key)
+      (dhOutRecv dhOutSend : Model.Lifecycle.Key)
+      (tripleCandidate : Model.Triple.State),
+      Model.CompositeHeader.decodeDetailed (sliceOf message) =
+        .ok (composite, ciphertext) →
+      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
+      Model.Lifecycle.random32 oracle = some (draw, oracleAfter) →
+      oracle.dhAgree draw composite.dh = some dhOutSend →
+      Model.Lifecycle.receiveWithEviction model.triple composite
+        (Model.Lifecycle.tripleHeaderOf composite) dhOutRecv dhOutSend
+        (oracle.dhPublic draw)
+        (Model.Lifecycle.sparseOutputOf
+          (Model.Braid.receive oracle.braidKem model.braid
+            (Model.Lifecycle.braidMessageOf view model.braid composite)).2.1) =
+        .ok (tripleCandidate, messageKey) →
+      oracle.aeadOpen
+        (Model.State.messageKeys messageKey .tacenta).1
+        (Model.State.messageKeys messageKey .tacenta).2.1
+        (Model.State.messageKeys messageKey .tacenta).2.2 ciphertext
+        (Model.Messages.concatAd model.identityAd
+          (Model.CompositeHeader.encode composite)) = none →
+      Nonempty (InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
+        message rng reason next rngNext)) :
+    Nonempty (InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
+      message rng reason next rngNext) := by
+  obtain ⟨modelReason, oracleNext, hcase⟩ := hcase
+  cases hcase with
+  | firstDh composite ciphertext hdecode hfirst =>
+      exact hfirstDh composite ciphertext hdecode hfirst
+  | secondDh composite ciphertext draw oracleAfter hdecode hfirst hdraw hsecond =>
+      exact hsecondDh composite ciphertext draw oracleNext hdecode hfirst hdraw hsecond
+  | ceiling composite ciphertext dhOutRecv hdecode hfirst hdraw =>
+      exact False.elim (hceiling composite ciphertext dhOutRecv hdecode hfirst hdraw)
+  | triple composite ciphertext draw oracleAfter modelReason dhOutRecv dhOutSend
+      hdecode hfirst hdraw hsecond htriple =>
+      exact htripleProvider composite ciphertext draw oracleNext modelReason dhOutRecv dhOutSend
+        hdecode hfirst hdraw hsecond htriple
+  | aead composite ciphertext draw oracleAfter messageKey dhOutRecv dhOutSend
+      tripleCandidate hdecode hfirst hdraw hsecond htriple haead =>
+      exact haeadProvider composite ciphertext draw oracleNext messageKey dhOutRecv dhOutSend
+        tripleCandidate hdecode hfirst hdraw hsecond htriple haead
+
 /-! Build the nonterminal route from the actual model refusal result.  The
     provider is indexed by the classifier above, so it must handle the exact
     model branch and cannot relabel a concrete refusal as a different family.
