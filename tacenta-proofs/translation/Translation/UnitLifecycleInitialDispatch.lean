@@ -4413,9 +4413,49 @@ theorem initial_ratchet_model_success_receive_cases
     (Model.Lifecycle.tripleHeaderOf facts.modelComposite) facts.modelDhOutRecv
     facts.modelDhOutSend (oracle.dhPublic facts.draw)
     (Model.Lifecycle.sparseOutputOf
-      (Model.Braid.receive oracle.braidKem model.braid
+    (Model.Braid.receive oracle.braidKem model.braid
         (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
     (facts.modelTripleCandidate, facts.modelMk) facts.hmodelTriple
+
+theorem initial_ratchet_success_prefix_direct_receive
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {real : lifecycle.Session} {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (hcase : lifecycle.receive_attempt real.triple successPrefix.realHeader
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      successPrefix.sparseOutput = ok
+        (.Ok (successPrefix.realTripleCandidate, successPrefix.realMk))) :
+    tacenta_triple.State.receive real.triple successPrefix.realHeader
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      successPrefix.sparseOutput = ok
+        (.Ok (successPrefix.realTripleCandidate, successPrefix.realMk)) := by
+  simpa [lifecycle.receive_attempt] using hcase
+
+theorem initial_ratchet_model_success_direct_receive
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (hcase : Model.Triple.receiveDetailed model.triple
+      (Model.Lifecycle.tripleHeaderOf facts.modelComposite) facts.modelDhOutRecv
+      facts.modelDhOutSend (oracle.dhPublic facts.draw)
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1) =
+      .ok (facts.modelTripleCandidate, facts.modelMk)) :
+    Model.Triple.receive model.triple
+      (Model.Lifecycle.tripleHeaderOf facts.modelComposite) facts.modelDhOutRecv
+      facts.modelDhOutSend (oracle.dhPublic facts.draw)
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1) =
+      some (facts.modelTripleCandidate, facts.modelMk) := by
+  exact (Model.Triple.receiveDetailed_ok_iff model.triple
+    (Model.Lifecycle.tripleHeaderOf facts.modelComposite) facts.modelDhOutRecv
+    facts.modelDhOutSend (oracle.dhPublic facts.draw)
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+    (facts.modelTripleCandidate, facts.modelMk)).1 hcase
 
 /-! The generated success prefix already contains the complete Braid receive
 computation.  This constructor exposes it as the shared evidence record used
