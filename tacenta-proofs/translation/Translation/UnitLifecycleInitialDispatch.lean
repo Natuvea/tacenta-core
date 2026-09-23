@@ -9909,6 +9909,124 @@ noncomputable def initial_ratchet_aead_braid_evidence_of_prefix_contracts
     (contracts.hchunk pref.decoded.header modelComposite hcomposite)
     (contracts.hhonest modelComposite) contracts.hepoch
 
+noncomputable def initial_ratchet_aead_concrete_evidence_of_result
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R} {next : lifecycle.Session}
+    (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+      (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+      (real := real) (model := model) message rng)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (modelTripleCandidate : Model.Triple.State) (modelMk : Model.Lifecycle.Key)
+    (ciphertext : Bytes) (hreason : input.reason = .Aead)
+    (hmodelDecode : Model.CompositeHeader.decodeDetailed
+      (sliceOf input.decoded.message.deref) = .ok (modelComposite, ciphertext))
+    (hmessageRel : ∀ (pref : InitialRatchetAeadRefusalPrefix rc crc real
+        input.decoded.message.deref rng input.rngNext input.next),
+      Tacenta.SessionUnitBraidT3.MsgRefines pref.m
+        (Model.Lifecycle.braidMessageOf view model.braid modelComposite))
+    (hnext : ∀ (pref : InitialRatchetAeadRefusalPrefix rc crc real
+        input.decoded.message.deref rng input.rngNext input.next),
+      Tacenta.SessionUnitBraidT3.StateRefines K pref.braidCandidate.state
+        (Model.Braid.receive K model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.2)
+    (hmodelPublic : ∀ (draw : Model.Lifecycle.Key)
+      (pref : InitialRatchetAeadRefusalPrefix rc crc real
+        input.decoded.message.deref rng input.rngNext input.next),
+      arrayOf pref.newPublicBytes = oracle.dhPublic draw)
+    (hmodelTriple : ∀ (draw : Model.Lifecycle.Key)
+      (dhOutRecv dhOutSend : Model.Lifecycle.Key),
+      Model.Lifecycle.receiveWithEviction model.triple modelComposite
+        (Model.Lifecycle.tripleHeaderOf modelComposite) dhOutRecv dhOutSend
+        (oracle.dhPublic draw)
+        (Model.Lifecycle.sparseOutputOf
+          (Model.Braid.receive oracle.braidKem model.braid
+            (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.1) =
+        .ok (modelTripleCandidate, modelMk))
+    (hkeysValue : ∀ (pref : InitialRatchetAeadRefusalPrefix rc crc real
+        input.decoded.message.deref rng input.rngNext input.next),
+      (arrayOf pref.realKeys.1, arrayOf pref.realKeys.2.1,
+        arrayOf pref.realKeys.2.2) = Model.State.messageKeys modelMk .tacenta)
+    (hrealAdValue : ∀ (pref : InitialRatchetAeadRefusalPrefix rc crc real
+        input.decoded.message.deref rng input.rngNext input.next),
+      vecOf pref.realAd = Model.Messages.concatAd model.identityAd
+        (Model.CompositeHeader.encode modelComposite)) :
+    InitialRatchetAeadConcreteEvidence input modelComposite modelTripleCandidate modelMk := by
+  exact {
+    hreason := hreason
+    hmessageRel := hmessageRel
+    hnext := hnext
+    hdecodeModel := fun pref' =>
+      (initial_ratchet_aead_prefix_model_facts input pref' modelComposite ciphertext
+        hmodelDecode).1
+    hcomposite := fun pref' =>
+      (initial_ratchet_aead_prefix_model_facts input pref' modelComposite ciphertext
+        hmodelDecode).2
+    hmodelPublic := hmodelPublic
+    hmodelTriple := hmodelTriple
+    hkeysValue := hkeysValue
+    hrealAdValue := hrealAdValue }
+
+/-! Construct the branch evidence directly from the generated refusal result.
+    These adapters are deliberately indexed by the caller's exact result tag:
+    the `hreason` equality is what prevents a model Triple/AEAD case from
+    being attached to a different concrete refusal.  Decoder facts are still
+    obtained from the same generated prefix. -/
+noncomputable def initial_ratchet_triple_concrete_evidence_of_result
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    {realReason : tacenta_triple.TripleError}
+    (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+      (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+      (real := real) (model := model) message rng)
+    (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+    (modelReason : Model.Triple.ReceiveRefusal)
+    (hreason : input.reason = .Triple realReason)
+    (hmodelDecode : Model.CompositeHeader.decodeDetailed
+      (sliceOf input.decoded.message.deref) = .ok (modelComposite, ciphertext))
+    (hmessageRel : ∀ (pref : InitialRatchetTripleRefusalPrefix rc crc real
+        input.decoded.message.deref rng input.rngNext realReason input.next),
+      Tacenta.SessionUnitBraidT3.MsgRefines pref.m
+        (Model.Lifecycle.braidMessageOf view model.braid modelComposite))
+    (hnext : ∀ (pref : InitialRatchetTripleRefusalPrefix rc crc real
+        input.decoded.message.deref rng input.rngNext realReason input.next),
+      Tacenta.SessionUnitBraidT3.StateRefines K pref.braidCandidate.state
+        (Model.Braid.receive K model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.2)
+    (hmodelPublic : ∀ (draw : Model.Lifecycle.Key)
+      (pref : InitialRatchetTripleRefusalPrefix rc crc real
+        input.decoded.message.deref rng input.rngNext realReason input.next),
+      arrayOf pref.newPublicBytes = oracle.dhPublic draw)
+    (hmodelTriple : ∀ (draw : Model.Lifecycle.Key)
+      (dhOutRecv dhOutSend : Model.Lifecycle.Key),
+      Model.Lifecycle.receiveWithEviction model.triple modelComposite
+        (Model.Lifecycle.tripleHeaderOf modelComposite) dhOutRecv dhOutSend
+        (oracle.dhPublic draw)
+        (Model.Lifecycle.sparseOutputOf
+          (Model.Braid.receive oracle.braidKem model.braid
+            (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.1) =
+        .error modelReason)
+    (hreasonMap : tripleReceiveRefusalOfReal realReason = some modelReason) :
+    InitialRatchetTripleConcreteEvidence input realReason modelComposite modelReason := by
+  exact {
+    hreason := hreason
+    hmessageRel := hmessageRel
+    hnext := hnext
+    hdecodeModel := fun pref' =>
+      (initial_ratchet_triple_prefix_model_facts input pref' modelComposite ciphertext
+        hmodelDecode).1
+    hcomposite := fun pref' =>
+      (initial_ratchet_triple_prefix_model_facts input pref' modelComposite ciphertext
+        hmodelDecode).2
+    hmodelPublic := hmodelPublic
+    hmodelTriple := hmodelTriple
+    hreasonMap := hreasonMap }
+
 structure InitialRatchetAeadConcreteProviders
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
