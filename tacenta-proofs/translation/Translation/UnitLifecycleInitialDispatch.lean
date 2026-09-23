@@ -11025,6 +11025,98 @@ theorem initial_ratchet_refines_of_t1_result_split_with_model_refusal_provider
           reason next rngNext hnotbad hcall)
   · exact hsuccess
 
+/-! Variant of the public splitter that starts from one exact concrete
+    refusal evidence callback.  The model refusal case is recovered from that
+    callback's `StepRefines` witness, rather than supplied as a second
+    callback.  Branch providers still remain explicit because they discharge
+    the primitive-specific DH, Triple and AEAD contracts. -/
+theorem initial_ratchet_refines_of_t1_result_split_with_refusal_step_evidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (hrefusal : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R),
+        (∀ realReason,
+          tacenta_wire.decode_message decoded.message.deref ≠ ok (.Err realReason)) →
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Err reason, next, rngNext) →
+        InitialRatchetRefusalEvidence rc crc trace dh K view oracle real model
+          decoded.message.deref rng reason next rngNext)
+    (hproviders : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
+      (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+        (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+        (real := real) (model := model) innerMessage innerRng),
+      InitialRatchetRefusalBranchProviders input)
+    (hsuccess : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        ∃ oracleNext, ∃ facts : InitialRatchetModelSuccessFacts view oracle oracleNext
+          model decoded.message.deref,
+          Nonempty (∀ successPrefix : InitialRatchetSuccessPrefix rc crc real
+              decoded.message.deref rng rngNext plaintext next,
+            InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
+              successPrefix facts)) :
+    InitialRatchetRefines rc crc trace dh K view oracle real model message rng := by
+  apply initial_ratchet_refines_of_t1_result_split_with_route_evidence boundary headroom
+    hz32 hzKeys
+  · intro decoded established hdecode hestablished he hi reason next rngNext hcall
+    by_cases hfailed : Model.Lifecycle.agreementFailed model = true
+    · obtain ⟨hterminal, hstep⟩ := decrypt_ratchet_terminal_guard_step_refines rc crc
+        trace dh K view oracle real model decoded.message.deref rng
+        ctx.hrel ctx.htrace hfailed
+      have heq := Result.ok.inj (hcall.symm.trans hterminal)
+      cases heq
+      exact .terminal ⟨hcall, hstep⟩
+    · have hready : Model.Lifecycle.agreementFailed model = false := by
+        cases h : Model.Lifecycle.agreementFailed model <;> simp_all
+      by_cases hbad : ∃ realReason,
+          tacenta_wire.decode_message decoded.message.deref = ok (.Err realReason)
+      · let realReason := Classical.choose hbad
+        have hbadDecode := Classical.choose_spec hbad
+        obtain ⟨hdecodeCall, hdecodeStep⟩ := decrypt_ratchet_decode_refusal_refines rc crc
+          trace dh K view oracle real model decoded.message.deref rng realReason
+          ctx.hrel ctx.htrace hready hbadDecode
+        have heq := Result.ok.inj (hcall.symm.trans hdecodeCall)
+        cases heq
+        exact .decode realReason ⟨hcall, hdecodeStep⟩
+      · let hnotbad : ∀ realReason,
+          tacenta_wire.decode_message decoded.message.deref ≠ ok (.Err realReason) := by
+            simpa using hbad
+        exact Classical.choice (initial_ratchet_nonterminal_route_of_model_result hready
+          ctx.htrace
+          (fun decoded established hdecode hestablished he hi reason next rngNext hnotbad hcall =>
+            let evidence := hrefusal decoded established hdecode hestablished he hi
+              reason next rngNext hnotbad hcall
+            initial_ratchet_model_refusal_case_of_step
+              (real := real) (model := model) (message := decoded.message.deref)
+              (reason := reason) (next := next) (rng := rng) (rngNext := rngNext)
+              hready hnotbad evidence.hstep)
+          hproviders decoded established hdecode hestablished he hi reason next rngNext
+          hnotbad hcall)
+  · exact hsuccess
+
 
 /-! Public result-split bridge for a concrete success provider.  The model
     success equation is inverted first, then the provider is indexed by that
