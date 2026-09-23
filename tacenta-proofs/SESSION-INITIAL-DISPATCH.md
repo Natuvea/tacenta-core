@@ -101,6 +101,34 @@ as state-preserving without accounting for that draw.
 The full `no-sorry.sh` gate runs the controls and includes this module in the
 Session unit's axiom-audit closure and kernel replay.
 
+## Current composition boundary (2026-09-23)
+
+The public result-shaped bridge is now exposed by
+`decrypt_initial_refines_of_t1_with_nonterminal_route`. It splits the actual
+`decrypt_ratchet` result, derives terminal and malformed-message evidence from
+the generated call, and accepts a typed refusal route for the remaining
+nonterminal families. `InitialRatchetRefusalRoute` is indexed by the exact
+error, successor session, and RNG successor; its DH constructor is fed by the
+first/second-DH adapter, and its Triple/AEAD constructors accept only an exact
+generated `Err` call paired with the matching `StepRefines` result.
+
+On the success side, `InitialRatchetSuccessPrefix` and
+`InitialRatchetModelSuccessFacts` expose the generated and model receive
+partitions. The direct adapter routes through
+`aggregate_receive_core_refinement_of_direct`; the classical/post-quantum
+full-store adapter routes through the shared retry refinement. The resulting
+`InitialRatchetSuccessSplice` is indexed by the same concrete and model
+results, so a detached Triple candidate cannot be substituted.
+
+These are composition boundaries, not a completed Session T3 claim. The
+remaining work is to supply the full Triple/AEAD leaf premises and the direct /
+retry success splice at the public bridge, then record vector and mutation
+evidence for every resulting route. The exact head `3cc8cde` has passed the
+complete local `no-sorry.sh` replay: 2,318 translation/T1/T3 jobs, 37 model
+proof jobs, 64 model/property jobs, all kernel replays, audit negatives,
+reachability, and dispatcher mutation controls. Hosted CI run `35809504696`
+has nine jobs green and `translation` still running.
+
 ## Verification record (2026-09-20)
 
 The focused build and complete `no-sorry.sh` command both finished with exit
