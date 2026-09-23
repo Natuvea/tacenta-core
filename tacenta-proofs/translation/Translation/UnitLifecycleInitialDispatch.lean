@@ -4943,6 +4943,76 @@ theorem initial_ratchet_success_branch_of_full_store_retry
     witnesses.  The aggregate equalities come from the typed prefix and model
     facts, while the branch relation supplies only the direct-vs-retry
     semantic splice. -/
+/-! Prefix-indexed retry adapter.  The concrete and model successful outer
+    calls come directly from the generated success prefix and model facts;
+    only the full-store classification callbacks remain, and those are
+    consumed by the shared Classical/PostQuantum adapter. -/
+theorem initial_ratchet_success_branch_of_full_store_retry_from_prefix {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (realReason : tacenta_triple.TripleError)
+    (modelReason : Model.Triple.ReceiveRefusal)
+    (half : lifecycle.FullStore)
+    (hFullReal : lifecycle.full_store realReason = ok (some half))
+    (hclassical : half = lifecycle.FullStore.Classical →
+      lifecycle.full_store realReason = ok (some lifecycle.FullStore.Classical) →
+      AggregateReceiveRetryRefinement successPrefix.decoded.header facts.modelComposite
+        successPrefix.realHeader (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+        successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+        facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+        successPrefix.sparseOutput
+        (Model.Lifecycle.sparseOutputOf
+          (Model.Braid.receive oracle.braidKem model.braid
+            (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+        real.triple model.triple realReason modelReason
+        (successPrefix.realTripleCandidate, successPrefix.realMk)
+        (facts.modelTripleCandidate, facts.modelMk))
+    (hpostQuantum : half = lifecycle.FullStore.PostQuantum →
+      lifecycle.full_store realReason = ok (some lifecycle.FullStore.PostQuantum) →
+      AggregateReceiveRetryRefinement successPrefix.decoded.header facts.modelComposite
+        successPrefix.realHeader (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+        successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+        facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+        successPrefix.sparseOutput
+        (Model.Lifecycle.sparseOutputOf
+          (Model.Braid.receive oracle.braidKem model.braid
+            (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+        real.triple model.triple realReason modelReason
+        (successPrefix.realTripleCandidate, successPrefix.realMk)
+        (facts.modelTripleCandidate, facts.modelMk)) :
+    InitialRatchetSuccessReceiveBranch
+      successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
+      (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+      successPrefix.sparseOutput
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+      real.triple model.triple
+      (successPrefix.realTripleCandidate, successPrefix.realMk)
+      (facts.modelTripleCandidate, facts.modelMk) := by
+  exact initial_ratchet_success_branch_of_full_store_retry
+    successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
+    (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+    successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+    facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+    successPrefix.sparseOutput
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+    real.triple model.triple realReason modelReason
+    (successPrefix.realTripleCandidate, successPrefix.realMk)
+    (facts.modelTripleCandidate, facts.modelMk)
+    successPrefix.htriple facts.hmodelTriple half hFullReal hclassical hpostQuantum
+
 theorem initial_ratchet_success_aligned_case_of_prefix_and_branch {R : Type}
     {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
