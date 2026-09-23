@@ -1862,6 +1862,67 @@ theorem braid_send_model_result_of_draw
   · exact hout
   · exact hnext
 
+/-! The public encrypt composition must obtain its Braid result from the
+    generated call itself.  This bundle names the T3 semantic contracts and
+    the T1 totality/clone contracts consumed by `Braid.send_refines`; the
+    adapter below then inverts the exact generated `Ok` result rather than
+    accepting a separately chosen model successor. -/
+structure BraidSendRefinementContracts {R : Type}
+    (rc : rand_core_1.RngCore R) (K : Model.Braid.Kem) : Prop where
+  hka : Tacenta.SessionUnitBraidT3.KemAgreesFor K
+  hea : Tacenta.SessionUnitBraidT3.ErasureAgrees
+  hmac : Tacenta.SessionUnitBraidT3.BraidHmacAgrees
+  hkdf : Tacenta.SessionUnitBraidT3.BraidHkdfAgrees
+  header : Tacenta.SessionUnitBraidT1.KeyPairHeaderTotal
+  ekVector : Tacenta.SessionUnitBraidT1.KeyPairEkVectorTotal
+  ct1Len : Tacenta.SessionUnitBraidT1.Ct1LenTotal
+  ct2Len : Tacenta.SessionUnitBraidT1.Ct2LenTotal
+  kemClone : Tacenta.SessionUnitBraidT3.KemCloneAgrees
+  erasureClone : Tacenta.SessionUnitBraidT3.ErasureCloneAgrees
+  encoderClone : Tacenta.SessionUnitBraidT1.EncoderCloneTotal
+  decoderClone : Tacenta.SessionUnitBraidT1.DecoderCloneTotal
+  keyPairClone : Tacenta.SessionUnitBraidT1.KeyPairCloneTotal
+  encapsStateClone : Tacenta.SessionUnitBraidT1.EncapsStateCloneTotal
+  zeroizingArray : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip
+  arrayZeroize : Tacenta.SessionUnitBraidT1.ArrayZeroizeTotal
+  rangeFullIndex : Tacenta.SessionUnitBraidT1.RangeFullIndexTotal
+  rng : Tacenta.SessionUnitBraidT1.RngTotal rc
+
+theorem braid_send_post_of_contracts
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {K : Model.Braid.Kem}
+    (contracts : BraidSendRefinementContracts rc K)
+    (self : tacenta_braid.Braid) (rng : R)
+    {model : Model.Braid.BraidState}
+    (hrel : Tacenta.SessionUnitBraidT3.StateRefines K self.state model)
+    (hlive : Tacenta.SessionUnitBraidT3.EncodersLive model)
+    {realMessage : tacenta_braid.Msg} {realEpoch : Std.U64}
+    {realOutput : Option tacenta_braid.Output}
+    {realNext : tacenta_braid.Braid} {rngNext : R}
+    (hsendReal : tacenta_braid.Braid.send rc crc self rng =
+      ok ((realMessage, realEpoch, realOutput, realNext), rngNext)) :
+    ∃ rand,
+      (∀ modelMessage,
+        (Model.Braid.send K rand model).1 = some modelMessage →
+          Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage) ∧
+      realEpoch.val = (Model.Braid.send K rand model).2.2.2.epoch - 1 ∧
+      Tacenta.SessionUnitBraidT3.OptionOutputRefines realOutput
+        (Model.Braid.send K rand model).2.2.1 ∧
+      Tacenta.SessionUnitBraidT3.StateRefines K realNext.state
+        (Model.Braid.send K rand model).2.2.2 := by
+  obtain ⟨result, hcall, hpost⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitBraidT3.Braid.send_refines
+      contracts.hka contracts.hea contracts.hmac contracts.hkdf
+      contracts.header contracts.ekVector contracts.ct1Len contracts.ct2Len
+      contracts.kemClone contracts.erasureClone contracts.encoderClone
+      contracts.decoderClone contracts.keyPairClone contracts.encapsStateClone
+      contracts.zeroizingArray contracts.arrayZeroize contracts.rangeFullIndex
+      rc crc contracts.rng self rng hrel hlive)
+  have heq : result = ((realMessage, realEpoch, realOutput, realNext), rngNext) := by
+    exact Result.ok.inj (hcall.symm.trans hsendReal)
+  cases heq
+  exact hpost
+
 /-- `decrypt_ratchet` has the same terminal agreement guard as `encrypt`: it
 returns the exact public refusal without decoding attacker-controlled bytes or
 changing state/randomness. -/
@@ -3075,6 +3136,77 @@ theorem encrypt_braid_failure_of_draw_send
     realEpoch realOutput realBraidNext modelMessage modelEpoch modelOutput
     modelBraidNext hrel hready hsendReal hsendModel hnext
     (hfailed modelBraidNext hnext) htail
+
+/-! Contract-backed wrappers for the two Braid refusal shapes.  These are the
+    public callers' entry points: the model send postcondition is obtained
+    from the generated implementation theorem above, while the lifecycle
+    refusal proof remains the same result-indexed leaf. -/
+theorem encrypt_braid_failure_of_no_draw_contracts
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (plaintext : Slice Std.U8) (rng rngNext : R)
+    (realMessage : tacenta_braid.Msg) (realEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output)
+    (realBraidNext : tacenta_braid.Braid)
+    (contracts : BraidSendRefinementContracts rngCore K)
+    (hlive : Tacenta.SessionUnitBraidT3.EncodersLive model.braid)
+    (hkem : oracle.braidKem = K)
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
+    (hnoDraw : Model.Lifecycle.braidSendNeedsDraw model.braid = false)
+    (hfailed : ∀ modelNext : Model.Braid.BraidState,
+      Tacenta.SessionUnitBraidT3.StateRefines K realBraidNext.state modelNext →
+      Model.Lifecycle.braidFailed modelNext = true)
+    (htrace : trace rngNext = oracle.draws) :
+    ∃ output,
+      lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
+  apply encrypt_braid_failure_of_no_draw_send rngCore cryptoRng trace dh K view oracle
+    real model plaintext rng rngNext realMessage realEpoch realOutput realBraidNext hkem hrel
+    hready hsendReal hnoDraw
+  · exact braid_send_post_of_contracts contracts real.braid rng hrel.braid hlive hsendReal
+  · exact hfailed
+  · exact htrace
+
+theorem encrypt_braid_failure_of_draw_contracts
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (plaintext : Slice Std.U8) (rng rngNext : R)
+    (realMessage : tacenta_braid.Msg) (realEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output)
+    (realBraidNext : tacenta_braid.Braid)
+    (contracts : BraidSendRefinementContracts rngCore K)
+    (hlive : Tacenta.SessionUnitBraidT3.EncodersLive model.braid)
+    (hkem : oracle.braidKem = K)
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
+    (htrace : trace rng = oracle.draws)
+    (hdraw : ∃ draw rest, trace rng = draw :: rest ∧ trace rngNext = rest)
+    (hneedsDraw : Model.Lifecycle.braidSendNeedsDraw model.braid = true)
+    (hfailed : ∀ modelNext : Model.Braid.BraidState,
+      Tacenta.SessionUnitBraidT3.StateRefines K realBraidNext.state modelNext →
+      Model.Lifecycle.braidFailed modelNext = true) :
+    ∃ output,
+      lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
+  apply encrypt_braid_failure_of_draw_send rngCore cryptoRng trace dh K view oracle
+    real model plaintext rng rngNext realMessage realEpoch realOutput realBraidNext hkem hrel
+    hready hsendReal htrace hdraw hneedsDraw
+  · intro draw rest hhead
+    exact braid_send_post_of_contracts contracts real.braid rng hrel.braid hlive hsendReal
+  · exact hfailed
 
 def realSparseOutputOf (output : Option tacenta_braid.Output) :
     Result (Option tacenta_spqr.Output) :=
