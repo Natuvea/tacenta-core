@@ -955,6 +955,22 @@ def PublicDecryptWitness {R : Type}
     StepRefines trace dh K output
       (Model.Lifecycle.decrypt view oracle model (sliceOf message))
 
+/-! Encryption has the same public result/state/randomness boundary as
+    decryption, but it is intentionally a separate witness.  The send side
+    has different atomicity (Braid may commit on refusal and pending-initial
+    changes only on a successful wire message), so a decrypt witness must not
+    be reused to claim the `Session::encrypt` theorem. -/
+def PublicEncryptWitness {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (plaintext : Slice Std.U8) (rng : R) : Prop :=
+  ∃ output,
+    lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
+    StepRefines trace dh K output
+      (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext))
+
 structure InitialDispatchContext {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
@@ -1701,6 +1717,24 @@ theorem encrypt_terminal_guard_step_refines {R : Type}
   refine ⟨(.Err lifecycle.Error.AgreementFailed, real, rng), h.1, ?_⟩
   rw [h.2]
   exact ⟨rfl, hrel, htrace⟩
+
+/-! Public encryption boundary for the terminal route.  This is the first
+    constructor of the separate `Session::encrypt` composition; the remaining
+    sendAgreement, Triple, composite and AEAD routes must be supplied by the
+    send-side dispatcher rather than inferred from decrypt. -/
+theorem public_encrypt_terminal_witness {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (plaintext : Slice Std.U8) (rng : R)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hfailed : Model.Lifecycle.agreementFailed model = true) :
+    PublicEncryptWitness rngCore cryptoRng trace dh K view oracle real model
+      plaintext rng := by
+  exact encrypt_terminal_guard_step_refines rngCore cryptoRng trace dh K view oracle
+    real model plaintext rng hrel htrace hfailed
 
 /-- `decrypt_ratchet` has the same terminal agreement guard as `encrypt`: it
 returns the exact public refusal without decoding attacker-controlled bytes or

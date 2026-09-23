@@ -8390,6 +8390,111 @@ theorem initial_ratchet_model_refusal_result_of_case
       simp [Model.Lifecycle.decryptRatchet, hready, hdecode, hfirst, hdraw,
         hsecond, htriple, haead]
 
+/-! The generated wire relation also gives the model-side decode result
+    without first choosing a model composite.  This is the missing input for
+    the refusal classifier: a concrete non-error decoder result must carry the
+    same composite and ciphertext that the lifecycle model sees. -/
+theorem decode_message_model_decode_of_nonrefusal
+    (message : Slice Std.U8)
+    (hnotbad : ∀ realReason,
+      tacenta_wire.decode_message message ≠ ok (.Err realReason)) :
+    ∃ decoded composite ciphertext,
+      tacenta_wire.decode_message message = ok (.Ok decoded) ∧
+      Model.CompositeHeader.decodeDetailed (sliceOf message) =
+        .ok (composite, ciphertext) ∧
+      vecOf decoded.ciphertext = ciphertext ∧
+      CompositeRefines decoded.header composite := by
+  obtain ⟨decodedResult, hdecodedResult, hdecodedModel⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitWireT3.decode_message_refines message)
+  let P : core.result.Result tacenta_wire.DecodedMessage tacenta_wire.DecodeError → Prop :=
+    fun result => match result with
+    | .Ok decoded =>
+        Model.CompositeHeader.decode (Tacenta.SessionUnitWireT3.bytesOf message.val) =
+          some (Tacenta.SessionUnitWireT3.compositeOf decoded.header,
+            Tacenta.SessionUnitWireT3.bytesOf decoded.ciphertext.val)
+    | .Err _ => Model.CompositeHeader.decode
+        (Tacenta.SessionUnitWireT3.bytesOf message.val) = none
+  have hdecodedModelFor : ∀ result, result = decodedResult → P result := by
+    intro result hresult
+    subst result
+    exact hdecodedModel
+  cases hdecoded : decodedResult with
+  | Err realReason =>
+      have hbad : tacenta_wire.decode_message message = ok (.Err realReason) := by
+        simpa [hdecoded] using hdecodedResult
+      exact False.elim (hnotbad realReason hbad)
+  | Ok decoded =>
+      have hreal : tacenta_wire.decode_message message = ok (.Ok decoded) := by
+        simpa [hdecoded] using hdecodedResult
+      have hdecodedModel := hdecodedModelFor (.Ok decoded) hdecoded.symm
+      simp only [P] at hdecodedModel
+      have hcipher : sliceOf (alloc.vec.Vec.deref decoded.ciphertext) =
+          vecOf decoded.ciphertext := by rfl
+      change Model.CompositeHeader.decode (sliceOf message) =
+        some (Tacenta.SessionUnitWireT3.compositeOf decoded.header,
+          sliceOf (alloc.vec.Vec.deref decoded.ciphertext)) at hdecodedModel
+      rw [hcipher] at hdecodedModel
+      have hmodelDecodeSome :
+          Model.CompositeHeader.decode (sliceOf message) =
+            some (Tacenta.SessionUnitWireT3.compositeOf decoded.header,
+              vecOf decoded.ciphertext) := hdecodedModel
+      let modelHeader := Tacenta.SessionUnitWireT3.compositeOf decoded.header
+      have hmodelDecodeDetailed :
+          Model.CompositeHeader.decodeDetailed (sliceOf message) =
+            .ok (modelHeader, vecOf decoded.ciphertext) :=
+        (Model.CompositeHeader.decodeDetailed_ok_iff _ _).2 hmodelDecodeSome
+      have hcomposite : CompositeRefines decoded.header modelHeader := by
+        exact composite_refines_wire_compositeOf decoded.header
+      exact ⟨decoded, modelHeader, vecOf decoded.ciphertext, hreal,
+        hmodelDecodeDetailed, rfl, hcomposite⟩
+
+
+/-! Recover the indexed model refusal case from an already paired concrete
+    refusal result.  The old bridge accepted a separate model callback here;
+    this adapter instead destructures the exact model step carried by
+    `StepRefines`, proves that its result is an error (a refusal cannot refine
+    a model success), and then classifies the generated model transaction. -/
+theorem initial_ratchet_model_refusal_case_of_step
+    {R : Type} {trace : R → List Model.Lifecycle.Key}
+    {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {reason : lifecycle.Error}
+    {next : lifecycle.Session} {rng rngNext : R}
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hnotbad : ∀ realReason,
+      tacenta_wire.decode_message message ≠ ok (.Err realReason))
+    (hstep : StepRefines trace dh K (.Err reason, next, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+    ∃ (oracleNext : Model.Lifecycle.Oracle)
+      (modelReason : Model.Lifecycle.Refusal),
+      Nonempty (InitialRatchetModelRefusalCase view oracle model message
+        modelReason oracleNext) := by
+  obtain ⟨_decoded, modelComposite, ciphertext, _hdecoded, hdecodeModel,
+    _hcipher, _hcomposite⟩ := decode_message_model_decode_of_nonrefusal message hnotbad
+  let step := Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)
+  cases hs : step with
+  | mk modelNext modelResult oracleNext =>
+      cases hr : modelResult with
+      | error modelReason =>
+          have hmodelError : step.result = .error modelReason := by
+            simp [hs, hr]
+          have hsession : modelNext = model := by
+            have hk := Model.Lifecycle.decryptRatchet_refusal_keeps_session view oracle
+              model (sliceOf message) modelReason hmodelError
+            simpa [step, hs] using hk
+          have hmodelStep :
+              Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+                { session := model, result := .error modelReason, oracle := oracleNext } := by
+            simp [step, hs, hr, hsession]
+          obtain ⟨modelCase⟩ := initial_ratchet_model_refusal_case_of_result
+            view oracle oracleNext model message modelReason hready
+            ⟨modelComposite, ciphertext, hdecodeModel⟩ hmodelStep
+          exact ⟨oracleNext, modelReason, ⟨modelCase⟩⟩
+      | ok modelPlaintext =>
+          have hresult := hstep.result
+          simp [ResultRefines, step, hs, hr] at hresult
+
 /-! Package the complete result-shaped refusal evidence once, so the public
     splitter can consume branch-specific providers without passing an
     unindexed route callback through every layer. -/
