@@ -8383,6 +8383,179 @@ structure InitialRatchetRefusalBranchInput
   hcase : InitialRatchetModelRefusalCase view oracle model decoded.message.deref
     modelReason oracleNext
 
+/-! A successful ratchet decoder result already carries the wire/model
+    correspondence needed by every nonterminal branch.  Keep this inversion
+    at one boundary: callers must provide the actual generated result and the
+    model's exact `decodeDetailed` result, while the branch providers receive
+    the recovered `CompositeRefines` relation rather than a second, unrelated
+    header witness. -/
+theorem decode_message_model_facts_of_nonrefusal
+    (message : Slice Std.U8)
+    (hnotbad : ∀ realReason,
+      tacenta_wire.decode_message message ≠ ok (.Err realReason))
+    (modelComposite : Model.CompositeHeader.Composite)
+    (ciphertext : Bytes)
+    (hmodelDecode : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (modelComposite, ciphertext)) :
+    ∃ decoded,
+      tacenta_wire.decode_message message = ok (.Ok decoded) ∧
+      vecOf decoded.ciphertext = ciphertext ∧
+      CompositeRefines decoded.header modelComposite := by
+  obtain ⟨decodedResult, hdecodedResult, hdecodedModel⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitWireT3.decode_message_refines message)
+  cases hdecoded : decodedResult with
+  | Err realReason =>
+      have hbad : tacenta_wire.decode_message message = ok (.Err realReason) := by
+        rw [← hdecodedResult, hdecoded]
+        rfl
+      exact False.elim (hnotbad realReason hbad)
+  | Ok decoded =>
+      have hreal : tacenta_wire.decode_message message = ok (.Ok decoded) := by
+        rw [← hdecodedResult, hdecoded]
+        rfl
+      obtain ⟨modelHeader, hmodelDecodeSome, hcomposite⟩ := hdecodedModel
+      have hmodelDecodeDetailed : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+          .ok (modelHeader, vecOf decoded.ciphertext) := by
+        exact (Model.CompositeHeader.decodeDetailed_ok_iff _ _).2 hmodelDecodeSome
+      have hpair : (modelHeader, vecOf decoded.ciphertext) =
+          (modelComposite, ciphertext) := by
+        rw [hmodelDecodeDetailed] at hmodelDecode
+        exact Option.some.inj ((Result.ok.inj (hmodelDecode.symm.trans hmodelDecodeDetailed)))
+      cases hpair
+      exact ⟨decoded, hreal, rfl, hcomposite⟩
+
+/-! The decoder/model lemma above is enough to build the concrete DH evidence
+    record once the existing Braid T3 contracts are supplied.  This constructor
+    is deliberately below the result-shaped input: it proves that the
+    `decoded`, header relation and ciphertext used by the first/second-DH
+    adapters all come from the same generated decoder result. -/
+theorem initial_ratchet_dh_concrete_evidence_of_braid_contracts
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+      (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+      (real := real) (model := model) message rng)
+    (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+    (hdecodeModel : Model.CompositeHeader.decodeDetailed
+      (sliceOf input.decoded.message.deref) = .ok (modelComposite, ciphertext))
+    (contracts : Tacenta.UnitLifecycleT1.BraidReceiveContracts)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hka : Tacenta.SessionUnitBraidT3.KemAgreesFor K)
+    (hea : Tacenta.SessionUnitBraidT3.ErasureAgrees)
+    (hmac : Tacenta.SessionUnitBraidT3.BraidHmacAgrees)
+    (hkdf : Tacenta.SessionUnitBraidT3.BraidHkdfAgrees)
+    (hlens : Tacenta.SessionUnitBraidT3.KemLenAgrees K)
+    (hvalek : Tacenta.SessionUnitBraidT3.ValidateEkAgrees K)
+    (hct1len : Tacenta.SessionUnitBraidT1.Ct1LenTotal)
+    (hct2len : Tacenta.SessionUnitBraidT1.Ct2LenTotal)
+    (hheaderlen : Tacenta.SessionUnitBraidT1.HeaderLenTotal)
+    (hkcl : Tacenta.SessionUnitBraidT3.KemCloneAgrees)
+    (hecl : Tacenta.SessionUnitBraidT3.ErasureCloneAgrees)
+    (hrel : SessionRefines dh K real model)
+    (hcomposite : ∀ (decoded : tacenta_wire.DecodedMessage),
+      tacenta_wire.decode_message input.decoded.message.deref = ok (.Ok decoded) →
+      CompositeRefines decoded.header modelComposite)
+    (hchunk : ∀ (realComposite : tacenta_wire.Composite),
+      CompositeRefines realComposite modelComposite →
+      IncomingChunkRefines view model.braid realComposite modelComposite)
+    (hhonest : Tacenta.SessionUnitBraidT3.HonestChunk model.braid
+      (Model.Lifecycle.braidMessageOf view model.braid modelComposite))
+    (hepoch : (Tacenta.SessionUnitBraidT1.State.epoch_val real.braid.state).val + 1 <
+      Std.U64.max) :
+    Nonempty (InitialRatchetDhConcreteEvidence input modelComposite ciphertext) := by
+  obtain ⟨decoded, hdecodeReal, hciphertext, hdecodedComposite⟩ :=
+    decode_message_model_facts_of_nonrefusal input.decoded.message.deref
+      input.hnotbad hdecodeModel
+  have hcomposite' : CompositeRefines decoded.header modelComposite := by
+    exact hcomposite decoded hdecodeReal
+  have hbraid := braid_receive_evidence view contracts real model headroom
+    decoded.header modelComposite hka hea hmac hkdf hlens hvalek hct1len hct2len
+    hheaderlen hkcl hecl hrel hcomposite' (hchunk decoded.header hcomposite')
+    hhonest hepoch
+  obtain ⟨braid⟩ := hbraid
+  exact ⟨{
+    decoded := decoded
+    realComposite := decoded.header
+    evidence := braid
+    hrealComposite := rfl
+    hdecodeReal := hdecodeReal
+    hdecodeModel := by simpa [hciphertext] using hdecodeModel
+    hcomposite := hcomposite'
+  }⟩
+
+/-! Name the non-cryptographic Braid obligations once so the DH provider can
+    be constructed from boundary contracts instead of another anonymous
+    callback.  These are representation/shape obligations, not a replacement
+    for the primitive contracts themselves. -/
+structure InitialRatchetBraidEvidenceContracts
+    {K : Model.Braid.Kem} (view : Model.Lifecycle.CodewordView)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) where
+  contracts : Tacenta.UnitLifecycleT1.BraidReceiveContracts
+  hka : Tacenta.SessionUnitBraidT3.KemAgreesFor K
+  hea : Tacenta.SessionUnitBraidT3.ErasureAgrees
+  hmac : Tacenta.SessionUnitBraidT3.BraidHmacAgrees
+  hkdf : Tacenta.SessionUnitBraidT3.BraidHkdfAgrees
+  hlens : Tacenta.SessionUnitBraidT3.KemLenAgrees K
+  hvalek : Tacenta.SessionUnitBraidT3.ValidateEkAgrees K
+  hct1len : Tacenta.SessionUnitBraidT1.Ct1LenTotal
+  hct2len : Tacenta.SessionUnitBraidT1.Ct2LenTotal
+  hheaderlen : Tacenta.SessionUnitBraidT1.HeaderLenTotal
+  hkcl : Tacenta.SessionUnitBraidT3.KemCloneAgrees
+  hecl : Tacenta.SessionUnitBraidT3.ErasureCloneAgrees
+  hcomposite : ∀ (decoded : tacenta_wire.DecodedMessage)
+      (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
+      tacenta_wire.decode_message message = ok (.Ok decoded) →
+      Model.CompositeHeader.decodeDetailed (sliceOf message) =
+        .ok (modelComposite, ciphertext) →
+      CompositeRefines decoded.header modelComposite
+  hchunk : ∀ (realComposite : tacenta_wire.Composite)
+      (modelComposite : Model.CompositeHeader.Composite),
+      CompositeRefines realComposite modelComposite →
+      IncomingChunkRefines view model.braid realComposite modelComposite
+  hhonest : ∀ (modelComposite : Model.CompositeHeader.Composite),
+      Tacenta.SessionUnitBraidT3.HonestChunk model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid modelComposite)
+  hepoch : (Tacenta.SessionUnitBraidT1.State.epoch_val real.braid.state).val + 1 <
+    Std.U64.max
+
+noncomputable def initial_ratchet_dh_concrete_providers_of_braid_contracts
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+      (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+      (real := real) (model := model) message rng)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hrel : SessionRefines dh K real model)
+    (evidence : InitialRatchetBraidEvidenceContracts (K := K) view real model
+      input.decoded.message.deref) :
+    InitialRatchetDhConcreteProviders input := by
+  refine { first := ?_, second := ?_ }
+  · intro composite ciphertext hdecode hfirst
+    exact initial_ratchet_dh_concrete_evidence_of_braid_contracts input composite ciphertext
+      hdecode evidence.contracts headroom evidence.hka evidence.hea evidence.hmac evidence.hkdf
+      evidence.hlens evidence.hvalek evidence.hct1len evidence.hct2len evidence.hheaderlen
+      evidence.hkcl evidence.hecl hrel
+      (fun decoded hdecoded => evidence.hcomposite decoded composite ciphertext
+        hdecoded hdecode)
+      (fun realComposite hrealComposite => evidence.hchunk realComposite composite hrealComposite)
+      (evidence.hhonest composite) evidence.hepoch
+  · intro composite ciphertext draw oracleAfter hdecode hfirst hdraw hsecond
+    exact initial_ratchet_dh_concrete_evidence_of_braid_contracts input composite ciphertext
+      hdecode evidence.contracts headroom evidence.hka evidence.hea evidence.hmac evidence.hkdf
+      evidence.hlens evidence.hvalek evidence.hct1len evidence.hct2len evidence.hheaderlen
+      evidence.hkcl evidence.hecl hrel
+      (fun decoded hdecoded => evidence.hcomposite decoded composite ciphertext
+        hdecoded hdecode)
+      (fun realComposite hrealComposite => evidence.hchunk realComposite composite hrealComposite)
+      (evidence.hhonest composite) evidence.hepoch
+
 structure InitialRatchetRefusalBranchProviders
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
