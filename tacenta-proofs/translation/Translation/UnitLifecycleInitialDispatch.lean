@@ -8339,6 +8339,18 @@ theorem initial_ratchet_refusal_case_dispatch
       exact haeadProvider composite ciphertext draw oracleNext messageKey dhOutRecv dhOutSend
         tripleCandidate hdecode hfirst hdraw hsecond htriple haead
 
+/-! Package the model-side refusal result once, so the concrete branch
+    evidence and the public splitter consume the same decoded/model step. -/
+structure InitialRatchetModelRefusalResult
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {model : Model.Lifecycle.Session} (message : Slice Std.U8)
+    (modelReason : Model.Lifecycle.Refusal) (oracleNext : Model.Lifecycle.Oracle)
+    (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes) : Prop where
+  hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+    .ok (modelComposite, ciphertext)
+  hmodelStep : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+    { session := model, result := .error modelReason, oracle := oracleNext }
+
 /-! Package the complete result-shaped refusal evidence once, so the public
     splitter can consume branch-specific providers without passing an
     unindexed route callback through every layer. -/
@@ -8491,11 +8503,9 @@ theorem initial_ratchet_nonterminal_route_of_model_result
         ∃ (oracleNext : Model.Lifecycle.Oracle)
           (modelReason : Model.Lifecycle.Refusal)
           (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
-          Model.CompositeHeader.decodeDetailed (sliceOf decoded.message.deref) =
-            .ok (modelComposite, ciphertext) ∧
-          Model.Lifecycle.decryptRatchet view oracle model
-              (sliceOf decoded.message.deref) =
-            { session := model, result := .error modelReason, oracle := oracleNext })
+          InitialRatchetModelRefusalResult (view := view) (oracle := oracle)
+            (model := model) decoded.message.deref modelReason oracleNext
+            modelComposite ciphertext)
     (hproviders : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
       (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
         (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
@@ -8516,8 +8526,10 @@ theorem initial_ratchet_nonterminal_route_of_model_result
         Nonempty (InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
           decoded.message.deref rng reason next rngNext) := by
   intro decoded established hdecode hestablished he hi reason next rngNext hnotbad hcall
-  obtain ⟨oracleNext, modelReason, modelComposite, ciphertext, hdecodeModel, hmodelStep⟩ :=
+  obtain ⟨oracleNext, modelReason, modelComposite, ciphertext, result⟩ :=
     hmodel decoded established hdecode hestablished he hi reason next rngNext hnotbad hcall
+  have hdecodeModel := result.hdecodeModel
+  have hmodelStep := result.hmodelStep
   obtain ⟨modelCase⟩ := initial_ratchet_model_refusal_case_of_result
     view oracle oracleNext model decoded.message.deref modelReason hready
     (by exact ⟨modelComposite, ciphertext, hdecodeModel⟩) hmodelStep
@@ -10198,11 +10210,9 @@ theorem initial_ratchet_refines_of_t1_result_split_with_model_refusal_provider
         ∃ (oracleNext : Model.Lifecycle.Oracle)
           (modelReason : Model.Lifecycle.Refusal)
           (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
-          Model.CompositeHeader.decodeDetailed (sliceOf decoded.message.deref) =
-            .ok (modelComposite, ciphertext) ∧
-          Model.Lifecycle.decryptRatchet view oracle model
-              (sliceOf decoded.message.deref) =
-            { session := model, result := .error modelReason, oracle := oracleNext })
+          InitialRatchetModelRefusalResult (view := view) (oracle := oracle)
+            (model := model) decoded.message.deref modelReason oracleNext
+            modelComposite ciphertext)
     (hproviders : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
       (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
         (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
@@ -10289,11 +10299,9 @@ theorem initial_ratchet_refines_of_t1_result_split_with_model_step_and_concrete_
         ∃ (oracleNext : Model.Lifecycle.Oracle)
           (modelReason : Model.Lifecycle.Refusal)
           (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
-          Model.CompositeHeader.decodeDetailed (sliceOf decoded.message.deref) =
-            .ok (modelComposite, ciphertext) ∧
-          Model.Lifecycle.decryptRatchet view oracle model
-              (sliceOf decoded.message.deref) =
-            { session := model, result := .error modelReason, oracle := oracleNext })
+          InitialRatchetModelRefusalResult (view := view) (oracle := oracle)
+            (model := model) decoded.message.deref modelReason oracleNext
+            modelComposite ciphertext)
     (hproviders : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
       (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
         (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
@@ -10377,11 +10385,9 @@ theorem decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
         ∃ (oracleNext : Model.Lifecycle.Oracle)
           (modelReason : Model.Lifecycle.Refusal)
           (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
-          Model.CompositeHeader.decodeDetailed (sliceOf decoded.message.deref) =
-            .ok (modelComposite, ciphertext) ∧
-          Model.Lifecycle.decryptRatchet view oracle model
-              (sliceOf decoded.message.deref) =
-            { session := model, result := .error modelReason, oracle := oracleNext })
+          InitialRatchetModelRefusalResult (view := view) (oracle := oracle)
+            (model := model) decoded.message.deref modelReason oracleNext
+            modelComposite ciphertext)
     (evidence : InitialRatchetConcreteBranchEvidence
       (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
       (view := view) (oracle := oracle) (real := real) (model := model))
