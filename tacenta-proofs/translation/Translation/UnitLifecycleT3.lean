@@ -2060,6 +2060,49 @@ theorem triple_send_candidate_post_of_contracts
         hnewb hepoch hcounter
       exact hstate
 
+/-! The generated candidate result plus the contract-backed Triple adapter can
+    also produce the model's detailed success result.  This is the success
+    counterpart to the refusal bridge: the model successor, header and key
+    are existentially tied to the same concrete candidate and output. -/
+theorem triple_success_evidence_of_exact_candidate_and_contracts
+    {s : tacenta_triple.State} {m : Model.Triple.State}
+    (contracts : TripleSendRefinementContracts)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (sendingEpoch : Std.U64) (output : Option tacenta_spqr.Output)
+    (hroom : m.postQuantum.chains.length + 1 < Usize.max)
+    (hcb : ∀ p ∈ m.postQuantum.chains,
+      p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hsb : ∀ sk ∈ m.postQuantum.skipped,
+      sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hnewb : ∀ o : tacenta_spqr.Output, output = some o →
+      o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hepoch : m.postQuantum.epoch + 1 < Std.U64.max)
+    (hcounter : ∀ p ∈ m.postQuantum.chains, ∀ ch : Model.SparseRatchet.Chain,
+      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
+    {candidate : tacenta_triple.State}
+    {header : tacenta_triple.Header} {mk : Array Std.U8 32#usize}
+    (hsend : lifecycle.send_candidate s sendingEpoch output =
+      ok (candidate, .Ok (header, mk))) :
+    ∃ modelCandidate modelHeader modelMk,
+      Model.Triple.sendDetailed m sendingEpoch.val
+        (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) =
+          .ok (modelCandidate, modelHeader, modelMk) ∧
+      Tacenta.SessionUnitTripleT3.StateRefines
+        Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+        candidate modelCandidate ∧
+      Tacenta.SessionUnitTripleT3.TripleHeaderR header modelHeader ∧
+      Tacenta.SessionUnitTripleT3.keyOf mk = modelMk := by
+  have hpost := triple_send_candidate_post_of_contracts contracts hrel sendingEpoch output
+    hroom hcb hsb hnewb hepoch hcounter hsend
+  obtain ⟨modelCandidate, modelHeader, modelMk, hsome, hstate, hheader, hkey⟩ :=
+    hpost.1 header mk (by rfl)
+  have hdetail := (Model.Triple.sendDetailed_ok_iff m sendingEpoch.val
+    (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf)
+    (modelCandidate, modelHeader, modelMk)).2 hsome
+  exact ⟨modelCandidate, modelHeader, modelMk, hdetail, hstate, hheader, hkey⟩
+
 /-- `decrypt_ratchet` has the same terminal agreement guard as `encrypt`: it
 returns the exact public refusal without decoding attacker-controlled bytes or
 changing state/randomness. -/
