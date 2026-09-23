@@ -6253,6 +6253,21 @@ def initial_ratchet_refusal_evidence_of_pair {R : Type}
       message rng reason next rngNext :=
   { hcall := hcall, hstep := hstep }
 
+/-! A model random-source ceiling is only compatible with an empty draw
+trace.  This small contradiction lemma makes the missing ceiling premise
+explicit: any caller that proves the receive path starts with a concrete draw
+may eliminate the model `.ceiling` case before constructing a public refusal
+route. -/
+theorem model_random32_none_impossible_of_trace_head
+    (trace : R → List Model.Lifecycle.Key)
+    (oracle : Model.Lifecycle.Oracle) (rng : R)
+    (htrace : trace rng = oracle.draws)
+    (hhead : ∃ draw rest, trace rng = draw :: rest)
+    (hnone : Model.Lifecycle.random32 oracle = none) : False := by
+  obtain ⟨draw, rest, hhead⟩ := hhead
+  have horacle : oracle.draws = draw :: rest := htrace.symm.trans hhead
+  simp [Model.Lifecycle.random32, Model.Lifecycle.takeDraw, horacle] at hnone
+
 /-! Invert an exact model refusal after a valid composite decode. The
     classifier preserves the branch-local composite, DH draws, Triple result,
     AEAD verdict and oracle successor; the ceiling arm is explicit so a caller
