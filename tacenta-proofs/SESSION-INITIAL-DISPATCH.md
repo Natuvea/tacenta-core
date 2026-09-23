@@ -167,6 +167,10 @@ draw contract without choosing a successor state independently.
 `InitialRatchetTripleRefusalPrefix` packages these facts for the next adapter,
 so the provider consumes a record selected from the exact refusal equation
 rather than a fresh existential.
+`initial_ratchet_braid_evidence_of_triple_refusal_prefix` now turns that record
+into the shared Braid evidence, and `triple_refusal_prefix_trace_next` derives
+the advanced trace from the ordered `OracleOf.random32` contract. The actual
+Triple refusal adapter still needs the remaining model and primitive premises.
 The next step is to feed this prefix into `decrypt_ratchet_triple_refusal_from_braid`
 and its shared Braid/primitive contracts, then add the analogous AEAD prefix
 before instantiating the indexed refusal provider.

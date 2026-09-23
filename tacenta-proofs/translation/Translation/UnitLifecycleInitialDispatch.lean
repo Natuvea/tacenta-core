@@ -1178,6 +1178,66 @@ noncomputable def initial_ratchet_triple_refusal_prefix_of_result {R : Type}
     hwrapSend := hwrapSend, hderefSend := hderefSend, hbefore := hbefore,
     hheader := hheader, hpublic := hpublic, hpublicBytes := hpublicBytes, htriple := htriple }⟩)
 
+def initial_ratchet_braid_evidence_of_triple_refusal_prefix
+    {R : Type} {K : Model.Braid.Kem} {view : Model.Lifecycle.CodewordView}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {realReason : tacenta_triple.TripleError} {next : lifecycle.Session}
+    (pref : InitialRatchetTripleRefusalPrefix rngCore cryptoRng real message rng rngNext
+      realReason next)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (hmessageRel : Tacenta.SessionUnitBraidT3.MsgRefines pref.m
+      (Model.Lifecycle.braidMessageOf view model.braid modelComposite))
+    (hnext : Tacenta.SessionUnitBraidT3.StateRefines K pref.braidCandidate.state
+      (Model.Braid.receive K model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.2) :
+    BraidReceiveEvidence K view real model pref.decoded.header modelComposite :=
+  { message := pref.m
+    receivedEpoch := pref.receivedEpoch
+    output := pref.output
+    next := pref.braidCandidate
+    sparseOutput := pref.sparseOutput
+    hmessageCall := pref.hmessage
+    hmessageRel := hmessageRel
+    hreceive := pref.hreceive
+    hsparse := pref.hsparse
+    hnext := hnext }
+
+theorem triple_refusal_prefix_trace_next
+    {R : Type} {rngCore : rand_core_1.RngCore R} {cryptoRng : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
+    {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {message : Slice Std.U8} {rng rngNext : R}
+    {realReason : tacenta_triple.TripleError} {next : lifecycle.Session}
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (pref : InitialRatchetTripleRefusalPrefix rngCore cryptoRng real message rng rngNext
+      realReason next)
+    (htrace : trace rng = oracle.draws)
+    (draw : Model.Lifecycle.Key)
+    (hmodelDraw : Model.Lifecycle.random32 oracle = some (draw, oracleNext)) :
+    trace rngNext = oracleNext.draws := by
+  cases hd : oracle.draws with
+  | nil =>
+      simp [Model.Lifecycle.random32, Model.Lifecycle.takeDraw, hd] at hmodelDraw
+  | cons head rest =>
+      simp only [Model.Lifecycle.random32, Model.Lifecycle.takeDraw, hd,
+        Option.some.injEq, Prod.mk.injEq] at hmodelDraw
+      have hdrawHead : head = draw := hmodelDraw.1
+      have hdrawRest : rest = oracleNext.draws := by
+        have hrest := congrArg Model.Lifecycle.Oracle.draws hmodelDraw.2
+        simpa using hrest
+      have htraceDraw : trace rng = draw :: rest := by simpa [htrace, hd, hdrawHead]
+      obtain ⟨candidateBytes, realRngNext, hrandomCall, hdrawBytes, htraceNext⟩ :=
+        oracleOf.random32 rng draw rest htraceDraw
+      have heq := pref.hrandom.symm.trans hrandomCall
+      have hrngEq : realRngNext = pref.rng1 := by
+        have hpair : (pref.candidateBytes, pref.rng1) = (candidateBytes, realRngNext) := by
+          injection heq
+        exact (Prod.mk.inj hpair).2.symm
+      subst realRngNext
+      simpa [pref.hrng, hdrawRest] using htraceNext
+
 /-! Continue inversion through the first public-key decode and DH agreement.
 The result is still tied to the same concrete success equation; a failed or
 diverging boundary call cannot be hidden behind a caller-supplied witness. -/
