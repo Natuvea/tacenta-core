@@ -4367,6 +4367,56 @@ structure InitialRatchetSuccessPrefix {R : Type}
     (alloc.vec.Vec.deref decoded.ciphertext) (alloc.vec.Vec.deref realAd) =
     ok (.Ok aeadPlaintext)
 
+/-! The generated success prefix fixes the exact Triple lifecycle input.  These
+    two projections expose the concrete and model direct/full-store partitions
+    that the caller-level splice must align before choosing a refinement
+    adapter; neither projection invents a branch or replaces the returned
+    candidate. -/
+theorem initial_ratchet_success_prefix_receive_cases {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {real : lifecycle.Session} {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next) :
+    (∃ direct,
+      lifecycle.receive_attempt real.triple successPrefix.realHeader
+        successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+        successPrefix.sparseOutput = ok (.Ok direct) ∧
+      direct = (successPrefix.realTripleCandidate, successPrefix.realMk)) ∨
+    (∃ reason half,
+      lifecycle.receive_attempt real.triple successPrefix.realHeader
+        successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+        successPrefix.sparseOutput = ok (.Err reason) ∧
+      lifecycle.full_store reason = ok (some half)) := by
+  exact concrete_receive_with_eviction_success_cases real.triple
+    successPrefix.decoded.header successPrefix.realHeader successPrefix.recvSecret
+    successPrefix.sendSecret successPrefix.newPublicBytes successPrefix.sparseOutput
+    (successPrefix.realTripleCandidate, successPrefix.realMk) successPrefix.htriple
+
+theorem initial_ratchet_model_success_receive_cases
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message) :
+    (∃ direct,
+      Model.Triple.receiveDetailed model.triple (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+        facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+        (Model.Lifecycle.sparseOutputOf
+          (Model.Braid.receive oracle.braidKem model.braid
+            (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1) =
+        .ok direct ∧ direct = (facts.modelTripleCandidate, facts.modelMk)) ∨
+    (∃ reason half,
+      Model.Triple.receiveDetailed model.triple (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+        facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+        (Model.Lifecycle.sparseOutputOf
+          (Model.Braid.receive oracle.braidKem model.braid
+            (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1) =
+        .error reason ∧ Model.Lifecycle.fullStore reason = some half) := by
+  exact model_receive_with_eviction_success_cases model.triple facts.modelComposite
+    (Model.Lifecycle.tripleHeaderOf facts.modelComposite) facts.modelDhOutRecv
+    facts.modelDhOutSend (oracle.dhPublic facts.draw)
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+    (facts.modelTripleCandidate, facts.modelMk) facts.hmodelTriple
+
 /-! The generated success prefix already contains the complete Braid receive
 computation.  This constructor exposes it as the shared evidence record used
 by the refusal and success adapters; only the message/state relation to the
