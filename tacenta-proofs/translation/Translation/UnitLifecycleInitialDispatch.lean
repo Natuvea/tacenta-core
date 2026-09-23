@@ -5683,6 +5683,69 @@ noncomputable def initial_ratchet_success_evidence_of_result_and_splice {R : Typ
   exact initial_ratchet_success_evidence_of_splice successPrefix facts
     (hsplice successPrefix) hreal
 
+/-! Result-indexed success construction with no abstract splice callback.  The
+    generated `Ok` result fixes the success prefix; the two branch providers
+    below are therefore indexed by that exact prefix and select only from the
+    concrete `receive_attempt` result.  This is the adapter used when wiring
+    the success arm into `InitialRatchetRefines`. -/
+noncomputable def initial_ratchet_success_evidence_of_result_and_concrete_case
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (hreal : lifecycle.Session.decrypt_ratchet rc crc real message rng =
+      ok (.Ok plaintext, next, rngNext))
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (hdirect : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+        rng rngNext plaintext next)
+      (direct : tacenta_triple.State × Array Std.U8 32#usize),
+      lifecycle.receive_attempt real.triple successPrefix.realHeader
+        successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+        successPrefix.sparseOutput = ok (.Ok direct) →
+      direct = (successPrefix.realTripleCandidate, successPrefix.realMk) →
+      InitialRatchetSuccessBranchAt successPrefix facts)
+    (hretry : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+        rng rngNext plaintext next)
+      (realReason : tacenta_triple.TripleError) (half : lifecycle.FullStore),
+      lifecycle.receive_attempt real.triple successPrefix.realHeader
+        successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+        successPrefix.sparseOutput = ok (.Err realReason) →
+      lifecycle.full_store realReason = ok (some half) →
+      InitialRatchetSuccessBranchAt successPrefix facts)
+    (hrel : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+        rng rngNext plaintext next), SessionRefines dh K real model)
+    (hmessageRel : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+        rng rngNext plaintext next),
+      Tacenta.SessionUnitBraidT3.MsgRefines successPrefix.m
+        (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite))
+    (hkem : K = oracle.braidKem)
+    (hbraidReceive : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real
+        message rng rngNext plaintext next),
+      Tacenta.SessionUnitBraidT3.StateRefines K successPrefix.braidCandidate.state
+        (Model.Braid.receive K model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.2)
+    (hprivate : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+        rng rngNext plaintext next), dh.privateKey successPrefix.candidatePrivate = facts.draw)
+    (hbytes : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+        rng rngNext plaintext next), vecOf plaintext = facts.modelPlaintext)
+    (htrace : trace rngNext = oracleNext.draws) :
+    InitialRatchetSuccessEvidence rc crc trace dh K view oracle real model message rng
+      plaintext next rngNext := by
+  let successPrefix := Classical.choice (initial_ratchet_success_prefix_of_result
+    rc crc hz32 hzKeys real message rng rngNext plaintext next hreal)
+  have hsplice : InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
+      successPrefix facts :=
+    initial_ratchet_success_splice_of_concrete_receive_case successPrefix facts
+      (hdirect successPrefix) (hretry successPrefix) (hrel successPrefix)
+      (hmessageRel successPrefix) hkem (hbraidReceive successPrefix)
+      (hprivate successPrefix) (hbytes successPrefix) htrace
+  exact initial_ratchet_success_evidence_of_splice successPrefix facts hsplice hreal
+
 theorem initial_ratchet_success_step_from_evidence {R : Type}
     (evidence : InitialRatchetSuccessEvidence rc crc trace dh K view oracle real model
       message rng plaintext next rngNext) :
