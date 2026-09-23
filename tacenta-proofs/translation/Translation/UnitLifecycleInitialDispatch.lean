@@ -9829,6 +9829,25 @@ structure InitialRatchetConcreteBranchEvidence
       oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
       Model.Lifecycle.random32 oracle = none → False
 
+/-! The public composition consumes one coherent evidence object.  Keeping the
+    concrete branch package and the result-indexed model package together is
+    more than cosmetic: both are indexed by the same real/model session and
+    message, so the dispatcher cannot accidentally pair branch evidence from
+    one generated call with refusal/success callbacks from another call. -/
+structure InitialRatchetEndToEndEvidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    (message : Slice Std.U8) (rng : R) where
+  concrete : InitialRatchetConcreteBranchEvidence
+    (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+    (view := view) (oracle := oracle) (real := real) (model := model)
+  model : InitialRatchetModelResultEvidence
+    (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+    (view := view) (oracle := oracle) (real := real) (model := model)
+    message rng
+
 noncomputable def initial_ratchet_refusal_branch_providers_of_evidence_package
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -10169,80 +10188,6 @@ theorem initial_ratchet_refines_of_t1_result_split_with_route_evidence
       (hrefusalRoute decoded established hdecode hestablished he hi reason next rngNext hcall)
   · exact hsuccess
 
-/-! Final wrapper composition for the result-shaped split.  The model guard
-    and decoder are classified here from the actual input, so callers only
-    provide the genuinely nonterminal DH/Triple/AEAD route.  Each wrapper
-    branch is reconciled with the caller's exact `Err` result before it is
-    injected into the indexed route sum. -/
-theorem initial_ratchet_refines_of_t1_result_split_with_nonterminal_route
-    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
-    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
-    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
-    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
-    {message : Slice Std.U8} {rng : R}
-    [Tacenta.SessionUnitT1.DerivedKeysModel]
-    (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
-    (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
-    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
-    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
-    (hzKeys : ZeroizingRoundTrips
-      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
-    (hnonterminalRoute : ∀ (decoded : tacenta_wire.DecodedInitial)
-      (established : alloc.vec.Vec Std.U8),
-      tacenta_wire.decode_initial message = ok (.Ok decoded) →
-      real.established_ephemeral = some established →
-      vecOf established = vecOf decoded.ephemeral →
-      vecOf decoded.identity =
-        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
-      ∀ (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R),
-        (∀ realReason,
-          tacenta_wire.decode_message decoded.message.deref ≠ ok (.Err realReason)) →
-        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
-          ok (.Err reason, next, rngNext) →
-        InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
-          decoded.message.deref rng reason next rngNext)
-    (hsuccess : ∀ (decoded : tacenta_wire.DecodedInitial)
-      (established : alloc.vec.Vec Std.U8),
-      tacenta_wire.decode_initial message = ok (.Ok decoded) →
-      real.established_ephemeral = some established →
-      vecOf established = vecOf decoded.ephemeral →
-      vecOf decoded.identity =
-        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
-      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
-        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
-          ok (.Ok plaintext, next, rngNext) →
-        ∃ oracleNext, ∃ facts : InitialRatchetModelSuccessFacts view oracle oracleNext
-          model decoded.message.deref,
-          Nonempty (∀ successPrefix : InitialRatchetSuccessPrefix rc crc real
-              decoded.message.deref rng rngNext plaintext next,
-            InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
-              successPrefix facts)) :
-    InitialRatchetRefines rc crc trace dh K view oracle real model message rng := by
-  apply initial_ratchet_refines_of_t1_result_split_with_route_evidence boundary headroom hz32 hzKeys
-  · intro decoded established hdecode hestablished he hi reason next rngNext hcall
-    by_cases hfailed : Model.Lifecycle.agreementFailed model = true
-    · obtain ⟨hterminal, hstep⟩ := decrypt_ratchet_terminal_guard_step_refines rc crc
-        trace dh K view oracle real model decoded.message.deref rng
-        ctx.hrel ctx.htrace hfailed
-      have heq := Result.ok.inj (hcall.symm.trans hterminal)
-      cases heq
-      exact .terminal ⟨hcall, hstep⟩
-    · have hready : Model.Lifecycle.agreementFailed model = false := by
-        cases h : Model.Lifecycle.agreementFailed model <;> simp_all
-      by_cases hbad : ∃ realReason,
-          tacenta_wire.decode_message decoded.message.deref = ok (.Err realReason)
-      · let realReason := Classical.choose hbad
-        have hbadDecode := Classical.choose_spec hbad
-        obtain ⟨hdecodeCall, hdecodeStep⟩ := decrypt_ratchet_decode_refusal_refines rc crc
-          trace dh K view oracle real model decoded.message.deref rng realReason
-          ctx.hrel ctx.htrace hready hbadDecode
-        have heq := Result.ok.inj (hcall.symm.trans hdecodeCall)
-        cases heq
-        exact .decode realReason ⟨hcall, hdecodeStep⟩
-      · exact hnonterminalRoute decoded established hdecode hestablished he hi
-          reason next rngNext (by simpa using hbad) hcall
-  · exact hsuccess
-
 /-! Compose the ready-state refusal provider with the actual result split. The
     terminal guard is handled before the provider is called; malformed messages
     are handled inside the nonterminal splitter. -/
@@ -10433,19 +10378,16 @@ theorem initial_ratchet_refines_of_t1_with_concrete_evidence
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
     (hzKeys : ZeroizingRoundTrips
       (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
-    (evidence : InitialRatchetConcreteBranchEvidence
-      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
-      (view := view) (oracle := oracle) (real := real) (model := model))
-    (modelEvidence : InitialRatchetModelResultEvidence
+    (evidence : InitialRatchetEndToEndEvidence
       (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
       (view := view) (oracle := oracle) (real := real) (model := model)
       message rng) :
     InitialRatchetRefines rc crc trace dh K view oracle real model message rng := by
   exact initial_ratchet_refines_of_t1_result_split_with_model_step_and_concrete_provider
-    ctx boundary headroom hz32 hzKeys modelEvidence.refusal
+    ctx boundary headroom hz32 hzKeys evidence.model.refusal
     (initial_ratchet_refusal_branch_providers_of_evidence_package
-      kem codec oracleOf hz32 hzKeys ctx.hrel evidence)
-    modelEvidence.successStep modelEvidence.successProvider
+      kem codec oracleOf hz32 hzKeys ctx.hrel evidence.concrete)
+    evidence.model.successStep evidence.model.successProvider
 
 /-! The public initial-message bridge now reuses that exact inner witness.  The
     refusal side is indexed by the concrete model result and its five typed
@@ -10467,17 +10409,14 @@ theorem decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
     (hzKeys : ZeroizingRoundTrips
       (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
-    (evidence : InitialRatchetConcreteBranchEvidence
-      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
-      (view := view) (oracle := oracle) (real := real) (model := model))
-    (modelEvidence : InitialRatchetModelResultEvidence
+    (evidence : InitialRatchetEndToEndEvidence
       (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
       (view := view) (oracle := oracle) (real := real) (model := model)
       message rng) :
     PublicDecryptWitness rc crc trace dh K view oracle real model message rng := by
   exact decrypt_initial_refines_from_ratchet codec ctx
     (initial_ratchet_refines_of_t1_with_concrete_evidence codec kem oracleOf ctx boundary
-      headroom hz32 hzKeys evidence modelEvidence)
+      headroom hz32 hzKeys evidence)
 
 /-! The public initial-message composition exposes both obligations that a
     caller needs at the Session boundary: the returned `StepRefines` witness
@@ -10501,10 +10440,7 @@ theorem decrypt_initial_end_to_end_with_concrete_evidence
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
     (hzKeys : ZeroizingRoundTrips
       (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
-    (evidence : InitialRatchetConcreteBranchEvidence
-      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
-      (view := view) (oracle := oracle) (real := real) (model := model))
-    (modelEvidence : InitialRatchetModelResultEvidence
+    (evidence : InitialRatchetEndToEndEvidence
       (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
       (view := view) (oracle := oracle) (real := real) (model := model)
       message rng) :
@@ -10520,7 +10456,7 @@ theorem decrypt_initial_end_to_end_with_concrete_evidence
           lifecycle.Session.decrypt rc crc real message rng = ok output ∧
           output.2.1.pending_initial.map (pendingInitialOf dh) = none)) := by
   let witness := decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
-    codec kem oracleOf ctx boundary headroom hz32 hzKeys evidence modelEvidence
+    codec kem oracleOf ctx boundary headroom hz32 hzKeys evidence
   refine ⟨witness, ?_⟩
   exact public_decrypt_witness_atomicity_cases rc crc trace dh K view oracle
     real model message rng witness
