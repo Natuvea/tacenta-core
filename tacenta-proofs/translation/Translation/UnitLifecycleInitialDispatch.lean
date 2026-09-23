@@ -9593,11 +9593,12 @@ theorem initial_ratchet_refines_of_t1_result_split_with_model_step_and_concrete_
   · exact initial_ratchet_success_callback_of_model_step_and_provider hmodelStep hprovider
 
 
-/-! Public initial-message bridge for the completed result split.  Once the
-    nonterminal route and success splice are supplied, this is the theorem
-    consumed by the ordinary `Session::decrypt` dispatcher; no route sum or
-    inner result remains abstract above this point. -/
-theorem decrypt_initial_refines_of_t1_with_nonterminal_route
+/-! Public initial-message bridge for the completed result split.  The refusal
+    side is now indexed by the concrete model result and its five typed branch
+    providers; the success side is indexed by the generated `Ok` result and a
+    concrete receive provider.  Thus this boundary no longer accepts an
+    unindexed `hnonterminalRoute` or an independently chosen `hsuccess`. -/
+theorem decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
     {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
@@ -9611,7 +9612,8 @@ theorem decrypt_initial_refines_of_t1_with_nonterminal_route
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
     (hzKeys : ZeroizingRoundTrips
       (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
-    (hnonterminalRoute : ∀ (decoded : tacenta_wire.DecodedInitial)
+    (hmodelRefusal : ∀ (hready : Model.Lifecycle.agreementFailed model = false)
+      (decoded : tacenta_wire.DecodedInitial)
       (established : alloc.vec.Vec Std.U8),
       tacenta_wire.decode_initial message = ok (.Ok decoded) →
       real.established_ephemeral = some established →
@@ -9623,9 +9625,20 @@ theorem decrypt_initial_refines_of_t1_with_nonterminal_route
           tacenta_wire.decode_message decoded.message.deref ≠ ok (.Err realReason)) →
         lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
           ok (.Err reason, next, rngNext) →
-        InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
-          decoded.message.deref rng reason next rngNext)
-    (hsuccess : ∀ (decoded : tacenta_wire.DecodedInitial)
+        ∃ (oracleNext : Model.Lifecycle.Oracle)
+          (modelReason : Model.Lifecycle.Refusal)
+          (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
+          Model.CompositeHeader.decodeDetailed (sliceOf decoded.message.deref) =
+            .ok (modelComposite, ciphertext) ∧
+          Model.Lifecycle.decryptRatchet view oracle model
+              (sliceOf decoded.message.deref) =
+            { session := model, result := .error modelReason, oracle := oracleNext })
+    (hproviders : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
+      (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+        (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+        (real := real) (model := model) innerMessage innerRng),
+      InitialRatchetRefusalBranchProviders input)
+    (hmodelStep : ∀ (decoded : tacenta_wire.DecodedInitial)
       (established : alloc.vec.Vec Std.U8),
       tacenta_wire.decode_initial message = ok (.Ok decoded) →
       real.established_ephemeral = some established →
@@ -9635,16 +9648,35 @@ theorem decrypt_initial_refines_of_t1_with_nonterminal_route
       ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
         lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
           ok (.Ok plaintext, next, rngNext) →
-        ∃ oracleNext, ∃ facts : InitialRatchetModelSuccessFacts view oracle oracleNext
-          model decoded.message.deref,
-          Nonempty (∀ successPrefix : InitialRatchetSuccessPrefix rc crc real
-              decoded.message.deref rng rngNext plaintext next,
-            InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
-              successPrefix facts)) :
+        ∃ (modelNext : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+          (oracleNext : Model.Lifecycle.Oracle),
+          Model.Lifecycle.decryptRatchet view oracle model
+              (sliceOf decoded.message.deref) =
+            { session := modelNext, result := .ok modelPlaintext, oracle := oracleNext })
+    (hprovider : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        ∀ (modelNext : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+          (oracleNext : Model.Lifecycle.Oracle)
+          (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model
+            decoded.message.deref),
+          InitialRatchetConcreteSuccessProvider
+            (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+            (view := view) (oracle := oracle) (oracleNext := oracleNext)
+            (real := real) (model := model) (message := decoded.message.deref)
+            (rng := rng) (rngNext := rngNext) (plaintext := plaintext) (next := next)
+            facts) :
     PublicDecryptWitness rc crc trace dh K view oracle real model message rng := by
   exact decrypt_initial_refines_from_ratchet codec ctx
-    (initial_ratchet_refines_of_t1_result_split_with_nonterminal_route ctx boundary
-      headroom hz32 hzKeys hnonterminalRoute hsuccess)
+    (initial_ratchet_refines_of_t1_result_split_with_model_step_and_concrete_provider
+      ctx boundary headroom hz32 hzKeys hmodelRefusal hproviders hmodelStep hprovider)
 
 /-- Derive the inner call's existence from T1. The supplied semantic relation
 must hold for every actual output; it cannot assume the call succeeds or pick
