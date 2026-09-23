@@ -210,3 +210,13 @@ therefore indexed by the concrete `.Triple` refusal and the model refusal
 facts; no detached Braid candidate or RNG successor can be substituted.
 Focused Lean compilation passes. The AEAD refusal prefix and the final indexed
 provider/public Session bridge remain the next semantic work.
+
+## Verification — 2026-09-23 (`5eed3f9`)
+
+The Triple refusal adapter and refreshed attestations are on the pushed head
+`5eed3f9`. Focused Lean compilation and `attest.py --check` pass. The exact
+head `no-sorry.sh` replay is clean: translation/T1/T3 replayed 68 modules,
+model proofs 11, model/property proofs 34; all 13 audit negatives, construct
+checks, reachability, and the dispatcher mutation controls passed. Hosted CI
+run `35827850983` is on this exact SHA; rust, proofs, audit, checks, msrv,
+armv7, and sign-off are green while vectors and translation finish.
