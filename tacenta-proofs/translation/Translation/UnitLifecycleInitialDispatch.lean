@@ -8357,6 +8357,8 @@ structure InitialRatchetRefusalBranchInput
     tacenta_wire.decode_message decoded.message.deref ≠ ok (.Err realReason)
   hcall : lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
     ok (.Err reason, next, rngNext)
+  hready : Model.Lifecycle.agreementFailed model = false
+  htrace : trace rng = oracle.draws
   oracleNext : Model.Lifecycle.Oracle
   modelReason : Model.Lifecycle.Refusal
   modelComposite : Model.CompositeHeader.Composite
@@ -8473,6 +8475,7 @@ theorem initial_ratchet_nonterminal_route_of_model_result
     {real : lifecycle.Session} {model : Model.Lifecycle.Session}
     {message : Slice Std.U8} {rng : R}
     (hready : Model.Lifecycle.agreementFailed model = false)
+    (htrace : trace rng = oracle.draws)
     (hmodel : ∀ (decoded : tacenta_wire.DecodedInitial)
       (established : alloc.vec.Vec Std.U8),
       tacenta_wire.decode_initial message = ok (.Ok decoded) →
@@ -8523,6 +8526,7 @@ theorem initial_ratchet_nonterminal_route_of_model_result
       (real := real) (model := model) decoded.message.deref rng :=
     { decoded := decoded, established := established, reason := reason,
       next := next, rngNext := rngNext, hnotbad := hnotbad, hcall := hcall,
+      hready := hready, htrace := htrace,
       oracleNext := oracleNext, modelReason := modelReason,
       modelComposite := modelComposite, ciphertext := ciphertext,
       hdecodeModel := hdecodeModel, hmodelStep := hmodelStep, hcase := modelCase }
@@ -9759,12 +9763,6 @@ noncomputable def initial_ratchet_refusal_branch_providers_of_evidence_package
     (hzKeys : ZeroizingRoundTrips
       (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
     (hrel : SessionRefines dh K real model)
-    (hready : Model.Lifecycle.agreementFailed model = false)
-    (htrace : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
-      (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
-        (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
-        (real := real) (model := model) innerMessage innerRng),
-      trace innerRng = oracle.draws)
     (evidence : InitialRatchetConcreteBranchEvidence
       (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
       (view := view) (oracle := oracle) (real := real) (model := model)) :
@@ -9775,7 +9773,7 @@ noncomputable def initial_ratchet_refusal_branch_providers_of_evidence_package
       InitialRatchetRefusalBranchProviders input := by
   intro innerMessage innerRng input
   exact initial_ratchet_refusal_branch_providers_of_concrete_evidence input kem codec
-    oracleOf hz32 hzKeys hrel (htrace input) hready
+    oracleOf hz32 hzKeys hrel input.htrace input.hready
     (evidence.dhEvidence input) (evidence.tripleEvidence input)
     (evidence.aeadEvidence input)
     (evidence.ceiling input)
@@ -10252,7 +10250,7 @@ theorem initial_ratchet_refines_of_t1_result_split_with_model_refusal_provider
           tacenta_wire.decode_message decoded.message.deref ≠ ok (.Err realReason) := by
             simpa using hbad
         exact Classical.choice (initial_ratchet_nonterminal_route_of_model_result hready
-          (hmodelRefusal hready) hproviders decoded established hdecode hestablished he hi
+          ctx.htrace (hmodelRefusal hready) hproviders decoded established hdecode hestablished he hi
           reason next rngNext hnotbad hcall)
   · exact hsuccess
 
@@ -10355,6 +10353,8 @@ theorem decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
     {message : Slice Std.U8} {rng : R}
     [Tacenta.SessionUnitT1.DerivedKeysModel]
     (codec : DhCodecOf dh)
+    (kem : KemView)
+    (oracleOf : OracleOf rc crc dh kem trace oracle)
     (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
     (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
     (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
@@ -10382,11 +10382,9 @@ theorem decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
           Model.Lifecycle.decryptRatchet view oracle model
               (sliceOf decoded.message.deref) =
             { session := model, result := .error modelReason, oracle := oracleNext })
-    (hproviders : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
-      (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
-        (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
-        (real := real) (model := model) innerMessage innerRng),
-      InitialRatchetRefusalBranchProviders input)
+    (evidence : InitialRatchetConcreteBranchEvidence
+      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+      (view := view) (oracle := oracle) (real := real) (model := model))
     (hmodelStep : ∀ (decoded : tacenta_wire.DecodedInitial)
       (established : alloc.vec.Vec Std.U8),
       tacenta_wire.decode_initial message = ok (.Ok decoded) →
@@ -10425,7 +10423,10 @@ theorem decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
     PublicDecryptWitness rc crc trace dh K view oracle real model message rng := by
   exact decrypt_initial_refines_from_ratchet codec ctx
     (initial_ratchet_refines_of_t1_result_split_with_model_step_and_concrete_provider
-      ctx boundary headroom hz32 hzKeys hmodelRefusal hproviders hmodelStep hprovider)
+      ctx boundary headroom hz32 hzKeys hmodelRefusal
+      (initial_ratchet_refusal_branch_providers_of_evidence_package
+        kem codec oracleOf hz32 hzKeys ctx.hrel evidence)
+      hmodelStep hprovider)
 
 /-- Derive the inner call's existence from T1. The supplied semantic relation
 must hold for every actual output; it cannot assume the call succeeds or pick
