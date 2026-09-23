@@ -120,10 +120,33 @@ def sendAgreement (oracle : Oracle) (state : Model.Braid.BraidState) :
   else
     some (Model.Braid.send oracle.braidKem 0 state, oracle)
 
+/-! In the nine Braid states which do not draw randomness, the model's
+    `rand` argument is deliberately ignored.  Keeping this fact explicit is
+    useful at the Session boundary: the translated `Braid::send` result can
+    be related to `sendAgreement` without inventing a draw or changing the
+    caller's oracle. -/
+theorem braid_send_random_irrelevant_of_no_draw
+    (K : Model.Braid.Kem) (state : Model.Braid.BraidState)
+    (h : braidSendNeedsDraw state = false) (rand : Nat) :
+    Model.Braid.send K rand state = Model.Braid.send K 0 state := by
+  cases state <;> simp [braidSendNeedsDraw, Model.Braid.send] at h ⊢
+
 theorem sendAgreement_no_draw (oracle : Oracle) (state : Model.Braid.BraidState)
     (h : braidSendNeedsDraw state = false) :
     sendAgreement oracle state = some (Model.Braid.send oracle.braidKem 0 state, oracle) := by
   simp [sendAgreement, h]
+
+theorem sendAgreement_of_no_draw_exists
+    (oracle : Oracle) (state : Model.Braid.BraidState)
+    (h : braidSendNeedsDraw state = false)
+    (P : Nat → Prop) (hexists : ∃ rand, P rand) :
+    ∃ rand, P rand ∧
+      sendAgreement oracle state =
+        some (Model.Braid.send oracle.braidKem rand state, oracle) := by
+  obtain ⟨rand, hP⟩ := hexists
+  refine ⟨rand, hP, ?_⟩
+  rw [sendAgreement_no_draw oracle state h]
+  rw [braid_send_random_irrelevant_of_no_draw oracle.braidKem state h rand]
 
 theorem sendAgreement_draw (oracle : Oracle) (state : Model.Braid.BraidState)
     (draw : Key) (rest : List Key) (hn : braidSendNeedsDraw state = true)
