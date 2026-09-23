@@ -8443,6 +8443,7 @@ structure InitialRatchetRefusalBranchProviders
       Nonempty (InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
         input.decoded.message.deref rng input.reason input.next input.rngNext)
 
+
 theorem initial_ratchet_refusal_route_of_branch_providers
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -8807,6 +8808,188 @@ theorem initial_ratchet_dh_refusal_provider_of_evidence
     Result.ok.inj (hcall.symm.trans e.hcall)
   cases hresult
   exact ⟨.dh _ e⟩
+/-! Concrete DH evidence package for the branch dispatcher.  The package
+    carries the decoded message and Braid receive evidence for the exact model
+    composite selected by the classifier; the route-producing adapter below
+    supplies the model DH arm and reconciles it with `input.hcall`. -/
+structure InitialRatchetDhConcreteEvidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+      (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+      (real := real) (model := model) message rng)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (ciphertext : Bytes) where
+  decoded : tacenta_wire.DecodedMessage
+  realComposite : tacenta_wire.Composite
+  evidence : BraidReceiveEvidence K view real model realComposite modelComposite
+  hrealComposite : realComposite = decoded.header
+  hdecodeReal : tacenta_wire.decode_message input.decoded.message.deref =
+    ok (.Ok decoded)
+  hdecodeModel : Model.CompositeHeader.decodeDetailed
+      (sliceOf input.decoded.message.deref) =
+    .ok (modelComposite, vecOf decoded.ciphertext)
+  hcomposite : CompositeRefines decoded.header modelComposite
+
+structure InitialRatchetDhConcreteProviders
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+      (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+      (real := real) (model := model) message rng) where
+  first : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
+      Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
+        .ok (composite, ciphertext) →
+      oracle.dhAgree model.ratchetPrivate composite.dh = none →
+      InitialRatchetDhConcreteEvidence input composite ciphertext
+  second : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+      (draw : Model.Lifecycle.Key) (oracleAfter : Model.Lifecycle.Oracle),
+      Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
+        .ok (composite, ciphertext) →
+      (∃ dhOutRecv, oracle.dhAgree model.ratchetPrivate composite.dh =
+        some dhOutRecv) →
+      Model.Lifecycle.random32 oracle = some (draw, oracleAfter) →
+      (∃ dhOutRecv : Model.Lifecycle.Key, oracle.dhAgree draw composite.dh = none) →
+      InitialRatchetDhConcreteEvidence input composite ciphertext
+
+structure InitialRatchetDhRouteProviders
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+      (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+      (real := real) (model := model) message rng) where
+  firstDh : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
+      Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
+        .ok (composite, ciphertext) →
+      oracle.dhAgree model.ratchetPrivate composite.dh = none →
+      Nonempty (InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
+        input.decoded.message.deref rng input.reason input.next input.rngNext)
+  secondDh : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+      (draw : Model.Lifecycle.Key) (oracleAfter : Model.Lifecycle.Oracle),
+      Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
+        .ok (composite, ciphertext) →
+      (∃ dhOutRecv, oracle.dhAgree model.ratchetPrivate composite.dh =
+        some dhOutRecv) →
+      Model.Lifecycle.random32 oracle = some (draw, oracleAfter) →
+      (∃ dhOutRecv : Model.Lifecycle.Key, oracle.dhAgree draw composite.dh = none) →
+      Nonempty (InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
+        input.decoded.message.deref rng input.reason input.next input.rngNext)
+
+/-! Convert concrete first/second-DH evidence into the exact route callbacks
+    consumed by `initial_ratchet_refusal_case_dispatch`. -/
+def initial_ratchet_dh_route_providers_of_concrete_evidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+      (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+      (real := real) (model := model) message rng)
+    (kem : KemView) (codec : DhCodecOf dh)
+    (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (evidence : InitialRatchetDhConcreteProviders input) :
+    InitialRatchetDhRouteProviders input := by
+  refine { firstDh := ?_, secondDh := ?_ }
+  · intro composite ciphertext hdecode hfirst
+    let ev := evidence.first composite ciphertext hdecode hfirst
+    exact initial_ratchet_dh_refusal_provider_of_evidence
+      rc crc trace dh kem K view oracle oracle oracleOf codec hz32 real model
+      input.decoded.message.deref rng input.reason input.next input.rngNext
+      input.hcall ev.decoded composite ev.realComposite ev.evidence ev.hrealComposite
+      hrel htrace hready ev.hdecodeReal ev.hdecodeModel ev.hcomposite (Or.inl hfirst)
+  · intro composite ciphertext draw oracleAfter hdecode hfirst hdraw hsecond
+    let ev := evidence.second composite ciphertext draw oracleAfter hdecode hfirst hdraw hsecond
+    obtain ⟨dhOutRecv, hfirst'⟩ := hfirst
+    obtain ⟨dhOutSend, hsecond'⟩ := hsecond
+    exact initial_ratchet_dh_refusal_provider_of_evidence
+      rc crc trace dh kem K view oracle oracleAfter oracleOf codec hz32 real model
+      input.decoded.message.deref rng input.reason input.next input.rngNext
+      input.hcall ev.decoded composite ev.realComposite ev.evidence ev.hrealComposite
+      hrel htrace hready ev.hdecodeReal ev.hdecodeModel ev.hcomposite
+      (Or.inr ⟨draw, dhOutRecv, hfirst', hdraw, hsecond'⟩)
+
+/-! Assemble the concrete DH callbacks with the remaining leaf callbacks at
+    the exact branch-provider boundary.  Triple and AEAD callbacks remain
+    explicit because their model receive/key facts are branch-specific. -/
+def initial_ratchet_refusal_branch_providers_of_dh
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+      (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+      (real := real) (model := model) message rng)
+    (dhProviders : InitialRatchetDhRouteProviders input)
+    (ceiling : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+      (dhOutRecv : Model.Lifecycle.Key),
+      Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
+        .ok (composite, ciphertext) →
+      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
+      Model.Lifecycle.random32 oracle = none → False)
+    (tripleProvider : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+      (draw : Model.Lifecycle.Key) (oracleAfter : Model.Lifecycle.Oracle)
+      (modelReason : Model.Triple.ReceiveRefusal)
+      (dhOutRecv dhOutSend : Model.Lifecycle.Key),
+      Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
+        .ok (composite, ciphertext) →
+      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
+      Model.Lifecycle.random32 oracle = some (draw, oracleAfter) →
+      oracle.dhAgree draw composite.dh = some dhOutSend →
+      Model.Lifecycle.receiveWithEviction model.triple composite
+        (Model.Lifecycle.tripleHeaderOf composite) dhOutRecv dhOutSend
+        (oracle.dhPublic draw)
+        (Model.Lifecycle.sparseOutputOf
+          (Model.Braid.receive oracle.braidKem model.braid
+            (Model.Lifecycle.braidMessageOf view model.braid composite)).2.1) =
+        .error modelReason →
+      Nonempty (InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
+        input.decoded.message.deref rng input.reason input.next input.rngNext))
+    (aeadProvider : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+      (draw : Model.Lifecycle.Key) (oracleAfter : Model.Lifecycle.Oracle)
+      (messageKey : Model.Lifecycle.Key)
+      (dhOutRecv dhOutSend : Model.Lifecycle.Key)
+      (tripleCandidate : Model.Triple.State),
+      Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
+        .ok (composite, ciphertext) →
+      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
+      Model.Lifecycle.random32 oracle = some (draw, oracleAfter) →
+      oracle.dhAgree draw composite.dh = some dhOutSend →
+      Model.Lifecycle.receiveWithEviction model.triple composite
+        (Model.Lifecycle.tripleHeaderOf composite) dhOutRecv dhOutSend
+        (oracle.dhPublic draw)
+        (Model.Lifecycle.sparseOutputOf
+          (Model.Braid.receive oracle.braidKem model.braid
+            (Model.Lifecycle.braidMessageOf view model.braid composite)).2.1) =
+        .ok (tripleCandidate, messageKey) →
+      oracle.aeadOpen
+        (Model.State.messageKeys messageKey .tacenta).1
+        (Model.State.messageKeys messageKey .tacenta).2.1
+        (Model.State.messageKeys messageKey .tacenta).2.2 ciphertext
+        (Model.Messages.concatAd model.identityAd
+          (Model.CompositeHeader.encode composite)) = none →
+      Nonempty (InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
+        input.decoded.message.deref rng input.reason input.next input.rngNext)) :
+    InitialRatchetRefusalBranchProviders input :=
+  { ceiling := ceiling
+    firstDh := dhProviders.firstDh
+    secondDh := dhProviders.secondDh
+    tripleProvider := tripleProvider
+    aeadProvider := aeadProvider }
 
 
 /-! Small route constructors for the two result-indexed leaf families.  The
