@@ -5366,46 +5366,58 @@ def initial_ratchet_refusal_evidence_of_pair {R : Type}
       message rng reason next rngNext :=
   { hcall := hcall, hstep := hstep }
 
-/-! Typed sum of the four nonterminal refusal families.  The index carries the
+/-! Typed sum of the five refusal route families.  The index carries the
     exact public error, successor session, and randomness state, so a route
     cannot be re-labelled or detached from the generated refusal result when
     it is handed to the T1 result splitter. -/
-inductive InitialRatchetNonterminalRefusalRoute
+inductive InitialRatchetRefusalRoute
     {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
     (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
     (real : lifecycle.Session) (model : Model.Lifecycle.Session)
     (message : Slice Std.U8) (rng : R) :
     lifecycle.Error → lifecycle.Session → R → Type where
+  | terminal
+      (e : InitialRatchetRefusalEvidence rc crc trace dh K view oracle real model
+        message rng .AgreementFailed real rng) :
+      InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
+        message rng .AgreementFailed real rng
+  | decode (realReason : tacenta_wire.DecodeError)
+      (e : InitialRatchetRefusalEvidence rc crc trace dh K view oracle real model
+        message rng (.Decode realReason) real rng) :
+      InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
+        message rng (.Decode realReason) real rng
   | dh (rngAfter : R)
       (e : InitialRatchetRefusalEvidence rc crc trace dh K view oracle real model
         message rng (.Handshake SessionError.NonContributoryAgreement) real rngAfter) :
-      InitialRatchetNonterminalRefusalRoute rc crc trace dh K view oracle real model
+      InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
         message rng (.Handshake SessionError.NonContributoryAgreement) real rngAfter
   | triple (realReason : tacenta_triple.TripleError)
       (next : lifecycle.Session) (rngNext : R)
       (e : InitialRatchetRefusalEvidence rc crc trace dh K view oracle real model
         message rng (.Triple realReason) next rngNext) :
-      InitialRatchetNonterminalRefusalRoute rc crc trace dh K view oracle real model
+      InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
         message rng (.Triple realReason) next rngNext
   | aead (next : lifecycle.Session) (rngNext : R)
       (e : InitialRatchetRefusalEvidence rc crc trace dh K view oracle real model
         message rng .Aead next rngNext) :
-      InitialRatchetNonterminalRefusalRoute rc crc trace dh K view oracle real model
+      InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
         message rng .Aead next rngNext
 
-def initial_ratchet_refusal_evidence_of_nonterminal_route
+def initial_ratchet_refusal_evidence_of_route
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
     {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
     {real : lifecycle.Session} {model : Model.Lifecycle.Session}
     {message : Slice Std.U8} {rng : R}
     {reason : lifecycle.Error} {next : lifecycle.Session} {rngNext : R}
-    (route : InitialRatchetNonterminalRefusalRoute rc crc trace dh K view oracle
+    (route : InitialRatchetRefusalRoute rc crc trace dh K view oracle
       real model message rng reason next rngNext) :
     InitialRatchetRefusalEvidence rc crc trace dh K view oracle real model
       message rng reason next rngNext := by
   cases route with
+  | terminal e => exact e
+  | decode realReason e => exact e
   | dh rngAfter e => exact e
   | triple realReason next rngNext e => exact e
   | aead next rngNext e => exact e
@@ -5816,6 +5828,56 @@ theorem initial_ratchet_refines_of_t1_result_split_with_terminal_decode_evidence
   · intro decoded established hdecode hestablished he hi reason next rngNext hcall
     exact initial_ratchet_terminal_or_decode_refusal_evidence ctx hbad decoded established
       hdecode hestablished he hi reason next rngNext hcall
+  · exact hsuccess
+
+/-! General result-split entry for a fully typed refusal route.  Each callback
+    must construct the indexed route, after which the splitter can consume one
+    uniform refusal evidence record. -/
+theorem initial_ratchet_refines_of_t1_result_split_with_route_evidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (hrefusalRoute : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Err reason, next, rngNext) →
+        InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
+          decoded.message.deref rng reason next rngNext)
+    (hsuccess : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        ∃ oracleNext, ∃ facts : InitialRatchetModelSuccessFacts view oracle oracleNext
+          model decoded.message.deref,
+          Nonempty (∀ successPrefix : InitialRatchetSuccessPrefix rc crc real
+              decoded.message.deref rng rngNext plaintext next,
+            InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
+              successPrefix facts)) :
+    InitialRatchetRefines rc crc trace dh K view oracle real model message rng := by
+  apply initial_ratchet_refines_of_t1_result_split_with_result_splice boundary headroom hz32 hzKeys
+  · intro decoded established hdecode hestablished he hi reason next rngNext hcall
+    exact initial_ratchet_refusal_evidence_of_route
+      (hrefusalRoute decoded established hdecode hestablished he hi reason next rngNext hcall)
   · exact hsuccess
 
 /-- Derive the inner call's existence from T1. The supplied semantic relation
