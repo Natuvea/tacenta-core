@@ -1986,6 +1986,45 @@ theorem triple_send_post_of_contracts
   cases heq
   exact hpost
 
+theorem triple_send_candidate_post_of_contracts
+    {s : tacenta_triple.State} {m : Model.Triple.State}
+    (contracts : TripleSendRefinementContracts)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (sendingEpoch : Std.U64) (output : Option tacenta_spqr.Output)
+    (hroom : m.post_quantum.chains.val.length + 1 < Usize.max)
+    (hcb : ∀ p ∈ m.post_quantum.chains,
+      p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hsb : ∀ sk ∈ m.post_quantum.skipped,
+      sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hnewb : ∀ o : tacenta_spqr.Output, output = some o →
+      o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hepoch : m.post_quantum.epoch + 1 < Std.U64.max)
+    (hcounter : ∀ p ∈ m.post_quantum.chains, ∀ ch : Model.SparseRatchet.Chain,
+      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
+    {sent : core.result.Result (tacenta_triple.Header × Array Std.U8 32#usize)
+      tacenta_triple.TripleError}
+    {candidate : tacenta_triple.State}
+    (hsend : lifecycle.send_candidate s sendingEpoch output =
+      ok (candidate, sent)) :
+    ((∀ hdr mk, sent = core.result.Result.Ok (hdr, mk) →
+        ∃ m' mh key,
+          Model.Triple.send m sendingEpoch.val (output.map spqrOutputOf) =
+            some (m', mh, key) ∧
+          Tacenta.SessionUnitTripleT3.StateRefines
+            Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+            candidate m' ∧ TripleHeaderR hdr mh ∧ keyOf mk = key) ∧
+      (∀ e, sent = core.result.Result.Err e →
+        (e = tacenta_triple.TripleError.Classical
+            tacenta_ratchet.RatchetError.NoSendingChain ∨
+          ∃ e', e = tacenta_triple.TripleError.PostQuantum e') →
+        Model.Triple.send m sendingEpoch.val (output.map spqrOutputOf) = none)) := by
+  unfold lifecycle.send_candidate at hsend
+  rw [Tacenta.SessionUnitTripleT1.triple_state_clone_id contracts.optionClone s] at hsend
+  exact triple_send_post_of_contracts contracts hrel sendingEpoch output hroom hcb hsb hnewb
+    hepoch hcounter (by simpa using hsend)
+
 /-- `decrypt_ratchet` has the same terminal agreement guard as `encrypt`: it
 returns the exact public refusal without decoding attacker-controlled bytes or
 changing state/randomness. -/
@@ -3314,6 +3353,35 @@ inductive RealSparseConversion (output : Option tacenta_braid.Output) :
       (hout : output = some realOutput)
       (hconverted : tacenta_spqr.Output.new realOutput.key_epoch realOutput.key =
         ok sparseOutput) : RealSparseConversion output (some sparseOutput)
+
+theorem real_triple_refusal_of_exact_candidate
+    {state : tacenta_triple.State} {epoch : Std.U64}
+    {output : Option tacenta_braid.Output} {sparseOutput : Option tacenta_spqr.Output}
+    {candidate : tacenta_triple.State} {reason : tacenta_triple.TripleError}
+    (hsparse : RealSparseConversion output sparseOutput)
+    (hsend : lifecycle.send_candidate state epoch sparseOutput =
+      ok (candidate, .Err reason)) :
+    RealTripleRefusal state epoch output candidate reason := by
+  cases hsparse with
+  | none hout =>
+      exact .none hout hsend
+  | some realOutput converted hout hconverted =>
+      exact .some realOutput converted hout hconverted hsend
+
+theorem real_triple_success_of_exact_candidate
+    {state : tacenta_triple.State} {epoch : Std.U64}
+    {output : Option tacenta_braid.Output} {sparseOutput : Option tacenta_spqr.Output}
+    {candidate : tacenta_triple.State} {header : tacenta_triple.Header}
+    {mk : Array Std.U8 32#usize}
+    (hsparse : RealSparseConversion output sparseOutput)
+    (hsend : lifecycle.send_candidate state epoch sparseOutput =
+      ok (candidate, .Ok (header, mk))) :
+    RealTripleSuccess state epoch output candidate header mk := by
+  cases hsparse with
+  | none hout =>
+      exact .none hout hsend
+  | some realOutput converted hout hconverted =>
+      exact .some realOutput converted hout hconverted hsend
 
 /-- A non-contributory first DH agreement is an atomic receive refusal.  Braid
 and its optional sparse output have been evaluated, but neither candidate is
