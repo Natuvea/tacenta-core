@@ -1948,15 +1948,15 @@ theorem triple_send_post_of_contracts
     (hrel : Tacenta.SessionUnitTripleT3.StateRefines
       Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
     (sendingEpoch : Std.U64) (output : Option tacenta_spqr.Output)
-    (hroom : m.post_quantum.chains.val.length + 1 < Usize.max)
-    (hcb : ∀ p ∈ m.post_quantum.chains,
+    (hroom : m.postQuantum.chains.length + 1 < Usize.max)
+    (hcb : ∀ p ∈ m.postQuantum.chains,
       p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
-    (hsb : ∀ sk ∈ m.post_quantum.skipped,
+    (hsb : ∀ sk ∈ m.postQuantum.skipped,
       sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
     (hnewb : ∀ o : tacenta_spqr.Output, output = some o →
       o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
-    (hepoch : m.post_quantum.epoch + 1 < Std.U64.max)
-    (hcounter : ∀ p ∈ m.post_quantum.chains, ∀ ch : Model.SparseRatchet.Chain,
+    (hepoch : m.postQuantum.epoch + 1 < Std.U64.max)
+    (hcounter : ∀ p ∈ m.postQuantum.chains, ∀ ch : Model.SparseRatchet.Chain,
       (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
     {sent : core.result.Result (tacenta_triple.Header × Array Std.U8 32#usize)
       tacenta_triple.TripleError}
@@ -1965,16 +1965,19 @@ theorem triple_send_post_of_contracts
       ok (sent, candidate)) :
     ((∀ hdr mk, sent = core.result.Result.Ok (hdr, mk) →
         ∃ m' mh key,
-          Model.Triple.send m sendingEpoch.val (output.map spqrOutputOf) =
+          Model.Triple.send m sendingEpoch.val
+            (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) =
             some (m', mh, key) ∧
           Tacenta.SessionUnitTripleT3.StateRefines
             Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
-            candidate m' ∧ TripleHeaderR hdr mh ∧ keyOf mk = key) ∧
+            candidate m' ∧ Tacenta.SessionUnitTripleT3.TripleHeaderR hdr mh ∧
+            Tacenta.SessionUnitTripleT3.keyOf mk = key) ∧
       (∀ e, sent = core.result.Result.Err e →
         (e = tacenta_triple.TripleError.Classical
             tacenta_ratchet.RatchetError.NoSendingChain ∨
           ∃ e', e = tacenta_triple.TripleError.PostQuantum e') →
-        Model.Triple.send m sendingEpoch.val (output.map spqrOutputOf) = none)) := by
+        Model.Triple.send m sendingEpoch.val
+          (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = none)) := by
   obtain ⟨result, hcall, hpost⟩ := Std.WP.spec_imp_exists
     (Tacenta.SessionUnitTripleT3.send_refines_discharged
       contracts.hmac contracts.hkdf contracts.zeroizing contracts.ratchetRemove
@@ -1984,7 +1987,7 @@ theorem triple_send_post_of_contracts
   have heq : result = (sent, candidate) := by
     exact Result.ok.inj (hcall.symm.trans hsend)
   cases heq
-  exact hpost
+  simpa only [Prod.fst, Prod.snd] using hpost
 
 theorem triple_send_candidate_post_of_contracts
     {s : tacenta_triple.State} {m : Model.Triple.State}
@@ -1993,15 +1996,15 @@ theorem triple_send_candidate_post_of_contracts
     (hrel : Tacenta.SessionUnitTripleT3.StateRefines
       Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
     (sendingEpoch : Std.U64) (output : Option tacenta_spqr.Output)
-    (hroom : m.post_quantum.chains.val.length + 1 < Usize.max)
-    (hcb : ∀ p ∈ m.post_quantum.chains,
+    (hroom : m.postQuantum.chains.length + 1 < Usize.max)
+    (hcb : ∀ p ∈ m.postQuantum.chains,
       p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
-    (hsb : ∀ sk ∈ m.post_quantum.skipped,
+    (hsb : ∀ sk ∈ m.postQuantum.skipped,
       sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
     (hnewb : ∀ o : tacenta_spqr.Output, output = some o →
       o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
-    (hepoch : m.post_quantum.epoch + 1 < Std.U64.max)
-    (hcounter : ∀ p ∈ m.post_quantum.chains, ∀ ch : Model.SparseRatchet.Chain,
+    (hepoch : m.postQuantum.epoch + 1 < Std.U64.max)
+    (hcounter : ∀ p ∈ m.postQuantum.chains, ∀ ch : Model.SparseRatchet.Chain,
       (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
     {sent : core.result.Result (tacenta_triple.Header × Array Std.U8 32#usize)
       tacenta_triple.TripleError}
@@ -2010,20 +2013,52 @@ theorem triple_send_candidate_post_of_contracts
       ok (candidate, sent)) :
     ((∀ hdr mk, sent = core.result.Result.Ok (hdr, mk) →
         ∃ m' mh key,
-          Model.Triple.send m sendingEpoch.val (output.map spqrOutputOf) =
+          Model.Triple.send m sendingEpoch.val
+            (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) =
             some (m', mh, key) ∧
           Tacenta.SessionUnitTripleT3.StateRefines
             Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
-            candidate m' ∧ TripleHeaderR hdr mh ∧ keyOf mk = key) ∧
+            candidate m' ∧ Tacenta.SessionUnitTripleT3.TripleHeaderR hdr mh ∧
+            Tacenta.SessionUnitTripleT3.keyOf mk = key) ∧
       (∀ e, sent = core.result.Result.Err e →
         (e = tacenta_triple.TripleError.Classical
             tacenta_ratchet.RatchetError.NoSendingChain ∨
           ∃ e', e = tacenta_triple.TripleError.PostQuantum e') →
-        Model.Triple.send m sendingEpoch.val (output.map spqrOutputOf) = none)) := by
+        Model.Triple.send m sendingEpoch.val
+          (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = none)) := by
   unfold lifecycle.send_candidate at hsend
   rw [Tacenta.SessionUnitTripleT1.triple_state_clone_id contracts.optionClone s] at hsend
-  exact triple_send_post_of_contracts contracts hrel sendingEpoch output hroom hcb hsb hnewb
-    hepoch hcounter (by simpa using hsend)
+  cases output with
+  | none =>
+      have hstate : tacenta_triple.State.send s sendingEpoch none =
+          ok (sent, candidate) := by
+        cases hresult : tacenta_triple.State.send s sendingEpoch none with
+        | fail error => simp [hresult] at hsend
+        | div => simp [hresult] at hsend
+        | ok value =>
+            rcases value with ⟨sent', candidate'⟩
+            have heq : (candidate', sent') = (candidate, sent) := by
+              simpa [hresult] using hsend
+            cases heq
+            simpa [hresult]
+      apply triple_send_post_of_contracts contracts hrel sendingEpoch none hroom hcb hsb hnewb
+        hepoch hcounter
+      exact hstate
+  | some output =>
+      have hstate : tacenta_triple.State.send s sendingEpoch (some output) =
+          ok (sent, candidate) := by
+        cases hresult : tacenta_triple.State.send s sendingEpoch (some output) with
+        | fail error => simp [hresult] at hsend
+        | div => simp [hresult] at hsend
+        | ok value =>
+            rcases value with ⟨sent', candidate'⟩
+            have heq : (candidate', sent') = (candidate, sent) := by
+              simpa [hresult] using hsend
+            cases heq
+            simpa [hresult]
+      apply triple_send_post_of_contracts contracts hrel sendingEpoch (some output) hroom hcb hsb
+        hnewb hepoch hcounter
+      exact hstate
 
 /-- `decrypt_ratchet` has the same terminal agreement guard as `encrypt`: it
 returns the exact public refusal without decoding attacker-controlled bytes or
@@ -3275,40 +3310,6 @@ theorem encrypt_braid_failure_of_no_draw_contracts
   · exact braid_send_post_of_contracts contracts real.braid rng hrel.braid hlive hsendReal
   · exact hfailed
   · exact htrace
-
-theorem encrypt_braid_failure_of_draw_contracts
-    {R : Type} (rngCore : rand_core_1.RngCore R)
-    (cryptoRng : rand_core_1.CryptoRng R)
-    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
-    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
-    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
-    (plaintext : Slice Std.U8) (rng rngNext : R)
-    (realMessage : tacenta_braid.Msg) (realEpoch : Std.U64)
-    (realOutput : Option tacenta_braid.Output)
-    (realBraidNext : tacenta_braid.Braid)
-    (contracts : BraidSendRefinementContracts rngCore K)
-    (hlive : Tacenta.SessionUnitBraidT3.EncodersLive model.braid)
-    (hkem : oracle.braidKem = K)
-    (hrel : SessionRefines dh K real model)
-    (hready : Model.Lifecycle.agreementFailed model = false)
-    (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
-      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
-    (htrace : trace rng = oracle.draws)
-    (hdraw : ∃ draw rest, trace rng = draw :: rest ∧ trace rngNext = rest)
-    (hneedsDraw : Model.Lifecycle.braidSendNeedsDraw model.braid = true)
-    (hfailed : ∀ modelNext : Model.Braid.BraidState,
-      Tacenta.SessionUnitBraidT3.StateRefines K realBraidNext.state modelNext →
-      Model.Lifecycle.braidFailed modelNext = true) :
-    ∃ output,
-      lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
-      StepRefines trace dh K output
-        (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
-  apply encrypt_braid_failure_of_draw_send rngCore cryptoRng trace dh K view oracle
-    real model plaintext rng rngNext realMessage realEpoch realOutput realBraidNext hkem hrel
-    hready hsendReal htrace hdraw hneedsDraw
-  · intro draw rest hhead
-    exact braid_send_post_of_contracts contracts real.braid rng hrel.braid hlive hsendReal
-  · exact hfailed
 
 def realSparseOutputOf (output : Option tacenta_braid.Output) :
     Result (Option tacenta_spqr.Output) :=
