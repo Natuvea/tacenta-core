@@ -3734,6 +3734,51 @@ theorem encrypt_triple_refusal_step_refines {R : Type}
   rw [hmodel]
   exact ⟨tripleSendRefusalOfReal_sound hreason, hrel, htrace⟩
 
+/-! Result-indexed Triple refusal composition.  The generated candidate result
+    supplies `RealTripleRefusal` through the constructor above; the remaining
+    model equation and refusal-code correspondence are indexed by the same
+    Braid successor passed to the lifecycle leaf. -/
+theorem encrypt_triple_refusal_of_exact_candidate
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle oracleNext : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (plaintext : Slice Std.U8) (rng rngNext : R)
+    (realMessage : tacenta_braid.Msg) (realEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output)
+    (realBraidNext : tacenta_braid.Braid) (candidate : tacenta_triple.State)
+    (sparseOutput : Option tacenta_spqr.Output)
+    (realReason : tacenta_triple.TripleError)
+    (modelMessage : Model.Braid.Msg) (modelEpoch : Nat)
+    (modelOutput : Option Model.Braid.Output)
+    (modelBraidNext : Model.Braid.BraidState)
+    (modelReason : Model.Triple.SendRefusal)
+    (hsparse : RealSparseConversion realOutput sparseOutput)
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
+    (hsendCandidate : lifecycle.send_candidate real.triple realEpoch sparseOutput =
+      ok (candidate, .Err realReason))
+    (hsendModel : Model.Lifecycle.sendAgreement oracle model.braid =
+      some ((some modelMessage, modelEpoch, modelOutput, modelBraidNext), oracleNext))
+    (hnext : Tacenta.SessionUnitBraidT3.StateRefines K realBraidNext.state modelBraidNext)
+    (hnotFailed : Model.Lifecycle.braidFailed modelBraidNext = false)
+    (htripleModel : Model.Triple.sendDetailed model.triple modelEpoch
+      (Model.Lifecycle.sparseOutputOf modelOutput) = .error modelReason)
+    (hreason : tripleSendRefusalOfReal realReason = some modelReason)
+    (htrace : trace rngNext = oracleNext.draws) :
+    ∃ output,
+      lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
+  exact encrypt_triple_refusal_step_refines rngCore cryptoRng trace dh K view oracle oracleNext
+    real model plaintext rng rngNext realMessage realEpoch realOutput realBraidNext candidate
+    realReason modelMessage modelEpoch modelOutput modelBraidNext modelReason hrel hready
+    hsendReal (real_triple_refusal_of_exact_candidate hsparse hsendCandidate) hsendModel hnext
+    hnotFailed htripleModel hreason htrace
+
 attribute [-step] Tacenta.SessionUnitErasureT1.extend_slice32_spec
 
 private theorem beByte64_eq (v : BitVec 64) (i : Nat) (hi : i < 8) :
@@ -4480,6 +4525,70 @@ theorem encrypt_success_no_initial_step_refines {R : Type}
   exact ⟨by simpa [ResultRefines] using hratchetValue', hnextSession, htrace⟩
 
 
+
+
+/-- The established-session success leaf with the Triple candidate supplied by
+the exact generated send_candidate result. -/
+theorem encrypt_success_no_initial_of_exact_candidate {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle oracleNext : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (codewordView : CodewordViewOf view)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (plaintext : Slice Std.U8) (rng rngNext : R)
+    (realMessage : tacenta_braid.Msg) (realEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output) (realBraidNext : tacenta_braid.Braid)
+    (modelMessage : Model.Braid.Msg) (modelEpoch : Nat)
+    (modelOutput : Option Model.Braid.Output) (modelBraidNext : Model.Braid.BraidState)
+    (candidate : tacenta_triple.State) (realHeader : tacenta_triple.Header)
+    (realMk : Array Std.U8 32#usize) (sparseOutput : Option tacenta_spqr.Output)
+    (modelTripleNext : Model.Triple.State)
+    (modelHeader : Model.Triple.Header) (modelMk : Model.Lifecycle.Key)
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
+    (hsendModel : Model.Lifecycle.sendAgreement oracle model.braid =
+      some ((some modelMessage, modelEpoch, modelOutput, modelBraidNext), oracleNext))
+    (hmessage : Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage)
+    (hbraidNext : Tacenta.SessionUnitBraidT3.StateRefines K
+      realBraidNext.state modelBraidNext)
+    (hnotFailed : Model.Lifecycle.braidFailed modelBraidNext = false)
+    (hsparse : RealSparseConversion realOutput sparseOutput)
+    (hsendCandidate : lifecycle.send_candidate real.triple realEpoch sparseOutput =
+      ok (candidate, .Ok (realHeader, realMk)))
+    (htripleModel : Model.Triple.sendDetailed model.triple modelEpoch
+      (Model.Lifecycle.sparseOutputOf modelOutput) =
+        .ok (modelTripleNext, modelHeader, modelMk))
+    (htripleNext : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      candidate modelTripleNext)
+    (hheader : Tacenta.SessionUnitTripleT3.TripleHeaderR realHeader modelHeader)
+    (hmk : arrayOf realMk = modelMk)
+    (hpending : real.pending_initial = none)
+    (htrace : trace rngNext = oracleNext.draws)
+    (hadRoom : model.identityAd.length + 106 ≤ Usize.max)
+    (hcipherRoom : let keys := Model.State.messageKeys modelMk .tacenta
+      let ad := Model.Messages.concatAd model.identityAd
+        (Model.CompositeHeader.encode
+          (Model.Lifecycle.compositeOf view model.braid modelHeader modelMessage).get!)
+      102 + (oracle.aeadSeal keys.1 keys.2.1 keys.2.2
+        (sliceOf plaintext) ad).length ≤ Usize.max) :
+    ∃ output,
+      lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
+  apply encrypt_success_no_initial_step_refines
+    (htripleReal := real_triple_success_of_exact_candidate hsparse hsendCandidate)
+  all_goals assumption
+
 set_option maxHeartbeats 4000000 in
 /-- Successful pending-initial encryption refines the executable lifecycle
 model all the way to the returned wire bytes. The leaf send relations supply
@@ -4755,5 +4864,81 @@ theorem encrypt_success_initial_step_refines {R : Type}
   refine ⟨(.Ok initialMessage, realNext, rngNext), hreal, ?_⟩
   rw [hmodel]
   exact ⟨by simpa [ResultRefines] using hinitialValue', hnextSession, htrace⟩
+
+
+
+/-- The pending-initial success leaf with the Triple candidate supplied by
+the exact generated send_candidate result. -/
+theorem encrypt_success_initial_of_exact_candidate {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle oracleNext : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (codec : DhCodecOf dh)
+    (codewordView : CodewordViewOf view)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (plaintext : Slice Std.U8) (rng rngNext : R)
+    (realMessage : tacenta_braid.Msg) (realEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output) (realBraidNext : tacenta_braid.Braid)
+    (modelMessage : Model.Braid.Msg) (modelEpoch : Nat)
+    (modelOutput : Option Model.Braid.Output) (modelBraidNext : Model.Braid.BraidState)
+    (candidate : tacenta_triple.State) (realHeader : tacenta_triple.Header)
+    (realMk : Array Std.U8 32#usize) (sparseOutput : Option tacenta_spqr.Output)
+    (modelTripleNext : Model.Triple.State)
+    (modelHeader : Model.Triple.Header) (modelMk : Model.Lifecycle.Key)
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
+    (hsendModel : Model.Lifecycle.sendAgreement oracle model.braid =
+      some ((some modelMessage, modelEpoch, modelOutput, modelBraidNext), oracleNext))
+    (hmessage : Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage)
+    (hbraidNext : Tacenta.SessionUnitBraidT3.StateRefines K
+      realBraidNext.state modelBraidNext)
+    (hnotFailed : Model.Lifecycle.braidFailed modelBraidNext = false)
+    (hsparse : RealSparseConversion realOutput sparseOutput)
+    (hsendCandidate : lifecycle.send_candidate real.triple realEpoch sparseOutput =
+      ok (candidate, .Ok (realHeader, realMk)))
+    (htripleModel : Model.Triple.sendDetailed model.triple modelEpoch
+      (Model.Lifecycle.sparseOutputOf modelOutput) =
+        .ok (modelTripleNext, modelHeader, modelMk))
+    (htripleNext : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      candidate modelTripleNext)
+    (hheader : Tacenta.SessionUnitTripleT3.TripleHeaderR realHeader modelHeader)
+    (hmk : arrayOf realMk = modelMk)
+    (pending : lifecycle.PendingInitial)
+    (hpending : real.pending_initial = some pending)
+    (htrace : trace rngNext = oracleNext.draws)
+    (hadRoom : model.identityAd.length + 106 ≤ Usize.max)
+    (hcipherRoom : let keys := Model.State.messageKeys modelMk .tacenta
+      let ad := Model.Messages.concatAd model.identityAd
+        (Model.CompositeHeader.encode
+          (Model.Lifecycle.compositeOf view model.braid modelHeader modelMessage).get!)
+      102 + (oracle.aeadSeal keys.1 keys.2.1 keys.2.2
+        (sliceOf plaintext) ad).length ≤ Usize.max)
+    (hinitialRoom :
+      let composite :=
+        (Model.Lifecycle.compositeOf view model.braid modelHeader modelMessage).get!
+      let keys := Model.State.messageKeys modelMk .tacenta
+      let ad := Model.Messages.concatAd model.identityAd
+        (Model.CompositeHeader.encode composite)
+      let ratchetMessage := Model.CompositeHeader.encodeMessage composite
+        (oracle.aeadSeal keys.1 keys.2.1 keys.2.2 (sliceOf plaintext) ad)
+      84 + (pendingInitialOf dh pending).kemCiphertext.length
+        + ratchetMessage.length ≤ Usize.max) :
+    ∃ output,
+      lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
+  apply encrypt_success_initial_step_refines
+    (htripleReal := real_triple_success_of_exact_candidate hsparse hsendCandidate)
+  all_goals assumption
 
 end Tacenta.UnitLifecycleT3
