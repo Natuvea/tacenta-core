@@ -9921,17 +9921,12 @@ noncomputable def initial_ratchet_aead_concrete_evidence_of_result
     (modelComposite : Model.CompositeHeader.Composite)
     (modelTripleCandidate : Model.Triple.State) (modelMk : Model.Lifecycle.Key)
     (ciphertext : Bytes) (hreason : input.reason = .Aead)
+    (contracts : InitialRatchetBraidEvidenceContracts (K := K) view real model
+      input.decoded.message.deref)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hrel : SessionRefines dh K real model)
     (hmodelDecode : Model.CompositeHeader.decodeDetailed
       (sliceOf input.decoded.message.deref) = .ok (modelComposite, ciphertext))
-    (hmessageRel : ∀ (pref : InitialRatchetAeadRefusalPrefix rc crc real
-        input.decoded.message.deref rng input.rngNext input.next),
-      Tacenta.SessionUnitBraidT3.MsgRefines pref.m
-        (Model.Lifecycle.braidMessageOf view model.braid modelComposite))
-    (hnext : ∀ (pref : InitialRatchetAeadRefusalPrefix rc crc real
-        input.decoded.message.deref rng input.rngNext input.next),
-      Tacenta.SessionUnitBraidT3.StateRefines K pref.braidCandidate.state
-        (Model.Braid.receive K model.braid
-          (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.2)
     (hmodelPublic : ∀ (draw : Model.Lifecycle.Key)
       (pref : InitialRatchetAeadRefusalPrefix rc crc real
         input.decoded.message.deref rng input.rngNext input.next),
@@ -9956,8 +9951,26 @@ noncomputable def initial_ratchet_aead_concrete_evidence_of_result
     InitialRatchetAeadConcreteEvidence input modelComposite modelTripleCandidate modelMk := by
   exact {
     hreason := hreason
-    hmessageRel := hmessageRel
-    hnext := hnext
+    hmessageRel := fun pref => by
+      let braid := Classical.choice (initial_ratchet_aead_braid_evidence_of_prefix_contracts
+        input pref contracts headroom hrel modelComposite ciphertext hmodelDecode)
+      have hmessageEq : braid.message = pref.m := by
+        exact Result.ok.inj (braid.hmessageCall.symm.trans pref.hmessage)
+      simpa [hmessageEq] using braid.hmessageRel
+    hnext := fun pref => by
+      let braid := Classical.choice (initial_ratchet_aead_braid_evidence_of_prefix_contracts
+        input pref contracts headroom hrel modelComposite ciphertext hmodelDecode)
+      have hmessageEq : braid.message = pref.m := by
+        exact Result.ok.inj (braid.hmessageCall.symm.trans pref.hmessage)
+      have hreceivePref : real.braid.receive braid.message =
+          ok (pref.receivedEpoch, pref.output, pref.braidCandidate) := by
+        simpa [hmessageEq] using pref.hreceive
+      have hreceiveEq : (braid.receivedEpoch, braid.output, braid.next) =
+          (pref.receivedEpoch, pref.output, pref.braidCandidate) := by
+        exact Result.ok.inj (braid.hreceive.symm.trans hreceivePref)
+      have hnextEq : braid.next = pref.braidCandidate := congrArg
+        (fun x => x.2.2) hreceiveEq
+      simpa [hmessageEq, hnextEq] using braid.hnext
     hdecodeModel := fun pref' =>
       (initial_ratchet_aead_prefix_model_facts input pref' modelComposite ciphertext
         hmodelDecode).1
@@ -9987,17 +10000,12 @@ noncomputable def initial_ratchet_triple_concrete_evidence_of_result
     (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
     (modelReason : Model.Triple.ReceiveRefusal)
     (hreason : input.reason = .Triple realReason)
+    (contracts : InitialRatchetBraidEvidenceContracts (K := K) view real model
+      input.decoded.message.deref)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hrel : SessionRefines dh K real model)
     (hmodelDecode : Model.CompositeHeader.decodeDetailed
       (sliceOf input.decoded.message.deref) = .ok (modelComposite, ciphertext))
-    (hmessageRel : ∀ (pref : InitialRatchetTripleRefusalPrefix rc crc real
-        input.decoded.message.deref rng input.rngNext realReason input.next),
-      Tacenta.SessionUnitBraidT3.MsgRefines pref.m
-        (Model.Lifecycle.braidMessageOf view model.braid modelComposite))
-    (hnext : ∀ (pref : InitialRatchetTripleRefusalPrefix rc crc real
-        input.decoded.message.deref rng input.rngNext realReason input.next),
-      Tacenta.SessionUnitBraidT3.StateRefines K pref.braidCandidate.state
-        (Model.Braid.receive K model.braid
-          (Model.Lifecycle.braidMessageOf view model.braid modelComposite)).2.2)
     (hmodelPublic : ∀ (draw : Model.Lifecycle.Key)
       (pref : InitialRatchetTripleRefusalPrefix rc crc real
         input.decoded.message.deref rng input.rngNext realReason input.next),
@@ -10015,8 +10023,26 @@ noncomputable def initial_ratchet_triple_concrete_evidence_of_result
     InitialRatchetTripleConcreteEvidence input realReason modelComposite modelReason := by
   exact {
     hreason := hreason
-    hmessageRel := hmessageRel
-    hnext := hnext
+    hmessageRel := fun pref => by
+      let braid := Classical.choice (initial_ratchet_triple_braid_evidence_of_prefix_contracts
+        input pref contracts headroom hrel modelComposite ciphertext hmodelDecode)
+      have hmessageEq : braid.message = pref.m := by
+        exact Result.ok.inj (braid.hmessageCall.symm.trans pref.hmessage)
+      simpa [hmessageEq] using braid.hmessageRel
+    hnext := fun pref => by
+      let braid := Classical.choice (initial_ratchet_triple_braid_evidence_of_prefix_contracts
+        input pref contracts headroom hrel modelComposite ciphertext hmodelDecode)
+      have hmessageEq : braid.message = pref.m := by
+        exact Result.ok.inj (braid.hmessageCall.symm.trans pref.hmessage)
+      have hreceivePref : real.braid.receive braid.message =
+          ok (pref.receivedEpoch, pref.output, pref.braidCandidate) := by
+        simpa [hmessageEq] using pref.hreceive
+      have hreceiveEq : (braid.receivedEpoch, braid.output, braid.next) =
+          (pref.receivedEpoch, pref.output, pref.braidCandidate) := by
+        exact Result.ok.inj (braid.hreceive.symm.trans hreceivePref)
+      have hnextEq : braid.next = pref.braidCandidate := congrArg
+        (fun x => x.2.2) hreceiveEq
+      simpa [hmessageEq, hnextEq] using braid.hnext
     hdecodeModel := fun pref' =>
       (initial_ratchet_triple_prefix_model_facts input pref' modelComposite ciphertext
         hmodelDecode).1
