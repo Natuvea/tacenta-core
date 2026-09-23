@@ -9730,6 +9730,71 @@ noncomputable def initial_ratchet_refusal_branch_providers_of_concrete_evidence
     (initial_ratchet_aead_route_provider_of_concrete_evidence
       input kem oracleOf hz32 hzKeys hrel htrace hready aeadEvidence)
 
+/-! Package the model-side result callbacks so the public bridge cannot mix a
+    refusal result, a success result, and a receive provider from different
+    generated calls.  Every field is indexed by the exact `decrypt_ratchet`
+    equation it explains. -/
+structure InitialRatchetModelResultEvidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    (message : Slice Std.U8) (rng : R) where
+  refusal : ∀ (hready : Model.Lifecycle.agreementFailed model = false)
+      (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R),
+        (∀ realReason,
+          tacenta_wire.decode_message decoded.message.deref ≠ ok (.Err realReason)) →
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Err reason, next, rngNext) →
+        ∃ (oracleNext : Model.Lifecycle.Oracle)
+          (modelReason : Model.Lifecycle.Refusal)
+          (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
+          InitialRatchetModelRefusalResult (view := view) (oracle := oracle)
+            (model := model) decoded.message.deref modelReason oracleNext
+            modelComposite ciphertext
+  successStep : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        ∃ (modelNext : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+          (oracleNext : Model.Lifecycle.Oracle),
+          Model.Lifecycle.decryptRatchet view oracle model
+              (sliceOf decoded.message.deref) =
+            { session := modelNext, result := .ok modelPlaintext, oracle := oracleNext }
+  successProvider : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        ∀ (modelNext : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+          (oracleNext : Model.Lifecycle.Oracle)
+          (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model
+            decoded.message.deref),
+          InitialRatchetConcreteSuccessProvider
+            (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+            (view := view) (oracle := oracle) (oracleNext := oracleNext)
+            (real := real) (model := model) (message := decoded.message.deref)
+            (rng := rng) (rngNext := rngNext) (plaintext := plaintext) (next := next)
+            facts
+
 /-! Package the per-input evidence constructors so the public bridge can
     request a single concrete branch-evidence object instead of an opaque
     route callback. -/
@@ -10369,70 +10434,20 @@ theorem decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
     (hzKeys : ZeroizingRoundTrips
       (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
-    (hmodelRefusal : ∀ (hready : Model.Lifecycle.agreementFailed model = false)
-      (decoded : tacenta_wire.DecodedInitial)
-      (established : alloc.vec.Vec Std.U8),
-      tacenta_wire.decode_initial message = ok (.Ok decoded) →
-      real.established_ephemeral = some established →
-      vecOf established = vecOf decoded.ephemeral →
-      vecOf decoded.identity =
-        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
-      ∀ (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R),
-        (∀ realReason,
-          tacenta_wire.decode_message decoded.message.deref ≠ ok (.Err realReason)) →
-        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
-          ok (.Err reason, next, rngNext) →
-        ∃ (oracleNext : Model.Lifecycle.Oracle)
-          (modelReason : Model.Lifecycle.Refusal)
-          (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
-          InitialRatchetModelRefusalResult (view := view) (oracle := oracle)
-            (model := model) decoded.message.deref modelReason oracleNext
-            modelComposite ciphertext)
     (evidence : InitialRatchetConcreteBranchEvidence
       (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
       (view := view) (oracle := oracle) (real := real) (model := model))
-    (hmodelStep : ∀ (decoded : tacenta_wire.DecodedInitial)
-      (established : alloc.vec.Vec Std.U8),
-      tacenta_wire.decode_initial message = ok (.Ok decoded) →
-      real.established_ephemeral = some established →
-      vecOf established = vecOf decoded.ephemeral →
-      vecOf decoded.identity =
-        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
-      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
-        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
-          ok (.Ok plaintext, next, rngNext) →
-        ∃ (modelNext : Model.Lifecycle.Session) (modelPlaintext : Bytes)
-          (oracleNext : Model.Lifecycle.Oracle),
-          Model.Lifecycle.decryptRatchet view oracle model
-              (sliceOf decoded.message.deref) =
-            { session := modelNext, result := .ok modelPlaintext, oracle := oracleNext })
-    (hprovider : ∀ (decoded : tacenta_wire.DecodedInitial)
-      (established : alloc.vec.Vec Std.U8),
-      tacenta_wire.decode_initial message = ok (.Ok decoded) →
-      real.established_ephemeral = some established →
-      vecOf established = vecOf decoded.ephemeral →
-      vecOf decoded.identity =
-        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
-      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
-        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
-          ok (.Ok plaintext, next, rngNext) →
-        ∀ (modelNext : Model.Lifecycle.Session) (modelPlaintext : Bytes)
-          (oracleNext : Model.Lifecycle.Oracle)
-          (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model
-            decoded.message.deref),
-          InitialRatchetConcreteSuccessProvider
-            (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
-            (view := view) (oracle := oracle) (oracleNext := oracleNext)
-            (real := real) (model := model) (message := decoded.message.deref)
-            (rng := rng) (rngNext := rngNext) (plaintext := plaintext) (next := next)
-            facts) :
+    (modelEvidence : InitialRatchetModelResultEvidence
+      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+      (view := view) (oracle := oracle) (real := real) (model := model)
+      message rng) :
     PublicDecryptWitness rc crc trace dh K view oracle real model message rng := by
   exact decrypt_initial_refines_from_ratchet codec ctx
     (initial_ratchet_refines_of_t1_result_split_with_model_step_and_concrete_provider
-      ctx boundary headroom hz32 hzKeys hmodelRefusal
+      ctx boundary headroom hz32 hzKeys modelEvidence.refusal
       (initial_ratchet_refusal_branch_providers_of_evidence_package
         kem codec oracleOf hz32 hzKeys ctx.hrel evidence)
-      hmodelStep hprovider)
+      modelEvidence.successStep modelEvidence.successProvider)
 
 /-- Derive the inner call's existence from T1. The supplied semantic relation
 must hold for every actual output; it cannot assume the call succeeds or pick
