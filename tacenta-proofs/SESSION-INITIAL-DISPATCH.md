@@ -241,3 +241,16 @@ model proofs 11, model/property proofs 34, all 13 audit negatives, construct
 checks, reachability, and kernel replays. The post-DH AEAD extraction remains
 open; this checkpoint does not claim the refusal provider or public Session
 bridge is complete.
+
+## Checkpoint — 2026-09-23 (AEAD post-DH refusal inversion)
+
+The AEAD refusal inversion now continues past the second DH. The new
+`decrypt_ratchet_aead_refusal_keys_prefix` theorem recovers the successful
+Triple receive, message-key derivation, and all zeroizing round trips from the
+exact `.Aead` result. `decrypt_ratchet_aead_refusal_final_prefix` then recovers
+associated-data construction and requires the concrete AEAD boundary to return
+`Err`; a successful AEAD result is rejected by the same exact-result equation.
+Focused Lean compilation and `attest.py --check` pass. The signed commits
+`49f1c07` and `01404d4` are pushed. The next semantic step is to package these
+facts and compose them with `decrypt_ratchet_aead_refusal_from_braid`, then
+feed the resulting route into the indexed refusal provider.
