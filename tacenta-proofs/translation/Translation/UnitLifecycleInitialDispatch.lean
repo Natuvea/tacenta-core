@@ -5499,6 +5499,50 @@ def initial_ratchet_decode_refusal_evidence {R : Type}
     trace dh K view oracle real model message rng realReason hrel htrace hready hdecodeReal
   exact ⟨hcall, hstep⟩
 
+/-! Close the two wrapper-level refusal routes at the same actual-result
+    boundary used by the T1 splitter.  The terminal and malformed adapters
+    each compute their own exact `decrypt_ratchet` result; the equality of that
+    result with the caller's `Err` result is used to identify the requested
+    reason, successor session, and randomness before packaging the evidence. -/
+noncomputable def initial_ratchet_terminal_or_decode_refusal_evidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (hbad : ∀ decoded : tacenta_wire.DecodedInitial,
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      ∃ reason, tacenta_wire.decode_message decoded.message.deref = ok (.Err reason))
+    (decoded : tacenta_wire.DecodedInitial)
+    (established : alloc.vec.Vec Std.U8)
+    (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
+    (hestablished : real.established_ephemeral = some established)
+    (he : vecOf established = vecOf decoded.ephemeral)
+    (hi : vecOf decoded.identity =
+      Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public))
+    (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R)
+    (hcall : lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+      ok (.Err reason, next, rngNext)) :
+    InitialRatchetRefusalEvidence rc crc trace dh K view oracle real model
+      decoded.message.deref rng reason next rngNext := by
+  by_cases hfailed : Model.Lifecycle.agreementFailed model = true
+  · obtain ⟨hterminal, hstep⟩ := decrypt_ratchet_terminal_guard_step_refines rc crc trace dh K
+      view oracle real model decoded.message.deref rng ctx.hrel ctx.htrace hfailed
+    have heq := Result.ok.inj (hcall.symm.trans hterminal)
+    cases heq
+    exact ⟨hcall, hstep⟩
+  · have hready : Model.Lifecycle.agreementFailed model = false := by
+      cases h : Model.Lifecycle.agreementFailed model <;> simp_all
+    let decodeReason := Classical.choose (hbad decoded hdecode)
+    have hbadDecode := Classical.choose_spec (hbad decoded hdecode)
+    obtain ⟨hdecodeCall, hdecodeStep⟩ := decrypt_ratchet_decode_refusal_refines rc crc
+      trace dh K view oracle real model decoded.message.deref rng decodeReason ctx.hrel
+      ctx.htrace hready hbadDecode
+    have heq := Result.ok.inj (hcall.symm.trans hdecodeCall)
+    cases heq
+    exact ⟨hcall, hdecodeStep⟩
+
 /-! Result-shaped T1 composition with the concrete success router and the
     refusal-family evidence boundary. -/
 theorem initial_ratchet_refines_of_t1_result_split_with_evidence
