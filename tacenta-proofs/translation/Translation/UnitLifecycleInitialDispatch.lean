@@ -9714,6 +9714,72 @@ noncomputable def initial_ratchet_refusal_branch_providers_of_concrete_evidence
     (initial_ratchet_aead_route_provider_of_concrete_evidence
       input kem oracleOf hz32 hzKeys hrel htrace hready aeadEvidence)
 
+/-! Package the per-input evidence constructors so the public bridge can
+    request a single concrete branch-evidence object instead of an opaque
+    route callback. -/
+structure InitialRatchetConcreteBranchEvidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session} where
+  dhEvidence : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
+      (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+        (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+        (real := real) (model := model) innerMessage innerRng),
+      InitialRatchetDhConcreteProviders input
+  tripleEvidence : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
+      (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+        (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+        (real := real) (model := model) innerMessage innerRng),
+      InitialRatchetTripleConcreteProviders input
+  aeadEvidence : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
+      (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+        (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+        (real := real) (model := model) innerMessage innerRng),
+      InitialRatchetAeadConcreteProviders input
+  ceiling : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
+      (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+        (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+        (real := real) (model := model) innerMessage innerRng)
+      (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+      (dhOutRecv : Model.Lifecycle.Key),
+      Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
+        .ok (composite, ciphertext) →
+      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
+      Model.Lifecycle.random32 oracle = none → False
+
+noncomputable def initial_ratchet_refusal_branch_providers_of_evidence_package
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    (kem : KemView) (codec : DhCodecOf dh)
+    (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (htrace : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
+      (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+        (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+        (real := real) (model := model) innerMessage innerRng),
+      trace innerRng = oracle.draws)
+    (evidence : InitialRatchetConcreteBranchEvidence
+      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+      (view := view) (oracle := oracle) (real := real) (model := model)) :
+    ∀ {innerMessage : Slice Std.U8} {innerRng : R}
+      (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+        (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+        (real := real) (model := model) innerMessage innerRng),
+      InitialRatchetRefusalBranchProviders input := by
+  intro innerMessage innerRng input
+  exact initial_ratchet_refusal_branch_providers_of_concrete_evidence input kem codec
+    oracleOf hz32 hzKeys hrel (htrace input) hready
+    (evidence.dhEvidence input) (evidence.tripleEvidence input)
+    (evidence.aeadEvidence input)
+    (evidence.ceiling input)
+
 def initial_ratchet_terminal_refusal_evidence {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
