@@ -164,6 +164,9 @@ against the requested Triple result. This is generated-call inversion only.
 It also exposes the equality between the random draw's returned RNG and the
 outer refusal result's RNG, which is required to consume the model's ordered
 draw contract without choosing a successor state independently.
+`InitialRatchetTripleRefusalPrefix` packages these facts for the next adapter,
+so the provider consumes a record selected from the exact refusal equation
+rather than a fresh existential.
 The next step is to feed this prefix into `decrypt_ratchet_triple_refusal_from_braid`
 and its shared Braid/primitive contracts, then add the analogous AEAD prefix
 before instantiating the indexed refusal provider.

@@ -984,6 +984,7 @@ theorem decrypt_ratchet_triple_refusal_prefix {R : Type}
                                         | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha, hsend, hne] at hcall
                                         | ok b1 => cases b1 <;>
                                             simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha, hsend, hne] at hcall
+
         | some realOutput converted hout hconverted => simp_all
       | some output =>
         cases hsparse with
@@ -1089,6 +1090,93 @@ theorem decrypt_ratchet_triple_refusal_prefix {R : Type}
                                         | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha, hsend, hne] at hcall
                                         | ok b1 => cases b1 <;>
                                             simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha, hsend, hne] at hcall
+
+/-! Package the generated Triple-refusal inversion so the branch adapter can
+consume it without re-selecting any intermediate value. -/
+structure InitialRatchetTripleRefusalPrefix {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (real : lifecycle.Session) (message : Slice Std.U8) (rng rngNext : R)
+    (realReason : tacenta_triple.TripleError) (next : lifecycle.Session) : Type where
+  decoded : tacenta_wire.DecodedMessage
+  m : tacenta_braid.Msg
+  receivedEpoch : Std.U64
+  output : Option tacenta_braid.Output
+  braidCandidate : tacenta_braid.Braid
+  sparseOutput : Option tacenta_spqr.Output
+  peer : tacenta_boundary.dh.PublicKeyBytes
+  recvSecret : Array Std.U8 32#usize
+  candidateBytes : Array Std.U8 32#usize
+  wrappedRecv : zeroize.Zeroizing (Array Std.U8 32#usize)
+  rng1 : R
+  candidatePrivate : tacenta_boundary.dh.PrivateKey
+  sendSecret : Array Std.U8 32#usize
+  wrappedSend : zeroize.Zeroizing (Array Std.U8 32#usize)
+  before : Array Std.U8 32#usize
+  realHeader : tacenta_triple.Header
+  candidatePublic : tacenta_boundary.dh.PublicKeyBytes
+  newPublicBytes : Array Std.U8 32#usize
+  hdecode : tacenta_wire.decode_message message = ok (.Ok decoded)
+  hmessage : lifecycle.msg_of decoded.header = ok m
+  hreceive : tacenta_braid.Braid.receive real.braid m =
+    ok (receivedEpoch, output, braidCandidate)
+  hsparse : RealSparseConversion output sparseOutput
+  hpeer : tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh = ok peer
+  hfirst : tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer =
+    ok (some recvSecret)
+  hwrapRecv : zeroize.Zeroizing.new
+    (Array.Insts.ZeroizeZeroize 32#usize
+      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) recvSecret = ok wrappedRecv
+  hderefRecv : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+    (Array.Insts.ZeroizeZeroize 32#usize
+      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedRecv = ok recvSecret
+  hrandom : lifecycle.random_secret rngCore cryptoRng rng = ok (candidateBytes, rng1)
+  hrng : rng1 = rngNext
+  hcandidate : tacenta_boundary.dh.PrivateKey.from_bytes candidateBytes = ok candidatePrivate
+  hsecond : tacenta_boundary.dh.PrivateKey.agree candidatePrivate peer =
+    ok (some sendSecret)
+  hwrapSend : zeroize.Zeroizing.new
+    (Array.Insts.ZeroizeZeroize 32#usize
+      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sendSecret = ok wrappedSend
+  hderefSend : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+    (Array.Insts.ZeroizeZeroize 32#usize
+      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedSend = ok sendSecret
+  hbefore : tacenta_triple.State.sending_public real.triple = ok before
+  hheader : lifecycle.triple_header_of decoded.header = ok realHeader
+  hpublic : tacenta_boundary.dh.PrivateKey.public_key candidatePrivate = ok candidatePublic
+  hpublicBytes : tacenta_boundary.dh.PublicKeyBytes.as_bytes candidatePublic = ok newPublicBytes
+  htriple : lifecycle.receive_with_eviction real.triple decoded.header realHeader
+    recvSecret sendSecret newPublicBytes sparseOutput = ok (.Err realReason)
+
+noncomputable def initial_ratchet_triple_refusal_prefix_of_result {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (real : lifecycle.Session) (message : Slice Std.U8) (rng rngNext : R)
+    (realReason : tacenta_triple.TripleError) (next : lifecycle.Session)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err (.Triple realReason), next, rngNext)) :
+    InitialRatchetTripleRefusalPrefix rngCore cryptoRng real message rng rngNext
+      realReason next := Classical.choice (show Nonempty
+        (InitialRatchetTripleRefusalPrefix rngCore cryptoRng real message rng rngNext
+          realReason next) from by
+  obtain ⟨decoded, m, receivedEpoch, output, braidCandidate, sparseOutput, peer, recvSecret,
+      wrappedRecv, candidateBytes, rng1, candidatePrivate, sendSecret, wrappedSend, before,
+      realHeader, candidatePublic, newPublicBytes, hdecode, hmessage, hreceive, hsparse, hpeer,
+      hfirst, hwrapRecv, hderefRecv, hrandom, hrng, hcandidate, hsecond, hwrapSend,
+      hderefSend, hbefore, hheader, hpublic, hpublicBytes, htriple⟩ :=
+    decrypt_ratchet_triple_refusal_prefix rngCore cryptoRng hz32 real message rng rngNext
+      realReason next hcall
+  exact ⟨{
+    decoded := decoded, m := m, receivedEpoch := receivedEpoch, output := output,
+    braidCandidate := braidCandidate, sparseOutput := sparseOutput, peer := peer,
+    recvSecret := recvSecret, wrappedRecv := wrappedRecv, candidateBytes := candidateBytes,
+    rng1 := rng1, candidatePrivate := candidatePrivate, sendSecret := sendSecret,
+    wrappedSend := wrappedSend, before := before, realHeader := realHeader,
+    candidatePublic := candidatePublic, newPublicBytes := newPublicBytes,
+    hdecode := hdecode, hmessage := hmessage, hreceive := hreceive, hsparse := hsparse,
+    hpeer := hpeer, hfirst := hfirst, hwrapRecv := hwrapRecv, hderefRecv := hderefRecv,
+    hrandom := hrandom, hrng := hrng, hcandidate := hcandidate, hsecond := hsecond,
+    hwrapSend := hwrapSend, hderefSend := hderefSend, hbefore := hbefore,
+    hheader := hheader, hpublic := hpublic, hpublicBytes := hpublicBytes, htriple := htriple }⟩)
 
 /-! Continue inversion through the first public-key decode and DH agreement.
 The result is still tied to the same concrete success equation; a failed or
