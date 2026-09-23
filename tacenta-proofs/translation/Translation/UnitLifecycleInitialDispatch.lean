@@ -10413,11 +10413,44 @@ theorem initial_ratchet_refines_of_t1_result_split_with_model_step_and_concrete_
   · exact initial_ratchet_success_callback_of_model_step_and_provider hmodelStep hprovider
 
 
-/-! Public initial-message bridge for the completed result split.  The refusal
-    side is now indexed by the concrete model result and its five typed branch
-    providers; the success side is indexed by the generated `Ok` result and a
-    concrete receive provider.  Thus this boundary no longer accepts an
-    unindexed `hnonterminalRoute` or an independently chosen `hsuccess`. -/
+/-! Public initial-message bridge for the completed result split.  This first
+    theorem exposes the inner `InitialRatchetRefines` witness itself so the
+    pending-state and invariant theorems can consume the same concrete
+    composition without rebuilding any callbacks. -/
+theorem initial_ratchet_refines_of_t1_with_concrete_evidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (codec : DhCodecOf dh)
+    (kem : KemView)
+    (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (evidence : InitialRatchetConcreteBranchEvidence
+      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+      (view := view) (oracle := oracle) (real := real) (model := model))
+    (modelEvidence : InitialRatchetModelResultEvidence
+      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+      (view := view) (oracle := oracle) (real := real) (model := model)
+      message rng) :
+    InitialRatchetRefines rc crc trace dh K view oracle real model message rng := by
+  exact initial_ratchet_refines_of_t1_result_split_with_model_step_and_concrete_provider
+    ctx boundary headroom hz32 hzKeys modelEvidence.refusal
+    (initial_ratchet_refusal_branch_providers_of_evidence_package
+      kem codec oracleOf hz32 hzKeys ctx.hrel evidence)
+    modelEvidence.successStep modelEvidence.successProvider
+
+/-! The public initial-message bridge now reuses that exact inner witness.  The
+    refusal side is indexed by the concrete model result and its five typed
+    branch providers; the success side is indexed by the generated `Ok` result
+    and a concrete receive provider. -/
 theorem decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -10443,11 +10476,8 @@ theorem decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
       message rng) :
     PublicDecryptWitness rc crc trace dh K view oracle real model message rng := by
   exact decrypt_initial_refines_from_ratchet codec ctx
-    (initial_ratchet_refines_of_t1_result_split_with_model_step_and_concrete_provider
-      ctx boundary headroom hz32 hzKeys modelEvidence.refusal
-      (initial_ratchet_refusal_branch_providers_of_evidence_package
-        kem codec oracleOf hz32 hzKeys ctx.hrel evidence)
-      modelEvidence.successStep modelEvidence.successProvider)
+    (initial_ratchet_refines_of_t1_with_concrete_evidence codec kem oracleOf ctx boundary
+      headroom hz32 hzKeys evidence modelEvidence)
 
 /-- Derive the inner call's existence from T1. The supplied semantic relation
 must hold for every actual output; it cannot assume the call succeeds or pick
