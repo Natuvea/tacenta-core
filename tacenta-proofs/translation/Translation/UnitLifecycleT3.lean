@@ -2103,6 +2103,48 @@ theorem triple_success_evidence_of_exact_candidate_and_contracts
     (modelCandidate, modelHeader, modelMk)).2 hsome
   exact ⟨modelCandidate, modelHeader, modelMk, hdetail, hstate, hheader, hkey⟩
 
+/-! The refusal counterpart preserves the model's exact refusal value instead
+    of fabricating one from the implementation error.  The contract theorem
+    proves the model `send` is absent; exhaustive inversion of
+    `sendDetailed` then exposes the unique model refusal for a caller to map. -/
+theorem triple_refusal_evidence_of_exact_candidate_and_contracts
+    {s : tacenta_triple.State} {m : Model.Triple.State}
+    (contracts : TripleSendRefinementContracts)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (sendingEpoch : Std.U64) (output : Option tacenta_spqr.Output)
+    (hroom : m.postQuantum.chains.length + 1 < Usize.max)
+    (hcb : ∀ p ∈ m.postQuantum.chains,
+      p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hsb : ∀ sk ∈ m.postQuantum.skipped,
+      sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hnewb : ∀ o : tacenta_spqr.Output, output = some o →
+      o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hepoch : m.postQuantum.epoch + 1 < Std.U64.max)
+    (hcounter : ∀ p ∈ m.postQuantum.chains, ∀ ch : Model.SparseRatchet.Chain,
+      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
+    {candidate : tacenta_triple.State} {reason : tacenta_triple.TripleError}
+    (hshape : reason = tacenta_triple.TripleError.Classical
+        tacenta_ratchet.RatchetError.NoSendingChain ∨
+      ∃ reason', reason = tacenta_triple.TripleError.PostQuantum reason')
+    (hsend : lifecycle.send_candidate s sendingEpoch output =
+      ok (candidate, .Err reason)) :
+    ∃ modelReason,
+      Model.Triple.sendDetailed m sendingEpoch.val
+        (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = .error modelReason := by
+  have hpost := triple_send_candidate_post_of_contracts contracts hrel sendingEpoch output
+    hroom hcb hsb hnewb hepoch hcounter hsend
+  have hnone := hpost.2 reason (by rfl) hshape
+  cases hdetail : Model.Triple.sendDetailed m sendingEpoch.val
+      (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) with
+  | error modelReason => exact ⟨modelReason, rfl⟩
+  | ok value =>
+      have hsome := (Model.Triple.sendDetailed_ok_iff m sendingEpoch.val
+        (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) value).1 hdetail
+      rw [hnone] at hsome
+      cases hsome
+
 /-- `decrypt_ratchet` has the same terminal agreement guard as `encrypt`: it
 returns the exact public refusal without decoding attacker-controlled bytes or
 changing state/randomness. -/
