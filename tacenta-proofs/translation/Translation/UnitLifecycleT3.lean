@@ -3419,6 +3419,44 @@ theorem encrypt_braid_failure_of_no_draw_contracts
   · exact hfailed
   · exact htrace
 
+/-! Public no-draw Braid-failure composition.  The implementation result is
+    obtained from the generated T1 totality theorem, the model successor from
+    the T3 refinement adapter, and the existing leaf proves the committed
+    failed-Braid state and unchanged plaintext-side data. -/
+theorem public_encrypt_braid_failure_no_draw_of_contracts
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (plaintext : Slice Std.U8) (rng : R)
+    (contracts : BraidSendRefinementContracts rngCore K)
+    (hlive : Tacenta.SessionUnitBraidT3.EncodersLive model.braid)
+    (hkem : oracle.braidKem = K)
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (htrace : trace rng = oracle.draws)
+    (hnoDraw : Model.Lifecycle.braidSendNeedsDraw model.braid = false)
+    (hfailed : ∀ modelNext : Model.Braid.BraidState,
+      ∀ realBraidNext : tacenta_braid.Braid,
+      Tacenta.SessionUnitBraidT3.StateRefines K realBraidNext.state modelNext →
+      Model.Lifecycle.braidFailed modelNext = true)
+    (htraceNext : ∀ (realMessage : tacenta_braid.Msg) (realEpoch : Std.U64)
+      (realOutput : Option tacenta_braid.Output) (realBraidNext : tacenta_braid.Braid)
+      (rngNext : R),
+      tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
+        ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
+      trace rngNext = oracle.draws) :
+    PublicEncryptWitness rngCore cryptoRng trace dh K view oracle real model plaintext rng := by
+  obtain ⟨result, rngNext, hsend⟩ := braid_send_result_of_contracts contracts real.braid rng
+  rcases result with ⟨realMessage, realEpoch, realOutput, realBraidNext⟩
+  have htraceNext' := htraceNext realMessage realEpoch realOutput realBraidNext rngNext hsend
+  exact encrypt_braid_failure_of_no_draw_contracts rngCore cryptoRng trace dh K view oracle
+    real model plaintext rng rngNext realMessage realEpoch realOutput realBraidNext contracts
+    hlive hkem hrel hready hsend hnoDraw
+    (fun modelNext hnext => hfailed modelNext realBraidNext hnext) htraceNext'
+    
+
 def realSparseOutputOf (output : Option tacenta_braid.Output) :
     Result (Option tacenta_spqr.Output) :=
   match output with
