@@ -135,16 +135,25 @@ cannot supply an unrelated model candidate. The
 that inversion with the concrete provider and lifts it into the result-shaped
 callback consumed by `InitialRatchetRefines`.
 
-These are composition boundaries, not a completed Session T3 claim. The
-remaining work is to supply the full Triple/AEAD refusal leaf premises,
-connect the result-indexed success callback at the public Session bridge, and
-record vector and mutation evidence for every resulting route. The exact head
-`0ef6efd` passed the complete local `no-sorry.sh` replay: 2,318
-translation/T1/T3 jobs, 37 model proof jobs, 64 model/property jobs, all
-kernel replays, audit negatives, reachability, and dispatcher mutation
-controls. Hosted run `35816463173` is validating this head; checks, audit,
-proofs, sign-off, MSRV, Rust, armv7 and vectors are green, with `translation`
-still in progress.
+The refusal side now has the matching model-result boundary in
+`initial_ratchet_refines_of_t1_result_split_with_model_refusal_provider`.
+It classifies terminal and malformed results before the nonterminal split,
+passes the exact decoder exclusion into the model refusal inversion, and
+hands the resulting `InitialRatchetModelRefusalCase` to an indexed DH,
+Triple, or AEAD provider. The route remains indexed by the actual error,
+successor, and RNG state. This is still a composition boundary: the provider
+must be instantiated from the concrete Braid/primitive contracts, and the
+success callback must be supplied at the public Session bridge. Vector and
+mutation evidence then need to cover every resulting route.
+
+The exact head `a4e9a82` passed focused Lean compilation, all three dispatcher
+mutation controls, attestation refresh/check, and diff checks. The exact-head
+full local replay was clean on `0de9430` before this wrapper-only theorem was
+added: 2,318 translation/T1/T3 jobs, 37 model proof jobs, 64 model/property
+jobs, all kernel replays, audit negatives, reachability, and dispatcher
+mutation controls. Hosted run `35818611209` for `0de9430` has armv7, rust,
+vectors, proofs, msrv, sign-off, audit, and checks green; `translation` is
+still in progress, so no hosted-green claim is made.
 
 ## Verification record (2026-09-20)
 
