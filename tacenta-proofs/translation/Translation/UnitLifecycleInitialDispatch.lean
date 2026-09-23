@@ -8351,6 +8351,45 @@ structure InitialRatchetModelRefusalResult
   hmodelStep : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
     { session := model, result := .error modelReason, oracle := oracleNext }
 
+/-! A classified refusal is already enough to replay the model transaction.
+    Keep this constructor beside the result package so a branch provider can
+    produce the exact model result from its local conditions; it should not
+    have to carry a second, independently assembled `decryptRatchet` equation.
+    The classifier above is the inverse direction used when the model result
+    is obtained first. -/
+theorem initial_ratchet_model_refusal_result_of_case
+    (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (model : Model.Lifecycle.Session) (message : Slice Std.U8)
+    (reason : Model.Lifecycle.Refusal)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hcase : InitialRatchetModelRefusalCase view oracle model message reason oracleNext) :
+    ∃ composite ciphertext,
+      InitialRatchetModelRefusalResult (view := view) (oracle := oracle)
+        (model := model) message reason oracleNext composite ciphertext := by
+  cases hcase with
+  | firstDh composite ciphertext hdecode hfirst =>
+      refine ⟨composite, ciphertext, ⟨hdecode, ?_⟩⟩
+      simp [Model.Lifecycle.decryptRatchet, hready, hdecode, hfirst]
+  | secondDh composite ciphertext draw oracleAfter hdecode hfirst hdraw hsecond =>
+      obtain ⟨dhOutRecv, hfirst⟩ := hfirst
+      obtain ⟨dhOutSend, hsecond⟩ := hsecond
+      refine ⟨composite, ciphertext, ⟨hdecode, ?_⟩⟩
+      simp [Model.Lifecycle.decryptRatchet, hready, hdecode, hfirst, hdraw, hsecond]
+  | ceiling composite ciphertext dhOutRecv hdecode hfirst hdraw =>
+      refine ⟨composite, ciphertext, ⟨hdecode, ?_⟩⟩
+      simp [Model.Lifecycle.decryptRatchet, hready, hdecode, hfirst, hdraw]
+  | triple composite ciphertext draw oracleAfter modelReason dhOutRecv dhOutSend
+      hdecode hfirst hdraw hsecond htriple =>
+      refine ⟨composite, ciphertext, ⟨hdecode, ?_⟩⟩
+      simp [Model.Lifecycle.decryptRatchet, hready, hdecode, hfirst, hdraw,
+        hsecond, htriple]
+  | aead composite ciphertext draw oracleAfter messageKey dhOutRecv dhOutSend
+      tripleCandidate hdecode hfirst hdraw hsecond htriple haead =>
+      refine ⟨composite, ciphertext, ⟨hdecode, ?_⟩⟩
+      simp [Model.Lifecycle.decryptRatchet, hready, hdecode, hfirst, hdraw,
+        hsecond, htriple, haead]
+
 /-! Package the complete result-shaped refusal evidence once, so the public
     splitter can consume branch-specific providers without passing an
     unindexed route callback through every layer. -/
