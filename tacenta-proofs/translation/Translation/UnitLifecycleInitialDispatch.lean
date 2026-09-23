@@ -5942,6 +5942,36 @@ def initial_ratchet_refusal_evidence_of_route
   | triple realReason next rngNext e => exact e
   | aead next rngNext e => exact e
 
+/-! Exhaust the indexed refusal sum once at the public boundary.  This is a
+    useful audit lemma as well as a routing aid: any route supplied to the T1
+    result splitter is one of the five named families, with the terminal and
+    decoder successors fixed to the original session and RNG state. -/
+theorem initial_ratchet_refusal_route_family_cases
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    {reason : lifecycle.Error} {next : lifecycle.Session} {rngNext : R}
+    (route : InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
+      message rng reason next rngNext) :
+    (reason = .AgreementFailed ∧ next = real ∧ rngNext = rng) ∨
+    (∃ decodeReason, reason = .Decode decodeReason ∧ next = real ∧ rngNext = rng) ∨
+    (∃ rngAfter, reason = .Handshake SessionError.NonContributoryAgreement ∧
+      next = real ∧ rngNext = rngAfter) ∨
+    (∃ tripleReason, reason = .Triple tripleReason) ∨
+    reason = .Aead := by
+  cases route with
+  | terminal e => exact Or.inl ⟨rfl, rfl, rfl⟩
+  | decode decodeReason e =>
+      exact Or.inr (Or.inl ⟨decodeReason, rfl, rfl, rfl⟩)
+  | dh _ e =>
+      exact Or.inr (Or.inr (Or.inl ⟨rngNext, rfl, rfl, rfl⟩))
+  | triple tripleReason next rngNext e =>
+      exact Or.inr (Or.inr (Or.inr (Or.inl ⟨tripleReason, rfl⟩)))
+  | aead next rngNext e =>
+      exact Or.inr (Or.inr (Or.inr (Or.inr rfl)))
+
 def initial_ratchet_triple_refusal_evidence_of_pair {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
