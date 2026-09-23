@@ -9712,6 +9712,33 @@ structure InitialRatchetTripleBranchContracts
         .error modelReason →
       ∃ realReason, InitialRatchetTripleConcreteEvidence input realReason composite modelReason
 
+theorem initial_ratchet_triple_prefix_model_facts
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {realReason : tacenta_triple.TripleError} {next : lifecycle.Session}
+    (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+      (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+      (real := real) (model := model) message rng)
+    (pref : InitialRatchetTripleRefusalPrefix rc crc real
+      input.decoded.message.deref rng rngNext realReason next)
+    (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+    (hmodelDecode : Model.CompositeHeader.decodeDetailed
+      (sliceOf input.decoded.message.deref) = .ok (modelComposite, ciphertext)) :
+    Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
+        .ok (modelComposite, vecOf pref.decoded.ciphertext) ∧
+      CompositeRefines pref.decoded.header modelComposite := by
+  obtain ⟨decoded, hreal, hcipher, hcomposite⟩ :=
+    decode_message_model_facts_of_nonrefusal input.decoded.message.deref
+      input.hnotbad modelComposite ciphertext hmodelDecode
+  have heqResult : core.result.Result.Ok decoded =
+      core.result.Result.Ok pref.decoded := Result.ok.inj (hreal.symm.trans pref.hdecode)
+  have heq : decoded = pref.decoded := by injection heqResult
+  cases heq
+  exact ⟨by simpa [hcipher] using hmodelDecode, hcomposite⟩
+
 structure InitialRatchetAeadConcreteEvidence
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -9798,6 +9825,32 @@ structure InitialRatchetAeadBranchContracts
         (Model.Messages.concatAd model.identityAd
           (Model.CompositeHeader.encode composite)) = none →
       InitialRatchetAeadConcreteEvidence input composite tripleCandidate messageKey
+
+theorem initial_ratchet_aead_prefix_model_facts
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R} {next : lifecycle.Session}
+    (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+      (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+      (real := real) (model := model) message rng)
+    (pref : InitialRatchetAeadRefusalPrefix rc crc real
+      input.decoded.message.deref rng rngNext next)
+    (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+    (hmodelDecode : Model.CompositeHeader.decodeDetailed
+      (sliceOf input.decoded.message.deref) = .ok (modelComposite, ciphertext)) :
+    Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
+        .ok (modelComposite, vecOf pref.decoded.ciphertext) ∧
+      CompositeRefines pref.decoded.header modelComposite := by
+  obtain ⟨decoded, hreal, hcipher, hcomposite⟩ :=
+    decode_message_model_facts_of_nonrefusal input.decoded.message.deref
+      input.hnotbad modelComposite ciphertext hmodelDecode
+  have heqResult : core.result.Result.Ok decoded =
+      core.result.Result.Ok pref.decoded := Result.ok.inj (hreal.symm.trans pref.hdecode)
+  have heq : decoded = pref.decoded := by injection heqResult
+  cases heq
+  exact ⟨by simpa [hcipher] using hmodelDecode, hcomposite⟩
 
 structure InitialRatchetAeadConcreteProviders
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
