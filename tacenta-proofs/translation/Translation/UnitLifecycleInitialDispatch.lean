@@ -8761,6 +8761,53 @@ theorem initial_ratchet_dh_refusal_route
     hdecodeModel hrealComposite hcomposite hdh
   exact ⟨rngAfter, ⟨.dh rngAfter evidence⟩⟩
 
+/-! Concrete DH provider adapter.  The model/Braid/DH evidence is supplied at
+    the branch that selected the exact generated result; this adapter only
+    reconciles the evidence-producing call with that result before attaching
+    the indexed DH route. -/
+theorem initial_ratchet_dh_refusal_provider_of_evidence
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (codec : DhCodecOf dh)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err reason, next, rngNext))
+    (decoded : tacenta_wire.DecodedMessage)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (realComposite : tacenta_wire.Composite)
+    (evidence : BraidReceiveEvidence K view real model realComposite modelComposite)
+    (hrealComposite : realComposite = decoded.header)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeReal : tacenta_wire.decode_message message = ok (.Ok decoded))
+    (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (modelComposite, vecOf decoded.ciphertext))
+    (hcomposite : CompositeRefines decoded.header modelComposite)
+    (hdh : oracle.dhAgree model.ratchetPrivate modelComposite.dh = none ∨
+      ∃ draw modelDhOutRecv,
+        oracle.dhAgree model.ratchetPrivate modelComposite.dh = some modelDhOutRecv ∧
+        Model.Lifecycle.random32 oracle = some (draw, oracleNext) ∧
+        oracle.dhAgree draw modelComposite.dh = none) :
+    Nonempty (InitialRatchetRefusalRoute rngCore cryptoRng trace dh K view oracle
+      real model message rng reason next rngNext) := by
+  obtain ⟨rngAfter, ⟨e⟩⟩ := initial_ratchet_dh_refusal_evidence
+    rngCore cryptoRng trace dh kem K view oracle oracleNext oracleOf codec hz32
+    real model message rng decoded modelComposite realComposite evidence hrel htrace hready
+    hdecodeReal hdecodeModel hrealComposite hcomposite hdh
+  have hresult : (core.result.Result.Err reason, next, rngNext) =
+      (core.result.Result.Err (.Handshake SessionError.NonContributoryAgreement), real, rngAfter) :=
+    Result.ok.inj (hcall.symm.trans e.hcall)
+  cases hresult
+  exact ⟨.dh _ e⟩
+
 
 /-! Small route constructors for the two result-indexed leaf families.  The
     evidence package still requires the exact generated call and model step;
