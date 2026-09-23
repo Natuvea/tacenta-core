@@ -1887,6 +1887,29 @@ structure BraidSendRefinementContracts {R : Type}
   arrayZeroize : Tacenta.SessionUnitBraidT1.ArrayZeroizeTotal
   rangeFullIndex : Tacenta.SessionUnitBraidT1.RangeFullIndexTotal
   rng : Tacenta.SessionUnitBraidT1.RngTotal rc
+  keyPairGenerate : Tacenta.SessionUnitBraidT1.KeyPairGenerateTotal
+  encoderNew : Tacenta.SessionUnitBraidT1.EncoderNewTotal
+  encoderNext : Tacenta.SessionUnitBraidT1.EncoderNextChunkTotal
+  hmacTotal : Tacenta.SessionUnitBraidT1.HmacSha256Total
+  hkdfTotal : Tacenta.SessionUnitBraidT1.HkdfSha256Total
+  encapsulate1 : Tacenta.SessionUnitBraidT1.Encapsulate1Total
+
+theorem braid_send_result_of_contracts
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {K : Model.Braid.Kem}
+    (contracts : BraidSendRefinementContracts rc K)
+    (self : tacenta_braid.Braid) (rng : R) :
+    ∃ result rngNext,
+      tacenta_braid.Braid.send rc crc self rng = ok (result, rngNext) := by
+  obtain ⟨result, hresult⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitBraidT1.Braid.send_no_panic rc crc contracts.rng
+      contracts.encoderClone contracts.decoderClone contracts.keyPairClone
+      contracts.encapsStateClone contracts.keyPairGenerate contracts.header
+      contracts.hmacTotal contracts.encoderNew contracts.encoderNext contracts.hkdfTotal
+      contracts.encapsulate1 contracts.zeroizingArray contracts.arrayZeroize
+      contracts.rangeFullIndex self rng)
+  rcases result with ⟨result, rngNext⟩
+  exact ⟨result, rngNext, hresult.1⟩
 
 theorem braid_send_post_of_contracts
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
