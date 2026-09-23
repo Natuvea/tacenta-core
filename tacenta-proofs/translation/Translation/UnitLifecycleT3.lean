@@ -1923,6 +1923,69 @@ theorem braid_send_post_of_contracts
   cases heq
   exact hpost
 
+/-! The corresponding Triple adapter keeps the exact generated candidate-send
+    result tied to the `SessionUnitTripleT3.send_refines_discharged` postcondition.
+    The model-side bounds are explicit because they are the preconditions of
+    the sparse ratchet's finite-store theorem, not facts that can be inferred
+    from the outer Session relation. -/
+structure TripleSendRefinementContracts : Prop where
+  hmac : Tacenta.SessionUnitT3.HmacAgrees
+  hkdf : Tacenta.SessionUnitT3.HkdfAgrees
+  zeroizing : Tacenta.SessionUnitT3.ZeroizingRoundTrips
+  ratchetRemove : Tacenta.SessionUnitT1.RemoveSkippedAtTotal
+  spqrZeroizing96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96
+  spqrZeroizing64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64
+  vecRetain : Tacenta.SessionUnitSpqrT3.VecRetainAgrees
+  vecAppend : Tacenta.SessionUnitSpqrT3.VecAppendAgrees
+  spqrRemove : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees
+  spqrZeroize : Tacenta.SessionUnitSpqrT1.ZeroizeTotal
+  optionClone : Tacenta.SessionUnitSpqrT1.OptionCloneTotal
+
+theorem triple_send_post_of_contracts
+    {s : tacenta_triple.State} {m : Model.Triple.State}
+    (contracts : TripleSendRefinementContracts)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (sendingEpoch : Std.U64) (output : Option tacenta_spqr.Output)
+    (hroom : m.post_quantum.chains.val.length + 1 < Usize.max)
+    (hcb : ∀ p ∈ m.post_quantum.chains,
+      p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hsb : ∀ sk ∈ m.post_quantum.skipped,
+      sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hnewb : ∀ o : tacenta_spqr.Output, output = some o →
+      o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hepoch : m.post_quantum.epoch + 1 < Std.U64.max)
+    (hcounter : ∀ p ∈ m.post_quantum.chains, ∀ ch : Model.SparseRatchet.Chain,
+      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
+    {sent : core.result.Result (tacenta_triple.Header × Array Std.U8 32#usize)
+      tacenta_triple.TripleError}
+    {candidate : tacenta_triple.State}
+    (hsend : tacenta_triple.State.send s sendingEpoch output =
+      ok (sent, candidate)) :
+    ((∀ hdr mk, sent = core.result.Result.Ok (hdr, mk) →
+        ∃ m' mh key,
+          Model.Triple.send m sendingEpoch.val (output.map spqrOutputOf) =
+            some (m', mh, key) ∧
+          Tacenta.SessionUnitTripleT3.StateRefines
+            Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+            candidate m' ∧ TripleHeaderR hdr mh ∧ keyOf mk = key) ∧
+      (∀ e, sent = core.result.Result.Err e →
+        (e = tacenta_triple.TripleError.Classical
+            tacenta_ratchet.RatchetError.NoSendingChain ∨
+          ∃ e', e = tacenta_triple.TripleError.PostQuantum e') →
+        Model.Triple.send m sendingEpoch.val (output.map spqrOutputOf) = none)) := by
+  obtain ⟨result, hcall, hpost⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitTripleT3.send_refines_discharged
+      contracts.hmac contracts.hkdf contracts.zeroizing contracts.ratchetRemove
+      contracts.spqrZeroizing96 contracts.spqrZeroizing64 contracts.vecRetain
+      contracts.vecAppend contracts.spqrRemove contracts.spqrZeroize contracts.optionClone
+      hrel sendingEpoch output hroom hcb hsb hnewb hepoch hcounter)
+  have heq : result = (sent, candidate) := by
+    exact Result.ok.inj (hcall.symm.trans hsend)
+  cases heq
+  exact hpost
+
 /-- `decrypt_ratchet` has the same terminal agreement guard as `encrypt`: it
 returns the exact public refusal without decoding attacker-controlled bytes or
 changing state/randomness. -/
