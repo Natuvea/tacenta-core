@@ -118,16 +118,21 @@ partitions. The direct adapter routes through
 `aggregate_receive_core_refinement_of_direct`; the classical/post-quantum
 full-store adapter routes through the shared retry refinement. The resulting
 `InitialRatchetSuccessSplice` is indexed by the same concrete and model
-results, so a detached Triple candidate cannot be substituted.
+results, so a detached Triple candidate cannot be substituted. The
+`initial_ratchet_success_branch_of_actual_receive_cases` and
+`initial_ratchet_success_splice_of_actual_receive_cases` bridges require the
+provider to consume the two partitions extracted from those exact prefixes
+before constructing the splice.
 
 These are composition boundaries, not a completed Session T3 claim. The
 remaining work is to supply the full Triple/AEAD leaf premises and the direct /
 retry success splice at the public bridge, then record vector and mutation
-evidence for every resulting route. The exact head `3cc8cde` has passed the
+evidence for every resulting route. The exact head `7958374` has passed the
 complete local `no-sorry.sh` replay: 2,318 translation/T1/T3 jobs, 37 model
 proof jobs, 64 model/property jobs, all kernel replays, audit negatives,
 reachability, and dispatcher mutation controls. Hosted CI run `35809504696`
-has nine jobs green and `translation` still running.
+for the documentation-only predecessor was superseded by run `35811134920`;
+the new run has nine jobs green and `translation` still running.
 
 ## Verification record (2026-09-20)
 
