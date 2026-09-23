@@ -5835,6 +5835,84 @@ theorem initial_ratchet_dh_refusal_evidence
       realComposite evidence hrel htrace hready hdecodeReal hdecodeModel hrealComposite
       hcomposite draw modelDhOutRecv hmodelFirst hmodelDraw hmodelSecond
 
+/-! Route-level DH adapter.  This is the first nonterminal refusal family
+    exposed directly to the indexed route sum; the first/second-DH split and
+    its RNG successor remain supplied by `initial_ratchet_dh_refusal_evidence`.
+    No error or successor is re-labelled at this boundary. -/
+theorem initial_ratchet_dh_refusal_route
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (codec : DhCodecOf dh)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (decoded : tacenta_wire.DecodedMessage)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (realComposite : tacenta_wire.Composite)
+    (evidence : BraidReceiveEvidence K view real model realComposite modelComposite)
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hdecodeReal : tacenta_wire.decode_message message = ok (.Ok decoded))
+    (hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+      .ok (modelComposite, vecOf decoded.ciphertext))
+    (hrealComposite : realComposite = decoded.header)
+    (hcomposite : CompositeRefines decoded.header modelComposite)
+    (hdh : oracle.dhAgree model.ratchetPrivate modelComposite.dh = none ∨
+      ∃ draw modelDhOutRecv,
+        oracle.dhAgree model.ratchetPrivate modelComposite.dh = some modelDhOutRecv ∧
+        Model.Lifecycle.random32 oracle = some (draw, oracleNext) ∧
+        oracle.dhAgree draw modelComposite.dh = none) :
+    ∃ rngAfter, Nonempty (InitialRatchetRefusalRoute rngCore cryptoRng trace dh K view oracle
+      real model message rng (.Handshake SessionError.NonContributoryAgreement) real rngAfter) := by
+  obtain ⟨rngAfter, ⟨evidence⟩⟩ := initial_ratchet_dh_refusal_evidence
+    rngCore cryptoRng trace dh kem K view oracle oracleNext oracleOf codec hz32 real model
+    message rng decoded modelComposite realComposite evidence hrel htrace hready hdecodeReal
+    hdecodeModel hrealComposite hcomposite hdh
+  exact ⟨rngAfter, ⟨.dh rngAfter evidence⟩⟩
+
+
+/-! Small route constructors for the two result-indexed leaf families.  The
+    evidence package still requires the exact generated call and model step;
+    these definitions only attach the corresponding typed route tag. -/
+def initial_ratchet_triple_refusal_route_of_pair {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (realReason : tacenta_triple.TripleError)
+    (next : lifecycle.Session) (rngNext : R)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err (.Triple realReason), next, rngNext))
+    (hstep : StepRefines trace dh K (.Err (.Triple realReason), next, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+    InitialRatchetRefusalRoute rngCore cryptoRng trace dh K view oracle real model
+      message rng (.Triple realReason) next rngNext :=
+  .triple realReason next rngNext
+    (initial_ratchet_triple_refusal_evidence_of_pair rngCore cryptoRng trace dh K view
+      oracle real model message rng realReason next rngNext hcall hstep)
+
+def initial_ratchet_aead_refusal_route_of_pair {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (message : Slice Std.U8) (rng : R)
+    (next : lifecycle.Session) (rngNext : R)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err .Aead, next, rngNext))
+    (hstep : StepRefines trace dh K (.Err .Aead, next, rngNext)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+    InitialRatchetRefusalRoute rngCore cryptoRng trace dh K view oracle real model
+      message rng .Aead next rngNext :=
+  .aead next rngNext
+    (initial_ratchet_aead_refusal_evidence_of_pair rngCore cryptoRng trace dh K view oracle
+      real model message rng next rngNext hcall hstep)
 def initial_ratchet_terminal_refusal_evidence {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
