@@ -8597,7 +8597,7 @@ def initial_ratchet_aead_refusal_route_of_pair {R : Type}
 /-! Close the concrete Triple refusal leaf against the indexed route sum.  The
     model case supplies the exact DH draw, public-key, Triple refusal and
     oracle successor; the generated prefix supplies the real call. -/
-theorem initial_ratchet_triple_refusal_route_of_prefix
+def initial_ratchet_triple_refusal_route_of_prefix
     {R : Type} (rngCore : rand_core_1.RngCore R)
     (cryptoRng : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -8645,10 +8645,12 @@ theorem initial_ratchet_triple_refusal_route_of_prefix
     rng rngNext pref.decoded modelComposite realReason next pref htrace hmessageRel hnext
     hrel hready hdecodeModel hcomposite draw modelDhOutRecv modelDhOutSend modelReason
     hmodelFirst hmodelDraw hmodelSecond hmodelPublic hmodelTriple hreason
-  have heq := Result.ok.inj (hcall.symm.trans hresult)
-  cases heq
+  have hvalue := Result.ok.inj (hcall.symm.trans hresult)
+  injection hvalue with _ hpair
+  have hnextEq : next = real := congrArg Prod.fst hpair
+  cases hnextEq
   exact initial_ratchet_triple_refusal_route_of_pair rngCore cryptoRng trace dh K view
-    oracle real model message rng realReason next rngNext hresult hstep
+    oracle real model message rng realReason real rngNext hresult hstep
 
 def initial_ratchet_terminal_refusal_evidence {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
