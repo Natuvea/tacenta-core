@@ -4224,6 +4224,73 @@ structure InitialRatchetModelSuccessFacts
     (Model.Messages.concatAd model.identityAd
       (Model.CompositeHeader.encode modelComposite)) = some modelPlaintext
 
+/-! Invert the pure model success result into the exact facts consumed by the
+    translated success splice.  The case split follows the model's actual
+    decoder, Braid, DH, randomness, Triple and AEAD matches; a successful
+    result makes every refusal arm impossible and exposes the corresponding
+    equations without choosing an unrelated model candidate. -/
+theorem initial_ratchet_model_success_facts_of_result
+    (view : Model.Lifecycle.CodewordView)
+    (oracle oracleNext : Model.Lifecycle.Oracle)
+    (model modelNext : Model.Lifecycle.Session) (message : Slice Std.U8)
+    (modelPlaintext : Bytes)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hmodel : Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+      { session := modelNext, result := .ok modelPlaintext, oracle := oracleNext}) :
+    Nonempty (InitialRatchetModelSuccessFacts view oracle oracleNext model message) := by
+  simp only [Model.Lifecycle.decryptRatchet, hready] at hmodel
+  cases hd : Model.CompositeHeader.decodeDetailed (sliceOf message) with
+  | error e => simp [hd] at hmodel
+  | ok pair =>
+    obtain ⟨composite, ciphertext⟩ := pair
+    cases hb : Model.Braid.receive oracle.braidKem model.braid
+      (Model.Lifecycle.braidMessageOf view model.braid composite) with
+    | mk epoch rest =>
+      cases hr : oracle.dhAgree model.ratchetPrivate composite.dh with
+      | none => simp [hd, hb, hr] at hmodel
+      | some dhOutRecv =>
+        cases hdraw : Model.Lifecycle.random32 oracle with
+        | none => simp [hd, hb, hr, hdraw] at hmodel
+        | some pair =>
+          obtain ⟨candidatePrivate, oracleNext'⟩ := pair
+          cases hs : oracle.dhAgree candidatePrivate composite.dh with
+          | none => simp [hd, hb, hr, hdraw, hs] at hmodel
+          | some dhOutSend =>
+            cases ht : Model.Lifecycle.receiveWithEviction model.triple composite
+              (Model.Lifecycle.tripleHeaderOf composite) dhOutRecv dhOutSend
+              (oracle.dhPublic candidatePrivate) (Model.Lifecycle.sparseOutputOf rest.1) with
+            | error e => simp [hd, hb, hr, hdraw, hs, ht] at hmodel
+            | ok pair =>
+              obtain ⟨tripleCandidate, messageKey⟩ := pair
+              cases ha : oracle.aeadOpen
+                (Model.State.messageKeys messageKey .tacenta).1
+                (Model.State.messageKeys messageKey .tacenta).2.1
+                (Model.State.messageKeys messageKey .tacenta).2.2 ciphertext
+                (Model.Messages.concatAd model.identityAd
+                  (Model.CompositeHeader.encode composite)) with
+              | none => simp [hd, hb, hr, hdraw, hs, ht, ha] at hmodel
+              | some plaintext =>
+                simp [hd, hb, hr, hdraw, hs, ht, ha] at hmodel
+                have horacle : oracleNext' = oracleNext := hmodel.2.2
+                subst oracleNext'
+                let facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message := {
+                  modelComposite := composite,
+                  ciphertext := ciphertext,
+                  modelPlaintext := modelPlaintext,
+                  modelDhOutRecv := dhOutRecv,
+                  draw := candidatePrivate,
+                  modelDhOutSend := dhOutSend,
+                  modelTripleCandidate := tripleCandidate,
+                  modelMk := messageKey,
+                  hready := hready,
+                  hdecodeModel := hd,
+                  hmodelFirst := hr,
+                  hmodelDraw := hdraw,
+                  hmodelSecond := hs,
+                  hmodelTriple := by simpa [hb] using ht,
+                  hmodelAead := by simpa [hmodel.2.1] using ha }
+                exact ⟨facts⟩
+
 theorem initial_ratchet_model_success_result_of_facts
     (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message) :
     Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
@@ -5756,6 +5823,81 @@ theorem initial_ratchet_success_callback_of_concrete_provider
   exact initial_ratchet_success_splice_of_concrete_provider successPrefix facts
     (hprovider decoded established hdecode hestablished he hi plaintext next rngNext hcall
       oracleNext facts)
+
+/-! Stronger success callback entry: the model-facts record is obtained by
+    inverting the exact model `decryptRatchet` success result, rather than
+    being supplied as an independent existential. -/
+theorem initial_ratchet_success_callback_of_model_step_and_provider
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (hmodel : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        ∃ (modelNext : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+          (oracleNext : Model.Lifecycle.Oracle),
+          Model.Lifecycle.decryptRatchet view oracle model (sliceOf decoded.message.deref) =
+            { session := modelNext, result := .ok modelPlaintext, oracle := oracleNext })
+    (hprovider : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        ∀ (modelNext : Model.Lifecycle.Session) (modelPlaintext : Bytes)
+          (oracleNext : Model.Lifecycle.Oracle)
+          (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model
+            decoded.message.deref),
+          InitialRatchetConcreteSuccessProvider
+            (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+            (view := view) (oracle := oracle) (oracleNext := oracleNext)
+            (real := real) (model := model) (message := decoded.message.deref)
+            (rng := rng) (rngNext := rngNext) (plaintext := plaintext) (next := next)
+            facts) :
+    ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        ∃ oracleNext, ∃ facts : InitialRatchetModelSuccessFacts view oracle oracleNext
+          model decoded.message.deref,
+          Nonempty (∀ successPrefix : InitialRatchetSuccessPrefix rc crc real
+              decoded.message.deref rng rngNext plaintext next,
+            InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
+              successPrefix facts) := by
+  intro decoded established hdecode hestablished he hi plaintext next rngNext hcall
+  obtain ⟨modelNext, modelPlaintext, oracleNext, hmodelStep⟩ :=
+    hmodel decoded established hdecode hestablished he hi plaintext next rngNext hcall
+  have hready : Model.Lifecycle.agreementFailed model = false := by
+    by_cases hfailed : Model.Lifecycle.agreementFailed model = true
+    · simp [Model.Lifecycle.decryptRatchet, hfailed] at hmodelStep
+    · cases h : Model.Lifecycle.agreementFailed model <;> simp_all
+  obtain ⟨facts⟩ := initial_ratchet_model_success_facts_of_result view oracle oracleNext
+    model modelNext decoded.message.deref modelPlaintext
+    hready hmodelStep
+  refine ⟨oracleNext, facts, ⟨?_⟩⟩
+  intro successPrefix
+  exact initial_ratchet_success_splice_of_concrete_provider successPrefix facts
+    (hprovider decoded established hdecode hestablished he hi plaintext next rngNext hcall
+      modelNext modelPlaintext oracleNext facts)
 
 def initial_ratchet_success_evidence_of_splice {R : Type}
     {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
