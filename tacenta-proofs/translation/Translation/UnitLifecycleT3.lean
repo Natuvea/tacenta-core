@@ -3982,6 +3982,74 @@ theorem encrypt_triple_refusal_of_exact_candidate
     hsendReal (real_triple_refusal_of_exact_candidate hsparse hsendCandidate) hsendModel hnext
     hnotFailed htripleModel hreason htrace
 
+/-! Contract-backed public Triple-refusal route.  The generated candidate
+    result determines the model refusal through the finite-store adapter; the
+    only remaining cryptographic classification input is the explicit refusal
+    code correspondence. -/
+theorem public_encrypt_triple_refusal_of_contracts
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle oracleNext : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (plaintext : Slice Std.U8) (rng rngNext : R)
+    (realMessage : tacenta_braid.Msg) (realEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output)
+    (realBraidNext : tacenta_braid.Braid) (candidate : tacenta_triple.State)
+    (sparseOutput : Option tacenta_spqr.Output)
+    (realReason : tacenta_triple.TripleError)
+    (modelMessage : Model.Braid.Msg) (modelEpoch : Nat)
+    (modelOutput : Option Model.Braid.Output)
+    (modelBraidNext : Model.Braid.BraidState)
+    (contracts : TripleSendRefinementContracts)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hroom : model.triple.postQuantum.chains.length + 1 < Usize.max)
+    (hcb : ∀ p ∈ model.triple.postQuantum.chains,
+      p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hsb : ∀ sk ∈ model.triple.postQuantum.skipped,
+      sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hnewb : ∀ o : tacenta_spqr.Output, sparseOutput = some o →
+      o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hepoch : model.triple.postQuantum.epoch + 1 < Std.U64.max)
+    (hcounter : ∀ p ∈ model.triple.postQuantum.chains, ∀ ch : Model.SparseRatchet.Chain,
+      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
+    (hsparse : RealSparseConversion realOutput sparseOutput)
+    (hshape : realReason = tacenta_triple.TripleError.Classical
+        tacenta_ratchet.RatchetError.NoSendingChain ∨
+      ∃ reason', realReason = tacenta_triple.TripleError.PostQuantum reason')
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
+    (hsendCandidate : lifecycle.send_candidate real.triple realEpoch sparseOutput =
+      ok (candidate, .Err realReason))
+    (hsendModel : Model.Lifecycle.sendAgreement oracle model.braid =
+      some ((some modelMessage, modelEpoch, modelOutput, modelBraidNext), oracleNext))
+    (hnext : Tacenta.SessionUnitBraidT3.StateRefines K realBraidNext.state modelBraidNext)
+    (hnotFailed : Model.Lifecycle.braidFailed modelBraidNext = false)
+    (hmodelOf : ∀ modelReason,
+      Model.Triple.sendDetailed model.triple realEpoch.val
+        (Option.map Tacenta.SessionUnitTripleT3.spqrOutputOf sparseOutput) =
+          .error modelReason →
+      Model.Triple.sendDetailed model.triple modelEpoch
+        (Model.Lifecycle.sparseOutputOf modelOutput) = .error modelReason)
+    (hreasonOf : ∀ modelReason,
+      Model.Triple.sendDetailed model.triple realEpoch.val
+        (Option.map Tacenta.SessionUnitTripleT3.spqrOutputOf sparseOutput) =
+          .error modelReason →
+      tripleSendRefusalOfReal realReason = some modelReason)
+    (htrace : trace rngNext = oracleNext.draws) :
+    PublicEncryptWitness rngCore cryptoRng trace dh K view oracle real model plaintext rng := by
+  obtain ⟨modelReason, htripleModel⟩ :=
+    triple_refusal_evidence_of_exact_candidate_and_contracts contracts hrel.triple
+      realEpoch sparseOutput hroom hcb hsb hnewb hepoch hcounter hshape hsendCandidate
+  have htripleModel' := hmodelOf modelReason htripleModel
+  exact encrypt_triple_refusal_of_exact_candidate rngCore cryptoRng trace dh K view oracle
+    oracleNext real model plaintext rng rngNext realMessage realEpoch realOutput realBraidNext
+    candidate sparseOutput realReason modelMessage modelEpoch modelOutput modelBraidNext
+    modelReason hsparse hrel hready hsendReal hsendCandidate hsendModel hnext hnotFailed
+    htripleModel' (hreasonOf modelReason htripleModel) htrace
+
 attribute [-step] Tacenta.SessionUnitErasureT1.extend_slice32_spec
 
 private theorem beByte64_eq (v : BitVec 64) (i : Nat) (hi : i < 8) :
