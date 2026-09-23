@@ -152,6 +152,19 @@ must be instantiated from the concrete Braid/primitive contracts, and the
 success callback must be supplied at the public Session bridge. Vector and
 mutation evidence then need to cover every resulting route.
 
+The concrete Triple refusal inversion is now partially discharged. The
+`decrypt_ratchet_triple_refusal_braid_prefix`, `_dh_prefix`,
+`_random_prefix`, and `_second_dh_prefix` lemmas recover the exact generated
+decoder, Braid receive, first DH, random draw, candidate-key decode, and
+second-DH calls from a concrete `.Triple` refusal. The final
+`decrypt_ratchet_triple_refusal_prefix` lemma continues through the header,
+public-key, eviction, message-key, associated-data, AEAD, and post-receive
+candidate-public branches; all later successful/AEAD outcomes are eliminated
+against the requested Triple result. This is generated-call inversion only.
+The next step is to feed this prefix into `decrypt_ratchet_triple_refusal_from_braid`
+and its shared Braid/primitive contracts, then add the analogous AEAD prefix
+before instantiating the indexed refusal provider.
+
 The exact head `a4e9a82` passed focused Lean compilation, all three dispatcher
 mutation controls, attestation refresh/check, and diff checks. The exact-head
 full local replay was clean on `0de9430` before this wrapper-only theorem was

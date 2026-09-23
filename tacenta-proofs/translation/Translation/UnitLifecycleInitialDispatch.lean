@@ -543,6 +543,552 @@ theorem decrypt_ratchet_success_braid_prefix {R : Type}
                 exact ⟨decoded, m, receivedEpoch, some output, braidCandidate, some converted,
                   by simpa using hd, by simpa using hm, by simpa using hr, hsparse⟩
 
+/-! A concrete Triple refusal still has to pass the same decode, message and
+Braid stages as a successful receive.  This inversion records those values
+from the exact refusal result so the later Triple adapter cannot accept a
+caller-selected Braid candidate. -/
+theorem decrypt_ratchet_triple_refusal_braid_prefix {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (real : lifecycle.Session) (message : Slice Std.U8) (rng rngNext : R)
+    (realReason : tacenta_triple.TripleError) (next : lifecycle.Session)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err (.Triple realReason), next, rngNext)) :
+    ∃ decoded m receivedEpoch output braidCandidate sparseOutput,
+      tacenta_wire.decode_message message = ok (.Ok decoded) ∧
+      lifecycle.msg_of decoded.header = ok m ∧
+      tacenta_braid.Braid.receive real.braid m =
+        ok (receivedEpoch, output, braidCandidate) ∧
+      RealSparseConversion output sparseOutput := by
+  unfold lifecycle.Session.decrypt_ratchet at hcall
+  cases hf : real.braid.failed with
+  | fail e => simp [hf] at hcall
+  | div => simp [hf] at hcall
+  | ok b =>
+    cases hd : tacenta_wire.decode_message message with
+    | fail err => simp [hf, hd] at hcall; cases b <;> simp_all
+    | div => simp [hf, hd] at hcall; cases b <;> simp_all
+    | ok r =>
+      cases r with
+      | Err err => simp [hf, hd] at hcall; cases b <;> simp_all
+      | Ok decoded =>
+        cases hm : lifecycle.msg_of decoded.header with
+        | fail err => simp [hf, hd, hm] at hcall; cases b <;> simp_all
+        | div => simp [hf, hd, hm] at hcall; cases b <;> simp_all
+        | ok m =>
+          cases hr : tacenta_braid.Braid.receive real.braid m with
+          | fail err => simp [hf, hd, hm, hr] at hcall; cases b <;> simp_all
+          | div => simp [hf, hd, hm, hr] at hcall; cases b <;> simp_all
+          | ok result =>
+            rcases result with ⟨receivedEpoch, output, braidCandidate⟩
+            cases output with
+            | none =>
+              exact ⟨decoded, m, receivedEpoch, none, braidCandidate, none,
+                by simpa using hd, by simpa using hm, by simpa using hr, .none rfl⟩
+            | some output =>
+              cases hs : tacenta_spqr.Output.new output.key_epoch output.key with
+              | fail err => simp [hf, hd, hm, hr, hs] at hcall; cases b <;> simp_all
+              | div => simp [hf, hd, hm, hr, hs] at hcall; cases b <;> simp_all
+              | ok converted =>
+                have hconverted : tacenta_spqr.Output.new output.key_epoch output.key =
+                    ok converted := by simpa using hs
+                have hsparse : RealSparseConversion (some output) (some converted) := by
+                  exact .some output converted rfl hconverted
+                exact ⟨decoded, m, receivedEpoch, some output, braidCandidate, some converted,
+                  by simpa using hd, by simpa using hm, by simpa using hr, hsparse⟩
+
+theorem decrypt_ratchet_triple_refusal_dh_prefix {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (real : lifecycle.Session) (message : Slice Std.U8) (rng rngNext : R)
+    (realReason : tacenta_triple.TripleError) (next : lifecycle.Session)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err (.Triple realReason), next, rngNext)) :
+    ∃ decoded m receivedEpoch output braidCandidate sparseOutput peer recvSecret,
+      tacenta_wire.decode_message message = ok (.Ok decoded) ∧
+      lifecycle.msg_of decoded.header = ok m ∧
+      tacenta_braid.Braid.receive real.braid m =
+        ok (receivedEpoch, output, braidCandidate) ∧
+      RealSparseConversion output sparseOutput ∧
+      tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh = ok peer ∧
+      tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer = ok (some recvSecret) := by
+  obtain ⟨decoded, m, receivedEpoch, output, braidCandidate, sparseOutput,
+      hdecode, hmessage, hreceive, hsparse⟩ :=
+    decrypt_ratchet_triple_refusal_braid_prefix rngCore cryptoRng real message rng rngNext
+      realReason next hcall
+  unfold lifecycle.Session.decrypt_ratchet at hcall
+  cases hf : real.braid.failed with
+  | fail e => simp [hf] at hcall
+  | div => simp [hf] at hcall
+  | ok b =>
+    cases b with
+    | true => simp_all
+    | false =>
+      cases output with
+      | none =>
+        cases hsparse with
+        | none hout =>
+          simp [hf, hdecode, hmessage, hreceive, hout] at hcall
+          cases hp : tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh with
+          | fail e => simp [hp] at hcall
+          | div => simp [hp] at hcall
+          | ok peer =>
+            cases ha : tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer with
+            | fail e => simp [hp, ha] at hcall
+            | div => simp [hp, ha] at hcall
+            | ok result =>
+              cases result with
+              | none => simp [hp, ha] at hcall
+              | some recvSecret =>
+                exact ⟨decoded, m, receivedEpoch, none, braidCandidate, none, peer, recvSecret,
+                  hdecode, hmessage, hreceive, .none rfl, by simpa using hp, by simpa using ha⟩
+        | some realOutput converted hout hconverted => simp_all
+      | some output =>
+        cases hsparse with
+        | none hout => simp_all
+        | some realOutput converted hout hconverted =>
+          cases hout
+          cases hs : tacenta_spqr.Output.new output.key_epoch output.key with
+          | fail e => simp [hf, hdecode, hmessage, hreceive, hs] at hcall
+          | div => simp [hf, hdecode, hmessage, hreceive, hs] at hcall
+          | ok converted' =>
+            simp [hf, hdecode, hmessage, hreceive, hs] at hcall
+            cases hp : tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh with
+            | fail e => simp [hp] at hcall
+            | div => simp [hp] at hcall
+            | ok peer =>
+              cases ha : tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer with
+              | fail e => simp [hp, ha] at hcall
+              | div => simp [hp, ha] at hcall
+              | ok result =>
+                cases result with
+                | none => simp [hp, ha] at hcall
+                | some recvSecret =>
+                  exact ⟨decoded, m, receivedEpoch, some output, braidCandidate, some converted', peer,
+                    recvSecret, hdecode, hmessage, hreceive, .some output converted' rfl hs,
+                    by simpa using hp, by simpa using ha⟩
+
+theorem decrypt_ratchet_triple_refusal_random_prefix {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (real : lifecycle.Session) (message : Slice Std.U8) (rng rngNext : R)
+    (realReason : tacenta_triple.TripleError) (next : lifecycle.Session)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err (.Triple realReason), next, rngNext)) :
+    ∃ decoded m receivedEpoch output braidCandidate sparseOutput peer recvSecret
+      wrappedRecv candidateBytes rng1,
+      tacenta_wire.decode_message message = ok (.Ok decoded) ∧
+      lifecycle.msg_of decoded.header = ok m ∧
+      tacenta_braid.Braid.receive real.braid m =
+        ok (receivedEpoch, output, braidCandidate) ∧
+      RealSparseConversion output sparseOutput ∧
+      tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh = ok peer ∧
+      tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer = ok (some recvSecret) ∧
+      zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) recvSecret = ok wrappedRecv ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedRecv = ok recvSecret ∧
+      lifecycle.random_secret rngCore cryptoRng rng = ok (candidateBytes, rng1) := by
+  obtain ⟨decoded, m, receivedEpoch, output, braidCandidate, sparseOutput, peer, recvSecret,
+      hdecode, hmessage, hreceive, hsparse, hpeer, hfirst⟩ :=
+    decrypt_ratchet_triple_refusal_dh_prefix rngCore cryptoRng real message rng rngNext
+      realReason next hcall
+  let inst32 := Array.Insts.ZeroizeZeroize 32#usize
+    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)
+  obtain ⟨wrappedRecv, hwrap, hderef⟩ := zeroizing_roundtrip hz32 inst32 recvSecret
+  dsimp [inst32] at hwrap hderef
+  unfold lifecycle.Session.decrypt_ratchet at hcall
+  cases hf : real.braid.failed with
+  | fail e => simp [hf] at hcall
+  | div => simp [hf] at hcall
+  | ok b =>
+    cases b with
+    | true => simp_all
+    | false =>
+      cases output with
+      | none =>
+        cases hsparse with
+        | none hout =>
+          simp [hf, hdecode, hmessage, hreceive, hout, hpeer, hfirst, hwrap, hderef] at hcall
+          cases hr : lifecycle.random_secret rngCore cryptoRng rng with
+          | fail e => simp [hwrap, hderef, hr] at hcall
+          | div => simp [hwrap, hderef, hr] at hcall
+          | ok draw =>
+            rcases draw with ⟨candidateBytes, rng1⟩
+            exact ⟨decoded, m, receivedEpoch, none, braidCandidate, none, peer, recvSecret,
+              wrappedRecv, candidateBytes, rng1, hdecode, hmessage, hreceive, .none rfl, hpeer, hfirst,
+              hwrap, hderef, by simpa using hr⟩
+        | some realOutput converted hout hconverted => simp_all
+      | some output =>
+        cases hsparse with
+        | none hout => simp_all
+        | some realOutput converted hout hconverted =>
+          cases hout
+          simp [hf, hdecode, hmessage, hreceive, hconverted, hpeer, hfirst, hwrap, hderef] at hcall
+          cases hr : lifecycle.random_secret rngCore cryptoRng rng with
+          | fail e => simp [hwrap, hderef, hr] at hcall
+          | div => simp [hwrap, hderef, hr] at hcall
+          | ok draw =>
+            rcases draw with ⟨candidateBytes, rng1⟩
+            exact ⟨decoded, m, receivedEpoch, some output, braidCandidate, some converted, peer,
+              recvSecret, wrappedRecv, candidateBytes, rng1, hdecode, hmessage, hreceive,
+              .some output converted rfl hconverted, hpeer, hfirst, hwrap, hderef,
+              by simpa using hr⟩
+
+theorem decrypt_ratchet_triple_refusal_second_dh_prefix {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (real : lifecycle.Session) (message : Slice Std.U8) (rng rngNext : R)
+    (realReason : tacenta_triple.TripleError) (next : lifecycle.Session)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err (.Triple realReason), next, rngNext)) :
+    ∃ decoded m receivedEpoch output braidCandidate sparseOutput peer recvSecret wrappedRecv
+      candidateBytes rng1 candidatePrivate sendSecret wrappedSend,
+      tacenta_wire.decode_message message = ok (.Ok decoded) ∧
+      lifecycle.msg_of decoded.header = ok m ∧
+      tacenta_braid.Braid.receive real.braid m =
+        ok (receivedEpoch, output, braidCandidate) ∧
+      RealSparseConversion output sparseOutput ∧
+      tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh = ok peer ∧
+      tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer = ok (some recvSecret) ∧
+      zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) recvSecret = ok wrappedRecv ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedRecv = ok recvSecret ∧
+      lifecycle.random_secret rngCore cryptoRng rng = ok (candidateBytes, rng1) ∧
+      tacenta_boundary.dh.PrivateKey.from_bytes candidateBytes = ok candidatePrivate ∧
+      tacenta_boundary.dh.PrivateKey.agree candidatePrivate peer = ok (some sendSecret) ∧
+      zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sendSecret = ok wrappedSend ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedSend = ok sendSecret := by
+  obtain ⟨decoded, m, receivedEpoch, output, braidCandidate, sparseOutput, peer, recvSecret,
+      wrappedRecv, candidateBytes, rng1, hdecode, hmessage, hreceive, hsparse, hpeer, hfirst,
+      hwrap, hderef, hrandom⟩ :=
+    decrypt_ratchet_triple_refusal_random_prefix rngCore cryptoRng hz32 real message rng rngNext
+      realReason next hcall
+  let inst32 := Array.Insts.ZeroizeZeroize 32#usize
+    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)
+  unfold lifecycle.Session.decrypt_ratchet at hcall
+  cases hf : real.braid.failed with
+  | fail e => simp [hf] at hcall
+  | div => simp [hf] at hcall
+  | ok b =>
+    cases b with
+    | true => simp_all
+    | false =>
+      cases output with
+      | none =>
+        cases hsparse with
+        | none hout =>
+          simp [hf, hdecode, hmessage, hreceive, hout, hpeer, hfirst, hwrap, hderef, hrandom] at hcall
+          cases hc : tacenta_boundary.dh.PrivateKey.from_bytes candidateBytes with
+          | fail e => simp [hc] at hcall
+          | div => simp [hc] at hcall
+          | ok candidatePrivate =>
+            cases ha : tacenta_boundary.dh.PrivateKey.agree candidatePrivate peer with
+            | fail e => simp [hc, ha] at hcall
+            | div => simp [hc, ha] at hcall
+            | ok result =>
+              cases result with
+              | none => simp [hc, ha] at hcall
+              | some sendSecret =>
+                obtain ⟨wrappedSend, hwrapSend, hderefSend⟩ :=
+                  zeroizing_roundtrip hz32 inst32 sendSecret
+                dsimp [inst32] at hwrapSend hderefSend
+                exact ⟨decoded, m, receivedEpoch, none, braidCandidate, none, peer, recvSecret,
+                  wrappedRecv, candidateBytes, rng1, candidatePrivate, sendSecret, wrappedSend,
+                  hdecode, hmessage, hreceive, .none rfl, hpeer, hfirst, hwrap, hderef, hrandom,
+                  by simpa using hc, by simpa using ha, hwrapSend, hderefSend⟩
+        | some realOutput converted hout hconverted => simp_all
+      | some output =>
+        cases hsparse with
+        | none hout => simp_all
+        | some realOutput converted hout hconverted =>
+          cases hout
+          simp [hf, hdecode, hmessage, hreceive, hconverted, hpeer, hfirst, hwrap, hderef, hrandom]
+            at hcall
+          cases hc : tacenta_boundary.dh.PrivateKey.from_bytes candidateBytes with
+          | fail e => simp [hc] at hcall
+          | div => simp [hc] at hcall
+          | ok candidatePrivate =>
+            cases ha : tacenta_boundary.dh.PrivateKey.agree candidatePrivate peer with
+            | fail e => simp [hc, ha] at hcall
+            | div => simp [hc, ha] at hcall
+            | ok result =>
+              cases result with
+              | none => simp [hc, ha] at hcall
+              | some sendSecret =>
+                obtain ⟨wrappedSend, hwrapSend, hderefSend⟩ :=
+                  zeroizing_roundtrip hz32 inst32 sendSecret
+                dsimp [inst32] at hwrapSend hderefSend
+                exact ⟨decoded, m, receivedEpoch, some output, braidCandidate, some converted, peer,
+                  recvSecret, wrappedRecv, candidateBytes, rng1, candidatePrivate, sendSecret,
+                  wrappedSend, hdecode, hmessage, hreceive, .some output converted rfl hconverted,
+                  hpeer, hfirst, hwrap, hderef, hrandom, by simpa using hc, by simpa using ha,
+                  hwrapSend, hderefSend⟩
+
+theorem decrypt_ratchet_triple_refusal_prefix {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (real : lifecycle.Session) (message : Slice Std.U8) (rng rngNext : R)
+    (realReason : tacenta_triple.TripleError) (next : lifecycle.Session)
+    (hcall : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real message rng =
+      ok (.Err (.Triple realReason), next, rngNext)) :
+    ∃ decoded m receivedEpoch output braidCandidate sparseOutput peer recvSecret wrappedRecv
+      candidateBytes rng1 candidatePrivate sendSecret wrappedSend before realHeader candidatePublic
+      newPublicBytes,
+      tacenta_wire.decode_message message = ok (.Ok decoded) ∧
+      lifecycle.msg_of decoded.header = ok m ∧
+      tacenta_braid.Braid.receive real.braid m =
+        ok (receivedEpoch, output, braidCandidate) ∧
+      RealSparseConversion output sparseOutput ∧
+      tacenta_boundary.dh.PublicKeyBytes.from_bytes decoded.header.dh = ok peer ∧
+      tacenta_boundary.dh.PrivateKey.agree real.ratchet_private peer = ok (some recvSecret) ∧
+      zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) recvSecret = ok wrappedRecv ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedRecv = ok recvSecret ∧
+      lifecycle.random_secret rngCore cryptoRng rng = ok (candidateBytes, rng1) ∧
+      tacenta_boundary.dh.PrivateKey.from_bytes candidateBytes = ok candidatePrivate ∧
+      tacenta_boundary.dh.PrivateKey.agree candidatePrivate peer = ok (some sendSecret) ∧
+      zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) sendSecret = ok wrappedSend ∧
+      zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+        (Array.Insts.ZeroizeZeroize 32#usize
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedSend = ok sendSecret ∧
+      tacenta_triple.State.sending_public real.triple = ok before ∧
+      lifecycle.triple_header_of decoded.header = ok realHeader ∧
+      tacenta_boundary.dh.PrivateKey.public_key candidatePrivate = ok candidatePublic ∧
+      tacenta_boundary.dh.PublicKeyBytes.as_bytes candidatePublic = ok newPublicBytes ∧
+      lifecycle.receive_with_eviction real.triple decoded.header realHeader
+        recvSecret sendSecret newPublicBytes sparseOutput = ok (.Err realReason) := by
+  obtain ⟨decoded, m, receivedEpoch, output, braidCandidate, sparseOutput, peer, recvSecret,
+      wrappedRecv, candidateBytes, rng1, candidatePrivate, sendSecret, wrappedSend,
+      hdecode, hmessage, hreceive, hsparse, hpeer, hfirst, hwrapRecv, hderefRecv,
+      hrandom, hcandidate, hsecond, hwrapSend, hderefSend⟩ :=
+    decrypt_ratchet_triple_refusal_second_dh_prefix rngCore cryptoRng hz32 real message rng rngNext
+      realReason next hcall
+  let inst32 := Array.Insts.ZeroizeZeroize 32#usize
+    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)
+  unfold lifecycle.Session.decrypt_ratchet at hcall
+  cases hf : real.braid.failed with
+  | fail e => simp [hf] at hcall
+  | div => simp [hf] at hcall
+  | ok b =>
+    cases b with
+    | true => simp_all
+    | false =>
+      cases output with
+      | none =>
+        cases hsparse with
+        | none hout =>
+          simp [hf, hdecode, hmessage, hreceive, hout, hpeer, hfirst, hwrapRecv, hderefRecv,
+            hrandom, hcandidate, hsecond, hwrapSend, hderefSend] at hcall
+          cases hb : tacenta_triple.State.sending_public real.triple with
+          | fail e => simp [hb] at hcall
+          | div => simp [hb] at hcall
+          | ok before =>
+            cases hh : lifecycle.triple_header_of decoded.header with
+            | fail e => simp [hb, hh] at hcall
+            | div => simp [hb, hh] at hcall
+            | ok realHeader =>
+              cases hp : tacenta_boundary.dh.PrivateKey.public_key candidatePrivate with
+              | fail e => simp [hb, hh, hp] at hcall
+              | div => simp [hb, hh, hp] at hcall
+              | ok candidatePublic =>
+                cases hpb : tacenta_boundary.dh.PublicKeyBytes.as_bytes candidatePublic with
+                | fail e => simp [hb, hh, hp, hpb] at hcall
+                | div => simp [hb, hh, hp, hpb] at hcall
+                | ok newPublicBytes =>
+                  cases htr : lifecycle.receive_with_eviction real.triple decoded.header realHeader
+                      recvSecret sendSecret newPublicBytes none with
+                  | fail e => simp [hb, hh, hp, hpb, htr] at hcall
+                  | div => simp [hb, hh, hp, hpb, htr] at hcall
+                  | ok result =>
+                    cases result with
+                    | Err e =>
+                      simp [hb, hh, hp, hpb, htr] at hcall
+                      have he : e = realReason := by
+                        exact hcall.1
+                      subst e
+                      exact ⟨decoded, m, receivedEpoch, none, braidCandidate, none, peer, recvSecret,
+                        wrappedRecv, candidateBytes, rng1, candidatePrivate, sendSecret, wrappedSend,
+                        before, realHeader, candidatePublic, newPublicBytes, hdecode, hmessage, hreceive,
+                        .none rfl, hpeer, hfirst, hwrapRecv, hderefRecv, hrandom, hcandidate, hsecond,
+                        hwrapSend, hderefSend, by simpa using hb, by simpa using hh, by simpa using hp,
+                        by simpa using hpb, by simpa using htr⟩
+                    | Ok pair =>
+                      rcases pair with ⟨realTripleCandidate, realMk⟩
+                      cases hmkz : zeroize.Zeroizing.new
+                          (Array.Insts.ZeroizeZeroize 32#usize
+                            (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) realMk with
+                      | fail e => simp [hb, hh, hp, hpb, htr, hmkz] at hcall
+                      | div => simp [hb, hh, hp, hpb, htr, hmkz] at hcall
+                      | ok wrappedMk =>
+                        cases hmkd : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                            (Array.Insts.ZeroizeZeroize 32#usize
+                              (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedMk with
+                        | fail e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd] at hcall
+                        | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd] at hcall
+                        | ok mkBytes =>
+                          cases hk : tacenta_ratchet.message_keys mkBytes tacenta_ratchet.LabelSet.Tacenta with
+                          | fail e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk] at hcall
+                          | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk] at hcall
+                          | ok realKeys =>
+                            cases hkeys : zeroize.Zeroizing.new
+                                (TupleABC.Insts.ZeroizeZeroize
+                                  (Array.Insts.ZeroizeZeroize 32#usize
+                                    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+                                  (Array.Insts.ZeroizeZeroize 32#usize
+                                    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+                                  (Array.Insts.ZeroizeZeroize 16#usize
+                                    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))) realKeys with
+                            | fail e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys] at hcall
+                            | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys] at hcall
+                            | ok wrappedKeys =>
+                              cases hdkeys : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                                  (TupleABC.Insts.ZeroizeZeroize
+                                    (Array.Insts.ZeroizeZeroize 32#usize
+                                      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+                                    (Array.Insts.ZeroizeZeroize 32#usize
+                                      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+                                    (Array.Insts.ZeroizeZeroize 16#usize
+                                      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))) wrappedKeys with
+                              | fail e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys] at hcall
+                              | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys] at hcall
+                              | ok keyTuple =>
+                                rcases keyTuple with ⟨k1, k2, k3⟩
+                                cases had : serialization.concat_ad (alloc.vec.Vec.deref real.identity_ad) decoded.header with
+                                | fail e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had] at hcall
+                                | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had] at hcall
+                                | ok realAd =>
+                                  cases ha : tacenta_boundary.aead.decrypt k1 k2 k3
+                                      (alloc.vec.Vec.deref decoded.ciphertext) (alloc.vec.Vec.deref realAd) with
+                                  | fail e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha] at hcall
+                                  | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha] at hcall
+                                  | ok result =>
+                                    cases result with
+                                    | Err e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha] at hcall
+                                    | Ok value1 =>
+                                      cases hsend : tacenta_triple.State.sending_public realTripleCandidate with
+                                      | fail e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha, hsend] at hcall
+                                      | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha, hsend] at hcall
+                                      | ok candidatePublic' =>
+                                        cases hne : core.array.equality.PartialEqArray.ne core.cmp.PartialEqU8
+                                            candidatePublic' before with
+                                        | fail e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha, hsend, hne] at hcall
+                                        | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha, hsend, hne] at hcall
+                                        | ok b1 => cases b1 <;>
+                                            simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha, hsend, hne] at hcall
+        | some realOutput converted hout hconverted => simp_all
+      | some output =>
+        cases hsparse with
+        | none hout => simp_all
+        | some realOutput converted hout hconverted =>
+          cases hout
+          simp [hf, hdecode, hmessage, hreceive, hconverted, hpeer, hfirst, hwrapRecv, hderefRecv,
+            hrandom, hcandidate, hsecond, hwrapSend, hderefSend] at hcall
+          cases hb : tacenta_triple.State.sending_public real.triple with
+          | fail e => simp [hb] at hcall
+          | div => simp [hb] at hcall
+          | ok before =>
+            cases hh : lifecycle.triple_header_of decoded.header with
+            | fail e => simp [hb, hh] at hcall
+            | div => simp [hb, hh] at hcall
+            | ok realHeader =>
+              cases hp : tacenta_boundary.dh.PrivateKey.public_key candidatePrivate with
+              | fail e => simp [hb, hh, hp] at hcall
+              | div => simp [hb, hh, hp] at hcall
+              | ok candidatePublic =>
+                cases hpb : tacenta_boundary.dh.PublicKeyBytes.as_bytes candidatePublic with
+                | fail e => simp [hb, hh, hp, hpb] at hcall
+                | div => simp [hb, hh, hp, hpb] at hcall
+                | ok newPublicBytes =>
+                  cases htr : lifecycle.receive_with_eviction real.triple decoded.header realHeader
+                      recvSecret sendSecret newPublicBytes (some converted) with
+                  | fail e => simp [hb, hh, hp, hpb, htr] at hcall
+                  | div => simp [hb, hh, hp, hpb, htr] at hcall
+                  | ok result =>
+                    cases result with
+                    | Err e =>
+                      simp [hb, hh, hp, hpb, htr] at hcall
+                      have he : e = realReason := by
+                        exact hcall.1
+                      subst e
+                      exact ⟨decoded, m, receivedEpoch, some output, braidCandidate, some converted,
+                        peer, recvSecret, wrappedRecv, candidateBytes, rng1, candidatePrivate,
+                        sendSecret, wrappedSend, before, realHeader, candidatePublic, newPublicBytes,
+                        hdecode, hmessage, hreceive, .some output converted rfl hconverted, hpeer,
+                        hfirst, hwrapRecv, hderefRecv, hrandom, hcandidate, hsecond, hwrapSend,
+                        hderefSend, by simpa using hb, by simpa using hh, by simpa using hp,
+                        by simpa using hpb, by simpa using htr⟩
+                    | Ok pair =>
+                      rcases pair with ⟨realTripleCandidate, realMk⟩
+                      cases hmkz : zeroize.Zeroizing.new
+                          (Array.Insts.ZeroizeZeroize 32#usize
+                            (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) realMk with
+                      | fail e => simp [hb, hh, hp, hpb, htr, hmkz] at hcall
+                      | div => simp [hb, hh, hp, hpb, htr, hmkz] at hcall
+                      | ok wrappedMk =>
+                        cases hmkd : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                            (Array.Insts.ZeroizeZeroize 32#usize
+                              (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) wrappedMk with
+                        | fail e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd] at hcall
+                        | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd] at hcall
+                        | ok mkBytes =>
+                          cases hk : tacenta_ratchet.message_keys mkBytes tacenta_ratchet.LabelSet.Tacenta with
+                          | fail e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk] at hcall
+                          | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk] at hcall
+                          | ok realKeys =>
+                            cases hkeys : zeroize.Zeroizing.new
+                                (TupleABC.Insts.ZeroizeZeroize
+                                  (Array.Insts.ZeroizeZeroize 32#usize
+                                    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+                                  (Array.Insts.ZeroizeZeroize 32#usize
+                                    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+                                  (Array.Insts.ZeroizeZeroize 16#usize
+                                    (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))) realKeys with
+                            | fail e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys] at hcall
+                            | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys] at hcall
+                            | ok wrappedKeys =>
+                              cases hdkeys : zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                                  (TupleABC.Insts.ZeroizeZeroize
+                                    (Array.Insts.ZeroizeZeroize 32#usize
+                                      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+                                    (Array.Insts.ZeroizeZeroize 32#usize
+                                      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+                                    (Array.Insts.ZeroizeZeroize 16#usize
+                                      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))) wrappedKeys with
+                              | fail e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys] at hcall
+                              | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys] at hcall
+                              | ok keyTuple =>
+                                rcases keyTuple with ⟨k1, k2, k3⟩
+                                cases had : serialization.concat_ad (alloc.vec.Vec.deref real.identity_ad) decoded.header with
+                                | fail e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had] at hcall
+                                | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had] at hcall
+                                | ok realAd =>
+                                  cases ha : tacenta_boundary.aead.decrypt k1 k2 k3
+                                      (alloc.vec.Vec.deref decoded.ciphertext) (alloc.vec.Vec.deref realAd) with
+                                  | fail e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha] at hcall
+                                  | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha] at hcall
+                                  | ok result =>
+                                    cases result with
+                                    | Err e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha] at hcall
+                                    | Ok value1 =>
+                                      cases hsend : tacenta_triple.State.sending_public realTripleCandidate with
+                                      | fail e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha, hsend] at hcall
+                                      | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha, hsend] at hcall
+                                      | ok candidatePublic' =>
+                                        cases hne : core.array.equality.PartialEqArray.ne core.cmp.PartialEqU8
+                                            candidatePublic' before with
+                                        | fail e => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha, hsend, hne] at hcall
+                                        | div => simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha, hsend, hne] at hcall
+                                        | ok b1 => cases b1 <;>
+                                            simp [hb, hh, hp, hpb, htr, hmkz, hmkd, hk, hkeys, hdkeys, had, ha, hsend, hne] at hcall
+
 /-! Continue inversion through the first public-key decode and DH agreement.
 The result is still tied to the same concrete success equation; a failed or
 diverging boundary call cannot be hidden behind a caller-supplied witness. -/
