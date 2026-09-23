@@ -4686,6 +4686,63 @@ def InitialRatchetSuccessReceiveBranch
       output modelOutput realState modelState realReason modelReason realResult
       modelResult)
 
+/-! Short index for the branch belonging to a particular generated prefix and
+    model-success record.  Keeping this alias named makes the concrete
+    direct/retry dispatcher below readable without hiding any of its indices. -/
+abbrev InitialRatchetSuccessBranchAt {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message) : Prop :=
+  InitialRatchetSuccessReceiveBranch
+    successPrefix.decoded.header facts.modelComposite successPrefix.realHeader
+    (Model.Lifecycle.tripleHeaderOf facts.modelComposite)
+    successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+    facts.modelDhOutRecv facts.modelDhOutSend (oracle.dhPublic facts.draw)
+    successPrefix.sparseOutput
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.1)
+    real.triple model.triple
+    (successPrefix.realTripleCandidate, successPrefix.realMk)
+    (facts.modelTripleCandidate, facts.modelMk)
+
+/-! Select the success adapter from the actual generated Triple receive result.
+    The direct callback receives the exact `receive_attempt = Ok` equation; the
+    retry callback receives the exact refusal and full-store classification.
+    Thus the caller cannot choose the retry adapter for a direct result (or
+    vice versa). -/
+theorem initial_ratchet_success_branch_of_concrete_receive_case {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (hdirect : ∀ (direct : tacenta_triple.State × Array Std.U8 32#usize),
+      lifecycle.receive_attempt real.triple successPrefix.realHeader
+        successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+        successPrefix.sparseOutput = ok (.Ok direct) →
+      direct = (successPrefix.realTripleCandidate, successPrefix.realMk) →
+      InitialRatchetSuccessBranchAt successPrefix facts)
+    (hretry : ∀ (realReason : tacenta_triple.TripleError) (half : lifecycle.FullStore),
+      lifecycle.receive_attempt real.triple successPrefix.realHeader
+        successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+        successPrefix.sparseOutput = ok (.Err realReason) →
+      lifecycle.full_store realReason = ok (some half) →
+      InitialRatchetSuccessBranchAt successPrefix facts) :
+    InitialRatchetSuccessBranchAt successPrefix facts := by
+  rcases initial_ratchet_success_prefix_receive_cases successPrefix with
+    ⟨direct, hdirectCall, hdirectEq⟩ | ⟨realReason, half, hretryCall, hfull⟩
+  · exact hdirect direct hdirectCall hdirectEq
+  · exact hretry realReason half hretryCall hfull
+
 /-! The concrete and model receive partitions are part of the successful
     lifecycle computations, rather than caller-selected labels.  This small
     bridge makes that fact explicit at the branch-provider boundary: a caller
@@ -5518,6 +5575,50 @@ def initial_ratchet_success_splice_of_actual_receive_cases {R : Type}
       successPrefix facts := by
   exact initial_ratchet_success_splice_of_aligned_branch successPrefix facts
     (initial_ratchet_success_branch_of_actual_receive_cases successPrefix facts hcases)
+    hrel hmessageRel hkem hbraidReceive hprivate hbytes htrace
+
+/-! Concrete-result variant of the splice constructor.  This is the shortest
+    route for the final public composition: direct and retry providers are
+    selected from the generated `receive_attempt` result, then the common
+    aligned splice performs the direct-core/shared-retry projection. -/
+def initial_ratchet_success_splice_of_concrete_receive_case {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (hdirect : ∀ (direct : tacenta_triple.State × Array Std.U8 32#usize),
+      lifecycle.receive_attempt real.triple successPrefix.realHeader
+        successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+        successPrefix.sparseOutput = ok (.Ok direct) →
+      direct = (successPrefix.realTripleCandidate, successPrefix.realMk) →
+      InitialRatchetSuccessBranchAt successPrefix facts)
+    (hretry : ∀ (realReason : tacenta_triple.TripleError) (half : lifecycle.FullStore),
+      lifecycle.receive_attempt real.triple successPrefix.realHeader
+        successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+        successPrefix.sparseOutput = ok (.Err realReason) →
+      lifecycle.full_store realReason = ok (some half) →
+      InitialRatchetSuccessBranchAt successPrefix facts)
+    (hrel : SessionRefines dh K real model)
+    (hmessageRel : Tacenta.SessionUnitBraidT3.MsgRefines successPrefix.m
+      (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite))
+    (hkem : K = oracle.braidKem)
+    (hbraidReceive : Tacenta.SessionUnitBraidT3.StateRefines K
+      successPrefix.braidCandidate.state
+      (Model.Braid.receive K model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.2)
+    (hprivate : dh.privateKey successPrefix.candidatePrivate = facts.draw)
+    (hbytes : vecOf plaintext = facts.modelPlaintext)
+    (htrace : trace rngNext = oracleNext.draws) :
+    InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
+      successPrefix facts := by
+  exact initial_ratchet_success_splice_of_aligned_branch successPrefix facts
+    (initial_ratchet_success_branch_of_concrete_receive_case successPrefix facts
+      hdirect hretry)
     hrel hmessageRel hkem hbraidReceive hprivate hbytes htrace
 
 def initial_ratchet_success_evidence_of_splice {R : Type}
