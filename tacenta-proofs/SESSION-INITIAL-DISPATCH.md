@@ -124,15 +124,23 @@ results, so a detached Triple candidate cannot be substituted. The
 provider to consume the two partitions extracted from those exact prefixes
 before constructing the splice.
 
+The latest success boundary packages those obligations in
+`InitialRatchetConcreteSuccessProvider`. Its direct and full-store callbacks,
+state/key/plaintext relations, and oracle trace are all indexed by the exact
+`InitialRatchetSuccessPrefix` and `InitialRatchetModelSuccessFacts`; the
+`initial_ratchet_success_callback_of_concrete_provider` theorem lifts that
+package into the result-shaped callback consumed by `InitialRatchetRefines`.
+This removes an abstract splice callback from the success arm while leaving
+the concrete Triple/AEAD and model-facts premises visible to the caller.
+
 These are composition boundaries, not a completed Session T3 claim. The
-remaining work is to supply the full Triple/AEAD leaf premises and the direct /
-retry success splice at the public bridge, then record vector and mutation
-evidence for every resulting route. The exact head `7958374` has passed the
-complete local `no-sorry.sh` replay: 2,318 translation/T1/T3 jobs, 37 model
-proof jobs, 64 model/property jobs, all kernel replays, audit negatives,
-reachability, and dispatcher mutation controls. Hosted CI run `35809504696`
-for the documentation-only predecessor was superseded by run `35811134920`;
-the new run has nine jobs green and `translation` still running.
+remaining work is to supply the full Triple/AEAD leaf premises and the model
+facts for the public bridge, then record vector and mutation evidence for every
+resulting route. The exact head `c7e7b7b` has passed the complete local
+`no-sorry.sh` replay: 2,318 translation/T1/T3 jobs, 37 model proof jobs, 64
+model/property jobs, all kernel replays, audit negatives, reachability, and
+dispatcher mutation controls. Hosted run `35815035687` is validating this
+head; eight jobs are green and `translation` is still running.
 
 ## Verification record (2026-09-20)
 
