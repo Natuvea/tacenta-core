@@ -9739,6 +9739,35 @@ theorem initial_ratchet_triple_prefix_model_facts
   cases heq
   exact ⟨by simpa [hcipher] using hmodelDecode, hcomposite⟩
 
+noncomputable def initial_ratchet_triple_braid_evidence_of_prefix_contracts
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {realReason : tacenta_triple.TripleError} {next : lifecycle.Session}
+    (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+      (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+      (real := real) (model := model) message rng)
+    (pref : InitialRatchetTripleRefusalPrefix rc crc real
+      input.decoded.message.deref rng rngNext realReason next)
+    (contracts : InitialRatchetBraidEvidenceContracts (K := K) view real model
+      input.decoded.message.deref)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hrel : SessionRefines dh K real model)
+    (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+    (hmodelDecode : Model.CompositeHeader.decodeDetailed
+      (sliceOf input.decoded.message.deref) = .ok (modelComposite, ciphertext)) :
+    Nonempty (BraidReceiveEvidence K view real model pref.decoded.header modelComposite) := by
+  obtain ⟨hdecodeModel, hcomposite⟩ := initial_ratchet_triple_prefix_model_facts
+    input pref modelComposite ciphertext hmodelDecode
+  exact braid_receive_evidence view contracts.contracts real model headroom
+    pref.decoded.header modelComposite contracts.hka contracts.hea contracts.hmac contracts.hkdf
+    contracts.hlens contracts.hvalek contracts.hct1len contracts.hct2len contracts.hheaderlen
+    contracts.hkcl contracts.hecl hrel hcomposite
+    (contracts.hchunk pref.decoded.header modelComposite hcomposite)
+    (contracts.hhonest modelComposite) contracts.hepoch
+
 structure InitialRatchetAeadConcreteEvidence
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -9851,6 +9880,34 @@ theorem initial_ratchet_aead_prefix_model_facts
   have heq : decoded = pref.decoded := by injection heqResult
   cases heq
   exact ⟨by simpa [hcipher] using hmodelDecode, hcomposite⟩
+
+noncomputable def initial_ratchet_aead_braid_evidence_of_prefix_contracts
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R} {next : lifecycle.Session}
+    (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
+      (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
+      (real := real) (model := model) message rng)
+    (pref : InitialRatchetAeadRefusalPrefix rc crc real
+      input.decoded.message.deref rng rngNext next)
+    (contracts : InitialRatchetBraidEvidenceContracts (K := K) view real model
+      input.decoded.message.deref)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hrel : SessionRefines dh K real model)
+    (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+    (hmodelDecode : Model.CompositeHeader.decodeDetailed
+      (sliceOf input.decoded.message.deref) = .ok (modelComposite, ciphertext)) :
+    Nonempty (BraidReceiveEvidence K view real model pref.decoded.header modelComposite) := by
+  obtain ⟨hdecodeModel, hcomposite⟩ := initial_ratchet_aead_prefix_model_facts
+    input pref modelComposite ciphertext hmodelDecode
+  exact braid_receive_evidence view contracts.contracts real model headroom
+    pref.decoded.header modelComposite contracts.hka contracts.hea contracts.hmac contracts.hkdf
+    contracts.hlens contracts.hvalek contracts.hct1len contracts.hct2len contracts.hheaderlen
+    contracts.hkcl contracts.hecl hrel hcomposite
+    (contracts.hchunk pref.decoded.header modelComposite hcomposite)
+    (contracts.hhonest modelComposite) contracts.hepoch
 
 structure InitialRatchetAeadConcreteProviders
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
