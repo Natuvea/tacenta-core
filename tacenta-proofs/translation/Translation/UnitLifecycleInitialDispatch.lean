@@ -8608,11 +8608,9 @@ theorem initial_ratchet_nonterminal_route_of_model_result
         lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
           ok (.Err reason, next, rngNext) →
         ∃ (oracleNext : Model.Lifecycle.Oracle)
-          (modelReason : Model.Lifecycle.Refusal)
-          (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
-          InitialRatchetModelRefusalResult (view := view) (oracle := oracle)
-            (model := model) decoded.message.deref modelReason oracleNext
-            modelComposite ciphertext)
+          (modelReason : Model.Lifecycle.Refusal),
+          Nonempty (InitialRatchetModelRefusalCase view oracle model
+            decoded.message.deref modelReason oracleNext))
     (hproviders : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
       (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
         (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
@@ -8633,13 +8631,13 @@ theorem initial_ratchet_nonterminal_route_of_model_result
         Nonempty (InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
           decoded.message.deref rng reason next rngNext) := by
   intro decoded established hdecode hestablished he hi reason next rngNext hnotbad hcall
-  obtain ⟨oracleNext, modelReason, modelComposite, ciphertext, result⟩ :=
+  obtain ⟨oracleNext, modelReason, ⟨modelCase⟩⟩ :=
     hmodel decoded established hdecode hestablished he hi reason next rngNext hnotbad hcall
+  obtain ⟨modelComposite, ciphertext, result⟩ :=
+    initial_ratchet_model_refusal_result_of_case view oracle oracleNext model
+      decoded.message.deref modelReason hready modelCase
   have hdecodeModel := result.hdecodeModel
   have hmodelStep := result.hmodelStep
-  obtain ⟨modelCase⟩ := initial_ratchet_model_refusal_case_of_result
-    view oracle oracleNext model decoded.message.deref modelReason hready
-    (by exact ⟨modelComposite, ciphertext, hdecodeModel⟩) hmodelStep
   let input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
       (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
       (real := real) (model := model) decoded.message.deref rng :=
@@ -10387,11 +10385,9 @@ structure InitialRatchetModelResultEvidence
         lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
           ok (.Err reason, next, rngNext) →
         ∃ (oracleNext : Model.Lifecycle.Oracle)
-          (modelReason : Model.Lifecycle.Refusal)
-          (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
-          InitialRatchetModelRefusalResult (view := view) (oracle := oracle)
-            (model := model) decoded.message.deref modelReason oracleNext
-            modelComposite ciphertext
+          (modelReason : Model.Lifecycle.Refusal),
+          Nonempty (InitialRatchetModelRefusalCase view oracle model
+            decoded.message.deref modelReason oracleNext)
   successResult : InitialRatchetSuccessResultEvidence
     (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
     (view := view) (oracle := oracle) (real := real) (model := model)
@@ -10870,11 +10866,9 @@ theorem initial_ratchet_refines_of_t1_result_split_with_model_refusal_provider
         lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
           ok (.Err reason, next, rngNext) →
         ∃ (oracleNext : Model.Lifecycle.Oracle)
-          (modelReason : Model.Lifecycle.Refusal)
-          (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
-          InitialRatchetModelRefusalResult (view := view) (oracle := oracle)
-            (model := model) decoded.message.deref modelReason oracleNext
-            modelComposite ciphertext)
+          (modelReason : Model.Lifecycle.Refusal),
+          Nonempty (InitialRatchetModelRefusalCase view oracle model
+            decoded.message.deref modelReason oracleNext))
     (hproviders : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
       (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
         (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
@@ -10959,11 +10953,9 @@ theorem initial_ratchet_refines_of_t1_result_split_with_model_step_and_concrete_
         lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
           ok (.Err reason, next, rngNext) →
         ∃ (oracleNext : Model.Lifecycle.Oracle)
-          (modelReason : Model.Lifecycle.Refusal)
-          (modelComposite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
-          InitialRatchetModelRefusalResult (view := view) (oracle := oracle)
-            (model := model) decoded.message.deref modelReason oracleNext
-            modelComposite ciphertext)
+          (modelReason : Model.Lifecycle.Refusal),
+          Nonempty (InitialRatchetModelRefusalCase view oracle model
+            decoded.message.deref modelReason oracleNext))
     (hproviders : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
       (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
         (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
