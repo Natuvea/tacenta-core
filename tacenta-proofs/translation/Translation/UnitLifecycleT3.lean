@@ -3030,6 +3030,52 @@ theorem encrypt_braid_failure_of_no_draw_send
     realBraidNext modelMessage modelEpoch modelOutput modelBraidNext hrel hready
     hsendReal hsendModel hnext (hfailed modelBraidNext hnext) htrace
 
+theorem encrypt_braid_failure_of_draw_send
+    {R : Type} (rngCore : rand_core_1.RngCore R)
+    (cryptoRng : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (K : Model.Braid.Kem)
+    (view : Model.Lifecycle.CodewordView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session)
+    (plaintext : Slice Std.U8) (rng rngNext : R)
+    (realMessage : tacenta_braid.Msg) (realEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output)
+    (realBraidNext : tacenta_braid.Braid)
+    (hkem : oracle.braidKem = K)
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext))
+    (htrace : trace rng = oracle.draws)
+    (hdraw : ∃ draw rest, trace rng = draw :: rest ∧ trace rngNext = rest)
+    (hneedsDraw : Model.Lifecycle.braidSendNeedsDraw model.braid = true)
+    (hpost : ∀ draw rest, trace rng = draw :: rest → ∃ rand,
+      rand = Model.Lifecycle.braidRandomness draw ∧
+      (∀ modelMessage,
+        (Model.Braid.send K rand model.braid).1 = some modelMessage →
+          Tacenta.SessionUnitBraidT3.MsgRefines realMessage modelMessage) ∧
+      realEpoch.val = (Model.Braid.send K rand model.braid).2.2.2.epoch - 1 ∧
+      Tacenta.SessionUnitBraidT3.OptionOutputRefines realOutput
+        (Model.Braid.send K rand model.braid).2.2.1 ∧
+      Tacenta.SessionUnitBraidT3.StateRefines K realBraidNext.state
+        (Model.Braid.send K rand model.braid).2.2.2)
+    (hfailed : ∀ modelNext : Model.Braid.BraidState,
+      Tacenta.SessionUnitBraidT3.StateRefines K realBraidNext.state modelNext →
+      Model.Lifecycle.braidFailed modelNext = true) :
+    ∃ output,
+      lifecycle.Session.encrypt rngCore cryptoRng real plaintext rng = ok output ∧
+      StepRefines trace dh K output
+        (Model.Lifecycle.encrypt view oracle model (sliceOf plaintext)) := by
+  obtain ⟨draw, rest, modelMessage, modelEpoch, modelOutput, modelBraidNext,
+      hhead, htail, hsendModel, hmessage, hepoch, houtput, hnext⟩ :=
+    braid_send_model_result_of_draw (R := R) trace oracle model.braid hkem
+      realMessage realEpoch realOutput realBraidNext rng rngNext
+      htrace hdraw hneedsDraw hpost
+  exact encrypt_braid_failure_step_refines rngCore cryptoRng trace dh K view oracle
+    ({ oracle with draws := rest }) real model plaintext rng rngNext realMessage
+    realEpoch realOutput realBraidNext modelMessage modelEpoch modelOutput
+    modelBraidNext hrel hready hsendReal hsendModel hnext
+    (hfailed modelBraidNext hnext) htail
+
 def realSparseOutputOf (output : Option tacenta_braid.Output) :
     Result (Option tacenta_spqr.Output) :=
   match output with
