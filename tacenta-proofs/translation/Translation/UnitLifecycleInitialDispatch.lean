@@ -5691,6 +5691,72 @@ def initial_ratchet_success_splice_of_concrete_provider {R : Type}
     (provider.hbraidReceive successPrefix) (provider.hprivate successPrefix)
     (provider.hbytes successPrefix) provider.htrace
 
+/-! Lift a model-facts/provider pair into the existential success callback
+    expected by the result splitter.  The callback still receives the exact
+    generated `Ok` result first; neither the model successor nor the concrete
+    provider can be selected independently of that result. -/
+theorem initial_ratchet_success_callback_of_concrete_provider
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng : R}
+    (hmodel : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        ∃ oracleNext, Nonempty (InitialRatchetModelSuccessFacts view oracle oracleNext
+          model decoded.message.deref))
+    (hprovider : ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        ∀ (oracleNext : Model.Lifecycle.Oracle)
+          (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model
+            decoded.message.deref),
+          InitialRatchetConcreteSuccessProvider
+            (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+            (view := view) (oracle := oracle) (oracleNext := oracleNext)
+            (real := real) (model := model) (message := decoded.message.deref)
+            (rng := rng) (rngNext := rngNext) (plaintext := plaintext) (next := next)
+            facts) :
+    ∀ (decoded : tacenta_wire.DecodedInitial)
+      (established : alloc.vec.Vec Std.U8),
+      tacenta_wire.decode_initial message = ok (.Ok decoded) →
+      real.established_ephemeral = some established →
+      vecOf established = vecOf decoded.ephemeral →
+      vecOf decoded.identity =
+        Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
+      ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
+        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
+          ok (.Ok plaintext, next, rngNext) →
+        ∃ oracleNext, ∃ facts : InitialRatchetModelSuccessFacts view oracle oracleNext
+          model decoded.message.deref,
+          Nonempty (∀ successPrefix : InitialRatchetSuccessPrefix rc crc real
+              decoded.message.deref rng rngNext plaintext next,
+            InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
+              successPrefix facts) := by
+  intro decoded established hdecode hestablished he hi plaintext next rngNext hcall
+  obtain ⟨oracleNext, ⟨facts⟩⟩ := hmodel decoded established hdecode hestablished he hi
+    plaintext next rngNext hcall
+  refine ⟨oracleNext, facts, ⟨?_⟩⟩
+  intro successPrefix
+  exact initial_ratchet_success_splice_of_concrete_provider successPrefix facts
+    (hprovider decoded established hdecode hestablished he hi plaintext next rngNext hcall
+      oracleNext facts)
+
 def initial_ratchet_success_evidence_of_splice {R : Type}
     {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
