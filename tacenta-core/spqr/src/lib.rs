@@ -562,7 +562,11 @@ impl State {
             return;
         }
         let mut replacement = Vec::with_capacity(required);
-        replacement.extend(self.chains.iter().cloned());
+        let mut i = 0;
+        while i < self.chains.len() {
+            replacement.push(self.chains[i].clone());
+            i += 1;
+        }
         self.chains.zeroize();
         self.chains = replacement;
     }
