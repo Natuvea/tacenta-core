@@ -1152,6 +1152,8 @@ def initial_dispatch_repeat_refusal_route
     (hidentity : vecOf decoded.identity =
       Model.PersistedState.SessionState.encodeEc
         (dh.publicKey real.peer_identity_public))
+    (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+      established.deref decoded.ephemeral.deref = ok true)
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
       (alloc.vec.Vec.deref decoded.message) rng =
       ok (.Err realReason, real, rngNext))
@@ -1180,6 +1182,8 @@ def initial_dispatch_repeat_success_route
     (hidentity : vecOf decoded.identity =
       Model.PersistedState.SessionState.encodeEc
         (dh.publicKey real.peer_identity_public))
+    (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+      established.deref decoded.ephemeral.deref = ok true)
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
       (alloc.vec.Vec.deref decoded.message) rng =
       ok (.Ok plaintext, realNext, rngNext))
@@ -1964,7 +1968,7 @@ structure TripleSendRefinementContracts : Prop where
   spqrZeroizing96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96
   spqrZeroizing64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64
   vecRetain : Tacenta.SessionUnitSpqrT3.VecRetainAgrees
-  vecAppend : Tacenta.SessionUnitSpqrT3.VecAppendAgrees
+  vecRetainTotal : Tacenta.SessionUnitSpqrT1.VecRetainTotal
   spqrRemove : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees
   spqrZeroize : Tacenta.SessionUnitSpqrT1.ZeroizeTotal
   optionClone : Tacenta.SessionUnitSpqrT1.OptionCloneTotal
@@ -2010,7 +2014,7 @@ theorem triple_send_post_of_contracts
     (Tacenta.SessionUnitTripleT3.send_refines_discharged
       contracts.hmac contracts.hkdf contracts.zeroizing contracts.ratchetRemove
       contracts.spqrZeroizing96 contracts.spqrZeroizing64 contracts.vecRetain
-      contracts.vecAppend contracts.spqrRemove contracts.spqrZeroize contracts.optionClone
+      contracts.vecRetainTotal contracts.spqrRemove contracts.spqrZeroize contracts.optionClone
       hrel sendingEpoch output hroom hcb hsb hnewb hepoch hcounter)
   have heq : result = (sent, candidate) := by
     exact Result.ok.inj (hcall.symm.trans hsend)
@@ -2846,8 +2850,8 @@ theorem decrypt_initial_ephemeral_mismatch_refines {R : Type}
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
       ok (.Err lifecycle.Error.NotARepeatedInitial, real, rng) := by
     simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
-      hsameAgreement, hephemeralCall, output]
-  refine ⟨output, hreal, ?_⟩
+      hsameAgreement, hephemeralCall]
+  refine ⟨(.Err lifecycle.Error.NotARepeatedInitial, real, rng), hreal, ?_⟩
   rw [hmodel]
   exact ⟨rfl, hrel, htrace⟩
 
@@ -2865,12 +2869,17 @@ def initial_dispatch_ephemeral_mismatch_from_premises
     (established : alloc.vec.Vec Std.U8) (decoded : tacenta_wire.DecodedInitial)
     (hdecode : tacenta_wire.decode_initial message = ok (core.result.Result.Ok decoded))
     (hestablished : real.established_ephemeral = some established)
-    (hmismatch : vecOf established ≠ vecOf decoded.ephemeral) :
+    (hmismatch : vecOf established ≠ vecOf decoded.ephemeral)
+    (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+      established.deref decoded.ephemeral.deref = ok false)
+    (hagreementMismatch : oracle.dhAgree model.ratchetPrivate (vecOf established) ≠
+      oracle.dhAgree model.ratchetPrivate
+        (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val)) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng := by
   refine InitialDispatchRoute.ephemeralMismatch ?_
   exact decrypt_initial_ephemeral_mismatch_refines rngCore cryptoRng trace dh K view oracle
     real model message rng established decoded ctx.hrel ctx.htrace ctx.htype hdecode
-    hestablished hmismatch
+    hestablished hmismatch hsameAgreement hagreementMismatch
 
 theorem decrypt_initial_identity_mismatch_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
@@ -2961,8 +2970,8 @@ theorem decrypt_initial_identity_mismatch_refines {R : Type}
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
       ok (.Err lifecycle.Error.NotARepeatedInitial, real, rng) := by
     simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
-      hsameAgreement, hephemeralCall, hencoded, hidentityCall, output]
-  refine ⟨output, hreal, ?_⟩
+      hsameAgreement, hephemeralCall, hencoded, hidentityCall]
+  refine ⟨(.Err lifecycle.Error.NotARepeatedInitial, real, rng), hreal, ?_⟩
   rw [hmodel]
   exact ⟨rfl, hrel, htrace⟩
 
@@ -2983,12 +2992,14 @@ def initial_dispatch_identity_mismatch_from_premises
     (hephemeral : vecOf established = vecOf decoded.ephemeral)
     (hmismatch : vecOf decoded.identity ≠
       Model.PersistedState.SessionState.encodeEc
-        (dh.publicKey real.peer_identity_public)) :
+        (dh.publicKey real.peer_identity_public))
+    (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+      established.deref decoded.ephemeral.deref = ok false) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng := by
   refine InitialDispatchRoute.identityMismatch ?_
   exact decrypt_initial_identity_mismatch_refines rngCore cryptoRng trace dh codec K view oracle
     real model message rng established decoded ctx.hrel ctx.htrace ctx.htype hdecode
-    hestablished hephemeral hmismatch
+    hestablished hephemeral hmismatch hsameAgreement
 
 theorem decrypt_initial_repeat_step_refines {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
@@ -3113,6 +3124,8 @@ theorem decrypt_initial_repeat_refusal_exact
     (hidentity : vecOf decoded.identity =
       Model.PersistedState.SessionState.encodeEc
         (dh.publicKey real.peer_identity_public))
+    (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+      established.deref decoded.ephemeral.deref = ok true)
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
       (alloc.vec.Vec.deref decoded.message) rng =
       ok (.Err realReason, real, rngNext))
@@ -3129,9 +3142,9 @@ theorem decrypt_initial_repeat_refusal_exact
   have hdecodeRel := decode_initial_refines_lifecycle message
   rw [hdecode] at hdecodeRel
   obtain ⟨encoded, hencoded', hephemeralCall, hidentityCall, hrepeat⟩ :=
-    repeated_initial_checks_refine dh codec K real model established decoded hrel
+    repeated_initial_checks_refine oracle dh codec K real model established decoded hrel
       hestablished hephemeral hidentity
-  have hdispatch := Model.Lifecycle.dispatchDecrypt_repeat model
+  have hdispatch := Model.Lifecycle.dispatchDecrypt_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
     hmodelType hdecodeRel hrepeat
   have hmodel : Model.Lifecycle.decrypt view oracle model (sliceOf message) =
@@ -3140,7 +3153,7 @@ theorem decrypt_initial_repeat_refusal_exact
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
       ok (.Err realReason, real, rngNext) := by
     simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
-      hephemeralCall, hencoded', hidentityCall, hinner,
+      hsameAgreement, hephemeralCall, hencoded', hidentityCall, hinner,
       core.result.Result.Insts.CoreOpsTry.branch,
       core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
       core.convert.FromSame.from]
@@ -3164,6 +3177,8 @@ def initial_dispatch_repeat_refusal_from_premises
     (hephemeral : vecOf established = vecOf decoded.ephemeral)
     (hidentity : vecOf decoded.identity =
       Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public))
+    (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+      established.deref decoded.ephemeral.deref = ok true)
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
       (alloc.vec.Vec.deref decoded.message) rng = ok (.Err realReason, real, rngNext))
     (hmodelStep : Model.Lifecycle.decryptRatchet view oracle model
@@ -3177,7 +3192,7 @@ def initial_dispatch_repeat_refusal_from_premises
   exact decrypt_initial_repeat_refusal_exact rngCore cryptoRng trace dh codec K view oracle
     oracleNext real model message rng rngNext established decoded realReason modelReason modelNext
     ctx.hrel htraceNext ctx.htype hdecode hestablished
-    hephemeral hidentity hinner hmodelStep hstep
+    hephemeral hidentity hsameAgreement hinner hmodelStep hstep
 
 theorem decrypt_initial_repeat_success_exact
     {R : Type} (rngCore : rand_core_1.RngCore R)
@@ -3203,6 +3218,8 @@ theorem decrypt_initial_repeat_success_exact
     (hidentity : vecOf decoded.identity =
       Model.PersistedState.SessionState.encodeEc
         (dh.publicKey real.peer_identity_public))
+    (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+      established.deref decoded.ephemeral.deref = ok true)
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
       (alloc.vec.Vec.deref decoded.message) rng =
       ok (.Ok plaintext, realNext, rngNext))
@@ -3220,9 +3237,9 @@ theorem decrypt_initial_repeat_success_exact
   have hdecodeRel := decode_initial_refines_lifecycle message
   rw [hdecode] at hdecodeRel
   obtain ⟨encoded, hencoded, hephemeralCall, hidentityCall, hrepeat⟩ :=
-    repeated_initial_checks_refine dh codec K real model established decoded hrel
+    repeated_initial_checks_refine oracle dh codec K real model established decoded hrel
       hestablished hephemeral hidentity
-  have hdispatch := Model.Lifecycle.dispatchDecrypt_repeat model
+  have hdispatch := Model.Lifecycle.dispatchDecrypt_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
     hmodelType hdecodeRel hrepeat
   let realFinal := { realNext with pending_initial := none }
@@ -3238,7 +3255,7 @@ theorem decrypt_initial_repeat_success_exact
   have hreal : lifecycle.Session.decrypt rngCore cryptoRng real message rng =
       ok (.Ok plaintext, realFinal, rngNext) := by
     simp [lifecycle.Session.decrypt, htype, hdecode, hestablished,
-      hephemeralCall, hencoded, hidentityCall, hinner, realFinal,
+      hsameAgreement, hephemeralCall, hencoded, hidentityCall, hinner, realFinal,
       core.result.Result.Insts.CoreOpsTry.branch]
   exact ⟨(.Ok plaintext, realFinal, rngNext), hreal,
     by rw [hmodel]; exact ⟨by simpa [ResultRefines] using hbytes, hfinal, htrace⟩⟩
@@ -3263,6 +3280,8 @@ def initial_dispatch_repeat_success_from_premises
     (hephemeral : vecOf established = vecOf decoded.ephemeral)
     (hidentity : vecOf decoded.identity =
       Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public))
+    (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+      established.deref decoded.ephemeral.deref = ok true)
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
       (alloc.vec.Vec.deref decoded.message) rng = ok (.Ok plaintext, realNext, rngNext))
     (hmodelStep : Model.Lifecycle.decryptRatchet view oracle model
@@ -3276,7 +3295,7 @@ def initial_dispatch_repeat_success_from_premises
   refine InitialDispatchRoute.repeatSuccess ?_
   exact decrypt_initial_repeat_success_exact rngCore cryptoRng trace dh codec K view oracle oracleNext
     real model message rng rngNext established decoded plaintext modelPlaintext realNext modelNext
-    ctx.hrel htraceNext ctx.htype hdecode hestablished hephemeral hidentity hinner hmodelStep hbytes
+    ctx.hrel htraceNext ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement hinner hmodelStep hbytes
     hstep
 
 theorem encrypt_braid_failure_step_refines {R : Type}
