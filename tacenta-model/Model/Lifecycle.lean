@@ -892,17 +892,19 @@ theorem encrypt_triple_refusal_keeps_state (view : CodewordView)
 
 /-- Whether an initial wrapper is the repeat belonging to this responder
     session (session-establishment.md, Receiving the initial message). -/
-def repeatedInitial (session : Session) (initial : Initial) : Bool :=
+def repeatedInitial (oracle : Oracle) (session : Session) (initial : Initial) : Bool :=
   match session.establishedEphemeral with
   | none => false
   | some ephemeral =>
-      ephemeral == initial.ephemeral
+      oracle.dhAgree session.ratchetPrivate ephemeral ==
+        oracle.dhAgree session.ratchetPrivate initial.ephemeral
         && initial.identity == Model.PersistedState.SessionState.encodeEc session.peerIdentityPublic
 
-theorem repeatedInitial_iff (session : Session) (initial : Initial) :
-    repeatedInitial session initial = true ↔
+theorem repeatedInitial_iff (oracle : Oracle) (session : Session) (initial : Initial) :
+    repeatedInitial oracle session initial = true ↔
       ∃ ephemeral, session.establishedEphemeral = some ephemeral
-        ∧ ephemeral = initial.ephemeral
+        ∧ oracle.dhAgree session.ratchetPrivate ephemeral =
+          oracle.dhAgree session.ratchetPrivate initial.ephemeral
         ∧ initial.identity =
           Model.PersistedState.SessionState.encodeEc session.peerIdentityPublic := by
   cases h : session.establishedEphemeral with
@@ -911,11 +913,11 @@ theorem repeatedInitial_iff (session : Session) (initial : Initial) :
 
 /-- Recognition does not inspect the KEM ciphertext, identifiers or inner
     ratchet message. This is an intentional part of the protocol rule. -/
-theorem repeatedInitial_ignores_other_fields (session : Session) (initial : Initial)
+theorem repeatedInitial_ignores_other_fields (oracle : Oracle) (session : Session) (initial : Initial)
     (kemCiphertext ratchetMessage : Bytes) (signedPrekeyId oneTimeId kemPrekeyId : UInt32) :
-    repeatedInitial session
+    repeatedInitial oracle session
       { initial with kemCiphertext, signedPrekeyId, oneTimeId, kemPrekeyId, ratchetMessage }
-      = repeatedInitial session initial := by
+      = repeatedInitial oracle session initial := by
   simp [repeatedInitial]
 
 /-! ## Established-session dispatch
@@ -930,19 +932,19 @@ receive transition is introduced.
     receiver. An initial frame must decode canonically and name this exact
     established session; ratchet and unrecognised framing is passed through so
     the ratchet decoder supplies the final public decode refusal. -/
-def dispatchDecrypt (session : Session) (message : Bytes) : Except Refusal Bytes :=
+def dispatchDecrypt (oracle : Oracle) (session : Session) (message : Bytes) : Except Refusal Bytes :=
   match messageType message with
   | some .initial =>
       match Model.Messages.decodeInitialDetailed message with
       | .error reason => .error (.decode reason)
       | .ok initial =>
-          if repeatedInitial session initial then .ok initial.ratchetMessage
+          if repeatedInitial oracle session initial then .ok initial.ratchetMessage
           else .error .notARepeatedInitial
   | _ => .ok message
 
-theorem dispatchDecrypt_passthrough (session : Session) (message : Bytes)
+theorem dispatchDecrypt_passthrough (oracle : Oracle) (session : Session) (message : Bytes)
     (h : messageType message ≠ some .initial) :
-    dispatchDecrypt session message = .ok message := by
+    dispatchDecrypt oracle session message = .ok message := by
   cases ht : messageType message with
   | none => simp [dispatchDecrypt, ht]
   | some kind =>
@@ -950,39 +952,39 @@ theorem dispatchDecrypt_passthrough (session : Session) (message : Bytes)
       | ratchet => simp [dispatchDecrypt, ht]
       | initial => exact (h ht).elim
 
-theorem dispatchDecrypt_decode_refusal (session : Session) (message : Bytes)
+theorem dispatchDecrypt_decode_refusal (oracle : Oracle) (session : Session) (message : Bytes)
     (reason : DecodeRefusal) (ht : messageType message = some .initial)
     (hd : Model.Messages.decodeInitialDetailed message = .error reason) :
-    dispatchDecrypt session message = .error (.decode reason) := by
+    dispatchDecrypt oracle session message = .error (.decode reason) := by
   simp [dispatchDecrypt, ht, hd]
 
-theorem dispatchDecrypt_repeat (session : Session) (message : Bytes) (initial : Initial)
+theorem dispatchDecrypt_repeat (oracle : Oracle) (session : Session) (message : Bytes) (initial : Initial)
     (ht : messageType message = some .initial)
     (hd : Model.Messages.decodeInitialDetailed message = .ok initial)
-    (hr : repeatedInitial session initial = true) :
-    dispatchDecrypt session message = .ok initial.ratchetMessage := by
+    (hr : repeatedInitial oracle session initial = true) :
+    dispatchDecrypt oracle session message = .ok initial.ratchetMessage := by
   simp [dispatchDecrypt, ht, hd, hr]
 
-theorem dispatchDecrypt_not_repeat (session : Session) (message : Bytes) (initial : Initial)
+theorem dispatchDecrypt_not_repeat (oracle : Oracle) (session : Session) (message : Bytes) (initial : Initial)
     (ht : messageType message = some .initial)
     (hd : Model.Messages.decodeInitialDetailed message = .ok initial)
-    (hr : repeatedInitial session initial = false) :
-    dispatchDecrypt session message = .error .notARepeatedInitial := by
+    (hr : repeatedInitial oracle session initial = false) :
+    dispatchDecrypt oracle session message = .error .notARepeatedInitial := by
   simp [dispatchDecrypt, ht, hd, hr]
 
 /-- Complete success condition for an initial frame: it has one canonical
     decode, belongs to this established session, and contributes exactly its
     embedded ratchet bytes. -/
-theorem dispatchDecrypt_initial_ok_iff (session : Session) (message inner : Bytes)
+theorem dispatchDecrypt_initial_ok_iff (oracle : Oracle) (session : Session) (message inner : Bytes)
     (ht : messageType message = some .initial) :
-    dispatchDecrypt session message = .ok inner ↔
+    dispatchDecrypt oracle session message = .ok inner ↔
       ∃ initial, Model.Messages.decodeInitialDetailed message = .ok initial
-        ∧ repeatedInitial session initial = true
+        ∧ repeatedInitial oracle session initial = true
         ∧ initial.ratchetMessage = inner := by
   cases hd : Model.Messages.decodeInitialDetailed message with
   | error reason => simp [dispatchDecrypt, ht, hd]
   | ok initial =>
-      cases hr : repeatedInitial session initial <;>
+      cases hr : repeatedInitial oracle session initial <;>
         simp [dispatchDecrypt, ht, hd, hr]
 
 /-! ## Receive preparation
@@ -995,9 +997,9 @@ the codeword view and leaf refusal results are frozen.
 
 abbrev DecodedRatchet := Model.CompositeHeader.Composite × Bytes
 
-def prepareDecrypt (session : Session) (message : Bytes) :
+def prepareDecrypt (oracle : Oracle) (session : Session) (message : Bytes) :
     Except Refusal DecodedRatchet :=
-  match dispatchDecrypt session message with
+  match dispatchDecrypt oracle session message with
   | .error reason => .error reason
   | .ok inner =>
       if agreementFailed session then .error .agreementFailed
@@ -1006,29 +1008,29 @@ def prepareDecrypt (session : Session) (message : Bytes) :
         | .error reason => .error (.decode reason)
         | .ok decoded => .ok decoded
 
-theorem prepareDecrypt_dispatch_refusal (session : Session) (message : Bytes)
-    (reason : Refusal) (h : dispatchDecrypt session message = .error reason) :
-    prepareDecrypt session message = .error reason := by
+theorem prepareDecrypt_dispatch_refusal (oracle : Oracle) (session : Session) (message : Bytes)
+    (reason : Refusal) (h : dispatchDecrypt oracle session message = .error reason) :
+    prepareDecrypt oracle session message = .error reason := by
   simp [prepareDecrypt, h]
 
-theorem prepareDecrypt_failed (session : Session) (message inner : Bytes)
-    (hd : dispatchDecrypt session message = .ok inner)
+theorem prepareDecrypt_failed (oracle : Oracle) (session : Session) (message inner : Bytes)
+    (hd : dispatchDecrypt oracle session message = .ok inner)
     (hf : agreementFailed session = true) :
-    prepareDecrypt session message = .error .agreementFailed := by
+    prepareDecrypt oracle session message = .error .agreementFailed := by
   simp [prepareDecrypt, hd, hf]
 
-theorem prepareDecrypt_decode_refusal (session : Session) (message inner : Bytes)
-    (reason : DecodeRefusal) (hd : dispatchDecrypt session message = .ok inner)
+theorem prepareDecrypt_decode_refusal (oracle : Oracle) (session : Session) (message inner : Bytes)
+    (reason : DecodeRefusal) (hd : dispatchDecrypt oracle session message = .ok inner)
     (hf : agreementFailed session = false)
     (hw : Model.CompositeHeader.decodeDetailed inner = .error reason) :
-    prepareDecrypt session message = .error (.decode reason) := by
+    prepareDecrypt oracle session message = .error (.decode reason) := by
   simp [prepareDecrypt, hd, hf, hw]
 
-theorem prepareDecrypt_ok (session : Session) (message inner : Bytes)
-    (decoded : DecodedRatchet) (hd : dispatchDecrypt session message = .ok inner)
+theorem prepareDecrypt_ok (oracle : Oracle) (session : Session) (message inner : Bytes)
+    (decoded : DecodedRatchet) (hd : dispatchDecrypt oracle session message = .ok inner)
     (hf : agreementFailed session = false)
     (hw : Model.CompositeHeader.decodeDetailed inner = .ok decoded) :
-    prepareDecrypt session message = .ok decoded := by
+    prepareDecrypt oracle session message = .ok decoded := by
   simp [prepareDecrypt, hd, hf, hw]
 
 /-- The inner `Session::decrypt_ratchet` transaction. Every candidate change,
@@ -1137,7 +1139,7 @@ theorem decryptRatchet_refusal_keeps_session (view : CodewordView)
     after that transaction succeeds. -/
 def decrypt (view : CodewordView) (oracle : Oracle) (session : Session)
     (message : Bytes) : Step Bytes :=
-  match dispatchDecrypt session message with
+  match dispatchDecrypt oracle session message with
   | .error reason => { session, result := .error reason, oracle }
   | .ok inner =>
       let step := decryptRatchet view oracle session inner
@@ -1150,7 +1152,7 @@ def decrypt (view : CodewordView) (oracle : Oracle) (session : Session)
 
 theorem decrypt_dispatch_refusal_keeps_state (view : CodewordView)
     (oracle : Oracle) (session : Session) (message : Bytes) (reason : Refusal)
-    (h : dispatchDecrypt session message = .error reason) :
+    (h : dispatchDecrypt oracle session message = .error reason) :
     decrypt view oracle session message =
       { session, result := .error reason, oracle } := by
   simp [decrypt, h]
@@ -1159,7 +1161,7 @@ theorem decrypt_refusal_keeps_session (view : CodewordView)
     (oracle : Oracle) (session : Session) (message : Bytes) (reason : Refusal)
     (h : (decrypt view oracle session message).result = .error reason) :
     (decrypt view oracle session message).session = session := by
-  cases hd : dispatchDecrypt session message with
+  cases hd : dispatchDecrypt oracle session message with
   | error dispatchReason => simp [decrypt, hd]
   | ok inner =>
       cases hr : decryptRatchet view oracle session inner with
@@ -1175,7 +1177,7 @@ theorem decrypt_success_clears_pending (view : CodewordView)
     (oracle : Oracle) (session : Session) (message plaintext : Bytes)
     (h : (decrypt view oracle session message).result = .ok plaintext) :
     (decrypt view oracle session message).session.pendingInitial = none := by
-  cases hd : dispatchDecrypt session message with
+  cases hd : dispatchDecrypt oracle session message with
   | error reason => simp [decrypt, hd] at h
   | ok inner =>
       cases hr : decryptRatchet view oracle session inner with

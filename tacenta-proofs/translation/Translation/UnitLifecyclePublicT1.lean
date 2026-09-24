@@ -35,6 +35,15 @@ theorem decode_ec_no_panic (hdh : DhCodecTotal) (bytes : Slice U8) :
   · step with public_key_from_bytes_no_panic hdh
 
 @[step]
+theorem same_ephemeral_agreement_no_panic (hdh : DhCodecTotal)
+    (hagree : DhAgreeTotal) (privateKey : tacenta_boundary.dh.PrivateKey)
+    (established incoming : Slice U8) :
+    lifecycle.same_ephemeral_agreement privateKey established incoming
+      ⦃ fun _ => True ⦄ := by
+  unfold lifecycle.same_ephemeral_agreement
+  step*
+
+@[step]
 theorem identity_dh_key_no_panic (hdh : DhCodecTotal)
     (identity : lifecycle.Identity) :
     lifecycle.Identity.dh_key identity ⦃ fun _ => True ⦄ := by
@@ -1725,7 +1734,8 @@ theorem decrypt_no_panic {R : Type}
       rcases decodedResult with decoded | error
       · rcases self.established_ephemeral with _ | established
         · simp
-        · step
+        · step with same_ephemeral_agreement_no_panic boundary.dhCodec
+            boundary.dhAgree self.ratchet_private established.deref decoded.ephemeral.deref
           split
           · step with encode_ec_spec boundary.dhCodec self.peer_identity_public
             step

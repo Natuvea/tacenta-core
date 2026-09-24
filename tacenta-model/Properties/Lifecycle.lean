@@ -269,7 +269,7 @@ theorem decryptRatchet_frame (view : CodewordView) (oracle : Oracle)
 theorem decrypt_identity_frame (view : CodewordView) (oracle : Oracle)
     (session : Session) (message : Bytes) :
     identityFrame session (decrypt view oracle session message).session := by
-  cases hd : dispatchDecrypt session message with
+  cases hd : dispatchDecrypt oracle session message with
   | error reason => simp [decrypt, hd, identityFrame]
   | ok inner =>
       have hf := (decryptRatchet_frame view oracle session inner).1
@@ -278,15 +278,16 @@ theorem decrypt_identity_frame (view : CodewordView) (oracle : Oracle)
           cases result <;> simpa [decrypt, hd, hr, identityFrame] using hf
 
 /-- The exact repeated-initial recognition rule: both stored key fields must
-    match byte for byte; the ciphertext and three identifiers are ignored. -/
-theorem repeated_initial_accepted_iff (session : Session) (message inner : Bytes)
+    match by agreement class and identity; the ciphertext and three identifiers
+    are ignored. -/
+theorem repeated_initial_accepted_iff (oracle : Oracle) (session : Session) (message inner : Bytes)
     (hInitial : messageType message = some .initial) :
-    dispatchDecrypt session message = .ok inner ↔
+    dispatchDecrypt oracle session message = .ok inner ↔
       ∃ initial,
         Model.Messages.decodeInitialDetailed message = .ok initial
-          ∧ repeatedInitial session initial = true
+          ∧ repeatedInitial oracle session initial = true
           ∧ initial.ratchetMessage = inner :=
-  dispatchDecrypt_initial_ok_iff session message inner hInitial
+  dispatchDecrypt_initial_ok_iff oracle session message inner hInitial
 
 /-- A terminal agreement state makes encryption refuse without another state
     transition or random draw. -/
@@ -301,7 +302,7 @@ theorem agreement_failed_encrypt_sticky (view : CodewordView) (oracle : Oracle)
     makes decryption refuse without another state transition or random draw. -/
 theorem agreement_failed_decrypt_sticky (view : CodewordView) (oracle : Oracle)
     (session : Session) (message inner : Bytes)
-    (hDispatch : dispatchDecrypt session message = .ok inner)
+    (hDispatch : dispatchDecrypt oracle session message = .ok inner)
     (hFailed : agreementFailed session = true) :
     decrypt view oracle session message =
       { session, result := .error .agreementFailed, oracle } := by
@@ -314,7 +315,7 @@ theorem agreement_failed_decrypt_keeps_session (view : CodewordView)
     (oracle : Oracle) (session : Session) (message : Bytes)
     (hFailed : agreementFailed session = true) :
     (decrypt view oracle session message).session = session := by
-  cases hDispatch : dispatchDecrypt session message with
+  cases hDispatch : dispatchDecrypt oracle session message with
   | error reason => simp [decrypt, hDispatch]
   | ok inner => simp [decrypt, hDispatch, decryptRatchet, hFailed]
 
