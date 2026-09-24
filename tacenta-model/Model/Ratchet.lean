@@ -155,7 +155,7 @@ def trySkipped (st : State) (header : Header) : Option (State × Key) :=
     some ({ st with skipped := rest }, mk)
   | none => none
 
-private abbrev SkippedEntry := Key × Nat × Nat × Key
+abbrev SkippedEntry := Key × Nat × Nat × Key
 
 private def olderSkipped (left right : SkippedEntry) : SkippedEntry :=
   if right.2.2.1 < left.2.2.1 then right else left
@@ -164,11 +164,188 @@ def oldestSkipped? : List SkippedEntry → Option SkippedEntry
   | [] => none
   | first :: rest => some (rest.foldl olderSkipped first)
 
-private def eraseFirstSkipped (target : SkippedEntry) :
+private def skippedStoredAt (e : SkippedEntry) : Nat := e.2.2.1
+
+private theorem olderSkipped_le_left (left right : SkippedEntry) :
+    skippedStoredAt (olderSkipped left right) ≤ skippedStoredAt left := by
+  unfold olderSkipped skippedStoredAt
+  split <;> omega
+
+private theorem olderSkipped_le_right (left right : SkippedEntry) :
+    skippedStoredAt (olderSkipped left right) ≤ skippedStoredAt right := by
+  unfold olderSkipped skippedStoredAt
+  split <;> omega
+
+private theorem foldl_olderSkipped_min_all (first : SkippedEntry) :
+    ∀ (rest : List SkippedEntry), skippedStoredAt (rest.foldl olderSkipped first) ≤
+      skippedStoredAt first ∧
+      ∀ e ∈ rest, skippedStoredAt (rest.foldl olderSkipped first) ≤
+        skippedStoredAt e := by
+  intro rest
+  induction rest generalizing first with
+  | nil => simp
+  | cons head tail ih =>
+      simp only [List.foldl_cons]
+      obtain ⟨hacc, htail⟩ := ih (first := olderSkipped first head)
+      constructor
+      · exact Nat.le_trans hacc (olderSkipped_le_left first head)
+      · intro e he
+        by_cases hxe : e = head
+        · subst e
+          exact Nat.le_trans hacc (olderSkipped_le_right first head)
+        · have hetail : e ∈ tail := by
+            simpa [hxe] using he
+          exact htail e hetail
+
+theorem oldestSkipped?_min (l : List (Key × Nat × Nat × Key)) (e : Key × Nat × Nat × Key)
+    (h : oldestSkipped? l = some e) :
+    ∀ x ∈ l, x.2.2.1 ≥ e.2.2.1 := by
+  cases l with
+  | nil => simp [oldestSkipped?] at h
+  | cons first rest =>
+      simp only [oldestSkipped?] at h
+      injection h with he
+      subst e
+      intro x hx
+      by_cases hxf : x = first
+      · subst x
+        obtain ⟨hacc, _⟩ := foldl_olderSkipped_min_all first rest
+        exact hacc
+      · obtain ⟨_, hmin⟩ := foldl_olderSkipped_min_all first rest
+        have hxrest : x ∈ rest := by
+          simpa [hxf] using hx
+        exact hmin x hxrest
+
+/-! The fold keeps the first entry when clocks tie.  This companion to
+    `oldestSkipped?_min` exposes that tie rule to the translated eviction
+    bridge: an entry that is strictly below every earlier entry and no greater
+    than every later entry is the selected oldest entry. -/
+
+theorem oldestSkipped?_eq_of_first_min
+    (l : List (Key × Nat × Nat × Key)) (e : Key × Nat × Nat × Key)
+    (pre post : List (Key × Nat × Nat × Key))
+    (h : l = pre ++ e :: post)
+    (hpre : ∀ x ∈ pre, e.2.2.1 < x.2.2.1)
+    (hpost : ∀ x ∈ post, e.2.2.1 ≤ x.2.2.1) :
+    oldestSkipped? l = some e := by
+  subst l
+  have keep : ∀ (xs : List (Key × Nat × Nat × Key)),
+      (∀ x ∈ xs, e.2.2.1 ≤ x.2.2.1) →
+      xs.foldl olderSkipped e = e := by
+    intro xs
+    induction xs with
+    | nil => intro _; rfl
+    | cons x xs ih =>
+        intro hall
+        simp only [List.foldl_cons]
+        have hx := hall x (by simp)
+        have hkeep : olderSkipped e x = e := by
+          unfold olderSkipped
+          split <;> simp_all <;> omega
+        rw [hkeep]
+        apply ih
+        intro y hy
+        exact hall y (by simp [hy])
+  have consume : ∀ (xs : List (Key × Nat × Nat × Key))
+      (a : Key × Nat × Nat × Key),
+      e.2.2.1 < a.2.2.1 →
+      (∀ x ∈ xs, e.2.2.1 < x.2.2.1) →
+      (xs ++ e :: post).foldl olderSkipped a = e := by
+    intro xs
+    induction xs with
+    | nil =>
+        intro a ha _
+        simp only [List.nil_append, List.foldl_cons]
+        have hpick : olderSkipped a e = e := by
+          unfold olderSkipped
+          split <;> simp_all <;> omega
+        rw [hpick]
+        exact keep post hpost
+    | cons x xs ih =>
+        intro a ha hall
+        simp only [List.cons_append, List.foldl_cons]
+        have hx := hall x (by simp)
+        have hlt : e.2.2.1 < (olderSkipped a x).2.2.1 := by
+          unfold olderSkipped
+          split <;> simp_all <;> omega
+        apply ih (a := olderSkipped a x) hlt
+        intro y hy
+        exact hall y (by simp [hy])
+  simp only [oldestSkipped?]
+  cases pre with
+  | nil =>
+      simp [List.foldl_append]
+      rw [keep post hpost]
+  | cons x xs =>
+      have hxe : e.2.2.1 < x.2.2.1 := hpre x (by simp)
+      have hconsume := consume xs x hxe (by
+        intro y hy
+        exact hpre y (by simp [hy]))
+      simpa [List.foldl_cons, List.foldl_append] using hconsume
+
+/-! Index form of the selector rule.  Translation proofs naturally obtain a
+    vector index from the concrete scan; this packages the corresponding
+    `take`/`drop` split without making that list plumbing part of the
+    implementation theorem. -/
+theorem oldestSkipped?_eq_of_index_first_min
+    (l : List (Key × Nat × Nat × Key)) (i : Nat) (hi : i < l.length)
+    (hpre : ∀ (j : Nat) (hj : j < i),
+      l[i].2.2.1 < l[j].2.2.1)
+    (hpost : ∀ (j : Nat) (hj : i ≤ j) (hjlen : j < l.length),
+      l[i].2.2.1 ≤ l[j].2.2.1) :
+    oldestSkipped? l = some l[i] := by
+  let target := l[i]
+  have hsplit : l = l.take i ++ target :: l.drop (i + 1) := by
+    have hdrop : l.drop i = target :: l.drop (i + 1) := by
+      simpa [target] using (List.drop_eq_getElem_cons hi)
+    rw [← hdrop]
+    exact (List.take_append_drop i l).symm
+  apply oldestSkipped?_eq_of_first_min l target (l.take i) (l.drop (i + 1)) hsplit
+  · intro x hx
+    rw [List.mem_take_iff_getElem] at hx
+    obtain ⟨j, hj, hval⟩ := hx
+    subst x
+    have hj' : j < i := by omega
+    simpa [target] using hpre j hj'
+  · intro x hx
+    rw [List.mem_drop_iff_getElem] at hx
+    obtain ⟨j, hj, hval⟩ := hx
+    subst x
+    have hj' : i ≤ i + 1 + j := by omega
+    have hjlen : i + 1 + j < l.length := by omega
+    simpa [target] using hpost (i + 1 + j) hj' hjlen
+
+def eraseFirstSkipped (target : SkippedEntry) :
     List SkippedEntry → List SkippedEntry
   | [] => []
   | entry :: rest =>
       if entry = target then rest else entry :: eraseFirstSkipped target rest
+
+theorem eraseFirstSkipped_eq_eraseIdx_of_first
+    (l : List (Key × Nat × Nat × Key)) (target : Key × Nat × Nat × Key)
+    (i : Nat) (hi : i < l.length)
+    (hentry : l[i]? = some target)
+    (hfirst : ∀ j, j < i → l[j]? ≠ some target) :
+    eraseFirstSkipped target l = l.eraseIdx i := by
+  induction l generalizing i with
+  | nil => simp at hi
+  | cons head tail ih =>
+      cases i with
+      | zero =>
+          have hhead : head = target := by
+            simpa using hentry
+          simp [eraseFirstSkipped, hhead]
+      | succ i =>
+          have htail : i < tail.length := by simp_all
+          have hentry' : tail[i]? = some target := by simpa using hentry
+          have hfirst' : ∀ j, j < i → tail[j]? ≠ some target := by
+            intro j hj
+            exact hfirst (j + 1) (by omega)
+          have hi' := ih (i := i) htail hentry' hfirst'
+          have hneq : head ≠ target := by
+            intro hh
+            exact hfirst 0 (by omega) (by simp [hh])
+          simp [eraseFirstSkipped, hneq, hi']
 
 /-- Delete up to `count` entries with the smallest store-clock value, matching
     the implementation's `evict_oldest`. The returned count is observable to
@@ -182,6 +359,143 @@ def evictOldest : State → Nat → State × Nat
           let one := { st with skipped := eraseFirstSkipped oldest st.skipped }
           let rest := evictOldest one count
           (rest.1, rest.2 + 1)
+
+theorem evictOldest_none_state (st : State) (n : Nat)
+    (h : oldestSkipped? st.skipped = none) :
+    (evictOldest st n).1 = st := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+      simp only [evictOldest]
+      rw [h]
+
+theorem evictOldest_none (st : State) (n : Nat)
+    (h : oldestSkipped? st.skipped = none) :
+    evictOldest st n = (st, 0) := by
+  induction n with
+  | zero => rfl
+  | succ n ih => simp [evictOldest, h]
+
+theorem evictOldest_one_some_state (st : State) (target : SkippedEntry)
+    (h : oldestSkipped? st.skipped = some target) :
+    (evictOldest st 1).1 =
+      { st with skipped := eraseFirstSkipped target st.skipped } := by
+  simp only [evictOldest]
+  rw [h]
+
+theorem evictOldest_succ_some
+    (st : State) (target : SkippedEntry) (n : Nat)
+    (h : oldestSkipped? st.skipped = some target) :
+    (evictOldest st (n + 1)).1 =
+        (evictOldest { st with skipped := eraseFirstSkipped target st.skipped } n).1 ∧
+      (evictOldest st (n + 1)).2 =
+        (evictOldest { st with skipped := eraseFirstSkipped target st.skipped } n).2 + 1 := by
+  simp [evictOldest, h]
+
+theorem evictOldest_append (st : State) (n k : Nat) :
+    evictOldest st (n + k) =
+      let first := evictOldest st n
+      let second := evictOldest first.1 k
+      (second.1, first.2 + second.2) := by
+  induction n generalizing st with
+  | zero => simp [evictOldest]
+  | succ n ih =>
+      cases h : oldestSkipped? st.skipped with
+      | none =>
+          simp [evictOldest, h, evictOldest_none]
+      | some target =>
+          simp only [h, evictOldest]
+          rw [show n + 1 + k = (n + k) + 1 by omega]
+          simp only [h, evictOldest]
+          rw [ih (st := { st with skipped := eraseFirstSkipped target st.skipped })]
+          simp [Nat.add_assoc, Nat.add_comm]
+
+theorem evictOldest_fuel_step
+    (base m : State) (n : Nat) (target : SkippedEntry)
+    (hfirst : evictOldest base n = (m, n))
+    (hsel : oldestSkipped? m.skipped = some target) :
+    (evictOldest base (n + 1)).1 =
+      { m with skipped := eraseFirstSkipped target m.skipped } := by
+  rw [evictOldest_append]
+  simp [hfirst, evictOldest, hsel]
+
+theorem evictOldest_fuel_step_pair
+    (base m : State) (n : Nat) (target : SkippedEntry)
+    (hfirst : evictOldest base n = (m, n))
+    (hsel : oldestSkipped? m.skipped = some target) :
+    evictOldest base (n + 1) =
+      ({ m with skipped := eraseFirstSkipped target m.skipped }, n + 1) := by
+  rw [evictOldest_append]
+  simp [hfirst, evictOldest, hsel]
+
+theorem evictOldest_count_le (st : State) (n : Nat) :
+    (evictOldest st n).2 ≤ n := by
+  induction n generalizing st with
+  | zero => simp [evictOldest]
+  | succ n ih =>
+      cases h : oldestSkipped? st.skipped with
+      | none => simp [evictOldest, h]
+      | some target =>
+          simp only [evictOldest, h]
+          have hi := ih
+            (st := { st with skipped := eraseFirstSkipped target st.skipped })
+          omega
+
+/-! The model's bounded eviction either uses all requested fuel or reaches an
+empty skipped store.  This is the model counterpart of the generated loop's
+progress shell and is the stopping condition used by the retry composition. -/
+theorem evictOldest_stops_at_empty (st : State) (n : Nat) :
+    (evictOldest st n).2 = n ∨ (evictOldest st n).1.skipped = [] := by
+  induction n generalizing st with
+  | zero => simp [evictOldest]
+  | succ n ih =>
+      cases h : oldestSkipped? st.skipped with
+      | none =>
+          simp only [evictOldest, h]
+          right
+          cases hs : st.skipped with
+          | nil => rfl
+          | cons head tail => simp [oldestSkipped?, hs] at h
+      | some target =>
+          simp only [evictOldest, h]
+          have hi := ih
+            (st := { st with skipped := eraseFirstSkipped target st.skipped })
+          rcases hi with hi | hi
+          · left
+            omega
+
+          · right
+            exact hi
+
+/-! Once the skipped store is empty, additional bounded eviction is a
+    no-op.  This is the model fact needed to turn the concrete loop's
+    early-empty result into the requested-fuel result. -/
+theorem evictOldest_empty (st : Model.State.State) (n : Nat)
+    (h : st.skipped = []) :
+    evictOldest st n = (st, 0) := by
+  induction n generalizing st with
+  | zero => simp [evictOldest]
+  | succ n ih =>
+      simp [evictOldest, oldestSkipped?, h]
+
+theorem evictOldest_empty_suffix (st m : Model.State.State) (n k : Nat)
+    (hfirst : evictOldest st n = (m, n)) (h : m.skipped = []) :
+    evictOldest st (n + k) = (m, n) := by
+  rw [evictOldest_append]
+  rw [hfirst]
+  simp [evictOldest_empty m k h]
+
+theorem evictOldest_one_nonempty (st : Model.State.State)
+    (h : st.skipped ≠ []) :
+    (evictOldest st 1).2 = 1 := by
+  cases hs : oldestSkipped? st.skipped with
+  | none =>
+      have hempty : st.skipped = [] := by
+        cases hv : st.skipped with
+        | nil => rfl
+        | cons head tail => simp [oldestSkipped?, hv] at hs
+      exact False.elim (h hempty)
+  | some target => simp [evictOldest, hs]
 
 /-- Taking a stored skipped key does not touch the store's clock: it removes an
 entry and leaves every other field alone. Needed where a later step has to know

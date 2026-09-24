@@ -10,6 +10,7 @@ import Translation.SessionUnitBraidImportInv
 import Translation.UnitSatisfiabilitySession
 import Translation.UnitLifecyclePublicT1
 import Translation.UnitLifecycleT3
+import Translation.UnitLifecycleInitialDispatch
 
 /-!
 The eight-leaf Session translation unit's axiom audit. It is separate because
@@ -18,12 +19,12 @@ therefore cannot share their environment. The imported T1/T3 results cover
 the classical and sparse ratchet leaves, all three decoded-state invariants,
 the PQXDH derivation, the erasure coder and the Braid in this namespace. The
 public lifecycle T1 roots and the session-invariant precondition bridge are
-also audited here. The lifecycle T3 results are conditional branch lemmas:
-each takes the leaf outcomes (`Braid::send`/`receive`, the Triple send or the
-eviction receive, the model's twin of each) as hypotheses and relates one
-step of the orchestration around them; they do not yet compose with the
-unit's Braid and Triple refinements, and no lemma covers a successful
-receive, the establishment paths or the public `decrypt` as a whole. Every
+also audited here. The lifecycle T3 branch lemmas take leaf outcomes as
+hypotheses. UnitLifecycleInitialDispatch composes the six initial-wrapper
+routes, conditional on refinement of the inner ratchet receive, and discharges
+that condition for terminal states and malformed payloads. Its T1 bridge
+proves inner-call existence under explicit contracts and headroom. General
+receive refinement and the full public Session T3 theorem remain open. Every
 generated declaration and opaque boundary is visible to the
 same elaborated-environment audit used by the smaller units.
 -/

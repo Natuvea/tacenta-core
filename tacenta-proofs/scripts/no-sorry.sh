@@ -90,6 +90,12 @@ report_time "lifecycle public-root coverage" "$t"
 t=$SECONDS
 bash scripts/check-session-satisfiability-negatives.sh || fail=1
 report_time "Session contract satisfiability control" "$t"
+# The initial dispatcher must retain its matching-key guards. These controls
+# elaborate disposable copies after the positive build above; timeout or a
+# compiler/dependency failure is never counted as a rejected mutation.
+t=$SECONDS
+python3 scripts/check-initial-dispatch-negatives.py || fail=1
+report_time "initial dispatcher proof-dependency controls" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as

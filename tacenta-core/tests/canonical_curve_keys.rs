@@ -8,7 +8,8 @@
 
 use rand::SeedableRng;
 use tacenta_core::serialization::{
-    DecodeError, WireBundle, decode_bundle, decode_initial, decode_message, encode_bundle,
+    DecodeError, MessageType, WireBundle, decode_bundle, decode_initial, decode_message,
+    encode_bundle, message_type,
 };
 use tacenta_core::sessions::{
     Identity, LifecycleError, encode_ec, establish_initiator, establish_responder,
@@ -162,12 +163,28 @@ fn a_repeated_initial_message_must_carry_the_sessions_peer_identity() {
     let carol = Identity::generate(&mut r);
     let mut other = repeat.clone();
     other[2..2 + 33].copy_from_slice(&encode_ec(&carol.public()));
+    let before_initiator_refusal = session.export();
+    assert!(matches!(
+        session.decrypt(&other, &mut r),
+        Err(LifecycleError::NotARepeatedInitial)
+    ));
+    assert_eq!(
+        session.export(),
+        before_initiator_refusal,
+        "a refused initial changed the initiator's pending session"
+    );
+    let before_wrong_identity = responder.export();
     assert!(
         matches!(
             responder.decrypt(&other, &mut r),
             Err(LifecycleError::NotARepeatedInitial)
         ),
         "a repeat carrying another identity was accepted"
+    );
+    assert_eq!(
+        responder.export(),
+        before_wrong_identity,
+        "a refused repeated initial changed the responder session"
     );
 
     let mut honest = [0u8; 32];
@@ -184,7 +201,17 @@ fn a_repeated_initial_message_must_carry_the_sessions_peer_identity() {
         );
     }
 
+    let before_honest_repeat = responder.export();
     assert_eq!(responder.decrypt(&repeat, &mut r).unwrap(), b"second");
+    assert_ne!(
+        responder.export(),
+        before_honest_repeat,
+        "an accepted repeated initial did not advance the responder session"
+    );
+    let reply = responder.encrypt(b"reply", &mut r).unwrap();
+    assert_eq!(session.decrypt(&reply, &mut r).unwrap(), b"reply");
+    let after_reply = session.encrypt(b"after reply", &mut r).unwrap();
+    assert_eq!(message_type(&after_reply), Some(MessageType::Ratchet));
 }
 
 /// A published bundle's three curve keys, each re-spelled both ways, and the
