@@ -320,6 +320,28 @@ fn random_secret<R: RngCore + CryptoRng>(rng: &mut R) -> [u8; 32] {
     s
 }
 
+/// Whether two canonical ephemeral encodings produce the same X25519
+/// agreement with the responder's signed-prekey secret.
+///
+/// Canonical encodings are unique as bytes, but X25519 agreement classes can
+/// contain more than one canonical u-coordinate when a torsion component is
+/// added. Non-contributory keys are never an agreement class, so either side
+/// being rejected makes this comparison fail closed.
+fn same_ephemeral_agreement(private: &dh::PrivateKey, established: &[u8], incoming: &[u8]) -> bool {
+    let established = match decode_ec(established) {
+        Some(key) => key,
+        None => return false,
+    };
+    let incoming = match decode_ec(incoming) {
+        Some(key) => key,
+        None => return false,
+    };
+    match (private.agree(&established), private.agree(&incoming)) {
+        (Some(left), Some(right)) => left == right,
+        _ => false,
+    }
+}
+
 /// Which skipped-key store a receive failure says is full. The two ratchets
 /// report it with different error types, and `Session::decrypt` evicts from
 /// the one that complained (see the loop in `decrypt_ratchet`).
@@ -2894,14 +2916,14 @@ impl Session {
     ///
     /// A repeat is recognised by the two wrapper fields the session holds
     /// (session-establishment.md, Receiving the initial message): `ephemeral`
-    /// must equal `established_ephemeral` and `identity` must equal the
-    /// `EncodeEC` of the peer's identity key, each byte for byte. The decoder
-    /// has already refused a re-spelled key in either field, and a key has one
-    /// canonical encoding, so a genuine repeat matches and nothing else that
-    /// names another key does. `kem_ciphertext` and the three identifiers are
-    /// not compared, since the session keeps none of them, and nothing reads
-    /// them: the inner message authenticates under this session's keys and
-    /// associated data, and the ratchet refuses one it has already accepted.
+    /// must be in the same X25519 agreement class as `established_ephemeral`
+    /// under the responder's signed-prekey secret, and `identity` must equal
+    /// the `EncodeEC` of the peer's identity key byte for byte. Canonical
+    /// encodings can still have distinct torsion-equivalent agreement
+    /// spellings, so comparing the agreement rather than the public bytes is
+    /// required for a genuine repeat to survive a harmless re-encoding. The
+    /// inner message authenticates under this session's keys and associated
+    /// data, and the ratchet refuses one it has already accepted.
     pub fn decrypt<R: RngCore + CryptoRng>(
         &mut self,
         message: &[u8],
@@ -2915,8 +2937,11 @@ impl Session {
                 };
                 match &self.established_ephemeral {
                     Some(e)
-                        if *e == decoded.ephemeral
-                            && decoded.identity == encode_ec(&self.peer_identity_public) =>
+                        if same_ephemeral_agreement(
+                            &self.ratchet_private,
+                            e,
+                            &decoded.ephemeral,
+                        ) && decoded.identity == encode_ec(&self.peer_identity_public) =>
                     {
                         decoded.message
                     }
@@ -3516,9 +3541,10 @@ impl Session {
         // used. `encode_initial` length-prefixes whatever it is given, so a
         // ciphertext of the wrong length would go out on every repeat of the
         // initial message and be refused by the peer's decapsulation each
-        // time; and a repeated initial message is matched against
-        // `established_ephemeral` byte for byte, so a value no initiator can
-        // send makes every repeat look like a different establishment.
+        // time; and a repeated initial message is matched against the
+        // agreement class of `established_ephemeral`, so a non-canonical or
+        // non-contributory value cannot make a repeat look like a different
+        // establishment.
         if let Some(p) = &self.pending_initial {
             if p.kem_ciphertext.len() != kem::ciphertext_len() {
                 return false;
