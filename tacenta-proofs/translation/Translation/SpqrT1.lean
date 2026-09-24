@@ -319,7 +319,7 @@ theorem prepare_chains_capacity_loop_empty_no_panic
 theorem prepare_chains_capacity_loop_new_no_panic
     (v : alloc.vec.Vec (U64 × Chains)) (h : v.length ≤ Usize.max) :
     State.prepare_chains_capacity_loop v
-      ⟨[], alloc.vec.Vec.new._proof_1⟩ 0#usize
+      ⟨[], by scalar_tac⟩ 0#usize
       ⦃ fun r => r.length ≤ v.length ⦄ := by
   step with prepare_chains_capacity_loop_no_panic
   all_goals simp_all [alloc.vec.Vec.new]
