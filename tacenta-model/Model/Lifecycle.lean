@@ -120,10 +120,33 @@ def sendAgreement (oracle : Oracle) (state : Model.Braid.BraidState) :
   else
     some (Model.Braid.send oracle.braidKem 0 state, oracle)
 
+/-! In the Braid states which do not draw randomness, the model's
+    `rand` argument is deliberately ignored.  Keeping this fact explicit is
+    useful at the Session boundary: the translated `Braid::send` result can
+    be related to `sendAgreement` without inventing a draw or changing the
+    caller's oracle. -/
+theorem braid_send_random_irrelevant_of_no_draw
+    (K : Model.Braid.Kem) (state : Model.Braid.BraidState)
+    (h : braidSendNeedsDraw state = false) (rand : Nat) :
+    Model.Braid.send K rand state = Model.Braid.send K 0 state := by
+  cases state <;> simp [braidSendNeedsDraw, Model.Braid.send] at h ⊢
+
 theorem sendAgreement_no_draw (oracle : Oracle) (state : Model.Braid.BraidState)
     (h : braidSendNeedsDraw state = false) :
     sendAgreement oracle state = some (Model.Braid.send oracle.braidKem 0 state, oracle) := by
   simp [sendAgreement, h]
+
+theorem sendAgreement_of_no_draw_exists
+    (oracle : Oracle) (state : Model.Braid.BraidState)
+    (h : braidSendNeedsDraw state = false)
+    (P : Nat → Prop) (hexists : ∃ rand, P rand) :
+    ∃ rand, P rand ∧
+      sendAgreement oracle state =
+        some (Model.Braid.send oracle.braidKem rand state, oracle) := by
+  obtain ⟨rand, hP⟩ := hexists
+  refine ⟨rand, hP, ?_⟩
+  rw [sendAgreement_no_draw oracle state h]
+  rw [braid_send_random_irrelevant_of_no_draw oracle.braidKem state h rand]
 
 theorem sendAgreement_draw (oracle : Oracle) (state : Model.Braid.BraidState)
     (draw : Key) (rest : List Key) (hn : braidSendNeedsDraw state = true)
@@ -780,6 +803,271 @@ def receiveWithEviction (state : Model.Triple.State)
             (receiveShortfall half state composite)
             (Model.Triple.classicalSkippedLength state
               + Model.Triple.postQuantumSkippedLength state + 1)
+
+/-- A single successful retry is exposed for the translation composition.
+The theorem names the direct refusal, the selected full-store half, the
+working-copy eviction and the successful retry; it does not hide those facts
+inside the private recursive loop. -/
+theorem receiveWithEviction_one_retry
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (result : Model.Triple.State × Key)
+    (evictedState : Model.Triple.State)
+    (reason : Model.Triple.ReceiveRefusal) (half : FullStore)
+    (evicted : Nat)
+    (hDirect : Model.Triple.receiveDetailed state header dhOutRecv dhOutSend
+      newDhsPub output = .error reason)
+    (hFull : fullStore reason = some half)
+    (hEvict : (match half with
+      | .classical => (Model.Triple.evictOldestClassical state (receiveShortfall half state composite))
+      | .postQuantum => (Model.Triple.evictOldestPostQuantum state (receiveShortfall half state composite))) =
+      (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header dhOutRecv dhOutSend
+      newDhsPub output = .ok result) :
+    receiveWithEviction state composite header dhOutRecv dhOutSend newDhsPub output = .ok result := by
+  simp [receiveWithEviction, hDirect, hFull]
+  cases half <;> simp [receiveWithEvictionLoop, hEvict, hNonzero, hRetry]
+
+/-! The fuel-indexed form is the induction-facing companion to
+    `receiveWithEviction_one_retry`.  It keeps the successor fuel visible so
+    the concrete loop's decreasing measure can be related to the model loop
+    without re-proving the first successful retry at each induction step. -/
+theorem receiveWithEvictionLoop_one_retry
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (result : Model.Triple.State × Key)
+    (evictedState : Model.Triple.State)
+    (reason : Model.Triple.ReceiveRefusal) (half : FullStore)
+    (evicted fuel : Nat)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state
+          (receiveShortfall half state composite)
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state
+          (receiveShortfall half state composite)) =
+        (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header
+      dhOutRecv dhOutSend newDhsPub output = .ok result) :
+    receiveWithEvictionLoop state composite header dhOutRecv dhOutSend
+      newDhsPub output reason half
+      (receiveShortfall half state composite) (fuel + 1) = .ok result := by
+  cases half <;> simp [receiveWithEvictionLoop, hEvict, hNonzero, hRetry]
+
+/-! Expose the recursive continuation after a retry fails with another
+    full-store refusal.  This equation is the induction step for the bounded
+    lifecycle retry invariant; it leaves the decremented fuel and doubled
+    batch explicit. -/
+theorem receiveWithEvictionLoop_continue_same_half
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending reason : Model.Triple.ReceiveRefusal)
+    (half : FullStore) (batch fuel : Nat)
+    (evictedState : Model.Triple.State) (evicted : Nat)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header
+      dhOutRecv dhOutSend newDhsPub output = .error reason)
+    (hFull : fullStore reason = some half) :
+    receiveWithEvictionLoop state composite header dhOutRecv dhOutSend newDhsPub output
+      pending half batch (fuel + 1) =
+      receiveWithEvictionLoop evictedState composite header dhOutRecv dhOutSend
+        newDhsPub output reason half (batch * 2) fuel := by
+  cases half <;> simp [receiveWithEvictionLoop, hEvict, hNonzero, hRetry, hFull]
+
+/-! Public proposition wrapper for the private loop equation.  Translation
+    proofs can carry this relation across the model boundary without naming
+    the implementation-private recursive function. -/
+def receiveWithEvictionLoopSameHalf
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending reason : Model.Triple.ReceiveRefusal)
+    (half : FullStore) (batch fuel : Nat)
+    (evictedState : Model.Triple.State) (evicted : Nat)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header
+      dhOutRecv dhOutSend newDhsPub output = .error reason)
+    (hFull : fullStore reason = some half) : Prop :=
+  receiveWithEvictionLoop state composite header dhOutRecv dhOutSend newDhsPub output
+    pending half batch (fuel + 1) =
+    receiveWithEvictionLoop evictedState composite header dhOutRecv dhOutSend
+      newDhsPub output reason half (batch * 2) fuel
+
+theorem receiveWithEvictionLoopSameHalf_of_continue
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending reason : Model.Triple.ReceiveRefusal)
+    (half : FullStore) (batch fuel : Nat)
+    (evictedState : Model.Triple.State) (evicted : Nat)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header
+      dhOutRecv dhOutSend newDhsPub output = .error reason)
+    (hFull : fullStore reason = some half) :
+    receiveWithEvictionLoopSameHalf state composite header dhOutRecv dhOutSend
+      newDhsPub output pending reason half batch fuel evictedState evicted
+      hEvict hNonzero hRetry hFull := by
+  exact receiveWithEvictionLoop_continue_same_half state composite header
+    dhOutRecv dhOutSend newDhsPub output pending reason half batch fuel evictedState
+    evicted hEvict hNonzero hRetry hFull
+
+theorem receiveWithEvictionLoop_continue_switch_half
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending reason : Model.Triple.ReceiveRefusal)
+    (half nextHalf : FullStore) (batch fuel : Nat)
+    (evictedState : Model.Triple.State) (evicted : Nat)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header
+      dhOutRecv dhOutSend newDhsPub output = .error reason)
+    (hFull : fullStore reason = some nextHalf)
+    (hDifferent : nextHalf ≠ half) :
+    receiveWithEvictionLoop state composite header dhOutRecv dhOutSend newDhsPub output
+      pending half batch (fuel + 1) =
+      receiveWithEvictionLoop evictedState composite header dhOutRecv dhOutSend
+        newDhsPub output reason nextHalf
+        (receiveShortfall nextHalf evictedState composite) fuel := by
+  cases half <;> cases nextHalf <;>
+    simp_all [receiveWithEvictionLoop, hEvict, hNonzero, hRetry, hFull, hDifferent]
+
+def receiveWithEvictionLoopSwitchHalf
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending reason : Model.Triple.ReceiveRefusal)
+    (half nextHalf : FullStore) (batch fuel : Nat)
+    (evictedState : Model.Triple.State) (evicted : Nat)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header
+      dhOutRecv dhOutSend newDhsPub output = .error reason)
+    (hFull : fullStore reason = some nextHalf)
+    (hDifferent : nextHalf ≠ half) : Prop :=
+  receiveWithEvictionLoop state composite header dhOutRecv dhOutSend newDhsPub output
+    pending half batch (fuel + 1) =
+    receiveWithEvictionLoop evictedState composite header dhOutRecv dhOutSend
+      newDhsPub output reason nextHalf
+      (receiveShortfall nextHalf evictedState composite) fuel
+
+theorem receiveWithEvictionLoopSwitchHalf_of_continue
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending reason : Model.Triple.ReceiveRefusal)
+    (half nextHalf : FullStore) (batch fuel : Nat)
+    (evictedState : Model.Triple.State) (evicted : Nat)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, evicted))
+    (hNonzero : evicted ≠ 0)
+    (hRetry : Model.Triple.receiveDetailed evictedState header
+      dhOutRecv dhOutSend newDhsPub output = .error reason)
+    (hFull : fullStore reason = some nextHalf)
+    (hDifferent : nextHalf ≠ half) :
+    receiveWithEvictionLoopSwitchHalf state composite header dhOutRecv dhOutSend
+      newDhsPub output pending reason half nextHalf batch fuel evictedState evicted
+      hEvict hNonzero hRetry hFull hDifferent := by
+  exact receiveWithEvictionLoop_continue_switch_half state composite header
+    dhOutRecv dhOutSend newDhsPub output pending reason half nextHalf batch fuel
+    evictedState evicted hEvict hNonzero hRetry hFull hDifferent
+
+theorem receiveWithEvictionLoop_zero_evict
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending : Model.Triple.ReceiveRefusal)
+    (half : FullStore) (batch fuel : Nat)
+    (evictedState : Model.Triple.State)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, 0)) :
+    receiveWithEvictionLoop state composite header dhOutRecv dhOutSend newDhsPub output
+      pending half batch (fuel + 1) = .error pending := by
+  cases half <;> simp [receiveWithEvictionLoop, hEvict]
+
+def receiveWithEvictionLoopZeroEvict
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending : Model.Triple.ReceiveRefusal) (half : FullStore)
+    (batch fuel : Nat) (evictedState : Model.Triple.State)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, 0)) : Prop :=
+  receiveWithEvictionLoop state composite header dhOutRecv dhOutSend newDhsPub output
+    pending half batch (fuel + 1) = .error pending
+
+theorem receiveWithEvictionLoopZeroEvict_of_continue
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending : Model.Triple.ReceiveRefusal) (half : FullStore)
+    (batch fuel : Nat) (evictedState : Model.Triple.State)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state batch
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state batch) =
+        (evictedState, 0)) :
+    receiveWithEvictionLoopZeroEvict state composite header dhOutRecv dhOutSend
+      newDhsPub output pending half batch fuel evictedState hEvict := by
+  exact receiveWithEvictionLoop_zero_evict state composite header dhOutRecv
+    dhOutSend newDhsPub output pending half batch fuel evictedState hEvict
+
+theorem receiveWithEviction_zero_evict
+    (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (reason : Model.Triple.ReceiveRefusal) (half : FullStore)
+    (evictedState : Model.Triple.State)
+    (hDirect : Model.Triple.receiveDetailed state header dhOutRecv dhOutSend
+      newDhsPub output = .error reason)
+    (hFull : fullStore reason = some half)
+    (hEvict : (match half with
+      | .classical => Model.Triple.evictOldestClassical state
+          (receiveShortfall half state composite)
+      | .postQuantum => Model.Triple.evictOldestPostQuantum state
+          (receiveShortfall half state composite)) = (evictedState, 0)) :
+    receiveWithEviction state composite header dhOutRecv dhOutSend newDhsPub output =
+      .error reason := by
+  simp [receiveWithEviction, hDirect, hFull]
+  cases half <;> simp [receiveWithEvictionLoop, hEvict]
 
 /-- A classical consumed-message refusal is not an eviction case, so the
     Session retry policy preserves it exactly. -/
