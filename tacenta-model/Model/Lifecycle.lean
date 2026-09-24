@@ -1180,19 +1180,25 @@ theorem encrypt_triple_refusal_keeps_state (view : CodewordView)
 
 /-- Whether an initial wrapper is the repeat belonging to this responder
     session (session-establishment.md, Receiving the initial message). -/
+/- Whether two ephemeral values are in the same successful X25519 agreement
+   class. Two rejected/non-contributory agreements are not a match: the
+   shipping predicate fails closed when either agreement is unavailable. -/
+def sameEphemeralAgreement (oracle : Oracle) (secret established incoming : Key) : Bool :=
+  match oracle.dhAgree secret established, oracle.dhAgree secret incoming with
+  | some left, some right => left == right
+  | _, _ => false
+
 def repeatedInitial (oracle : Oracle) (session : Session) (initial : Initial) : Bool :=
   match session.establishedEphemeral with
   | none => false
   | some ephemeral =>
-      oracle.dhAgree session.ratchetPrivate ephemeral ==
-        oracle.dhAgree session.ratchetPrivate initial.ephemeral
+      sameEphemeralAgreement oracle session.ratchetPrivate ephemeral initial.ephemeral
         && initial.identity == Model.PersistedState.SessionState.encodeEc session.peerIdentityPublic
 
 theorem repeatedInitial_iff (oracle : Oracle) (session : Session) (initial : Initial) :
     repeatedInitial oracle session initial = true ↔
       ∃ ephemeral, session.establishedEphemeral = some ephemeral
-        ∧ oracle.dhAgree session.ratchetPrivate ephemeral =
-          oracle.dhAgree session.ratchetPrivate initial.ephemeral
+        ∧ sameEphemeralAgreement oracle session.ratchetPrivate ephemeral initial.ephemeral = true
         ∧ initial.identity =
           Model.PersistedState.SessionState.encodeEc session.peerIdentityPublic := by
   cases h : session.establishedEphemeral with

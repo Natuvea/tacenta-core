@@ -48,28 +48,28 @@ def _():
     assert curve25519.x25519(SECRET, peer) == curve25519.x25519(bytes(clamped), peer)
 
 
-@case("SE-01 a repeated initial message is accepted only by a responder's session and only if both ephemeral equals established_ephemeral and identity equals EncodeEC(peer_identity_public), byte for byte; either alone is refused; an initiator's session refuses even a matching one; kem_ciphertext and the three identifiers are not compared",
+@case("SE-01 a repeated initial message is accepted only by a responder's session and only if the incoming and established ephemerals have the same successful X25519 agreement under the ratchet private key and identity equals EncodeEC(peer_identity_public); either alone is refused; an initiator's session refuses even a matching one; kem_ciphertext and the three identifiers are not compared",
       f"{SE} Receiving the initial message: The session then accepts it only if it is a responder's session and both of these hold ... Otherwise, and always on an initiator's session, it refuses the message (NotARepeatedInitial); The other fields ... are not compared")
 def _():
     peer = b"\x0a" * 32
     eph = b"\x05" + b"\x0b" * 32
     m = wire.InitialMessage(identity=b"\x05" + peer, ephemeral=eph, kem_ciphertext=b"\x01" * 1568,
                             signed_prekey_id=1, one_time_prekey_id=2, kem_prekey_id=3, ratchet_message=b"")
-    accepts(pqxdh.accept_repeated_initial, True, eph, peer, m)
+    accepts(pqxdh.accept_repeated_initial, True, b"\x33" * 32, eph, peer, m)
     # "The other fields, kem_ciphertext and the three identifiers, are not compared"
     other = wire.InitialMessage(identity=b"\x05" + peer, ephemeral=eph, kem_ciphertext=b"",
                                 signed_prekey_id=9, one_time_prekey_id=0, kem_prekey_id=9, ratchet_message=b"zz")
-    accepts(pqxdh.accept_repeated_initial, True, eph, peer, other)
+    accepts(pqxdh.accept_repeated_initial, True, b"\x33" * 32, eph, peer, other)
     # ephemeral matches, identity does not (the pass-3 rule accepted this)
-    rejects(pqxdh.accept_repeated_initial, True, eph, peer, wire.InitialMessage(**{**m.__dict__, "identity": b"\x05" + b"\x77" * 32}),
+    rejects(pqxdh.accept_repeated_initial, True, b"\x33" * 32, eph, peer, wire.InitialMessage(**{**m.__dict__, "identity": b"\x05" + b"\x77" * 32}),
             exc=pqxdh.NotARepeatedInitial)
     # identity matches, ephemeral does not
-    rejects(pqxdh.accept_repeated_initial, True, b"\x05" + b"\x0c" * 32, peer, m, exc=pqxdh.NotARepeatedInitial)
+    rejects(pqxdh.accept_repeated_initial, True, b"\x33" * 32, b"\x05" + b"\x0c" * 32, peer, m, exc=pqxdh.NotARepeatedInitial)
     # identity is compared with EncodeEC of the held key, not with the raw 32 bytes
-    rejects(pqxdh.accept_repeated_initial, True, eph, b"\x77" * 32, m, exc=pqxdh.NotARepeatedInitial)
+    rejects(pqxdh.accept_repeated_initial, True, b"\x33" * 32, eph, b"\x77" * 32, m, exc=pqxdh.NotARepeatedInitial)
     # "always on an initiator's session", even when both fields match
-    rejects(pqxdh.accept_repeated_initial, False, None, peer, m, exc=pqxdh.NotARepeatedInitial)
-    rejects(pqxdh.accept_repeated_initial, False, eph, peer, m, exc=pqxdh.NotARepeatedInitial)
+    rejects(pqxdh.accept_repeated_initial, False, b"\x33" * 32, None, peer, m, exc=pqxdh.NotARepeatedInitial)
+    rejects(pqxdh.accept_repeated_initial, False, b"\x33" * 32, eph, peer, m, exc=pqxdh.NotARepeatedInitial)
 
 
 @case("SE-02 non-contributory means all 32 output bytes zero; every low-order input gives it and a normal key does not",

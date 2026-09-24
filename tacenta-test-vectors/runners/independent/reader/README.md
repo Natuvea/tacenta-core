@@ -301,9 +301,11 @@ the 18 triple-ratchet-state vectors once the handler and the fix above were in.
     `DecodeError`.
   - `DecodeEC` uses the same check. G3-05 is closed by the text.
 - **`pqxdh.py`: the repeated-initial rule as now written.**
-  - `accept_repeated_initial` requires `ephemeral` to equal
-    `established_ephemeral`, and `identity` to equal
-    `EncodeEC(peer_identity_public)`, on a responder's session.
+  - `accept_repeated_initial` requires the incoming and established
+    ephemerals to produce the same successful X25519 agreement under the
+    responder's ratchet private key, and `identity` to equal
+    `EncodeEC(peer_identity_public)`, on a responder's session. If either
+    agreement is unavailable, the check fails closed.
   - `receive_repeated_initial` decodes first, then compares, then decrypts the
     inner ratchet message.
 - **`erasure.py`: G3-02, closed by the text.**

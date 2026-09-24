@@ -171,7 +171,7 @@ def responder_session(**kw):
     the role from established_ephemeral, peer_identity_public raw, and
     established_ephemeral as the EncodeEC value the establishing message
     carried. The ratchet halves are driven separately, by Live."""
-    base = dict(triple=None, braid=None, ratchet_private=b"", identity_ad=BRC.AD, our_identity_public=BRC.IKB,
+    base = dict(triple=None, braid=None, ratchet_private=b"\x65" * 32, identity_ad=BRC.AD, our_identity_public=BRC.IKB,
                 peer_identity_public=BRC.IKA, established_ephemeral=wire.encode_ec(EKA))
     base.update(kw)
     return SessionState(**base)
