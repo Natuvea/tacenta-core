@@ -5,19 +5,17 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
-<<<<<<< HEAD
 - `Session::decrypt` now recognises a repeated initial message by the
   responder's X25519 agreement class for its ephemeral, while retaining the
   byte-bound identity check. This keeps canonical torsion-equivalent ephemeral
   encodings in the same established session and closes the repeat-blackhole
   gap.
-=======
+
 - `tacenta-spqr`: secret-bearing chain-table updates now wipe the old
   allocation before growth, and skipped-message keys are derived directly into
   their final vector instead of being moved from a temporary buffer. This
   closes the sparse-ratchet container residue paths without changing the wire
   format or ratchet state machine.
->>>>>>> 3c29040 (Harden sparse ratchet secret allocations)
 
 - `tacenta-proofs`: the Braid refinement boundary `KemAgreesFor` no longer
   assumes `K.Correct`. No proof used the conjunct, and it asserted perfect
