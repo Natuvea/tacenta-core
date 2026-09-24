@@ -22,6 +22,9 @@
 // the trusted boundary and are unaffected.
 #![forbid(unsafe_code)]
 
+/// Domain-separated public commitments for the bounded group fan-out profile.
+/// This does not implement a group cipher or membership protocol.
+pub mod groups;
 /// The KDF inputs an external implementation's message layer would need,
 /// held as a type with no constructor. Not wired into any output path:
 /// message-layer byte compatibility with any other implementation is not
