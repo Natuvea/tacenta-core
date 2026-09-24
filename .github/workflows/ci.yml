@@ -293,16 +293,15 @@ jobs:
       # files are the ones `cache get` would fetch; it still unpacks them. The
       # directory is named explicitly with `MATHLIB_CACHE_DIR`, which Mathlib's
       # cache reads before `XDG_CACHE_HOME` and `~/.cache`, so the path cached
-      # is the path used. The path is the same on both kinds of runner, because
-      # a cache is looked up by its path as well as its key. The self-hosted
-      # runner keeps the directory between jobs, so there the restore only
-      # looks the key up, and the save still uploads once when the key is new.
+      # is the path used. Keep it inside the workspace: the previous home-cache
+      # archive was produced with parent-relative entries and could not be
+      # unpacked on a hosted runner. The versioned key also avoids reusing it.
       - name: Restore Mathlib's downloaded cache files
         id: mathlib-files
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/tacenta-mathlib
-          key: mathlib-files-${{ runner.os }}-${{ hashFiles('tacenta-proofs/translation/lake-manifest.json') }}
+          path: ${{ github.workspace }}/.cache/tacenta-mathlib
+          key: mathlib-files-v2-${{ runner.os }}-${{ hashFiles('tacenta-proofs/translation/lake-manifest.json') }}
           lookup-only: ${{ runner.environment == 'self-hosted' }}
       # The checkout has just deleted `.lake`. A hosted runner clones the Lake
       # dependencies in the next step, quickly; the self-hosted machine clones
@@ -314,14 +313,14 @@ jobs:
         working-directory: tacenta-proofs/translation
         shell: bash
         run: |
-          export MATHLIB_CACHE_DIR="$HOME/.cache/tacenta-mathlib"
+          export MATHLIB_CACHE_DIR="$GITHUB_WORKSPACE/.cache/tacenta-mathlib"
           lake exe cache get
       - name: Save Mathlib's downloaded cache files (pushes to main only)
         if: github.event_name == 'push' && steps.mathlib-files.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/tacenta-mathlib
-          key: mathlib-files-${{ runner.os }}-${{ hashFiles('tacenta-proofs/translation/lake-manifest.json') }}
+          path: ${{ github.workspace }}/.cache/tacenta-mathlib
+          key: mathlib-files-v2-${{ runner.os }}-${{ hashFiles('tacenta-proofs/translation/lake-manifest.json') }}
       # The Lean build outputs of this tree's three packages and of the Aeneas
       # library, which Mathlib's cache does not carry. Without them every run
       # rebuilds all of it, which is most of this job's time.
