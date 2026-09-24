@@ -637,8 +637,10 @@ impl Drop for PrekeyStore {
         if let Some((secret, _, _)) = self.previous_signed_prekey.as_mut() {
             secret.zeroize();
         }
-        for (_, secret) in self.one_time.iter_mut() {
-            secret.zeroize();
+        let mut j = 0;
+        while j < self.one_time.len() {
+            self.one_time[j].1.zeroize();
+            j += 1;
         }
     }
 }
@@ -671,9 +673,15 @@ impl PrekeyStore {
             return;
         }
         let mut replacement = Vec::with_capacity(required);
-        replacement.extend(self.one_time.iter().copied());
-        for (_, secret) in self.one_time.iter_mut() {
-            secret.zeroize();
+        let mut i = 0;
+        while i < self.one_time.len() {
+            replacement.push(self.one_time[i]);
+            i += 1;
+        }
+        let mut i = 0;
+        while i < self.one_time.len() {
+            self.one_time[i].1.zeroize();
+            i += 1;
         }
         self.one_time = Zeroizing::new(replacement);
     }
