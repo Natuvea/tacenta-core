@@ -11,6 +11,16 @@ is SemVer against the specified protocol (not the implementation).
   encodings in the same established session and closes the repeat-blackhole
   gap.
 
+- `identities-and-devices.md` now specifies the bounded hosted device-inventory
+  statement profile: its canonical unsigned encoding, bounds, refusal rules,
+  issuer-signature input and replacement-binding commitment. This is an
+  inventory statement format only; general device management and group
+  messaging remain scaffolded.
+
+- `group-messaging.md` now specifies the two bounded fan-out commitment helper
+  domains and their 32-byte SHA-256 outputs. It does not select a group cipher
+  or membership protocol.
+
 - `tacenta-spqr`: secret-bearing chain-table updates now wipe the old
   allocation before growth, and skipped-message keys are derived directly into
   their final vector instead of being moved from a temporary buffer. This
