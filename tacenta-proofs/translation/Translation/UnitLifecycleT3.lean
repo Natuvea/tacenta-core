@@ -2902,7 +2902,7 @@ theorem decrypt_initial_identity_mismatch_refines {R : Type}
       Model.PersistedState.SessionState.encodeEc
         (dh.publicKey real.peer_identity_public))
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
-      established.deref decoded.ephemeral.deref = ok false) :
+      established.deref decoded.ephemeral.deref = ok true) :
     ∃ output,
       lifecycle.Session.decrypt rngCore cryptoRng real message rng = ok output ∧
       StepRefines trace dh K output
@@ -2994,7 +2994,7 @@ def initial_dispatch_identity_mismatch_from_premises
       Model.PersistedState.SessionState.encodeEc
         (dh.publicKey real.peer_identity_public))
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
-      established.deref decoded.ephemeral.deref = ok false) :
+      established.deref decoded.ephemeral.deref = ok true) :
     InitialDispatchRoute rngCore cryptoRng trace dh K view oracle real model message rng := by
   refine InitialDispatchRoute.identityMismatch ?_
   exact decrypt_initial_identity_mismatch_refines rngCore cryptoRng trace dh codec K view oracle

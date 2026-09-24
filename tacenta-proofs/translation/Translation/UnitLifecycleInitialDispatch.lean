@@ -3129,7 +3129,7 @@ theorem triple_receive_success_from_contracts
     (hz96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64)
     (hret : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
-    (happ : Tacenta.SessionUnitSpqrT3.VecAppendAgrees)
+    (happ : Tacenta.SessionUnitSpqrT1.VecRetainTotal)
     (hrm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
     (hzs : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
     (hopt : Tacenta.SessionUnitSpqrT1.OptionCloneTotal)
@@ -3193,7 +3193,7 @@ theorem concrete_receive_attempt_success_from_contracts
     (hz96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64)
     (hret : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
-    (happ : Tacenta.SessionUnitSpqrT3.VecAppendAgrees)
+    (happ : Tacenta.SessionUnitSpqrT1.VecRetainTotal)
     (hrm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
     (hzs : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
     (hopt : Tacenta.SessionUnitSpqrT1.OptionCloneTotal)
@@ -5199,7 +5199,7 @@ theorem aggregate_receive_aligned_case_of_direct_contracts
     (hz96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64)
     (hret : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
-    (happ : Tacenta.SessionUnitSpqrT3.VecAppendAgrees)
+    (happ : Tacenta.SessionUnitSpqrT1.VecRetainTotal)
     (hrm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
     (hzs : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
     (hopt : Tacenta.SessionUnitSpqrT1.OptionCloneTotal)
@@ -6723,7 +6723,7 @@ theorem initial_ratchet_success_branch_of_direct_contracts {R : Type}
     (hz96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64)
     (hret : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
-    (happ : Tacenta.SessionUnitSpqrT3.VecAppendAgrees)
+    (happ : Tacenta.SessionUnitSpqrT1.VecRetainTotal)
     (hrm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
     (hzs : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
     (hopt : Tacenta.SessionUnitSpqrT1.OptionCloneTotal)
@@ -7845,6 +7845,29 @@ theorem decrypt_ratchet_refines_of_t1
     (Tacenta.UnitLifecycleT1.decrypt_ratchet_no_panic rc crc boundary real message rng headroom)
   exact ⟨output, hcall, hrefines output hcall⟩
 
+/-! The generated wrapper checks agreement before it enters the ratchet.  The
+    aggregate composition therefore carries the two concrete outcomes of that
+    check explicitly: equal ephemerals must agree, while unequal ephemerals
+    must produce the refusal-side oracle disagreement. -/
+def InitialSameEphemeralEvidence
+    (dh : DhView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session) : Prop :=
+  ∀ (established : alloc.vec.Vec Std.U8) (decoded : tacenta_wire.DecodedInitial),
+    vecOf established = vecOf decoded.ephemeral →
+    lifecycle.same_ephemeral_agreement real.ratchet_private
+      established.deref decoded.ephemeral.deref = ok true
+
+def InitialMismatchedEphemeralEvidence
+    (dh : DhView) (oracle : Model.Lifecycle.Oracle)
+    (real : lifecycle.Session) (model : Model.Lifecycle.Session) : Prop :=
+  ∀ (established : alloc.vec.Vec Std.U8) (decoded : tacenta_wire.DecodedInitial),
+    vecOf established ≠ vecOf decoded.ephemeral →
+    lifecycle.same_ephemeral_agreement real.ratchet_private
+        established.deref decoded.ephemeral.deref = ok false ∧
+      oracle.dhAgree model.ratchetPrivate (vecOf established) ≠
+        oracle.dhAgree model.ratchetPrivate
+          (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val)
+
 /-- Construct all six routes from the decoded input and state. The existential
 route is a proposition so decoder proofs can be eliminated without choosing a
 route supplied by the caller. -/
@@ -7856,6 +7879,8 @@ theorem initial_dispatch_route_from_ratchet
     {message : Slice Std.U8} {rng : R}
     (codec : DhCodecOf dh)
     (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (hsame : InitialSameEphemeralEvidence dh oracle real model)
+    (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
     (hreceive : InitialRatchetRefines rc crc trace dh K view oracle real model message rng) :
     Nonempty (InitialDispatchRoute rc crc trace dh K view oracle real model message rng) := by
   rcases initial_decode_cases message with ⟨reason, hdecode⟩ | ⟨decoded, hdecode⟩
@@ -7872,14 +7897,16 @@ theorem initial_dispatch_route_from_ratchet
               hreceive decoded established hdecode hestablished he hi
             have hw := decrypt_initial_repeat_step_refines rc crc trace dh codec K view oracle
               real model message rng established decoded (result, next, rngNext)
-              ctx.hrel ctx.htype hdecode hestablished he hi hcall hstep
+              ctx.hrel ctx.htype hdecode hestablished he hi (hsame established decoded he)
+              hcall hstep
             cases result with
             | Err reason => exact ⟨.repeatRefusal hw⟩
             | Ok plaintext => exact ⟨.repeatSuccess hw⟩
           · exact ⟨initial_dispatch_identity_mismatch_from_premises (codec := codec)
-              ctx established decoded hdecode hestablished he hi⟩
+              ctx established decoded hdecode hestablished he hi (hsame established decoded he)⟩
         · exact ⟨initial_dispatch_ephemeral_mismatch_from_premises
-            ctx established decoded hdecode hestablished he⟩
+            ctx established decoded hdecode hestablished he
+            (hmismatch established decoded he).1 (hmismatch established decoded he).2⟩
 
 /-- Initial-wrapper T3, conditional only on inner ratchet refinement and the
 codec contract. No route or branch callback is an input. -/
@@ -7891,9 +7918,11 @@ theorem decrypt_initial_refines_from_ratchet
     {message : Slice Std.U8} {rng : R}
     (codec : DhCodecOf dh)
     (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (hsame : InitialSameEphemeralEvidence dh oracle real model)
+    (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
     (hreceive : InitialRatchetRefines rc crc trace dh K view oracle real model message rng) :
     PublicDecryptWitness rc crc trace dh K view oracle real model message rng := by
-  obtain ⟨route⟩ := initial_dispatch_route_from_ratchet codec ctx hreceive
+  obtain ⟨route⟩ := initial_dispatch_route_from_ratchet codec ctx hsame hmismatch hreceive
   exact initial_dispatch_join route
 
 /-! Split the T1-produced inner result before applying its semantic adapter.
@@ -11246,6 +11275,8 @@ theorem decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
     (kem : KemView)
     (oracleOf : OracleOf rc crc dh kem trace oracle)
     (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (hsame : InitialSameEphemeralEvidence dh oracle real model)
+    (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
     (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
     (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
@@ -11256,7 +11287,7 @@ theorem decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
       (view := view) (oracle := oracle) (real := real) (model := model)
       message rng) :
     PublicDecryptWitness rc crc trace dh K view oracle real model message rng := by
-  exact decrypt_initial_refines_from_ratchet codec ctx
+  exact decrypt_initial_refines_from_ratchet codec ctx hsame hmismatch
     (initial_ratchet_refines_of_t1_with_concrete_evidence codec kem oracleOf ctx boundary
       headroom hz32 hzKeys evidence)
 
@@ -11277,6 +11308,8 @@ theorem decrypt_initial_end_to_end_with_concrete_evidence
     (kem : KemView)
     (oracleOf : OracleOf rc crc dh kem trace oracle)
     (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (hsame : InitialSameEphemeralEvidence dh oracle real model)
+    (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
     (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
     (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
@@ -11298,7 +11331,7 @@ theorem decrypt_initial_end_to_end_with_concrete_evidence
           lifecycle.Session.decrypt rc crc real message rng = ok output ∧
           output.2.1.pending_initial.map (pendingInitialOf dh) = none)) := by
   let witness := decrypt_initial_refines_of_t1_with_model_step_and_concrete_provider
-    codec kem oracleOf ctx boundary headroom hz32 hzKeys evidence
+    codec kem oracleOf ctx hsame hmismatch boundary headroom hz32 hzKeys evidence
   refine ⟨witness, ?_⟩
   exact public_decrypt_witness_atomicity_cases rc crc trace dh K view oracle
     real model message rng witness
@@ -11359,9 +11392,12 @@ theorem decrypt_initial_terminal_refines
     {message : Slice Std.U8} {rng : R}
     (codec : DhCodecOf dh)
     (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (hsame : InitialSameEphemeralEvidence dh oracle real model)
+    (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
     (hfailed : Model.Lifecycle.agreementFailed model = true) :
     PublicDecryptWitness rc crc trace dh K view oracle real model message rng :=
-  decrypt_initial_refines_from_ratchet codec ctx (initial_ratchet_refines_terminal ctx hfailed)
+  decrypt_initial_refines_from_ratchet codec ctx hsame hmismatch
+    (initial_ratchet_refines_terminal ctx hfailed)
 
 /-- The selector's pending-state consequences follow from the same constructed
 route: refusal preserves the pending projection, success clears it. -/
@@ -11373,6 +11409,8 @@ theorem initial_dispatch_atomicity_from_ratchet
     {message : Slice Std.U8} {rng : R}
     (codec : DhCodecOf dh)
     (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+    (hsame : InitialSameEphemeralEvidence dh oracle real model)
+    (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
     (hreceive : InitialRatchetRefines rc crc trace dh K view oracle real model message rng) :
     (∃ reason output,
       (Model.Lifecycle.decrypt view oracle model (sliceOf message)).result = .error reason ∧
@@ -11382,7 +11420,7 @@ theorem initial_dispatch_atomicity_from_ratchet
       (Model.Lifecycle.decrypt view oracle model (sliceOf message)).result = .ok plaintext ∧
       lifecycle.Session.decrypt rc crc real message rng = ok output ∧
       output.2.1.pending_initial.map (pendingInitialOf dh) = none) := by
-  obtain ⟨route⟩ := initial_dispatch_route_from_ratchet codec ctx hreceive
+  obtain ⟨route⟩ := initial_dispatch_route_from_ratchet codec ctx hsame hmismatch hreceive
   exact initial_dispatch_select_atomicity route
 
 /-- The inner premise is also discharged for malformed ratchet payloads. This
@@ -11452,6 +11490,8 @@ inductive SessionDecryptEvidence {R : Type}
       (codec : DhCodecOf dh)
       (oracleOf : OracleOf rc crc dh kem trace oracle)
       (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+      (hsame : InitialSameEphemeralEvidence dh oracle real model)
+      (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
       (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
       (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
       (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
@@ -11504,9 +11544,9 @@ theorem public_session_decrypt_end_to_end
   | initialDecodeRefusal reason hrel htrace htype hdecode =>
       exact decrypt_initial_decode_refusal_refines rc crc trace dh K view oracle real model
         message rng reason hrel htrace htype hdecode
-  | initialAccepted codec oracleOf ctx boundary headroom hz32 hzKeys evidence =>
-      exact (decrypt_initial_end_to_end_with_concrete_evidence codec kem oracleOf ctx boundary
-        headroom hz32 hzKeys evidence).1
+  | initialAccepted codec oracleOf ctx hsame hmismatch boundary headroom hz32 hzKeys evidence =>
+      exact (decrypt_initial_end_to_end_with_concrete_evidence codec kem oracleOf ctx hsame
+        hmismatch boundary headroom hz32 hzKeys evidence).1
   | nonInitialNone hrel htrace htype innerOutput hinner hstep =>
       exact decrypt_none_refines rc crc trace dh K view oracle real model message rng
         innerOutput htype hinner hstep
