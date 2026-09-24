@@ -667,8 +667,10 @@ impl Drop for PrekeyStore {
         if let Some((secret, _, _)) = self.previous_signed_prekey.as_mut() {
             secret.zeroize();
         }
-        for (_, secret) in self.one_time.iter_mut() {
-            secret.zeroize();
+        let mut j = 0;
+        while j < self.one_time.len() {
+            self.one_time[j].1.zeroize();
+            j += 1;
         }
     }
 }
@@ -686,6 +688,34 @@ pub struct PublishedBundle {
 }
 
 impl PrekeyStore {
+    /// Ensure the curve one-time pool can grow without moving live secrets
+    /// through an unwiped allocator buffer.
+    ///
+    /// `Vec::reserve_exact` is not sufficient for this field: its raw move
+    /// leaves the old allocation containing the 32-byte secrets, while the
+    /// hand-written store destructor can only see the new allocation. Copying
+    /// into a fresh vector first lets us zero the old entries in place before
+    /// its buffer is released. If allocation fails, the original pool is
+    /// untouched and its secrets remain owned by the store.
+    fn prepare_one_time_capacity(&mut self, additional: usize) {
+        let required = self.one_time.len().saturating_add(additional);
+        if required <= self.one_time.capacity() {
+            return;
+        }
+        let mut replacement = Vec::with_capacity(required);
+        let mut i = 0;
+        while i < self.one_time.len() {
+            replacement.push(self.one_time[i]);
+            i += 1;
+        }
+        let mut i = 0;
+        while i < self.one_time.len() {
+            self.one_time[i].1.zeroize();
+            i += 1;
+        }
+        self.one_time = Zeroizing::new(replacement);
+    }
+
     /// Hand out a bundle: one one-time curve prekey if any remain, and one KEM
     /// prekey, preferring a one-time key over the last-resort one. The private
     /// keys stay in the store until a message actually uses them (see
@@ -789,12 +819,11 @@ impl PrekeyStore {
         // store, so it is refused quietly rather than panicked on: a store
         // that has issued four billion identifiers stops issuing them.
         //
-        // Reserved before the loop so the vector never grows mid-push: a `Vec`
-        // that outgrows its allocation moves the 32-byte one-time secrets to a
-        // larger block and hands the smaller back to the allocator un-wiped,
-        // which the hand-written `Drop` cannot reach (CR-15). The same reason
-        // `to_bytes` sizes its buffer up front.
-        self.one_time.reserve_exact(count);
+        // Prepare the vector without allowing its raw allocation move to
+        // leave a copy of the existing 32-byte secrets behind (CR-15). The
+        // helper wipes the old allocation before replacing it; after that the
+        // loop can push without another growth.
+        self.prepare_one_time_capacity(count);
         let mut curve_added = 0usize;
         let mut exhausted = false;
         while curve_added < count && !exhausted {
