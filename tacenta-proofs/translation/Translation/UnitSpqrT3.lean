@@ -35,7 +35,7 @@ them, and every `_refines` theorem for translated code is proved outright
 against those, not assumed.
 
 That is not the whole trusted base, and this file does not pretend it is:
-`Vec::retain`, `Vec::pop`, `Vec::append`, `Zeroize`, and `Option::clone`
+`Vec::retain`, `Vec::pop`, `Zeroize`, and `Option::clone`
 are each their own opaque call too, carried over as assumptions from
 `SpqrT1.lean` (three of them strengthened past bare totality, one genuinely
 new) rather than reproved here. See the closing section for the full count
@@ -1499,7 +1499,7 @@ attribute [-step] Tacenta.UnitSpqrT1.skip_message_keys_loop1_grows
 
 /-- The model derives exactly `count` keys: one per number walked. Needed to turn
 the loop refinement's `map` equality into a length, which is what the guarded
-`Vec::append` hypothesis below asks the caller for. -/
+store-capacity bound below asks the caller for. -/
 theorem deriveInto_snd_length (ck : Model.State.Key) (start count : Nat) :
     (Model.SparseRatchet.skipMessageKeys.deriveInto ck start count).2.length = count := by
   induction count generalizing ck start with
@@ -2133,11 +2133,9 @@ below `SpqrT1.lean`'s totality-only `KdfRkTotal`/`KdfCkTotal`, at the opaque
 through on its way to being split -- subsumes both, so this file states the
 KDF boundary once rather than twice. `VecRetainAgrees` and `RemoveSkippedAtAgrees`
 likewise state what `retain` and the custom wipe-before-pop helper return, and
-are each strictly stronger than their `SpqrT1.lean` namesake, so neither
-totality hypothesis is separately assumed here. `VecAppendAgrees` is genuinely
-new: `SpqrT1.lean` needed only `VecAppendTotal`, since nothing there depended
-on what `skip_message_keys`'s concatenation actually produced, and this file
-does. `Tacenta.UnitSpqrT1.ZeroizeTotal` and `Tacenta.UnitSpqrT1.OptionCloneTotal`
+are each strictly stronger than their `SpqrT1.lean` namesake; the retain
+totality is also carried explicitly for the capacity-preserving replacement.
+`Tacenta.UnitSpqrT1.ZeroizeTotal` and `Tacenta.UnitSpqrT1.OptionCloneTotal`
 carry over unchanged, since neither proof needed strengthening to a value
 claim -- the buffer wipe and the direction clone are never read back from,
 only required to complete.
@@ -2145,7 +2143,7 @@ only required to complete.
 As with `SpqrT1.lean` and `BraidT3.lean`, count by constant, not by name:
 none of these eight is the same proposition as any other file's assumption of
 a similar shape, including `T1.lean`'s or `BraidT1.lean`'s own copies of
-`Vec::retain`/`Vec::pop`/`Vec::append`, `Zeroize`, a KDF call, or
+`Vec::retain`/`Vec::pop`, `Zeroize`, a KDF call, or
 `T3.lean`'s `ZeroizingRoundTrips`/`ZeroizingRoundTrips80` at the ratchet's own
 wrapper constants.
 
