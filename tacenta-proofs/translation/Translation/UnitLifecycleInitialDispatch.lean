@@ -11426,4 +11426,120 @@ theorem initial_ratchet_refines_terminal_or_decode_refusal
       cases h : Model.Lifecycle.agreementFailed model <;> simp_all
     exact initial_ratchet_refines_decode_refusal ctx hready hbad
 
+/-! ## Public `Session::decrypt` composition
+
+The inner initial dispatcher is now consumed by an outer indexed evidence
+sum.  Its constructors carry either the exact generated ratchet result and
+`StepRefines` relation for a non-initial frame, or the complete initial
+branch package (including concrete DH, Triple, AEAD, model-result and success
+splice evidence).  The final theorem therefore does not accept an untyped
+route callback or a pre-built public witness. -/
+inductive SessionDecryptEvidence {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
+    (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)
+    (model : Model.Lifecycle.Session) (message : Slice Std.U8) (rng : R) : Type where
+  | initialDecodeRefusal
+      (reason : tacenta_wire.DecodeError)
+      (hrel : SessionRefines dh K real model)
+      (htrace : trace rng = oracle.draws)
+      (htype : serialization.message_type message =
+        ok (some serialization.MessageType.Initial))
+      (hdecode : tacenta_wire.decode_initial message = ok (.Err reason)) :
+      SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
+  | initialAccepted
+      (codec : DhCodecOf dh)
+      (oracleOf : OracleOf rc crc dh kem trace oracle)
+      (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+      (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+      (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+      (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+      (hzKeys : ZeroizingRoundTrips
+        (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+      (evidence : InitialRatchetEndToEndEvidence
+        (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+        (view := view) (oracle := oracle) (real := real) (model := model)
+        message rng) :
+      SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
+  | nonInitialNone
+      (hrel : SessionRefines dh K real model)
+      (htrace : trace rng = oracle.draws)
+      (htype : serialization.message_type message = ok none)
+      (innerOutput : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+        lifecycle.Session × R)
+      (hinner : lifecycle.Session.decrypt_ratchet rc crc real
+        (alloc.vec.Vec.deref (show alloc.vec.Vec Std.U8 from message)) rng = ok innerOutput)
+      (hstep : StepRefines trace dh K innerOutput
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+      SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
+  | nonInitialRatchet
+      (hrel : SessionRefines dh K real model)
+      (htrace : trace rng = oracle.draws)
+      (htype : serialization.message_type message =
+        ok (some serialization.MessageType.Ratchet))
+      (innerOutput : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+        lifecycle.Session × R)
+      (hinner : lifecycle.Session.decrypt_ratchet rc crc real
+        (alloc.vec.Vec.deref (show alloc.vec.Vec Std.U8 from message)) rng = ok innerOutput)
+      (hstep : StepRefines trace dh K innerOutput
+        (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message))) :
+      SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
+
+/-- Consume the typed outer decrypt evidence at the public Session boundary.
+The initial branch includes the pending-state atomicity result from the
+concrete initial composition; the passthrough branches use the corresponding
+ratchet state relation and clear pending state only on success. -/
+theorem public_session_decrypt_end_to_end
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
+    {K : Model.Braid.Kem} {view : Model.Lifecycle.CodewordView}
+    {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
+    {model : Model.Lifecycle.Session} {message : Slice Std.U8} {rng : R}
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (evidence : SessionDecryptEvidence rc crc trace dh kem K view oracle real model
+      message rng) :
+    PublicDecryptWitness rc crc trace dh K view oracle real model message rng := by
+  cases evidence with
+  | initialDecodeRefusal reason hrel htrace htype hdecode =>
+      exact decrypt_initial_decode_refusal_refines rc crc trace dh K view oracle real model
+        message rng reason hrel htrace htype hdecode
+  | initialAccepted codec oracleOf ctx boundary headroom hz32 hzKeys evidence =>
+      exact (decrypt_initial_end_to_end_with_concrete_evidence codec kem oracleOf ctx boundary
+        headroom hz32 hzKeys evidence).1
+  | nonInitialNone hrel htrace htype innerOutput hinner hstep =>
+      exact decrypt_none_refines rc crc trace dh K view oracle real model message rng
+        innerOutput htype hinner hstep
+  | nonInitialRatchet hrel htrace htype innerOutput hinner hstep =>
+      exact decrypt_ratchet_message_refines rc crc trace dh K view oracle real model message rng
+        innerOutput htype hinner hstep
+
+/-! The caller-facing theorem retains the same indexed witness and exposes the
+pending-state consequence beside it.  This is the public atomicity boundary:
+refusal outputs preserve the prior pending projection, successful outputs clear
+it, while the witness itself carries the full `SessionRefines` invariant. -/
+theorem public_session_decrypt_end_to_end_with_atomicity
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
+    {K : Model.Braid.Kem} {view : Model.Lifecycle.CodewordView}
+    {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
+    {model : Model.Lifecycle.Session} {message : Slice Std.U8} {rng : R}
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (evidence : SessionDecryptEvidence rc crc trace dh kem K view oracle real model
+      message rng) :
+    PublicDecryptWitness rc crc trace dh K view oracle real model message rng ∧
+      ((∃ reason output,
+          (Model.Lifecycle.decrypt view oracle model (sliceOf message)).result =
+            .error reason ∧
+          lifecycle.Session.decrypt rc crc real message rng = ok output ∧
+          output.2.1.pending_initial.map (pendingInitialOf dh) = model.pendingInitial) ∨
+       (∃ plaintext output,
+          (Model.Lifecycle.decrypt view oracle model (sliceOf message)).result =
+            .ok plaintext ∧
+          lifecycle.Session.decrypt rc crc real message rng = ok output ∧
+          output.2.1.pending_initial.map (pendingInitialOf dh) = none)) := by
+  let witness := public_session_decrypt_end_to_end evidence
+  exact ⟨witness, public_decrypt_witness_atomicity_cases rc crc trace dh K view oracle
+    real model message rng witness⟩
+
 end Tacenta.UnitLifecycleT3
