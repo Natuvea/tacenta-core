@@ -52,7 +52,7 @@ jobs = [
     ("UnitSpqrT3.lean", "SessionUnitSpqrT3.lean", {
         "Translation.UnitSpqrT1": ("Translation.SessionUnitSpqrT1", 1),
         "Tacenta.UnitT1": ("Tacenta.SessionUnitT1", 1),
-        "Tacenta.UnitSpqrT1": ("Tacenta.SessionUnitSpqrT1", 25),
+        "Tacenta.UnitSpqrT1": ("Tacenta.SessionUnitSpqrT1", 42),
         "Tacenta.UnitSpqrT3": ("Tacenta.SessionUnitSpqrT3", 2),
         "port-unit-proofs.sh": ("port-session-unit-proofs.sh", 1),
     }),
@@ -136,9 +136,9 @@ for old, new, expected in [
     ("Tacenta.UnitTripleT3", "Tacenta.SessionUnitTripleT3", 3),
     ("Tacenta.UnitTripleT1", "Tacenta.SessionUnitTripleT1", 4),
     ("Tacenta.UnitT3", "Tacenta.SessionUnitT3", 30),
-    ("Tacenta.UnitSpqrT3", "Tacenta.SessionUnitSpqrT3", 43),
+    ("Tacenta.UnitSpqrT3", "Tacenta.SessionUnitSpqrT3", 40),
     ("Tacenta.UnitT1", "Tacenta.SessionUnitT1", 9),
-    ("Tacenta.UnitSpqrT1", "Tacenta.SessionUnitSpqrT1", 7),
+    ("Tacenta.UnitSpqrT1", "Tacenta.SessionUnitSpqrT1", 10),
     ("three-leaf translation unit", "eight-leaf Session translation unit", 1),
 ]:
     text = replace_exact(text, old, new, expected, origin)

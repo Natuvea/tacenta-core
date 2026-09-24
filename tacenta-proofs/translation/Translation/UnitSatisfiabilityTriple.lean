@@ -243,35 +243,6 @@ theorem vec_remove_joint_satisfiable : ∃ g f, RemoveJoint g f := by
         le_trans (List.length_eraseIdx_le _ _) v.property⟩),
       by simp [h], rfl, rfl⟩
 
-/-! ## `Vec::append` -/
-
-/-- The type of `alloc.vec.Vec.append`. -/
-abbrev AppendFn :=
-  {T : Type} → (A : Type) → alloc.vec.Vec T → alloc.vec.Vec T →
-    Result (alloc.vec.Vec T × alloc.vec.Vec T)
-
-/-- The shape of `UnitSpqrT3.VecAppendAgrees`. -/
-def AppendAgrees (f : AppendFn) : Prop :=
-  ∀ {T : Type} (A : Type) (v w : alloc.vec.Vec T),
-    v.length + w.length ≤ Usize.max →
-    ∃ r, f A v w = ok r ∧ r.1.val = v.val ++ w.val
-
-theorem VecAppendAgrees_is :
-    Tacenta.UnitSpqrT3.VecAppendAgrees ↔ AppendAgrees @alloc.vec.Vec.append :=
-  Iff.rfl
-
-/-- Concatenate when the result fits, fail otherwise, as the real `Vec::append`
-does at the capacity boundary. -/
-def appendWitness : AppendFn := fun {_T} _A v w =>
-  if h : v.val.length + w.val.length ≤ Usize.max then
-    ok (⟨v.val ++ w.val, by simpa using h⟩, w)
-  else fail .panic
-
-theorem append_agrees_satisfiable : ∃ f : AppendFn, AppendAgrees f := by
-  refine ⟨@appendWitness, fun A v w hlen => ?_⟩
-  simp only [alloc.vec.Vec.length] at hlen
-  exact ⟨(⟨v.val ++ w.val, by simpa using hlen⟩, w), by simp [appendWitness, hlen], rfl⟩
-
 /-! ## `Vec::retain` -/
 
 /-- The type of `alloc.vec.Vec.retain`. -/
@@ -425,13 +396,13 @@ example (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
     (hz96 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips64)
     (hret : Tacenta.UnitSpqrT3.VecRetainAgrees)
-    (happ : Tacenta.UnitSpqrT3.VecAppendAgrees)
+    (hret_total : Tacenta.UnitSpqrT1.VecRetainTotal)
     (hrm : Tacenta.UnitSpqrT3.RemoveSkippedAtAgrees) (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
     (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal)
     {s : tacenta_triple_unit.tacenta_triple.State} {m : Model.Triple.State}
     (hrel : Tacenta.UnitTripleT3.StateRefines Tacenta.UnitTripleT3.ratchetAbs
       Tacenta.UnitTripleT3.spqrAbs s m) :=
-  Tacenta.UnitTripleT3.send_refines_discharged hmac hkdf hzr hvr hz96 hz64 hret happ hrm
+  Tacenta.UnitTripleT3.send_refines_discharged hmac hkdf hzr hvr hz96 hz64 hret hret_total hrm
     hzs hopt hrel
 
 example (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
@@ -440,13 +411,13 @@ example (hmac : Tacenta.UnitT3.HmacAgrees) (hkdf : Tacenta.UnitT3.HkdfAgrees)
     (hz96 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips64)
     (hret : Tacenta.UnitSpqrT3.VecRetainAgrees)
-    (happ : Tacenta.UnitSpqrT3.VecAppendAgrees)
+    (hret_total : Tacenta.UnitSpqrT1.VecRetainTotal)
     (hrm : Tacenta.UnitSpqrT3.RemoveSkippedAtAgrees) (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
     (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal)
     {s : tacenta_triple_unit.tacenta_triple.State} {m : Model.Triple.State}
     (hrel : Tacenta.UnitTripleT3.StateRefines Tacenta.UnitTripleT3.ratchetAbs
       Tacenta.UnitTripleT3.spqrAbs s m) :=
-  Tacenta.UnitTripleT3.receive_refines_discharged hmac hkdf hzr hvr hz96 hz64 hret happ hrm
+  Tacenta.UnitTripleT3.receive_refines_discharged hmac hkdf hzr hvr hz96 hz64 hret hret_total hrm
     hzs hopt hrel
 
 end Tacenta.UnitSatisfiabilityTriple

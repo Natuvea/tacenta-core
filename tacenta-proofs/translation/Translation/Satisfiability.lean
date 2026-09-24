@@ -50,73 +50,6 @@ namespace Tacenta.Satisfiability
 
 open Aeneas Aeneas.Std Result
 
-/-! ## `Vec::append` -/
-
-/-- The type of `tacenta_spqr.alloc.vec.Vec.append`. -/
-abbrev AppendFn :=
-  {T : Type} → (A : Type) → alloc.vec.Vec T → alloc.vec.Vec T →
-    Result (alloc.vec.Vec T × alloc.vec.Vec T)
-
-/-- The shape of `SpqrT1.VecAppendTotal`. -/
-def AppendTotal (f : AppendFn) : Prop :=
-  ∀ {T : Type} (A : Type) (v w : alloc.vec.Vec T),
-    v.length + w.length ≤ Usize.max →
-    ∃ r, f A v w = ok r ∧ r.1.length = v.length + w.length
-
-/-- The shape of `SpqrT3.VecAppendAgrees`. -/
-def AppendAgrees (f : AppendFn) : Prop :=
-  ∀ {T : Type} (A : Type) (v w : alloc.vec.Vec T),
-    v.length + w.length ≤ Usize.max →
-    ∃ r, f A v w = ok r ∧ r.1.val = v.val ++ w.val
-
-/-- The over-strong shape: `VecAppendTotal` with no length guard. -/
-def AppendTotalUnguarded (f : AppendFn) : Prop :=
-  ∀ {T : Type} (A : Type) (v w : alloc.vec.Vec T),
-    ∃ r, f A v w = ok r ∧ r.1.length = v.length + w.length
-
-theorem VecAppendTotal_is :
-    Tacenta.SpqrT1.VecAppendTotal ↔ AppendTotal @tacenta_spqr.alloc.vec.Vec.append :=
-  Iff.rfl
-
-theorem VecAppendAgrees_is :
-    Tacenta.SpqrT3.VecAppendAgrees ↔ AppendAgrees @tacenta_spqr.alloc.vec.Vec.append :=
-  Iff.rfl
-
-/-- Concatenate when the result fits, fail otherwise -- which is what the real
-`Vec::append` does at the capacity boundary (it aborts). -/
-def appendWitness : AppendFn := fun {_T} _A v w =>
-  if h : v.val.length + w.val.length ≤ Usize.max then
-    ok (⟨v.val ++ w.val, by simpa using h⟩, w)
-  else fail .panic
-
-theorem appendWitness_agrees : AppendAgrees @appendWitness := by
-  intro T A v w hlen
-  simp only [alloc.vec.Vec.length] at hlen
-  exact ⟨(⟨v.val ++ w.val, by simpa using hlen⟩, w), by simp [appendWitness, hlen], rfl⟩
-
-theorem append_agrees_satisfiable : ∃ f : AppendFn, AppendAgrees f :=
-  ⟨@appendWitness, appendWitness_agrees⟩
-
-theorem append_total_satisfiable : ∃ f : AppendFn, AppendTotal f := by
-  refine ⟨@appendWitness, fun A v w hlen => ?_⟩
-  obtain ⟨r, hr, hv⟩ := appendWitness_agrees A v w hlen
-  exact ⟨r, hr, by simp [alloc.vec.Vec.length, hv]⟩
-
-theorem usize_max_pos : 0 < Usize.max := by
-  simp [Usize.max, Usize.numBits]
-  cases System.Platform.numBits_eq <;> simp_all
-
-/-- Why the guard: two vectors already at `Usize.max` have no concatenation
-inside Aeneas's `Vec`, so the unguarded shape has no model at all. -/
-theorem append_total_unguarded_unsatisfiable : ¬ ∃ f : AppendFn, AppendTotalUnguarded f := by
-  rintro ⟨f, hf⟩
-  let full : alloc.vec.Vec Unit := ⟨List.replicate Usize.max (), by simp⟩
-  obtain ⟨r, -, hlen⟩ := hf Unit full full
-  have hr := r.1.property
-  simp only [alloc.vec.Vec.length, full, List.length_replicate] at hlen
-  have := usize_max_pos
-  omega
-
 /-! ## Secret-bearing removal helpers -/
 
 /-- The type of both crates' `alloc.vec.Vec.remove`. -/
@@ -240,14 +173,6 @@ def RetainAgrees (f : RetainFn) : Prop :=
     (v : alloc.vec.Vec T) (g : F) (p : T → Bool)
     (_hp : ∀ x, inst.call_mut g x = ok (p x, g)),
     ∃ r, f A inst v g = ok r ∧ r.val = v.val.filter p
-
-theorem VecRetainTotal_is :
-    Tacenta.SpqrT1.VecRetainTotal ↔ RetainTotal @tacenta_spqr.alloc.vec.Vec.retain :=
-  Iff.rfl
-
-theorem VecRetainAgrees_is :
-    Tacenta.SpqrT3.VecRetainAgrees ↔ RetainAgrees @tacenta_spqr.alloc.vec.Vec.retain :=
-  Iff.rfl
 
 theorem length_filter_le_max {T : Type} (p : T → Bool) (v : alloc.vec.Vec T) :
     (v.val.filter p).length ≤ Usize.max :=

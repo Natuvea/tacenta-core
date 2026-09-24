@@ -89,10 +89,14 @@ info: 'Tacenta.UnitSpqrT1.send_no_panic' depends on axioms: [propext,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.alloc.vec.Vec.capacity,
  tacenta_triple_unit.alloc.vec.Vec.retain,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
- tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
+ tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_triple_unit.core.option.Option.Insts.ZeroizeZeroize.zeroize]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitSpqrT1.send_no_panic
@@ -105,13 +109,16 @@ info: 'Tacenta.UnitSpqrT1.receive_no_panic' depends on axioms: [propext,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
- tacenta_triple_unit.alloc.vec.Vec.append,
+ tacenta_triple_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.alloc.vec.Vec.capacity,
  tacenta_triple_unit.alloc.vec.Vec.pop,
  tacenta_triple_unit.alloc.vec.Vec.retain,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
  Tacenta.UnitSpqrT1.receive_no_panic._native.native_decide.ax_1_1,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
- tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
+ tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_triple_unit.core.option.Option.Insts.ZeroizeZeroize.zeroize]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitSpqrT1.receive_no_panic
@@ -174,10 +181,14 @@ info: 'Tacenta.UnitTripleT1.State.send_no_panic' depends on axioms: [propext,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.alloc.vec.Vec.capacity,
  tacenta_triple_unit.alloc.vec.Vec.retain,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
- tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
+ tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_triple_unit.core.option.Option.Insts.ZeroizeZeroize.zeroize]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitTripleT1.State.send_no_panic
@@ -192,7 +203,7 @@ info: 'Tacenta.UnitTripleT1.State.receive_no_panic' depends on axioms: [propext,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
  tacenta_triple_unit.Pair.Insts.ZeroizeZeroize.zeroize,
- tacenta_triple_unit.alloc.vec.Vec.append,
+ tacenta_triple_unit.alloc.vec.Vec.capacity,
  tacenta_triple_unit.alloc.vec.Vec.pop,
  tacenta_triple_unit.alloc.vec.Vec.retain,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
@@ -200,7 +211,8 @@ info: 'Tacenta.UnitTripleT1.State.receive_no_panic' depends on axioms: [propext,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
  tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
- tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
+ tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_triple_unit.core.option.Option.Insts.ZeroizeZeroize.zeroize]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitTripleT1.State.receive_no_panic
@@ -311,13 +323,17 @@ info: 'Tacenta.UnitSpqrT3.send_refines' depends on axioms: [propext,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.alloc.vec.Vec.capacity,
  tacenta_triple_unit.alloc.vec.Vec.retain,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
  Tacenta.UnitSpqrT3.chain_label_agrees._native.native_decide.ax_1_1,
  Tacenta.UnitSpqrT3.protocol_info_agrees._native.native_decide.ax_1_1,
  Tacenta.UnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
- tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
+ tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_triple_unit.core.option.Option.Insts.ZeroizeZeroize.zeroize]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitSpqrT3.send_refines
@@ -330,7 +346,8 @@ info: 'Tacenta.UnitSpqrT3.receive_refines' depends on axioms: [propext,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
- tacenta_triple_unit.alloc.vec.Vec.append,
+ tacenta_triple_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.alloc.vec.Vec.capacity,
  tacenta_triple_unit.alloc.vec.Vec.pop,
  tacenta_triple_unit.alloc.vec.Vec.retain,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
@@ -342,7 +359,9 @@ info: 'Tacenta.UnitSpqrT3.receive_refines' depends on axioms: [propext,
  Tacenta.UnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
  Tacenta.UnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
- tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
+ tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_triple_unit.core.option.Option.Insts.ZeroizeZeroize.zeroize]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitSpqrT3.receive_refines
@@ -390,7 +409,8 @@ info: 'Tacenta.UnitTripleT3.spqr_agrees_for' depends on axioms: [propext,
  tacenta_triple_unit.zeroize.Zeroizing,
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
- tacenta_triple_unit.alloc.vec.Vec.append,
+ tacenta_triple_unit.Pair.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.alloc.vec.Vec.capacity,
  tacenta_triple_unit.alloc.vec.Vec.pop,
  tacenta_triple_unit.alloc.vec.Vec.retain,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
@@ -403,7 +423,9 @@ info: 'Tacenta.UnitTripleT3.spqr_agrees_for' depends on axioms: [propext,
  Tacenta.UnitSpqrT3.receive_refines_continuation._native.native_decide.ax_1_29,
  Tacenta.UnitSpqrT3.root_label_agrees._native.native_decide.ax_1_1,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
- tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
+ tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
+ tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_triple_unit.core.option.Option.Insts.ZeroizeZeroize.zeroize]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitTripleT3.spqr_agrees_for
@@ -418,7 +440,7 @@ info: 'Tacenta.UnitTripleT3.send_refines_discharged' depends on axioms: [propext
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
  tacenta_triple_unit.Pair.Insts.ZeroizeZeroize.zeroize,
- tacenta_triple_unit.alloc.vec.Vec.append,
+ tacenta_triple_unit.alloc.vec.Vec.capacity,
  tacenta_triple_unit.alloc.vec.Vec.pop,
  tacenta_triple_unit.alloc.vec.Vec.retain,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
@@ -434,7 +456,8 @@ info: 'Tacenta.UnitTripleT3.send_refines_discharged' depends on axioms: [propext
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
  tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
- tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
+ tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_triple_unit.core.option.Option.Insts.ZeroizeZeroize.zeroize]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitTripleT3.send_refines_discharged
@@ -449,7 +472,7 @@ info: 'Tacenta.UnitTripleT3.receive_refines_discharged' depends on axioms: [prop
  tacenta_triple_unit.zeroize.Zeroizing.new,
  tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize,
  tacenta_triple_unit.Pair.Insts.ZeroizeZeroize.zeroize,
- tacenta_triple_unit.alloc.vec.Vec.append,
+ tacenta_triple_unit.alloc.vec.Vec.capacity,
  tacenta_triple_unit.alloc.vec.Vec.pop,
  tacenta_triple_unit.alloc.vec.Vec.retain,
  tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize,
@@ -465,7 +488,8 @@ info: 'Tacenta.UnitTripleT3.receive_refines_discharged' depends on axioms: [prop
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut,
  tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
- tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone]
+ tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone,
+ tacenta_triple_unit.core.option.Option.Insts.ZeroizeZeroize.zeroize]
 -/
 #guard_msgs in
 #print axioms Tacenta.UnitTripleT3.receive_refines_discharged
