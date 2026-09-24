@@ -273,6 +273,14 @@ axiom core.slice.Slice.split_first
 axiom core.slice.Slice.sort_unstable
   {T : Type} (cmpOrdInst : core.cmp.Ord T) : Slice T → Result (Slice T)
 
+/-- [alloc::vec::{alloc::vec::Vec<T>}::capacity]:
+    Source: '/rustc/library/alloc/src/vec/mod.rs', lines 1446:4-1446:41
+    Name pattern: [alloc::vec::{alloc::vec::Vec<@T>}::capacity]
+    Visibility: public -/
+@[rust_fun "alloc::vec::{alloc::vec::Vec<@T>}::capacity"]
+axiom alloc.vec.Vec.capacity
+  {T : Type} (A : Type) : alloc.vec.Vec T → Result Std.Usize
+
 /-- [alloc::vec::{alloc::vec::Vec<T>}::reserve_exact]:
     Source: '/rustc/library/alloc/src/vec/mod.rs', lines 1500:4-1500:54
     Name pattern: [alloc::vec::{alloc::vec::Vec<@T>}::reserve_exact]
@@ -2613,49 +2621,60 @@ def lifecycle.receive_with_eviction
       | some result => ok result
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::ops::drop::Drop for tacenta_lifecycle::lifecycle::PrekeyStore}::drop]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 640:8-642:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 641:8-644:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.Insts.CoreOpsDropDrop.drop_loop.body
-  (iter : core.slice.iter.IterMut (Std.U32 × (Array Std.U8 32#usize)))
-  (back : core.slice.iter.IterMut (Std.U32 × (Array Std.U8 32#usize)) →
-  core.slice.iter.IterMut (Std.U32 × (Array Std.U8 32#usize))) :
-  Result (ControlFlow ((core.slice.iter.IterMut (Std.U32 × (Array Std.U8
-    32#usize))) × (core.slice.iter.IterMut (Std.U32 × (Array Std.U8
-    32#usize)) → core.slice.iter.IterMut (Std.U32 × (Array Std.U8
-    32#usize)))) (core.slice.iter.IterMut (Std.U32 × (Array Std.U8
-    32#usize))))
+  (z : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
+  (j : Std.Usize) :
+  Result (ControlFlow ((zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array
+    Std.U8 32#usize)))) × Std.Usize) (zeroize.Zeroizing (alloc.vec.Vec
+    (Std.U32 × (Array Std.U8 32#usize)))))
   := do
-  let (o, iter1, next_back) ← core.slice.iter.IteratorIterMut.next iter
-  match o with
-  | none => ok (done (let im := next_back iter1 none
-                      back im))
-  | some p =>
-    let (i, secret) := p
-    let secret1 ←
+  let v ←
+    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
+      (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
+      (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+      U8.Insts.ZeroizeDefaultIsZeroes)))) z
+  let i := alloc.vec.Vec.len v
+  if j < i
+  then
+    let (v1, deref_mut_back) ←
+      zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut
+        (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
+        (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
+        (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+        U8.Insts.ZeroizeDefaultIsZeroes)))) z
+    let ((i1, a), index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice (Std.U32
+        × (Array Std.U8 32#usize))) v1 j
+    let a1 ←
       Array.Insts.ZeroizeZeroize.zeroize (zeroize.Zeroize.Blanket
-        U8.Insts.ZeroizeDefaultIsZeroes) secret
-    ok (cont (iter1,
-      fun im => let im1 := next_back im (some (i, secret1))
-                back im1))
+        U8.Insts.ZeroizeDefaultIsZeroes) a
+    let j1 ← j + 1#usize
+    let v2 := index_mut_back (i1, a1)
+    let z1 := deref_mut_back v2
+    ok (cont (z1, j1))
+  else ok (done z)
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::ops::drop::Drop for tacenta_lifecycle::lifecycle::PrekeyStore}::drop]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 640:8-642:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 641:8-644:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.Insts.CoreOpsDropDrop.drop_loop
-  (iter : core.slice.iter.IterMut (Std.U32 × (Array Std.U8 32#usize)))
-  (back : core.slice.iter.IterMut (Std.U32 × (Array Std.U8 32#usize)) →
-  core.slice.iter.IterMut (Std.U32 × (Array Std.U8 32#usize))) :
-  Result (core.slice.iter.IterMut (Std.U32 × (Array Std.U8 32#usize)))
+  (z : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
+  (j : Std.Usize) :
+  Result (zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8
+    32#usize))))
   := do
   loop
-    (fun (iter1, back1) =>
-      lifecycle.PrekeyStore.Insts.CoreOpsDropDrop.drop_loop.body iter1 back1)
-    (iter, back)
+    (fun (z1, j1) => lifecycle.PrekeyStore.Insts.CoreOpsDropDrop.drop_loop.body
+      z1 j1)
+    (z, j)
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::ops::drop::Drop for tacenta_lifecycle::lifecycle::PrekeyStore}::drop]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 635:4-643:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 635:4-645:5
     Visibility: public -/
 def lifecycle.PrekeyStore.Insts.CoreOpsDropDrop.drop
   (self : lifecycle.PrekeyStore) : Result lifecycle.PrekeyStore := do
@@ -2674,19 +2693,8 @@ def lifecycle.PrekeyStore.Insts.CoreOpsDropDrop.drop
         Array.Insts.ZeroizeZeroize.zeroize (zeroize.Zeroize.Blanket
           U8.Insts.ZeroizeDefaultIsZeroes) secret
       ok (as_mut_back (some (secret1, i, a1)))
-  let (v, deref_mut_back) ←
-    zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut
-      (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
-      (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
-      (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
-      U8.Insts.ZeroizeDefaultIsZeroes)))) self.one_time
-  let (s, deref_mut_back1) ← lift (alloc.vec.Vec.deref_mut v)
-  let (iter, iter_mut_back) ← core.slice.Slice.iter_mut s
-  let back ←
-    lifecycle.PrekeyStore.Insts.CoreOpsDropDrop.drop_loop iter (fun im => im)
-  let s1 := iter_mut_back back
-  let v1 := deref_mut_back1 s1
-  let z := deref_mut_back v1
+  let z ←
+    lifecycle.PrekeyStore.Insts.CoreOpsDropDrop.drop_loop self.one_time 0#usize
   ok
     {
       self
@@ -2695,7 +2703,7 @@ def lifecycle.PrekeyStore.Insts.CoreOpsDropDrop.drop
     }
 
 /-- [tacenta_lifecycle::lifecycle::PublishedBundle]
-    Source: 'lifecycle/src/lifecycle.rs', lines 651:0-656:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 653:0-658:1
     Visibility: public -/
 structure lifecycle.PublishedBundle where
   bundle : PreKeyBundle
@@ -2703,13 +2711,136 @@ structure lifecycle.PublishedBundle where
   one_time_prekey_id : Std.U32
   kem_prekey_id : Std.U32
 
+/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::prepare_one_time_capacity]: loop body 0:
+    Source: 'lifecycle/src/lifecycle.rs', lines 677:8-680:9 -/
+@[rust_loop_body]
+def lifecycle.PrekeyStore.prepare_one_time_capacity_loop0.body
+  (z : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
+  (replacement : alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize)))
+  (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))) ×
+    Std.Usize) (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
+  := do
+  let v ←
+    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
+      (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
+      (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+      U8.Insts.ZeroizeDefaultIsZeroes)))) z
+  let i1 := alloc.vec.Vec.len v
+  if i < i1
+  then
+    let p ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Std.U32 ×
+        (Array Std.U8 32#usize))) v i
+    let replacement1 ← alloc.vec.Vec.push replacement p
+    let i2 ← i + 1#usize
+    ok (cont (replacement1, i2))
+  else ok (done replacement)
+
+/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::prepare_one_time_capacity]: loop 0:
+    Source: 'lifecycle/src/lifecycle.rs', lines 677:8-680:9 -/
+@[rust_loop]
+def lifecycle.PrekeyStore.prepare_one_time_capacity_loop0
+  (z : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
+  (replacement : alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize)))
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize)))
+  := do
+  loop
+    (fun (replacement1, i1) =>
+      lifecycle.PrekeyStore.prepare_one_time_capacity_loop0.body z replacement1
+      i1)
+    (replacement, i)
+
+/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::prepare_one_time_capacity]: loop body 1:
+    Source: 'lifecycle/src/lifecycle.rs', lines 682:8-685:9 -/
+@[rust_loop_body]
+def lifecycle.PrekeyStore.prepare_one_time_capacity_loop1.body
+  (z : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
+  (i : Std.Usize) :
+  Result (ControlFlow ((zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array
+    Std.U8 32#usize)))) × Std.Usize) Unit)
+  := do
+  let v ←
+    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
+      (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
+      (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+      U8.Insts.ZeroizeDefaultIsZeroes)))) z
+  let i1 := alloc.vec.Vec.len v
+  if i < i1
+  then
+    let (v1, deref_mut_back) ←
+      zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut
+        (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
+        (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
+        (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+        U8.Insts.ZeroizeDefaultIsZeroes)))) z
+    let ((i2, a), index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice (Std.U32
+        × (Array Std.U8 32#usize))) v1 i
+    let a1 ←
+      Array.Insts.ZeroizeZeroize.zeroize (zeroize.Zeroize.Blanket
+        U8.Insts.ZeroizeDefaultIsZeroes) a
+    let i3 ← i + 1#usize
+    let v2 := index_mut_back (i2, a1)
+    let z1 := deref_mut_back v2
+    ok (cont (z1, i3))
+  else ok (done ())
+
+/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::prepare_one_time_capacity]: loop 1:
+    Source: 'lifecycle/src/lifecycle.rs', lines 682:8-685:9 -/
+@[rust_loop]
+def lifecycle.PrekeyStore.prepare_one_time_capacity_loop1
+  (z : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
+  (i : Std.Usize) :
+  Result Unit
+  := do
+  loop
+    (fun (z1, i1) => lifecycle.PrekeyStore.prepare_one_time_capacity_loop1.body
+      z1 i1)
+    (z, i)
+
+/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::prepare_one_time_capacity]:
+    Source: 'lifecycle/src/lifecycle.rs', lines 670:4-687:5 -/
+def lifecycle.PrekeyStore.prepare_one_time_capacity
+  (self : lifecycle.PrekeyStore) (additional : Std.Usize) :
+  Result lifecycle.PrekeyStore
+  := do
+  let v ←
+    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
+      (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
+      (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+      U8.Insts.ZeroizeDefaultIsZeroes)))) self.one_time
+  let i := alloc.vec.Vec.len v
+  let required ← lift (core.num.Usize.saturating_add i additional)
+  let i1 ← alloc.vec.Vec.capacity Global v
+  if required <= i1
+  then ok self
+  else
+    let replacement :=
+      alloc.vec.Vec.with_capacity (Std.U32 × (Array Std.U8 32#usize)) required
+    let replacement1 ←
+      lifecycle.PrekeyStore.prepare_one_time_capacity_loop0 self.one_time
+        replacement 0#usize
+    lifecycle.PrekeyStore.prepare_one_time_capacity_loop1 self.one_time 0#usize
+    let z ←
+      zeroize.Zeroizing.new (alloc.vec.Vec.Insts.ZeroizeZeroize
+        (Pair.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
+        U32.Insts.ZeroizeDefaultIsZeroes) (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))))
+        replacement1
+    ok { self with one_time := z }
+
 /-- [tacenta_lifecycle::serialization::ABSENT_ID]
     Source: 'lifecycle/src/serialization/mod.rs', lines 29:0-29:29
     Visibility: public -/
 @[global_simps, irreducible] def serialization.ABSENT_ID : Std.U32 := 0#u32
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::publish]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 674:4-706:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 704:4-736:5
     Visibility: public -/
 def lifecycle.PrekeyStore.publish
   (self : lifecycle.PrekeyStore) : Result lifecycle.PublishedBundle := do
@@ -2773,64 +2904,61 @@ def lifecycle.PrekeyStore.publish
     }
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::replenish]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 770:8-780:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 799:8-809:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.replenish_loop0.body
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
   (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) (count : Std.Usize)
-  (z : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
-  (id : Std.U32) (rng : R) (curve_added : Std.Usize) (exhausted : Bool) :
-  Result (ControlFlow ((zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array
-    Std.U8 32#usize)))) × Std.U32 × R × Std.Usize × Bool)
-    ((zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
-    × Std.U32 × R × Bool))
+  (self : lifecycle.PrekeyStore) (rng : R) (curve_added : Std.Usize)
+  (exhausted : Bool) :
+  Result (ControlFlow (lifecycle.PrekeyStore × R × Std.Usize × Bool)
+    (lifecycle.PrekeyStore × R × Bool))
   := do
   if curve_added < count
   then
     if exhausted
-    then ok (done (z, id, rng, true))
+    then ok (done (self, rng, true))
     else
-      let o ← lift (U32.checked_add id 1#u32)
+      let o ← lift (U32.checked_add self.next_id 1#u32)
       match o with
-      | none => ok (cont (z, id, rng, curve_added, true))
+      | none => ok (cont (self, rng, curve_added, true))
       | some next =>
         let (v, deref_mut_back) ←
           zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut
             (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
             (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
             (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
-            U8.Insts.ZeroizeDefaultIsZeroes)))) z
+            U8.Insts.ZeroizeDefaultIsZeroes)))) self.one_time
         let (a, rng1) ←
           lifecycle.random_secret rand_core_1RngCoreInst
             rand_core_1CryptoRngInst rng
-        let v1 ← alloc.vec.Vec.push v (id, a)
+        let v1 ← alloc.vec.Vec.push v (self.next_id, a)
         let curve_added1 ← curve_added + 1#usize
-        let z1 := deref_mut_back v1
-        ok (cont (z1, next, rng1, curve_added1, false))
-  else ok (done (z, id, rng, exhausted))
+        let z := deref_mut_back v1
+        ok (cont ({ self with one_time := z, next_id := next }, rng1,
+          curve_added1, false))
+  else ok (done (self, rng, exhausted))
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::replenish]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 770:8-780:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 799:8-809:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.replenish_loop0
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
   (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R)
-  (z : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
-  (id : Std.U32) (count : Std.Usize) (rng : R) (curve_added : Std.Usize)
-  (exhausted : Bool) :
-  Result ((zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8
-    32#usize)))) × Std.U32 × R × Bool)
+  (self : lifecycle.PrekeyStore) (count : Std.Usize) (rng : R)
+  (curve_added : Std.Usize) (exhausted : Bool) :
+  Result (lifecycle.PrekeyStore × R × Bool)
   := do
   loop
-    (fun (z1, id1, rng1, curve_added1, exhausted1) =>
+    (fun (self1, rng1, curve_added1, exhausted1) =>
       lifecycle.PrekeyStore.replenish_loop0.body rand_core_1RngCoreInst
-      rand_core_1CryptoRngInst count z1 id1 rng1 curve_added1 exhausted1)
-    (z, id, rng, curve_added, exhausted)
+      rand_core_1CryptoRngInst count self1 rng1 curve_added1 exhausted1)
+    (self, rng, curve_added, exhausted)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::replenish]: loop body 1:
-    Source: 'lifecycle/src/lifecycle.rs', lines 787:8-799:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 816:8-828:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.replenish_loop1.body
@@ -2870,7 +2998,7 @@ def lifecycle.PrekeyStore.replenish_loop1.body
   else ok (done (v, id, rng))
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::replenish]: loop 1:
-    Source: 'lifecycle/src/lifecycle.rs', lines 787:8-799:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 816:8-828:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.replenish_loop1
@@ -2891,7 +3019,7 @@ def lifecycle.PrekeyStore.replenish_loop1
     (v, id, rng, kem_added, kem_exhausted)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::replenish]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 737:4-800:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 767:4-829:5
     Visibility: public -/
 def lifecycle.PrekeyStore.replenish
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -2908,28 +3036,22 @@ def lifecycle.PrekeyStore.replenish
   if b
   then ok (self, rng)
   else
-    let (v, deref_mut_back) ←
-      zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut
-        (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
-        (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
-        (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
-        U8.Insts.ZeroizeDefaultIsZeroes)))) self.one_time
-    let v1 ← alloc.vec.Vec.reserve_exact Global v count
-    let z := deref_mut_back v1
-    let (z1, id, rng1, exhausted) ←
+    let self1 ← lifecycle.PrekeyStore.prepare_one_time_capacity self count
+    let (self2, rng1, exhausted) ←
       lifecycle.PrekeyStore.replenish_loop0 rand_core_1RngCoreInst
-        rand_core_1CryptoRngInst z self.next_id count rng 0#usize false
+        rand_core_1CryptoRngInst self1 count rng 0#usize false
     if exhausted
-    then ok ({ self with one_time := z1, next_id := id }, rng1)
+    then ok (self2, rng1)
     else
-      let v2 ← alloc.vec.Vec.reserve_exact Global self.kem_one_time count
-      let (v3, i, rng2) ←
+      let v ← alloc.vec.Vec.reserve_exact Global self2.kem_one_time count
+      let (v1, i, rng2) ←
         lifecycle.PrekeyStore.replenish_loop1 rand_core_1RngCoreInst
-          rand_core_1CryptoRngInst v2 id identity count rng1 0#usize false
-      ok ({ self with one_time := z1, kem_one_time := v3, next_id := i }, rng2)
+          rand_core_1CryptoRngInst v self2.next_id identity count rng1 0#usize
+          false
+      ok ({ self2 with kem_one_time := v1, next_id := i }, rng2)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_signed_prekey]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 835:4-878:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 864:4-907:5
     Visibility: public -/
 def lifecycle.PrekeyStore.rotate_signed_prekey
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -2992,12 +3114,12 @@ def lifecycle.PrekeyStore.rotate_signed_prekey
            }, rng2)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::closure#1]
-    Source: 'lifecycle/src/lifecycle.rs', lines 937:51-937:71 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 966:51-966:71 -/
 @[reducible]
 def lifecycle.PrekeyStore.rotate_kem.closure_1 (R : Type) := Std.U32
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::{impl core::ops::function::FnMut<(&'_ u32,), bool> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::closure#1<'_0, R>}::call_mut]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 937:51-937:71 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 966:51-966:71 -/
 def
   lifecycle.PrekeyStore.rotate_kem.closure_1.Insts.CoreOpsFunctionFnMutTupleSharedU32Bool.call_mut
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -3008,7 +3130,7 @@ def
   ok (tupled_args != c, c)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::{impl core::ops::function::FnOnce<(&'_ u32,), bool> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::closure#1<'_0, R>}::call_once]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 937:51-937:71 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 966:51-966:71 -/
 def
   lifecycle.PrekeyStore.rotate_kem.closure_1.Insts.CoreOpsFunctionFnOnceTupleSharedU32Bool.call_once
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -3022,7 +3144,7 @@ def
   ok b
 
 /-- Trait implementation: [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::{impl core::ops::function::FnOnce<(&'_ u32,), bool> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::closure#1<'_0, R>}]
-    Source: 'lifecycle/src/lifecycle.rs', lines 937:51-937:71 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 966:51-966:71 -/
 @[reducible]
 def
   lifecycle.PrekeyStore.rotate_kem.closure_1.Insts.CoreOpsFunctionFnOnceTupleSharedU32Bool
@@ -3036,7 +3158,7 @@ def
 }
 
 /-- Trait implementation: [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::{impl core::ops::function::FnMut<(&'_ u32,), bool> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::closure#1<'_0, R>}]
-    Source: 'lifecycle/src/lifecycle.rs', lines 937:51-937:71 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 966:51-966:71 -/
 @[reducible]
 def
   lifecycle.PrekeyStore.rotate_kem.closure_1.Insts.CoreOpsFunctionFnMutTupleSharedU32Bool
@@ -3053,12 +3175,12 @@ def
 }
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::closure]
-    Source: 'lifecycle/src/lifecycle.rs', lines 936:41-936:66 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 965:41-965:66 -/
 @[reducible]
 def lifecycle.PrekeyStore.rotate_kem.closure (R : Type) := Std.U32
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::{impl core::ops::function::FnMut<(&'_ (u32, [u8; 32usize]),), bool> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::closure<'_0, R>}::call_mut]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 936:41-936:66 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 965:41-965:66 -/
 def
   lifecycle.PrekeyStore.rotate_kem.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU32ArrayU832Bool.call_mut
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -3071,7 +3193,7 @@ def
   ok (id != c, c)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::{impl core::ops::function::FnOnce<(&'_ (u32, [u8; 32usize]),), bool> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::closure<'_0, R>}::call_once]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 936:41-936:66 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 965:41-965:66 -/
 def
   lifecycle.PrekeyStore.rotate_kem.closure.Insts.CoreOpsFunctionFnOnceTupleSharedPairU32ArrayU832Bool.call_once
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -3086,7 +3208,7 @@ def
   ok b
 
 /-- Trait implementation: [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::{impl core::ops::function::FnOnce<(&'_ (u32, [u8; 32usize]),), bool> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::closure<'_0, R>}]
-    Source: 'lifecycle/src/lifecycle.rs', lines 936:41-936:66 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 965:41-965:66 -/
 @[reducible]
 def
   lifecycle.PrekeyStore.rotate_kem.closure.Insts.CoreOpsFunctionFnOnceTupleSharedPairU32ArrayU832Bool
@@ -3100,7 +3222,7 @@ def
 }
 
 /-- Trait implementation: [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::{impl core::ops::function::FnMut<(&'_ (u32, [u8; 32usize]),), bool> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem::closure<'_0, R>}]
-    Source: 'lifecycle/src/lifecycle.rs', lines 936:41-936:66 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 965:41-965:66 -/
 @[reducible]
 def
   lifecycle.PrekeyStore.rotate_kem.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU32ArrayU832Bool
@@ -3117,7 +3239,7 @@ def
 }
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_kem]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 905:4-941:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 934:4-970:5
     Visibility: public -/
 def lifecycle.PrekeyStore.rotate_kem
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -3189,7 +3311,7 @@ def lifecycle.PrekeyStore.rotate_kem
            }, rng2)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::one_time_remaining]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 948:4-950:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 977:4-979:5
     Visibility: public -/
 def lifecycle.PrekeyStore.one_time_remaining
   (self : lifecycle.PrekeyStore) : Result (Std.Usize × Std.Usize) := do
@@ -3204,7 +3326,7 @@ def lifecycle.PrekeyStore.one_time_remaining
   ok (i, i1)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::last_resort_seen_for]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1040:8-1045:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1069:8-1074:9 -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.last_resort_seen_for_loop.body
   (self : lifecycle.PrekeyStore) (key_id : Std.U32) (count : Std.Usize)
@@ -3225,7 +3347,7 @@ def lifecycle.PrekeyStore.last_resort_seen_for_loop.body
   else ok (done count)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::last_resort_seen_for]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1040:8-1045:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1069:8-1074:9 -/
 @[rust_loop]
 def lifecycle.PrekeyStore.last_resort_seen_for_loop
   (self : lifecycle.PrekeyStore) (key_id : Std.U32) (count : Std.Usize)
@@ -3239,14 +3361,14 @@ def lifecycle.PrekeyStore.last_resort_seen_for_loop
     (count, index)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::last_resort_seen_for]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1037:4-1047:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1066:4-1076:5 -/
 @[reducible]
 def lifecycle.PrekeyStore.last_resort_seen_for
   (self : lifecycle.PrekeyStore) (key_id : Std.U32) : Result Std.Usize := do
   lifecycle.PrekeyStore.last_resort_seen_for_loop self key_id 0#usize 0#usize
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::last_resort_record_remaining]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 987:4-996:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 1016:4-1025:5
     Visibility: public -/
 def lifecycle.PrekeyStore.last_resort_record_remaining
   (self : lifecycle.PrekeyStore) : Result Std.Usize := do
@@ -3259,12 +3381,12 @@ def lifecycle.PrekeyStore.last_resort_record_remaining
     ok (core.num.Usize.saturating_sub lifecycle.MAX_LAST_RESORT_SEEN i)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::last_resort_record_remaining_for::closure]
-    Source: 'lifecycle/src/lifecycle.rs', lines 1019:29-1019:55 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1048:29-1048:55 -/
 @[reducible]
 def lifecycle.PrekeyStore.last_resort_record_remaining_for.closure := Std.U32
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::last_resort_record_remaining_for::{impl core::ops::function::FnOnce<(&'_ (tacenta_boundary::kem::KeyPair, u32, [u8; 64usize]),), bool> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::last_resort_record_remaining_for::closure<'_0>}::call_once]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1019:29-1019:55 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1048:29-1048:55 -/
 def
   lifecycle.PrekeyStore.last_resort_record_remaining_for.closure.Insts.CoreOpsFunctionFnOnceTupleSharedTupleKeyPairU32ArrayU864Bool.call_once
   (c : lifecycle.PrekeyStore.last_resort_record_remaining_for.closure)
@@ -3276,7 +3398,7 @@ def
   ok (id = c)
 
 /-- Trait implementation: [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::last_resort_record_remaining_for::{impl core::ops::function::FnOnce<(&'_ (tacenta_boundary::kem::KeyPair, u32, [u8; 64usize]),), bool> for tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::last_resort_record_remaining_for::closure<'_0>}]
-    Source: 'lifecycle/src/lifecycle.rs', lines 1019:29-1019:55 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1048:29-1048:55 -/
 @[reducible]
 def
   lifecycle.PrekeyStore.last_resort_record_remaining_for.closure.Insts.CoreOpsFunctionFnOnceTupleSharedTupleKeyPairU32ArrayU864Bool
@@ -3289,7 +3411,7 @@ def
 }
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::last_resort_record_remaining_for]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1014:4-1027:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 1043:4-1056:5
     Visibility: public -/
 def lifecycle.PrekeyStore.last_resort_record_remaining_for
   (self : lifecycle.PrekeyStore) (key_id : Std.U32) :
@@ -3318,7 +3440,7 @@ def lifecycle.PrekeyStore.last_resort_record_remaining_for
   else ok none
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::publish_one_time_batch]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1067:8-1087:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1096:8-1116:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.publish_one_time_batch_loop.body
@@ -3377,7 +3499,7 @@ def lifecycle.PrekeyStore.publish_one_time_batch_loop.body
   else ok (done out)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::publish_one_time_batch]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1067:8-1087:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1096:8-1116:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.publish_one_time_batch_loop
@@ -3396,7 +3518,7 @@ def lifecycle.PrekeyStore.publish_one_time_batch_loop
     (out, offset)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::publish_one_time_batch]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1063:4-1089:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 1092:4-1118:5
     Visibility: public -/
 def lifecycle.PrekeyStore.publish_one_time_batch
   (self : lifecycle.PrekeyStore) :
@@ -3417,7 +3539,7 @@ def lifecycle.PrekeyStore.publish_one_time_batch
     self.one_time self.kem_one_time count out 0#usize
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::publish_multi_use]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1098:4-1112:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 1127:4-1141:5
     Visibility: public -/
 def lifecycle.PrekeyStore.publish_multi_use
   (self : lifecycle.PrekeyStore) : Result lifecycle.PublishedBundle := do
@@ -3442,14 +3564,14 @@ def lifecycle.PrekeyStore.publish_multi_use
     }
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::next_id]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1119:4-1121:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 1148:4-1150:5
     Visibility: public -/
 def lifecycle.PrekeyStore.impl.next_id
   (self : lifecycle.PrekeyStore) : Result Std.U32 := do
   ok self.next_id
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::take_one_time]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1140:8-1146:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1169:8-1175:9 -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.take_one_time_loop.body
   (self : lifecycle.PrekeyStore) (id : Std.U32) (index : Std.Usize) :
@@ -3492,7 +3614,7 @@ def lifecycle.PrekeyStore.take_one_time_loop.body
       self.last_resort_seen, self.legacy_last_resort_blocked, none))
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::take_one_time]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1140:8-1146:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1169:8-1175:9 -/
 @[rust_loop]
 def lifecycle.PrekeyStore.take_one_time_loop
   (self : lifecycle.PrekeyStore) (id : Std.U32) (index : Std.Usize) :
@@ -3512,7 +3634,7 @@ def lifecycle.PrekeyStore.take_one_time_loop
     index
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::take_one_time]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1137:4-1157:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1166:4-1186:5 -/
 def lifecycle.PrekeyStore.take_one_time
   (self : lifecycle.PrekeyStore) (id : Std.U32) :
   Result (Bool × lifecycle.PrekeyStore)
@@ -3598,7 +3720,7 @@ def lifecycle.PrekeyStore.take_one_time
       })
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::peek_one_time]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1172:8-1178:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1201:8-1207:9 -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.peek_one_time_loop.body
   (self : lifecycle.PrekeyStore) (id : Std.U32) (index : Std.Usize) :
@@ -3631,7 +3753,7 @@ def lifecycle.PrekeyStore.peek_one_time_loop.body
   else ok (done none)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::peek_one_time]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1172:8-1178:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1201:8-1207:9 -/
 @[rust_loop]
 def lifecycle.PrekeyStore.peek_one_time_loop
   (self : lifecycle.PrekeyStore) (id : Std.U32) (index : Std.Usize) :
@@ -3643,7 +3765,7 @@ def lifecycle.PrekeyStore.peek_one_time_loop
     index
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::peek_one_time]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1167:4-1180:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1196:4-1209:5 -/
 @[reducible]
 def lifecycle.PrekeyStore.peek_one_time
   (self : lifecycle.PrekeyStore) (id : Std.U32) :
@@ -3652,7 +3774,7 @@ def lifecycle.PrekeyStore.peek_one_time
   lifecycle.PrekeyStore.peek_one_time_loop self id 0#usize
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::one_time_kem_ids]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1185:8-1188:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1214:8-1217:9 -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.one_time_kem_ids_loop.body
   (v : alloc.vec.Vec (Std.U32 × tacenta_boundary.kem.KeyPair × (Array Std.U8
@@ -3672,7 +3794,7 @@ def lifecycle.PrekeyStore.one_time_kem_ids_loop.body
   else ok (done ids)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::one_time_kem_ids]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1185:8-1188:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1214:8-1217:9 -/
 @[rust_loop]
 def lifecycle.PrekeyStore.one_time_kem_ids_loop
   (v : alloc.vec.Vec (Std.U32 × tacenta_boundary.kem.KeyPair × (Array Std.U8
@@ -3685,7 +3807,7 @@ def lifecycle.PrekeyStore.one_time_kem_ids_loop
     (ids, index)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::one_time_kem_ids]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1182:4-1190:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1211:4-1219:5 -/
 def lifecycle.PrekeyStore.one_time_kem_ids
   (self : lifecycle.PrekeyStore) : Result (alloc.vec.Vec Std.U32) := do
   let i := alloc.vec.Vec.len self.kem_one_time
@@ -3693,7 +3815,7 @@ def lifecycle.PrekeyStore.one_time_kem_ids
   lifecycle.PrekeyStore.one_time_kem_ids_loop self.kem_one_time ids 0#usize
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::take_one_time_kem]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1205:8-1211:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1234:8-1240:9 -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.take_one_time_kem_loop.body
   (self : lifecycle.PrekeyStore) (id : Std.U32) (index : Std.Usize) :
@@ -3731,7 +3853,7 @@ def lifecycle.PrekeyStore.take_one_time_kem_loop.body
       self.last_resort_seen, self.legacy_last_resort_blocked, none))
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::take_one_time_kem]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1205:8-1211:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1234:8-1240:9 -/
 @[rust_loop]
 def lifecycle.PrekeyStore.take_one_time_kem_loop
   (self : lifecycle.PrekeyStore) (id : Std.U32) (index : Std.Usize) :
@@ -3751,7 +3873,7 @@ def lifecycle.PrekeyStore.take_one_time_kem_loop
     index
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::take_one_time_kem]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1202:4-1225:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1231:4-1254:5 -/
 def lifecycle.PrekeyStore.take_one_time_kem
   (self : lifecycle.PrekeyStore) (id : Std.U32) :
   Result ((Option tacenta_boundary.kem.KeyPair) × lifecycle.PrekeyStore)
@@ -3824,7 +3946,7 @@ def lifecycle.PrekeyStore.take_one_time_kem
         })
 
 /-- [tacenta_lifecycle::lifecycle::push_len_prefixed]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3179:0-3182:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3208:0-3211:1 -/
 def lifecycle.push_len_prefixed
   (out : alloc.vec.Vec Std.U8) (bytes : Slice Std.U8) :
   Result (alloc.vec.Vec Std.U8)
@@ -3837,12 +3959,12 @@ def lifecycle.push_len_prefixed
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 bytes
 
 /-- [tacenta_lifecycle::lifecycle::PREKEY_STORE_VERSION]
-    Source: 'lifecycle/src/lifecycle.rs', lines 1699:0-1699:38 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1728:0-1728:38 -/
 @[global_simps, irreducible]
 def lifecycle.PREKEY_STORE_VERSION : Std.U8 := 5#u8
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::to_bytes]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1247:8-1249:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1276:8-1278:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.to_bytes_loop0.body
@@ -3865,7 +3987,7 @@ def lifecycle.PrekeyStore.to_bytes_loop0.body
     ok (cont (iter1, kem_one_time_bytes1))
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::to_bytes]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1247:8-1249:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1276:8-1278:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.to_bytes_loop0
@@ -3881,7 +4003,7 @@ def lifecycle.PrekeyStore.to_bytes_loop0
     (iter, kem_one_time_bytes)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::to_bytes]: loop body 1:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1255:8-1257:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1284:8-1286:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.to_bytes_loop1.body
@@ -3906,7 +4028,7 @@ def lifecycle.PrekeyStore.to_bytes_loop1.body
     ok (cont (iter1, kem_one_time_encoded_len1))
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::to_bytes]: loop 1:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1255:8-1257:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1284:8-1286:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.to_bytes_loop1
@@ -3921,7 +4043,7 @@ def lifecycle.PrekeyStore.to_bytes_loop1
     (iter, kem_one_time_encoded_len)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::to_bytes]: loop body 2:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1292:8-1295:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1321:8-1324:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.to_bytes_loop2.body
@@ -3943,7 +4065,7 @@ def lifecycle.PrekeyStore.to_bytes_loop2.body
     ok (cont (iter1, out2))
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::to_bytes]: loop 2:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1292:8-1295:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1321:8-1324:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.to_bytes_loop2
@@ -3956,7 +4078,7 @@ def lifecycle.PrekeyStore.to_bytes_loop2
     (iter, out)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::to_bytes]: loop body 3:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1303:8-1310:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1332:8-1339:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.to_bytes_loop3.body
@@ -3993,7 +4115,7 @@ def lifecycle.PrekeyStore.to_bytes_loop3.body
   else ok (done out)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::to_bytes]: loop 3:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1303:8-1310:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1332:8-1339:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.to_bytes_loop3
@@ -4009,7 +4131,7 @@ def lifecycle.PrekeyStore.to_bytes_loop3
     (out, kem_index)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::to_bytes]: loop body 4:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1318:8-1323:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1347:8-1352:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.to_bytes_loop4.body
@@ -4034,7 +4156,7 @@ def lifecycle.PrekeyStore.to_bytes_loop4.body
   else ok (done out)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::to_bytes]: loop 4:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1318:8-1323:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1347:8-1352:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.to_bytes_loop4
@@ -4048,7 +4170,7 @@ def lifecycle.PrekeyStore.to_bytes_loop4
     (out, seen_index)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::to_bytes]: loop body 5:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1329:8-1333:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1358:8-1362:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.to_bytes_loop5.body
@@ -4071,7 +4193,7 @@ def lifecycle.PrekeyStore.to_bytes_loop5.body
   else ok (done out)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::to_bytes]: loop 5:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1329:8-1333:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1358:8-1362:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.to_bytes_loop5
@@ -4085,7 +4207,7 @@ def lifecycle.PrekeyStore.to_bytes_loop5
     (out, blocked_index)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::to_bytes]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1238:4-1360:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 1267:4-1389:5
     Visibility: public -/
 def lifecycle.PrekeyStore.to_bytes
   (self : lifecycle.PrekeyStore) :
@@ -4278,7 +4400,7 @@ def lifecycle.PrekeyStore.to_bytes
     fail panic
 
 /-- [tacenta_lifecycle::lifecycle::take_len_prefixed]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3184:0-3201:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3213:0-3230:1 -/
 def lifecycle.take_len_prefixed
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option ((Slice Std.U8) × Std.Usize))
@@ -4322,7 +4444,7 @@ def lifecycle.take_len_prefixed
       ((Slice Std.U8) × Std.Usize) residual
 
 /-- [tacenta_lifecycle::lifecycle::read_prekey_u32]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1751:0-1758:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1780:0-1787:1 -/
 def lifecycle.read_prekey_u32
   (bytes : Slice Std.U8) (pos : Std.Usize) : Result (Option Std.U32) := do
   let i := Slice.len bytes
@@ -4341,7 +4463,7 @@ def lifecycle.read_prekey_u32
     ok (some i2)
 
 /-- [tacenta_lifecycle::lifecycle::PrekeyStoreDecodeError]
-    Source: 'lifecycle/src/lifecycle.rs', lines 1717:0-1749:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 1746:0-1778:1
     Visibility: public -/
 @[discriminant isize]
 inductive lifecycle.PrekeyStoreDecodeError where
@@ -4352,17 +4474,17 @@ inductive lifecycle.PrekeyStoreDecodeError where
 | Incoherent : lifecycle.PrekeyStoreDecodeError
 
 /-- [tacenta_lifecycle::lifecycle::PREKEY_STORE_VERSION_V3]
-    Source: 'lifecycle/src/lifecycle.rs', lines 1705:0-1705:41 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1734:0-1734:41 -/
 @[global_simps, irreducible]
 def lifecycle.PREKEY_STORE_VERSION_V3 : Std.U8 := 3#u8
 
 /-- [tacenta_lifecycle::lifecycle::PREKEY_STORE_VERSION_V4]
-    Source: 'lifecycle/src/lifecycle.rs', lines 1702:0-1702:41 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1731:0-1731:41 -/
 @[global_simps, irreducible]
 def lifecycle.PREKEY_STORE_VERSION_V4 : Std.U8 := 4#u8
 
 /-- [tacenta_lifecycle::lifecycle::decode_previous_prekeys]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2005:0-2070:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2034:0-2099:1 -/
 def lifecycle.decode_previous_prekeys
   (bytes : Slice Std.U8) (pos : Std.Usize) (version : Std.U8) :
   Result (core.result.Result ((Option ((Array Std.U8 32#usize) × Std.U32 ×
@@ -4846,7 +4968,7 @@ def lifecycle.decode_previous_prekeys
       else ok (core.result.Result.Ok (none, none, pos))
 
 /-- [tacenta_lifecycle::lifecycle::decode_untagged_seen]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1910:4-1916:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1939:4-1945:5 -/
 @[rust_loop_body]
 def lifecycle.decode_untagged_seen_loop.body
   (bytes : Slice Std.U8) (count : Std.U32) (kem_id : Std.U32) (pos : Std.Usize)
@@ -4872,7 +4994,7 @@ def lifecycle.decode_untagged_seen_loop.body
   else ok (done (pos, entries))
 
 /-- [tacenta_lifecycle::lifecycle::decode_untagged_seen]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1910:4-1916:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1939:4-1945:5 -/
 @[rust_loop]
 def lifecycle.decode_untagged_seen_loop
   (bytes : Slice Std.U8) (pos : Std.Usize) (count : Std.U32) (kem_id : Std.U32)
@@ -4886,7 +5008,7 @@ def lifecycle.decode_untagged_seen_loop
     (pos, entries, decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_untagged_seen]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1902:0-1918:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1931:0-1947:1 -/
 def lifecycle.decode_untagged_seen
   (bytes : Slice Std.U8) (pos : Std.Usize) (count : Std.U32) (kem_id : Std.U32)
   :
@@ -4901,7 +5023,7 @@ def lifecycle.decode_untagged_seen
   ok (core.result.Result.Ok (entries1, pos1))
 
 /-- [tacenta_lifecycle::lifecycle::decode_tagged_seen]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1888:4-1897:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1917:4-1926:5 -/
 @[rust_loop_body]
 def lifecycle.decode_tagged_seen_loop.body
   (bytes : Slice Std.U8) (count : Std.U32) (pos : Std.Usize)
@@ -4936,7 +5058,7 @@ def lifecycle.decode_tagged_seen_loop.body
   else ok (done (pos, entries))
 
 /-- [tacenta_lifecycle::lifecycle::decode_tagged_seen]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1888:4-1897:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1917:4-1926:5 -/
 @[rust_loop]
 def lifecycle.decode_tagged_seen_loop
   (bytes : Slice Std.U8) (pos : Std.Usize) (count : Std.U32)
@@ -4950,7 +5072,7 @@ def lifecycle.decode_tagged_seen_loop
     (pos, entries, decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_tagged_seen]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1881:0-1899:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1910:0-1928:1 -/
 def lifecycle.decode_tagged_seen
   (bytes : Slice Std.U8) (pos : Std.Usize) (count : Std.U32) :
   Result (core.result.Result ((alloc.vec.Vec (Std.U32 × (Array Std.U8
@@ -4964,12 +5086,12 @@ def lifecycle.decode_tagged_seen
   ok (core.result.Result.Ok (entries1, pos1))
 
 /-- [tacenta_lifecycle::lifecycle::PREKEY_STORE_VERSION_V1]
-    Source: 'lifecycle/src/lifecycle.rs', lines 1710:0-1710:41 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1739:0-1739:41 -/
 @[global_simps, irreducible]
 def lifecycle.PREKEY_STORE_VERSION_V1 : Std.U8 := 1#u8
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1991:8-1997:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2020:8-2026:9 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_replay_loop0.body
   (bytes : Slice Std.U8) (blocked_count : Std.U32) (pos : Std.Usize)
@@ -4996,7 +5118,7 @@ def lifecycle.decode_prekey_replay_loop0.body
   else ok (done (pos, legacy_last_resort_blocked))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1991:8-1997:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2020:8-2026:9 -/
 @[rust_loop]
 def lifecycle.decode_prekey_replay_loop0
   (bytes : Slice Std.U8) (pos : Std.Usize)
@@ -5011,7 +5133,7 @@ def lifecycle.decode_prekey_replay_loop0
     (pos, legacy_last_resort_blocked, blocked_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]: loop body 1:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1991:8-1997:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2020:8-2026:9 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_replay_loop1.body
   (bytes : Slice Std.U8) (blocked_count : Std.U32) (pos : Std.Usize)
@@ -5038,7 +5160,7 @@ def lifecycle.decode_prekey_replay_loop1.body
   else ok (done (pos, legacy_last_resort_blocked))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]: loop 1:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1991:8-1997:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2020:8-2026:9 -/
 @[rust_loop]
 def lifecycle.decode_prekey_replay_loop1
   (bytes : Slice Std.U8) (pos : Std.Usize)
@@ -5053,7 +5175,7 @@ def lifecycle.decode_prekey_replay_loop1
     (pos, legacy_last_resort_blocked, blocked_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]: loop body 2:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1991:8-1997:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2020:8-2026:9 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_replay_loop2.body
   (bytes : Slice Std.U8) (blocked_count : Std.U32) (pos : Std.Usize)
@@ -5080,7 +5202,7 @@ def lifecycle.decode_prekey_replay_loop2.body
   else ok (done (pos, legacy_last_resort_blocked))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]: loop 2:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1991:8-1997:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2020:8-2026:9 -/
 @[rust_loop]
 def lifecycle.decode_prekey_replay_loop2
   (bytes : Slice Std.U8) (pos : Std.Usize)
@@ -5095,7 +5217,7 @@ def lifecycle.decode_prekey_replay_loop2
     (pos, legacy_last_resort_blocked, blocked_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]: loop body 3:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1991:8-1997:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2020:8-2026:9 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_replay_loop3.body
   (bytes : Slice Std.U8) (blocked_count : Std.U32) (pos : Std.Usize)
@@ -5122,7 +5244,7 @@ def lifecycle.decode_prekey_replay_loop3.body
   else ok (done (pos, legacy_last_resort_blocked))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]: loop 3:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1991:8-1997:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2020:8-2026:9 -/
 @[rust_loop]
 def lifecycle.decode_prekey_replay_loop3
   (bytes : Slice Std.U8) (pos : Std.Usize)
@@ -5137,7 +5259,7 @@ def lifecycle.decode_prekey_replay_loop3
     (pos, legacy_last_resort_blocked, blocked_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1921:0-2000:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1950:0-2029:1 -/
 def lifecycle.decode_prekey_replay
   (bytes : Slice Std.U8) (pos : Std.Usize) (version : Std.U8)
   (kem_id : Std.U32) :
@@ -5413,7 +5535,7 @@ def lifecycle.decode_prekey_replay
         32#usize)), alloc.vec.Vec.new Std.U32, pos))
 
 /-- [tacenta_lifecycle::lifecycle::decode_kem_one_time_entries]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2082:4-2130:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2111:4-2159:5 -/
 @[rust_loop_body]
 def lifecycle.decode_kem_one_time_entries_loop.body
   (bytes : Slice Std.U8) (count : Std.U32) (pos : Std.Usize)
@@ -5492,7 +5614,7 @@ def lifecycle.decode_kem_one_time_entries_loop.body
   else ok (done (pos, entries, failure))
 
 /-- [tacenta_lifecycle::lifecycle::decode_kem_one_time_entries]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2082:4-2130:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2111:4-2159:5 -/
 @[rust_loop]
 def lifecycle.decode_kem_one_time_entries_loop
   (bytes : Slice Std.U8) (pos : Std.Usize) (count : Std.U32)
@@ -5509,7 +5631,7 @@ def lifecycle.decode_kem_one_time_entries_loop
     (pos, entries, decoded, failure)
 
 /-- [tacenta_lifecycle::lifecycle::decode_kem_one_time_entries]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2073:0-2135:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2102:0-2164:1 -/
 def lifecycle.decode_kem_one_time_entries
   (bytes : Slice Std.U8) (pos : Std.Usize) (count : Std.U32)
   (capacity : Std.Usize) :
@@ -5528,7 +5650,7 @@ def lifecycle.decode_kem_one_time_entries
   | some error => ok (core.result.Result.Err error)
 
 /-- [tacenta_lifecycle::lifecycle::DecodedPrekeyHead]
-    Source: 'lifecycle/src/lifecycle.rs', lines 1760:0-1773:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1789:0-1802:1 -/
 structure lifecycle.DecodedPrekeyHead where
   version : Std.U8
   pos : Std.Usize
@@ -5546,12 +5668,12 @@ structure lifecycle.DecodedPrekeyHead where
   next_id : Std.U32
 
 /-- [tacenta_lifecycle::lifecycle::PREKEY_STORE_VERSION_V2]
-    Source: 'lifecycle/src/lifecycle.rs', lines 1708:0-1708:41 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1737:0-1737:41 -/
 @[global_simps, irreducible]
 def lifecycle.PREKEY_STORE_VERSION_V2 : Std.U8 := 2#u8
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1824:4-1833:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1853:4-1862:5 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_head_loop0.body
   (bytes : Slice Std.U8) (one_time_count : Std.U32) (pos : Std.Usize)
@@ -5593,7 +5715,7 @@ def lifecycle.decode_prekey_head_loop0.body
   else ok (done (pos, one_time))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1824:4-1833:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1853:4-1862:5 -/
 @[rust_loop]
 def lifecycle.decode_prekey_head_loop0
   (bytes : Slice Std.U8) (pos : Std.Usize) (one_time_count : Std.U32)
@@ -5609,7 +5731,7 @@ def lifecycle.decode_prekey_head_loop0
     (pos, one_time, one_time_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop body 1:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1824:4-1833:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1853:4-1862:5 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_head_loop1.body
   (bytes : Slice Std.U8) (one_time_count : Std.U32) (pos : Std.Usize)
@@ -5651,7 +5773,7 @@ def lifecycle.decode_prekey_head_loop1.body
   else ok (done (pos, one_time))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop 1:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1824:4-1833:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1853:4-1862:5 -/
 @[rust_loop]
 def lifecycle.decode_prekey_head_loop1
   (bytes : Slice Std.U8) (pos : Std.Usize) (one_time_count : Std.U32)
@@ -5667,7 +5789,7 @@ def lifecycle.decode_prekey_head_loop1
     (pos, one_time, one_time_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop body 2:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1824:4-1833:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1853:4-1862:5 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_head_loop2.body
   (bytes : Slice Std.U8) (one_time_count : Std.U32) (pos : Std.Usize)
@@ -5709,7 +5831,7 @@ def lifecycle.decode_prekey_head_loop2.body
   else ok (done (pos, one_time))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop 2:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1824:4-1833:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1853:4-1862:5 -/
 @[rust_loop]
 def lifecycle.decode_prekey_head_loop2
   (bytes : Slice Std.U8) (pos : Std.Usize) (one_time_count : Std.U32)
@@ -5725,7 +5847,7 @@ def lifecycle.decode_prekey_head_loop2
     (pos, one_time, one_time_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop body 3:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1824:4-1833:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1853:4-1862:5 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_head_loop3.body
   (bytes : Slice Std.U8) (one_time_count : Std.U32) (pos : Std.Usize)
@@ -5767,7 +5889,7 @@ def lifecycle.decode_prekey_head_loop3.body
   else ok (done (pos, one_time))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop 3:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1824:4-1833:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1853:4-1862:5 -/
 @[rust_loop]
 def lifecycle.decode_prekey_head_loop3
   (bytes : Slice Std.U8) (pos : Std.Usize) (one_time_count : Std.U32)
@@ -5783,7 +5905,7 @@ def lifecycle.decode_prekey_head_loop3
     (pos, one_time, one_time_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop body 4:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1824:4-1833:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1853:4-1862:5 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_head_loop4.body
   (bytes : Slice Std.U8) (one_time_count : Std.U32) (pos : Std.Usize)
@@ -5825,7 +5947,7 @@ def lifecycle.decode_prekey_head_loop4.body
   else ok (done (pos, one_time))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop 4:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1824:4-1833:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1853:4-1862:5 -/
 @[rust_loop]
 def lifecycle.decode_prekey_head_loop4
   (bytes : Slice Std.U8) (pos : Std.Usize) (one_time_count : Std.U32)
@@ -5841,7 +5963,7 @@ def lifecycle.decode_prekey_head_loop4
     (pos, one_time, one_time_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1775:0-1878:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1804:0-1907:1 -/
 def lifecycle.decode_prekey_head
   (bytes : Slice Std.U8) :
   Result (core.result.Result lifecycle.DecodedPrekeyHead
@@ -6868,7 +6990,7 @@ def lifecycle.decode_prekey_head
                           lifecycle.PrekeyStoreDecodeError.Malformed)
 
 /-- [tacenta_lifecycle::lifecycle::fingerprint_eq]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1666:4-1671:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1695:4-1700:5 -/
 @[rust_loop_body]
 def lifecycle.fingerprint_eq_loop.body
   (left : Array Std.U8 32#usize) (right : Array Std.U8 32#usize) (equal : Bool)
@@ -6887,7 +7009,7 @@ def lifecycle.fingerprint_eq_loop.body
   else ok (done equal)
 
 /-- [tacenta_lifecycle::lifecycle::fingerprint_eq]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1666:4-1671:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1695:4-1700:5 -/
 @[rust_loop]
 def lifecycle.fingerprint_eq_loop
   (left : Array Std.U8 32#usize) (right : Array Std.U8 32#usize) (equal : Bool)
@@ -6900,7 +7022,7 @@ def lifecycle.fingerprint_eq_loop
     (equal, index)
 
 /-- [tacenta_lifecycle::lifecycle::fingerprint_eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1663:0-1673:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1692:0-1702:1 -/
 @[reducible]
 def lifecycle.fingerprint_eq
   (left : Array Std.U8 32#usize) (right : Array Std.U8 32#usize) :
@@ -6909,7 +7031,7 @@ def lifecycle.fingerprint_eq
   lifecycle.fingerprint_eq_loop left right true 0#usize
 
 /-- [tacenta_lifecycle::lifecycle::fingerprint_prefix_contains]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1654:4-1659:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1683:4-1688:5 -/
 @[rust_loop_body]
 def lifecycle.fingerprint_prefix_contains_loop.body
   (entries : Slice (Array Std.U8 32#usize)) (needle : Array Std.U8 32#usize)
@@ -6929,7 +7051,7 @@ def lifecycle.fingerprint_prefix_contains_loop.body
   else ok (done found)
 
 /-- [tacenta_lifecycle::lifecycle::fingerprint_prefix_contains]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1654:4-1659:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1683:4-1688:5 -/
 @[rust_loop]
 def lifecycle.fingerprint_prefix_contains_loop
   (entries : Slice (Array Std.U8 32#usize)) (needle : Array Std.U8 32#usize)
@@ -6942,7 +7064,7 @@ def lifecycle.fingerprint_prefix_contains_loop
     (found, index)
 
 /-- [tacenta_lifecycle::lifecycle::fingerprint_prefix_contains]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1651:0-1661:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1680:0-1690:1 -/
 @[reducible]
 def lifecycle.fingerprint_prefix_contains
   (entries : Slice (Array Std.U8 32#usize)) (needle : Array Std.U8 32#usize) :
@@ -6951,7 +7073,7 @@ def lifecycle.fingerprint_prefix_contains
   lifecycle.fingerprint_prefix_contains_loop entries needle false 0#usize
 
 /-- [tacenta_lifecycle::lifecycle::u32_prefix_contains]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1642:4-1647:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1671:4-1676:5 -/
 @[rust_loop_body]
 def lifecycle.u32_prefix_contains_loop.body
   (values : Slice Std.U32) (end1 : Std.Usize) (needle : Std.U32) (found : Bool)
@@ -6969,7 +7091,7 @@ def lifecycle.u32_prefix_contains_loop.body
   else ok (done found)
 
 /-- [tacenta_lifecycle::lifecycle::u32_prefix_contains]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1642:4-1647:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1671:4-1676:5 -/
 @[rust_loop]
 def lifecycle.u32_prefix_contains_loop
   (values : Slice Std.U32) (end1 : Std.Usize) (needle : Std.U32) (found : Bool)
@@ -6982,7 +7104,7 @@ def lifecycle.u32_prefix_contains_loop
     (found, index)
 
 /-- [tacenta_lifecycle::lifecycle::u32_prefix_contains]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1639:0-1649:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1668:0-1678:1 -/
 @[reducible]
 def lifecycle.u32_prefix_contains
   (values : Slice Std.U32) (end1 : Std.Usize) (needle : Std.U32) :
@@ -6991,7 +7113,7 @@ def lifecycle.u32_prefix_contains
   lifecycle.u32_prefix_contains_loop values end1 needle false 0#usize
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1574:8-1576:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1603:8-1605:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.invariant_loop0.body
@@ -7009,7 +7131,7 @@ def lifecycle.PrekeyStore.invariant_loop0.body
     ok (cont (iter1, ids1))
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1574:8-1576:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1603:8-1605:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.invariant_loop0
@@ -7023,7 +7145,7 @@ def lifecycle.PrekeyStore.invariant_loop0
     (iter, ids)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop body 1:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1577:8-1579:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1606:8-1608:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.invariant_loop1.body
@@ -7042,7 +7164,7 @@ def lifecycle.PrekeyStore.invariant_loop1.body
     ok (cont (iter1, ids1))
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop 1:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1577:8-1579:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1606:8-1608:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.invariant_loop1
@@ -7056,7 +7178,7 @@ def lifecycle.PrekeyStore.invariant_loop1
     (iter, ids)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop body 2:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1583:8-1591:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1612:8-1620:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.invariant_loop2.body
@@ -7086,7 +7208,7 @@ def lifecycle.PrekeyStore.invariant_loop2.body
   else ok (done ids_valid)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop 2:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1583:8-1591:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1612:8-1620:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.invariant_loop2
@@ -7100,7 +7222,7 @@ def lifecycle.PrekeyStore.invariant_loop2
     (ids_valid, i1)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop body 3:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1601:8-1615:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1630:8-1644:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.invariant_loop3.body
@@ -7149,7 +7271,7 @@ def lifecycle.PrekeyStore.invariant_loop3.body
   else ok (done (current_seen, previous_seen, record_valid))
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop 3:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1601:8-1615:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1630:8-1644:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.invariant_loop3
@@ -7168,7 +7290,7 @@ def lifecycle.PrekeyStore.invariant_loop3
     (current_seen, previous_seen, record_valid, fingerprints, record_index)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop body 4:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1625:8-1634:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1654:8-1663:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.invariant_loop4.body
@@ -7204,7 +7326,7 @@ def lifecycle.PrekeyStore.invariant_loop4.body
   else ok (done blocked_valid)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop 4:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1625:8-1634:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1654:8-1663:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.invariant_loop4
@@ -7219,7 +7341,7 @@ def lifecycle.PrekeyStore.invariant_loop4
     (blocked_valid, blocked_index)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1552:4-1636:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 1581:4-1665:5
     Visibility: public -/
 def lifecycle.PrekeyStore.invariant
   (self : lifecycle.PrekeyStore) : Result Bool := do
@@ -7290,7 +7412,7 @@ def lifecycle.PrekeyStore.invariant
   else ok false
 
 /-- [tacenta_lifecycle::lifecycle::kem_prekey_signature_ok]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1684:0-1690:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1713:0-1719:1 -/
 def lifecycle.kem_prekey_signature_ok
   (identity_public : tacenta_boundary.dh.PublicKeyBytes)
   (pair : tacenta_boundary.kem.KeyPair) (signature : Array Std.U8 64#usize) :
@@ -7304,7 +7426,7 @@ def lifecycle.kem_prekey_signature_ok
   core.result.Result.is_ok r
 
 /-- [tacenta_lifecycle::lifecycle::signed_prekey_signature_ok]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1675:0-1682:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1704:0-1711:1 -/
 def lifecycle.signed_prekey_signature_ok
   (identity_public : tacenta_boundary.dh.PublicKeyBytes)
   (secret : Array Std.U8 32#usize) (signature : Array Std.U8 64#usize) :
@@ -7318,7 +7440,7 @@ def lifecycle.signed_prekey_signature_ok
   core.result.Result.is_ok r
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::signatures_verify]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1484:8-1488:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1513:8-1517:9 -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.signatures_verify_loop.body
   (pkb : tacenta_boundary.dh.PublicKeyBytes)
@@ -7338,7 +7460,7 @@ def lifecycle.PrekeyStore.signatures_verify_loop.body
     else ok (cont (iter1, false))
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::signatures_verify]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1484:8-1488:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1513:8-1517:9 -/
 @[rust_loop]
 def lifecycle.PrekeyStore.signatures_verify_loop
   (iter : core.slice.iter.Iter (Std.U32 × tacenta_boundary.kem.KeyPair ×
@@ -7352,7 +7474,7 @@ def lifecycle.PrekeyStore.signatures_verify_loop
     (iter, one_time_ok)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::signatures_verify]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1472:4-1503:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1501:4-1532:5 -/
 def lifecycle.PrekeyStore.signatures_verify
   (self : lifecycle.PrekeyStore) : Result Bool := do
   let b ←
@@ -7407,7 +7529,7 @@ def lifecycle.PrekeyStore.signatures_verify
   else ok false
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::from_bytes]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1388:4-1448:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 1417:4-1477:5
     Visibility: public -/
 def lifecycle.PrekeyStore.from_bytes
   (bytes : Slice Std.U8) :
@@ -7637,7 +7759,7 @@ def lifecycle.PrekeyStore.from_bytes
       lifecycle.PrekeyStoreDecodeError) residual
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::clone::Clone for tacenta_lifecycle::lifecycle::PrekeyStoreDecodeError}::clone]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1715:9-1715:14
+    Source: 'lifecycle/src/lifecycle.rs', lines 1744:9-1744:14
     Visibility: public -/
 def lifecycle.PrekeyStoreDecodeError.Insts.CoreCloneClone.clone
   (self : lifecycle.PrekeyStoreDecodeError) :
@@ -7646,7 +7768,7 @@ def lifecycle.PrekeyStoreDecodeError.Insts.CoreCloneClone.clone
   ok self
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::PartialEq<tacenta_lifecycle::lifecycle::PrekeyStoreDecodeError> for tacenta_lifecycle::lifecycle::PrekeyStoreDecodeError}::eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1715:22-1715:31
+    Source: 'lifecycle/src/lifecycle.rs', lines 1744:22-1744:31
     Visibility: public -/
 def
   lifecycle.PrekeyStoreDecodeError.Insts.CoreCmpPartialEqPrekeyStoreDecodeError.eq
@@ -7659,14 +7781,14 @@ def
   ok (self1 = other1)
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::Eq for tacenta_lifecycle::lifecycle::PrekeyStoreDecodeError}::assert_fields_are_eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1715:33-1715:35
+    Source: 'lifecycle/src/lifecycle.rs', lines 1744:33-1744:35
     Visibility: public -/
 def lifecycle.PrekeyStoreDecodeError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : lifecycle.PrekeyStoreDecodeError) : Result Unit := do
   ok ()
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::fmt::Debug for tacenta_lifecycle::lifecycle::PrekeyStoreDecodeError}::fmt]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1715:37-1715:42
+    Source: 'lifecycle/src/lifecycle.rs', lines 1744:37-1744:42
     Visibility: public -/
 def lifecycle.PrekeyStoreDecodeError.Insts.CoreFmtDebug.fmt
   (self : lifecycle.PrekeyStoreDecodeError) (f : core.fmt.Formatter) :
@@ -7685,7 +7807,7 @@ def lifecycle.PrekeyStoreDecodeError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "Incoherent")
 
 /-- [tacenta_lifecycle::lifecycle::Error]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2144:0-2237:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 2173:0-2266:1
     Visibility: public -/
 @[discriminant isize]
 inductive lifecycle.Error where
@@ -7705,14 +7827,14 @@ inductive lifecycle.Error where
 | AgreementFailed : lifecycle.Error
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::clone::Clone for tacenta_lifecycle::lifecycle::Error}::clone]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2142:9-2142:14
+    Source: 'lifecycle/src/lifecycle.rs', lines 2171:9-2171:14
     Visibility: public -/
 def lifecycle.Error.Insts.CoreCloneClone.clone
   (self : lifecycle.Error) : Result lifecycle.Error := do
   ok self
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::PartialEq<tacenta_lifecycle::lifecycle::Error> for tacenta_lifecycle::lifecycle::Error}::eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2142:22-2142:31
+    Source: 'lifecycle/src/lifecycle.rs', lines 2171:22-2171:31
     Visibility: public -/
 def lifecycle.Error.Insts.CoreCmpPartialEqError.eq
   (self : lifecycle.Error) (other : lifecycle.Error) : Result Bool := do
@@ -7788,14 +7910,14 @@ def lifecycle.Error.Insts.CoreCmpPartialEqError.eq
   else ok false
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::Eq for tacenta_lifecycle::lifecycle::Error}::assert_fields_are_eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2142:33-2142:35
+    Source: 'lifecycle/src/lifecycle.rs', lines 2171:33-2171:35
     Visibility: public -/
 def lifecycle.Error.Insts.CoreCmpEq.assert_fields_are_eq
   (self : lifecycle.Error) : Result Unit := do
   ok ()
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::fmt::Debug for tacenta_lifecycle::lifecycle::Error}::fmt]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2142:37-2142:42
+    Source: 'lifecycle/src/lifecycle.rs', lines 2171:37-2171:42
     Visibility: public -/
 def lifecycle.Error.Insts.CoreFmtDebug.fmt
   (self : lifecycle.Error) (f : core.fmt.Formatter) :
@@ -7839,7 +7961,7 @@ def lifecycle.Error.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "AgreementFailed")
 
 /-- [tacenta_lifecycle::lifecycle::PendingInitial]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2362:0-2368:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2391:0-2397:1 -/
 structure lifecycle.PendingInitial where
   ephemeral_public : tacenta_boundary.dh.PublicKeyBytes
   kem_ciphertext : alloc.vec.Vec Std.U8
@@ -7848,7 +7970,7 @@ structure lifecycle.PendingInitial where
   kem_prekey_id : Std.U32
 
 /-- [tacenta_lifecycle::lifecycle::Session]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2242:0-2260:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 2271:0-2289:1
     Visibility: public -/
 structure lifecycle.Session where
   triple : tacenta_triple.State
@@ -7861,7 +7983,7 @@ structure lifecycle.Session where
   established_ephemeral : Option (alloc.vec.Vec Std.U8)
 
 /-- [tacenta_lifecycle::lifecycle::PublicState]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2265:0-2270:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 2294:0-2299:1
     Visibility: public -/
 structure lifecycle.PublicState where
   peer_identity : tacenta_boundary.dh.PublicKeyBytes
@@ -7870,7 +7992,7 @@ structure lifecycle.PublicState where
   received : Std.U32
 
 /-- [tacenta_lifecycle::lifecycle::agreement_type_of]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2322:0-2331:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2351:0-2360:1 -/
 def lifecycle.agreement_type_of
   (t : tacenta_braid.MsgType) : Result tacenta_wire.AgreementType := do
   match t with
@@ -7882,7 +8004,7 @@ def lifecycle.agreement_type_of
   | tacenta_braid.MsgType.Ct2 => ok tacenta_wire.AgreementType.Ct2
 
 /-- [tacenta_lifecycle::lifecycle::composite_of]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2274:0-2291:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2303:0-2320:1 -/
 def lifecycle.composite_of
   (h : tacenta_triple.Header) (m : tacenta_braid.Msg) :
   Result tacenta_wire.Composite
@@ -7915,7 +8037,7 @@ def lifecycle.composite_of
       }
 
 /-- [tacenta_lifecycle::lifecycle::msg_type_of]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2333:0-2342:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2362:0-2371:1 -/
 def lifecycle.msg_type_of
   (t : tacenta_wire.AgreementType) : Result tacenta_braid.MsgType := do
   match t with
@@ -7927,7 +8049,7 @@ def lifecycle.msg_type_of
   | tacenta_wire.AgreementType.Ct2 => ok tacenta_braid.MsgType.Ct2
 
 /-- [tacenta_lifecycle::lifecycle::msg_of]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2295:0-2307:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2324:0-2336:1 -/
 def lifecycle.msg_of
   (c : tacenta_wire.Composite) : Result tacenta_braid.Msg := do
   let mt ← lifecycle.msg_type_of c.ag_type
@@ -7942,7 +8064,7 @@ def lifecycle.msg_of
       }
 
 /-- [tacenta_lifecycle::lifecycle::triple_header_of]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2310:0-2320:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2339:0-2349:1 -/
 def lifecycle.triple_header_of
   (c : tacenta_wire.Composite) : Result tacenta_triple.Header := do
   ok
@@ -7953,14 +8075,14 @@ def lifecycle.triple_header_of
     }
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::peer_identity]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2347:4-2349:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 2376:4-2378:5
     Visibility: public -/
 def lifecycle.Session.peer_identity
   (self : lifecycle.Session) : Result tacenta_boundary.dh.PublicKeyBytes := do
   ok self.peer_identity_public
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::public_state]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2352:4-2359:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 2381:4-2388:5
     Visibility: public -/
 def lifecycle.Session.public_state
   (self : lifecycle.Session) : Result lifecycle.PublicState := do
@@ -7976,7 +8098,7 @@ def lifecycle.Session.public_state
     }
 
 /-- [tacenta_lifecycle::lifecycle::identity_ad]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2371:0-2373:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2400:0-2402:1 -/
 def lifecycle.identity_ad
   (initiator : tacenta_boundary.dh.PublicKeyBytes)
   (responder : tacenta_boundary.dh.PublicKeyBytes) :
@@ -7989,7 +8111,7 @@ def lifecycle.identity_ad
   tacenta_session.associated_data s s1
 
 /-- [tacenta_lifecycle::lifecycle::establish_initiator_for]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2404:0-2504:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 2433:0-2533:1
     Visibility: public -/
 def lifecycle.establish_initiator_for
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -8144,7 +8266,7 @@ def lifecycle.establish_initiator_for
       else ok (core.result.Result.Err lifecycle.Error.BadEncoding, rng)
 
 /-- [tacenta_lifecycle::lifecycle::establish_initiator]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2384:0-2394:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 2413:0-2423:1
     Visibility: public -/
 def lifecycle.establish_initiator
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -8158,7 +8280,7 @@ def lifecycle.establish_initiator
     their_bundle.bundle.identity_key rng
 
 /-- [tacenta_lifecycle::lifecycle::responder_signed_prekey_secret]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2506:0-2518:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2535:0-2547:1 -/
 def lifecycle.responder_signed_prekey_secret
   (store : lifecycle.PrekeyStore) (id : Std.U32) :
   Result (core.result.Result (zeroize.Zeroizing (Array Std.U8 32#usize))
@@ -8185,7 +8307,7 @@ def lifecycle.responder_signed_prekey_secret
       else ok (core.result.Result.Err lifecycle.Error.UnknownPrekeyId)
 
 /-- [tacenta_lifecycle::lifecycle::KemKeySlot]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2527:0-2531:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2556:0-2560:1 -/
 @[discriminant isize]
 inductive lifecycle.KemKeySlot where
 | Current : lifecycle.KemKeySlot
@@ -8193,7 +8315,7 @@ inductive lifecycle.KemKeySlot where
 | OneTime : Std.Usize → lifecycle.KemKeySlot
 
 /-- [tacenta_lifecycle::lifecycle::u32_index]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2582:4-2588:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2611:4-2617:5 -/
 @[rust_loop_body]
 def lifecycle.u32_index_loop.body
   (values : Slice Std.U32) (needle : Std.U32) (index : Std.Usize) :
@@ -8210,7 +8332,7 @@ def lifecycle.u32_index_loop.body
   else ok (done none)
 
 /-- [tacenta_lifecycle::lifecycle::u32_index]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2582:4-2588:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2611:4-2617:5 -/
 @[rust_loop]
 def lifecycle.u32_index_loop
   (values : Slice Std.U32) (needle : Std.U32) (index : Std.Usize) :
@@ -8221,14 +8343,14 @@ def lifecycle.u32_index_loop
     index
 
 /-- [tacenta_lifecycle::lifecycle::u32_index]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2579:0-2590:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2608:0-2619:1 -/
 @[reducible]
 def lifecycle.u32_index
   (values : Slice Std.U32) (needle : Std.U32) : Result (Option Std.Usize) := do
   lifecycle.u32_index_loop values needle 0#usize
 
 /-- [tacenta_lifecycle::lifecycle::responder_kem_slot]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2533:0-2558:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2562:0-2587:1 -/
 def lifecycle.responder_kem_slot
   (store : lifecycle.PrekeyStore) (id : Std.U32) :
   Result (core.result.Result (lifecycle.KemKeySlot × Bool) lifecycle.Error)
@@ -8270,7 +8392,7 @@ def lifecycle.responder_kem_slot
             false))
 
 /-- [tacenta_lifecycle::lifecycle::responder_decapsulate]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2560:0-2577:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2589:0-2606:1 -/
 def lifecycle.responder_decapsulate
   (store : lifecycle.PrekeyStore) (slot : lifecycle.KemKeySlot)
   (ciphertext : Slice Std.U8) :
@@ -8305,7 +8427,7 @@ def lifecycle.responder_decapsulate
       ok (core.result.Result.Err lifecycle.Error.Kem)
 
 /-- [tacenta_lifecycle::lifecycle::responder_curve_inputs]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2592:0-2605:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2621:0-2634:1 -/
 def lifecycle.responder_curve_inputs
   (identity : Slice Std.U8) (ephemeral : Slice Std.U8) :
   Result (core.result.Result (tacenta_boundary.dh.PublicKeyBytes ×
@@ -8321,7 +8443,7 @@ def lifecycle.responder_curve_inputs
     | some value1 => ok (core.result.Result.Ok (value, value1))
 
 /-- [tacenta_lifecycle::lifecycle::responder_one_time_key]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2607:0-2616:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2636:0-2645:1 -/
 def lifecycle.responder_one_time_key
   (store : lifecycle.PrekeyStore) (id : Std.U32) :
   Result (core.result.Result (Option tacenta_boundary.dh.PrivateKey)
@@ -8342,7 +8464,7 @@ def lifecycle.responder_one_time_key
       ok (core.result.Result.Ok (some pk))
 
 /-- [tacenta_lifecycle::lifecycle::responder_replay_fingerprint]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2630:4-2635:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2659:4-2664:5 -/
 @[rust_loop_body]
 def lifecycle.responder_replay_fingerprint_loop.body
   (store : lifecycle.PrekeyStore) (fingerprint : Array Std.U8 32#usize)
@@ -8378,7 +8500,7 @@ def lifecycle.responder_replay_fingerprint_loop.body
       store.last_resort_seen, store.legacy_last_resort_blocked, replayed))
 
 /-- [tacenta_lifecycle::lifecycle::responder_replay_fingerprint]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2630:4-2635:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2659:4-2664:5 -/
 @[rust_loop]
 def lifecycle.responder_replay_fingerprint_loop
   (store : lifecycle.PrekeyStore) (fingerprint : Array Std.U8 32#usize)
@@ -8400,7 +8522,7 @@ def lifecycle.responder_replay_fingerprint_loop
     (replayed, index)
 
 /-- [tacenta_lifecycle::lifecycle::responder_replay_fingerprint]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2618:0-2643:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2647:0-2672:1 -/
 def lifecycle.responder_replay_fingerprint
   (store : lifecycle.PrekeyStore) (kem_id : Std.U32)
   (sk : Array Std.U8 32#usize) (last_resort : Bool) :
@@ -8461,7 +8583,7 @@ def serialization.concat_ad
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s1
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::decrypt_ratchet]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2929:4-3137:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2958:4-3166:5 -/
 def lifecycle.Session.decrypt_ratchet
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
   (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R)
@@ -8607,7 +8729,7 @@ def lifecycle.Session.decrypt_ratchet
       ok (core.result.Result.Err (lifecycle.Error.Decode error), self, rng)
 
 /-- [tacenta_lifecycle::lifecycle::establish_responder]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2656:0-2793:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 2685:0-2822:1
     Visibility: public -/
 def lifecycle.establish_responder
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -8820,7 +8942,7 @@ def lifecycle.establish_responder
       rng)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::agreement_failed]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2799:4-2801:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 2828:4-2830:5
     Visibility: public -/
 def lifecycle.Session.agreement_failed
   (self : lifecycle.Session) : Result Bool := do
@@ -8872,7 +8994,7 @@ def serialization.encode_message
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out ciphertext
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::encrypt]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2812:4-2875:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 2841:4-2904:5
     Visibility: public -/
 def lifecycle.Session.encrypt
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -8990,7 +9112,7 @@ def serialization.message_type
         else ok none
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::decrypt]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2897:4-2926:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 2926:4-2955:5
     Visibility: public -/
 def lifecycle.Session.decrypt
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -9082,11 +9204,11 @@ def lifecycle.Session.decrypt
         ok (core.result.Result.Err (lifecycle.Error.Decode error), self, rng)
 
 /-- [tacenta_lifecycle::lifecycle::SESSION_VERSION]
-    Source: 'lifecycle/src/lifecycle.rs', lines 3144:0-3144:33 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3173:0-3173:33 -/
 @[global_simps, irreducible] def lifecycle.SESSION_VERSION : Std.U8 := 1#u8
 
 /-- [tacenta_lifecycle::lifecycle::SessionDecodeError]
-    Source: 'lifecycle/src/lifecycle.rs', lines 3152:0-3177:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 3181:0-3206:1
     Visibility: public -/
 @[discriminant isize]
 inductive lifecycle.SessionDecodeError where
@@ -9097,7 +9219,7 @@ inductive lifecycle.SessionDecodeError where
 | Inconsistent : lifecycle.SessionDecodeError
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::clone::Clone for tacenta_lifecycle::lifecycle::SessionDecodeError}::clone]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3150:9-3150:14
+    Source: 'lifecycle/src/lifecycle.rs', lines 3179:9-3179:14
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreCloneClone.clone
   (self : lifecycle.SessionDecodeError) :
@@ -9106,7 +9228,7 @@ def lifecycle.SessionDecodeError.Insts.CoreCloneClone.clone
   ok self
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::PartialEq<tacenta_lifecycle::lifecycle::SessionDecodeError> for tacenta_lifecycle::lifecycle::SessionDecodeError}::eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3150:22-3150:31
+    Source: 'lifecycle/src/lifecycle.rs', lines 3179:22-3179:31
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreCmpPartialEqSessionDecodeError.eq
   (self : lifecycle.SessionDecodeError) (other : lifecycle.SessionDecodeError)
@@ -9118,14 +9240,14 @@ def lifecycle.SessionDecodeError.Insts.CoreCmpPartialEqSessionDecodeError.eq
   ok (self1 = other1)
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::Eq for tacenta_lifecycle::lifecycle::SessionDecodeError}::assert_fields_are_eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3150:33-3150:35
+    Source: 'lifecycle/src/lifecycle.rs', lines 3179:33-3179:35
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : lifecycle.SessionDecodeError) : Result Unit := do
   ok ()
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::fmt::Debug for tacenta_lifecycle::lifecycle::SessionDecodeError}::fmt]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3150:37-3150:42
+    Source: 'lifecycle/src/lifecycle.rs', lines 3179:37-3179:42
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreFmtDebug.fmt
   (self : lifecycle.SessionDecodeError) (f : core.fmt.Formatter) :
@@ -9144,7 +9266,7 @@ def lifecycle.SessionDecodeError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "Inconsistent")
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PendingInitial}::to_bytes]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3204:4-3212:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3233:4-3241:5 -/
 def lifecycle.PendingInitial.to_bytes
   (self : lifecycle.PendingInitial) : Result (alloc.vec.Vec Std.U8) := do
   let a ← tacenta_boundary.dh.PublicKeyBytes.as_bytes self.ephemeral_public
@@ -9165,7 +9287,7 @@ def lifecycle.PendingInitial.to_bytes
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s4
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PendingInitial}::from_bytes]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3214:4-3238:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3243:4-3267:5 -/
 def lifecycle.PendingInitial.from_bytes
   (bytes : Slice Std.U8) : Result (Option lifecycle.PendingInitial) := do
   let i := Slice.len bytes
@@ -9235,7 +9357,7 @@ def lifecycle.PendingInitial.from_bytes
         lifecycle.PendingInitial residual
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3281:4-3339:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 3310:4-3368:5
     Visibility: public -/
 def lifecycle.Session.export
   (self : lifecycle.Session) :
@@ -9341,7 +9463,7 @@ def lifecycle.Session.export
     fail panic
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::import_unchecked]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3573:4-3659:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3602:4-3688:5 -/
 def lifecycle.Session.import_unchecked
   (bytes : Slice Std.U8) :
   Result (core.result.Result lifecycle.Session lifecycle.SessionDecodeError)
@@ -9612,7 +9734,7 @@ def lifecycle.Session.import_unchecked
           ok (core.result.Result.Err lifecycle.SessionDecodeError.Malformed)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::leaf_invariants]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3561:4-3563:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3590:4-3592:5 -/
 def lifecycle.Session.leaf_invariants
   (self : lifecycle.Session) : Result Bool := do
   let b ← tacenta_triple.State.invariant self.triple
@@ -9621,13 +9743,13 @@ def lifecycle.Session.leaf_invariants
   else ok false
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::is_responder]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3569:4-3571:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3598:4-3600:5 -/
 def lifecycle.Session.is_responder
   (self : lifecycle.Session) : Result Bool := do
   ok (core.option.Option.is_some self.established_ephemeral)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::structural_invariant]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3408:4-3555:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3437:4-3584:5 -/
 def lifecycle.Session.structural_invariant
   (self : lifecycle.Session) : Result Bool := do
   let pkb ← tacenta_boundary.dh.PrivateKey.public_key self.ratchet_private
@@ -10298,7 +10420,7 @@ def lifecycle.Session.structural_invariant
       else ok false
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::invariant]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3401:4-3403:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 3430:4-3432:5
     Visibility: public -/
 def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
   let b ← lifecycle.Session.structural_invariant self
@@ -10307,7 +10429,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
   else ok false
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::import]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3371:4-3380:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 3400:4-3409:5
     Visibility: public -/
 def lifecycle.Session.import
   (bytes : Slice Std.U8) :
