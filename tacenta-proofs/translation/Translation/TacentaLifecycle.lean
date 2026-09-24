@@ -273,6 +273,14 @@ axiom core.slice.Slice.split_first
 axiom core.slice.Slice.sort_unstable
   {T : Type} (cmpOrdInst : core.cmp.Ord T) : Slice T → Result (Slice T)
 
+/-- [alloc::vec::{alloc::vec::Vec<T>}::capacity]:
+    Source: '/rustc/library/alloc/src/vec/mod.rs', lines 1446:4-1446:41
+    Name pattern: [alloc::vec::{alloc::vec::Vec<@T>}::capacity]
+    Visibility: public -/
+@[rust_fun "alloc::vec::{alloc::vec::Vec<@T>}::capacity"]
+axiom alloc.vec.Vec.capacity
+  {T : Type} (A : Type) : alloc.vec.Vec T → Result Std.Usize
+
 /-- [alloc::vec::{alloc::vec::Vec<T>}::reserve_exact]:
     Source: '/rustc/library/alloc/src/vec/mod.rs', lines 1500:4-1500:54
     Name pattern: [alloc::vec::{alloc::vec::Vec<@T>}::reserve_exact]
@@ -2642,42 +2650,53 @@ def lifecycle.receive_with_eviction
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.Insts.CoreOpsDropDrop.drop_loop.body
-  (iter : core.slice.iter.IterMut (Std.U32 × (Array Std.U8 32#usize)))
-  (back : core.slice.iter.IterMut (Std.U32 × (Array Std.U8 32#usize)) →
-  core.slice.iter.IterMut (Std.U32 × (Array Std.U8 32#usize))) :
-  Result (ControlFlow ((core.slice.iter.IterMut (Std.U32 × (Array Std.U8
-    32#usize))) × (core.slice.iter.IterMut (Std.U32 × (Array Std.U8
-    32#usize)) → core.slice.iter.IterMut (Std.U32 × (Array Std.U8
-    32#usize)))) (core.slice.iter.IterMut (Std.U32 × (Array Std.U8
-    32#usize))))
+  (z : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
+  (j : Std.Usize) :
+  Result (ControlFlow ((zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array
+    Std.U8 32#usize)))) × Std.Usize) (zeroize.Zeroizing (alloc.vec.Vec
+    (Std.U32 × (Array Std.U8 32#usize)))))
   := do
-  let (o, iter1, next_back) ← core.slice.iter.IteratorIterMut.next iter
-  match o with
-  | none => ok (done (let im := next_back iter1 none
-                      back im))
-  | some p =>
-    let (i, secret) := p
-    let secret1 ←
+  let v ←
+    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
+      (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
+      (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+      U8.Insts.ZeroizeDefaultIsZeroes)))) z
+  let i := alloc.vec.Vec.len v
+  if j < i
+  then
+    let (v1, deref_mut_back) ←
+      zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut
+        (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
+        (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
+        (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+        U8.Insts.ZeroizeDefaultIsZeroes)))) z
+    let ((i1, a), index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice (Std.U32
+        × (Array Std.U8 32#usize))) v1 j
+    let a1 ←
       Array.Insts.ZeroizeZeroize.zeroize (zeroize.Zeroize.Blanket
-        U8.Insts.ZeroizeDefaultIsZeroes) secret
-    ok (cont (iter1,
-      fun im => let im1 := next_back im (some (i, secret1))
-                back im1))
+        U8.Insts.ZeroizeDefaultIsZeroes) a
+    let j1 ← j + 1#usize
+    let v2 := index_mut_back (i1, a1)
+    let z1 := deref_mut_back v2
+    ok (cont (z1, j1))
+  else ok (done z)
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::ops::drop::Drop for tacenta_lifecycle::lifecycle::PrekeyStore}::drop]: loop 0:
     Source: 'lifecycle/src/lifecycle.rs', lines 662:8-664:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.Insts.CoreOpsDropDrop.drop_loop
-  (iter : core.slice.iter.IterMut (Std.U32 × (Array Std.U8 32#usize)))
-  (back : core.slice.iter.IterMut (Std.U32 × (Array Std.U8 32#usize)) →
-  core.slice.iter.IterMut (Std.U32 × (Array Std.U8 32#usize))) :
-  Result (core.slice.iter.IterMut (Std.U32 × (Array Std.U8 32#usize)))
+  (z : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
+  (j : Std.Usize) :
+  Result (zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8
+    32#usize))))
   := do
   loop
-    (fun (iter1, back1) =>
-      lifecycle.PrekeyStore.Insts.CoreOpsDropDrop.drop_loop.body iter1 back1)
-    (iter, back)
+    (fun (z1, j1) => lifecycle.PrekeyStore.Insts.CoreOpsDropDrop.drop_loop.body
+      z1 j1)
+    (z, j)
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::ops::drop::Drop for tacenta_lifecycle::lifecycle::PrekeyStore}::drop]:
     Source: 'lifecycle/src/lifecycle.rs', lines 657:4-665:5
@@ -2699,19 +2718,8 @@ def lifecycle.PrekeyStore.Insts.CoreOpsDropDrop.drop
         Array.Insts.ZeroizeZeroize.zeroize (zeroize.Zeroize.Blanket
           U8.Insts.ZeroizeDefaultIsZeroes) secret
       ok (as_mut_back (some (secret1, i, a1)))
-  let (v, deref_mut_back) ←
-    zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut
-      (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
-      (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
-      (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
-      U8.Insts.ZeroizeDefaultIsZeroes)))) self.one_time
-  let (s, deref_mut_back1) ← lift (alloc.vec.Vec.deref_mut v)
-  let (iter, iter_mut_back) ← core.slice.Slice.iter_mut s
-  let back ←
-    lifecycle.PrekeyStore.Insts.CoreOpsDropDrop.drop_loop iter (fun im => im)
-  let s1 := iter_mut_back back
-  let v1 := deref_mut_back1 s1
-  let z := deref_mut_back v1
+  let z ←
+    lifecycle.PrekeyStore.Insts.CoreOpsDropDrop.drop_loop self.one_time 0#usize
   ok
     {
       self
@@ -2727,6 +2735,129 @@ structure lifecycle.PublishedBundle where
   signed_prekey_id : Std.U32
   one_time_prekey_id : Std.U32
   kem_prekey_id : Std.U32
+
+/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::prepare_one_time_capacity]: loop body 0:
+    Source: 'lifecycle/src/lifecycle.rs', lines 677:8-680:9 -/
+@[rust_loop_body]
+def lifecycle.PrekeyStore.prepare_one_time_capacity_loop0.body
+  (z : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
+  (replacement : alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize)))
+  (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))) ×
+    Std.Usize) (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
+  := do
+  let v ←
+    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
+      (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
+      (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+      U8.Insts.ZeroizeDefaultIsZeroes)))) z
+  let i1 := alloc.vec.Vec.len v
+  if i < i1
+  then
+    let p ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Std.U32 ×
+        (Array Std.U8 32#usize))) v i
+    let replacement1 ← alloc.vec.Vec.push replacement p
+    let i2 ← i + 1#usize
+    ok (cont (replacement1, i2))
+  else ok (done replacement)
+
+/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::prepare_one_time_capacity]: loop 0:
+    Source: 'lifecycle/src/lifecycle.rs', lines 677:8-680:9 -/
+@[rust_loop]
+def lifecycle.PrekeyStore.prepare_one_time_capacity_loop0
+  (z : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
+  (replacement : alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize)))
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize)))
+  := do
+  loop
+    (fun (replacement1, i1) =>
+      lifecycle.PrekeyStore.prepare_one_time_capacity_loop0.body z replacement1
+      i1)
+    (replacement, i)
+
+/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::prepare_one_time_capacity]: loop body 1:
+    Source: 'lifecycle/src/lifecycle.rs', lines 682:8-685:9 -/
+@[rust_loop_body]
+def lifecycle.PrekeyStore.prepare_one_time_capacity_loop1.body
+  (z : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
+  (i : Std.Usize) :
+  Result (ControlFlow ((zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array
+    Std.U8 32#usize)))) × Std.Usize) Unit)
+  := do
+  let v ←
+    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
+      (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
+      (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+      U8.Insts.ZeroizeDefaultIsZeroes)))) z
+  let i1 := alloc.vec.Vec.len v
+  if i < i1
+  then
+    let (v1, deref_mut_back) ←
+      zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut
+        (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
+        (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
+        (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+        U8.Insts.ZeroizeDefaultIsZeroes)))) z
+    let ((i2, a), index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice (Std.U32
+        × (Array Std.U8 32#usize))) v1 i
+    let a1 ←
+      Array.Insts.ZeroizeZeroize.zeroize (zeroize.Zeroize.Blanket
+        U8.Insts.ZeroizeDefaultIsZeroes) a
+    let i3 ← i + 1#usize
+    let v2 := index_mut_back (i2, a1)
+    let z1 := deref_mut_back v2
+    ok (cont (z1, i3))
+  else ok (done ())
+
+/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::prepare_one_time_capacity]: loop 1:
+    Source: 'lifecycle/src/lifecycle.rs', lines 682:8-685:9 -/
+@[rust_loop]
+def lifecycle.PrekeyStore.prepare_one_time_capacity_loop1
+  (z : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
+  (i : Std.Usize) :
+  Result Unit
+  := do
+  loop
+    (fun (z1, i1) => lifecycle.PrekeyStore.prepare_one_time_capacity_loop1.body
+      z1 i1)
+    (z, i)
+
+/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::prepare_one_time_capacity]:
+    Source: 'lifecycle/src/lifecycle.rs', lines 670:4-687:5 -/
+def lifecycle.PrekeyStore.prepare_one_time_capacity
+  (self : lifecycle.PrekeyStore) (additional : Std.Usize) :
+  Result lifecycle.PrekeyStore
+  := do
+  let v ←
+    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
+      (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
+      (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+      U8.Insts.ZeroizeDefaultIsZeroes)))) self.one_time
+  let i := alloc.vec.Vec.len v
+  let required ← lift (core.num.Usize.saturating_add i additional)
+  let i1 ← alloc.vec.Vec.capacity Global v
+  if required <= i1
+  then ok self
+  else
+    let replacement :=
+      alloc.vec.Vec.with_capacity (Std.U32 × (Array Std.U8 32#usize)) required
+    let replacement1 ←
+      lifecycle.PrekeyStore.prepare_one_time_capacity_loop0 self.one_time
+        replacement 0#usize
+    lifecycle.PrekeyStore.prepare_one_time_capacity_loop1 self.one_time 0#usize
+    let z ←
+      zeroize.Zeroizing.new (alloc.vec.Vec.Insts.ZeroizeZeroize
+        (Pair.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
+        U32.Insts.ZeroizeDefaultIsZeroes) (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))))
+        replacement1
+    ok { self with one_time := z }
 
 /-- [tacenta_lifecycle::serialization::ABSENT_ID]
     Source: 'lifecycle/src/serialization/mod.rs', lines 29:0-29:29
@@ -2804,36 +2935,35 @@ def lifecycle.PrekeyStore.publish
 def lifecycle.PrekeyStore.replenish_loop0.body
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
   (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) (count : Std.Usize)
-  (z : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
-  (id : Std.U32) (rng : R) (curve_added : Std.Usize) (exhausted : Bool) :
-  Result (ControlFlow ((zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array
-    Std.U8 32#usize)))) × Std.U32 × R × Std.Usize × Bool)
-    ((zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
-    × Std.U32 × R × Bool))
+  (self : lifecycle.PrekeyStore) (rng : R) (curve_added : Std.Usize)
+  (exhausted : Bool) :
+  Result (ControlFlow (lifecycle.PrekeyStore × R × Std.Usize × Bool)
+    (lifecycle.PrekeyStore × R × Bool))
   := do
   if curve_added < count
   then
     if exhausted
-    then ok (done (z, id, rng, true))
+    then ok (done (self, rng, true))
     else
-      let o ← lift (U32.checked_add id 1#u32)
+      let o ← lift (U32.checked_add self.next_id 1#u32)
       match o with
-      | none => ok (cont (z, id, rng, curve_added, true))
+      | none => ok (cont (self, rng, curve_added, true))
       | some next =>
         let (v, deref_mut_back) ←
           zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut
             (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
             (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
             (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
-            U8.Insts.ZeroizeDefaultIsZeroes)))) z
+            U8.Insts.ZeroizeDefaultIsZeroes)))) self.one_time
         let (a, rng1) ←
           lifecycle.random_secret rand_core_1RngCoreInst
             rand_core_1CryptoRngInst rng
-        let v1 ← alloc.vec.Vec.push v (id, a)
+        let v1 ← alloc.vec.Vec.push v (self.next_id, a)
         let curve_added1 ← curve_added + 1#usize
-        let z1 := deref_mut_back v1
-        ok (cont (z1, next, rng1, curve_added1, false))
-  else ok (done (z, id, rng, exhausted))
+        let z := deref_mut_back v1
+        ok (cont ({ self with one_time := z, next_id := next }, rng1,
+          curve_added1, false))
+  else ok (done (self, rng, exhausted))
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::replenish]: loop 0:
     Source: 'lifecycle/src/lifecycle.rs', lines 792:8-802:9
@@ -2842,17 +2972,15 @@ def lifecycle.PrekeyStore.replenish_loop0.body
 def lifecycle.PrekeyStore.replenish_loop0
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
   (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R)
-  (z : zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8 32#usize))))
-  (id : Std.U32) (count : Std.Usize) (rng : R) (curve_added : Std.Usize)
-  (exhausted : Bool) :
-  Result ((zeroize.Zeroizing (alloc.vec.Vec (Std.U32 × (Array Std.U8
-    32#usize)))) × Std.U32 × R × Bool)
+  (self : lifecycle.PrekeyStore) (count : Std.Usize) (rng : R)
+  (curve_added : Std.Usize) (exhausted : Bool) :
+  Result (lifecycle.PrekeyStore × R × Bool)
   := do
   loop
-    (fun (z1, id1, rng1, curve_added1, exhausted1) =>
+    (fun (self1, rng1, curve_added1, exhausted1) =>
       lifecycle.PrekeyStore.replenish_loop0.body rand_core_1RngCoreInst
-      rand_core_1CryptoRngInst count z1 id1 rng1 curve_added1 exhausted1)
-    (z, id, rng, curve_added, exhausted)
+      rand_core_1CryptoRngInst count self1 rng1 curve_added1 exhausted1)
+    (self, rng, curve_added, exhausted)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::replenish]: loop body 1:
     Source: 'lifecycle/src/lifecycle.rs', lines 809:8-821:9
@@ -2933,25 +3061,19 @@ def lifecycle.PrekeyStore.replenish
   if b
   then ok (self, rng)
   else
-    let (v, deref_mut_back) ←
-      zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut
-        (alloc.vec.Vec.Insts.ZeroizeZeroize (Pair.Insts.ZeroizeZeroize
-        (zeroize.Zeroize.Blanket U32.Insts.ZeroizeDefaultIsZeroes)
-        (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
-        U8.Insts.ZeroizeDefaultIsZeroes)))) self.one_time
-    let v1 ← alloc.vec.Vec.reserve_exact Global v count
-    let z := deref_mut_back v1
-    let (z1, id, rng1, exhausted) ←
+    let self1 ← lifecycle.PrekeyStore.prepare_one_time_capacity self count
+    let (self2, rng1, exhausted) ←
       lifecycle.PrekeyStore.replenish_loop0 rand_core_1RngCoreInst
-        rand_core_1CryptoRngInst z self.next_id count rng 0#usize false
+        rand_core_1CryptoRngInst self1 count rng 0#usize false
     if exhausted
-    then ok ({ self with one_time := z1, next_id := id }, rng1)
+    then ok (self2, rng1)
     else
-      let v2 ← alloc.vec.Vec.reserve_exact Global self.kem_one_time count
-      let (v3, i, rng2) ←
+      let v ← alloc.vec.Vec.reserve_exact Global self2.kem_one_time count
+      let (v1, i, rng2) ←
         lifecycle.PrekeyStore.replenish_loop1 rand_core_1RngCoreInst
-          rand_core_1CryptoRngInst v2 id identity count rng1 0#usize false
-      ok ({ self with one_time := z1, kem_one_time := v3, next_id := i }, rng2)
+          rand_core_1CryptoRngInst v self2.next_id identity count rng1 0#usize
+          false
+      ok ({ self2 with kem_one_time := v1, next_id := i }, rng2)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::rotate_signed_prekey]:
     Source: 'lifecycle/src/lifecycle.rs', lines 857:4-900:5
