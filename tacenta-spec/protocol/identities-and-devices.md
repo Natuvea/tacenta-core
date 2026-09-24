@@ -190,10 +190,12 @@ Version one defines only capability bit `GROUP_EPOCH_V1` (`1`); the capability
 word is non-zero and no other bit is accepted. Active bindings are strictly
 sorted by the complete tuple above. A replacement predecessor is the
 32-byte `binding_commitment` of the exact retired binding, not a device-id or
-identity-key alias. The codec's canonical order does not by itself establish
-one-device-per-identity policy: a product accepting that profile must reject
-duplicate `device_id` values and define its identity/revocation policy before
-signing or relying on a statement.
+identity-key alias. The inventory codec treats `identity_public_key` as an
+opaque 32-byte field; a product accepting it as an identity key must apply the
+canonical-key, contributory-agreement and signature rules above before signing
+or relying on a statement. The codec's canonical order does not by itself
+establish one-device-per-identity policy: the product must reject duplicate
+`device_id` values and define its identity/revocation policy explicitly.
 
 `Revocation` appends `terminal_generation` (u64) to a `DeviceBinding`.
 Revocations are strictly sorted by their complete encoded tuple, each terminal
