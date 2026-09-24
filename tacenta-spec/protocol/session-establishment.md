@@ -253,8 +253,9 @@ decode, so a message whose `identity` or `ephemeral` is re-spelled is refused
 as a decode failure (message-format.md, Initial message). The session then
 accepts it only if it is a responder's session and both of these hold:
 
-- the message's `ephemeral` field equals, byte for byte, the `ephemeral` field
-  carried by the initial message that established the session
+- the message's `ephemeral` field is in the same X25519 agreement class, under
+  the responder's signed-prekey secret, as the `ephemeral` field carried by
+  the initial message that established the session
   (`established_ephemeral`, session-persistence.md);
 - the message's `identity` field equals, byte for byte, `EncodeEC` of the
   peer's identity key the session holds (`peer_identity_public`,
@@ -266,9 +267,10 @@ initiator's session, it refuses the message (`NotARepeatedInitial`). The
 message's two fields are canonical encodings, since it decoded. So are
 `established_ephemeral` and `peer_identity_public`, in every session
 establishment builds and in every session a reader accepts
-(session-persistence.md, Session, Semantic rules). A key has one canonical
-encoding, so neither field of a genuine repeat can be spelled another way and
-still match.
+(session-persistence.md, Session, Semantic rules). Canonical encodings are
+unique as bytes, but torsion-equivalent X25519 points can have distinct
+canonical encodings with the same agreement. The repeat check therefore uses
+the agreement class for `ephemeral` and byte equality for `identity`.
 
 The other fields, `kem_ciphertext` and the three identifiers, are not
 compared: the session keeps none of them, and keeping them would change its

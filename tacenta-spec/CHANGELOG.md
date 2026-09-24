@@ -5,6 +5,12 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+- `Session::decrypt` now recognises a repeated initial message by the
+  responder's X25519 agreement class for its ephemeral, while retaining the
+  byte-bound identity check. This keeps canonical torsion-equivalent ephemeral
+  encodings in the same established session and closes the repeat-blackhole
+  gap.
+
 - `tacenta-proofs`: the Braid refinement boundary `KemAgreesFor` no longer
   assumes `K.Correct`. No proof used the conjunct, and it asserted perfect
   decapsulation, which ML-KEM-1024 satisfies only up to the FIPS 203 failure
