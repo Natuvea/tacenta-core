@@ -316,9 +316,11 @@ Four things are not erased, and they are the honest remainder:
   but not the same program.
   The classical ratchet’s skipped-key path now builds its working copy at the
   final capacity and wipes removed slots before shortening the vector. The sparse
-  ratchet now does the same for skipped-key replacement and removal, sizes its
-  decoder vectors from the checked counts, and wipes the old store before its
-  allocation is released. Its state destructor wipes the live fields as well.
+  ratchet now does the same for skipped-key replacement and removal, derives new
+  skipped keys directly into the final vector, rebuilds the chain table before
+  growth, sizes its decoder vectors from the checked counts, and wipes old
+  secret-bearing allocations before release. Its state destructor wipes the
+  live fields as well.
   These are implementation hardening measures;
   Charon and Aeneas ignore `Drop` and allocator behaviour, so the proofs below
   do not establish them.
@@ -2343,14 +2345,11 @@ ones are listed here so nobody mistakes "not yet" for "not known":
 
 One entry closed with this re-translation: `tacenta_spqr::State::to_bytes` and
 `tacenta_braid::Braid::to_bytes` no longer grow their buffer by pushing, and
-neither do the Triple's or the erasure coders'. What that leaves open there is
-smaller and stated above: `from_bytes` on the sparse ratchet still builds two
-vectors by pushing, its chain table and its skipped-key list, so the entries a
-reallocation can leave behind are chain keys as well as message keys. Both
-counts are bounded against the buffer before their loops, so sizing them is
-safe; it is held back only because that function is the one `ImportInv.lean`
-steps through, and it belongs in a window where its proof can have proper
-attention rather than being carried along.
+neither do the Triple's or the erasure coders'. The sparse `from_bytes` reader
+also sizes its chain and skipped-key vectors from the checked counts before
+copying secret-bearing entries. The remaining allocator caveat is the general
+one stated above: these erasure measures are implementation hardening and are
+outside the translated proof model.
 
 Two further entries this list used to carry closed with the CR-03/CR-22
 re-translation:
