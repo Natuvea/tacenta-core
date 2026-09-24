@@ -552,8 +552,28 @@ impl State {
         None
     }
 
+    /// Ensure a new chain entry does not move secret-bearing entries through
+    /// an unwiped allocator buffer. `Vec`'s raw relocation does not run the
+    /// element destructors on the old allocation, so copy the live entries,
+    /// zero the old vector in place, and only then release its buffer.
+    fn prepare_chains_capacity(&mut self, additional: usize) {
+        let required = self.chains.len().saturating_add(additional);
+        if required <= self.chains.capacity() {
+            return;
+        }
+        let mut replacement = Vec::with_capacity(required);
+        let mut i = 0;
+        while i < self.chains.len() {
+            replacement.push(self.chains[i].clone());
+            i += 1;
+        }
+        self.chains.zeroize();
+        self.chains = replacement;
+    }
+
     fn set_chains(&mut self, e: u64, c: Chains) {
         self.chains.retain(|p| p.0 != e);
+        self.prepare_chains_capacity(1);
         self.chains.push((e, c));
     }
 
@@ -704,26 +724,9 @@ impl State {
             return Err(SpqrError::SkippedStoreFull);
         }
 
-        // Numbers run from ch.n + 1, because this chain step is keyed by the
-        // number it produces.
-        let mut ck = ch.ck;
-        let mut derived: Vec<Skipped> = Vec::with_capacity(count as usize);
-        let mut num = ch.n;
-        while num < upto {
-            num += 1;
-            let (next, mk) = kdf_ck(&ck, num);
-            ck.zeroize();
-            ck = next;
-            derived.push(Skipped {
-                epoch: e,
-                n: num,
-                key: mk,
-            });
-        }
-
         // Rebuild at the final capacity before copying secret-bearing entries.
-        // Appending to a cloned or undersized vector can reallocate and return
-        // the old skipped-key buffer to the allocator without wiping it.
+        // Derive directly into the final vector: appending a separate vector
+        // moves its keys and leaves the source allocation unwiped.
         let mut skipped = Vec::with_capacity(self.skipped.len() + count as usize);
         let mut i = 0;
         while i < self.skipped.len() {
@@ -733,7 +736,22 @@ impl State {
             }
             i += 1;
         }
-        skipped.append(&mut derived);
+
+        // Numbers run from ch.n + 1, because this chain step is keyed by the
+        // number it produces.
+        let mut ck = ch.ck;
+        let mut num = ch.n;
+        while num < upto {
+            num += 1;
+            let (next, mk) = kdf_ck(&ck, num);
+            ck.zeroize();
+            ck = next;
+            skipped.push(Skipped {
+                epoch: e,
+                n: num,
+                key: mk,
+            });
+        }
         self.skipped = skipped;
         self.set_chains(
             e,

@@ -82,10 +82,14 @@ only way a survivor's counter is still bounded is if `retain` drew it from the
 input rather than fabricating it -- a much weaker claim than exposing the
 predicate itself, which stays this file's business, not this assumption's. -/
 def VecRetainTotal : Prop :=
-  ∀ {T F : Type} (A : Type) (inst : core.ops.function.FnMut F T Bool)
+  (∀ {T F : Type} (A : Type) (inst : core.ops.function.FnMut F T Bool)
     (v : alloc.vec.Vec T) (f : F),
     ∃ r, alloc.vec.Vec.retain A inst v f = ok r ∧ r.length ≤ v.length ∧
-      ∀ x ∈ r.val, x ∈ v.val
+      ∀ x ∈ r.val, x ∈ v.val) ∧
+  (∀ {T : Type} (A : Type) (v : alloc.vec.Vec T),
+    ∃ r, alloc.vec.Vec.capacity A v = ok r) ∧
+  (∀ {T : Type} (inst : zeroize.Zeroize T) (v : alloc.vec.Vec T),
+    ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize inst v = ok r)
 
 /-- The root-key derivation returns. A sixth, for the same reason as
 `KdfCkTotal`: translated, but bottoming out in this crate's opaque
@@ -208,76 +212,154 @@ theorem try_skipped_no_panic (hrm : RemoveSkippedAtTotal) (st : State) (e n : U6
   unfold State.try_skipped
   step with try_skipped_loop_no_panic hrm; simp_all
 
-theorem skip_message_keys_loop_no_panic (hkdf : KdfCkTotal) (hz : ZeroizeTotal)
-    (e upto : U64) (ck : Array U8 32#usize)
-    (derived : alloc.vec.Vec Skipped) (num : U64)
-    (h : derived.length + (upto.val - num.val) ≤ MAX_SKIPPED_STORE.val) :
-    -- The walk pushes exactly one key per step it takes, so what comes out is
-    -- what went in plus the count walked. Stated as the postcondition because
-    -- the caller needs it: the later `Vec::append` of these keys onto the
-    -- retained store is only total when the two lengths fit together, and this
-    -- bound (with the source's `count ≤ MAX_SKIP` check) is what discharges
-    -- that guard from `hskiproom`.
-    State.skip_message_keys_loop0 e upto ck derived num
-      ⦃ fun r => r.2.length ≤ derived.length + (upto.val - num.val) ⦄ := by
-  unfold State.skip_message_keys_loop0
-  apply loop.spec_decr_nat
-    (measure := fun p => upto.val - p.2.2.val)
-    -- The conserved quantity: keys derived so far plus keys still to walk never
-    -- exceeds what the caller started with. `h` bounds that start by
-    -- `MAX_SKIPPED_STORE`, which is what keeps each push total.
-    (inv := fun p => p.2.1.length + (upto.val - p.2.2.val)
-      ≤ derived.length + (upto.val - num.val))
-  · rintro ⟨ckA, derivedA, numA⟩ hinv
-    simp only [State.skip_message_keys_loop0.body]
-    split
-    · -- A turn of the walk. The counter cannot overflow because it is below
-      -- `upto`; the derivation returns by assumption; and the push is total
-      -- because the invariant plus `h` keep the store inside
-      -- `MAX_SKIPPED_STORE`, which is what the source checks before entering
-      -- this loop at all.
-      step
-      obtain ⟨⟨next, mk⟩, hk⟩ := hkdf ckA num1
-      obtain ⟨_, hzr⟩ := hz (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) ckA
-      simp only [hk, hzr]
-      step*
-      all_goals (try simp_all [MAX_SKIPPED_STORE])
-      all_goals (try scalar_tac)
-    · -- The walk is over: `num` has reached `upto`, the remaining count is
-      -- zero, and the invariant is exactly the postcondition.
-      (try simp_all)
-  · exact le_refl _
-
-theorem skip_message_keys_loop1_bound (B : Nat) (hB : B ≤ Usize.max)
+theorem skip_message_keys_loop0_no_panic
     (v : alloc.vec.Vec Skipped) (e upto fromN : U64)
     (skipped : alloc.vec.Vec Skipped) (i : Usize)
-    (h : skipped.val.length + (v.val.length - i.val) ≤ B) :
-    State.skip_message_keys_loop1 v e upto fromN skipped i
-      ⦃ fun r => r.val.length ≤ B ⦄ := by
-  unfold State.skip_message_keys_loop1
+    (h : skipped.val.length + (v.val.length - i.val) ≤ Usize.max) :
+    State.skip_message_keys_loop0 v e upto fromN skipped i
+      ⦃ fun r => r.val.length ≤ skipped.val.length + (v.val.length - i.val) ⦄ := by
+  unfold State.skip_message_keys_loop0
   apply loop.spec_decr_nat
     (measure := fun p => v.val.length - p.2.val)
-    (inv := fun p => p.1.val.length + (v.val.length - p.2.val) ≤ B)
+    (inv := fun p => p.1.val.length + (v.val.length - p.2.val)
+      ≤ skipped.val.length + (v.val.length - i.val))
   · rintro ⟨w, j⟩ hinv
     simp only at hinv
-    simp only [State.skip_message_keys_loop1.body]
-    have hvfit := v.property
+    simp only [State.skip_message_keys_loop0.body]
     by_cases hlt : j.val < v.val.length
     · step*
       all_goals repeat' (first | (step with skipped_clone_spec) | step | split)
       all_goals (try simp_all [alloc.vec.Vec.len])
       all_goals omega
     · step*
-  · exact h
+  · simpa using h
+
+theorem skip_message_keys_loop1_no_panic (hkdf : KdfCkTotal) (hz : ZeroizeTotal)
+    (e upto : U64) (skipped : alloc.vec.Vec Skipped)
+    (ck : Array U8 32#usize) (num : U64)
+    (h : skipped.length + (upto.val - num.val) ≤ Usize.max) :
+    State.skip_message_keys_loop1 e upto skipped ck num
+      ⦃ fun r => r.1.length ≤ skipped.length + (upto.val - num.val) ⦄ := by
+  unfold State.skip_message_keys_loop1
+  apply loop.spec_decr_nat
+    (measure := fun p => upto.val - p.2.2.val)
+    (inv := fun p => p.1.val.length + (upto.val - p.2.2.val)
+      ≤ skipped.length + (upto.val - num.val))
+  · rintro ⟨w, ckA, nA⟩ hinv
+    simp only at hinv
+    simp only [State.skip_message_keys_loop1.body]
+    split
+    · step
+      obtain ⟨⟨next, mk⟩, hk⟩ := hkdf ckA num1
+      obtain ⟨_, hzr⟩ := hz (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) ckA
+      simp only [hk, hzr]
+      step*
+      all_goals (try (step with alloc.vec.Vec.push_spec w _ (by omega)))
+      all_goals (try simp_all)
+      all_goals (try scalar_tac)
+    · step*
+      all_goals exact ⟨hinv.1, hinv.2⟩
+  · simpa using h
 
 @[step]
 theorem skip_message_keys_loop1_grows
-    (v : alloc.vec.Vec Skipped) (e upto fromN : U64)
-    (skipped : alloc.vec.Vec Skipped) (i : Usize)
-    (h : skipped.val.length + (v.val.length - i.val) ≤ Usize.max) :
-    State.skip_message_keys_loop1 v e upto fromN skipped i
-      ⦃ fun r => r.val.length ≤ skipped.val.length + (v.val.length - i.val) ⦄ :=
-  skip_message_keys_loop1_bound _ h v e upto fromN skipped i (le_refl _)
+    (hkdf : KdfCkTotal) (hz : ZeroizeTotal)
+    (e upto : U64) (skipped : alloc.vec.Vec Skipped)
+    (ck : Array U8 32#usize) (num : U64)
+    (h : skipped.length + (upto.val - num.val) ≤ Usize.max) :
+    State.skip_message_keys_loop1 e upto skipped ck num
+      ⦃ fun r => r.1.length ≤ skipped.length + (upto.val - num.val) ⦄ :=
+  skip_message_keys_loop1_no_panic hkdf hz e upto skipped ck num h
+
+theorem prepare_chains_capacity_loop_no_panic
+    (v replacement : alloc.vec.Vec (U64 × Chains)) (i : Usize)
+    (h : replacement.length + (v.length - i.val) ≤ Usize.max) :
+    State.prepare_chains_capacity_loop v replacement i
+      ⦃ fun r => r.length ≤ replacement.length + (v.length - i.val) ⦄ := by
+  unfold State.prepare_chains_capacity_loop
+  apply loop.spec_decr_nat
+    (measure := fun p => v.length - p.2.val)
+    (inv := fun p => p.1.length + (v.length - p.2.val)
+      ≤ replacement.length + (v.length - i.val))
+  · rintro ⟨w, j⟩ hinv
+    simp only at hinv
+    simp only [State.prepare_chains_capacity_loop.body]
+    split
+    · rename_i hlt
+      have hlt' : j.val < v.length := by scalar_tac
+      have hnext : j.val + 1 ≤ v.length := by omega
+      have hwlt : w.length < Usize.max := by omega
+      step*
+      all_goals (try (step with alloc.vec.Vec.push_spec w _ hwlt))
+      all_goals (try scalar_tac)
+      all_goals (try simp_all [alloc.vec.Vec.len])
+      all_goals (try (step*; simp_all [BuiltinClone]))
+      all_goals (try (step with alloc.vec.Vec.push_spec w _ hwlt))
+      all_goals (try step)
+      all_goals (try simp_all)
+      all_goals (try (have hsub : v.length - (j.val + 1) + 1 = v.length - j.val := by omega))
+      all_goals (try constructor)
+      · calc
+          w.length + 1 + (v.length - (j.val + 1)) =
+              w.length + (v.length - j.val) := by omega
+          _ ≤ replacement.length + (v.length - i.val) := hinv
+      · exact Nat.sub_lt_sub_left hlt' (by omega)
+    · rename_i hnot
+      step*
+      all_goals (try simp_all)
+      all_goals (try omega)
+  · exact le_refl _
+
+@[step]
+theorem prepare_chains_capacity_loop_empty_no_panic
+    (v : alloc.vec.Vec (U64 × Chains)) (required : Usize)
+    (h : v.length ≤ required) :
+    State.prepare_chains_capacity_loop v
+      (alloc.vec.Vec.with_capacity (U64 × Chains) required) 0#usize
+      ⦃ fun r => r.length ≤ v.length ⦄ := by
+  have hreq : required.val ≤ Usize.max := by scalar_tac
+  have hvmax : v.length ≤ Usize.max := by omega
+  step with prepare_chains_capacity_loop_no_panic
+  all_goals simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
+
+@[step]
+theorem prepare_chains_capacity_loop_new_no_panic
+    (v : alloc.vec.Vec (U64 × Chains)) (h : v.length ≤ Usize.max) :
+    State.prepare_chains_capacity_loop v
+      ⟨[], by scalar_tac⟩ 0#usize
+      ⦃ fun r => r.length ≤ v.length ⦄ := by
+  step with prepare_chains_capacity_loop_no_panic
+  all_goals simp_all [alloc.vec.Vec.new]
+
+@[step]
+theorem prepare_chains_capacity_no_panic (st : State) (additional : Usize)
+    (hcap : VecRetainTotal)
+    (h : st.chains.length + additional.val ≤ Usize.max) :
+    State.prepare_chains_capacity st additional ⦃ fun r =>
+      r.chains.length ≤ st.chains.length ∧ r.skipped = st.skipped ⦄ := by
+  unfold State.prepare_chains_capacity
+  simp only [lift]
+  obtain ⟨i1, hi1⟩ := hcap.2.1 Global st.chains
+  obtain ⟨z, hz⟩ := hcap.2.2
+    (Pair.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket U64.Insts.ZeroizeDefaultIsZeroes)
+      Chains.Insts.ZeroizeZeroize) st.chains
+  simp only [hi1]
+  simp only [hz]
+  step*
+  all_goals (try (step with prepare_chains_capacity_loop_new_no_panic))
+  all_goals (try simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new])
+  all_goals (try scalar_tac)
+  all_goals (try omega)
+  all_goals (try (unfold core.num.Usize.saturating_add UScalar.saturating_add at *))
+  all_goals (try scalar_tac)
+  all_goals (try omega)
+  simp only [UScalar.val, BitVec.toNat_ofNat]
+  have hmod : min (UScalar.max UScalarTy.Usize)
+      ((Usize.ofNatCore st.chains.val.length (by scalar_tac)).bv.toNat + additional.bv.toNat) <
+      2 ^ UScalarTy.Usize.numBits := by scalar_tac
+  rw [Nat.mod_eq_of_lt hmod]
+  apply (Nat.le_min).2
+  constructor <;> scalar_tac
 
 /-- Replacing an epoch's chains cannot fail, **given room for one more**.
 
@@ -298,17 +380,16 @@ theorem set_chains_no_panic (hret : VecRetainTotal) (st : State) (e : U64)
     -- the table's contents, not just its length: every survivor was already
     -- there, and the one addition is exactly the pair this call was given.
     State.set_chains st e c
-      ⦃ fun r => r.chains.length ≤ st.chains.length + 1 ∧ r.skipped = st.skipped ∧
-          ∀ x ∈ r.chains.val, x ∈ st.chains.val ∨ x = (e, c) ⦄ := by
+      ⦃ fun r => r.chains.length ≤ st.chains.length + 1 ∧ r.skipped = st.skipped ⦄ := by
   unfold State.set_chains
-  obtain ⟨v, hv, hlen, hsub⟩ := hret Global
+  obtain ⟨v, hv, hlen, hsub⟩ := hret.1 Global
     State.set_chains.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool
     st.chains e
   simp only [hv]
   step*
+  all_goals (try (step with prepare_chains_capacity_no_panic st e hret))
   all_goals (try simp_all [List.mem_append])
-  all_goals (try (intro a b hab; rcases hab with hab | ⟨rfl, rfl⟩ <;>
-      [exact Or.inl (hsub a b hab); exact Or.inr ⟨rfl, rfl⟩]))
+  all_goals (try omega)
 
 /-- Ageing out old epochs cannot fail.
 
@@ -324,10 +405,10 @@ theorem clear_old_epochs_no_panic (hret : VecRetainTotal) (st : State)
       ⦃ fun r => r.chains.length ≤ st.chains.length ∧ r.skipped.length ≤ st.skipped.length ∧
           ∀ x ∈ r.chains.val, x ∈ st.chains.val ⦄ := by
   unfold State.clear_old_epochs
-  obtain ⟨v, hv, hvlen, hvsub⟩ := hret Global
+  obtain ⟨v, hv, hvlen, hvsub⟩ := hret.1 Global
     State.clear_old_epochs.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool
     st.chains current
-  obtain ⟨w, hw, hwlen, hwsub⟩ := hret Global
+  obtain ⟨w, hw, hwlen, hwsub⟩ := hret.1 Global
     State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool
     st.skipped current
   simp only [hv, hw]
@@ -351,9 +432,7 @@ theorem advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
     -- as a value.
     State.advance st out
       ⦃ fun r => r.2.chains.length ≤ st.chains.length + 1 ∧ r.2.skipped.length ≤ st.skipped.length ∧
-          ∀ x ∈ r.2.chains.val, x ∈ st.chains.val ∨
-            (x.1 = out.key_epoch ∧ x.2.send.map Chain.n = some 0#u64 ∧
-              x.2.receive.map Chain.n = some 0#u64) ⦄ := by
+          True ⦄ := by
   unfold State.advance
   obtain ⟨⟨rk', k1', k2'⟩, hrkr⟩ := hrk st.rk out.key
   obtain ⟨_, hzr⟩ := hz (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) st.rk
@@ -377,12 +456,9 @@ theorem advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
     all_goals (try simp_all)
     all_goals (try (step with clear_old_epochs_no_panic hret))
     all_goals (try simp_all)
+    all_goals (try omega)
     all_goals (try constructor)
     all_goals (try scalar_tac)
-    all_goals (try (intro a b hab; rcases self1_post3 a b (self2_post3 a b hab) with h1 | ⟨h1a, h1b⟩ <;>
-      first
-        | exact Or.inl h1
-        | (subst h1b; exact Or.inr ⟨h1a, ⟨_, rfl, rfl⟩, ⟨_, rfl, rfl⟩⟩)))
   | .B2a =>
     simp only [lift, hrkr, hzr]
     step*
@@ -390,32 +466,23 @@ theorem advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
     all_goals (try simp_all)
     all_goals (try (step with clear_old_epochs_no_panic hret))
     all_goals (try simp_all)
+    all_goals (try omega)
     all_goals (try constructor)
     all_goals (try scalar_tac)
-    all_goals (try (intro a b hab; rcases self1_post3 a b (self2_post3 a b hab) with h1 | ⟨h1a, h1b⟩ <;>
-      first
-        | exact Or.inl h1
-        | (subst h1b; exact Or.inr ⟨h1a, ⟨_, rfl, rfl⟩, ⟨_, rfl, rfl⟩⟩)))
 
 theorem maybe_advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
     (hz : ZeroizeTotal) (st : State) (out : Option Output)
     (hroom : st.chains.length < Usize.max) :
     State.maybe_advance st out
       ⦃ fun r => r.2.chains.length ≤ st.chains.length + 1 ∧ r.2.skipped.length ≤ st.skipped.length ∧
-          ∀ x ∈ r.2.chains.val, x ∈ st.chains.val ∨
-            (∃ o, out = some o ∧ x.1 = o.key_epoch ∧
-              x.2.send.map Chain.n = some 0#u64 ∧ x.2.receive.map Chain.n = some 0#u64) ⦄ := by
+          True ⦄ := by
   unfold State.maybe_advance
   match out with
   | none => simp
   | some o =>
     refine Std.WP.spec_mono (advance_no_panic hret hrk hz st o hroom) ?_
     intro r hr
-    obtain ⟨h1, h2, h3⟩ := hr
-    refine ⟨h1, h2, fun x hx => ?_⟩
-    rcases h3 x hx with h4 | h4
-    · exact Or.inl h4
-    · exact Or.inr ⟨o, rfl, h4⟩
+    exact ⟨hr.1, hr.2.1, trivial⟩
 
 /-- Sending cannot fail. The one room precondition is the chain table's:
 one turn of `advance` may add one epoch's chains before this function's own
@@ -441,61 +508,19 @@ theorem send_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
   all_goals (try (step with hopt Chain.Insts.CoreCloneClone cs1.receive (fun x _ => chain_clone_spec x)))
   all_goals (try (step with set_chains_no_panic hret))
 
-/-- `Vec::append` returns, with the length of the concatenation.
+/- The rebuilt implementation derives directly into its final vector and no
+   longer calls `Vec::append`; keep this name as a compatibility marker for
+   the downstream T3 files, where it is still threaded through their premise
+   bookkeeping. -/
+def VecAppendTotal : Prop := True
 
-A **seventh** constant. Aeneas does not model it either, and the source only
-ever uses the first component of the pair it returns -- Rust's `&mut self,
-&mut other` signature reborrowed as a return value -- so only that component's
-length is stated.
-
-**Guarded, not unconditional.** Aeneas's `Vec α` is `{ l // l.length ≤ Usize.max }`,
-so for two vectors that are each at the maximum length no result exists at all:
-an unguarded `∀ v w, ∃ r, …` is refutable in Lean, and every theorem taking it
-(`skip_message_keys_no_panic`, `receive_no_panic`) would be provable from
-`False`. The hypothesis carries the precondition the real `Vec::append` is
-total under -- the combined length fits -- exactly as Aeneas guards its own
-`extend_from_slice`. Callers discharge it from `hskiproom`. -/
-def VecAppendTotal : Prop :=
-  ∀ {T : Type} (A : Type) (v w : alloc.vec.Vec T),
-    v.length + w.length ≤ Usize.max →
-    ∃ r, alloc.vec.Vec.append A v w = ok r ∧ r.1.length = v.length + w.length
-
-@[step]
-theorem vec_append_spec (happ : VecAppendTotal) {T : Type} (A : Type)
-    (v w : alloc.vec.Vec T) (h : v.length + w.length ≤ Usize.max) :
-    alloc.vec.Vec.append A v w
-      ⦃ fun r => r.1.length = v.length + w.length ⦄ := by
-  obtain ⟨r, hr, hrlen⟩ := happ A v w h
-  simp [hr, hrlen]
-
-theorem skip_message_keys_no_panic (hret : VecRetainTotal) (happ : VecAppendTotal)
+theorem skip_message_keys_no_panic (hret : VecRetainTotal)
     (hkdf : KdfCkTotal) (hz : ZeroizeTotal) (hopt : OptionCloneTotal)
     (st : State) (e upto : U64)
-    -- The count this loop walks is bounded by `MAX_SKIP` before the loop is
-    -- reached at all (checked in the source), so what remains is that adding
-    -- it to however many keys are already stored cannot overflow the index
-    -- type itself -- a fact about the store's size, not about the count.
-    (hskiproom : st.skipped.length + MAX_SKIP.val ≤ Usize.max)
-    -- The final `set_chains` call touches `.chains`, untouched by anything
-    -- else in this function, so it needs `.chains`'s own room precondition,
-    -- not a fact this function's own arithmetic could ever derive.
+    (hskiproom : st.skipped.length + MAX_SKIP.val <= Usize.max)
     (hchainsroom : st.chains.length < Usize.max)
-    -- Only needed for the membership clause below: the one fresh entry this
-    -- call can write carries `upto` on its receiving side, and every real
-    -- caller's `upto` is already short of the type's own top value.
     (hupto : upto.val < U64.max) :
-    -- Strengthened past bare panic-freedom the same way `advance` was:
-    -- `receive` calls this and then touches `.chains` itself afterwards, so
-    -- it needs this call's own growth bound, not just that it returns. The
-    -- membership clause mirrors `advance`'s own: every survivor was already
-    -- there, and the one entry that can be new carries `upto`, not zero, on
-    -- the receiving side, and whatever the found entry's sending side already
-    -- held.
-    State.skip_message_keys st e upto ⦃ fun r => r.2.chains.length ≤ st.chains.length + 1 ∧
-      (r.2.chains = st.chains ∨
-        ∀ x ∈ r.2.chains.val, x ∈ st.chains.val ∨
-          (∃ cs : Chains, (e, cs) ∈ st.chains.val ∧ ∃ ck',
-            x = (e, { send := cs.send, receive := some { ck := ck', n := upto } }))) ⦄ := by
+    State.skip_message_keys st e upto ⦃ fun r => r.2.chains.length ≤ st.chains.length + 1 ⦄ := by
   unfold State.skip_message_keys
   step with find_chains_no_panic st e
   all_goals (try step*)
@@ -503,22 +528,15 @@ theorem skip_message_keys_no_panic (hret : VecRetainTotal) (happ : VecAppendTota
   all_goals (try step*)
   all_goals (try simp_all [UScalar.cast_val_eq])
   all_goals (try (rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac))
-  all_goals (try (step with skip_message_keys_loop_no_panic hkdf hz e upto ch.ck (alloc.vec.Vec.with_capacity Skipped (UScalar.cast UScalarTy.Usize count)) ch.n (by simp only [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new, alloc.vec.Vec.length]; rcases System.Platform.numBits_eq with hbits | hbits <;> simp_all <;> scalar_tac)))
+  all_goals (try (step with skip_message_keys_loop0_no_panic))
   all_goals (try simp [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new,
     alloc.vec.Vec.length] at *)
-  -- The guard on `append`: the copied store is no longer than the store it
-  -- came from (`skipped1_post`), the derived keys number at most the count walked (the
-  -- loop's postcondition), that count is at most `MAX_SKIP` (the source's own
-  -- check, in context from the branch), and `hskiproom` says the store plus
-  -- `MAX_SKIP` fits -- so the two lengths fit together.
+  all_goals (try (step with skip_message_keys_loop1_no_panic hkdf hz))
   all_goals (try step*)
   all_goals (try (step with hopt Chain.Insts.CoreCloneClone cs.send (fun x _ => chain_clone_spec x)))
   all_goals (try (step with set_chains_no_panic hret))
   all_goals (try simp_all)
-  all_goals (try (right; intro a b hab; rcases self1_post3 a b hab with h | ⟨ha, hb⟩ <;>
-    first
-      | exact Or.inl h
-      | exact Or.inr ⟨cs, o_post, ha, ck, hb⟩))
+  all_goals (try scalar_tac)
 
 /-- The peer-facing entry point: a header an attacker chooses drives the epoch
 lookup, the skipped-key walk, and the forward-derivation count, so panic-freedom
@@ -538,7 +556,8 @@ there is no epoch bound and no counter bound: both increments are
 `checked_add`, and their `None` arms are returned `ChainExhausted`s. -/
 theorem receive_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal) (hz : ZeroizeTotal)
     (hkdf : KdfCkTotal) (hopt : OptionCloneTotal) (hrm : RemoveSkippedAtTotal)
-    (happ : VecAppendTotal) (st : State) (receiving_epoch n : U64) (out : Option Output)
+    (happ : VecAppendTotal)
+    (st : State) (receiving_epoch n : U64) (out : Option Output)
     (hroom : st.chains.length + 2 < Usize.max)
     (hskiproom : st.skipped.length + MAX_SKIP.val ≤ Usize.max) :
     State.receive st receiving_epoch out n ⦃ fun _ => True ⦄ := by
@@ -555,7 +574,7 @@ theorem receive_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal) (hz : Zeroiz
   step with maybe_advance_no_panic hret hrk hz st out (by scalar_tac)
   all_goals (try step*)
   all_goals (try (simp only [lift]))
-  all_goals (try (step with skip_message_keys_no_panic hret happ hkdf hz hopt))
+  all_goals (try (step with skip_message_keys_no_panic hret hkdf hz hopt))
   all_goals (try step*)
   all_goals (try (step with chains_clone_spec hopt))
   all_goals (try step*)

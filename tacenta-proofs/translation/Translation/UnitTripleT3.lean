@@ -789,7 +789,7 @@ theorem spqr_agrees_for (hkr : Tacenta.UnitSpqrT3.SpqrHkdfAgrees)
     (hz96 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips64)
     (hret : Tacenta.UnitSpqrT3.VecRetainAgrees)
-    (happ : Tacenta.UnitSpqrT3.VecAppendAgrees)
+    (hret_total : Tacenta.UnitSpqrT1.VecRetainTotal)
     (hrm : Tacenta.UnitSpqrT3.RemoveSkippedAtAgrees) (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
     (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal) :
     SpqrAgreesFor spqrAbs := by
@@ -820,7 +820,7 @@ theorem spqr_agrees_for (hkr : Tacenta.UnitSpqrT3.SpqrHkdfAgrees)
     exact ⟨r, hr, he⟩
   · intro s e out hepoch hroom hcb hsb hnewb hcounter
     obtain ⟨r, hr, hok, herr⟩ := Std.WP.spec_imp_exists
-      (Tacenta.UnitSpqrT3.send_refines hkr hz96 hz64 hret hzs hopt (spqrAbs_refines s) e out
+      (Tacenta.UnitSpqrT3.send_refines hkr hz96 hz64 hret hret_total hzs hopt (spqrAbs_refines s) e out
         hepoch (by simpa [spqrAbs] using hroom)
         (fun p hp => hcb _ (List.mem_map.2 ⟨p, hp, rfl⟩))
         (fun sk hsk => hsb _ (List.mem_map.2 ⟨sk, hsk, rfl⟩))
@@ -830,7 +830,7 @@ theorem spqr_agrees_for (hkr : Tacenta.UnitSpqrT3.SpqrHkdfAgrees)
     exact ⟨m', hsend, spqrAbs_eq hR'⟩
   · intro s re out n hepoch hroom hcb hsb hnewb hskip hone hcounter
     obtain ⟨r, hr, hpost⟩ := Std.WP.spec_imp_exists
-      (Tacenta.UnitSpqrT3.receive_refines hkr hz96 hz64 hret happ hrm hzs hopt
+      (Tacenta.UnitSpqrT3.receive_refines hkr hz96 hz64 hret hret_total hrm hzs hopt
         (spqrAbs_refines s) re out n
         hepoch (by simpa [spqrAbs] using hroom)
         (fun p hp => hcb _ (List.mem_map.2 ⟨p, hp, rfl⟩))
@@ -864,7 +864,7 @@ ratchet needs gives this file's narrow `ZeroizeTotal` at its one instance.
 
 One cost is not collapsed. Each bundle covers its ratchet's whole calling surface,
 so `send_refines_discharged` assumes the boundary of the receive path as well
-(`VecRemoveTotal`, `DerivedKeysModel`, `VecAppendAgrees`, `RemoveSkippedAtAgrees`), which
+(`VecRemoveTotal`, `DerivedKeysModel`, `RemoveSkippedAtAgrees`), which
 its own proof never reaches. -/
 
 theorem send_refines_discharged
@@ -874,7 +874,7 @@ theorem send_refines_discharged
     (hz96 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips64)
     (hret : Tacenta.UnitSpqrT3.VecRetainAgrees)
-    (happ : Tacenta.UnitSpqrT3.VecAppendAgrees)
+    (hret_total : Tacenta.UnitSpqrT1.VecRetainTotal)
     (hrm : Tacenta.UnitSpqrT3.RemoveSkippedAtAgrees) (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
     (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal)
     {s : State} {m : Model.Triple.State} (hrel : StateRefines ratchetAbs spqrAbs s m)
@@ -897,7 +897,7 @@ theorem send_refines_discharged
             ∃ e', e = TripleError.PostQuantum e') →
           Model.Triple.send m sending_epoch.val (output.map spqrOutputOf) = none) ⦄ :=
   send_refines (ratchet_agrees_for hopt hmac hkdf hzr hvr)
-    (spqr_agrees_for hkdf hz96 hz64 hret happ hrm hzs hopt) hkdf
+    (spqr_agrees_for hkdf hz96 hz64 hret hret_total hrm hzs hopt) hkdf
     (fun a => hzs _ a) hrel sending_epoch output hroom hcb hsb hnewb hepoch hcounter
 
 theorem receive_refines_discharged
@@ -907,7 +907,7 @@ theorem receive_refines_discharged
     (hz96 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips96)
     (hz64 : Tacenta.UnitSpqrT3.ZeroizingRoundTrips64)
     (hret : Tacenta.UnitSpqrT3.VecRetainAgrees)
-    (happ : Tacenta.UnitSpqrT3.VecAppendAgrees)
+    (hret_total : Tacenta.UnitSpqrT1.VecRetainTotal)
     (hrm : Tacenta.UnitSpqrT3.RemoveSkippedAtAgrees) (hzs : Tacenta.UnitSpqrT1.ZeroizeTotal)
     (hopt : Tacenta.UnitSpqrT1.OptionCloneTotal)
     {s : State} {m : Model.Triple.State} (hrel : StateRefines ratchetAbs spqrAbs s m)
@@ -933,7 +933,7 @@ theorem receive_refines_discharged
             (keyOf dh_out_recv) (keyOf dh_out_send) (keyOf new_dhs_pub) (output.map spqrOutputOf) = some (m', k)
           ∧ StateRefines ratchetAbs spqrAbs st m' ∧ keyOf key = k ⦄ :=
   receive_refines (ratchet_agrees_for hopt hmac hkdf hzr hvr)
-    (spqr_agrees_for hkdf hz96 hz64 hret happ hrm hzs hopt) hkdf
+    (spqr_agrees_for hkdf hz96 hz64 hret hret_total hrm hzs hopt) hkdf
     (fun a => hzs _ a) hrel header mh hheader dh_out_recv dh_out_send new_dhs_pub output
     hone hs hevents hepoch hroom hcb hsb hnewb hskiproom hone2 hcounter
 
