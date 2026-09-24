@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "_note": "Written only by `tacenta-proofs/scripts/attest.py --refresh-translation` after the source tree is committed and `scripts/run-aeneas.sh` has run on the pinned toolchain, and compared against by every other mode. A green `attest.py --check` establishes that each generated Translation/Tacenta*.lean is a module run-aeneas.sh produces, is byte for byte the file recorded here, declares exactly the axioms recorded here (as text; no-sorry.sh compares the same record with what the axiom audit saw in the built environment), and that the Rust verified zone it was generated from, and the workspace inputs that shape every zone's extraction (Cargo.toml and its profiles, Cargo.lock, .cargo/, the kdf and kem crates), hash to what they hashed to when this was written, as recorded by whoever ran the toolchain. Where a zone is assembled rather than written (the Triple, Braid-and-erasure, and complete Session units), the record carries an `assembly` field naming the script and every leaf tree it was assembled from, with their hashes, and --check fails if any of them has moved since; each assembly script's --check mode is the separate question of whether the unit crate in the tree is what those leaves assemble to. It does not establish that the toolchain was run, or run honestly: that is checked by regenerating with run-aeneas.sh and diffing, which REPRODUCING.md describes.",
-  "generated_at_commit": "6c54480e3e9bc30c228d270d9d47b67b9d971d98",
+  "generated_at_commit": "3e8d7a78957342f2169b24adbb4d221ff171dda3",
   "aeneas": {
     "release": "nightly-2026.07.22-b1214ca",
     "commit": "b1214ca0a024e8121f41fe2b2ed15e26af02373b"
