@@ -39,6 +39,10 @@ def DhCodecShape (D P : Type) (W : Type → Type)
   (∀ k, Np (publicAsBytes k)) ∧
   (∀ a b, Np (eq a b))
 
+def DhIdentityShape {P : Type}
+    (isPrimeOrder : P → Result Bool) : Prop :=
+  ∀ k, Np (isPrimeOrder k)
+
 theorem DhCodecTotal_is : Tacenta.UnitLifecycleT1.DhCodecTotal ↔
     DhCodecShape tacenta_boundary.dh.PrivateKey tacenta_boundary.dh.PublicKeyBytes
       zeroize.Zeroizing
@@ -49,6 +53,9 @@ theorem DhCodecTotal_is : Tacenta.UnitLifecycleT1.DhCodecTotal ↔
       tacenta_boundary.dh.PublicKeyBytes.as_bytes
       tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq :=
   Iff.rfl
+
+theorem DhIdentityTotal_is : Tacenta.UnitLifecycleT1.DhIdentityTotal ↔
+    DhIdentityShape tacenta_boundary.dh.is_prime_order_public := Iff.rfl
 
 def zeros32 : Array U8 32#usize := Array.repeat 32#usize 0#u8
 
@@ -66,6 +73,12 @@ theorem dh_codec_satisfiable :
     (fun _ => ok zeros32), (fun _ => ok ()), (fun _ => ok zeros32),
     (fun _ _ => ok true), ?_⟩
   simp [DhCodecShape, Np]
+
+theorem dh_identity_satisfiable :
+    ∃ (P : Type) (isPrimeOrder : P → Result Bool),
+      DhIdentityShape isPrimeOrder := by
+  refine ⟨Unit, (fun _ => ok true), ?_⟩
+  simp [DhIdentityShape, Np]
 
 abbrev DhAgreeFn (D P : Type) := D → P → Result (Option (Array U8 32#usize))
 def DhAgreeShape {D P : Type} (f : DhAgreeFn D P) : Prop :=
