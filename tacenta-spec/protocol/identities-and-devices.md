@@ -3,8 +3,9 @@
 Identity keys, devices, and how they relate.
 
 Status: partial. The identity key's secret, XEdDSA signing and verification
-under it, and application signatures are specified below. Devices, and how
-they relate to identities, are a scaffold and unspecified.
+under it, application signatures, and the bounded hosted inventory statement
+profile are specified below. General device management remains outside this
+document.
 
 ## The identity key's secret
 
@@ -142,6 +143,89 @@ the published identity key.
 Prekey signatures carry no label (session-establishment.md, Publishing keys).
 The label is what keeps the two uses of the one key apart: a signature made
 for one is not accepted for the other.
+
+## Hosted device-inventory statements
+
+This section specifies the version-one statement format used by the bounded
+hosted-device inventory profile. It is a signed inventory statement, not a
+device-registration protocol, a membership protocol, or a proof that a caller
+has authority over an account. The caller supplies the issuer-key lookup and
+must enforce the product policy that associates an `issuer_key_id` with the
+verification key and account.
+
+The unsigned preimage is the following concatenation, all integer fields in
+big-endian order:
+
+```text
+INVENTORY_DOMAIN
+issuer_key_id                 u64
+account_handle_length         u32
+account_handle                UTF-8 bytes
+inventory_generation          u64
+active_count                  u32
+active                        active_count × DeviceBinding
+revocation_floor_generation   u64
+revoked_count                 u32
+revoked                       revoked_count × Revocation
+```
+
+`INVENTORY_DOMAIN` is the ASCII string `Tacenta Inventory Statement v1`.
+The account handle is non-empty and at most `MAX_ACCOUNT_BYTES` (256) bytes;
+invalid UTF-8 is refused. `active_count` is at most
+`MAX_ACTIVE_BINDINGS` (8), and `revoked_count` is at most
+`MAX_RECENT_REVOCATIONS` (8). The floor and every terminal generation are no
+greater than `inventory_generation`.
+
+`DeviceBinding` is:
+
+```text
+device_id                    u32
+identity_public_key          32 bytes
+capabilities                 u64
+replacement_predecessor_tag  0 or 1 byte
+replacement_predecessor      32 bytes when the tag is 1
+```
+
+Version one defines only capability bit `GROUP_EPOCH_V1` (`1`); the capability
+word is non-zero and no other bit is accepted. Active bindings are strictly
+sorted by the complete tuple above. A replacement predecessor is the
+32-byte `binding_commitment` of the exact retired binding, not a device-id or
+identity-key alias. The inventory codec treats `identity_public_key` as an
+opaque 32-byte field; a product accepting it as an identity key must apply the
+canonical-key, contributory-agreement and signature rules above before signing
+or relying on a statement. The codec's canonical order does not by itself
+establish one-device-per-identity policy: the product must reject duplicate
+`device_id` values and define its identity/revocation policy explicitly.
+
+`Revocation` appends `terminal_generation` (u64) to a `DeviceBinding`.
+Revocations are strictly sorted by their complete encoded tuple, each terminal
+generation is greater than `revocation_floor_generation` and no greater than
+`inventory_generation`, and an exact binding cannot occur in both `active` and
+`revoked`. These are canonicality/refusal rules; they do not decide account
+ownership or freshness beyond the stated generation bounds.
+
+The unsigned decoder must consume exactly the bytes above, reconstruct the
+value, re-encode it, and refuse if the bytes differ. A signed statement is the
+unsigned preimage followed by a 64-byte XEdDSA signature over:
+
+```text
+"Tacenta:inventory-statement:v1" || 0xFF || unsigned_preimage
+```
+
+The verifier resolves `issuer_key_id` through its caller-supplied issuer-key
+binding and then verifies that signature. The statement does not contain that
+binding and does not make the key lookup trustworthy by itself.
+
+`binding_commitment(binding)` is the 32-byte SHA-256 digest of:
+
+```text
+"Tacenta:inventory-binding-commitment:v1" || 0xFF || encode(binding)
+```
+
+It commits to every binding field, including the predecessor. It is used only
+to name the exact binding a replacement retires. The inventory profile has no
+group cipher, sender-key ratchet, delivery guarantee, membership privacy
+claim, or end-to-end proof attached to it.
 
 ## Sources
 
