@@ -9193,8 +9193,11 @@ structure InitialRatchetBraidEvidenceContracts
   contracts : Tacenta.UnitLifecycleT1.BraidReceiveContracts
   hka : Tacenta.SessionUnitBraidT3.KemAgreesFor K
   hea : Tacenta.SessionUnitBraidT3.ErasureAgrees
-  hmac : Tacenta.SessionUnitBraidT3.BraidHmacAgrees
-  hkdf : Tacenta.SessionUnitBraidT3.BraidHkdfAgrees
+  /- The aggregate unit calls the same generated KDF symbols as the
+     lifecycle unit.  Keep the evidence at the shared session boundary and
+     derive Braid's namespace-specific aliases at the use site. -/
+  hmac : Tacenta.SessionUnitT3.HmacAgrees
+  hkdf : Tacenta.SessionUnitT3.HkdfAgrees
   hlens : Tacenta.SessionUnitBraidT3.KemLenAgrees K
   hvalek : Tacenta.SessionUnitBraidT3.ValidateEkAgrees K
   hct1len : Tacenta.SessionUnitBraidT1.Ct1LenTotal
@@ -9228,17 +9231,19 @@ noncomputable def initial_ratchet_dh_concrete_providers_of_braid_contracts
     InitialRatchetDhConcreteProviders input := by
   refine { first := ?_, second := ?_ }
   · intro composite ciphertext hdecode hfirst
+    have hKdf := braid_kdf_contracts_of_session evidence.hmac evidence.hkdf
     exact Classical.choice (initial_ratchet_dh_concrete_evidence_of_braid_contracts
       input composite ciphertext
-      hdecode evidence.contracts headroom evidence.hka evidence.hea evidence.hmac evidence.hkdf
+      hdecode evidence.contracts headroom evidence.hka evidence.hea hKdf.1 hKdf.2
       evidence.hlens evidence.hvalek evidence.hct1len evidence.hct2len evidence.hheaderlen
       evidence.hkcl evidence.hecl hrel
       (fun realComposite hrealComposite => evidence.hchunk realComposite composite hrealComposite)
       (evidence.hhonest composite) evidence.hepoch)
   · intro composite ciphertext draw oracleAfter hdecode hfirst hdraw hsecond
+    have hKdf := braid_kdf_contracts_of_session evidence.hmac evidence.hkdf
     exact Classical.choice (initial_ratchet_dh_concrete_evidence_of_braid_contracts
       input composite ciphertext
-      hdecode evidence.contracts headroom evidence.hka evidence.hea evidence.hmac evidence.hkdf
+      hdecode evidence.contracts headroom evidence.hka evidence.hea hKdf.1 hKdf.2
       evidence.hlens evidence.hvalek evidence.hct1len evidence.hct2len evidence.hheaderlen
       evidence.hkcl evidence.hecl hrel
       (fun realComposite hrealComposite => evidence.hchunk realComposite composite hrealComposite)
