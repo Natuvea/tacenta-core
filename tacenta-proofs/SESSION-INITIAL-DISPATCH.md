@@ -4,6 +4,22 @@
 wrapper around the ratchet receive. This does **not** close the full Session
 T3 or end-to-end encryption/decryption plan.
 
+## Current checkpoint — 2026-09-25 (`76d50bb`)
+
+The lifecycle boundary now has an explicit type-level bridge from the
+SessionUnit HMAC/HKDF agreement predicates to the identically defined Braid
+predicates. This removes duplicate naming at the composition boundary, but it
+does not prove either primitive agrees with the shipped implementation. The
+remaining concrete obligations are unchanged: KEM agreement and validation,
+erasure and clone behaviour, Triple and AEAD result-indexed relations,
+success/refusal callbacks from the generated `decrypt_ratchet` result, and the
+outer Session invariant and pending-state theorem.
+
+Focused Lean compilation, the complete local `no-sorry.sh` replay, and
+`attest.py --check` pass on this checkpoint. Those checks replay committed
+translation and proofs; they do not constitute fresh Charon/Aeneas regeneration
+or an end-to-end Session proof.
+
 ## What the theorem establishes
 
 `initial_dispatch_route_from_ratchet` constructs the six routes from the
