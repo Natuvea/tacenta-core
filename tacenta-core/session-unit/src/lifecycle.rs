@@ -25,7 +25,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use super::{
     PreKeyBundle, SessionError, associated_data, decode_ec, encode_ec, encode_kem,
-    initiator_shared_secret, is_canonical_key, responder_shared_secret,
+    initiator_shared_secret, is_canonical_key, is_valid_identity_key, responder_shared_secret,
 };
 use tacenta_spqr::{Direction, SpqrError};
 use tacenta_triple::TripleError;
@@ -1609,7 +1609,7 @@ impl PrekeyStore {
     ///   operation changes it.
     #[allow(clippy::manual_map)] // Explicit matches remain translatable by Aeneas.
     pub fn invariant(&self) -> bool {
-        if !is_canonical_key(&self.identity_public) {
+        if !is_valid_identity_key(&self.identity_public) {
             return false;
         }
         let previous_signed_id = match &self.previous_signed_prekey {
@@ -2490,7 +2490,7 @@ pub fn establish_initiator_for<R: RngCore + CryptoRng>(
         None => true,
         Some(k) => is_canonical_key(k),
     };
-    if !is_canonical_key(&bundle.identity_key)
+    if !is_valid_identity_key(&bundle.identity_key)
         || !is_canonical_key(&bundle.signed_prekey)
         || !one_time_canonical
     {
@@ -2656,6 +2656,9 @@ fn responder_curve_inputs(
         Some(value) => value,
         None => return Err(Error::BadEncoding),
     };
+    if !is_valid_identity_key(&initiator_identity) {
+        return Err(Error::BadEncoding);
+    }
     let initiator_ephemeral = match decode_ec(ephemeral) {
         Some(value) => value,
         None => return Err(Error::BadEncoding),
@@ -3598,8 +3601,8 @@ impl Session {
         // keys are its crate's invariant's, reached through (g). Lettered
         // after (g), which was there first, and checked before it because
         // (g) is the function's last expression.
-        if !is_canonical_key(&self.our_identity_public)
-            || !is_canonical_key(&self.peer_identity_public)
+        if !is_valid_identity_key(&self.our_identity_public)
+            || !is_valid_identity_key(&self.peer_identity_public)
         {
             return false;
         }

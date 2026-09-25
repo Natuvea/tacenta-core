@@ -83,6 +83,15 @@ pub(crate) fn is_canonical_key(pk: &dh::PublicKeyBytes) -> bool {
     tacenta_session::is_canonical_x25519(pk.as_bytes())
 }
 
+/// Identity keys have a stricter admission rule than ephemeral agreement
+/// inputs.  The latter may be compared by X25519 agreement class; a long-lived
+/// identity is also a byte-keyed name used by signatures, revocation and peer
+/// records, so torsion-equivalent spellings must be refused at identity
+/// boundaries rather than silently treated as aliases.
+pub(crate) fn is_valid_identity_key(pk: &dh::PublicKeyBytes) -> bool {
+    is_canonical_key(pk) && dh::is_prime_order_public(pk)
+}
+
 /// `EncodeKEM`: the KEM byte followed by the public key.
 ///
 /// Public, like the curve pair above, because a caller composing a bundle has
@@ -118,7 +127,8 @@ pub fn verify_under_identity(
     message: &[u8],
     signature: &[u8; 64],
 ) -> bool {
-    xeddsa::verify(identity, &application_signing_input(message), signature).is_ok()
+    is_valid_identity_key(identity)
+        && xeddsa::verify(identity, &application_signing_input(message), signature).is_ok()
 }
 
 /// The domain-separation prefix for signatures over caller-supplied messages.
@@ -177,6 +187,8 @@ pub struct PreKeyBundle {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[non_exhaustive]
 pub enum SessionError {
+    /// The identity key was not a canonical prime-order identity key.
+    InvalidIdentityKey,
     /// The signature over the signed curve prekey did not verify.
     BadSignedPrekeySignature,
     /// The signature over the KEM prekey did not verify.
@@ -193,6 +205,9 @@ pub enum SessionError {
 /// would defeat forward secrecy.
 #[allow(clippy::redundant_pattern_matching)] // Explicit branches keep translated refusal paths stable.
 pub fn verify_bundle(bundle: &PreKeyBundle) -> Result<(), SessionError> {
+    if !is_valid_identity_key(&bundle.identity_key) {
+        return Err(SessionError::InvalidIdentityKey);
+    }
     if let Err(_) = xeddsa::verify(
         &bundle.identity_key,
         &encode_ec(&bundle.signed_prekey),
@@ -259,6 +274,9 @@ pub fn responder_shared_secret(
     initiator_ephemeral: &dh::PublicKeyBytes,
     encapsulated: &Key,
 ) -> Result<Key, SessionError> {
+    if !is_valid_identity_key(initiator_identity) {
+        return Err(SessionError::InvalidIdentityKey);
+    }
     // Wiped on the way out, for the same reason as the initiator's above.
     //
     // Fallible for the same reason too, and the responder's case is the one

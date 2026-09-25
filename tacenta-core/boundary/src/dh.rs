@@ -1,6 +1,7 @@
 //! X25519 Diffie-Hellman, the key-agreement primitive the Double Ratchet
 //! composes. Backed by x25519-dalek.
 
+use curve25519_dalek::montgomery::MontgomeryPoint;
 use rand_core::{CryptoRng, RngCore};
 use x25519_dalek::{PublicKey, StaticSecret};
 use zeroize::Zeroizing;
@@ -73,6 +74,20 @@ impl PublicKeyBytes {
 
     pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
+    }
+}
+
+/// Whether a public key is in the prime-order X25519 subgroup.
+///
+/// This is deliberately separate from the wire decoder's canonicality rule.
+/// X25519 agreement accepts torsion-equivalent encodings as the same agreement
+/// class, which is useful for ephemeral inputs; a long-lived identity must have
+/// one prime-order identity instead, or byte-keyed identity and revocation
+/// records can be made to name a different spelling of the same agreement.
+pub fn is_prime_order_public(key: &PublicKeyBytes) -> bool {
+    match MontgomeryPoint(*key.as_bytes()).to_edwards(0) {
+        Some(point) => point.is_torsion_free(),
+        None => false,
     }
 }
 
@@ -172,5 +187,28 @@ mod tests {
                 .agree(&peer.public_key())
                 .expect("test keys are not low-order")
         );
+    }
+
+    #[test]
+    fn generated_public_keys_are_prime_order() {
+        use rand::rngs::OsRng;
+        for _ in 0..128 {
+            assert!(is_prime_order_public(
+                &PrivateKey::generate(&mut OsRng).public_key()
+            ));
+        }
+    }
+
+    #[test]
+    fn low_order_public_keys_are_not_prime_order() {
+        for bytes in [
+            [0u8; 32],
+            [
+                1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0,
+            ],
+        ] {
+            assert!(!is_prime_order_public(&PublicKeyBytes::from_bytes(bytes)));
+        }
     }
 }
