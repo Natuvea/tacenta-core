@@ -31,10 +31,10 @@ def braid_send_contracts_to_t1 {R : Type} {rc : rand_core_1.RngCore R}
     encapsStateClone := contracts.encapsStateClone
     keyPairGenerate := contracts.keyPairGenerate
     keyPairHeader := contracts.header
-    hmac := contracts.hmacTotal
+    hmac := contracts.hmac.total
     encoderNew := contracts.encoderNew
     encoderNext := contracts.encoderNext
-    hkdf := contracts.hkdfTotal
+    hkdf := contracts.hkdf.total
     encapsulate1 := contracts.encapsulate1
     zeroizingArray := contracts.zeroizingArray
     arrayZeroize := contracts.arrayZeroize
