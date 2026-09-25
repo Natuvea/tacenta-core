@@ -5,6 +5,11 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+- `protocol/session-persistence.md`: align the repeated-initial semantic rule
+  with `session-establishment.md`: the ephemeral is compared by its X25519
+  agreement class and the identity by bytes. This removes the stale
+  byte-for-byte wording without changing the persisted format.
+
 - `Session::decrypt` now recognises a repeated initial message by the
   responder's X25519 agreement class for its ephemeral, while retaining the
   byte-bound identity check. This keeps canonical torsion-equivalent ephemeral

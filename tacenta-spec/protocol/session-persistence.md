@@ -406,10 +406,13 @@ rather than here.
   (session-establishment.md): 33 bytes, the curve byte first, then the
   canonical encoding of a curve public key (message-format.md, Curve public
   keys). Neither is checked where it is used: `encode_initial`
-  length-prefixes whatever it is given, and a repeated initial message is
-  matched against `established_ephemeral` byte for byte, so an
-  `established_ephemeral` whose key is re-spelled would refuse every genuine
-  repeat (`NotARepeatedInitial`).
+  length-prefixes whatever it is given. A repeated initial message compares its
+  `ephemeral` with `established_ephemeral` by the X25519 agreement class under
+  the responder's signed-prekey secret; its `identity` remains a byte-for-byte
+  comparison with the stored peer identity. The rule is stated with the
+  complete dispatch behaviour in `session-establishment.md`; a distinct
+  canonical torsion-equivalent ephemeral therefore remains a genuine repeat,
+  while a re-spelled identity is refused as `NotARepeatedInitial`.
 - **Every curve public key the session stores is canonical**:
   `our_identity_public`, `peer_identity_public` and, when `pending_initial` is
   present, its `ephemeral_public` are each the canonical encoding of a curve
