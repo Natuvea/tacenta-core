@@ -1975,8 +1975,12 @@ theorem braid_send_post_of_contracts
 structure TripleSendRefinementContracts : Prop where
   hmac : Tacenta.SessionUnitT3.HmacAgrees
   hkdf : Tacenta.SessionUnitT3.HkdfAgrees
+  hmacTotal : Tacenta.SessionUnitT1.HmacTotal
+  hkdfTotal : Tacenta.SessionUnitT1.HkdfTotal
   zeroizing : Tacenta.SessionUnitT3.ZeroizingRoundTrips
   ratchetRemove : Tacenta.SessionUnitT1.RemoveSkippedAtTotal
+  kdfRk : Tacenta.SessionUnitSpqrT1.KdfRkTotal
+  kdfCk : Tacenta.SessionUnitSpqrT1.KdfCkTotal
   spqrZeroizing96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96
   spqrZeroizing64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64
   vecRetain : Tacenta.SessionUnitSpqrT3.VecRetainAgrees
