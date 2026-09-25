@@ -42,8 +42,8 @@ def braid_send_contracts_to_t1 {R : Type} {rc : rand_core_1.RngCore R}
 
 def triple_send_contracts_to_t1 (contracts : TripleSendRefinementContracts) :
     Tacenta.UnitLifecycleT1.TripleSendContracts :=
-  { hmac := contracts.hmacTotal
-    hkdf := contracts.hkdfTotal
+  { hmac := contracts.hmac.total
+    hkdf := contracts.hkdf.total
     zeroize := contracts.spqrZeroize
     vecRetain := contracts.vecRetainTotal
     kdfRk := contracts.kdfRk
