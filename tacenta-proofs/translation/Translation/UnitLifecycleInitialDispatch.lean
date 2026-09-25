@@ -11575,6 +11575,8 @@ inductive SessionDecryptEvidence {R : Type}
           (dh.publicKey real.peer_identity_public))
       (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
         established.deref decoded.ephemeral.deref = ok true)
+      (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+        (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
       (hinner : lifecycle.Session.decrypt_ratchet rc crc real
         (alloc.vec.Vec.deref decoded.message) rng =
         ok (.Err realReason, real, rngNext))
@@ -11605,6 +11607,8 @@ inductive SessionDecryptEvidence {R : Type}
           (dh.publicKey real.peer_identity_public))
       (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
         established.deref decoded.ephemeral.deref = ok true)
+      (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+        (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
       (hinner : lifecycle.Session.decrypt_ratchet rc crc real
         (alloc.vec.Vec.deref decoded.message) rng =
         ok (.Ok plaintext, realNext, rngNext))
@@ -11680,19 +11684,19 @@ theorem public_session_decrypt_end_to_end
         message rng established decoded ctx.hrel ctx.htrace ctx.htype hdecode hestablished
         hephemeral hmismatch hsameAgreement)
   | initialRepeatRefusal codec ctx rngNext established decoded realReason modelReason modelNext
-      oracleNext htraceNext hdecode hestablished hephemeral hidentity hsameAgreement hinner
+      oracleNext htraceNext hdecode hestablished hephemeral hidentity hsameAgreement hmodelSame hinner
       hmodelStep hstep =>
       exact decrypt_initial_repeat_refusal_exact rc crc trace dh codec K view oracle oracleNext
         real model message rng rngNext established decoded realReason modelReason modelNext
         ctx.hrel htraceNext ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement
-        hinner hmodelStep hstep
+        hmodelSame hinner hmodelStep hstep
   | initialRepeatSuccess codec ctx rngNext established decoded plaintext modelPlaintext realNext
-      modelNext oracleNext htraceNext hdecode hestablished hephemeral hidentity hsameAgreement
-      hinner hmodelStep hbytes hstep =>
+      modelNext oracleNext htraceNext hdecode hestablished hephemeral hidentity hsameAgreement hmodelSame hinner
+      hmodelStep hbytes hstep =>
       exact decrypt_initial_repeat_success_exact rc crc trace dh codec K view oracle oracleNext
         real model message rng rngNext established decoded plaintext modelPlaintext realNext modelNext
         ctx.hrel htraceNext ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement
-        hinner hmodelStep hbytes hstep
+        hmodelSame hinner hmodelStep hbytes hstep
   | nonInitialNone hrel htrace htype innerOutput hinner hstep =>
       exact decrypt_none_refines rc crc trace dh K view oracle real model message rng
         innerOutput htype hinner hstep
