@@ -976,7 +976,7 @@ theorem prepare_chains_capacity_copies (s : State) (additional : Usize)
   unfold State.prepare_chains_capacity
   simp only [lift]
   obtain ⟨i1, hi1⟩ := hcap.2.1 Global s.chains
-  obtain ⟨z, hz⟩ := hcap.2.2
+  obtain ⟨z, hz⟩ := hcap.2.2.1
     (Pair.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket U64.Insts.ZeroizeDefaultIsZeroes)
       Chains.Insts.ZeroizeZeroize) s.chains
   simp only [hi1, hz]
@@ -1044,6 +1044,7 @@ theorem set_chains_refines (hret : VecRetainAgrees)
 /-! ## `clear_old_epochs` refines the model's -/
 
 theorem clear_old_epochs_refines (hret : VecRetainAgrees)
+    (hret_total : Tacenta.SpqrT1.VecRetainTotal)
     {s : State} {m : Model.SparseRatchet.State} (hrel : StateRefines s m)
     (current : Std.U64)
     (hcb : ∀ p ∈ s.chains.val, p.1.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
@@ -1059,8 +1060,11 @@ theorem clear_old_epochs_refines (hret : VecRetainAgrees)
     State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool
     s.skipped current (fun x => current < x.epoch.saturating_add EPOCHS_KEPT)
     (fun _ => rfl)
+  obtain ⟨s0, back0, s0', hs0, hs0', hback0⟩ := hret_total.2.2.2 Global v
+  obtain ⟨s1, back1, s1', hs1, hs1', hback1⟩ := hret_total.2.2.2 Global v1
   simp only [hv, hv1]
   step*
+  simp [hs0, hs0', hs1, hs1', hback0, hback1]
   refine ⟨hrel.rk, hrel.epoch, ?_, ?_, hrel.direction⟩
   · show List.map chainsEntryOf v.val = (Model.SparseRatchet.clearOldEpochs m current.val).chains
     rw [Model.SparseRatchet.clearOldEpochs, ← hrel.chains, hveq]
@@ -1240,7 +1244,7 @@ theorem advance_refines (hkr : SpqrHkdfAgrees) (hz96 : ZeroizingRoundTrips96)
         have hep : sk'.epoch.val = sk.epoch.val := congrArg Prod.fst hskeq
         rw [← hep]
         exact hsb sk' hsk'
-      step with clear_old_epochs_refines hret self1_post out.key_epoch hcb1 hsb1
+      step with clear_old_epochs_refines hret hret_total self1_post out.key_epoch hcb1 hsb1
       rename_i self2_post
       simpa [chainsOf, chainOf, hk1, hk2, hmdir'] using self2_post
     -- (B2a branch below)
@@ -1283,7 +1287,7 @@ theorem advance_refines (hkr : SpqrHkdfAgrees) (hz96 : ZeroizingRoundTrips96)
         have hep : sk'.epoch.val = sk.epoch.val := congrArg Prod.fst hskeq
         rw [← hep]
         exact hsb sk' hsk'
-      step with clear_old_epochs_refines hret self1_post out.key_epoch hcb1 hsb1
+      step with clear_old_epochs_refines hret hret_total self1_post out.key_epoch hcb1 hsb1
       rename_i self2_post
       simpa [chainsOf, chainOf, hk1, hk2, hmdir'] using self2_post
 
@@ -2318,8 +2322,11 @@ info: 'Tacenta.SpqrT3.send_refines' depends on axioms: [propext,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
  Pair.Insts.ZeroizeZeroize.zeroize,
+ SliceMaybeUninit.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.capacity,
  alloc.vec.Vec.retain,
+ alloc.vec.Vec.spare_capacity_mut,
+ core.mem.maybe_uninit.MaybeUninit,
  zeroize.Zeroize.Blanket.zeroize,
  chain_label_agrees._native.native_decide.ax_1_1,
  protocol_info_agrees._native.native_decide.ax_1_1,
@@ -2341,9 +2348,12 @@ info: 'Tacenta.SpqrT3.receive_refines' depends on axioms: [propext,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
  Pair.Insts.ZeroizeZeroize.zeroize,
+ SliceMaybeUninit.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.capacity,
  alloc.vec.Vec.pop,
  alloc.vec.Vec.retain,
+ alloc.vec.Vec.spare_capacity_mut,
+ core.mem.maybe_uninit.MaybeUninit,
  zeroize.Zeroize.Blanket.zeroize,
  chain_label_agrees._native.native_decide.ax_1_1,
  max_skip_agrees._native.native_decide.ax_1_1,

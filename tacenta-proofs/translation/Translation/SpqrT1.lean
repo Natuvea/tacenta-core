@@ -74,6 +74,18 @@ per-chain counter bound needs to survive `advance`'s call to this, and the
 only way a survivor's counter is still bounded is if `retain` drew it from the
 input rather than fabricating it -- a much weaker claim than exposing the
 predicate itself, which stays this file's business, not this assumption's. -/
+
+/- `Vec::spare_capacity_mut` and the `MaybeUninit` wipe are opaque to Aeneas.
+The Rust operation is a borrowed view followed by a reconstruction of the
+same vector; state that round trip explicitly so the new wipe does not make
+the panic-freedom proof silently assume an arbitrary vector result. -/
+def SpareCapacityMutTotal : Prop :=
+  ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T),
+    ∃ s back s',
+      alloc.vec.Vec.spare_capacity_mut A v = ok (s, back) ∧
+      SliceMaybeUninit.Insts.ZeroizeZeroize.zeroize s = ok s' ∧
+      back s' = v
+
 def VecRetainTotal : Prop :=
   (∀ {T F : Type} (A : Type) (inst : core.ops.function.FnMut F T Bool)
     (v : alloc.vec.Vec T) (f : F),
@@ -82,7 +94,8 @@ def VecRetainTotal : Prop :=
   (∀ {T : Type} (A : Type) (v : alloc.vec.Vec T),
     ∃ r, alloc.vec.Vec.capacity A v = ok r) ∧
   (∀ {T : Type} (inst : zeroize.Zeroize T) (v : alloc.vec.Vec T),
-    ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize inst v = ok r)
+    ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize inst v = ok r) ∧
+  SpareCapacityMutTotal
 
 /-- The root-key derivation returns. A sixth, for the same reason as
 `KdfCkTotal`: translated, but bottoming out in this crate's opaque
@@ -333,7 +346,7 @@ theorem prepare_chains_capacity_no_panic (st : State) (additional : Usize)
   unfold State.prepare_chains_capacity
   simp only [lift]
   obtain ⟨i1, hi1⟩ := hcap.2.1 Global st.chains
-  obtain ⟨z, hz⟩ := hcap.2.2
+  obtain ⟨z, hz⟩ := hcap.2.2.1
     (Pair.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket U64.Insts.ZeroizeDefaultIsZeroes)
       Chains.Insts.ZeroizeZeroize) st.chains
   simp only [hi1]
@@ -404,8 +417,13 @@ theorem clear_old_epochs_no_panic (hret : VecRetainTotal) (st : State)
   obtain ⟨w, hw, hwlen, hwsub⟩ := hret.1 Global
     State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool
     st.skipped current
+  obtain ⟨s, back, s', hs, hs', hback⟩ := hret.2.2.2 Global v
+  obtain ⟨s2, back2, s2', hs2, hs2', hback2⟩ := hret.2.2.2 Global w
   simp only [hv, hw]
-  step*
+  simp [hs, hs', hs2, hs2', hback, hback2]
+  exact ⟨hvlen, hwlen, by
+    intro a b hab
+    exact hvsub (a, b) hab⟩
 
 theorem advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
     (hz : ZeroizeTotal) (st : State) (out : Output)
@@ -660,8 +678,11 @@ info: 'Tacenta.SpqrT1.send_no_panic' depends on axioms: [propext,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
  Pair.Insts.ZeroizeZeroize.zeroize,
+ SliceMaybeUninit.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.capacity,
  alloc.vec.Vec.retain,
+ alloc.vec.Vec.spare_capacity_mut,
+ core.mem.maybe_uninit.MaybeUninit,
  zeroize.Zeroize.Blanket.zeroize,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
@@ -680,9 +701,12 @@ info: 'Tacenta.SpqrT1.receive_no_panic' depends on axioms: [propext,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
  Pair.Insts.ZeroizeZeroize.zeroize,
+ SliceMaybeUninit.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.capacity,
  alloc.vec.Vec.pop,
  alloc.vec.Vec.retain,
+ alloc.vec.Vec.spare_capacity_mut,
+ core.mem.maybe_uninit.MaybeUninit,
  zeroize.Zeroize.Blanket.zeroize,
  receive_no_panic._native.native_decide.ax_1_1,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
