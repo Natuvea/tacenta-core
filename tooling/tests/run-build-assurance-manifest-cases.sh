@@ -27,6 +27,23 @@ expect_fail() {
   fi
 }
 
+expect_validate_fail() {
+  local name="$1" needle="$2" path="$3" out rc
+  set +e
+  out="$(python3 "$root/tooling/build-assurance-manifest.py" --validate "$path" 2>&1)"
+  rc=$?
+  set -e
+  if [ "$rc" -eq 0 ]; then
+    echo "WRONG  $name: expected validation refusal" >&2
+    return 1
+  fi
+  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+    echo "WRONG  $name: missing diagnostic '$needle'" >&2
+    printf '%s\n' "$out" >&2
+    return 1
+  fi
+}
+
 make_case() {
   local name="$1" program="$2"
   python3 - "$fixture" "$work/$name.json" "$program" <<'PY'
@@ -47,6 +64,11 @@ PY
 printf '%s\n' '# pass fixture is rebound to this checkout by make_case' > "$work/pass.py"
 make_case pass "$work/pass.py"
 python3 "$root/tooling/build-assurance-manifest.py" --allow-dirty --receipts "$work/pass.json" --output "$work/pass.out"
+python3 -c 'import json, pathlib, sys; p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text()); d["identity"]["clean_tree"]=True; p.write_text(json.dumps(d, indent=2)+"\n")' "$work/pass.out"
+python3 "$root/tooling/build-assurance-manifest.py" --validate "$work/pass.out" >/dev/null
+cp "$work/pass.out" "$work/source-missing.out"
+python3 -c 'import json, pathlib, sys; p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text()); d["sources"].pop(); p.write_text(json.dumps(d, indent=2)+"\n")' "$work/source-missing.out"
+expect_validate_fail source-missing 'manifest source inventory does not match the repository-owned source set' "$work/source-missing.out"
 
 printf "%s\n" "data['checks'] = [c for c in data['checks'] if c['id'] != 'proofs']" > "$work/missing.py"
 make_case missing "$work/missing.py"
