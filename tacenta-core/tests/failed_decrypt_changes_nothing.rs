@@ -202,6 +202,34 @@ fn repeated_failed_initial_messages_do_not_drain_the_store() {
     assert_eq!(plaintext, b"for real");
 }
 
+/// A failed last-resort handshake must not record its replay identity.
+///
+/// The replay record is deliberately checked before the authenticated
+/// decrypt, but it is committed only after that decrypt succeeds.  This test
+/// observes the transaction boundary through the public remaining-budget
+/// counter, so moving the append above `decrypt_ratchet` makes it fail.
+#[test]
+fn a_failed_last_resort_message_does_not_record_a_replay_identity() {
+    let mut r = rng(17);
+    let alice_id = sessions::Identity::generate(&mut r);
+    let bob_id = sessions::Identity::generate(&mut r);
+    let mut bob_prekeys = bob_id.create_prekeys(0, &mut r);
+    let bundle = bob_prekeys.publish();
+    let before = bob_prekeys.last_resort_record_remaining();
+
+    let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+    let initial = alice.encrypt(b"must not be recorded", &mut r).unwrap();
+    assert!(
+        establish_responder(&bob_id, &mut bob_prekeys, &forge(&initial), &mut r).is_err(),
+        "an altered last-resort ciphertext must not establish"
+    );
+    assert_eq!(
+        bob_prekeys.last_resort_record_remaining(),
+        before,
+        "a failed ciphertext must not consume replay-record capacity"
+    );
+}
+
 /// A successful establishment *must* consume them, which is the other half of
 /// the contract. Deferring deletion is only correct if it still happens.
 #[test]
