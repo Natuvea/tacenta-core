@@ -17,9 +17,11 @@ to commits already made. The trailer must name the commit's author exactly.
 `tooling/check-signoff.sh` enforces this. It runs as the `sign-off` job on
 every pull request, which fails if any commit the pull request adds is not
 signed off by its author, and as a step of `tooling/ci.sh` against
-`origin/main`. Merge commits are not checked. Pull requests whose commits are
-not signed off cannot be merged. The check covers only commits added on top of
-main, and the commits on main from before it was introduced carry no sign-off.
+`origin/main`. Merge commits in the pull-request range are checked too; protected
+`main` requires linear history, so a branch should rebase rather than introduce an
+unsigned merge of its base. Pull requests whose commits are not signed off cannot
+be merged. The check covers only commits added on top of `main`, and commits on
+`main` from before it was introduced carry no sign-off.
 
 ## Licence of contributions
 
