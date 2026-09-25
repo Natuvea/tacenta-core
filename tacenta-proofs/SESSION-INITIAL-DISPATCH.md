@@ -4,21 +4,36 @@
 wrapper around the ratchet receive. This does **not** close the full Session
 T3 or end-to-end encryption/decryption plan.
 
-## Current checkpoint — 2026-09-25 (`76d50bb`)
+## Current checkpoint — 2026-09-25 (`77f139c`)
 
 The lifecycle boundary now has an explicit type-level bridge from the
 SessionUnit HMAC/HKDF agreement predicates to the identically defined Braid
-predicates. This removes duplicate naming at the composition boundary, but it
-does not prove either primitive agrees with the shipped implementation. The
-remaining concrete obligations are unchanged: KEM agreement and validation,
-erasure and clone behaviour, Triple and AEAD result-indexed relations,
-success/refusal callbacks from the generated `decrypt_ratchet` result, and the
-outer Session invariant and pending-state theorem.
+predicates, and reuses those contracts across the Braid send boundary. This
+removes duplicate naming at the composition boundary, but it does not prove
+either primitive agrees with the shipped implementation. The remaining
+concrete obligations are unchanged: KEM agreement and validation, erasure and
+clone behaviour, Triple and AEAD result-indexed relations, success/refusal
+callbacks from the generated `decrypt_ratchet` result, and the outer Session
+invariant and pending-state theorem.
 
 Focused Lean compilation, the complete local `no-sorry.sh` replay, and
 `attest.py --check` pass on this checkpoint. Those checks replay committed
 translation and proofs; they do not constitute fresh Charon/Aeneas regeneration
 or an end-to-end Session proof.
+
+## Exact-head verification — 2026-09-25 (`77f139c`)
+
+The current branch head builds `Translation.UnitLifecycleInitialDispatch` and
+`Translation.UnitLifecycleT3` successfully (1,733 jobs). The dispatcher
+negative suite rejects all three proof-dependency mutations: bypassed
+ephemeral agreement, bypassed identity agreement, and a weakened terminal
+guard. The complete `bash tacenta-proofs/scripts/no-sorry.sh` replay then
+completed successfully: translation/T1/T3 replayed 68 modules, model proofs
+11, model/property proofs 34, all 13 planted audit negatives were rejected,
+reachability and construct checks passed, and the kernel replays were clean.
+These results validate the committed proof stack and its controls at this
+head; they do not discharge the remaining concrete providers or the public
+Session composition.
 
 ## What the theorem establishes
 
