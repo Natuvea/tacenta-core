@@ -11502,6 +11502,23 @@ inductive SessionDecryptEvidence {R : Type}
         (view := view) (oracle := oracle) (real := real) (model := model)
         message rng) :
       SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
+  | initialTerminal
+      (codec : DhCodecOf dh)
+      (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+      (hsame : InitialSameEphemeralEvidence dh oracle real model)
+      (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
+      (hfailed : Model.Lifecycle.agreementFailed model = true) :
+      SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
+  | initialMalformed
+      (codec : DhCodecOf dh)
+      (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+      (hsame : InitialSameEphemeralEvidence dh oracle real model)
+      (hmismatch : InitialMismatchedEphemeralEvidence dh oracle real model)
+      (hready : Model.Lifecycle.agreementFailed model = false)
+      (hbad : ∀ decoded : tacenta_wire.DecodedInitial,
+        tacenta_wire.decode_initial message = ok (.Ok decoded) →
+        ∃ reason, tacenta_wire.decode_message decoded.message.deref = ok (.Err reason)) :
+      SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
   | nonInitialNone
       (hrel : SessionRefines dh K real model)
       (htrace : trace rng = oracle.draws)
@@ -11547,6 +11564,11 @@ theorem public_session_decrypt_end_to_end
   | initialAccepted codec oracleOf ctx hsame hmismatch boundary headroom hz32 hzKeys evidence =>
       exact (decrypt_initial_end_to_end_with_concrete_evidence codec kem oracleOf ctx hsame
         hmismatch boundary headroom hz32 hzKeys evidence).1
+  | initialTerminal codec ctx hsame hmismatch hfailed =>
+      exact decrypt_initial_terminal_refines codec ctx hsame hmismatch hfailed
+  | initialMalformed codec ctx hsame hmismatch hready hbad =>
+      exact decrypt_initial_refines_from_ratchet codec ctx hsame hmismatch
+        (initial_ratchet_refines_decode_refusal ctx hready hbad)
   | nonInitialNone hrel htrace htype innerOutput hinner hstep =>
       exact decrypt_none_refines rc crc trace dh K view oracle real model message rng
         innerOutput htype hinner hstep
