@@ -430,6 +430,16 @@ jobs:
       - run: bash tooling/tests/run-check-signoff-cases.sh
       - run: bash tooling/tests/run-build-evidence-pack-cases.sh
       - run: bash tooling/tests/run-check-ledger-review-receipt-cases.sh
+      # Pull requests check every added commit in the conditional sign-off job.
+      # A push to main must also check the commits introduced by that push:
+      # otherwise a squash or merge commit can bypass the only DCO gate after
+      # the pull request has been merged. `checks` has the full history, and
+      # github.event.before is the exact parent boundary for this push.
+      - name: Commits introduced by a main push are signed off
+        if: github.event_name == 'push'
+        env:
+          BASE_SHA: ${{ github.event.before }}
+        run: bash tooling/check-signoff.sh "$BASE_SHA"
       # Note the assurance boundary: this checks the attestation manifest
       # against the source hashes. It does NOT re-derive the Rust->Lean
       # (Charon/Aeneas) translation, which runs on dedicated runners;
