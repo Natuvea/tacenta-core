@@ -61,10 +61,10 @@
 #    repository's workflow, as it is on main, use. The rule keeps the file
 #    saying the same thing, so a pull request is not queued for a runner it
 #    cannot have. Textual, as rules 4 and 6 are.
-# 8. No job is unconditionally disabled with `if: false`. A required check
-#    that can be turned off in the workflow being reviewed can report green
-#    without running its command; conditional jobs remain allowed when their
-#    condition is not statically false.
+# 8. No job is unconditionally disabled by a statically false `if` value. A
+#    required check that can be turned off in the workflow being reviewed can
+#    report green without running its command; conditional jobs remain allowed
+#    when their condition is not statically false.
 #
 # The cases each rule is held to, passing and failing, are the files under
 # `tooling/tests/check-workflows-cases/`, which
@@ -193,13 +193,33 @@ def check_run(f, name, run):
                  "file's sha256 against a pinned digest between the two"
                  % (f, name))
 
-def is_disabled_condition(value):
-    """Recognise only conditions that are explicitly the constant false."""
+def is_false_literal(value):
+    """Recognise the constant-false forms GitHub accepts in job `if`."""
     if value is False:
         return True
-    if isinstance(value, str):
-        return re.sub(r"\s+", "", value).lower() in ("false", "${{false}}")
-    return False
+    # YAML parses an unquoted `if: 0` as an integer. GitHub expressions use
+    # the same falsey numeric value when deciding whether to run a job.
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value == 0
+    if not isinstance(value, str):
+        return False
+    expr = re.sub(r"\s+", "", value).lower()
+    if expr.startswith("${{") and expr.endswith("}}"):
+        expr = expr[3:-2]
+    while len(expr) >= 2 and expr[0] == "(" and expr[-1] == ")":
+        expr = expr[1:-1]
+    if expr in ("false", "0", "null", "''", '""', "!true"):
+        return True
+    # A boolean expression made solely of false literals is false regardless
+    # of whether its operators are `||` or `&&`. Dynamic conditions remain
+    # outside this static guard and must be reviewed as expressions.
+    parts = re.split(r"(\|\||&&)", expr)
+    operands = parts[::2]
+    operators = parts[1::2]
+    return bool(operators) and all(is_false_literal(part) for part in operands)
+
+def is_disabled_condition(value):
+    return is_false_literal(value)
 
 for f in files:
     try:
