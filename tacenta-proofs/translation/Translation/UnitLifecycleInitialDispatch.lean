@@ -17,6 +17,19 @@ namespace Tacenta.UnitLifecycleT3
 open Aeneas Aeneas.Std Result
 open tacenta_session_unit
 
+/-! The lifecycle unit and the Braid port call the same generated KDF
+    operations.  Keep that fact explicit at the composition boundary: a
+    caller that has discharged the session-unit HMAC/HKDF contracts must not
+    restate them under Braid's duplicate names.  This is only a type-level
+    reuse theorem; it does not manufacture either contract for the shipped
+    primitive. -/
+theorem braid_kdf_contracts_of_session
+    (hmac : Tacenta.SessionUnitT3.HmacAgrees)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees) :
+    Tacenta.SessionUnitBraidT3.BraidHmacAgrees ∧
+      Tacenta.SessionUnitBraidT3.BraidHkdfAgrees := by
+  exact ⟨hmac, hkdf⟩
+
 /-! ## Braid receive adapter
 
 This adapter is the first concrete part of the nonterminal aggregate. It
