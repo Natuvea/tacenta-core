@@ -11523,6 +11523,39 @@ inductive SessionDecryptEvidence {R : Type}
         tacenta_wire.decode_initial message = ok (.Ok decoded) →
         ∃ reason, tacenta_wire.decode_message decoded.message.deref = ok (.Err reason)) :
       SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
+  | initialNoEstablished
+      (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+      (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
+      (hnone : real.established_ephemeral = none) :
+      SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
+  | initialEphemeralMismatch
+      (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+      (established : alloc.vec.Vec Std.U8)
+      (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hmismatch : vecOf established ≠ vecOf decoded.ephemeral)
+      (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+        established.deref decoded.ephemeral.deref = ok false)
+      (hagreementMismatch : oracle.dhAgree model.ratchetPrivate (vecOf established) ≠
+        oracle.dhAgree model.ratchetPrivate
+          (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val)) :
+      SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
+  | initialIdentityMismatch
+      (codec : DhCodecOf dh)
+      (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+      (established : alloc.vec.Vec Std.U8)
+      (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hephemeral : vecOf established = vecOf decoded.ephemeral)
+      (hmismatch : vecOf decoded.identity ≠
+        Model.PersistedState.SessionState.encodeEc
+          (dh.publicKey real.peer_identity_public))
+      (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+        established.deref decoded.ephemeral.deref = ok true) :
+      SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
   | nonInitialNone
       (hrel : SessionRefines dh K real model)
       (htrace : trace rng = oracle.draws)
@@ -11573,6 +11606,19 @@ theorem public_session_decrypt_end_to_end
   | initialMalformed codec ctx hsame hmismatch hready hbad =>
       exact decrypt_initial_refines_from_ratchet codec ctx hsame hmismatch
         (initial_ratchet_refines_decode_refusal ctx hready hbad)
+  | initialNoEstablished ctx decoded hdecode hnone =>
+      exact decrypt_initial_without_established_refines rc crc trace dh K view oracle real model
+        message rng decoded ctx.hrel ctx.htrace ctx.htype hdecode hnone
+  | initialEphemeralMismatch ctx established decoded hdecode hestablished hmismatch
+      hsameAgreement hagreementMismatch =>
+      exact (decrypt_initial_ephemeral_mismatch_refines rc crc trace dh K view oracle real model
+        message rng established decoded ctx.hrel ctx.htrace ctx.htype hdecode hestablished
+        hmismatch hsameAgreement hagreementMismatch)
+  | initialIdentityMismatch codec ctx established decoded hdecode hestablished hephemeral
+      hmismatch hsameAgreement =>
+      exact (decrypt_initial_identity_mismatch_refines rc crc trace dh codec K view oracle real model
+        message rng established decoded ctx.hrel ctx.htrace ctx.htype hdecode hestablished
+        hephemeral hmismatch hsameAgreement)
   | nonInitialNone hrel htrace htype innerOutput hinner hstep =>
       exact decrypt_none_refines rc crc trace dh K view oracle real model message rng
         innerOutput htype hinner hstep
