@@ -31,10 +31,17 @@ def braid_send_contracts_to_t1 {R : Type} {rc : rand_core_1.RngCore R}
     encapsStateClone := contracts.encapsStateClone
     keyPairGenerate := contracts.keyPairGenerate
     keyPairHeader := contracts.header
+<<<<<<< HEAD
     hmac := contracts.hmac.total
     encoderNew := contracts.encoderNew
     encoderNext := contracts.encoderNext
     hkdf := contracts.hkdf.total
+=======
+    hmac := contracts.hmacTotal
+    encoderNew := contracts.encoderNew
+    encoderNext := contracts.encoderNext
+    hkdf := contracts.hkdfTotal
+>>>>>>> 0856f6bf (proof: bridge send contracts into session boundary)
     encapsulate1 := contracts.encapsulate1
     zeroizingArray := contracts.zeroizingArray
     arrayZeroize := contracts.arrayZeroize
@@ -42,12 +49,21 @@ def braid_send_contracts_to_t1 {R : Type} {rc : rand_core_1.RngCore R}
 
 def triple_send_contracts_to_t1 (contracts : TripleSendRefinementContracts) :
     Tacenta.UnitLifecycleT1.TripleSendContracts :=
+<<<<<<< HEAD
   { hmac := contracts.hmac.total
     hkdf := contracts.hkdf.total
     zeroize := contracts.spqrZeroize
     vecRetain := contracts.vecRetainTotal
     kdfRk := Tacenta.SessionUnitSpqrT3.SpqrHkdfAgrees.kdfRkTotal contracts.hkdf contracts.spqrZeroizing96
     kdfCk := Tacenta.SessionUnitSpqrT3.SpqrHkdfAgrees.kdfCkTotal contracts.hkdf contracts.spqrZeroizing64
+=======
+  { hmac := contracts.hmacTotal
+    hkdf := contracts.hkdfTotal
+    zeroize := contracts.spqrZeroize
+    vecRetain := contracts.vecRetainTotal
+    kdfRk := contracts.kdfRk
+    kdfCk := contracts.kdfCk
+>>>>>>> 0856f6bf (proof: bridge send contracts into session boundary)
     optionClone := contracts.optionClone }
 
 def encrypt_contracts_of_send_contracts
