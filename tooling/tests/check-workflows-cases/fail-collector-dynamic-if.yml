@@ -1,0 +1,11 @@
+# expect: has an unapproved job-level `if`
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  assurance-receipts:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: true

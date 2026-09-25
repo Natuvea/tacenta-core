@@ -66,9 +66,9 @@
 #    report green without running its command. Jobs that emit a `required`
 #    assurance receipt must therefore have no job-level `if` or
 #    `continue-on-error` at all; a dynamic expression is still a switch. The
-#    guard evaluates constant literals and boolean operators for other jobs.
-#    `fromJSON('false')` and `fromJSON('true')` are constants too, even though
-#    they are expressions.
+#    only job-level exceptions are the PR-only sign-off job and the collector's
+#    exact `always()` condition. `fromJSON('false')` and `fromJSON('true')` are
+#    constants too, even though they are expressions.
 #
 # The cases each rule is held to, passing and failing, are the files under
 # `tooling/tests/check-workflows-cases/`, which
@@ -277,6 +277,16 @@ def is_disabled_condition(value):
 def is_truthy_continue_on_error(value):
     return constant_truth(value) is True
 
+def normalized_expression(value):
+    if not isinstance(value, str):
+        return None
+    return re.sub(r"\s+", "", value).lower()
+
+ALLOWED_JOB_IF = {
+    "sign-off": "github.event_name=='pull_request'",
+    "assurance-receipts": "always()",
+}
+
 for f in files:
     try:
         doc = yaml.safe_load(open(f))
@@ -326,9 +336,19 @@ for f in files:
             required_receipt = isinstance(inputs, dict) and inputs.get("classification") == "required"
             if required_receipt:
                 break
-        if required_receipt and "if" in job:
-            complain("%s job '%s' emits a required receipt but has a job-level `if` -- "
-                     "required jobs must run unconditionally" % (f, name))
+        if "if" in job:
+            actual_if = normalized_expression(job.get("if"))
+            expected_if = ALLOWED_JOB_IF.get(name)
+            if expected_if is None:
+                if required_receipt:
+                    complain("%s job '%s' emits a required receipt but has a job-level `if` -- "
+                             "required jobs must run unconditionally" % (f, name))
+                else:
+                    complain("%s job '%s' has a job-level `if` -- required jobs "
+                             "must run unconditionally" % (f, name))
+            elif actual_if != expected_if:
+                complain("%s job '%s' has an unapproved job-level `if`; use "
+                         "the exact repository exception or remove it" % (f, name))
         if required_receipt and "continue-on-error" in job:
             complain("%s job '%s' emits a required receipt but has job-level "
                      "`continue-on-error` -- required commands must fail the job" % (f, name))

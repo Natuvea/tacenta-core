@@ -477,15 +477,12 @@ jobs:
 
   assurance-receipts:
     needs: [rust, msrv, armv7, vectors, audit, proofs, translation, checks, sign-off]
-    # `sign-off` is intentionally skipped for pushes. `always()` makes this
-    # collector evaluate that conditional dependency instead of GitHub skipping
-    # the collector before its push branch can run.
-    if: >-
-      always() && needs.rust.result == 'success' && needs.msrv.result == 'success' &&
-      needs.armv7.result == 'success' && needs.vectors.result == 'success' &&
-      needs.audit.result == 'success' && needs.proofs.result == 'success' &&
-      needs.translation.result == 'success' && needs.checks.result == 'success' &&
-      (github.event_name == 'push' || needs.sign-off.result == 'success')
+    # The collector must run even when a dependency failed or the conditional
+    # sign-off job was skipped on a push. Its receipt validator then fails
+    # closed on missing, failed or cross-candidate records. The workflow gate
+    # allows this exact unconditional exception and rejects other job-level
+    # conditions.
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
