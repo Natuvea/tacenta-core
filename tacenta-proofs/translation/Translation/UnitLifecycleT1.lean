@@ -40,9 +40,14 @@ def AeadOpenTotal : Prop :=
   ∀ ek mk nonce ciphertext ad,
     NoPanic (tacenta_boundary.aead.decrypt ek mk nonce ciphertext ad)
 
+/- A primitive may consume any byte length from the caller's RNG. -/
+def RngTotal {R : Type} (rngCore : rand_core_1.RngCore R) : Prop :=
+  ∀ rng bytes, NoPanic (rngCore.fill_bytes rng bytes)
+
 def KemEncapsulateTotal : Prop :=
   ∀ {R : Type} (rngCore : rand_core_1.RngCore R)
     (cryptoRng : rand_core_1.CryptoRng R) publicKey rng,
+    RngTotal rngCore →
     NoPanic (tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng)
 
 def KemDecapsulateTotal : Prop :=
@@ -59,6 +64,7 @@ def XeddsaVerifyTotal : Prop :=
 def XeddsaSignTotal : Prop :=
   ∀ {R : Type} (rngCore : rand_core_1.RngCore R)
     (cryptoRng : rand_core_1.CryptoRng R) secret message rng,
+    RngTotal rngCore →
     NoPanic (tacenta_boundary.xeddsa.sign rngCore cryptoRng secret message rng)
 
 /-- Totality is required of the concrete RNG instance passed to a lifecycle
@@ -103,9 +109,10 @@ def Random32Total {R : Type} (rngCore : rand_core_1.RngCore R) : Prop :=
 
 @[step] theorem kem_encapsulate_no_panic {R : Type}
     (h : KemEncapsulateTotal) (rc : rand_core_1.RngCore R)
-    (crc : rand_core_1.CryptoRng R) (pk : Slice U8) (rng : R) :
+    (crc : rand_core_1.CryptoRng R) (hrng : RngTotal rc)
+    (pk : Slice U8) (rng : R) :
     tacenta_boundary.kem.encapsulate rc crc pk rng ⦃ fun _ => True ⦄ :=
-  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h rc crc pk rng)
+  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h rc crc pk rng hrng)
 
 @[step] theorem kem_decapsulate_no_panic (h : KemDecapsulateTotal)
     (kp : tacenta_boundary.kem.KeyPair) (ct : Slice U8) :
@@ -124,9 +131,10 @@ def Random32Total {R : Type} (rngCore : rand_core_1.RngCore R) : Prop :=
 
 @[step] theorem xeddsa_sign_no_panic {R : Type} (h : XeddsaSignTotal)
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
-    (secret : Array U8 32#usize) (message : Slice U8) (rng : R) :
+    (hrng : RngTotal rc) (secret : Array U8 32#usize)
+    (message : Slice U8) (rng : R) :
     tacenta_boundary.xeddsa.sign rc crc secret message rng ⦃ fun _ => True ⦄ :=
-  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h rc crc secret message rng)
+  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h rc crc secret message rng hrng)
 
 @[step] theorem random_secret_no_panic {R : Type}
     (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
