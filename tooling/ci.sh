@@ -74,6 +74,8 @@ python3 tooling/check_authentication_boundary.py
 # translator renumbers it. See the script.
 echo "== Proof hygiene: no generated names in hand-written proofs =="
 bash tooling/check-proof-hygiene.sh
+echo "== No unresolved merge-conflict markers =="
+bash tooling/check-conflict-markers.sh
 
 # The Session refinement gives every opaque primitive operation a named,
 # reviewed contract.  Pin the operations actually reachable in the generated
