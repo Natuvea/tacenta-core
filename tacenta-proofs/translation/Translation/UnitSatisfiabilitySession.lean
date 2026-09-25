@@ -82,7 +82,7 @@ abbrev AeadSealFn := Array U8 32#usize → Array U8 32#usize →
 def AeadSealBoundedShape (f : AeadSealFn) : Prop :=
   ∀ ek mk iv plaintext ad, ∃ r,
     f ek mk iv plaintext ad = ok r ∧
-    r.val.length ≤ plaintext.val.length + 16
+    r.val.length ≤ plaintext.val.length + 48
 
 theorem AeadSealBounded_is : Tacenta.UnitLifecycleT1.AeadSealBounded ↔
     AeadSealBoundedShape tacenta_boundary.aead.encrypt := Iff.rfl

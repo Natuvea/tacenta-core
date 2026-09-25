@@ -1955,7 +1955,7 @@ primitive boundary, `DhCodecTotal`, `DhAgreeTotal`, `AeadOpenTotal`,
 `KemEncapsulateTotal`, `KemDecapsulateTotal`, `KemCiphertextLenTotal`,
 `XeddsaVerifyTotal`, `XeddsaSignTotal` and `Random32Total`; one over the
 AEAD's output shape, `AeadSealBounded`, which says the call returns and that
-the ciphertext is at most sixteen bytes longer than the plaintext (a length
+the ciphertext and authentication tag are at most forty-eight bytes longer than the plaintext (a length
 bound the framing headroom needs, so it is not a totality contract); and two
 over standard-library and `zeroize` operations Aeneas leaves opaque,
 `VecPopTotal` and `MessageKeyMaterialRoundTrip`. The decision record named ten

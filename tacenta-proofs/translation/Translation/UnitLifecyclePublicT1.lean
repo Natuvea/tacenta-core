@@ -1595,13 +1595,13 @@ def AeadSealBounded : Prop :=
   ∀ ek mk : Array U8 32#usize, ∀ iv : Array U8 16#usize,
     ∀ plaintext ad : Slice U8, ∃ r,
       tacenta_boundary.aead.encrypt ek mk iv plaintext ad = ok r ∧
-      r.val.length ≤ plaintext.val.length + 16
+      r.val.length ≤ plaintext.val.length + 48
 
 theorem aead_seal_bounded_spec (h : AeadSealBounded)
     (ek mk : Array U8 32#usize) (iv : Array U8 16#usize)
     (plaintext ad : Slice U8) :
     tacenta_boundary.aead.encrypt ek mk iv plaintext ad ⦃ fun r =>
-      r.val.length ≤ plaintext.val.length + 16 ⦄ := by
+      r.val.length ≤ plaintext.val.length + 48 ⦄ := by
   obtain ⟨r, hr, hb⟩ := h ek mk iv plaintext ad
   rw [hr]
   simpa
@@ -1616,11 +1616,11 @@ structure EncryptContracts {R : Type} (rc : rand_core_1.RngCore R) : Prop where
 structure EncryptHeadroom (self : lifecycle.Session) (plaintext : Slice U8) : Prop where
   triple : self.triple.post_quantum.chains.val.length + 1 < Usize.max
   associatedData : self.identity_ad.val.length + 106 ≤ Usize.max
-  ratchetMessage : 102 + (plaintext.val.length + 16) ≤ Usize.max
+  ratchetMessage : 102 + (plaintext.val.length + 48) ≤ Usize.max
   initial : match self.pending_initial with
     | none => True
     | some p => 33 + 33 + p.kem_ciphertext.val.length +
-        (102 + (plaintext.val.length + 16)) + 18 ≤ Usize.max
+        (102 + (plaintext.val.length + 48)) + 18 ≤ Usize.max
 
 set_option maxHeartbeats 800000 in
 theorem encrypt_no_panic {R : Type}

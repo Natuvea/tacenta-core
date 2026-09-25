@@ -64,8 +64,9 @@ audit still encounter that opaque call.
 
 Note, 2026-09-20: the complete translation and its T1 layer required twelve
 contracts, the cap: the nine above less `AeadSealTotal`, plus `AeadSealBounded`
-(the AEAD call returns and its ciphertext is at most sixteen bytes longer than
-the plaintext, which the framing headroom needs), `VecPopTotal` and
+(the AEAD call returns ciphertext plus its 32-byte authentication tag at most
+forty-eight bytes longer than the plaintext, which the framing headroom needs),
+`VecPopTotal` and
 `MessageKeyMaterialRoundTrip` over standard-library and `zeroize` operations
 Aeneas leaves opaque. `LIMITATIONS.md` and `UnitSatisfiabilitySession.lean`
 (`all_twelve_contracts_satisfiable`) carry the twelve.
