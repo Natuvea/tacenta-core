@@ -61,6 +61,10 @@
 #    repository's workflow, as it is on main, use. The rule keeps the file
 #    saying the same thing, so a pull request is not queued for a runner it
 #    cannot have. Textual, as rules 4 and 6 are.
+# 8. No job is unconditionally disabled with `if: false`. A required check
+#    that can be turned off in the workflow being reviewed can report green
+#    without running its command; conditional jobs remain allowed when their
+#    condition is not statically false.
 #
 # The cases each rule is held to, passing and failing, are the files under
 # `tooling/tests/check-workflows-cases/`, which
@@ -184,10 +188,18 @@ def check_run(f, name, run):
     joined = "\n".join(pipeline_lines(run))
     if re.search(DOWNLOAD, joined) and not CHECKSUM.search(joined) \
             and (RUNS_A_PATH.search(joined) or MARKS_EXECUTABLE.search(joined)):
-        complain("%s job '%s' has a `run:` script in which something is "
+            complain("%s job '%s' has a `run:` script in which something is "
                  "downloaded then executed without a checksum -- check the "
                  "file's sha256 against a pinned digest between the two"
                  % (f, name))
+
+def is_disabled_condition(value):
+    """Recognise only conditions that are explicitly the constant false."""
+    if value is False:
+        return True
+    if isinstance(value, str):
+        return re.sub(r"\s+", "", value).lower() in ("false", "${{false}}")
+    return False
 
 for f in files:
     try:
@@ -224,6 +236,12 @@ for f in files:
             continue
         if "runs-on" not in job and "uses" not in job:
             complain("%s job '%s' has neither runs-on nor uses" % (f, name))
+
+        # Rule 8. A disabled job is indistinguishable from a passing required
+        # check to a caller that only sees the workflow's check name.
+        if is_disabled_condition(job.get("if")):
+            complain("%s job '%s' is unconditionally disabled by `if: false`"
+                     % (f, name))
 
         # Rule 7.
         runs_on = job.get("runs-on")
