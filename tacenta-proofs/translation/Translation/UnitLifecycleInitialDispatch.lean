@@ -46,8 +46,8 @@ def triple_send_contracts_to_t1 (contracts : TripleSendRefinementContracts) :
     hkdf := contracts.hkdf.total
     zeroize := contracts.spqrZeroize
     vecRetain := contracts.vecRetainTotal
-    kdfRk := contracts.kdfRk
-    kdfCk := contracts.kdfCk
+    kdfRk := Tacenta.SessionUnitSpqrT3.SpqrHkdfAgrees.kdfRkTotal contracts.hkdf contracts.spqrZeroizing96
+    kdfCk := Tacenta.SessionUnitSpqrT3.SpqrHkdfAgrees.kdfCkTotal contracts.hkdf contracts.spqrZeroizing64
     optionClone := contracts.optionClone }
 
 def encrypt_contracts_of_send_contracts
