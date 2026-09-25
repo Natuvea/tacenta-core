@@ -285,3 +285,16 @@ Focused Lean compilation and `attest.py --check` pass. The signed commits
 `49f1c07` and `01404d4` are pushed. The next semantic step is to package these
 facts and compose them with `decrypt_ratchet_aead_refusal_from_braid`, then
 feed the resulting route into the indexed refusal provider.
+
+## Verification — 2026-09-25 (`9118ddbd`)
+
+The current proof branch replays `Translation.UnitLifecycleT3` successfully
+(1,728 jobs), and the checked-in dispatcher remains mutation-tested locally.
+The public Session bridge is still conditional: `SessionDecryptEvidence` and
+the initial branch package require `DhCodecOf`, `OracleOf`, the T1 boundary
+contracts, and concrete Triple/AEAD/Braid providers as inputs. Those records
+are typed and result-indexed, but they are not yet instantiated from the
+shipped primitive implementations. The remaining work is therefore concrete
+provider construction, followed by the final success/refusal composition,
+pending-state atomicity, invariant preservation, and exact-head hosted checks.
+This checkpoint does not claim an end-to-end `Session::decrypt` theorem.
