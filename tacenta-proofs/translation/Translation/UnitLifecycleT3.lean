@@ -1565,7 +1565,9 @@ theorem repeated_initial_checks_refine (oracle : Model.Lifecycle.Oracle)
     (hephemeral : vecOf established = vecOf decoded.ephemeral)
     (hidentity : vecOf decoded.identity =
       Model.PersistedState.SessionState.encodeEc
-        (dh.publicKey real.peer_identity_public)) :
+        (dh.publicKey real.peer_identity_public))
+    (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+      (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true) :
     ∃ encoded,
       encode_ec real.peer_identity_public = ok encoded ∧
       alloc.vec.partial_eq.PartialEqVec.eq core.cmp.PartialEqU8
@@ -1599,15 +1601,7 @@ theorem repeated_initial_checks_refine (oracle : Model.Lifecycle.Oracle)
   have hmodelRepeat : Model.Lifecycle.repeatedInitial oracle model
       (Tacenta.SessionUnitWireInitialT3.initialOf decoded) = true := by
     apply (Model.Lifecycle.repeatedInitial_iff oracle _ _).2
-    refine ⟨vecOf established, hmodelEstablished, ?_, ?_⟩
-    · have hbytes : vecOf established =
-          Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val := by
-        rw [wire_bytesOf_eq_vecOf]
-        exact hephemeral
-      change oracle.dhAgree model.ratchetPrivate (vecOf established) =
-        oracle.dhAgree model.ratchetPrivate
-          (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val)
-      rw [hbytes]
+    refine ⟨vecOf established, hmodelEstablished, hmodelSame, ?_⟩
     · change Tacenta.SessionUnitWireT3.bytesOf decoded.identity.val =
         Model.PersistedState.SessionState.encodeEc model.peerIdentityPublic
       rw [wire_bytesOf_eq_vecOf, ← hrel.peerIdentityPublic]
@@ -2840,7 +2834,25 @@ theorem decrypt_initial_ephemeral_mismatch_refines {R : Type}
         rw [hmodelEstablished] at he
         cases he
         have hcontra : False := by
-          exact hagreementMismatch heq
+          have heq' : oracle.dhAgree model.ratchetPrivate (vecOf established) =
+              oracle.dhAgree model.ratchetPrivate
+                (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) := by
+            cases hleft : oracle.dhAgree model.ratchetPrivate (vecOf established) with
+            | none =>
+                simp [Model.Lifecycle.sameEphemeralAgreement,
+                  Tacenta.SessionUnitWireInitialT3.initialOf, hleft] at heq
+            | some left =>
+                cases hright : oracle.dhAgree model.ratchetPrivate
+                    (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) with
+                | none =>
+                    simp [Model.Lifecycle.sameEphemeralAgreement,
+                      Tacenta.SessionUnitWireInitialT3.initialOf, hleft, hright] at heq
+                | some right =>
+                    have hkeys : left = right := by
+                      simpa [Model.Lifecycle.sameEphemeralAgreement,
+                        Tacenta.SessionUnitWireInitialT3.initialOf, hleft, hright] using heq
+                    simpa [hleft, hright, hkeys]
+          exact hagreementMismatch heq'
         exact hcontra.elim
   have hdispatch := Model.Lifecycle.dispatchDecrypt_not_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
@@ -3024,6 +3036,8 @@ theorem decrypt_initial_repeat_step_refines {R : Type}
         (dh.publicKey real.peer_identity_public))
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
       established.deref decoded.ephemeral.deref = ok true)
+    (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+      (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
       (alloc.vec.Vec.deref decoded.message) rng = ok innerOutput)
     (hstep : StepRefines trace dh K innerOutput
@@ -3036,7 +3050,7 @@ theorem decrypt_initial_repeat_step_refines {R : Type}
   rw [hdecode] at hdecodeRel
   obtain ⟨encoded, hencoded, hephemeralCall, hidentityCall, hrepeat⟩ :=
     repeated_initial_checks_refine oracle dh codec K real model established decoded hrel
-      hestablished hephemeral hidentity
+      hestablished hephemeral hidentity hmodelSame
   have hdispatch := Model.Lifecycle.dispatchDecrypt_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
     hmodelType hdecodeRel hrepeat
@@ -3126,6 +3140,8 @@ theorem decrypt_initial_repeat_refusal_exact
         (dh.publicKey real.peer_identity_public))
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
       established.deref decoded.ephemeral.deref = ok true)
+    (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+      (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
       (alloc.vec.Vec.deref decoded.message) rng =
       ok (.Err realReason, real, rngNext))
@@ -3143,7 +3159,7 @@ theorem decrypt_initial_repeat_refusal_exact
   rw [hdecode] at hdecodeRel
   obtain ⟨encoded, hencoded', hephemeralCall, hidentityCall, hrepeat⟩ :=
     repeated_initial_checks_refine oracle dh codec K real model established decoded hrel
-      hestablished hephemeral hidentity
+      hestablished hephemeral hidentity hmodelSame
   have hdispatch := Model.Lifecycle.dispatchDecrypt_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
     hmodelType hdecodeRel hrepeat
@@ -3179,6 +3195,8 @@ def initial_dispatch_repeat_refusal_from_premises
       Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public))
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
       established.deref decoded.ephemeral.deref = ok true)
+    (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+      (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
       (alloc.vec.Vec.deref decoded.message) rng = ok (.Err realReason, real, rngNext))
     (hmodelStep : Model.Lifecycle.decryptRatchet view oracle model
@@ -3192,7 +3210,7 @@ def initial_dispatch_repeat_refusal_from_premises
   exact decrypt_initial_repeat_refusal_exact rngCore cryptoRng trace dh codec K view oracle
     oracleNext real model message rng rngNext established decoded realReason modelReason modelNext
     ctx.hrel htraceNext ctx.htype hdecode hestablished
-    hephemeral hidentity hsameAgreement hinner hmodelStep hstep
+    hephemeral hidentity hsameAgreement hmodelSame hinner hmodelStep hstep
 
 theorem decrypt_initial_repeat_success_exact
     {R : Type} (rngCore : rand_core_1.RngCore R)
@@ -3220,6 +3238,8 @@ theorem decrypt_initial_repeat_success_exact
         (dh.publicKey real.peer_identity_public))
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
       established.deref decoded.ephemeral.deref = ok true)
+    (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+      (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
       (alloc.vec.Vec.deref decoded.message) rng =
       ok (.Ok plaintext, realNext, rngNext))
@@ -3238,7 +3258,7 @@ theorem decrypt_initial_repeat_success_exact
   rw [hdecode] at hdecodeRel
   obtain ⟨encoded, hencoded, hephemeralCall, hidentityCall, hrepeat⟩ :=
     repeated_initial_checks_refine oracle dh codec K real model established decoded hrel
-      hestablished hephemeral hidentity
+      hestablished hephemeral hidentity hmodelSame
   have hdispatch := Model.Lifecycle.dispatchDecrypt_repeat oracle model
     (sliceOf message) (Tacenta.SessionUnitWireInitialT3.initialOf decoded)
     hmodelType hdecodeRel hrepeat
@@ -3282,6 +3302,8 @@ def initial_dispatch_repeat_success_from_premises
       Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public))
     (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
       established.deref decoded.ephemeral.deref = ok true)
+    (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+      (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
     (hinner : lifecycle.Session.decrypt_ratchet rngCore cryptoRng real
       (alloc.vec.Vec.deref decoded.message) rng = ok (.Ok plaintext, realNext, rngNext))
     (hmodelStep : Model.Lifecycle.decryptRatchet view oracle model
@@ -3295,7 +3317,8 @@ def initial_dispatch_repeat_success_from_premises
   refine InitialDispatchRoute.repeatSuccess ?_
   exact decrypt_initial_repeat_success_exact rngCore cryptoRng trace dh codec K view oracle oracleNext
     real model message rng rngNext established decoded plaintext modelPlaintext realNext modelNext
-    ctx.hrel htraceNext ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement hinner hmodelStep hbytes
+    ctx.hrel htraceNext ctx.htype hdecode hestablished hephemeral hidentity hsameAgreement
+    hmodelSame hinner hmodelStep hbytes
     hstep
 
 theorem encrypt_braid_failure_step_refines {R : Type}

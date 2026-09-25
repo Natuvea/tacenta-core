@@ -15,6 +15,7 @@ from dataclasses import replace
 from typing import Optional
 
 from . import constants as K
+from . import curve25519
 from .kdf import hkdf_sha256, hmac_sha256
 from .wire import InitialMessage, decode_ec, encode_ec
 
@@ -155,15 +156,16 @@ def receive_last_resort(store, message: InitialMessage, authenticate):
     return replace(store, seen=list(store.seen) + [(message.kem_prekey_id, fp)]), result
 
 
-def accept_repeated_initial(is_responder: bool, established_ephemeral: Optional[bytes],
+def accept_repeated_initial(is_responder: bool, ratchet_private: bytes,
+                            established_ephemeral: Optional[bytes],
                             peer_identity_public: Optional[bytes],
                             message: InitialMessage) -> None:
     """session-establishment.md, Receiving the initial message. A decoded
     initial message on an existing session is accepted only if it is a
     responder's session and both hold:
-    - "the message's ephemeral field equals, byte for byte, the ephemeral
-      field carried by the initial message that established the session
-      (established_ephemeral)";
+    - "the message's ephemeral field is in the same successful X25519
+      agreement class as the field carried by the initial message that
+      established the session (established_ephemeral)";
     - "the message's identity field equals, byte for byte, EncodeEC of the
       peer's identity key the session holds (peer_identity_public)".
     "Otherwise, and always on an initiator's session, it refuses the message
@@ -171,8 +173,15 @@ def accept_repeated_initial(is_responder: bool, established_ephemeral: Optional[
     compared"."""
     if not is_responder or established_ephemeral is None:
         raise NotARepeatedInitial("not a responder's session")
-    if bytes(message.ephemeral) != bytes(established_ephemeral):
-        raise NotARepeatedInitial("ephemeral differs from established_ephemeral")
+    try:
+        established_agreement = curve25519.x25519_contributory(
+            ratchet_private, decode_ec(bytes(established_ephemeral)))
+        incoming_agreement = curve25519.x25519_contributory(
+            ratchet_private, decode_ec(bytes(message.ephemeral)))
+    except (ValueError, curve25519.NonContributory) as e:
+        raise NotARepeatedInitial("ephemeral has no successful agreement") from e
+    if established_agreement != incoming_agreement:
+        raise NotARepeatedInitial("ephemeral is outside the established agreement class")
     if peer_identity_public is None or bytes(message.identity) != encode_ec(bytes(peer_identity_public)):
         raise NotARepeatedInitial("identity differs from EncodeEC(peer_identity_public)")
 
@@ -189,6 +198,7 @@ def receive_repeated_initial(session, raw: bytes, decrypt_inner):
     the ratchet message bytes and stands for the session's ordinary receive."""
     from .wire import decode_initial
     message = decode_initial(raw)
-    accept_repeated_initial(not session.is_initiator, session.established_ephemeral,
+    accept_repeated_initial(not session.is_initiator, session.ratchet_private,
+                            session.established_ephemeral,
                             session.peer_identity_public, message)
     return decrypt_inner(message.ratchet_message)

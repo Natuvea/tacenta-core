@@ -7855,7 +7855,9 @@ def InitialSameEphemeralEvidence
   ∀ (established : alloc.vec.Vec Std.U8) (decoded : tacenta_wire.DecodedInitial),
     vecOf established = vecOf decoded.ephemeral →
     lifecycle.same_ephemeral_agreement real.ratchet_private
-      established.deref decoded.ephemeral.deref = ok true
+        established.deref decoded.ephemeral.deref = ok true ∧
+      Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+        (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true
 
 def InitialMismatchedEphemeralEvidence
     (dh : DhView) (oracle : Model.Lifecycle.Oracle)
@@ -7897,13 +7899,15 @@ theorem initial_dispatch_route_from_ratchet
               hreceive decoded established hdecode hestablished he hi
             have hw := decrypt_initial_repeat_step_refines rc crc trace dh codec K view oracle
               real model message rng established decoded (result, next, rngNext)
-              ctx.hrel ctx.htype hdecode hestablished he hi (hsame established decoded he)
+              ctx.hrel ctx.htype hdecode hestablished he hi
+              (hsame established decoded he).1 (hsame established decoded he).2
               hcall hstep
             cases result with
             | Err reason => exact ⟨.repeatRefusal hw⟩
             | Ok plaintext => exact ⟨.repeatSuccess hw⟩
           · exact ⟨initial_dispatch_identity_mismatch_from_premises (codec := codec)
-              ctx established decoded hdecode hestablished he hi (hsame established decoded he)⟩
+              ctx established decoded hdecode hestablished he hi
+              (hsame established decoded he).1⟩
         · exact ⟨initial_dispatch_ephemeral_mismatch_from_premises
             ctx established decoded hdecode hestablished he
             (hmismatch established decoded he).1 (hmismatch established decoded he).2⟩
