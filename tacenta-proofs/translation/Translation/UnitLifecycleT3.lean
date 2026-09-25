@@ -1910,8 +1910,6 @@ structure BraidSendRefinementContracts {R : Type}
   keyPairGenerate : Tacenta.SessionUnitBraidT1.KeyPairGenerateTotal
   encoderNew : Tacenta.SessionUnitBraidT1.EncoderNewTotal
   encoderNext : Tacenta.SessionUnitBraidT1.EncoderNextChunkTotal
-  hmacTotal : Tacenta.SessionUnitBraidT1.HmacSha256Total
-  hkdfTotal : Tacenta.SessionUnitBraidT1.HkdfSha256Total
   encapsulate1 : Tacenta.SessionUnitBraidT1.Encapsulate1Total
 
 theorem braid_send_result_of_contracts
@@ -1925,7 +1923,7 @@ theorem braid_send_result_of_contracts
     (Tacenta.SessionUnitBraidT1.Braid.send_no_panic rc crc contracts.rng
       contracts.encoderClone contracts.decoderClone contracts.keyPairClone
       contracts.encapsStateClone contracts.keyPairGenerate contracts.header
-      contracts.hmacTotal contracts.encoderNew contracts.encoderNext contracts.hkdfTotal
+      contracts.hmac.total contracts.encoderNew contracts.encoderNext contracts.hkdf.total
       contracts.encapsulate1 contracts.zeroizingArray contracts.arrayZeroize
       contracts.rangeFullIndex self rng)
   rcases result with ⟨result, rngNext⟩
