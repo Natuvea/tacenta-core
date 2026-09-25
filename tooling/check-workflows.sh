@@ -63,12 +63,12 @@
 #    cannot have. Textual, as rules 4 and 6 are.
 # 8. No job is unconditionally disabled by a statically false `if` value. A
 #    required check that can be turned off in the workflow being reviewed can
-#    report green without running its command; conditional jobs remain allowed
-#    when their condition is not statically false. The guard evaluates only
-#    constant literals and boolean operators; dynamic expressions remain valid.
-#    A job-level `continue-on-error` is rejected when truthy for the same
-#    reason: a required command must fail the job. `fromJSON('false')` and
-#    `fromJSON('true')` are constants too, even though they are expressions.
+#    report green without running its command. Jobs that emit a `required`
+#    assurance receipt must therefore have no job-level `if` or
+#    `continue-on-error` at all; a dynamic expression is still a switch. The
+#    guard evaluates constant literals and boolean operators for other jobs.
+#    `fromJSON('false')` and `fromJSON('true')` are constants too, even though
+#    they are expressions.
 #
 # The cases each rule is held to, passing and failing, are the files under
 # `tooling/tests/check-workflows-cases/`, which
@@ -314,7 +314,24 @@ for f in files:
             complain("%s job '%s' has neither runs-on nor uses" % (f, name))
 
         # Rule 8. A disabled job is indistinguishable from a passing required
-        # check to a caller that only sees the workflow's check name.
+        # check to a caller that only sees the workflow's check name. The
+        # receipt declaration is repository-owned evidence of which jobs are
+        # required; removing it is caught by the receipt collector's missing
+        # required-ID check.
+        required_receipt = False
+        for step in job.get("steps") or []:
+            if not isinstance(step, dict) or step.get("uses") != "./.github/actions/assurance-receipt":
+                continue
+            inputs = step.get("with") or {}
+            required_receipt = isinstance(inputs, dict) and inputs.get("classification") == "required"
+            if required_receipt:
+                break
+        if required_receipt and "if" in job:
+            complain("%s job '%s' emits a required receipt but has a job-level `if` -- "
+                     "required jobs must run unconditionally" % (f, name))
+        if required_receipt and "continue-on-error" in job:
+            complain("%s job '%s' emits a required receipt but has job-level "
+                     "`continue-on-error` -- required commands must fail the job" % (f, name))
         if is_disabled_condition(job.get("if")):
             complain("%s job '%s' is unconditionally disabled by `if: false`"
                      % (f, name))

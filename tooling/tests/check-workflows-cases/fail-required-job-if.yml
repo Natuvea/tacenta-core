@@ -1,0 +1,15 @@
+# expect: emits a required receipt but has a job-level `if`
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: j
+          classification: required
+          command: test

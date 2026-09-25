@@ -1,0 +1,15 @@
+# expect: emits a required receipt but has job-level `continue-on-error`
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    continue-on-error: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: j
+          classification: required
+          command: test
