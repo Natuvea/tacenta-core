@@ -14,9 +14,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+from assurance_validation import ALLOWED_STATUSES, REQUIRED_CHECKS, validate_receipts
+
 ROOT = Path(__file__).resolve().parents[1]
-REQUIRED_CHECKS = {"rust", "msrv", "armv7", "vectors", "audit", "proofs", "translation", "checks"}
-ALLOWED_STATUSES = {"pass", "fail", "missing", "skipped", "inconclusive", "not_applicable"}
 SOURCES = [
     "ASSURANCE.md", "ASSURANCE-OBLIGATIONS.md", "GAP-REGISTER.md",
     "tacenta-proofs/CLAIMS.md", "tacenta-proofs/LIMITATIONS.md",
@@ -59,43 +59,10 @@ def load_receipts(path: Path, commit: str, tree: str) -> list[dict]:
         fail(f"cannot read receipts: {exc}")
     except json.JSONDecodeError as exc:
         fail(f"receipts are not JSON: {exc}")
-    if data.get("schema_version") != 1:
-        fail("receipts schema_version must be 1")
-    candidate = data.get("candidate")
-    if not isinstance(candidate, dict) or candidate.get("commit") != commit or candidate.get("tree") != tree:
-        fail("receipts candidate commit/tree does not match selected source")
-    checks = data.get("checks")
-    if not isinstance(checks, list):
-        fail("receipts checks must be a list")
-    ids: set[str] = set()
-    for check in checks:
-        if not isinstance(check, dict):
-            fail("receipt check must be an object")
-        for field in ("id", "classification", "applicable", "status", "command", "environment", "run"):
-            if field not in check:
-                fail(f"receipt check missing {field}")
-        cid = check["id"]
-        if not isinstance(cid, str) or not cid or cid in ids:
-            fail(f"duplicate or invalid check id {cid!r}")
-        ids.add(cid)
-        if check["classification"] not in {"required", "optional", "conditional"}:
-            fail(f"check {cid} has invalid classification")
-        if not isinstance(check["applicable"], bool):
-            fail(f"check {cid} applicable must be boolean")
-        if check["status"] not in ALLOWED_STATUSES:
-            fail(f"check {cid} has invalid status")
-        if not isinstance(check["command"], str) or not check["command"]:
-            fail(f"check {cid} has no command")
-        if not isinstance(check["environment"], dict) or not isinstance(check["run"], dict):
-            fail(f"check {cid} environment and run must be objects")
-        if check["applicable"] and check["classification"] in {"required", "conditional"} and check["status"] != "pass":
-            fail(f"required applicable check {cid} is {check['status']}")
-        if not check["applicable"] and check["status"] != "not_applicable":
-            fail(f"inapplicable check {cid} must be not_applicable")
-    missing = REQUIRED_CHECKS - ids
-    if missing:
-        fail("missing required check receipts: " + ", ".join(sorted(missing)))
-    return sorted(checks, key=lambda item: item["id"])
+    try:
+        return validate_receipts(data, commit, tree)
+    except ValueError as exc:
+        fail(str(exc))
 
 
 def build(receipts_path: Path, allow_dirty: bool) -> dict:
@@ -140,21 +107,26 @@ def validate(path: Path) -> None:
         fail("manifest does not assert a clean source tree")
     if identity.get("source_commit") != git("rev-parse", "HEAD") or identity.get("source_tree") != git("rev-parse", "HEAD^{tree}"):
         fail("manifest candidate commit/tree does not match selected source")
-    for source in data.get("sources", []):
+    sources = data.get("sources")
+    expected_sources = set(SOURCES)
+    source_paths = [item.get("path") if isinstance(item, dict) else None for item in sources] if isinstance(sources, list) else []
+    if len(source_paths) != len(expected_sources) or set(source_paths) != expected_sources:
+        fail("manifest source inventory does not match the repository-owned source set")
+    for source in sources:
         if not isinstance(source, dict) or not isinstance(source.get("path"), str):
             fail("manifest has invalid source entry")
         path = ROOT / source["path"]
-        if not path.is_file() or sha256(path) != source.get("sha256"):
+        if not isinstance(source.get("sha256"), str) or not isinstance(source.get("bytes"), int):
+            fail(f"manifest source entry is incomplete: {source.get('path')}")
+        if not path.is_file() or path.stat().st_size != source["bytes"] or sha256(path) != source["sha256"]:
             fail(f"manifest source digest mismatch: {source.get('path')}")
     checks = data.get("checks")
-    if not isinstance(checks, list):
-        fail("manifest checks must be a list")
-    ids = {item.get("id") for item in checks if isinstance(item, dict)}
-    if REQUIRED_CHECKS - ids:
-        fail("manifest omits required check ids")
-    for check in checks:
-        if check.get("classification") in {"required", "conditional"} and check.get("applicable") and check.get("status") != "pass":
-            fail(f"manifest required check {check.get('id')} is not pass")
+    try:
+        validate_receipts({"schema_version": 1, "candidate": {
+            "commit": identity["source_commit"], "tree": identity["source_tree"]
+        }, "checks": checks}, identity["source_commit"], identity["source_tree"])
+    except ValueError as exc:
+        fail("manifest checks are not a complete passing receipt set: " + str(exc))
     reviews = data.get("review_requirements")
     if not isinstance(reviews, list) or not reviews or reviews[0].get("status") != "pending":
         fail("manifest must retain a pending independent review requirement")

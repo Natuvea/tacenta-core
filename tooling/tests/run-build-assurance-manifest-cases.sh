@@ -37,6 +37,8 @@ data['candidate'] = {
     'commit': __import__('os').environ['ASSURANCE_FIXTURE_COMMIT'],
     'tree': __import__('os').environ['ASSURANCE_FIXTURE_TREE'],
 }
+for check in data['checks']:
+    check['run'].update(commit=data['candidate']['commit'], tree=data['candidate']['tree'])
 exec(program.read_text(), {'data': data})
 output.write_text(json.dumps(data, indent=2) + '\n')
 PY
@@ -58,8 +60,12 @@ printf "%s\n" "c = next(c for c in data['checks'] if c['id'] == 'audit'); c['app
 make_case inapplicable "$work/inapplicable.py"
 expect_fail inapplicable 'inapplicable check audit must be not_applicable'
 
+printf "%s\n" "next(c for c in data['checks'] if c['id'] == 'audit')['classification'] = 'optional'" > "$work/downgraded.py"
+make_case downgraded "$work/downgraded.py"
+expect_fail downgraded 'required receipt audit must be an applicable required check'
+
 printf "%s\n" "data['candidate']['commit'] = '0' * 40" > "$work/foreign.py"
 make_case foreign "$work/foreign.py"
 expect_fail foreign 'receipts candidate commit/tree does not match selected source'
 
-echo 'build-assurance-manifest-cases: pass case and 4 receipt refusals gave the expected result'
+echo 'build-assurance-manifest-cases: pass case and 5 receipt refusals gave the expected result'

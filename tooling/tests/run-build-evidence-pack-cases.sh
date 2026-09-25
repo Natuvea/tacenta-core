@@ -42,6 +42,13 @@ expect_fail() {
 
 write_pack "$work/pass" source/evidence.txt
 python3 "$root/tooling/build-evidence-pack.py" --verify "$work/pass" >/dev/null
+echo unlisted > "$work/pass/UNLISTED-SENTINEL.txt"
+expect_fail extra 'pack contains unlisted files: UNLISTED-SENTINEL.txt' "$work/pass"
+rm "$work/pass/UNLISTED-SENTINEL.txt"
+
+ln -s source/evidence.txt "$work/pass/SYMLINK-SENTINEL.txt"
+expect_fail symlink 'pack contains a symlink: SYMLINK-SENTINEL.txt' "$work/pass"
+rm "$work/pass/SYMLINK-SENTINEL.txt"
 
 cp -R "$work/pass" "$work/tampered"
 printf 'changed\n' > "$work/tampered/source/evidence.txt"
@@ -50,4 +57,4 @@ expect_fail tampered 'pack digest mismatch: source/evidence.txt' "$work/tampered
 write_pack "$work/escape" ../source/evidence.txt
 expect_fail escape 'invalid pack file path: ../source/evidence.txt' "$work/escape"
 
-echo 'build-evidence-pack-cases: pass case and 2 pack refusals gave the expected result'
+echo 'build-evidence-pack-cases: pass case and 4 pack refusals gave the expected result'
