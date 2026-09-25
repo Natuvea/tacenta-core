@@ -141,11 +141,16 @@ structure OracleOf {R : Type}
       tacenta_boundary.aead.decrypt key1 key2 iv ciphertext associatedData = ok result ∧
       resultOptionOf vecOf result = oracle.aeadOpen (arrayOf key1) (arrayOf key2)
         (arrayOf iv) (sliceOf ciphertext) (sliceOf associatedData)
-  kemEncapsulate : ∀ publicKey rng draw rest, trace rng = draw :: rest →
+  kemEncapsulateSuccess : ∀ publicKey rng draw rest, trace rng = draw :: rest →
     ∃ result rng',
-      tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng = ok (result, rng') ∧
+      tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
+        ok (.Ok result, rng') ∧
       trace rng' = rest ∧
-      encapsulationOf result = oracle.kemEncaps (sliceOf publicKey) draw
+      encapsulationOf (.Ok result) = oracle.kemEncaps (sliceOf publicKey) draw
+  kemEncapsulateError : ∀ publicKey rng error,
+    tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
+      ok (.Err error, rng) →
+    ∀ draw, oracle.kemEncaps (sliceOf publicKey) draw = none
   kemDecapsulate : ∀ keyPair ciphertext,
     ∃ result,
       tacenta_boundary.kem.decapsulate keyPair ciphertext = ok result ∧
