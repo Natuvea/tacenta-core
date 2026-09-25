@@ -582,8 +582,10 @@ impl State {
     fn clear_old_epochs(&mut self, current: u64) {
         self.chains
             .retain(|p| current < p.0.saturating_add(EPOCHS_KEPT));
+        self.chains.spare_capacity_mut().zeroize();
         self.skipped
             .retain(|s| current < s.epoch.saturating_add(EPOCHS_KEPT));
+        self.skipped.spare_capacity_mut().zeroize();
     }
 
     /// Fold a new secret into the root key and open a fresh pair of chains under
