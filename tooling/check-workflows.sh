@@ -64,7 +64,8 @@
 # 8. No job is unconditionally disabled by a statically false `if` value. A
 #    required check that can be turned off in the workflow being reviewed can
 #    report green without running its command; conditional jobs remain allowed
-#    when their condition is not statically false.
+#    when their condition is not statically false. The guard evaluates only
+#    constant literals and boolean operators; dynamic expressions remain valid.
 #
 # The cases each rule is held to, passing and failing, are the files under
 # `tooling/tests/check-workflows-cases/`, which
@@ -193,33 +194,76 @@ def check_run(f, name, run):
                  "file's sha256 against a pinned digest between the two"
                  % (f, name))
 
-def is_false_literal(value):
-    """Recognise the constant-false forms GitHub accepts in job `if`."""
-    if value is False:
+def strip_outer_parentheses(expr):
+    while expr.startswith("(") and expr.endswith(")"):
+        depth = 0
+        enclosed = True
+        for i, char in enumerate(expr):
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0 and i != len(expr) - 1:
+                    enclosed = False
+                    break
+        if not enclosed or depth != 0:
+            break
+        expr = expr[1:-1]
+    return expr
+
+def split_top_level(expr, operator):
+    depth = 0
+    for i, char in enumerate(expr):
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        elif depth == 0 and expr.startswith(operator, i):
+            return expr[:i], expr[i + len(operator):]
+    return None
+
+def constant_truth(value):
+    """Return True/False for a static GitHub expression, else None."""
+    if value is True:
         return True
-    # YAML parses an unquoted `if: 0` as an integer. GitHub expressions use
-    # the same falsey numeric value when deciding whether to run a job.
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return value == 0
-    if not isinstance(value, str):
+    if value is False:
         return False
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value != 0
+    if not isinstance(value, str):
+        return None
     expr = re.sub(r"\s+", "", value).lower()
     if expr.startswith("${{") and expr.endswith("}}"):
         expr = expr[3:-2]
-    while len(expr) >= 2 and expr[0] == "(" and expr[-1] == ")":
-        expr = expr[1:-1]
-    if expr in ("false", "0", "null", "''", '""', "!true"):
+    expr = strip_outer_parentheses(expr)
+    if expr in ("false", "0", "null", "''", '""'):
+        return False
+    if expr in ("true", "1"):
         return True
-    # A boolean expression made solely of false literals is false regardless
-    # of whether its operators are `||` or `&&`. Dynamic conditions remain
-    # outside this static guard and must be reviewed as expressions.
-    parts = re.split(r"(\|\||&&)", expr)
-    operands = parts[::2]
-    operators = parts[1::2]
-    return bool(operators) and all(is_false_literal(part) for part in operands)
+    if expr.startswith("!"):
+        result = constant_truth(expr[1:])
+        return None if result is None else not result
+    # `&&` binds more tightly than `||`; recurse in that order.
+    split = split_top_level(expr, "||")
+    if split is not None:
+        left, right = (constant_truth(part) for part in split)
+        if left is True or right is True:
+            return True
+        if left is False and right is False:
+            return False
+        return None
+    split = split_top_level(expr, "&&")
+    if split is not None:
+        left, right = (constant_truth(part) for part in split)
+        if left is False or right is False:
+            return False
+        if left is True and right is True:
+            return True
+        return None
+    return None
 
 def is_disabled_condition(value):
-    return is_false_literal(value)
+    return constant_truth(value) is False
 
 for f in files:
     try:

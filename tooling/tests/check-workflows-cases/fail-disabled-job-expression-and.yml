@@ -1,0 +1,11 @@
+# expect: job 'j' is unconditionally disabled by `if: false`
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    if: ${{ true && false }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: true
