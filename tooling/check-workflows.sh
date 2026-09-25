@@ -63,9 +63,12 @@
 #    cannot have. Textual, as rules 4 and 6 are.
 # 8. No job is unconditionally disabled by a statically false `if` value. A
 #    required check that can be turned off in the workflow being reviewed can
-#    report green without running its command; conditional jobs remain allowed
-#    when their condition is not statically false. The guard evaluates only
-#    constant literals and boolean operators; dynamic expressions remain valid.
+#    report green without running its command. Jobs that emit a `required`
+#    assurance receipt must therefore have no job-level `if` or
+#    `continue-on-error` at all; a dynamic expression is still a switch. The
+#    only job-level exceptions are the PR-only sign-off job and the collector's
+#    exact `always()` condition. `fromJSON('false')` and `fromJSON('true')` are
+#    constants too, even though they are expressions.
 #
 # The cases each rule is held to, passing and failing, are the files under
 # `tooling/tests/check-workflows-cases/`, which
@@ -240,6 +243,12 @@ def constant_truth(value):
         return False
     if expr in ("true", "1"):
         return True
+    # GitHub's expression evaluator coerces these JSON literals to booleans;
+    # treating them as opaque text lets a disabled required job evade Rule 8.
+    if expr in ("fromjson('false')", 'fromjson("false")'):
+        return False
+    if expr in ("fromjson('true')", 'fromjson("true")'):
+        return True
     if expr.startswith("!"):
         result = constant_truth(expr[1:])
         return None if result is None else not result
@@ -264,6 +273,19 @@ def constant_truth(value):
 
 def is_disabled_condition(value):
     return constant_truth(value) is False
+
+def is_truthy_continue_on_error(value):
+    return constant_truth(value) is True
+
+def normalized_expression(value):
+    if not isinstance(value, str):
+        return None
+    return re.sub(r"\s+", "", value).lower()
+
+ALLOWED_JOB_IF = {
+    "sign-off": "github.event_name=='pull_request'",
+    "assurance-receipts": "always()",
+}
 
 for f in files:
     try:
@@ -302,10 +324,40 @@ for f in files:
             complain("%s job '%s' has neither runs-on nor uses" % (f, name))
 
         # Rule 8. A disabled job is indistinguishable from a passing required
-        # check to a caller that only sees the workflow's check name.
+        # check to a caller that only sees the workflow's check name. The
+        # receipt declaration is repository-owned evidence of which jobs are
+        # required; removing it is caught by the receipt collector's missing
+        # required-ID check.
+        required_receipt = False
+        for step in job.get("steps") or []:
+            if not isinstance(step, dict) or step.get("uses") != "./.github/actions/assurance-receipt":
+                continue
+            inputs = step.get("with") or {}
+            required_receipt = isinstance(inputs, dict) and inputs.get("classification") == "required"
+            if required_receipt:
+                break
+        if "if" in job:
+            actual_if = normalized_expression(job.get("if"))
+            expected_if = ALLOWED_JOB_IF.get(name)
+            if expected_if is None:
+                if required_receipt:
+                    complain("%s job '%s' emits a required receipt but has a job-level `if` -- "
+                             "required jobs must run unconditionally" % (f, name))
+                else:
+                    complain("%s job '%s' has a job-level `if` -- required jobs "
+                             "must run unconditionally" % (f, name))
+            elif actual_if != expected_if:
+                complain("%s job '%s' has an unapproved job-level `if`; use "
+                         "the exact repository exception or remove it" % (f, name))
+        if required_receipt and "continue-on-error" in job:
+            complain("%s job '%s' emits a required receipt but has job-level "
+                     "`continue-on-error` -- required commands must fail the job" % (f, name))
         if is_disabled_condition(job.get("if")):
             complain("%s job '%s' is unconditionally disabled by `if: false`"
                      % (f, name))
+        if is_truthy_continue_on_error(job.get("continue-on-error")):
+            complain("%s job '%s' enables job-level `continue-on-error` -- "
+                     "required commands must fail the job" % (f, name))
 
         # Rule 7.
         runs_on = job.get("runs-on")
