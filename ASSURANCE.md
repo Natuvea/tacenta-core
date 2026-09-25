@@ -7,7 +7,10 @@ comes next. It is a summary. For what is proven, `tacenta-proofs/CLAIMS.md` and
 `tacenta-test-vectors/conformance-manifest.md` is. For current gate and target
 obligations, see [ASSURANCE-OBLIGATIONS.md](ASSURANCE-OBLIGATIONS.md).
 
-Last assessed: 2026-09-18, at `abd0c3b`.
+Last assessed: 2026-09-25, at `bba8f04`.
+
+This is a baseline refresh after the aggregate lifecycle merge. It does not
+close a practice or replace the review and evidence obligations recorded below.
 
 ## Practices
 

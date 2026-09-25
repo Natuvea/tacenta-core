@@ -4,8 +4,12 @@ Current register for assurance gate 2. Historical independent-reader reports sta
 unchanged under `tacenta-test-vectors/runners/independent/`; this file records
 the current disposition after later fixes.
 
-Last assessed: 2026-09-18, with the implementation at `abd0c3b` and the
+Last assessed: 2026-09-25, with the implementation at `bba8f04` and the
 session known-answer vector at `44409c6`.
+
+This is a baseline refresh after the aggregate lifecycle merge. It does not
+close or reclassify a gap; each row below remains the current disposition until
+its named evidence is re-run or a recorded decision changes it.
 
 ## Status key
 
