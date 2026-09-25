@@ -62,6 +62,19 @@ structure SessionRefines (view : DhView) (K : Model.Braid.Kem)
   pendingInitial : real.pending_initial.map (pendingInitialOf view) = model.pendingInitial
   establishedEphemeral : real.established_ephemeral.map vecOf = model.establishedEphemeral
 
+/-! The lifecycle unit and the Braid port call the same generated KDF
+    operations.  Keep the correspondence here, at the shared lifecycle
+    boundary, so both decrypt and encrypt composition consume one set of
+    session-level contracts rather than making callers restate them under
+    Braid-specific names.  This is only a type-level reuse theorem; it does
+    not manufacture either primitive contract for the shipped implementation. -/
+theorem braid_kdf_contracts_of_session
+    (hmac : Tacenta.SessionUnitT3.HmacAgrees)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees) :
+    Tacenta.SessionUnitBraidT3.BraidHmacAgrees ∧
+      Tacenta.SessionUnitBraidT3.BraidHkdfAgrees := by
+  exact ⟨hmac, hkdf⟩
+
 /-! ## Primitive oracle agreement
 
 The lifecycle model has nine primitive functions.  Each clause below names
@@ -1871,8 +1884,8 @@ structure BraidSendRefinementContracts {R : Type}
     (rc : rand_core_1.RngCore R) (K : Model.Braid.Kem) : Prop where
   hka : Tacenta.SessionUnitBraidT3.KemAgreesFor K
   hea : Tacenta.SessionUnitBraidT3.ErasureAgrees
-  hmac : Tacenta.SessionUnitBraidT3.BraidHmacAgrees
-  hkdf : Tacenta.SessionUnitBraidT3.BraidHkdfAgrees
+  hmac : Tacenta.SessionUnitT3.HmacAgrees
+  hkdf : Tacenta.SessionUnitT3.HkdfAgrees
   header : Tacenta.SessionUnitBraidT1.KeyPairHeaderTotal
   ekVector : Tacenta.SessionUnitBraidT1.KeyPairEkVectorTotal
   ct1Len : Tacenta.SessionUnitBraidT1.Ct1LenTotal
@@ -1933,9 +1946,10 @@ theorem braid_send_post_of_contracts
         (Model.Braid.send K rand model).2.2.1 ∧
       Tacenta.SessionUnitBraidT3.StateRefines K realNext.state
         (Model.Braid.send K rand model).2.2.2 := by
+  have hKdf := braid_kdf_contracts_of_session contracts.hmac contracts.hkdf
   obtain ⟨result, hcall, hpost⟩ := Std.WP.spec_imp_exists
     (Tacenta.SessionUnitBraidT3.Braid.send_refines
-      contracts.hka contracts.hea contracts.hmac contracts.hkdf
+      contracts.hka contracts.hea hKdf.1 hKdf.2
       contracts.header contracts.ekVector contracts.ct1Len contracts.ct2Len
       contracts.kemClone contracts.erasureClone contracts.encoderClone
       contracts.decoderClone contracts.keyPairClone contracts.encapsStateClone
