@@ -1,0 +1,11 @@
+# expect: enables job-level `continue-on-error`
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    continue-on-error: ${{ fromJSON('true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: false

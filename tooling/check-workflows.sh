@@ -66,6 +66,9 @@
 #    report green without running its command; conditional jobs remain allowed
 #    when their condition is not statically false. The guard evaluates only
 #    constant literals and boolean operators; dynamic expressions remain valid.
+#    A job-level `continue-on-error` is rejected when truthy for the same
+#    reason: a required command must fail the job. `fromJSON('false')` and
+#    `fromJSON('true')` are constants too, even though they are expressions.
 #
 # The cases each rule is held to, passing and failing, are the files under
 # `tooling/tests/check-workflows-cases/`, which
@@ -240,6 +243,12 @@ def constant_truth(value):
         return False
     if expr in ("true", "1"):
         return True
+    # GitHub's expression evaluator coerces these JSON literals to booleans;
+    # treating them as opaque text lets a disabled required job evade Rule 8.
+    if expr in ("fromjson('false')", 'fromjson("false")'):
+        return False
+    if expr in ("fromjson('true')", 'fromjson("true")'):
+        return True
     if expr.startswith("!"):
         result = constant_truth(expr[1:])
         return None if result is None else not result
@@ -264,6 +273,9 @@ def constant_truth(value):
 
 def is_disabled_condition(value):
     return constant_truth(value) is False
+
+def is_truthy_continue_on_error(value):
+    return constant_truth(value) is True
 
 for f in files:
     try:
@@ -306,6 +318,9 @@ for f in files:
         if is_disabled_condition(job.get("if")):
             complain("%s job '%s' is unconditionally disabled by `if: false`"
                      % (f, name))
+        if is_truthy_continue_on_error(job.get("continue-on-error")):
+            complain("%s job '%s' enables job-level `continue-on-error` -- "
+                     "required commands must fail the job" % (f, name))
 
         # Rule 7.
         runs_on = job.get("runs-on")

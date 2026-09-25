@@ -1,0 +1,11 @@
+# expect: is unconditionally disabled by `if: false`
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    if: ${{ fromJSON('false') }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: true
