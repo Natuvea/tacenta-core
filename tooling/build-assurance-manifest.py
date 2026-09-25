@@ -48,6 +48,21 @@ def git(*args: str) -> str:
     return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
 
 
+def working_tree_dirty() -> bool:
+    """Return whether source files changed outside the ephemeral receipt dir."""
+    status = git("status", "--porcelain", "--untracked-files=all")
+    for line in status.splitlines():
+        # CI downloads and writes receipts below this ignored runtime directory.
+        # All tracked source changes and all other untracked paths remain fatal.
+        path = line[3:] if len(line) >= 3 else line
+        if " -> " in path:
+            path = path.split(" -> ", 1)[1]
+        if path.startswith(".assurance/"):
+            continue
+        return True
+    return False
+
+
 def fail(message: str) -> None:
     raise ValueError(message)
 
@@ -66,7 +81,7 @@ def load_receipts(path: Path, commit: str, tree: str) -> list[dict]:
 
 
 def build(receipts_path: Path, allow_dirty: bool) -> dict:
-    dirty = bool(git("status", "--porcelain"))
+    dirty = working_tree_dirty()
     if dirty and not allow_dirty:
         fail("candidate working tree is dirty")
     commit = git("rev-parse", "HEAD")
