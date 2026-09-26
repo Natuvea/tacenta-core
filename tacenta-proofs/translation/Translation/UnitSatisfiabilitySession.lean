@@ -109,6 +109,7 @@ abbrev KemEncapsulateFn :=
       Array U8 32#usize) tacenta_boundary.kem.KemError) × R)
 def KemEncapsulateShape (f : KemEncapsulateFn) : Prop :=
   ∀ {R : Type} (rc : rand_core_1.RngCore R) (cr : rand_core_1.CryptoRng R) p r,
+    Tacenta.UnitLifecycleT1.RngTotal rc →
     Np (f rc cr p r)
 
 theorem KemEncapsulateTotal_is : Tacenta.UnitLifecycleT1.KemEncapsulateTotal ↔
@@ -157,6 +158,7 @@ abbrev XeddsaSignFn :=
     Array U8 32#usize → Slice U8 → R → Result (Array U8 64#usize × R)
 def XeddsaSignShape (f : XeddsaSignFn) : Prop :=
   ∀ {R : Type} (rc : rand_core_1.RngCore R) (cr : rand_core_1.CryptoRng R) k m r,
+    Tacenta.UnitLifecycleT1.RngTotal rc →
     Np (f rc cr k m r)
 
 theorem XeddsaSignTotal_is : Tacenta.UnitLifecycleT1.XeddsaSignTotal ↔

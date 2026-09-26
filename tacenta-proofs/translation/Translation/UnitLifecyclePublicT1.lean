@@ -268,6 +268,7 @@ structure EstablishInitiatorContracts {R : Type}
   dhAgree : DhAgreeTotal
   kemEncapsulate : KemEncapsulateTotal
   xeddsaVerify : XeddsaVerifyTotal
+  rngTotal : RngTotal rngCore
   random32 : Random32Total rngCore
   sessionHkdf : Tacenta.SessionUnitSessionT1.HkdfTotal
   sessionZeroizing : Tacenta.SessionUnitSessionT1.ZeroizingModel
@@ -291,7 +292,7 @@ theorem establish_initiator_for_no_panic {R : Type}
     lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
       expectedIdentity rng ⦃ fun _ => True ⦄ := by
   rcases contracts with
-    ⟨hdh, hagree, hkem, hx, hrng, hkdf, hzero, htripleZero, hkdfInit,
+    ⟨hdh, hagree, hkem, hx, hrngTotal, hrng, hkdf, hzero, htripleZero, hkdfInit,
       hspqrZero, hbraidKdf, hzeroArray, hindex⟩
   let _ : Tacenta.SessionUnitSessionT1.ZeroizingModel := hzero
   unfold lifecycle.establish_initiator_for
@@ -311,7 +312,7 @@ theorem establish_initiator_for_no_panic {R : Type}
   all_goals simp
   all_goals (step with random_secret_no_panic rngCore cryptoRng hrng)
   all_goals (step with private_key_from_bytes_no_panic hdh)
-  all_goals (step with kem_encapsulate_no_panic hkem rngCore cryptoRng)
+  all_goals (step with kem_encapsulate_no_panic hkem rngCore cryptoRng hrngTotal)
   all_goals (rcases r1 with value | kemError)
   all_goals simp
   all_goals (rcases value with ⟨kemCiphertext, encapsulated⟩)
