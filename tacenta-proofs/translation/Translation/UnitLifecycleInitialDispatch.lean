@@ -17,6 +17,53 @@ namespace Tacenta.UnitLifecycleT3
 open Aeneas Aeneas.Std Result
 open tacenta_session_unit
 
+/-! The T3 send contracts carry both semantic agreement facts and the T1
+totality facts needed by the generated Session boundary. Keep this projection
+in the dispatcher unit, which already imports the public T1 contract records,
+so the core T3 relation does not acquire a dependency cycle. -/
+def braid_send_contracts_to_t1 {R : Type} {rc : rand_core_1.RngCore R}
+    {K : Model.Braid.Kem} (contracts : BraidSendRefinementContracts rc K) :
+    Tacenta.UnitLifecycleT1.BraidSendContracts rc :=
+  { rng := contracts.rng
+    encoderClone := contracts.encoderClone
+    decoderClone := contracts.decoderClone
+    keyPairClone := contracts.keyPairClone
+    encapsStateClone := contracts.encapsStateClone
+    keyPairGenerate := contracts.keyPairGenerate
+    keyPairHeader := contracts.header
+    hmac := contracts.hmac.total
+    encoderNew := contracts.encoderNew
+    encoderNext := contracts.encoderNext
+    hkdf := contracts.hkdf.total
+    encapsulate1 := contracts.encapsulate1
+    zeroizingArray := contracts.zeroizingArray
+    arrayZeroize := contracts.arrayZeroize
+    rangeFullIndex := contracts.rangeFullIndex }
+
+def triple_send_contracts_to_t1 (contracts : TripleSendRefinementContracts) :
+    Tacenta.UnitLifecycleT1.TripleSendContracts :=
+  { hmac := contracts.hmac.total
+    hkdf := contracts.hkdf.total
+    zeroize := contracts.spqrZeroize
+    vecRetain := contracts.vecRetainTotal
+    kdfRk := Tacenta.SessionUnitSpqrT3.SpqrHkdfAgrees.kdfRkTotal contracts.hkdf contracts.spqrZeroizing96
+    kdfCk := Tacenta.SessionUnitSpqrT3.SpqrHkdfAgrees.kdfCkTotal contracts.hkdf contracts.spqrZeroizing64
+    optionClone := contracts.optionClone }
+
+def encrypt_contracts_of_send_contracts
+    {R : Type} {rc : rand_core_1.RngCore R} {K : Model.Braid.Kem}
+    (braid : BraidSendRefinementContracts rc K)
+    (triple : TripleSendRefinementContracts)
+    (aead : Tacenta.UnitLifecycleT1.AeadSealBounded)
+    (messageKeyMaterial : Tacenta.UnitLifecycleT1.MessageKeyMaterialRoundTrip)
+    (dhCodec : Tacenta.UnitLifecycleT1.DhCodecTotal) :
+    Tacenta.UnitLifecycleT1.EncryptContracts rc :=
+  { braid := braid_send_contracts_to_t1 braid
+    triple := triple_send_contracts_to_t1 triple
+    aeadSeal := aead
+    messageKeyMaterial := messageKeyMaterial
+    dhCodec := dhCodec }
+
 /-! ## Braid receive adapter
 
 This adapter is the first concrete part of the nonterminal aggregate. It
