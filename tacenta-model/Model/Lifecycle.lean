@@ -26,7 +26,9 @@ abbrev Iv := Bytes
     `draws` is ordered. Operations that need randomness consume its head and
     return the oracle containing its tail. `kemEncaps` and `sigSign` take that
     draw explicitly, so using the wrong draw or calling them in the wrong order
-    changes the model result. -/
+    changes the model result. A KEM refusal is allowed to preserve the oracle:
+    the shipping boundary validates the public key before it asks the RNG for
+    bytes. -/
 structure Oracle where
   draws : List Key
   braidKem : Model.Braid.Kem
@@ -80,13 +82,16 @@ theorem takeDraw_keeps_dhPublic (oracle oracle' : Oracle) (draw : Key)
     refinement can relate that shipping function to this exact trace step. -/
 def random32 (oracle : Oracle) : Option (Key × Oracle) := takeDraw oracle
 
-/-- Encapsulation consumes exactly one draw, then calls the oracle with the KEM
-    public key and that draw. A primitive refusal still consumes the draw: the
-    shipping RNG call happened before the primitive returned its result. -/
+/-- Encapsulation classifies the public key using the oracle, then consumes one
+    draw only for a successful or post-validation refusal. A malformed public
+    key returns the KEM refusal without consuming the caller's RNG state, which
+    matches the boundary's validation-before-`fill_bytes` order. -/
 def kemEncapsulate (oracle : Oracle) (publicKey : Bytes) :
     Option (Option (Bytes × Key) × Oracle) := do
   let (draw, rest) ← takeDraw oracle
-  some (oracle.kemEncaps publicKey draw, rest)
+  match oracle.kemEncaps publicKey draw with
+  | none => some (none, oracle)
+  | some result => some (some result, rest)
 
 /-- Signing consumes exactly one draw and binds the result to the secret,
     message and draw supplied to the primitive. -/
@@ -159,8 +164,20 @@ theorem sendAgreement_draw (oracle : Oracle) (state : Model.Braid.BraidState)
 theorem kemEncapsulate_cons (oracle : Oracle) (draw : Key) (rest : List Key)
     (publicKey : Bytes) (h : oracle.draws = draw :: rest) :
     kemEncapsulate oracle publicKey =
-      some (oracle.kemEncaps publicKey draw, { oracle with draws := rest }) := by
+      match oracle.kemEncaps publicKey draw with
+      | none => some (none, oracle)
+      | some result => some (some result, { oracle with draws := rest }) := by
   simp [kemEncapsulate, takeDraw, h]
+
+/-- A malformed KEM key is a no-draw refusal. This regression theorem is
+    deliberately indexed by the model's refusal result and catches a model
+    mutation which consumes the draw before returning the refusal. -/
+theorem kemEncapsulate_refusal_keeps_oracle (oracle : Oracle) (draw : Key)
+    (rest : List Key) (publicKey : Bytes)
+    (h : oracle.draws = draw :: rest)
+    (hkem : oracle.kemEncaps publicKey draw = none) :
+    kemEncapsulate oracle publicKey = some (none, oracle) := by
+  simp [kemEncapsulate, takeDraw, h, hkem]
 
 theorem sign_cons (oracle : Oracle) (draw : Key) (rest : List Key)
     (secret : Key) (message : Bytes) (h : oracle.draws = draw :: rest) :
