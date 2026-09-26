@@ -484,6 +484,12 @@ jobs:
     # conditions.
     if: always()
     runs-on: ubuntu-latest
+    env:
+      # The collector validates a clean checkout after importing the shared
+      # Python validator. Do not leave interpreter bytecode outside the
+      # CI-created .assurance workspace for that check to mistake as a source
+      # mutation.
+      PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:

@@ -10,6 +10,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from assurance_validation import compare_checks, validate_receipts
+
 ROOT = Path(__file__).resolve().parents[1]
 EXTRA = [
     "tacenta-proofs/REPRODUCING.md", "ASSURANCE.md", "ASSURANCE-OBLIGATIONS.md",
@@ -55,6 +57,14 @@ def build(manifest_path: Path, receipts_path: Path, output: Path) -> None:
         fail("manifest does not assert a clean candidate")
     if manifest.get("identity", {}).get("source_commit") != receipts.get("candidate", {}).get("commit") or manifest.get("identity", {}).get("source_tree") != receipts.get("candidate", {}).get("tree"):
         fail("manifest and receipts name different candidates")
+    commit = manifest.get("identity", {}).get("source_commit")
+    tree = manifest.get("identity", {}).get("source_tree")
+    try:
+        manifest_checks = validate_receipts({"schema_version": 1, "candidate": {"commit": commit, "tree": tree}, "checks": manifest.get("checks")}, commit, tree)
+        receipt_checks = validate_receipts(receipts, commit, tree)
+        compare_checks(manifest_checks, receipt_checks)
+    except (TypeError, ValueError) as exc:
+        fail("manifest and receipts do not form one complete passing evidence set: " + str(exc))
     if output.exists() and any(output.iterdir()):
         fail(f"refusing non-empty pack output {output}")
     paths = set(EXTRA)
@@ -101,6 +111,19 @@ def verify(root: Path) -> None:
         path = root / relative
         if not path.is_file() or path.stat().st_size != entry.get("bytes") or digest(path) != entry.get("sha256"):
             fail(f"pack digest mismatch: {entry['path']}")
+    actual = set()
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            fail(f"pack contains a symlink: {path.relative_to(root)}")
+        if path.is_file():
+            actual.add(path.relative_to(root).as_posix())
+    expected = seen | {"PACK-MANIFEST.json"}
+    extras = sorted(actual - expected)
+    missing = sorted(expected - actual)
+    if extras:
+        fail("pack contains unlisted files: " + ", ".join(extras))
+    if missing:
+        fail("pack is missing listed files: " + ", ".join(missing))
     print(f"evidence pack: {root} verified ({len(pack['files'])} files)")
 
 

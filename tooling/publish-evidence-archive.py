@@ -36,7 +36,15 @@ def main() -> int:
             fail("pack manifest has no full candidate commit")
         pack_digest = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
         prefix = f"candidates/{commit}/{pack_digest}"
-        files = sorted(path for path in args.pack.rglob("*") if path.is_file())
+        listed = [Path(entry["path"]) for entry in manifest.get("files", [])]
+        listed.append(Path("PACK-MANIFEST.json"))
+        files = []
+        for relative in listed:
+            path = args.pack / relative
+            if path.is_symlink() or not path.is_file():
+                fail(f"verified pack entry is not a regular file: {relative}")
+            files.append(path)
+        files = sorted(files)
         if args.dry_run:
             print(f"archive dry run: s3://{args.bucket}/{prefix}/ ({len(files)} files)")
             return 0

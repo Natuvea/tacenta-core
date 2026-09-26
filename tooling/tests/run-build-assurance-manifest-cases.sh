@@ -27,6 +27,23 @@ expect_fail() {
   fi
 }
 
+expect_validate_fail() {
+  local name="$1" needle="$2" path="$3" out rc
+  set +e
+  out="$(python3 "$root/tooling/build-assurance-manifest.py" --validate "$path" 2>&1)"
+  rc=$?
+  set -e
+  if [ "$rc" -eq 0 ]; then
+    echo "WRONG  $name: expected validation refusal" >&2
+    return 1
+  fi
+  if ! printf '%s' "$out" | grep -qF -- "$needle"; then
+    echo "WRONG  $name: missing diagnostic '$needle'" >&2
+    printf '%s\n' "$out" >&2
+    return 1
+  fi
+}
+
 make_case() {
   local name="$1" program="$2"
   python3 - "$fixture" "$work/$name.json" "$program" <<'PY'
@@ -37,6 +54,8 @@ data['candidate'] = {
     'commit': __import__('os').environ['ASSURANCE_FIXTURE_COMMIT'],
     'tree': __import__('os').environ['ASSURANCE_FIXTURE_TREE'],
 }
+for check in data['checks']:
+    check['run'].update(commit=data['candidate']['commit'], tree=data['candidate']['tree'])
 exec(program.read_text(), {'data': data})
 output.write_text(json.dumps(data, indent=2) + '\n')
 PY
@@ -45,6 +64,11 @@ PY
 printf '%s\n' '# pass fixture is rebound to this checkout by make_case' > "$work/pass.py"
 make_case pass "$work/pass.py"
 python3 "$root/tooling/build-assurance-manifest.py" --allow-dirty --receipts "$work/pass.json" --output "$work/pass.out"
+python3 -c 'import json, pathlib, sys; p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text()); d["identity"]["clean_tree"]=True; p.write_text(json.dumps(d, indent=2)+"\n")' "$work/pass.out"
+python3 "$root/tooling/build-assurance-manifest.py" --validate "$work/pass.out" >/dev/null
+cp "$work/pass.out" "$work/source-missing.out"
+python3 -c 'import json, pathlib, sys; p=pathlib.Path(sys.argv[1]); d=json.loads(p.read_text()); d["sources"].pop(); p.write_text(json.dumps(d, indent=2)+"\n")' "$work/source-missing.out"
+expect_validate_fail source-missing 'manifest source inventory does not match the repository-owned source set' "$work/source-missing.out"
 
 printf "%s\n" "data['checks'] = [c for c in data['checks'] if c['id'] != 'proofs']" > "$work/missing.py"
 make_case missing "$work/missing.py"
@@ -58,8 +82,12 @@ printf "%s\n" "c = next(c for c in data['checks'] if c['id'] == 'audit'); c['app
 make_case inapplicable "$work/inapplicable.py"
 expect_fail inapplicable 'inapplicable check audit must be not_applicable'
 
+printf "%s\n" "next(c for c in data['checks'] if c['id'] == 'audit')['classification'] = 'optional'" > "$work/downgraded.py"
+make_case downgraded "$work/downgraded.py"
+expect_fail downgraded 'required receipt audit must be an applicable required check'
+
 printf "%s\n" "data['candidate']['commit'] = '0' * 40" > "$work/foreign.py"
 make_case foreign "$work/foreign.py"
 expect_fail foreign 'receipts candidate commit/tree does not match selected source'
 
-echo 'build-assurance-manifest-cases: pass case and 4 receipt refusals gave the expected result'
+echo 'build-assurance-manifest-cases: pass case and 5 receipt refusals gave the expected result'
