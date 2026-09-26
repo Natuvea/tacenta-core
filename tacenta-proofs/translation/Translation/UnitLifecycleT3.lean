@@ -141,12 +141,18 @@ structure OracleOf {R : Type}
       tacenta_boundary.aead.decrypt key1 key2 iv ciphertext associatedData = ok result ∧
       resultOptionOf vecOf result = oracle.aeadOpen (arrayOf key1) (arrayOf key2)
         (arrayOf iv) (sliceOf ciphertext) (sliceOf associatedData)
-  kemEncapsulateSuccess : ∀ publicKey rng draw rest, trace rng = draw :: rest →
+  /-- A model refusal is allowed for malformed public keys; only a model
+      `some` result obliges the real boundary to produce the matching success.
+      This keeps the contract satisfiable for the wrapper's pre-RNG length
+      refusal while still making a predicted success observable. -/
+kemEncapsulateSuccess : ∀ publicKey rng draw rest expected,
+    trace rng = draw :: rest →
+    oracle.kemEncaps (sliceOf publicKey) draw = some expected →
     ∃ result rng',
       tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
         ok (.Ok result, rng') ∧
       trace rng' = rest ∧
-      encapsulationOf (.Ok result) = oracle.kemEncaps (sliceOf publicKey) draw
+      encapsulationOf (.Ok result) = some expected
   kemEncapsulateError : ∀ publicKey rng error,
     tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
       ok (.Err error, rng) →
