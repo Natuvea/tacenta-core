@@ -616,8 +616,14 @@ fails nothing, as Rejection allows (GAPS-5.md G5-03).
 ## Not implemented
 
 - ML-KEM-1024 and its incremental split. The Braid runs over `kem_double.py`.
-- The end-to-end `Session`: the handshake with a real KEM, `pending_initial`
+- The end-to-end `Session` implementation: the handshake with a real KEM,
+  `pending_initial`
   resend, `established_ephemeral`, and export/import over live states.
+- The real session known-answer vector is now **partially** handled: the reader
+  independently checks its encodings, all four classical agreements, the
+  PQXDH/split equations using the vector's KEM shared-secret boundary, the
+  associated-data and AEAD composition, and both persisted-state round trips.
+  It does not implement or independently validate ML-KEM-1024 decapsulation.
 - Prekey store operations other than the two rotations `prekeys.py` adds:
   `create_prekeys`'s numbering, `replenish`, `publish` selection,
   `establish_responder`. The rotations were added in pass 7 because the store's
@@ -634,11 +640,9 @@ fails nothing, as Rejection allows (GAPS-5.md G5-03).
   accepts the content, and conforms (GAPS-7.md, G5-02 closed).
 
 The reasons are in `../GAPS-3.md` to `../GAPS-7.md` ("Not attempted"). The
-real-primitive `session-e2e.json` added after pass 9 needs ML-KEM-1024 and the
-end-to-end session, so this reader's unchanged handlers report that one case
-as an explicit SKIP. `../GAPS-10.md` records the maintenance run and its
-boundary; the repository wrapper separately enforces the documented skip
-allowlist.
+real-primitive `session-e2e.json` added after pass 9 now has a partial handler
+with the explicit ML-KEM boundary described above; it is no longer silently
+skipped. `../GAPS-10.md` remains the historical record of the earlier skip.
 
 ## Running
 
@@ -663,14 +667,14 @@ Current result:
 
 | | Count | PASS | FAIL | SKIP |
 |---|---|---|---|---|
-| Vectors (37 files) | 427 | 426 | 0 | 1 |
+| Vectors (37 files) | 429 | 429 | 0 | 0 |
 | Derived cases (12 modules) | 220 | 220 | 0 | 0 |
-| **Total** | 647 | 646 | 0 | 1 |
+| **Total** | 649 | 649 | 0 | 0 |
 
 ## In this repository
 
-Copied into `tacenta-test-vectors/runners/independent/` unchanged, apart from
-the one line in `run.py` that says where the vectors are. In this README,
+Copied into `tacenta-test-vectors/runners/independent/` from the clean-room
+reader, with the pass-11 session-vector handler described below. In this README,
 `../tacenta-spec` and `../tacenta-test-vectors` name the clean-room directory it
 was written in. In the repository they are the repository's own `tacenta-spec`
 and `tacenta-test-vectors`. Run it from the repository root with
@@ -723,3 +727,12 @@ handlers report
 the new vector as one explicit skip because its documented boundary excludes
 real ML-KEM and a live end-to-end session. It makes no claim of a new
 clean-room implementation or independent review.
+
+### Pass 11 record
+
+The reader now handles `session-establishment/session-e2e.json` at its public
+component boundary. It recomputes the classical agreements, KDF and split,
+wire encodings, associated data, AEAD composition and persistence round trips.
+The KEM shared secret remains an explicit input because this reader does not
+implement ML-KEM-1024; no claim is made that it independently validates KEM
+decapsulation or the full Session implementation.
