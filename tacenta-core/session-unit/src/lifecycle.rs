@@ -3943,8 +3943,8 @@ mod tests {
         let bundle = bob_prekeys.publish();
         let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
         let initial = alice.encrypt(b"hello", &mut r).unwrap();
-        let (_bob, _first) = establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r)
-            .unwrap();
+        let (_bob, _first) =
+            establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
 
         // Braid's state encoding carries its epoch immediately after the
         // version and state tag.  Advancing only that field keeps the Braid
