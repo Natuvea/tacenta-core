@@ -79,3 +79,41 @@ fn session_end_to_end_control_rejects_wrong_repeat_initial() {
         "unexpected error: {err}"
     );
 }
+
+#[test]
+fn session_end_to_end_controls_reject_wrong_torsion_and_low_order_bytes() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../vectors/session-establishment");
+    let mut files =
+        tacenta_vectors_rust::load_dir(&dir).expect("load session-establishment vectors");
+    let file = files
+        .iter_mut()
+        .find(|file| file.algorithm == "session-establishment-e2e")
+        .expect("end-to-end session vector file");
+    for name in ["torsion_initial", "low_order_repeat"] {
+        let replacement = {
+            let fields = file.vectors[0]
+                .fields
+                .as_mut()
+                .expect("end-to-end session vector fields");
+            let value = fields.get_mut(name).expect("new repeat edge field");
+            let original = value[..2].to_owned();
+            let replacement = if &value[..2] == "00" { "01" } else { "00" };
+            value.replace_range(0..2, replacement);
+            original
+        };
+        let err = tacenta_vectors_rust::check_file(file)
+            .expect_err("a wrong repeat edge known answer must fail the runner");
+        assert!(
+            err.contains(&format!("field {name}")),
+            "unexpected error: {err}"
+        );
+        // Restore the field before checking the next independent mutation.
+        file.vectors[0]
+            .fields
+            .as_mut()
+            .expect("end-to-end session vector fields")
+            .get_mut(name)
+            .expect("new repeat edge field")
+            .replace_range(0..2, &replacement);
+    }
+}

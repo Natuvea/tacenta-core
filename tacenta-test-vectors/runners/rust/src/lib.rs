@@ -201,9 +201,17 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
             // all-zero secret it would otherwise produce. No RFC 7748 vector
             // exercises that, but a vector file could, and "the primitive
             // refused" is a distinct outcome from "the bytes differed".
-            match dh::PrivateKey::from_bytes(secret).agree(&peer) {
-                Some(shared) => eq(&shared, &bytes(&v.output)?),
-                None => Err("agreement refused: the peer key is low-order".to_owned()),
+            match (
+                v.result.as_str(),
+                dh::PrivateKey::from_bytes(secret).agree(&peer),
+            ) {
+                ("valid", Some(shared)) => eq(&shared, &bytes(&v.output)?),
+                ("valid", None) => Err("agreement refused: the peer key is low-order".to_owned()),
+                ("invalid", None) => Ok(()),
+                ("invalid", Some(_)) => {
+                    Err("accepted a low-order key the vector refuses".to_owned())
+                }
+                (other, _) => Err(format!("unknown vector result {other}")),
             }
         }
         // Ed25519 is a trusted-boundary primitive, not a tacenta-core API:
