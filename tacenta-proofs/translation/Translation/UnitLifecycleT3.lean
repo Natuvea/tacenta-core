@@ -76,8 +76,9 @@ theorem braid_kdf_contracts_of_session
 
 /-! ## Primitive oracle agreement
 
-The lifecycle model has nine primitive functions.  Each clause below names
-the complete translated argument list.  Randomness is one ordered trace:
+The lifecycle model has nine primitive operations and ten contract clauses:
+KEM encapsulation has separate success and refusal clauses. Each clause below
+names the complete translated argument list. Randomness is one ordered trace:
 `random_secret`, KEM encapsulation and signing must each consume exactly its
 head and return a state interpreted by the tail. -/
 
