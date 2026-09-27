@@ -34,6 +34,11 @@ structure Oracle where
   braidKem : Model.Braid.Kem
   dhPublic : Key → Key
   dhAgree : Key → Key → Option Key
+  /-- Whether a raw identity public-key byte string satisfies the stricter
+      identity admission rule.  This is separate from canonical decoding:
+      identity keys are long-lived names and must also be in the prime-order
+      subgroup. -/
+  identityValid : Key → Bool
   aeadSeal : Key → Key → Iv → Bytes → Bytes → Bytes
   aeadOpen : Key → Key → Iv → Bytes → Bytes → Option Bytes
   kemEncaps : Bytes → Key → Option (Bytes × Key)
@@ -238,6 +243,7 @@ inductive TripleRefusal where
   deriving Repr, DecidableEq, Inhabited
 
 inductive HandshakeRefusal where
+  | invalidIdentityKey
   | badSignedPrekeySignature | badKemPrekeySignature
   | nonContributoryAgreement
   deriving Repr, DecidableEq, Inhabited
@@ -569,6 +575,8 @@ def establishInitiator (oracle : Oracle) (identity : Identity) (bundle : Bundle)
     { result := .error .unexpectedIdentity, oracle }
   else if bundle.oneTimePrekey.isSome != (bundle.oneTimeId != absentId) then
     { result := .error .inconsistentBundle, oracle }
+  else if !oracle.identityValid bundle.identityKey then
+    { result := .error (.handshake .invalidIdentityKey), oracle }
   else if !(Model.Messages.canonicalKey bundle.identityKey)
       || !(Model.Messages.canonicalKey bundle.signedPrekey)
       || !(bundle.oneTimePrekey.all Model.Messages.canonicalKey) then
@@ -665,6 +673,7 @@ theorem establishInitiator_noncanonical (oracle : Oracle) (identity : Identity)
     (bundle : Bundle) (expectedIdentity : Key)
     (hi : bundle.identityKey = expectedIdentity)
     (hp : bundle.oneTimePrekey.isSome = (bundle.oneTimeId != absentId))
+    (hv : oracle.identityValid bundle.identityKey = true)
     (hc : (!(Model.Messages.canonicalKey bundle.identityKey)
       || !(Model.Messages.canonicalKey bundle.signedPrekey)
       || !(bundle.oneTimePrekey.all Model.Messages.canonicalKey)) = true) :
@@ -679,6 +688,7 @@ theorem establishInitiator_bad_signed_prekey_signature (oracle : Oracle)
     (identity : Identity) (bundle : Bundle) (expectedIdentity : Key)
     (hi : bundle.identityKey = expectedIdentity)
     (hp : bundle.oneTimePrekey.isSome = (bundle.oneTimeId != absentId))
+    (hv : oracle.identityValid bundle.identityKey = true)
     (hc : Model.Messages.canonicalKey bundle.identityKey = true)
     (hs : Model.Messages.canonicalKey bundle.signedPrekey = true)
     (ho : bundle.oneTimePrekey.all Model.Messages.canonicalKey = true)
@@ -688,7 +698,7 @@ theorem establishInitiator_bad_signed_prekey_signature (oracle : Oracle)
     establishInitiator oracle identity bundle expectedIdentity =
       { result := .error (.handshake .badSignedPrekeySignature), oracle } := by
   subst expectedIdentity
-  simp [establishInitiator, hp, hc, hs, ho, hSig]
+  simp [establishInitiator, hp, hv, hc, hs, ho, hSig]
 
 /-- A non-contributory initiator-ephemeral/signed-prekey agreement is rejected
     after the preceding draws and agreements, retaining their remaining oracle
@@ -698,6 +708,7 @@ theorem establishInitiator_ephemeral_signed_noncontributory (oracle afterEphemer
     (expectedIdentity ephemeralPrivate kemCiphertext kemSecret dh1 dh2 : Key)
     (hi : bundle.identityKey = expectedIdentity)
     (hp : bundle.oneTimePrekey.isSome = (bundle.oneTimeId != absentId))
+    (hv : oracle.identityValid bundle.identityKey = true)
     (hc : Model.Messages.canonicalKey bundle.identityKey = true)
     (hs : Model.Messages.canonicalKey bundle.signedPrekey = true)
     (ho : bundle.oneTimePrekey.all Model.Messages.canonicalKey = true)
@@ -715,7 +726,7 @@ theorem establishInitiator_ephemeral_signed_noncontributory (oracle afterEphemer
     establishInitiator oracle identity bundle expectedIdentity =
       { result := .error (.handshake .nonContributoryAgreement), oracle := afterKem } := by
   subst expectedIdentity
-  simp [establishInitiator, hp, hc, hs, ho, hSignedSig, hKemSig, hDraw,
+  simp [establishInitiator, hp, hv, hc, hs, ho, hSignedSig, hKemSig, hDraw,
     hKem, hDh1, hDh2, hDh3]
 
 def consumeResponderPrekeys (store : PrekeyStore) (oneTimeId kemId : Nat)
@@ -1616,7 +1627,9 @@ def prepareResponder (oracle : Oracle) (identity : Identity) (store : PrekeyStor
               -- one-time identifier is refused as `unknownPrekeyId`, not `kem`.
               let initiatorIdentity := initial.identity.drop 1
               let initiatorEphemeral := initial.ephemeral.drop 1
-              match responderOneTimeSecret store initial.oneTimeId.toNat with
+              if !oracle.identityValid initiatorIdentity then
+                .error (.handshake .invalidIdentityKey)
+              else match responderOneTimeSecret store initial.oneTimeId.toNat with
               | .error reason => .error reason
               | .ok oneTimeSecret =>
                   match oracle.kemDecaps kemPair initial.kemCiphertext with
@@ -1757,6 +1770,7 @@ def toyOracle (draws : List Key) : Oracle where
   braidKem := Model.Braid.toyKem
   dhPublic := id
   dhAgree := fun _ _ => some (List.replicate 32 0xdd)
+  identityValid := fun _ => true
   aeadSeal := fun enc mac iv plaintext ad =>
     Model.Kdf.hmac (enc ++ mac ++ iv) ad ++ plaintext
   aeadOpen := fun enc mac iv ciphertext ad =>

@@ -131,6 +131,10 @@ structure OracleOf {R : Type}
   dhAgree : ∀ secret publicKey,
     ∃ result, tacenta_boundary.dh.PrivateKey.agree secret publicKey = ok result ∧
       result.map arrayOf = oracle.dhAgree (dh.privateKey secret) (dh.publicKey publicKey)
+  identityValid : ∀ publicKey,
+    ∃ result,
+      tacenta_lifecycle.is_valid_identity_key publicKey = ok result ∧
+      result = oracle.identityValid (dh.publicKey publicKey)
   aeadSeal : ∀ key1 key2 iv ad plaintext,
     ∃ ciphertext,
       tacenta_boundary.aead.encrypt key1 key2 iv ad plaintext = ok ciphertext ∧
@@ -663,6 +667,7 @@ def tripleRefusalOf : tacenta_triple.TripleError → Model.Lifecycle.TripleRefus
   | .PostQuantum reason => .postQuantum (sparseRefusalOf reason)
 
 def handshakeRefusalOf : SessionError → Model.Lifecycle.HandshakeRefusal
+  | .InvalidIdentityKey => .invalidIdentityKey
   | .BadSignedPrekeySignature => .badSignedPrekeySignature
   | .BadKemPrekeySignature => .badKemPrekeySignature
   | .NonContributoryAgreement => .nonContributoryAgreement
