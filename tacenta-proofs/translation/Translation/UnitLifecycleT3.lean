@@ -154,10 +154,17 @@ kemEncapsulateSuccess : ∀ publicKey rng draw rest expected,
         ok (.Ok result, rng') ∧
       trace rng' = rest ∧
       encapsulationOf (.Ok result) = some expected
+  /-- Invalid-key refusal is pre-RNG and is represented by the model's
+      validity predicate, so the empty-trace case remains observable. -/
+  kemInvalidKey : ∀ publicKey rng error,
+    oracle.kemValid (sliceOf publicKey) = false →
+    tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
+      ok (.Err error, rng)
   kemEncapsulateError : ∀ publicKey rng error,
     tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
       ok (.Err error, rng) →
-    ∀ draw, oracle.kemEncaps (sliceOf publicKey) draw = none
+    oracle.kemValid (sliceOf publicKey) = false ∧
+      ∀ draw, oracle.kemEncaps (sliceOf publicKey) draw = none
   kemDecapsulate : ∀ keyPair ciphertext,
     ∃ result,
       tacenta_boundary.kem.decapsulate keyPair ciphertext = ok result ∧
