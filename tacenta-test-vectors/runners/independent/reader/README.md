@@ -667,9 +667,9 @@ Current result:
 
 | | Count | PASS | FAIL | SKIP |
 |---|---|---|---|---|
-| Vectors (37 files) | 430 | 430 | 0 | 0 |
+| Vectors (37 files) | 431 | 431 | 0 | 0 |
 | Derived cases (12 modules) | 220 | 220 | 0 | 0 |
-| **Total** | 650 | 650 | 0 | 0 |
+| **Total** | 651 | 651 | 0 | 0 |
 
 ## In this repository
 
@@ -736,3 +736,10 @@ wire encodings, associated data, AEAD composition and persistence round trips.
 The KEM shared secret remains an explicit input because this reader does not
 implement ML-KEM-1024; no claim is made that it independently validates KEM
 decapsulation or the full Session implementation.
+
+The follow-up repeat-initial checks also decode the repeated initial, route its
+inner ratchet message through the persisted responder state, and refuse the
+low-order control without changing that state. The current run is **651 PASS,
+0 FAIL, 0 SKIP** (431 vector checks and 220 derived cases). This supersedes the
+earlier pass-10 skip tally; `GAPS-10.md` remains the historical record of that
+earlier run.
