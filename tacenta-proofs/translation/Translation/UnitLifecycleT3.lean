@@ -133,7 +133,7 @@ structure OracleOf {R : Type}
       result.map arrayOf = oracle.dhAgree (dh.privateKey secret) (dh.publicKey publicKey)
   identityValid : ∀ publicKey,
     ∃ result,
-      tacenta_lifecycle.is_valid_identity_key publicKey = ok result ∧
+      is_valid_identity_key publicKey = ok result ∧
       result = oracle.identityValid (dh.publicKey publicKey)
   aeadSeal : ∀ key1 key2 iv ad plaintext,
     ∃ ciphertext,
