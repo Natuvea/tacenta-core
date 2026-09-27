@@ -13,7 +13,8 @@ write_receipts() {
   for id in rust msrv armv7 vectors audit proofs translation checks; do
     GITHUB_EVENT_NAME="$event" GITHUB_RUN_ID=control GITHUB_RUN_ATTEMPT=1 \
       python3 "$root/tooling/write-assurance-receipt.py" --id "$id" --classification required \
-      --command "control-$id" --output "$directory/$id.json" >/dev/null
+      --command "control-$id" --required-outcomes "control_${id}=success" \
+      --output "$directory/$id.json" >/dev/null
   done
 }
 
@@ -71,7 +72,8 @@ write_receipts "$work/pull-request" pull_request
 expect_fail missing-signoff 'missing required conditional check receipt: sign-off' "$work/pull-request" pull_request
 GITHUB_EVENT_NAME=pull_request GITHUB_RUN_ID=control GITHUB_RUN_ATTEMPT=1 \
   python3 "$root/tooling/write-assurance-receipt.py" --id sign-off --classification conditional \
-  --command control-sign-off --output "$work/pull-request/sign-off.json" >/dev/null
+  --command control-sign-off --required-outcomes "signoff=success" \
+  --output "$work/pull-request/sign-off.json" >/dev/null
 python3 "$root/tooling/collect-assurance-receipts.py" --event pull_request --input-dir "$work/pull-request" --output "$work/pull-request.out" >/dev/null
 
 echo 'collect-assurance-receipts-cases: 2 pass cases and 5 receipt refusals gave the expected result'
