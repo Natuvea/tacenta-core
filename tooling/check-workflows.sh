@@ -335,6 +335,10 @@ for f in files:
             inputs = step.get("with") or {}
             required_receipt = isinstance(inputs, dict) and inputs.get("classification") == "required"
             if required_receipt:
+                outcomes = inputs.get("required-outcomes")
+                if not isinstance(outcomes, str) or not outcomes.strip():
+                    complain("%s job '%s' emits a required receipt without "
+                             "required command outcomes" % (f, name))
                 break
         if "if" in job:
             actual_if = normalized_expression(job.get("if"))
