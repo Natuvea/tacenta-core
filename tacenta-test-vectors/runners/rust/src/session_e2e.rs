@@ -95,10 +95,8 @@ fn named(v: &Vector, names: &[&str]) -> Result<Vec<Vec<u8>>, String> {
 fn torsion_spellings(ephemeral: [u8; 32]) -> Vec<[u8; 32]> {
     let mut torsion_bytes = [0u8; 32];
     torsion_bytes.copy_from_slice(
-        &hex::decode(
-            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
-        )
-        .expect("order-eight torsion point"),
+        &hex::decode("c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a")
+            .expect("order-eight torsion point"),
     );
     let torsion = CompressedEdwardsY(torsion_bytes)
         .decompress()
@@ -250,7 +248,10 @@ fn observed(v: &Vector) -> Result<BTreeMap<String, Vec<u8>>, String> {
     let mut low_order_rng = ExactRng::new("responder low-order repeat", vec![]);
     let low_order = bob_session.decrypt(&low_order_repeat, &mut low_order_rng);
     low_order_rng.finish()?;
-    if !matches!(low_order, Err(sessions::LifecycleError::NotARepeatedInitial)) {
+    if !matches!(
+        low_order,
+        Err(sessions::LifecycleError::NotARepeatedInitial)
+    ) {
         return Err("a low-order repeated initial was not refused".to_owned());
     }
     if bob_session.export() != before_low_order {

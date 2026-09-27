@@ -103,7 +103,10 @@ fn session_end_to_end_controls_reject_wrong_torsion_and_low_order_bytes() {
         };
         let err = tacenta_vectors_rust::check_file(file)
             .expect_err("a wrong repeat edge known answer must fail the runner");
-        assert!(err.contains(&format!("field {name}")), "unexpected error: {err}");
+        assert!(
+            err.contains(&format!("field {name}")),
+            "unexpected error: {err}"
+        );
         // Restore the field before checking the next independent mutation.
         file.vectors[0]
             .fields
