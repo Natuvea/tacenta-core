@@ -12461,13 +12461,17 @@ structure EncryptNonterminalRouteProviders
     (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
     (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)
     (model : Model.Lifecycle.Session) (plaintext : Slice Std.U8) (rng : R) : Type where
-  noDraw : ∀ output,
+  noDraw : ∀ output realMessage realEpoch realOutput realBraidNext rngNext,
     lifecycle.Session.encrypt rc crc real plaintext rng = ok output →
+    tacenta_braid.Braid.send rc crc real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
     Model.Lifecycle.agreementFailed model = false →
     Model.Lifecycle.braidSendNeedsDraw model.braid = false →
     EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng
-  draw : ∀ output,
+  draw : ∀ output realMessage realEpoch realOutput realBraidNext rngNext,
     lifecycle.Session.encrypt rc crc real plaintext rng = ok output →
+    tacenta_braid.Braid.send rc crc real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
     Model.Lifecycle.agreementFailed model = false →
     Model.Lifecycle.braidSendNeedsDraw model.braid = true →
     EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng
@@ -12502,12 +12506,16 @@ theorem public_session_encrypt_of_send_contracts
       exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
         (.braid (.terminal hrel htrace hfailed))
   | false =>
+      obtain ⟨result, rngNext, hsend⟩ := braid_send_result_of_contracts braid real.braid rng
+      rcases result with ⟨realMessage, realEpoch, realOutput, realBraidNext⟩
       cases hdraw : Model.Lifecycle.braidSendNeedsDraw model.braid with
       | false =>
           exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
-            (providers.noDraw output houtput hfailed hdraw)
+            (providers.noDraw output realMessage realEpoch realOutput realBraidNext rngNext
+              houtput hsend hfailed hdraw)
       | true =>
           exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
-            (providers.draw output houtput hfailed hdraw)
+            (providers.draw output realMessage realEpoch realOutput realBraidNext rngNext
+              houtput hsend hfailed hdraw)
 
 end Tacenta.UnitLifecycleT3
