@@ -62,7 +62,7 @@ def main():
          '      ∃ draw rest, trace innerRng = draw :: rest',
          '      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →\n'
          '      Model.Lifecycle.random32 oracle = none → False',
-         'evidence.randomDraw input composite ciphertext dhOutRecv hdecode hfirst'),
+         'evidence.randomDraw input'),
         ('invert-encrypt-no-draw-provider',
          '    Model.Lifecycle.agreementFailed model = false →\n'
          '    Model.Lifecycle.braidSendNeedsDraw model.braid = false →\n'

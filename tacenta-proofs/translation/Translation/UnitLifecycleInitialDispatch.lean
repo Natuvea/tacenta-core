@@ -8493,8 +8493,8 @@ inductive InitialRatchetRefusalRoute
 
 /-! Split the classifier into named branch providers before constructing a
     route.  Keeping the five callbacks separate prevents a provider for one
-    refusal family from silently serving another family; the ceiling callback
-    must discharge the explicit impossible-random-source case. -/
+    refusal family from silently serving another family; the ordered trace
+    head discharges the explicit impossible-random-source case. -/
 theorem initial_ratchet_refusal_case_dispatch
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -8504,12 +8504,13 @@ theorem initial_ratchet_refusal_case_dispatch
     {reason : lifecycle.Error} {next : lifecycle.Session} {rngNext : R}
     (hcase : ∃ (modelReason : Model.Lifecycle.Refusal) (oracleNext : Model.Lifecycle.Oracle),
       InitialRatchetModelRefusalCase view oracle model message modelReason oracleNext)
-    (hceiling : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+    (htrace : trace rng = oracle.draws)
+    (hrandomDraw : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
       (dhOutRecv : Model.Lifecycle.Key),
       Model.CompositeHeader.decodeDetailed (sliceOf message) =
         .ok (composite, ciphertext) →
       oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
-      Model.Lifecycle.random32 oracle = none → False)
+      ∃ draw rest, trace rng = draw :: rest)
     (hfirstDh : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
       Model.CompositeHeader.decodeDetailed (sliceOf message) =
         .ok (composite, ciphertext) →
@@ -8577,7 +8578,8 @@ theorem initial_ratchet_refusal_case_dispatch
   | secondDh composite ciphertext draw oracleAfter hdecode hfirst hdraw hsecond =>
       exact hsecondDh composite ciphertext draw oracleNext hdecode hfirst hdraw hsecond
   | ceiling composite ciphertext dhOutRecv hdecode hfirst hdraw =>
-      exact False.elim (hceiling composite ciphertext dhOutRecv hdecode hfirst hdraw)
+      exact False.elim (model_random32_none_impossible_of_trace_head trace oracle rng htrace
+        (hrandomDraw composite ciphertext dhOutRecv hdecode hfirst) hdraw)
   | triple composite ciphertext draw oracleAfter modelReason dhOutRecv dhOutSend
       hdecode hfirst hdraw hsecond htriple =>
       exact htripleProvider composite ciphertext draw oracleNext modelReason dhOutRecv dhOutSend
@@ -8852,12 +8854,12 @@ structure InitialRatchetRefusalBranchProviders
     (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
       (trace := trace) (dh := dh) (K := K)
       (view := view) (oracle := oracle) (real := real) (model := model) message rng) where
-  ceiling : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+  randomDraw : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
       (dhOutRecv : Model.Lifecycle.Key),
       Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
         .ok (composite, ciphertext) →
       oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
-      Model.Lifecycle.random32 oracle = none → False
+      ∃ draw rest, trace rng = draw :: rest
   firstDh : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes),
       Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
         .ok (composite, ciphertext) →
@@ -8932,14 +8934,14 @@ theorem initial_ratchet_refusal_route_of_branch_providers
       input.decoded.message.deref rng input.reason input.next input.rngNext) := by
   exact initial_ratchet_refusal_case_dispatch
     (hcase := ⟨input.modelReason, input.oracleNext, input.hcase⟩)
-    providers.ceiling providers.firstDh providers.secondDh providers.tripleProvider
+    input.htrace providers.randomDraw providers.firstDh providers.secondDh providers.tripleProvider
     providers.aeadProvider
 
 /-! Build the nonterminal route from the actual model refusal result.  The
     provider is indexed by the classifier above, so it must handle the exact
     model branch and cannot relabel a concrete refusal as a different family.
-    The random-source ceiling remains an explicit provider case until the
-    concrete RNG contract rules it out. -/
+    The random-source ceiling is eliminated from the provider's ordered trace
+    head at the branch dispatcher. -/
 theorem initial_ratchet_nonterminal_route_of_model_result
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -9593,12 +9595,12 @@ def initial_ratchet_refusal_branch_providers_of_dh
       (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
       (real := real) (model := model) message rng)
     (dhProviders : InitialRatchetDhRouteProviders input)
-    (ceiling : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+    (randomDraw : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
       (dhOutRecv : Model.Lifecycle.Key),
       Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
         .ok (composite, ciphertext) →
       oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
-      Model.Lifecycle.random32 oracle = none → False)
+      ∃ draw rest, trace rng = draw :: rest)
     (tripleProvider : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
       (draw : Model.Lifecycle.Key) (oracleAfter : Model.Lifecycle.Oracle)
       (modelReason : Model.Triple.ReceiveRefusal)
@@ -9643,7 +9645,7 @@ def initial_ratchet_refusal_branch_providers_of_dh
       Nonempty (InitialRatchetRefusalRoute rc crc trace dh K view oracle real model
         input.decoded.message.deref rng input.reason input.next input.rngNext)) :
     InitialRatchetRefusalBranchProviders input :=
-  { ceiling := ceiling
+  { randomDraw := randomDraw
     firstDh := dhProviders.firstDh
     secondDh := dhProviders.secondDh
     tripleProvider := tripleProvider
@@ -10715,16 +10717,16 @@ noncomputable def initial_ratchet_refusal_branch_providers_of_concrete_evidence
     (dhEvidence : InitialRatchetDhConcreteProviders input)
     (tripleEvidence : InitialRatchetTripleConcreteProviders input)
     (aeadEvidence : InitialRatchetAeadConcreteProviders input)
-    (ceiling : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
+    (randomDraw : ∀ (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
       (dhOutRecv : Model.Lifecycle.Key),
       Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
         .ok (composite, ciphertext) →
       oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
-      Model.Lifecycle.random32 oracle = none → False) :
+      ∃ draw rest, trace rng = draw :: rest) :
     InitialRatchetRefusalBranchProviders input := by
   let dhProviders := initial_ratchet_dh_route_providers_of_concrete_evidence
     input kem codec oracleOf hz32 hrel htrace hready dhEvidence
-  exact initial_ratchet_refusal_branch_providers_of_dh input dhProviders ceiling
+  exact initial_ratchet_refusal_branch_providers_of_dh input dhProviders randomDraw
     (initial_ratchet_triple_route_provider_of_concrete_evidence
       input kem oracleOf hz32 hrel htrace hready tripleEvidence)
     (initial_ratchet_aead_route_provider_of_concrete_evidence
@@ -11087,11 +11089,7 @@ noncomputable def initial_ratchet_refusal_branch_providers_of_evidence_package
       (evidence.tripleContracts input))
     (initial_ratchet_aead_providers_of_branch_contracts input
       (evidence.aeadContracts input))
-    (fun composite ciphertext dhOutRecv hdecode hfirst hnone =>
-      model_random32_none_impossible_of_trace_head trace oracle innerRng
-        input.htrace
-        (evidence.randomDraw input composite ciphertext dhOutRecv hdecode hfirst)
-        hnone)
+    (evidence.randomDraw input)
 
 def initial_ratchet_terminal_refusal_evidence {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
