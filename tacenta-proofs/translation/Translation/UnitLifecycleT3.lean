@@ -167,11 +167,12 @@ kemEncapsulateSuccess : ∀ publicKey rng draw rest expected,
       tacenta_boundary.xeddsa.verify publicKey message signature = ok result ∧
       verified result = oracle.sigVerify (dh.publicKey publicKey)
         (sliceOf message) (arrayOf signature)
-  sigSign : ∀ secret message rng draw rest, trace rng = draw :: rest →
+  sigSign : ∀ secret message rng draw1 draw2 rest,
+    trace rng = draw1 :: draw2 :: rest →
     ∃ signature rng',
       tacenta_boundary.xeddsa.sign rngCore cryptoRng secret message rng = ok (signature, rng') ∧
       trace rng' = rest ∧
-      arrayOf signature = oracle.sigSign (arrayOf secret) (sliceOf message) draw
+      arrayOf signature = oracle.sigSign (arrayOf secret) (sliceOf message) draw1 draw2
   random32 : ∀ rng draw rest, trace rng = draw :: rest →
     ∃ value rng',
       lifecycle.random_secret rngCore cryptoRng rng = ok (value, rng') ∧
