@@ -20,9 +20,7 @@ sys.path.insert(0, HERE)
 # A skip is evidence about this reader's documented scope, not a free pass.
 # Keep the exact vector label here so adding, removing or moving a skip makes
 # the reader fail until the disposition is reviewed.
-EXPECTED_SKIPS = {
-    "session-establishment/session-e2e.json :: one-time-prekeys-first-message",
-}
+EXPECTED_SKIPS = set()
 _OBSERVED_SKIPS = set()
 
 
@@ -220,6 +218,73 @@ def h_initial_decode(v):
     _decoder_vector(v, wire.decode_initial, wire.encode_initial, decode_ec_accepts)
 
 
+def h_session_establishment_e2e(v):
+    """Check the public, independently reconstructable part of the session KAT.
+
+    The clean-room reader deliberately does not implement ML-KEM-1024.  The
+    vector therefore supplies the decapsulation result as an input boundary;
+    everything around that boundary is recomputed here: the bundle and
+    initial-message encodings, all four classical agreements, PQXDH and split
+    KDFs, the first ratchet message/AD/AEAD composition, and persistence
+    round-trips.  This is a partial check, not an independent claim about the
+    ML-KEM implementation itself.
+    """
+    i, f = v["inputs"], v["fields"]
+    bundle = wire.decode_bundle(bx(f["bundle"]))
+    check(f["bundle"], wire.encode_bundle(bundle), "bundle round-trip")
+
+    alice_ik = curve25519.x25519_public(bx(i["alice_identity_secret"]))
+    bob_ik = curve25519.x25519_public(bx(i["bob_identity_secret"]))
+    bob_spk = curve25519.x25519_public(bx(i["bob_signed_prekey_secret"]))
+    bob_otpk = curve25519.x25519_public(bx(i["bob_one_time_curve_secret"]))
+    alice_eph = curve25519.x25519_public(bx(i["alice_ephemeral_secret"]))
+    if bundle.identity_key != bob_ik or bundle.signed_prekey != bob_spk:
+        raise Fail("bundle public keys do not match the supplied responder secrets")
+    if bundle.one_time_prekey != bob_otpk:
+        raise Fail("bundle one-time prekey does not match the supplied secret")
+
+    dh1, dh2, dh3, dh4 = pqxdh.initiator_agreements(
+        bx(i["alice_identity_secret"]), bx(i["alice_ephemeral_secret"]),
+        bob_ik, bob_spk, bob_otpk)
+    for name, got in (("dh1", dh1), ("dh2", dh2), ("dh3", dh3), ("dh4", dh4)):
+        check(f[name], got, name)
+    pqxdh.check_kem_prekey(bundle.kem_prekey)
+    pqxdh.check_kem_ciphertext(bx(f["kem_ciphertext"]))
+    sk = pqxdh.shared_secret(dh1, dh2, dh3, dh4, bx(f["kem_shared_secret"]))
+    check(f["sk"], sk, "PQXDH shared secret")
+    split_ec, split_pq = triple.split_secret(sk)
+    check(f["split_ec"], split_ec, "classical split")
+    check(f["split_pq"], split_pq, "post-quantum split")
+
+    initial = wire.decode_initial(bx(f["initial_message"]))
+    check(f["initial_message"], wire.encode_initial(initial), "initial round-trip")
+    if initial.identity != wire.encode_ec(alice_ik) or initial.ephemeral != wire.encode_ec(alice_eph):
+        raise Fail("initial identity or ephemeral does not match the supplied secret")
+    if initial.kem_ciphertext != bx(f["kem_ciphertext"]):
+        raise Fail("initial message carries a different KEM ciphertext")
+    if (initial.signed_prekey_id, initial.one_time_prekey_id, initial.kem_prekey_id) != (
+            bundle.signed_prekey_id, bundle.one_time_prekey_id, bundle.kem_prekey_id):
+        raise Fail("initial message identifiers do not match the bundle")
+
+    header, ciphertext = wire.decode_ratchet_message(initial.ratchet_message)
+    check(f["ratchet_message"], wire.encode_ratchet_message(header, ciphertext), "ratchet round-trip")
+    composite = bx(f["composite_header"])
+    check(f["composite_header"], wire.encode_composite(header), "composite header")
+    ad = wire.concat_ad(pqxdh.associated_data(alice_ik, bob_ik), composite)
+    check(f["associated_data"], ad, "associated data")
+    check(f["mk"], triple.combine(bx(f["mk_ec"]), bx(f["mk_pq"])), "combined message key")
+    check(f["aead_output"], aead.seal(bx(f["mk"]), ad, bx(i["plaintext"])), "AEAD output")
+    if aead.open_(bx(f["mk"]), ad, bx(f["aead_output"])) != bx(f["responder_plaintext"]):
+        raise Fail("AEAD output does not recover the responder plaintext")
+    if ciphertext != bx(f["aead_output"]):
+        raise Fail("ratchet message ciphertext differs from the AEAD field")
+
+    for name, parser, encoder in (
+        ("alice_session_after_first_send", persistence.session_from_bytes, persistence.session_to_bytes),
+        ("bob_session_after_receipt", persistence.session_from_bytes, persistence.session_to_bytes),
+    ):
+        state = parser(bx(f[name]))
+        check(f[name], encoder(state), name + " round-trip")
 # --------------------------------------------------------------- ratchet
 
 def h_double_ratchet(v):
@@ -1056,6 +1121,7 @@ HANDLERS = {
     "braid-state": h_braid_state,
     "prekey-store-state": h_prekey_store_state,
     "session-state": h_session_state,
+    "session-establishment-e2e": h_session_establishment_e2e,
 }
 
 
