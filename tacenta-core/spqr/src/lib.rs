@@ -572,20 +572,53 @@ impl State {
     }
 
     fn set_chains(&mut self, e: u64, c: Chains) {
-        self.chains.retain(|p| p.0 != e);
+        let mut i = 0;
+        while i < self.chains.len() {
+            if self.chains[i].0 == e {
+                Self::remove_chains_at(&mut self.chains, i);
+            } else {
+                i += 1;
+            }
+        }
         self.prepare_chains_capacity(1);
         self.chains.push((e, c));
+    }
+
+    /// Remove a secret-bearing chain entry without `Vec::retain` leaving a
+    /// moved copy in the allocation tail. Move later entries into the removed
+    /// position, wipe the final slot, and only then shorten the vector.
+    fn remove_chains_at(chains: &mut Vec<(u64, Chains)>, index: usize) {
+        let mut i = index;
+        while i + 1 < chains.len() {
+            chains.swap(i, i + 1);
+            i += 1;
+        }
+        chains[i].1.zeroize();
+        chains[i].1.send = None;
+        chains[i].1.receive = None;
+        let _ = chains.pop();
     }
 
     /// Retire everything older than the epochs kept, chains and skipped keys
     /// alike. This is what bounds the store, so it is not an optimisation.
     fn clear_old_epochs(&mut self, current: u64) {
-        self.chains
-            .retain(|p| current < p.0.saturating_add(EPOCHS_KEPT));
-        self.chains.spare_capacity_mut().zeroize();
-        self.skipped
-            .retain(|s| current < s.epoch.saturating_add(EPOCHS_KEPT));
-        self.skipped.spare_capacity_mut().zeroize();
+        let mut i = 0;
+        while i < self.chains.len() {
+            if current < self.chains[i].0.saturating_add(EPOCHS_KEPT) {
+                i += 1;
+            } else {
+                Self::remove_chains_at(&mut self.chains, i);
+            }
+        }
+        let mut j = 0;
+        while j < self.skipped.len() {
+            if current < self.skipped[j].epoch.saturating_add(EPOCHS_KEPT) {
+                j += 1;
+            } else {
+                let mut discarded = Self::remove_skipped_at(&mut self.skipped, j);
+                discarded.zeroize();
+            }
+        }
     }
 
     /// Fold a new secret into the root key and open a fresh pair of chains under
@@ -754,7 +787,8 @@ impl State {
                 key: mk,
             });
         }
-        self.skipped = skipped;
+        let mut old_skipped = core::mem::replace(&mut self.skipped, skipped);
+        old_skipped.zeroize();
         self.set_chains(
             e,
             Chains {
