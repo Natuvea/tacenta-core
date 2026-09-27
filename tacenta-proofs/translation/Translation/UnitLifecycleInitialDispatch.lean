@@ -64,6 +64,28 @@ def encrypt_contracts_of_send_contracts
     messageKeyMaterial := messageKeyMaterial
     dhCodec := dhCodec }
 
+/-! The same semantic send-contract packages used by T3 also discharge the
+    generated public encrypt call's T1 boundary.  This removes a parallel
+    caller-supplied `EncryptContracts` record: the concrete output below is
+    obtained from `Session.encrypt` itself and can be split by the public
+    result-indexed route theorem. -/
+theorem encrypt_result_of_send_contracts
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {K : Model.Braid.Kem}
+    (braid : BraidSendRefinementContracts rc K)
+    (triple : TripleSendRefinementContracts)
+    (aead : Tacenta.UnitLifecycleT1.AeadSealBounded)
+    (messageKeyMaterial : Tacenta.UnitLifecycleT1.MessageKeyMaterialRoundTrip)
+    (dhCodec : Tacenta.UnitLifecycleT1.DhCodecTotal)
+    (real : lifecycle.Session) (plaintext : Slice Std.U8) (rng : R)
+    (headroom : Tacenta.UnitLifecycleT1.EncryptHeadroom real plaintext) :
+    ∃ output, lifecycle.Session.encrypt rc crc real plaintext rng = ok output := by
+  let boundary := encrypt_contracts_of_send_contracts braid triple aead
+    messageKeyMaterial dhCodec
+  obtain ⟨output, houtput⟩ := Std.WP.spec_imp_exists
+    (Tacenta.UnitLifecycleT1.encrypt_no_panic rc crc boundary real plaintext rng headroom)
+  exact ⟨output, houtput.1⟩
+
 /-! ## Braid receive adapter
 
 This adapter is the first concrete part of the nonterminal aggregate. It
@@ -12418,5 +12440,39 @@ theorem public_session_decrypt_end_to_end_with_atomicity
   let witness := public_session_decrypt_end_to_end evidence
   exact ⟨witness, public_decrypt_witness_atomicity_cases rc crc trace dh K view oracle
     real model message rng witness⟩
+
+/-! Public send composition from the actual generated result.  T1 obtains the
+    `Session.encrypt` output from the same Braid and Triple contract packages
+    used by T3; the remaining classifier must then construct a typed route for
+    that exact output.  The classifier remains an explicit obligation until
+    the generated send match tree is split at this boundary. -/
+theorem public_session_encrypt_of_send_contracts
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
+    {K : Model.Braid.Kem} {view : Model.Lifecycle.CodewordView}
+    {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
+    {model : Model.Lifecycle.Session} {plaintext : Slice Std.U8} {rng : R}
+    (braid : BraidSendRefinementContracts rc K)
+    (triple : TripleSendRefinementContracts)
+    (aead : Tacenta.UnitLifecycleT1.AeadSealBounded)
+    (messageKeyMaterial : Tacenta.UnitLifecycleT1.MessageKeyMaterialRoundTrip)
+    (dhCodec : Tacenta.UnitLifecycleT1.DhCodecTotal)
+    (headroom : Tacenta.UnitLifecycleT1.EncryptHeadroom real plaintext)
+    (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (codec : DhCodecOf dh) (codewordView : CodewordViewOf view)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (classify : ∀ output,
+      lifecycle.Session.encrypt rc crc real plaintext rng = ok output →
+      EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model
+        plaintext rng) :
+    PublicEncryptWitness rc crc trace dh K view oracle real model plaintext rng := by
+  obtain ⟨output, houtput⟩ := encrypt_result_of_send_contracts braid triple aead
+    messageKeyMaterial dhCodec real plaintext rng headroom
+  exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
+    (classify output houtput)
 
 end Tacenta.UnitLifecycleT3
