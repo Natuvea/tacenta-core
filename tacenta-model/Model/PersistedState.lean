@@ -1802,6 +1802,17 @@ def readLegacyBlocked (v : UInt8) (bs : Bytes) : Step (List Nat) :=
       andThen (readEntries 4 readLegacyBlockedEntry n r) fun ids r' => .ok (ids, r')
   else .ok ([], bs)
 
+/-- The Rust reader sorts migrated marker ids before removing duplicates.  Keep
+    the model's byte output canonical for the same reason; these ids are
+    persisted state, so insertion order is observable on the upgrade write. -/
+def insertNat (x : Nat) : List Nat → List Nat
+  | [] => [x]
+  | y :: ys => if x ≤ y then x :: y :: ys else y :: insertNat x ys
+
+def sortNat : List Nat → List Nat
+  | [] => []
+  | x :: xs => insertNat x (sortNat xs)
+
 /-- Legacy v1--v4 replay records become fail-closed key markers on import.
     This is the model counterpart of `tacenta-core`'s migration: any retained
     replay record blocks the current KEM id and the retired KEM id, if present.
@@ -1813,7 +1824,7 @@ def migratedLegacyBlocked (v : UInt8) (seen : List (Nat × Bytes)) (kemId : Nat)
     let previous := match previousKem with
       | none => []
       | some p => [p.2.1]
-    (kemId :: previous).eraseDups
+    (sortNat (kemId :: previous)).eraseDups
 
 theorem readLegacyBlockedEntry_bytes (id : Nat) (h : id < 2 ^ 32) :
     readLegacyBlockedEntry (be 4 id) = .ok id := by

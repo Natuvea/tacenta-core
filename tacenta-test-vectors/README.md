@@ -367,8 +367,10 @@ signatures verify. The `legacy-v1`, `legacy-v2` and `legacy-v3` accepted
 vectors re-spell the no-record, no-retired fixture in those older layouts; they
 read to the same field values and write back as current v5. The `legacy-v4-seen`
 vector carries a tagged replay record and checks migration to an explicit v5
-`legacy_blocked` marker; `legacy-blocked-v5` checks the explicit current-format
-field and `legacy-blocked-unknown-key` checks its refusal. The
+`legacy_blocked` marker; `legacy-v4-seen-retired-kem` repeats that migration
+with a retired KEM and checks that the current and retired IDs are sorted before
+deduplication; `legacy-blocked-v5` checks the explicit current-format field and
+`legacy-blocked-unknown-key` checks its refusal. The
 `signed-prekey-signature-does-not-verify` refusal flips one byte of
 `signed_prekey_sig` in that same fixture after the model has accepted and
 re-encoded the mutated bytes, so the cryptographic runner reaches the stored

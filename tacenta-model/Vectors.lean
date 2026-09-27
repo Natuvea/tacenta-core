@@ -1924,6 +1924,11 @@ def prekeyStoreStateFile (_ : Unit) : Except String String := do
   let seenV5Bytes := mutate (fun s =>
     { s with seen := [(s.kemId, List.replicate 32 0x01)] })
   let seenV4Bytes := ofHex (prekeyFixtureV4Seen (toHex seenV5Bytes) 1)
+  let retiredBase ← prekeyBase prekeyFixture_retired_kem
+  let retiredSeenV5Bytes := Model.PersistedState.PrekeyStoreState.toBytes
+    { retiredBase with seen := [(retiredBase.kemId, List.replicate 32 0x02)] }
+  let retiredSeenV4Bytes :=
+    ofHex (prekeyFixtureV4Seen (toHex retiredSeenV5Bytes) 1)
   let accepted ← [
     prekeyStored "current-version"
       "a store tacenta-core wrote: the current version, one KEM prekey, no one-time prekeys, nothing retired"
@@ -1934,6 +1939,9 @@ def prekeyStoreStateFile (_ : Unit) : Except String String := do
     prekeyStoredLegacyUpgraded "legacy-v4-seen"
       "a v4 store with one replay record: importing it creates the v5 marker for the current KEM key"
       seenV4Bytes,
+    prekeyStoredLegacyUpgraded "legacy-v4-seen-retired-kem"
+      "a v4 store with a replay record and a retired KEM: importing it creates sorted v5 markers for both KEM keys"
+      retiredSeenV4Bytes,
     prekeyStoredLegacy "legacy-v3"
       "the same no-record, no-retired store in v3: the reader accepts the older layout and upgrades to v5 on write-back"
       (prekeyLegacyBytes Model.PersistedState.PrekeyStoreState.versionV3 legacyBaseBytes),
