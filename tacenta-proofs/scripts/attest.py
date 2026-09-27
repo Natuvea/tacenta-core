@@ -760,6 +760,24 @@ def check_completeness(claim_list, pins):
     ]
 
 
+def check_session_t1_claim_pins(claim_list, pins):
+    """Every claimed Session T1 theorem must have an exact axiom pin.
+
+    The general completeness rule above catches pins omitted from the ledger.
+    This reverse check closes the other drift direction for the public Session
+    T1 section: adding a claim without recording its kernel/opaque/compiler
+    dependency set must fail the same generated-manifest gate.
+    """
+    pinned = {p["theorem"] for p in pins}
+    return [
+        f"claimed Session T1 theorem `{c['resolved']}` is not axiom-pinned"
+        for c in claim_list
+        if c.get("resolved") is not None
+        and c["resolved"].startswith("Tacenta.UnitLifecycleT1.")
+        and c["resolved"] not in pinned
+    ]
+
+
 def translated_modules():
     """`translate <leaf dir> <package> <llbc> <module>` lines in run-aeneas.sh:
     which generated module comes from which crate."""
@@ -1192,6 +1210,7 @@ def build():
     declared = declared_theorems()
     problems += check_claims(claim_list, declared)
     problems += check_completeness(claim_list, pins)
+    problems += check_session_t1_claim_pins(claim_list, pins)
     problems += check_zones_match_translation()
     problems += check_assembly_sources()
 
