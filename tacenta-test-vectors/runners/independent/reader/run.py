@@ -79,7 +79,15 @@ def h_hkdf(v):
 
 def h_x25519(v):
     i = v["inputs"]
-    check(v["output"], curve25519.x25519(bx(i["private"]), bx(i["peer_public"])))
+    try:
+        got = curve25519.x25519_contributory(bx(i["private"]), bx(i["peer_public"]))
+    except curve25519.NonContributory:
+        if _invalid(v):
+            return
+        raise Fail("X25519 agreement was non-contributory")
+    if _invalid(v):
+        raise Fail("accepted a low-order X25519 peer key")
+    check(v["output"], got)
 
 
 def h_ed25519(v):
