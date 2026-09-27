@@ -76,8 +76,9 @@ theorem braid_kdf_contracts_of_session
 
 /-! ## Primitive oracle agreement
 
-The lifecycle model has ten primitive functions.  Each clause below names
-the complete translated argument list.  Randomness is one ordered trace:
+The lifecycle model has nine primitive operations and ten contract clauses:
+KEM encapsulation has separate success and refusal clauses. Each clause below
+names the complete translated argument list. Randomness is one ordered trace:
 `random_secret`, KEM encapsulation and signing must each consume exactly its
 head and return a state interpreted by the tail. -/
 
@@ -117,7 +118,7 @@ def encapsulationOf :
       Option (Bytes × Model.Lifecycle.Key) :=
   resultOptionOf (fun value => (vecOf value.1, arrayOf value.2))
 
-/-- Agreement between all ten translated primitive calls and one executable
+/-- Agreement between all nine translated primitive calls and one executable
 model oracle.  `trace` interprets the threaded RNG state; the three random
 clauses make call order observable rather than allowing a fresh existential
 draw at each call. -/
@@ -131,10 +132,6 @@ structure OracleOf {R : Type}
   dhAgree : ∀ secret publicKey,
     ∃ result, tacenta_boundary.dh.PrivateKey.agree secret publicKey = ok result ∧
       result.map arrayOf = oracle.dhAgree (dh.privateKey secret) (dh.publicKey publicKey)
-  identityValid : ∀ publicKey,
-    ∃ result,
-      is_valid_identity_key publicKey = ok result ∧
-      result = oracle.identityValid (dh.publicKey publicKey)
   aeadSeal : ∀ key1 key2 iv ad plaintext,
     ∃ ciphertext,
       tacenta_boundary.aead.encrypt key1 key2 iv ad plaintext = ok ciphertext ∧
@@ -674,7 +671,6 @@ def tripleRefusalOf : tacenta_triple.TripleError → Model.Lifecycle.TripleRefus
   | .PostQuantum reason => .postQuantum (sparseRefusalOf reason)
 
 def handshakeRefusalOf : SessionError → Model.Lifecycle.HandshakeRefusal
-  | .InvalidIdentityKey => .invalidIdentityKey
   | .BadSignedPrekeySignature => .badSignedPrekeySignature
   | .BadKemPrekeySignature => .badKemPrekeySignature
   | .NonContributoryAgreement => .nonContributoryAgreement
