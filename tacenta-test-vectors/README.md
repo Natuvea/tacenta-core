@@ -365,7 +365,10 @@ fixtures carry bytes `tacenta-core` produced under a fixed byte source, because
 the model has no signature operation and cannot create a store whose stored
 signatures verify. The `legacy-v1`, `legacy-v2` and `legacy-v3` accepted
 vectors re-spell the no-record, no-retired fixture in those older layouts; they
-read to the same field values and write back as current v4. The
+read to the same field values and write back as current v5. The `legacy-v4-seen`
+vector carries a tagged replay record and checks migration to an explicit v5
+`legacy_blocked` marker; `legacy-blocked-v5` checks the explicit current-format
+field and `legacy-blocked-unknown-key` checks its refusal. The
 `signed-prekey-signature-does-not-verify` refusal flips one byte of
 `signed_prekey_sig` in that same fixture after the model has accepted and
 re-encoded the mutated bytes, so the cryptographic runner reaches the stored
@@ -379,15 +382,16 @@ those fixtures, or truncations, additions and version relabellings.
 - A valid vector's `fields` are small, checkable values from the store:
   `identity_public`, `signed_prekey_secret`, `signed_prekey_id`,
   `signed_prekey_sig`, `kem_id`, `kem_sig`, `next_id`, `one_time_count`,
-  `kem_one_time_count`, `seen_count`, `previous_signed_present` and
+  `kem_one_time_count`, `seen_count`, `legacy_blocked_count`,
+  `previous_signed_present` and
   `previous_kem_present`.
 - The one-time lists and replay record are reported as counts rather than by
   repeating their stored contents. A present retired key is reported by its
   presence byte in `previous_*_present`; its full bytes are already in the
   input the runner read.
-- A runner must reproduce exact stored bytes for accepted v4 vectors. Accepted
-  legacy prekey-store vectors instead check the read fields and permit the
-  required v4 upgrade on write-back.
+- A runner must reproduce exact stored bytes for accepted v5 vectors. Accepted
+  legacy prekey-store vectors check the read fields and carry the required v5
+  upgrade output when migration changes the wire version.
 - An invalid vector's `refusal` is `wrong-version`, `short-or-malformed`,
   `non-canonical` or `incoherent`. `incoherent` is the prekey store's
   semantic-signature refusal.

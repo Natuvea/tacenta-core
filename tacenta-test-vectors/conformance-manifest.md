@@ -508,9 +508,9 @@ and `tacenta-erasure` do the same, and the `partial`,
 
 | Component | Spec section | Covered by |
 |---|---|---|
-| Prekey store v4 layout, read back and written unchanged, including the one-time and one-time-KEM sub-formats, the retired signed prekey and the retired KEM prekey | Prekey store | `vectors/persistence/prekey-store-state.json`: `current-version`, `one-time-kem-prekey`, `retired-signed-prekey`, `retired-kem-prekey`, each with its fields |
+| Prekey store v5 layout, v1-v4 migration and read-back, including the explicit `legacy_blocked` field, the one-time and one-time-KEM sub-formats, the retired signed prekey and the retired KEM prekey | Prekey store | `vectors/persistence/prekey-store-state.json`: `current-version`, `legacy-blocked-v5`, `legacy-v4-seen`, `legacy-v3`, `legacy-v2`, `legacy-v1`, `one-time-kem-prekey`, `retired-signed-prekey`, `retired-kem-prekey`, each with its fields |
 | Prekey store semantic rules: every identifier below `next_id`, none zero, all distinct across kinds | Prekey store, Semantic rules | same file: `identifier-zero`, `identifier-at-next-id`, `identifier-above-next-id`, `identifiers-repeated` |
-| Prekey store replay record: entries tagged with a live last-resort key, no fingerprint twice, and the per-key budget from both sides | Prekey store, Semantic rules; CONSTANTS.md | same file: `record-entry-under-an-unknown-key`, `record-fingerprint-repeated`, `record-over-budget-for-one-key`, and `record-at-budget` accepted at exactly `MAX_LAST_RESORT_SEEN` |
+| Prekey store replay record and v5 migration marker: entries tagged with a live last-resort key, no fingerprint twice, the per-key budget from both sides, and fail-closed `legacy_blocked` IDs | Prekey store, Semantic rules; CONSTANTS.md | same file: `record-entry-under-an-unknown-key`, `record-fingerprint-repeated`, `record-over-budget-for-one-key`, `record-at-budget` accepted at exactly `MAX_LAST_RESORT_SEEN`, `legacy-blocked-unknown-key`, `legacy-v4-seen` and `legacy-blocked-v5` |
 | Prekey store `identity_public` canonical | Prekey store, Semantic rules; message-format.md, Curve public keys | same file: `identity-public-not-canonical` |
 | Prekey store framing refusals | Prekey store; Rejection | same file: `version-unknown`, `version-zero` (`wrong-version`); `empty`, `truncated`, `trailing-byte` |
 | Session layout, read back and written unchanged, with the optional fields present and absent, plus the tag 6/7 epoch boundary's accepted neighbours and the failed-Braid exemption | Session | `vectors/persistence/session-state.json`: `responder`, `initiator-unanswered`, `initiator-answered`, `tag-six-keeps-previous-sparse-epoch`, `tag-seven-uses-current-sparse-epoch`, `failed-braid-exempts-sparse-epoch`, each with its fields, the halves' tag and epochs checked through their own crates |
@@ -571,8 +571,8 @@ model's boundary; they are simply unpinned.
   `SessionState.ofBytes_ok` proves it for the session; for the prekey store the
   same property is believed and not proved, and the model says so.
 
-**What the two files do reach.** The prekey store: the v4 layout, the version
-and buffer refusals, and five of the page's six semantic rules, including both
+**What the two files do reach.** The prekey store: the v5 layout, v1-v4
+migration, the version and buffer refusals, and five of the page's six semantic rules, including both
 sides of the replay record's per-key budget. The session: the layout, one field
 refusal, the short-buffer and version refusals, and the five semantic rules
 above. The session's are the only vectors in the tree carrying `inconsistent`,
