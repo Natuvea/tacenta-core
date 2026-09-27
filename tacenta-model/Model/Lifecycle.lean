@@ -37,6 +37,8 @@ structure Oracle where
   dhAgree : Key → Key → Option Key
   aeadSeal : Key → Key → Iv → Bytes → Bytes → Bytes
   aeadOpen : Key → Key → Iv → Bytes → Bytes → Option Bytes
+  /-- Whether the public key passes the boundary's pre-RNG validation. -/
+  kemValid : Bytes → Bool
   kemEncaps : Bytes → Key → Option (Bytes × Key)
   kemDecaps : Bytes → Bytes → Option Key
   sigVerify : Key → Bytes → Bytes → Bool
@@ -83,19 +85,20 @@ theorem takeDraw_keeps_dhPublic (oracle oracle' : Oracle) (draw : Key)
     refinement can relate that shipping function to this exact trace step. -/
 def random32 (oracle : Oracle) : Option (Key × Oracle) := takeDraw oracle
 
-/-- Encapsulation classifies the public key using the oracle, then consumes one
-    draw only for a successful or post-validation refusal. A malformed public
-    key returns the KEM refusal without consuming the caller's RNG state, which
-    matches the boundary's validation-before-`fill_bytes` order. -/
+/-- Encapsulation classifies the public key before consuming a draw. An invalid
+    public key returns the KEM refusal without consuming the caller's RNG
+    state, matching the boundary's validation-before-`fill_bytes` order. -/
 def kemEncapsulate (oracle : Oracle) (publicKey : Bytes) :
     Option (Option (Bytes × Key) × Oracle) := do
+  if !oracle.kemValid publicKey then
+    return (none, oracle)
   let (draw, rest) ← takeDraw oracle
   match oracle.kemEncaps publicKey draw with
   | none => some (none, oracle)
   | some result => some (some result, rest)
 
-/-- Signing consumes exactly one draw and binds the result to the secret,
-    message and draw supplied to the primitive. -/
+/-- Signing consumes exactly two 32-byte draws and binds their concatenation
+    to the secret and message supplied to the primitive. -/
 def sign (oracle : Oracle) (secret : Key) (message : Bytes) :
     Option (Bytes × Oracle) := do
   let (draw1, afterFirst) ← takeDraw oracle
@@ -165,11 +168,13 @@ theorem sendAgreement_draw (oracle : Oracle) (state : Model.Braid.BraidState)
 
 theorem kemEncapsulate_cons (oracle : Oracle) (draw : Key) (rest : List Key)
     (publicKey : Bytes) (h : oracle.draws = draw :: rest) :
+    oracle.kemValid publicKey = true →
     kemEncapsulate oracle publicKey =
       match oracle.kemEncaps publicKey draw with
       | none => some (none, oracle)
       | some result => some (some result, { oracle with draws := rest }) := by
-  simp [kemEncapsulate, takeDraw, h]
+  intro hvalid
+  simp [kemEncapsulate, takeDraw, h, hvalid]
 
 /-- A malformed KEM key is a no-draw refusal. This regression theorem is
     deliberately indexed by the model's refusal result and catches a model
@@ -177,9 +182,15 @@ theorem kemEncapsulate_cons (oracle : Oracle) (draw : Key) (rest : List Key)
 theorem kemEncapsulate_refusal_keeps_oracle (oracle : Oracle) (draw : Key)
     (rest : List Key) (publicKey : Bytes)
     (h : oracle.draws = draw :: rest)
-    (hkem : oracle.kemEncaps publicKey draw = none) :
+    (hvalid : oracle.kemValid publicKey = false) :
     kemEncapsulate oracle publicKey = some (none, oracle) := by
-  simp [kemEncapsulate, takeDraw, h, hkem]
+  simp [kemEncapsulate, hvalid]
+
+theorem kemEncapsulate_refusal_with_empty_trace (oracle : Oracle)
+    (publicKey : Bytes) (hvalid : oracle.kemValid publicKey = false)
+    (h : oracle.draws = []) :
+    kemEncapsulate oracle publicKey = some (none, oracle) := by
+  simp [kemEncapsulate, hvalid, h]
 
 theorem sign_cons (oracle : Oracle) (draw1 draw2 : Key) (rest : List Key)
     (secret : Key) (message : Bytes)
@@ -1774,6 +1785,7 @@ def toyOracle (draws : List Key) : Oracle where
     if ciphertext.take Model.Kdf.hashLen == Model.Kdf.hmac (enc ++ mac ++ iv) ad then
       some (ciphertext.drop Model.Kdf.hashLen)
     else none
+  kemValid := fun _ => true
   kemEncaps := fun _ _ => some ([], List.replicate 32 0xee)
   kemDecaps := fun _ _ => some (List.replicate 32 0xee)
   sigVerify := fun _ _ _ => true
