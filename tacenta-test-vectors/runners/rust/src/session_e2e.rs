@@ -10,6 +10,9 @@
 
 use std::collections::{BTreeMap, VecDeque};
 
+use curve25519_dalek::edwards::CompressedEdwardsY;
+use curve25519_dalek::montgomery::MontgomeryPoint;
+use curve25519_dalek::traits::IsIdentity;
 use rand_core::{CryptoRng, RngCore};
 
 use super::{Vector, array32, bytes, eq, input};
@@ -87,6 +90,49 @@ impl CryptoRng for ExactRng {}
 
 fn named(v: &Vector, names: &[&str]) -> Result<Vec<Vec<u8>>, String> {
     names.iter().map(|name| input(v, name)).collect()
+}
+
+fn torsion_spellings(ephemeral: [u8; 32]) -> Vec<[u8; 32]> {
+    let mut torsion_bytes = [0u8; 32];
+    torsion_bytes.copy_from_slice(
+        &hex::decode(
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+        )
+        .expect("order-eight torsion point"),
+    );
+    let torsion = CompressedEdwardsY(torsion_bytes)
+        .decompress()
+        .expect("order-eight torsion point decodes");
+    assert!(torsion.is_small_order());
+    assert!(!(torsion + torsion + torsion + torsion).is_identity());
+    let point = MontgomeryPoint(ephemeral)
+        .to_edwards(0)
+        .expect("ephemeral has a Montgomery lift");
+    let mut out = Vec::new();
+    let mut multiple = torsion;
+    for _ in 1..8 {
+        let spelling = (point + multiple).to_montgomery().to_bytes();
+        assert_ne!(spelling, ephemeral);
+        assert!(spelling[31] < 0x80);
+        out.push(spelling);
+        multiple += torsion;
+    }
+    out.sort();
+    out.dedup();
+    assert_eq!(out.len(), 7);
+    out
+}
+
+fn replace_ephemeral(message: &[u8], spelling: [u8; 32]) -> Vec<u8> {
+    let mut message = message.to_vec();
+    message[36..68].copy_from_slice(&spelling);
+    message
+}
+
+fn ephemeral(message: &[u8]) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&message[36..68]);
+    out
 }
 
 fn agreement_type(ty: tacenta_braid::MsgType) -> AgreementType {
@@ -185,18 +231,31 @@ fn observed(v: &Vector) -> Result<BTreeMap<String, Vec<u8>>, String> {
         .map_err(|e| format!("repeated initial encrypt: {e:?}"))?;
     repeat_send_rng.finish()?;
 
+    let torsion_initial = replace_ephemeral(&initial, torsion_spellings(ephemeral(&initial))[0]);
+    let low_order_repeat = replace_ephemeral(&repeat_initial, [0u8; 32]);
+
     let mut responder_rng = ExactRng::new(
         "responder establishment",
         named(v, &["bob_ratchet_secret"])?,
     );
     let (mut bob_session, recovered) =
-        sessions::establish_responder(&bob, &mut store, &initial, &mut responder_rng)
+        sessions::establish_responder(&bob, &mut store, &torsion_initial, &mut responder_rng)
             .map_err(|e| format!("responder establishment: {e:?}"))?;
     responder_rng.finish()?;
     if recovered != plaintext {
         return Err("the responder recovered a different first plaintext".to_owned());
     }
     let bob_state = bob_session.export();
+    let before_low_order = bob_session.export();
+    let mut low_order_rng = ExactRng::new("responder low-order repeat", vec![]);
+    let low_order = bob_session.decrypt(&low_order_repeat, &mut low_order_rng);
+    low_order_rng.finish()?;
+    if !matches!(low_order, Err(sessions::LifecycleError::NotARepeatedInitial)) {
+        return Err("a low-order repeated initial was not refused".to_owned());
+    }
+    if bob_session.export() != before_low_order {
+        return Err("a low-order repeated initial changed responder state".to_owned());
+    }
     let mut repeat_receive_rng = ExactRng::new(
         "responder repeated receive",
         named(v, &["bob_repeat_random"])?,
@@ -336,7 +395,9 @@ fn observed(v: &Vector) -> Result<BTreeMap<String, Vec<u8>>, String> {
     put(&mut out, "aead_output", ciphertext);
     put(&mut out, "ratchet_message", ratchet_message);
     put(&mut out, "initial_message", initial);
+    put(&mut out, "torsion_initial", torsion_initial);
     put(&mut out, "repeat_initial", repeat_initial);
+    put(&mut out, "low_order_repeat", low_order_repeat);
     put(&mut out, "repeat_plaintext", repeated_recovered);
     put(&mut out, "alice_session_after_first_send", &*alice_state);
     put(&mut out, "bob_session_after_receipt", &*bob_state);
