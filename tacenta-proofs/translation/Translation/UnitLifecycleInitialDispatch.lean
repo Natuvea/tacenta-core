@@ -12451,9 +12451,27 @@ theorem public_session_decrypt_end_to_end_with_atomicity
 
 /-! Public send composition from the actual generated result.  T1 obtains the
     `Session.encrypt` output from the same Braid and Triple contract packages
-    used by T3; the remaining classifier must then construct a typed route for
-    that exact output.  The classifier remains an explicit obligation until
-    the generated send match tree is split at this boundary. -/
+    used by T3.  The terminal branch is discharged directly below.  The two
+    remaining providers are indexed by the actual result and the model's
+    ordered no-draw/draw split, so a caller can no longer hide terminal routing
+    or choose a send-randomness branch independently of the executable model. -/
+structure EncryptNonterminalRouteProviders
+    {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
+    (K : Model.Braid.Kem) (view : Model.Lifecycle.CodewordView)
+    (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)
+    (model : Model.Lifecycle.Session) (plaintext : Slice Std.U8) (rng : R) : Type where
+  noDraw : ∀ output,
+    lifecycle.Session.encrypt rc crc real plaintext rng = ok output →
+    Model.Lifecycle.agreementFailed model = false →
+    Model.Lifecycle.braidSendNeedsDraw model.braid = false →
+    EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng
+  draw : ∀ output,
+    lifecycle.Session.encrypt rc crc real plaintext rng = ok output →
+    Model.Lifecycle.agreementFailed model = false →
+    Model.Lifecycle.braidSendNeedsDraw model.braid = true →
+    EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng
+
 theorem public_session_encrypt_of_send_contracts
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
@@ -12472,14 +12490,24 @@ theorem public_session_encrypt_of_send_contracts
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
     (hzKeys : ZeroizingRoundTrips
       (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
-    (classify : ∀ output,
-      lifecycle.Session.encrypt rc crc real plaintext rng = ok output →
-      EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model
-        plaintext rng) :
+    (hrel : SessionRefines dh K real model)
+    (htrace : trace rng = oracle.draws)
+    (providers : EncryptNonterminalRouteProviders rc crc trace dh kem K view oracle
+      real model plaintext rng) :
     PublicEncryptWitness rc crc trace dh K view oracle real model plaintext rng := by
   obtain ⟨output, houtput⟩ := encrypt_result_of_send_contracts braid triple aead hzKeys
     dhCodec real plaintext rng headroom
-  exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
-    (classify output houtput)
+  cases hfailed : Model.Lifecycle.agreementFailed model with
+  | true =>
+      exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
+        (.braid (.terminal hrel htrace hfailed))
+  | false =>
+      cases hdraw : Model.Lifecycle.braidSendNeedsDraw model.braid with
+      | false =>
+          exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
+            (providers.noDraw output houtput hfailed hdraw)
+      | true =>
+          exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
+            (providers.draw output houtput hfailed hdraw)
 
 end Tacenta.UnitLifecycleT3

@@ -63,6 +63,22 @@ def main():
          '      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →\n'
          '      Model.Lifecycle.random32 oracle = none → False',
          'evidence.randomDraw input composite ciphertext dhOutRecv hdecode hfirst'),
+        ('invert-encrypt-no-draw-provider',
+         '    Model.Lifecycle.braidSendNeedsDraw model.braid = false →\n'
+         '    EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng\n'
+         '  draw :',
+         '    Model.Lifecycle.braidSendNeedsDraw model.braid = true →\n'
+         '    EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng\n'
+         '  draw :',
+         'hdraw'),
+        ('invert-encrypt-draw-provider',
+         '    Model.Lifecycle.braidSendNeedsDraw model.braid = true →\n'
+         '    EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng\n\n'
+         'theorem public_session_encrypt_of_send_contracts',
+         '    Model.Lifecycle.braidSendNeedsDraw model.braid = false →\n'
+         '    EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng\n\n'
+         'theorem public_session_encrypt_of_send_contracts',
+         'hdraw'),
     ]
     with tempfile.TemporaryDirectory(prefix='initial-dispatch-controls-') as tmp:
         tmp = Path(tmp)
