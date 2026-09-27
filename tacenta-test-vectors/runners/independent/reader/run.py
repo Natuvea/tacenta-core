@@ -305,6 +305,41 @@ def h_session_establishment_e2e(v):
         pqxdh.receive_repeated_initial(responder, bx(f["repeat_initial"]), receive_inner)
         if inner != [repeat.ratchet_message]:
             raise Fail("repeated initial did not route its ratchet message to receive")
+
+        if "torsion_initial" not in f or "low_order_repeat" not in f:
+            raise Fail("session-e2e vector lacks repeat edge controls")
+        original = wire.decode_initial(bx(f["initial_message"]))
+        torsion = wire.decode_initial(bx(f["torsion_initial"]))
+        if torsion.identity != original.identity:
+            raise Fail("torsion-equivalent establishment changed the identity")
+        if (torsion.kem_ciphertext, torsion.signed_prekey_id,
+                torsion.one_time_prekey_id, torsion.kem_prekey_id,
+                torsion.ratchet_message) != (
+                    original.kem_ciphertext, original.signed_prekey_id,
+                    original.one_time_prekey_id, original.kem_prekey_id,
+                    original.ratchet_message):
+            raise Fail("torsion-equivalent establishment changed a protected field")
+        try:
+            pqxdh.accept_repeated_initial(
+                not responder.is_initiator, responder.ratchet_private,
+                responder.established_ephemeral, responder.peer_identity_public,
+                original)
+        except pqxdh.NotARepeatedInitial as exc:
+            raise Fail("the original spelling was not in the established agreement class") from exc
+
+        low_order = wire.decode_initial(bx(f["low_order_repeat"]))
+        before = persistence.session_to_bytes(responder)
+        try:
+            pqxdh.accept_repeated_initial(
+                not responder.is_initiator, responder.ratchet_private,
+                responder.established_ephemeral, responder.peer_identity_public,
+                low_order)
+        except pqxdh.NotARepeatedInitial:
+            pass
+        else:
+            raise Fail("low-order repeated initial was accepted")
+        if persistence.session_to_bytes(responder) != before:
+            raise Fail("low-order repeated initial changed responder state")
         repeated_state = persistence.session_from_bytes(bx(f["bob_session_after_repeat"]))
         check(f["bob_session_after_repeat"], persistence.session_to_bytes(repeated_state),
               "bob session after repeated initial round-trip")
