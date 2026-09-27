@@ -277,6 +277,30 @@ def is_disabled_condition(value):
 def is_truthy_continue_on_error(value):
     return constant_truth(value) is True
 
+def is_noop_run(value):
+    """Return True for a step whose entire script can only succeed.
+
+    A required workflow step containing only `true`, `:`, or `exit 0` is not
+    evidence of the check it names.  `set -e`/`set -u` are shell options, not
+    work, so they are ignored when deciding whether the script is hollow.
+    """
+    if not isinstance(value, str):
+        return False
+    commands = []
+    for line in value.splitlines():
+        line = line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        commands.extend(part.strip() for part in line.split(";") if part.strip())
+    if not commands:
+        return True
+    for command in commands:
+        if re.fullmatch(r"set\s+[-+][A-Za-z]+", command):
+            continue
+        if command not in ("true", ":", "exit 0"):
+            return False
+    return True
+
 def normalized_expression(value):
     if not isinstance(value, str):
         return None
@@ -393,6 +417,27 @@ for f in files:
             if not isinstance(step, dict):
                 continue
 
+            # A step-level skip or error mask is the step analogue of the
+            # forbidden job-level switch above.  Static false conditions and
+            # static true `continue-on-error` values are never useful evidence;
+            # a dynamic mask is also forbidden on a job that emits a required
+            # receipt.
+            if "if" in step and is_disabled_condition(step.get("if")):
+                complain("%s job '%s' has a step unconditionally disabled by "
+                         "`if: false`" % (f, name))
+            if "continue-on-error" in step:
+                if required_receipt or is_truthy_continue_on_error(step.get("continue-on-error")):
+                    complain("%s job '%s' has a step-level `continue-on-error` "
+                             "that can mask a required command" % (f, name))
+            if "run" in step:
+                run_value = step.get("run")
+                if not isinstance(run_value, str):
+                    complain("%s job '%s' has a non-string `run` step -- a "
+                             "command must be an explicit shell script" % (f, name))
+                elif is_noop_run(run_value):
+                    complain("%s job '%s' has a hollow `run` step -- a check "
+                             "must execute a substantive command" % (f, name))
+
             # Rule 1. Third-party actions must be pinned by commit digest,
             # not by tag. A tag is movable: whoever controls the action
             # repository can change what `@v4` means after review and before
@@ -441,6 +486,18 @@ for f in action_files:
     for step in steps:
         if not isinstance(step, dict):
             continue
+        if "if" in step and is_disabled_condition(step.get("if")):
+            complain("%s composite action has a step unconditionally disabled "
+                     "by `if: false`" % f)
+        if "continue-on-error" in step and is_truthy_continue_on_error(step.get("continue-on-error")):
+            complain("%s composite action has a step-level `continue-on-error` "
+                     "that can mask a command" % f)
+        if "run" in step:
+            run_value = step.get("run")
+            if not isinstance(run_value, str):
+                complain("%s composite action has a non-string `run` step" % f)
+            elif is_noop_run(run_value):
+                complain("%s composite action has a hollow `run` step" % f)
         uses = step.get("uses")
         if isinstance(uses, str):
             check_pin(f, "composite action", "uses", uses)
