@@ -1570,18 +1570,14 @@ info: 'Tacenta.ImportInv.Spqr.decoded_receive_no_panic' depends on axioms: [prop
  tacenta_spqr.zeroize.Zeroizing.new,
  tacenta_spqr.Array.Insts.ZeroizeZeroize.zeroize,
  tacenta_spqr.Pair.Insts.ZeroizeZeroize.zeroize,
- tacenta_spqr.SliceMaybeUninit.Insts.ZeroizeZeroize.zeroize,
  tacenta_spqr.alloc.vec.Vec.capacity,
  tacenta_spqr.alloc.vec.Vec.pop,
- tacenta_spqr.alloc.vec.Vec.retain,
- tacenta_spqr.alloc.vec.Vec.spare_capacity_mut,
- tacenta_spqr.core.mem.maybe_uninit.MaybeUninit,
+ tacenta_spqr.core.option.Option.as_mut,
  tacenta_spqr.zeroize.Zeroize.Blanket.zeroize,
  SpqrT1.receive_no_panic._native.native_decide.ax_1_1,
  tacenta_spqr.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  tacenta_spqr.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
- tacenta_spqr.core.option.Option.Insts.CoreCloneClone.clone,
- tacenta_spqr.core.option.Option.Insts.ZeroizeZeroize.zeroize]
+ tacenta_spqr.core.option.Option.Insts.CoreCloneClone.clone]
 -/
 #guard_msgs in
 #print axioms Tacenta.ImportInv.Spqr.decoded_receive_no_panic

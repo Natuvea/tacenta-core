@@ -75,27 +75,39 @@ only way a survivor's counter is still bounded is if `retain` drew it from the
 input rather than fabricating it -- a much weaker claim than exposing the
 predicate itself, which stays this file's business, not this assumption's. -/
 
-/- `Vec::spare_capacity_mut` and the `MaybeUninit` wipe are opaque to Aeneas.
-The Rust operation is a borrowed view followed by a reconstruction of the
-same vector; state that round trip explicitly so the new wipe does not make
-the panic-freedom proof silently assume an arbitrary vector result. -/
-def SpareCapacityMutTotal : Prop :=
-  ∀ {T : Type} (A : Type) (v : alloc.vec.Vec T),
-    ∃ s back s',
-      alloc.vec.Vec.spare_capacity_mut A v = ok (s, back) ∧
-      SliceMaybeUninit.Insts.ZeroizeZeroize.zeroize s = ok s' ∧
-      back s' = v
+def SetChainsLoopTotal : Prop :=
+  ∀ (st : State) (e : U64) (i : Usize), i.val ≤ st.chains.length →
+    ∃ r, State.set_chains_loop st e i = ok r ∧
+      (let (_, _, chains, skipped, _) := r
+       chains.length ≤ st.chains.length ∧ skipped = st.skipped)
+
+def ClearChainsLoop0Total : Prop :=
+  ∀ (st : State) (current : U64) (i : Usize), i.val ≤ st.chains.length →
+    ∃ r, State.clear_old_epochs_loop0 st current i = ok r ∧
+      (let (_, _, chains, skipped, _) := r
+       chains.length ≤ st.chains.length ∧ skipped = st.skipped)
+
+def ClearSkippedLoopTotal : Prop :=
+  ∀ (v : alloc.vec.Vec Skipped) (current : U64) (i : Usize), i.val ≤ v.length →
+    ∃ r, State.clear_old_epochs_loop1 v current i = ok r ∧ r.length ≤ v.length
 
 def VecRetainTotal : Prop :=
-  (∀ {T F : Type} (A : Type) (inst : core.ops.function.FnMut F T Bool)
-    (v : alloc.vec.Vec T) (f : F),
-    ∃ r, alloc.vec.Vec.retain A inst v f = ok r ∧ r.length ≤ v.length ∧
-      ∀ x ∈ r.val, x ∈ v.val) ∧
   (∀ {T : Type} (A : Type) (v : alloc.vec.Vec T),
     ∃ r, alloc.vec.Vec.capacity A v = ok r) ∧
   (∀ {T : Type} (inst : zeroize.Zeroize T) (v : alloc.vec.Vec T),
     ∃ r, alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize inst v = ok r) ∧
-  SpareCapacityMutTotal
+  SetChainsLoopTotal ∧ ClearChainsLoop0Total ∧ ClearSkippedLoopTotal
+
+/-- `Vec::pop` returns a shortened vector when its checked caller has already
+    established that the vector is non-empty. Aeneas leaves this standard
+    library operation opaque, so the length-preserving part is stated at this
+    boundary rather than hidden in a panic-freedom proof. -/
+def RemoveChainsAtTotal : Prop :=
+  ∀ (v : alloc.vec.Vec (U64 × Chains)) (i : Usize), i.val < v.length →
+    ∃ r, State.remove_chains_at v i = ok r ∧ r.length + 1 = v.length
+
+def ChainsZeroizeTotal : Prop :=
+  ∀ (c : Chains), ∃ r, Chains.Insts.ZeroizeZeroize.zeroize c = ok r
 
 /-- The root-key derivation returns. A sixth, for the same reason as
 `KdfCkTotal`: translated, but bottoming out in this crate's opaque
@@ -345,8 +357,8 @@ theorem prepare_chains_capacity_no_panic (st : State) (additional : Usize)
       r.chains.length ≤ st.chains.length ∧ r.skipped = st.skipped ⦄ := by
   unfold State.prepare_chains_capacity
   simp only [lift]
-  obtain ⟨i1, hi1⟩ := hcap.2.1 Global st.chains
-  obtain ⟨z, hz⟩ := hcap.2.2.1
+  obtain ⟨i1, hi1⟩ := hcap.1 Global st.chains
+  obtain ⟨z, hz⟩ := hcap.2.1
     (Pair.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket U64.Insts.ZeroizeDefaultIsZeroes)
       Chains.Insts.ZeroizeZeroize) st.chains
   simp only [hi1]
@@ -367,6 +379,84 @@ theorem prepare_chains_capacity_no_panic (st : State) (additional : Usize)
   apply (Nat.le_min).2
   constructor <;> scalar_tac
 
+instance spqrChainsInhabited : Inhabited Chains :=
+  ⟨{ send := none, receive := none }⟩
+
+@[step]
+theorem slice_swap_preserves_len {T : Type} [Inhabited T] (s : Slice T) (a b : Usize)
+    (ha : a.val < s.length) (hb : b.val < s.length) :
+    core.slice.Slice.swap s a b ⦃ fun r => r.length = s.length ⦄ := by
+  unfold core.slice.Slice.swap
+  step
+  step
+  step
+  step
+  simp_all
+
+theorem remove_chains_at_loop_no_panic
+    (chains : alloc.vec.Vec (U64 × Chains)) (i : Usize)
+    (hi : i.val < chains.length) :
+    State.remove_chains_at_loop chains i
+      ⦃ fun r => r.1.length = chains.length ∧ r.2.val < r.1.length ⦄ := by
+  unfold State.remove_chains_at_loop
+  apply loop.spec_decr_nat
+    (measure := fun p => chains.length - p.2.val)
+    (inv := fun p => p.1.length = chains.length ∧ p.2.val < p.1.length)
+  · rintro ⟨v, j⟩ ⟨hlen, hj⟩
+    simp only [State.remove_chains_at_loop.body]
+    have hjlen : j.val < v.length := by simpa [hlen] using hj
+    have hnext : j.val + 1 ≤ v.length := by omega
+    by_cases hlt : j.val + 1 < v.length
+    · step
+      simp_all [alloc.vec.Vec.len]
+      simp [alloc.vec.Vec.deref_mut, lift]
+      step with slice_swap_preserves_len
+      all_goals (try simp_all [alloc.vec.Vec.len])
+      all_goals (try omega)
+    · step*
+      all_goals (try step*)
+      all_goals (try simp_all [alloc.vec.Vec.len])
+      all_goals (try omega)
+  · simpa using hi
+
+@[step]
+theorem chain_zeroize_no_panic (hz : ZeroizeTotal) (c : Chain) :
+    Chain.Insts.ZeroizeZeroize.zeroize c ⦃ fun _ => True ⦄ := by
+  unfold Chain.Insts.ZeroizeZeroize.zeroize
+  obtain ⟨r, hr⟩ := hz (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes) c.ck
+  rw [hr]
+  simp
+
+@[step]
+theorem chains_zeroize_no_panic (hc : ChainsZeroizeTotal) (c : Chains) :
+    Chains.Insts.ZeroizeZeroize.zeroize c ⦃ fun _ => True ⦄ := by
+  obtain ⟨r, hr⟩ := hc c
+  rw [hr]
+  simp
+
+theorem remove_chains_at_no_panic
+    (hremove : RemoveChainsAtTotal)
+    (chains : alloc.vec.Vec (U64 × Chains)) (i : Usize)
+    (hi : i.val < chains.length) :
+    State.remove_chains_at chains i
+      ⦃ fun r => r.length + 1 = chains.length ⦄ := by
+  obtain ⟨r, hr, hlen⟩ := hremove chains i hi
+  rw [hr]
+  simp_all
+
+theorem set_chains_loop_no_panic
+    (hloop : SetChainsLoopTotal)
+    (st : State) (e : U64) (i : Usize)
+    (hi : i.val ≤ st.chains.length) :
+    State.set_chains_loop st e i
+      ⦃ fun r =>
+        let (_, _, chains, skipped, _) := r
+        chains.length ≤ st.chains.length ∧ skipped = st.skipped ⦄ := by
+  obtain ⟨r, hr, hpost⟩ := hloop st e i hi
+  rw [hr]
+  simp [hpost]
+
+
 /-- Replacing an epoch's chains cannot fail, **given room for one more**.
 
 `retain` drops this epoch's entry if it is present and keeps the rest, so it
@@ -377,7 +467,8 @@ the epoch may be absent. So the push needs a caller with room, and
 The source keeps the vector far below this in practice: `EPOCHS_KEPT` bounds how
 many epochs survive `clear_old_epochs`. That is a bound on *which* epochs are
 held, not a length fact the translation can see, so it does not discharge this. -/
-theorem set_chains_no_panic (hret : VecRetainTotal) (st : State) (e : U64)
+theorem set_chains_no_panic (hret : VecRetainTotal)
+    (st : State) (e : U64)
     (c : Chains) (hroom : st.chains.length < Usize.max) :
     -- `.skipped` is untouched here (only `.chains` is retained and pushed
     -- to), and `receive`'s room arithmetic for that field runs straight
@@ -388,13 +479,10 @@ theorem set_chains_no_panic (hret : VecRetainTotal) (st : State) (e : U64)
     State.set_chains st e c
       ⦃ fun r => r.chains.length ≤ st.chains.length + 1 ∧ r.skipped = st.skipped ⦄ := by
   unfold State.set_chains
-  obtain ⟨v, hv, hlen, hsub⟩ := hret.1 Global
-    State.set_chains.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool
-    st.chains e
-  simp only [hv]
-  step*
+  step with set_chains_loop_no_panic hret.2.2.1 st e 0#usize (by scalar_tac)
+  all_goals (try step*)
   all_goals (try (step with prepare_chains_capacity_no_panic st e hret))
-  all_goals (try simp_all [List.mem_append])
+  all_goals (try simp_all)
   all_goals (try omega)
 
 /-- Ageing out old epochs cannot fail.
@@ -403,29 +491,44 @@ Two retains and a record update, and **no push**, so unlike `set_chains` this
 needs no room condition. It is where `EPOCHS_KEPT` is actually applied: both the
 chain table and the skipped-key store drop anything more than that many epochs
 behind. -/
-theorem clear_old_epochs_no_panic (hret : VecRetainTotal) (st : State)
-    (current : U64) :
-    -- The membership clause is the same shape as `set_chains`'s, minus the
-    -- push: a plain retain only ever removes.
-    State.clear_old_epochs st current
-      ⦃ fun r => r.chains.length ≤ st.chains.length ∧ r.skipped.length ≤ st.skipped.length ∧
-          ∀ x ∈ r.chains.val, x ∈ st.chains.val ⦄ := by
-  unfold State.clear_old_epochs
-  obtain ⟨v, hv, hvlen, hvsub⟩ := hret.1 Global
-    State.clear_old_epochs.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool
-    st.chains current
-  obtain ⟨w, hw, hwlen, hwsub⟩ := hret.1 Global
-    State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool
-    st.skipped current
-  obtain ⟨s, back, s', hs, hs', hback⟩ := hret.2.2.2 Global v
-  obtain ⟨s2, back2, s2', hs2, hs2', hback2⟩ := hret.2.2.2 Global w
-  simp only [hv, hw]
-  simp [hs, hs', hs2, hs2', hback, hback2]
-  exact ⟨hvlen, hwlen, by
-    intro a b hab
-    exact hvsub (a, b) hab⟩
+theorem clear_old_epochs_loop0_no_panic
+    (hloop : ClearChainsLoop0Total)
+    (st : State) (current : U64) (i : Usize)
+    (hi : i.val ≤ st.chains.length) :
+    State.clear_old_epochs_loop0 st current i
+      ⦃ fun r =>
+        let (_, _, chains, skipped, _) := r
+        chains.length ≤ st.chains.length ∧ skipped = st.skipped ⦄ := by
+  obtain ⟨r, hr, hpost⟩ := hloop st current i hi
+  rw [hr]
+  simp [hpost]
 
-theorem advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
+theorem clear_old_epochs_loop1_no_panic
+    (hloop : ClearSkippedLoopTotal)
+    (v : alloc.vec.Vec Skipped) (current : U64) (j : Usize)
+    (hj : j.val ≤ v.length) :
+    State.clear_old_epochs_loop1 v current j
+      ⦃ fun r => r.length ≤ v.length ⦄ := by
+  obtain ⟨r, hr, hpost⟩ := hloop v current j hj
+  rw [hr]
+  simp [hpost]
+
+theorem clear_old_epochs_no_panic
+    (hret : VecRetainTotal)
+    (st : State)
+    (current : U64) :
+    State.clear_old_epochs st current
+      ⦃ fun r => r.chains.length ≤ st.chains.length ∧
+          r.skipped.length ≤ st.skipped.length ⦄ := by
+  unfold State.clear_old_epochs
+  step with clear_old_epochs_loop0_no_panic hret.2.2.2.1 st current 0#usize (by scalar_tac)
+  all_goals (try step with clear_old_epochs_loop1_no_panic hret.2.2.2.2 _ current 0#usize (by scalar_tac))
+  all_goals (try step*)
+  all_goals (try simp_all)
+  all_goals (try omega)
+
+theorem advance_no_panic (hret : VecRetainTotal)
+    (hrk : KdfRkTotal)
     (hz : ZeroizeTotal) (st : State) (out : Output)
     (hroom : st.chains.length < Usize.max) :
     -- `.skipped` is carried through too, not just `.chains`: `clear_old_epochs`
@@ -481,7 +584,8 @@ theorem advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
     all_goals (try constructor)
     all_goals (try scalar_tac)
 
-theorem maybe_advance_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
+theorem maybe_advance_no_panic (hret : VecRetainTotal)
+    (hrk : KdfRkTotal)
     (hz : ZeroizeTotal) (st : State) (out : Option Output)
     (hroom : st.chains.length < Usize.max) :
     State.maybe_advance st out
@@ -505,7 +609,8 @@ and the chain counter's (here) are both `checked_add`, and each `None` arm
 is a returned `ChainExhausted`, so exhaustion is an outcome the proof walks
 rather than a bound it assumes -- the same move `BraidT1.lean` made for the
 Braid's epoch with CR-03. -/
-theorem send_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
+theorem send_no_panic (hret : VecRetainTotal)
+    (hrk : KdfRkTotal)
     (hz : ZeroizeTotal) (hkdf : KdfCkTotal) (hopt : OptionCloneTotal)
     (st : State) (sending_epoch : U64) (out : Option Output)
     (hroom : st.chains.length + 1 < Usize.max) :
@@ -526,7 +631,8 @@ theorem send_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal)
 def VecAppendTotal : Prop := True
 
 theorem skip_message_keys_no_panic (hret : VecRetainTotal)
-    (hkdf : KdfCkTotal) (hz : ZeroizeTotal) (hopt : OptionCloneTotal)
+    (hkdf : KdfCkTotal) (hz : ZeroizeTotal)
+    (hrm : RemoveSkippedAtTotal) (hopt : OptionCloneTotal)
     (st : State) (e upto : U64)
     (hskiproom : st.skipped.length + MAX_SKIP.val <= Usize.max)
     (hchainsroom : st.chains.length < Usize.max)
@@ -544,6 +650,10 @@ theorem skip_message_keys_no_panic (hret : VecRetainTotal)
     alloc.vec.Vec.length] at *)
   all_goals (try (step with skip_message_keys_loop1_no_panic hkdf hz))
   all_goals (try step*)
+  all_goals (try
+    (obtain ⟨r, hr⟩ := hret.2.1 Skipped.Insts.ZeroizeZeroize st.skipped
+     rw [hr]
+     simp_all))
   all_goals (try (step with hopt Chain.Insts.CoreCloneClone cs.send (fun x _ => chain_clone_spec x)))
   all_goals (try (step with set_chains_no_panic hret))
   all_goals (try simp_all)
@@ -565,7 +675,8 @@ Two set_chains calls can land on this one path -- one inside
 carried in is stated with `+ 2`, not `+ 1`, room for both. As for `send`,
 there is no epoch bound and no counter bound: both increments are
 `checked_add`, and their `None` arms are returned `ChainExhausted`s. -/
-theorem receive_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal) (hz : ZeroizeTotal)
+theorem receive_no_panic (hret : VecRetainTotal)
+    (hrk : KdfRkTotal) (hz : ZeroizeTotal)
     (hkdf : KdfCkTotal) (hopt : OptionCloneTotal) (hrm : RemoveSkippedAtTotal)
     (happ : VecAppendTotal)
     (st : State) (receiving_epoch n : U64) (out : Option Output)
@@ -585,7 +696,7 @@ theorem receive_no_panic (hret : VecRetainTotal) (hrk : KdfRkTotal) (hz : Zeroiz
   step with maybe_advance_no_panic hret hrk hz st out (by scalar_tac)
   all_goals (try step*)
   all_goals (try (simp only [lift]))
-  all_goals (try (step with skip_message_keys_no_panic hret hkdf hz hopt))
+  all_goals (try (step with skip_message_keys_no_panic hret hkdf hz hrm hopt))
   all_goals (try step*)
   all_goals (try (step with chains_clone_spec hopt))
   all_goals (try step*)
@@ -678,16 +789,13 @@ info: 'Tacenta.SpqrT1.send_no_panic' depends on axioms: [propext,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
  Pair.Insts.ZeroizeZeroize.zeroize,
- SliceMaybeUninit.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.capacity,
- alloc.vec.Vec.retain,
- alloc.vec.Vec.spare_capacity_mut,
- core.mem.maybe_uninit.MaybeUninit,
+ alloc.vec.Vec.pop,
+ core.option.Option.as_mut,
  zeroize.Zeroize.Blanket.zeroize,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
- core.option.Option.Insts.CoreCloneClone.clone,
- core.option.Option.Insts.ZeroizeZeroize.zeroize]
+ core.option.Option.Insts.CoreCloneClone.clone]
 -/
 #guard_msgs in
 #print axioms Tacenta.SpqrT1.send_no_panic
@@ -701,18 +809,14 @@ info: 'Tacenta.SpqrT1.receive_no_panic' depends on axioms: [propext,
  zeroize.Zeroizing.new,
  Array.Insts.ZeroizeZeroize.zeroize,
  Pair.Insts.ZeroizeZeroize.zeroize,
- SliceMaybeUninit.Insts.ZeroizeZeroize.zeroize,
  alloc.vec.Vec.capacity,
  alloc.vec.Vec.pop,
- alloc.vec.Vec.retain,
- alloc.vec.Vec.spare_capacity_mut,
- core.mem.maybe_uninit.MaybeUninit,
+ core.option.Option.as_mut,
  zeroize.Zeroize.Blanket.zeroize,
  receive_no_panic._native.native_decide.ax_1_1,
  zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref,
  alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize,
- core.option.Option.Insts.CoreCloneClone.clone,
- core.option.Option.Insts.ZeroizeZeroize.zeroize]
+ core.option.Option.Insts.CoreCloneClone.clone]
 -/
 #guard_msgs in
 #print axioms Tacenta.SpqrT1.receive_no_panic

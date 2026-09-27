@@ -46,15 +46,23 @@ they hold together:
 
 The other witnessed hypotheses, `UnitT3.HmacAgrees`, `UnitT3.HkdfAgrees` (which
 `UnitSpqrT3.SpqrHkdfAgrees` and `UnitTripleT3.TripleHkdfAgrees` are, by `Iff.rfl`),
-`UnitSpqrT3.VecAppendAgrees`, `UnitSpqrT3.VecRetainAgrees`,
-`UnitSpqrT1.OptionCloneTotal` and the general `UnitSpqrT1.ZeroizeTotal`, each
-constrain a constant no other hypothesis here mentions. That their separate
-witnesses combine is an argument about independent opaque constants, made in this
-comment and not checked by Lean.
+`UnitSpqrT3.VecAppendAgrees`, `UnitSpqrT1.OptionCloneTotal` and the general
+`UnitSpqrT1.ZeroizeTotal`, each constrain a constant no other hypothesis here
+mentions. `UnitSpqrT3.VecRetainAgrees` is deliberately not listed: the generated
+translation now exposes the concrete `set_chains` and `clear_old_epochs`
+entrypoints, so its agreement proposition is result-shaped and tied to those
+actual operations rather than to an abstract standard-library `retain` oracle.
+Its concrete provider belongs with the translated implementation proof, not with
+this independent consistency witness. That the separately witnessed hypotheses
+combine is an argument about independent opaque constants, made in this comment
+and not checked by Lean.
 
 ## Coverage
 
-Together these cover every boundary hypothesis the two discharged theorems take.
+Together these cover every abstract boundary hypothesis the two discharged
+theorems take. The result-shaped sparse entry-point agreement remains an explicit
+provider argument in those theorems and is not silently replaced by a weaker
+abstract witness here.
 The two `example`s at the end check that against the theorems themselves: each
 applies one theorem to exactly the hypotheses witnessed here, in its signature's
 order, up to the state relation. A boundary hypothesis added to the theorem ahead
@@ -243,48 +251,16 @@ theorem vec_remove_joint_satisfiable : ∃ g f, RemoveJoint g f := by
         le_trans (List.length_eraseIdx_le _ _) v.property⟩),
       by simp [h], rfl, rfl⟩
 
-/-! ## `Vec::retain` -/
+/-! ## Result-shaped sparse entry-point agreement
 
-/-- The type of `alloc.vec.Vec.retain`. -/
-abbrev RetainFn :=
-  {T : Type} → (A : Type) → {F : Type} → core.ops.function.FnMut F T Bool →
-    alloc.vec.Vec T → F → Result (alloc.vec.Vec T)
-
-/-- The shape of `UnitSpqrT3.VecRetainAgrees`. -/
-def RetainAgrees (f : RetainFn) : Prop :=
-  ∀ {T F : Type} (A : Type) (inst : core.ops.function.FnMut F T Bool)
-    (v : alloc.vec.Vec T) (g : F) (p : T → Bool)
-    (_hp : ∀ x, inst.call_mut g x = ok (p x, g)),
-    ∃ r, f A inst v g = ok r ∧ r.val = v.val.filter p
-
-theorem VecRetainAgrees_is :
-    Tacenta.UnitSpqrT3.VecRetainAgrees ↔ RetainAgrees @alloc.vec.Vec.retain :=
-  Iff.rfl
-
-theorem length_filter_le_max {T : Type} (p : T → Bool) (v : alloc.vec.Vec T) :
-    (v.val.filter p).length ≤ Usize.max :=
-  le_trans (List.length_filter_le _ _) v.property
-
-open Classical in
-/-- When the closure is a pure predicate that leaves its state alone, filter by
-it; otherwise keep everything. Classical, because recovering the predicate from
-the closure is a choice. -/
-noncomputable def retainWitness : RetainFn := fun {T} _A {_F} inst v g =>
-  if h : ∃ p : T → Bool, ∀ x, inst.call_mut g x = ok (p x, g) then
-    ok ⟨v.val.filter (Classical.choose h), length_filter_le_max _ v⟩
-  else ok v
-
-theorem retain_agrees_satisfiable : ∃ f : RetainFn, RetainAgrees f := by
-  refine ⟨@retainWitness, ?_⟩
-  intro T F A inst v g p hp
-  have h : ∃ p : T → Bool, ∀ x, inst.call_mut g x = ok (p x, g) := ⟨p, hp⟩
-  refine ⟨⟨v.val.filter (Classical.choose h), length_filter_le_max _ v⟩,
-    by simp [retainWitness, h], ?_⟩
-  apply List.filter_congr
-  intro x _
-  have := Classical.choose_spec h x
-  rw [hp x] at this
-  exact (Prod.mk.inj (Result.ok.inj this)).1.symm
+The generated sparse translation contains explicit `set_chains` and
+`clear_old_epochs` scan loops. `UnitSpqrT3.VecRetainAgrees` therefore states the
+result and state relation of those two concrete entrypoints. The old abstract
+`alloc.vec.Vec.retain` witness is intentionally gone: it no longer names a
+constant in the generated surface and would make this file prove consistency of
+a different program. The concrete provider is supplied by the sparse refinement
+proof and remains an explicit argument in the examples below.
+ -/
 
 /-! ## `Option`'s clone -/
 
