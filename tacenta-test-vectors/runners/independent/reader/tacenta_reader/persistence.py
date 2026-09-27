@@ -779,6 +779,17 @@ def prekey_store_semantic(p: PrekeyStore) -> Optional[str]:
         return "a key has more than MAX_LAST_RESORT_SEEN record entries"
     if len({fp for _, fp in p.seen}) != len(p.seen):
         return "a fingerprint appears twice"
+    # A v5 legacy marker is meaningful only for a last-resort KEM key that is
+    # still present in the store.  Accepting an arbitrary identifier would
+    # make the marker silently ineffective and would disagree with the
+    # fail-closed migration rule in session-persistence.md.
+    live_kem_ids = {p.kem_id}
+    if p.previous_kem is not None:
+        live_kem_ids.add(p.previous_kem[1])
+    if any(i not in live_kem_ids for i in p.legacy_blocked):
+        return "legacy_blocked names a KEM key that is neither current nor retired"
+    if len(set(p.legacy_blocked)) != len(p.legacy_blocked):
+        return "legacy_blocked contains a duplicate KEM key identifier"
     # "identity_public is canonical" (pass 5), in all four versions
     if not is_canonical_curve_key(p.identity_public):
         return "identity_public is not the canonical encoding of a curve public key"

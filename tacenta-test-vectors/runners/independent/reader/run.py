@@ -1029,6 +1029,7 @@ def _store_fields(p):
         "one_time_count": _h4(len(p.one_time)),
         "kem_one_time_count": _h4(len(p.kem_one_time)),
         "seen_count": _h4(len(p.seen)),
+        "legacy_blocked_count": _h4(len(p.legacy_blocked)),
         "previous_signed_present": "01" if p.previous_signed is not None else "00",
         "previous_kem_present": "01" if p.previous_kem is not None else "00",
     }
