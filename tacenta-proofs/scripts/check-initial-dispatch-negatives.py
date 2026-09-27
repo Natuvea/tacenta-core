@@ -66,20 +66,28 @@ def main():
         ('invert-encrypt-no-draw-provider',
          '    Model.Lifecycle.agreementFailed model = false →\n'
          '    Model.Lifecycle.braidSendNeedsDraw model.braid = false →\n'
+         '    EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output\n'
+         '      realMessage realEpoch realOutput realBraidNext rngNext →\n'
          '    EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng\n'
          '  draw :',
          '    Model.Lifecycle.agreementFailed model = false →\n'
          '    Model.Lifecycle.braidSendNeedsDraw model.braid = true →\n'
+         '    EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output\n'
+         '      realMessage realEpoch realOutput realBraidNext rngNext →\n'
          '    EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng\n'
          '  draw :',
          'hdraw'),
         ('invert-encrypt-draw-provider',
          '    Model.Lifecycle.agreementFailed model = false →\n'
          '    Model.Lifecycle.braidSendNeedsDraw model.braid = true →\n'
+         '    EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output\n'
+         '      realMessage realEpoch realOutput realBraidNext rngNext →\n'
          '    EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng\n\n'
          'theorem public_session_encrypt_of_send_contracts',
          '    Model.Lifecycle.agreementFailed model = false →\n'
          '    Model.Lifecycle.braidSendNeedsDraw model.braid = false →\n'
+         '    EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output\n'
+         '      realMessage realEpoch realOutput realBraidNext rngNext →\n'
          '    EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng\n\n'
          'theorem public_session_encrypt_of_send_contracts',
          'hdraw'),

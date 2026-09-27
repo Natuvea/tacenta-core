@@ -12453,6 +12453,124 @@ theorem public_session_decrypt_end_to_end_with_atomicity
     remaining providers are indexed by the actual result and the model's
     ordered no-draw/draw split, so a caller can no longer hide terminal routing
     or choose a send-randomness branch independently of the executable model. -/
+inductive EncryptGeneratedNonterminalPrefix {R : Type}
+    (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
+    (real : lifecycle.Session) (plaintext : Slice Std.U8) (rng : R)
+    (output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.Session × R)
+    (realMessage : tacenta_braid.Msg) (realEpoch : Std.U64)
+    (realOutput : Option tacenta_braid.Output)
+    (realBraidNext : tacenta_braid.Braid) (rngNext : R) : Type where
+  | braidFailed
+      (hnext : tacenta_braid.Braid.failed realBraidNext = ok true)
+      (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output) :
+      EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output
+        realMessage realEpoch realOutput realBraidNext rngNext
+  | tripleRefusal
+      {sparseOutput : Option tacenta_spqr.Output}
+      {candidate : tacenta_triple.State} {reason : tacenta_triple.TripleError}
+      (hnext : tacenta_braid.Braid.failed realBraidNext = ok false)
+      (hsparse : RealSparseConversion realOutput sparseOutput)
+      (hsendCandidate : lifecycle.send_candidate real.triple realEpoch sparseOutput =
+        ok (candidate, .Err reason))
+      (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output) :
+      EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output
+        realMessage realEpoch realOutput realBraidNext rngNext
+  | tripleSuccess
+      {sparseOutput : Option tacenta_spqr.Output}
+      {candidate : tacenta_triple.State} {header : tacenta_triple.Header}
+      {mk : Array Std.U8 32#usize}
+      (hnext : tacenta_braid.Braid.failed realBraidNext = ok false)
+      (hsparse : RealSparseConversion realOutput sparseOutput)
+      (hsendCandidate : lifecycle.send_candidate real.triple realEpoch sparseOutput =
+        ok (candidate, .Ok (header, mk)))
+      (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output) :
+      EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output
+        realMessage realEpoch realOutput realBraidNext rngNext
+
+/-! Invert the generated `Session.encrypt` control flow only as far as the
+    first semantic leaf after `Braid.send`.  The result records whether the
+    concrete next Braid is terminal, the exact Triple candidate refused, or
+    the exact Triple candidate succeeded.  Later providers therefore cannot
+    manufacture a convenient Triple branch detached from the public call. -/
+noncomputable def encrypt_generated_nonterminal_prefix_of_output
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {dh : DhView} {K : Model.Braid.Kem}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {plaintext : Slice Std.U8} {rng : R}
+    {output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.Session × R}
+    {realMessage : tacenta_braid.Msg} {realEpoch : Std.U64}
+    {realOutput : Option tacenta_braid.Output}
+    {realBraidNext : tacenta_braid.Braid} {rngNext : R}
+    (hrel : SessionRefines dh K real model)
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output)
+    (hsend : tacenta_braid.Braid.send rc crc real.braid rng =
+      ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext)) :
+    EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output
+      realMessage realEpoch realOutput realBraidNext rngNext := by
+  have hrealReady := braid_failed_refines K real.braid model.braid hrel.braid
+  have hmodelReady : Model.Lifecycle.braidFailed model.braid = false := by
+    cases hb : model.braid <;>
+      simp [Model.Lifecycle.agreementFailed, Model.Lifecycle.braidFailed, hb] at hready ⊢
+  rw [hmodelReady] at hrealReady
+  cases hnext : tacenta_braid.Braid.failed realBraidNext with
+  | fail error =>
+      unfold lifecycle.Session.encrypt at houtput
+      simp [hrealReady, hsend, hnext] at houtput
+  | div =>
+      unfold lifecycle.Session.encrypt at houtput
+      simp [hrealReady, hsend, hnext] at houtput
+  | ok failed =>
+      cases failed with
+      | true => exact .braidFailed hnext houtput
+      | false =>
+          cases hout : realOutput with
+          | none =>
+              cases hcandidate : lifecycle.send_candidate real.triple realEpoch none with
+              | fail error =>
+                  unfold lifecycle.Session.encrypt at houtput
+                  simp [hrealReady, hsend, hnext, hout, hcandidate] at houtput
+              | div =>
+                  unfold lifecycle.Session.encrypt at houtput
+                  simp [hrealReady, hsend, hnext, hout, hcandidate] at houtput
+              | ok value =>
+                  rcases value with ⟨candidate, sent⟩
+                  cases sent with
+                  | Err reason =>
+                      exact .tripleRefusal hnext (.none rfl) hcandidate houtput
+                  | Ok value =>
+                      rcases value with ⟨header, mk⟩
+                      exact .tripleSuccess hnext (.none rfl) hcandidate houtput
+          | some realSparse =>
+              cases hconvert : tacenta_spqr.Output.new realSparse.key_epoch realSparse.key with
+              | fail error =>
+                  unfold lifecycle.Session.encrypt at houtput
+                  simp [hrealReady, hsend, hnext, hout, hconvert] at houtput
+              | div =>
+                  unfold lifecycle.Session.encrypt at houtput
+                  simp [hrealReady, hsend, hnext, hout, hconvert] at houtput
+              | ok sparseOutput =>
+                  cases hcandidate : lifecycle.send_candidate real.triple realEpoch
+                      (some sparseOutput) with
+                  | fail error =>
+                      unfold lifecycle.Session.encrypt at houtput
+                      simp [hrealReady, hsend, hnext, hout, hconvert, hcandidate] at houtput
+                  | div =>
+                      unfold lifecycle.Session.encrypt at houtput
+                      simp [hrealReady, hsend, hnext, hout, hconvert, hcandidate] at houtput
+                  | ok value =>
+                      rcases value with ⟨candidate, sent⟩
+                      cases sent with
+                      | Err reason =>
+                          exact .tripleRefusal hnext
+                            (.some realSparse sparseOutput rfl hconvert) hcandidate houtput
+                      | Ok value =>
+                          rcases value with ⟨header, mk⟩
+                          exact .tripleSuccess hnext
+                            (.some realSparse sparseOutput rfl hconvert) hcandidate houtput
+
 structure EncryptNonterminalRouteProviders
     {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -12465,6 +12583,8 @@ structure EncryptNonterminalRouteProviders
       ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
     Model.Lifecycle.agreementFailed model = false →
     Model.Lifecycle.braidSendNeedsDraw model.braid = false →
+    EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output
+      realMessage realEpoch realOutput realBraidNext rngNext →
     EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng
   draw : ∀ output realMessage realEpoch realOutput realBraidNext rngNext,
     lifecycle.Session.encrypt rc crc real plaintext rng = ok output →
@@ -12472,6 +12592,8 @@ structure EncryptNonterminalRouteProviders
       ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
     Model.Lifecycle.agreementFailed model = false →
     Model.Lifecycle.braidSendNeedsDraw model.braid = true →
+    EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output
+      realMessage realEpoch realOutput realBraidNext rngNext →
     EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng
 
 theorem public_session_encrypt_of_send_contracts
@@ -12497,23 +12619,27 @@ theorem public_session_encrypt_of_send_contracts
     (providers : EncryptNonterminalRouteProviders rc crc trace dh kem K view oracle
       real model plaintext rng) :
     PublicEncryptWitness rc crc trace dh K view oracle real model plaintext rng := by
-  obtain ⟨output, houtput⟩ := encrypt_result_of_send_contracts braid triple aead hzKeys
-    dhCodec real plaintext rng headroom
+  obtain ⟨output, houtput⟩ := encrypt_result_of_send_contracts (crc := crc)
+    braid triple aead hzKeys dhCodec real plaintext rng headroom
   cases hfailed : Model.Lifecycle.agreementFailed model with
   | true =>
       exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
         (.braid (.terminal hrel htrace hfailed))
   | false =>
-      obtain ⟨result, rngNext, hsend⟩ := braid_send_result_of_contracts braid real.braid rng
+      obtain ⟨result, rngNext, hsend⟩ := braid_send_result_of_contracts (crc := crc)
+        braid real.braid rng
       rcases result with ⟨realMessage, realEpoch, realOutput, realBraidNext⟩
+      let generatedPrefix :=
+        encrypt_generated_nonterminal_prefix_of_output (crc := crc)
+          hrel hfailed houtput hsend
       cases hdraw : Model.Lifecycle.braidSendNeedsDraw model.braid with
       | false =>
           exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
             (providers.noDraw output realMessage realEpoch realOutput realBraidNext rngNext
-              houtput hsend hfailed hdraw)
+              houtput hsend hfailed hdraw generatedPrefix)
       | true =>
           exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
             (providers.draw output realMessage realEpoch realOutput realBraidNext rngNext
-              houtput hsend hfailed hdraw)
+              houtput hsend hfailed hdraw generatedPrefix)
 
 end Tacenta.UnitLifecycleT3
