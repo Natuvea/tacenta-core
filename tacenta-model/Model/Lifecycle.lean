@@ -24,9 +24,10 @@ abbrev Iv := Bytes
 /-- Results supplied by the trusted primitive boundary.
 
     `draws` is ordered. Operations that need randomness consume its head and
-    return the oracle containing its tail. `kemEncaps` and `sigSign` take that
-    draw explicitly, so using the wrong draw or calling them in the wrong order
-    changes the model result. A KEM refusal is allowed to preserve the oracle:
+    return the oracle containing its tail. `kemEncaps` takes that draw
+    explicitly, while `sigSign` takes the two 32-byte draws used by the
+    shipping 64-byte nonce input. Using the wrong draws or calling a primitive
+    in the wrong order changes the model result. A KEM refusal is allowed to preserve the oracle:
     the shipping boundary validates the public key before it asks the RNG for
     bytes. -/
 structure Oracle where
@@ -39,7 +40,7 @@ structure Oracle where
   kemEncaps : Bytes → Key → Option (Bytes × Key)
   kemDecaps : Bytes → Bytes → Option Key
   sigVerify : Key → Bytes → Bytes → Bool
-  sigSign : Key → Bytes → Key → Bytes
+  sigSign : Key → Bytes → Bytes → Bytes
 
 /-- Executable view of the erasure codeword relation already used by the Braid
     refinement. A wire codeword does not reveal the Braid model's ghost source,
@@ -97,8 +98,9 @@ def kemEncapsulate (oracle : Oracle) (publicKey : Bytes) :
     message and draw supplied to the primitive. -/
 def sign (oracle : Oracle) (secret : Key) (message : Bytes) :
     Option (Bytes × Oracle) := do
-  let (draw, rest) ← takeDraw oracle
-  some (oracle.sigSign secret message draw, rest)
+  let (draw1, afterFirst) ← takeDraw oracle
+  let (draw2, rest) ← takeDraw afterFirst
+  some (oracle.sigSign secret message (draw1 ++ draw2), rest)
 
 /-- The two Braid send states that make a fresh 32-byte random draw. Other
     states accept a `rand` argument in the leaf model but do not inspect it, so
@@ -179,10 +181,19 @@ theorem kemEncapsulate_refusal_keeps_oracle (oracle : Oracle) (draw : Key)
     kemEncapsulate oracle publicKey = some (none, oracle) := by
   simp [kemEncapsulate, takeDraw, h, hkem]
 
-theorem sign_cons (oracle : Oracle) (draw : Key) (rest : List Key)
-    (secret : Key) (message : Bytes) (h : oracle.draws = draw :: rest) :
+theorem sign_cons (oracle : Oracle) (draw1 draw2 : Key) (rest : List Key)
+    (secret : Key) (message : Bytes)
+    (h : oracle.draws = draw1 :: draw2 :: rest) :
     sign oracle secret message =
-      some (oracle.sigSign secret message draw, { oracle with draws := rest }) := by
+      some (oracle.sigSign secret message (draw1 ++ draw2),
+        { oracle with draws := rest }) := by
+  simp [sign, takeDraw, h]
+
+/- The model must not invent the second half of XEdDSA's 64-byte nonce. -/
+theorem sign_requires_two_draws (oracle : Oracle) (draw : Key)
+    (secret : Key) (message : Bytes)
+    (h : oracle.draws = [draw]) :
+    sign oracle secret message = none := by
   simp [sign, takeDraw, h]
 
 /-! ## Repeated initial recognition
