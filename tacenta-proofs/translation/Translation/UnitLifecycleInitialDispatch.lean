@@ -50,18 +50,26 @@ def triple_send_contracts_to_t1 (contracts : TripleSendRefinementContracts) :
     kdfCk := Tacenta.SessionUnitSpqrT3.SpqrHkdfAgrees.kdfCkTotal contracts.hkdf contracts.spqrZeroizing64
     optionClone := contracts.optionClone }
 
+theorem message_key_material_roundtrip_of_zeroizing
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize)) :
+    Tacenta.UnitLifecycleT1.MessageKeyMaterialRoundTrip := by
+  intro value
+  exact hzKeys Tacenta.UnitLifecycleT1.messageKeyMaterialZeroize value
+
 def encrypt_contracts_of_send_contracts
     {R : Type} {rc : rand_core_1.RngCore R} {K : Model.Braid.Kem}
     (braid : BraidSendRefinementContracts rc K)
     (triple : TripleSendRefinementContracts)
     (aead : Tacenta.UnitLifecycleT1.AeadSealBounded)
-    (messageKeyMaterial : Tacenta.UnitLifecycleT1.MessageKeyMaterialRoundTrip)
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
     (dhCodec : Tacenta.UnitLifecycleT1.DhCodecTotal) :
     Tacenta.UnitLifecycleT1.EncryptContracts rc :=
   { braid := braid_send_contracts_to_t1 braid
     triple := triple_send_contracts_to_t1 triple
     aeadSeal := aead
-    messageKeyMaterial := messageKeyMaterial
+    messageKeyMaterial := message_key_material_roundtrip_of_zeroizing hzKeys
     dhCodec := dhCodec }
 
 /-! The same semantic send-contract packages used by T3 also discharge the
@@ -75,13 +83,13 @@ theorem encrypt_result_of_send_contracts
     (braid : BraidSendRefinementContracts rc K)
     (triple : TripleSendRefinementContracts)
     (aead : Tacenta.UnitLifecycleT1.AeadSealBounded)
-    (messageKeyMaterial : Tacenta.UnitLifecycleT1.MessageKeyMaterialRoundTrip)
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
     (dhCodec : Tacenta.UnitLifecycleT1.DhCodecTotal)
     (real : lifecycle.Session) (plaintext : Slice Std.U8) (rng : R)
     (headroom : Tacenta.UnitLifecycleT1.EncryptHeadroom real plaintext) :
     ∃ output, lifecycle.Session.encrypt rc crc real plaintext rng = ok output := by
-  let boundary := encrypt_contracts_of_send_contracts braid triple aead
-    messageKeyMaterial dhCodec
+  let boundary := encrypt_contracts_of_send_contracts braid triple aead hzKeys dhCodec
   obtain ⟨output, houtput⟩ := Std.WP.spec_imp_exists
     (Tacenta.UnitLifecycleT1.encrypt_no_panic rc crc boundary real plaintext rng headroom)
   exact ⟨output, houtput.1⟩
@@ -12455,7 +12463,6 @@ theorem public_session_encrypt_of_send_contracts
     (braid : BraidSendRefinementContracts rc K)
     (triple : TripleSendRefinementContracts)
     (aead : Tacenta.UnitLifecycleT1.AeadSealBounded)
-    (messageKeyMaterial : Tacenta.UnitLifecycleT1.MessageKeyMaterialRoundTrip)
     (dhCodec : Tacenta.UnitLifecycleT1.DhCodecTotal)
     (headroom : Tacenta.UnitLifecycleT1.EncryptHeadroom real plaintext)
     (oracleOf : OracleOf rc crc dh kem trace oracle)
@@ -12470,8 +12477,8 @@ theorem public_session_encrypt_of_send_contracts
       EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model
         plaintext rng) :
     PublicEncryptWitness rc crc trace dh K view oracle real model plaintext rng := by
-  obtain ⟨output, houtput⟩ := encrypt_result_of_send_contracts braid triple aead
-    messageKeyMaterial dhCodec real plaintext rng headroom
+  obtain ⟨output, houtput⟩ := encrypt_result_of_send_contracts braid triple aead hzKeys
+    dhCodec real plaintext rng headroom
   exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
     (classify output houtput)
 
