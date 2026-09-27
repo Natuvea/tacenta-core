@@ -324,6 +324,7 @@ def lifecycleRefusalName : Model.Lifecycle.Refusal → String
   | .triple (.postQuantum reason) => "triple-post-quantum-" ++ sparseRefusalName reason
   | .handshake .badSignedPrekeySignature => "bad-signed-prekey-signature"
   | .handshake .badKemPrekeySignature => "bad-kem-prekey-signature"
+  | .handshake .invalidIdentityKey => "invalid-identity-key"
   | .handshake .nonContributoryAgreement => "non-contributory-agreement"
   | .kem => "kem"
   | .decode .unknownVersion => "decode-unknown-version"
