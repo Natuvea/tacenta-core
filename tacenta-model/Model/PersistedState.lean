@@ -1637,6 +1637,8 @@ structure Store where
   kemOneTime : List (Nat × Bytes × Bytes)
   nextId : Nat
   seen : List (Nat × Bytes)
+  /-- v5 markers for replay identities imported from the pre-v5 formats. -/
+  legacyLastResortBlocked : List Nat
   previousSigned : Option (Bytes × Nat × Bytes)
   previousKem : Option (Bytes × Nat × Bytes)
   deriving Repr, DecidableEq, Inhabited
@@ -1692,7 +1694,8 @@ def toBytes (st : Store) : Bytes :=
     ++ be 4 st.kemOneTime.length ++ (st.kemOneTime.map kemOneTimeBytes).flatten
     ++ be 4 st.nextId
     ++ be 4 st.seen.length ++ (st.seen.map seenBytes).flatten
-    ++ be 4 0
+    ++ be 4 st.legacyLastResortBlocked.length
+    ++ (st.legacyLastResortBlocked.map (be 4)).flatten
     ++ optSignedBytes st.previousSigned ++ optKemBytes st.previousKem
 
 /-! ### Semantic rules (Prekey store, Semantic rules)
@@ -1738,12 +1741,22 @@ def kemPairsSized (st : Store) : Bool :=
         | none => true
         | some p => decide (p.1.length = kemPairLen))
 
+def legacyBlockedOk (st : Store) : Bool :=
+  let previousKemId : Option Nat := match st.previousKem with
+    | none => none
+    | some p => some p.2.1
+  st.legacyLastResortBlocked.all (fun id =>
+      id == st.kemId || previousKemId == some id)
+    && noShared (fun id => id) st.legacyLastResortBlocked
+    && decide (st.legacyLastResortBlocked.length ≤ 2)
+
 def invariant (st : Store) : Bool :=
   kemPairsSized st
     && canonicalKey st.identityPublic
     && (ids st).all (fun i => !(i == absentId) && decide (i < st.nextId))
     && noShared (fun i => i) (ids st)
     && recordOk st
+    && legacyBlockedOk st
 
 /-! ### The reader -/
 
@@ -1779,14 +1792,86 @@ def readSeen (v : UInt8) (kemId : Nat) (bs : Bytes) : Step (List (Nat × Bytes))
         andThen (readEntries 32 (fun b => .ok b) n r) fun fps r' =>
         .ok (fps.map (fun fp => (kemId, fp)), r')
 
-/-- v5's fail-closed legacy replay markers. The model does not model the
-    cryptographic migration decision, so it consumes and discards the bounded
-    identifiers; current stores write an empty marker list. -/
-def readLegacyBlocked (v : UInt8) (bs : Bytes) : Step Unit :=
+def readLegacyBlockedEntry (b : Bytes) : Except Refusal Nat :=
+  if b.length = 4 then .ok (beValue b) else .error .shortOrMalformed
+
+/-- v5's fail-closed legacy replay markers. -/
+def readLegacyBlocked (v : UInt8) (bs : Bytes) : Step (List Nat) :=
   if v = version then
     andThen (readInt 4 bs) fun n r =>
-      andThen (readEntries 4 (fun b => readInt 4 b) n r) fun _ r' => .ok ((), r')
-  else .ok ((), bs)
+      andThen (readEntries 4 readLegacyBlockedEntry n r) fun ids r' => .ok (ids, r')
+  else .ok ([], bs)
+
+/-- Legacy v1--v4 replay records become fail-closed key markers on import.
+    This is the model counterpart of `tacenta-core`'s migration: any retained
+    replay record blocks the current KEM id and the retired KEM id, if present.
+    v5 carries the markers explicitly and therefore keeps the decoded field. -/
+def migratedLegacyBlocked (v : UInt8) (seen : List (Nat × Bytes)) (kemId : Nat)
+    (previousKem : Option (Bytes × Nat × Bytes)) (blocked : List Nat) : List Nat :=
+  if v = version || seen.isEmpty then blocked
+  else
+    let previous := match previousKem with
+      | none => []
+      | some p => [p.2.1]
+    (kemId :: previous).eraseDups
+
+theorem readLegacyBlockedEntry_bytes (id : Nat) (h : id < 2 ^ 32) :
+    readLegacyBlockedEntry (be 4 id) = .ok id := by
+  simp [readLegacyBlockedEntry, be_length, beValue_be, h]
+
+theorem readLegacyBlocked_bytes (ids : List Nat) (rest : Bytes)
+    (hlen : ids.length < 2 ^ 32)
+    (hall : ∀ id ∈ ids, id < 2 ^ 32) :
+    readLegacyBlocked version
+        (be 4 ids.length ++ (ids.map (be 4)).flatten ++ rest) =
+      .ok (ids, rest) := by
+  unfold readLegacyBlocked
+  rw [if_pos rfl]
+  have hcount := readInt_be 4 ids.length
+    ((ids.map (be 4)).flatten ++ rest) (by simpa using hlen)
+  have hcount' : readInt 4
+      (be 4 ids.length ++ ((ids.map (be 4)).flatten ++ rest)) =
+      .ok (ids.length, (ids.map (be 4)).flatten ++ rest) := by
+    exact hcount
+  simp only [List.append_assoc, hcount', andThen_ok]
+  rw [readEntries_flatten 4 (be 4) readLegacyBlockedEntry ids rest
+    (fun id hid => by simp [be_length])
+    (fun id hid => readLegacyBlockedEntry_bytes id (hall id hid))]
+  rfl
+
+theorem readLegacyBlockedEntry_ok {b : Bytes} {id : Nat}
+    (h : readLegacyBlockedEntry b = .ok id) :
+    b = be 4 id ∧ id < 2 ^ 32 := by
+  unfold readLegacyBlockedEntry at h
+  split at h
+  · simp only [Except.ok.injEq] at h
+    subst h
+    rename_i hb
+    have hbytes := (be_beValue b).symm
+    rw [hb] at hbytes
+    have hlt := beValue_lt b
+    rw [hb] at hlt
+    exact ⟨hbytes, by simpa using hlt⟩
+  · cases h
+
+theorem readLegacyBlocked_ok {v : UInt8} {bs rest : Bytes}
+    {ids : List Nat} (h : readLegacyBlocked v bs = .ok (ids, rest)) :
+    ids.length < 2 ^ 32 ∧ ∀ id ∈ ids, id < 2 ^ 32 := by
+  unfold readLegacyBlocked at h
+  split at h
+  · obtain ⟨n, r, h1, hA⟩ := andThen_eq_ok h
+    obtain ⟨hn, -⟩ := readInt_ok h1
+    obtain ⟨ids', r', hread, hA'⟩ := andThen_eq_ok hA
+    obtain ⟨hlen, -, hall⟩ := readEntries_ok 4 (be 4) readLegacyBlockedEntry
+      (fun id => id < 2 ^ 32)
+      (fun b id hb hi => ⟨(readLegacyBlockedEntry_ok hi).1.symm, (readLegacyBlockedEntry_ok hi).2⟩)
+      n r ids' r' hread
+    simp only [Except.ok.injEq, Prod.mk.injEq] at hA'
+    obtain ⟨rfl, rfl⟩ := hA'
+    exact ⟨by omega, hall⟩
+  · simp only [Except.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    simp
 
 /-- The retired signed prekey. -/
 def readOptSigned (bs : Bytes) : Step (Option (Bytes × Nat × Bytes)) :=
@@ -1839,13 +1924,15 @@ def ofBytes : Bytes → Except Refusal Store
       andThen (readKemOneTimes kotCount r9) fun kemOneTime r10 =>
       andThen (readInt 4 r10) fun nextId r11 =>
       andThen (readSeen v kemId r11) fun seen r12 =>
-      andThen (readLegacyBlocked v r12) fun _ r13 =>
+      andThen (readLegacyBlocked v r12) fun blocked r13 =>
       andThen (readPrev v r13) fun prev r14 =>
         let st : Store :=
           { identityPublic := idPub, signedPrekeySecret := spSecret,
             signedPrekeyId := spId, signedPrekeySig := spSig, oneTime := oneTime,
             kemPair := kemPair, kemId := kemId, kemSig := kemSig,
             kemOneTime := kemOneTime, nextId := nextId, seen := seen,
+            legacyLastResortBlocked :=
+              migratedLegacyBlocked v seen kemId prev.2 blocked,
             previousSigned := prev.1, previousKem := prev.2 }
         -- Two refusals, nested rather than conjoined: bytes left after the
         -- last field, and a store that breaks a rule. The page names them
@@ -2139,13 +2226,13 @@ theorem ofBytes_ok {bs : Bytes} {st : Store} (h : ofBytes bs = .ok st) :
       obtain ⟨kemOneTime, r10, h10, h⟩ := andThen_eq_ok h
       obtain ⟨nextId, r11, h11, h⟩ := andThen_eq_ok h
       obtain ⟨seen, r12, h12, h⟩ := andThen_eq_ok h
-      obtain ⟨_, r13, h13, h⟩ := andThen_eq_ok h
+      obtain ⟨blocked, r13, h13, h⟩ := andThen_eq_ok h
       obtain ⟨prev, r14, h14, h⟩ := andThen_eq_ok h
       split at h
       · split at h
         · rename_i hinv
-          simp only [Except.ok.injEq] at h
-          subst h
+          injection h with hst
+          subst st
           obtain ⟨hip, -⟩ := takeN_ok h0
           obtain ⟨hsps, -⟩ := takeN_ok h1
           obtain ⟨hspid, -⟩ := readInt_ok h2
@@ -2176,7 +2263,9 @@ theorem ofBytes_ok {bs : Bytes} {st : Store} (h : ofBytes bs = .ok st) :
 /-- **A store that keeps the rules, and whose values fit their fields, is read
     back from the bytes it is written as.** Stated for the version `toBytes`
     writes; the three earlier ones are read and never produced. -/
-theorem ofBytes_toBytes (st : Store) (hinv : invariant st = true) (hfit : Fits st) :
+theorem ofBytes_toBytes (st : Store) (hinv : invariant st = true) (hfit : Fits st)
+    (hblockedlen : st.legacyLastResortBlocked.length < 2 ^ 32)
+    (hblocked : ∀ id ∈ st.legacyLastResortBlocked, id < 2 ^ 32) :
     ofBytes (toBytes st) = .ok st := by
   obtain ⟨hip, hsps, hspid, hspsig, hotlen, hot, hkp, hkid, hksig, hkotlen, hkot,
     hnext, hseenlen, hseen, hpsigned, hpkem⟩ := hfit
@@ -2195,10 +2284,21 @@ theorem ofBytes_toBytes (st : Store) (hinv : invariant st = true) (hfit : Fits s
   -- the retired KEM prekey, and the higher-order unification does not find that
   -- on its own.
   have hprev := readOptSigned_bytes st.previousSigned (optKemBytes st.previousKem) hpsigned
+  have hblocked_read := readLegacyBlocked_bytes st.legacyLastResortBlocked
+    (optSignedBytes st.previousSigned ++ optKemBytes st.previousKem)
+    hblockedlen hblocked
+  have hblocked_read' :
+      readLegacyBlocked 5
+          (be 4 st.legacyLastResortBlocked.length ++
+            ((st.legacyLastResortBlocked.map (be 4)).flatten ++
+              (optSignedBytes st.previousSigned ++ optKemBytes st.previousKem))) =
+        .ok (st.legacyLastResortBlocked,
+          optSignedBytes st.previousSigned ++ optKemBytes st.previousKem) := by
+    simpa [version] using hblocked_read
   have hcount := readInt_be 4 0
     (optSignedBytes st.previousSigned ++ optKemBytes st.previousKem) (by decide)
   set_option maxRecDepth 100000 in
-  simp +decide only [toBytes, ofBytes, version,
+  simp +decide only [toBytes, ofBytes, version, migratedLegacyBlocked,
     List.cons_append, List.nil_append, List.append_assoc,
     if_false, if_true,
     takeN_append' 32 st.identityPublic _ hip, andThen_ok,
@@ -2215,12 +2315,14 @@ theorem ofBytes_toBytes (st : Store) (hinv : invariant st = true) (hfit : Fits s
     readInt_be 4 st.kemOneTime.length _ hkotlen',
     readKemOneTimes_bytes st.kemOneTime _ hkot,
     readInt_be 4 st.nextId _ hnext',
-    readSeen, readLegacyBlocked, hcount, readEntries, readPrev,
+    readSeen, readPrev,
     readInt_be 4 st.seen.length _ hseenlen',
     readEntries_flatten 36 seenBytes readSeenV4 st.seen _
       (fun x hx => seenBytes_length x (hseen x hx).2)
       (fun x hx => readSeenV4_bytes x (hseen x hx).1),
     ]
+  rw [hblocked_read']
+  simp only [andThen_ok]
   rw [hprev]
   simp only [andThen_ok]
   rw [hlast]

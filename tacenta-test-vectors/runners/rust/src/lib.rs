@@ -1247,6 +1247,7 @@ fn prekey_store_fields_agree(v: &Vector, stored: &[u8]) -> Result<(), String> {
             "one_time_count",
             "kem_one_time_count",
             "seen_count",
+            "legacy_blocked_count",
             "previous_signed_present",
             "previous_kem_present",
         ],
@@ -1290,6 +1291,7 @@ fn prekey_store_fields_agree(v: &Vector, stored: &[u8]) -> Result<(), String> {
     let seen = u32::from_be_bytes(at(pos, 4)?.try_into().unwrap()) as usize;
     pos += 4 + seen * 36;
     if version == 5 {
+        eq(at(pos, 4)?, &required_field(v, "legacy_blocked_count")?)?;
         let blocked = u32::from_be_bytes(at(pos, 4)?.try_into().unwrap()) as usize;
         pos += 4 + blocked * 4;
     }
@@ -1444,8 +1446,14 @@ fn check_prekey_store_state(v: &Vector) -> Result<(), String> {
     let stored = input(v, "bytes")?;
     match (expects_success(v)?, PrekeyStore::from_bytes(&stored)) {
         (true, Ok(s)) => {
-            if stored.first() == Some(&4) || stored.first() == Some(&5) {
+            if stored.first() == Some(&5) {
                 eq(&s.to_bytes(), &stored)?;
+            } else if stored.first() == Some(&4) {
+                let expected = v.output.as_str();
+                if expected.is_empty() {
+                    return Err("accepted v4 store is missing its upgraded output".to_string());
+                }
+                eq(&s.to_bytes(), &bytes(expected)?)?;
             }
             prekey_store_fields_agree(v, &stored)
         }
