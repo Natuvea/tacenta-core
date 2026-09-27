@@ -57,6 +57,11 @@ rust-version = "1.87"
 description = "Independent, verification-first implementation of selected Signal Protocol specifications."
 publish = false
 
+[features]
+# Private-only allocator-spy regression for the SPQR erasure follow-up. The
+# normal and release surfaces do not enable this integration test.
+private-erasure-review = ["tacenta-spqr/private-erasure-review"]
+
 # Vetted, permissively licensed primitive implementations. These are the trusted
 # boundary: the protocol logic built on them is what we specify and verify, and
 # standard cryptography is not reimplemented here.
