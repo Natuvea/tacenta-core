@@ -183,9 +183,21 @@ kemEncapsulateSuccess : ∀ publicKey rng draw rest expected,
       arrayOf signature = oracle.sigSign (arrayOf secret) (sliceOf message)
         (draw1 ++ draw2)
   random32 : ∀ rng draw rest, trace rng = draw :: rest →
-    ∃ value rng',
+      ∃ value rng',
       lifecycle.random_secret rngCore cryptoRng rng = ok (value, rng') ∧
       arrayOf value = draw ∧ trace rng' = rest
+
+theorem kem_invalid_key_refines_without_draw {R : Type}
+    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
+    (dh : DhView) (kem : KemView) (trace : R → List Model.Lifecycle.Key)
+    (oracle : Model.Lifecycle.Oracle)
+    (oracleOf : OracleOf rngCore cryptoRng dh kem trace oracle)
+    (publicKey : Slice Std.U8) (rng : R)
+    (hinvalid : oracle.kemValid (sliceOf publicKey) = false) :
+    ∃ error,
+      tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
+        ok (.Err error, rng) := by
+  exact ⟨(), oracleOf.kemInvalidKey publicKey rng () hinvalid⟩
 
 /-- An authentication failure at the translated AEAD boundary is the model
 oracle's `none` verdict for those same keys, ciphertext and associated data.
