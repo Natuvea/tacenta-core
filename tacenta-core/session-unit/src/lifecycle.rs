@@ -3927,6 +3927,52 @@ mod tests {
         ));
     }
 
+    /// A failed Triple send must not commit the agreement output it obtained
+    /// before the Triple ratchet rejects the mismatched epoch.  This is the
+    /// send-side half of the transaction boundary: moving `self.braid =
+    /// braid_next` above `send_candidate` makes the test fail because a
+    /// message that was never emitted would still advance the agreement.
+    #[test]
+    fn a_failed_triple_send_does_not_commit_the_agreement() {
+        use rand::SeedableRng;
+
+        let mut r = rand::rngs::StdRng::seed_from_u64(19);
+        let alice_id = Identity::generate(&mut r);
+        let bob_id = Identity::generate(&mut r);
+        let mut bob_prekeys = bob_id.create_prekeys(2, &mut r);
+        let bundle = bob_prekeys.publish();
+        let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+        let initial = alice.encrypt(b"hello", &mut r).unwrap();
+        let (_bob, _first) =
+            establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
+
+        // Braid's state encoding carries its epoch immediately after the
+        // version and state tag.  Advancing only that field keeps the Braid
+        // state valid but makes its reported send epoch disagree with the
+        // Triple state, so `send_candidate` rejects it.
+        let mut braid_bytes = alice.braid.to_bytes().to_vec();
+        let mut altered = [0u8; 8];
+        altered.copy_from_slice(&braid_bytes[2..10]);
+        let next_epoch = u64::from_be_bytes(altered)
+            .checked_add(1)
+            .expect("fresh session epoch is not saturated")
+            .to_be_bytes();
+        braid_bytes[2..10].copy_from_slice(&next_epoch);
+        alice.braid = tacenta_braid::Braid::from_bytes(&braid_bytes)
+            .expect("the deliberately mismatched but canonical state decodes");
+
+        let braid_before = alice.braid.to_bytes();
+        assert!(matches!(
+            alice.encrypt(b"must not send", &mut r),
+            Err(Error::Triple(_))
+        ));
+        assert_eq!(
+            alice.braid.to_bytes(),
+            braid_before,
+            "a failed Triple send must not commit the agreement state"
+        );
+    }
+
     /// The identity and the prekey store erase themselves when dropped.
     ///
     /// Static, for the reason `tacenta-ratchet`'s own version of this test
