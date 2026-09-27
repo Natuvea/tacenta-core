@@ -667,9 +667,9 @@ Current result:
 
 | | Count | PASS | FAIL | SKIP |
 |---|---|---|---|---|
-| Vectors (37 files) | 429 | 429 | 0 | 0 |
+| Vectors (37 files) | 430 | 430 | 0 | 0 |
 | Derived cases (12 modules) | 220 | 220 | 0 | 0 |
-| **Total** | 649 | 649 | 0 | 0 |
+| **Total** | 650 | 650 | 0 | 0 |
 
 ## In this repository
 
