@@ -315,7 +315,7 @@ theorem establish_initiator_for_no_panic {R : Type}
     lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
       expectedIdentity rng ⦃ fun _ => True ⦄ := by
   rcases contracts with
-    ⟨hdh, hid, hagree, hkem, hx, hrng, hkdf, hzero, htripleZero, hkdfInit,
+    ⟨hdh, hid, hagree, hkem, hx, hrngTotal, hrng, hkdf, hzero, htripleZero, hkdfInit,
       hspqrZero, hbraidKdf, hzeroArray, hindex⟩
   let _ : Tacenta.SessionUnitSessionT1.ZeroizingModel := hzero
   unfold lifecycle.establish_initiator_for
