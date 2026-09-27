@@ -127,4 +127,11 @@ path.write_text(json.dumps(data, indent=2) + "\n")
 PY
 expect_fail "stale-session-unit-assembler" "its assembly script" --check-translation
 
-echo "check-attest-negatives: 8 refusal cases gave the expected result (including session-unit assembly provenance)"
+make_case
+cat >> "$work/tacenta-proofs/translation/Translation/TacentaRatchet.lean" <<'EOF'
+
+axiom planted_false : False
+EOF
+expect_fail "planted-generated-axiom" "outside the reviewed allowlist" --refresh-translation
+
+echo "check-attest-negatives: 9 refusal cases gave the expected result (including reviewed generated-axiom provenance)"

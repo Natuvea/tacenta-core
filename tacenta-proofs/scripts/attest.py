@@ -40,6 +40,12 @@ the Rust they were generated from is the Rust in the tree now. What it cannot
 say is that the toolchain was run honestly, or run at all: a reader who wants
 that runs `run-aeneas.sh` themselves and diffs, which `REPRODUCING.md` describes.
 
+The generated axiom names also have a separately reviewed baseline in
+`manifests/translation-axiom-allowlist.json`. Refreshing the attestation does
+not update that file, so a planted axiom cannot become accepted merely by
+refreshing the self-description; a genuine new opaque external needs its own
+reviewed allowlist change.
+
 ## What it deliberately does not claim
 
 That the listed theorems are the *right* theorems, or that they add up to a
@@ -58,6 +64,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 MANIFESTS = ROOT / "tacenta-proofs" / "manifests"
 TRANSLATION_MANIFEST = MANIFESTS / "translation-attestation.json"
+TRANSLATION_AXIOM_ALLOWLIST = MANIFESTS / "translation-axiom-allowlist.json"
 RUN_AENEAS = ROOT / "tacenta-proofs" / "scripts" / "run-aeneas.sh"
 
 SCHEMA_VERSION = 1
@@ -902,6 +909,46 @@ def translation_attestation():
     }
 
 
+def translation_axiom_allowlist():
+    """Read the separately reviewed set of generated opaque declarations.
+
+    ``translation-attestation.json`` is deliberately refreshable after a
+    toolchain run.  It therefore cannot, by itself, distinguish a genuine
+    newly emitted external from an axiom planted in a generated file before
+    that refresh.  This small, review-required file is the independent
+    baseline: refreshing a translation never edits it, so a new declaration
+    has to be named in a separately reviewed change.
+    """
+    if not TRANSLATION_AXIOM_ALLOWLIST.exists():
+        return None, [
+            f"{TRANSLATION_AXIOM_ALLOWLIST.relative_to(ROOT)} is missing: create it "
+            "from the reviewed generated translation, then rerun the attestation gate"
+        ]
+    try:
+        data = json.loads(TRANSLATION_AXIOM_ALLOWLIST.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        return None, [
+            f"{TRANSLATION_AXIOM_ALLOWLIST.relative_to(ROOT)} is not valid JSON: {exc}"
+        ]
+    if data.get("schema_version") != 1:
+        return None, [
+            f"{TRANSLATION_AXIOM_ALLOWLIST.relative_to(ROOT)} has unsupported schema_version "
+            f"{data.get('schema_version')!r}; update it in a reviewed change"
+        ]
+    files = data.get("generated_files")
+    if not isinstance(files, dict):
+        return None, [
+            f"{TRANSLATION_AXIOM_ALLOWLIST.relative_to(ROOT)} has no generated_files object"
+        ]
+    problems = []
+    for rel, names in files.items():
+        if not isinstance(names, list) or any(not isinstance(n, str) for n in names):
+            problems.append(f"{rel} has a non-string axiom name in the allowlist")
+        elif names != sorted(set(names)):
+            problems.append(f"{rel} has duplicate or unsorted axiom names in the allowlist")
+    return files, problems
+
+
 def check_translation(current):
     """The tree against the recorded translation attestation.
 
@@ -916,6 +963,8 @@ def check_translation(current):
     the ones that go stale by ordinary work, and their messages say what to do.
     """
     problems = []
+    allowlist, allowlist_problems = translation_axiom_allowlist()
+    problems.extend(allowlist_problems)
     for rel, w in current["generated_files"].items():
         if w["zone"] is None:
             problems.append(
@@ -929,6 +978,29 @@ def check_translation(current):
             "scripts/run-aeneas.sh on the pinned toolchain, then "
             "`attest.py --refresh-translation`"
         ]
+    if allowlist is not None:
+        want_files = set(current["generated_files"])
+        allowed_files = set(allowlist)
+        for rel in sorted(allowed_files - want_files):
+            problems.append(
+                f"{rel} is in translation-axiom-allowlist.json but is not a generated file"
+            )
+        for rel in sorted(want_files - allowed_files):
+            problems.append(
+                f"{rel} is a generated file with no entry in translation-axiom-allowlist.json"
+            )
+        for rel in sorted(want_files & allowed_files):
+            actual = sorted(set(current["generated_files"][rel].get("axioms", [])))
+            expected = allowlist[rel]
+            added = sorted(set(actual) - set(expected))
+            removed = sorted(set(expected) - set(actual))
+            if added or removed:
+                problems.append(
+                    f"{rel} declares axioms outside the reviewed allowlist "
+                    f"(added: {', '.join(added) or 'none'}; removed: {', '.join(removed) or 'none'}): "
+                    "a new generated external requires a separate reviewed allowlist change; "
+                    "refreshing translation-attestation.json alone is insufficient"
+                )
     recorded = json.loads(TRANSLATION_MANIFEST.read_text())
     generated_at = recorded.get("generated_at_commit")
     if not generated_at:
