@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import shutil
 import subprocess
@@ -13,6 +14,15 @@ from pathlib import Path
 from assurance_validation import compare_checks, validate_receipts
 
 ROOT = Path(__file__).resolve().parents[1]
+
+_manifest_spec = importlib.util.spec_from_file_location(
+    "tacenta_build_assurance_manifest", ROOT / "tooling/build-assurance-manifest.py"
+)
+_manifest_module = importlib.util.module_from_spec(_manifest_spec)
+assert _manifest_spec.loader is not None
+_manifest_spec.loader.exec_module(_manifest_module)
+ASSURANCE_SOURCES = _manifest_module.SOURCES
+
 EXTRA = [
     "tacenta-proofs/REPRODUCING.md", "ASSURANCE.md", "ASSURANCE-OBLIGATIONS.md",
     "tacenta-proofs/P9-GATE-EVIDENCE.md", "tacenta-proofs/CLAIMS.md",
@@ -124,7 +134,61 @@ def verify(root: Path) -> None:
         fail("pack contains unlisted files: " + ", ".join(extras))
     if missing:
         fail("pack is missing listed files: " + ", ".join(missing))
-    print(f"evidence pack: {root} verified ({len(pack['files'])} files)")
+
+    # Structural containment is necessary but not sufficient.  A self-declared
+    # one-file pack used to verify successfully, so publication could retain a
+    # candidate identity without retaining the evidence that identity was
+    # meant to bind.  Re-apply the repository-owned inventory and receipt
+    # checks to the packed copies before accepting a standalone archive.
+    required_documents = {"assurance-manifest.json", "assurance-receipts.json"}
+    missing_documents = sorted(required_documents - seen)
+    if missing_documents:
+        fail("pack is missing required evidence documents: " + ", ".join(missing_documents))
+    required_sources = {"source/" + relative for relative in set(ASSURANCE_SOURCES) | set(EXTRA)}
+    missing_sources = sorted(required_sources - seen)
+    if missing_sources:
+        fail("pack is missing required source evidence: " + ", ".join(missing_sources))
+
+    manifest = load(root / "assurance-manifest.json")
+    receipts = load(root / "assurance-receipts.json")
+    identity = manifest.get("identity")
+    if not isinstance(identity, dict) or identity.get("clean_tree") is not True:
+        fail("packed assurance manifest does not assert a clean candidate")
+    candidate_identity = {
+        "commit": identity.get("source_commit"),
+        "tree": identity.get("source_tree"),
+    }
+    if candidate_identity != candidate:
+        fail("packed assurance manifest candidate does not match pack candidate")
+    if receipts.get("candidate") != candidate:
+        fail("packed receipts candidate does not match pack candidate")
+    try:
+        manifest_checks = validate_receipts(
+            {"schema_version": 1, "candidate": candidate, "checks": manifest.get("checks")},
+            candidate["commit"], candidate["tree"],
+        )
+        receipt_checks = validate_receipts(receipts, candidate["commit"], candidate["tree"])
+        compare_checks(manifest_checks, receipt_checks)
+    except (TypeError, ValueError) as exc:
+        fail("packed manifest and receipts are not one complete passing evidence set: " + str(exc))
+
+    sources = manifest.get("sources")
+    expected_sources = set(ASSURANCE_SOURCES)
+    if not isinstance(sources, list) or {
+        item.get("path") for item in sources if isinstance(item, dict)
+    } != expected_sources or len(sources) != len(expected_sources):
+        fail("packed assurance manifest source inventory is incomplete or not repository-owned")
+    for item in sources:
+        relative = item.get("path") if isinstance(item, dict) else None
+        if not isinstance(item, dict) or not isinstance(relative, str) \
+                or not isinstance(item.get("sha256"), str) \
+                or not isinstance(item.get("bytes"), int):
+            fail(f"packed assurance manifest has an invalid source entry: {relative}")
+        packed = root / "source" / relative
+        if not packed.is_file() or packed.stat().st_size != item["bytes"] \
+                or digest(packed) != item["sha256"]:
+            fail(f"packed source evidence does not match its manifest entry: {relative}")
+    print(f"evidence pack: {root} verified ({len(pack['files'])} files, complete inventory)")
 
 
 def main() -> int:

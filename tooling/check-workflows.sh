@@ -311,6 +311,22 @@ ALLOWED_JOB_IF = {
     "assurance-receipts": "always()",
 }
 
+# Required jobs may have a conditional setup/action step (for example a cache
+# restore), but a required command must not be conditionally skipped.  Keep the
+# tiny exception list repository-owned and name the step, so a new required
+# command cannot acquire a switch accidentally.  The checks job's push-only
+# DCO command is the sole conditional run step in the current workflow.
+ALLOWED_REQUIRED_STEP_IF = {
+    "translation": {
+        "Clone the Lake dependencies from local mirrors (self-hosted only)":
+            "runner.environment=='self-hosted'",
+    },
+    "checks": {
+        "Commits introduced by a main push are signed off":
+            "github.event_name=='push'",
+    },
+}
+
 for f in files:
     try:
         doc = yaml.safe_load(open(f))
@@ -425,6 +441,14 @@ for f in files:
             if "if" in step and is_disabled_condition(step.get("if")):
                 complain("%s job '%s' has a step unconditionally disabled by "
                          "`if: false`" % (f, name))
+            if required_receipt and "run" in step and "if" in step:
+                step_name = step.get("name", "")
+                expected_if = ALLOWED_REQUIRED_STEP_IF.get(name, {}).get(step_name)
+                actual_if = normalized_expression(step.get("if"))
+                if expected_if is None or actual_if != expected_if:
+                    complain("%s job '%s' has required command step '%s' with "
+                             "an unapproved step-level `if` -- required "
+                             "commands must run" % (f, name, step_name or "(unnamed)"))
             if "continue-on-error" in step:
                 if required_receipt or is_truthy_continue_on_error(step.get("continue-on-error")):
                     complain("%s job '%s' has a step-level `continue-on-error` "

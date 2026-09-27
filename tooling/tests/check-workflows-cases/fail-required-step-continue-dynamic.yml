@@ -1,0 +1,17 @@
+# expect: step-level `continue-on-error`
+name: required-step-continue
+on: push
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: audit
+        continue-on-error: ${{ github.event_name == 'workflow_dispatch' }}
+        run: cargo audit
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: audit
+          classification: required
+          command: cargo-audit
