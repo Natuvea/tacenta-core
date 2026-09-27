@@ -53,3 +53,29 @@ fn session_end_to_end_control_rejects_wrong_associated_data() {
         "unexpected error: {err}"
     );
 }
+
+#[test]
+fn session_end_to_end_control_rejects_wrong_repeat_initial() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../vectors/session-establishment");
+    let mut files =
+        tacenta_vectors_rust::load_dir(&dir).expect("load session-establishment vectors");
+    let file = files
+        .iter_mut()
+        .find(|file| file.algorithm == "session-establishment-e2e")
+        .expect("end-to-end session vector file");
+    let fields = file.vectors[0]
+        .fields
+        .as_mut()
+        .expect("end-to-end session vector fields");
+    let repeat = fields
+        .get_mut("repeat_initial")
+        .expect("repeat_initial field");
+    repeat.replace_range(0..2, if &repeat[..2] == "00" { "01" } else { "00" });
+
+    let err = tacenta_vectors_rust::check_file(file)
+        .expect_err("a wrong repeated-initial known answer must fail the runner");
+    assert!(
+        err.contains("field repeat_initial"),
+        "unexpected error: {err}"
+    );
+}
