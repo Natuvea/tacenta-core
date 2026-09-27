@@ -57,6 +57,12 @@ def main():
         ('weaken-terminal-guard',
          '(hfailed : Model.Lifecycle.agreementFailed model = true) :',
          '(hfailed : Model.Lifecycle.agreementFailed model = false) :', 'hfailed'),
+        ('restore-arbitrary-ceiling',
+         '      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →\n'
+         '      ∃ draw rest, trace innerRng = draw :: rest',
+         '      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →\n'
+         '      Model.Lifecycle.random32 oracle = none → False',
+         'evidence.randomDraw input composite ciphertext dhOutRecv hdecode hfirst'),
     ]
     with tempfile.TemporaryDirectory(prefix='initial-dispatch-controls-') as tmp:
         tmp = Path(tmp)
@@ -100,7 +106,7 @@ def main():
             results['mutations'][name] = {'exit': status, 'premise': premise}
             print(f'PASS: {name} rejected by Lean (exit 1, premise {premise})', flush=True)
     (logs / 'result.json').write_text(json.dumps(results, indent=2) + '\n')
-    print(f'3 proof-dependency mutations rejected; logs: {logs}', flush=True)
+    print(f'{len(mutants)} proof-dependency mutations rejected; logs: {logs}', flush=True)
 
 
 if __name__ == '__main__':

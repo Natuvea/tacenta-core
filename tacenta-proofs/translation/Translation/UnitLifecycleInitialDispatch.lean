@@ -10663,8 +10663,8 @@ noncomputable def initial_ratchet_aead_route_provider_of_concrete_evidence
 
 /-! Assemble all four nonterminal refusal families from concrete evidence.
     The constructor is the public branch boundary: DH, Triple, and AEAD are
-    each result-indexed, while the ceiling case remains the explicit
-    impossible-random-source obligation. -/
+    each result-indexed, while the ceiling case is eliminated from an ordered
+    RNG-trace head rather than an arbitrary contradiction callback. -/
 noncomputable def initial_ratchet_refusal_branch_providers_of_concrete_evidence
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -10960,7 +10960,9 @@ theorem initial_ratchet_success_callback_of_bundled_model_result
 
 /-! Package the per-input evidence constructors so the public bridge can
     request a single concrete branch-evidence object instead of an opaque
-    route callback. -/
+    route callback.  `randomDraw` exposes the ordered draw needed after a
+    successful first agreement; the adapter below uses it to prove that the
+    model's random-source ceiling branch is unreachable. -/
 structure InitialRatchetConcreteBranchEvidence
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -10982,7 +10984,7 @@ structure InitialRatchetConcreteBranchEvidence
         (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
         (real := real) (model := model) innerMessage innerRng),
       InitialRatchetAeadBranchContracts input
-  ceiling : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
+  randomDraw : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
       (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
         (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
         (real := real) (model := model) innerMessage innerRng)
@@ -10991,7 +10993,7 @@ structure InitialRatchetConcreteBranchEvidence
       Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
         .ok (composite, ciphertext) →
       oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
-      Model.Lifecycle.random32 oracle = none → False
+      ∃ draw rest, trace innerRng = draw :: rest
 
 structure InitialAgreementRatchetEndToEndEvidence
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -11055,7 +11057,11 @@ noncomputable def initial_ratchet_refusal_branch_providers_of_evidence_package
       (evidence.tripleContracts input))
     (initial_ratchet_aead_providers_of_branch_contracts input
       (evidence.aeadContracts input))
-    (evidence.ceiling input)
+    (fun composite ciphertext dhOutRecv hdecode hfirst hnone =>
+      model_random32_none_impossible_of_trace_head trace oracle innerRng
+        input.htrace
+        (evidence.randomDraw input composite ciphertext dhOutRecv hdecode hfirst)
+        hnone)
 
 def initial_ratchet_terminal_refusal_evidence {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
