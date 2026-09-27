@@ -12023,6 +12023,29 @@ inductive SessionDecryptEvidence {R : Type}
         (view := view) (oracle := oracle) (real := real) (model := model)
         message rng) :
       SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
+  | initialAgreementAccepted
+      (codec : DhCodecOf dh)
+      (oracleOf : OracleOf rc crc dh kem trace oracle)
+      (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
+      (established : alloc.vec.Vec Std.U8)
+      (decoded : tacenta_wire.DecodedInitial)
+      (hdecode : tacenta_wire.decode_initial message = ok (.Ok decoded))
+      (hestablished : real.established_ephemeral = some established)
+      (hne : vecOf established ≠ vecOf decoded.ephemeral)
+      (hsameAgreement : lifecycle.same_ephemeral_agreement real.ratchet_private
+        established.deref decoded.ephemeral.deref = ok true)
+      (hmodelSame : Model.Lifecycle.sameEphemeralAgreement oracle model.ratchetPrivate
+        (vecOf established) (Tacenta.SessionUnitWireT3.bytesOf decoded.ephemeral.val) = true)
+      (boundary : Tacenta.UnitLifecycleT1.DecryptRatchetContracts rc)
+      (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+      (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+      (hzKeys : ZeroizingRoundTrips
+        (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+      (evidence : InitialAgreementRatchetEndToEndEvidence
+        (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+        (view := view) (oracle := oracle) (real := real) (model := model)
+        message rng) :
+      SessionDecryptEvidence rc crc trace dh kem K view oracle real model message rng
   | initialTerminal
       (codec : DhCodecOf dh)
       (ctx : InitialDispatchContext rc crc trace dh K view oracle real model message rng)
@@ -12260,6 +12283,11 @@ theorem public_session_decrypt_end_to_end
   | initialAccepted codec oracleOf ctx hsame hmismatch boundary headroom hz32 hzKeys evidence =>
       exact (decrypt_initial_end_to_end_with_concrete_evidence codec kem oracleOf ctx hsame
         hmismatch boundary headroom hz32 hzKeys evidence).1
+  | initialAgreementAccepted codec oracleOf ctx established decoded hdecode hestablished hne
+      hsameAgreement hmodelSame boundary headroom hz32 hzKeys evidence =>
+      exact decrypt_initial_agreement_of_t1_with_concrete_evidence codec kem oracleOf ctx
+        established decoded hdecode hestablished hne hsameAgreement hmodelSame boundary
+        headroom hz32 hzKeys evidence
   | initialTerminal codec ctx hsame hmismatch hfailed =>
       exact decrypt_initial_terminal_refines codec ctx hsame hmismatch hfailed
   | initialMalformed codec ctx hsame hmismatch hready hbad =>
