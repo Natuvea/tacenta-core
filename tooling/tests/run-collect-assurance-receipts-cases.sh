@@ -49,6 +49,19 @@ PY
 write_receipts "$work/pass" push
 python3 "$root/tooling/collect-assurance-receipts.py" --event push --input-dir "$work/pass" --output "$work/pass.out" >/dev/null
 
+set +e
+duplicate_out="$(GITHUB_EVENT_NAME=push GITHUB_RUN_ID=control GITHUB_RUN_ATTEMPT=1 \
+  python3 "$root/tooling/write-assurance-receipt.py" --id duplicate --classification required \
+  --command duplicate --required-outcomes "one=success,one=success" \
+  --output "$work/duplicate-writer.json" 2>&1)"
+duplicate_rc=$?
+set -e
+if [ "$duplicate_rc" -eq 0 ] || ! printf '%s' "$duplicate_out" | grep -qF "duplicate required outcome 'one'"; then
+  echo 'WRONG  duplicate-writer: duplicate step outcomes were accepted' >&2
+  printf '%s\n' "$duplicate_out" >&2
+  exit 1
+fi
+
 cp -R "$work/pass" "$work/foreign"
 printf "%s\n" "data['run']['commit'] = '0' * 40" > "$work/foreign.py"
 mutate "$work/foreign/rust.json" "$work/foreign.py"
@@ -76,4 +89,4 @@ GITHUB_EVENT_NAME=pull_request GITHUB_RUN_ID=control GITHUB_RUN_ATTEMPT=1 \
   --output "$work/pull-request/sign-off.json" >/dev/null
 python3 "$root/tooling/collect-assurance-receipts.py" --event pull_request --input-dir "$work/pull-request" --output "$work/pull-request.out" >/dev/null
 
-echo 'collect-assurance-receipts-cases: 2 pass cases and 5 receipt refusals gave the expected result'
+echo 'collect-assurance-receipts-cases: 2 pass cases and 6 receipt refusals gave the expected result'

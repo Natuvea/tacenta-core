@@ -32,6 +32,8 @@ def main() -> int:
         step_id, outcome = (part.strip() for part in item.split("=", 1))
         if not step_id or outcome not in {"success", "skipped", "failure", "cancelled"}:
             raise SystemExit(f"assurance receipt: invalid required outcome {item!r}")
+        if step_id in outcomes:
+            raise SystemExit(f"assurance receipt: duplicate required outcome {step_id!r}")
         outcomes[step_id] = outcome
     failed = sorted(step_id for step_id, outcome in outcomes.items() if outcome != "success")
     if failed:

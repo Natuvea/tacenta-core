@@ -306,6 +306,33 @@ def normalized_expression(value):
         return None
     return re.sub(r"\s+", "", value).lower()
 
+def required_outcome_ids(value, f, name):
+    """Parse a receipt's declared command IDs and reject malformed sets."""
+    if not isinstance(value, str) or not value.strip():
+        complain("%s job '%s' emits a required receipt without required "
+                 "command outcomes" % (f, name))
+        return set()
+    ids = set()
+    for item in value.split(","):
+        item = item.strip()
+        if not item or "=" not in item:
+            complain("%s job '%s' has a malformed required command outcome "
+                     "'%s'" % (f, name, item))
+            continue
+        step_id, outcome = (part.strip() for part in item.split("=", 1))
+        expression = re.fullmatch(r"\$\{\{\s*steps\.([A-Za-z0-9_-]+)\.outcome\s*\}\}", outcome)
+        if (not step_id
+                or (outcome not in {"success", "skipped", "failure", "cancelled"}
+                    and (expression is None or expression.group(1) != step_id))):
+            complain("%s job '%s' has an invalid required command outcome "
+                     "'%s'" % (f, name, item))
+            continue
+        if step_id in ids:
+            complain("%s job '%s' lists required command step '%s' more than "
+                     "once" % (f, name, step_id))
+        ids.add(step_id)
+    return ids
+
 ALLOWED_JOB_IF = {
     "sign-off": "github.event_name=='pull_request'",
     "assurance-receipts": "always()",
@@ -369,17 +396,15 @@ for f in files:
         # required; removing it is caught by the receipt collector's missing
         # required-ID check.
         required_receipt = False
+        required_receipts = []
         for step in job.get("steps") or []:
             if not isinstance(step, dict) or step.get("uses") != "./.github/actions/assurance-receipt":
                 continue
             inputs = step.get("with") or {}
-            required_receipt = isinstance(inputs, dict) and inputs.get("classification") == "required"
-            if required_receipt:
-                outcomes = inputs.get("required-outcomes")
-                if not isinstance(outcomes, str) or not outcomes.strip():
-                    complain("%s job '%s' emits a required receipt without "
-                             "required command outcomes" % (f, name))
-                break
+            if isinstance(inputs, dict) and inputs.get("classification") == "required":
+                required_receipt = True
+                required_receipts.append((step, required_outcome_ids(
+                    inputs.get("required-outcomes"), f, name)))
         if "if" in job:
             actual_if = normalized_expression(job.get("if"))
             expected_if = ALLOWED_JOB_IF.get(name)
@@ -433,9 +458,21 @@ for f in files:
                 image = spec.get("image") if isinstance(spec, dict) else spec
                 check_image(f, name, "service '%s' image" % svc, image)
 
+        run_steps = {}
         for step in job.get("steps") or []:
             if not isinstance(step, dict):
                 continue
+
+            if required_receipt and "run" in step:
+                step_id = step.get("id")
+                if not isinstance(step_id, str) or not step_id.strip():
+                    complain("%s job '%s' has a required command step without "
+                             "an id" % (f, name))
+                else:
+                    if step_id in run_steps:
+                        complain("%s job '%s' reuses required command step id "
+                                 "'%s'" % (f, name, step_id))
+                    run_steps[step_id] = step
 
             # A step-level skip or error mask is the step analogue of the
             # forbidden job-level switch above.  Static false conditions and
@@ -489,6 +526,32 @@ for f in files:
             run = step.get("run")
             if isinstance(run, str):
                 check_run(f, name, run)
+
+        # A required receipt must account for every command step that can run
+        # for the event represented by that receipt. Otherwise a workflow can
+        # add an unlisted command which fails or is skipped while the receipt
+        # still reports only the listed commands as successful. The checks
+        # job's push-only DCO step is the one intentional omission on its PR
+        # receipt; it is guarded by the event condition itself.
+        for receipt_step, declared in required_receipts:
+            receipt_if = normalized_expression(receipt_step.get("if"))
+            receipt_event = None
+            if receipt_if == "github.event_name=='pull_request'":
+                receipt_event = "pull_request"
+            elif receipt_if == "github.event_name=='push'":
+                receipt_event = "push"
+            for step_id, command_step in run_steps.items():
+                step_if = normalized_expression(command_step.get("if"))
+                if (step_if == "github.event_name=='push'"
+                        and receipt_event == "pull_request"):
+                    continue
+                if step_id not in declared:
+                    complain("%s job '%s' required receipt omits command step "
+                             "'%s'" % (f, name, step_id))
+            unknown = sorted(set(declared) - set(run_steps))
+            for step_id in unknown:
+                complain("%s job '%s' required receipt names unknown command "
+                         "step '%s'" % (f, name, step_id))
 
 # Composite actions execute with their caller's token and runner. They have no
 # workflow trigger or permissions block, but their `uses:` and `run:` steps

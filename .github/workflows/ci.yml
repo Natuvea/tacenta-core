@@ -93,7 +93,8 @@ jobs:
       # that was inlined away. `--emit=asm` needs no linker, so the target
       # needs only its `rust-std`. The script is under `tooling/` at the
       # repository root; this job's working directory is `tacenta-core`.
-      - run: rustup target add aarch64-unknown-linux-gnu
+      - id: rust_target
+        run: rustup target add aarch64-unknown-linux-gnu
       - id: rust_ct_asm
         name: The constant-time functions compile to straight-line code
         run: bash ../tooling/check-constant-time-asm.sh
@@ -102,7 +103,7 @@ jobs:
           id: rust
           classification: required
           command: cargo-test-clippy-format-and-constant-time
-          required-outcomes: "rust_fmt=${{ steps.rust_fmt.outcome }},rust_clippy=${{ steps.rust_clippy.outcome }},rust_test=${{ steps.rust_test.outcome }},rust_ct_asm=${{ steps.rust_ct_asm.outcome }}"
+          required-outcomes: "rust_fmt=${{ steps.rust_fmt.outcome }},rust_clippy=${{ steps.rust_clippy.outcome }},rust_test=${{ steps.rust_test.outcome }},rust_target=${{ steps.rust_target.outcome }},rust_ct_asm=${{ steps.rust_ct_asm.outcome }}"
 
   # The minimum supported Rust version still compiles the workspace. A check,
   # not a test run: the tests run on stable above, and this exists so a use of
@@ -239,7 +240,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
         with:
           toolchain: stable
-      - run: cargo install --locked cargo-audit
+      - id: audit_install
+        run: cargo install --locked cargo-audit
       - id: audit_run
         run: cargo audit
         working-directory: tacenta-core
@@ -248,7 +250,7 @@ jobs:
           id: audit
           classification: required
           command: cargo-audit
-          required-outcomes: "audit_run=${{ steps.audit_run.outcome }}"
+          required-outcomes: "audit_install=${{ steps.audit_install.outcome }},audit_run=${{ steps.audit_run.outcome }}"
 
   # The Lean model and the model-layer proofs, and the vectors' currency.
   # `lake build` in tacenta-model compiles the model, the properties, and
@@ -350,7 +352,8 @@ jobs:
       # The checkout has just deleted `.lake`. A hosted runner clones the Lake
       # dependencies in the next step, quickly; the self-hosted machine clones
       # them from local mirrors instead, at the revisions the manifest pins.
-      - name: Clone the Lake dependencies from local mirrors (self-hosted only)
+      - id: translation_seed
+        name: Clone the Lake dependencies from local mirrors (self-hosted only)
         if: runner.environment == 'self-hosted'
         run: bash tooling/seed-lake-packages.sh tacenta-proofs/translation
       - id: translation_fetch
@@ -416,7 +419,7 @@ jobs:
           id: translation
           classification: required
           command: translation-proofs-and-no-sorry
-          required-outcomes: "translation_elan=${{ steps.translation_elan.outcome }},translation_fetch=${{ steps.translation_fetch.outcome }},translation_no_sorry=${{ steps.translation_no_sorry.outcome }}"
+          required-outcomes: "translation_elan=${{ steps.translation_elan.outcome }},translation_seed=${{ steps.translation_seed.outcome }},translation_fetch=${{ steps.translation_fetch.outcome }},translation_no_sorry=${{ steps.translation_no_sorry.outcome }}"
 
   # The repository's own consistency checks: the ones `tooling/ci.sh` runs
   # before building anything, plus the attestation gate.
