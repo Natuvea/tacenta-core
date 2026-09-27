@@ -1,0 +1,32 @@
+name: conditional-required-step
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  translation:
+    runs-on: ubuntu-latest
+    steps:
+      - id: elan
+        run: bash install-elan.sh
+      - id: seed
+        name: Clone the Lake dependencies from local mirrors (self-hosted only)
+        if: runner.environment == 'self-hosted'
+        run: bash seed-lake-packages.sh
+      - id: build
+        run: lake build
+      - id: proof
+        run: bash no-sorry.sh
+      - if: github.event_name == 'pull_request'
+        uses: ./.github/actions/assurance-receipt
+        with:
+          id: translation
+          classification: required
+          command: translation
+          required-outcomes: "elan=${{ steps.elan.outcome }},build=${{ steps.build.outcome }},proof=${{ steps.proof.outcome }}"
+      - if: github.event_name == 'push'
+        uses: ./.github/actions/assurance-receipt
+        with:
+          id: translation
+          classification: required
+          command: translation
+          required-outcomes: "elan=${{ steps.elan.outcome }},seed=${{ steps.seed.outcome }},build=${{ steps.build.outcome }},proof=${{ steps.proof.outcome }}"

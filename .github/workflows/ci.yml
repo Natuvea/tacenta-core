@@ -414,7 +414,18 @@ jobs:
             tacenta-proofs/translation/.lake/build
             tacenta-proofs/translation/.lake/packages/aeneas/backends/lean/.lake/build
           key: lean-build-${{ runner.os }}-${{ hashFiles('tacenta-model/lean-toolchain', 'tacenta-model/lake-manifest.json', 'tacenta-proofs/lean-toolchain', 'tacenta-proofs/lake-manifest.json', 'tacenta-proofs/translation/lean-toolchain', 'tacenta-proofs/translation/lake-manifest.json') }}-${{ github.sha }}
-      - uses: ./.github/actions/assurance-receipt
+      # The local-mirror seed is a required command only on the self-hosted
+      # push runner. A hosted pull request must omit that inapplicable step
+      # from its receipt rather than recording `skipped` as a pass.
+      - if: github.event_name == 'pull_request'
+        uses: ./.github/actions/assurance-receipt
+        with:
+          id: translation
+          classification: required
+          command: translation-proofs-and-no-sorry
+          required-outcomes: "translation_elan=${{ steps.translation_elan.outcome }},translation_fetch=${{ steps.translation_fetch.outcome }},translation_no_sorry=${{ steps.translation_no_sorry.outcome }}"
+      - if: github.event_name == 'push'
+        uses: ./.github/actions/assurance-receipt
         with:
           id: translation
           classification: required

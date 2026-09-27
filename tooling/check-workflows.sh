@@ -543,6 +543,9 @@ for f in files:
                 if (step_if == "github.event_name=='push'"
                         and receipt_event == "pull_request"):
                     continue
+                if (step_if == "runner.environment=='self-hosted'"
+                        and receipt_event == "pull_request"):
+                    continue
                 if step_id not in declared:
                     complain("%s job '%s' required receipt omits command step "
                              "'%s'" % (f, name, step_id))
