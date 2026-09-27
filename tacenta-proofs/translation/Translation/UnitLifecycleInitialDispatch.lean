@@ -12571,6 +12571,30 @@ noncomputable def encrypt_generated_nonterminal_prefix_of_output
                           exact .tripleSuccess hnext
                             (.some realSparse sparseOutput rfl hconvert) hcandidate houtput
 
+/-! The generated implementation prefix determines which public evidence
+    family a remaining provider may return.  In particular, a Braid-failure
+    prefix cannot be discharged with a Triple route, even if a caller happens
+    to possess unrelated Triple evidence for the same starting state. -/
+def EncryptEvidenceForGeneratedPrefix
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
+    {K : Model.Braid.Kem} {view : Model.Lifecycle.CodewordView}
+    {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
+    {model : Model.Lifecycle.Session} {plaintext : Slice Std.U8} {rng : R}
+    {output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.Session × R}
+    {realMessage : tacenta_braid.Msg} {realEpoch : Std.U64}
+    {realOutput : Option tacenta_braid.Output}
+    {realBraidNext : tacenta_braid.Braid} {rngNext : R} :
+    EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output
+        realMessage realEpoch realOutput realBraidNext rngNext → Type
+  | .braidFailed _ _ =>
+      EncryptRouteEvidence rc crc trace dh K view oracle real model plaintext rng
+  | .tripleRefusal _ _ _ _ =>
+      EncryptTripleRouteEvidence rc crc trace dh kem K view oracle real model plaintext rng
+  | .tripleSuccess _ _ _ _ =>
+      EncryptTripleRouteEvidence rc crc trace dh kem K view oracle real model plaintext rng
+
 structure EncryptNonterminalRouteProviders
     {R : Type} (rc : rand_core_1.RngCore R) (crc : rand_core_1.CryptoRng R)
     (trace : R → List Model.Lifecycle.Key) (dh : DhView) (kem : KemView)
@@ -12583,18 +12607,20 @@ structure EncryptNonterminalRouteProviders
       ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
     Model.Lifecycle.agreementFailed model = false →
     Model.Lifecycle.braidSendNeedsDraw model.braid = false →
-    EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output
-      realMessage realEpoch realOutput realBraidNext rngNext →
-    EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng
+    (generated : EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output
+      realMessage realEpoch realOutput realBraidNext rngNext) →
+    EncryptEvidenceForGeneratedPrefix (trace := trace) (dh := dh) (kem := kem)
+      (K := K) (view := view) (oracle := oracle) (model := model) generated
   draw : ∀ output realMessage realEpoch realOutput realBraidNext rngNext,
     lifecycle.Session.encrypt rc crc real plaintext rng = ok output →
     tacenta_braid.Braid.send rc crc real.braid rng =
       ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) →
     Model.Lifecycle.agreementFailed model = false →
     Model.Lifecycle.braidSendNeedsDraw model.braid = true →
-    EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output
-      realMessage realEpoch realOutput realBraidNext rngNext →
-    EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng
+    (generated : EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output
+      realMessage realEpoch realOutput realBraidNext rngNext) →
+    EncryptEvidenceForGeneratedPrefix (trace := trace) (dh := dh) (kem := kem)
+      (K := K) (view := view) (oracle := oracle) (model := model) generated
 
 theorem public_session_encrypt_of_send_contracts
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -12632,14 +12658,42 @@ theorem public_session_encrypt_of_send_contracts
       let generatedPrefix :=
         encrypt_generated_nonterminal_prefix_of_output (crc := crc)
           hrel hfailed houtput hsend
-      cases hdraw : Model.Lifecycle.braidSendNeedsDraw model.braid with
-      | false =>
-          exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
-            (providers.noDraw output realMessage realEpoch realOutput realBraidNext rngNext
-              houtput hsend hfailed hdraw generatedPrefix)
-      | true =>
-          exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
-            (providers.draw output realMessage realEpoch realOutput realBraidNext rngNext
-              houtput hsend hfailed hdraw generatedPrefix)
+      cases generatedPrefix with
+      | braidFailed hnext hgeneratedOutput =>
+          cases hdraw : Model.Lifecycle.braidSendNeedsDraw model.braid with
+          | false =>
+              exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
+                (.braid (providers.noDraw output realMessage realEpoch realOutput realBraidNext
+                  rngNext houtput hsend hfailed hdraw (.braidFailed hnext hgeneratedOutput)))
+          | true =>
+              exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
+                (.braid (providers.draw output realMessage realEpoch realOutput realBraidNext
+                  rngNext houtput hsend hfailed hdraw (.braidFailed hnext hgeneratedOutput)))
+      | @tripleRefusal sparseOutput candidate reason hnext hsparse hsendCandidate
+          hgeneratedOutput =>
+          cases hdraw : Model.Lifecycle.braidSendNeedsDraw model.braid with
+          | false =>
+              exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
+                (.triple (providers.noDraw output realMessage realEpoch realOutput realBraidNext
+                  rngNext houtput hsend hfailed hdraw
+                  (.tripleRefusal hnext hsparse hsendCandidate hgeneratedOutput)))
+          | true =>
+              exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
+                (.triple (providers.draw output realMessage realEpoch realOutput realBraidNext
+                  rngNext houtput hsend hfailed hdraw
+                  (.tripleRefusal hnext hsparse hsendCandidate hgeneratedOutput)))
+      | @tripleSuccess sparseOutput candidate header mk hnext hsparse hsendCandidate
+          hgeneratedOutput =>
+          cases hdraw : Model.Lifecycle.braidSendNeedsDraw model.braid with
+          | false =>
+              exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
+                (.triple (providers.noDraw output realMessage realEpoch realOutput realBraidNext
+                  rngNext houtput hsend hfailed hdraw
+                  (.tripleSuccess hnext hsparse hsendCandidate hgeneratedOutput)))
+          | true =>
+              exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
+                (.triple (providers.draw output realMessage realEpoch realOutput realBraidNext
+                  rngNext houtput hsend hfailed hdraw
+                  (.tripleSuccess hnext hsparse hsendCandidate hgeneratedOutput)))
 
 end Tacenta.UnitLifecycleT3

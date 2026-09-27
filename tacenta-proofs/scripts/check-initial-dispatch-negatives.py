@@ -63,32 +63,42 @@ def main():
          '      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →\n'
          '      Model.Lifecycle.random32 oracle = none → False',
          'evidence.randomDraw input'),
+        ('flatten-encrypt-generated-family',
+         '  | .braidFailed _ _ =>\n'
+         '      EncryptRouteEvidence rc crc trace dh K view oracle real model plaintext rng',
+         '  | .braidFailed _ _ =>\n'
+         '      EncryptTripleRouteEvidence rc crc trace dh kem K view oracle real model plaintext rng',
+         'providers.noDraw'),
         ('invert-encrypt-no-draw-provider',
          '    Model.Lifecycle.agreementFailed model = false →\n'
          '    Model.Lifecycle.braidSendNeedsDraw model.braid = false →\n'
-         '    EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output\n'
-         '      realMessage realEpoch realOutput realBraidNext rngNext →\n'
-         '    EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng\n'
+         '    (generated : EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output\n'
+         '      realMessage realEpoch realOutput realBraidNext rngNext) →\n'
+         '    EncryptEvidenceForGeneratedPrefix (trace := trace) (dh := dh) (kem := kem)\n'
+         '      (K := K) (view := view) (oracle := oracle) (model := model) generated\n'
          '  draw :',
          '    Model.Lifecycle.agreementFailed model = false →\n'
          '    Model.Lifecycle.braidSendNeedsDraw model.braid = true →\n'
-         '    EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output\n'
-         '      realMessage realEpoch realOutput realBraidNext rngNext →\n'
-         '    EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng\n'
+         '    (generated : EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output\n'
+         '      realMessage realEpoch realOutput realBraidNext rngNext) →\n'
+         '    EncryptEvidenceForGeneratedPrefix (trace := trace) (dh := dh) (kem := kem)\n'
+         '      (K := K) (view := view) (oracle := oracle) (model := model) generated\n'
          '  draw :',
          'hdraw'),
         ('invert-encrypt-draw-provider',
          '    Model.Lifecycle.agreementFailed model = false →\n'
          '    Model.Lifecycle.braidSendNeedsDraw model.braid = true →\n'
-         '    EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output\n'
-         '      realMessage realEpoch realOutput realBraidNext rngNext →\n'
-         '    EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng\n\n'
+         '    (generated : EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output\n'
+         '      realMessage realEpoch realOutput realBraidNext rngNext) →\n'
+         '    EncryptEvidenceForGeneratedPrefix (trace := trace) (dh := dh) (kem := kem)\n'
+         '      (K := K) (view := view) (oracle := oracle) (model := model) generated\n\n'
          'theorem public_session_encrypt_of_send_contracts',
          '    Model.Lifecycle.agreementFailed model = false →\n'
          '    Model.Lifecycle.braidSendNeedsDraw model.braid = false →\n'
-         '    EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output\n'
-         '      realMessage realEpoch realOutput realBraidNext rngNext →\n'
-         '    EncryptEndToEndEvidence rc crc trace dh kem K view oracle real model plaintext rng\n\n'
+         '    (generated : EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output\n'
+         '      realMessage realEpoch realOutput realBraidNext rngNext) →\n'
+         '    EncryptEvidenceForGeneratedPrefix (trace := trace) (dh := dh) (kem := kem)\n'
+         '      (K := K) (view := view) (oracle := oracle) (model := model) generated\n\n'
          'theorem public_session_encrypt_of_send_contracts',
          'hdraw'),
     ]
@@ -126,9 +136,16 @@ def main():
                 mutated.write_text(source.replace(before, after, 1))
             log = logs / f'{name}.log'
             status, output = run_lean(mutated, log, args.timeout)
-            mismatch = re.search(
-                r'error: Application type mismatch: The argument\s+' + premise +
-                r'\s+has type\s+.+?but is expected to have type', output, re.S)
+            if name == 'flatten-encrypt-generated-family':
+                mismatch = re.search(
+                    r'error: Application type mismatch: The argument\s+'
+                    r'providers\.noDraw.+?has type\s+'
+                    r'EncryptEvidenceForGeneratedPrefix.+?but is expected to have type\s+'
+                    r'EncryptRouteEvidence', output, re.S)
+            else:
+                mismatch = re.search(
+                    r'error: Application type mismatch: The argument\s+' + premise +
+                    r'\s+has type\s+.+?but is expected to have type', output, re.S)
             if status != 1 or mismatch is None or not re.search(r'\b' + premise + r'\b', output):
                 raise SystemExit(f'FAILED control {name}: expected premise type failure, exit={status}; {log}')
             results['mutations'][name] = {'exit': status, 'premise': premise}
