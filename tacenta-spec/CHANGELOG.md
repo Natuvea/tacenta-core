@@ -5,6 +5,13 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+- `groups/inventory.rs`: the signed inventory codec now exposes an explicit
+  `InventoryPolicy` boundary through `InventoryStatement::validate_for`.
+  Syntax and signature decoding remain separate from product decisions about
+  issuer binding, freshness, revocation, and device identity; the validation
+  entry point also rejects non-canonical or non-contributory identity keys,
+  duplicate active device IDs, and orphaned replacement predecessors.
+
 - `protocol/session-persistence.md`: align the repeated-initial semantic rule
   with `session-establishment.md`: the ephemeral is compared by its X25519
   agreement class and the identity by bytes. This removes the stale

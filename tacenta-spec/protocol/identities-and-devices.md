@@ -214,7 +214,14 @@ unsigned preimage followed by a 64-byte XEdDSA signature over:
 
 The verifier resolves `issuer_key_id` through its caller-supplied issuer-key
 binding and then verifies that signature. The statement does not contain that
-binding and does not make the key lookup trustworthy by itself.
+binding and does not make the key lookup trustworthy by itself. In the Rust
+implementation, `decode_signed` deliberately performs only syntax and
+signature verification. A caller that will rely on the statement must call
+`InventoryStatement::validate_for` with an `InventoryPolicy`. That policy is
+the explicit product boundary for issuer-to-account binding, generation
+freshness, revocation, and device rules; the method also refuses non-canonical
+or non-contributory identity keys, duplicate active device IDs, and orphaned
+replacement predecessors. A successful decode alone is not acceptance.
 
 `binding_commitment(binding)` is the 32-byte SHA-256 digest of:
 

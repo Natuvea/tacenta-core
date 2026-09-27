@@ -3,6 +3,7 @@
 use crate::primitives::{dh::PublicKeyBytes, xeddsa};
 use rand_core::{CryptoRng, RngCore};
 use sha2::{Digest, Sha256};
+use tacenta_session::is_canonical_x25519;
 
 pub const INVENTORY_DOMAIN: &[u8] = b"Tacenta Inventory Statement v1";
 const INVENTORY_SIGNING_LABEL: &[u8] = b"Tacenta:inventory-statement:v1\xff";
@@ -58,6 +59,30 @@ pub enum Error {
     Malformed,
     NonCanonical,
     Unsupported,
+    NonContributory,
+    Policy,
+}
+
+/// Product-owned policy hooks for accepting a signed inventory statement.
+///
+/// The codec can establish syntax, canonical ordering, and the cryptographic
+/// signature. It cannot establish that an issuer is bound to an account or
+/// that a statement is fresh in a product's database. Callers that rely on an
+/// inventory statement must provide those decisions here and call
+/// [`InventoryStatement::validate_for`].
+pub trait InventoryPolicy {
+    /// Resolve the issuer id in the statement for this account. Returning
+    /// `None` refuses an unbound issuer instead of treating the id as a key.
+    fn issuer_public_key(&self, issuer_key_id: u64, account_handle: &str) -> Option<[u8; 32]>;
+
+    /// Decide whether this statement generation is acceptable for the account.
+    /// A product can require equality with its current generation or apply a
+    /// deliberately documented freshness window.
+    fn generation_is_current(&self, account_handle: &str, generation: u64) -> bool;
+
+    /// Enforce product identity, revocation, and device policy for each
+    /// binding, including historical bindings in the revocation list.
+    fn binding_is_allowed(&self, account_handle: &str, binding: &DeviceBinding) -> bool;
 }
 
 impl InventoryStatement {
@@ -166,6 +191,57 @@ impl InventoryStatement {
         .map_err(|_| Error::Malformed)
     }
 
+    /// Validates a signed statement at the explicit product boundary.
+    ///
+    /// `decode_signed` is intentionally only a syntax and signature check. It
+    /// does not know which issuer belongs to an account, whether the
+    /// generation is fresh, or what device/revocation policy a product uses.
+    /// This method performs the core identity-key checks and delegates those
+    /// product decisions to `policy` before returning an accepted statement.
+    pub fn validate_for<P: InventoryPolicy>(
+        &self,
+        signature: &[u8; 64],
+        policy: &P,
+    ) -> Result<(), Error> {
+        let issuer_public = policy
+            .issuer_public_key(self.issuer_key_id, &self.account_handle)
+            .ok_or(Error::Policy)?;
+        self.verify(&issuer_public, signature)?;
+        if !policy.generation_is_current(&self.account_handle, self.inventory_generation) {
+            return Err(Error::Policy);
+        }
+
+        let mut seen_device_ids = Vec::with_capacity(self.active.len());
+        for binding in self
+            .active
+            .iter()
+            .chain(self.revoked.iter().map(|r| &r.binding))
+        {
+            validate_identity_key(&binding.identity_public_key)?;
+            if !policy.binding_is_allowed(&self.account_handle, binding) {
+                return Err(Error::Policy);
+            }
+        }
+        for binding in &self.active {
+            if seen_device_ids.contains(&binding.device_id) {
+                return Err(Error::Policy);
+            }
+            seen_device_ids.push(binding.device_id);
+
+            if let Some(predecessor) = binding.replacement_predecessor {
+                let found = self.revoked.iter().any(|revoked| {
+                    revoked.binding.device_id == binding.device_id
+                        && binding_commitment(&revoked.binding)
+                            .is_ok_and(|commitment| commitment == predecessor)
+                });
+                if !found {
+                    return Err(Error::Policy);
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn encode_signed<R: RngCore + CryptoRng>(
         &self,
         issuer_secret: &[u8; 32],
@@ -266,6 +342,21 @@ fn binding_ok(binding: &DeviceBinding) -> Result<(), Error> {
         Ok(())
     }
 }
+
+fn validate_identity_key(key: &[u8; 32]) -> Result<(), Error> {
+    if !is_canonical_x25519(key) {
+        return Err(Error::NonCanonical);
+    }
+    // Every low-order X25519 point produces a non-contributory agreement for
+    // every private key. One fixed, clamped scalar is sufficient to detect
+    // that class; canonicality was checked above, so this is not an encoding
+    // test in disguise.
+    let probe = crate::primitives::dh::PrivateKey::from_bytes([7; 32]);
+    if probe.agree(&PublicKeyBytes::from_bytes(*key)).is_none() {
+        return Err(Error::NonContributory);
+    }
+    Ok(())
+}
 fn put_binding(out: &mut Vec<u8>, binding: &DeviceBinding) {
     out.extend_from_slice(&binding.device_id.to_be_bytes());
     out.extend_from_slice(&binding.identity_public_key);
@@ -282,6 +373,54 @@ fn put_binding(out: &mut Vec<u8>, binding: &DeviceBinding) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct TestPolicy {
+        secret: [u8; 32],
+        issuer_bound: bool,
+        generation_current: bool,
+    }
+
+    impl InventoryPolicy for TestPolicy {
+        fn issuer_public_key(&self, issuer_key_id: u64, account_handle: &str) -> Option<[u8; 32]> {
+            if self.issuer_bound && issuer_key_id == 7 && account_handle == "acme/alice" {
+                Some(
+                    crate::primitives::dh::PrivateKey::from_bytes(self.secret)
+                        .public_key()
+                        .as_bytes()
+                        .to_owned(),
+                )
+            } else {
+                None
+            }
+        }
+
+        fn generation_is_current(&self, _account_handle: &str, _generation: u64) -> bool {
+            self.generation_current
+        }
+
+        fn binding_is_allowed(&self, _account_handle: &str, _binding: &DeviceBinding) -> bool {
+            true
+        }
+    }
+
+    fn policy() -> TestPolicy {
+        TestPolicy {
+            secret: [9; 32],
+            issuer_bound: true,
+            generation_current: true,
+        }
+    }
+
+    fn make_statement(active: Vec<DeviceBinding>) -> InventoryStatement {
+        InventoryStatement {
+            issuer_key_id: 7,
+            account_handle: "acme/alice".into(),
+            inventory_generation: 2,
+            active,
+            revocation_floor_generation: 0,
+            revoked: vec![],
+        }
+    }
     fn binding(id: u32) -> DeviceBinding {
         DeviceBinding {
             device_id: id,
@@ -410,6 +549,90 @@ mod tests {
         assert_eq!(
             InventoryStatement::decode_signed(&altered, &public),
             Err(Error::Malformed)
+        );
+    }
+
+    #[test]
+    fn policy_validation_accepts_a_bound_fresh_contributory_statement() {
+        let statement = make_statement(vec![binding(1)]);
+        let policy = policy();
+        let signature = statement
+            .sign(&policy.secret, &mut rand_core::OsRng)
+            .unwrap();
+        assert_eq!(statement.validate_for(&signature, &policy), Ok(()));
+    }
+
+    #[test]
+    fn policy_validation_refuses_unbound_stale_and_noncontributory_inputs() {
+        let mut policy = policy();
+        let statement = make_statement(vec![binding(1)]);
+        let signature = statement
+            .sign(&policy.secret, &mut rand_core::OsRng)
+            .unwrap();
+
+        policy.issuer_bound = false;
+        assert_eq!(
+            statement.validate_for(&signature, &policy),
+            Err(Error::Policy)
+        );
+
+        policy.issuer_bound = true;
+        policy.generation_current = false;
+        assert_eq!(
+            statement.validate_for(&signature, &policy),
+            Err(Error::Policy)
+        );
+
+        let mut low_order = binding(1);
+        low_order.identity_public_key = [0; 32];
+        let statement = make_statement(vec![low_order]);
+        let signature = statement
+            .sign(&policy.secret, &mut rand_core::OsRng)
+            .unwrap();
+        policy.generation_current = true;
+        assert_eq!(
+            statement.validate_for(&signature, &policy),
+            Err(Error::NonContributory)
+        );
+    }
+
+    #[test]
+    fn policy_validation_refuses_duplicate_devices_and_orphan_replacements() {
+        let first = DeviceBinding {
+            device_id: 1,
+            identity_public_key: [3; 32],
+            capabilities: GROUP_EPOCH_V1,
+            replacement_predecessor: None,
+        };
+        let second = DeviceBinding {
+            device_id: 1,
+            identity_public_key: [4; 32],
+            capabilities: GROUP_EPOCH_V1,
+            replacement_predecessor: None,
+        };
+        let policy = policy();
+        let statement = make_statement(vec![first, second]);
+        let signature = statement
+            .sign(&policy.secret, &mut rand_core::OsRng)
+            .unwrap();
+        assert_eq!(
+            statement.validate_for(&signature, &policy),
+            Err(Error::Policy)
+        );
+
+        let replacement = DeviceBinding {
+            device_id: 2,
+            identity_public_key: [5; 32],
+            capabilities: GROUP_EPOCH_V1,
+            replacement_predecessor: Some([0x55; 32]),
+        };
+        let statement = make_statement(vec![replacement]);
+        let signature = statement
+            .sign(&policy.secret, &mut rand_core::OsRng)
+            .unwrap();
+        assert_eq!(
+            statement.validate_for(&signature, &policy),
+            Err(Error::Policy)
         );
     }
 }
