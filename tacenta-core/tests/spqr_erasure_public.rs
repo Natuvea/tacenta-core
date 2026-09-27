@@ -124,7 +124,10 @@ fn direct_spqr_retirement_wipe_is_mutation_sensitive() {
         sent.push(alice.send(0, None).unwrap());
     }
     bob.receive(0, None, sent[3].0).unwrap();
-    assert!(bob.skipped_len() > 0, "fixture did not create a skipped store");
+    assert!(
+        bob.skipped_len() > 0,
+        "fixture did not create a skipped store"
+    );
     let o1 = Output::new(1, [0x22; 32]);
     let n1 = alice.send(1, Some(&o1)).unwrap().0;
     bob.receive(1, Some(&o1), n1).unwrap();
