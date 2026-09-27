@@ -108,6 +108,7 @@ fn observed(v: &Vector) -> Result<BTreeMap<String, Vec<u8>>, String> {
     let alice_secret = array32(&input(v, "alice_identity_secret")?)?;
     let bob_secret = array32(&input(v, "bob_identity_secret")?)?;
     let plaintext = input(v, "plaintext")?;
+    let repeat_plaintext = input(v, "repeat_plaintext")?;
     let alice = sessions::Identity::from_secret(alice_secret);
     let bob = sessions::Identity::from_secret(bob_secret);
 
@@ -174,11 +175,21 @@ fn observed(v: &Vector) -> Result<BTreeMap<String, Vec<u8>>, String> {
     send_rng.finish()?;
     let alice_state = alice_session.export();
 
+    // The initiator repeats the wrapper until it hears a response.  The
+    // second initial carries a fresh inner ratchet message, so the responder
+    // can check the byte-level repeat rule without relying on a fixture that
+    // merely names the first message.
+    let mut repeat_send_rng = ExactRng::new("initiator repeated send", vec![]);
+    let repeat_initial = alice_session
+        .encrypt(&repeat_plaintext, &mut repeat_send_rng)
+        .map_err(|e| format!("repeated initial encrypt: {e:?}"))?;
+    repeat_send_rng.finish()?;
+
     let mut responder_rng = ExactRng::new(
         "responder establishment",
         named(v, &["bob_ratchet_secret"])?,
     );
-    let (bob_session, recovered) =
+    let (mut bob_session, recovered) =
         sessions::establish_responder(&bob, &mut store, &initial, &mut responder_rng)
             .map_err(|e| format!("responder establishment: {e:?}"))?;
     responder_rng.finish()?;
@@ -186,6 +197,18 @@ fn observed(v: &Vector) -> Result<BTreeMap<String, Vec<u8>>, String> {
         return Err("the responder recovered a different first plaintext".to_owned());
     }
     let bob_state = bob_session.export();
+    let mut repeat_receive_rng = ExactRng::new(
+        "responder repeated receive",
+        named(v, &["bob_repeat_random"])?,
+    );
+    let repeated_recovered = bob_session
+        .decrypt(&repeat_initial, &mut repeat_receive_rng)
+        .map_err(|e| format!("repeated initial decrypt: {e:?}"))?;
+    repeat_receive_rng.finish()?;
+    if repeated_recovered != repeat_plaintext {
+        return Err("the responder recovered a different repeated plaintext".to_owned());
+    }
+    let bob_repeat_state = bob_session.export();
 
     // Component reconstruction: rebuild the KEM key and encapsulation from the
     // named FIPS 203 d||z and m draws, then the four real X25519 agreements.
@@ -313,8 +336,11 @@ fn observed(v: &Vector) -> Result<BTreeMap<String, Vec<u8>>, String> {
     put(&mut out, "aead_output", ciphertext);
     put(&mut out, "ratchet_message", ratchet_message);
     put(&mut out, "initial_message", initial);
+    put(&mut out, "repeat_initial", repeat_initial);
+    put(&mut out, "repeat_plaintext", repeated_recovered);
     put(&mut out, "alice_session_after_first_send", &*alice_state);
     put(&mut out, "bob_session_after_receipt", &*bob_state);
+    put(&mut out, "bob_session_after_repeat", &*bob_repeat_state);
     put(
         &mut out,
         "bob_prekey_store_after_receipt",
