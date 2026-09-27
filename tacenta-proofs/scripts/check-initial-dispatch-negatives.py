@@ -48,11 +48,11 @@ def main():
     results = {'source_sha256': hashlib.sha256(source.encode()).hexdigest(), 'mutations': {}}
     mutants = [
         ('bypass-ephemeral',
-         'by_cases he : vecOf established = vecOf decoded.ephemeral',
-         'by_cases he : True', 'he'),
+         '(hne : vecOf established ≠ vecOf decoded.ephemeral)',
+         '(hne : vecOf established = vecOf decoded.ephemeral)', 'hne'),
         ('bypass-identity',
          'by_cases hi : vecOf decoded.identity =\n'
-         '            Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public)',
+         '      Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public)',
          'by_cases hi : True', 'hi'),
         ('weaken-terminal-guard',
          '(hfailed : Model.Lifecycle.agreementFailed model = true) :',
@@ -72,7 +72,14 @@ def main():
             # concrete terminal-discharge theorem, not a duplicated signature.
             # For the terminal guard, mutate its concrete-discharge theorem only.
             mutated = tmp / f'{name}.lean'
-            if name == 'weaken-terminal-guard':
+            if name == 'bypass-ephemeral':
+                marker = '| initialAgreementAccepted'
+                start = source.find(marker)
+                target = source.find(before, start)
+                if start < 0 or target < 0:
+                    raise SystemExit(f'Target changed for {name}: accepted branch premise is missing')
+                mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
+            elif name == 'weaken-terminal-guard':
                 marker = 'theorem initial_ratchet_refines_terminal'
                 start = source.find(marker)
                 target = source.find(before, start)
