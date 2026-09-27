@@ -35,8 +35,10 @@ being silently ignored.
 
 Beyond the schema, five rules the schemas state in prose and this enforces:
 vector `id`s are unique within a file; in a known-answer file exactly one of
-`output` and `fields` is present when `result` is `valid`, and neither when it
-is `invalid`; a `refusal` is carried only by an invalid vector; in a scenario
+`output` and `fields` is present when `result` is `valid`, except for a
+prekey-store v1-v4 migration vector, which intentionally carries decoded
+`fields` and the v5 upgrade `output`; neither is present when it is `invalid`;
+a `refusal` is carried only by an invalid vector; in a scenario
 file an ok step
 carries `mk` while a reject step carries neither `mk` nor `message_keys`
 (the runner would fail an ok step without `mk`, and a reject step's key is
@@ -316,7 +318,18 @@ def main():
             else:
                 valid = v.get("result", "valid") == "valid"
                 answers = [k for k in ("output", "fields") if k in v]
-                if valid and len(answers) != 1:
+                migration = (
+                    doc.get("algorithm") == "prekey-store-state"
+                    and isinstance(v.get("inputs"), dict)
+                    and isinstance(v["inputs"].get("bytes"), str)
+                    and isinstance(v.get("output"), str)
+                    and isinstance(v.get("fields"), dict)
+                    and len(v["inputs"]["bytes"]) >= 2
+                    and len(v["output"]) >= 2
+                    and v["inputs"]["bytes"][:2] in {"01", "02", "03", "04"}
+                    and v["output"][:2] == "05"
+                )
+                if valid and not (len(answers) == 1 or (len(answers) == 2 and migration)):
                     problems.append("%s.vectors[%d] (%s): a valid vector needs "
                                     "exactly one of `output` and `fields`"
                                     % (rel, i, vid))
