@@ -321,11 +321,9 @@ def required_outcome_ids(value, f, name):
             continue
         step_id, outcome = (part.strip() for part in item.split("=", 1))
         expression = re.fullmatch(r"\$\{\{\s*steps\.([A-Za-z0-9_-]+)\.outcome\s*\}\}", outcome)
-        if (not step_id
-                or (outcome not in {"success", "skipped", "failure", "cancelled"}
-                    and (expression is None or expression.group(1) != step_id))):
-            complain("%s job '%s' has an invalid required command outcome "
-                     "'%s'" % (f, name, item))
+        if not step_id or expression is None or expression.group(1) != step_id:
+            complain("%s job '%s' has a required command outcome that must "
+                     "bind to the step's GitHub outcome: '%s'" % (f, name, item))
             continue
         if step_id in ids:
             complain("%s job '%s' lists required command step '%s' more than "
