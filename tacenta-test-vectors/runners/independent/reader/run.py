@@ -285,6 +285,29 @@ def h_session_establishment_e2e(v):
     ):
         state = parser(bx(f[name]))
         check(f[name], encoder(state), name + " round-trip")
+
+    # The repeated-initial extension is checked through the clean-room
+    # session boundary as well as by the Rust KAT.  The reader does not
+    # implement ML-KEM or the inner ratchet decrypt here, but it does decode
+    # the second initial, enforce the agreement-class and identity tests on
+    # the persisted responder session, and require the exact inner ratchet
+    # bytes to reach the ordinary receive boundary.  This prevents a vector
+    # from merely carrying an unchecked repeat field.
+    if "repeat_initial" in f:
+        repeat = wire.decode_initial(bx(f["repeat_initial"]))
+        responder = persistence.session_from_bytes(bx(f["bob_session_after_receipt"]))
+        inner = []
+
+        def receive_inner(raw):
+            inner.append(bytes(raw))
+            return raw
+
+        pqxdh.receive_repeated_initial(responder, bx(f["repeat_initial"]), receive_inner)
+        if inner != [repeat.ratchet_message]:
+            raise Fail("repeated initial did not route its ratchet message to receive")
+        repeated_state = persistence.session_from_bytes(bx(f["bob_session_after_repeat"]))
+        check(f["bob_session_after_repeat"], persistence.session_to_bytes(repeated_state),
+              "bob session after repeated initial round-trip")
 # --------------------------------------------------------------- ratchet
 
 def h_double_ratchet(v):
