@@ -190,12 +190,11 @@ Version one defines only capability bit `GROUP_EPOCH_V1` (`1`); the capability
 word is non-zero and no other bit is accepted. Active bindings are strictly
 sorted by the complete tuple above. A replacement predecessor is the
 32-byte `binding_commitment` of the exact retired binding, not a device-id or
-identity-key alias. The inventory codec treats `identity_public_key` as an
-opaque 32-byte field; a product accepting it as an identity key must apply the
-canonical-key, contributory-agreement and signature rules above before signing
-or relying on a statement. The codec's canonical order does not by itself
-establish one-device-per-identity policy: the product must reject duplicate
-`device_id` values and define its identity/revocation policy explicitly.
+identity-key alias. The encoding treats `identity_public_key` as an opaque
+32-byte field; the checks a verifier applies to it are under "Accepting a
+signed statement" below. Canonical order does not by itself establish
+one-device-per-identity policy. Apart from the checks listed there, identity
+and revocation policy is the verifier's.
 
 `Revocation` appends `terminal_generation` (u64) to a `DeviceBinding`.
 Revocations are strictly sorted by their complete encoded tuple, each terminal
@@ -214,14 +213,9 @@ unsigned preimage followed by a 64-byte XEdDSA signature over:
 
 The verifier resolves `issuer_key_id` through its caller-supplied issuer-key
 binding and then verifies that signature. The statement does not contain that
-binding and does not make the key lookup trustworthy by itself. In the Rust
-implementation, `decode_signed` deliberately performs only syntax and
-signature verification. A caller that will rely on the statement must call
-`InventoryStatement::validate_for` with an `InventoryPolicy`. That policy is
-the explicit product boundary for issuer-to-account binding, generation
-freshness, revocation, and device rules; the method also refuses non-canonical
-or non-contributory identity keys, duplicate active device IDs, and orphaned
-replacement predecessors. A successful decode alone is not acceptance.
+binding and does not make the key lookup trustworthy by itself. A statement
+that decodes and whose signature verifies is not thereby accepted; see
+"Accepting a signed statement" below.
 
 `binding_commitment(binding)` is the 32-byte SHA-256 digest of:
 
@@ -233,6 +227,57 @@ It commits to every binding field, including the predecessor. It is used only
 to name the exact binding a replacement retires. The inventory profile has no
 group cipher, sender-key ratchet, delivery guarantee, membership privacy
 claim, or end-to-end proof attached to it.
+
+### Accepting a signed statement
+
+Decoding establishes syntax and canonical form. Verifying the signature
+establishes that the issuer key the verifier resolved signed exactly these
+bytes. Neither establishes that the statement is one to act on. A verifier that
+relies on a statement applies these checks in this order and refuses on the
+first that fails:
+
+1. `account_handle` equals, byte for byte, the account the verifier asked
+   about. This comes before any lookup, so a valid statement for another
+   account, signed under an issuer key that serves several accounts, is
+   refused.
+2. The verifier's issuer-key binding resolves `(issuer_key_id, account_handle)`
+   to a verification key. An unbound issuer is refused.
+3. The signature verifies under that key.
+4. The verifier's freshness rule accepts `inventory_generation` for the
+   account. The format carries a generation and a floor but no freshness rule:
+   equality with a stored value, a window, or any other rule is the
+   verifier's. The format does not distinguish two different validly signed
+   statements at one generation.
+5. No two entries of `active` share a `device_id`. An active and a revoked
+   binding may share one: that is a device whose key was replaced under its old
+   id.
+6. Every `identity_public_key`, in `active` and in `revoked`, is a canonical
+   curve public key (message-format.md) and is not a low-order point. The
+   low-order points are the canonical u-coordinates 0, 1, p − 1 and the two
+   points of order eight; X25519 with any of them yields the all-zero string
+   for every private key. A verifier can detect the class by testing agreement
+   with any one clamped private scalar.
+7. The verifier's own policy accepts each binding, told whether it came from
+   `active` or `revoked`, and then accepts the statement as a whole.
+
+The format does not check, and a verifier that needs any of these must:
+
+- **Chain of custody for a replacement.** `replacement_predecessor` need not
+  name a binding that appears in `revoked`. Revocations at or below
+  `revocation_floor_generation` are dropped from the statement, and the
+  replacement stays in `active` with its marker, so the marker can outlive the
+  tombstone it names. A replacement may also carry a new `device_id`. A
+  verifier must not refuse a statement solely because the named binding is
+  absent.
+- **Uniqueness and reactivation.** The same identity key on more than one
+  binding, a revoked key listed again as active, and a replacement identical to
+  what it replaces are all accepted by the format. Whether they are acceptable
+  is the verifier's policy, and it needs the whole statement to decide (check 7).
+- **Points off the curve or of mixed torsion.** A u-coordinate on the quadratic
+  twist (for example u = 2) or the sum of a valid point and a low-order point
+  passes check 6. No honest device holds a private key for the first, and the
+  second agrees like its prime-order part. A misbehaving issuer could sign one.
+- **Freshness and equivocation**, as check 4 states.
 
 ## Sources
 

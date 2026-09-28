@@ -5,12 +5,15 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
-- `groups/inventory.rs`: the signed inventory codec now exposes an explicit
-  `InventoryPolicy` boundary through `InventoryStatement::validate_for`.
-  Syntax and signature decoding remain separate from product decisions about
-  issuer binding, freshness, revocation, and device identity; the validation
-  entry point also rejects non-canonical or non-contributory identity keys,
-  duplicate active device IDs, and orphaned replacement predecessors.
+- `identities-and-devices.md`: state what a verifier must check before it
+  relies on a signed hosted-inventory statement (account match, issuer binding,
+  signature, freshness, duplicate active `device_id`, canonical and non-low-order
+  identity keys, then its own binding and statement policy), and what the format
+  deliberately leaves unchecked: the chain of custody of a
+  `replacement_predecessor`, key uniqueness and reactivation, off-curve and
+  mixed-torsion keys, and equivocation. The one-owner rule for duplicate
+  `device_id` values replaces the earlier statement that the product must
+  reject them. The encoding and the signature input are unchanged.
 
 - `protocol/session-persistence.md`: align the repeated-initial semantic rule
   with `session-establishment.md`: the ephemeral is compared by its X25519

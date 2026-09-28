@@ -55,34 +55,84 @@ pub struct InventoryStatement {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Error {
+    /// Bytes that do not parse, or a signature that does not verify.
     Malformed,
     NonCanonical,
     Unsupported,
+    /// An identity key is a low-order point.
     NonContributory,
-    Policy,
+    /// The statement names a different account from the one requested.
+    WrongAccount,
+    /// The policy has no verification key for this issuer and account.
+    IssuerUnbound,
+    /// The policy does not accept this generation for the account.
+    Stale,
+    /// Two active bindings carry the same `device_id`.
+    DuplicateDevice,
+    /// The policy refused a binding or the statement as a whole.
+    Refused,
+}
+
+/// Whether a binding appears in a statement's `active` or `revoked` list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BindingStatus {
+    Active,
+    Revoked,
 }
 
 /// Product-owned policy hooks for accepting a signed inventory statement.
 ///
-/// The codec can establish syntax, canonical ordering, and the cryptographic
-/// signature. It cannot establish that an issuer is bound to an account or
-/// that a statement is fresh in a product's database. Callers that rely on an
-/// inventory statement must provide those decisions here and call
-/// [`InventoryStatement::validate_for`].
+/// Decoding establishes syntax and canonical form, and verification
+/// establishes the issuer signature. Neither establishes that an issuer is bound
+/// to an account, that a statement is fresh in a product's database, or that a
+/// device set is one the product allows. Those decisions are made here, and
+/// [`InventoryStatement::accept`] is the only way to obtain an
+/// [`AcceptedInventory`].
 pub trait InventoryPolicy {
     /// Resolve the issuer id in the statement for this account. Returning
     /// `None` refuses an unbound issuer instead of treating the id as a key.
     fn issuer_public_key(&self, issuer_key_id: u64, account_handle: &str) -> Option<[u8; 32]>;
 
-    /// Decide whether this statement generation is acceptable for the account.
-    /// A product can require equality with its current generation or apply a
-    /// deliberately documented freshness window.
+    /// Decide whether this generation is acceptable for the account. The
+    /// statement carries a generation but no freshness rule: equality with a
+    /// stored current value, a window, or anything else is the product's.
+    /// Two different validly signed statements at one generation are not
+    /// distinguished by the format, so a product that needs to detect that
+    /// must record what it has seen.
     fn generation_is_current(&self, account_handle: &str, generation: u64) -> bool;
 
-    /// Enforce product identity, revocation, and device policy for each
-    /// binding, including historical bindings in the revocation list.
-    fn binding_is_allowed(&self, account_handle: &str, binding: &DeviceBinding) -> bool;
+    /// Enforce product identity and device policy for one binding. Called for
+    /// every active binding and every revoked binding, each with its status.
+    fn binding_is_allowed(
+        &self,
+        account_handle: &str,
+        binding: &DeviceBinding,
+        status: BindingStatus,
+    ) -> bool;
+
+    /// Enforce policy that needs the whole statement, which the per-binding
+    /// hook cannot see. The format does not require an identity key to be
+    /// unique across bindings, a revoked key to stay revoked, or a
+    /// replacement to differ from what it replaces; a product that requires
+    /// any of these checks them here.
+    fn statement_is_allowed(&self, statement: &InventoryStatement) -> bool;
+}
+
+/// A statement that [`InventoryStatement::accept`] approved for one account
+/// under one policy. It can only be constructed there and cannot be changed
+/// afterwards, so group code that takes this type cannot be handed a merely
+/// decoded statement.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AcceptedInventory {
+    statement: InventoryStatement,
+}
+
+impl AcceptedInventory {
+    pub fn statement(&self) -> &InventoryStatement {
+        &self.statement
+    }
 }
 
 impl InventoryStatement {
@@ -191,55 +241,94 @@ impl InventoryStatement {
         .map_err(|_| Error::Malformed)
     }
 
-    /// Validates a signed statement at the explicit product boundary.
+    /// Approves this statement for `expected_account`, or refuses it.
     ///
-    /// `decode_signed` is intentionally only a syntax and signature check. It
-    /// does not know which issuer belongs to an account, whether the
-    /// generation is fresh, or what device/revocation policy a product uses.
-    /// This method performs the core identity-key checks and delegates those
-    /// product decisions to `policy` before returning an accepted statement.
-    pub fn validate_for<P: InventoryPolicy>(
+    /// The checks run in this order and the first failure is returned:
+    ///
+    /// 1. the statement's account equals `expected_account` byte for byte, before
+    ///    any hook runs, so a valid statement for another account under a shared
+    ///    issuer key is refused;
+    /// 2. the policy resolves the issuer key for the statement's account;
+    /// 3. the issuer signature verifies;
+    /// 4. the policy accepts the generation;
+    /// 5. no two active bindings share a `device_id`;
+    /// 6. every identity key, active and revoked, is canonical and is not a
+    ///    low-order point;
+    /// 7. the policy accepts each binding, then the statement as a whole.
+    ///
+    /// Not checked here, by design: that a `replacement_predecessor` names a
+    /// binding in `revoked` (revoked entries at or below the floor are dropped
+    /// from the statement, and a replacement may carry a new `device_id`);
+    /// identity keys that are off the curve or of mixed torsion; and key
+    /// uniqueness or non-reactivation across bindings. See the specification,
+    /// "Accepting a signed statement".
+    pub fn accept<P: InventoryPolicy>(
         &self,
+        expected_account: &str,
         signature: &[u8; 64],
         policy: &P,
-    ) -> Result<(), Error> {
+    ) -> Result<AcceptedInventory, Error> {
+        if self.account_handle != expected_account {
+            return Err(Error::WrongAccount);
+        }
         let issuer_public = policy
             .issuer_public_key(self.issuer_key_id, &self.account_handle)
-            .ok_or(Error::Policy)?;
+            .ok_or(Error::IssuerUnbound)?;
         self.verify(&issuer_public, signature)?;
         if !policy.generation_is_current(&self.account_handle, self.inventory_generation) {
-            return Err(Error::Policy);
+            return Err(Error::Stale);
         }
 
         let mut seen_device_ids = Vec::with_capacity(self.active.len());
-        for binding in self
-            .active
-            .iter()
-            .chain(self.revoked.iter().map(|r| &r.binding))
-        {
-            validate_identity_key(&binding.identity_public_key)?;
-            if !policy.binding_is_allowed(&self.account_handle, binding) {
-                return Err(Error::Policy);
-            }
-        }
         for binding in &self.active {
             if seen_device_ids.contains(&binding.device_id) {
-                return Err(Error::Policy);
+                return Err(Error::DuplicateDevice);
             }
             seen_device_ids.push(binding.device_id);
-
-            if let Some(predecessor) = binding.replacement_predecessor {
-                let found = self.revoked.iter().any(|revoked| {
-                    revoked.binding.device_id == binding.device_id
-                        && binding_commitment(&revoked.binding)
-                            .is_ok_and(|commitment| commitment == predecessor)
-                });
-                if !found {
-                    return Err(Error::Policy);
-                }
+        }
+        let bindings = self
+            .active
+            .iter()
+            .map(|binding| (binding, BindingStatus::Active))
+            .chain(
+                self.revoked
+                    .iter()
+                    .map(|revoked| (&revoked.binding, BindingStatus::Revoked)),
+            );
+        for (binding, status) in bindings {
+            validate_identity_key(&binding.identity_public_key)?;
+            if !policy.binding_is_allowed(&self.account_handle, binding, status) {
+                return Err(Error::Refused);
             }
         }
-        Ok(())
+        if !policy.statement_is_allowed(self) {
+            return Err(Error::Refused);
+        }
+        Ok(AcceptedInventory {
+            statement: self.clone(),
+        })
+    }
+
+    /// Decodes signed wire bytes and approves them for `expected_account`.
+    /// This is the one-call path: the signature is taken from the trailing 64
+    /// bytes, and the issuer key comes from the policy rather than from the
+    /// caller, who cannot know it before reading the statement.
+    pub fn accept_signed<P: InventoryPolicy>(
+        bytes: &[u8],
+        expected_account: &str,
+        policy: &P,
+    ) -> Result<AcceptedInventory, Error> {
+        let (statement, signature) = Self::split_signed(bytes)?;
+        statement.accept(expected_account, &signature, policy)
+    }
+
+    fn split_signed(bytes: &[u8]) -> Result<(Self, [u8; 64]), Error> {
+        let unsigned_len = bytes.len().checked_sub(64).ok_or(Error::Malformed)?;
+        let statement = Self::decode_unsigned(&bytes[..unsigned_len])?;
+        let signature = bytes[unsigned_len..]
+            .try_into()
+            .map_err(|_| Error::Malformed)?;
+        Ok((statement, signature))
     }
 
     pub fn encode_signed<R: RngCore + CryptoRng>(
@@ -252,12 +341,13 @@ impl InventoryStatement {
         Ok(bytes)
     }
 
+    /// Decodes signed bytes and checks the signature under a key the caller
+    /// already holds. The result is **not accepted**: nothing here checks the
+    /// account, freshness, or any policy, and the type is the same as a decoded
+    /// but unsigned statement. Use [`InventoryStatement::accept_signed`] to
+    /// obtain an [`AcceptedInventory`].
     pub fn decode_signed(bytes: &[u8], issuer_public: &[u8; 32]) -> Result<Self, Error> {
-        let unsigned_len = bytes.len().checked_sub(64).ok_or(Error::Malformed)?;
-        let statement = Self::decode_unsigned(&bytes[..unsigned_len])?;
-        let signature = bytes[unsigned_len..]
-            .try_into()
-            .map_err(|_| Error::Malformed)?;
+        let (statement, signature) = Self::split_signed(bytes)?;
         statement.verify(issuer_public, &signature)?;
         Ok(statement)
     }
@@ -374,53 +464,158 @@ fn put_binding(out: &mut Vec<u8>, binding: &DeviceBinding) {
 mod tests {
     use super::*;
 
+    const ALICE: &str = "acme/alice";
+    const BOB: &str = "acme/bob";
+    const ALICE_SECRET: [u8; 32] = [9; 32];
+    const BOB_SECRET: [u8; 32] = [10; 32];
+
+    fn public_of(secret: [u8; 32]) -> [u8; 32] {
+        crate::primitives::dh::PrivateKey::from_bytes(secret)
+            .public_key()
+            .as_bytes()
+            .to_owned()
+    }
+
+    /// A policy whose hooks compare their arguments with expected values, so a
+    /// caller that passes the wrong account, generation, or status is caught.
     struct TestPolicy {
-        secret: [u8; 32],
-        issuer_bound: bool,
-        generation_current: bool,
+        /// (issuer id, account, issuer public key). An account of `""` matches
+        /// every account: one hosted issuer key for a whole tenant.
+        issuers: Vec<(u64, &'static str, [u8; 32])>,
+        /// (account, the one generation this policy accepts for it).
+        current: Vec<(&'static str, u64)>,
+        /// Refuse this key when it appears with this status.
+        denied: Option<([u8; 32], BindingStatus)>,
+        /// Refuse any statement whose bindings repeat an identity key.
+        require_unique_keys: bool,
+        refuse_statement: bool,
+        hook_calls: std::cell::Cell<u32>,
+    }
+
+    impl TestPolicy {
+        fn known(&self, account_handle: &str) -> bool {
+            self.current
+                .iter()
+                .any(|(account, _)| *account == account_handle)
+        }
     }
 
     impl InventoryPolicy for TestPolicy {
         fn issuer_public_key(&self, issuer_key_id: u64, account_handle: &str) -> Option<[u8; 32]> {
-            if self.issuer_bound && issuer_key_id == 7 && account_handle == "acme/alice" {
-                Some(
-                    crate::primitives::dh::PrivateKey::from_bytes(self.secret)
-                        .public_key()
-                        .as_bytes()
-                        .to_owned(),
-                )
-            } else {
-                None
+            self.hook_calls.set(self.hook_calls.get() + 1);
+            self.issuers
+                .iter()
+                .find(|(id, account, _)| {
+                    *id == issuer_key_id && (account.is_empty() || *account == account_handle)
+                })
+                .map(|(_, _, key)| *key)
+        }
+
+        fn generation_is_current(&self, account_handle: &str, generation: u64) -> bool {
+            self.hook_calls.set(self.hook_calls.get() + 1);
+            self.current
+                .iter()
+                .any(|(account, current)| *account == account_handle && *current == generation)
+        }
+
+        fn binding_is_allowed(
+            &self,
+            account_handle: &str,
+            binding: &DeviceBinding,
+            status: BindingStatus,
+        ) -> bool {
+            self.hook_calls.set(self.hook_calls.get() + 1);
+            if !self.known(account_handle) {
+                return false;
             }
+            !self
+                .denied
+                .is_some_and(|(key, denied)| key == binding.identity_public_key && denied == status)
         }
 
-        fn generation_is_current(&self, _account_handle: &str, _generation: u64) -> bool {
-            self.generation_current
-        }
-
-        fn binding_is_allowed(&self, _account_handle: &str, _binding: &DeviceBinding) -> bool {
+        fn statement_is_allowed(&self, statement: &InventoryStatement) -> bool {
+            self.hook_calls.set(self.hook_calls.get() + 1);
+            if self.refuse_statement || !self.known(&statement.account_handle) {
+                return false;
+            }
+            if self.require_unique_keys {
+                let keys: Vec<_> = statement
+                    .active
+                    .iter()
+                    .chain(statement.revoked.iter().map(|r| &r.binding))
+                    .map(|b| b.identity_public_key)
+                    .collect();
+                return keys
+                    .iter()
+                    .enumerate()
+                    .all(|(i, key)| !keys[..i].contains(key));
+            }
             true
         }
     }
 
     fn policy() -> TestPolicy {
         TestPolicy {
-            secret: [9; 32],
-            issuer_bound: true,
-            generation_current: true,
+            issuers: vec![
+                (7, ALICE, public_of(ALICE_SECRET)),
+                (8, BOB, public_of(BOB_SECRET)),
+            ],
+            current: vec![(ALICE, 2), (BOB, 5)],
+            denied: None,
+            require_unique_keys: false,
+            refuse_statement: false,
+            hook_calls: std::cell::Cell::new(0),
         }
     }
 
-    fn make_statement(active: Vec<DeviceBinding>) -> InventoryStatement {
+    fn statement_for(
+        issuer_key_id: u64,
+        account: &str,
+        generation: u64,
+        active: Vec<DeviceBinding>,
+    ) -> InventoryStatement {
         InventoryStatement {
-            issuer_key_id: 7,
-            account_handle: "acme/alice".into(),
-            inventory_generation: 2,
+            issuer_key_id,
+            account_handle: account.into(),
+            inventory_generation: generation,
             active,
             revocation_floor_generation: 0,
             revoked: vec![],
         }
     }
+    fn make_statement(active: Vec<DeviceBinding>) -> InventoryStatement {
+        statement_for(7, ALICE, 2, active)
+    }
+    fn with_revoked(
+        mut statement: InventoryStatement,
+        revoked: Vec<DeviceBinding>,
+    ) -> InventoryStatement {
+        statement.revoked = revoked
+            .into_iter()
+            .map(|binding| Revocation {
+                binding,
+                terminal_generation: 1,
+            })
+            .collect();
+        statement
+    }
+    fn sign(statement: &InventoryStatement, secret: [u8; 32]) -> [u8; 64] {
+        statement.sign(&secret, &mut rand_core::OsRng).unwrap()
+    }
+    /// Signs under the account's own issuer key and accepts for that account.
+    fn accept_alice(
+        statement: &InventoryStatement,
+        policy: &TestPolicy,
+    ) -> Result<AcceptedInventory, Error> {
+        statement.accept(ALICE, &sign(statement, ALICE_SECRET), policy)
+    }
+    fn keyed(id: u32, key: [u8; 32]) -> DeviceBinding {
+        DeviceBinding {
+            identity_public_key: key,
+            ..binding(id)
+        }
+    }
+
     fn binding(id: u32) -> DeviceBinding {
         DeviceBinding {
             device_id: id,
@@ -552,87 +747,322 @@ mod tests {
         );
     }
 
-    #[test]
-    fn policy_validation_accepts_a_bound_fresh_contributory_statement() {
-        let statement = make_statement(vec![binding(1)]);
-        let policy = policy();
-        let signature = statement
-            .sign(&policy.secret, &mut rand_core::OsRng)
-            .unwrap();
-        assert_eq!(statement.validate_for(&signature, &policy), Ok(()));
+    const LOW_ORDER: [[u8; 32]; 5] = [
+        [0; 32],
+        {
+            let mut k = [0u8; 32];
+            k[0] = 1;
+            k
+        },
+        // p - 1
+        {
+            let mut k = [0xffu8; 32];
+            k[0] = 0xec;
+            k[31] = 0x7f;
+            k
+        },
+        [
+            0xe0, 0xeb, 0x7a, 0x7c, 0x3b, 0x41, 0xb8, 0xae, 0x16, 0x56, 0xe3, 0xfa, 0xf1, 0x9f,
+            0xc4, 0x6a, 0xda, 0x09, 0x8d, 0xeb, 0x9c, 0x32, 0xb1, 0xfd, 0x86, 0x62, 0x05, 0x16,
+            0x5f, 0x49, 0xb8, 0x00,
+        ],
+        [
+            0x5f, 0x9c, 0x95, 0xbc, 0xa3, 0x50, 0x8c, 0x24, 0xb1, 0xd0, 0xb1, 0x55, 0x9c, 0x83,
+            0xef, 0x5b, 0x04, 0x44, 0x5c, 0xc4, 0x58, 0x1c, 0x8e, 0x86, 0xd8, 0x22, 0x4e, 0xdd,
+            0xd0, 0x9f, 0x11, 0x57,
+        ],
+    ];
+
+    fn non_canonical() -> Vec<[u8; 32]> {
+        // p, p + 1, p + 9 (all below 2^255 but not below p), the all-ones string,
+        // and the two spellings of small values that only differ in bit 255.
+        let p_plus = |n: u8| {
+            let mut k = [0xffu8; 32];
+            k[0] = 0xed + n;
+            k[31] = 0x7f;
+            k
+        };
+        let mut nine_high = [0u8; 32];
+        nine_high[0] = 9;
+        nine_high[31] = 0x80;
+        let mut zero_high = [0u8; 32];
+        zero_high[31] = 0x80;
+        vec![
+            p_plus(0),
+            p_plus(1),
+            p_plus(9),
+            [0xff; 32],
+            nine_high,
+            zero_high,
+        ]
     }
 
     #[test]
-    fn policy_validation_refuses_unbound_stale_and_noncontributory_inputs() {
+    fn accepts_a_bound_fresh_statement_for_each_account() {
+        let policy = policy();
+        let alice = make_statement(vec![binding(1), binding(2)]);
+        let accepted = accept_alice(&alice, &policy).unwrap();
+        assert_eq!(accepted.statement(), &alice);
+
+        // A second account, issuer id and generation: the hooks must be given
+        // this statement's own values, not another statement's.
+        let bob = statement_for(8, BOB, 5, vec![binding(3)]);
+        let accepted = bob.accept(BOB, &sign(&bob, BOB_SECRET), &policy).unwrap();
+        assert_eq!(accepted.statement(), &bob);
+    }
+
+    #[test]
+    fn refuses_another_accounts_statement_before_any_hook_runs() {
+        // One issuer key for the whole tenant: the shape the hosted profile has.
+        let mut policy = policy();
+        policy.issuers = vec![(9, "", public_of(ALICE_SECRET))];
+        let bob = statement_for(9, BOB, 5, vec![binding(3)]);
+        let signature = sign(&bob, ALICE_SECRET);
+        assert!(bob.accept(BOB, &signature, &policy).is_ok());
+        policy.hook_calls.set(0);
+        assert_eq!(
+            bob.accept(ALICE, &signature, &policy),
+            Err(Error::WrongAccount)
+        );
+        assert_eq!(policy.hook_calls.get(), 0);
+        // Byte for byte, not case-folded.
+        assert_eq!(
+            bob.accept("ACME/BOB", &signature, &policy),
+            Err(Error::WrongAccount)
+        );
+    }
+
+    #[test]
+    fn refuses_an_issuer_the_policy_does_not_bind_to_the_account() {
+        let policy = policy();
+        let unknown_id = statement_for(99, ALICE, 2, vec![binding(1)]);
+        assert_eq!(
+            accept_alice(&unknown_id, &policy),
+            Err(Error::IssuerUnbound)
+        );
+        // Issuer 8 exists, but for another account.
+        let wrong_pair = statement_for(8, ALICE, 2, vec![binding(1)]);
+        assert_eq!(
+            accept_alice(&wrong_pair, &policy),
+            Err(Error::IssuerUnbound)
+        );
+    }
+
+    #[test]
+    fn refuses_a_bad_or_misattributed_signature() {
+        let policy = policy();
+        let statement = make_statement(vec![binding(1)]);
+        let good = sign(&statement, ALICE_SECRET);
+        assert!(statement.accept(ALICE, &good, &policy).is_ok());
+
+        let mut tampered = good;
+        tampered[10] ^= 1;
+        assert_eq!(
+            statement.accept(ALICE, &tampered, &policy),
+            Err(Error::Malformed)
+        );
+        // Signed by a key the policy does not hold for this issuer.
+        assert_eq!(
+            statement.accept(ALICE, &sign(&statement, BOB_SECRET), &policy),
+            Err(Error::Malformed)
+        );
+        // Statement changed after it was signed.
+        let mut changed = statement;
+        changed.inventory_generation = 3;
+        assert_eq!(changed.accept(ALICE, &good, &policy), Err(Error::Malformed));
+    }
+
+    #[test]
+    fn refuses_a_generation_the_policy_does_not_accept() {
+        let policy = policy();
+        assert_eq!(
+            accept_alice(&statement_for(7, ALICE, 3, vec![binding(1)]), &policy),
+            Err(Error::Stale)
+        );
+        assert_eq!(
+            accept_alice(&statement_for(7, ALICE, 1, vec![binding(1)]), &policy),
+            Err(Error::Stale)
+        );
+    }
+
+    #[test]
+    fn refuses_low_order_identity_keys_wherever_they_appear() {
+        let policy = policy();
+        for key in LOW_ORDER {
+            let active = make_statement(vec![keyed(1, key)]);
+            assert_eq!(
+                accept_alice(&active, &policy),
+                Err(Error::NonContributory),
+                "active {key:02x?}"
+            );
+            let revoked = with_revoked(make_statement(vec![binding(2)]), vec![keyed(1, key)]);
+            assert_eq!(
+                accept_alice(&revoked, &policy),
+                Err(Error::NonContributory),
+                "revoked {key:02x?}"
+            );
+        }
+    }
+
+    #[test]
+    fn refuses_non_canonical_identity_keys_wherever_they_appear() {
+        let policy = policy();
+        for key in non_canonical() {
+            let active = make_statement(vec![keyed(1, key)]);
+            assert_eq!(
+                accept_alice(&active, &policy),
+                Err(Error::NonCanonical),
+                "active {key:02x?}"
+            );
+            let revoked = with_revoked(make_statement(vec![binding(2)]), vec![keyed(1, key)]);
+            assert_eq!(
+                accept_alice(&revoked, &policy),
+                Err(Error::NonCanonical),
+                "revoked {key:02x?}"
+            );
+        }
+    }
+
+    #[test]
+    fn ordinary_keys_are_accepted_and_off_curve_keys_are_a_stated_limit() {
+        let policy = policy();
+        let mut base = [0u8; 32];
+        base[0] = 9;
+        assert!(accept_alice(&make_statement(vec![keyed(1, base)]), &policy).is_ok());
+        // u = 2 has no point on the curve (it is on the quadratic twist), so no
+        // honest device holds a private key for it. The format does not refuse
+        // it; the specification lists this as not checked.
+        let mut twist = [0u8; 32];
+        twist[0] = 2;
+        assert!(accept_alice(&make_statement(vec![keyed(1, twist)]), &policy).is_ok());
+    }
+
+    #[test]
+    fn refuses_two_active_bindings_with_one_device_id() {
+        let policy = policy();
+        let statement = make_statement(vec![keyed(1, [3; 32]), keyed(1, [4; 32])]);
+        assert_eq!(
+            accept_alice(&statement, &policy),
+            Err(Error::DuplicateDevice)
+        );
+        // The same device id may appear once active and once revoked: that is
+        // what replacing a device's key under its old id looks like.
+        let replaced = with_revoked(
+            make_statement(vec![keyed(1, [4; 32])]),
+            vec![keyed(1, [3; 32])],
+        );
+        assert!(accept_alice(&replaced, &policy).is_ok());
+    }
+
+    #[test]
+    fn binding_hook_is_told_the_account_and_each_bindings_status() {
+        let mut policy = policy();
+        let key = [3; 32];
+        policy.denied = Some((key, BindingStatus::Revoked));
+        let revoked = with_revoked(make_statement(vec![binding(2)]), vec![keyed(1, key)]);
+        assert_eq!(accept_alice(&revoked, &policy), Err(Error::Refused));
+        // The same key, active, is not what this policy denies.
+        assert!(accept_alice(&make_statement(vec![keyed(1, key)]), &policy).is_ok());
+
+        policy.denied = Some((key, BindingStatus::Active));
+        assert_eq!(
+            accept_alice(&make_statement(vec![keyed(1, key)]), &policy),
+            Err(Error::Refused)
+        );
+        assert!(accept_alice(&revoked, &policy).is_ok());
+    }
+
+    #[test]
+    fn statement_hook_expresses_the_rules_the_format_leaves_to_the_product() {
         let mut policy = policy();
         let statement = make_statement(vec![binding(1)]);
-        let signature = statement
-            .sign(&policy.secret, &mut rand_core::OsRng)
-            .unwrap();
+        policy.refuse_statement = true;
+        assert_eq!(accept_alice(&statement, &policy), Err(Error::Refused));
+        policy.refuse_statement = false;
+        assert!(accept_alice(&statement, &policy).is_ok());
 
-        policy.issuer_bound = false;
-        assert_eq!(
-            statement.validate_for(&signature, &policy),
-            Err(Error::Policy)
+        // Shapes the format accepts and a product may not want. With
+        // `require_unique_keys` each is refused; without it each is accepted.
+        let one_key_two_devices = make_statement(vec![keyed(1, [3; 32]), keyed(2, [3; 32])]);
+        let relinked_revoked_key = with_revoked(
+            make_statement(vec![keyed(2, [3; 32])]),
+            vec![keyed(1, [3; 32])],
         );
-
-        policy.issuer_bound = true;
-        policy.generation_current = false;
-        assert_eq!(
-            statement.validate_for(&signature, &policy),
-            Err(Error::Policy)
+        let no_op_replacement = with_revoked(
+            make_statement(vec![keyed(1, [3; 32])]),
+            vec![DeviceBinding {
+                replacement_predecessor: Some([0x55; 32]),
+                ..keyed(1, [3; 32])
+            }],
         );
-
-        let mut low_order = binding(1);
-        low_order.identity_public_key = [0; 32];
-        let statement = make_statement(vec![low_order]);
-        let signature = statement
-            .sign(&policy.secret, &mut rand_core::OsRng)
-            .unwrap();
-        policy.generation_current = true;
-        assert_eq!(
-            statement.validate_for(&signature, &policy),
-            Err(Error::NonContributory)
-        );
+        for shape in [one_key_two_devices, relinked_revoked_key, no_op_replacement] {
+            policy.require_unique_keys = false;
+            assert!(accept_alice(&shape, &policy).is_ok(), "{shape:?}");
+            policy.require_unique_keys = true;
+            assert_eq!(
+                accept_alice(&shape, &policy),
+                Err(Error::Refused),
+                "{shape:?}"
+            );
+        }
     }
 
     #[test]
-    fn policy_validation_refuses_duplicate_devices_and_orphan_replacements() {
-        let first = DeviceBinding {
-            device_id: 1,
-            identity_public_key: [3; 32],
-            capabilities: GROUP_EPOCH_V1,
-            replacement_predecessor: None,
-        };
-        let second = DeviceBinding {
-            device_id: 1,
-            identity_public_key: [4; 32],
-            capabilities: GROUP_EPOCH_V1,
-            replacement_predecessor: None,
-        };
+    fn replacement_predecessor_is_not_checked_against_the_revoked_list() {
         let policy = policy();
-        let statement = make_statement(vec![first, second]);
-        let signature = statement
-            .sign(&policy.secret, &mut rand_core::OsRng)
-            .unwrap();
-        assert_eq!(
-            statement.validate_for(&signature, &policy),
-            Err(Error::Policy)
-        );
-
-        let replacement = DeviceBinding {
-            device_id: 2,
-            identity_public_key: [5; 32],
-            capabilities: GROUP_EPOCH_V1,
-            replacement_predecessor: Some([0x55; 32]),
+        let old = keyed(1, [3; 32]);
+        let commitment = binding_commitment(&old).unwrap();
+        let replacement = |id| DeviceBinding {
+            replacement_predecessor: Some(commitment),
+            ..keyed(id, [4; 32])
         };
-        let statement = make_statement(vec![replacement]);
-        let signature = statement
-            .sign(&policy.secret, &mut rand_core::OsRng)
+
+        // The retired binding is still listed, under the same device id.
+        let listed = with_revoked(make_statement(vec![replacement(1)]), vec![old.clone()]);
+        assert!(accept_alice(&listed, &policy).is_ok());
+
+        // Under a new device id, which the lifecycle allows.
+        let new_id = with_revoked(make_statement(vec![replacement(2)]), vec![old.clone()]);
+        assert!(accept_alice(&new_id, &policy).is_ok());
+
+        // Its tombstone has been compacted away: revoked at generation 1, floor
+        // 2, statement at generation 5. The marker outlives the tombstone.
+        let mut policy = policy;
+        policy.current = vec![(ALICE, 5)];
+        let mut compacted = statement_for(7, ALICE, 5, vec![replacement(1)]);
+        compacted.revocation_floor_generation = 2;
+        assert!(accept_alice(&compacted, &policy).is_ok());
+    }
+
+    #[test]
+    fn accept_signed_takes_wire_bytes_end_to_end() {
+        let policy = policy();
+        let statement = make_statement(vec![binding(1)]);
+        let wire = statement
+            .encode_signed(&ALICE_SECRET, &mut rand_core::OsRng)
             .unwrap();
+        let accepted = InventoryStatement::accept_signed(&wire, ALICE, &policy).unwrap();
+        assert_eq!(accepted.statement(), &statement);
+
         assert_eq!(
-            statement.validate_for(&signature, &policy),
-            Err(Error::Policy)
+            InventoryStatement::accept_signed(&wire, BOB, &policy),
+            Err(Error::WrongAccount)
+        );
+        assert_eq!(
+            InventoryStatement::accept_signed(&wire[..40], ALICE, &policy),
+            Err(Error::Malformed)
+        );
+        let mut bad_signature = wire.clone();
+        *bad_signature.last_mut().unwrap() ^= 1;
+        assert_eq!(
+            InventoryStatement::accept_signed(&bad_signature, ALICE, &policy),
+            Err(Error::Malformed)
+        );
+        let mut bad_body = wire;
+        bad_body[0] ^= 1;
+        assert_eq!(
+            InventoryStatement::accept_signed(&bad_body, ALICE, &policy),
+            Err(Error::Malformed)
         );
     }
 }
