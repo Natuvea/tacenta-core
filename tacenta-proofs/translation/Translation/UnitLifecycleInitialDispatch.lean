@@ -12801,6 +12801,54 @@ structure GeneratedTripleRefusalConditions
         .error modelReason →
     tripleSendRefusalOfReal realReason = some modelReason
 
+/-! The success provider supplies the finite-store and serialization headroom
+    that cannot be recovered from the generated Triple call.  Its ciphertext
+    and initial-message clauses are indexed by the exact detailed model result
+    proved from that call below; it cannot choose a different Triple successor,
+    header or message key and return a preassembled route. -/
+structure GeneratedTripleSuccessConditions
+    (dh : DhView) (view : Model.Lifecycle.CodewordView)
+    (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)
+    (model : Model.Lifecycle.Session) (plaintext : Slice Std.U8)
+    (realEpoch : Std.U64) (sparseOutput : Option tacenta_spqr.Output) : Type where
+  derivedKeys : Tacenta.SessionUnitT1.DerivedKeysModel
+  room : model.triple.postQuantum.chains.length + 1 < Usize.max
+  chainBound : ∀ p ∈ model.triple.postQuantum.chains,
+    p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max
+  skippedBound : ∀ sk ∈ model.triple.postQuantum.skipped,
+    sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max
+  newBound : ∀ o : tacenta_spqr.Output, sparseOutput = some o →
+    o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max
+  epochBound : model.triple.postQuantum.epoch + 1 < Std.U64.max
+  counterBound : ∀ p ∈ model.triple.postQuantum.chains,
+    ∀ ch : Model.SparseRatchet.Chain,
+    (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max
+  associatedDataRoom : model.identityAd.length + 106 ≤ Usize.max
+  ciphertextRoom : ∀ modelCandidate modelHeader modelMk modelMessage,
+    Model.Triple.sendDetailed model.triple realEpoch.val
+        (sparseOutput.map Tacenta.SessionUnitTripleT3.spqrOutputOf) =
+        .ok (modelCandidate, modelHeader, modelMk) →
+    let keys := Model.State.messageKeys modelMk .tacenta
+    let ad := Model.Messages.concatAd model.identityAd
+      (Model.CompositeHeader.encode
+        (Model.Lifecycle.compositeOf view model.braid modelHeader modelMessage).get!)
+    102 + (oracle.aeadSeal keys.1 keys.2.1 keys.2.2
+      (sliceOf plaintext) ad).length ≤ Usize.max
+  initialRoom : ∀ pending modelCandidate modelHeader modelMk modelMessage,
+    real.pending_initial = some pending →
+    Model.Triple.sendDetailed model.triple realEpoch.val
+        (sparseOutput.map Tacenta.SessionUnitTripleT3.spqrOutputOf) =
+        .ok (modelCandidate, modelHeader, modelMk) →
+    let composite :=
+      (Model.Lifecycle.compositeOf view model.braid modelHeader modelMessage).get!
+    let keys := Model.State.messageKeys modelMk .tacenta
+    let ad := Model.Messages.concatAd model.identityAd
+      (Model.CompositeHeader.encode composite)
+    let ratchetMessage := Model.CompositeHeader.encodeMessage composite
+      (oracle.aeadSeal keys.1 keys.2.1 keys.2.2 (sliceOf plaintext) ad)
+    84 + (pendingInitialOf dh pending).kemCiphertext.length +
+      ratchetMessage.length ≤ Usize.max
+
 /-! Construct the complete refusal route from the exact generated Braid
     successor, exact sparse conversion and contract-backed Triple result. -/
 theorem encrypt_triple_refusal_evidence_of_generated
@@ -12856,6 +12904,88 @@ theorem encrypt_triple_refusal_evidence_of_generated
     braidEvidence.session braidEvidence.ready braidEvidence.realSend hsendCandidate
     braidEvidence.modelSend braidEvidence.next braidEvidence.notFailed hmodelOf
     conditions.reason braidEvidence.traceNext⟩
+
+/-! Construct either concrete Triple-success route from the exact generated
+    Braid successor, sparse conversion and Triple candidate.  The contract
+    theorem fixes the model successor/header/key; only the indexed headroom
+    facts remain supplied by the caller. -/
+theorem encrypt_triple_success_evidence_of_generated
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
+    {K : Model.Braid.Kem} {view : Model.Lifecycle.CodewordView}
+    {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
+    {model : Model.Lifecycle.Session} {plaintext : Slice Std.U8} {rng rngNext : R}
+    {output : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error ×
+      lifecycle.Session × R}
+    {realMessage : tacenta_braid.Msg} {realEpoch : Std.U64}
+    {realOutput : Option tacenta_braid.Output}
+    {realBraidNext : tacenta_braid.Braid}
+    {sparseOutput : Option tacenta_spqr.Output}
+    {candidate : tacenta_triple.State} {header : tacenta_triple.Header}
+    {mk : Array Std.U8 32#usize}
+    (contracts : TripleSendRefinementContracts)
+    (conditions : GeneratedTripleSuccessConditions dh view oracle real model plaintext
+      realEpoch sparseOutput)
+    (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output)
+    (hnext : tacenta_braid.Braid.failed realBraidNext = ok false)
+    (hsparse : RealSparseConversion realOutput sparseOutput)
+    (hsendCandidate : lifecycle.send_candidate real.triple realEpoch sparseOutput =
+      ok (candidate, .Ok (header, mk)))
+    (braidEvidence : Nonempty (GeneratedBraidSuccessEvidence rc crc trace dh K oracle
+      real model rng realMessage realEpoch realOutput realBraidNext rngNext)) :
+    Nonempty (EncryptEvidenceForGeneratedPrefix (trace := trace) (dh := dh) (kem := kem)
+      (K := K) (view := view) (oracle := oracle) (model := model)
+      (realMessage := realMessage) (rngNext := rngNext)
+      (.tripleSuccess hnext hsparse hsendCandidate houtput)) := by
+  letI : Tacenta.SessionUnitT1.DerivedKeysModel := conditions.derivedKeys
+  obtain ⟨braidEvidence⟩ := braidEvidence
+  have hmodelOutput := sparse_output_of_conversion braidEvidence.output hsparse
+  obtain ⟨modelCandidate, modelHeader, modelMk, htripleAtRealEpoch,
+      htripleNext, hheader, hmk⟩ :=
+    triple_success_evidence_of_exact_candidate_and_contracts contracts
+      braidEvidence.session.triple realEpoch sparseOutput conditions.room
+      conditions.chainBound conditions.skippedBound conditions.newBound
+      conditions.epochBound conditions.counterBound hsendCandidate
+  have htripleModel : Model.Triple.sendDetailed model.triple braidEvidence.modelEpoch
+      (Model.Lifecycle.sparseOutputOf braidEvidence.modelOutput) =
+        .ok (modelCandidate, modelHeader, modelMk) := by
+    rw [← braidEvidence.epoch, hmodelOutput]
+    exact htripleAtRealEpoch
+  have hmk' : arrayOf mk = modelMk := by
+    change mk.val.map Tacenta.SessionUnitBraidT3.u8 = modelMk
+    change mk.val.map Tacenta.SessionUnitTripleT3.u8 = modelMk at hmk
+    have hu8 : Tacenta.SessionUnitBraidT3.u8 = Tacenta.SessionUnitTripleT3.u8 := by
+      funext byte
+      rfl
+    rw [hu8]
+    exact hmk
+  cases hpending : real.pending_initial with
+  | none =>
+      exact ⟨.successNoInitial contracts conditions.room conditions.chainBound
+        conditions.skippedBound conditions.newBound conditions.epochBound
+        conditions.counterBound hsparse braidEvidence.session braidEvidence.ready
+        braidEvidence.realSend hsendCandidate braidEvidence.modelSend braidEvidence.message
+        braidEvidence.next braidEvidence.notFailed braidEvidence.epoch hmodelOutput
+        htripleModel htripleNext hheader hmk' hpending braidEvidence.traceNext
+        conditions.associatedDataRoom
+        (conditions.ciphertextRoom modelCandidate modelHeader modelMk
+          braidEvidence.modelMessage htripleAtRealEpoch)⟩
+  | some pending =>
+      exact ⟨.successInitial contracts conditions.room conditions.chainBound
+        conditions.skippedBound conditions.newBound conditions.epochBound
+        conditions.counterBound hsparse braidEvidence.session braidEvidence.ready
+        braidEvidence.realSend hsendCandidate braidEvidence.modelSend braidEvidence.message
+        braidEvidence.next braidEvidence.notFailed braidEvidence.epoch hmodelOutput
+        htripleModel htripleNext hheader hmk' hpending braidEvidence.traceNext
+        hz80 hz32 hzKeys conditions.associatedDataRoom
+        (conditions.ciphertextRoom modelCandidate modelHeader modelMk
+          braidEvidence.modelMessage htripleAtRealEpoch)
+        (conditions.initialRoom pending modelCandidate modelHeader modelMk
+          braidEvidence.modelMessage hpending htripleAtRealEpoch)⟩
 
 def encrypt_braid_failure_evidence_of_generated
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -12916,10 +13046,8 @@ structure EncryptNonterminalRouteProviders
       ok (candidate, .Ok (header, mk))) →
     Nonempty (GeneratedBraidSuccessEvidence rc crc trace dh K oracle real model rng
       realMessage realEpoch realOutput realBraidNext rngNext) →
-    EncryptEvidenceForGeneratedPrefix (trace := trace) (dh := dh) (kem := kem)
-      (K := K) (view := view) (oracle := oracle) (model := model)
-      (realMessage := realMessage) (rngNext := rngNext)
-      (.tripleSuccess hnext hsparse hsendCandidate houtput)
+    GeneratedTripleSuccessConditions dh view oracle real model plaintext
+      realEpoch sparseOutput
 
 theorem public_session_encrypt_of_send_contracts
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -12980,9 +13108,14 @@ theorem public_session_encrypt_of_send_contracts
           hgeneratedOutput =>
           let braidEvidence := braid_success_evidence_of_generated braid braidTrace hrel htrace
             hfailed hsend hnext
+          let conditions := providers.success output realMessage realEpoch realOutput
+            realBraidNext rngNext sparseOutput candidate header mk hgeneratedOutput hnext hsparse
+            hsendCandidate braidEvidence
+          let tripleEvidence := encrypt_triple_success_evidence_of_generated
+            (kem := kem) triple conditions hz80 hz32 hzKeys hgeneratedOutput hnext hsparse
+            hsendCandidate braidEvidence
+          obtain ⟨tripleEvidence⟩ := tripleEvidence
           exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
-            (.triple (providers.success output realMessage realEpoch realOutput
-              realBraidNext rngNext sparseOutput candidate header mk hgeneratedOutput hnext hsparse
-              hsendCandidate braidEvidence))
+            (.triple tripleEvidence)
 
 end Tacenta.UnitLifecycleT3

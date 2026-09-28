@@ -74,7 +74,25 @@ def main():
          '      EncryptTripleRouteEvidence rc crc trace dh kem K view oracle real model plaintext rng',
          '  | .tripleSuccess _ _ _ _ =>\n'
          '      EncryptRouteEvidence rc crc trace dh K view oracle real model plaintext rng',
-         'providers.success'),
+         'tripleEvidence'),
+        ('restore-preassembled-triple-success-provider',
+         '    GeneratedTripleSuccessConditions dh view oracle real model plaintext\n'
+         '      realEpoch sparseOutput',
+         '    EncryptEvidenceForGeneratedPrefix (trace := trace) (dh := dh) (kem := kem)\n'
+         '      (K := K) (view := view) (oracle := oracle) (model := model)\n'
+         '      (realMessage := realMessage) (rngNext := rngNext)\n'
+         '      (.tripleSuccess hnext hsparse hsendCandidate houtput)',
+         'conditions'),
+        ('invert-encrypt-triple-success-sparse-bridge',
+         'braidEvidence.epoch hmodelOutput\n'
+         '        htripleModel htripleNext hheader hmk\' hpending',
+         'braidEvidence.epoch hmodelOutput.symm\n'
+         '        htripleModel htripleNext hheader hmk\' hpending',
+         'hmodelOutput'),
+        ('replace-encrypt-triple-success-exact-result',
+         'braidEvidence.modelMessage htripleAtRealEpoch)',
+         'braidEvidence.modelMessage htripleModel)',
+         'htripleModel'),
         ('invert-encrypt-generated-braid-ready',
          'ready : Model.Lifecycle.agreementFailed model = false',
          'ready : Model.Lifecycle.agreementFailed model = true',
@@ -138,7 +156,8 @@ def main():
                 if start < 0 or target < 0:
                     raise SystemExit(f'Target changed for {name}: named discharge premise is missing')
                 mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
-            elif name.startswith('invert-encrypt-'):
+            elif (name.startswith('invert-encrypt-') and
+                  name != 'invert-encrypt-triple-success-sparse-bridge'):
                 markers = {
                     'invert-encrypt-generated-braid-ready':
                         'structure GeneratedBraidSuccessEvidence',
@@ -158,6 +177,28 @@ def main():
                 target = source.find(before, start)
                 if start < 0 or target < 0:
                     raise SystemExit(f'Target changed for {name}: named provider guard is missing')
+                mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
+            elif name in {
+                'restore-preassembled-triple-success-provider',
+                'replace-encrypt-triple-success-exact-result',
+            }:
+                marker = {
+                    'restore-preassembled-triple-success-provider':
+                        'structure EncryptNonterminalRouteProviders',
+                    'replace-encrypt-triple-success-exact-result':
+                        'theorem encrypt_triple_success_evidence_of_generated',
+                }[name]
+                start = source.find(marker)
+                target = source.find(before, start)
+                if start < 0 or target < 0:
+                    raise SystemExit(f'Target changed for {name}: generated success bridge is missing')
+                mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
+            elif name == 'invert-encrypt-triple-success-sparse-bridge':
+                marker = 'theorem encrypt_triple_success_evidence_of_generated'
+                start = source.find(marker)
+                target = source.find(before, start)
+                if start < 0 or target < 0:
+                    raise SystemExit(f'Target changed for {name}: sparse bridge use is missing')
                 mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
             else:
                 if source.count(before) != 1:
@@ -202,6 +243,19 @@ def main():
                     r'but is expected to have type\s+'
                     r'SessionUnitBraidT3\.OptionOutputRefines realOutput braidEvidence\.modelOutput',
                     output, re.S)
+            elif name == 'restore-preassembled-triple-success-provider':
+                mismatch = re.search(
+                    r'error: Application type mismatch: The argument\s+conditions.+?has type\s+'
+                    r'.+?EncryptEvidenceForGeneratedPrefix.+?but is expected to have type\s+'
+                    r'.+?GeneratedTripleSuccessConditions', output, re.S)
+            elif name == 'invert-encrypt-triple-success-sparse-bridge':
+                mismatch = re.search(
+                    r'error: Application type mismatch: The argument\s+Eq\.symm hmodelOutput.+?has type\s+'
+                    r'.+?but is expected to have type', output, re.S)
+            elif name == 'replace-encrypt-triple-success-exact-result':
+                mismatch = re.search(
+                    r'error: Application type mismatch: The argument\s+htripleModel.+?has type\s+'
+                    r'.+?but is expected to have type', output, re.S)
             else:
                 mismatch = re.search(
                     r'error: Application type mismatch: The argument\s+' + premise +
