@@ -63,28 +63,32 @@ def main():
          '      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →\n'
          '      Model.Lifecycle.random32 oracle = none → False',
          'evidence.randomDraw input'),
-        ('flatten-encrypt-generated-family',
+        ('flatten-encrypt-generated-refusal-family',
          '  | .tripleRefusal _ _ _ _ =>\n'
          '      EncryptTripleRouteEvidence rc crc trace dh kem K view oracle real model plaintext rng',
          '  | .tripleRefusal _ _ _ _ =>\n'
          '      EncryptRouteEvidence rc crc trace dh K view oracle real model plaintext rng',
-         'providers.noDrawRefusal'),
-        ('invert-encrypt-no-draw-refusal-provider',
-         'Model.Lifecycle.braidSendNeedsDraw model.braid = false',
-         'Model.Lifecycle.braidSendNeedsDraw model.braid = true',
-         'hdraw'),
-        ('invert-encrypt-draw-refusal-provider',
-         'Model.Lifecycle.braidSendNeedsDraw model.braid = true',
-         'Model.Lifecycle.braidSendNeedsDraw model.braid = false',
-         'hdraw'),
-        ('invert-encrypt-no-draw-success-provider',
-         'Model.Lifecycle.braidSendNeedsDraw model.braid = false',
-         'Model.Lifecycle.braidSendNeedsDraw model.braid = true',
-         'hdraw'),
-        ('invert-encrypt-draw-success-provider',
-         'Model.Lifecycle.braidSendNeedsDraw model.braid = true',
-         'Model.Lifecycle.braidSendNeedsDraw model.braid = false',
-         'hdraw'),
+         'providers.refusal'),
+        ('flatten-encrypt-generated-success-family',
+         '  | .tripleSuccess _ _ _ _ =>\n'
+         '      EncryptTripleRouteEvidence rc crc trace dh kem K view oracle real model plaintext rng',
+         '  | .tripleSuccess _ _ _ _ =>\n'
+         '      EncryptRouteEvidence rc crc trace dh K view oracle real model plaintext rng',
+         'providers.success'),
+        ('invert-encrypt-generated-braid-ready',
+         'ready : Model.Lifecycle.agreementFailed model = false',
+         'ready : Model.Lifecycle.agreementFailed model = true',
+         'hready'),
+        ('invert-encrypt-generated-braid-real-send',
+         'realSend : tacenta_braid.Braid.send rc crc real.braid rng =\n'
+         '    ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext)',
+         'realSend : ok ((realMessage, realEpoch, realOutput, realBraidNext), rngNext) =\n'
+         '    tacenta_braid.Braid.send rc crc real.braid rng',
+         'hsend'),
+        ('invert-encrypt-generated-braid-not-failed',
+         'notFailed : Model.Lifecycle.braidFailed modelBraidNext = false',
+         'notFailed : Model.Lifecycle.braidFailed modelBraidNext = true',
+         'braidFailed'),
         ('invert-encrypt-braid-no-draw-trace',
          'Model.Lifecycle.braidSendNeedsDraw model.braid = false',
          'Model.Lifecycle.braidSendNeedsDraw model.braid = true',
@@ -128,10 +132,12 @@ def main():
                 mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
             elif name.startswith('invert-encrypt-'):
                 markers = {
-                    'invert-encrypt-no-draw-refusal-provider': '  noDrawRefusal :',
-                    'invert-encrypt-draw-refusal-provider': '  drawRefusal :',
-                    'invert-encrypt-no-draw-success-provider': '  noDrawSuccess :',
-                    'invert-encrypt-draw-success-provider': '  drawSuccess :',
+                    'invert-encrypt-generated-braid-ready':
+                        'structure GeneratedBraidSuccessEvidence',
+                    'invert-encrypt-generated-braid-real-send':
+                        'structure GeneratedBraidSuccessEvidence',
+                    'invert-encrypt-generated-braid-not-failed':
+                        'structure GeneratedBraidSuccessEvidence',
                     'invert-encrypt-braid-no-draw-trace': '  noDrawTrace :',
                     'invert-encrypt-braid-draw-trace': '  drawTrace :',
                     'invert-encrypt-braid-draw-post': '  drawPost :',
@@ -147,12 +153,30 @@ def main():
                 mutated.write_text(source.replace(before, after, 1))
             log = logs / f'{name}.log'
             status, output = run_lean(mutated, log, args.timeout)
-            if name == 'flatten-encrypt-generated-family':
+            if name.startswith('flatten-encrypt-generated-'):
                 mismatch = re.search(
                     r'error: Application type mismatch: The argument\s+'
-                    r'providers\.noDrawRefusal.+?has type\s+'
+                    + re.escape(premise) + r'.+?has type\s+'
                     r'EncryptEvidenceForGeneratedPrefix.+?but is expected to have type\s+'
                     r'EncryptTripleRouteEvidence', output, re.S)
+            elif name == 'invert-encrypt-generated-braid-ready':
+                mismatch = re.search(
+                    r'error: Type mismatch\s+hready\s+has type\s+'
+                    r'Model\.Lifecycle\.agreementFailed model = false\s+'
+                    r'but is expected to have type\s+'
+                    r'Model\.Lifecycle\.agreementFailed model = true', output, re.S)
+            elif name == 'invert-encrypt-generated-braid-real-send':
+                mismatch = re.search(
+                    r'error: Type mismatch\s+hsend\s+has type\s+'
+                    r'tacenta_braid\.Braid\.send.+?= ok.+?'
+                    r'but is expected to have type\s+ok.+?= tacenta_braid\.Braid\.send',
+                    output, re.S)
+            elif name == 'invert-encrypt-generated-braid-not-failed':
+                mismatch = re.search(
+                    r'error: Type mismatch.+?has type\s+'
+                    r'Model\.Lifecycle\.braidFailed modelBraidNext = false.+?'
+                    r'but is expected to have type\s+'
+                    r'Model\.Lifecycle\.braidFailed modelBraidNext = true', output, re.S)
             else:
                 mismatch = re.search(
                     r'error: Application type mismatch: The argument\s+' + premise +
