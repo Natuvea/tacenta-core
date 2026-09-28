@@ -4053,6 +4053,43 @@ inductive RealSparseConversion (output : Option tacenta_braid.Output) :
       (hconverted : tacenta_spqr.Output.new realOutput.key_epoch realOutput.key =
         ok sparseOutput) : RealSparseConversion output (some sparseOutput)
 
+/-! A concrete Braid-to-sparse conversion preserves exactly the model output
+    already fixed by `OptionOutputRefines`.  This closes the small but
+    important gap between the generated conversion call and the Triple
+    model's input: a later route provider cannot choose a different sparse
+    output for the same generated Braid result. -/
+theorem sparse_output_of_conversion
+    {realOutput : Option tacenta_braid.Output}
+    {sparseOutput : Option tacenta_spqr.Output}
+    {modelOutput : Option Model.Braid.Output}
+    (hout : Tacenta.SessionUnitBraidT3.OptionOutputRefines realOutput modelOutput)
+    (hsparse : RealSparseConversion realOutput sparseOutput) :
+    Model.Lifecycle.sparseOutputOf modelOutput =
+      sparseOutput.map Tacenta.SessionUnitTripleT3.spqrOutputOf := by
+  cases hsparse with
+  | none hnone =>
+      subst realOutput
+      cases modelOutput <;>
+        simp [Tacenta.SessionUnitBraidT3.OptionOutputRefines,
+          Model.Lifecycle.sparseOutputOf] at hout ⊢
+  | some real converted hsome hconverted =>
+      subst realOutput
+      cases modelOutput with
+      | none =>
+          simp [Tacenta.SessionUnitBraidT3.OptionOutputRefines] at hout
+      | some model =>
+          have hconverted' : converted =
+              { key_epoch := real.key_epoch, key := real.key } := by
+            exact Result.ok.inj (hconverted.symm.trans (by
+              simp [tacenta_spqr.Output.new]))
+          subst converted
+          rcases hout with ⟨hepoch, hkey⟩
+          simp [Model.Lifecycle.sparseOutputOf,
+            Tacenta.SessionUnitTripleT3.spqrOutputOf,
+            Tacenta.SessionUnitBraidT3.keyOf,
+            Tacenta.SessionUnitTripleT3.keyOf] at hkey ⊢
+          exact ⟨hepoch.symm, hkey.symm⟩
+
 theorem real_triple_refusal_of_exact_candidate
     {state : tacenta_triple.State} {epoch : Std.U64}
     {output : Option tacenta_braid.Output} {sparseOutput : Option tacenta_spqr.Output}

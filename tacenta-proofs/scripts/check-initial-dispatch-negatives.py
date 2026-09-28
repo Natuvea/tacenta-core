@@ -68,7 +68,7 @@ def main():
          '      EncryptTripleRouteEvidence rc crc trace dh kem K view oracle real model plaintext rng',
          '  | .tripleRefusal _ _ _ _ =>\n'
          '      EncryptRouteEvidence rc crc trace dh K view oracle real model plaintext rng',
-         'providers.refusal'),
+         'tripleEvidence'),
         ('flatten-encrypt-generated-success-family',
          '  | .tripleSuccess _ _ _ _ =>\n'
          '      EncryptTripleRouteEvidence rc crc trace dh kem K view oracle real model plaintext rng',
@@ -89,6 +89,14 @@ def main():
          'notFailed : Model.Lifecycle.braidFailed modelBraidNext = false',
          'notFailed : Model.Lifecycle.braidFailed modelBraidNext = true',
          'braidFailed'),
+        ('shift-encrypt-generated-braid-epoch',
+         'epoch : realEpoch.val = modelEpoch',
+         'epoch : realEpoch.val + 1 = modelEpoch',
+         'braidEvidence.epoch'),
+        ('replace-encrypt-generated-braid-output',
+         'output : Tacenta.SessionUnitBraidT3.OptionOutputRefines realOutput modelOutput',
+         'output : realOutput = none ∧ modelOutput = none',
+         'braidEvidence.output'),
         ('invert-encrypt-braid-no-draw-trace',
          'Model.Lifecycle.braidSendNeedsDraw model.braid = false',
          'Model.Lifecycle.braidSendNeedsDraw model.braid = true',
@@ -138,6 +146,10 @@ def main():
                         'structure GeneratedBraidSuccessEvidence',
                     'invert-encrypt-generated-braid-not-failed':
                         'structure GeneratedBraidSuccessEvidence',
+                    'shift-encrypt-generated-braid-epoch':
+                        'structure GeneratedBraidSuccessEvidence',
+                    'replace-encrypt-generated-braid-output':
+                        'structure GeneratedBraidSuccessEvidence',
                     'invert-encrypt-braid-no-draw-trace': '  noDrawTrace :',
                     'invert-encrypt-braid-draw-trace': '  drawTrace :',
                     'invert-encrypt-braid-draw-post': '  drawPost :',
@@ -157,8 +169,8 @@ def main():
                 mismatch = re.search(
                     r'error: Application type mismatch: The argument\s+'
                     + re.escape(premise) + r'.+?has type\s+'
-                    r'EncryptEvidenceForGeneratedPrefix.+?but is expected to have type\s+'
-                    r'EncryptTripleRouteEvidence', output, re.S)
+                    r'.+?EncryptEvidenceForGeneratedPrefix.+?but is expected to have type\s+'
+                    r'.+?EncryptTripleRouteEvidence', output, re.S)
             elif name == 'invert-encrypt-generated-braid-ready':
                 mismatch = re.search(
                     r'error: Type mismatch\s+hready\s+has type\s+'
@@ -177,6 +189,19 @@ def main():
                     r'Model\.Lifecycle\.braidFailed modelBraidNext = false.+?'
                     r'but is expected to have type\s+'
                     r'Model\.Lifecycle\.braidFailed modelBraidNext = true', output, re.S)
+            elif name == 'shift-encrypt-generated-braid-epoch':
+                mismatch = re.search(
+                    r'error: Type mismatch\s+braidEvidence\.epoch\s+has type\s+'
+                    r'.+?\+ 1 = braidEvidence\.modelEpoch\s+'
+                    r'but is expected to have type\s+'
+                    r'.+?= braidEvidence\.modelEpoch', output, re.S)
+            elif name == 'replace-encrypt-generated-braid-output':
+                mismatch = re.search(
+                    r'error: Type mismatch\s+braidEvidence\.output\s+has type\s+'
+                    r'realOutput = none ∧ braidEvidence\.modelOutput = none\s+'
+                    r'but is expected to have type\s+'
+                    r'SessionUnitBraidT3\.OptionOutputRefines realOutput braidEvidence\.modelOutput',
+                    output, re.S)
             else:
                 mismatch = re.search(
                     r'error: Application type mismatch: The argument\s+' + premise +
