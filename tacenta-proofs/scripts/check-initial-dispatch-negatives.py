@@ -64,42 +64,38 @@ def main():
          '      Model.Lifecycle.random32 oracle = none → False',
          'evidence.randomDraw input'),
         ('flatten-encrypt-generated-family',
-         '  | .braidFailed _ _ =>\n'
-         '      EncryptRouteEvidence rc crc trace dh K view oracle real model plaintext rng',
-         '  | .braidFailed _ _ =>\n'
+         '  | .tripleRefusal _ _ _ _ =>\n'
          '      EncryptTripleRouteEvidence rc crc trace dh kem K view oracle real model plaintext rng',
-         'providers.noDraw'),
-        ('invert-encrypt-no-draw-provider',
-         '    Model.Lifecycle.agreementFailed model = false →\n'
-         '    Model.Lifecycle.braidSendNeedsDraw model.braid = false →\n'
-         '    (generated : EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output\n'
-         '      realMessage realEpoch realOutput realBraidNext rngNext) →\n'
-         '    EncryptEvidenceForGeneratedPrefix (trace := trace) (dh := dh) (kem := kem)\n'
-         '      (K := K) (view := view) (oracle := oracle) (model := model) generated\n'
-         '  draw :',
-         '    Model.Lifecycle.agreementFailed model = false →\n'
-         '    Model.Lifecycle.braidSendNeedsDraw model.braid = true →\n'
-         '    (generated : EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output\n'
-         '      realMessage realEpoch realOutput realBraidNext rngNext) →\n'
-         '    EncryptEvidenceForGeneratedPrefix (trace := trace) (dh := dh) (kem := kem)\n'
-         '      (K := K) (view := view) (oracle := oracle) (model := model) generated\n'
-         '  draw :',
+         '  | .tripleRefusal _ _ _ _ =>\n'
+         '      EncryptRouteEvidence rc crc trace dh K view oracle real model plaintext rng',
+         'providers.noDrawRefusal'),
+        ('invert-encrypt-no-draw-refusal-provider',
+         'Model.Lifecycle.braidSendNeedsDraw model.braid = false',
+         'Model.Lifecycle.braidSendNeedsDraw model.braid = true',
          'hdraw'),
-        ('invert-encrypt-draw-provider',
-         '    Model.Lifecycle.agreementFailed model = false →\n'
-         '    Model.Lifecycle.braidSendNeedsDraw model.braid = true →\n'
-         '    (generated : EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output\n'
-         '      realMessage realEpoch realOutput realBraidNext rngNext) →\n'
-         '    EncryptEvidenceForGeneratedPrefix (trace := trace) (dh := dh) (kem := kem)\n'
-         '      (K := K) (view := view) (oracle := oracle) (model := model) generated\n\n'
-         'theorem public_session_encrypt_of_send_contracts',
-         '    Model.Lifecycle.agreementFailed model = false →\n'
-         '    Model.Lifecycle.braidSendNeedsDraw model.braid = false →\n'
-         '    (generated : EncryptGeneratedNonterminalPrefix rc crc real plaintext rng output\n'
-         '      realMessage realEpoch realOutput realBraidNext rngNext) →\n'
-         '    EncryptEvidenceForGeneratedPrefix (trace := trace) (dh := dh) (kem := kem)\n'
-         '      (K := K) (view := view) (oracle := oracle) (model := model) generated\n\n'
-         'theorem public_session_encrypt_of_send_contracts',
+        ('invert-encrypt-draw-refusal-provider',
+         'Model.Lifecycle.braidSendNeedsDraw model.braid = true',
+         'Model.Lifecycle.braidSendNeedsDraw model.braid = false',
+         'hdraw'),
+        ('invert-encrypt-no-draw-success-provider',
+         'Model.Lifecycle.braidSendNeedsDraw model.braid = false',
+         'Model.Lifecycle.braidSendNeedsDraw model.braid = true',
+         'hdraw'),
+        ('invert-encrypt-draw-success-provider',
+         'Model.Lifecycle.braidSendNeedsDraw model.braid = true',
+         'Model.Lifecycle.braidSendNeedsDraw model.braid = false',
+         'hdraw'),
+        ('invert-encrypt-braid-no-draw-trace',
+         'Model.Lifecycle.braidSendNeedsDraw model.braid = false',
+         'Model.Lifecycle.braidSendNeedsDraw model.braid = true',
+         'hdraw'),
+        ('invert-encrypt-braid-draw-trace',
+         'Model.Lifecycle.braidSendNeedsDraw model.braid = true',
+         'Model.Lifecycle.braidSendNeedsDraw model.braid = false',
+         'hdraw'),
+        ('invert-encrypt-braid-draw-post',
+         'Model.Lifecycle.braidSendNeedsDraw model.braid = true',
+         'Model.Lifecycle.braidSendNeedsDraw model.braid = false',
          'hdraw'),
     ]
     with tempfile.TemporaryDirectory(prefix='initial-dispatch-controls-') as tmp:
@@ -130,6 +126,21 @@ def main():
                 if start < 0 or target < 0:
                     raise SystemExit(f'Target changed for {name}: named discharge premise is missing')
                 mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
+            elif name.startswith('invert-encrypt-'):
+                markers = {
+                    'invert-encrypt-no-draw-refusal-provider': '  noDrawRefusal :',
+                    'invert-encrypt-draw-refusal-provider': '  drawRefusal :',
+                    'invert-encrypt-no-draw-success-provider': '  noDrawSuccess :',
+                    'invert-encrypt-draw-success-provider': '  drawSuccess :',
+                    'invert-encrypt-braid-no-draw-trace': '  noDrawTrace :',
+                    'invert-encrypt-braid-draw-trace': '  drawTrace :',
+                    'invert-encrypt-braid-draw-post': '  drawPost :',
+                }
+                start = source.find(markers[name])
+                target = source.find(before, start)
+                if start < 0 or target < 0:
+                    raise SystemExit(f'Target changed for {name}: named provider guard is missing')
+                mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
             else:
                 if source.count(before) != 1:
                     raise SystemExit(f'Target changed for {name}: expected 1 occurrence')
@@ -139,9 +150,9 @@ def main():
             if name == 'flatten-encrypt-generated-family':
                 mismatch = re.search(
                     r'error: Application type mismatch: The argument\s+'
-                    r'providers\.noDraw.+?has type\s+'
+                    r'providers\.noDrawRefusal.+?has type\s+'
                     r'EncryptEvidenceForGeneratedPrefix.+?but is expected to have type\s+'
-                    r'EncryptRouteEvidence', output, re.S)
+                    r'EncryptTripleRouteEvidence', output, re.S)
             else:
                 mismatch = re.search(
                     r'error: Application type mismatch: The argument\s+' + premise +
