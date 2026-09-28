@@ -332,9 +332,35 @@ out the model ceiling while remaining compatible with the translated total-RNG
 contract; it does not impose an impossible global descent on every RNG state.
 
 All three leaves elaborate against the exact generated source. The negative
-suite now contains 27 proof-dependency mutations, including removal or
-replacement of the first-DH, second-DH-draw, and ceiling-random-success facts;
-all 27 are rejected. These leaves have not yet replaced the public
-cross-family record. Triple and AEAD refusal contradictions, followed by the
-opposite Rust-refusal/model-success direction, remain before the public result
-split is closed.
+suite now contains 30 proof-dependency mutations. It includes removal or
+replacement of the first-DH, second-DH-draw, and ceiling trace-head facts, plus
+the three exact positive-receive dependencies described below; all 30 are
+rejected. These leaves have not yet replaced the public cross-family record.
+Triple and AEAD refusal contradictions, followed by the opposite
+Rust-refusal/model-success direction, remain before the public result split is
+closed.
+
+## Checkpoint — 2026-09-28 (exact positive receive prefix)
+
+The success-side model evidence is now staged at the boundary the generated
+code actually reaches. `InitialRatchetModelPositivePrefix` stops after model
+decode, both DH agreements, and the ordered random draw. It contains neither a
+Triple result nor an AEAD outcome. Only after the exact generated
+`decrypt_ratchet = Ok` result has supplied its `InitialRatchetSuccessPrefix`
+may `InitialRatchetExactSuccessReceiveProvider` return a model Triple
+candidate and message key indexed by that same prefix.
+
+The direct Triple arm is constructed from the discharged classical and sparse
+leaf contracts. The model receive result and aligned direct branch are
+therefore consequences of the raw generated `receive_attempt`, rather than a
+caller-selected candidate. Three dependency controls reject a preassembled
+existential provider, replacement of the exact generated message key, and use
+of the outer `receive_with_eviction` result where the raw direct attempt is
+required.
+
+The focused 1,733-job build passes. This checkpoint does not yet supply the
+full-store retry arm. The missing sound leaf is failure-side Triple alignment:
+the current Triple T3 theorem relates successful receives but cannot yet turn
+a concrete full-store refusal into the exact model `receiveDetailed` refusal
+that starts the bounded retry. That leaf and the coupled retry-loop refinement
+must be proved before this provider can replace the public success callback.

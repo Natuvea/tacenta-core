@@ -91,6 +91,24 @@ def main():
          '      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →\n'
          '      Model.Lifecycle.random32 oracle = none → False',
          'evidence.randomDraw'),
+        ('restore-preassembled-positive-receive-provider',
+         '  receive : ∀ successPrefix : InitialRatchetSuccessPrefix rc crc real message\n'
+         '      rng rngNext plaintext next,\n'
+         '    Nonempty (InitialRatchetExactSuccessReceiveEvidence successPrefix modelPrefix)',
+         '  receive : Nonempty (Sigma fun successPrefix : InitialRatchetSuccessPrefix rc crc real message\n'
+         '      rng rngNext plaintext next =>\n'
+         '    InitialRatchetExactSuccessReceiveEvidence successPrefix modelPrefix)',
+         'provider.receive'),
+        ('replace-positive-receive-real-key',
+         '    (successPrefix.realTripleCandidate, successPrefix.realMk)\n'
+         '    (modelTripleCandidate, modelMk)',
+         '    (successPrefix.realTripleCandidate, successPrefix.recvSecret)\n'
+         '    (modelTripleCandidate, modelMk)',
+         'successPrefix.realMk'),
+        ('replace-direct-attempt-with-outer-result',
+         '  have hrealDirect := initial_ratchet_success_prefix_direct_receive successPrefix hAttempt',
+         '  have hrealDirect := initial_ratchet_success_prefix_direct_receive successPrefix successPrefix.htriple',
+         'successPrefix.htriple'),
         ('flatten-encrypt-generated-refusal-family',
          '  | .tripleRefusal _ _ _ _ =>\n'
          '      EncryptTripleRouteEvidence rc crc trace dh kem K view oracle real model plaintext rng',
@@ -239,6 +257,25 @@ def main():
                 if start < 0 or target < 0:
                     raise SystemExit(f'Target changed for {name}: sparse bridge use is missing')
                 mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
+            elif name in {
+                'restore-preassembled-positive-receive-provider',
+                'replace-positive-receive-real-key',
+                'replace-direct-attempt-with-outer-result',
+            }:
+                marker = {
+                    'restore-preassembled-positive-receive-provider':
+                        'structure InitialRatchetExactSuccessReceiveProvider',
+                    'replace-positive-receive-real-key':
+                        'structure InitialRatchetExactSuccessReceiveEvidence',
+                    'replace-direct-attempt-with-outer-result':
+                        'theorem initial_ratchet_exact_success_receive_of_direct_contracts',
+                }[name]
+                start = source.find(marker)
+                target = source.find(before, start)
+                if start < 0 or target < 0:
+                    raise SystemExit(
+                        f'Target changed for {name}: exact receive dependency is missing')
+                mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
             else:
                 if source.count(before) != 1:
                     raise SystemExit(f'Target changed for {name}: expected 1 occurrence')
@@ -306,6 +343,16 @@ def main():
                     r'error: Application type mismatch: The last\s+htrace\s+'
                     r'argument has type\s+.+?but is expected to have type',
                     output, re.S)
+            elif name == 'restore-preassembled-positive-receive-provider':
+                mismatch = re.search(
+                    r'error: Function expected at\s+provider\.receive.+?'
+                    r'but this term has type\s+.+?Nonempty', output, re.S)
+            elif name == 'replace-positive-receive-real-key':
+                mismatch = re.search(
+                    r'error: Type mismatch.+?'
+                    r'initial_ratchet_success_branch_of_aligned_case.+?'
+                    r'successPrefix\.realMk.+?but is expected to have type.+?'
+                    r'successPrefix\.recvSecret', output, re.S)
             elif name == 'replace-encrypt-associated-data-headroom':
                 mismatch = re.search(
                     r'error: Application type mismatch: The argument\s+'
