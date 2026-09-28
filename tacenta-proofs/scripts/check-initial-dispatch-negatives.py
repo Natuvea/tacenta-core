@@ -74,9 +74,9 @@ def main():
          'draw dhOutRecv hfirst hfirst hsecond',
          'hfirst'),
         ('replace-decrypt-ceiling-random-success',
-         'randomSuccess.reflects rng pref.candidateBytes pref.rng1 pref.hrandom',
-         'randomSuccess.reflects rng pref.candidateBytes pref.rng1 hcall',
-         'hcall'),
+         'trace oracle rng htrace\n    htraceHead hdraw',
+         'trace oracle rng htrace\n    htrace hdraw',
+         'htrace'),
         ('replace-decrypt-derived-braid-message',
          '    braid.1 provider.hkem braid.2 (provider.hprivate successPrefix)',
          '    provider.hrel provider.hkem braid.2 (provider.hprivate successPrefix)',
@@ -90,7 +90,7 @@ def main():
          '      ∃ draw rest, trace innerRng = draw :: rest',
          '      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →\n'
          '      Model.Lifecycle.random32 oracle = none → False',
-         'evidence.randomDraw input'),
+         'evidence.randomDraw'),
         ('flatten-encrypt-generated-refusal-family',
          '  | .tripleRefusal _ _ _ _ =>\n'
          '      EncryptTripleRouteEvidence rc crc trace dh kem K view oracle real model plaintext rng',
@@ -303,8 +303,8 @@ def main():
                     output, re.S)
             elif name == 'replace-decrypt-ceiling-random-success':
                 mismatch = re.search(
-                    r'error: Application type mismatch: The argument\s+hcall\s+'
-                    r'has type\s+.+?but is expected to have type',
+                    r'error: Application type mismatch: The last\s+htrace\s+'
+                    r'argument has type\s+.+?but is expected to have type',
                     output, re.S)
             elif name == 'replace-encrypt-associated-data-headroom':
                 mismatch = re.search(

@@ -325,11 +325,11 @@ at the generated Rust call and show that a Rust success cannot accompany either
 model DH refusal. The second-DH proof also fixes the ordered random draw used
 by that leaf.
 
-The result-sensitive `InitialRatchetRandom32SuccessContract` supplies the
-reverse direction that the forward `OracleOf.random32` contract intentionally
-does not claim: an exact successful translated draw must consume the head of
-the concrete draw trace and leave its tail. Applying it to the successful Rust
-prefix rules out a model ceiling refusal on that same execution.
+The ordered-draw evidence is now independent of a pre-classified Rust refusal.
+For the exact ratchet message and RNG state it states that a successful first
+agreement has one available 32-byte draw. That operation-local trace head rules
+out the model ceiling while remaining compatible with the translated total-RNG
+contract; it does not impose an impossible global descent on every RNG state.
 
 All three leaves elaborate against the exact generated source. The negative
 suite now contains 27 proof-dependency mutations, including removal or

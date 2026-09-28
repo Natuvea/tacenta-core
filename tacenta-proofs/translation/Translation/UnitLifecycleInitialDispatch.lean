@@ -9497,18 +9497,6 @@ theorem initial_ratchet_dh_concrete_evidence_of_braid_contracts
     hcomposite := hcomposite'
   }⟩
 
-/-! Reflect a successful translated 32-byte draw back into the ordered model
-    trace.  `OracleOf.random32` is the forward direction; the result-sensitive
-    reverse direction is needed to rule out a model ceiling when the generated
-    Rust call has already passed the random draw. -/
-structure InitialRatchetRandom32SuccessContract {R : Type}
-    (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
-    (trace : R → List Model.Lifecycle.Key) : Prop where
-  reflects : ∀ rng value rngNext,
-    lifecycle.random_secret rngCore cryptoRng rng = ok (value, rngNext) →
-    ∃ draw rest, trace rng = draw :: rest ∧ arrayOf value = draw ∧
-      trace rngNext = rest
-
 /-! Name the non-cryptographic Braid obligations once so the DH provider can
     be constructed from boundary contracts instead of another anonymous
     callback.  These are representation/shape obligations, not a replacement
@@ -9622,26 +9610,15 @@ theorem initial_ratchet_second_dh_model_refusal_excludes_success
   have hresult := Result.ok.inj (hcall.symm.trans refusal.hcall)
   simp at hresult
 
-theorem initial_ratchet_ceiling_model_refusal_excludes_success
-    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
-    {trace : R → List Model.Lifecycle.Key}
-    {oracle : Model.Lifecycle.Oracle} {real : lifecycle.Session}
-    {message : Slice Std.U8} {rng rngNext : R}
-    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
-    (hzKeys : ZeroizingRoundTrips
-      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
-    (randomSuccess : InitialRatchetRandom32SuccessContract rc crc trace)
+theorem initial_ratchet_ceiling_model_refusal_impossible_of_trace_head
+    {R : Type} {trace : R → List Model.Lifecycle.Key}
+    {oracle : Model.Lifecycle.Oracle} {rng : R}
     (htrace : trace rng = oracle.draws)
+    (htraceHead : ∃ draw rest, trace rng = draw :: rest)
     (hdraw : Model.Lifecycle.random32 oracle = none)
-    (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session)
-    (hcall : lifecycle.Session.decrypt_ratchet rc crc real message rng =
-      ok (.Ok plaintext, next, rngNext)) : False := by
-  obtain ⟨pref⟩ := initial_ratchet_success_prefix_of_result rc crc hz32 hzKeys
-    real message rng rngNext plaintext next hcall
-  obtain ⟨draw, rest, hhead, _hvalue, _hnext⟩ :=
-    randomSuccess.reflects rng pref.candidateBytes pref.rng1 pref.hrandom
-  exact model_random32_none_impossible_of_trace_head trace oracle rng htrace
-    ⟨draw, rest, hhead⟩ hdraw
+    : False :=
+  model_random32_none_impossible_of_trace_head trace oracle rng htrace
+    htraceHead hdraw
 
 /-! A generated success already fixes the concrete decoder, Braid message and
     Braid successor.  Replaying the shared Braid contracts against the model
@@ -11359,7 +11336,6 @@ structure InitialRatchetConcreteBranchEvidence
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
     {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
     {real : lifecycle.Session} {model : Model.Lifecycle.Session} where
-  randomSuccess : InitialRatchetRandom32SuccessContract rc crc trace
   braidEvidence : InitialRatchetBraidEvidenceContracts (K := K) view real model
   tripleContracts : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
       (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
@@ -11372,12 +11348,9 @@ structure InitialRatchetConcreteBranchEvidence
         (real := real) (model := model) innerMessage innerRng),
       InitialRatchetAeadBranchContracts input
   randomDraw : ∀ {innerMessage : Slice Std.U8} {innerRng : R}
-      (input : InitialRatchetRefusalBranchInput (rc := rc) (crc := crc)
-        (trace := trace) (dh := dh) (K := K) (view := view) (oracle := oracle)
-        (real := real) (model := model) innerMessage innerRng)
       (composite : Model.CompositeHeader.Composite) (ciphertext : Bytes)
       (dhOutRecv : Model.Lifecycle.Key),
-      Model.CompositeHeader.decodeDetailed (sliceOf input.decoded.message.deref) =
+      Model.CompositeHeader.decodeDetailed (sliceOf innerMessage) =
         .ok (composite, ciphertext) →
       oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →
       ∃ draw rest, trace innerRng = draw :: rest
@@ -11444,7 +11417,8 @@ noncomputable def initial_ratchet_refusal_branch_providers_of_evidence_package
       (evidence.tripleContracts input))
     (initial_ratchet_aead_providers_of_branch_contracts input
       (evidence.aeadContracts input))
-    (evidence.randomDraw input)
+    (evidence.randomDraw (innerMessage := input.decoded.message.deref)
+      (innerRng := innerRng))
 
 def initial_ratchet_terminal_refusal_evidence {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
