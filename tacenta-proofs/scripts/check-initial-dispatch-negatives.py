@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile disposable proof copies; accept only the expected type failures.
+"""Compile disposable proof copies; accept only the expected proof failures.
 
 These are proof-dependency controls, not protocol/runtime mutation tests.
 Dependencies must already be built (`lake build Translation.UnitLifecycleInitialDispatch`).
@@ -76,8 +76,7 @@ def main():
          '      EncryptRouteEvidence rc crc trace dh K view oracle real model plaintext rng',
          'tripleEvidence'),
         ('restore-preassembled-triple-success-provider',
-         '    GeneratedTripleSuccessConditions dh view oracle real model plaintext\n'
-         '      realEpoch sparseOutput',
+         '    GeneratedTripleSuccessConditions model realEpoch sparseOutput',
          '    EncryptEvidenceForGeneratedPrefix (trace := trace) (dh := dh) (kem := kem)\n'
          '      (K := K) (view := view) (oracle := oracle) (model := model)\n'
          '      (realMessage := realMessage) (rngNext := rngNext)\n'
@@ -90,9 +89,21 @@ def main():
          '        htripleModel htripleNext hheader hmk\' hpending',
          'hmodelOutput'),
         ('replace-encrypt-triple-success-exact-result',
-         'braidEvidence.modelMessage htripleAtRealEpoch)',
-         'braidEvidence.modelMessage htripleModel)',
-         'htripleModel'),
+         "        htripleModel htripleNext hheader hmk' hpending",
+         "        htripleAtRealEpoch htripleNext hheader hmk' hpending",
+         'htripleAtRealEpoch'),
+        ('replace-encrypt-associated-data-headroom',
+         'Tacenta.UnitLifecycleT1.EncryptHeadroom.associatedData headroom',
+         'Tacenta.UnitLifecycleT1.EncryptHeadroom.ratchetMessage headroom',
+         'hrealAssociatedRoom'),
+        ('replace-encrypt-aead-length-contract',
+         'oracle_aead_seal_length_bound oracleOf aead',
+         'oracle_aead_seal_length_bound oracleOf headroom',
+         'headroom'),
+        ('replace-encrypt-initial-headroom',
+         'Tacenta.UnitLifecycleT1.EncryptHeadroom.initial headroom',
+         'Tacenta.UnitLifecycleT1.EncryptHeadroom.ratchetMessage headroom',
+         'hinitialHeadroom'),
         ('invert-encrypt-generated-braid-ready',
          'ready : Model.Lifecycle.agreementFailed model = false',
          'ready : Model.Lifecycle.agreementFailed model = true',
@@ -254,8 +265,18 @@ def main():
                     r'.+?but is expected to have type', output, re.S)
             elif name == 'replace-encrypt-triple-success-exact-result':
                 mismatch = re.search(
-                    r'error: Application type mismatch: The argument\s+htripleModel.+?has type\s+'
+                    r'error: Application type mismatch: The argument\s+'
+                    r'htripleAtRealEpoch.+?has type\s+'
                     r'.+?but is expected to have type', output, re.S)
+            elif name == 'replace-encrypt-associated-data-headroom':
+                mismatch = re.search(
+                    r'error: Application type mismatch: The argument\s+'
+                    r'hrealAssociatedRoom.+?has type\s+'
+                    r'.+?but is expected to have type', output, re.S)
+            elif name == 'replace-encrypt-initial-headroom':
+                mismatch = re.search(
+                    r'error: Tactic `rewrite` failed: Did not find an occurrence.+?'
+                    r'initialHeadroom', output, re.S)
             else:
                 mismatch = re.search(
                     r'error: Application type mismatch: The argument\s+' + premise +

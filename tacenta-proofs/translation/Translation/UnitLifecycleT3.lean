@@ -4727,6 +4727,16 @@ private theorem compositeOf_encode_length (real : tacenta_wire.Composite) :
       Model.CompositeHeader.chunkBytes, Model.Messages.be32,
       Model.CompositeHeader.be64, Model.CompositeHeader.be16, hchunk]
 
+/-- A related model composite has the fixed wire-header width.  Exposing this
+    consequence lets outer Session composition derive serializer headroom from
+    the public input bound instead of asking a route provider to restate it. -/
+theorem composite_encode_length_of_refines (real : tacenta_wire.Composite)
+    (model : Model.CompositeHeader.Composite)
+    (hrel : CompositeRefines real model) :
+    (Model.CompositeHeader.encode model).length = 102 := by
+  rw [← wire_compositeOf_eq real model hrel]
+  exact compositeOf_encode_length real
+
 private theorem cast_usize_u32_model (n : Usize) :
     UInt32.ofNat (UScalar.cast UScalarTy.U32 n).val = UInt32.ofNat n.val := by
   apply UInt32.toNat.inj

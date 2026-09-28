@@ -12801,15 +12801,14 @@ structure GeneratedTripleRefusalConditions
         .error modelReason →
     tripleSendRefusalOfReal realReason = some modelReason
 
-/-! The success provider supplies the finite-store and serialization headroom
-    that cannot be recovered from the generated Triple call.  Its ciphertext
-    and initial-message clauses are indexed by the exact detailed model result
-    proved from that call below; it cannot choose a different Triple successor,
-    header or message key and return a preassembled route. -/
+/-! The success provider supplies only the sparse finite-store premises which
+    the generated Triple call cannot infer.  Associated-data, ciphertext and
+    initial-message headroom all follow from the public `EncryptHeadroom`, the
+    concrete AEAD length contract and `SessionRefines`; the bridge below derives
+    them at the exact generated successor rather than accepting serialization
+    facts or a preassembled route from the caller. -/
 structure GeneratedTripleSuccessConditions
-    (dh : DhView) (view : Model.Lifecycle.CodewordView)
-    (oracle : Model.Lifecycle.Oracle) (real : lifecycle.Session)
-    (model : Model.Lifecycle.Session) (plaintext : Slice Std.U8)
+    (model : Model.Lifecycle.Session)
     (realEpoch : Std.U64) (sparseOutput : Option tacenta_spqr.Output) : Type where
   derivedKeys : Tacenta.SessionUnitT1.DerivedKeysModel
   room : model.triple.postQuantum.chains.length + 1 < Usize.max
@@ -12823,31 +12822,27 @@ structure GeneratedTripleSuccessConditions
   counterBound : ∀ p ∈ model.triple.postQuantum.chains,
     ∀ ch : Model.SparseRatchet.Chain,
     (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max
-  associatedDataRoom : model.identityAd.length + 106 ≤ Usize.max
-  ciphertextRoom : ∀ modelCandidate modelHeader modelMk modelMessage,
-    Model.Triple.sendDetailed model.triple realEpoch.val
-        (sparseOutput.map Tacenta.SessionUnitTripleT3.spqrOutputOf) =
-        .ok (modelCandidate, modelHeader, modelMk) →
-    let keys := Model.State.messageKeys modelMk .tacenta
-    let ad := Model.Messages.concatAd model.identityAd
-      (Model.CompositeHeader.encode
-        (Model.Lifecycle.compositeOf view model.braid modelHeader modelMessage).get!)
-    102 + (oracle.aeadSeal keys.1 keys.2.1 keys.2.2
-      (sliceOf plaintext) ad).length ≤ Usize.max
-  initialRoom : ∀ pending modelCandidate modelHeader modelMk modelMessage,
-    real.pending_initial = some pending →
-    Model.Triple.sendDetailed model.triple realEpoch.val
-        (sparseOutput.map Tacenta.SessionUnitTripleT3.spqrOutputOf) =
-        .ok (modelCandidate, modelHeader, modelMk) →
-    let composite :=
-      (Model.Lifecycle.compositeOf view model.braid modelHeader modelMessage).get!
-    let keys := Model.State.messageKeys modelMk .tacenta
-    let ad := Model.Messages.concatAd model.identityAd
-      (Model.CompositeHeader.encode composite)
-    let ratchetMessage := Model.CompositeHeader.encodeMessage composite
-      (oracle.aeadSeal keys.1 keys.2.1 keys.2.2 (sliceOf plaintext) ad)
-    84 + (pendingInitialOf dh pending).kemCiphertext.length +
-      ratchetMessage.length ≤ Usize.max
+
+/-! The real AEAD length contract bounds the model oracle at the exact same
+    arguments because `OracleOf` equates the two outputs byte for byte. -/
+theorem oracle_aead_seal_length_bound
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {kem : KemView}
+    {oracle : Model.Lifecycle.Oracle}
+    (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (aead : Tacenta.UnitLifecycleT1.AeadSealBounded)
+    (key1 key2 : Array Std.U8 32#usize) (iv : Array Std.U8 16#usize)
+    (plaintext ad : Slice Std.U8) :
+    (oracle.aeadSeal (arrayOf key1) (arrayOf key2) (arrayOf iv)
+      (sliceOf plaintext) (sliceOf ad)).length ≤ plaintext.val.length + 48 := by
+  obtain ⟨ciphertext, hcall, hvalue⟩ :=
+    oracleOf.aeadSeal key1 key2 iv plaintext ad
+  obtain ⟨bounded, hboundedCall, hbounded⟩ := aead key1 key2 iv plaintext ad
+  have heq : ciphertext = bounded := Result.ok.inj (hcall.symm.trans hboundedCall)
+  subst bounded
+  have hlength := congrArg List.length hvalue
+  simp [vecOf] at hlength
+  omega
 
 /-! Construct the complete refusal route from the exact generated Braid
     successor, exact sparse conversion and contract-backed Triple result. -/
@@ -12924,8 +12919,11 @@ theorem encrypt_triple_success_evidence_of_generated
     {candidate : tacenta_triple.State} {header : tacenta_triple.Header}
     {mk : Array Std.U8 32#usize}
     (contracts : TripleSendRefinementContracts)
-    (conditions : GeneratedTripleSuccessConditions dh view oracle real model plaintext
-      realEpoch sparseOutput)
+    (conditions : GeneratedTripleSuccessConditions model realEpoch sparseOutput)
+    (headroom : Tacenta.UnitLifecycleT1.EncryptHeadroom real plaintext)
+    (aead : Tacenta.UnitLifecycleT1.AeadSealBounded)
+    (oracleOf : OracleOf rc crc dh kem trace oracle)
+    (codewordView : CodewordViewOf view)
     (hz80 : Tacenta.SessionUnitT3.ZeroizingRoundTrips80)
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
     (hzKeys : ZeroizingRoundTrips
@@ -12963,6 +12961,63 @@ theorem encrypt_triple_success_evidence_of_generated
       rfl
     rw [hu8]
     exact hmk
+  have hrealAssociatedRoom :=
+    Tacenta.UnitLifecycleT1.EncryptHeadroom.associatedData headroom
+  have hassociatedDataRoom : model.identityAd.length + 106 ≤ Usize.max := by
+    have hidentityLength := congrArg List.length braidEvidence.session.identityAd
+    simp [vecOf] at hidentityLength
+    omega
+  obtain ⟨realComposite, modelComposite, _hcompositeReal, hcompositeModel,
+      hcompositeRel⟩ :=
+    composite_of_refines view model.braid header modelHeader realMessage
+      braidEvidence.modelMessage hheader braidEvidence.message codewordView
+  obtain ⟨realKeys, _hkeysCall, hkeysValue⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitT3.message_keys_refines contracts.hkdf hz80 mk
+      tacenta_ratchet.LabelSet.Tacenta)
+  have hkeysValue' :
+      (arrayOf realKeys.1, arrayOf realKeys.2.1, arrayOf realKeys.2.2) =
+        Model.State.messageKeys modelMk .tacenta := by
+    change (arrayOf realKeys.1, arrayOf realKeys.2.1, arrayOf realKeys.2.2) =
+      Model.State.messageKeys (arrayOf mk) .tacenta at hkeysValue
+    rw [hmk'] at hkeysValue
+    exact hkeysValue
+  obtain ⟨realAd, _hrealAd, hrealAdValue⟩ := Std.WP.spec_imp_exists
+    (concat_ad_refines (alloc.vec.Vec.deref real.identity_ad) realComposite
+      modelComposite hcompositeRel hrealAssociatedRoom)
+  have had : sliceOf (alloc.vec.Vec.deref realAd) =
+      Model.Messages.concatAd model.identityAd
+        (Model.CompositeHeader.encode modelComposite) := by
+    change vecOf realAd = _
+    rw [hrealAdValue]
+    change Model.Messages.concatAd (vecOf real.identity_ad)
+      (Model.CompositeHeader.encode modelComposite) = _
+    rw [braidEvidence.session.identityAd]
+  have hciphertextBound := oracle_aead_seal_length_bound oracleOf aead
+    realKeys.1 realKeys.2.1 realKeys.2.2 plaintext
+      (alloc.vec.Vec.deref realAd)
+  have hkey1 : arrayOf realKeys.1 =
+      (Model.State.messageKeys modelMk .tacenta).1 := by
+    simpa only using congrArg Prod.fst hkeysValue'
+  have hkey2 : arrayOf realKeys.2.1 =
+      (Model.State.messageKeys modelMk .tacenta).2.1 := by
+    simpa only using congrArg (fun keys => keys.2.1) hkeysValue'
+  have hkey3 : arrayOf realKeys.2.2 =
+      (Model.State.messageKeys modelMk .tacenta).2.2 := by
+    simpa only using congrArg (fun keys => keys.2.2) hkeysValue'
+  rw [hkey1, hkey2, hkey3, had] at hciphertextBound
+  have hciphertextRoom :
+      let keys := Model.State.messageKeys modelMk .tacenta
+      let ad := Model.Messages.concatAd model.identityAd
+        (Model.CompositeHeader.encode
+          (Model.Lifecycle.compositeOf view model.braid modelHeader
+            braidEvidence.modelMessage).get!)
+      102 + (oracle.aeadSeal keys.1 keys.2.1 keys.2.2
+        (sliceOf plaintext) ad).length ≤ Usize.max := by
+    rw [hcompositeModel]
+    simp only [Option.get!_some]
+    have hratchetRoom :=
+      Tacenta.UnitLifecycleT1.EncryptHeadroom.ratchetMessage headroom
+    omega
   cases hpending : real.pending_initial with
   | none =>
       exact ⟨.successNoInitial contracts conditions.room conditions.chainBound
@@ -12971,21 +13026,50 @@ theorem encrypt_triple_success_evidence_of_generated
         braidEvidence.realSend hsendCandidate braidEvidence.modelSend braidEvidence.message
         braidEvidence.next braidEvidence.notFailed braidEvidence.epoch hmodelOutput
         htripleModel htripleNext hheader hmk' hpending braidEvidence.traceNext
-        conditions.associatedDataRoom
-        (conditions.ciphertextRoom modelCandidate modelHeader modelMk
-          braidEvidence.modelMessage htripleAtRealEpoch)⟩
+        hassociatedDataRoom
+        hciphertextRoom⟩
   | some pending =>
+      have hmodelCompositeLength :=
+        composite_encode_length_of_refines realComposite modelComposite hcompositeRel
+      have hmodelRatchetLength :
+          let keys := Model.State.messageKeys modelMk .tacenta
+          let ad := Model.Messages.concatAd model.identityAd
+            (Model.CompositeHeader.encode modelComposite)
+          (Model.CompositeHeader.encodeMessage modelComposite
+            (oracle.aeadSeal keys.1 keys.2.1 keys.2.2
+              (sliceOf plaintext) ad)).length =
+            102 + (oracle.aeadSeal keys.1 keys.2.1 keys.2.2
+              (sliceOf plaintext) ad).length := by
+        simp [Model.CompositeHeader.encodeMessage, hmodelCompositeLength]
+      have hkemLength : (pendingInitialOf dh pending).kemCiphertext.length =
+          pending.kem_ciphertext.val.length := by
+        simp [pendingInitialOf, vecOf]
+      have hinitialHeadroom :=
+        Tacenta.UnitLifecycleT1.EncryptHeadroom.initial headroom
+      rw [hpending] at hinitialHeadroom
+      have hinitialRoom :
+          let composite :=
+            (Model.Lifecycle.compositeOf view model.braid modelHeader
+              braidEvidence.modelMessage).get!
+          let keys := Model.State.messageKeys modelMk .tacenta
+          let ad := Model.Messages.concatAd model.identityAd
+            (Model.CompositeHeader.encode composite)
+          let ratchetMessage := Model.CompositeHeader.encodeMessage composite
+            (oracle.aeadSeal keys.1 keys.2.1 keys.2.2 (sliceOf plaintext) ad)
+          84 + (pendingInitialOf dh pending).kemCiphertext.length +
+            ratchetMessage.length ≤ Usize.max := by
+        rw [hcompositeModel]
+        simp only [Option.get!_some]
+        rw [hkemLength, hmodelRatchetLength]
+        omega
       exact ⟨.successInitial contracts conditions.room conditions.chainBound
         conditions.skippedBound conditions.newBound conditions.epochBound
         conditions.counterBound hsparse braidEvidence.session braidEvidence.ready
         braidEvidence.realSend hsendCandidate braidEvidence.modelSend braidEvidence.message
         braidEvidence.next braidEvidence.notFailed braidEvidence.epoch hmodelOutput
         htripleModel htripleNext hheader hmk' hpending braidEvidence.traceNext
-        hz80 hz32 hzKeys conditions.associatedDataRoom
-        (conditions.ciphertextRoom modelCandidate modelHeader modelMk
-          braidEvidence.modelMessage htripleAtRealEpoch)
-        (conditions.initialRoom pending modelCandidate modelHeader modelMk
-          braidEvidence.modelMessage hpending htripleAtRealEpoch)⟩
+        hz80 hz32 hzKeys hassociatedDataRoom
+        hciphertextRoom hinitialRoom⟩
 
 def encrypt_braid_failure_evidence_of_generated
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -13046,8 +13130,7 @@ structure EncryptNonterminalRouteProviders
       ok (candidate, .Ok (header, mk))) →
     Nonempty (GeneratedBraidSuccessEvidence rc crc trace dh K oracle real model rng
       realMessage realEpoch realOutput realBraidNext rngNext) →
-    GeneratedTripleSuccessConditions dh view oracle real model plaintext
-      realEpoch sparseOutput
+    GeneratedTripleSuccessConditions model realEpoch sparseOutput
 
 theorem public_session_encrypt_of_send_contracts
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -13112,8 +13195,8 @@ theorem public_session_encrypt_of_send_contracts
             realBraidNext rngNext sparseOutput candidate header mk hgeneratedOutput hnext hsparse
             hsendCandidate braidEvidence
           let tripleEvidence := encrypt_triple_success_evidence_of_generated
-            (kem := kem) triple conditions hz80 hz32 hzKeys hgeneratedOutput hnext hsparse
-            hsendCandidate braidEvidence
+            (kem := kem) triple conditions headroom aead oracleOf codewordView
+            hz80 hz32 hzKeys hgeneratedOutput hnext hsparse hsendCandidate braidEvidence
           obtain ⟨tripleEvidence⟩ := tripleEvidence
           exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
             (.triple tripleEvidence)
