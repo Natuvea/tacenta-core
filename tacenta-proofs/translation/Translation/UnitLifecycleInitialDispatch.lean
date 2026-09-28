@@ -8699,11 +8699,50 @@ theorem decode_message_model_decode_of_nonrefusal
         hmodelDecodeDetailed, rfl, hcomposite⟩
 
 
-/-! Recover the indexed model refusal case from an already paired concrete
-    refusal result.  The old bridge accepted a separate model callback here;
-    this adapter instead destructures the exact model step carried by
-    `StepRefines`, proves that its result is an error (a refusal cannot refine
-    a model success), and then classifies the generated model transaction. -/
+/-! Recover the indexed model refusal case from the positive result relation.
+    A concrete refusal can refine only a model refusal, and the refusal-code
+    equality carried by `ResultRefines` fixes the exact public reason before
+    the generated model transaction is classified. -/
+theorem initial_ratchet_model_refusal_case_of_result_refines
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {reason : lifecycle.Error}
+    (hready : Model.Lifecycle.agreementFailed model = false)
+    (hnotbad : ∀ realReason,
+      tacenta_wire.decode_message message ≠ ok (.Err realReason))
+    (hresult : ResultRefines (.Err reason)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)).result) :
+    ∃ (oracleNext : Model.Lifecycle.Oracle)
+      (modelReason : Model.Lifecycle.Refusal),
+      Nonempty (InitialRatchetModelRefusalCase view oracle model message
+        modelReason oracleNext) := by
+  obtain ⟨_decoded, modelComposite, ciphertext, _hdecoded, hdecodeModel,
+    _hcipher, _hcomposite⟩ := decode_message_model_decode_of_nonrefusal message hnotbad
+  let step := Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)
+  cases hs : step with
+  | mk modelNext modelResult oracleNext =>
+      cases hr : modelResult with
+      | error modelReason =>
+          have hmodelError : step.result = .error modelReason := by
+            simp [hs, hr]
+          have hsession : modelNext = model := by
+            have hk := Model.Lifecycle.decryptRatchet_refusal_keeps_session view oracle
+              model (sliceOf message) modelReason hmodelError
+            simpa [step, hs] using hk
+          have hmodelStep :
+              Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
+                { session := model, result := .error modelReason, oracle := oracleNext } := by
+            simp [step, hs, hr, hsession]
+          obtain ⟨modelCase⟩ := initial_ratchet_model_refusal_case_of_result
+            view oracle oracleNext model message modelReason hready
+            ⟨modelComposite, ciphertext, hdecodeModel⟩ hmodelStep
+          exact ⟨oracleNext, modelReason, ⟨modelCase⟩⟩
+      | ok modelPlaintext =>
+          simp [ResultRefines, step, hs, hr] at hresult
+
+/-! `StepRefines` carries that same positive result relation together with the
+    successor-state and draw invariants.  Keep this adapter for callers that
+    already possess the full step witness. -/
 theorem initial_ratchet_model_refusal_case_of_step
     {R : Type} {trace : R → List Model.Lifecycle.Key}
     {dh : DhView} {K : Model.Braid.Kem}
@@ -8720,74 +8759,7 @@ theorem initial_ratchet_model_refusal_case_of_step
       (modelReason : Model.Lifecycle.Refusal),
       Nonempty (InitialRatchetModelRefusalCase view oracle model message
         modelReason oracleNext) := by
-  obtain ⟨_decoded, modelComposite, ciphertext, _hdecoded, hdecodeModel,
-    _hcipher, _hcomposite⟩ := decode_message_model_decode_of_nonrefusal message hnotbad
-  let step := Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)
-  cases hs : step with
-  | mk modelNext modelResult oracleNext =>
-      cases hr : modelResult with
-      | error modelReason =>
-          have hmodelError : step.result = .error modelReason := by
-            simp [hs, hr]
-          have hsession : modelNext = model := by
-            have hk := Model.Lifecycle.decryptRatchet_refusal_keeps_session view oracle
-              model (sliceOf message) modelReason hmodelError
-            simpa [step, hs] using hk
-          have hmodelStep :
-              Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
-                { session := model, result := .error modelReason, oracle := oracleNext } := by
-            simp [step, hs, hr, hsession]
-          obtain ⟨modelCase⟩ := initial_ratchet_model_refusal_case_of_result
-            view oracle oracleNext model message modelReason hready
-            ⟨modelComposite, ciphertext, hdecodeModel⟩ hmodelStep
-          exact ⟨oracleNext, modelReason, ⟨modelCase⟩⟩
-      | ok modelPlaintext =>
-          have hresult := hstep.result
-          simp [ResultRefines, step, hs, hr] at hresult
-
-/-! Recover the exact model refusal without allowing the caller to choose its
-    reason or classifier branch.  The only result-alignment fact needed here
-    is that the concrete generated refusal cannot correspond to a model
-    success.  The executable model step fixes the successor oracle and refusal
-    value; the decoder relation and classifier recover the branch. -/
-theorem initial_ratchet_model_refusal_case_of_excluded_success
-    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
-    {model : Model.Lifecycle.Session} {message : Slice Std.U8}
-    (hready : Model.Lifecycle.agreementFailed model = false)
-    (hnotbad : ∀ realReason,
-      tacenta_wire.decode_message message ≠ ok (.Err realReason))
-    (hexcludes : ∀ modelPlaintext,
-      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)).result ≠
-        .ok modelPlaintext) :
-    ∃ (oracleNext : Model.Lifecycle.Oracle)
-      (modelReason : Model.Lifecycle.Refusal),
-      Nonempty (InitialRatchetModelRefusalCase view oracle model message
-        modelReason oracleNext) := by
-  obtain ⟨_decoded, modelComposite, ciphertext, _hdecoded, hdecodeModel,
-    _hcipher, _hcomposite⟩ := decode_message_model_decode_of_nonrefusal message hnotbad
-  let step := Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)
-  cases hs : step with
-  | mk modelNext modelResult oracleNext =>
-      cases hr : modelResult with
-      | error modelReason =>
-          have hmodelError : step.result = .error modelReason := by
-            simp [hs, hr]
-          have hsession : modelNext = model := by
-            have hk := Model.Lifecycle.decryptRatchet_refusal_keeps_session view oracle
-              model (sliceOf message) modelReason hmodelError
-            simpa [step, hs] using hk
-          have hmodelStep :
-              Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
-                { session := model, result := .error modelReason, oracle := oracleNext } := by
-            simp [step, hs, hr, hsession]
-          obtain ⟨modelCase⟩ := initial_ratchet_model_refusal_case_of_result
-            view oracle oracleNext model message modelReason hready
-            ⟨modelComposite, ciphertext, hdecodeModel⟩ hmodelStep
-          exact ⟨oracleNext, modelReason, ⟨modelCase⟩⟩
-      | ok modelPlaintext =>
-          have hsuccess : step.result = .ok modelPlaintext := by
-            simp [hs, hr]
-          exact False.elim (hexcludes modelPlaintext (by simpa [step] using hsuccess))
+  exact initial_ratchet_model_refusal_case_of_result_refines hready hnotbad hstep.result
 
 /-! Package the complete result-shaped refusal evidence once, so the public
     splitter can consume branch-specific providers without passing an
@@ -10780,12 +10752,12 @@ noncomputable def initial_ratchet_refusal_branch_providers_of_concrete_evidence
     refusal result, a success result, and a receive provider from different
     generated calls.  Every field is indexed by the exact `decrypt_ratchet`
     equation it explains. -/
-/-! The success half is indexed once by the concrete generated `Ok` result.
-    It excludes every model refusal shape and supplies the concrete receive
-    provider for whichever success result the executable model actually
-    computes.  The proof below evaluates that model call; callers cannot name
-    its successor, plaintext or oracle. -/
-structure InitialRatchetGeneratedSuccessAlignment
+/-! The success half is indexed once by the concrete generated `Ok` result and
+    supplies the concrete receive provider for whichever success result the
+    executable model actually computes.  Result-family alignment lives in the
+    positive `ResultRefines` field below, so this package cannot carry a
+    separate, weaker exclusion claim. -/
+structure InitialRatchetGeneratedSuccessProvider
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
     {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
@@ -10793,9 +10765,6 @@ structure InitialRatchetGeneratedSuccessAlignment
     (message : Slice Std.U8) (rng : R)
     (decoded : tacenta_wire.DecodedInitial)
     (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R) where
-  excludesRefusal : ∀ modelReason,
-    (Model.Lifecycle.decryptRatchet view oracle model
-      (sliceOf decoded.message.deref)).result ≠ .error modelReason
   provider : ∀ (modelNext : Model.Lifecycle.Session) (modelPlaintext : Bytes)
       (oracleNext : Model.Lifecycle.Oracle),
     Model.Lifecycle.decryptRatchet view oracle model
@@ -10809,6 +10778,23 @@ structure InitialRatchetGeneratedSuccessAlignment
         (real := real) (model := model) (message := decoded.message.deref)
         (rng := rng) (rngNext := rngNext) (plaintext := plaintext) (next := next)
         facts
+
+/-! Positive alignment for one exact inner ratchet call.  This is deliberately
+    independent of the outer initial-message routing predicates: once the
+    inner message is selected, every generated result must refine the result
+    of the same executable model call. -/
+structure InitialRatchetGeneratedResultRelation
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    (message : Slice Std.U8) (rng : R) : Prop where
+  refines : ∀ (result : core.result.Result (alloc.vec.Vec Std.U8) lifecycle.Error)
+      (next : lifecycle.Session) (rngNext : R),
+    lifecycle.Session.decrypt_ratchet rc crc real message rng =
+      ok (result, next, rngNext) →
+    ResultRefines result
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)).result
 
 structure InitialRatchetSuccessResultEvidence
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -10826,7 +10812,7 @@ structure InitialRatchetSuccessResultEvidence
       ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
         lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
           ok (.Ok plaintext, next, rngNext) →
-        Nonempty (InitialRatchetGeneratedSuccessAlignment
+        Nonempty (InitialRatchetGeneratedSuccessProvider
           (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
           (view := view) (oracle := oracle) (real := real) (model := model)
           message rng decoded plaintext next rngNext)
@@ -10850,34 +10836,32 @@ structure InitialAgreementRatchetSuccessResultEvidence
       ∀ (plaintext : alloc.vec.Vec Std.U8) (next : lifecycle.Session) (rngNext : R),
         lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
           ok (.Ok plaintext, next, rngNext) →
-        Nonempty (InitialRatchetGeneratedSuccessAlignment
+        Nonempty (InitialRatchetGeneratedSuccessProvider
           (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
           (view := view) (oracle := oracle) (real := real) (model := model)
           message rng decoded plaintext next rngNext)
 
-/-! Result-alignment packages used by the public composition.  A concrete
-    refusal supplies only exclusion of the model success shape; the proof
-    evaluates `decryptRatchet` to recover its exact refusal and branch.  A
-    concrete success retains the existing result-indexed provider package. -/
+/-! Result-alignment packages used by the public composition.  One positive
+    relation covers both generated result families.  It fixes the exact
+    refusal code or plaintext equality and rules out cross-family pairing;
+    success retains its separately indexed concrete receive provider. -/
 structure InitialRatchetGeneratedResultEvidence
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
     {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
     {real : lifecycle.Session} {model : Model.Lifecycle.Session}
     (message : Slice Std.U8) (rng : R) where
-  refusalExcludesSuccess : ∀ (decoded : tacenta_wire.DecodedInitial)
+  relation : ∀ (decoded : tacenta_wire.DecodedInitial)
       (established : alloc.vec.Vec Std.U8),
       tacenta_wire.decode_initial message = ok (.Ok decoded) →
       real.established_ephemeral = some established →
       vecOf established = vecOf decoded.ephemeral →
       vecOf decoded.identity =
         Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
-      ∀ (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R),
-        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
-          ok (.Err reason, next, rngNext) →
-        ∀ modelPlaintext,
-          (Model.Lifecycle.decryptRatchet view oracle model
-            (sliceOf decoded.message.deref)).result ≠ .ok modelPlaintext
+      InitialRatchetGeneratedResultRelation
+        (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+        (view := view) (oracle := oracle) (real := real) (model := model)
+        decoded.message.deref rng
   success : InitialRatchetSuccessResultEvidence
     (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
     (view := view) (oracle := oracle) (real := real) (model := model)
@@ -10889,47 +10873,45 @@ structure InitialAgreementRatchetGeneratedResultEvidence
     {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
     {real : lifecycle.Session} {model : Model.Lifecycle.Session}
     (message : Slice Std.U8) (rng : R) where
-  refusalExcludesSuccess : ∀ (decoded : tacenta_wire.DecodedInitial)
+  relation : ∀ (decoded : tacenta_wire.DecodedInitial)
       (established : alloc.vec.Vec Std.U8),
       tacenta_wire.decode_initial message = ok (.Ok decoded) →
       real.established_ephemeral = some established →
       vecOf decoded.identity =
         Model.PersistedState.SessionState.encodeEc (dh.publicKey real.peer_identity_public) →
-      ∀ (reason : lifecycle.Error) (next : lifecycle.Session) (rngNext : R),
-        lifecycle.Session.decrypt_ratchet rc crc real decoded.message.deref rng =
-          ok (.Err reason, next, rngNext) →
-        ∀ modelPlaintext,
-          (Model.Lifecycle.decryptRatchet view oracle model
-            (sliceOf decoded.message.deref)).result ≠ .ok modelPlaintext
+      InitialRatchetGeneratedResultRelation
+        (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+        (view := view) (oracle := oracle) (real := real) (model := model)
+        decoded.message.deref rng
   success : InitialAgreementRatchetSuccessResultEvidence
     (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
     (view := view) (oracle := oracle) (real := real) (model := model)
     message rng
 
-/-! Recover the exact model success result without allowing the caller to
-    choose its successor, plaintext or oracle.  The executable model call is
-    destructured directly; exclusion of every refusal shape leaves precisely
-    its generated success shape. -/
-theorem initial_ratchet_model_success_result_of_excluded_refusal
+/-! Recover the exact model success result from the positive relation.  The
+    executable model call fixes its successor and oracle; `ResultRefines`
+    rules out a refusal and supplies the plaintext equality. -/
+theorem initial_ratchet_model_success_result_of_result_refines
     {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
     {model : Model.Lifecycle.Session} {message : Slice Std.U8}
-    (hexcludes : ∀ modelReason,
-      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)).result ≠
-        .error modelReason) :
+    {plaintext : alloc.vec.Vec Std.U8}
+    (hresult : ResultRefines (.Ok plaintext)
+      (Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)).result) :
     ∃ (modelNext : Model.Lifecycle.Session) (modelPlaintext : Bytes)
       (oracleNext : Model.Lifecycle.Oracle),
       Model.Lifecycle.decryptRatchet view oracle model (sliceOf message) =
-        { session := modelNext, result := .ok modelPlaintext, oracle := oracleNext } := by
+        { session := modelNext, result := .ok modelPlaintext, oracle := oracleNext } ∧
+      vecOf plaintext = modelPlaintext := by
   let step := Model.Lifecycle.decryptRatchet view oracle model (sliceOf message)
   cases hs : step with
   | mk modelNext modelResult oracleNext =>
       cases hr : modelResult with
       | error modelReason =>
-          have hrefusal : step.result = .error modelReason := by
-            simp [hs, hr]
-          exact False.elim (hexcludes modelReason (by simpa [step] using hrefusal))
+          simp [ResultRefines, step, hs, hr] at hresult
       | ok modelPlaintext =>
-          exact ⟨modelNext, modelPlaintext, oracleNext, by simp [step, hs, hr]⟩
+          have hbytes : vecOf plaintext = modelPlaintext := by
+            simpa [ResultRefines, step, hs, hr] using hresult
+          exact ⟨modelNext, modelPlaintext, oracleNext, by simp [step, hs, hr], hbytes⟩
 
 theorem initial_agreement_ratchet_success_callback_of_bundled_model_result
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -10937,7 +10919,7 @@ theorem initial_agreement_ratchet_success_callback_of_bundled_model_result
     {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
     {real : lifecycle.Session} {model : Model.Lifecycle.Session}
     {message : Slice Std.U8} {rng : R}
-    (evidence : InitialAgreementRatchetSuccessResultEvidence
+    (evidence : InitialAgreementRatchetGeneratedResultEvidence
       (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
       (view := view) (oracle := oracle) (real := real) (model := model)
       message rng) :
@@ -10957,10 +10939,12 @@ theorem initial_agreement_ratchet_success_callback_of_bundled_model_result
             InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
               successPrefix facts) := by
   intro decoded established hdecode hestablished hi plaintext next rngNext hcall
-  obtain ⟨alignment⟩ :=
-    evidence.result decoded established hdecode hestablished hi plaintext next rngNext hcall
-  obtain ⟨modelNext, modelPlaintext, oracleNext, hmodel⟩ :=
-    initial_ratchet_model_success_result_of_excluded_refusal alignment.excludesRefusal
+  let relation := evidence.relation decoded established hdecode hestablished hi
+  obtain ⟨provider⟩ :=
+    evidence.success.result decoded established hdecode hestablished hi plaintext next rngNext hcall
+  obtain ⟨modelNext, modelPlaintext, oracleNext, hmodel, _hbytes⟩ :=
+    initial_ratchet_model_success_result_of_result_refines
+      (relation.refines (.Ok plaintext) next rngNext hcall)
   have hready : Model.Lifecycle.agreementFailed model = false := by
     by_cases hfailed : Model.Lifecycle.agreementFailed model = true
     · simp [Model.Lifecycle.decryptRatchet, hfailed] at hmodel
@@ -10969,7 +10953,7 @@ theorem initial_agreement_ratchet_success_callback_of_bundled_model_result
     model modelNext decoded.message.deref modelPlaintext hready hmodel
   refine ⟨oracleNext, facts, ⟨fun successPrefix => ?_⟩⟩
   exact initial_ratchet_success_splice_of_concrete_provider successPrefix facts
-    (alignment.provider modelNext modelPlaintext oracleNext hmodel facts)
+    (provider.provider modelNext modelPlaintext oracleNext hmodel facts)
 
 theorem initial_agreement_ratchet_success_step_of_bundled_model_result
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -10980,7 +10964,7 @@ theorem initial_agreement_ratchet_success_step_of_bundled_model_result
     (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
     (hzKeys : ZeroizingRoundTrips
       (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
-    (evidence : InitialAgreementRatchetSuccessResultEvidence
+    (evidence : InitialAgreementRatchetGeneratedResultEvidence
       (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
       (view := view) (oracle := oracle) (real := real) (model := model)
       message rng) :
@@ -10997,10 +10981,12 @@ theorem initial_agreement_ratchet_success_step_of_bundled_model_result
           (Model.Lifecycle.decryptRatchet view oracle model
             (Tacenta.SessionUnitWireInitialT3.initialOf decoded).ratchetMessage) := by
   intro decoded established hdecode hestablished hi plaintext next rngNext hcall
-  obtain ⟨alignment⟩ :=
-    evidence.result decoded established hdecode hestablished hi plaintext next rngNext hcall
-  obtain ⟨modelNext, modelPlaintext, oracleNext, hmodel⟩ :=
-    initial_ratchet_model_success_result_of_excluded_refusal alignment.excludesRefusal
+  let relation := evidence.relation decoded established hdecode hestablished hi
+  obtain ⟨provider⟩ :=
+    evidence.success.result decoded established hdecode hestablished hi plaintext next rngNext hcall
+  obtain ⟨modelNext, modelPlaintext, oracleNext, hmodel, _hbytes⟩ :=
+    initial_ratchet_model_success_result_of_result_refines
+      (relation.refines (.Ok plaintext) next rngNext hcall)
   have hready : Model.Lifecycle.agreementFailed model = false := by
     by_cases hfailed : Model.Lifecycle.agreementFailed model = true
     · simp [Model.Lifecycle.decryptRatchet, hfailed] at hmodel
@@ -11016,7 +11002,7 @@ theorem initial_agreement_ratchet_success_step_of_bundled_model_result
       (real := real) (model := model) (message := decoded.message.deref)
       (rng := rng) (rngNext := rngNext) (plaintext := plaintext) (next := next)
       hz32 hzKeys hcall facts
-      (alignment.provider modelNext modelPlaintext oracleNext hmodel facts))
+      (provider.provider modelNext modelPlaintext oracleNext hmodel facts))
 
 /-! Convert the bundled model success result into the callback consumed by the
     result-shaped splitter.  Both projections below call the same bundled
@@ -11028,7 +11014,7 @@ theorem initial_ratchet_success_callback_of_bundled_model_result
     {view : Model.Lifecycle.CodewordView} {oracle : Model.Lifecycle.Oracle}
     {real : lifecycle.Session} {model : Model.Lifecycle.Session}
     {message : Slice Std.U8} {rng : R}
-    (evidence : InitialRatchetSuccessResultEvidence
+    (evidence : InitialRatchetGeneratedResultEvidence
       (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
       (view := view) (oracle := oracle) (real := real) (model := model)
       message rng) :
@@ -11049,10 +11035,12 @@ theorem initial_ratchet_success_callback_of_bundled_model_result
             InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
               successPrefix facts) := by
   intro decoded established hdecode hestablished he hi plaintext next rngNext hcall
-  obtain ⟨alignment⟩ :=
-    evidence.result decoded established hdecode hestablished he hi plaintext next rngNext hcall
-  obtain ⟨modelNext, modelPlaintext, oracleNext, hmodel⟩ :=
-    initial_ratchet_model_success_result_of_excluded_refusal alignment.excludesRefusal
+  let relation := evidence.relation decoded established hdecode hestablished he hi
+  obtain ⟨provider⟩ :=
+    evidence.success.result decoded established hdecode hestablished he hi plaintext next rngNext hcall
+  obtain ⟨modelNext, modelPlaintext, oracleNext, hmodel, _hbytes⟩ :=
+    initial_ratchet_model_success_result_of_result_refines
+      (relation.refines (.Ok plaintext) next rngNext hcall)
   have hready : Model.Lifecycle.agreementFailed model = false := by
     by_cases hfailed : Model.Lifecycle.agreementFailed model = true
     · simp [Model.Lifecycle.decryptRatchet, hfailed] at hmodel
@@ -11061,7 +11049,7 @@ theorem initial_ratchet_success_callback_of_bundled_model_result
     model modelNext decoded.message.deref modelPlaintext hready hmodel
   refine ⟨oracleNext, facts, ⟨fun successPrefix => ?_⟩⟩
   exact initial_ratchet_success_splice_of_concrete_provider successPrefix facts
-    (alignment.provider modelNext modelPlaintext oracleNext hmodel facts)
+    (provider.provider modelNext modelPlaintext oracleNext hmodel facts)
 
 /-! Package the per-input evidence constructors so the public bridge can
     request a single concrete branch-evidence object instead of an opaque
@@ -11679,13 +11667,13 @@ theorem initial_agreement_ratchet_refines_of_t1_with_concrete_evidence
     ctx boundary headroom hz32 hzKeys
     (fun hready decoded established hdecode hestablished hi reason next rngNext
         hnotbad hcall =>
-      initial_ratchet_model_refusal_case_of_excluded_success hready hnotbad
-        (evidence.result.refusalExcludesSuccess decoded established hdecode hestablished
-          hi reason next rngNext hcall))
+      initial_ratchet_model_refusal_case_of_result_refines hready hnotbad
+        ((evidence.result.relation decoded established hdecode hestablished hi).refines
+          (.Err reason) next rngNext hcall))
     (initial_ratchet_refusal_branch_providers_of_evidence_package
       kem codec oracleOf hz32 hzKeys headroom ctx.hrel evidence.concrete)
     (initial_agreement_ratchet_success_step_of_bundled_model_result
-      hz32 hzKeys evidence.result.success)
+      hz32 hzKeys evidence.result)
 
 theorem decrypt_initial_agreement_of_t1_with_concrete_evidence
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
@@ -11931,13 +11919,12 @@ theorem initial_ratchet_refines_of_t1_with_concrete_evidence
     ctx boundary headroom hz32 hzKeys
     (fun hready decoded established hdecode hestablished he hi reason next rngNext
         hnotbad hcall =>
-      initial_ratchet_model_refusal_case_of_excluded_success hready hnotbad
-        (evidence.result.refusalExcludesSuccess decoded established hdecode hestablished
-          he hi reason next rngNext hcall))
+      initial_ratchet_model_refusal_case_of_result_refines hready hnotbad
+        ((evidence.result.relation decoded established hdecode hestablished he hi).refines
+          (.Err reason) next rngNext hcall))
     (initial_ratchet_refusal_branch_providers_of_evidence_package
       kem codec oracleOf hz32 hzKeys headroom ctx.hrel evidence.concrete)
-    (initial_ratchet_success_callback_of_bundled_model_result
-      evidence.result.success)
+    (initial_ratchet_success_callback_of_bundled_model_result evidence.result)
 
 /-! The public initial-message bridge now reuses that exact inner witness.  The
     refusal side evaluates and classifies the concrete model result before
