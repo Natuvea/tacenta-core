@@ -57,6 +57,12 @@ def main():
         ('weaken-terminal-guard',
          '(hfailed : Model.Lifecycle.agreementFailed model = true) :',
          '(hfailed : Model.Lifecycle.agreementFailed model = false) :', 'hfailed'),
+        ('invert-decrypt-refusal-success-exclusion',
+         '          (Model.Lifecycle.decryptRatchet view oracle model\n'
+         '            (sliceOf decoded.message.deref)).result ≠ .ok modelPlaintext',
+         '          (Model.Lifecycle.decryptRatchet view oracle model\n'
+         '            (sliceOf decoded.message.deref)).result = .ok modelPlaintext',
+         'evidence.result.refusalExcludesSuccess'),
         ('restore-arbitrary-ceiling',
          '      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →\n'
          '      ∃ draw rest, trace innerRng = draw :: rest',
@@ -167,6 +173,13 @@ def main():
                 if start < 0 or target < 0:
                     raise SystemExit(f'Target changed for {name}: named discharge premise is missing')
                 mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
+            elif name == 'invert-decrypt-refusal-success-exclusion':
+                marker = 'structure InitialRatchetGeneratedResultEvidence'
+                start = source.find(marker)
+                target = source.find(before, start)
+                if start < 0 or target < 0:
+                    raise SystemExit(f'Target changed for {name}: result exclusion is missing')
+                mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
             elif (name.startswith('invert-encrypt-') and
                   name != 'invert-encrypt-triple-success-sparse-bridge'):
                 markers = {
@@ -267,6 +280,11 @@ def main():
                 mismatch = re.search(
                     r'error: Application type mismatch: The argument\s+'
                     r'htripleAtRealEpoch.+?has type\s+'
+                    r'.+?but is expected to have type', output, re.S)
+            elif name == 'invert-decrypt-refusal-success-exclusion':
+                mismatch = re.search(
+                    r'error: Application type mismatch: The argument\s+'
+                    r'evidence\.result\.refusalExcludesSuccess.+?has type\s+'
                     r'.+?but is expected to have type', output, re.S)
             elif name == 'replace-encrypt-associated-data-headroom':
                 mismatch = re.search(
