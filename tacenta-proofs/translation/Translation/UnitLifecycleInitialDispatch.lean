@@ -9528,6 +9528,126 @@ structure InitialRatchetBraidEvidenceContracts
   hepoch : (Tacenta.SessionUnitBraidT1.State.epoch_val real.braid.state).val + 1 <
     Std.U64.max
 
+/-! A generated success already fixes the concrete decoder, Braid message and
+    Braid successor.  Replaying the shared Braid contracts against the model
+    success facts therefore recovers the corresponding message/state
+    relations; callers do not need to restate them in the success provider. -/
+theorem initial_ratchet_success_braid_evidence_of_prefix_contracts
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (contracts : InitialRatchetBraidEvidenceContracts (K := K) view real model message)
+    (headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real)
+    (hrel : SessionRefines dh K real model) :
+    Tacenta.SessionUnitBraidT3.MsgRefines successPrefix.m
+        (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite) ∧
+      Tacenta.SessionUnitBraidT3.StateRefines K successPrefix.braidCandidate.state
+        (Model.Braid.receive K model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid facts.modelComposite)).2.2 := by
+  have hnotbad : ∀ realReason,
+      tacenta_wire.decode_message message ≠ ok (.Err realReason) := by
+    intro realReason hbad
+    rw [successPrefix.hdecode] at hbad
+    simp at hbad
+  obtain ⟨decoded, hdecodeReal, _hciphertext, hcomposite⟩ :=
+    decode_message_model_facts_of_nonrefusal message hnotbad facts.modelComposite
+      facts.ciphertext facts.hdecodeModel
+  have hdecodedResult : core.result.Result.Ok decoded =
+      core.result.Result.Ok successPrefix.decoded :=
+    Result.ok.inj (hdecodeReal.symm.trans successPrefix.hdecode)
+  have hdecoded : decoded = successPrefix.decoded := by
+    injection hdecodedResult
+  subst decoded
+  obtain ⟨evidence⟩ := braid_receive_evidence view contracts.contracts real model
+    headroom successPrefix.decoded.header facts.modelComposite contracts.hka contracts.hea
+    contracts.hmac contracts.hkdf contracts.hlens contracts.hvalek contracts.hct1len
+    contracts.hct2len contracts.hheaderlen contracts.hkcl contracts.hecl hrel hcomposite
+    (contracts.hchunk successPrefix.decoded.header facts.modelComposite hcomposite)
+    (contracts.hhonest facts.modelComposite) contracts.hepoch
+  have hmessage : evidence.message = successPrefix.m := by
+    injection evidence.hmessageCall.symm.trans successPrefix.hmessage
+  have hreceiveEvidence : real.braid.receive successPrefix.m =
+      ok (evidence.receivedEpoch, evidence.output, evidence.next) := by
+    simpa [hmessage] using evidence.hreceive
+  have hreceiveResult :
+      (evidence.receivedEpoch, evidence.output, evidence.next) =
+        (successPrefix.receivedEpoch, successPrefix.output,
+          successPrefix.braidCandidate) := by
+    apply Result.ok.inj
+    exact hreceiveEvidence.symm.trans successPrefix.hreceive
+  have hnext : evidence.next = successPrefix.braidCandidate := by
+    exact congrArg (fun value => value.2.2) hreceiveResult
+  exact ⟨by simpa [hmessage] using evidence.hmessageRel,
+    by simpa [hnext] using evidence.hnext⟩
+
+/-! The concrete success provider exposed at the public composition boundary.
+    Braid message/state refinement is intentionally absent: it is derived by
+    `initial_ratchet_success_braid_evidence_of_prefix_contracts` from the exact
+    generated success prefix, the exact model success facts, and the shared
+    Braid contracts below. -/
+structure InitialRatchetContractSuccessProvider {R : Type}
+    {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message) : Type where
+  hdirect : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+      rng rngNext plaintext next)
+    (direct : tacenta_triple.State × Array Std.U8 32#usize),
+    lifecycle.receive_attempt real.triple successPrefix.realHeader
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      successPrefix.sparseOutput = ok (.Ok direct) →
+    direct = (successPrefix.realTripleCandidate, successPrefix.realMk) →
+    InitialRatchetSuccessBranchAt successPrefix facts
+  hretry : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+      rng rngNext plaintext next)
+    (realReason : tacenta_triple.TripleError) (half : lifecycle.FullStore),
+    lifecycle.receive_attempt real.triple successPrefix.realHeader
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      successPrefix.sparseOutput = ok (.Err realReason) →
+    lifecycle.full_store realReason = ok (some half) →
+    InitialRatchetSuccessBranchAt successPrefix facts
+  hrel : SessionRefines dh K real model
+  contracts : InitialRatchetBraidEvidenceContracts (K := K) view real model message
+  headroom : Tacenta.UnitLifecycleT1.DecryptRatchetHeadroom real
+  hkem : K = oracle.braidKem
+  hprivate : ∀ (successPrefix : InitialRatchetSuccessPrefix rc crc real message
+      rng rngNext plaintext next), dh.privateKey successPrefix.candidatePrivate = facts.draw
+  hbytes : vecOf plaintext = facts.modelPlaintext
+  htrace : trace rngNext = oracleNext.draws
+
+noncomputable def initial_ratchet_success_splice_of_contract_provider
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleNext : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message)
+    (provider : InitialRatchetContractSuccessProvider
+      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
+      (view := view) (oracle := oracle) (oracleNext := oracleNext)
+      (real := real) (model := model) (message := message) (rng := rng)
+      (rngNext := rngNext) (plaintext := plaintext) (next := next) facts) :
+    InitialRatchetSuccessSplice (dh := dh) (K := K) (trace := trace)
+      successPrefix facts := by
+  have braid := initial_ratchet_success_braid_evidence_of_prefix_contracts (trace := trace)
+    successPrefix facts provider.contracts provider.headroom provider.hrel
+  exact initial_ratchet_success_splice_of_concrete_receive_case successPrefix facts
+    (provider.hdirect successPrefix) (provider.hretry successPrefix) provider.hrel
+    braid.1 provider.hkem braid.2 (provider.hprivate successPrefix)
+    provider.hbytes provider.htrace
+
 noncomputable def initial_ratchet_dh_concrete_providers_of_braid_contracts
     {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
     {trace : R → List Model.Lifecycle.Key} {dh : DhView} {K : Model.Braid.Kem}
@@ -10772,7 +10892,7 @@ structure InitialRatchetGeneratedSuccessProvider
       { session := modelNext, result := .ok modelPlaintext, oracle := oracleNext } →
     ∀ (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model
         decoded.message.deref),
-      InitialRatchetConcreteSuccessProvider
+      InitialRatchetContractSuccessProvider
         (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
         (view := view) (oracle := oracle) (oracleNext := oracleNext)
         (real := real) (model := model) (message := decoded.message.deref)
@@ -10952,7 +11072,7 @@ theorem initial_agreement_ratchet_success_callback_of_bundled_model_result
   obtain ⟨facts⟩ := initial_ratchet_model_success_facts_of_result view oracle oracleNext
     model modelNext decoded.message.deref modelPlaintext hready hmodel
   refine ⟨oracleNext, facts, ⟨fun successPrefix => ?_⟩⟩
-  exact initial_ratchet_success_splice_of_concrete_provider successPrefix facts
+  exact initial_ratchet_success_splice_of_contract_provider successPrefix facts
     (provider.provider modelNext modelPlaintext oracleNext hmodel facts)
 
 theorem initial_agreement_ratchet_success_step_of_bundled_model_result
@@ -10995,14 +11115,12 @@ theorem initial_agreement_ratchet_success_step_of_bundled_model_result
     model modelNext decoded.message.deref modelPlaintext
     hready hmodel
   exact initial_ratchet_success_step_from_evidence (R := R)
-    (initial_ratchet_success_evidence_of_result_and_concrete_provider
-      (R := R)
-      (rc := rc) (crc := crc) (trace := trace) (dh := dh) (K := K)
-      (view := view) (oracle := oracle) (oracleNext := oracleNext)
-      (real := real) (model := model) (message := decoded.message.deref)
-      (rng := rng) (rngNext := rngNext) (plaintext := plaintext) (next := next)
-      hz32 hzKeys hcall facts
-      (provider.provider modelNext modelPlaintext oracleNext hmodel facts))
+      (let successPrefix := Classical.choice (initial_ratchet_success_prefix_of_result
+          rc crc hz32 hzKeys real decoded.message.deref rng rngNext plaintext next hcall)
+       initial_ratchet_success_evidence_of_splice successPrefix facts
+         (initial_ratchet_success_splice_of_contract_provider successPrefix facts
+           (provider.provider modelNext modelPlaintext oracleNext hmodel facts))
+         hcall)
 
 /-! Convert the bundled model success result into the callback consumed by the
     result-shaped splitter.  Both projections below call the same bundled
@@ -11048,7 +11166,7 @@ theorem initial_ratchet_success_callback_of_bundled_model_result
   obtain ⟨facts⟩ := initial_ratchet_model_success_facts_of_result view oracle oracleNext
     model modelNext decoded.message.deref modelPlaintext hready hmodel
   refine ⟨oracleNext, facts, ⟨fun successPrefix => ?_⟩⟩
-  exact initial_ratchet_success_splice_of_concrete_provider successPrefix facts
+  exact initial_ratchet_success_splice_of_contract_provider successPrefix facts
     (provider.provider modelNext modelPlaintext oracleNext hmodel facts)
 
 /-! Package the per-input evidence constructors so the public bridge can

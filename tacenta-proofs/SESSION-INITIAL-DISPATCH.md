@@ -254,3 +254,29 @@ Focused Lean compilation and `attest.py --check` pass. The signed commits
 `49f1c07` and `01404d4` are pushed. The next semantic step is to package these
 facts and compose them with `decrypt_ratchet_aead_refusal_from_braid`, then
 feed the resulting route into the indexed refusal provider.
+
+## Checkpoint — 2026-09-28 (derived decrypt-success Braid relations)
+
+The exact generated `decrypt_ratchet` success prefix and the executable model
+success facts now replay the shared Braid contracts to derive both the concrete
+message refinement and the post-receive state refinement. The public success
+boundary is `InitialRatchetContractSuccessProvider`; it no longer accepts an
+independent `hmessageRel` or `hbraidReceive` claim. Its adapter constructs those
+relations through
+`initial_ratchet_success_braid_evidence_of_prefix_contracts` before entering
+the common direct/full-store success splice.
+
+Two new controls replace each derived relation with an unrelated session
+relation. Lean rejects both substitutions at the splice boundary. The focused
+1,733-job build passes, and the complete `no-sorry.sh` run passes: 2,318
+translation/T1/T3 jobs, 37 model-proof jobs, 65 model/property jobs, all 24
+proof-dependency mutations, all 13 planted audit failures, audit reach over 115
+first-party modules, and kernel replay of 68/11/35 modules.
+
+This is a provider reduction, not final Session acceptance. The positive
+`ResultRefines` relation is still explicit, and the exact Triple direct/retry
+branch evidence, candidate-private-key relation, plaintext relation, oracle
+trace, and sparse finite-store premises still enter at the success boundary.
+The next batch should derive the positive result relation from the concrete
+result-sensitive DH, Triple, and AEAD evidence, then continue reducing those
+remaining exact-success obligations.
