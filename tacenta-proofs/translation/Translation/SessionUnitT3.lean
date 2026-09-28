@@ -413,11 +413,11 @@ theorem message_keys_refines (h : HkdfAgrees) (hz : ZeroizingRoundTrips80)
 /-! ## Sending refines the model's send
 
 Both refuse a send at `ns = u32::MAX` (ratchet.md, Sending and receiving): the
-Rust reports `ChainExhausted`, and the model returns `none`. The statement below
-relates a successful send to the model's, and the "no sending chain" refusal to
-the model's `none`. It does not state that `ChainExhausted` is the model's
-`none` too, though that now holds; the correspondence is left at the two
-clauses the Triple Ratchet's bundle composes. -/
+Rust reports `ChainExhausted`, and the model returns `none`. The refusal clause
+below is exhaustive for the real send implementation: every reported error is
+either `NoSendingChain` or `ChainExhausted`, and either one is the model's
+`none`. This lets the Triple Ratchet derive the public refusal shape from the
+generated result instead of accepting it from a caller. -/
 
 theorem send_refines (h : HmacAgrees) (s : State) (m : Model.State.State)
     (hR : StateR s m) :
@@ -425,14 +425,21 @@ theorem send_refines (h : HmacAgrees) (s : State) (m : Model.State.State)
       (∀ hdr mk, r.1 = core.result.Result.Ok (hdr, mk) →
         ∃ m' mh, Model.Ratchet.send m = some (m', mh, keyOf mk)
           ∧ StateR r.2 m' ∧ HeaderR hdr mh)
-      ∧ (r.1 = core.result.Result.Err RatchetError.NoSendingChain →
+      ∧ (∀ e, r.1 = core.result.Result.Err e →
+          (e = RatchetError.NoSendingChain ∨ e = RatchetError.ChainExhausted) ∧
           Model.Ratchet.send m = none) ⦄ := by
   obtain ⟨hdhs, hdhr, hrk, hcks, hckr, hns, hnr, hpn, hskip, hev, hlab⟩ := hR
   unfold send
   rcases hc : s.cks with _ | ck
   · simp_all [Model.Ratchet.send, ← hcks]
   · rcases hadd : s.ns.checked_add 1#u32 with _ | next_ns
-    · simp_all [lift]
+    · have hspec := U32.checked_add_bv_spec s.ns 1#u32
+      rw [hadd] at hspec
+      have hmns : Model.State.u32Max ≤ m.ns := by
+        rw [Model.State.u32Max_eq, ← hns]
+        simp only at hspec
+        scalar_tac
+      simp_all [lift, Model.Ratchet.send, ← hcks]
     · simp only [lift]
       step*
       have hm : m.cks = some (keyOf ck) := by rw [← hcks, hc]; simp

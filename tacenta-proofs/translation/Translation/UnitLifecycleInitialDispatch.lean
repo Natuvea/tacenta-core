@@ -12774,7 +12774,9 @@ theorem braid_success_evidence_of_generated
 
 /-! The refusal provider supplies only facts which the generated call and the
     Triple contracts cannot derive themselves: finite-store headroom and the
-    public-to-model refusal-code correspondence.  It no longer returns a
+    public-to-model refusal-code correspondence.  The generated Triple result
+    now determines the complete real refusal shape, including the classical
+    counter-exhaustion edge; the provider no longer supplies that fact or a
     completed route witness. -/
 structure GeneratedTripleRefusalConditions
     (model : Model.Lifecycle.Session) (realEpoch : Std.U64)
@@ -12792,9 +12794,6 @@ structure GeneratedTripleRefusalConditions
   counterBound : ∀ p ∈ model.triple.postQuantum.chains,
     ∀ ch : Model.SparseRatchet.Chain,
     (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max
-  shape : realReason = tacenta_triple.TripleError.Classical
-      tacenta_ratchet.RatchetError.NoSendingChain ∨
-    ∃ reason', realReason = tacenta_triple.TripleError.PostQuantum reason'
   reason : ∀ modelReason,
     Model.Triple.sendDetailed model.triple realEpoch.val
         (sparseOutput.map Tacenta.SessionUnitTripleT3.spqrOutputOf) =
@@ -12888,14 +12887,14 @@ theorem encrypt_triple_refusal_evidence_of_generated
     intro modelReason hdetail
     rw [← hmodelEpoch, hmodelOutput]
     exact hdetail
-  obtain ⟨modelReason, _hdetail⟩ :=
+  obtain ⟨modelReason, _hdetail, _hshape⟩ :=
     triple_refusal_evidence_of_exact_candidate_and_contracts contracts
       braidEvidence.session.triple realEpoch sparseOutput conditions.room
       conditions.chainBound conditions.skippedBound conditions.newBound
-      conditions.epochBound conditions.counterBound conditions.shape hsendCandidate
+      conditions.epochBound conditions.counterBound hsendCandidate
   exact ⟨.refusal (modelReason := modelReason) contracts conditions.room
     conditions.chainBound conditions.skippedBound conditions.newBound
-    conditions.epochBound conditions.counterBound hsparse conditions.shape
+    conditions.epochBound conditions.counterBound hsparse
     braidEvidence.session braidEvidence.ready braidEvidence.realSend hsendCandidate
     braidEvidence.modelSend braidEvidence.next braidEvidence.notFailed hmodelOf
     conditions.reason braidEvidence.traceNext⟩

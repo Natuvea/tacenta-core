@@ -314,7 +314,9 @@ def RatchetAgreesFor (α : tacenta_ratchet.State → Model.State.State) : Prop :
     (∀ hdr mk, r.1 = core.result.Result.Ok (hdr, mk) →
       ∃ m' mh, Model.Ratchet.send (α s) = some (m', mh, keyOf mk) ∧
         α r.2 = m' ∧ RatchetHeaderR hdr mh) ∧
-    (r.1 = core.result.Result.Err tacenta_ratchet.RatchetError.NoSendingChain →
+    (∀ e, r.1 = core.result.Result.Err e →
+      (e = tacenta_ratchet.RatchetError.NoSendingChain ∨
+        e = tacenta_ratchet.RatchetError.ChainExhausted) ∧
       Model.Ratchet.send (α s) = none)) ∧
   -- mirrors: Tacenta.SessionUnitT3.receive_refines in UnitT3.lean
   (∀ (s : tacenta_ratchet.State) (hdr : tacenta_ratchet.Header) (mh : Model.State.Header),
@@ -416,22 +418,14 @@ structure TripleHeaderR (hdr : Header) (mh : Model.Triple.Header) : Prop where
 
 /-! ## `send` refines the model's
 
-The failure branch is not a blanket "either ratchet failing means the model
-fails", because that does not hold. The post-quantum side's failure
-clause is unconditional (`SpqrAgreesFor`, backed by `UnitSpqrT3.lean`'s own
-`hcounter`-guarded `send_refines`), but the classical ratchet's is not:
-`UnitT3.lean`'s own `send_refines` proves the model-failure correspondence only
-for `RatchetError.NoSendingChain`, not for `ChainExhausted` (the real `u32`
-send counter wrapping), because that theorem states no clause for it, though
-`Model.Ratchet.send` now refuses at `ns = u32::MAX` too. `RatchetAgreesFor`
-states exactly that -- `NoSendingChain` only -- rather than an unrestricted
-`∀ e`.
-The theorem's stated postcondition below is scoped to match: it only claims
-the failure-implies-`none` correspondence when the reported error is either
-a post-quantum one or specifically `Classical NoSendingChain`, and proves
-nothing at all about a `Classical ChainExhausted` failure -- the same
-finite-width boundary `UnitT3.lean` already excludes, one layer up rather than
-newly introduced here. -/
+The classical ratchet's failure clause is exhaustive: `UnitT3.lean` proves
+that the real send can report only `NoSendingChain` or `ChainExhausted`, and
+that either refusal is the model's `none`. The post-quantum side's failure
+clause is unconditional under its finite-state premises (`SpqrAgreesFor`,
+backed by `UnitSpqrT3.lean`'s `hcounter`-guarded `send_refines`). The composed
+postcondition therefore returns both facts for every generated error: its
+complete real send-refusal shape and the model send's refusal. A caller no
+longer chooses the classical counter edge by supplying a side condition. -/
 
 theorem send_refines {α : tacenta_ratchet.State → Model.State.State}
     {β : tacenta_spqr.State → Model.SparseRatchet.State}
@@ -454,7 +448,8 @@ theorem send_refines {α : tacenta_ratchet.State → Model.State.State}
           ∧ StateRefines α β r.2 m' ∧ TripleHeaderR hdr mh ∧ keyOf mk = key)
       ∧ (∀ e, r.1 = core.result.Result.Err e →
           (e = TripleError.Classical tacenta_ratchet.RatchetError.NoSendingChain ∨
-            ∃ e', e = TripleError.PostQuantum e') →
+            e = TripleError.Classical tacenta_ratchet.RatchetError.ChainExhausted ∨
+            ∃ e', e = TripleError.PostQuantum e') ∧
           Model.Triple.send m sending_epoch.val (output.map spqrOutputOf) = none) ⦄ := by
   obtain ⟨hrClone, _, _, _, _, _, hrSend, _⟩ := hra
   obtain ⟨hsClone, _, _, _, hsSend, _⟩ := hsa
@@ -502,60 +497,27 @@ theorem send_refines {α : tacenta_ratchet.State → Model.State.State}
     · step*
       have hspqNone := hr1Post.2 e1 rfl
       rw [hsqEq, hrelQ] at hspqNone
-      simp only [hspqNone]
       obtain ⟨_, hkbz2⟩ := hz mk_ec
       simp only [hkbz2]
       refine ⟨?_, ?_⟩
       · intro hdr mk hcon; injection hcon
-      · intro e' he' hcov; trivial
+      · intro e' he'
+        injection he' with heq
+        subst e'
+        exact ⟨Or.inr (Or.inr ⟨e1, rfl⟩), by simp [hspqNone]⟩
   · step*
-    -- One arm per `RatchetError` variant, in declaration order: `TooManySkipped`,
-    -- `SkippedStoreFull`, `NoSendingChain` (the one the model also refuses),
-    -- `NoReceivingChain`, `OutOfOrder`, `ChainExhausted`. Every arm but the third
-    -- is outside the failure clause, so it closes the same way.
-    rcases e with _ | _ | _ | _ | _ | _
-    · refine ⟨?_, ?_⟩
-      · intro hdr mk hcon; injection hcon
-      · intro e' he' hcov
-        injection he' with heq
-        rcases hcov with hcov | ⟨e'', hcov⟩
-        · rw [← heq] at hcov; injection hcov with hcov; injection hcov
-        · rw [← heq] at hcov; injection hcov
-    · refine ⟨?_, ?_⟩
-      · intro hdr mk hcon; injection hcon
-      · intro e' he' hcov
-        injection he' with heq
-        rcases hcov with hcov | ⟨e'', hcov⟩
-        · rw [← heq] at hcov; injection hcov with hcov; injection hcov
-        · rw [← heq] at hcov; injection hcov
-    · have hnone := hrPost.2 rfl
-      rw [hscEq] at hnone
-      rw [hrelC] at hnone
-      simp only [hnone]
-      refine ⟨?_, ?_⟩
-      · intro hdr mk hcon; injection hcon
-      · intro e' he' hcov; trivial
-    · refine ⟨?_, ?_⟩
-      · intro hdr mk hcon; injection hcon
-      · intro e' he' hcov
-        injection he' with heq
-        rcases hcov with hcov | ⟨e'', hcov⟩
-        · rw [← heq] at hcov; injection hcov with hcov; injection hcov
-        · rw [← heq] at hcov; injection hcov
-    · refine ⟨?_, ?_⟩
-      · intro hdr mk hcon; injection hcon
-      · intro e' he' hcov
-        injection he' with heq
-        rcases hcov with hcov | ⟨e'', hcov⟩
-        · rw [← heq] at hcov; injection hcov with hcov; injection hcov
-        · rw [← heq] at hcov; injection hcov
-    · refine ⟨?_, ?_⟩
-      · intro hdr mk hcon; injection hcon
-      · intro e' he' hcov
-        injection he' with heq
-        rcases hcov with hcov | ⟨e'', hcov⟩
-        · rw [← heq] at hcov; injection hcov with hcov; injection hcov
-        · rw [← heq] at hcov; injection hcov
+    obtain ⟨hshape, hnone⟩ := hrPost.2 e rfl
+    rw [hscEq, hrelC] at hnone
+    refine ⟨?_, ?_⟩
+    · intro hdr mk hcon; injection hcon
+    · intro e' he'
+      injection he' with heq
+      subst e'
+      constructor
+      · rcases hshape with hshape | hshape
+        · exact Or.inl (by rw [hshape])
+        · exact Or.inr (Or.inl (by rw [hshape]))
+      · simp [hnone]
 
 /-! ## `receive` refines the model's -/
 
@@ -899,7 +861,8 @@ theorem send_refines_discharged
           ∧ StateRefines ratchetAbs spqrAbs r.2 m' ∧ TripleHeaderR hdr mh ∧ keyOf mk = key)
       ∧ (∀ e, r.1 = core.result.Result.Err e →
           (e = TripleError.Classical tacenta_ratchet.RatchetError.NoSendingChain ∨
-            ∃ e', e = TripleError.PostQuantum e') →
+            e = TripleError.Classical tacenta_ratchet.RatchetError.ChainExhausted ∨
+            ∃ e', e = TripleError.PostQuantum e') ∧
           Model.Triple.send m sending_epoch.val (output.map spqrOutputOf) = none) ⦄ :=
   send_refines (ratchet_agrees_for hopt hmac hkdf hzr hvr)
     (spqr_agrees_for hkdf hz96 hz64 hret hret_total hrm hzs hopt) hkdf

@@ -2092,7 +2092,9 @@ theorem triple_send_post_of_contracts
       (∀ e, sent = core.result.Result.Err e →
         (e = tacenta_triple.TripleError.Classical
             tacenta_ratchet.RatchetError.NoSendingChain ∨
-          ∃ e', e = tacenta_triple.TripleError.PostQuantum e') →
+          e = tacenta_triple.TripleError.Classical
+            tacenta_ratchet.RatchetError.ChainExhausted ∨
+          ∃ e', e = tacenta_triple.TripleError.PostQuantum e') ∧
         Model.Triple.send m sendingEpoch.val
           (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = none)) := by
   obtain ⟨result, hcall, hpost⟩ := Std.WP.spec_imp_exists
@@ -2140,7 +2142,9 @@ theorem triple_send_candidate_post_of_contracts
       (∀ e, sent = core.result.Result.Err e →
         (e = tacenta_triple.TripleError.Classical
             tacenta_ratchet.RatchetError.NoSendingChain ∨
-          ∃ e', e = tacenta_triple.TripleError.PostQuantum e') →
+          e = tacenta_triple.TripleError.Classical
+            tacenta_ratchet.RatchetError.ChainExhausted ∨
+          ∃ e', e = tacenta_triple.TripleError.PostQuantum e') ∧
         Model.Triple.send m sendingEpoch.val
           (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = none)) := by
   unfold lifecycle.send_candidate at hsend
@@ -2242,20 +2246,22 @@ theorem triple_refusal_evidence_of_exact_candidate_and_contracts
     (hcounter : ∀ p ∈ m.postQuantum.chains, ∀ ch : Model.SparseRatchet.Chain,
       (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
     {candidate : tacenta_triple.State} {reason : tacenta_triple.TripleError}
-    (hshape : reason = tacenta_triple.TripleError.Classical
-        tacenta_ratchet.RatchetError.NoSendingChain ∨
-      ∃ reason', reason = tacenta_triple.TripleError.PostQuantum reason')
     (hsend : lifecycle.send_candidate s sendingEpoch output =
       ok (candidate, .Err reason)) :
     ∃ modelReason,
       Model.Triple.sendDetailed m sendingEpoch.val
-        (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = .error modelReason := by
+        (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = .error modelReason ∧
+      (reason = tacenta_triple.TripleError.Classical
+          tacenta_ratchet.RatchetError.NoSendingChain ∨
+        reason = tacenta_triple.TripleError.Classical
+          tacenta_ratchet.RatchetError.ChainExhausted ∨
+        ∃ reason', reason = tacenta_triple.TripleError.PostQuantum reason') := by
   have hpost := triple_send_candidate_post_of_contracts contracts hrel sendingEpoch output
     hroom hcb hsb hnewb hepoch hcounter hsend
-  have hnone := hpost.2 reason (by rfl) hshape
+  obtain ⟨hshape, hnone⟩ := hpost.2 reason (by rfl)
   cases hdetail : Model.Triple.sendDetailed m sendingEpoch.val
       (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) with
-  | error modelReason => exact ⟨modelReason, rfl⟩
+  | error modelReason => exact ⟨modelReason, rfl, hshape⟩
   | ok value =>
       have hsome := (Model.Triple.sendDetailed_ok_iff m sendingEpoch.val
         (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) value).1 hdetail
@@ -4544,9 +4550,6 @@ theorem public_encrypt_triple_refusal_of_contracts
     (hcounter : ∀ p ∈ model.triple.postQuantum.chains, ∀ ch : Model.SparseRatchet.Chain,
       (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
     (hsparse : RealSparseConversion realOutput sparseOutput)
-    (hshape : realReason = tacenta_triple.TripleError.Classical
-        tacenta_ratchet.RatchetError.NoSendingChain ∨
-      ∃ reason', realReason = tacenta_triple.TripleError.PostQuantum reason')
     (hrel : SessionRefines dh K real model)
     (hready : Model.Lifecycle.agreementFailed model = false)
     (hsendReal : tacenta_braid.Braid.send rngCore cryptoRng real.braid rng =
@@ -4570,9 +4573,9 @@ theorem public_encrypt_triple_refusal_of_contracts
       tripleSendRefusalOfReal realReason = some modelReason)
     (htrace : trace rngNext = oracleNext.draws) :
     PublicEncryptWitness rngCore cryptoRng trace dh K view oracle real model plaintext rng := by
-  obtain ⟨modelReason, htripleModel⟩ :=
+  obtain ⟨modelReason, htripleModel, _derivedShape⟩ :=
     triple_refusal_evidence_of_exact_candidate_and_contracts contracts hrel.triple
-      realEpoch sparseOutput hroom hcb hsb hnewb hepoch hcounter hshape hsendCandidate
+      realEpoch sparseOutput hroom hcb hsb hnewb hepoch hcounter hsendCandidate
   have htripleModel' := hmodelOf modelReason htripleModel
   exact encrypt_triple_refusal_of_exact_candidate rngCore cryptoRng trace dh K view oracle
     oracleNext real model plaintext rng rngNext realMessage realEpoch realOutput realBraidNext
@@ -6067,9 +6070,6 @@ inductive EncryptTripleRouteEvidence {R : Type}
       (hcounter : ∀ p ∈ model.triple.postQuantum.chains, ∀ ch : Model.SparseRatchet.Chain,
         (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
       (hsparse : RealSparseConversion realOutput sparseOutput)
-      (hshape : realReason = tacenta_triple.TripleError.Classical
-          tacenta_ratchet.RatchetError.NoSendingChain ∨
-        ∃ reason', realReason = tacenta_triple.TripleError.PostQuantum reason')
       (hrel : SessionRefines dh K real model)
       (hready : Model.Lifecycle.agreementFailed model = false)
       (hsendReal : tacenta_braid.Braid.send rc crc real.braid rng =
@@ -6239,12 +6239,12 @@ theorem public_encrypt_of_triple_route
   cases evidence with
   | @refusal rngNext oracleNext realMessage realEpoch realOutput realBraidNext candidate
       sparseOutput realReason modelMessage modelEpoch modelOutput modelBraidNext modelReason
-      contracts derivedKeys hroom hcb hsb hnewb hepoch hcounter hsparse hshape hrel hready
+      contracts derivedKeys hroom hcb hsb hnewb hepoch hcounter hsparse hrel hready
       hsendReal hsendCandidate hsendModel hnext hnotFailed hmodelOf hreasonOf htrace =>
       exact public_encrypt_triple_refusal_of_contracts rc crc trace dh K view oracle oracleNext
         real model plaintext rng rngNext realMessage realEpoch realOutput realBraidNext candidate
         sparseOutput realReason modelMessage modelEpoch modelOutput modelBraidNext contracts hroom
-        hcb hsb hnewb hepoch hcounter hsparse hshape hrel hready hsendReal hsendCandidate
+        hcb hsb hnewb hepoch hcounter hsparse hrel hready hsendReal hsendCandidate
         hsendModel hnext hnotFailed hmodelOf hreasonOf htrace
   | @successNoInitial rngNext oracleNext realMessage realEpoch realOutput realBraidNext candidate
       realHeader realMk sparseOutput modelTripleNext modelHeader modelMk modelMessage modelEpoch
