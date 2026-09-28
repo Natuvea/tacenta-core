@@ -280,3 +280,38 @@ trace, and sparse finite-store premises still enter at the success boundary.
 The next batch should derive the positive result relation from the concrete
 result-sensitive DH, Triple, and AEAD evidence, then continue reducing those
 remaining exact-success obligations.
+
+## Checkpoint — 2026-09-28 (matching decrypt result families derived)
+
+The public inner-ratchet evidence package no longer accepts an arbitrary
+`InitialRatchetGeneratedResultRelation`. Matching result families are now
+proved at their concrete boundaries: refusal/refusal alignment is reconstructed
+from the executable model refusal classifier and the five generated refusal
+leaves, while success/success alignment is reconstructed from the exact model
+success facts and the concrete success splice. The obsolete full-relation
+record and success inversion helper were removed.
+
+The remaining result-family evidence is the deliberately narrower
+`InitialRatchetGeneratedCrossFamilyEvidence`. It has exactly two obligations:
+an actual Rust refusal cannot accompany model success, and an actual Rust
+success cannot accompany model refusal. It cannot choose a refusal code,
+plaintext, successor state, or oracle. Two proof-dependency controls swap those
+arms and require Lean to reject the mismatched concrete result type.
+
+This is still a checkpoint rather than final Session acceptance. The two
+cross-family contradictions must be derived from result-sensitive leaf
+contracts. The exact Triple direct/full-store branch evidence,
+candidate-private-key relation, plaintext relation, oracle trace, and sparse
+finite-store premises also remain at the success boundary.
+
+The exact-tree `no-sorry.sh` audit passes: 2,318 translation/T1/T3 jobs, 37
+model-proof jobs, 65 model/property jobs, all 24 proof-dependency mutations,
+all 13 planted audit failures, audit reach over 115 first-party modules, and
+kernel replay of 68/11/35 modules. This includes the two cross-family arm-swap
+controls against the final source used by the audit.
+
+After refreshing the two ordinary proof manifests, `tooling/ci.sh` also passes
+on this exact tree through workflow controls, the independent reader, vectors,
+the Rust workspace, dependency audit, constant-time host check, and all six
+fuzz-smoke targets. The translation attestation was not refreshed because no
+generated Aeneas file changed.
