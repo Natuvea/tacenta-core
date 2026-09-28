@@ -260,23 +260,33 @@ first that fails:
 7. The verifier's own policy accepts each binding, told whether it came from
    `active` or `revoked`, and then accepts the statement as a whole.
 
-The format does not check, and a verifier that needs any of these must:
+The format does not check the following, so a verifier that needs any of them
+checks it itself:
 
 - **Chain of custody for a replacement.** `replacement_predecessor` need not
-  name a binding that appears in `revoked`. Revocations at or below
+  name a binding in this statement's `revoked` list. Revocations at or below
   `revocation_floor_generation` are dropped from the statement, and the
   replacement stays in `active` with its marker, so the marker can outlive the
   tombstone it names. A replacement may also carry a new `device_id`. A
   verifier must not refuse a statement solely because the named binding is
-  absent.
+  absent from `revoked`; checking custody needs the verifier's own record of
+  earlier statements.
 - **Uniqueness and reactivation.** The same identity key on more than one
   binding, a revoked key listed again as active, and a replacement identical to
   what it replaces are all accepted by the format. Whether they are acceptable
-  is the verifier's policy, and it needs the whole statement to decide (check 7).
+  is the verifier's policy, and it needs the whole statement to decide (check
+  7). A binding leaves `revoked` once the floor reaches its terminal
+  generation, so a verifier that must refuse reactivation beyond that window
+  needs its own record of revoked keys.
 - **Points off the curve or of mixed torsion.** A u-coordinate on the quadratic
   twist (for example u = 2) or the sum of a valid point and a low-order point
-  passes check 6. No honest device holds a private key for the first, and the
-  second agrees like its prime-order part. A misbehaving issuer could sign one.
+  passes check 6. No honest device holds a private key for a twist point. A
+  mixed-torsion key, by contrast, agrees exactly as the prime-order key it was
+  built from, so a device can present one for a private key it holds, and a
+  policy that compares keys by bytes can be evaded by respelling a key. A
+  policy that compares keys should compare by X25519 agreement class
+  (session-establishment.md), or the issuer should refuse such keys when it
+  links the device.
 - **Freshness and equivocation**, as check 4 states.
 
 ## Sources

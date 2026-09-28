@@ -6,12 +6,14 @@ is SemVer against the specified protocol (not the implementation).
 ## [Unreleased]
 
 - `identities-and-devices.md`: state what a verifier must check before it
-  relies on a signed hosted-inventory statement (account match, issuer binding,
-  signature, freshness, duplicate active `device_id`, canonical and non-low-order
-  identity keys, then its own binding and statement policy), and what the format
-  deliberately leaves unchecked: the chain of custody of a
-  `replacement_predecessor`, key uniqueness and reactivation, off-curve and
-  mixed-torsion keys, and equivocation. The one-owner rule for duplicate
+  relies on a signed hosted-inventory statement (account match, issuer
+  binding, signature, freshness, duplicate active `device_id`, canonical and
+  non-low-order identity keys, then its own binding and statement policy), in
+  that order, and what the format deliberately leaves unchecked: the chain of
+  custody of a `replacement_predecessor`, key uniqueness and reactivation,
+  off-curve and mixed-torsion keys, and equivocation. It also states that a
+  verifier must not refuse a statement solely because a replacement's named
+  predecessor is absent from `revoked`. The one-owner rule for duplicate
   `device_id` values replaces the earlier statement that the product must
   reject them. The encoding and the signature input are unchanged.
 

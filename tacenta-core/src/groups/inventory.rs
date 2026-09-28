@@ -77,6 +77,7 @@ pub enum Error {
 
 /// Whether a binding appears in a statement's `active` or `revoked` list.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum BindingStatus {
     Active,
     Revoked,
@@ -87,9 +88,9 @@ pub enum BindingStatus {
 /// Decoding establishes syntax and canonical form, and verification
 /// establishes the issuer signature. Neither establishes that an issuer is bound
 /// to an account, that a statement is fresh in a product's database, or that a
-/// device set is one the product allows. Those decisions are made here, and
-/// [`InventoryStatement::accept`] is the only way to obtain an
-/// [`AcceptedInventory`].
+/// device set is one the product allows. Those decisions are made here.
+/// [`InventoryStatement::accept`], and [`InventoryStatement::accept_signed`]
+/// which calls it, are the only ways to obtain an [`AcceptedInventory`].
 pub trait InventoryPolicy {
     /// Resolve the issuer id in the statement for this account. Returning
     /// `None` refuses an unbound issuer instead of treating the id as a key.
@@ -100,7 +101,8 @@ pub trait InventoryPolicy {
     /// stored current value, a window, or anything else is the product's.
     /// Two different validly signed statements at one generation are not
     /// distinguished by the format, so a product that needs to detect that
-    /// must record what it has seen.
+    /// must record what it has seen. Record it after `accept` returns, not
+    /// inside this hook: later checks can still refuse the statement.
     fn generation_is_current(&self, account_handle: &str, generation: u64) -> bool;
 
     /// Enforce product identity and device policy for one binding. Called for
@@ -116,7 +118,11 @@ pub trait InventoryPolicy {
     /// hook cannot see. The format does not require an identity key to be
     /// unique across bindings, a revoked key to stay revoked, or a
     /// replacement to differ from what it replaces; a product that requires
-    /// any of these checks them here.
+    /// any of these checks them here. A revoked binding leaves the statement
+    /// once the revocation floor reaches its terminal generation, so
+    /// non-reactivation beyond that window needs the product's own history.
+    /// Compare keys by X25519 agreement class, not bytes: a key can be
+    /// respelled by adding a low-order point without changing what it agrees.
     fn statement_is_allowed(&self, statement: &InventoryStatement) -> bool;
 }
 
@@ -144,9 +150,9 @@ impl InventoryStatement {
         let account_handle =
             String::from_utf8(take_lp(&mut input)?.to_vec()).map_err(|_| Error::Malformed)?;
         let inventory_generation = take_u64(&mut input)?;
-        let active = take_many(&mut input, take_binding)?;
+        let active = take_many(&mut input, MAX_ACTIVE_BINDINGS, take_binding)?;
         let revocation_floor_generation = take_u64(&mut input)?;
-        let revoked = take_many(&mut input, |rest| {
+        let revoked = take_many(&mut input, MAX_RECENT_REVOCATIONS, |rest| {
             Ok(Revocation {
                 binding: take_binding(rest)?,
                 terminal_generation: take_u64(rest)?,
@@ -256,6 +262,9 @@ impl InventoryStatement {
     ///    low-order point;
     /// 7. the policy accepts each binding, then the statement as a whole.
     ///
+    /// Checks 6 and 7 are two passes: every key in the statement is examined
+    /// before any hook runs on any binding.
+    ///
     /// Not checked here, by design: that a `replacement_predecessor` names a
     /// binding in `revoked` (revoked entries at or below the floor are dropped
     /// from the statement, and a replacement may carry a new `device_id`);
@@ -295,8 +304,12 @@ impl InventoryStatement {
                     .iter()
                     .map(|revoked| (&revoked.binding, BindingStatus::Revoked)),
             );
-        for (binding, status) in bindings {
+        // Every key is examined before any hook sees a binding, so a policy
+        // never runs on a statement that carries an unsound key anywhere.
+        for (binding, _) in bindings.clone() {
             validate_identity_key(&binding.identity_public_key)?;
+        }
+        for (binding, status) in bindings {
             if !policy.binding_is_allowed(&self.account_handle, binding, status) {
                 return Err(Error::Refused);
             }
@@ -382,10 +395,11 @@ fn take_lp<'a>(input: &mut &'a [u8]) -> Result<&'a [u8], Error> {
 }
 fn take_many<T>(
     input: &mut &[u8],
+    max: usize,
     mut parse: impl FnMut(&mut &[u8]) -> Result<T, Error>,
 ) -> Result<Vec<T>, Error> {
     let count = take_u32(input)? as usize;
-    if count > MAX_ACTIVE_BINDINGS {
+    if count > max {
         return Err(Error::Malformed);
     }
     (0..count).map(|_| parse(input)).collect()
@@ -490,6 +504,8 @@ mod tests {
         require_unique_keys: bool,
         refuse_statement: bool,
         hook_calls: std::cell::Cell<u32>,
+        /// The statement most recently handed to `statement_is_allowed`.
+        seen: std::cell::RefCell<Option<InventoryStatement>>,
     }
 
     impl TestPolicy {
@@ -535,6 +551,7 @@ mod tests {
 
         fn statement_is_allowed(&self, statement: &InventoryStatement) -> bool {
             self.hook_calls.set(self.hook_calls.get() + 1);
+            *self.seen.borrow_mut() = Some(statement.clone());
             if self.refuse_statement || !self.known(&statement.account_handle) {
                 return false;
             }
@@ -565,6 +582,7 @@ mod tests {
             require_unique_keys: false,
             refuse_statement: false,
             hook_calls: std::cell::Cell::new(0),
+            seen: std::cell::RefCell::new(None),
         }
     }
 
@@ -1062,6 +1080,263 @@ mod tests {
         bad_body[0] ^= 1;
         assert_eq!(
             InventoryStatement::accept_signed(&bad_body, ALICE, &policy),
+            Err(Error::Malformed)
+        );
+    }
+
+    /// A fixed, non-random byte source, so a signature can be pinned.
+    struct FixedRng(u8);
+    impl rand_core::RngCore for FixedRng {
+        fn next_u32(&mut self) -> u32 {
+            let mut b = [0u8; 4];
+            self.fill_bytes(&mut b);
+            u32::from_le_bytes(b)
+        }
+        fn next_u64(&mut self) -> u64 {
+            let mut b = [0u8; 8];
+            self.fill_bytes(&mut b);
+            u64::from_le_bytes(b)
+        }
+        fn fill_bytes(&mut self, dest: &mut [u8]) {
+            for byte in dest {
+                self.0 = self.0.wrapping_add(1);
+                *byte = self.0;
+            }
+        }
+        fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+            self.fill_bytes(dest);
+            Ok(())
+        }
+    }
+    impl rand_core::CryptoRng for FixedRng {}
+
+    /// One way for a statement to fail each of the seven checks, in the order
+    /// the specification gives them.
+    #[derive(Clone, Copy, Debug)]
+    enum Check {
+        WrongAccount,
+        IssuerUnbound,
+        BadSignature,
+        Stale,
+        DuplicateDevice,
+        BadKey,
+        BindingRefused,
+        StatementRefused,
+    }
+    const ORDER: [(Check, Error); 8] = [
+        (Check::WrongAccount, Error::WrongAccount),
+        (Check::IssuerUnbound, Error::IssuerUnbound),
+        (Check::BadSignature, Error::Malformed),
+        (Check::Stale, Error::Stale),
+        (Check::DuplicateDevice, Error::DuplicateDevice),
+        (Check::BadKey, Error::NonContributory),
+        (Check::BindingRefused, Error::Refused),
+        (Check::StatementRefused, Error::Refused),
+    ];
+
+    /// Every subset of failing checks yields the error of the first failing
+    /// check in the specified order, so the order is pinned for every pair.
+    #[test]
+    fn the_first_failing_check_in_the_specified_order_wins() {
+        let denied_key = [5u8; 32];
+        for mask in 0u32..(1 << ORDER.len()) {
+            let fails = |check: Check| {
+                let position = ORDER.iter().position(|(c, _)| c.eq_discr(check)).unwrap();
+                mask & (1 << position) != 0
+            };
+            let mut policy = policy();
+            policy.denied =
+                fails(Check::BindingRefused).then_some((denied_key, BindingStatus::Active));
+            policy.refuse_statement = fails(Check::StatementRefused);
+
+            let mut active = if fails(Check::DuplicateDevice) {
+                vec![keyed(1, [3; 32]), keyed(1, [4; 32])]
+            } else {
+                vec![keyed(1, [3; 32])]
+            };
+            // The refused binding sorts before the unsound key, so a check that
+            // ran hook and key per binding would report the hook first.
+            if fails(Check::BindingRefused) {
+                active.push(keyed(2, denied_key));
+            }
+            if fails(Check::BadKey) {
+                active.push(keyed(3, [0; 32]));
+            }
+            let issuer = if fails(Check::IssuerUnbound) { 99 } else { 7 };
+            let generation = if fails(Check::Stale) { 3 } else { 2 };
+            let statement = statement_for(issuer, ALICE, generation, active);
+            let signer = if fails(Check::BadSignature) {
+                BOB_SECRET
+            } else {
+                ALICE_SECRET
+            };
+            let expected_account = if fails(Check::WrongAccount) {
+                BOB
+            } else {
+                ALICE
+            };
+
+            let expected = ORDER
+                .iter()
+                .enumerate()
+                .find(|(position, _)| mask & (1 << position) != 0)
+                .map_or(Ok(()), |(_, (_, error))| Err(*error));
+            let got = statement
+                .accept(expected_account, &sign(&statement, signer), &policy)
+                .map(|_| ());
+            assert_eq!(
+                got,
+                expected,
+                "failing checks {:?}",
+                ORDER
+                    .iter()
+                    .enumerate()
+                    .filter(|(p, _)| mask & (1 << p) != 0)
+                    .map(|(_, (c, _))| *c)
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
+    impl Check {
+        fn eq_discr(self, other: Check) -> bool {
+            std::mem::discriminant(&self) == std::mem::discriminant(&other)
+        }
+    }
+
+    #[test]
+    fn the_accepted_value_and_the_statement_hook_input_are_the_verified_statement() {
+        let old = keyed(1, [3; 32]);
+        let replacement = DeviceBinding {
+            replacement_predecessor: Some(binding_commitment(&old).unwrap()),
+            ..keyed(2, [4; 32])
+        };
+        let mut statement = statement_for(7, ALICE, 5, vec![keyed(4, [6; 32]), replacement]);
+        statement.revocation_floor_generation = 2;
+        statement.revoked = vec![Revocation {
+            binding: old,
+            terminal_generation: 3,
+        }];
+        statement.active.sort();
+        let mut policy = policy();
+        policy.current = vec![(ALICE, 5)];
+        let accepted = accept_alice(&statement, &policy).unwrap();
+        assert_eq!(accepted.statement(), &statement);
+        assert_eq!(policy.seen.borrow().as_ref(), Some(&statement));
+    }
+
+    #[test]
+    fn the_account_is_compared_whole() {
+        let policy = policy();
+        let statement = make_statement(vec![binding(1)]);
+        let signature = sign(&statement, ALICE_SECRET);
+        for wrong in [
+            "acme/",
+            "/alice",
+            "acme/alic",
+            "cme/alice",
+            "acme/alice ",
+            "",
+            "acme/alice/x",
+        ] {
+            assert_eq!(
+                statement.accept(wrong, &signature, &policy),
+                Err(Error::WrongAccount),
+                "{wrong:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn decode_signed_verifies_the_signature_under_the_key_it_is_given() {
+        let statement = make_statement(vec![binding(1)]);
+        let wire = statement
+            .encode_signed(&ALICE_SECRET, &mut FixedRng(0))
+            .unwrap();
+        let alice = public_of(ALICE_SECRET);
+        assert_eq!(
+            InventoryStatement::decode_signed(&wire, &alice),
+            Ok(statement)
+        );
+        let mut flipped = wire.clone();
+        let last = flipped.len() - 1;
+        flipped[last] ^= 1;
+        assert_eq!(
+            InventoryStatement::decode_signed(&flipped, &alice),
+            Err(Error::Malformed)
+        );
+        assert_eq!(
+            InventoryStatement::decode_signed(&wire, &public_of(BOB_SECRET)),
+            Err(Error::Malformed)
+        );
+    }
+
+    /// A fixed statement, key and nonce give a fixed signature. This pins the
+    /// signing input (label, domain and preimage) against a change made on
+    /// both the signing and verifying side. It pins this implementation's own
+    /// output; it is not an independent vector.
+    #[test]
+    fn signing_input_is_pinned_by_a_known_answer() {
+        let statement = make_statement(vec![binding(1)]);
+        let signature = statement.sign(&ALICE_SECRET, &mut FixedRng(0)).unwrap();
+        assert_eq!(signature.as_slice(), KNOWN_SIGNATURE.as_slice());
+        assert_eq!(
+            statement.verify(&public_of(ALICE_SECRET), &KNOWN_SIGNATURE),
+            Ok(())
+        );
+    }
+    const KNOWN_SIGNATURE: [u8; 64] = [
+        0x96, 0x6c, 0xe7, 0xbc, 0x57, 0x49, 0x44, 0x3b, 0x32, 0xac, 0xe6, 0x09, 0x0a, 0x91, 0xe9,
+        0x2d, 0x37, 0x0b, 0xd3, 0xc3, 0x7d, 0xc3, 0xaf, 0xef, 0xb3, 0xff, 0x53, 0xa3, 0x33, 0x03,
+        0x33, 0x98, 0xa1, 0xbf, 0x54, 0xd4, 0x9a, 0x2a, 0x9b, 0x77, 0xf0, 0x4a, 0xbb, 0x68, 0x1a,
+        0xcb, 0x32, 0x2a, 0xb3, 0xa4, 0x3b, 0x53, 0x26, 0xb3, 0xa8, 0x0a, 0x65, 0xa3, 0xd0, 0xb6,
+        0xec, 0x4e, 0x19, 0x0a,
+    ];
+
+    fn revoked_at(generation: u64, key: u8) -> Revocation {
+        Revocation {
+            binding: keyed(key as u32, [key; 32]),
+            terminal_generation: generation,
+        }
+    }
+
+    #[test]
+    fn revocation_bounds_are_exact() {
+        let with = |floor: u64, generation: u64, revoked: Vec<Revocation>| InventoryStatement {
+            revocation_floor_generation: floor,
+            revoked,
+            ..statement_for(7, ALICE, generation, vec![])
+        };
+        // At the floor: dropped, so refused. Just above it: kept.
+        assert_eq!(
+            with(2, 5, vec![revoked_at(2, 3)]).encode_unsigned(),
+            Err(Error::Malformed)
+        );
+        assert!(with(2, 5, vec![revoked_at(3, 3)]).encode_unsigned().is_ok());
+        // At the statement's generation: kept. Above it: refused.
+        assert!(with(2, 5, vec![revoked_at(5, 3)]).encode_unsigned().is_ok());
+        assert_eq!(
+            with(2, 5, vec![revoked_at(6, 3)]).encode_unsigned(),
+            Err(Error::Malformed)
+        );
+        // The floor may equal the generation, not exceed it.
+        assert!(with(5, 5, vec![]).encode_unsigned().is_ok());
+        assert_eq!(with(6, 5, vec![]).encode_unsigned(), Err(Error::Malformed));
+
+        // Eight revocations fit and round-trip; nine do not encode, and a
+        // count of nine on the wire does not decode.
+        let eight: Vec<_> = (3..11).map(|key| revoked_at(4, key)).collect();
+        let ok = with(2, 5, eight.clone());
+        let bytes = ok.encode_unsigned().unwrap();
+        assert_eq!(InventoryStatement::decode_unsigned(&bytes), Ok(ok));
+        let mut nine = eight;
+        nine.push(revoked_at(4, 11));
+        assert_eq!(with(2, 5, nine).encode_unsigned(), Err(Error::Malformed));
+        let mut wire = bytes;
+        let count_at = wire.len() - 8 * (4 + 32 + 8 + 1 + 8) - 4;
+        wire[count_at + 3] = 9;
+        assert_eq!(
+            InventoryStatement::decode_unsigned(&wire),
             Err(Error::Malformed)
         );
     }
