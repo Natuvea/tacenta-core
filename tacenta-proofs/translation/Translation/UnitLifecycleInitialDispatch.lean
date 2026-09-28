@@ -3316,6 +3316,103 @@ theorem concrete_receive_attempt_success_from_contracts
     hcb hsb hnewb hskiproom hone2 hcounter realCandidate realKey
   simpa [lifecycle.receive_attempt] using hcall
 
+/-! A real full-store refusal determines both the public model refusal and the
+    model half selected by the retry loop.  This small conversion is kept
+    executable by cases so neither fact can be chosen independently. -/
+def fullStoreOfReal : lifecycle.FullStore → Model.Lifecycle.FullStore
+  | .Classical => .classical
+  | .PostQuantum => .postQuantum
+
+theorem full_store_refusal_mapping_of_real {realReason : tacenta_triple.TripleError}
+    {half : lifecycle.FullStore}
+    (hfull : lifecycle.full_store realReason = ok (some half)) :
+    ∃ modelReason,
+      Tacenta.SessionUnitTripleT3.receiveStoreFullRefusalOfReal realReason =
+        some modelReason ∧
+      tripleReceiveRefusalOfReal realReason = some modelReason ∧
+      Model.Lifecycle.fullStore modelReason = some (fullStoreOfReal half) := by
+  cases realReason with
+  | Classical reason =>
+      cases reason <;> cases half <;>
+        simp [lifecycle.full_store, Tacenta.SessionUnitTripleT3.receiveStoreFullRefusalOfReal,
+          tripleReceiveRefusalOfReal, ratchetReceiveRefusalOfReal, Model.Lifecycle.fullStore,
+          fullStoreOfReal] at hfull ⊢
+  | PostQuantum reason =>
+      cases reason <;> cases half <;>
+        simp [lifecycle.full_store, Tacenta.SessionUnitTripleT3.receiveStoreFullRefusalOfReal,
+          tripleReceiveRefusalOfReal, sparseReceiveRefusalOfReal, Model.Lifecycle.fullStore,
+          fullStoreOfReal] at hfull ⊢
+
+/-! Failure-side twin of `concrete_receive_attempt_success_from_contracts`.
+    For the two retryable errors, the exact generated attempt fixes the model
+    detailed refusal, its public mapping and the corresponding eviction half. -/
+theorem concrete_receive_attempt_store_full_from_contracts
+    (hmac : Tacenta.SessionUnitT3.HmacAgrees)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hzr : Tacenta.SessionUnitT3.ZeroizingRoundTrips)
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hz96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
+    (hz64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64)
+    (hret : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
+    (happ : Tacenta.SessionUnitSpqrT1.VecRetainTotal)
+    (hrm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
+    (hzs : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (hopt : Tacenta.SessionUnitSpqrT1.OptionCloneTotal)
+    {s : tacenta_triple.State}
+    {m : Model.Triple.State}
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (header : tacenta_triple.Header)
+    (mh : Model.State.Header)
+    (hheader : Tacenta.SessionUnitTripleT3.RatchetHeaderR header.dr mh)
+    (dh_out_recv dh_out_send new_dhs_pub : Array Std.U8 32#usize)
+    (output : Option tacenta_spqr.Output)
+    (hone : (m.classical.skipped.filter
+      (fun x => x.1 == mh.dh && x.2.1 == mh.n)).length ≤ 1)
+    (hs : max m.classical.skipped.length Model.State.maxSkippedStore +
+      Model.State.maxSkip ≤ Usize.max)
+    (hevents : m.classical.events + 1 < Std.U32.max)
+    (hepoch : m.postQuantum.epoch + 1 < Std.U64.max)
+    (hroom : m.postQuantum.chains.length + 2 < Usize.max)
+    (hcb : ∀ p ∈ m.postQuantum.chains,
+      p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hsb : ∀ sk ∈ m.postQuantum.skipped,
+      sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hnewb : ∀ o : tacenta_spqr.Output, output = some o →
+      o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hskiproom : m.postQuantum.skipped.length + Model.SparseRatchet.maxSkip ≤ Usize.max)
+    (hone2 : (m.postQuantum.skipped.filter
+      (fun x => x.1 == header.epoch.val && x.2.1 == header.pq_n.val)).length ≤ 1)
+    (hcounter : ∀ p ∈ m.postQuantum.chains, ∀ ch : Model.SparseRatchet.Chain,
+      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max)
+    (realReason : tacenta_triple.TripleError) (half : lifecycle.FullStore)
+    (hcall : lifecycle.receive_attempt s header dh_out_recv dh_out_send new_dhs_pub output =
+      ok (.Err realReason))
+    (hfull : lifecycle.full_store realReason = ok (some half)) :
+    ∃ modelReason,
+      Model.Triple.receiveDetailed m
+          { dr := mh, epoch := header.epoch.val, pqN := header.pq_n.val }
+          (Tacenta.SessionUnitTripleT3.keyOf dh_out_recv)
+          (Tacenta.SessionUnitTripleT3.keyOf dh_out_send)
+          (Tacenta.SessionUnitTripleT3.keyOf new_dhs_pub)
+          (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = .error modelReason ∧
+      tripleReceiveRefusalOfReal realReason = some modelReason ∧
+      Model.Lifecycle.fullStore modelReason = some (fullStoreOfReal half) := by
+  obtain ⟨modelReason, hmap, hreason, hmodelFull⟩ :=
+    full_store_refusal_mapping_of_real hfull
+  have hpost := Tacenta.SessionUnitTripleT3.receive_store_full_refines_discharged
+    hmac hkdf hzr hvr hz96 hz64 hret happ hrm hzs hopt hrel header mh hheader
+    dh_out_recv dh_out_send new_dhs_pub output hone hs hevents hepoch hroom hcb hsb
+    hnewb hskiproom hone2 hcounter
+  obtain ⟨result, hresult, hpost⟩ := Std.WP.spec_imp_exists hpost
+  have hstateCall : tacenta_triple.State.receive s header dh_out_recv dh_out_send
+      new_dhs_pub output = ok (.Err realReason) := by
+    simpa [lifecycle.receive_attempt] using hcall
+  rw [hstateCall] at hresult
+  cases hresult
+  exact ⟨modelReason, hpost realReason modelReason rfl hmap, hreason, hmodelFull⟩
+
 /-- Expose the generated retry entry: a successful lifecycle receive that is
 not the direct attempt must first produce a full-store refusal and select a
 retry half. -/

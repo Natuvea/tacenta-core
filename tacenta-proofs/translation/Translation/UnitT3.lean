@@ -529,7 +529,7 @@ theorem derive_chain_loop_refines (h : HmacAgrees) [DerivedKeysModel]
       | core.result.Result.Ok p =>
         (keyOf p.1, keysOf (DerivedKeysModel.contents p.2)) = target
         ∧ (DerivedKeysModel.contents p.2).val.length ≤ B
-      | core.result.Result.Err _ => True ⦄ := by
+      | core.result.Result.Err e => e = RatchetError.ChainExhausted ⦄ := by
   unfold derive_chain_loop
   apply loop.spec_decr_nat
     (measure := fun x => (Prod.fst x).end.val - (Prod.fst x).start.val)
@@ -581,7 +581,7 @@ theorem derive_chain_refines (h : HmacAgrees) [DerivedKeysModel]
         (keyOf p.1, keysOf (DerivedKeysModel.contents p.2))
           = Model.State.deriveChain (keyOf ck) start_n.val count.val
         ∧ (DerivedKeysModel.contents p.2).val.length ≤ count.val
-      | core.result.Result.Err _ => True ⦄ := by
+      | core.result.Result.Err e => e = RatchetError.ChainExhausted ⦄ := by
   unfold derive_chain
   simp only [lift, alloc.vec.Vec.with_capacity]
   step
@@ -1197,6 +1197,100 @@ theorem skip_message_keys_refines (h : HmacAgrees)
           · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
               simp_all [keysOf]
 
+/-! The success refinement above intentionally predates the detailed refusal
+model.  The eviction retry needs one narrow converse as well: the concrete
+absolute-store refusal is the model's absolute-store refusal, rather than the
+earlier per-chain distance refusal.  This theorem stops at that one public
+reason; it does not claim an error correspondence for the rest of `receive`. -/
+theorem skip_message_keys_store_full_refines (h : HmacAgrees)
+    (hrm : Tacenta.UnitT1.RemoveSkippedAtTotal) [DerivedKeysModel]
+    (s : State) (m : Model.State.State) (hR : StateR s m) (upto : Std.U32)
+    (hs : s.skipped.val.length + MAX_SKIP.val ≤ Usize.max) :
+    skip_message_keys s upto ⦃ fun r =>
+      r.1 = core.result.Result.Err RatchetError.SkippedStoreFull →
+        Model.Ratchet.skipMessageKeysDetailed m upto.val =
+          .error .skippedStoreFull ⦄ := by
+  have hht : Tacenta.UnitT1.HmacTotal := h.total
+  obtain ⟨_, hdhr, _, _, hckr, _, hnr, _, hskip, _, _⟩ := hR
+  unfold skip_message_keys
+  rcases hck : s.ckr with _ | ck
+  · have hm : m.ckr = none := by rw [← hckr, hck]; rfl
+    simp [Model.Ratchet.skipMessageKeysDetailed, Model.State.skipMessageKeys, hm]
+  · rcases hdh : s.dhr_pub with _ | dhr
+    · have hm : m.dhrPub = none := by rw [← hdhr, hdh]; rfl
+      simp [Model.Ratchet.skipMessageKeysDetailed, Model.State.skipMessageKeys, hm]
+    · have hmck : m.ckr = some (keyOf ck) := by rw [← hckr, hck]; rfl
+      have hmdh : m.dhrPub = some (keyOf dhr) := by rw [← hdhr, hdh]; rfl
+      by_cases hle : upto ≤ s.nr
+      · have hleN : upto.val ≤ m.nr := by rw [← hnr]; scalar_tac
+        simp [hle, Model.Ratchet.skipMessageKeysDetailed,
+          Model.State.skipMessageKeys, hmck, hmdh, hleN]
+      · have hgtN : ¬ (upto.val ≤ m.nr) := by rw [← hnr]; scalar_tac
+        simp only [hle, if_false, lift]
+        by_cases hg : upto > core.num.U32.saturating_add s.nr MAX_SKIP
+        · have hg' : (core.num.U32.saturating_add s.nr MAX_SKIP).val < upto.val := hg
+          simp [hg']
+        have hgap := Tacenta.UnitT1.skip_gap_le s.nr upto hg
+        step*
+        all_goals have hsmax := s.skipped.property
+        all_goals simp_all [alloc.vec.Vec.with_capacity, alloc.vec.Vec.new]
+        · have hlen := congrArg List.length skipped1_post
+          have hfil := List.length_filter_le
+            (keepOutside (keyOf dhr) s.nr.val upto.val)
+            (List.map skippedOf s.skipped.val)
+          simp only [List.length_map] at hlen hfil
+          have hskiplen := congrArg List.length hskip
+          simp only [List.length_map] at hskiplen
+          have hpurge : skipped1.val.length ≤ s.skipped.val.length := by omega
+          have hlenval : skipped1.len.val = skipped1.val.length := by
+            simp [alloc.vec.Vec.len]
+          have hlen2 := congrArg List.length skipped2_post
+          rw [← hnr, ← hskip] at hlen2
+          simp only [List.length_map] at hlen2
+          have hpurge2 : skipped2.val.length ≤ s.skipped.val.length := by omega
+          have hcast : (UScalar.cast .Usize i1).val = i1.val := by scalar_tac
+          omega
+        · have hg1 : ¬ (upto.val > m.nr + Model.State.maxSkip) := by
+            rw [← hnr]
+            simp only [MAX_SKIP, Model.State.maxSkip] at *
+            scalar_tac
+          have hkept : List.map skippedOf skipped2.val =
+              Model.State.skipSurvivors m (keyOf dhr) upto.val := by
+            rw [skipped2_post]
+            change List.filter (fun e =>
+              !(e.1 == keyOf dhr && decide (m.nr ≤ e.2.1)
+                && decide (e.2.1 < upto.val))) m.skipped = _
+            rfl
+          have hkeptLen := congrArg List.length hkept
+          simp only [List.length_map] at hkeptLen
+          have hi1 : i1.val = upto.val - m.nr := by omega
+          have hi4nat : i5.val = skipped2.val.length + i1.val := by omega
+          have hg2 : (Model.State.skipSurvivors m (keyOf dhr) upto.val).length
+              + (upto.val - m.nr) > Model.State.maxSkippedStore := by
+            rw [← hkeptLen]
+            have hreal : MAX_SKIPPED_STORE.val <
+                skipped2.val.length + (upto.val - m.nr) := by assumption
+            simpa [Model.State.maxSkippedStore, MAX_SKIPPED_STORE] using hreal
+          have hnotle : ¬ upto.val ≤ m.nr := by omega
+          have hnone : Model.State.skipMessageKeys m upto.val = none := by
+            simp [Model.State.skipMessageKeys, hmck, hmdh, hnotle, hg1, hg2]
+          unfold Model.Ratchet.skipMessageKeysDetailed
+          rw [hnone]
+          simp only [if_neg (by omega : ¬ m.nr + Model.State.maxSkip < upto.val)]
+        · obtain ⟨ck2, keys⟩ := v
+          obtain ⟨rp, rlen⟩ := r_post
+          have rlen' : (DerivedKeysModel.contents keys).val.length ≤
+              upto.val - m.nr := by simpa using rlen
+          have hstorebound : skipped2.val.length + (upto.val - m.nr) ≤
+              MAX_SKIPPED_STORE.val := by assumption
+          have hlooproom : skipped2.val.length +
+              (DerivedKeysModel.contents keys).val.length ≤ Usize.max := by
+            have hcap : MAX_SKIPPED_STORE.val ≤ Usize.max := by scalar_tac
+            omega
+          step with Tacenta.UnitT1.skip_message_keys_loop1_no_panic
+            dhr skipped2 s.events keys 0#usize hlooproom
+          simp
+
 /-! ## The skipped-key lookup refines the model's
 
 The loop carries only the index: the store is fixed across it, because the
@@ -1603,6 +1697,50 @@ theorem receive_tail_refines (h : HmacAgrees) (hrm : Tacenta.UnitT1.RemoveSkippe
       rw [← ck2_post]
   · simp
 
+/-! A full-store refusal in the shared receive suffix can only be the refusal
+from its leading skip operation.  The later public errors are disjoint
+(`OutOfOrder`, `NoReceivingChain`, and `ChainExhausted`). -/
+theorem receive_tail_store_full_refines (h : HmacAgrees)
+    (hrm : Tacenta.UnitT1.RemoveSkippedAtTotal) [DerivedKeysModel]
+    (st : State) (mst : Model.State.State) (hR : StateR st mst) (n : Std.U32)
+    (hs : st.skipped.val.length + MAX_SKIP.val ≤ Usize.max) :
+    (do
+      let (r1, state4) ← skip_message_keys st n
+      match r1 with
+      | core.result.Result.Ok _ =>
+        if n < state4.nr
+        then ok (core.result.Result.Err RatchetError.OutOfOrder, state4)
+        else
+          match state4.ckr with
+          | none => ok (core.result.Result.Err RatchetError.NoReceivingChain, state4)
+          | some ck =>
+            let o2 ← lift (U32.checked_add state4.nr 1#u32)
+            match o2 with
+            | none => ok (core.result.Result.Err RatchetError.ChainExhausted, state4)
+            | some next_nr =>
+              let (ck2, mk) ← kdf_ck ck
+              let state5 ← age_store { state4 with ckr := some ck2, nr := next_nr }
+              ok (core.result.Result.Ok mk, state5)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, state4))
+    ⦃ fun r => r.1 = core.result.Result.Err RatchetError.SkippedStoreFull →
+      Model.Ratchet.skipMessageKeysDetailed mst n.val =
+        .error .skippedStoreFull ⦄ := by
+  have hht : Tacenta.UnitT1.HmacTotal := h.total
+  obtain ⟨rr, hrr⟩ := (Tacenta.UnitT1.noPanic_iff _).mp
+    (Tacenta.UnitT1.skip_message_keys_no_panic hht hrm st n hs)
+  obtain ⟨r1, state4⟩ := rr
+  have hfull := skip_message_keys_store_full_refines h hrm st mst hR n hs
+  rw [hrr] at hfull ⊢
+  rcases r1 with _ | e
+  · step* <;> simp_all
+    step with Tacenta.UnitT1.age_store_spec hrm
+      { state4 with ckr := some ck2, nr := next_nr }
+    simp
+  · intro he
+    injection he with heq
+    subst e
+    exact hfull rfl
+
 -- The sub-operations are applied by hand below: their refinement statements
 -- carry the model state as a free parameter, which the stepping tactic has
 -- nothing to determine from the call, so T1's weaker rules would win.
@@ -1800,6 +1938,188 @@ theorem receive_refines (h : HmacAgrees) (hk : HkdfAgrees)
     subst hmk
     exact ⟨Model.State.ageStore m',
       by unfold Model.Ratchet.receive; rw [hm'], hSR2⟩
+
+/-! The narrow receive-side converse needed by bounded eviction: a concrete
+absolute-store refusal is exactly the model's absolute-store refusal.  This
+does not broaden the established success refinement to an unchecked catch-all
+failure clause; it follows the two concrete skip sites and names only the
+reason which the lifecycle layer retries. -/
+theorem receive_store_full_refines (h : HmacAgrees) (hk : HkdfAgrees)
+    (hz : ZeroizingRoundTrips) (hrm : Tacenta.UnitT1.RemoveSkippedAtTotal)
+    [DerivedKeysModel] (s : State) (m : Model.State.State) (hR : StateR s m)
+    (hdr : Header) (mh : Model.State.Header) (hH : HeaderR hdr mh)
+    (dh_out_recv dh_out_send new_dhs_pub : Array Std.U8 32#usize)
+    (hone : (m.skipped.filter (matchesHeader mh)).length ≤ 1)
+    (hs : max s.skipped.val.length MAX_SKIPPED_STORE.val + MAX_SKIP.val
+            ≤ Usize.max)
+    (hroom : s.events.val + 1 < U32.max) :
+    receive s hdr dh_out_recv dh_out_send new_dhs_pub ⦃ fun r =>
+      r.1 = core.result.Result.Err RatchetError.SkippedStoreFull →
+        Model.Ratchet.receiveDetailed m mh (keyOf dh_out_recv)
+          (keyOf dh_out_send) (keyOf new_dhs_pub) =
+            .error .skippedStoreFull ⦄ := by
+  have hht : Tacenta.UnitT1.HmacTotal := h.total
+  have hkt : Tacenta.UnitT1.HkdfTotal := hk.total
+  have hzt : Tacenta.UnitT1.ZeroizingTotal := hz.total
+  unfold receive
+  obtain ⟨rr, hrr⟩ := (Tacenta.UnitT1.noPanic_iff _).mp
+    (Tacenta.UnitT1.try_skipped_no_panic hrm s hdr)
+  obtain ⟨o, state1⟩ := rr
+  have hts := try_skipped_refines hrm s m hR hdr mh hH hone
+  rw [hrr] at hts ⊢
+  obtain ⟨hsome, hnone⟩ := hts
+  rcases o with _ | mk0
+  · obtain ⟨hmiss, hSR1⟩ := hnone rfl
+    have hlen1 : state1.skipped.val.length = s.skipped.val.length := by
+      have hh := congrArg List.length (hSR1.skipped.trans hR.skipped.symm)
+      simpa using hh
+    step*
+    rcases hd : state1.dhr_pub with _ | dhr <;> (try simp only) <;> step*
+    · have hnotsame : ¬ (m.dhrPub = some mh.dh) := by
+        have hc := hSR1.dhr_pub
+        rw [hd] at hc
+        simp only [Option.map] at hc
+        rw [← hc]
+        simp
+      rw [← hd]
+      have hlen : state1.skipped.val.length + MAX_SKIP.val ≤ Usize.max := by
+        simp only [MAX_SKIPPED_STORE] at *
+        omega
+      obtain ⟨r2, hr2⟩ := (Tacenta.UnitT1.noPanic_iff _).mp
+        (Tacenta.UnitT1.skip_message_keys_no_panic hht hrm state1 hdr.pn hlen)
+      obtain ⟨rres2, state2⟩ := r2
+      have hsk := skip_message_keys_refines h hrm state1 m hSR1 hdr.pn hlen
+      have hskFull := skip_message_keys_store_full_refines h hrm state1 m hSR1 hdr.pn hlen
+      rw [hr2] at hsk hskFull ⊢
+      rcases rres2 with _ | e2
+      · obtain ⟨m2, hm2, hSR2⟩ := hsk rfl
+        step*
+        obtain ⟨r3, hr3, hdr3⟩ := Std.WP.spec_imp_exists
+          (dh_ratchet_refines hk hz state2 m2 hSR2 hdr mh hH dh_out_recv
+            dh_out_send new_dhs_pub)
+        rw [hr3]
+        have hlen3 : r3.skipped.val.length + MAX_SKIP.val ≤ Usize.max := by
+          have hb := Tacenta.UnitT1.skip_message_keys_bound hht hrm state1 hdr.pn hlen
+          rw [hr2] at hb
+          have hd3 := Tacenta.UnitT1.dh_ratchet_spec hkt hzt state2 hdr dh_out_recv
+            dh_out_send new_dhs_pub
+          rw [hr3] at hd3
+          have hb2 : state2.skipped.val.length
+              ≤ max state1.skipped.val.length MAX_SKIPPED_STORE.val := hb
+          have hd32 : r3.skipped.val.length = state2.skipped.val.length := hd3
+          simp only [MAX_SKIPPED_STORE] at *
+          omega
+        refine Std.WP.spec_mono
+          (receive_tail_store_full_refines h hrm r3 _ hdr3 hdr.n hlen3) ?_
+        intro result htail hresult
+        have hfirst := (Model.Ratchet.skipMessageKeysDetailed_ok_iff m hdr.pn.val m2).2 hm2
+        rw [hH.pn] at hfirst
+        have htailResult := htail hresult
+        rw [hH.n] at htailResult
+        have hcond : ¬ ((m.dhrPub == some mh.dh) = true) := by simpa using hnotsame
+        unfold Model.Ratchet.receiveDetailed
+        rw [hmiss, if_neg hcond, hfirst]
+        simp only
+        rw [htailResult]
+      · intro hresult
+        have heq : e2 = RatchetError.SkippedStoreFull := by injection hresult
+        subst e2
+        have hfirst := hskFull rfl
+        rw [hH.pn] at hfirst
+        have hcond : ¬ ((m.dhrPub == some mh.dh) = true) := by simpa using hnotsame
+        unfold Model.Ratchet.receiveDetailed
+        rw [hmiss, if_neg hcond, hfirst]
+    · have hnotsame : ¬ (m.dhrPub = some mh.dh) := by
+        have hxt : x = true := by assumption
+        have hne : dhr ≠ hdr.dh := x_post.mp hxt
+        have hc := hSR1.dhr_pub
+        rw [hd] at hc
+        simp only [Option.map] at hc
+        rw [← hc]
+        simp only [Option.some.injEq]
+        intro heq
+        rw [← hH.dh] at heq
+        exact hne (keyOf_inj heq)
+      rw [← hd]
+      have hlen : state1.skipped.val.length + MAX_SKIP.val ≤ Usize.max := by
+        simp only [MAX_SKIPPED_STORE] at *
+        omega
+      obtain ⟨r2, hr2⟩ := (Tacenta.UnitT1.noPanic_iff _).mp
+        (Tacenta.UnitT1.skip_message_keys_no_panic hht hrm state1 hdr.pn hlen)
+      obtain ⟨rres2, state2⟩ := r2
+      have hsk := skip_message_keys_refines h hrm state1 m hSR1 hdr.pn hlen
+      have hskFull := skip_message_keys_store_full_refines h hrm state1 m hSR1 hdr.pn hlen
+      rw [hr2] at hsk hskFull ⊢
+      rcases rres2 with _ | e2
+      · obtain ⟨m2, hm2, hSR2⟩ := hsk rfl
+        step*
+        obtain ⟨r3, hr3, hdr3⟩ := Std.WP.spec_imp_exists
+          (dh_ratchet_refines hk hz state2 m2 hSR2 hdr mh hH dh_out_recv
+            dh_out_send new_dhs_pub)
+        rw [hr3]
+        have hlen3 : r3.skipped.val.length + MAX_SKIP.val ≤ Usize.max := by
+          have hb := Tacenta.UnitT1.skip_message_keys_bound hht hrm state1 hdr.pn hlen
+          rw [hr2] at hb
+          have hd3 := Tacenta.UnitT1.dh_ratchet_spec hkt hzt state2 hdr dh_out_recv
+            dh_out_send new_dhs_pub
+          rw [hr3] at hd3
+          have hb2 : state2.skipped.val.length
+              ≤ max state1.skipped.val.length MAX_SKIPPED_STORE.val := hb
+          have hd32 : r3.skipped.val.length = state2.skipped.val.length := hd3
+          simp only [MAX_SKIPPED_STORE] at *
+          omega
+        refine Std.WP.spec_mono
+          (receive_tail_store_full_refines h hrm r3 _ hdr3 hdr.n hlen3) ?_
+        intro result htail hresult
+        have hfirst := (Model.Ratchet.skipMessageKeysDetailed_ok_iff m hdr.pn.val m2).2 hm2
+        rw [hH.pn] at hfirst
+        have htailResult := htail hresult
+        rw [hH.n] at htailResult
+        have hcond : ¬ ((m.dhrPub == some mh.dh) = true) := by simpa using hnotsame
+        unfold Model.Ratchet.receiveDetailed
+        rw [hmiss, if_neg hcond, hfirst]
+        simp only
+        rw [htailResult]
+      · intro hresult
+        have heq : e2 = RatchetError.SkippedStoreFull := by injection hresult
+        subst e2
+        have hfirst := hskFull rfl
+        rw [hH.pn] at hfirst
+        have hcond : ¬ ((m.dhrPub == some mh.dh) = true) := by simpa using hnotsame
+        unfold Model.Ratchet.receiveDetailed
+        rw [hmiss, if_neg hcond, hfirst]
+    · rw [← hd]
+      have hlen : state1.skipped.val.length + MAX_SKIP.val ≤ Usize.max := by
+        simp only [MAX_SKIPPED_STORE] at *
+        omega
+      refine Std.WP.spec_mono
+        (receive_tail_store_full_refines h hrm state1 m hSR1 hdr.n hlen) ?_
+      intro result htail hresult
+      have hxf : ¬x = true := by assumption
+      have hdheq : dhr = hdr.dh := by
+        by_contra hc
+        exact hxf (x_post.mpr hc)
+      have hmdhr : m.dhrPub = some mh.dh := by
+        have hc := hSR1.dhr_pub
+        rw [hd] at hc
+        simp only [Option.map] at hc
+        rw [← hc, hdheq, hH.dh]
+      have htailResult := htail hresult
+      rw [hH.n] at htailResult
+      unfold Model.Ratchet.receiveDetailed
+      rw [hmiss]
+      simp only [hmdhr, beq_self_eq_true, if_pos]
+      rw [htailResult]
+  · obtain ⟨m', hm', hSR'⟩ := hsome mk0 rfl
+    have hroom1 : state1.events.val + 1 < U32.max := by
+      have hev1 := hSR'.events
+      have hevm := Model.Ratchet.trySkipped_events m mh (m', keyOf mk0) hm'
+      have hev3 := hR.events
+      simp only at hev1 hevm hev3 ⊢
+      omega
+    step*
+    step with Tacenta.UnitT1.age_store_spec hrm state1
+    simp
 
 /-
 ## What remains
