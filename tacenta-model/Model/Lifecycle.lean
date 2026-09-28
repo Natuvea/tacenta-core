@@ -838,10 +838,10 @@ def receiveWithEviction (state : Model.Triple.State)
             (Model.Triple.classicalSkippedLength state
               + Model.Triple.postQuantumSkippedLength state + 1)
 
-/-- Public, result-shaped view of the bounded receive retry loop.  The
-    executable loop stays private so callers cannot depend on its recursive
-    implementation.  Its observable result is exposed through this relation
-    and the sound constructors below. -/
+/-- Public, result-shaped view of the bounded receive retry loop.  This is a
+    transparent relation to the private recursive definition: downstream
+    proofs can state and compose the observable result without naming that
+    private definition directly. -/
 def ReceiveWithEvictionLoopResult (state : Model.Triple.State)
     (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
     (dhOutRecv dhOutSend newDhsPub : Key)
@@ -851,6 +851,24 @@ def ReceiveWithEvictionLoopResult (state : Model.Triple.State)
     (result : Except Model.Triple.ReceiveRefusal (Model.Triple.State × Key)) : Prop :=
   receiveWithEvictionLoop state composite header dhOutRecv dhOutSend newDhsPub
     output pending half batch fuel = result
+
+/-- The transparent result relation is functional in its result argument.
+    This anonymous check deliberately depends on both witnesses: weakening
+    the relation to `True`, or dropping `result`, makes the proof fail. -/
+example (state : Model.Triple.State)
+    (composite : Model.CompositeHeader.Composite) (header : Model.Triple.Header)
+    (dhOutRecv dhOutSend newDhsPub : Key)
+    (output : Option Model.SparseRatchet.Output)
+    (pending : Model.Triple.ReceiveRefusal) (half : FullStore)
+    (batch fuel : Nat)
+    (left right : Except Model.Triple.ReceiveRefusal (Model.Triple.State × Key))
+    (hLeft : ReceiveWithEvictionLoopResult state composite header dhOutRecv
+      dhOutSend newDhsPub output pending half batch fuel left)
+    (hRight : ReceiveWithEvictionLoopResult state composite header dhOutRecv
+      dhOutSend newDhsPub output pending half batch fuel right) :
+    left = right := by
+  unfold ReceiveWithEvictionLoopResult at hLeft hRight
+  exact hLeft.symm.trans hRight
 
 /-- A nonempty eviction followed by a successful detailed receive is a
     successful public retry-loop result. -/
