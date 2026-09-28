@@ -63,6 +63,12 @@ def main():
          '          (Model.Lifecycle.decryptRatchet view oracle model\n'
          '            (sliceOf decoded.message.deref)).result = .ok modelPlaintext',
          'evidence.result.refusalExcludesSuccess'),
+        ('invert-decrypt-success-refusal-exclusion',
+         '    (Model.Lifecycle.decryptRatchet view oracle model\n'
+         '      (sliceOf decoded.message.deref)).result ≠ .error modelReason',
+         '    (Model.Lifecycle.decryptRatchet view oracle model\n'
+         '      (sliceOf decoded.message.deref)).result = .error modelReason',
+         'alignment.excludesRefusal'),
         ('restore-arbitrary-ceiling',
          '      oracle.dhAgree model.ratchetPrivate composite.dh = some dhOutRecv →\n'
          '      ∃ draw rest, trace innerRng = draw :: rest',
@@ -179,6 +185,13 @@ def main():
                 target = source.find(before, start)
                 if start < 0 or target < 0:
                     raise SystemExit(f'Target changed for {name}: result exclusion is missing')
+                mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
+            elif name == 'invert-decrypt-success-refusal-exclusion':
+                marker = 'structure InitialRatchetGeneratedSuccessAlignment'
+                start = source.find(marker)
+                target = source.find(before, start)
+                if start < 0 or target < 0:
+                    raise SystemExit(f'Target changed for {name}: success exclusion is missing')
                 mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
             elif (name.startswith('invert-encrypt-') and
                   name != 'invert-encrypt-triple-success-sparse-bridge'):
