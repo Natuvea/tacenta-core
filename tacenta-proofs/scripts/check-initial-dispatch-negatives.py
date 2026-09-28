@@ -17,6 +17,12 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'translation/Translation/UnitLifecycleInitialDispatch.lean'
+SOURCES = {
+    'lifecycle': SOURCE,
+    'classical': ROOT / 'translation/Translation/SessionUnitT3.lean',
+    'sparse': ROOT / 'translation/Translation/SessionUnitSpqrT3.lean',
+    'triple': ROOT / 'translation/Translation/SessionUnitTripleT3.lean',
+}
 
 
 def run_lean(path, log, timeout):
@@ -41,11 +47,22 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--log-dir', type=Path)
     parser.add_argument('--timeout', type=int, default=180)
+    parser.add_argument(
+        '--mutation', action='append', metavar='NAME',
+        help='run only the named mutation (repeatable); default: run all',
+    )
     args = parser.parse_args()
     logs = args.log_dir or Path(tempfile.mkdtemp(prefix='initial-dispatch-logs-'))
     logs.mkdir(parents=True, exist_ok=True)
-    source = SOURCE.read_text()
-    results = {'source_sha256': hashlib.sha256(source.encode()).hexdigest(), 'mutations': {}}
+    sources = {name: path.read_text() for name, path in SOURCES.items()}
+    results = {
+        'source_sha256': hashlib.sha256(sources['lifecycle'].encode()).hexdigest(),
+        'source_sha256s': {
+            name: hashlib.sha256(source.encode()).hexdigest()
+            for name, source in sources.items()
+        },
+        'mutations': {},
+    }
     mutants = [
         ('bypass-ephemeral',
          '(hne : vecOf established ≠ vecOf decoded.ephemeral)',
@@ -77,6 +94,34 @@ def main():
          'trace oracle rng htrace\n    htraceHead hdraw',
          'trace oracle rng htrace\n    htrace hdraw',
          'htrace'),
+        ('replace-full-store-receive-call-evidence',
+         '    simpa [lifecycle.receive_attempt] using hcall',
+         '    simpa [lifecycle.receive_attempt] using hfull',
+         'hfull'),
+        ('replace-full-store-model-refusal-map',
+         'hpost realReason modelReason rfl hmap',
+         'hpost realReason modelReason rfl hreason',
+         'hreason'),
+        ('fix-full-store-model-half-classical',
+         'Model.Lifecycle.fullStore modelReason = some (fullStoreOfReal half) := by',
+         'Model.Lifecycle.fullStore modelReason = some .classical := by',
+         'hmodelFull'),
+        ('change-classical-full-store-refusal-to-too-many',
+         '.error .skippedStoreFull ⦄ := by',
+         '.error .tooManySkipped ⦄ := by',
+         'tooManySkipped'),
+        ('change-sparse-full-store-refusal-to-too-many',
+         '.error .skippedStoreFull ⦄ := by',
+         '.error .tooManySkipped ⦄ := by',
+         'tooManySkipped'),
+        ('swap-triple-classical-full-store-family',
+         '| .Classical .SkippedStoreFull => some (.classical .skippedStoreFull)',
+         '| .Classical .SkippedStoreFull => some (.postQuantum .skippedStoreFull)',
+         'postQuantum'),
+        ('swap-lifecycle-full-store-halves',
+         '  | .Classical => .classical\n  | .PostQuantum => .postQuantum',
+         '  | .Classical => .postQuantum\n  | .PostQuantum => .classical',
+         'SkippedStoreFull'),
         ('replace-decrypt-derived-braid-message',
          '    braid.1 provider.hkem braid.2 (provider.hprivate successPrefix)',
          '    provider.hrel provider.hkem braid.2 (provider.hprivate successPrefix)',
@@ -185,16 +230,38 @@ def main():
          'Model.Lifecycle.braidSendNeedsDraw model.braid = false',
          'hdraw'),
     ]
+    if args.mutation:
+        requested = set(args.mutation)
+        known = {name for name, _, _, _ in mutants}
+        unknown = requested - known
+        if unknown:
+            raise SystemExit('Unknown mutation(s): ' + ', '.join(sorted(unknown)))
+        mutants = [mutant for mutant in mutants if mutant[0] in requested]
+    results['requested_mutations'] = args.mutation or 'all'
+    mutation_sources = {
+        'change-classical-full-store-refusal-to-too-many': 'classical',
+        'change-sparse-full-store-refusal-to-too-many': 'sparse',
+        'swap-triple-classical-full-store-family': 'triple',
+    }
     with tempfile.TemporaryDirectory(prefix='initial-dispatch-controls-') as tmp:
         tmp = Path(tmp)
-        baseline = tmp / 'Baseline.lean'
-        baseline.write_text(source)
-        status, output = run_lean(baseline, logs / 'baseline.log', args.timeout)
-        if status or 'declaration uses `sorry`' in output:
-            raise SystemExit(f'BASELINE FAILED; no mutation evidence: {logs / "baseline.log"}')
-        results['baseline_exit'] = status
-        print('PASS: unmodified source elaborates', flush=True)
+        source_names = list(dict.fromkeys(
+            mutation_sources.get(name, 'lifecycle') for name, _, _, _ in mutants
+        ))
+        results['baseline_exits'] = {}
+        for source_name in source_names:
+            baseline = tmp / f'Baseline-{source_name}.lean'
+            baseline.write_text(sources[source_name])
+            log = logs / f'baseline-{source_name}.log'
+            status, output = run_lean(baseline, log, args.timeout)
+            if status or 'declaration uses `sorry`' in output:
+                raise SystemExit(f'BASELINE FAILED; no mutation evidence: {log}')
+            results['baseline_exits'][source_name] = status
+            print(f'PASS: unmodified {source_name} source elaborates', flush=True)
+        results['baseline_exit'] = 0
         for name, before, after, premise in mutants:
+            source_name = mutation_sources.get(name, 'lifecycle')
+            source = sources[source_name]
             # The guard premise occurs once: the mutation must target the
             # concrete terminal-discharge theorem, not a duplicated signature.
             # For the terminal guard, mutate its concrete-discharge theorem only.
@@ -275,6 +342,37 @@ def main():
                 if start < 0 or target < 0:
                     raise SystemExit(
                         f'Target changed for {name}: exact receive dependency is missing')
+                mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
+            elif name in {
+                'replace-full-store-receive-call-evidence',
+                'replace-full-store-model-refusal-map',
+                'fix-full-store-model-half-classical',
+            }:
+                marker = 'theorem concrete_receive_attempt_store_full_from_contracts'
+                start = source.find(marker)
+                target = source.find(before, start)
+                if start < 0 or target < 0:
+                    raise SystemExit(f'Target changed for {name}: full-store adapter is missing')
+                mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
+            elif name in {
+                'change-classical-full-store-refusal-to-too-many',
+                'change-sparse-full-store-refusal-to-too-many',
+                'swap-triple-classical-full-store-family',
+                'swap-lifecycle-full-store-halves',
+            }:
+                markers = {
+                    'change-classical-full-store-refusal-to-too-many':
+                        'theorem receive_store_full_refines',
+                    'change-sparse-full-store-refusal-to-too-many':
+                        'theorem receive_store_full_refines',
+                    'swap-triple-classical-full-store-family':
+                        'def receiveStoreFullRefusalOfReal',
+                    'swap-lifecycle-full-store-halves': 'def fullStoreOfReal',
+                }
+                start = source.find(markers[name])
+                target = source.find(before, start)
+                if start < 0 or target < 0:
+                    raise SystemExit(f'Target changed for {name}: semantic mapping is missing')
                 mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
             else:
                 if source.count(before) != 1:
@@ -362,6 +460,57 @@ def main():
                 mismatch = re.search(
                     r'error: Tactic `rewrite` failed: Did not find an occurrence.+?'
                     r'initialHeadroom', output, re.S)
+            elif name == 'replace-full-store-receive-call-evidence':
+                mismatch = re.search(
+                    r'error: Type mismatch: After simplification, term\s+hfull\s+'
+                    r'has type\s+lifecycle\.full_store realReason = ok \(some half\)\s+'
+                    r'but is expected to have type\s+'
+                    r's\.receive header dh_out_recv dh_out_send new_dhs_pub output = '
+                    r'ok \(core\.result\.Result\.Err realReason\)', output, re.S)
+            elif name == 'replace-full-store-model-refusal-map':
+                mismatch = re.search(
+                    r'error: Application type mismatch: The argument\s+hreason\s+'
+                    r'has type\s+tripleReceiveRefusalOfReal realReason = some modelReason\s+'
+                    r'but is expected to have type\s+'
+                    r'SessionUnitTripleT3\.receiveStoreFullRefusalOfReal realReason = '
+                    r'some modelReason', output, re.S)
+            elif name == 'fix-full-store-model-half-classical':
+                mismatch = re.search(
+                    r'error: Application type mismatch: The argument\s+hmodelFull\s+'
+                    r'has type\s+Model\.Lifecycle\.fullStore modelReason = '
+                    r'some \(fullStoreOfReal half\)\s+'
+                    r'but is expected to have type\s+Model\.Lifecycle\.fullStore '
+                    r'modelReason = some Model\.Lifecycle\.FullStore\.classical', output, re.S)
+            elif name == 'change-classical-full-store-refusal-to-too-many':
+                mismatch = re.search(
+                    r'error: unsolved goals.+?'
+                    r'core\.result\.Result\.Err RatchetError\.SkippedStoreFull.+?'
+                    r'Except\.error Model\.Ratchet\.ReceiveRefusal\.skippedStoreFull.+?'
+                    r'Except\.error Model\.Ratchet\.ReceiveRefusal\.tooManySkipped',
+                    output, re.S)
+            elif name == 'change-sparse-full-store-refusal-to-too-many':
+                mismatch = re.search(
+                    r'error: Type mismatch\s+hresult\.right\s+has type.+?'
+                    r'Err SpqrError\.SkippedStoreFull.+?'
+                    r'Except\.error Model\.SparseRatchet\.ReceiveRefusal\.skippedStoreFull.+?'
+                    r'but is expected to have type.+?'
+                    r'Except\.error Model\.SparseRatchet\.ReceiveRefusal\.tooManySkipped',
+                    output, re.S)
+            elif name == 'swap-triple-classical-full-store-family':
+                mismatch = re.search(
+                    r'error: Type mismatch.+?'
+                    r'Except\.error \(Model\.Triple\.ReceiveRefusal\.classical '
+                    r'Model\.Ratchet\.ReceiveRefusal\.skippedStoreFull\).+?'
+                    r'but is expected to have type.+?'
+                    r'Except\.error \(Model\.Triple\.ReceiveRefusal\.postQuantum '
+                    r'Model\.SparseRatchet\.ReceiveRefusal\.skippedStoreFull\)',
+                    output, re.S)
+            elif name == 'swap-lifecycle-full-store-halves':
+                mismatch = re.search(
+                    r'error: unsolved goals\s+case Classical\.SkippedStoreFull\.Classical.+?'
+                    r'⊢ False.+?error: unsolved goals\s+'
+                    r'case PostQuantum\.SkippedStoreFull\.PostQuantum.+?⊢ False',
+                    output, re.S)
             else:
                 mismatch = re.search(
                     r'error: Application type mismatch: The argument\s+' + premise +
