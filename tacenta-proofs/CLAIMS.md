@@ -15,8 +15,9 @@ this section says in one place what is not proved.
   their orchestration now has panic-freedom theorems (T1, below), conditional
   on twelve named boundary contracts and explicit headroom, and a set of
   refinement branch lemmas that each take the leaf outcomes as hypotheses
-  (`Translation/UnitLifecycleT3.lean`; not accepted as claims here and not
-  composed with the leaf theorems). No theorem says what the two functions
+  (`Translation/UnitLifecycleT3.lean`; apart from the exact full-store adapter
+  listed below, not accepted as claims here and not composed with the leaf
+  theorems). No theorem says what the two functions
   return as a whole, on every branch, against the model. What is proved
   outright lies underneath them, in the ratchet, the sparse post-quantum
   ratchet, the ML-KEM braid and their composition.
@@ -1569,10 +1570,18 @@ the copy.
   the unit, refines the model's send.
 - `Tacenta.UnitT3.receive_refines`: likewise for receive, under the hypotheses
   `T3.receive_refines` takes.
+- `Tacenta.UnitT3.receive_store_full_refines`: under the same explicit
+  boundary and state hypotheses, a concrete `SkippedStoreFull` result fixes
+  the detailed model receive result to the corresponding
+  `skippedStoreFull` refusal.
 - `Tacenta.UnitT3.message_keys_refines`: likewise for the message-key expansion.
 - `Tacenta.UnitSpqrT3.send_refines` and `Tacenta.UnitSpqrT3.receive_refines`:
   the sparse ratchet's two refinements, compiled inside the unit, under the
   hypotheses `SpqrT3.send_refines` and `SpqrT3.receive_refines` take.
+- `Tacenta.UnitSpqrT3.receive_store_full_refines`: under the sparse receive
+  theorem's explicit bounds and boundary hypotheses, a concrete
+  `SkippedStoreFull` result fixes the detailed sparse-model receive result to
+  the corresponding `skippedStoreFull` refusal.
 
 Each is pinned in `UnitPins.lean`, and each prints exactly the axioms its leaf
 twin prints, name for name, with `tacenta_triple_unit.` in front of every
@@ -1627,12 +1636,19 @@ says how little they cover.
   bundles discharged. It assumes the receive path's boundary as well, because each bundle
   covers its ratchet's whole calling surface.
 - `Tacenta.UnitTripleT3.receive_refines_discharged`: likewise for `receive`.
+- `Tacenta.UnitTripleT3.receive_store_full_refines_discharged`: for the two
+  retryable absolute-store refusals only, a concrete Triple receive refusal
+  fixes `Model.Triple.receiveDetailed` to the corresponding classical or
+  post-quantum `skippedStoreFull` refusal, under the same explicit leaf
+  boundaries and counter bounds.
 
-Each of these four is pinned in `UnitPins.lean`.
+Each of these five is pinned in `UnitPins.lean`.
 
-The two discharged theorems state what the bundle-taking theorems in the same
-file state, and those are claimed as well. They carry two scopings worth reading
-literally.
+The success-side send and receive discharged theorems state what the
+bundle-taking theorems in the same file state, and those are claimed as well.
+The narrow store-full theorem supplies only the named failure correspondence;
+it does not turn the success-side receive theorem into a catch-all failure
+refinement. They carry two scopings worth reading literally.
 
 - `Tacenta.UnitTripleT3.send_refines`: the composed `send` refines
   `Model.Triple.send`, given the two bundles. It states the success case and a
@@ -2147,6 +2163,24 @@ which are not listed as claims.
   last-resort record.
 - `invariant_gives_preconditions`: `Session::invariant` yields the
   preconditions the inner Triple and Braid theorems carry.
+
+## Proved (tier T3, the session unit's narrow full-store refusal bridge)
+
+Location: `Translation/UnitLifecycleInitialDispatch.lean` and
+`Translation/AxiomAuditSessionUnit.lean`.
+
+- `Tacenta.UnitLifecycleT3.concrete_receive_attempt_store_full_from_contracts`:
+  if the generated `receive_attempt` returns one of the two errors the
+  lifecycle classifies as a full-store refusal, then, under the explicit leaf
+  contracts, state relation and receive bounds, there is one corresponding
+  model refusal: `Model.Triple.receiveDetailed` returns it, the public refusal
+  mapping names it, and `Model.Lifecycle.fullStore` selects the same classical
+  or post-quantum half as the concrete classifier.
+
+This is the failure-side leaf adapter needed by the bounded eviction retry.
+It does not prove that the retry loop terminates or refines its model, does not
+compose the success path, and does not prove public `Session::decrypt` end to
+end.
 
 ## Proved (bounded P6 session lifecycle observations)
 
