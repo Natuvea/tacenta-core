@@ -13528,4 +13528,288 @@ theorem public_session_encrypt_of_send_contracts
           exact public_encrypt_end_to_end oracleOf codec codewordView hkdf hz80 hz32 hzKeys
             (.triple tripleEvidence)
 
+/-! ## Exact positive receive prefix (experimental composition interface)
+
+The full `InitialRatchetModelSuccessFacts` record necessarily includes the
+Triple result and the AEAD plaintext.  That is too late a boundary for the
+public result split: after decoding, the two DH agreements and the ordered
+random draw have succeeded, the proof still has to derive the Triple result
+from the exact generated receive prefix and only then relate the AEAD result.
+
+This record stops at that boundary.  In particular it contains neither a
+Triple candidate/message key nor an AEAD outcome. -/
+structure InitialRatchetModelPositivePrefix
+    (view : Model.Lifecycle.CodewordView) (oracle oracleAfter : Model.Lifecycle.Oracle)
+    (model : Model.Lifecycle.Session) (message : Slice Std.U8) : Type where
+  modelComposite : Model.CompositeHeader.Composite
+  ciphertext : Bytes
+  modelDhOutRecv : Model.Lifecycle.Key
+  draw : Model.Lifecycle.Key
+  modelDhOutSend : Model.Lifecycle.Key
+  hready : Model.Lifecycle.agreementFailed model = false
+  hdecodeModel : Model.CompositeHeader.decodeDetailed (sliceOf message) =
+    .ok (modelComposite, ciphertext)
+  hmodelFirst : oracle.dhAgree model.ratchetPrivate modelComposite.dh =
+    some modelDhOutRecv
+  hmodelDraw : Model.Lifecycle.random32 oracle = some (draw, oracleAfter)
+  hmodelSecond : oracle.dhAgree draw modelComposite.dh = some modelDhOutSend
+
+def InitialRatchetModelSuccessFacts.toPositivePrefix
+    (facts : InitialRatchetModelSuccessFacts view oracle oracleNext model message) :
+    InitialRatchetModelPositivePrefix view oracle oracleNext model message :=
+  { modelComposite := facts.modelComposite
+    ciphertext := facts.ciphertext
+    modelDhOutRecv := facts.modelDhOutRecv
+    draw := facts.draw
+    modelDhOutSend := facts.modelDhOutSend
+    hready := facts.hready
+    hdecodeModel := facts.hdecodeModel
+    hmodelFirst := facts.hmodelFirst
+    hmodelDraw := facts.hmodelDraw
+    hmodelSecond := facts.hmodelSecond }
+
+/-! Evidence for the positive Triple receive is indexed by the exact
+`InitialRatchetSuccessPrefix` recovered from the generated Rust result.  The
+model candidate and message key are existential data produced here, rather
+than fields chosen in the earlier model prefix.  The aligned branch records
+whether those exact results came from the direct receive or the bounded retry
+path.  AEAD evidence remains deliberately absent. -/
+structure InitialRatchetExactSuccessReceiveEvidence
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleAfter : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (modelPrefix : InitialRatchetModelPositivePrefix view oracle oracleAfter model
+      message) : Type where
+  modelTripleCandidate : Model.Triple.State
+  modelMk : Model.Lifecycle.Key
+  hmodelReceive : Model.Lifecycle.receiveWithEviction model.triple
+    modelPrefix.modelComposite
+    (Model.Lifecycle.tripleHeaderOf modelPrefix.modelComposite)
+    modelPrefix.modelDhOutRecv modelPrefix.modelDhOutSend
+    (oracle.dhPublic modelPrefix.draw)
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid
+          modelPrefix.modelComposite)).2.1) =
+    .ok (modelTripleCandidate, modelMk)
+  branch : InitialRatchetSuccessReceiveBranch
+    successPrefix.decoded.header modelPrefix.modelComposite
+    successPrefix.realHeader
+    (Model.Lifecycle.tripleHeaderOf modelPrefix.modelComposite)
+    successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+    modelPrefix.modelDhOutRecv modelPrefix.modelDhOutSend
+    (oracle.dhPublic modelPrefix.draw)
+    successPrefix.sparseOutput
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid
+          modelPrefix.modelComposite)).2.1)
+    real.triple model.triple
+    (successPrefix.realTripleCandidate, successPrefix.realMk)
+    (modelTripleCandidate, modelMk)
+
+/-! The provider cannot manufacture a receive result before seeing the
+generated success prefix.  Its only method is universally indexed by that
+prefix and returns the corresponding exact receive evidence. -/
+structure InitialRatchetExactSuccessReceiveProvider
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleAfter : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (modelPrefix : InitialRatchetModelPositivePrefix view oracle oracleAfter model
+      message) : Type where
+  receive : ∀ successPrefix : InitialRatchetSuccessPrefix rc crc real message
+      rng rngNext plaintext next,
+    Nonempty (InitialRatchetExactSuccessReceiveEvidence successPrefix modelPrefix)
+
+/-! Recover the exact generated prefix from the actual `decrypt_ratchet = Ok`
+equation before invoking the receive provider.  The sigma result preserves
+the dependency between the chosen prefix and its receive evidence. -/
+noncomputable def initial_ratchet_exact_success_receive_of_result
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleAfter : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (hz32 : ZeroizingRoundTrips (Array Std.U8 32#usize))
+    (hzKeys : ZeroizingRoundTrips
+      (Array Std.U8 32#usize × Array Std.U8 32#usize × Array Std.U8 16#usize))
+    (hcall : lifecycle.Session.decrypt_ratchet rc crc real message rng =
+      ok (.Ok plaintext, next, rngNext))
+    (modelPrefix : InitialRatchetModelPositivePrefix view oracle oracleAfter model
+      message)
+    (provider : InitialRatchetExactSuccessReceiveProvider
+      (rc := rc) (crc := crc) (real := real) (rng := rng) (rngNext := rngNext)
+      (plaintext := plaintext) (next := next) modelPrefix) :
+    Nonempty (Sigma fun successPrefix : InitialRatchetSuccessPrefix rc crc real
+      message rng rngNext plaintext next =>
+        InitialRatchetExactSuccessReceiveEvidence successPrefix modelPrefix) := by
+  let successPrefix := Classical.choice (initial_ratchet_success_prefix_of_result
+    rc crc hz32 hzKeys real message rng rngNext plaintext next hcall)
+  exact ⟨⟨successPrefix, Classical.choice (provider.receive successPrefix)⟩⟩
+
+/-! Complete the old model-success record only after the exact receive
+evidence and the AEAD result have both been established.  This is the adapter
+that lets the staged interface feed the existing success splice without
+weakening that splice. -/
+def initial_ratchet_model_success_facts_of_positive_receive
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleAfter : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (modelPrefix : InitialRatchetModelPositivePrefix view oracle oracleAfter model
+      message)
+    (receive : InitialRatchetExactSuccessReceiveEvidence successPrefix modelPrefix)
+    (modelPlaintext : Bytes)
+    (hmodelAead : oracle.aeadOpen
+      (Model.State.messageKeys receive.modelMk .tacenta).1
+      (Model.State.messageKeys receive.modelMk .tacenta).2.1
+      (Model.State.messageKeys receive.modelMk .tacenta).2.2
+      modelPrefix.ciphertext
+      (Model.Messages.concatAd model.identityAd
+        (Model.CompositeHeader.encode modelPrefix.modelComposite)) =
+      some modelPlaintext) :
+    InitialRatchetModelSuccessFacts view oracle oracleAfter model message :=
+  { modelComposite := modelPrefix.modelComposite
+    ciphertext := modelPrefix.ciphertext
+    modelPlaintext := modelPlaintext
+    modelDhOutRecv := modelPrefix.modelDhOutRecv
+    draw := modelPrefix.draw
+    modelDhOutSend := modelPrefix.modelDhOutSend
+    modelTripleCandidate := receive.modelTripleCandidate
+    modelMk := receive.modelMk
+    hready := modelPrefix.hready
+    hdecodeModel := modelPrefix.hdecodeModel
+    hmodelFirst := modelPrefix.hmodelFirst
+    hmodelDraw := modelPrefix.hmodelDraw
+    hmodelSecond := modelPrefix.hmodelSecond
+    hmodelTriple := receive.hmodelReceive
+    hmodelAead := hmodelAead }
+
+/-! Direct-arm constructor.  It feeds the exact generated direct result into
+the existing discharged Triple theorem.  The resulting model candidate/key
+and aligned branch are therefore consequences of the concrete call and the
+named Triple contracts, rather than caller-selected outcomes. -/
+theorem initial_ratchet_exact_success_receive_of_direct_contracts
+    {R : Type} {rc : rand_core_1.RngCore R} {crc : rand_core_1.CryptoRng R}
+    {view : Model.Lifecycle.CodewordView} {oracle oracleAfter : Model.Lifecycle.Oracle}
+    {real : lifecycle.Session} {model : Model.Lifecycle.Session}
+    {message : Slice Std.U8} {rng rngNext : R}
+    {plaintext : alloc.vec.Vec Std.U8} {next : lifecycle.Session}
+    (successPrefix : InitialRatchetSuccessPrefix rc crc real message rng rngNext
+      plaintext next)
+    (modelPrefix : InitialRatchetModelPositivePrefix view oracle oracleAfter model
+      message)
+    (hAttempt : lifecycle.receive_attempt real.triple successPrefix.realHeader
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      successPrefix.sparseOutput =
+        ok (.Ok (successPrefix.realTripleCandidate, successPrefix.realMk)))
+    (hmac : Tacenta.SessionUnitT3.HmacAgrees)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hzr : Tacenta.SessionUnitT3.ZeroizingRoundTrips)
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hz96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
+    (hz64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64)
+    (hret : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
+    (happ : Tacenta.SessionUnitSpqrT1.VecRetainTotal)
+    (hrm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
+    (hzs : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (hopt : Tacenta.SessionUnitSpqrT1.OptionCloneTotal)
+    (hrel : SessionRefines dh K real model)
+    (hrecvKey : modelPrefix.modelDhOutRecv =
+      Tacenta.SessionUnitTripleT3.keyOf successPrefix.recvSecret)
+    (hsendKey : modelPrefix.modelDhOutSend =
+      Tacenta.SessionUnitTripleT3.keyOf successPrefix.sendSecret)
+    (hnewKey : oracle.dhPublic modelPrefix.draw =
+      Tacenta.SessionUnitTripleT3.keyOf successPrefix.newPublicBytes)
+    (hmodelOutput :
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid
+            modelPrefix.modelComposite)).2.1) =
+      successPrefix.sparseOutput.map Tacenta.SessionUnitTripleT3.spqrOutputOf)
+    (mh : Model.State.Header)
+    (hmodelHeader : Model.Lifecycle.tripleHeaderOf modelPrefix.modelComposite =
+      { dr := mh, epoch := successPrefix.realHeader.epoch.val,
+        pqN := successPrefix.realHeader.pq_n.val })
+    (hheader : Tacenta.SessionUnitTripleT3.RatchetHeaderR
+      successPrefix.realHeader.dr mh)
+    (hone : (model.triple.classical.skipped.filter
+      (fun x => x.1 == mh.dh && x.2.1 == mh.n)).length ≤ 1)
+    (hs : max model.triple.classical.skipped.length Model.State.maxSkippedStore +
+      Model.State.maxSkip ≤ Usize.max)
+    (hevents : model.triple.classical.events + 1 < Std.U32.max)
+    (hepoch : model.triple.postQuantum.epoch + 1 < Std.U64.max)
+    (hroom : model.triple.postQuantum.chains.length + 2 < Usize.max)
+    (hcb : ∀ p ∈ model.triple.postQuantum.chains,
+      p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hsb : ∀ sk ∈ model.triple.postQuantum.skipped,
+      sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hnewb : ∀ o : tacenta_spqr.Output, successPrefix.sparseOutput = some o →
+      o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max)
+    (hskiproom : model.triple.postQuantum.skipped.length +
+      Model.SparseRatchet.maxSkip ≤ Usize.max)
+    (hone2 : (model.triple.postQuantum.skipped.filter
+      (fun x => x.1 == successPrefix.realHeader.epoch.val &&
+        x.2.1 == successPrefix.realHeader.pq_n.val)).length ≤ 1)
+    (hcounter : ∀ p ∈ model.triple.postQuantum.chains,
+      ∀ ch : Model.SparseRatchet.Chain,
+      (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max) :
+    Nonempty (InitialRatchetExactSuccessReceiveEvidence successPrefix modelPrefix) := by
+  have hrealDirect := initial_ratchet_success_prefix_direct_receive successPrefix hAttempt
+  obtain ⟨modelCandidate, modelKey, hmodelDirect, haligned⟩ :=
+    aggregate_receive_aligned_case_of_direct_contracts
+      successPrefix.decoded.header modelPrefix.modelComposite successPrefix.realHeader
+      (Model.Lifecycle.tripleHeaderOf modelPrefix.modelComposite)
+      successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+      modelPrefix.modelDhOutRecv modelPrefix.modelDhOutSend
+      (oracle.dhPublic modelPrefix.draw) successPrefix.sparseOutput
+      (Model.Lifecycle.sparseOutputOf
+        (Model.Braid.receive oracle.braidKem model.braid
+          (Model.Lifecycle.braidMessageOf view model.braid
+            modelPrefix.modelComposite)).2.1)
+      real.triple model.triple
+      (successPrefix.realTripleCandidate, successPrefix.realMk)
+      hmac hkdf hzr hvr hz96 hz64 hret happ hrm hzs hopt hrel.triple
+      hrecvKey hsendKey hnewKey hmodelOutput mh hmodelHeader hheader hone hs hevents
+      hepoch hroom hcb hsb hnewb hskiproom hone2 hcounter hrealDirect
+  let hmodelReceive := model_receive_with_eviction_of_receive model.triple
+    modelPrefix.modelComposite
+    (Model.Lifecycle.tripleHeaderOf modelPrefix.modelComposite)
+    modelPrefix.modelDhOutRecv modelPrefix.modelDhOutSend
+    (oracle.dhPublic modelPrefix.draw)
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid
+          modelPrefix.modelComposite)).2.1)
+    (modelCandidate, modelKey) hmodelDirect
+  refine ⟨{
+    modelTripleCandidate := modelCandidate
+    modelMk := modelKey
+    hmodelReceive := hmodelReceive
+    branch := ?_
+  }⟩
+  exact initial_ratchet_success_branch_of_aligned_case
+    successPrefix.decoded.header modelPrefix.modelComposite successPrefix.realHeader
+    (Model.Lifecycle.tripleHeaderOf modelPrefix.modelComposite)
+    successPrefix.recvSecret successPrefix.sendSecret successPrefix.newPublicBytes
+    modelPrefix.modelDhOutRecv modelPrefix.modelDhOutSend
+    (oracle.dhPublic modelPrefix.draw) successPrefix.sparseOutput
+    (Model.Lifecycle.sparseOutputOf
+      (Model.Braid.receive oracle.braidKem model.braid
+        (Model.Lifecycle.braidMessageOf view model.braid
+          modelPrefix.modelComposite)).2.1)
+    real.triple model.triple
+    (successPrefix.realTripleCandidate, successPrefix.realMk)
+    (modelCandidate, modelKey) successPrefix.htriple hmodelReceive haligned
+
 end Tacenta.UnitLifecycleT3
