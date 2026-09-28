@@ -3613,6 +3613,451 @@ theorem retry_batch_agrees_triple_sparse_evict
   change state.postQuantum.skipped.length ≤ Usize.max at hwidth
   rw [retry_batch_agrees_sparse_evict state.postQuantum concrete model hrel hwidth]
 
+private theorem usize_saturating_sub_val (left right : Std.Usize) :
+    (core.num.Usize.saturating_sub left right).val = left.val - right.val := by
+  unfold core.num.Usize.saturating_sub UScalar.saturating_sub UScalar.val
+  simp only [BitVec.toNat_ofNat, Nat.zero_max]
+  rw [Nat.mod_eq_of_lt]
+  exact Nat.lt_of_le_of_lt (Nat.sub_le left.bv.toNat right.bv.toNat) left.bv.isLt
+
+
+private theorem cast_u32_usize_val (value : Std.U32) :
+    (UScalar.cast .Usize value).val = value.val := by
+  rw [UScalar.cast_val_eq]
+  exact Nat.mod_eq_of_lt (by scalar_tac)
+
+private theorem u64_saturating_sub_val (left right : Std.U64) :
+    (core.num.U64.saturating_sub left right).val = left.val - right.val := by
+  unfold core.num.U64.saturating_sub UScalar.saturating_sub UScalar.val
+  simp only [BitVec.toNat_ofNat, Nat.zero_max]
+  rw [Nat.mod_eq_of_lt]
+  exact Nat.lt_of_le_of_lt (Nat.sub_le left.bv.toNat right.bv.toNat) left.bv.isLt
+
+private theorem saturating_usize_from_u64_refines
+    (value : Std.U64) :
+    ∃ result, lifecycle.saturating_usize_from_u64 value = ok result ∧
+      result.val = min Usize.max value.val := by
+  unfold lifecycle.saturating_usize_from_u64
+  simp [lift]
+  split
+  · rename_i hlarge
+    refine ⟨core.num.Usize.MAX, rfl, ?_⟩
+    rw [Nat.min_eq_left (Nat.le_of_lt hlarge)]
+    simp [core.num.Usize.MAX, UScalar.ofNatCore_val_eq]
+  · rename_i hsmall
+    refine ⟨UScalar.cast .Usize value, rfl, ?_⟩
+    rw [UScalar.cast_val_eq]
+    have hle : value.val ≤ Usize.max := by omega
+    rw [Nat.mod_eq_of_lt]
+    · exact (Nat.min_eq_right hle).symm
+    · exact lt_of_le_of_lt hle (by simp [Usize.max, Usize.numBits])
+
+private theorem usize_one_le : 1 ≤ Usize.max := by scalar_tac
+
+/-- The generated classical shortfall calculation refines the executable
+    lifecycle model.  The width premise is the exact fact needed to show that
+    the first saturating addition has not discarded part of the requested
+    batch. -/
+theorem concrete_receive_shortfall_classical_refines
+    (state : tacenta_triple.State) (modelState : Model.Triple.State)
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (hstate : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      state modelState)
+    (hcomposite : CompositeRefines composite modelComposite)
+    (hwidth : Model.Triple.classicalSkippedLength modelState +
+      (modelComposite.n.toNat - Model.Triple.receiveCount modelState) ≤ Usize.max) :
+    ∃ batch, lifecycle.receive_shortfall lifecycle.FullStore.Classical state composite =
+        ok batch ∧
+      RetryBatchAgrees batch
+        (Model.Lifecycle.receiveShortfall .classical modelState modelComposite) := by
+  have hclass := hstate.1
+  have hheld := congrArg (fun s : Model.State.State => s.skipped.length) hclass
+  simp [Tacenta.SessionUnitTripleT3.ratchetAbs] at hheld
+  have hreceive := congrArg (fun s : Model.State.State => s.nr) hclass
+  simp [Tacenta.SessionUnitTripleT3.ratchetAbs] at hreceive
+  simp [lifecycle.receive_shortfall,
+    tacenta_triple.State.classical_skipped_len,
+    tacenta_ratchet.State.skipped_len,
+    tacenta_triple.State.receive_count,
+    tacenta_ratchet.State.receive_count, lift,
+    hheld, hreceive, hcomposite.n,
+    usize_saturating_sub_val, usize_saturating_add_val,
+    RetryBatchAgrees, Model.Lifecycle.receiveShortfall,
+    Tacenta.SessionUnitT3.max_skipped_store_agrees]
+  have hUsizeOne : 1 ≤ Usize.max := usize_one_le
+  split
+  · simp_all [
+      Model.Triple.classicalSkippedLength, Model.Triple.receiveCount]
+  · simp_all only [
+      Model.Triple.classicalSkippedLength, Model.Triple.receiveCount]
+    refine ⟨_, rfl, ?_⟩
+    rw [usize_saturating_sub_val, usize_saturating_add_val,
+      usize_saturating_sub_val]
+    simp only [cast_u32_usize_val, Usize.ofNatCore_val_eq,
+      hcomposite.n, hreceive,
+      Tacenta.SessionUnitT3.max_skipped_store_agrees]
+    rw [Nat.min_eq_right hwidth]
+    omega
+
+
+/-- The generated sparse shortfall calculation refines the model calculation,
+    including the `findChains`/receive-counter lookup and both saturating
+    conversions.  A missing epoch or receive chain requests the common batch
+    of one on both sides. -/
+theorem concrete_receive_shortfall_post_quantum_refines
+    (state : tacenta_triple.State) (modelState : Model.Triple.State)
+    (composite : tacenta_wire.Composite)
+    (modelComposite : Model.CompositeHeader.Composite)
+    (hstate : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      state modelState)
+    (hcomposite : CompositeRefines composite modelComposite)
+    (hwidth : ∀ received,
+      Model.Triple.postQuantumReceiveCount modelState modelComposite.pqEpoch.toNat =
+          some received →
+        Model.Triple.postQuantumSkippedLength modelState +
+          (modelComposite.pqN.toNat - 1 - received) ≤ Usize.max) :
+    ∃ batch, lifecycle.receive_shortfall lifecycle.FullStore.PostQuantum state composite =
+        ok batch ∧
+      RetryBatchAgrees batch
+        (Model.Lifecycle.receiveShortfall .postQuantum modelState modelComposite) := by
+  have hsparse : Tacenta.SessionUnitSpqrT3.StateRefines state.post_quantum
+      modelState.postQuantum := by
+    rw [← hstate.2]
+    exact Tacenta.SessionUnitTripleT3.spqrAbs_refines state.post_quantum
+  have hheld := congrArg
+    (fun s : Model.SparseRatchet.State => s.skipped.length) hstate.2
+  simp [Tacenta.SessionUnitTripleT3.spqrAbs] at hheld
+  obtain ⟨found, hfindCall, hfindModel⟩ := Std.WP.spec_imp_exists
+    (Tacenta.SessionUnitSpqrT3.findChains_refines hsparse composite.pq_epoch)
+  cases found with
+  | none =>
+      have hmodelFind : Model.SparseRatchet.findChains modelState.postQuantum
+          modelComposite.pqEpoch.toNat = none := by
+        rw [← hcomposite.pqEpoch]
+        exact hfindModel.symm
+      refine ⟨1#usize, ?_, ?_⟩
+      · simp [lifecycle.receive_shortfall,
+          tacenta_triple.State.post_quantum_receive_count,
+          tacenta_spqr.State.receive_count, hfindCall]
+      · simp [RetryBatchAgrees, Model.Lifecycle.receiveShortfall,
+          Model.Triple.postQuantumReceiveCount, hmodelFind]
+        scalar_tac
+  | some chains =>
+      have hmodelFind : Model.SparseRatchet.findChains modelState.postQuantum
+          modelComposite.pqEpoch.toNat =
+          some (Tacenta.SessionUnitSpqrT3.chainsOf chains) := by
+        rw [← hcomposite.pqEpoch]
+        exact hfindModel.symm
+      cases hreceive : chains.receive with
+      | none =>
+          refine ⟨1#usize, ?_, ?_⟩
+          · simp [lifecycle.receive_shortfall,
+              tacenta_triple.State.post_quantum_receive_count,
+              tacenta_spqr.State.receive_count, hfindCall, hreceive]
+          · simp [RetryBatchAgrees, Model.Lifecycle.receiveShortfall,
+              Model.Triple.postQuantumReceiveCount, hmodelFind,
+              Tacenta.SessionUnitSpqrT3.chainsOf, hreceive]
+            scalar_tac
+      | some chain =>
+          have hmodelCount : Model.Triple.postQuantumReceiveCount modelState
+              modelComposite.pqEpoch.toNat = some chain.n.val := by
+            simp [Model.Triple.postQuantumReceiveCount, hmodelFind,
+              Tacenta.SessionUnitSpqrT3.chainsOf,
+              Tacenta.SessionUnitSpqrT3.chainOf, hreceive]
+          have hroom := hwidth chain.n.val hmodelCount
+          let need64 := core.num.U64.saturating_sub
+            (core.num.U64.saturating_sub composite.pq_n 1#u64) chain.n
+          have hneed64 : need64.val =
+              modelComposite.pqN.toNat - 1 - chain.n.val := by
+            simp [need64, u64_saturating_sub_val, hcomposite.pqN]
+          obtain ⟨need, hneedCall, hneedValue⟩ :=
+            saturating_usize_from_u64_refines need64
+          have hneedLe : modelComposite.pqN.toNat - 1 - chain.n.val ≤ Usize.max := by
+            exact le_trans (Nat.le_add_left _ _) hroom
+          have hneedExact : need.val =
+              modelComposite.pqN.toNat - 1 - chain.n.val := by
+            rw [hneedValue, hneed64, Nat.min_eq_right hneedLe]
+          simp [lifecycle.receive_shortfall,
+            tacenta_triple.State.post_quantum_receive_count,
+            tacenta_spqr.State.receive_count, hfindCall, hreceive,
+            need64, hneedCall,
+            tacenta_triple.State.post_quantum_skipped_len,
+            tacenta_spqr.State.skipped_len, lift,
+            hheld, hneedExact, usize_saturating_add_val,
+            usize_saturating_sub_val,
+            Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees,
+            RetryBatchAgrees, Model.Lifecycle.receiveShortfall,
+            hmodelCount]
+          have hUsizeOne : 1 ≤ Usize.max := usize_one_le
+          split
+          · rename_i hzero
+            refine ⟨1#usize, rfl, ?_⟩
+            simp only [Model.Triple.postQuantumSkippedLength]
+            have hroom' : modelState.postQuantum.skipped.length +
+                (modelComposite.pqN.toNat - 1 - chain.n.val) ≤ Usize.max := by
+              simpa [Model.Triple.postQuantumSkippedLength] using hroom
+            rw [Nat.min_eq_right hroom'] at hzero
+            simp only [show (1#usize).val = 1 by native_decide]
+            rw [Nat.max_eq_left (by omega), Nat.min_eq_right hUsizeOne]
+          · rename_i hpositive
+            refine ⟨_, rfl, ?_⟩
+            rw [usize_saturating_sub_val, usize_saturating_add_val]
+            simp only [Usize.ofNatCore_val_eq, hneedExact,
+              Tacenta.SessionUnitSpqrT3.max_skipped_store_agrees]
+            have hroom' : modelState.postQuantum.skipped.length +
+                (modelComposite.pqN.toNat - 1 - chain.n.val) ≤ Usize.max := by
+              simpa [Model.Triple.postQuantumSkippedLength] using hroom
+            rw [Nat.min_eq_right hroom'] at hpositive ⊢
+            have hresultLe : modelState.postQuantum.skipped.length +
+                (modelComposite.pqN.toNat - 1 - chain.n.val) -
+                Model.SparseRatchet.maxSkippedStore ≤ Usize.max := by
+              omega
+            simp only [Model.Triple.postQuantumSkippedLength]
+            rw [Nat.max_eq_right (by omega), Nat.min_eq_right hresultLe]
+
+
+
+
+private theorem erase_first_skipped_sublist
+    (target : Model.Ratchet.SkippedEntry) (entries : List Model.Ratchet.SkippedEntry) :
+    (Model.Ratchet.eraseFirstSkipped target entries).Sublist entries := by
+  induction entries with
+  | nil => simp [Model.Ratchet.eraseFirstSkipped]
+  | cons head tail ih =>
+      by_cases hhead : head = target
+      · simp [Model.Ratchet.eraseFirstSkipped, hhead]
+      · simpa [Model.Ratchet.eraseFirstSkipped, hhead] using
+          List.Sublist.cons_cons head ih
+
+private theorem ratchet_evict_oldest_skipped_sublist
+    (state : Model.State.State) (count : Nat) :
+    (Model.Ratchet.evictOldest state count).1.skipped.Sublist state.skipped := by
+  induction count generalizing state with
+  | zero => simp [Model.Ratchet.evictOldest]
+  | succ count ih =>
+      cases hfirst : Model.Ratchet.oldestSkipped? state.skipped with
+      | none => simp [Model.Ratchet.evictOldest, hfirst]
+      | some target =>
+          simp only [Model.Ratchet.evictOldest, hfirst]
+          exact (ih (state := { state with skipped :=
+            Model.Ratchet.eraseFirstSkipped target state.skipped })).trans
+              (erase_first_skipped_sublist target state.skipped)
+
+private theorem ratchet_evict_oldest_events
+    (state : Model.State.State) (count : Nat) :
+    (Model.Ratchet.evictOldest state count).1.events = state.events := by
+  induction count generalizing state with
+  | zero => rfl
+  | succ count ih =>
+      cases hfirst : Model.Ratchet.oldestSkipped? state.skipped with
+      | none => simp [Model.Ratchet.evictOldest, hfirst]
+      | some target =>
+          simp only [Model.Ratchet.evictOldest, hfirst]
+          exact ih (state := { state with skipped :=
+            Model.Ratchet.eraseFirstSkipped target state.skipped })
+
+private theorem sparse_evict_oldest_skipped_sublist
+    (state : Model.SparseRatchet.State) (count : Nat) :
+    (Model.SparseRatchet.evictOldest state count).1.skipped.Sublist state.skipped := by
+  simp [Model.SparseRatchet.evictOldest, List.drop_sublist]
+
+private theorem sparse_evict_oldest_epoch
+    (state : Model.SparseRatchet.State) (count : Nat) :
+    (Model.SparseRatchet.evictOldest state count).1.epoch = state.epoch := by
+  simp [Model.SparseRatchet.evictOldest]
+
+private theorem sparse_evict_oldest_chains
+    (state : Model.SparseRatchet.State) (count : Nat) :
+    (Model.SparseRatchet.evictOldest state count).1.chains = state.chains := by
+  simp [Model.SparseRatchet.evictOldest]
+
+/-- The exact model-side premises consumed every time the generated retry loop
+    invokes the Triple receive refinement.  Keeping them in one package makes
+    the arbitrary retry induction state what it actually preserves, rather
+    than accepting a fresh list of bounds at each iteration. -/
+structure RetryReceiveBounds
+    (state : Model.Triple.State) (header : tacenta_triple.Header)
+    (modelHeader : Model.State.Header) (output : Option tacenta_spqr.Output) : Prop where
+  classicalMatch : (state.classical.skipped.filter
+    (fun x => x.1 == modelHeader.dh && x.2.1 == modelHeader.n)).length ≤ 1
+  classicalStoreRoom : max state.classical.skipped.length Model.State.maxSkippedStore +
+    Model.State.maxSkip ≤ Usize.max
+  classicalEvents : state.classical.events + 1 < Std.U32.max
+  sparseEpoch : state.postQuantum.epoch + 1 < Std.U64.max
+  sparseChainsRoom : state.postQuantum.chains.length + 2 < Usize.max
+  sparseChainEpochs : ∀ p ∈ state.postQuantum.chains,
+    p.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max
+  sparseSkippedEpochs : ∀ sk ∈ state.postQuantum.skipped,
+    sk.1 + Model.SparseRatchet.epochsKept ≤ Std.U64.max
+  sparseOutputEpoch : ∀ o : tacenta_spqr.Output, output = some o →
+    o.key_epoch.val + Model.SparseRatchet.epochsKept ≤ Std.U64.max
+  sparseStoreRoom : state.postQuantum.skipped.length +
+    Model.SparseRatchet.maxSkip ≤ Usize.max
+  sparseMatch : (state.postQuantum.skipped.filter
+    (fun x => x.1 == header.epoch.val && x.2.1 == header.pq_n.val)).length ≤ 1
+  sparseCounters : ∀ p ∈ state.postQuantum.chains, ∀ ch : Model.SparseRatchet.Chain,
+    (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max
+
+/-- Consume the packaged retry invariant at the existing generated success
+    bridge.  The full-store bridge has the same eleven model premises, so the
+    package can be threaded through the later retry induction without
+    reconstructing bounds after every eviction. -/
+theorem concrete_receive_attempt_success_from_retry_bounds
+    (hmac : Tacenta.SessionUnitT3.HmacAgrees)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hzr : Tacenta.SessionUnitT3.ZeroizingRoundTrips)
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hz96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
+    (hz64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64)
+    (hret : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
+    (happ : Tacenta.SessionUnitSpqrT1.VecRetainTotal)
+    (hrm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
+    (hzs : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (hopt : Tacenta.SessionUnitSpqrT1.OptionCloneTotal)
+    {state : tacenta_triple.State} {modelState : Model.Triple.State}
+    (hstate : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      state modelState)
+    (header : tacenta_triple.Header) (modelHeader : Model.State.Header)
+    (hheader : Tacenta.SessionUnitTripleT3.RatchetHeaderR header.dr modelHeader)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (output : Option tacenta_spqr.Output)
+    (bounds : RetryReceiveBounds modelState header modelHeader output)
+    (realCandidate : tacenta_triple.State) (realKey : Array Std.U8 32#usize)
+    (hcall : lifecycle.receive_attempt state header dhOutRecv dhOutSend newDhsPub output =
+      ok (.Ok (realCandidate, realKey))) :
+    ∃ modelCandidate modelKey,
+      Model.Triple.receive modelState
+          { dr := modelHeader, epoch := header.epoch.val, pqN := header.pq_n.val }
+          (Tacenta.SessionUnitTripleT3.keyOf dhOutRecv)
+          (Tacenta.SessionUnitTripleT3.keyOf dhOutSend)
+          (Tacenta.SessionUnitTripleT3.keyOf newDhsPub)
+          (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) =
+            some (modelCandidate, modelKey) ∧
+      Tacenta.SessionUnitTripleT3.StateRefines
+        Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+        realCandidate modelCandidate ∧
+      Tacenta.SessionUnitTripleT3.keyOf realKey = modelKey := by
+  exact concrete_receive_attempt_success_from_contracts
+    hmac hkdf hzr hvr hz96 hz64 hret happ hrm hzs hopt hstate header modelHeader
+    hheader dhOutRecv dhOutSend newDhsPub output bounds.classicalMatch
+    bounds.classicalStoreRoom bounds.classicalEvents bounds.sparseEpoch
+    bounds.sparseChainsRoom bounds.sparseChainEpochs bounds.sparseSkippedEpochs
+    bounds.sparseOutputEpoch bounds.sparseStoreRoom bounds.sparseMatch
+    bounds.sparseCounters realCandidate realKey hcall
+
+
+/-- Classical eviction removes skipped entries only, so every receive premise
+    either stays definitionally equal or becomes strictly easier. -/
+theorem RetryReceiveBounds.classical_evict
+    {state : Model.Triple.State} {header : tacenta_triple.Header}
+    {modelHeader : Model.State.Header} {output : Option tacenta_spqr.Output}
+    (bounds : RetryReceiveBounds state header modelHeader output) (count : Nat) :
+    RetryReceiveBounds (Model.Triple.evictOldestClassical state count).1
+      header modelHeader output := by
+  let nextClassical := (Model.Ratchet.evictOldest state.classical count).1
+  have hsub : nextClassical.skipped.Sublist state.classical.skipped := by
+    exact ratchet_evict_oldest_skipped_sublist state.classical count
+  have hlen := hsub.length_le
+  have hmatch := (hsub.filter
+    (fun x => x.1 == modelHeader.dh && x.2.1 == modelHeader.n)).length_le
+  refine {
+    classicalMatch := ?_
+    classicalStoreRoom := ?_
+    classicalEvents := ?_
+    sparseEpoch := ?_
+    sparseChainsRoom := ?_
+    sparseChainEpochs := ?_
+    sparseSkippedEpochs := ?_
+    sparseOutputEpoch := ?_
+    sparseStoreRoom := ?_
+    sparseMatch := ?_
+    sparseCounters := ?_ }
+  · change (nextClassical.skipped.filter
+      (fun x => x.1 == modelHeader.dh && x.2.1 == modelHeader.n)).length ≤ 1
+    exact le_trans hmatch bounds.classicalMatch
+  · change max nextClassical.skipped.length Model.State.maxSkippedStore +
+      Model.State.maxSkip ≤ Usize.max
+    exact le_trans (Nat.add_le_add_right
+      (max_le_max_right Model.State.maxSkippedStore hlen) Model.State.maxSkip)
+      bounds.classicalStoreRoom
+  · change nextClassical.events + 1 < Std.U32.max
+    rw [show nextClassical.events = state.classical.events by
+      exact ratchet_evict_oldest_events state.classical count]
+    exact bounds.classicalEvents
+  · simpa [Model.Triple.evictOldestClassical, nextClassical] using bounds.sparseEpoch
+  · simpa [Model.Triple.evictOldestClassical, nextClassical] using bounds.sparseChainsRoom
+  · simpa [Model.Triple.evictOldestClassical, nextClassical] using bounds.sparseChainEpochs
+  · simpa [Model.Triple.evictOldestClassical, nextClassical] using bounds.sparseSkippedEpochs
+  · simpa [Model.Triple.evictOldestClassical, nextClassical] using bounds.sparseOutputEpoch
+  · simpa [Model.Triple.evictOldestClassical, nextClassical] using bounds.sparseStoreRoom
+  · simpa [Model.Triple.evictOldestClassical, nextClassical] using bounds.sparseMatch
+  · simpa [Model.Triple.evictOldestClassical, nextClassical] using bounds.sparseCounters
+
+/-- Sparse eviction is the symmetric preservation step.  Its chain table,
+    epoch and counters do not change, while its skipped store becomes a
+    sublist, preserving both matching and epoch predicates. -/
+theorem RetryReceiveBounds.post_quantum_evict
+    {state : Model.Triple.State} {header : tacenta_triple.Header}
+    {modelHeader : Model.State.Header} {output : Option tacenta_spqr.Output}
+    (bounds : RetryReceiveBounds state header modelHeader output) (count : Nat) :
+    RetryReceiveBounds (Model.Triple.evictOldestPostQuantum state count).1
+      header modelHeader output := by
+  let nextSparse := (Model.SparseRatchet.evictOldest state.postQuantum count).1
+  have hsub : nextSparse.skipped.Sublist state.postQuantum.skipped := by
+    exact sparse_evict_oldest_skipped_sublist state.postQuantum count
+  have hlen := hsub.length_le
+  have hmatch := (hsub.filter
+    (fun x => x.1 == header.epoch.val && x.2.1 == header.pq_n.val)).length_le
+  refine {
+    classicalMatch := ?_
+    classicalStoreRoom := ?_
+    classicalEvents := ?_
+    sparseEpoch := ?_
+    sparseChainsRoom := ?_
+    sparseChainEpochs := ?_
+    sparseSkippedEpochs := ?_
+    sparseOutputEpoch := ?_
+    sparseStoreRoom := ?_
+    sparseMatch := ?_
+    sparseCounters := ?_ }
+  · simpa [Model.Triple.evictOldestPostQuantum, nextSparse] using bounds.classicalMatch
+  · simpa [Model.Triple.evictOldestPostQuantum, nextSparse] using bounds.classicalStoreRoom
+  · simpa [Model.Triple.evictOldestPostQuantum, nextSparse] using bounds.classicalEvents
+  · change nextSparse.epoch + 1 < Std.U64.max
+    rw [show nextSparse.epoch = state.postQuantum.epoch by
+      exact sparse_evict_oldest_epoch state.postQuantum count]
+    exact bounds.sparseEpoch
+  · change nextSparse.chains.length + 2 < Usize.max
+    rw [show nextSparse.chains = state.postQuantum.chains by
+      exact sparse_evict_oldest_chains state.postQuantum count]
+    exact bounds.sparseChainsRoom
+  · intro pair hmem
+    apply bounds.sparseChainEpochs pair
+    rw [← show nextSparse.chains = state.postQuantum.chains by
+      exact sparse_evict_oldest_chains state.postQuantum count]
+    exact hmem
+  · intro skipped hmem
+    apply bounds.sparseSkippedEpochs skipped
+    exact hsub.mem hmem
+  · simpa [Model.Triple.evictOldestPostQuantum, nextSparse] using bounds.sparseOutputEpoch
+  · change nextSparse.skipped.length + Model.SparseRatchet.maxSkip ≤ Usize.max
+    exact le_trans (Nat.add_le_add_right hlen Model.SparseRatchet.maxSkip)
+      bounds.sparseStoreRoom
+  · change (nextSparse.skipped.filter
+      (fun x => x.1 == header.epoch.val && x.2.1 == header.pq_n.val)).length ≤ 1
+    exact le_trans hmatch bounds.sparseMatch
+  · intro pair hmem chain hchain
+    apply bounds.sparseCounters pair
+    · rw [← show nextSparse.chains = state.postQuantum.chains by
+        exact sparse_evict_oldest_chains state.postQuantum count]
+      exact hmem
+    · exact hchain
+
 /-! The first inner eviction loop chooses an index by scanning the skipped-key
 vector.  This safety lemma is the concrete fact needed before relating that
 index to the model's `oldestSkipped?`; it keeps the scan's termination and

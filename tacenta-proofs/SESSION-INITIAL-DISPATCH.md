@@ -382,3 +382,34 @@ needed by the coupled induction: once either count covers the current store
 length, larger counts produce the same state and returned eviction count. The
 model keeps its exact natural batch and exact result indices while the
 concrete batch may soundly saturate.
+
+## Checkpoint — 2026-09-29 (retry shortfall and receive bounds)
+
+The initial retry count is now derived from the generated
+`lifecycle.receive_shortfall` call instead of accepted as an equality. The
+classical bridge uses the concrete/model Composite and Triple refinement
+relations and an explicit machine-width bound. The sparse bridge additionally
+replays `findChains`, aligns the selected receive counter, and accounts for
+both the `u64` and `usize` saturating operations. Both produce
+`RetryBatchAgrees`, so they compose with the existing capped-batch eviction
+lemmas.
+
+`RetryReceiveBounds` packages the eleven model premises used by the generated
+Triple receive refinement. Classical and sparse eviction preserve this
+package: eviction changes only the selected skipped-key store, whose new list
+is proved to be a sublist of the old one. A success adapter consumes the
+package at `concrete_receive_attempt_success_from_contracts`; the failure-side
+adapter can consume the same fields when the full-store leaf is brought onto
+this branch. The package intentionally does not imply either shortfall width
+premise; switch-half composition must carry its own reachability and width
+evidence.
+
+Three proof-dependency controls swap the classical model half, substitute the
+sparse store length into the classical width premise, and shift the selected
+sparse receive counter. Lean must reject all three mutations.
+
+This checkpoint supplies shortfall and bounds infrastructure. It does not
+prove the coupled arbitrary retry loop. That induction must still thread the
+concrete/model eviction result, capped batch relation, preserved bounds, and
+exact success or repeated-full-store result through every generated loop
+iteration.

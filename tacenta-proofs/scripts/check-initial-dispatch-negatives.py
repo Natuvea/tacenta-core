@@ -76,6 +76,20 @@ def main():
          '  have hGenerated :\n'
          '      batchNext.val = batch.val + batch.val := by',
          'usize_saturating_add_val'),
+        ('swap-classical-shortfall-model-half',
+         '        (Model.Lifecycle.receiveShortfall .classical modelState modelComposite) := by',
+         '        (Model.Lifecycle.receiveShortfall .postQuantum modelState modelComposite) := by',
+         'postQuantumSkippedLength'),
+        ('swap-classical-shortfall-bound-half',
+         '    (hwidth : Model.Triple.classicalSkippedLength modelState +\n'
+         '      (modelComposite.n.toNat - Model.Triple.receiveCount modelState) ≤ Usize.max) :',
+         '    (hwidth : Model.Triple.postQuantumSkippedLength modelState +\n'
+         '      (modelComposite.n.toNat - Model.Triple.receiveCount modelState) ≤ Usize.max) :',
+         'hwidth'),
+        ('shift-post-quantum-shortfall-receive-count',
+         '          have hroom := hwidth chain.n.val hmodelCount',
+         '          have hroom := hwidth (chain.n.val + 1) hmodelCount',
+         'hmodelCount'),
         ('bypass-ephemeral',
          '(hne : vecOf established ≠ vecOf decoded.ephemeral)',
          '(hne : vecOf established = vecOf decoded.ephemeral)', 'hne'),
@@ -478,6 +492,13 @@ def main():
             elif name == 'replace-retry-saturating-double-with-ordinary':
                 mismatch = re.search(
                     r'error: Type mismatch.+?usize_saturating_add_val', output, re.S)
+            elif name == 'swap-classical-shortfall-model-half':
+                mismatch = re.search(
+                    r'error: unsolved goals.+?postQuantumSkippedLength', output, re.S)
+            elif name == 'swap-classical-shortfall-bound-half':
+                mismatch = re.search(
+                    r'error: Tactic `rewrite` failed:.+?postQuantumSkippedLength',
+                    output, re.S)
             elif name == 'replace-full-store-receive-call-evidence':
                 mismatch = re.search(
                     r'error: Type mismatch: After simplification, term\s+hfull\s+'
