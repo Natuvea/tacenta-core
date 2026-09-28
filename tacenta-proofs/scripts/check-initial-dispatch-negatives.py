@@ -64,6 +64,18 @@ def main():
         'mutations': {},
     }
     mutants = [
+        ('drop-retry-batch-cap',
+         'def RetryBatchAgrees (concrete : Std.Usize) (model : Nat) : Prop :=\n'
+         '  concrete.val = min Usize.max model',
+         'def RetryBatchAgrees (concrete : Std.Usize) (model : Nat) : Prop :=\n'
+         '  concrete.val = model',
+         'Usize'),
+        ('replace-retry-saturating-double-with-ordinary',
+         '  have hGenerated :\n'
+         '      batchNext.val = min Usize.max (batch.val + batch.val) := by',
+         '  have hGenerated :\n'
+         '      batchNext.val = batch.val + batch.val := by',
+         'usize_saturating_add_val'),
         ('bypass-ephemeral',
          '(hne : vecOf established ≠ vecOf decoded.ephemeral)',
          '(hne : vecOf established = vecOf decoded.ephemeral)', 'hne'),
@@ -460,6 +472,12 @@ def main():
                 mismatch = re.search(
                     r'error: Tactic `rewrite` failed: Did not find an occurrence.+?'
                     r'initialHeadroom', output, re.S)
+            elif name == 'drop-retry-batch-cap':
+                mismatch = re.search(
+                    r'error:.+?Usize\.max', output, re.S)
+            elif name == 'replace-retry-saturating-double-with-ordinary':
+                mismatch = re.search(
+                    r'error: Type mismatch.+?usize_saturating_add_val', output, re.S)
             elif name == 'replace-full-store-receive-call-evidence':
                 mismatch = re.search(
                     r'error: Type mismatch: After simplification, term\s+hfull\s+'

@@ -364,3 +364,21 @@ the current Triple T3 theorem relates successful receives but cannot yet turn
 a concrete full-store refusal into the exact model `receiveDetailed` refusal
 that starts the bounded retry. That leaf and the coupled retry-loop refinement
 must be proved before this provider can replace the public success callback.
+
+## Checkpoint — 2026-09-28 (retry-batch agreement)
+
+The generated retry loop doubles its `usize` batch with saturating addition,
+while the executable model doubles an unbounded natural. The bridge now uses
+`RetryBatchAgrees concrete model`: the concrete value is the model value capped
+at `Usize.max`. Its step theorem is derived from the exact generated
+`saturating_add` equation and therefore does not assume ordinary
+machine-integer doubling.
+
+The cap cannot yet be removed merely because skipped stores are bounded. A
+same-half retry may double several times before the surrounding proof has
+shown that a count covering the store forces that branch to terminate. New
+classical and sparse `evictOldest` congruence lemmas establish the smaller fact
+needed by the coupled induction: once either count covers the current store
+length, larger counts produce the same state and returned eviction count. The
+model keeps its exact natural batch and exact result indices while the
+concrete batch may soundly saturate.

@@ -453,6 +453,21 @@ def evictOldest (st : State) (count : Nat) : State × Nat :=
   let evicted := min count st.skipped.length
   ({ st with skipped := st.skipped.drop evicted }, evicted)
 
+/-- Counts at or above the current sparse skipped-store length have the same
+    observable eviction result.  The lifecycle retry proof uses this to cap an
+    unbounded model batch at the concrete `usize` maximum. -/
+theorem evictOldest_eq_at_length_of_length_le (st : State) (count : Nat)
+    (h : st.skipped.length ≤ count) :
+    evictOldest st count = evictOldest st st.skipped.length := by
+  simp [evictOldest, Nat.min_eq_right h]
+
+theorem evictOldest_congr_of_length_le (st : State) (left right : Nat)
+    (hleft : st.skipped.length ≤ left)
+    (hright : st.skipped.length ≤ right) :
+    evictOldest st left = evictOldest st right := by
+  rw [evictOldest_eq_at_length_of_length_le st left hleft,
+    evictOldest_eq_at_length_of_length_le st right hright]
+
 /-- Step the receiving chain forward to `upto`, storing every key passed.
 
     `none` when the request exceeds `maxSkip`, or when the chain has been

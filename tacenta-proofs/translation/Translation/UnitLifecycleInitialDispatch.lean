@@ -3502,6 +3502,117 @@ theorem concrete_receive_with_eviction_of_receive
   rw [hcall]
   simp
 
+/-! ## Retry-batch agreement
+
+The Rust retry loop doubles a `usize` with `saturating_add`; the executable
+model doubles an unbounded natural.  Equality therefore ceases to be the right
+relation at the platform ceiling.  `RetryBatchAgrees` keeps the model batch
+exact and caps only its concrete representation.  The eviction lemmas below
+show why this loses no observation: every model skipped store is itself
+representable, and eviction is already constant once its count covers that
+store. -/
+
+def RetryBatchAgrees (concrete : Std.Usize) (model : Nat) : Prop :=
+  concrete.val = min Usize.max model
+
+theorem retry_batch_agrees_value (concrete : Std.Usize) (model : Nat)
+    (h : RetryBatchAgrees concrete model) :
+    concrete.val = min Usize.max model := h
+
+theorem retry_batch_agrees_self (batch : Std.Usize) :
+    RetryBatchAgrees batch batch.val := by
+  unfold RetryBatchAgrees
+  rw [Nat.min_eq_right]
+  scalar_tac
+
+/-- This ceiling witness is a self-check for the cap in
+    `RetryBatchAgrees`: deleting `min Usize.max` makes it unprovable. -/
+example : RetryBatchAgrees core.num.Usize.MAX (Usize.max + 1) := by
+  simp [RetryBatchAgrees, core.num.Usize.MAX]
+
+theorem usize_saturating_add_val (left right : Std.Usize) :
+    (core.num.Usize.saturating_add left right).val =
+      min Usize.max (left.val + right.val) := by
+  simp only [core.num.Usize.saturating_add, UScalar.saturating_add, UScalar.val,
+    BitVec.toNat_ofNat]
+  have h : min (UScalar.max UScalarTy.Usize) (left.val + right.val)
+      < 2 ^ UScalarTy.Usize.numBits := by
+    exact Nat.lt_of_le_of_lt
+      (Nat.min_le_left (UScalar.max UScalarTy.Usize) (left.val + right.val))
+      (by
+        rw [UScalar.max_USize_eq]
+        simp [Usize.max, Usize.numBits])
+  have hmod := Nat.mod_eq_of_lt h
+  simp only [UScalar.val] at hmod
+  rw [hmod, UScalar.max_USize_eq]
+
+/-- The exact generated `saturating_add` equation advances the agreement to
+    the model's ordinary natural-number doubling. -/
+theorem retry_batch_agrees_saturating_double
+    (batch batchNext : Std.Usize) (modelBatch : Nat)
+    (hrel : RetryBatchAgrees batch modelBatch)
+    (hDouble : core.num.Usize.saturating_add batch batch = batchNext) :
+    RetryBatchAgrees batchNext (modelBatch * 2) := by
+  have hGenerated :
+      batchNext.val = min Usize.max (batch.val + batch.val) := by
+    rw [← hDouble]
+    exact usize_saturating_add_val batch batch
+  unfold RetryBatchAgrees at hrel ⊢
+  omega
+
+/-- A relation witness gives identical classical model eviction even when the
+    unbounded model batch has crossed the concrete ceiling. -/
+theorem retry_batch_agrees_classical_evict
+    (state : Model.State.State) (concrete : Std.Usize) (model : Nat)
+    (hrel : RetryBatchAgrees concrete model)
+    (hwidth : state.skipped.length ≤ Usize.max) :
+    Model.Ratchet.evictOldest state concrete.val =
+      Model.Ratchet.evictOldest state model := by
+  unfold RetryBatchAgrees at hrel
+  by_cases hmodel : model ≤ Usize.max
+  · have heq : concrete.val = model := by omega
+    rw [heq]
+  · have hconcrete : concrete.val = Usize.max := by omega
+    apply Model.Ratchet.evictOldest_congr_of_length_le
+    · simpa [hconcrete] using hwidth
+    · omega
+
+/-- Sparse eviction has the same cap law as classical eviction. -/
+theorem retry_batch_agrees_sparse_evict
+    (state : Model.SparseRatchet.State) (concrete : Std.Usize) (model : Nat)
+    (hrel : RetryBatchAgrees concrete model)
+    (hwidth : state.skipped.length ≤ Usize.max) :
+    Model.SparseRatchet.evictOldest state concrete.val =
+      Model.SparseRatchet.evictOldest state model := by
+  unfold RetryBatchAgrees at hrel
+  by_cases hmodel : model ≤ Usize.max
+  · have heq : concrete.val = model := by omega
+    rw [heq]
+  · have hconcrete : concrete.val = Usize.max := by omega
+    apply Model.SparseRatchet.evictOldest_congr_of_length_le
+    · simpa [hconcrete] using hwidth
+    · omega
+
+theorem retry_batch_agrees_triple_classical_evict
+    (state : Model.Triple.State) (concrete : Std.Usize) (model : Nat)
+    (hrel : RetryBatchAgrees concrete model)
+    (hwidth : Model.Triple.classicalSkippedLength state ≤ Usize.max) :
+    Model.Triple.evictOldestClassical state concrete.val =
+      Model.Triple.evictOldestClassical state model := by
+  unfold Model.Triple.evictOldestClassical
+  change state.classical.skipped.length ≤ Usize.max at hwidth
+  rw [retry_batch_agrees_classical_evict state.classical concrete model hrel hwidth]
+
+theorem retry_batch_agrees_triple_sparse_evict
+    (state : Model.Triple.State) (concrete : Std.Usize) (model : Nat)
+    (hrel : RetryBatchAgrees concrete model)
+    (hwidth : Model.Triple.postQuantumSkippedLength state ≤ Usize.max) :
+    Model.Triple.evictOldestPostQuantum state concrete.val =
+      Model.Triple.evictOldestPostQuantum state model := by
+  unfold Model.Triple.evictOldestPostQuantum
+  change state.postQuantum.skipped.length ≤ Usize.max at hwidth
+  rw [retry_batch_agrees_sparse_evict state.postQuantum concrete model hrel hwidth]
+
 /-! The first inner eviction loop chooses an index by scanning the skipped-key
 vector.  This safety lemma is the concrete fact needed before relating that
 index to the model's `oldestSkipped?`; it keeps the scan's termination and
