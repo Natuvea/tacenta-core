@@ -65,6 +65,18 @@ def main():
          'cross.successNotModelRefusal plaintext next rngNext modelNext',
          'cross.refusalNotModelSuccess plaintext next rngNext modelNext',
          'plaintext'),
+        ('replace-decrypt-first-dh-cross-family-leaf',
+         'evidence.hdecodeReal evidence.hdecodeModel evidence.hcomposite hfirst',
+         'evidence.hdecodeReal evidence.hdecodeModel evidence.hcomposite hdecode',
+         'hdecode'),
+        ('replace-decrypt-second-dh-cross-family-draw',
+         'draw dhOutRecv hfirst hdraw hsecond',
+         'draw dhOutRecv hfirst hfirst hsecond',
+         'hfirst'),
+        ('replace-decrypt-ceiling-random-success',
+         'randomSuccess.reflects rng pref.candidateBytes pref.rng1 pref.hrandom',
+         'randomSuccess.reflects rng pref.candidateBytes pref.rng1 hcall',
+         'hcall'),
         ('replace-decrypt-derived-braid-message',
          '    braid.1 provider.hkem braid.2 (provider.hprivate successPrefix)',
          '    provider.hrel provider.hkem braid.2 (provider.hprivate successPrefix)',
@@ -284,6 +296,16 @@ def main():
                     r'error: Application type mismatch: The argument\s+'
                     r'htripleAtRealEpoch.+?has type\s+'
                     r'.+?but is expected to have type', output, re.S)
+            elif name == 'replace-decrypt-second-dh-cross-family-draw':
+                mismatch = re.search(
+                    r'error: Application type mismatch: The last\s+hfirst\s+'
+                    r'argument has type\s+.+?but is expected to have type',
+                    output, re.S)
+            elif name == 'replace-decrypt-ceiling-random-success':
+                mismatch = re.search(
+                    r'error: Application type mismatch: The argument\s+hcall\s+'
+                    r'has type\s+.+?but is expected to have type',
+                    output, re.S)
             elif name == 'replace-encrypt-associated-data-headroom':
                 mismatch = re.search(
                     r'error: Application type mismatch: The argument\s+'

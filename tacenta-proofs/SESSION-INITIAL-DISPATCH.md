@@ -315,3 +315,26 @@ on this exact tree through workflow controls, the independent reader, vectors,
 the Rust workspace, dependency audit, constant-time host check, and all six
 fuzz-smoke targets. The translation attestation was not refreshed because no
 generated Aeneas file changed.
+
+## Checkpoint — 2026-09-28 (DH and ceiling cross-family leaves)
+
+Reusable DH evidence is now indexed by the actual decoded message rather than
+by a caller-supplied refusal input, while the non-cryptographic Braid contracts
+remain session-wide. Exact first-DH and second-DH lemmas replay those contracts
+at the generated Rust call and show that a Rust success cannot accompany either
+model DH refusal. The second-DH proof also fixes the ordered random draw used
+by that leaf.
+
+The result-sensitive `InitialRatchetRandom32SuccessContract` supplies the
+reverse direction that the forward `OracleOf.random32` contract intentionally
+does not claim: an exact successful translated draw must consume the head of
+the concrete draw trace and leave its tail. Applying it to the successful Rust
+prefix rules out a model ceiling refusal on that same execution.
+
+All three leaves elaborate against the exact generated source. The negative
+suite now contains 27 proof-dependency mutations, including removal or
+replacement of the first-DH, second-DH-draw, and ceiling-random-success facts;
+all 27 are rejected. These leaves have not yet replaced the public
+cross-family record. Triple and AEAD refusal contradictions, followed by the
+opposite Rust-refusal/model-success direction, remain before the public result
+split is closed.
