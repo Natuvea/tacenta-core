@@ -12772,16 +12772,13 @@ theorem braid_success_evidence_of_generated
         traceNext := by simpa using htail
       }⟩
 
-/-! The refusal provider supplies only facts which the generated call and the
-    Triple contracts cannot derive themselves: finite-store headroom and the
-    public-to-model refusal-code correspondence.  The generated Triple result
-    now determines the complete real refusal shape, including the classical
-    counter-exhaustion edge; the provider no longer supplies that fact or a
-    completed route witness. -/
+/-! The refusal provider supplies only finite-store facts which the generated
+    call and the Triple contracts cannot derive themselves.  The generated
+    Triple result determines the exact model refusal and its public-error map;
+    the provider supplies neither classification nor a completed route. -/
 structure GeneratedTripleRefusalConditions
-    (model : Model.Lifecycle.Session) (realEpoch : Std.U64)
-    (sparseOutput : Option tacenta_spqr.Output)
-    (realReason : tacenta_triple.TripleError) : Type where
+    (model : Model.Lifecycle.Session)
+    (sparseOutput : Option tacenta_spqr.Output) : Type where
   derivedKeys : Tacenta.SessionUnitT1.DerivedKeysModel
   room : model.triple.postQuantum.chains.length + 1 < Usize.max
   chainBound : ∀ p ∈ model.triple.postQuantum.chains,
@@ -12794,11 +12791,6 @@ structure GeneratedTripleRefusalConditions
   counterBound : ∀ p ∈ model.triple.postQuantum.chains,
     ∀ ch : Model.SparseRatchet.Chain,
     (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max
-  reason : ∀ modelReason,
-    Model.Triple.sendDetailed model.triple realEpoch.val
-        (sparseOutput.map Tacenta.SessionUnitTripleT3.spqrOutputOf) =
-        .error modelReason →
-    tripleSendRefusalOfReal realReason = some modelReason
 
 /-! The success provider supplies only the sparse finite-store premises which
     the generated Triple call cannot infer.  Associated-data, ciphertext and
@@ -12859,7 +12851,7 @@ theorem encrypt_triple_refusal_evidence_of_generated
     {sparseOutput : Option tacenta_spqr.Output}
     {candidate : tacenta_triple.State} {realReason : tacenta_triple.TripleError}
     (contracts : TripleSendRefinementContracts)
-    (conditions : GeneratedTripleRefusalConditions model realEpoch sparseOutput realReason)
+    (conditions : GeneratedTripleRefusalConditions model sparseOutput)
     (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output)
     (hnext : tacenta_braid.Braid.failed realBraidNext = ok false)
     (hsparse : RealSparseConversion realOutput sparseOutput)
@@ -12887,7 +12879,7 @@ theorem encrypt_triple_refusal_evidence_of_generated
     intro modelReason hdetail
     rw [← hmodelEpoch, hmodelOutput]
     exact hdetail
-  obtain ⟨modelReason, _hdetail, _hshape⟩ :=
+  obtain ⟨modelReason, _hdetail, _hreason⟩ :=
     triple_refusal_evidence_of_exact_candidate_and_contracts contracts
       braidEvidence.session.triple realEpoch sparseOutput conditions.room
       conditions.chainBound conditions.skippedBound conditions.newBound
@@ -12897,7 +12889,7 @@ theorem encrypt_triple_refusal_evidence_of_generated
     conditions.epochBound conditions.counterBound hsparse
     braidEvidence.session braidEvidence.ready braidEvidence.realSend hsendCandidate
     braidEvidence.modelSend braidEvidence.next braidEvidence.notFailed hmodelOf
-    conditions.reason braidEvidence.traceNext⟩
+    braidEvidence.traceNext⟩
 
 /-! Construct either concrete Triple-success route from the exact generated
     Braid successor, sparse conversion and Triple candidate.  The contract
@@ -13119,7 +13111,7 @@ structure EncryptNonterminalRouteProviders
       ok (candidate, .Err reason)) →
     Nonempty (GeneratedBraidSuccessEvidence rc crc trace dh K oracle real model rng
       realMessage realEpoch realOutput realBraidNext rngNext) →
-    GeneratedTripleRefusalConditions model realEpoch sparseOutput reason
+    GeneratedTripleRefusalConditions model sparseOutput
   success : ∀ output realMessage realEpoch realOutput realBraidNext rngNext,
     ∀ sparseOutput candidate header mk,
     (houtput : lifecycle.Session.encrypt rc crc real plaintext rng = ok output) →

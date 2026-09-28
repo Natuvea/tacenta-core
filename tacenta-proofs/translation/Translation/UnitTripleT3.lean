@@ -265,6 +265,11 @@ def ratchetLabelsOf : tacenta_ratchet.LabelSet → Model.State.LabelSet
 def spqrOutputOf (o : tacenta_spqr.Output) : Model.SparseRatchet.Output :=
   ⟨o.key_epoch.val, keyOf o.key⟩
 
+/-- The exact Triple refusal induced by either leaf's public error. -/
+def sendRefusalOfReal : TripleError → Option Model.Triple.SendRefusal
+  | .Classical reason => (Tacenta.UnitT3.sendRefusalOfReal reason).map .classical
+  | .PostQuantum reason => (Tacenta.UnitSpqrT3.sendRefusalOfReal reason).map .postQuantum
+
 /-- Bundled agreement for the classical ratchet's calling surface, through an
 abstraction `α`. Covers exactly what this file's theorems need: `clone`, the two
 initialisers, the three small accessors `TripleT1.lean` already treated as this
@@ -310,9 +315,8 @@ def RatchetAgreesFor (α : tacenta_ratchet.State → Model.State.State) : Prop :
       ∃ m' mh, Model.Ratchet.send (α s) = some (m', mh, keyOf mk) ∧
         α r.2 = m' ∧ RatchetHeaderR hdr mh) ∧
     (∀ e, r.1 = core.result.Result.Err e →
-      (e = tacenta_ratchet.RatchetError.NoSendingChain ∨
-        e = tacenta_ratchet.RatchetError.ChainExhausted) ∧
-      Model.Ratchet.send (α s) = none)) ∧
+      ∃ reason, Tacenta.UnitT3.sendRefusalOfReal e = some reason ∧
+        Model.Ratchet.sendDetailed (α s) = .error reason)) ∧
   -- mirrors: Tacenta.UnitT3.receive_refines in UnitT3.lean
   (∀ (s : tacenta_ratchet.State) (hdr : tacenta_ratchet.Header) (mh : Model.State.Header),
     RatchetHeaderR hdr mh →
@@ -372,7 +376,9 @@ def SpqrAgreesFor (β : tacenta_spqr.State → Model.SparseRatchet.State) : Prop
         ∃ m', Model.SparseRatchet.send (β s) e.val (out.map spqrOutputOf)
             = some (m', n.val, keyOf mk) ∧ β r.2 = m') ∧
       (∀ err, r.1 = core.result.Result.Err err →
-        Model.SparseRatchet.send (β s) e.val (out.map spqrOutputOf) = none)) ∧
+        ∃ reason, Tacenta.UnitSpqrT3.sendRefusalOfReal err = some reason ∧
+          Model.SparseRatchet.sendDetailed (β s) e.val (out.map spqrOutputOf) =
+            .error reason)) ∧
   -- mirrors: Tacenta.UnitSpqrT3.receive_refines in UnitSpqrT3.lean
   (∀ (s : tacenta_spqr.State) (receiving_epoch : Std.U64) (out : Option tacenta_spqr.Output)
       (n : Std.U64),
@@ -413,14 +419,10 @@ structure TripleHeaderR (hdr : Header) (mh : Model.Triple.Header) : Prop where
 
 /-! ## `send` refines the model's
 
-The classical ratchet's failure clause is exhaustive: `UnitT3.lean` proves
-that the real send can report only `NoSendingChain` or `ChainExhausted`, and
-that either refusal is the model's `none`. The post-quantum side's failure
-clause is unconditional under its finite-state premises (`SpqrAgreesFor`,
-backed by `UnitSpqrT3.lean`'s `hcounter`-guarded `send_refines`). The composed
-postcondition therefore returns both facts for every generated error: its
-complete real send-refusal shape and the model send's refusal. A caller no
-longer chooses the classical counter edge by supplying a side condition. -/
+Both leaf refinements preserve the exact detailed refusal.  The composed
+postcondition maps that refusal through the Triple constructor, so neither the
+model reason nor its correspondence with the generated error is supplied by a
+caller. -/
 
 theorem send_refines {α : tacenta_ratchet.State → Model.State.State}
     {β : tacenta_spqr.State → Model.SparseRatchet.State}
@@ -442,10 +444,9 @@ theorem send_refines {α : tacenta_ratchet.State → Model.State.State}
             = some (m', mh, key)
           ∧ StateRefines α β r.2 m' ∧ TripleHeaderR hdr mh ∧ keyOf mk = key)
       ∧ (∀ e, r.1 = core.result.Result.Err e →
-          (e = TripleError.Classical tacenta_ratchet.RatchetError.NoSendingChain ∨
-            e = TripleError.Classical tacenta_ratchet.RatchetError.ChainExhausted ∨
-            ∃ e', e = TripleError.PostQuantum e') ∧
-          Model.Triple.send m sending_epoch.val (output.map spqrOutputOf) = none) ⦄ := by
+          ∃ reason, sendRefusalOfReal e = some reason ∧
+            Model.Triple.sendDetailed m sending_epoch.val (output.map spqrOutputOf) =
+              .error reason) ⦄ := by
   obtain ⟨hrClone, _, _, _, _, _, hrSend, _⟩ := hra
   obtain ⟨hsClone, _, _, _, hsSend, _⟩ := hsa
   obtain ⟨hrelC, hrelQ⟩ := hrel
@@ -490,8 +491,10 @@ theorem send_refines {α : tacenta_ratchet.State → Model.State.State}
         exact key_post
       · intro e' hcon; injection hcon
     · step*
-      have hspqNone := hr1Post.2 e1 rfl
-      rw [hsqEq, hrelQ] at hspqNone
+      obtain ⟨modelReason, hreason, hspqDetailed⟩ := hr1Post.2 e1 rfl
+      rw [hsqEq, hrelQ] at hspqDetailed
+      have hclassDetailed := (Model.Ratchet.sendDetailed_ok_iff
+        m.classical (m1, mh, keyOf mk_ec)).2 hsendEq
       obtain ⟨_, hkbz2⟩ := hz mk_ec
       simp only [hkbz2]
       refine ⟨?_, ?_⟩
@@ -499,20 +502,20 @@ theorem send_refines {α : tacenta_ratchet.State → Model.State.State}
       · intro e' he'
         injection he' with heq
         subst e'
-        exact ⟨Or.inr (Or.inr ⟨e1, rfl⟩), by simp [hspqNone]⟩
+        exact ⟨.postQuantum modelReason,
+          by simp [sendRefusalOfReal, hreason],
+          by simp [Model.Triple.sendDetailed, hclassDetailed, hspqDetailed]⟩
   · step*
-    obtain ⟨hshape, hnone⟩ := hrPost.2 e rfl
-    rw [hscEq, hrelC] at hnone
+    obtain ⟨modelReason, hreason, hclassDetailed⟩ := hrPost.2 e rfl
+    rw [hscEq, hrelC] at hclassDetailed
     refine ⟨?_, ?_⟩
     · intro hdr mk hcon; injection hcon
     · intro e' he'
       injection he' with heq
       subst e'
-      constructor
-      · rcases hshape with hshape | hshape
-        · exact Or.inl (by rw [hshape])
-        · exact Or.inr (Or.inl (by rw [hshape]))
-      · simp [hnone]
+      exact ⟨.classical modelReason,
+        by simp [sendRefusalOfReal, hreason],
+        by simp [Model.Triple.sendDetailed, hclassDetailed]⟩
 
 /-! ## `receive` refines the model's -/
 
@@ -855,10 +858,9 @@ theorem send_refines_discharged
             = some (m', mh, key)
           ∧ StateRefines ratchetAbs spqrAbs r.2 m' ∧ TripleHeaderR hdr mh ∧ keyOf mk = key)
       ∧ (∀ e, r.1 = core.result.Result.Err e →
-          (e = TripleError.Classical tacenta_ratchet.RatchetError.NoSendingChain ∨
-            e = TripleError.Classical tacenta_ratchet.RatchetError.ChainExhausted ∨
-            ∃ e', e = TripleError.PostQuantum e') ∧
-          Model.Triple.send m sending_epoch.val (output.map spqrOutputOf) = none) ⦄ :=
+          ∃ reason, sendRefusalOfReal e = some reason ∧
+            Model.Triple.sendDetailed m sending_epoch.val (output.map spqrOutputOf) =
+              .error reason) ⦄ :=
   send_refines (ratchet_agrees_for hopt hmac hkdf hzr hvr)
     (spqr_agrees_for hkdf hz96 hz64 hret hret_total hrm hzs hopt) hkdf
     (fun a => hzs _ a) hrel sending_epoch output hroom hcb hsb hnewb hepoch hcounter

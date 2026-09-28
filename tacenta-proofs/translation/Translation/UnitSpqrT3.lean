@@ -1297,6 +1297,13 @@ theorem maybe_advance_refines (hkr : SpqrHkdfAgrees) (hz96 : ZeroizingRoundTrips
 
 /-! ## `send` refines the model's -/
 
+def sendRefusalOfReal : SpqrError → Option Model.SparseRatchet.SendRefusal
+  | .EpochOutOfOrder => some .epochOutOfOrder
+  | .NoChain => some .noChain
+  | .ChainRetired => some .chainRetired
+  | .ChainExhausted => some .chainExhausted
+  | _ => none
+
 theorem send_refines (hkr : SpqrHkdfAgrees)
     (hz96 : ZeroizingRoundTrips96) (hz64 : ZeroizingRoundTrips64) (hret : VecRetainAgrees)
     (hret_total : Tacenta.UnitSpqrT1.VecRetainTotal)
@@ -1317,7 +1324,9 @@ theorem send_refines (hkr : SpqrHkdfAgrees)
             = some (m', n.val, keyOf mk)
           ∧ StateRefines r.2 m')
       ∧ (∀ e, r.1 = core.result.Result.Err e →
-          Model.SparseRatchet.send m sending_epoch.val (out.map outputOf) = none) ⦄ := by
+          ∃ reason, sendRefusalOfReal e = some reason ∧
+            Model.SparseRatchet.sendDetailed m sending_epoch.val (out.map outputOf) =
+              .error reason) ⦄ := by
   unfold State.send
   step with maybe_advance_refines hkr hz96 hret hret_total hz hrel out hepoch hroom hcb hsb hnewb
   have hbridge : (match out with | none => some m | some o => Model.SparseRatchet.advance m (outputOf o))
@@ -1336,7 +1345,21 @@ theorem send_refines (hkr : SpqrHkdfAgrees)
     refine ⟨?_, ?_⟩
     · intro n mk hcon; rw [r1_post3] at hcon; injection hcon
     · intro e he
-      simp_all [Model.SparseRatchet.send]
+      have heq : e = SpqrError.EpochOutOfOrder := by simp_all
+      subst e
+      have hmepoch : m.epoch + 1 < Model.SparseRatchet.u64Max := by
+        rw [← hrel.epoch, Model.SparseRatchet.u64Max_eq]
+        simpa [Std.U64.max_eq] using hepoch
+      have hkeyepoch : (outputOf o).keyEpoch ≠ m.epoch + 1 := by
+        intro heq
+        simp [Model.SparseRatchet.advance, hoeq, heq, hmepoch] at hsc
+      have hdetail : Model.SparseRatchet.advanceDetailed m (outputOf o) =
+          .error .epochOutOfOrder :=
+        (Model.SparseRatchet.advanceDetailed_epoch_iff m (outputOf o)).2
+          ⟨hmepoch, hkeyepoch⟩
+      exact ⟨.epochOutOfOrder, rfl, by
+        simp [Model.SparseRatchet.sendDetailed, Model.SparseRatchet.maybeAdvanceDetailed,
+          hoeq, hdetail]⟩
   · -- The model's `maybe_advance` succeeds with `m'`: proceed to look up the chain.
     have hsc' : (match Option.map outputOf out with
         | none => some m | some o => Model.SparseRatchet.advance m o) = some m' := by
@@ -1354,14 +1377,16 @@ theorem send_refines (hkr : SpqrHkdfAgrees)
       refine ⟨?_, ?_⟩
       · intro n mk hcon; injection hcon
       · intro e he
+        injection he with heq
+        subst e
         have hfindeq : Model.SparseRatchet.findChains m' sending_epoch.val = none := by
           simp [Model.SparseRatchet.findChains, ← hself1.chains, hfeq]
-        rcases hout : out with _ | o
-        · rw [hout] at hsc
-          simp only [Option.some.injEq] at hsc
-          simp [Model.SparseRatchet.send, hsc, hfindeq]
-        · rw [hout] at hsc
-          simp [Model.SparseRatchet.send, hsc, hfindeq]
+        have hadvance : Model.SparseRatchet.maybeAdvanceDetailed m (out.map outputOf) =
+            .ok m' :=
+          (Model.SparseRatchet.maybeAdvanceDetailed_ok_iff m (out.map outputOf) m').2 hsc'
+        exact ⟨.noChain, rfl,
+          (Model.SparseRatchet.sendDetailed_no_chain_iff
+            m sending_epoch.val (out.map outputOf)).2 ⟨m', hadvance, hfindeq⟩⟩
     · -- Chains for this epoch exist: clone them and check the sending side.
       rename_i cs hoeq
       have hfindeq : Model.SparseRatchet.findChains m' sending_epoch.val = some (chainsOf cs) := by
@@ -1377,13 +1402,16 @@ theorem send_refines (hkr : SpqrHkdfAgrees)
         refine ⟨?_, ?_⟩
         · intro n mk hcon; injection hcon
         · intro e he
+          injection he with heq
+          subst e
           have hcssnone : (chainsOf cs).send = none := by simp [chainsOf, hcss]
-          rcases hout : out with _ | o
-          · rw [hout] at hsc
-            simp only [Option.some.injEq] at hsc
-            simp [Model.SparseRatchet.send, hsc, hfindeq, hcssnone]
-          · rw [hout] at hsc
-            simp [Model.SparseRatchet.send, hsc, hfindeq, hcssnone]
+          have hadvance : Model.SparseRatchet.maybeAdvanceDetailed m (out.map outputOf) =
+              .ok m' :=
+            (Model.SparseRatchet.maybeAdvanceDetailed_ok_iff m (out.map outputOf) m').2 hsc'
+          exact ⟨.chainRetired, rfl,
+            (Model.SparseRatchet.sendDetailed_chain_retired_iff
+              m sending_epoch.val (out.map outputOf)).2
+                ⟨m', chainsOf cs, hadvance, hfindeq, hcssnone⟩⟩
       · -- Ready to send: derive the next chain key and message key.
         have hcss : cs.send = some ch := by rw [← cs1_post]; exact hcss1
         step with Tacenta.UnitSpqrT1.chain_clone_spec ch

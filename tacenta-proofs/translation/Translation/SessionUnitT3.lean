@@ -413,11 +413,15 @@ theorem message_keys_refines (h : HkdfAgrees) (hz : ZeroizingRoundTrips80)
 /-! ## Sending refines the model's send
 
 Both refuse a send at `ns = u32::MAX` (ratchet.md, Sending and receiving): the
-Rust reports `ChainExhausted`, and the model returns `none`. The refusal clause
-below is exhaustive for the real send implementation: every reported error is
-either `NoSendingChain` or `ChainExhausted`, and either one is the model's
-`none`. This lets the Triple Ratchet derive the public refusal shape from the
-generated result instead of accepting it from a caller. -/
+Rust reports `ChainExhausted`, and the detailed model reports the same reason.
+The refusal clause below is exhaustive for the real send implementation and
+preserves the exact detailed refusal, so Triple can derive the public error map
+from the generated result instead of accepting it from a caller. -/
+
+def sendRefusalOfReal : RatchetError → Option Model.Ratchet.SendRefusal
+  | .NoSendingChain => some .noSendingChain
+  | .ChainExhausted => some .chainExhausted
+  | _ => none
 
 theorem send_refines (h : HmacAgrees) (s : State) (m : Model.State.State)
     (hR : StateR s m) :
@@ -426,12 +430,13 @@ theorem send_refines (h : HmacAgrees) (s : State) (m : Model.State.State)
         ∃ m' mh, Model.Ratchet.send m = some (m', mh, keyOf mk)
           ∧ StateR r.2 m' ∧ HeaderR hdr mh)
       ∧ (∀ e, r.1 = core.result.Result.Err e →
-          (e = RatchetError.NoSendingChain ∨ e = RatchetError.ChainExhausted) ∧
-          Model.Ratchet.send m = none) ⦄ := by
+          ∃ reason, sendRefusalOfReal e = some reason ∧
+            Model.Ratchet.sendDetailed m = .error reason) ⦄ := by
   obtain ⟨hdhs, hdhr, hrk, hcks, hckr, hns, hnr, hpn, hskip, hev, hlab⟩ := hR
   unfold send
   rcases hc : s.cks with _ | ck
-  · simp_all [Model.Ratchet.send, ← hcks]
+  · simp_all [Model.Ratchet.send, Model.Ratchet.sendDetailed,
+      sendRefusalOfReal, ← hcks]
   · rcases hadd : s.ns.checked_add 1#u32 with _ | next_ns
     · have hspec := U32.checked_add_bv_spec s.ns 1#u32
       rw [hadd] at hspec
@@ -439,7 +444,8 @@ theorem send_refines (h : HmacAgrees) (s : State) (m : Model.State.State)
         rw [Model.State.u32Max_eq, ← hns]
         simp only at hspec
         scalar_tac
-      simp_all [lift, Model.Ratchet.send, ← hcks]
+      simp_all [lift, Model.Ratchet.send, Model.Ratchet.sendDetailed,
+        sendRefusalOfReal, ← hcks]
     · simp only [lift]
       step*
       have hm : m.cks = some (keyOf ck) := by rw [← hcks, hc]; simp

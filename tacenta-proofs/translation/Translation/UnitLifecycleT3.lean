@@ -856,23 +856,16 @@ def refusalOf : lifecycle.Error → Model.Lifecycle.Refusal
   | .AgreementFailed => .agreementFailed
 
 def ratchetSendRefusalOfReal : tacenta_ratchet.RatchetError →
-    Option Model.Ratchet.SendRefusal
-  | .NoSendingChain => some .noSendingChain
-  | .ChainExhausted => some .chainExhausted
-  | _ => none
+    Option Model.Ratchet.SendRefusal :=
+  Tacenta.SessionUnitT3.sendRefusalOfReal
 
 def sparseSendRefusalOfReal : tacenta_spqr.SpqrError →
-    Option Model.SparseRatchet.SendRefusal
-  | .EpochOutOfOrder => some .epochOutOfOrder
-  | .NoChain => some .noChain
-  | .ChainRetired => some .chainRetired
-  | .ChainExhausted => some .chainExhausted
-  | _ => none
+    Option Model.SparseRatchet.SendRefusal :=
+  Tacenta.SessionUnitSpqrT3.sendRefusalOfReal
 
 def tripleSendRefusalOfReal : tacenta_triple.TripleError →
-    Option Model.Triple.SendRefusal
-  | .Classical reason => (ratchetSendRefusalOfReal reason).map .classical
-  | .PostQuantum reason => (sparseSendRefusalOfReal reason).map .postQuantum
+    Option Model.Triple.SendRefusal :=
+  Tacenta.SessionUnitTripleT3.sendRefusalOfReal
 
 def ratchetReceiveRefusalOfReal : tacenta_ratchet.RatchetError →
     Option Model.Ratchet.ReceiveRefusal
@@ -2090,13 +2083,9 @@ theorem triple_send_post_of_contracts
             candidate m' ∧ Tacenta.SessionUnitTripleT3.TripleHeaderR hdr mh ∧
             Tacenta.SessionUnitTripleT3.keyOf mk = key) ∧
       (∀ e, sent = core.result.Result.Err e →
-        (e = tacenta_triple.TripleError.Classical
-            tacenta_ratchet.RatchetError.NoSendingChain ∨
-          e = tacenta_triple.TripleError.Classical
-            tacenta_ratchet.RatchetError.ChainExhausted ∨
-          ∃ e', e = tacenta_triple.TripleError.PostQuantum e') ∧
-        Model.Triple.send m sendingEpoch.val
-          (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = none)) := by
+        ∃ reason, tripleSendRefusalOfReal e = some reason ∧
+          Model.Triple.sendDetailed m sendingEpoch.val
+            (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = .error reason)) := by
   obtain ⟨result, hcall, hpost⟩ := Std.WP.spec_imp_exists
     (Tacenta.SessionUnitTripleT3.send_refines_discharged
       contracts.hmac contracts.hkdf contracts.zeroizing contracts.ratchetRemove
@@ -2106,7 +2095,7 @@ theorem triple_send_post_of_contracts
   have heq : result = (sent, candidate) := by
     exact Result.ok.inj (hcall.symm.trans hsend)
   cases heq
-  simpa only [Prod.fst, Prod.snd] using hpost
+  simpa only [Prod.fst, Prod.snd, tripleSendRefusalOfReal] using hpost
 
 theorem triple_send_candidate_post_of_contracts
     {s : tacenta_triple.State} {m : Model.Triple.State}
@@ -2140,13 +2129,9 @@ theorem triple_send_candidate_post_of_contracts
             candidate m' ∧ Tacenta.SessionUnitTripleT3.TripleHeaderR hdr mh ∧
             Tacenta.SessionUnitTripleT3.keyOf mk = key) ∧
       (∀ e, sent = core.result.Result.Err e →
-        (e = tacenta_triple.TripleError.Classical
-            tacenta_ratchet.RatchetError.NoSendingChain ∨
-          e = tacenta_triple.TripleError.Classical
-            tacenta_ratchet.RatchetError.ChainExhausted ∨
-          ∃ e', e = tacenta_triple.TripleError.PostQuantum e') ∧
-        Model.Triple.send m sendingEpoch.val
-          (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = none)) := by
+        ∃ reason, tripleSendRefusalOfReal e = some reason ∧
+          Model.Triple.sendDetailed m sendingEpoch.val
+            (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = .error reason)) := by
   unfold lifecycle.send_candidate at hsend
   rw [Tacenta.SessionUnitTripleT1.triple_state_clone_id contracts.optionClone s] at hsend
   cases output with
@@ -2224,10 +2209,8 @@ theorem triple_success_evidence_of_exact_candidate_and_contracts
     (modelCandidate, modelHeader, modelMk)).2 hsome
   exact ⟨modelCandidate, modelHeader, modelMk, hdetail, hstate, hheader, hkey⟩
 
-/-! The refusal counterpart preserves the model's exact refusal value instead
-    of fabricating one from the implementation error.  The contract theorem
-    proves the model `send` is absent; exhaustive inversion of
-    `sendDetailed` then exposes the unique model refusal for a caller to map. -/
+/-! The refusal counterpart preserves the exact model refusal and derives its
+    correspondence with the implementation error from the two leaf proofs. -/
 theorem triple_refusal_evidence_of_exact_candidate_and_contracts
     {s : tacenta_triple.State} {m : Model.Triple.State}
     (contracts : TripleSendRefinementContracts)
@@ -2251,22 +2234,11 @@ theorem triple_refusal_evidence_of_exact_candidate_and_contracts
     ∃ modelReason,
       Model.Triple.sendDetailed m sendingEpoch.val
         (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = .error modelReason ∧
-      (reason = tacenta_triple.TripleError.Classical
-          tacenta_ratchet.RatchetError.NoSendingChain ∨
-        reason = tacenta_triple.TripleError.Classical
-          tacenta_ratchet.RatchetError.ChainExhausted ∨
-        ∃ reason', reason = tacenta_triple.TripleError.PostQuantum reason') := by
+      tripleSendRefusalOfReal reason = some modelReason := by
   have hpost := triple_send_candidate_post_of_contracts contracts hrel sendingEpoch output
     hroom hcb hsb hnewb hepoch hcounter hsend
-  obtain ⟨hshape, hnone⟩ := hpost.2 reason (by rfl)
-  cases hdetail : Model.Triple.sendDetailed m sendingEpoch.val
-      (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) with
-  | error modelReason => exact ⟨modelReason, rfl, hshape⟩
-  | ok value =>
-      have hsome := (Model.Triple.sendDetailed_ok_iff m sendingEpoch.val
-        (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) value).1 hdetail
-      rw [hnone] at hsome
-      cases hsome
+  obtain ⟨modelReason, hreason, hdetail⟩ := hpost.2 reason (by rfl)
+  exact ⟨modelReason, hdetail, hreason⟩
 
 /-- `decrypt_ratchet` has the same terminal agreement guard as `encrypt`: it
 returns the exact public refusal without decoding attacker-controlled bytes or
@@ -4519,9 +4491,7 @@ theorem encrypt_triple_refusal_of_exact_candidate
     hnotFailed htripleModel hreason htrace
 
 /-! Contract-backed public Triple-refusal route.  The generated candidate
-    result determines the model refusal through the finite-store adapter; the
-    only remaining cryptographic classification input is the explicit refusal
-    code correspondence. -/
+    result determines both the model refusal and its exact public-error map. -/
 theorem public_encrypt_triple_refusal_of_contracts
     {R : Type} (rngCore : rand_core_1.RngCore R)
     (cryptoRng : rand_core_1.CryptoRng R)
@@ -4566,14 +4536,9 @@ theorem public_encrypt_triple_refusal_of_contracts
           .error modelReason →
       Model.Triple.sendDetailed model.triple modelEpoch
         (Model.Lifecycle.sparseOutputOf modelOutput) = .error modelReason)
-    (hreasonOf : ∀ modelReason,
-      Model.Triple.sendDetailed model.triple realEpoch.val
-        (Option.map Tacenta.SessionUnitTripleT3.spqrOutputOf sparseOutput) =
-          .error modelReason →
-      tripleSendRefusalOfReal realReason = some modelReason)
     (htrace : trace rngNext = oracleNext.draws) :
     PublicEncryptWitness rngCore cryptoRng trace dh K view oracle real model plaintext rng := by
-  obtain ⟨modelReason, htripleModel, _derivedShape⟩ :=
+  obtain ⟨modelReason, htripleModel, hreason⟩ :=
     triple_refusal_evidence_of_exact_candidate_and_contracts contracts hrel.triple
       realEpoch sparseOutput hroom hcb hsb hnewb hepoch hcounter hsendCandidate
   have htripleModel' := hmodelOf modelReason htripleModel
@@ -4581,7 +4546,7 @@ theorem public_encrypt_triple_refusal_of_contracts
     oracleNext real model plaintext rng rngNext realMessage realEpoch realOutput realBraidNext
     candidate sparseOutput realReason modelMessage modelEpoch modelOutput modelBraidNext
     modelReason hsparse hrel hready hsendReal hsendCandidate hsendModel hnext hnotFailed
-    htripleModel' (hreasonOf modelReason htripleModel) htrace
+    htripleModel' hreason htrace
 
 attribute [-step] Tacenta.SessionUnitErasureT1.extend_slice32_spec
 
@@ -6086,11 +6051,6 @@ inductive EncryptTripleRouteEvidence {R : Type}
             .error modelReason →
         Model.Triple.sendDetailed model.triple modelEpoch
             (Model.Lifecycle.sparseOutputOf modelOutput) = .error modelReason)
-      (hreasonOf : ∀ modelReason,
-        Model.Triple.sendDetailed model.triple realEpoch.val
-            (Option.map Tacenta.SessionUnitTripleT3.spqrOutputOf sparseOutput) =
-            .error modelReason →
-        tripleSendRefusalOfReal realReason = some modelReason)
       (htrace : trace rngNext = oracleNext.draws) :
       EncryptTripleRouteEvidence rc crc trace dh kem K view oracle real model plaintext rng
   | successNoInitial
@@ -6240,12 +6200,12 @@ theorem public_encrypt_of_triple_route
   | @refusal rngNext oracleNext realMessage realEpoch realOutput realBraidNext candidate
       sparseOutput realReason modelMessage modelEpoch modelOutput modelBraidNext modelReason
       contracts derivedKeys hroom hcb hsb hnewb hepoch hcounter hsparse hrel hready
-      hsendReal hsendCandidate hsendModel hnext hnotFailed hmodelOf hreasonOf htrace =>
+      hsendReal hsendCandidate hsendModel hnext hnotFailed hmodelOf htrace =>
       exact public_encrypt_triple_refusal_of_contracts rc crc trace dh K view oracle oracleNext
         real model plaintext rng rngNext realMessage realEpoch realOutput realBraidNext candidate
         sparseOutput realReason modelMessage modelEpoch modelOutput modelBraidNext contracts hroom
         hcb hsb hnewb hepoch hcounter hsparse hrel hready hsendReal hsendCandidate
-        hsendModel hnext hnotFailed hmodelOf hreasonOf htrace
+        hsendModel hnext hnotFailed hmodelOf htrace
   | @successNoInitial rngNext oracleNext realMessage realEpoch realOutput realBraidNext candidate
       realHeader realMk sparseOutput modelTripleNext modelHeader modelMk modelMessage modelEpoch
       modelOutput modelBraidNext contracts derivedKeys hroom hcb hsb hnewb hepoch hcounter hsparse hrel hready

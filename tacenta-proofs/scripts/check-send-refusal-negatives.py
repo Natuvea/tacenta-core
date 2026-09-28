@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require the Triple send proof to consume the exhaustive classical refusal contract.
+"""Require Triple send to preserve both leafs' exact refusal reasons.
 
 This is a proof-dependency control, not a protocol/runtime mutation test.
 Dependencies must already be built (`lake build Translation.UnitLifecycleInitialDispatch`).
@@ -18,15 +18,39 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "translation/Translation/UnitTripleT3.lean"
 
-BEFORE = """    (∀ e, r.1 = core.result.Result.Err e →
-      (e = tacenta_ratchet.RatchetError.NoSendingChain ∨
-        e = tacenta_ratchet.RatchetError.ChainExhausted) ∧
-      Model.Ratchet.send (α s) = none)) ∧
+BEFORE = """def sendRefusalOfReal : TripleError → Option Model.Triple.SendRefusal
+  | .Classical reason => (Tacenta.UnitT3.sendRefusalOfReal reason).map .classical
+  | .PostQuantum reason => (Tacenta.UnitSpqrT3.sendRefusalOfReal reason).map .postQuantum
 """
 
-AFTER = """    (r.1 = core.result.Result.Err tacenta_ratchet.RatchetError.NoSendingChain →
-      Model.Ratchet.send (α s) = none)) ∧
-"""
+MUTANTS = (
+    (
+        "ClassicalWrongReason.lean",
+        "classical-wrong-reason.log",
+        """def sendRefusalOfReal : TripleError → Option Model.Triple.SendRefusal
+  | .Classical _ => some (.classical .noSendingChain)
+  | .PostQuantum reason => (Tacenta.UnitSpqrT3.sendRefusalOfReal reason).map .postQuantum
+""",
+        re.compile(
+            r"unsolved goals.+?Model\.Ratchet\.SendRefusal\.noSendingChain = modelReason",
+            re.S,
+        ),
+        "collapsing the classical refusal map",
+    ),
+    (
+        "SparseWrongReason.lean",
+        "sparse-wrong-reason.log",
+        """def sendRefusalOfReal : TripleError → Option Model.Triple.SendRefusal
+  | .Classical reason => (Tacenta.UnitT3.sendRefusalOfReal reason).map .classical
+  | .PostQuantum _ => some (.postQuantum .noChain)
+""",
+        re.compile(
+            r"unsolved goals.+?Model\.SparseRatchet\.SendRefusal\.noChain = modelReason",
+            re.S,
+        ),
+        "collapsing the sparse refusal map",
+    ),
+)
 
 
 def run_lean(path: Path, log: Path, timeout: int) -> tuple[int, str]:
@@ -60,11 +84,9 @@ def main() -> None:
     logs.mkdir(parents=True, exist_ok=True)
     source = SOURCE.read_text()
 
-    marker = "def RatchetAgreesFor"
-    start = source.find(marker)
-    target = source.find(BEFORE, start)
-    if start < 0 or target < 0 or source.find(BEFORE, target + 1) >= 0:
-        raise SystemExit("Target changed: exhaustive classical send-refusal contract is missing or duplicated")
+    target = source.find(BEFORE)
+    if target < 0 or source.find(BEFORE, target + 1) >= 0:
+        raise SystemExit("Target changed: exact Triple send-refusal map is missing or duplicated")
 
     with tempfile.TemporaryDirectory(prefix="send-refusal-controls-") as tmp_name:
         tmp = Path(tmp_name)
@@ -76,25 +98,19 @@ def main() -> None:
             raise SystemExit(f"BASELINE FAILED; no mutation evidence: {logs / 'baseline.log'}")
         print("PASS: unmodified Triple send proof elaborates", flush=True)
 
-        mutant = tmp / "NoChainExhaustedContract.lean"
-        mutant.write_text(source[:target] + source[target:].replace(BEFORE, AFTER, 1))
-        status, output = run_lean(mutant, logs / "no-chain-exhausted-contract.log", args.timeout)
-        expected = re.search(
-            r"Application type mismatch: The argument\s+e\s+has type\s+"
-            r"tacenta_ratchet\.RatchetError.+?but is expected to have type\s+"
-            r".+?Err tacenta_ratchet\.RatchetError\.NoSendingChain.+?"
-            r"in the application\s+hrPost\.right e",
-            output,
-            re.S,
-        )
-        if status == 0:
-            raise SystemExit("CONTROL FAILED: weakening the classical refusal contract still elaborates")
-        if not expected:
-            raise SystemExit(
-                "CONTROL INVALID: mutation failed for an unexpected reason; "
-                f"see {logs / 'no-chain-exhausted-contract.log'}"
-            )
-        print("PASS: omitting ChainExhausted from the leaf refusal contract is rejected")
+        for filename, log_name, replacement, expected, description in MUTANTS:
+            mutant = tmp / filename
+            mutant.write_text(source.replace(BEFORE, replacement, 1))
+            log = logs / log_name
+            status, output = run_lean(mutant, log, args.timeout)
+            if status == 0:
+                raise SystemExit(f"CONTROL FAILED: {description} still elaborates")
+            if not expected.search(output):
+                raise SystemExit(
+                    "CONTROL INVALID: mutation failed for an unexpected reason; "
+                    f"see {log}"
+                )
+            print(f"PASS: {description} is rejected", flush=True)
 
 
 if __name__ == "__main__":

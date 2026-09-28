@@ -313,6 +313,14 @@ theorem advanceDetailed_epoch_iff (st : State) (out : Output) :
   · have hlt : st.epoch + 1 < u64Max := by omega
     by_cases hk : out.keyEpoch = st.epoch + 1 <;> simp [advanceDetailed, he, hlt, hk]
 
+theorem maybeAdvanceDetailed_ok_iff (st : State) (out : Option Output) (result : State) :
+    maybeAdvanceDetailed st out = .ok result ↔
+      (match out with | none => some st | some value => advance st value) = some result := by
+  cases out with
+  | none => simp [maybeAdvanceDetailed]
+  | some value =>
+      simpa [maybeAdvanceDetailed] using advanceDetailed_ok_iff st value result
+
 theorem maybeAdvanceDetailed_ne_noChain (st : State) (out : Option Output) :
     maybeAdvanceDetailed st out ≠ .error .noChain := by
   cases out with
