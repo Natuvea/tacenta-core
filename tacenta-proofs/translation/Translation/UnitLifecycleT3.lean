@@ -119,10 +119,9 @@ def encapsulationOf :
   resultOptionOf (fun value => (vecOf value.1, arrayOf value.2))
 
 /-- Agreement between all nine translated primitive calls and one executable
-model oracle.  `trace` interprets the threaded RNG state; the random clauses
-make call order observable rather than allowing a fresh existential draw at
-each call. Signing consumes two 32-byte draws because the shipping XEdDSA
-boundary fills a 64-byte nonce buffer. -/
+model oracle.  `trace` interprets the threaded RNG state; the three random
+clauses make call order observable rather than allowing a fresh existential
+draw at each call. -/
 structure OracleOf {R : Type}
     (rngCore : rand_core_1.RngCore R) (cryptoRng : rand_core_1.CryptoRng R)
     (dh : DhView) (kem : KemView) (trace : R → List Model.Lifecycle.Key)
@@ -165,7 +164,7 @@ kemEncapsulateSuccess : ∀ publicKey rng draw rest expected,
     tacenta_boundary.kem.encapsulate rngCore cryptoRng publicKey rng =
       ok (.Err error, rng) →
     oracle.kemValid (sliceOf publicKey) = false ∧
-      ∀ draw, oracle.kemEncaps (sliceOf publicKey) draw = none
+    ∀ draw, oracle.kemEncaps (sliceOf publicKey) draw = none
   kemDecapsulate : ∀ keyPair ciphertext,
     ∃ result,
       tacenta_boundary.kem.decapsulate keyPair ciphertext = ok result ∧
@@ -181,10 +180,9 @@ kemEncapsulateSuccess : ∀ publicKey rng draw rest expected,
     ∃ signature rng',
       tacenta_boundary.xeddsa.sign rngCore cryptoRng secret message rng = ok (signature, rng') ∧
       trace rng' = rest ∧
-      arrayOf signature = oracle.sigSign (arrayOf secret) (sliceOf message)
-        (draw1 ++ draw2)
+      arrayOf signature = oracle.sigSign (arrayOf secret) (sliceOf message) draw1 draw2
   random32 : ∀ rng draw rest, trace rng = draw :: rest →
-      ∃ value rng',
+    ∃ value rng',
       lifecycle.random_secret rngCore cryptoRng rng = ok (value, rng') ∧
       arrayOf value = draw ∧ trace rng' = rest
 

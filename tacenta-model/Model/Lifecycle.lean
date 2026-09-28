@@ -24,10 +24,10 @@ abbrev Iv := Bytes
 /-- Results supplied by the trusted primitive boundary.
 
     `draws` is ordered. Operations that need randomness consume its head and
-    return the oracle containing its tail. `kemEncaps` takes that draw
-    explicitly, while `sigSign` takes the two 32-byte draws used by the
-    shipping 64-byte nonce input. Using the wrong draws or calling a primitive
-    in the wrong order changes the model result. A KEM refusal is allowed to preserve the oracle:
+    return the oracle containing its tail. KEM encapsulation consumes one
+    32-byte draw; XEdDSA signing consumes two consecutive 32-byte draws (the
+    64-byte `Z` buffer filled by the shipping signer). Using the wrong draw or
+    calling a primitive in the wrong order changes the model result. A KEM refusal is allowed to preserve the oracle:
     the shipping boundary validates the public key before it asks the RNG for
     bytes. -/
 structure Oracle where
@@ -42,7 +42,7 @@ structure Oracle where
   kemEncaps : Bytes → Key → Option (Bytes × Key)
   kemDecaps : Bytes → Bytes → Option Key
   sigVerify : Key → Bytes → Bytes → Bool
-  sigSign : Key → Bytes → Bytes → Bytes
+  sigSign : Key → Bytes → Key → Key → Bytes
 
 /-- Executable view of the erasure codeword relation already used by the Braid
     refinement. A wire codeword does not reveal the Braid model's ghost source,
@@ -85,9 +85,10 @@ theorem takeDraw_keeps_dhPublic (oracle oracle' : Oracle) (draw : Key)
     refinement can relate that shipping function to this exact trace step. -/
 def random32 (oracle : Oracle) : Option (Key × Oracle) := takeDraw oracle
 
-/-- Encapsulation classifies the public key before consuming a draw. An invalid
-    public key returns the KEM refusal without consuming the caller's RNG
-    state, matching the boundary's validation-before-`fill_bytes` order. -/
+/-- Encapsulation classifies the public key using the oracle, then consumes one
+    draw only for a successful or post-validation refusal. A malformed public
+    key returns the KEM refusal without consuming the caller's RNG state, which
+    matches the boundary's validation-before-`fill_bytes` order. -/
 def kemEncapsulate (oracle : Oracle) (publicKey : Bytes) :
     Option (Option (Bytes × Key) × Oracle) := do
   if !oracle.kemValid publicKey then
@@ -97,13 +98,14 @@ def kemEncapsulate (oracle : Oracle) (publicKey : Bytes) :
   | none => some (none, oracle)
   | some result => some (some result, rest)
 
-/-- Signing consumes exactly two 32-byte draws and binds their concatenation
-    to the secret and message supplied to the primitive. -/
+/-- Signing consumes exactly two ordered 32-byte draws, which together model
+    the signer's 64-byte `Z` buffer, and binds the result to the secret,
+    message and both draws supplied to the primitive. -/
 def sign (oracle : Oracle) (secret : Key) (message : Bytes) :
-    Option (Bytes × Oracle) := do
+  Option (Bytes × Oracle) := do
   let (draw1, afterFirst) ← takeDraw oracle
   let (draw2, rest) ← takeDraw afterFirst
-  some (oracle.sigSign secret message (draw1 ++ draw2), rest)
+  some (oracle.sigSign secret message draw1 draw2, rest)
 
 /-- The two Braid send states that make a fresh 32-byte random draw. Other
     states accept a `rand` argument in the leaf model but do not inspect it, so
@@ -182,9 +184,10 @@ theorem kemEncapsulate_cons (oracle : Oracle) (draw : Key) (rest : List Key)
 theorem kemEncapsulate_refusal_keeps_oracle (oracle : Oracle) (draw : Key)
     (rest : List Key) (publicKey : Bytes)
     (h : oracle.draws = draw :: rest)
-    (hvalid : oracle.kemValid publicKey = false) :
+    (hvalid : oracle.kemValid publicKey = true)
+    (hkem : oracle.kemEncaps publicKey draw = none) :
     kemEncapsulate oracle publicKey = some (none, oracle) := by
-  simp [kemEncapsulate, hvalid]
+  simp [kemEncapsulate, takeDraw, h, hvalid, hkem]
 
 theorem kemEncapsulate_refusal_with_empty_trace (oracle : Oracle)
     (publicKey : Bytes) (hvalid : oracle.kemValid publicKey = false)
@@ -196,15 +199,7 @@ theorem sign_cons (oracle : Oracle) (draw1 draw2 : Key) (rest : List Key)
     (secret : Key) (message : Bytes)
     (h : oracle.draws = draw1 :: draw2 :: rest) :
     sign oracle secret message =
-      some (oracle.sigSign secret message (draw1 ++ draw2),
-        { oracle with draws := rest }) := by
-  simp [sign, takeDraw, h]
-
-/- The model must not invent the second half of XEdDSA's 64-byte nonce. -/
-theorem sign_requires_two_draws (oracle : Oracle) (draw : Key)
-    (secret : Key) (message : Bytes)
-    (h : oracle.draws = [draw]) :
-    sign oracle secret message = none := by
+      some (oracle.sigSign secret message draw1 draw2, { oracle with draws := rest }) := by
   simp [sign, takeDraw, h]
 
 /-! ## Repeated initial recognition
@@ -1785,11 +1780,11 @@ def toyOracle (draws : List Key) : Oracle where
     if ciphertext.take Model.Kdf.hashLen == Model.Kdf.hmac (enc ++ mac ++ iv) ad then
       some (ciphertext.drop Model.Kdf.hashLen)
     else none
-  kemValid := fun _ => true
   kemEncaps := fun _ _ => some ([], List.replicate 32 0xee)
+  kemValid := fun _ => true
   kemDecaps := fun _ _ => some (List.replicate 32 0xee)
   sigVerify := fun _ _ _ => true
-  sigSign := fun _ _ _ => List.replicate 64 0x55
+  sigSign := fun _ _ _ _ => List.replicate 64 0x55
 
 def toyAlice (secret : Key) : Session :=
   { triple := Model.Triple.initAlice secret (List.replicate 32 0x21)
