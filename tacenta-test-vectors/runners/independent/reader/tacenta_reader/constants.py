@@ -80,7 +80,7 @@ APP_SIGNATURE_PREFIX = APP_SIGNATURE_LABEL + b"\xff"
 BRAID_EKHEADER = b":ekheader"
 BRAID_CIPHERTEXT = b":ciphertext"
 
-# session-establishment.md, The fingerprint; CONSTANTS.md
+# session-establishment.md, The replay identity; CONSTANTS.md
 # LAST_RESORT_HANDSHAKE_LABEL: 32 ASCII bytes, no terminator
 LAST_RESORT_HANDSHAKE_LABEL = b"tacenta last-resort handshake v2"
 

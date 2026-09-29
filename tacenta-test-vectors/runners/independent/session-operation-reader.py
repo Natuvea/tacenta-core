@@ -336,7 +336,7 @@ def rule_establish_initiator(step, state, facts):
 
 
 def rule_establish_responder(step, state, facts):
-    cite_replay = "session-establishment.md, Replay, and why the ratchet must follow; The fingerprint"
+    cite_replay = "session-establishment.md, Replay, and why the ratchet must follow; The replay identity"
     cite_recv = "session-establishment.md, Receiving the initial message"
     cite_kd = "key-deletion.md, 'a message that fails to authenticate leaves the store as it found it'"
 
