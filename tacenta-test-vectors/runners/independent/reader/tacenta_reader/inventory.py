@@ -24,8 +24,9 @@ The page's structure, as modelled:
 
 Refusal kinds (the page's second paragraph): a refusal by an encoding rule is
 a decode failure, a refusal by check 3 is an authentication failure
-(error-handling.md), and the other checks refuse a statement that is well formed
-and authentic. Each refusal carries the name of the check that made it, in the
+(error-handling.md), and the other checks refuse a statement that decodes:
+checks 1 and 2 before its signature has been examined, checks 4 to 7 after it
+has verified. Each refusal carries the name of the check that made it, in the
 words tacenta-test-vectors/README.md uses for `refusal`.
 """
 
@@ -83,8 +84,9 @@ class AuthenticationFailure(InventoryRefusal):
 
 
 class StatementRefused(InventoryRefusal):
-    """Checks 1, 2 and 4 to 7: "The other checks refuse a statement that is
-    well formed and authentic"."""
+    """Checks 1, 2 and 4 to 7: "The other checks refuse a statement that
+    decodes: checks 1 and 2 before its signature has been examined, checks 4
+    to 7 after it has verified"."""
 
 
 class IssuerRefusal(Exception):

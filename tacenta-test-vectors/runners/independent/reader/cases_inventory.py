@@ -270,8 +270,8 @@ def _():
     assert refused_.check == "account"
 
 
-@case("IV-06 three refusal kinds: an encoding rule is a decode failure, check 3 an authentication failure, and every other check a refusal of a well-formed, authentic statement; the three are distinct",
-      f"{HD}: A refusal by an encoding rule is a decode failure, and a refusal by check 3 below is an authentication failure (error-handling.md). The other checks refuse a statement that is well formed and authentic")
+@case("IV-06 three refusal kinds: an encoding rule is a decode failure, check 3 an authentication failure, and every other check a refusal of a statement that decodes; the three are distinct",
+      f"{HD}: A refusal by an encoding rule is a decode failure, and a refusal by check 3 below is an authentication failure (error-handling.md). The other checks refuse a statement that decodes: checks 1 and 2 before its signature has been examined, checks 4 to 7 after it has verified")
 def _():
     kinds = (INV.DecodeFailure, INV.AuthenticationFailure, INV.StatementRefused)
     for a, b in itertools.permutations(kinds, 2):
