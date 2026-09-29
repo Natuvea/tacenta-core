@@ -722,12 +722,17 @@ nonce and compares, then verifies the result through ed25519-dalek's strict
 verify, which is the check against an independent implementation; the
 file's `source` field states the same. The project-generated `session-e2e.json`
 known answer and hand-authored `malformed-input/ratchet-reject.json` are also
-outside model regeneration and name their sources. The remaining seventeen are
+outside model regeneration and name their sources. The remaining twenty are
 verify-only (`public`, `message`, `signature`, and a `result`): they pin the
 edges of the accepted set, where `verify` differs from XEdDSA Revision 1 by
-design -- narrower on `s` (`s < l`, not `s < 2^253`) and on small-order `R`
-or `A`, wider on the sign bit the interoperability profile carries in
-`signature[63]`, and in agreement on non-canonical encodings. Four of the
+design -- narrower on `s` (`s < l`, not `s < 2^253`), on small-order `R`
+and on the order of `A`, wider on the sign bit the interoperability profile
+carries in `signature[63]`, and in agreement on non-canonical encodings. Three
+of them, whose ids contain `mixed-order-A`, use a key that is the sum of an honest
+key's point and a torsion point, with a signature that verifies under it by every
+step but step 3 of identities-and-devices.md, Verifying a signature, so step 3
+is the only step that refuses them; they are computed by the same stand-alone
+program as `identity/bundle-admission.json`. Four of the
 eight small-order-`A` vectors use `R` the identity and `s = 0`, which rule 6
 of identities-and-devices.md, Verifying a signature, refuses too. The other
 four, whose ids contain `rule-3-only`, pair the same keys with an `R` that is

@@ -129,15 +129,15 @@ pub fn decode_kem(bytes: &[u8]) -> Option<Vec<u8>> {
 /// client signing under one implementation and a server verifying under another
 /// rejects every connection.
 ///
-/// A key that [`is_valid_identity_key`] refuses verifies nothing: the answer is
-/// `false` for every signature, as it is for a signature that does not verify.
+/// A key that [`is_valid_identity_key`] refuses verifies nothing: the verifier
+/// (`xeddsa::verify`) refuses it, so the answer is `false` for every signature,
+/// as it is for a signature that does not verify.
 pub fn verify_under_identity(
     identity: &dh::PublicKeyBytes,
     message: &[u8],
     signature: &[u8; 64],
 ) -> bool {
-    is_valid_identity_key(identity)
-        && xeddsa::verify(identity, &application_signing_input(message), signature).is_ok()
+    xeddsa::verify(identity, &application_signing_input(message), signature).is_ok()
 }
 
 /// The domain-separation prefix for signatures over caller-supplied messages.

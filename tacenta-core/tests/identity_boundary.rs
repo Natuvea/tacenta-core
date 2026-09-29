@@ -11,7 +11,7 @@
 use curve25519_dalek::montgomery::MontgomeryPoint;
 use rand::SeedableRng;
 use rand_core::{CryptoRng, RngCore};
-use tacenta_core::primitives::dh;
+use tacenta_core::primitives::{dh, xeddsa};
 use tacenta_core::serialization::{decode_initial, encode_initial};
 use tacenta_core::sessions::{
     Identity, LifecycleError as Error, PrekeyStore, PrekeyStoreDecodeError, Session,
@@ -795,6 +795,15 @@ fn application_signatures_over_the_fixtures() {
         let signature: [u8; 64] = unhex(signature);
         assert_eq!(
             verify_under_identity(&key, APP_MESSAGE, &signature),
+            *accepted,
+            "{id}"
+        );
+        // The verifier is where the rule is applied: a key outside the subgroup
+        // verifies nothing, whichever function asks.
+        let mut input = b"tacenta:application-signature:v1\xff".to_vec();
+        input.extend_from_slice(APP_MESSAGE);
+        assert_eq!(
+            xeddsa::verify(&key, &input, &signature).is_ok(),
             *accepted,
             "{id}"
         );

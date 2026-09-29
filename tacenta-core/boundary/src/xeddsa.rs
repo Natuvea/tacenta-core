@@ -40,7 +40,8 @@ use zeroize::Zeroizing;
 use super::dh::PublicKeyBytes;
 
 /// Signature verification failed: the signature does not verify, the public
-/// key does not lie on the curve, or the scalar is out of range.
+/// key is not a canonical prime-order key (`dh::is_prime_order_public`), or the
+/// scalar is out of range.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct VerifyError;
 
@@ -224,6 +225,11 @@ pub fn sign<R: RngCore + CryptoRng>(secret: &[u8; 32], message: &[u8], rng: &mut
 ///   equation and accepts when it holds. Under Revision 1 the identity
 ///   `u = 0` (the Edwards point of order 2) verifies `R = I`, `s = 0` for
 ///   half of all messages; here it is refused;
+/// - is **narrower on the public key**: it verifies only under a key that
+///   `dh::is_prime_order_public` accepts, the canonical encoding of a point
+///   of the prime-order subgroup (identities-and-devices.md, Verifying a
+///   signature, step 3). Revision 1 evaluates the equation for any `A` that
+///   decodes;
 /// - agrees on **non-canonical encodings and on the equation**: `u ≥ p` is
 ///   refused by the check above exactly as the specification's first line
 ///   refuses it, a non-canonical `R` fails both because each compares the
@@ -231,8 +237,8 @@ pub fn sign<R: RngCore + CryptoRng>(secret: &[u8; 32], message: &[u8], rng: &mut
 ///   multiplies by the cofactor.
 ///
 /// Everything this signer produces lies in both sets: `s` is reduced below
-/// `l` by scalar arithmetic, `A = aB` for a clamped `a` is never a
-/// small-order point since a clamped scalar is never `0 (mod l)`, and `R`
+/// `l` by scalar arithmetic, `A = aB` for a clamped `a` is a point of the
+/// prime-order subgroup, since a clamped scalar is never `0 (mod l)`, and `R`
 /// is small-order only if the nonce hashes to `0 (mod l)`, which is
 /// negligible. `calculate_key_pair` and `sign` follow the specification
 /// line for line; `verify` follows it on the equation and departs from it
@@ -262,8 +268,9 @@ pub fn verify(
 ///
 /// Refuses what `verify` refuses before it reaches the signature: a
 /// non-canonical `u` (the specification's first check, `u >= p`; see
-/// `is_canonical_field_element`) and `u = p - 1`, the one value below `p`
-/// with no Edwards image (the map's denominator is zero there). Public so the
+/// `is_canonical_field_element`), `u = p - 1`, the one value below `p` with no
+/// Edwards image (the map's denominator is zero there), and every other `u`
+/// that `dh::is_prime_order_public` refuses. Public so the
 /// conformance runner can pin, for a signature that verifies, which of the
 /// two Edwards points `u` names it verified under.
 pub fn verifying_key(
@@ -271,7 +278,7 @@ pub fn verifying_key(
     signature: &[u8; 64],
 ) -> Result<[u8; 32], VerifyError> {
     let sign = signature[63] >> 7;
-    if !is_canonical_field_element(public.as_bytes()) {
+    if !crate::dh::is_prime_order_public(public) {
         return Err(VerifyError);
     }
     let edwards = MontgomeryPoint(*public.as_bytes())
@@ -797,6 +804,7 @@ mod tests {
         };
         let mut verify_only = 0;
         let mut rule_3_only = 0;
+        let mut mixed_order = 0;
         let mut accepted_by_revision_1 = 0;
         let mut cross_checked = 0;
         // The transcription against the second oracle, wherever the second is
@@ -891,16 +899,53 @@ mod tests {
                 assert!(!r.is_small_order(), "{id}: R must not be of small order");
                 rule_3_only += 1;
             }
+            // A `mixed-order-A` vector is refused by step 3 of
+            // identities-and-devices.md, Verifying a signature (`A` is a point of
+            // the prime-order subgroup), and by no other step: `u` is canonical
+            // with an Edwards image, `A` and `R` are not of small order, `s < l`,
+            // and the equation holds without the cofactor, which
+            // ed25519-dalek's strict verify finds too. So a verifier without
+            // step 3 accepts it, which the small-order vectors cannot show.
+            if id.contains("mixed-order-A") {
+                let a = MontgomeryPoint(u)
+                    .to_edwards(signature[63] >> 7)
+                    .expect("an Edwards image");
+                assert!(!a.is_small_order(), "{id}: A must not be of small order");
+                assert!(!a.is_torsion_free(), "{id}: A must be of mixed order");
+                let r_bytes: [u8; 32] = signature[..32].try_into().unwrap();
+                let r = curve25519_dalek::edwards::CompressedEdwardsY(r_bytes)
+                    .decompress()
+                    .expect("R decompresses");
+                assert!(!r.is_small_order(), "{id}: R must not be of small order");
+                let key = ed25519_dalek::VerifyingKey::from_bytes(&a.compress().to_bytes())
+                    .expect("A is a valid Ed25519 key");
+                let mut cleared = signature;
+                cleared[63] &= 0x7F;
+                assert!(
+                    key.verify_strict(&message, &ed25519_dalek::Signature::from_bytes(&cleared))
+                        .is_ok(),
+                    "{id}: ed25519-dalek's strict verify must accept it"
+                );
+                assert!(
+                    verifying_key(&PublicKeyBytes::from_bytes(u), &signature).is_err(),
+                    "{id}: the key does not convert"
+                );
+                mixed_order += 1;
+            }
         }
         // The file pins both directions: inputs Revision 1 accepts and this
         // verifier refuses, and one it refuses that this verifier accepts.
         assert!(
-            verify_only >= 17,
-            "expected the seventeen verify-only vectors, found {verify_only}"
+            verify_only >= 20,
+            "expected the twenty verify-only vectors, found {verify_only}"
         );
         assert!(
             rule_3_only >= 4,
             "expected four vectors only rule 3 refuses, found {rule_3_only}"
+        );
+        assert!(
+            mixed_order >= 3,
+            "expected three vectors only step 3 refuses, found {mixed_order}"
         );
         assert!(
             accepted_by_revision_1 >= 1,

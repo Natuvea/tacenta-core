@@ -203,6 +203,36 @@
         "signature": "c256a8d41e166dceb919def3d4dd7e6266f153da226f8a1f6b6a24627fe822233b2d98da546aabc814ca1e2bf9247296b07ea8e42254e15dbfcc4d9fcee15684"
       },
       "output": "017c7f72a22f7d95486c8a75752c036456c746fede6ca3df834bd566c03d6a9a"
+    },
+    {
+      "id": "tacenta-xeddsa-reject-mixed-order-A-order8",
+      "comment": "Revision 1 accepts: the key is the sum of an honest key's point and a torsion point of order 8: u is canonical, has an Edwards image, and A is not of small order, R is not of small order, s < l and the equation holds without the cofactor, so steps 1, 2 and 4 to 6 of Verifying a signature pass. Step 3 refuses it, because A is not a point of the prime-order subgroup.",
+      "result": "invalid",
+      "inputs": {
+        "public": "951dbbb7c0464db61ae9a65bc6c95b78f307c0fc7e8e01cebe38a3dfae041b5a",
+        "message": "746163656e746120786564647361206d697865642d6f72646572206b6579",
+        "signature": "6b72febd23446d970bf2b576675edf80db1fc43109f66c7d3e28fda8f0dab9b983a9355dc5f8d7c2f1cf71cc72378d485353a6cfb92c48643b84cacd313b5c07"
+      }
+    },
+    {
+      "id": "tacenta-xeddsa-reject-mixed-order-A-order4",
+      "comment": "Revision 1 accepts: the key is the sum of an honest key's point and a torsion point of order 4: u is canonical, has an Edwards image, and A is not of small order, R is not of small order, s < l and the equation holds without the cofactor, so steps 1, 2 and 4 to 6 of Verifying a signature pass. Step 3 refuses it, because A is not a point of the prime-order subgroup.",
+      "result": "invalid",
+      "inputs": {
+        "public": "6722174dbc997c555d35183ae1f5b54d718517e2012641580dc06bf48b5cc67b",
+        "message": "746163656e746120786564647361206d697865642d6f72646572206b6579",
+        "signature": "0daf4308c0aa4741e796e228ebab2569c330a1cdca04cfda6a10e744de7b3665613f6eb6fb15d878a124e8307d215acbe87f999cf9ce37137eb9ba479babf801"
+      }
+    },
+    {
+      "id": "tacenta-xeddsa-reject-mixed-order-A-order2",
+      "comment": "Revision 1 rejects: the signature carries the Edwards sign in its top bit, which Revision 1 does not read; the key is the sum of an honest key's point and a torsion point of order 2: u is canonical, has an Edwards image, and A is not of small order, R is not of small order, s < l and the equation holds without the cofactor, so steps 1, 2 and 4 to 6 of Verifying a signature pass. Step 3 refuses it, because A is not a point of the prime-order subgroup.",
+      "result": "invalid",
+      "inputs": {
+        "public": "cc80c67924df11225baa5ff7838b65ef4747fc514b11a810fb951106ab3d620a",
+        "message": "746163656e746120786564647361206d697865642d6f72646572206b6579",
+        "signature": "32f7840ac8840306424991bfa2c6d5163b4d97b035e9b8d4455cb08dfba89fa42470b43d1758561870bd592da21a9dffe72f1c3752add55c9be2a04ac0e77c81"
+      }
     }
   ]
 }
