@@ -11,11 +11,14 @@ is SemVer against the specified protocol (not the implementation).
   `device_id`, identity keys, then its own binding and statement policy), and
   what the format leaves unchecked: the chain of custody of a
   `replacement_predecessor`, key uniqueness and reactivation, and equivocation.
-  Check 6 requires each identity key to be canonical and a point of the
-  prime-order subgroup, which refuses low-order, off-curve and mixed-torsion
-  keys, so each key has one spelling and a policy can compare identity keys as
-  bytes. The section also states the sort order of both lists (strictly
-  ascending byte order of the encodings), what an exact binding is, that a
+  A verifier must not refuse a statement solely because a replacement's marker
+  names no listed binding, which an honest issuer can produce once the
+  tombstone falls at or below the revocation floor. Check 6 requires each
+  identity key to be canonical and a point of the prime-order subgroup, which
+  refuses low-order, off-curve and mixed-torsion keys, so each key has one
+  spelling and a policy can compare identity keys as bytes. The section also
+  states the sort order of both lists (strictly ascending byte order of the
+  encodings), what an exact binding is, that a
   predecessor tag other than 0 or 1 is refused, that a binding without a valid
   capability word has no commitment, the order in which the binding and
   statement policies run, that check 3 is the page's Verifying a signature and

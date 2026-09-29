@@ -345,9 +345,9 @@ checks it itself:
   replacement stays in `active` with its marker, so the marker can outlive the
   tombstone it names. A replacement may also carry a new `device_id`. An
   honest issuer can therefore produce a statement whose marker names no listed
-  tombstone. Checks 1 to 6 do not refuse it, and a verifier's policy should not
-  refuse it solely for that reason. Checking custody needs the verifier's own
-  record of earlier statements.
+  tombstone. Checks 1 to 6 do not refuse it, and a verifier must not refuse it
+  solely because the marker names no listed binding. Checking custody needs the
+  verifier's own record of earlier statements.
 - **Uniqueness and reactivation.** The same identity key on more than one
   binding, a revoked key listed again as active, a replacement identical to
   what it replaces, and the same binding listed more than once in `revoked`
