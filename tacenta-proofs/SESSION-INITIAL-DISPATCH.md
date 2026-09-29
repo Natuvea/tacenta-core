@@ -413,3 +413,24 @@ prove the coupled arbitrary retry loop. That induction must still thread the
 concrete/model eviction result, capped batch relation, preserved bounds, and
 exact success or repeated-full-store result through every generated loop
 iteration.
+
+## Checkpoint — 2026-09-29 (retry induction prerequisites)
+
+`fullStoreOfReal` is now proved injective. Separate adapters transport the
+actual generated `PartialEq::ne` result into model equality or inequality, so
+a later switch-half case cannot select a model half independently. Those
+adapters reuse `UnitLifecycleT1.full_store_ne_no_panic` and therefore inherit
+the two existing compiler-evaluated discriminant facts pinned by that theorem;
+the Session unit axiom audit records them explicitly.
+
+The failure-side Triple bridge now has
+`concrete_receive_attempt_store_full_from_retry_bounds`, the exact analogue of
+the success adapter. It consumes the preserved eleven-field
+`RetryReceiveBounds` package and returns the model detailed refusal, public
+refusal mapping, and eviction half fixed by the concrete attempt.
+
+Two proof-dependency controls invert the generated full-store comparison and
+feed sparse store room to the classical full-store premise. Lean must reject
+both. These lemmas do not establish the arbitrary retry loop. In particular,
+switch-half shortfall reachability and its machine-width premise remain
+explicit and are not derived from `RetryReceiveBounds`.

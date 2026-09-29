@@ -16,8 +16,8 @@ this section says in one place what is not proved.
   on twelve named boundary contracts and explicit headroom, and a set of
   refinement branch lemmas that each take the leaf outcomes as hypotheses
   (`Translation/UnitLifecycleT3.lean`; apart from the exact full-store adapter
-  listed below, not accepted as claims here and not composed with the leaf
-  theorems). No theorem says what the two functions
+  and retry prerequisites listed below, not accepted as claims here and not
+  composed with the leaf theorems). No theorem says what the two functions
   return as a whole, on every branch, against the model. What is proved
   outright lies underneath them, in the ratchet, the sparse post-quantum
   ratchet, the ML-KEM braid and their composition.
@@ -2164,7 +2164,7 @@ which are not listed as claims.
 - `invariant_gives_preconditions`: `Session::invariant` yields the
   preconditions the inner Triple and Braid theorems carry.
 
-## Proved (tier T3, the session unit's narrow full-store refusal bridge)
+## Proved (tier T3, session retry prerequisites)
 
 Location: `Translation/UnitLifecycleInitialDispatch.lean` and
 `Translation/AxiomAuditSessionUnit.lean`.
@@ -2176,11 +2176,20 @@ Location: `Translation/UnitLifecycleInitialDispatch.lean` and
   model refusal: `Model.Triple.receiveDetailed` returns it, the public refusal
   mapping names it, and `Model.Lifecycle.fullStore` selects the same classical
   or post-quantum half as the concrete classifier.
+- `Tacenta.UnitLifecycleT3.concrete_receive_attempt_store_full_from_retry_bounds`:
+  the same exact failure-side result when the eleven leaf premises are supplied
+  by the preserved `RetryReceiveBounds` package. It does not derive the
+  separate switch-half shortfall reachability or machine-width premise.
+- `Tacenta.UnitLifecycleT3.fullStoreOfReal_ne_of_generated_ne`: an actual
+  successful translated `PartialEq::ne` comparison between concrete
+  full-store halves implies inequality of their model images. The map is
+  injective; this adapter reuses the generated enum comparison theorem and
+  inherits its two compiler-evaluated discriminant facts, which the Session
+  unit axiom pin names.
 
-This is the failure-side leaf adapter needed by the bounded eviction retry.
-It does not prove that the retry loop terminates or refines its model, does not
-compose the success path, and does not prove public `Session::decrypt` end to
-end.
+These are prerequisites for the bounded eviction retry. They do not prove that
+the retry loop terminates or refines its model, do not compose the success
+path, and do not prove public `Session::decrypt` end to end.
 
 ## Proved (bounded P6 session lifecycle observations)
 

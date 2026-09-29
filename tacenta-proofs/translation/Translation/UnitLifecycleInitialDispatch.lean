@@ -3323,6 +3323,49 @@ def fullStoreOfReal : lifecycle.FullStore → Model.Lifecycle.FullStore
   | .Classical => .classical
   | .PostQuantum => .postQuantum
 
+/-- The concrete-to-model full-store map loses no information.  The retry
+    induction uses this fact when a generated switch-half comparison is
+    transported to the model loop. -/
+theorem fullStoreOfReal_injective : Function.Injective fullStoreOfReal := by
+  intro left right h
+  cases left <;> cases right <;> simp [fullStoreOfReal] at h ⊢
+
+theorem fullStoreOfReal_eq_iff {left right : lifecycle.FullStore} :
+    fullStoreOfReal left = fullStoreOfReal right ↔ left = right :=
+  ⟨fun h => fullStoreOfReal_injective h, fun h => congrArg fullStoreOfReal h⟩
+
+/-- Transport the generated switch-half test to the model's full-store
+    discriminator.  This is deliberately indexed by the actual translated
+    comparison rather than a caller-supplied inequality. -/
+theorem fullStoreOfReal_ne_of_generated_ne
+    {left right : lifecycle.FullStore}
+    (h : core.cmp.PartialEq.ne.trait_default
+      lifecycle.FullStore.Insts.CoreCmpPartialEqFullStore left right = ok true) :
+    fullStoreOfReal left ≠ fullStoreOfReal right := by
+  obtain ⟨result, hresult, hpost⟩ := Std.WP.spec_imp_exists
+    (Tacenta.UnitLifecycleT1.full_store_ne_no_panic left right)
+  rw [h] at hresult
+  cases hresult
+  have hne : left ≠ right := hpost.mp rfl
+  intro hmodel
+  exact hne (fullStoreOfReal_injective hmodel)
+
+/-- The false arm of the same generated comparison transports equality. -/
+theorem fullStoreOfReal_eq_of_generated_ne_false
+    {left right : lifecycle.FullStore}
+    (h : core.cmp.PartialEq.ne.trait_default
+      lifecycle.FullStore.Insts.CoreCmpPartialEqFullStore left right = ok false) :
+    fullStoreOfReal left = fullStoreOfReal right := by
+  obtain ⟨result, hresult, hpost⟩ := Std.WP.spec_imp_exists
+    (Tacenta.UnitLifecycleT1.full_store_ne_no_panic left right)
+  rw [h] at hresult
+  cases hresult
+  have hnotne : ¬ left ≠ right := by
+    intro hne
+    have hfalse : false = true := hpost.mpr hne
+    simp at hfalse
+  exact congrArg fullStoreOfReal (not_ne_iff.mp hnotne)
+
 theorem full_store_refusal_mapping_of_real {realReason : tacenta_triple.TripleError}
     {half : lifecycle.FullStore}
     (hfull : lifecycle.full_store realReason = ok (some half)) :
@@ -3900,6 +3943,53 @@ structure RetryReceiveBounds
     (fun x => x.1 == header.epoch.val && x.2.1 == header.pq_n.val)).length ≤ 1
   sparseCounters : ∀ p ∈ state.postQuantum.chains, ∀ ch : Model.SparseRatchet.Chain,
     (p.2.send = some ch ∨ p.2.receive = some ch) → ch.n < Std.U64.max
+
+/-- Failure-side consumer for the same preserved bounds package as the success
+    adapter below.  A concrete full-store refusal now fixes the model detailed
+    refusal and its eviction half without asking the retry induction to
+    reconstruct eleven leaf premises at each iteration. -/
+theorem concrete_receive_attempt_store_full_from_retry_bounds
+    (hmac : Tacenta.SessionUnitT3.HmacAgrees)
+    (hkdf : Tacenta.SessionUnitT3.HkdfAgrees)
+    (hzr : Tacenta.SessionUnitT3.ZeroizingRoundTrips)
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    [Tacenta.SessionUnitT1.DerivedKeysModel]
+    (hz96 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips96)
+    (hz64 : Tacenta.SessionUnitSpqrT3.ZeroizingRoundTrips64)
+    (hret : Tacenta.SessionUnitSpqrT3.VecRetainAgrees)
+    (happ : Tacenta.SessionUnitSpqrT1.VecRetainTotal)
+    (hrm : Tacenta.SessionUnitSpqrT3.RemoveSkippedAtAgrees)
+    (hzs : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (hopt : Tacenta.SessionUnitSpqrT1.OptionCloneTotal)
+    {state : tacenta_triple.State} {modelState : Model.Triple.State}
+    (hstate : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs Tacenta.SessionUnitTripleT3.spqrAbs
+      state modelState)
+    (header : tacenta_triple.Header) (modelHeader : Model.State.Header)
+    (hheader : Tacenta.SessionUnitTripleT3.RatchetHeaderR header.dr modelHeader)
+    (dhOutRecv dhOutSend newDhsPub : Array Std.U8 32#usize)
+    (output : Option tacenta_spqr.Output)
+    (bounds : RetryReceiveBounds modelState header modelHeader output)
+    (realReason : tacenta_triple.TripleError) (half : lifecycle.FullStore)
+    (hcall : lifecycle.receive_attempt state header dhOutRecv dhOutSend newDhsPub output =
+      ok (.Err realReason))
+    (hfull : lifecycle.full_store realReason = ok (some half)) :
+    ∃ modelReason,
+      Model.Triple.receiveDetailed modelState
+          { dr := modelHeader, epoch := header.epoch.val, pqN := header.pq_n.val }
+          (Tacenta.SessionUnitTripleT3.keyOf dhOutRecv)
+          (Tacenta.SessionUnitTripleT3.keyOf dhOutSend)
+          (Tacenta.SessionUnitTripleT3.keyOf newDhsPub)
+          (output.map Tacenta.SessionUnitTripleT3.spqrOutputOf) = .error modelReason ∧
+      tripleReceiveRefusalOfReal realReason = some modelReason ∧
+      Model.Lifecycle.fullStore modelReason = some (fullStoreOfReal half) := by
+  exact concrete_receive_attempt_store_full_from_contracts
+    hmac hkdf hzr hvr hz96 hz64 hret happ hrm hzs hopt hstate header modelHeader
+    hheader dhOutRecv dhOutSend newDhsPub output bounds.classicalMatch
+    bounds.classicalStoreRoom bounds.classicalEvents bounds.sparseEpoch
+    bounds.sparseChainsRoom bounds.sparseChainEpochs bounds.sparseSkippedEpochs
+    bounds.sparseOutputEpoch bounds.sparseStoreRoom bounds.sparseMatch
+    bounds.sparseCounters realReason half hcall hfull
 
 /-- Consume the packaged retry invariant at the existing generated success
     bridge.  The full-store bridge has the same eleven model premises, so the

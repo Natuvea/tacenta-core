@@ -104,6 +104,18 @@ def main():
          '      (mstate, evicted.val) := hcap.symm.trans hpair',
          '      (mstate, evicted.val) := hpair',
          'hpair'),
+        ('invert-full-store-generated-comparison',
+         '      lifecycle.FullStore.Insts.CoreCmpPartialEqFullStore left right = ok true) :\n'
+         '    fullStoreOfReal left ≠ fullStoreOfReal right := by',
+         '      lifecycle.FullStore.Insts.CoreCmpPartialEqFullStore left right = ok false) :\n'
+         '    fullStoreOfReal left ≠ fullStoreOfReal right := by',
+         'rfl'),
+        ('replace-full-store-bounds-classical-room',
+         '    hheader dhOutRecv dhOutSend newDhsPub output bounds.classicalMatch\n'
+         '    bounds.classicalStoreRoom bounds.classicalEvents bounds.sparseEpoch',
+         '    hheader dhOutRecv dhOutSend newDhsPub output bounds.classicalMatch\n'
+         '    bounds.sparseStoreRoom bounds.classicalEvents bounds.sparseEpoch',
+         'bounds.sparseStoreRoom'),
         ('bypass-ephemeral',
          '(hne : vecOf established ≠ vecOf decoded.ephemeral)',
          '(hne : vecOf established = vecOf decoded.ephemeral)', 'hne'),
@@ -395,6 +407,22 @@ def main():
                     raise SystemExit(f'Target changed for {name}: full-store adapter is missing')
                 mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
             elif name in {
+                'invert-full-store-generated-comparison',
+                'replace-full-store-bounds-classical-room',
+            }:
+                markers = {
+                    'invert-full-store-generated-comparison':
+                        'theorem fullStoreOfReal_ne_of_generated_ne',
+                    'replace-full-store-bounds-classical-room':
+                        'theorem concrete_receive_attempt_store_full_from_retry_bounds',
+                }
+                start = source.find(markers[name])
+                target = source.find(before, start)
+                if start < 0 or target < 0:
+                    raise SystemExit(
+                        f'Target changed for {name}: retry prerequisite is missing')
+                mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
+            elif name in {
                 'change-classical-full-store-refusal-to-too-many',
                 'change-sparse-full-store-refusal-to-too-many',
                 'swap-triple-classical-full-store-family',
@@ -524,6 +552,10 @@ def main():
                 mismatch = re.search(
                     r'error: Tactic `rewrite` failed:.+?postQuantumSkippedLength',
                     output, re.S)
+            elif name == 'invert-full-store-generated-comparison':
+                mismatch = re.search(
+                    r'error: Application type mismatch: The argument\s+rfl\s+has type\s+'
+                    r'.+?but is expected to have type\s+false = true', output, re.S)
             elif name == 'replace-full-store-receive-call-evidence':
                 mismatch = re.search(
                     r'error: Type mismatch: After simplification, term\s+hfull\s+'
