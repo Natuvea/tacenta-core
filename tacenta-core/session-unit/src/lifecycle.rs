@@ -4075,6 +4075,36 @@ mod tests {
         assert_eq!(public_after.received, public_before.received);
     }
 
+    /// The ordinary path the two refusal tests above depart from: every
+    /// message that is sent advances the sending counter by exactly one, so a
+    /// send that advanced the ratchet a second time (consuming a key for a
+    /// message never emitted) fails here, and the peer reads each message.
+    #[test]
+    fn an_ordinary_send_advances_the_counter_exactly_once() {
+        use rand::SeedableRng;
+
+        let mut r = rand::rngs::StdRng::seed_from_u64(19);
+        let alice_id = Identity::generate(&mut r);
+        let bob_id = Identity::generate(&mut r);
+        let mut bob_prekeys = bob_id.create_prekeys(2, &mut r);
+        let bundle = bob_prekeys.publish();
+        let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+        let initial = alice.encrypt(b"hello", &mut r).unwrap();
+        let (mut bob, _first) =
+            establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
+
+        for round in 0u8..4 {
+            let before = alice.public_state().sent;
+            let message = alice.encrypt(&[round], &mut r).unwrap();
+            assert_eq!(
+                alice.public_state().sent,
+                before + 1,
+                "an ordinary send advances the counter exactly once"
+            );
+            assert_eq!(bob.decrypt(&message, &mut r).unwrap(), vec![round]);
+        }
+    }
+
     /// The identity and the prekey store erase themselves when dropped.
     ///
     /// Static, for the reason `tacenta-ratchet`'s own version of this test
