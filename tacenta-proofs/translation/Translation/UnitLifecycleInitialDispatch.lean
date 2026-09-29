@@ -4738,6 +4738,76 @@ theorem concrete_classical_evict_stateR_step
   · exact hbody
   · exact hstate
 
+/-! The generated scan and removal calls discharge the one-step witness
+    directly.  Unlike the loop shells below, this theorem does not accept a
+    caller-supplied successor state: both the concrete and model successors
+    are obtained from the translated computation.  The width premise is the
+    one required by the generated `Usize` scan; removal preserves it by
+    shortening the skipped-key vector by exactly one.  `ReceiveHeadroom`
+    only supplies bounds against the host's `Usize.max`; it cannot imply this
+    conservative `UScalar.cMax .Usize` bound on a wider host. -/
+theorem concrete_classical_evict_body_refines
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    {s : tacenta_ratchet.State} {m : Model.State.State}
+    (hrel : Tacenta.SessionUnitT3.StateR s m)
+    (count evicted : Std.Usize)
+    (hcount : evicted.val < count.val)
+    (hwidth : s.skipped.val.length ≤ UScalar.cMax UScalarTy.Usize)
+    (hlen : s.skipped.val.length ≠ 0) :
+    ∃ (nextState : tacenta_ratchet.State) (nextModel : Model.State.State)
+      (evicted1 : Std.Usize),
+      tacenta_ratchet.State.evict_oldest_loop0.body count s evicted
+        ⦃ fun r => r = ControlFlow.cont (nextState, evicted1) ⦄ ∧
+      Tacenta.SessionUnitT3.StateR nextState nextModel ∧
+      nextModel = (Model.Ratchet.evictOldest m 1).1 ∧
+      evicted1.val ≤ count.val ∧
+      evicted1.val = evicted.val + 1 ∧
+      nextState.skipped.val.length ≤ UScalar.cMax UScalarTy.Usize := by
+  have hpositive : 0 < s.skipped.val.length := Nat.pos_of_ne_zero hlen
+  have hzero : (0#usize).val < s.skipped.val.length := by
+    simpa using hpositive
+  have hone : (1#usize).val ≤ s.skipped.val.length := by
+    scalar_tac
+  have hmin0 : ∀ (j : Std.Usize) (_hj : j.val < (1#usize).val)
+      (hjlen : j.val < s.skipped.val.length),
+      (s.skipped.val[(0#usize).val]'hzero).stored_at.val ≤
+        (s.skipped.val[j.val]'hjlen).stored_at.val := by
+    intro j hj hjlen
+    have hj0 : j = 0#usize := UScalar.eq_of_val_eq (by scalar_tac)
+    subst j
+    exact Nat.le_refl _
+  have hfirst0 : ∀ (_hc : (0#usize).val < s.skipped.val.length)
+      (j : Std.Usize) (hj : j.val < (0#usize).val)
+      (hjlen : j.val < s.skipped.val.length),
+      (s.skipped.val[(0#usize).val]'hzero).stored_at.val <
+        (s.skipped.val[j.val]'hjlen).stored_at.val := by
+    intro _hc j hj _hjlen
+    scalar_tac
+  obtain ⟨oldest, hscan, hr, hmin, hfirst⟩ := Std.WP.spec_imp_exists
+    (concrete_evict_oldest_scan_first s.skipped 0#usize 1#usize
+      hone hzero hmin0 hfirst0)
+  obtain ⟨target, discarded, v, htarget, hselector, hremove, hstate⟩ :=
+    concrete_classical_evict_one_step_model hvr hrel oldest hwidth hr hmin hfirst
+  have haddBound : evicted.val + (1#usize).val ≤ Usize.max := by
+    scalar_tac
+  obtain ⟨evicted1, hadd, hval⟩ := Std.WP.spec_imp_exists
+    (Usize.add_spec haddBound)
+  have hbound : evicted1.val ≤ count.val := by scalar_tac
+  have hbody := concrete_classical_evict_body_step s count evicted evicted1 oldest
+    discarded v hcount hscan hremove hadd hlen
+  have hvlen : v.val.length + 1 = s.skipped.val.length := by
+    obtain ⟨r, hremove', hlength⟩ :=
+      Tacenta.SessionUnitT1.RemoveSkippedAtTotal.lengths
+        hvr Global s.skipped oldest hr
+    rw [hremove] at hremove'
+    cases hremove'
+    exact hlength
+  refine ⟨{ s with skipped := v }, (Model.Ratchet.evictOldest m 1).1,
+    evicted1, hbody, hstate, rfl, hbound, ?_, ?_⟩
+  · simpa using hval
+  · change v.val.length ≤ UScalar.cMax UScalarTy.Usize
+    omega
+
 /-! The StateR loop invariant can now retain the model's exact fuel state.
     After each concrete eviction, `evictOldest_append` identifies the model
     post-state with the same initial state run for the returned counter. -/
@@ -4811,24 +4881,16 @@ theorem concrete_classical_evict_outer_model_stateR
         exact ⟨hnext, hbound1, by omega⟩
   · refine ⟨base, hrel, by rfl, by simp⟩
 
-/-! Strengthening the previous shell, this variant preserves the complete
-    model pair `(state, returned count)` for the requested fuel.  The
-    early-empty branch uses the model's empty-suffix law; the progressing
-    branch uses the one-step non-empty count law. -/
+/-! This callback-free outer theorem preserves the complete model pair
+    `(state, returned count)` for the requested fuel.  The early-empty branch
+    uses the model's empty-suffix law; the progressing branch obtains the
+    translated scan and removal results from
+    `concrete_classical_evict_body_refines`. -/
 theorem concrete_classical_evict_outer_model_pair
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
     (s : tacenta_ratchet.State) (base : Model.State.State) (count : Std.Usize)
     (hrel : Tacenta.SessionUnitT3.StateR s base)
-    (hstep : ∀ (state : tacenta_ratchet.State) (mstate : Model.State.State)
-      (evicted : Std.Usize),
-      Tacenta.SessionUnitT3.StateR state mstate →
-      evicted.val < count.val → state.skipped.val.length ≠ 0 →
-      ∃ (nextState : tacenta_ratchet.State) (nextModel : Model.State.State)
-        (evicted1 : Std.Usize),
-        tacenta_ratchet.State.evict_oldest_loop0.body count state evicted
-          ⦃ fun r => r = ControlFlow.cont (nextState, evicted1) ⦄ ∧
-        Tacenta.SessionUnitT3.StateR nextState nextModel ∧
-        nextModel = (Model.Ratchet.evictOldest mstate 1).1 ∧
-        evicted1.val ≤ count.val ∧ evicted1.val = evicted.val + 1) :
+    (hwidth : s.skipped.val.length ≤ UScalar.cMax UScalarTy.Usize) :
     tacenta_ratchet.State.evict_oldest_loop0 s count 0#usize
       ⦃ fun r => ∃ mstate, Tacenta.SessionUnitT3.StateR r.2 mstate ∧
         (Model.Ratchet.evictOldest base count.val) = (mstate, r.1.val) ⦄ := by
@@ -4837,8 +4899,9 @@ theorem concrete_classical_evict_outer_model_pair
     (measure := fun p => count.val - (Prod.snd p).val)
     (inv := fun p => ∃ mstate, Tacenta.SessionUnitT3.StateR p.1 mstate ∧
       (Model.Ratchet.evictOldest base p.2.val) = (mstate, p.2.val) ∧
-      p.2.val ≤ count.val)
-  · rintro ⟨state, evicted⟩ ⟨mstate, hstate, hmodel, hbound⟩
+      p.2.val ≤ count.val ∧
+        p.1.skipped.val.length ≤ UScalar.cMax UScalarTy.Usize)
+  · rintro ⟨state, evicted⟩ ⟨mstate, hstate, hmodel, hbound, hwidthState⟩
     change evicted.val ≤ count.val at hbound
     by_cases hdone : count.val ≤ evicted.val
     · have heq : evicted.val = count.val := by omega
@@ -4863,7 +4926,8 @@ theorem concrete_classical_evict_outer_model_pair
         rw [hadd] at hsuffix
         exact ⟨mstate, hstate, hsuffix⟩
       · obtain ⟨nextState, nextModel, evicted1, hbody, hnext, hnextModel,
-          hbound1, hval⟩ := hstep state mstate evicted hstate hlt hempty
+          hbound1, hval, hwidthNext⟩ := concrete_classical_evict_body_refines
+            hvr hstate count evicted hlt hwidthState hempty
         refine Std.WP.spec_mono hbody ?_
         intro r hr
         simp [hr]
@@ -4885,8 +4949,48 @@ theorem concrete_classical_evict_outer_model_pair
         have hfull1' : Model.Ratchet.evictOldest base evicted1.val =
             (nextModel, evicted1.val) := by
           simpa [hval] using hfull1
-        refine ⟨⟨nextModel, hnext, hfull1', hbound1⟩, by omega⟩
-  · refine ⟨base, hrel, by rfl, by simp⟩
+        refine ⟨⟨nextModel, hnext, hfull1', hbound1, hwidthNext⟩, by omega⟩
+  · refine ⟨base, hrel, by rfl, by simp, hwidth⟩
+
+/-! The public classical eviction refinement.  Its final state and count are
+    determined by the concrete call and the model function; neither is a
+    caller-supplied witness. -/
+theorem concrete_classical_evict_oldest_refines
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    (s : tacenta_ratchet.State) (m : Model.State.State) (count : Std.Usize)
+    (hrel : Tacenta.SessionUnitT3.StateR s m)
+    (hwidth : s.skipped.val.length ≤ UScalar.cMax UScalarTy.Usize) :
+    tacenta_ratchet.State.evict_oldest s count ⦃ fun r =>
+      Tacenta.SessionUnitT3.StateR r.2
+        (Model.Ratchet.evictOldest m count.val).1 ∧
+      r.1.val = (Model.Ratchet.evictOldest m count.val).2 ⦄ := by
+  unfold tacenta_ratchet.State.evict_oldest
+  apply Std.WP.spec_mono
+    (concrete_classical_evict_outer_model_pair hvr s m count hrel hwidth)
+  intro r hr
+  obtain ⟨mstate, hstate, hpair⟩ := hr
+  have hmstate : (Model.Ratchet.evictOldest m count.val).1 = mstate :=
+    congrArg Prod.fst hpair
+  have hcount : (Model.Ratchet.evictOldest m count.val).2 = r.1.val :=
+    congrArg Prod.snd hpair
+  exact ⟨hmstate.symm ▸ hstate, hcount.symm⟩
+
+/-! The real and model skipped-store measures coincide under the composed
+    state relation.  This lets a concrete T1 decrease close the model fuel
+    obligation used by the retry induction. -/
+theorem skipped_total_eq_of_state_refines
+    {s : tacenta_triple.State} {m : Model.Triple.State}
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs
+      Tacenta.SessionUnitTripleT3.spqrAbs s m) :
+    Tacenta.UnitLifecycleT1.skippedTotal s =
+      Model.Triple.classicalSkippedLength m +
+        Model.Triple.postQuantumSkippedLength m := by
+  unfold Tacenta.UnitLifecycleT1.skippedTotal
+    Model.Triple.classicalSkippedLength Model.Triple.postQuantumSkippedLength
+  rw [← hrel.1, ← hrel.2]
+  simp [Tacenta.SessionUnitTripleT3.ratchetAbs,
+    Tacenta.SessionUnitTripleT3.spqrAbs, List.length_map]
 
 /-! The triple wrapper lifts the classical ratchet result into the lifecycle
     StateRefines relation.  Once the ratchet loop supplies its exact model
@@ -5064,6 +5168,116 @@ theorem model_evict_for_retry_post_quantum_of_concrete
   rw [hconcrete] at hr
   cases hr
   exact hpost
+
+/-! Classical lifecycle eviction at a capped concrete batch agrees with the
+    model's unbounded batch.  The output includes the state relation, concrete
+    headroom, and strict model skipped-total decrease for a nonzero eviction;
+    these are the induction facts needed by the later success-indexed retry
+    theorem.  The conservative selector-width premise remains explicit:
+    `ReceiveHeadroom` gives only the weaker host-`Usize.max` bound. -/
+theorem concrete_lifecycle_evict_for_retry_classical_capped_refines
+    (hvr : Tacenta.SessionUnitT1.RemoveSkippedAtTotal)
+    (hrmSpqr : Tacenta.SessionUnitSpqrT1.RemoveSkippedAtTotal)
+    (hz : Tacenta.SessionUnitSpqrT1.ZeroizeTotal)
+    (s : tacenta_triple.State) (m : Model.Triple.State)
+    (batch : Std.Usize) (modelBatch : Nat)
+    (hrel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs
+      Tacenta.SessionUnitTripleT3.spqrAbs s m)
+    (hbatch : RetryBatchAgrees batch modelBatch)
+    (hroom : Tacenta.UnitLifecycleT1.ReceiveHeadroom s)
+    (hwidth : s.classical.skipped.val.length ≤
+      UScalar.cMax UScalarTy.Usize) :
+    lifecycle.evict_for_retry s lifecycle.FullStore.Classical batch ⦃ fun r =>
+      Tacenta.SessionUnitTripleT3.StateRefines
+        Tacenta.SessionUnitTripleT3.ratchetAbs
+        Tacenta.SessionUnitTripleT3.spqrAbs r.1
+        (Model.Triple.evictOldestClassical m modelBatch).1 ∧
+      r.2.val = (Model.Triple.evictOldestClassical m modelBatch).2 ∧
+      Tacenta.UnitLifecycleT1.ReceiveHeadroom r.1 ∧
+      (Model.Triple.classicalSkippedLength
+          (Model.Triple.evictOldestClassical m modelBatch).1 +
+        Model.Triple.postQuantumSkippedLength
+          (Model.Triple.evictOldestClassical m modelBatch).1 ≤
+        Model.Triple.classicalSkippedLength m +
+          Model.Triple.postQuantumSkippedLength m) ∧
+      (0 < r.2.val →
+        Model.Triple.classicalSkippedLength
+            (Model.Triple.evictOldestClassical m modelBatch).1 +
+          Model.Triple.postQuantumSkippedLength
+            (Model.Triple.evictOldestClassical m modelBatch).1 <
+          Model.Triple.classicalSkippedLength m +
+            Model.Triple.postQuantumSkippedLength m) ⦄ := by
+  have hclass : Tacenta.SessionUnitT3.StateR s.classical m.classical := by
+    rw [← hrel.1]
+    exact Tacenta.SessionUnitTripleT3.ratchetAbs_stateR s.classical
+  have hratchetDirect := concrete_classical_evict_oldest_refines
+    hvr s.classical m.classical batch hclass hwidth
+  have hratchet : tacenta_ratchet.State.evict_oldest s.classical batch
+      ⦃ fun r => ∃ mstate, Tacenta.SessionUnitT3.StateR r.2 mstate ∧
+        Model.Ratchet.evictOldest m.classical batch.val = (mstate, r.1.val) ⦄ := by
+    apply Std.WP.spec_mono hratchetDirect
+    intro r hr
+    refine ⟨(Model.Ratchet.evictOldest m.classical batch.val).1, hr.1, ?_⟩
+    apply Prod.ext
+    · rfl
+    · exact hr.2.symm
+  obtain ⟨out, hcall, hpost⟩ := Std.WP.spec_imp_exists
+    (Tacenta.UnitLifecycleT1.evict_for_retry_no_panic
+      hvr hrmSpqr hz s lifecycle.FullStore.Classical batch hroom)
+  rcases out with ⟨state1, evicted⟩
+  obtain ⟨mstate, hstate, hpair⟩ :=
+    model_evict_for_retry_classical_of_concrete s m batch state1 evicted
+      hrel hratchet hcall
+  have hmodelWidth : Model.Triple.classicalSkippedLength m ≤ Usize.max := by
+    unfold Model.Triple.classicalSkippedLength
+    rw [← hrel.1]
+    simpa [Tacenta.SessionUnitTripleT3.ratchetAbs, List.length_map] using
+      Nat.le_trans hwidth Usize.cMax_bound.1
+  have hcap := retry_batch_agrees_triple_classical_evict
+    m batch modelBatch hbatch hmodelWidth
+  have hpairModel : Model.Triple.evictOldestClassical m modelBatch =
+      (mstate, evicted.val) := hcap.symm.trans hpair
+  have hmstate : (Model.Triple.evictOldestClassical m modelBatch).1 = mstate :=
+    congrArg Prod.fst hpairModel
+  have hevicted : evicted.val =
+      (Model.Triple.evictOldestClassical m modelBatch).2 :=
+    (congrArg Prod.snd hpairModel).symm
+  have hstateModel : Tacenta.SessionUnitTripleT3.StateRefines
+      Tacenta.SessionUnitTripleT3.ratchetAbs
+      Tacenta.SessionUnitTripleT3.spqrAbs state1
+      (Model.Triple.evictOldestClassical m modelBatch).1 := by
+    rw [hmstate]
+    exact hstate
+  have hmeasureStart := skipped_total_eq_of_state_refines hrel
+  have hmeasureEnd := skipped_total_eq_of_state_refines hstateModel
+  have hmodelLe :
+      Model.Triple.classicalSkippedLength
+          (Model.Triple.evictOldestClassical m modelBatch).1 +
+        Model.Triple.postQuantumSkippedLength
+          (Model.Triple.evictOldestClassical m modelBatch).1 ≤
+      Model.Triple.classicalSkippedLength m +
+        Model.Triple.postQuantumSkippedLength m := by
+    calc
+      _ = Tacenta.UnitLifecycleT1.skippedTotal state1 := hmeasureEnd.symm
+      _ ≤ Tacenta.UnitLifecycleT1.skippedTotal s := hpost.2.1
+      _ = _ := hmeasureStart
+  have hmodelLt : 0 < evicted.val →
+      Model.Triple.classicalSkippedLength
+          (Model.Triple.evictOldestClassical m modelBatch).1 +
+        Model.Triple.postQuantumSkippedLength
+          (Model.Triple.evictOldestClassical m modelBatch).1 <
+      Model.Triple.classicalSkippedLength m +
+        Model.Triple.postQuantumSkippedLength m := by
+    intro hpositive
+    have hdecrease := hpost.2.2 hpositive
+    calc
+      _ = Tacenta.UnitLifecycleT1.skippedTotal state1 := hmeasureEnd.symm
+      _ < Tacenta.UnitLifecycleT1.skippedTotal s := hdecrease
+      _ = _ := hmeasureStart
+  rw [hcall]
+  exact ⟨hstateModel, hevicted, hpost.1, hmodelLe, hmodelLt⟩
+
 
 /-! A one-retry loop has a concrete postcondition.  Keeping this as a Hoare
 specification is deliberate: the generated `loop` is a partial computation,

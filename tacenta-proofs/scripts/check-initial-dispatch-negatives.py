@@ -90,6 +90,20 @@ def main():
          '          have hroom := hwidth chain.n.val hmodelCount',
          '          have hroom := hwidth (chain.n.val + 1) hmodelCount',
          'hmodelCount'),
+        ('replace-classical-first-minimum-with-nonstrict',
+         'concrete_classical_evict_one_step_model hvr hrel oldest hwidth hr hmin hfirst',
+         'concrete_classical_evict_one_step_model hvr hrel oldest hwidth hr hmin hmin',
+         'hmin'),
+        ('weaken-classical-selector-width-to-usize-max',
+         '(hwidth : s.skipped.val.length ≤ UScalar.cMax UScalarTy.Usize)\n'
+         '    (hlen : s.skipped.val.length ≠ 0) :',
+         '(hwidth : s.skipped.val.length ≤ Usize.max)\n'
+         '    (hlen : s.skipped.val.length ≠ 0) :',
+         'hwidth'),
+        ('bypass-classical-retry-batch-cap',
+         '      (mstate, evicted.val) := hcap.symm.trans hpair',
+         '      (mstate, evicted.val) := hpair',
+         'hpair'),
         ('bypass-ephemeral',
          '(hne : vecOf established ≠ vecOf decoded.ephemeral)',
          '(hne : vecOf established = vecOf decoded.ephemeral)', 'hne'),
@@ -400,6 +414,17 @@ def main():
                 if start < 0 or target < 0:
                     raise SystemExit(f'Target changed for {name}: semantic mapping is missing')
                 mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
+            elif name in {
+                'replace-classical-first-minimum-with-nonstrict',
+                'weaken-classical-selector-width-to-usize-max',
+            }:
+                marker = 'theorem concrete_classical_evict_body_refines'
+                start = source.find(marker)
+                target = source.find(before, start)
+                if start < 0 or target < 0:
+                    raise SystemExit(
+                        f'Target changed for {name}: concrete eviction body is missing')
+                mutated.write_text(source[:target] + source[target:].replace(before, after, 1))
             else:
                 if source.count(before) != 1:
                     raise SystemExit(f'Target changed for {name}: expected 1 occurrence')
@@ -550,6 +575,14 @@ def main():
                     r'⊢ False.+?error: unsolved goals\s+'
                     r'case PostQuantum\.SkippedStoreFull\.PostQuantum.+?⊢ False',
                     output, re.S)
+            elif name == 'replace-classical-first-minimum-with-nonstrict':
+                mismatch = re.search(
+                    r'error: Application type mismatch: The last\s+hmin\s+'
+                    r'argument has type\s+.+?but is expected to have type', output, re.S)
+            elif name == 'bypass-classical-retry-batch-cap':
+                mismatch = re.search(
+                    r'error: Type mismatch\s+hpair\s+has type\s+.+?'
+                    r'but is expected to have type', output, re.S)
             else:
                 mismatch = re.search(
                     r'error: Application type mismatch: The argument\s+' + premise +
