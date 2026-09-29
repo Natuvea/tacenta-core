@@ -41,7 +41,7 @@ Two kinds live here:
     `braid-state.json`), and the prekey store's and the session's
     (`prekey-store-state.json`, `session-state.json`, whose accepted vectors
     carry bytes `tacenta-core` produced, because the model has neither
-    signatures nor the curve; all from `Model.PersistedState`), whose refused
+    signatures nor X25519 public keys; all from `Model.PersistedState`), whose refused
     vectors also name the refusal. Checked by `runners/rust/tests/persistence.rs`.
     Layout: Vector layouts, below.
   - `vectors/identity/`: the identity-key rule (identities-and-devices.md,
@@ -416,8 +416,9 @@ those fixtures, or truncations, additions and version relabellings.
 
 The page is session-persistence.md, Session and Rejection. Accepted vectors
 carry sessions `tacenta-core` exported under the counter-based `FixedRng` in
-`lifecycle.rs`, because the model does not compute the curve and cannot build a
-session whose `ratchet_private` matches the classical ratchet's `dhs_pub`.
+`lifecycle.rs`, because the model does not compute X25519 public keys and cannot
+build a session whose `ratchet_private` matches the classical ratchet's
+`dhs_pub`.
 Additional accepted vectors place the responder session on the tag 6/7
 epoch-relation boundary and on the failed-Braid exemption. Refusal vectors are
 one-field mutations of the responder fixture, including separate sparse-role and
@@ -812,8 +813,9 @@ program as `identity/bundle-admission.json`. Four of the
 eight small-order-`A` vectors use `R` the identity and `s = 0`, which rule 6
 of identities-and-devices.md, Verifying a signature, refuses too. The other
 four, whose ids contain `rule-3-only`, pair the same keys with an `R` that is
-not of small order, `s < l` and an equation that holds, so rule 3 (`A` is
-not of small order) is the only rule that refuses them. Like the rest of the
+not of small order, `s < l` and an equation that holds, so rule 3 (`A` is a
+point of the prime-order subgroup; here it is of small order) is the only rule
+that refuses them. Like the rest of the
 verify-only vectors, they are computed rather than model-generated. Each such
 comment opens with `Revision 1 accepts:` or `Revision 1 rejects:`, and a
 test in tacenta-core runs a transcription of the specification's own
