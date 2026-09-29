@@ -1840,7 +1840,16 @@ def sortNat : List Nat → List Nat
     (Prekey store, Legacy markers): any retained replay record blocks the
     current KEM id and the retired KEM id, if present, whichever key its entries
     are tagged with. v5 carries the markers explicitly and therefore keeps the
-    decoded field. -/
+    decoded field.
+
+    **Proved:** the two membership theorems below (`migratedLegacyBlocked_current`
+    and `migratedLegacyBlocked_retired`). **Not proved:** that an empty record
+    marks nothing, that the list is ascending and repeats nothing (for a store
+    `ofBytes` returns, that is `legacyBlockedOk`, by `ofBytes_ok`), or that the
+    lifecycle model's lookup refuses a handshake naming a marked key beyond what
+    `Properties.Lifecycle.kem_lookup_current_legacy_blocked` and
+    `kem_lookup_retired_legacy_blocked` say. The rest is an executable
+    definition the vectors exercise. -/
 def migratedLegacyBlocked (v : UInt8) (seen : List (Nat × Bytes)) (kemId : Nat)
     (previousKem : Option (Bytes × Nat × Bytes)) (blocked : List Nat) : List Nat :=
   if v = version || seen.isEmpty then blocked
@@ -1849,6 +1858,53 @@ def migratedLegacyBlocked (v : UInt8) (seen : List (Nat × Bytes)) (kemId : Nat)
       | none => []
       | some p => [p.2.1]
     (sortNat (kemId :: previous)).eraseDups
+
+theorem mem_insertNat (x y : Nat) (l : List Nat) : y ∈ insertNat x l ↔ y = x ∨ y ∈ l := by
+  induction l with
+  | nil => simp [insertNat]
+  | cons a l ih =>
+    unfold insertNat
+    split
+    · simp
+    · simp [ih, or_left_comm]
+
+theorem mem_sortNat (y : Nat) (l : List Nat) : y ∈ sortNat l ↔ y ∈ l := by
+  induction l with
+  | nil => simp [sortNat]
+  | cons a l ih => simp [sortNat, mem_insertNat, ih]
+
+/-- **An older-version store with a replay record comes back with its current
+    KEM key marked**, whichever key the record's entries name and whatever the
+    stored markers were (Prekey store, Legacy markers, What migration writes).
+    This is membership only. That the list is ascending and repeats nothing is
+    not a property of this function but of what `ofBytes` returns, since
+    `ofBytes_ok` gives `legacyBlockedOk` for every store it accepts. -/
+theorem migratedLegacyBlocked_current (v : UInt8) (seen : List (Nat × Bytes)) (kemId : Nat)
+    (previousKem : Option (Bytes × Nat × Bytes)) (blocked : List Nat)
+    (hv : v ≠ version) (hseen : seen ≠ []) :
+    kemId ∈ migratedLegacyBlocked v seen kemId previousKem blocked := by
+  have hne : seen.isEmpty = false := by
+    cases seen with
+    | nil => exact absurd rfl hseen
+    | cons _ _ => rfl
+  unfold migratedLegacyBlocked
+  rw [if_neg (by simp [hv, hne])]
+  rw [List.mem_eraseDups, mem_sortNat]
+  simp
+
+/-- ... and, when the store has a retired KEM key, that key too. -/
+theorem migratedLegacyBlocked_retired (v : UInt8) (seen : List (Nat × Bytes)) (kemId : Nat)
+    (pair : Bytes) (previousId : Nat) (sig : Bytes) (blocked : List Nat)
+    (hv : v ≠ version) (hseen : seen ≠ []) :
+    previousId ∈ migratedLegacyBlocked v seen kemId (some (pair, previousId, sig)) blocked := by
+  have hne : seen.isEmpty = false := by
+    cases seen with
+    | nil => exact absurd rfl hseen
+    | cons _ _ => rfl
+  unfold migratedLegacyBlocked
+  rw [if_neg (by simp [hv, hne])]
+  rw [List.mem_eraseDups, mem_sortNat]
+  simp
 
 theorem readLegacyBlockedEntry_bytes (id : Nat) (h : id < 2 ^ 32) :
     readLegacyBlockedEntry (be 4 id) = .ok id := by
