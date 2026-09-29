@@ -100,7 +100,8 @@ otherwise. The order in which it checks them is not fixed (error-handling.md).
 
 No step multiplies by the cofactor. For a prekey signature `M` is the tagged
 key (session-establishment.md, Publishing keys); for an application signature
-it is the labelled input below.
+it is the labelled input below; for an inventory statement it is the labelled
+input under Hosted device-inventory statements.
 
 **Where this departs from revision 1's `xeddsa_verify`.** The accepted set
 differs in both directions, by design (ADR-0002):
@@ -230,7 +231,10 @@ beyond the stated generation bounds.
 The unsigned decoder refuses an input that breaks any rule above. It must
 consume exactly the bytes above, so trailing bytes are refused, and it must
 refuse a value whose re-encoding differs from the input. A signed statement is
-the unsigned preimage followed by a 64-byte XEdDSA signature over:
+the unsigned preimage followed by a 64-byte XEdDSA signature. The last 64 bytes
+are the signature and every byte before them is the unsigned preimage, which
+must decode exactly, so an input shorter than 64 bytes or one whose remaining
+bytes do not decode is a decode failure. The signature is over:
 
 ```text
 "Tacenta:inventory-statement:v1" || 0xFF || unsigned_preimage
@@ -274,7 +278,10 @@ first that fails:
    refused.
 2. The verifier's issuer-key binding resolves `(issuer_key_id, account_handle)`
    to a verification key. An unbound issuer is refused.
-3. The signature verifies under that key.
+3. The signature verifies under that key. The 32 bytes the binding returns are
+   read as the key `u` of Verifying a signature, whatever they are, and the
+   message `M` is the input above, so a key that fails steps 1 to 6 there is a
+   signature that does not verify, not an unbound issuer.
 4. The verifier's freshness rule accepts `inventory_generation` for the
    account. The format carries a generation and a floor but no freshness rule:
    equality with a stored value, a window, or any other rule is the
@@ -283,9 +290,11 @@ first that fails:
    still refuse the statement, so it must have no effect of its own: a
    verifier records a generation as seen, or advances a stored one, only
    after check 7 has accepted the statement. Where statements can be verified
-   concurrently, that step is one atomic compare-and-advance against the
-   stored value, and a stored value never decreases. Otherwise two statements
-   can both pass this check and the later write can lower the record.
+   concurrently, that step is one atomic step that evaluates the freshness rule
+   again against the value then stored and, if the rule accepts, records the
+   generation; if it does not, the statement is refused as this check refuses
+   it. A stored value never decreases. Otherwise two statements can both pass
+   this check and the later write can lower the record.
 5. No two entries of `active` share a `device_id`. An active and a revoked
    binding may share one: that is a device whose key was replaced under its old
    id.

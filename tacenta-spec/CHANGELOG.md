@@ -18,11 +18,13 @@ is SemVer against the specified protocol (not the implementation).
   ascending byte order of the encodings), what an exact binding is, that a
   predecessor tag other than 0 or 1 is refused, that a binding without a valid
   capability word has no commitment, the order in which the binding and
-  statement policies run, and that a verifier records a generation as seen only
-  after acceptance. It restores, as the issuer's duty, the earlier statement
-  that keys are checked before signing. Check 5 replaces the earlier statement
-  that the product must reject duplicate `device_id` values. The encoding and
-  the signature input are unchanged.
+  statement policies run, that check 3 is the page's Verifying a signature and
+  that a signed statement is a preimage followed by exactly 64 bytes, and that
+  a verifier records a generation as seen only after acceptance, in one atomic
+  step that evaluates its freshness rule again. It restores, as the issuer's
+  duty, the earlier statement that keys are checked before signing. Check 5
+  replaces the earlier statement that the product must reject duplicate
+  `device_id` values. The encoding and the signature input are unchanged.
 
 - `protocol/session-persistence.md`: align the repeated-initial semantic rule
   with `session-establishment.md`: the ephemeral is compared by its X25519
