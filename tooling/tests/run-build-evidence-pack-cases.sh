@@ -145,6 +145,13 @@ expect_pass push "$work/pass-push"
 pack pass-pull-request pull_request
 expect_pass pull-request "$work/pass-pull-request"
 
+# A receipt for a check the repository does not own has no expected command
+# list; it is accepted while it passes and refused once it does not.
+optional='for r in (d["manifest"], d["receipts"]): r["checks"].append({"id": "docs", "classification": "optional", "applicable": True, "status": STATUS, "command": "docs-command", "environment": {"event": "push"}, "run": {"id": "1", "attempt": "1", "commit": "a" * 40, "tree": "b" * 40}})'
+pack pass-optional push "${optional/STATUS/\"pass\"}"
+expect_pass optional-check "$work/pass-optional"
+refuse optional-check-failed 'applicable non-required check docs is fail' push "${optional/STATUS/\"fail\"}"
+
 # ---- containment and digests ----------------------------------------------
 cp -R "$work/pass-push" "$work/extra"
 echo unlisted > "$work/extra/UNLISTED-SENTINEL.txt"

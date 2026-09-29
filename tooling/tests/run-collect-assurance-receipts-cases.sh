@@ -120,6 +120,61 @@ assert {receipt for receipt, _ in table} == {"rust", "msrv", "armv7", "vectors",
 PY
 cases=$((cases + 1))
 
+# How the lists are read from a document: the events a receipt step is for,
+# taken from the job's and the step's own condition, and a second receipt step
+# for one id and event refused. Each document is the real one with one change.
+PYTHONPATH="$root/tooling" python3 - "$root" <<'PY'
+import copy, json, pathlib, sys
+from assurance_validation import expected_from_document, expected_step_outcomes
+
+document = json.loads((pathlib.Path(sys.argv[1]) / "tooling/required-steps.json").read_text())
+base = expected_from_document(document)
+assert base == expected_step_outcomes()
+
+
+def receipt_step(doc, job, position=0):
+    steps = [s for s in doc["files"][".github/workflows/ci.yml"]["jobs"][job]["steps"]
+             if s.get("uses") == "./.github/actions/assurance-receipt"]
+    return steps[position]
+
+
+def refused(doc, needle):
+    try:
+        expected_from_document(doc)
+    except ValueError as exc:
+        assert needle in str(exc), (needle, str(exc))
+        return
+    raise SystemExit("a document with two receipt steps for one id and event was read")
+
+# A step condition other than the two exact ones is read as both events.
+other = copy.deepcopy(document)
+receipt_step(other, "rust")["if"] = "always()"
+assert expected_from_document(other)[("rust", "push")] == base[("rust", "push")]
+assert ("rust", "pull_request") in expected_from_document(other)
+# The exact pull-request condition is for that event alone.
+only = copy.deepcopy(document)
+receipt_step(only, "rust")["if"] = "github.event_name == 'pull_request'"
+table = expected_from_document(only)
+assert ("rust", "pull_request") in table and ("rust", "push") not in table
+# A job condition narrows its receipt steps the same way.
+job = copy.deepcopy(document)
+job["files"][".github/workflows/ci.yml"]["jobs"]["msrv"]["if"] = "github.event_name == 'push'"
+table = expected_from_document(job)
+assert ("msrv", "push") in table and ("msrv", "pull_request") not in table
+# The job and the step must both allow an event.
+both = copy.deepcopy(document)
+both["files"][".github/workflows/ci.yml"]["jobs"]["msrv"]["if"] = "github.event_name == 'push'"
+receipt_step(both, "msrv")["if"] = "github.event_name == 'pull_request'"
+table = expected_from_document(both)
+assert ("msrv", "push") not in table and ("msrv", "pull_request") not in table
+# Two receipt steps for one id and event.
+twice = copy.deepcopy(document)
+steps = twice["files"][".github/workflows/ci.yml"]["jobs"]["rust"]["steps"]
+steps.append(copy.deepcopy(receipt_step(twice, "rust")))
+refused(twice, "receipt rust has two steps for event")
+PY
+cases=$((cases + 1))
+
 # ---- honest receipts are collected ----------------------------------------
 write_receipts "$work/pass-push" push
 python3 "$root/tooling/collect-assurance-receipts.py" --event push --input-dir "$work/pass-push" --output "$work/pass-push.out" >/dev/null
@@ -156,6 +211,10 @@ expect_writer_fail writer-missing-step "receipt rust does not record the command
   write_args rust --required-outcomes "$(outcomes rust push | sed 's/rust_clippy=success,//')"
 expect_writer_fail writer-extra-step "receipt rust records steps the workflow does not run for push: rust_extra" \
   write_args rust --required-outcomes "$(outcomes rust push),rust_extra=success"
+expect_writer_fail writer-malformed-outcome "malformed required outcome 'rust_fmt'" \
+  write_args rust --required-outcomes "rust_fmt"
+expect_writer_fail writer-unknown-outcome-word "invalid required outcome 'rust_fmt=maybe'" \
+  write_args rust --required-outcomes "rust_fmt=maybe"
 expect_writer_fail writer-no-outcomes "required checks must assert command step outcomes" \
   write_args rust
 expect_writer_fail writer-unknown-event "receipt rust names event 'local'" \

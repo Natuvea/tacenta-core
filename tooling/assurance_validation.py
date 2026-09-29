@@ -29,19 +29,16 @@ def _events_for(condition: Any) -> list[str]:
             or text not in {f"github.event_name=='{e}'" for e in EVENTS}]
 
 
-@functools.lru_cache(maxsize=1)
-def expected_step_outcomes() -> dict[tuple[str, str], list[str]]:
-    """The command steps each receipt must record, by (receipt id, event).
+def expected_from_document(document: dict) -> dict[tuple[str, str], list[str]]:
+    """The command steps each receipt must record, by (receipt id, event),
+    read from the required workflow in a parsed `tooling/required-steps.json`.
 
-    Read from the receipt steps of the required workflow in
-    `tooling/required-steps.json`: the ids in a receipt step's
-    `required-outcomes`, for the events the job's and the step's `if` let it
-    run in. A receipt step with no `if` in a job with none is for both events.
-    This is the list `check-workflows.sh` holds the workflow to, so a receipt
-    is checked against the commands the workflow runs and not against what the
-    receipt says about itself.
+    The ids are those in a receipt step's `required-outcomes`, for the events
+    the job's and the step's `if` let it run in. A receipt step with no `if` in
+    a job with none is for both events. This is the list `check-workflows.sh`
+    holds the workflow to, so a receipt is checked against the commands the
+    workflow runs and not against what the receipt says about itself.
     """
-    document = json.loads(REQUIRED_STEPS_FILE.read_text())
     workflow = document["files"][REQUIRED_WORKFLOW]
     table: dict[tuple[str, str], list[str]] = {}
     for job in workflow["jobs"].values():
@@ -57,6 +54,12 @@ def expected_step_outcomes() -> dict[tuple[str, str], list[str]]:
                     raise ValueError(f"receipt {inputs['id']} has two steps for event {event}")
                 table[key] = ids
     return table
+
+
+@functools.lru_cache(maxsize=1)
+def expected_step_outcomes() -> dict[tuple[str, str], list[str]]:
+    """`expected_from_document` for the repository's own manifest."""
+    return expected_from_document(json.loads(REQUIRED_STEPS_FILE.read_text()))
 
 
 def check_step_outcomes(check: dict) -> None:
