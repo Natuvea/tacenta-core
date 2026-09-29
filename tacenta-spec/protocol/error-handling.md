@@ -20,10 +20,12 @@ implementation.
   (identities-and-devices.md, Identity keys). An implementation reports it as
   its own refusal wherever it can, and where a boundary can only say yes or no,
   such as a verifier of an application signature, it says no. A key that is not
-  canonical is still a decode failure.
+  canonical is refused as it always was: as a decode failure where a wire
+  encoding is read, and by the kind the stored state's page names for it.
 - **A stored state's refusal says which kind it is**, to the extent
   session-persistence.md's Rejection section names kinds: wrong version, short
-  or malformed, non-canonical, and, for a session, inconsistent. A storage layer
+  or malformed, non-canonical, and, for a session, inconsistent or, for a prekey
+  store, incoherent. A storage layer
   can act on those. A stored key that is not an identity key is refused as
   inconsistent in a session and as malformed in a prekey store.
 - **Conditions a caller must act on are named** by the page that defines them.

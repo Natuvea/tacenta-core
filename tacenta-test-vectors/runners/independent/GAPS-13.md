@@ -377,6 +377,17 @@ judged wrong.
   are nor that they are not. The manifest records the omission.
 - **Resolution:** accepted (IV-24). The reader can be told nothing more.
 
+**Answered in the specification after the pass.** The text was changed for
+G13-01 (the sixth rule's last sentence and the introductory paragraph),
+G13-02 (the sentence in Identity keys and its counterpart in `error-handling.md`),
+G13-05 (a repeated initial message that names a key the rule refuses is
+`NotARepeatedInitial`), G13-06 (`session-persistence.md` no longer names the two
+scan operations), G13-07 ("which she checks first" now says before either
+signature) and G13-09 (`error-handling.md` lists `incoherent`). No fresh pass
+read the new sentences; the reader's cases and vectors were rerun and still
+agree, and the readings recorded above are the ones the pass took from the
+earlier text.
+
 **No BLOCKING gap.** Every refusal the identity vectors name could be decided
 from the text.
 

@@ -68,9 +68,9 @@ is SemVer against the specified protocol (not the implementation).
   (`session-persistence.md`), which is a change to what a reader accepts:
   no state an honest party's operations produce holds such a key, the section
   argues that an honest key is never refused, and the page says what a reader
-  does with an older state that holds one (refuses it, does not repair it) and
-  that `tacenta-core` provides a scan to run before adopting the rule. The
-  encodings, the signature input and the persisted layouts are unchanged.
+  does with an older state that holds one (refuses it, does not repair it, and
+  a caller can find such states beforehand by applying the rule to the stored
+  keys). The encodings, the signature input and the persisted layouts are unchanged.
 
 - `protocol/session-persistence.md`: align the repeated-initial semantic rule
   with `session-establishment.md`: the ephemeral is compared by its X25519

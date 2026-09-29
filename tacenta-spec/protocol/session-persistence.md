@@ -491,8 +491,7 @@ not repair it, drop the key or substitute another. The refused bytes are not
 deleted by the reader, and its secrets are where they were. A caller that means
 to adopt a reader with the rule can find the states it will refuse beforehand
 by reading the identity keys of every stored state and applying the rule to
-each; `tacenta-core` provides this as `scan_stored_session_identities` and
-`scan_stored_prekey_identity`. A refused session is replaced by a new session
+each. A refused session is replaced by a new session
 with the same peer, established from a bundle whose identity key passes the
 rule (session-establishment.md, Sending the initial message); the peer's
 messages in flight on the refused session are not recoverable from it.
@@ -667,8 +666,9 @@ and blocks the keys they may cover.
 Last, over the decoded store, the reader refuses as malformed any store for
 which `PrekeyStore::invariant` is false, and -- last of all, and reported
 separately -- any store holding a signature that does not verify. The rules are
-the identifier namespace, the record's shape, the identity key's encoding and
-what the stored signatures authenticate, which
+the identifier namespace, the record's shape, the identity key's admission
+(identities-and-devices.md, Identity keys) and what the stored signatures
+authenticate, which
 `create_prekeys` establishes, every operation preserves, and no field-by-field
 read sees; they apply to all five
 versions, the untagged ones having had their entries tagged with the current
@@ -725,11 +725,10 @@ key first.
   (identities-and-devices.md, Verifying a signature): the message is the tagged
   key as written above, with no label in front of it. The labelled input that
   page specifies is for signatures an application supplies, and a reader that
-  reached for it would refuse every honest store. This rule intentionally
-  narrows the canonical `identity_public` set accepted by the previous rule:
-  `p - 1` is below p and is therefore canonical as a curve public key, but no
-  signature verifies under it because signature verification refuses that value
-  before converting the Montgomery key to an Edwards point.
+  reached for it would refuse every honest store. The previous rule has
+  already refused, as malformed, every `identity_public` that is not an
+  identity key, `p - 1` among them, before any signature is checked; this rule
+  is reached only by a store whose `identity_public` passes it.
 
 The page's own reason for refusing a corrupted `next_id` decides this one: a
 value accepted here "would poison every future bundle and persist canonically".

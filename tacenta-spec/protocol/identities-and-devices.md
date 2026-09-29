@@ -67,8 +67,9 @@ an agreement input needs.
 is refused with it. It is a third outcome beside decode failure and
 authentication failure (error-handling.md): the input decoded, and no
 signature failed, and the key it names is not one this specification admits.
-Where a boundary reads a key from bytes, a key that is not canonical is still a
-decode failure, and the canonical rule is applied first. The refusal comes
+The canonical rule is applied first. A key that is not canonical is refused as it
+always was: as a decode failure where a wire encoding is read, and by the kind
+that session-persistence.md, Rejection, names for a stored state. The refusal comes
 before the work it protects: no random value is drawn, no agreement computed,
 no private key used and no stored state changed. It is called *invalid identity
 key* on the pages that name it.

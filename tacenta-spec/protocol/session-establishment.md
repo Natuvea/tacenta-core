@@ -126,7 +126,7 @@ Alice verifies every signature in the bundle and aborts if any fails. This is no
 optional: without the prekey signature a malicious server could serve forged
 prekeys and later compromise `IKB` to recover the secret, which would defeat
 forward secrecy. She verifies them only under an `IKB` that is an identity key,
-which she checks first (below).
+which she checks before either signature (below).
 
 She also refuses a bundle before encapsulating when its identity key is not the
 one she set out to reach (when she names one), when its one-time curve prekey
@@ -286,7 +286,9 @@ accepts it only if it is a responder's session and both of these hold:
   it.
 
 It then decrypts the ratchet message inside. Otherwise, and always on an
-initiator's session, it refuses the message (`NotARepeatedInitial`). The
+initiator's session, it refuses the message (`NotARepeatedInitial`); that includes
+a message whose `identity` is not an identity key, since it does not equal the
+peer's identity key the session holds. The
 message's two fields are canonical encodings, since it decoded. So are
 `established_ephemeral` and `peer_identity_public`, in every session
 establishment builds and in every session a reader accepts
