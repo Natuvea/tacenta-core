@@ -1,0 +1,3 @@
+# expect: is not a mapping
+- name: probe
+- runs: composite

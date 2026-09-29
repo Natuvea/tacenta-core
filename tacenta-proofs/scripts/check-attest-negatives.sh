@@ -635,6 +635,21 @@ if [ "$rc" -ne 0 ] || [[ "$out" != *"allowlist + TacentaRatchet.lean: tacenta_ra
   wrong=$((wrong + 1))
 fi
 
+make_case
+replace_in "$gen/TacentaErasure.lean" \
+  "axiom core.num.Usize.div_ceil : Std.Usize → Std.Usize → Result Std.Usize" \
+  "-- removed"
+set +e
+out="$(attest --write-axiom-allowlist)"
+rc=$?
+set -e
+cases=$((cases + 1))
+if [ "$rc" -ne 0 ] || [[ "$out" != *"allowlist - TacentaErasure.lean: tacenta_erasure.core.num.Usize.div_ceil : Std.Usize"* ]]; then
+  echo "WRONG  writer-reports-what-it-removed: rc=$rc, the removal was not printed:" >&2
+  printf '%s\n' "$out" >&2
+  wrong=$((wrong + 1))
+fi
+
 # ---------------------------------------------------------------------------
 # The construct scanner reads hand-written Lean the way the attestation scan
 # reads the generated files. Each plant goes at the end of a proof file.
