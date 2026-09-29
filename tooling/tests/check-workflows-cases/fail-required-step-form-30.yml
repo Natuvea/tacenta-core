@@ -1,0 +1,18 @@
+# expect: sets `shell` to 'sh {0}' on a step
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - id: j_run
+        shell: 'sh {0}'
+        run: make test
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: j
+          classification: required
+          command: c
+          required-outcomes: "j_run=${{ steps.j_run.outcome }}"

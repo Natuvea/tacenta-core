@@ -1,0 +1,7 @@
+# expect: composite action has a non-string `run` step
+name: probe
+runs:
+  using: composite
+  steps:
+    - run: true
+      shell: bash

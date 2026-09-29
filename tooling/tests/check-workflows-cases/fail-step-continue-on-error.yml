@@ -1,0 +1,11 @@
+# expect: step-level `continue-on-error`
+name: step mask
+on: push
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - continue-on-error: true
+        run: cargo test

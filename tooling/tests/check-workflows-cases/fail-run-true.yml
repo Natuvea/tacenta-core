@@ -1,0 +1,10 @@
+# expect: non-string `run` step
+name: run true
+on: push
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - run: true

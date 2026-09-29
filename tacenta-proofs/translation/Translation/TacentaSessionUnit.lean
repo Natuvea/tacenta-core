@@ -470,21 +470,21 @@ axiom tacenta_boundary.aead.decrypt
     Std.U8) tacenta_boundary.aead.DecryptError)
 
 /-- [tacenta_boundary::dh::PrivateKey]
-    Source: 'boundary/src/dh.rs', lines 11:0-11:21
+    Source: 'boundary/src/dh.rs', lines 10:0-10:21
     Name pattern: [tacenta_boundary::dh::PrivateKey]
     Visibility: public -/
 @[rust_type "tacenta_boundary::dh::PrivateKey"]
 axiom tacenta_boundary.dh.PrivateKey : Type
 
 /-- [tacenta_boundary::dh::PublicKeyBytes]
-    Source: 'boundary/src/dh.rs', lines 15:0-15:25
+    Source: 'boundary/src/dh.rs', lines 14:0-14:25
     Name pattern: [tacenta_boundary::dh::PublicKeyBytes]
     Visibility: public -/
 @[rust_type "tacenta_boundary::dh::PublicKeyBytes"]
 axiom tacenta_boundary.dh.PublicKeyBytes : Type
 
 /-- [tacenta_boundary::dh::{impl core::cmp::PartialEq<tacenta_boundary::dh::PublicKeyBytes> for tacenta_boundary::dh::PublicKeyBytes}::eq]:
-    Source: 'boundary/src/dh.rs', lines 14:22-14:31
+    Source: 'boundary/src/dh.rs', lines 13:22-13:31
     Name pattern: [tacenta_boundary::dh::{core::cmp::PartialEq<tacenta_boundary::dh::PublicKeyBytes, tacenta_boundary::dh::PublicKeyBytes>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -496,7 +496,7 @@ axiom
     Result Bool
 
 /-- Trait implementation: [tacenta_boundary::dh::{impl core::cmp::PartialEq<tacenta_boundary::dh::PublicKeyBytes> for tacenta_boundary::dh::PublicKeyBytes}]
-    Source: 'boundary/src/dh.rs', lines 14:22-14:31
+    Source: 'boundary/src/dh.rs', lines 13:22-13:31
     Name pattern: [core::cmp::PartialEq<tacenta_boundary::dh::PublicKeyBytes, tacenta_boundary::dh::PublicKeyBytes>] -/
 @[reducible, rust_trait_impl
   "core::cmp::PartialEq<tacenta_boundary::dh::PublicKeyBytes, tacenta_boundary::dh::PublicKeyBytes>"]
@@ -511,7 +511,7 @@ impl_def
 }
 
 /-- [tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::from_bytes]:
-    Source: 'boundary/src/dh.rs', lines 25:4-25:52
+    Source: 'boundary/src/dh.rs', lines 24:4-24:52
     Name pattern: [tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::from_bytes]
     Visibility: public -/
 @[rust_fun
@@ -520,7 +520,7 @@ axiom tacenta_boundary.dh.PrivateKey.from_bytes
   : Array Std.U8 32#usize → Result tacenta_boundary.dh.PrivateKey
 
 /-- [tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::public_key]:
-    Source: 'boundary/src/dh.rs', lines 30:4-30:46
+    Source: 'boundary/src/dh.rs', lines 29:4-29:46
     Name pattern: [tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::public_key]
     Visibility: public -/
 @[rust_fun
@@ -530,7 +530,7 @@ axiom tacenta_boundary.dh.PrivateKey.public_key
   tacenta_boundary.dh.PrivateKey → Result tacenta_boundary.dh.PublicKeyBytes
 
 /-- [tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::agree]:
-    Source: 'boundary/src/dh.rs', lines 53:4-53:66
+    Source: 'boundary/src/dh.rs', lines 52:4-52:66
     Name pattern: [tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::agree]
     Visibility: public -/
 @[rust_fun "tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::agree"]
@@ -547,7 +547,7 @@ axiom tacenta_boundary.dh.PrivateKey.agree
 axiom zeroize.Zeroizing (Z : Type) : Type
 
 /-- [tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::to_bytes]:
-    Source: 'boundary/src/dh.rs', lines 65:4-65:49
+    Source: 'boundary/src/dh.rs', lines 64:4-64:49
     Name pattern: [tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::to_bytes]
     Visibility: public -/
 @[rust_fun
@@ -558,7 +558,7 @@ axiom tacenta_boundary.dh.PrivateKey.to_bytes
     32#usize))
 
 /-- [tacenta_boundary::dh::{tacenta_boundary::dh::PublicKeyBytes}::from_bytes]:
-    Source: 'boundary/src/dh.rs', lines 71:4-71:56
+    Source: 'boundary/src/dh.rs', lines 70:4-70:56
     Name pattern: [tacenta_boundary::dh::{tacenta_boundary::dh::PublicKeyBytes}::from_bytes]
     Visibility: public -/
 @[rust_fun
@@ -567,21 +567,13 @@ axiom tacenta_boundary.dh.PublicKeyBytes.from_bytes
   : Array Std.U8 32#usize → Result tacenta_boundary.dh.PublicKeyBytes
 
 /-- [tacenta_boundary::dh::{tacenta_boundary::dh::PublicKeyBytes}::as_bytes]:
-    Source: 'boundary/src/dh.rs', lines 75:4-75:39
+    Source: 'boundary/src/dh.rs', lines 74:4-74:39
     Name pattern: [tacenta_boundary::dh::{tacenta_boundary::dh::PublicKeyBytes}::as_bytes]
     Visibility: public -/
 @[rust_fun
   "tacenta_boundary::dh::{tacenta_boundary::dh::PublicKeyBytes}::as_bytes"]
 axiom tacenta_boundary.dh.PublicKeyBytes.as_bytes
   : tacenta_boundary.dh.PublicKeyBytes → Result (Array Std.U8 32#usize)
-
-/-- [tacenta_boundary::dh::is_prime_order_public]:
-    Source: 'boundary/src/dh.rs', lines 87:0-87:58
-    Name pattern: [tacenta_boundary::dh::is_prime_order_public]
-    Visibility: public -/
-@[rust_fun "tacenta_boundary::dh::is_prime_order_public"]
-axiom tacenta_boundary.dh.is_prime_order_public
-  : tacenta_boundary.dh.PublicKeyBytes → Result Bool
 
 /-- [tacenta_boundary::kem::KemError]
     Source: 'boundary/src/kem.rs', lines 25:0-25:19
@@ -5486,23 +5478,23 @@ def tacenta_session.decode_ec
   else ok none
 
 /-- [tacenta_session_unit::tacenta_spqr::MAX_SKIP]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 50:0-50:31
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 162:0-162:31
     Visibility: public -/
 @[global_simps, irreducible] def tacenta_spqr.MAX_SKIP : Std.U64 := 1000#u64
 
 /-- [tacenta_session_unit::tacenta_spqr::MAX_SKIPPED_STORE]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 58:0-58:42
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 170:0-170:42
     Visibility: public -/
 @[global_simps, irreducible]
 def tacenta_spqr.MAX_SKIPPED_STORE : Std.Usize := 2000#usize
 
 /-- [tacenta_session_unit::tacenta_spqr::EPOCHS_KEPT]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 65:0-65:31
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 177:0-177:31
     Visibility: public -/
 @[global_simps, irreducible] def tacenta_spqr.EPOCHS_KEPT : Std.U64 := 2#u64
 
 /-- [tacenta_session_unit::tacenta_spqr::PROTOCOL_INFO]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 76:0-76:45 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 188:0-188:45 -/
 @[global_simps, irreducible]
 def tacenta_spqr.PROTOCOL_INFO : Slice Std.U8 :=
   Array.to_slice
@@ -5512,7 +5504,7 @@ def tacenta_spqr.PROTOCOL_INFO : Slice Std.U8 :=
       ])
 
 /-- [tacenta_session_unit::tacenta_spqr::CHAIN_START_LABEL]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 77:0-77:48 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 189:0-189:48 -/
 @[global_simps, irreducible]
 def tacenta_spqr.CHAIN_START_LABEL : Slice Std.U8 :=
   Array.to_slice
@@ -5522,26 +5514,26 @@ def tacenta_spqr.CHAIN_START_LABEL : Slice Std.U8 :=
       ])
 
 /-- [tacenta_session_unit::tacenta_spqr::ROOT_LABEL]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 78:0-78:34 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 190:0-190:34 -/
 @[global_simps, irreducible]
 def tacenta_spqr.ROOT_LABEL : Slice Std.U8 :=
   Array.to_slice (Array.make 4#usize [ 82#u8, 111#u8, 111#u8, 116#u8 ])
 
 /-- [tacenta_session_unit::tacenta_spqr::CHAIN_LABEL]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 79:0-79:36 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 191:0-191:36 -/
 @[global_simps, irreducible]
 def tacenta_spqr.CHAIN_LABEL : Slice Std.U8 :=
   Array.to_slice (Array.make 5#usize [ 67#u8, 104#u8, 97#u8, 105#u8, 110#u8 ])
 
 /-- [tacenta_session_unit::tacenta_spqr::Output]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 87:0-91:1
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 199:0-203:1
     Visibility: public -/
 structure tacenta_spqr.Output where
   key_epoch : Std.U64
   key : Array Std.U8 32#usize
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_session_unit::tacenta_spqr::Output}::clone]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 86:9-86:14
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 198:9-198:14
     Visibility: public -/
 def tacenta_spqr.Output.Insts.CoreCloneClone.clone
   (self : tacenta_spqr.Output) : Result tacenta_spqr.Output := do
@@ -5550,7 +5542,7 @@ def tacenta_spqr.Output.Insts.CoreCloneClone.clone
   ok { key_epoch := i, key := a }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_session_unit::tacenta_spqr::Output}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 86:9-86:14 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 198:9-198:14 -/
 @[reducible]
 def tacenta_spqr.Output.Insts.CoreCloneClone : core.clone.Clone
   tacenta_spqr.Output := {
@@ -5558,7 +5550,7 @@ def tacenta_spqr.Output.Insts.CoreCloneClone : core.clone.Clone
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl zeroize::Zeroize for tacenta_session_unit::tacenta_spqr::Output}::zeroize]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 86:16-86:23
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 198:16-198:23
     Visibility: public -/
 def tacenta_spqr.Output.Insts.ZeroizeZeroize.zeroize
   (self : tacenta_spqr.Output) : Result tacenta_spqr.Output := do
@@ -5568,7 +5560,7 @@ def tacenta_spqr.Output.Insts.ZeroizeZeroize.zeroize
   ok { self with key }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl zeroize::Zeroize for tacenta_session_unit::tacenta_spqr::Output}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 86:16-86:23 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 198:16-198:23 -/
 @[reducible]
 def tacenta_spqr.Output.Insts.ZeroizeZeroize : zeroize.Zeroize
   tacenta_spqr.Output := {
@@ -5576,7 +5568,7 @@ def tacenta_spqr.Output.Insts.ZeroizeZeroize : zeroize.Zeroize
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::ops::drop::Drop for tacenta_session_unit::tacenta_spqr::Output}::drop]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 86:25-86:38
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 198:25-198:38
     Visibility: public -/
 def tacenta_spqr.Output.Insts.CoreOpsDropDrop.drop
   (self : tacenta_spqr.Output) : Result tacenta_spqr.Output := do
@@ -5587,7 +5579,7 @@ def tacenta_spqr.Output.Insts.CoreOpsDropDrop.drop
   ok { self with key }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::ops::drop::Drop for tacenta_session_unit::tacenta_spqr::Output}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 86:25-86:38 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 198:25-198:38 -/
 @[reducible]
 def tacenta_spqr.Output.Insts.CoreOpsDropDrop : core.ops.drop.Drop
   tacenta_spqr.Output := {
@@ -5595,14 +5587,14 @@ def tacenta_spqr.Output.Insts.CoreOpsDropDrop : core.ops.drop.Drop
 }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl zeroize::ZeroizeOnDrop for tacenta_session_unit::tacenta_spqr::Output}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 86:25-86:38 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 198:25-198:38 -/
 @[reducible]
 def tacenta_spqr.Output.Insts.ZeroizeZeroizeOnDrop : zeroize.ZeroizeOnDrop
   tacenta_spqr.Output := {
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::Output}::new]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 94:4-96:5
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 206:4-208:5
     Visibility: public -/
 def tacenta_spqr.Output.new
   (key_epoch : Std.U64) (key : Array Std.U8 32#usize) :
@@ -5611,7 +5603,7 @@ def tacenta_spqr.Output.new
   ok { key_epoch, key }
 
 /-- [tacenta_session_unit::tacenta_spqr::Direction]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 101:0-106:1
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 213:0-218:1
     Visibility: public -/
 @[discriminant isize]
 inductive tacenta_spqr.Direction where
@@ -5619,14 +5611,14 @@ inductive tacenta_spqr.Direction where
 | B2a : tacenta_spqr.Direction
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_session_unit::tacenta_spqr::Direction}::clone]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 100:9-100:14
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 212:9-212:14
     Visibility: public -/
 def tacenta_spqr.Direction.Insts.CoreCloneClone.clone
   (self : tacenta_spqr.Direction) : Result tacenta_spqr.Direction := do
   ok self
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_session_unit::tacenta_spqr::Direction}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 100:9-100:14 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 212:9-212:14 -/
 @[reducible]
 def tacenta_spqr.Direction.Insts.CoreCloneClone : core.clone.Clone
   tacenta_spqr.Direction := {
@@ -5634,7 +5626,7 @@ def tacenta_spqr.Direction.Insts.CoreCloneClone : core.clone.Clone
 }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::marker::Copy for tacenta_session_unit::tacenta_spqr::Direction}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 100:16-100:20 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 212:16-212:20 -/
 @[reducible]
 def tacenta_spqr.Direction.Insts.CoreMarkerCopy : core.marker.Copy
   tacenta_spqr.Direction := {
@@ -5642,14 +5634,14 @@ def tacenta_spqr.Direction.Insts.CoreMarkerCopy : core.marker.Copy
 }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::marker::StructuralPartialEq for tacenta_session_unit::tacenta_spqr::Direction}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 100:22-100:31 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 212:22-212:31 -/
 @[reducible]
 def tacenta_spqr.Direction.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq tacenta_spqr.Direction := {
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::cmp::PartialEq<tacenta_session_unit::tacenta_spqr::Direction> for tacenta_session_unit::tacenta_spqr::Direction}::eq]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 100:22-100:31
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 212:22-212:31
     Visibility: public -/
 def tacenta_spqr.Direction.Insts.CoreCmpPartialEqDirection.eq
   (self : tacenta_spqr.Direction) (other : tacenta_spqr.Direction) :
@@ -5660,7 +5652,7 @@ def tacenta_spqr.Direction.Insts.CoreCmpPartialEqDirection.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::cmp::PartialEq<tacenta_session_unit::tacenta_spqr::Direction> for tacenta_session_unit::tacenta_spqr::Direction}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 100:22-100:31 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 212:22-212:31 -/
 @[reducible]
 impl_def tacenta_spqr.Direction.Insts.CoreCmpPartialEqDirection :
   core.cmp.PartialEq tacenta_spqr.Direction tacenta_spqr.Direction := {
@@ -5670,14 +5662,14 @@ impl_def tacenta_spqr.Direction.Insts.CoreCmpPartialEqDirection :
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::cmp::Eq for tacenta_session_unit::tacenta_spqr::Direction}::assert_fields_are_eq]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 100:33-100:35
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 212:33-212:35
     Visibility: public -/
 def tacenta_spqr.Direction.Insts.CoreCmpEq.assert_fields_are_eq
   (self : tacenta_spqr.Direction) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::cmp::Eq for tacenta_session_unit::tacenta_spqr::Direction}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 100:33-100:35 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 212:33-212:35 -/
 @[reducible]
 def tacenta_spqr.Direction.Insts.CoreCmpEq : core.cmp.Eq tacenta_spqr.Direction
   := {
@@ -5687,7 +5679,7 @@ def tacenta_spqr.Direction.Insts.CoreCmpEq : core.cmp.Eq tacenta_spqr.Direction
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::fmt::Debug for tacenta_session_unit::tacenta_spqr::Direction}::fmt]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 100:37-100:42
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 212:37-212:42
     Visibility: public -/
 def tacenta_spqr.Direction.Insts.CoreFmtDebug.fmt
   (self : tacenta_spqr.Direction) (f : core.fmt.Formatter) :
@@ -5698,7 +5690,7 @@ def tacenta_spqr.Direction.Insts.CoreFmtDebug.fmt
   | tacenta_spqr.Direction.B2a => core.fmt.Formatter.write_str f (toStr "B2a")
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::fmt::Debug for tacenta_session_unit::tacenta_spqr::Direction}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 100:37-100:42 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 212:37-212:42 -/
 @[reducible]
 def tacenta_spqr.Direction.Insts.CoreFmtDebug : core.fmt.Debug
   tacenta_spqr.Direction := {
@@ -5706,7 +5698,7 @@ def tacenta_spqr.Direction.Insts.CoreFmtDebug : core.fmt.Debug
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::SpqrError]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 114:0-150:1
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 226:0-262:1
     Visibility: public -/
 @[discriminant isize]
 inductive tacenta_spqr.SpqrError where
@@ -5719,14 +5711,14 @@ inductive tacenta_spqr.SpqrError where
 | ChainExhausted : tacenta_spqr.SpqrError
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_session_unit::tacenta_spqr::SpqrError}::clone]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 113:9-113:14
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 225:9-225:14
     Visibility: public -/
 def tacenta_spqr.SpqrError.Insts.CoreCloneClone.clone
   (self : tacenta_spqr.SpqrError) : Result tacenta_spqr.SpqrError := do
   ok self
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_session_unit::tacenta_spqr::SpqrError}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 113:9-113:14 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 225:9-225:14 -/
 @[reducible]
 def tacenta_spqr.SpqrError.Insts.CoreCloneClone : core.clone.Clone
   tacenta_spqr.SpqrError := {
@@ -5734,7 +5726,7 @@ def tacenta_spqr.SpqrError.Insts.CoreCloneClone : core.clone.Clone
 }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::marker::Copy for tacenta_session_unit::tacenta_spqr::SpqrError}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 113:16-113:20 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 225:16-225:20 -/
 @[reducible]
 def tacenta_spqr.SpqrError.Insts.CoreMarkerCopy : core.marker.Copy
   tacenta_spqr.SpqrError := {
@@ -5742,14 +5734,14 @@ def tacenta_spqr.SpqrError.Insts.CoreMarkerCopy : core.marker.Copy
 }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::marker::StructuralPartialEq for tacenta_session_unit::tacenta_spqr::SpqrError}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 113:22-113:31 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 225:22-225:31 -/
 @[reducible]
 def tacenta_spqr.SpqrError.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq tacenta_spqr.SpqrError := {
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::cmp::PartialEq<tacenta_session_unit::tacenta_spqr::SpqrError> for tacenta_session_unit::tacenta_spqr::SpqrError}::eq]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 113:22-113:31
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 225:22-225:31
     Visibility: public -/
 def tacenta_spqr.SpqrError.Insts.CoreCmpPartialEqSpqrError.eq
   (self : tacenta_spqr.SpqrError) (other : tacenta_spqr.SpqrError) :
@@ -5760,7 +5752,7 @@ def tacenta_spqr.SpqrError.Insts.CoreCmpPartialEqSpqrError.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::cmp::PartialEq<tacenta_session_unit::tacenta_spqr::SpqrError> for tacenta_session_unit::tacenta_spqr::SpqrError}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 113:22-113:31 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 225:22-225:31 -/
 @[reducible]
 impl_def tacenta_spqr.SpqrError.Insts.CoreCmpPartialEqSpqrError :
   core.cmp.PartialEq tacenta_spqr.SpqrError tacenta_spqr.SpqrError := {
@@ -5770,14 +5762,14 @@ impl_def tacenta_spqr.SpqrError.Insts.CoreCmpPartialEqSpqrError :
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::cmp::Eq for tacenta_session_unit::tacenta_spqr::SpqrError}::assert_fields_are_eq]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 113:33-113:35
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 225:33-225:35
     Visibility: public -/
 def tacenta_spqr.SpqrError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : tacenta_spqr.SpqrError) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::cmp::Eq for tacenta_session_unit::tacenta_spqr::SpqrError}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 113:33-113:35 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 225:33-225:35 -/
 @[reducible]
 def tacenta_spqr.SpqrError.Insts.CoreCmpEq : core.cmp.Eq tacenta_spqr.SpqrError
   := {
@@ -5787,7 +5779,7 @@ def tacenta_spqr.SpqrError.Insts.CoreCmpEq : core.cmp.Eq tacenta_spqr.SpqrError
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::fmt::Debug for tacenta_session_unit::tacenta_spqr::SpqrError}::fmt]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 113:37-113:42
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 225:37-225:42
     Visibility: public -/
 def tacenta_spqr.SpqrError.Insts.CoreFmtDebug.fmt
   (self : tacenta_spqr.SpqrError) (f : core.fmt.Formatter) :
@@ -5810,7 +5802,7 @@ def tacenta_spqr.SpqrError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "ChainExhausted")
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::fmt::Debug for tacenta_session_unit::tacenta_spqr::SpqrError}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 113:37-113:42 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 225:37-225:42 -/
 @[reducible]
 def tacenta_spqr.SpqrError.Insts.CoreFmtDebug : core.fmt.Debug
   tacenta_spqr.SpqrError := {
@@ -5818,13 +5810,13 @@ def tacenta_spqr.SpqrError.Insts.CoreFmtDebug : core.fmt.Debug
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::Chain]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 159:0-163:1 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 271:0-275:1 -/
 structure tacenta_spqr.Chain where
   ck : Array Std.U8 32#usize
   n : Std.U64
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_session_unit::tacenta_spqr::Chain}::clone]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 157:9-157:14
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 269:9-269:14
     Visibility: public -/
 def tacenta_spqr.Chain.Insts.CoreCloneClone.clone
   (self : tacenta_spqr.Chain) : Result tacenta_spqr.Chain := do
@@ -5833,7 +5825,7 @@ def tacenta_spqr.Chain.Insts.CoreCloneClone.clone
   ok { ck := a, n := i }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_session_unit::tacenta_spqr::Chain}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 157:9-157:14 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 269:9-269:14 -/
 @[reducible]
 def tacenta_spqr.Chain.Insts.CoreCloneClone : core.clone.Clone
   tacenta_spqr.Chain := {
@@ -5841,7 +5833,7 @@ def tacenta_spqr.Chain.Insts.CoreCloneClone : core.clone.Clone
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl zeroize::Zeroize for tacenta_session_unit::tacenta_spqr::Chain}::zeroize]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 157:16-157:23
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 269:16-269:23
     Visibility: public -/
 def tacenta_spqr.Chain.Insts.ZeroizeZeroize.zeroize
   (self : tacenta_spqr.Chain) : Result tacenta_spqr.Chain := do
@@ -5851,7 +5843,7 @@ def tacenta_spqr.Chain.Insts.ZeroizeZeroize.zeroize
   ok { self with ck }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl zeroize::Zeroize for tacenta_session_unit::tacenta_spqr::Chain}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 157:16-157:23 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 269:16-269:23 -/
 @[reducible]
 def tacenta_spqr.Chain.Insts.ZeroizeZeroize : zeroize.Zeroize
   tacenta_spqr.Chain := {
@@ -5859,7 +5851,7 @@ def tacenta_spqr.Chain.Insts.ZeroizeZeroize : zeroize.Zeroize
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::ops::drop::Drop for tacenta_session_unit::tacenta_spqr::Chain}::drop]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 157:25-157:38
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 269:25-269:38
     Visibility: public -/
 def tacenta_spqr.Chain.Insts.CoreOpsDropDrop.drop
   (self : tacenta_spqr.Chain) : Result tacenta_spqr.Chain := do
@@ -5870,7 +5862,7 @@ def tacenta_spqr.Chain.Insts.CoreOpsDropDrop.drop
   ok { self with ck }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::ops::drop::Drop for tacenta_session_unit::tacenta_spqr::Chain}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 157:25-157:38 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 269:25-269:38 -/
 @[reducible]
 def tacenta_spqr.Chain.Insts.CoreOpsDropDrop : core.ops.drop.Drop
   tacenta_spqr.Chain := {
@@ -5878,20 +5870,20 @@ def tacenta_spqr.Chain.Insts.CoreOpsDropDrop : core.ops.drop.Drop
 }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl zeroize::ZeroizeOnDrop for tacenta_session_unit::tacenta_spqr::Chain}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 157:25-157:38 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 269:25-269:38 -/
 @[reducible]
 def tacenta_spqr.Chain.Insts.ZeroizeZeroizeOnDrop : zeroize.ZeroizeOnDrop
   tacenta_spqr.Chain := {
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::Chains]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 169:0-172:1 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 281:0-284:1 -/
 structure tacenta_spqr.Chains where
   send : Option tacenta_spqr.Chain
   receive : Option tacenta_spqr.Chain
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_session_unit::tacenta_spqr::Chains}::clone]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 167:9-167:14
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 279:9-279:14
     Visibility: public -/
 def tacenta_spqr.Chains.Insts.CoreCloneClone.clone
   (self : tacenta_spqr.Chains) : Result tacenta_spqr.Chains := do
@@ -5904,7 +5896,7 @@ def tacenta_spqr.Chains.Insts.CoreCloneClone.clone
   ok { send := o, receive := o1 }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_session_unit::tacenta_spqr::Chains}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 167:9-167:14 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 279:9-279:14 -/
 @[reducible]
 def tacenta_spqr.Chains.Insts.CoreCloneClone : core.clone.Clone
   tacenta_spqr.Chains := {
@@ -5912,7 +5904,7 @@ def tacenta_spqr.Chains.Insts.CoreCloneClone : core.clone.Clone
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::default::Default for tacenta_session_unit::tacenta_spqr::Chains}::default]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 167:16-167:23
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 279:16-279:23
     Visibility: public -/
 def tacenta_spqr.Chains.Insts.CoreDefaultDefault.default
   : Result tacenta_spqr.Chains := do
@@ -5921,36 +5913,15 @@ def tacenta_spqr.Chains.Insts.CoreDefaultDefault.default
   ok { send := o, receive := o }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::default::Default for tacenta_session_unit::tacenta_spqr::Chains}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 167:16-167:23 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 279:16-279:23 -/
 @[reducible]
 def tacenta_spqr.Chains.Insts.CoreDefaultDefault : core.default.Default
   tacenta_spqr.Chains := {
   default := tacenta_spqr.Chains.Insts.CoreDefaultDefault.default
 }
 
-/-- [tacenta_session_unit::tacenta_spqr::{impl zeroize::Zeroize for tacenta_session_unit::tacenta_spqr::Chains}::zeroize]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 167:25-167:32
-    Visibility: public -/
-def tacenta_spqr.Chains.Insts.ZeroizeZeroize.zeroize
-  (self : tacenta_spqr.Chains) : Result tacenta_spqr.Chains := do
-  let send ←
-    core.option.Option.Insts.ZeroizeZeroize.zeroize
-      tacenta_spqr.Chain.Insts.ZeroizeZeroize self.send
-  let receive ←
-    core.option.Option.Insts.ZeroizeZeroize.zeroize
-      tacenta_spqr.Chain.Insts.ZeroizeZeroize self.receive
-  ok { send, receive }
-
-/-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl zeroize::Zeroize for tacenta_session_unit::tacenta_spqr::Chains}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 167:25-167:32 -/
-@[reducible]
-def tacenta_spqr.Chains.Insts.ZeroizeZeroize : zeroize.Zeroize
-  tacenta_spqr.Chains := {
-  zeroize := tacenta_spqr.Chains.Insts.ZeroizeZeroize.zeroize
-}
-
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::ops::drop::Drop for tacenta_session_unit::tacenta_spqr::Chains}::drop]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 167:34-167:47
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 279:25-279:38
     Visibility: public -/
 def tacenta_spqr.Chains.Insts.CoreOpsDropDrop.drop
   (self : tacenta_spqr.Chains) : Result tacenta_spqr.Chains := do
@@ -5965,7 +5936,7 @@ def tacenta_spqr.Chains.Insts.CoreOpsDropDrop.drop
   ok { send, receive }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::ops::drop::Drop for tacenta_session_unit::tacenta_spqr::Chains}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 167:34-167:47 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 279:25-279:38 -/
 @[reducible]
 def tacenta_spqr.Chains.Insts.CoreOpsDropDrop : core.ops.drop.Drop
   tacenta_spqr.Chains := {
@@ -5973,21 +5944,51 @@ def tacenta_spqr.Chains.Insts.CoreOpsDropDrop : core.ops.drop.Drop
 }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl zeroize::ZeroizeOnDrop for tacenta_session_unit::tacenta_spqr::Chains}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 167:34-167:47 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 279:25-279:38 -/
 @[reducible]
 def tacenta_spqr.Chains.Insts.ZeroizeZeroizeOnDrop : zeroize.ZeroizeOnDrop
   tacenta_spqr.Chains := {
 }
 
+/-- [tacenta_session_unit::tacenta_spqr::{impl zeroize::Zeroize for tacenta_session_unit::tacenta_spqr::Chains}::zeroize]:
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 292:4-299:5
+    Visibility: public -/
+def tacenta_spqr.Chains.Insts.ZeroizeZeroize.zeroize
+  (self : tacenta_spqr.Chains) : Result tacenta_spqr.Chains := do
+  let (o, as_mut_back) ← core.option.Option.as_mut self.send
+  let o1 ←
+    match o with
+    | none => ok (as_mut_back none)
+    | some chain =>
+      do
+      let chain1 ← tacenta_spqr.Chain.Insts.ZeroizeZeroize.zeroize chain
+      ok (as_mut_back (some chain1))
+  let (o2, as_mut_back1) ← core.option.Option.as_mut self.receive
+  match o2 with
+  | none => let o3 := as_mut_back1 none
+            ok { send := o1, receive := o3 }
+  | some chain =>
+    let chain1 ← tacenta_spqr.Chain.Insts.ZeroizeZeroize.zeroize chain
+    let o3 := as_mut_back1 (some chain1)
+    ok { send := o1, receive := o3 }
+
+/-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl zeroize::Zeroize for tacenta_session_unit::tacenta_spqr::Chains}]
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 291:0-300:1 -/
+@[reducible]
+def tacenta_spqr.Chains.Insts.ZeroizeZeroize : zeroize.Zeroize
+  tacenta_spqr.Chains := {
+  zeroize := tacenta_spqr.Chains.Insts.ZeroizeZeroize.zeroize
+}
+
 /-- [tacenta_session_unit::tacenta_spqr::Skipped]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 177:0-183:1 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 305:0-311:1 -/
 structure tacenta_spqr.Skipped where
   epoch : Std.U64
   n : Std.U64
   key : Array Std.U8 32#usize
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_session_unit::tacenta_spqr::Skipped}::clone]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 175:9-175:14
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 303:9-303:14
     Visibility: public -/
 def tacenta_spqr.Skipped.Insts.CoreCloneClone.clone
   (self : tacenta_spqr.Skipped) : Result tacenta_spqr.Skipped := do
@@ -5997,7 +5998,7 @@ def tacenta_spqr.Skipped.Insts.CoreCloneClone.clone
   ok { epoch := i, n := i1, key := a }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_session_unit::tacenta_spqr::Skipped}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 175:9-175:14 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 303:9-303:14 -/
 @[reducible]
 def tacenta_spqr.Skipped.Insts.CoreCloneClone : core.clone.Clone
   tacenta_spqr.Skipped := {
@@ -6005,7 +6006,7 @@ def tacenta_spqr.Skipped.Insts.CoreCloneClone : core.clone.Clone
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl zeroize::Zeroize for tacenta_session_unit::tacenta_spqr::Skipped}::zeroize]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 175:16-175:23
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 303:16-303:23
     Visibility: public -/
 def tacenta_spqr.Skipped.Insts.ZeroizeZeroize.zeroize
   (self : tacenta_spqr.Skipped) : Result tacenta_spqr.Skipped := do
@@ -6015,7 +6016,7 @@ def tacenta_spqr.Skipped.Insts.ZeroizeZeroize.zeroize
   ok { self with key }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl zeroize::Zeroize for tacenta_session_unit::tacenta_spqr::Skipped}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 175:16-175:23 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 303:16-303:23 -/
 @[reducible]
 def tacenta_spqr.Skipped.Insts.ZeroizeZeroize : zeroize.Zeroize
   tacenta_spqr.Skipped := {
@@ -6023,7 +6024,7 @@ def tacenta_spqr.Skipped.Insts.ZeroizeZeroize : zeroize.Zeroize
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::ops::drop::Drop for tacenta_session_unit::tacenta_spqr::Skipped}::drop]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 175:25-175:38
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 303:25-303:38
     Visibility: public -/
 def tacenta_spqr.Skipped.Insts.CoreOpsDropDrop.drop
   (self : tacenta_spqr.Skipped) : Result tacenta_spqr.Skipped := do
@@ -6034,7 +6035,7 @@ def tacenta_spqr.Skipped.Insts.CoreOpsDropDrop.drop
   ok { self with key }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::ops::drop::Drop for tacenta_session_unit::tacenta_spqr::Skipped}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 175:25-175:38 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 303:25-303:38 -/
 @[reducible]
 def tacenta_spqr.Skipped.Insts.CoreOpsDropDrop : core.ops.drop.Drop
   tacenta_spqr.Skipped := {
@@ -6042,14 +6043,14 @@ def tacenta_spqr.Skipped.Insts.CoreOpsDropDrop : core.ops.drop.Drop
 }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl zeroize::ZeroizeOnDrop for tacenta_session_unit::tacenta_spqr::Skipped}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 175:25-175:38 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 303:25-303:38 -/
 @[reducible]
 def tacenta_spqr.Skipped.Insts.ZeroizeZeroizeOnDrop : zeroize.ZeroizeOnDrop
   tacenta_spqr.Skipped := {
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::State]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 234:0-240:1
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 362:0-368:1
     Visibility: public -/
 structure tacenta_spqr.State where
   rk : Array Std.U8 32#usize
@@ -6059,7 +6060,7 @@ structure tacenta_spqr.State where
   direction : tacenta_spqr.Direction
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_session_unit::tacenta_spqr::State}::clone]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 232:9-232:14
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 360:9-360:14
     Visibility: public -/
 def tacenta_spqr.State.Insts.CoreCloneClone.clone
   (self : tacenta_spqr.State) : Result tacenta_spqr.State := do
@@ -6075,7 +6076,7 @@ def tacenta_spqr.State.Insts.CoreCloneClone.clone
   ok { rk := a, epoch := i, chains := v, skipped := v1, direction := d }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_session_unit::tacenta_spqr::State}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 232:9-232:14 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 360:9-360:14 -/
 @[reducible]
 def tacenta_spqr.State.Insts.CoreCloneClone : core.clone.Clone
   tacenta_spqr.State := {
@@ -6083,7 +6084,7 @@ def tacenta_spqr.State.Insts.CoreCloneClone : core.clone.Clone
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::ops::drop::Drop for tacenta_session_unit::tacenta_spqr::State}::drop]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 243:4-247:5
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 371:4-379:5
     Visibility: public -/
 def tacenta_spqr.State.Insts.CoreOpsDropDrop.drop
   (self : tacenta_spqr.State) : Result tacenta_spqr.State := do
@@ -6100,7 +6101,7 @@ def tacenta_spqr.State.Insts.CoreOpsDropDrop.drop
   ok { self with rk := a, chains := v, skipped := v1 }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::ops::drop::Drop for tacenta_session_unit::tacenta_spqr::State}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 242:0-248:1 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 370:0-380:1 -/
 @[reducible]
 def tacenta_spqr.State.Insts.CoreOpsDropDrop : core.ops.drop.Drop
   tacenta_spqr.State := {
@@ -6108,12 +6109,12 @@ def tacenta_spqr.State.Insts.CoreOpsDropDrop : core.ops.drop.Drop
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::be64]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 264:0-266:1 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 396:0-398:1 -/
 def tacenta_spqr.be64 (n : Std.U64) : Result (Array Std.U8 8#usize) := do
   ok (core.num.U64.to_be_bytes n)
 
 /-- [tacenta_session_unit::tacenta_spqr::split3]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 269:0-277:1 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 401:0-409:1 -/
 def tacenta_spqr.split3
   (out : Array Std.U8 96#usize) :
   Result ((Array Std.U8 32#usize) × (Array Std.U8 32#usize) × (Array Std.U8
@@ -6146,7 +6147,7 @@ def tacenta_spqr.split3
   ok (a1, b1, c1)
 
 /-- [tacenta_session_unit::tacenta_spqr::info]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 279:0-284:1 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 411:0-416:1 -/
 def tacenta_spqr.info
   (suffix : Slice Std.U8) : Result (alloc.vec.Vec Std.U8) := do
   let i := Slice.len tacenta_spqr.PROTOCOL_INFO
@@ -6159,7 +6160,7 @@ def tacenta_spqr.info
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 v1 suffix
 
 /-- [tacenta_session_unit::tacenta_spqr::kdf_init]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 288:0-297:1 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 420:0-429:1 -/
 def tacenta_spqr.kdf_init
   (sk : Slice Std.U8) :
   Result ((Array Std.U8 32#usize) × (Array Std.U8 32#usize) × (Array Std.U8
@@ -6179,7 +6180,7 @@ def tacenta_spqr.kdf_init
   tacenta_spqr.split3 a2
 
 /-- [tacenta_session_unit::tacenta_spqr::kdf_rk]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 300:0-303:1 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 432:0-435:1 -/
 def tacenta_spqr.kdf_rk
   (rk : Array Std.U8 32#usize) (k : Array Std.U8 32#usize) :
   Result ((Array Std.U8 32#usize) × (Array Std.U8 32#usize) × (Array Std.U8
@@ -6199,7 +6200,7 @@ def tacenta_spqr.kdf_rk
   tacenta_spqr.split3 a1
 
 /-- [tacenta_session_unit::tacenta_spqr::kdf_ck]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 315:0-326:1
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 447:0-458:1
     Visibility: public -/
 def tacenta_spqr.kdf_ck
   (ck : Array Std.U8 32#usize) (n : Std.U64) :
@@ -6236,7 +6237,7 @@ def tacenta_spqr.kdf_ck
   ok (next1, mk1)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::init]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 341:4-360:5
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 473:4-492:5
     Visibility: public -/
 def tacenta_spqr.State.init
   (sk : Slice Std.U8) (direction : tacenta_spqr.Direction) :
@@ -6267,35 +6268,35 @@ def tacenta_spqr.State.init
     }
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::init_alice]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 330:4-332:5
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 462:4-464:5
     Visibility: public -/
 def tacenta_spqr.State.init_alice
   (sk : Slice Std.U8) : Result tacenta_spqr.State := do
   tacenta_spqr.State.init sk tacenta_spqr.Direction.A2b
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::init_bob]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 335:4-337:5
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 467:4-469:5
     Visibility: public -/
 def tacenta_spqr.State.init_bob
   (sk : Slice Std.U8) : Result tacenta_spqr.State := do
   tacenta_spqr.State.init sk tacenta_spqr.Direction.B2a
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::epoch]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 363:4-365:5
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 495:4-497:5
     Visibility: public -/
 def tacenta_spqr.State.impl.epoch
   (self : tacenta_spqr.State) : Result Std.U64 := do
   ok self.epoch
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::skipped_len]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 369:4-371:5
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 501:4-503:5
     Visibility: public -/
 def tacenta_spqr.State.skipped_len
   (self : tacenta_spqr.State) : Result Std.Usize := do
   ok (alloc.vec.Vec.len self.skipped)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::find_chains]: loop body 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 546:8-553:5 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 678:8-685:5 -/
 @[rust_loop_body]
 def tacenta_spqr.State.find_chains_loop.body
   (self : tacenta_spqr.State) (e : Std.U64) (i : Std.Usize) :
@@ -6314,7 +6315,7 @@ def tacenta_spqr.State.find_chains_loop.body
   else ok (done none)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::find_chains]: loop 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 546:8-553:5 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 678:8-685:5 -/
 @[rust_loop]
 def tacenta_spqr.State.find_chains_loop
   (self : tacenta_spqr.State) (e : Std.U64) (i : Std.Usize) :
@@ -6325,7 +6326,7 @@ def tacenta_spqr.State.find_chains_loop
     i
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::find_chains]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 544:4-553:5 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 676:4-685:5 -/
 @[reducible]
 def tacenta_spqr.State.find_chains
   (self : tacenta_spqr.State) (e : Std.U64) :
@@ -6334,7 +6335,7 @@ def tacenta_spqr.State.find_chains
   tacenta_spqr.State.find_chains_loop self e 0#usize
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::receive_count]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 390:4-398:5
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 522:4-530:5
     Visibility: public -/
 def tacenta_spqr.State.receive_count
   (self : tacenta_spqr.State) (epoch : Std.U64) : Result (Option Std.U64) := do
@@ -6347,14 +6348,14 @@ def tacenta_spqr.State.receive_count
     | some ch => ok (some ch.n)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::direction]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 402:4-404:5
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 534:4-536:5
     Visibility: public -/
 def tacenta_spqr.State.impl.direction
   (self : tacenta_spqr.State) : Result tacenta_spqr.Direction := do
   ok self.direction
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::invariant]: loop body 1:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 480:12-485:13
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 612:12-617:13
     Visibility: public -/
 @[rust_loop_body]
 def tacenta_spqr.State.invariant_loop0_loop0.body
@@ -6376,7 +6377,7 @@ def tacenta_spqr.State.invariant_loop0_loop0.body
   else ok (done chains_ok)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::invariant]: loop 1:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 480:12-485:13
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 612:12-617:13
     Visibility: public -/
 @[rust_loop]
 def tacenta_spqr.State.invariant_loop0_loop0
@@ -6390,7 +6391,7 @@ def tacenta_spqr.State.invariant_loop0_loop0
     (chains_ok, j)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::invariant]: loop body 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 471:8-487:9
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 603:8-619:9
     Visibility: public -/
 @[rust_loop_body]
 def tacenta_spqr.State.invariant_loop0.body
@@ -6428,7 +6429,7 @@ def tacenta_spqr.State.invariant_loop0.body
   else ok (done (self.chains, self.skipped, chains_ok, current_present))
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::invariant]: loop 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 471:8-487:9
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 603:8-619:9
     Visibility: public -/
 @[rust_loop]
 def tacenta_spqr.State.invariant_loop0
@@ -6444,7 +6445,7 @@ def tacenta_spqr.State.invariant_loop0
     (chains_ok, current_present, i)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::invariant]: loop body 3:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 493:12-498:13
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 625:12-630:13
     Visibility: public -/
 @[rust_loop_body]
 def tacenta_spqr.State.invariant_loop1_loop0.body
@@ -6470,7 +6471,7 @@ def tacenta_spqr.State.invariant_loop1_loop0.body
   else ok (done present)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::invariant]: loop 3:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 493:12-498:13
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 625:12-630:13
     Visibility: public -/
 @[rust_loop]
 def tacenta_spqr.State.invariant_loop1_loop0
@@ -6485,7 +6486,7 @@ def tacenta_spqr.State.invariant_loop1_loop0
     (present, k)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::invariant]: loop body 4:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 503:12-510:13
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 635:12-642:13
     Visibility: public -/
 @[rust_loop_body]
 def tacenta_spqr.State.invariant_loop1_loop1.body
@@ -6513,7 +6514,7 @@ def tacenta_spqr.State.invariant_loop1_loop1.body
   else ok (done skipped_ok)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::invariant]: loop 4:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 503:12-510:13
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 635:12-642:13
     Visibility: public -/
 @[rust_loop]
 def tacenta_spqr.State.invariant_loop1_loop1
@@ -6527,7 +6528,7 @@ def tacenta_spqr.State.invariant_loop1_loop1
     (skipped_ok, j)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::invariant]: loop body 2:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 490:8-512:9
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 622:8-644:9
     Visibility: public -/
 @[rust_loop_body]
 def tacenta_spqr.State.invariant_loop1.body
@@ -6552,7 +6553,7 @@ def tacenta_spqr.State.invariant_loop1.body
   else ok (done skipped_ok)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::invariant]: loop 2:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 490:8-512:9
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 622:8-644:9
     Visibility: public -/
 @[rust_loop]
 def tacenta_spqr.State.invariant_loop1
@@ -6567,7 +6568,7 @@ def tacenta_spqr.State.invariant_loop1
     (skipped_ok, i)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::invariant]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 467:4-514:5
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 599:4-646:5
     Visibility: public -/
 def tacenta_spqr.State.invariant
   (self : tacenta_spqr.State) : Result Bool := do
@@ -6585,7 +6586,7 @@ def tacenta_spqr.State.invariant
   else ok false
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::remove_skipped_at]: loop body 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 692:8-695:9 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 885:8-888:9 -/
 @[rust_loop_body]
 def tacenta_spqr.State.remove_skipped_at_loop.body
   (skipped : alloc.vec.Vec tacenta_spqr.Skipped) (i : Std.Usize) :
@@ -6603,7 +6604,7 @@ def tacenta_spqr.State.remove_skipped_at_loop.body
   else ok (done (skipped, i))
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::remove_skipped_at]: loop 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 692:8-695:9 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 885:8-888:9 -/
 @[rust_loop]
 def tacenta_spqr.State.remove_skipped_at_loop
   (skipped : alloc.vec.Vec tacenta_spqr.Skipped) (i : Std.Usize) :
@@ -6615,7 +6616,7 @@ def tacenta_spqr.State.remove_skipped_at_loop
     (skipped, i)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::remove_skipped_at]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 690:4-700:5 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 883:4-897:5 -/
 def tacenta_spqr.State.remove_skipped_at
   (skipped : alloc.vec.Vec tacenta_spqr.Skipped) (index : Std.Usize) :
   Result ((Array Std.U8 32#usize) × (alloc.vec.Vec tacenta_spqr.Skipped))
@@ -6633,7 +6634,7 @@ def tacenta_spqr.State.remove_skipped_at
   ok (s.key, skipped3)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::evict_oldest]: loop body 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 536:8-540:9
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 668:8-672:9
     Visibility: public -/
 @[rust_loop_body]
 def tacenta_spqr.State.evict_oldest_loop.body
@@ -6657,7 +6658,7 @@ def tacenta_spqr.State.evict_oldest_loop.body
   else ok (done (evicted, self))
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::evict_oldest]: loop 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 536:8-540:9
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 668:8-672:9
     Visibility: public -/
 @[rust_loop]
 def tacenta_spqr.State.evict_oldest_loop
@@ -6670,7 +6671,7 @@ def tacenta_spqr.State.evict_oldest_loop
     (self, evicted)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::evict_oldest]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 534:4-542:5
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 666:4-674:5
     Visibility: public -/
 @[reducible]
 def tacenta_spqr.State.evict_oldest
@@ -6680,7 +6681,7 @@ def tacenta_spqr.State.evict_oldest
   tacenta_spqr.State.evict_oldest_loop self count 0#usize
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::prepare_chains_capacity]: loop body 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 566:8-569:9 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 698:8-701:9 -/
 @[rust_loop_body]
 def tacenta_spqr.State.prepare_chains_capacity_loop.body
   (v : alloc.vec.Vec (Std.U64 × tacenta_spqr.Chains))
@@ -6702,7 +6703,7 @@ def tacenta_spqr.State.prepare_chains_capacity_loop.body
   else ok (done replacement)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::prepare_chains_capacity]: loop 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 566:8-569:9 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 698:8-701:9 -/
 @[rust_loop]
 def tacenta_spqr.State.prepare_chains_capacity_loop
   (v : alloc.vec.Vec (Std.U64 × tacenta_spqr.Chains))
@@ -6716,7 +6717,7 @@ def tacenta_spqr.State.prepare_chains_capacity_loop
     (replacement, i)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::prepare_chains_capacity]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 559:4-572:5 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 691:4-719:5 -/
 def tacenta_spqr.State.prepare_chains_capacity
   (self : tacenta_spqr.State) (additional : Std.Usize) :
   Result tacenta_spqr.State
@@ -6738,202 +6739,204 @@ def tacenta_spqr.State.prepare_chains_capacity
         tacenta_spqr.Chains.Insts.ZeroizeZeroize) self.chains
     ok { self with chains := replacement1 }
 
-/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::set_chains::closure]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 575:27-575:39 -/
-@[reducible]
-def tacenta_spqr.State.set_chains.closure := Std.U64
-
-/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::set_chains::{impl core::ops::function::FnMut<(&'_ (u64, tacenta_session_unit::tacenta_spqr::Chains),), bool> for tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::set_chains::closure<'_0>}::call_mut]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 575:27-575:39 -/
-def
-  tacenta_spqr.State.set_chains.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool.call_mut
-  (c : tacenta_spqr.State.set_chains.closure)
-  (tupled_args : (Std.U64 × tacenta_spqr.Chains)) :
-  Result (Bool × tacenta_spqr.State.set_chains.closure)
+/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::remove_chains_at]: loop body 0:
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 739:8-742:9 -/
+@[rust_loop_body]
+def tacenta_spqr.State.remove_chains_at_loop.body
+  (chains : alloc.vec.Vec (Std.U64 × tacenta_spqr.Chains)) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec (Std.U64 × tacenta_spqr.Chains)) ×
+    Std.Usize) ((alloc.vec.Vec (Std.U64 × tacenta_spqr.Chains)) × Std.Usize))
   := do
-  let (i, _) := tupled_args
-  ok (i != c, c)
+  let i1 ← i + 1#usize
+  let i2 := alloc.vec.Vec.len chains
+  if i1 < i2
+  then
+    let (s, deref_mut_back) ← lift (alloc.vec.Vec.deref_mut chains)
+    let s1 ← core.slice.Slice.swap s i i1
+    let chains1 := deref_mut_back s1
+    ok (cont (chains1, i1))
+  else ok (done (chains, i))
 
-/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::set_chains::{impl core::ops::function::FnOnce<(&'_ (u64, tacenta_session_unit::tacenta_spqr::Chains),), bool> for tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::set_chains::closure<'_0>}::call_once]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 575:27-575:39 -/
-def
-  tacenta_spqr.State.set_chains.closure.Insts.CoreOpsFunctionFnOnceTupleSharedPairU64ChainsBool.call_once
-  (c : tacenta_spqr.State.set_chains.closure)
-  (p : (Std.U64 × tacenta_spqr.Chains)) :
-  Result Bool
+/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::remove_chains_at]: loop 0:
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 739:8-742:9 -/
+@[rust_loop]
+def tacenta_spqr.State.remove_chains_at_loop
+  (chains : alloc.vec.Vec (Std.U64 × tacenta_spqr.Chains)) (i : Std.Usize) :
+  Result ((alloc.vec.Vec (Std.U64 × tacenta_spqr.Chains)) × Std.Usize)
   := do
-  let (b, _) ←
-    tacenta_spqr.State.set_chains.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool.call_mut
-      c p
-  ok b
+  loop
+    (fun (chains1, i1) => tacenta_spqr.State.remove_chains_at_loop.body chains1
+      i1)
+    (chains, i)
 
-/-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::set_chains::{impl core::ops::function::FnOnce<(&'_ (u64, tacenta_session_unit::tacenta_spqr::Chains),), bool> for tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::set_chains::closure<'_0>}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 575:27-575:39 -/
-@[reducible]
-def
-  tacenta_spqr.State.set_chains.closure.Insts.CoreOpsFunctionFnOnceTupleSharedPairU64ChainsBool
-  : core.ops.function.FnOnce tacenta_spqr.State.set_chains.closure (Std.U64 ×
-  tacenta_spqr.Chains) Bool := {
-  call_once :=
-    tacenta_spqr.State.set_chains.closure.Insts.CoreOpsFunctionFnOnceTupleSharedPairU64ChainsBool.call_once
-}
+/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::remove_chains_at]:
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 737:4-758:5 -/
+def tacenta_spqr.State.remove_chains_at
+  (chains : alloc.vec.Vec (Std.U64 × tacenta_spqr.Chains)) (index : Std.Usize)
+  :
+  Result (alloc.vec.Vec (Std.U64 × tacenta_spqr.Chains))
+  := do
+  let (chains1, i) ← tacenta_spqr.State.remove_chains_at_loop chains index
+  let ((i1, c), index_mut_back) ←
+    alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice (Std.U64 ×
+      tacenta_spqr.Chains)) chains1 i
+  let c1 ← tacenta_spqr.Chains.Insts.ZeroizeZeroize.zeroize c
+  let chains2 := index_mut_back (i1, c1)
+  let ((i2, c2), index_mut_back1) ←
+    alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice (Std.U64 ×
+      tacenta_spqr.Chains)) chains2 i
+  let chains3 := index_mut_back1 (i2, { c2 with send := none })
+  let ((i3, c3), index_mut_back2) ←
+    alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice (Std.U64 ×
+      tacenta_spqr.Chains)) chains3 i
+  let chains4 := index_mut_back2 (i3, { c3 with receive := none })
+  let (_, chains5) ← alloc.vec.Vec.pop Global chains4
+  ok chains5
 
-/-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::set_chains::{impl core::ops::function::FnMut<(&'_ (u64, tacenta_session_unit::tacenta_spqr::Chains),), bool> for tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::set_chains::closure<'_0>}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 575:27-575:39 -/
-@[reducible]
-def
-  tacenta_spqr.State.set_chains.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool
-  : core.ops.function.FnMut tacenta_spqr.State.set_chains.closure (Std.U64 ×
-  tacenta_spqr.Chains) Bool := {
-  FnOnceInst :=
-    tacenta_spqr.State.set_chains.closure.Insts.CoreOpsFunctionFnOnceTupleSharedPairU64ChainsBool
-  call_mut :=
-    tacenta_spqr.State.set_chains.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool.call_mut
-}
+/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::set_chains]: loop body 0:
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 723:8-729:9 -/
+@[rust_loop_body]
+def tacenta_spqr.State.set_chains_loop.body
+  (e : Std.U64) (self : tacenta_spqr.State) (i : Std.Usize) :
+  Result (ControlFlow (tacenta_spqr.State × Std.Usize) ((Array Std.U8
+    32#usize) × Std.U64 × (alloc.vec.Vec (Std.U64 × tacenta_spqr.Chains)) ×
+    (alloc.vec.Vec tacenta_spqr.Skipped) × tacenta_spqr.Direction))
+  := do
+  let i1 := alloc.vec.Vec.len self.chains
+  if i < i1
+  then
+    let (i2, _) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Std.U64 ×
+        tacenta_spqr.Chains)) self.chains i
+    if i2 = e
+    then
+      let v ← tacenta_spqr.State.remove_chains_at self.chains i
+      ok (cont ({ self with chains := v }, i))
+    else let i3 ← i + 1#usize
+         ok (cont (self, i3))
+  else
+    ok (done (self.rk, self.epoch, self.chains, self.skipped, self.direction))
+
+/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::set_chains]: loop 0:
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 723:8-729:9 -/
+@[rust_loop]
+def tacenta_spqr.State.set_chains_loop
+  (self : tacenta_spqr.State) (e : Std.U64) (i : Std.Usize) :
+  Result ((Array Std.U8 32#usize) × Std.U64 × (alloc.vec.Vec (Std.U64 ×
+    tacenta_spqr.Chains)) × (alloc.vec.Vec tacenta_spqr.Skipped) ×
+    tacenta_spqr.Direction)
+  := do
+  loop
+    (fun (self1, i1) => tacenta_spqr.State.set_chains_loop.body e self1 i1)
+    (self, i)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::set_chains]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 574:4-578:5 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 721:4-732:5 -/
 def tacenta_spqr.State.set_chains
   (self : tacenta_spqr.State) (e : Std.U64) (c : tacenta_spqr.Chains) :
   Result tacenta_spqr.State
   := do
-  let v ←
-    alloc.vec.Vec.retain Global
-      tacenta_spqr.State.set_chains.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool
-      self.chains e
+  let (a, i, v, v1, d) ← tacenta_spqr.State.set_chains_loop self e 0#usize
   let self1 ←
-    tacenta_spqr.State.prepare_chains_capacity { self with chains := v }
+    tacenta_spqr.State.prepare_chains_capacity
+      { rk := a, epoch := i, chains := v, skipped := v1, direction := d }
       1#usize
-  let v1 ← alloc.vec.Vec.push self1.chains (e, c)
-  ok { self1 with chains := v1 }
+  let v2 ← alloc.vec.Vec.push self1.chains (e, c)
+  ok { self1 with chains := v2 }
 
-/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::closure#1]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 586:20-586:69 -/
-@[reducible]
-def tacenta_spqr.State.clear_old_epochs.closure_1 := Std.U64
-
-/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::{impl core::ops::function::FnMut<(&'_ tacenta_session_unit::tacenta_spqr::Skipped,), bool> for tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::closure#1<'_0>}::call_mut]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 586:20-586:69 -/
-def
-  tacenta_spqr.State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool.call_mut
-  (c : tacenta_spqr.State.clear_old_epochs.closure_1)
-  (tupled_args : tacenta_spqr.Skipped) :
-  Result (Bool × tacenta_spqr.State.clear_old_epochs.closure_1)
+/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs]: loop body 0:
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 764:8-770:9 -/
+@[rust_loop_body]
+def tacenta_spqr.State.clear_old_epochs_loop0.body
+  (current : Std.U64) (self : tacenta_spqr.State) (i : Std.Usize) :
+  Result (ControlFlow (tacenta_spqr.State × Std.Usize) ((Array Std.U8
+    32#usize) × Std.U64 × (alloc.vec.Vec (Std.U64 × tacenta_spqr.Chains)) ×
+    (alloc.vec.Vec tacenta_spqr.Skipped) × tacenta_spqr.Direction))
   := do
-  let i ←
-    lift (core.num.U64.saturating_add tupled_args.epoch
-      tacenta_spqr.EPOCHS_KEPT)
-  ok (c < i, c)
+  let i1 := alloc.vec.Vec.len self.chains
+  if i < i1
+  then
+    let (i2, _) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Std.U64 ×
+        tacenta_spqr.Chains)) self.chains i
+    let i3 ← lift (core.num.U64.saturating_add i2 tacenta_spqr.EPOCHS_KEPT)
+    if current < i3
+    then let i4 ← i + 1#usize
+         ok (cont (self, i4))
+    else
+      let v ← tacenta_spqr.State.remove_chains_at self.chains i
+      ok (cont ({ self with chains := v }, i))
+  else
+    ok (done (self.rk, self.epoch, self.chains, self.skipped, self.direction))
 
-/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::{impl core::ops::function::FnOnce<(&'_ tacenta_session_unit::tacenta_spqr::Skipped,), bool> for tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::closure#1<'_0>}::call_once]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 586:20-586:69 -/
-def
-  tacenta_spqr.State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnOnceTupleSharedSkippedBool.call_once
-  (c : tacenta_spqr.State.clear_old_epochs.closure_1)
-  (s : tacenta_spqr.Skipped) :
-  Result Bool
+/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs]: loop 0:
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 764:8-770:9 -/
+@[rust_loop]
+def tacenta_spqr.State.clear_old_epochs_loop0
+  (self : tacenta_spqr.State) (current : Std.U64) (i : Std.Usize) :
+  Result ((Array Std.U8 32#usize) × Std.U64 × (alloc.vec.Vec (Std.U64 ×
+    tacenta_spqr.Chains)) × (alloc.vec.Vec tacenta_spqr.Skipped) ×
+    tacenta_spqr.Direction)
   := do
-  let (b, _) ←
-    tacenta_spqr.State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool.call_mut
-      c s
-  ok b
+  loop
+    (fun (self1, i1) => tacenta_spqr.State.clear_old_epochs_loop0.body current
+      self1 i1)
+    (self, i)
 
-/-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::{impl core::ops::function::FnOnce<(&'_ tacenta_session_unit::tacenta_spqr::Skipped,), bool> for tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::closure#1<'_0>}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 586:20-586:69 -/
-@[reducible]
-def
-  tacenta_spqr.State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnOnceTupleSharedSkippedBool
-  : core.ops.function.FnOnce tacenta_spqr.State.clear_old_epochs.closure_1
-  tacenta_spqr.Skipped Bool := {
-  call_once :=
-    tacenta_spqr.State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnOnceTupleSharedSkippedBool.call_once
-}
-
-/-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::{impl core::ops::function::FnMut<(&'_ tacenta_session_unit::tacenta_spqr::Skipped,), bool> for tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::closure#1<'_0>}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 586:20-586:69 -/
-@[reducible]
-def
-  tacenta_spqr.State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool
-  : core.ops.function.FnMut tacenta_spqr.State.clear_old_epochs.closure_1
-  tacenta_spqr.Skipped Bool := {
-  FnOnceInst :=
-    tacenta_spqr.State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnOnceTupleSharedSkippedBool
-  call_mut :=
-    tacenta_spqr.State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool.call_mut
-}
-
-/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::closure]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 584:20-584:65 -/
-@[reducible]
-def tacenta_spqr.State.clear_old_epochs.closure := Std.U64
-
-/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::{impl core::ops::function::FnMut<(&'_ (u64, tacenta_session_unit::tacenta_spqr::Chains),), bool> for tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::closure<'_0>}::call_mut]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 584:20-584:65 -/
-def
-  tacenta_spqr.State.clear_old_epochs.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool.call_mut
-  (c : tacenta_spqr.State.clear_old_epochs.closure)
-  (tupled_args : (Std.U64 × tacenta_spqr.Chains)) :
-  Result (Bool × tacenta_spqr.State.clear_old_epochs.closure)
+/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs]: loop body 1:
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 772:8-779:9 -/
+@[rust_loop_body]
+def tacenta_spqr.State.clear_old_epochs_loop1.body
+  (current : Std.U64) (v : alloc.vec.Vec tacenta_spqr.Skipped) (j : Std.Usize)
+  :
+  Result (ControlFlow ((alloc.vec.Vec tacenta_spqr.Skipped) × Std.Usize)
+    (alloc.vec.Vec tacenta_spqr.Skipped))
   := do
-  let (i, _) := tupled_args
-  let i1 ← lift (core.num.U64.saturating_add i tacenta_spqr.EPOCHS_KEPT)
-  ok (c < i1, c)
+  let i := alloc.vec.Vec.len v
+  if j < i
+  then
+    let s ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        tacenta_spqr.Skipped) v j
+    let i1 ←
+      lift (core.num.U64.saturating_add s.epoch tacenta_spqr.EPOCHS_KEPT)
+    if current < i1
+    then let j1 ← j + 1#usize
+         ok (cont (v, j1))
+    else
+      let (discarded, v1) ← tacenta_spqr.State.remove_skipped_at v j
+      let _ ←
+        Array.Insts.ZeroizeZeroize.zeroize (zeroize.Zeroize.Blanket
+          U8.Insts.ZeroizeDefaultIsZeroes) discarded
+      ok (cont (v1, j))
+  else ok (done v)
 
-/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::{impl core::ops::function::FnOnce<(&'_ (u64, tacenta_session_unit::tacenta_spqr::Chains),), bool> for tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::closure<'_0>}::call_once]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 584:20-584:65 -/
-def
-  tacenta_spqr.State.clear_old_epochs.closure.Insts.CoreOpsFunctionFnOnceTupleSharedPairU64ChainsBool.call_once
-  (c : tacenta_spqr.State.clear_old_epochs.closure)
-  (p : (Std.U64 × tacenta_spqr.Chains)) :
-  Result Bool
+/-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs]: loop 1:
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 772:8-779:9 -/
+@[rust_loop]
+def tacenta_spqr.State.clear_old_epochs_loop1
+  (v : alloc.vec.Vec tacenta_spqr.Skipped) (current : Std.U64) (j : Std.Usize)
+  :
+  Result (alloc.vec.Vec tacenta_spqr.Skipped)
   := do
-  let (b, _) ←
-    tacenta_spqr.State.clear_old_epochs.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool.call_mut
-      c p
-  ok b
-
-/-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::{impl core::ops::function::FnOnce<(&'_ (u64, tacenta_session_unit::tacenta_spqr::Chains),), bool> for tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::closure<'_0>}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 584:20-584:65 -/
-@[reducible]
-def
-  tacenta_spqr.State.clear_old_epochs.closure.Insts.CoreOpsFunctionFnOnceTupleSharedPairU64ChainsBool
-  : core.ops.function.FnOnce tacenta_spqr.State.clear_old_epochs.closure
-  (Std.U64 × tacenta_spqr.Chains) Bool := {
-  call_once :=
-    tacenta_spqr.State.clear_old_epochs.closure.Insts.CoreOpsFunctionFnOnceTupleSharedPairU64ChainsBool.call_once
-}
-
-/-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::{impl core::ops::function::FnMut<(&'_ (u64, tacenta_session_unit::tacenta_spqr::Chains),), bool> for tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs::closure<'_0>}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 584:20-584:65 -/
-@[reducible]
-def
-  tacenta_spqr.State.clear_old_epochs.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool
-  : core.ops.function.FnMut tacenta_spqr.State.clear_old_epochs.closure
-  (Std.U64 × tacenta_spqr.Chains) Bool := {
-  FnOnceInst :=
-    tacenta_spqr.State.clear_old_epochs.closure.Insts.CoreOpsFunctionFnOnceTupleSharedPairU64ChainsBool
-  call_mut :=
-    tacenta_spqr.State.clear_old_epochs.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool.call_mut
-}
+  loop
+    (fun (v1, j1) => tacenta_spqr.State.clear_old_epochs_loop1.body current v1
+      j1)
+    (v, j)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::clear_old_epochs]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 582:4-587:5 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 762:4-780:5 -/
 def tacenta_spqr.State.clear_old_epochs
   (self : tacenta_spqr.State) (current : Std.U64) :
   Result tacenta_spqr.State
   := do
-  let v ←
-    alloc.vec.Vec.retain Global
-      tacenta_spqr.State.clear_old_epochs.closure.Insts.CoreOpsFunctionFnMutTupleSharedPairU64ChainsBool
-      self.chains current
-  let v1 ←
-    alloc.vec.Vec.retain Global
-      tacenta_spqr.State.clear_old_epochs.closure_1.Insts.CoreOpsFunctionFnMutTupleSharedSkippedBool
-      self.skipped current
-  ok { self with chains := v, skipped := v1 }
+  let (a, i, v, v1, d) ←
+    tacenta_spqr.State.clear_old_epochs_loop0 self current 0#usize
+  let v2 ← tacenta_spqr.State.clear_old_epochs_loop1 v1 current 0#usize
+  ok { rk := a, epoch := i, chains := v, skipped := v2, direction := d }
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::advance]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 604:4-631:5 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 797:4-824:5 -/
 def tacenta_spqr.State.advance
   (self : tacenta_spqr.State) (out : tacenta_spqr.Output) :
   Result ((core.result.Result Unit tacenta_spqr.SpqrError) ×
@@ -6975,7 +6978,7 @@ def tacenta_spqr.State.advance
         ok (core.result.Result.Ok (), self2)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::maybe_advance]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 633:4-638:5 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 826:4-831:5 -/
 def tacenta_spqr.State.maybe_advance
   (self : tacenta_spqr.State) (out : Option tacenta_spqr.Output) :
   Result ((core.result.Result Unit tacenta_spqr.SpqrError) ×
@@ -6986,7 +6989,7 @@ def tacenta_spqr.State.maybe_advance
   | some o => tacenta_spqr.State.advance self o
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::send]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 646:4-672:5
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 839:4-865:5
     Visibility: public -/
 def tacenta_spqr.State.send
   (self : tacenta_spqr.State) (sending_epoch : Std.U64)
@@ -7030,7 +7033,7 @@ def tacenta_spqr.State.send
     ok (r1, self1)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::try_skipped]: loop body 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 678:8-685:5 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 871:8-878:5 -/
 @[rust_loop_body]
 def tacenta_spqr.State.try_skipped_loop.body
   (self : tacenta_spqr.State) (e : Std.U64) (n : Std.U64) (i : Std.Usize) :
@@ -7060,7 +7063,7 @@ def tacenta_spqr.State.try_skipped_loop.body
       self.direction))
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::try_skipped]: loop 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 678:8-685:5 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 871:8-878:5 -/
 @[rust_loop]
 def tacenta_spqr.State.try_skipped_loop
   (self : tacenta_spqr.State) (e : Std.U64) (n : Std.U64) (i : Std.Usize) :
@@ -7073,7 +7076,7 @@ def tacenta_spqr.State.try_skipped_loop
     i
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::try_skipped]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 676:4-685:5 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 869:4-878:5 -/
 def tacenta_spqr.State.try_skipped
   (self : tacenta_spqr.State) (e : Std.U64) (n : Std.U64) :
   Result ((Option (Array Std.U8 32#usize)) × tacenta_spqr.State)
@@ -7083,7 +7086,7 @@ def tacenta_spqr.State.try_skipped
   ok (o, { rk := a, epoch := i, chains := v, skipped := v1, direction := d })
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::skip_message_keys]: loop body 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 732:8-738:9 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 929:8-935:9 -/
 @[rust_loop_body]
 def tacenta_spqr.State.skip_message_keys_loop0.body
   (v : alloc.vec.Vec tacenta_spqr.Skipped) (e : Std.U64) (upto : Std.U64)
@@ -7122,7 +7125,7 @@ def tacenta_spqr.State.skip_message_keys_loop0.body
   else ok (done skipped)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::skip_message_keys]: loop 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 732:8-738:9 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 929:8-935:9 -/
 @[rust_loop]
 def tacenta_spqr.State.skip_message_keys_loop0
   (v : alloc.vec.Vec tacenta_spqr.Skipped) (e : Std.U64) (upto : Std.U64)
@@ -7136,7 +7139,7 @@ def tacenta_spqr.State.skip_message_keys_loop0
     (skipped, i1)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::skip_message_keys]: loop body 1:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 744:8-754:9 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 941:8-951:9 -/
 @[rust_loop_body]
 def tacenta_spqr.State.skip_message_keys_loop1.body
   (e : Std.U64) (upto : Std.U64) (skipped : alloc.vec.Vec tacenta_spqr.Skipped)
@@ -7159,7 +7162,7 @@ def tacenta_spqr.State.skip_message_keys_loop1.body
   else ok (done (skipped, ck))
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::skip_message_keys]: loop 1:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 744:8-754:9 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 941:8-951:9 -/
 @[rust_loop]
 def tacenta_spqr.State.skip_message_keys_loop1
   (e : Std.U64) (upto : Std.U64) (skipped : alloc.vec.Vec tacenta_spqr.Skipped)
@@ -7172,7 +7175,7 @@ def tacenta_spqr.State.skip_message_keys_loop1
     (skipped, ck, num)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::skip_message_keys]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 707:4-764:5 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 904:4-972:5 -/
 def tacenta_spqr.State.skip_message_keys
   (self : tacenta_spqr.State) (e : Std.U64) (upto : Std.U64) :
   Result ((core.result.Result Unit tacenta_spqr.SpqrError) ×
@@ -7215,16 +7218,20 @@ def tacenta_spqr.State.skip_message_keys
             let (skipped2, ck) ←
               tacenta_spqr.State.skip_message_keys_loop1 e upto skipped1 
                 ch1.ck ch1.n
+            let (old_skipped, v) := core.mem.replace self.skipped skipped2
+            let _ ←
+              alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize
+                tacenta_spqr.Skipped.Insts.ZeroizeZeroize old_skipped
             let o1 ←
               core.option.Option.Insts.CoreCloneClone.clone
                 tacenta_spqr.Chain.Insts.CoreCloneClone cs1.send
             let self1 ←
-              tacenta_spqr.State.set_chains { self with skipped := skipped2 } e
+              tacenta_spqr.State.set_chains { self with skipped := v } e
                 { send := o1, receive := (some { ck, n := upto }) }
             ok (core.result.Result.Ok (), self1)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::receive]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 778:4-816:5
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 986:4-1024:5
     Visibility: public -/
 def tacenta_spqr.State.receive
   (self : tacenta_spqr.State) (receiving_epoch : Std.U64)
@@ -7291,11 +7298,11 @@ def tacenta_spqr.State.receive
     ok (r1, self1)
 
 /-- [tacenta_session_unit::tacenta_spqr::STATE_VERSION]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 823:0-823:31 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1031:0-1031:31 -/
 @[global_simps, irreducible] def tacenta_spqr.STATE_VERSION : Std.U8 := 1#u8
 
 /-- [tacenta_session_unit::tacenta_spqr::SpqrDecodeError]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 834:0-838:1
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1042:0-1046:1
     Visibility: public -/
 @[discriminant isize]
 inductive tacenta_spqr.SpqrDecodeError where
@@ -7304,7 +7311,7 @@ inductive tacenta_spqr.SpqrDecodeError where
 | Malformed : tacenta_spqr.SpqrDecodeError
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_session_unit::tacenta_spqr::SpqrDecodeError}::clone]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 833:9-833:14
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1041:9-1041:14
     Visibility: public -/
 def tacenta_spqr.SpqrDecodeError.Insts.CoreCloneClone.clone
   (self : tacenta_spqr.SpqrDecodeError) :
@@ -7313,7 +7320,7 @@ def tacenta_spqr.SpqrDecodeError.Insts.CoreCloneClone.clone
   ok self
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::clone::Clone for tacenta_session_unit::tacenta_spqr::SpqrDecodeError}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 833:9-833:14 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1041:9-1041:14 -/
 @[reducible]
 def tacenta_spqr.SpqrDecodeError.Insts.CoreCloneClone : core.clone.Clone
   tacenta_spqr.SpqrDecodeError := {
@@ -7321,7 +7328,7 @@ def tacenta_spqr.SpqrDecodeError.Insts.CoreCloneClone : core.clone.Clone
 }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::marker::Copy for tacenta_session_unit::tacenta_spqr::SpqrDecodeError}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 833:16-833:20 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1041:16-1041:20 -/
 @[reducible]
 def tacenta_spqr.SpqrDecodeError.Insts.CoreMarkerCopy : core.marker.Copy
   tacenta_spqr.SpqrDecodeError := {
@@ -7329,14 +7336,14 @@ def tacenta_spqr.SpqrDecodeError.Insts.CoreMarkerCopy : core.marker.Copy
 }
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::marker::StructuralPartialEq for tacenta_session_unit::tacenta_spqr::SpqrDecodeError}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 833:22-833:31 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1041:22-1041:31 -/
 @[reducible]
 def tacenta_spqr.SpqrDecodeError.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq tacenta_spqr.SpqrDecodeError := {
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::cmp::PartialEq<tacenta_session_unit::tacenta_spqr::SpqrDecodeError> for tacenta_session_unit::tacenta_spqr::SpqrDecodeError}::eq]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 833:22-833:31
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1041:22-1041:31
     Visibility: public -/
 def tacenta_spqr.SpqrDecodeError.Insts.CoreCmpPartialEqSpqrDecodeError.eq
   (self : tacenta_spqr.SpqrDecodeError) (other : tacenta_spqr.SpqrDecodeError)
@@ -7348,7 +7355,7 @@ def tacenta_spqr.SpqrDecodeError.Insts.CoreCmpPartialEqSpqrDecodeError.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::cmp::PartialEq<tacenta_session_unit::tacenta_spqr::SpqrDecodeError> for tacenta_session_unit::tacenta_spqr::SpqrDecodeError}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 833:22-833:31 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1041:22-1041:31 -/
 @[reducible]
 impl_def tacenta_spqr.SpqrDecodeError.Insts.CoreCmpPartialEqSpqrDecodeError :
   core.cmp.PartialEq tacenta_spqr.SpqrDecodeError tacenta_spqr.SpqrDecodeError
@@ -7359,14 +7366,14 @@ impl_def tacenta_spqr.SpqrDecodeError.Insts.CoreCmpPartialEqSpqrDecodeError :
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::cmp::Eq for tacenta_session_unit::tacenta_spqr::SpqrDecodeError}::assert_fields_are_eq]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 833:33-833:35
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1041:33-1041:35
     Visibility: public -/
 def tacenta_spqr.SpqrDecodeError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : tacenta_spqr.SpqrDecodeError) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::cmp::Eq for tacenta_session_unit::tacenta_spqr::SpqrDecodeError}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 833:33-833:35 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1041:33-1041:35 -/
 @[reducible]
 def tacenta_spqr.SpqrDecodeError.Insts.CoreCmpEq : core.cmp.Eq
   tacenta_spqr.SpqrDecodeError := {
@@ -7377,7 +7384,7 @@ def tacenta_spqr.SpqrDecodeError.Insts.CoreCmpEq : core.cmp.Eq
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::{impl core::fmt::Debug for tacenta_session_unit::tacenta_spqr::SpqrDecodeError}::fmt]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 833:37-833:42
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1041:37-1041:42
     Visibility: public -/
 def tacenta_spqr.SpqrDecodeError.Insts.CoreFmtDebug.fmt
   (self : tacenta_spqr.SpqrDecodeError) (f : core.fmt.Formatter) :
@@ -7392,7 +7399,7 @@ def tacenta_spqr.SpqrDecodeError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "Malformed")
 
 /-- Trait implementation: [tacenta_session_unit::tacenta_spqr::{impl core::fmt::Debug for tacenta_session_unit::tacenta_spqr::SpqrDecodeError}]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 833:37-833:42 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1041:37-1041:42 -/
 @[reducible]
 def tacenta_spqr.SpqrDecodeError.Insts.CoreFmtDebug : core.fmt.Debug
   tacenta_spqr.SpqrDecodeError := {
@@ -7400,14 +7407,14 @@ def tacenta_spqr.SpqrDecodeError.Insts.CoreFmtDebug : core.fmt.Debug
 }
 
 /-- [tacenta_session_unit::tacenta_spqr::CHAIN_LEN]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 843:0-843:36 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1051:0-1051:36 -/
 @[global_simps, irreducible]
 def tacenta_spqr.CHAIN_LEN : Result Std.Usize := do
   let i ← 1#usize + 32#usize
   i + 8#usize
 
 /-- [tacenta_session_unit::tacenta_spqr::CHAINS_LEN]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 844:0-844:44 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1052:0-1052:44 -/
 @[global_simps, irreducible]
 def tacenta_spqr.CHAINS_LEN : Result Std.Usize := do
   let i ← tacenta_spqr.CHAIN_LEN
@@ -7415,14 +7422,14 @@ def tacenta_spqr.CHAINS_LEN : Result Std.Usize := do
   8#usize + i1
 
 /-- [tacenta_session_unit::tacenta_spqr::SKIPPED_LEN]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 845:0-845:38 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1053:0-1053:38 -/
 @[global_simps, irreducible]
 def tacenta_spqr.SKIPPED_LEN : Result Std.Usize := do
   let i ← 8#usize + 8#usize
   i + 32#usize
 
 /-- [tacenta_session_unit::tacenta_spqr::FIXED_PREFIX]
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 847:0-851:8 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1055:0-1059:8 -/
 @[global_simps, irreducible]
 def tacenta_spqr.FIXED_PREFIX : Result Std.Usize := do
   let i ← 1#usize + 32#usize
@@ -7431,7 +7438,7 @@ def tacenta_spqr.FIXED_PREFIX : Result Std.Usize := do
   i2 + 4#usize
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::Direction}::to_byte]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 854:4-859:5 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1062:4-1067:5 -/
 def tacenta_spqr.Direction.to_byte
   (self : tacenta_spqr.Direction) : Result Std.U8 := do
   match self with
@@ -7439,7 +7446,7 @@ def tacenta_spqr.Direction.to_byte
   | tacenta_spqr.Direction.B2a => ok 1#u8
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::Direction}::from_byte]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 861:4-867:5 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1069:4-1075:5 -/
 def tacenta_spqr.Direction.from_byte
   (b : Std.U8) : Result (Option tacenta_spqr.Direction) := do
   match b with
@@ -7448,7 +7455,7 @@ def tacenta_spqr.Direction.from_byte
   | _ => ok none
 
 /-- [tacenta_session_unit::tacenta_spqr::push_optional_chain]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 870:0-883:1 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1078:0-1091:1 -/
 def tacenta_spqr.push_optional_chain
   (out : alloc.vec.Vec Std.U8) (chain : Option tacenta_spqr.Chain) :
   Result (alloc.vec.Vec Std.U8)
@@ -7471,7 +7478,7 @@ def tacenta_spqr.push_optional_chain
     alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s1
 
 /-- [tacenta_session_unit::tacenta_spqr::decode_chain]: loop body 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 905:12-910:13 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1113:12-1118:13 -/
 @[rust_loop_body]
 def tacenta_spqr.decode_chain_loop.body
   (i : Std.Usize) (bytes : Slice Std.U8) (pos : Std.Usize) (clean : Bool)
@@ -7490,7 +7497,7 @@ def tacenta_spqr.decode_chain_loop.body
   else ok (done clean)
 
 /-- [tacenta_session_unit::tacenta_spqr::decode_chain]: loop 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 905:12-910:13 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1113:12-1118:13 -/
 @[rust_loop]
 def tacenta_spqr.decode_chain_loop
   (i : Std.Usize) (bytes : Slice Std.U8) (pos : Std.Usize) (clean : Bool)
@@ -7503,7 +7510,7 @@ def tacenta_spqr.decode_chain_loop
     (clean, i1)
 
 /-- [tacenta_session_unit::tacenta_spqr::decode_chain]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 888:0-925:1 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1096:0-1133:1 -/
 def tacenta_spqr.decode_chain
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option (Option tacenta_spqr.Chain))
@@ -7547,7 +7554,7 @@ def tacenta_spqr.decode_chain
     | _ => ok none
 
 /-- [tacenta_session_unit::tacenta_spqr::decode_chains_entry]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 929:0-944:1 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1137:0-1152:1 -/
 def tacenta_spqr.decode_chains_entry
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option (Std.U64 × tacenta_spqr.Chains))
@@ -7578,7 +7585,7 @@ def tacenta_spqr.decode_chains_entry
         ok (some (i4, { send := v, receive := v1 }))
 
 /-- [tacenta_session_unit::tacenta_spqr::decode_skipped_entry]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 947:0-962:1 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1155:0-1170:1 -/
 def tacenta_spqr.decode_skipped_entry
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option tacenta_spqr.Skipped)
@@ -7618,7 +7625,7 @@ def tacenta_spqr.decode_skipped_entry
     ok (some { epoch := i6, n := i7, key := key1 })
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::encoded_len]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1010:4-1014:5 -/
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1218:4-1222:5 -/
 def tacenta_spqr.State.encoded_len
   (self : tacenta_spqr.State) : Result Std.Usize := do
   let i := alloc.vec.Vec.len self.chains
@@ -7633,7 +7640,7 @@ def tacenta_spqr.State.encoded_len
   i5 + i8
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::to_bytes]: loop body 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 978:8-984:9
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1186:8-1192:9
     Visibility: public -/
 @[rust_loop_body]
 def tacenta_spqr.State.to_bytes_loop0.body
@@ -7658,7 +7665,7 @@ def tacenta_spqr.State.to_bytes_loop0.body
   else ok (done out)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::to_bytes]: loop 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 978:8-984:9
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1186:8-1192:9
     Visibility: public -/
 @[rust_loop]
 def tacenta_spqr.State.to_bytes_loop0
@@ -7671,7 +7678,7 @@ def tacenta_spqr.State.to_bytes_loop0
     (out, i)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::to_bytes]: loop body 1:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 987:8-993:9
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1195:8-1201:9
     Visibility: public -/
 @[rust_loop_body]
 def tacenta_spqr.State.to_bytes_loop1.body
@@ -7699,7 +7706,7 @@ def tacenta_spqr.State.to_bytes_loop1.body
   else ok (done out)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::to_bytes]: loop 1:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 987:8-993:9
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1195:8-1201:9
     Visibility: public -/
 @[rust_loop]
 def tacenta_spqr.State.to_bytes_loop1
@@ -7712,7 +7719,7 @@ def tacenta_spqr.State.to_bytes_loop1
     (out, j)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::to_bytes]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 969:4-1002:5
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1177:4-1210:5
     Visibility: public -/
 def tacenta_spqr.State.to_bytes
   (self : tacenta_spqr.State) :
@@ -7746,7 +7753,7 @@ def tacenta_spqr.State.to_bytes
     (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) out8
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::from_bytes]: loop body 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1060:8-1068:9
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1268:8-1276:9
     Visibility: public -/
 @[rust_loop_body]
 def tacenta_spqr.State.from_bytes_loop0.body
@@ -7772,7 +7779,7 @@ def tacenta_spqr.State.from_bytes_loop0.body
       ok (cont (iter1, pos1, chains1, chains_ok))
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::from_bytes]: loop 0:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1060:8-1068:9
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1268:8-1276:9
     Visibility: public -/
 @[rust_loop]
 def tacenta_spqr.State.from_bytes_loop0
@@ -7790,7 +7797,7 @@ def tacenta_spqr.State.from_bytes_loop0
     (iter, pos, chains, chains_ok)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::from_bytes]: loop body 1:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1087:8-1095:9
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1295:8-1303:9
     Visibility: public -/
 @[rust_loop_body]
 def tacenta_spqr.State.from_bytes_loop1.body
@@ -7815,7 +7822,7 @@ def tacenta_spqr.State.from_bytes_loop1.body
       ok (cont (iter1, pos1, skipped1, skipped_ok))
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::from_bytes]: loop 1:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1087:8-1095:9
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1295:8-1303:9
     Visibility: public -/
 @[rust_loop]
 def tacenta_spqr.State.from_bytes_loop1
@@ -7831,7 +7838,7 @@ def tacenta_spqr.State.from_bytes_loop1
     (iter, pos, skipped, skipped_ok)
 
 /-- [tacenta_session_unit::tacenta_spqr::{tacenta_session_unit::tacenta_spqr::State}::from_bytes]:
-    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1018:4-1121:5
+    Source: 'session-unit/src/../../spqr/src/lib.rs', lines 1226:4-1329:5
     Visibility: public -/
 def tacenta_spqr.State.from_bytes
   (bytes : Slice Std.U8) :
@@ -9740,23 +9747,14 @@ def is_canonical_key
   let a ← tacenta_boundary.dh.PublicKeyBytes.as_bytes pk
   tacenta_session.is_canonical_x25519 a
 
-/-- [tacenta_session_unit::is_valid_identity_key]:
-    Source: 'session-unit/src/lib.rs', lines 123:0-125:1 -/
-def is_valid_identity_key
-  (pk : tacenta_boundary.dh.PublicKeyBytes) : Result Bool := do
-  let b ← is_canonical_key pk
-  if b
-  then tacenta_boundary.dh.is_prime_order_public pk
-  else ok false
-
 /-- [tacenta_session_unit::encode_kem]:
-    Source: 'session-unit/src/lib.rs', lines 133:0-135:1
+    Source: 'session-unit/src/lib.rs', lines 124:0-126:1
     Visibility: public -/
 def encode_kem (pk : Slice Std.U8) : Result (alloc.vec.Vec Std.U8) := do
   tacenta_session.encode_kem pk
 
 /-- [tacenta_session_unit::decode_kem]:
-    Source: 'session-unit/src/lib.rs', lines 139:0-148:1
+    Source: 'session-unit/src/lib.rs', lines 130:0-139:1
     Visibility: public -/
 def decode_kem
   (bytes : Slice Std.U8) : Result (Option (alloc.vec.Vec Std.U8)) := do
@@ -9776,7 +9774,7 @@ def decode_kem
     else ok none
 
 /-- [tacenta_session_unit::APPLICATION_SIGNING_LABEL]
-    Source: 'session-unit/src/lib.rs', lines 191:0-191:81 -/
+    Source: 'session-unit/src/lib.rs', lines 181:0-181:81 -/
 @[global_simps, irreducible]
 def APPLICATION_SIGNING_LABEL : Slice Std.U8 :=
   Array.to_slice
@@ -9788,7 +9786,7 @@ def APPLICATION_SIGNING_LABEL : Slice Std.U8 :=
       ])
 
 /-- [tacenta_session_unit::application_signing_input]:
-    Source: 'session-unit/src/lib.rs', lines 193:0-198:1 -/
+    Source: 'session-unit/src/lib.rs', lines 183:0-188:1 -/
 def application_signing_input
   (message : Slice Std.U8) : Result (alloc.vec.Vec Std.U8) := do
   let i := Slice.len APPLICATION_SIGNING_LABEL
@@ -9801,24 +9799,20 @@ def application_signing_input
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 input1 message
 
 /-- [tacenta_session_unit::verify_under_identity]:
-    Source: 'session-unit/src/lib.rs', lines 157:0-164:1
+    Source: 'session-unit/src/lib.rs', lines 148:0-154:1
     Visibility: public -/
 def verify_under_identity
   (identity : tacenta_boundary.dh.PublicKeyBytes) (message : Slice Std.U8)
   (signature : Array Std.U8 64#usize) :
   Result Bool
   := do
-  let b ← is_valid_identity_key identity
-  if b
-  then
-    let v ← application_signing_input message
-    let s := alloc.vec.Vec.deref v
-    let r ← tacenta_boundary.xeddsa.verify identity s signature
-    core.result.Result.is_ok r
-  else ok false
+  let v ← application_signing_input message
+  let s := alloc.vec.Vec.deref v
+  let r ← tacenta_boundary.xeddsa.verify identity s signature
+  core.result.Result.is_ok r
 
 /-- [tacenta_session_unit::PreKeyBundle]
-    Source: 'session-unit/src/lib.rs', lines 206:0-213:1
+    Source: 'session-unit/src/lib.rs', lines 196:0-203:1
     Visibility: public -/
 structure PreKeyBundle where
   identity_key : tacenta_boundary.dh.PublicKeyBytes
@@ -9829,45 +9823,44 @@ structure PreKeyBundle where
   one_time_prekey : Option tacenta_boundary.dh.PublicKeyBytes
 
 /-- [tacenta_session_unit::SessionError]
-    Source: 'session-unit/src/lib.rs', lines 221:0-232:1
+    Source: 'session-unit/src/lib.rs', lines 211:0-220:1
     Visibility: public -/
 @[discriminant isize]
 inductive SessionError where
-| InvalidIdentityKey : SessionError
 | BadSignedPrekeySignature : SessionError
 | BadKemPrekeySignature : SessionError
 | NonContributoryAgreement : SessionError
 
 /-- [tacenta_session_unit::{impl core::clone::Clone for tacenta_session_unit::SessionError}::clone]:
-    Source: 'session-unit/src/lib.rs', lines 219:9-219:14
+    Source: 'session-unit/src/lib.rs', lines 209:9-209:14
     Visibility: public -/
 def SessionError.Insts.CoreCloneClone.clone
   (self : SessionError) : Result SessionError := do
   ok self
 
 /-- Trait implementation: [tacenta_session_unit::{impl core::clone::Clone for tacenta_session_unit::SessionError}]
-    Source: 'session-unit/src/lib.rs', lines 219:9-219:14 -/
+    Source: 'session-unit/src/lib.rs', lines 209:9-209:14 -/
 @[reducible]
 def SessionError.Insts.CoreCloneClone : core.clone.Clone SessionError := {
   clone := SessionError.Insts.CoreCloneClone.clone
 }
 
 /-- Trait implementation: [tacenta_session_unit::{impl core::marker::Copy for tacenta_session_unit::SessionError}]
-    Source: 'session-unit/src/lib.rs', lines 219:16-219:20 -/
+    Source: 'session-unit/src/lib.rs', lines 209:16-209:20 -/
 @[reducible]
 def SessionError.Insts.CoreMarkerCopy : core.marker.Copy SessionError := {
   cloneInst := SessionError.Insts.CoreCloneClone
 }
 
 /-- Trait implementation: [tacenta_session_unit::{impl core::marker::StructuralPartialEq for tacenta_session_unit::SessionError}]
-    Source: 'session-unit/src/lib.rs', lines 219:22-219:31 -/
+    Source: 'session-unit/src/lib.rs', lines 209:22-209:31 -/
 @[reducible]
 def SessionError.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq SessionError := {
 }
 
 /-- [tacenta_session_unit::{impl core::cmp::PartialEq<tacenta_session_unit::SessionError> for tacenta_session_unit::SessionError}::eq]:
-    Source: 'session-unit/src/lib.rs', lines 219:22-219:31
+    Source: 'session-unit/src/lib.rs', lines 209:22-209:31
     Visibility: public -/
 def SessionError.Insts.CoreCmpPartialEqSessionError.eq
   (self : SessionError) (other : SessionError) : Result Bool := do
@@ -9876,7 +9869,7 @@ def SessionError.Insts.CoreCmpPartialEqSessionError.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tacenta_session_unit::{impl core::cmp::PartialEq<tacenta_session_unit::SessionError> for tacenta_session_unit::SessionError}]
-    Source: 'session-unit/src/lib.rs', lines 219:22-219:31 -/
+    Source: 'session-unit/src/lib.rs', lines 209:22-209:31 -/
 @[reducible]
 impl_def SessionError.Insts.CoreCmpPartialEqSessionError : core.cmp.PartialEq
   SessionError SessionError := {
@@ -9886,14 +9879,14 @@ impl_def SessionError.Insts.CoreCmpPartialEqSessionError : core.cmp.PartialEq
 }
 
 /-- [tacenta_session_unit::{impl core::cmp::Eq for tacenta_session_unit::SessionError}::assert_fields_are_eq]:
-    Source: 'session-unit/src/lib.rs', lines 219:33-219:35
+    Source: 'session-unit/src/lib.rs', lines 209:33-209:35
     Visibility: public -/
 def SessionError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : SessionError) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_session_unit::{impl core::cmp::Eq for tacenta_session_unit::SessionError}]
-    Source: 'session-unit/src/lib.rs', lines 219:33-219:35 -/
+    Source: 'session-unit/src/lib.rs', lines 209:33-209:35 -/
 @[reducible]
 def SessionError.Insts.CoreCmpEq : core.cmp.Eq SessionError := {
   partialEqInst := SessionError.Insts.CoreCmpPartialEqSessionError
@@ -9901,15 +9894,13 @@ def SessionError.Insts.CoreCmpEq : core.cmp.Eq SessionError := {
 }
 
 /-- [tacenta_session_unit::{impl core::fmt::Debug for tacenta_session_unit::SessionError}::fmt]:
-    Source: 'session-unit/src/lib.rs', lines 219:37-219:42
+    Source: 'session-unit/src/lib.rs', lines 209:37-209:42
     Visibility: public -/
 def SessionError.Insts.CoreFmtDebug.fmt
   (self : SessionError) (f : core.fmt.Formatter) :
   Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
   := do
   match self with
-  | SessionError.InvalidIdentityKey =>
-    core.fmt.Formatter.write_str f (toStr "InvalidIdentityKey")
   | SessionError.BadSignedPrekeySignature =>
     core.fmt.Formatter.write_str f (toStr "BadSignedPrekeySignature")
   | SessionError.BadKemPrekeySignature =>
@@ -9918,43 +9909,39 @@ def SessionError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "NonContributoryAgreement")
 
 /-- Trait implementation: [tacenta_session_unit::{impl core::fmt::Debug for tacenta_session_unit::SessionError}]
-    Source: 'session-unit/src/lib.rs', lines 219:37-219:42 -/
+    Source: 'session-unit/src/lib.rs', lines 209:37-209:42 -/
 @[reducible]
 def SessionError.Insts.CoreFmtDebug : core.fmt.Debug SessionError := {
   fmt := SessionError.Insts.CoreFmtDebug.fmt
 }
 
 /-- [tacenta_session_unit::verify_bundle]:
-    Source: 'session-unit/src/lib.rs', lines 239:0-258:1
+    Source: 'session-unit/src/lib.rs', lines 227:0-243:1
     Visibility: public -/
 def verify_bundle
   (bundle : PreKeyBundle) : Result (core.result.Result Unit SessionError) := do
-  let b ← is_valid_identity_key bundle.identity_key
-  if b
-  then
-    let v ← encode_ec bundle.signed_prekey
-    let s := alloc.vec.Vec.deref v
-    let r ←
-      tacenta_boundary.xeddsa.verify bundle.identity_key s
-        bundle.signed_prekey_signature
-    match r with
-    | core.result.Result.Ok _ =>
-      let s1 := alloc.vec.Vec.deref bundle.kem_prekey
-      let v1 ← encode_kem s1
-      let s2 := alloc.vec.Vec.deref v1
-      let r1 ←
-        tacenta_boundary.xeddsa.verify bundle.identity_key s2
-          bundle.kem_prekey_signature
-      match r1 with
-      | core.result.Result.Ok _ => ok (core.result.Result.Ok ())
-      | core.result.Result.Err _ =>
-        ok (core.result.Result.Err SessionError.BadKemPrekeySignature)
+  let v ← encode_ec bundle.signed_prekey
+  let s := alloc.vec.Vec.deref v
+  let r ←
+    tacenta_boundary.xeddsa.verify bundle.identity_key s
+      bundle.signed_prekey_signature
+  match r with
+  | core.result.Result.Ok _ =>
+    let s1 := alloc.vec.Vec.deref bundle.kem_prekey
+    let v1 ← encode_kem s1
+    let s2 := alloc.vec.Vec.deref v1
+    let r1 ←
+      tacenta_boundary.xeddsa.verify bundle.identity_key s2
+        bundle.kem_prekey_signature
+    match r1 with
+    | core.result.Result.Ok _ => ok (core.result.Result.Ok ())
     | core.result.Result.Err _ =>
-      ok (core.result.Result.Err SessionError.BadSignedPrekeySignature)
-  else ok (core.result.Result.Err SessionError.InvalidIdentityKey)
+      ok (core.result.Result.Err SessionError.BadKemPrekeySignature)
+  | core.result.Result.Err _ =>
+    ok (core.result.Result.Err SessionError.BadSignedPrekeySignature)
 
 /-- [tacenta_session_unit::contributory]:
-    Source: 'session-unit/src/lib.rs', lines 260:0-265:1 -/
+    Source: 'session-unit/src/lib.rs', lines 245:0-250:1 -/
 def contributory
   (value : Option (Array Std.U8 32#usize)) :
   Result (core.result.Result (Array Std.U8 32#usize) SessionError)
@@ -9964,7 +9951,7 @@ def contributory
   | some secret => ok (core.result.Result.Ok secret)
 
 /-- [tacenta_session_unit::initiator_shared_secret]:
-    Source: 'session-unit/src/lib.rs', lines 270:0-296:1
+    Source: 'session-unit/src/lib.rs', lines 255:0-281:1
     Visibility: public -/
 def initiator_shared_secret
   (identity_private : tacenta_boundary.dh.PrivateKey)
@@ -10071,7 +10058,7 @@ def initiator_shared_secret
       (Array Std.U8 32#usize) (core.convert.FromSame SessionError) residual
 
 /-- [tacenta_session_unit::responder_shared_secret]:
-    Source: 'session-unit/src/lib.rs', lines 301:0-334:1
+    Source: 'session-unit/src/lib.rs', lines 286:0-316:1
     Visibility: public -/
 def responder_shared_secret
   (identity_private : tacenta_boundary.dh.PrivateKey)
@@ -10082,41 +10069,61 @@ def responder_shared_secret
   (encapsulated : Array Std.U8 32#usize) :
   Result (core.result.Result (Array Std.U8 32#usize) SessionError)
   := do
-  let b ← is_valid_identity_key initiator_identity
-  if b
-  then
-    let o ←
-      tacenta_boundary.dh.PrivateKey.agree signed_prekey_private
-        initiator_identity
-    let r ← contributory o
-    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-    match cf with
-    | core.ops.control_flow.ControlFlow.Continue val =>
-      let dh1 ←
+  let o ←
+    tacenta_boundary.dh.PrivateKey.agree signed_prekey_private
+      initiator_identity
+  let r ← contributory o
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let dh1 ←
+      zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
+        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) val
+    let o1 ←
+      tacenta_boundary.dh.PrivateKey.agree identity_private initiator_ephemeral
+    let r1 ← contributory o1
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      let dh2 ←
         zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
-          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) val
-      let o1 ←
-        tacenta_boundary.dh.PrivateKey.agree identity_private
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) val1
+      let o2 ←
+        tacenta_boundary.dh.PrivateKey.agree signed_prekey_private
           initiator_ephemeral
-      let r1 ← contributory o1
-      let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
-      match cf1 with
-      | core.ops.control_flow.ControlFlow.Continue val1 =>
-        let dh2 ←
+      let r2 ← contributory o2
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val2 =>
+        let dh3 ←
           zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
-            (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) val1
-        let o2 ←
-          tacenta_boundary.dh.PrivateKey.agree signed_prekey_private
-            initiator_ephemeral
-        let r2 ← contributory o2
-        let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
-        match cf2 with
-        | core.ops.control_flow.ControlFlow.Continue val2 =>
-          let dh3 ←
-            zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
-              (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) val2
-          match one_time_prekey_private with
-          | none =>
+            (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) val2
+        match one_time_prekey_private with
+        | none =>
+          let a ←
+            zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+              (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+              U8.Insts.ZeroizeDefaultIsZeroes)) dh1
+          let a1 ←
+            zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+              (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+              U8.Insts.ZeroizeDefaultIsZeroes)) dh2
+          let a2 ←
+            zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+              (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+              U8.Insts.ZeroizeDefaultIsZeroes)) dh3
+          let a3 ← tacenta_session.shared_secret a a1 a2 none encapsulated
+          ok (core.result.Result.Ok a3)
+        | some opk =>
+          let o3 ←
+            tacenta_boundary.dh.PrivateKey.agree opk initiator_ephemeral
+          let r3 ← contributory o3
+          let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+          match cf3 with
+          | core.ops.control_flow.ControlFlow.Continue val3 =>
+            let secret ←
+              zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
+                (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) val3
             let a ←
               zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
                 (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
@@ -10129,53 +10136,26 @@ def responder_shared_secret
               zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
                 (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
                 U8.Insts.ZeroizeDefaultIsZeroes)) dh3
-            let a3 ← tacenta_session.shared_secret a a1 a2 none encapsulated
-            ok (core.result.Result.Ok a3)
-          | some opk =>
-            let o3 ←
-              tacenta_boundary.dh.PrivateKey.agree opk initiator_ephemeral
-            let r3 ← contributory o3
-            let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
-            match cf3 with
-            | core.ops.control_flow.ControlFlow.Continue val3 =>
-              let secret ←
-                zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
-                  (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
-                  val3
-              let a ←
-                zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
-                  (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
-                  U8.Insts.ZeroizeDefaultIsZeroes)) dh1
-              let a1 ←
-                zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
-                  (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
-                  U8.Insts.ZeroizeDefaultIsZeroes)) dh2
-              let a2 ←
-                zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
-                  (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
-                  U8.Insts.ZeroizeDefaultIsZeroes)) dh3
-              let a3 ←
-                zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
-                  (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
-                  U8.Insts.ZeroizeDefaultIsZeroes)) secret
-              let a4 ←
-                tacenta_session.shared_secret a a1 a2 (some a3) encapsulated
-              ok (core.result.Result.Ok a4)
-            | core.ops.control_flow.ControlFlow.Break residual =>
-              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
-                (Array Std.U8 32#usize) (core.convert.FromSame SessionError)
-                residual
-        | core.ops.control_flow.ControlFlow.Break residual =>
-          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
-            (Array Std.U8 32#usize) (core.convert.FromSame SessionError)
-            residual
+            let a3 ←
+              zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+                U8.Insts.ZeroizeDefaultIsZeroes)) secret
+            let a4 ←
+              tacenta_session.shared_secret a a1 a2 (some a3) encapsulated
+            ok (core.result.Result.Ok a4)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+              (Array Std.U8 32#usize) (core.convert.FromSame SessionError)
+              residual
       | core.ops.control_flow.ControlFlow.Break residual =>
         core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
           (Array Std.U8 32#usize) (core.convert.FromSame SessionError) residual
     | core.ops.control_flow.ControlFlow.Break residual =>
       core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
         (Array Std.U8 32#usize) (core.convert.FromSame SessionError) residual
-  else ok (core.result.Result.Err SessionError.InvalidIdentityKey)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+      (Array Std.U8 32#usize) (core.convert.FromSame SessionError) residual
 
 /-- [tacenta_session_unit::lifecycle::Identity]
     Source: 'session-unit/src/lifecycle.rs', lines 49:0-51:1
@@ -12521,7 +12501,7 @@ def lifecycle.PrekeyStore.take_one_time_kem
         })
 
 /-- [tacenta_session_unit::lifecycle::push_len_prefixed]:
-    Source: 'session-unit/src/lifecycle.rs', lines 3244:0-3247:1 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 3241:0-3244:1 -/
 def lifecycle.push_len_prefixed
   (out : alloc.vec.Vec Std.U8) (bytes : Slice Std.U8) :
   Result (alloc.vec.Vec Std.U8)
@@ -12975,7 +12955,7 @@ def lifecycle.PrekeyStore.to_bytes
     fail panic
 
 /-- [tacenta_session_unit::lifecycle::take_len_prefixed]:
-    Source: 'session-unit/src/lifecycle.rs', lines 3249:0-3266:1 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 3246:0-3263:1 -/
 def lifecycle.take_len_prefixed
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option ((Slice Std.U8) × Std.Usize))
@@ -15920,7 +15900,7 @@ def lifecycle.PrekeyStore.invariant_loop4
     Visibility: public -/
 def lifecycle.PrekeyStore.invariant
   (self : lifecycle.PrekeyStore) : Result Bool := do
-  let b ← is_valid_identity_key self.identity_public
+  let b ← is_canonical_key self.identity_public
   if b
   then
     let previous_signed_id ←
@@ -17178,7 +17158,7 @@ def lifecycle.establish_initiator_for
           do
           let one_time_canonical1 ← is_canonical_key k
           ok (their_bundle.bundle.one_time_prekey, one_time_canonical1)
-      let b2 ← is_valid_identity_key their_bundle.bundle.identity_key
+      let b2 ← is_canonical_key their_bundle.bundle.identity_key
       if b2
       then
         let b3 ← is_canonical_key their_bundle.bundle.signed_prekey
@@ -17466,7 +17446,7 @@ def lifecycle.responder_decapsulate
       ok (core.result.Result.Err lifecycle.Error.Kem)
 
 /-- [tacenta_session_unit::lifecycle::responder_curve_inputs]:
-    Source: 'session-unit/src/lifecycle.rs', lines 2651:0-2667:1 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 2651:0-2664:1 -/
 def lifecycle.responder_curve_inputs
   (identity : Slice Std.U8) (ephemeral : Slice Std.U8) :
   Result (core.result.Result (tacenta_boundary.dh.PublicKeyBytes ×
@@ -17476,17 +17456,13 @@ def lifecycle.responder_curve_inputs
   match o with
   | none => ok (core.result.Result.Err lifecycle.Error.BadEncoding)
   | some value =>
-    let b ← is_valid_identity_key value
-    if b
-    then
-      let o1 ← decode_ec ephemeral
-      match o1 with
-      | none => ok (core.result.Result.Err lifecycle.Error.BadEncoding)
-      | some value1 => ok (core.result.Result.Ok (value, value1))
-    else ok (core.result.Result.Err lifecycle.Error.BadEncoding)
+    let o1 ← decode_ec ephemeral
+    match o1 with
+    | none => ok (core.result.Result.Err lifecycle.Error.BadEncoding)
+    | some value1 => ok (core.result.Result.Ok (value, value1))
 
 /-- [tacenta_session_unit::lifecycle::responder_one_time_key]:
-    Source: 'session-unit/src/lifecycle.rs', lines 2669:0-2678:1 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 2666:0-2675:1 -/
 def lifecycle.responder_one_time_key
   (store : lifecycle.PrekeyStore) (id : Std.U32) :
   Result (core.result.Result (Option tacenta_boundary.dh.PrivateKey)
@@ -17507,7 +17483,7 @@ def lifecycle.responder_one_time_key
       ok (core.result.Result.Ok (some pk))
 
 /-- [tacenta_session_unit::lifecycle::responder_replay_fingerprint]: loop body 0:
-    Source: 'session-unit/src/lifecycle.rs', lines 2692:4-2697:5 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 2689:4-2694:5 -/
 @[rust_loop_body]
 def lifecycle.responder_replay_fingerprint_loop.body
   (store : lifecycle.PrekeyStore) (fingerprint : Array Std.U8 32#usize)
@@ -17543,7 +17519,7 @@ def lifecycle.responder_replay_fingerprint_loop.body
       store.last_resort_seen, store.legacy_last_resort_blocked, replayed))
 
 /-- [tacenta_session_unit::lifecycle::responder_replay_fingerprint]: loop 0:
-    Source: 'session-unit/src/lifecycle.rs', lines 2692:4-2697:5 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 2689:4-2694:5 -/
 @[rust_loop]
 def lifecycle.responder_replay_fingerprint_loop
   (store : lifecycle.PrekeyStore) (fingerprint : Array Std.U8 32#usize)
@@ -17565,7 +17541,7 @@ def lifecycle.responder_replay_fingerprint_loop
     (replayed, index)
 
 /-- [tacenta_session_unit::lifecycle::responder_replay_fingerprint]:
-    Source: 'session-unit/src/lifecycle.rs', lines 2680:0-2705:1 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 2677:0-2702:1 -/
 def lifecycle.responder_replay_fingerprint
   (store : lifecycle.PrekeyStore) (kem_id : Std.U32)
   (sk : Array Std.U8 32#usize) (last_resort : Bool) :
@@ -18294,7 +18270,7 @@ def serialization.concat_ad
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s1
 
 /-- [tacenta_session_unit::lifecycle::{tacenta_session_unit::lifecycle::Session}::decrypt_ratchet]:
-    Source: 'session-unit/src/lifecycle.rs', lines 2994:4-3202:5 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 2991:4-3199:5 -/
 def lifecycle.Session.decrypt_ratchet
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
   (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R)
@@ -18440,7 +18416,7 @@ def lifecycle.Session.decrypt_ratchet
       ok (core.result.Result.Err (lifecycle.Error.Decode error), self, rng)
 
 /-- [tacenta_session_unit::lifecycle::establish_responder]:
-    Source: 'session-unit/src/lifecycle.rs', lines 2718:0-2855:1
+    Source: 'session-unit/src/lifecycle.rs', lines 2715:0-2852:1
     Visibility: public -/
 def lifecycle.establish_responder
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -18653,7 +18629,7 @@ def lifecycle.establish_responder
       rng)
 
 /-- [tacenta_session_unit::lifecycle::{tacenta_session_unit::lifecycle::Session}::agreement_failed]:
-    Source: 'session-unit/src/lifecycle.rs', lines 2861:4-2863:5
+    Source: 'session-unit/src/lifecycle.rs', lines 2858:4-2860:5
     Visibility: public -/
 def lifecycle.Session.agreement_failed
   (self : lifecycle.Session) : Result Bool := do
@@ -18855,7 +18831,7 @@ def serialization.encode_message
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out ciphertext
 
 /-- [tacenta_session_unit::lifecycle::{tacenta_session_unit::lifecycle::Session}::encrypt]:
-    Source: 'session-unit/src/lifecycle.rs', lines 2874:4-2937:5
+    Source: 'session-unit/src/lifecycle.rs', lines 2871:4-2934:5
     Visibility: public -/
 def lifecycle.Session.encrypt
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -18970,7 +18946,7 @@ def serialization.message_type
         else ok none
 
 /-- [tacenta_session_unit::lifecycle::{tacenta_session_unit::lifecycle::Session}::decrypt]:
-    Source: 'session-unit/src/lifecycle.rs', lines 2959:4-2991:5
+    Source: 'session-unit/src/lifecycle.rs', lines 2956:4-2988:5
     Visibility: public -/
 def lifecycle.Session.decrypt
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -19063,11 +19039,11 @@ def lifecycle.Session.decrypt
         ok (core.result.Result.Err (lifecycle.Error.Decode error), self, rng)
 
 /-- [tacenta_session_unit::lifecycle::SESSION_VERSION]
-    Source: 'session-unit/src/lifecycle.rs', lines 3209:0-3209:33 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 3206:0-3206:33 -/
 @[global_simps, irreducible] def lifecycle.SESSION_VERSION : Std.U8 := 1#u8
 
 /-- [tacenta_session_unit::lifecycle::SessionDecodeError]
-    Source: 'session-unit/src/lifecycle.rs', lines 3217:0-3242:1
+    Source: 'session-unit/src/lifecycle.rs', lines 3214:0-3239:1
     Visibility: public -/
 @[discriminant isize]
 inductive lifecycle.SessionDecodeError where
@@ -19078,7 +19054,7 @@ inductive lifecycle.SessionDecodeError where
 | Inconsistent : lifecycle.SessionDecodeError
 
 /-- [tacenta_session_unit::lifecycle::{impl core::clone::Clone for tacenta_session_unit::lifecycle::SessionDecodeError}::clone]:
-    Source: 'session-unit/src/lifecycle.rs', lines 3215:9-3215:14
+    Source: 'session-unit/src/lifecycle.rs', lines 3212:9-3212:14
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreCloneClone.clone
   (self : lifecycle.SessionDecodeError) :
@@ -19087,7 +19063,7 @@ def lifecycle.SessionDecodeError.Insts.CoreCloneClone.clone
   ok self
 
 /-- Trait implementation: [tacenta_session_unit::lifecycle::{impl core::clone::Clone for tacenta_session_unit::lifecycle::SessionDecodeError}]
-    Source: 'session-unit/src/lifecycle.rs', lines 3215:9-3215:14 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 3212:9-3212:14 -/
 @[reducible]
 def lifecycle.SessionDecodeError.Insts.CoreCloneClone : core.clone.Clone
   lifecycle.SessionDecodeError := {
@@ -19095,7 +19071,7 @@ def lifecycle.SessionDecodeError.Insts.CoreCloneClone : core.clone.Clone
 }
 
 /-- Trait implementation: [tacenta_session_unit::lifecycle::{impl core::marker::Copy for tacenta_session_unit::lifecycle::SessionDecodeError}]
-    Source: 'session-unit/src/lifecycle.rs', lines 3215:16-3215:20 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 3212:16-3212:20 -/
 @[reducible]
 def lifecycle.SessionDecodeError.Insts.CoreMarkerCopy : core.marker.Copy
   lifecycle.SessionDecodeError := {
@@ -19103,14 +19079,14 @@ def lifecycle.SessionDecodeError.Insts.CoreMarkerCopy : core.marker.Copy
 }
 
 /-- Trait implementation: [tacenta_session_unit::lifecycle::{impl core::marker::StructuralPartialEq for tacenta_session_unit::lifecycle::SessionDecodeError}]
-    Source: 'session-unit/src/lifecycle.rs', lines 3215:22-3215:31 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 3212:22-3212:31 -/
 @[reducible]
 def lifecycle.SessionDecodeError.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq lifecycle.SessionDecodeError := {
 }
 
 /-- [tacenta_session_unit::lifecycle::{impl core::cmp::PartialEq<tacenta_session_unit::lifecycle::SessionDecodeError> for tacenta_session_unit::lifecycle::SessionDecodeError}::eq]:
-    Source: 'session-unit/src/lifecycle.rs', lines 3215:22-3215:31
+    Source: 'session-unit/src/lifecycle.rs', lines 3212:22-3212:31
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreCmpPartialEqSessionDecodeError.eq
   (self : lifecycle.SessionDecodeError) (other : lifecycle.SessionDecodeError)
@@ -19122,7 +19098,7 @@ def lifecycle.SessionDecodeError.Insts.CoreCmpPartialEqSessionDecodeError.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tacenta_session_unit::lifecycle::{impl core::cmp::PartialEq<tacenta_session_unit::lifecycle::SessionDecodeError> for tacenta_session_unit::lifecycle::SessionDecodeError}]
-    Source: 'session-unit/src/lifecycle.rs', lines 3215:22-3215:31 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 3212:22-3212:31 -/
 @[reducible]
 impl_def lifecycle.SessionDecodeError.Insts.CoreCmpPartialEqSessionDecodeError
   : core.cmp.PartialEq lifecycle.SessionDecodeError
@@ -19134,14 +19110,14 @@ impl_def lifecycle.SessionDecodeError.Insts.CoreCmpPartialEqSessionDecodeError
 }
 
 /-- [tacenta_session_unit::lifecycle::{impl core::cmp::Eq for tacenta_session_unit::lifecycle::SessionDecodeError}::assert_fields_are_eq]:
-    Source: 'session-unit/src/lifecycle.rs', lines 3215:33-3215:35
+    Source: 'session-unit/src/lifecycle.rs', lines 3212:33-3212:35
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : lifecycle.SessionDecodeError) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [tacenta_session_unit::lifecycle::{impl core::cmp::Eq for tacenta_session_unit::lifecycle::SessionDecodeError}]
-    Source: 'session-unit/src/lifecycle.rs', lines 3215:33-3215:35 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 3212:33-3212:35 -/
 @[reducible]
 def lifecycle.SessionDecodeError.Insts.CoreCmpEq : core.cmp.Eq
   lifecycle.SessionDecodeError := {
@@ -19152,7 +19128,7 @@ def lifecycle.SessionDecodeError.Insts.CoreCmpEq : core.cmp.Eq
 }
 
 /-- [tacenta_session_unit::lifecycle::{impl core::fmt::Debug for tacenta_session_unit::lifecycle::SessionDecodeError}::fmt]:
-    Source: 'session-unit/src/lifecycle.rs', lines 3215:37-3215:42
+    Source: 'session-unit/src/lifecycle.rs', lines 3212:37-3212:42
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreFmtDebug.fmt
   (self : lifecycle.SessionDecodeError) (f : core.fmt.Formatter) :
@@ -19171,7 +19147,7 @@ def lifecycle.SessionDecodeError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "Inconsistent")
 
 /-- Trait implementation: [tacenta_session_unit::lifecycle::{impl core::fmt::Debug for tacenta_session_unit::lifecycle::SessionDecodeError}]
-    Source: 'session-unit/src/lifecycle.rs', lines 3215:37-3215:42 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 3212:37-3212:42 -/
 @[reducible]
 def lifecycle.SessionDecodeError.Insts.CoreFmtDebug : core.fmt.Debug
   lifecycle.SessionDecodeError := {
@@ -19179,7 +19155,7 @@ def lifecycle.SessionDecodeError.Insts.CoreFmtDebug : core.fmt.Debug
 }
 
 /-- [tacenta_session_unit::lifecycle::{tacenta_session_unit::lifecycle::PendingInitial}::to_bytes]:
-    Source: 'session-unit/src/lifecycle.rs', lines 3269:4-3277:5 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 3266:4-3274:5 -/
 def lifecycle.PendingInitial.to_bytes
   (self : lifecycle.PendingInitial) : Result (alloc.vec.Vec Std.U8) := do
   let a ← tacenta_boundary.dh.PublicKeyBytes.as_bytes self.ephemeral_public
@@ -19200,7 +19176,7 @@ def lifecycle.PendingInitial.to_bytes
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s4
 
 /-- [tacenta_session_unit::lifecycle::{tacenta_session_unit::lifecycle::PendingInitial}::from_bytes]:
-    Source: 'session-unit/src/lifecycle.rs', lines 3279:4-3303:5 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 3276:4-3300:5 -/
 def lifecycle.PendingInitial.from_bytes
   (bytes : Slice Std.U8) : Result (Option lifecycle.PendingInitial) := do
   let i := Slice.len bytes
@@ -19774,7 +19750,7 @@ def tacenta_braid.Braid.to_bytes
     (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) out3
 
 /-- [tacenta_session_unit::lifecycle::{tacenta_session_unit::lifecycle::Session}::export]:
-    Source: 'session-unit/src/lifecycle.rs', lines 3346:4-3404:5
+    Source: 'session-unit/src/lifecycle.rs', lines 3343:4-3401:5
     Visibility: public -/
 def lifecycle.Session.export
   (self : lifecycle.Session) :
@@ -20757,7 +20733,7 @@ def tacenta_braid.Braid.from_bytes
           ok (core.result.Result.Err tacenta_braid.BraidDecodeError.Malformed)
 
 /-- [tacenta_session_unit::lifecycle::{tacenta_session_unit::lifecycle::Session}::import_unchecked]:
-    Source: 'session-unit/src/lifecycle.rs', lines 3639:4-3725:5 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 3636:4-3722:5 -/
 def lifecycle.Session.import_unchecked
   (bytes : Slice Std.U8) :
   Result (core.result.Result lifecycle.Session lifecycle.SessionDecodeError)
@@ -21028,7 +21004,7 @@ def lifecycle.Session.import_unchecked
           ok (core.result.Result.Err lifecycle.SessionDecodeError.Malformed)
 
 /-- [tacenta_session_unit::lifecycle::{tacenta_session_unit::lifecycle::Session}::leaf_invariants]:
-    Source: 'session-unit/src/lifecycle.rs', lines 3627:4-3629:5 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 3624:4-3626:5 -/
 def lifecycle.Session.leaf_invariants
   (self : lifecycle.Session) : Result Bool := do
   let b ← tacenta_triple.State.invariant self.triple
@@ -21110,13 +21086,13 @@ def tacenta_braid.Braid.epoch
   tacenta_braid.State.epoch self.state
 
 /-- [tacenta_session_unit::lifecycle::{tacenta_session_unit::lifecycle::Session}::is_responder]:
-    Source: 'session-unit/src/lifecycle.rs', lines 3635:4-3637:5 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 3632:4-3634:5 -/
 def lifecycle.Session.is_responder
   (self : lifecycle.Session) : Result Bool := do
   ok (core.option.Option.is_some self.established_ephemeral)
 
 /-- [tacenta_session_unit::lifecycle::{tacenta_session_unit::lifecycle::Session}::structural_invariant]:
-    Source: 'session-unit/src/lifecycle.rs', lines 3473:4-3621:5 -/
+    Source: 'session-unit/src/lifecycle.rs', lines 3470:4-3618:5 -/
 def lifecycle.Session.structural_invariant
   (self : lifecycle.Session) : Result Bool := do
   let pkb ← tacenta_boundary.dh.PrivateKey.public_key self.ratchet_private
@@ -21162,11 +21138,10 @@ def lifecycle.Session.structural_invariant
                 | none =>
                   match self.established_ephemeral with
                   | none =>
-                    let b7 ← is_valid_identity_key self.our_identity_public
+                    let b7 ← is_canonical_key self.our_identity_public
                     if b7
                     then
-                      let b8 ←
-                        is_valid_identity_key self.peer_identity_public
+                      let b8 ← is_canonical_key self.peer_identity_public
                       if b8
                       then ok true
                       else ok false
@@ -21178,11 +21153,10 @@ def lifecycle.Session.structural_invariant
                     if b7
                     then ok false
                     else
-                      let b8 ← is_valid_identity_key self.our_identity_public
+                      let b8 ← is_canonical_key self.our_identity_public
                       if b8
                       then
-                        let b9 ←
-                          is_valid_identity_key self.peer_identity_public
+                        let b9 ← is_canonical_key self.peer_identity_public
                         if b9
                         then ok true
                         else ok false
@@ -21195,11 +21169,10 @@ def lifecycle.Session.structural_invariant
                   else
                     match self.established_ephemeral with
                     | none =>
-                      let b7 ← is_valid_identity_key self.our_identity_public
+                      let b7 ← is_canonical_key self.our_identity_public
                       if b7
                       then
-                        let b8 ←
-                          is_valid_identity_key self.peer_identity_public
+                        let b8 ← is_canonical_key self.peer_identity_public
                         if b8
                         then
                           let b9 ← is_canonical_key p.ephemeral_public
@@ -21215,12 +21188,10 @@ def lifecycle.Session.structural_invariant
                       if b7
                       then ok false
                       else
-                        let b8 ←
-                          is_valid_identity_key self.our_identity_public
+                        let b8 ← is_canonical_key self.our_identity_public
                         if b8
                         then
-                          let b9 ←
-                            is_valid_identity_key self.peer_identity_public
+                          let b9 ← is_canonical_key self.peer_identity_public
                           if b9
                           then
                             let b10 ← is_canonical_key p.ephemeral_public
@@ -21234,10 +21205,10 @@ def lifecycle.Session.structural_invariant
               | none =>
                 match self.established_ephemeral with
                 | none =>
-                  let b6 ← is_valid_identity_key self.our_identity_public
+                  let b6 ← is_canonical_key self.our_identity_public
                   if b6
                   then
-                    let b7 ← is_valid_identity_key self.peer_identity_public
+                    let b7 ← is_canonical_key self.peer_identity_public
                     if b7
                     then ok true
                     else ok false
@@ -21249,11 +21220,10 @@ def lifecycle.Session.structural_invariant
                   if b6
                   then ok false
                   else
-                    let b7 ← is_valid_identity_key self.our_identity_public
+                    let b7 ← is_canonical_key self.our_identity_public
                     if b7
                     then
-                      let b8 ←
-                        is_valid_identity_key self.peer_identity_public
+                      let b8 ← is_canonical_key self.peer_identity_public
                       if b8
                       then ok true
                       else ok false
@@ -21266,11 +21236,10 @@ def lifecycle.Session.structural_invariant
                 else
                   match self.established_ephemeral with
                   | none =>
-                    let b6 ← is_valid_identity_key self.our_identity_public
+                    let b6 ← is_canonical_key self.our_identity_public
                     if b6
                     then
-                      let b7 ←
-                        is_valid_identity_key self.peer_identity_public
+                      let b7 ← is_canonical_key self.peer_identity_public
                       if b7
                       then
                         let b8 ← is_canonical_key p.ephemeral_public
@@ -21286,11 +21255,10 @@ def lifecycle.Session.structural_invariant
                     if b6
                     then ok false
                     else
-                      let b7 ← is_valid_identity_key self.our_identity_public
+                      let b7 ← is_canonical_key self.our_identity_public
                       if b7
                       then
-                        let b8 ←
-                          is_valid_identity_key self.peer_identity_public
+                        let b8 ← is_canonical_key self.peer_identity_public
                         if b8
                         then
                           let b9 ← is_canonical_key p.ephemeral_public
@@ -21321,11 +21289,10 @@ def lifecycle.Session.structural_invariant
                   | none =>
                     match self.established_ephemeral with
                     | none =>
-                      let b7 ← is_valid_identity_key self.our_identity_public
+                      let b7 ← is_canonical_key self.our_identity_public
                       if b7
                       then
-                        let b8 ←
-                          is_valid_identity_key self.peer_identity_public
+                        let b8 ← is_canonical_key self.peer_identity_public
                         if b8
                         then ok true
                         else ok false
@@ -21337,12 +21304,10 @@ def lifecycle.Session.structural_invariant
                       if b7
                       then ok false
                       else
-                        let b8 ←
-                          is_valid_identity_key self.our_identity_public
+                        let b8 ← is_canonical_key self.our_identity_public
                         if b8
                         then
-                          let b9 ←
-                            is_valid_identity_key self.peer_identity_public
+                          let b9 ← is_canonical_key self.peer_identity_public
                           if b9
                           then ok true
                           else ok false
@@ -21355,12 +21320,10 @@ def lifecycle.Session.structural_invariant
                     else
                       match self.established_ephemeral with
                       | none =>
-                        let b7 ←
-                          is_valid_identity_key self.our_identity_public
+                        let b7 ← is_canonical_key self.our_identity_public
                         if b7
                         then
-                          let b8 ←
-                            is_valid_identity_key self.peer_identity_public
+                          let b8 ← is_canonical_key self.peer_identity_public
                           if b8
                           then
                             let b9 ← is_canonical_key p.ephemeral_public
@@ -21376,12 +21339,11 @@ def lifecycle.Session.structural_invariant
                         if b7
                         then ok false
                         else
-                          let b8 ←
-                            is_valid_identity_key self.our_identity_public
+                          let b8 ← is_canonical_key self.our_identity_public
                           if b8
                           then
                             let b9 ←
-                              is_valid_identity_key self.peer_identity_public
+                              is_canonical_key self.peer_identity_public
                             if b9
                             then
                               let b10 ← is_canonical_key p.ephemeral_public
@@ -21395,11 +21357,10 @@ def lifecycle.Session.structural_invariant
                 | none =>
                   match self.established_ephemeral with
                   | none =>
-                    let b6 ← is_valid_identity_key self.our_identity_public
+                    let b6 ← is_canonical_key self.our_identity_public
                     if b6
                     then
-                      let b7 ←
-                        is_valid_identity_key self.peer_identity_public
+                      let b7 ← is_canonical_key self.peer_identity_public
                       if b7
                       then ok true
                       else ok false
@@ -21411,11 +21372,10 @@ def lifecycle.Session.structural_invariant
                     if b6
                     then ok false
                     else
-                      let b7 ← is_valid_identity_key self.our_identity_public
+                      let b7 ← is_canonical_key self.our_identity_public
                       if b7
                       then
-                        let b8 ←
-                          is_valid_identity_key self.peer_identity_public
+                        let b8 ← is_canonical_key self.peer_identity_public
                         if b8
                         then ok true
                         else ok false
@@ -21428,11 +21388,10 @@ def lifecycle.Session.structural_invariant
                   else
                     match self.established_ephemeral with
                     | none =>
-                      let b6 ← is_valid_identity_key self.our_identity_public
+                      let b6 ← is_canonical_key self.our_identity_public
                       if b6
                       then
-                        let b7 ←
-                          is_valid_identity_key self.peer_identity_public
+                        let b7 ← is_canonical_key self.peer_identity_public
                         if b7
                         then
                           let b8 ← is_canonical_key p.ephemeral_public
@@ -21448,12 +21407,10 @@ def lifecycle.Session.structural_invariant
                       if b6
                       then ok false
                       else
-                        let b7 ←
-                          is_valid_identity_key self.our_identity_public
+                        let b7 ← is_canonical_key self.our_identity_public
                         if b7
                         then
-                          let b8 ←
-                            is_valid_identity_key self.peer_identity_public
+                          let b8 ← is_canonical_key self.peer_identity_public
                           if b8
                           then
                             let b9 ← is_canonical_key p.ephemeral_public
@@ -21516,11 +21473,10 @@ def lifecycle.Session.structural_invariant
                   | none =>
                     match self.established_ephemeral with
                     | none =>
-                      let b7 ← is_valid_identity_key self.our_identity_public
+                      let b7 ← is_canonical_key self.our_identity_public
                       if b7
                       then
-                        let b8 ←
-                          is_valid_identity_key self.peer_identity_public
+                        let b8 ← is_canonical_key self.peer_identity_public
                         if b8
                         then ok true
                         else ok false
@@ -21532,12 +21488,10 @@ def lifecycle.Session.structural_invariant
                       if b7
                       then ok false
                       else
-                        let b8 ←
-                          is_valid_identity_key self.our_identity_public
+                        let b8 ← is_canonical_key self.our_identity_public
                         if b8
                         then
-                          let b9 ←
-                            is_valid_identity_key self.peer_identity_public
+                          let b9 ← is_canonical_key self.peer_identity_public
                           if b9
                           then ok true
                           else ok false
@@ -21550,12 +21504,10 @@ def lifecycle.Session.structural_invariant
                     else
                       match self.established_ephemeral with
                       | none =>
-                        let b7 ←
-                          is_valid_identity_key self.our_identity_public
+                        let b7 ← is_canonical_key self.our_identity_public
                         if b7
                         then
-                          let b8 ←
-                            is_valid_identity_key self.peer_identity_public
+                          let b8 ← is_canonical_key self.peer_identity_public
                           if b8
                           then
                             let b9 ← is_canonical_key p.ephemeral_public
@@ -21571,12 +21523,11 @@ def lifecycle.Session.structural_invariant
                         if b7
                         then ok false
                         else
-                          let b8 ←
-                            is_valid_identity_key self.our_identity_public
+                          let b8 ← is_canonical_key self.our_identity_public
                           if b8
                           then
                             let b9 ←
-                              is_valid_identity_key self.peer_identity_public
+                              is_canonical_key self.peer_identity_public
                             if b9
                             then
                               let b10 ← is_canonical_key p.ephemeral_public
@@ -21590,11 +21541,10 @@ def lifecycle.Session.structural_invariant
                 | none =>
                   match self.established_ephemeral with
                   | none =>
-                    let b6 ← is_valid_identity_key self.our_identity_public
+                    let b6 ← is_canonical_key self.our_identity_public
                     if b6
                     then
-                      let b7 ←
-                        is_valid_identity_key self.peer_identity_public
+                      let b7 ← is_canonical_key self.peer_identity_public
                       if b7
                       then ok true
                       else ok false
@@ -21606,11 +21556,10 @@ def lifecycle.Session.structural_invariant
                     if b6
                     then ok false
                     else
-                      let b7 ← is_valid_identity_key self.our_identity_public
+                      let b7 ← is_canonical_key self.our_identity_public
                       if b7
                       then
-                        let b8 ←
-                          is_valid_identity_key self.peer_identity_public
+                        let b8 ← is_canonical_key self.peer_identity_public
                         if b8
                         then ok true
                         else ok false
@@ -21623,11 +21572,10 @@ def lifecycle.Session.structural_invariant
                   else
                     match self.established_ephemeral with
                     | none =>
-                      let b6 ← is_valid_identity_key self.our_identity_public
+                      let b6 ← is_canonical_key self.our_identity_public
                       if b6
                       then
-                        let b7 ←
-                          is_valid_identity_key self.peer_identity_public
+                        let b7 ← is_canonical_key self.peer_identity_public
                         if b7
                         then
                           let b8 ← is_canonical_key p.ephemeral_public
@@ -21643,12 +21591,10 @@ def lifecycle.Session.structural_invariant
                       if b6
                       then ok false
                       else
-                        let b7 ←
-                          is_valid_identity_key self.our_identity_public
+                        let b7 ← is_canonical_key self.our_identity_public
                         if b7
                         then
-                          let b8 ←
-                            is_valid_identity_key self.peer_identity_public
+                          let b8 ← is_canonical_key self.peer_identity_public
                           if b8
                           then
                             let b9 ← is_canonical_key p.ephemeral_public
@@ -21680,12 +21626,10 @@ def lifecycle.Session.structural_invariant
                     | none =>
                       match self.established_ephemeral with
                       | none =>
-                        let b7 ←
-                          is_valid_identity_key self.our_identity_public
+                        let b7 ← is_canonical_key self.our_identity_public
                         if b7
                         then
-                          let b8 ←
-                            is_valid_identity_key self.peer_identity_public
+                          let b8 ← is_canonical_key self.peer_identity_public
                           if b8
                           then ok true
                           else ok false
@@ -21697,12 +21641,11 @@ def lifecycle.Session.structural_invariant
                         if b7
                         then ok false
                         else
-                          let b8 ←
-                            is_valid_identity_key self.our_identity_public
+                          let b8 ← is_canonical_key self.our_identity_public
                           if b8
                           then
                             let b9 ←
-                              is_valid_identity_key self.peer_identity_public
+                              is_canonical_key self.peer_identity_public
                             if b9
                             then ok true
                             else ok false
@@ -21715,12 +21658,11 @@ def lifecycle.Session.structural_invariant
                       else
                         match self.established_ephemeral with
                         | none =>
-                          let b7 ←
-                            is_valid_identity_key self.our_identity_public
+                          let b7 ← is_canonical_key self.our_identity_public
                           if b7
                           then
                             let b8 ←
-                              is_valid_identity_key self.peer_identity_public
+                              is_canonical_key self.peer_identity_public
                             if b8
                             then
                               let b9 ← is_canonical_key p.ephemeral_public
@@ -21737,11 +21679,11 @@ def lifecycle.Session.structural_invariant
                           then ok false
                           else
                             let b8 ←
-                              is_valid_identity_key self.our_identity_public
+                              is_canonical_key self.our_identity_public
                             if b8
                             then
                               let b9 ←
-                                is_valid_identity_key self.peer_identity_public
+                                is_canonical_key self.peer_identity_public
                               if b9
                               then
                                 let b10 ← is_canonical_key p.ephemeral_public
@@ -21755,11 +21697,10 @@ def lifecycle.Session.structural_invariant
                   | none =>
                     match self.established_ephemeral with
                     | none =>
-                      let b6 ← is_valid_identity_key self.our_identity_public
+                      let b6 ← is_canonical_key self.our_identity_public
                       if b6
                       then
-                        let b7 ←
-                          is_valid_identity_key self.peer_identity_public
+                        let b7 ← is_canonical_key self.peer_identity_public
                         if b7
                         then ok true
                         else ok false
@@ -21771,12 +21712,10 @@ def lifecycle.Session.structural_invariant
                       if b6
                       then ok false
                       else
-                        let b7 ←
-                          is_valid_identity_key self.our_identity_public
+                        let b7 ← is_canonical_key self.our_identity_public
                         if b7
                         then
-                          let b8 ←
-                            is_valid_identity_key self.peer_identity_public
+                          let b8 ← is_canonical_key self.peer_identity_public
                           if b8
                           then ok true
                           else ok false
@@ -21789,12 +21728,10 @@ def lifecycle.Session.structural_invariant
                     else
                       match self.established_ephemeral with
                       | none =>
-                        let b6 ←
-                          is_valid_identity_key self.our_identity_public
+                        let b6 ← is_canonical_key self.our_identity_public
                         if b6
                         then
-                          let b7 ←
-                            is_valid_identity_key self.peer_identity_public
+                          let b7 ← is_canonical_key self.peer_identity_public
                           if b7
                           then
                             let b8 ← is_canonical_key p.ephemeral_public
@@ -21810,12 +21747,11 @@ def lifecycle.Session.structural_invariant
                         if b6
                         then ok false
                         else
-                          let b7 ←
-                            is_valid_identity_key self.our_identity_public
+                          let b7 ← is_canonical_key self.our_identity_public
                           if b7
                           then
                             let b8 ←
-                              is_valid_identity_key self.peer_identity_public
+                              is_canonical_key self.peer_identity_public
                             if b8
                             then
                               let b9 ← is_canonical_key p.ephemeral_public
@@ -21827,7 +21763,7 @@ def lifecycle.Session.structural_invariant
       else ok false
 
 /-- [tacenta_session_unit::lifecycle::{tacenta_session_unit::lifecycle::Session}::invariant]:
-    Source: 'session-unit/src/lifecycle.rs', lines 3466:4-3468:5
+    Source: 'session-unit/src/lifecycle.rs', lines 3463:4-3465:5
     Visibility: public -/
 def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
   let b ← lifecycle.Session.structural_invariant self
@@ -21836,7 +21772,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
   else ok false
 
 /-- [tacenta_session_unit::lifecycle::{tacenta_session_unit::lifecycle::Session}::import]:
-    Source: 'session-unit/src/lifecycle.rs', lines 3436:4-3445:5
+    Source: 'session-unit/src/lifecycle.rs', lines 3433:4-3442:5
     Visibility: public -/
 def lifecycle.Session.import
   (bytes : Slice Std.U8) :

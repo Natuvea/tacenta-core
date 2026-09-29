@@ -6,12 +6,14 @@ here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
+refusals=0
 fixture="$root/tooling/tests/assurance-receipts-fixture.json"
 export ASSURANCE_FIXTURE_COMMIT="$(git -C "$root" rev-parse HEAD)"
 export ASSURANCE_FIXTURE_TREE="$(git -C "$root" rev-parse 'HEAD^{tree}')"
 
 expect_fail() {
   local name="$1" needle="$2" out rc
+  refusals=$((refusals + 1))
   set +e
   out="$(python3 "$root/tooling/build-assurance-manifest.py" --allow-dirty --receipts "$work/$name.json" --output "$work/$name.out" 2>&1)"
   rc=$?
@@ -29,6 +31,7 @@ expect_fail() {
 
 expect_validate_fail() {
   local name="$1" needle="$2" path="$3" out rc
+  refusals=$((refusals + 1))
   set +e
   out="$(python3 "$root/tooling/build-assurance-manifest.py" --validate "$path" 2>&1)"
   rc=$?
@@ -54,8 +57,16 @@ data['candidate'] = {
     'commit': __import__('os').environ['ASSURANCE_FIXTURE_COMMIT'],
     'tree': __import__('os').environ['ASSURANCE_FIXTURE_TREE'],
 }
+import sys as _sys
+_sys.path.insert(0, str(pathlib.Path(source).resolve().parents[1]))
+from assurance_validation import expected_step_outcomes
+table = expected_step_outcomes()
 for check in data['checks']:
     check['run'].update(commit=data['candidate']['commit'], tree=data['candidate']['tree'])
+    # The receipts a push to main would collect: the event, and success for
+    # exactly the command steps the workflow runs for the check.
+    check['environment'] = {'event': 'push'}
+    check['step_outcomes'] = {step: 'success' for step in table[(check['id'], 'push')]}
 exec(program.read_text(), {'data': data})
 output.write_text(json.dumps(data, indent=2) + '\n')
 PY
@@ -90,4 +101,32 @@ printf "%s\n" "data['candidate']['commit'] = '0' * 40" > "$work/foreign.py"
 make_case foreign "$work/foreign.py"
 expect_fail foreign 'receipts candidate commit/tree does not match selected source'
 
-echo 'build-assurance-manifest-cases: pass case and 5 receipt refusals gave the expected result'
+printf "%s\n" "next(c for c in data['checks'] if c['id'] == 'rust')['step_outcomes']['rust_test'] = 'failure'" > "$work/failed-step.py"
+make_case failed-step "$work/failed-step.py"
+expect_fail failed-step 'receipt rust records command steps that did not succeed: rust_test=failure'
+
+printf "%s\n" "del next(c for c in data['checks'] if c['id'] == 'vectors')['step_outcomes']['vectors_reader']" > "$work/missing-step.py"
+make_case missing-step "$work/missing-step.py"
+expect_fail missing-step 'receipt vectors does not record the command steps: vectors_reader'
+
+printf "%s\n" "del next(c for c in data['checks'] if c['id'] == 'audit')['step_outcomes']" > "$work/no-outcomes.py"
+make_case no-outcomes "$work/no-outcomes.py"
+expect_fail no-outcomes 'receipt audit records no command step outcomes'
+
+printf "%s\n" "next(c for c in data['checks'] if c['id'] == 'msrv')['step_outcomes']['msrv_extra'] = 'success'" > "$work/extra-step.py"
+make_case extra-step "$work/extra-step.py"
+expect_fail extra-step 'receipt msrv records steps the workflow does not run for push: msrv_extra'
+
+printf "%s\n" "next(c for c in data['checks'] if c['id'] == 'checks')['environment']['event'] = 'pull_request'" > "$work/mixed-events.py"
+make_case mixed-events "$work/mixed-events.py"
+expect_fail mixed-events 'receipt checks records steps the workflow does not run for pull_request: checks_39'
+
+printf "%s\n" "next(c for c in data['checks'] if c['id'] == 'rust')['run']['id'] = 'other-run'" > "$work/mixed-runs.py"
+make_case mixed-runs "$work/mixed-runs.py"
+expect_fail mixed-runs 'receipts come from more than one workflow run'
+
+printf "%s\n" "data['checks'].append({'id': 'sign-off', 'classification': 'conditional', 'applicable': True, 'status': 'pass', 'command': 'tooling/check-signoff.sh', 'environment': {'event': 'push'}, 'run': {'id': 'fixture', 'commit': '0' * 40, 'tree': '0' * 40}, 'step_outcomes': {'signoff_check': 'success'}})" > "$work/foreign-signoff.py"
+make_case foreign-signoff "$work/foreign-signoff.py"
+expect_fail foreign-signoff 'receipt sign-off was not produced for the selected candidate'
+
+echo "build-assurance-manifest-cases: pass case and $refusals refusals gave the expected result"

@@ -32,7 +32,7 @@
 //! of two variables. Getting it wrong is invisible to every derivation and fatal
 //! to the session.
 
-#![forbid(unsafe_code)]
+#![cfg_attr(not(feature = "private-erasure-review"), forbid(unsafe_code))]
 // `?` appears here only on a `Result` whose error type is this function's own,
 // the one shape known to translate; the remaining early returns are spelled as
 // `match`, and the lint that asks to rewrite those as `?` stays off because
@@ -41,6 +41,118 @@
 #![allow(clippy::question_mark)]
 
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
+
+#[cfg(feature = "private-erasure-review")]
+use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+#[cfg(feature = "private-erasure-review")]
+pub static REVIEW_FOUND: AtomicBool = AtomicBool::new(false);
+#[cfg(feature = "private-erasure-review")]
+static REVIEW_KEY_COUNT: AtomicUsize = AtomicUsize::new(0);
+#[cfg(feature = "private-erasure-review")]
+static mut REVIEW_KEYS: [[u8; 32]; 2048] = [[0; 32]; 2048];
+
+#[cfg(feature = "private-erasure-review")]
+pub fn review_reset() {
+    REVIEW_KEY_COUNT.store(0, Ordering::Relaxed);
+    REVIEW_FOUND.store(false, Ordering::Relaxed);
+}
+
+#[cfg(feature = "private-erasure-review")]
+fn review_record_key(key: &Key) {
+    let index = REVIEW_KEY_COUNT.fetch_add(1, Ordering::Relaxed);
+    if index < 2048 {
+        unsafe {
+            REVIEW_KEYS[index] = *key;
+        }
+    }
+}
+
+#[cfg(feature = "private-erasure-review")]
+fn review_check_bytes(bytes: &[u8]) {
+    let count = REVIEW_KEY_COUNT.load(Ordering::Relaxed).min(2048);
+    let mut i = 0;
+    while i < count {
+        let key = unsafe { &REVIEW_KEYS[i] };
+        if bytes.windows(key.len()).any(|window| window == key) {
+            REVIEW_FOUND.store(true, Ordering::Relaxed);
+            return;
+        }
+        i += 1;
+    }
+}
+
+#[cfg(feature = "private-erasure-review")]
+fn review_check_skipped_values(skipped: &Vec<Skipped>) {
+    if skipped.is_empty() {
+        return;
+    }
+    let bytes = unsafe {
+        core::slice::from_raw_parts(
+            skipped.as_ptr().cast::<u8>(),
+            skipped.len() * core::mem::size_of::<Skipped>(),
+        )
+    };
+    review_check_bytes(bytes);
+}
+
+#[cfg(feature = "private-erasure-review")]
+fn review_check_chain_value(chains: &Vec<(u64, Chains)>, index: usize) {
+    let bytes = unsafe {
+        core::slice::from_raw_parts(
+            core::ptr::from_ref(&chains[index].1).cast::<u8>(),
+            core::mem::size_of::<Chains>(),
+        )
+    };
+    review_check_bytes(bytes);
+}
+
+#[cfg(feature = "private-erasure-review")]
+fn review_check_chain_values(chains: &Vec<(u64, Chains)>) {
+    let mut i = 0;
+    while i < chains.len() {
+        review_check_chain_value(chains, i);
+        i += 1;
+    }
+}
+
+#[cfg(feature = "private-erasure-review")]
+fn review_record_state_keys(state: &State) {
+    review_record_key(&state.rk);
+    let mut i = 0;
+    while i < state.chains.len() {
+        if let Some(chain) = &state.chains[i].1.send {
+            review_record_key(&chain.ck);
+        }
+        if let Some(chain) = &state.chains[i].1.receive {
+            review_record_key(&chain.ck);
+        }
+        i += 1;
+    }
+    let mut i = 0;
+    while i < state.skipped.len() {
+        review_record_key(&state.skipped[i].key);
+        i += 1;
+    }
+}
+
+#[cfg(feature = "private-erasure-review")]
+fn review_check_state_values(state: &State) {
+    review_check_bytes(&state.rk);
+    review_check_chain_values(&state.chains);
+    review_check_skipped_values(&state.skipped);
+}
+
+#[cfg(feature = "private-erasure-review")]
+fn review_check_skipped_value(skipped: &Vec<Skipped>, index: usize) {
+    let bytes = unsafe {
+        core::slice::from_raw_parts(
+            core::ptr::from_ref(&skipped[index]).cast::<u8>(),
+            core::mem::size_of::<Skipped>(),
+        )
+    };
+    review_check_bytes(bytes);
+}
 
 /// A key: 32 bytes, as everything here is.
 pub type Key = [u8; 32];
@@ -164,11 +276,27 @@ struct Chain {
 
 /// A chain is `None` only in an imported state: retiring an epoch removes its
 /// whole entry, which is `NoChain` (sparse-pq-ratchet.md, session-persistence.md).
-#[derive(Clone, Default, Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, Default, ZeroizeOnDrop)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 struct Chains {
     send: Option<Chain>,
     receive: Option<Chain>,
+}
+
+// `Option::zeroize` takes a `Some` value after clearing it.  That leaves the
+// old enum payload bytes in place until the slot is overwritten, which is
+// precisely the residue this crate must avoid for secret-bearing chains.
+// Clear the values in place and let the caller remove the option only after
+// the payload has been overwritten.
+impl Zeroize for Chains {
+    fn zeroize(&mut self) {
+        if let Some(chain) = self.send.as_mut() {
+            chain.zeroize();
+        }
+        if let Some(chain) = self.receive.as_mut() {
+            chain.zeroize();
+        }
+    }
 }
 
 /// A message key held for a message that has not arrived.
@@ -241,9 +369,13 @@ pub struct State {
 
 impl Drop for State {
     fn drop(&mut self) {
+        #[cfg(feature = "private-erasure-review")]
+        review_record_state_keys(self);
         self.rk.zeroize();
         self.chains.zeroize();
         self.skipped.zeroize();
+        #[cfg(feature = "private-erasure-review")]
+        review_check_state_values(self);
     }
 }
 
@@ -567,23 +699,84 @@ impl State {
             replacement.push(self.chains[i].clone());
             i += 1;
         }
+        #[cfg(feature = "private-erasure-review")]
+        {
+            let mut i = 0;
+            while i < self.chains.len() {
+                if let Some(chain) = &self.chains[i].1.send {
+                    review_record_key(&chain.ck);
+                }
+                if let Some(chain) = &self.chains[i].1.receive {
+                    review_record_key(&chain.ck);
+                }
+                i += 1;
+            }
+        }
         self.chains.zeroize();
+        #[cfg(feature = "private-erasure-review")]
+        review_check_chain_values(&self.chains);
         self.chains = replacement;
     }
 
     fn set_chains(&mut self, e: u64, c: Chains) {
-        self.chains.retain(|p| p.0 != e);
+        let mut i = 0;
+        while i < self.chains.len() {
+            if self.chains[i].0 == e {
+                Self::remove_chains_at(&mut self.chains, i);
+            } else {
+                i += 1;
+            }
+        }
         self.prepare_chains_capacity(1);
         self.chains.push((e, c));
+    }
+
+    /// Remove a secret-bearing chain entry without `Vec::retain` leaving a
+    /// moved copy in the allocation tail. Move later entries into the removed
+    /// position, wipe the final slot, and only then shorten the vector.
+    fn remove_chains_at(chains: &mut Vec<(u64, Chains)>, index: usize) {
+        let mut i = index;
+        while i + 1 < chains.len() {
+            chains.swap(i, i + 1);
+            i += 1;
+        }
+        #[cfg(feature = "private-erasure-review")]
+        {
+            if let Some(chain) = &chains[i].1.send {
+                review_record_key(&chain.ck);
+            }
+            if let Some(chain) = &chains[i].1.receive {
+                review_record_key(&chain.ck);
+            }
+        }
+        chains[i].1.zeroize();
+        #[cfg(feature = "private-erasure-review")]
+        review_check_chain_value(chains, i);
+        chains[i].1.send = None;
+        chains[i].1.receive = None;
+        let _ = chains.pop();
     }
 
     /// Retire everything older than the epochs kept, chains and skipped keys
     /// alike. This is what bounds the store, so it is not an optimisation.
     fn clear_old_epochs(&mut self, current: u64) {
-        self.chains
-            .retain(|p| current < p.0.saturating_add(EPOCHS_KEPT));
-        self.skipped
-            .retain(|s| current < s.epoch.saturating_add(EPOCHS_KEPT));
+        let mut i = 0;
+        while i < self.chains.len() {
+            if current < self.chains[i].0.saturating_add(EPOCHS_KEPT) {
+                i += 1;
+            } else {
+                Self::remove_chains_at(&mut self.chains, i);
+            }
+        }
+        let mut j = 0;
+        while j < self.skipped.len() {
+            if current < self.skipped[j].epoch.saturating_add(EPOCHS_KEPT) {
+                j += 1;
+            } else {
+                let mut discarded = Self::remove_skipped_at(&mut self.skipped, j);
+                discarded.zeroize();
+            }
+        }
     }
 
     /// Fold a new secret into the root key and open a fresh pair of chains under
@@ -694,7 +887,11 @@ impl State {
             i += 1;
         }
         let key = skipped[i].key;
+        #[cfg(feature = "private-erasure-review")]
+        review_record_key(&key);
         skipped[i].zeroize();
+        #[cfg(feature = "private-erasure-review")]
+        review_check_skipped_value(skipped, i);
         let _ = skipped.pop();
         key
     }
@@ -752,7 +949,18 @@ impl State {
                 key: mk,
             });
         }
-        self.skipped = skipped;
+        #[cfg(feature = "private-erasure-review")]
+        {
+            let mut i = 0;
+            while i < self.skipped.len() {
+                review_record_key(&self.skipped[i].key);
+                i += 1;
+            }
+        }
+        let mut old_skipped = core::mem::replace(&mut self.skipped, skipped);
+        old_skipped.zeroize();
+        #[cfg(feature = "private-erasure-review")]
+        review_check_skipped_values(&old_skipped);
         self.set_chains(
             e,
             Chains {

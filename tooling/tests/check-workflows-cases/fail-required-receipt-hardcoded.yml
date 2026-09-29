@@ -1,0 +1,17 @@
+# expect: must bind to the step's GitHub outcome
+name: hardcoded-receipt
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - id: probe
+        run: printf '%s\n' probe
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: j
+          classification: required
+          command: probe
+          required-outcomes: "probe=success"
