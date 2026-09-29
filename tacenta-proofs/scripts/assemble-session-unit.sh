@@ -159,6 +159,7 @@ zeroize = { version = "1", features = ["derive"] }
 
 [features]
 conformance = []
+private-erasure-review = []
 
 [lib]
 test = false
