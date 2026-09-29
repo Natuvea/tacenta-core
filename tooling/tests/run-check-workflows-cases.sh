@@ -17,7 +17,9 @@
 # (`none` copies nothing), which is how the comparison with the expected form of
 # the required workflow is held. A directory `<case>.tree/` beside a case is
 # copied over the repository root, for the files a case reaches by `uses: ./`;
-# a directory in it named `dot-github` becomes `.github` there.
+# a directory in it named `dot-github` becomes `.github` there. A directory
+# `<case>.outside/` is copied to `<repository>-outside`, next to the repository,
+# for a case that must show a file outside it is not read.
 #
 # The last group are the real thing: the repository's own `ci.yml`, receipt
 # action and `tooling/required-steps.json`, copied into a temporary repository
@@ -62,6 +64,10 @@ for case in "$cases"/pass-*.yml "$cases"/fail-*.yml "$cases"/action-pass-*.yml "
   mkdir -p "$repo/.github/workflows"
   git -C "$repo" init -q
   manifest="$(sed -n '1,2s/^# manifest: //p' "$case")"
+  if [ -d "${case%.yml}.outside" ]; then
+    mkdir -p "$repo-outside"
+    cp -R "${case%.yml}.outside/." "$repo-outside/"
+  fi
   if [ -d "${case%.yml}.tree" ]; then
     cp -R "${case%.yml}.tree/." "$repo/"
     # A `.github` directory under `check-workflows-cases/` would be read as a
@@ -153,6 +159,35 @@ set -e
 if [ "$empty_rc" -eq 0 ] || ! printf '%s' "$empty_out" | grep -qF -- 'no workflow files found'; then
   echo 'WRONG  empty-tree: missing workflows did not fail closed' >&2
   printf '%s\n' "$empty_out" >&2
+  exit 1
+fi
+
+# The writer: it produces the manifest a case is compared with, from the same
+# workflow, and refuses an option it does not know.
+writer_repo="$work/writer"
+mkdir -p "$writer_repo/.github/workflows"
+git -C "$writer_repo" init -q
+sed '1d' "$cases/pass-required-steps-match.yml" > "$writer_repo/.github/workflows/ci.yml"
+(cd "$writer_repo" && env -u GITHUB_ACTIONS bash "$checker" --write-required-steps >/dev/null)
+if ! python3 - "$writer_repo/tooling/required-steps.json" "$cases/manifests/mini-ci.json" <<'PY'
+import json, sys
+written, expected = (json.load(open(path)) for path in sys.argv[1:3])
+sys.exit(0 if written == expected else 1)
+PY
+then
+  echo "WRONG  writer: --write-required-steps did not produce the manifest the cases use" >&2
+  exit 1
+fi
+if ! (cd "$writer_repo" && env -u GITHUB_ACTIONS bash "$checker" >/dev/null 2>&1); then
+  echo "WRONG  writer: the manifest it wrote was refused for the workflow it was written from" >&2
+  exit 1
+fi
+set +e
+(cd "$writer_repo" && env -u GITHUB_ACTIONS bash "$checker" --unknown-option >/dev/null 2>"$work/usage.err")
+usage_rc=$?
+set -e
+if [ "$usage_rc" -ne 2 ] || ! grep -qF 'usage: check-workflows.sh' "$work/usage.err"; then
+  echo "WRONG  usage: an unknown option was not refused with the usage line" >&2
   exit 1
 fi
 
@@ -278,7 +313,28 @@ def check(repo):
     return result.returncode, result.stdout
 
 
+def build_manifest_edit(name, edit):
+    repo = build(name, None, False)
+    path = repo / "tooling/required-steps.json"
+    document = __import__("json").loads(path.read_text())
+    edit(document)
+    path.write_text(__import__("json").dumps(document, indent=2))
+    return repo
+
+
+manifest_edits = [
+    ("manifest-form-01", lambda d: d["files"].pop(".github/actions/assurance-receipt/action.yml"),
+     "does not describe .github/actions/assurance-receipt/action.yml"),
+    ("manifest-form-02", lambda d: d["files"].pop(".github/workflows/ci.yml"),
+     "does not describe .github/workflows/ci.yml"),
+]
+
 wrong = 0
+for name, edit, needle in manifest_edits:
+    rc, out = check(build_manifest_edit(name, edit))
+    if rc == 0 or needle not in out:
+        print("WRONG  real-tree %s: expected a refusal naming '%s':\n%s" % (name, needle, out), file=sys.stderr)
+        wrong += 1
 for name, change, is_action in accepted:
     rc, out = check(build(name, change, is_action))
     if rc != 0:
@@ -299,7 +355,7 @@ for name, change in cases:
         wrong += 1
 if wrong:
     sys.exit(1)
-print(len(cases) + len(accepted))
+print(len(cases) + len(accepted) + len(manifest_edits))
 PY
 real_total="$(python3 "$work/real-tree-cases.py" "$root" "$work" "$checker")" || {
   echo "check-workflows-cases: the changes to the repository's own workflow gave the wrong result" >&2

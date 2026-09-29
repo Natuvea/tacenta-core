@@ -595,6 +595,7 @@ def write_required_steps():
         ),
         "files": files_out,
     }
+    os.makedirs(os.path.dirname(REQUIRED_STEPS_FILE), exist_ok=True)
     with open(REQUIRED_STEPS_FILE, "w") as handle:
         handle.write(json.dumps(document, indent=2, ensure_ascii=False) + "\n")
     print("check-workflows: wrote %s for %d file(s)" % (REQUIRED_STEPS_FILE, len(files_out)))
