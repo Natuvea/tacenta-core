@@ -35,6 +35,15 @@ Two primitives are not computed in the model:
   MAC key, and IV) and stops there. The cipher and MAC over the plaintext are the
   boundary primitive, checked by their own vectors.
 
+The identity-key rule is a third thing, and is not at this boundary as a
+primitive. `Model.IdentityKey.valid` computes it in the model, from natural
+number arithmetic and the curve's group law, for the readers of the stored
+identity keys and for the vectors. The lifecycle operations do not call it: they
+take a verdict on the same rule from the oracle bit `Oracle.identityValid`, so
+that a refinement can bind that bit to the translated Rust, and no theorem
+assumes the two agree. What ties them together is the identity-key vectors,
+which the runner checks `tacenta-core` against.
+
 So concrete ciphertext bytes are out of the model by design. The model asserts
 the schedule and the state machine, which is exactly the part a curve-independent
 or cipher-independent check should cover.
