@@ -1,0 +1,6 @@
+# expect: composite action calls the receipt action
+name: probe
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/assurance-receipt

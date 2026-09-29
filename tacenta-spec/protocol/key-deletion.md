@@ -260,7 +260,11 @@ when that check refuses it.
   handshakes one key has accepted over its lifetime, not how many arrived
   recently. A key's entries leave the record when the key is wiped, which is
   the rotation after the one that retires it; until then a replay against the
-  retired key is still a replay, counted against that key's own budget.
+  retired key is still a replay, counted against that key's own budget. A
+  `legacy_blocked` entry imported from an older format
+  (session-persistence.md, Legacy markers) leaves with the key it names in the
+  same way, and until then that key refuses last-resort handshakes
+  (`LegacyLastResortRecord`).
 
   The cost of a spent budget falls on the last-resort path only; a handshake
   naming a one-time KEM prekey never consults the record. The operator has two

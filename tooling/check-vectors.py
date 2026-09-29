@@ -19,11 +19,12 @@ is a known-answer file (`schema/vector.schema.json`). The schemas' `$id`
 values are checked to share one base, so the two cannot drift apart in how
 they name themselves.
 
-The two group files predate the shared known-answer envelope because their
-inputs include structured inventory bindings. They have explicit, closed
-shapes below and are checked by the core group-vector integration tests as
-well as by the independent reader. A file claiming either group schema cannot
-fall through to the generic reader or be accepted as an unrecognised format.
+The group files (`vectors/groups/`) predate the shared known-answer envelope
+because their inputs include structured inventory bindings. Each has an
+explicit, closed shape below, nested values included, and is checked by the
+core group-vector integration tests as well as by the independent reader. A
+file claiming one of these schemas cannot fall through to the generic reader or
+be accepted as an unrecognised format.
 
 No dependency. `jsonschema` is not guaranteed on a runner and this check has
 to be able to run anywhere `python3` does, so the validator below covers the
@@ -35,8 +36,12 @@ being silently ignored.
 
 Beyond the schema, five rules the schemas state in prose and this enforces:
 vector `id`s are unique within a file; in a known-answer file exactly one of
-`output` and `fields` is present when `result` is `valid`, and neither when it
-is `invalid`; a `refusal` is carried only by an invalid vector; in a scenario
+`output` and `fields` is present when `result` is `valid`, except for a
+prekey-store vector whose input is a v1-v4 store, which must carry both the
+decoded `fields` and the v5 upgrade `output` (the bytes the store is written
+back as, which begin with the input's own first 132 bytes after the version
+byte); neither is present when it is `invalid`;
+a `refusal` is carried only by an invalid vector; in a scenario
 file an ok step
 carries `mk` while a reject step carries neither `mk` nor `message_keys`
 (the runner would fail an ok step without `mk`, and a reject step's key is
@@ -207,24 +212,143 @@ def check_steps(rel, i, v, problems):
                                     % (where, key))
 
 
+U32 = 0xFFFFFFFF
+U64 = 0xFFFFFFFFFFFFFFFF
+
+# The check that refused a hosted-inventory acceptance case, named by the
+# numbered checks of identities-and-devices.md, "Accepting a signed statement";
+# `decode` is a refusal by an encoding rule, before check 1.
+INVENTORY_REFUSALS = (
+    "decode", "account", "issuer", "signature", "freshness", "duplicate-device",
+    "identity-key", "binding-policy", "statement-policy",
+)
+
+
+def hex_ok(value, length=None):
+    return (isinstance(value, str) and len(value) % 2 == 0
+            and re.fullmatch(r"[0-9a-f]*", value) is not None
+            and (length is None or len(value) == 2 * length))
+
+
+def int_ok(value, top):
+    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= top
+
+
+def keys_ok(obj, required, optional=()):
+    return (isinstance(obj, dict) and set(required) <= set(obj)
+            and set(obj) <= set(required) | set(optional))
+
+
+def check_binding(b, where, problems):
+    if not keys_ok(b, ("device_id", "identity_hex", "capabilities"),
+                   ("replacement_predecessor_hex",)):
+        problems.append("%s: binding fields do not match the schema" % where)
+        return
+    if not int_ok(b["device_id"], U32):
+        problems.append("%s.device_id: not a u32" % where)
+    if not hex_ok(b["identity_hex"], 32):
+        problems.append("%s.identity_hex: not 32 bytes of lower-case hex" % where)
+    if not int_ok(b["capabilities"], U64):
+        problems.append("%s.capabilities: not a u64" % where)
+    if "replacement_predecessor_hex" in b and not hex_ok(b["replacement_predecessor_hex"], 32):
+        problems.append("%s.replacement_predecessor_hex: not 32 bytes of lower-case hex" % where)
+
+
+def check_inventory_statement(case, where, problems):
+    for name in ("issuer_key_id", "inventory_generation", "revocation_floor_generation"):
+        if not int_ok(case[name], U64):
+            problems.append("%s.%s: not a u64" % (where, name))
+    if not isinstance(case["account_handle"], str):
+        problems.append("%s.account_handle: not a string" % where)
+    for i, b in enumerate(case["active"]):
+        check_binding(b, "%s.active[%d]" % (where, i), problems)
+    for i, r in enumerate(case["revoked"]):
+        if not keys_ok(r, ("binding", "terminal_generation")):
+            problems.append("%s.revoked[%d]: fields do not match the schema" % (where, i))
+            continue
+        check_binding(r["binding"], "%s.revoked[%d].binding" % (where, i), problems)
+        if not int_ok(r["terminal_generation"], U64):
+            problems.append("%s.revoked[%d].terminal_generation: not a u64" % (where, i))
+
+
+def check_inventory_refusal(case, where, problems):
+    if not isinstance(case["rule"], str) or not case["rule"]:
+        problems.append("%s.rule: empty or not a string" % where)
+
+
+def check_inventory_commitment(case, where, problems):
+    check_binding(case["binding"], "%s.binding" % where, problems)
+    if case["commitment_hex"] is not None and not hex_ok(case["commitment_hex"], 32):
+        problems.append("%s.commitment_hex: neither null nor 32 bytes of lower-case hex" % where)
+
+
+def check_inventory_acceptance(case, where, problems):
+    for name in ("signed_hex", "expected_account_hex"):
+        if not hex_ok(case[name]):
+            problems.append("%s.%s: not lower-case even-length hex" % (where, name))
+    if case["refusal"] is not None and case["refusal"] not in INVENTORY_REFUSALS:
+        problems.append("%s.refusal: neither null nor one of %s"
+                        % (where, ", ".join(INVENTORY_REFUSALS)))
+    calls = case["hook_calls"]
+    if not isinstance(calls, list) or not all(isinstance(c, str) and c for c in calls):
+        problems.append("%s.hook_calls: not a list of non-empty strings" % where)
+    policy = case["policy"]
+    if not keys_ok(policy, ("issuers", "fresh", "refuse_binding", "refuse_every_binding",
+                            "refuse_statement")):
+        problems.append("%s.policy: fields do not match the schema" % where)
+        return
+    for i, issuer in enumerate(policy["issuers"] if isinstance(policy["issuers"], list) else [None]):
+        if not keys_ok(issuer, ("issuer_key_id", "account_hex", "verification_key_hex")):
+            problems.append("%s.policy.issuers[%d]: fields do not match the schema" % (where, i))
+            continue
+        if not int_ok(issuer["issuer_key_id"], U64):
+            problems.append("%s.policy.issuers[%d].issuer_key_id: not a u64" % (where, i))
+        if issuer["account_hex"] is not None and not hex_ok(issuer["account_hex"]):
+            problems.append("%s.policy.issuers[%d].account_hex: neither null nor hex" % (where, i))
+        if not hex_ok(issuer["verification_key_hex"], 32):
+            problems.append("%s.policy.issuers[%d].verification_key_hex: not 32 bytes of hex" % (where, i))
+    for i, fresh in enumerate(policy["fresh"] if isinstance(policy["fresh"], list) else [None]):
+        if not keys_ok(fresh, ("account_hex", "generation")) \
+                or not hex_ok(fresh["account_hex"]) or not int_ok(fresh["generation"], U64):
+            problems.append("%s.policy.fresh[%d]: fields do not match the schema" % (where, i))
+    refused = policy["refuse_binding"]
+    if refused is not None and (not keys_ok(refused, ("identity_hex", "status"))
+                                or not hex_ok(refused["identity_hex"], 32)
+                                or refused["status"] not in ("active", "revoked")):
+        problems.append("%s.policy.refuse_binding: neither null nor an identity and a status" % where)
+    for name in ("refuse_every_binding", "refuse_statement"):
+        if not isinstance(policy[name], bool):
+            problems.append("%s.policy.%s: not a boolean" % (where, name))
+
+
+# Each group file's top-level `schema` names one of these closed shapes: the
+# fields every case has, with the type each must be, and the check that
+# looks inside the nested ones. A case with an unknown or missing field is
+# refused, so a runner cannot read a file that has grown a field it ignores.
 GROUP_SCHEMAS = {
-    "tacenta-group-commitments-v1": {
-        "operation": str, "input_hex": str, "output_hex": str,
-    },
-    "tacenta-inventory-statements-v1": {
-        "issuer_key_id": int, "account_handle": str, "inventory_generation": int,
-        "active": list, "revocation_floor_generation": int, "revoked": list,
-        "unsigned_hex": str,
-    },
+    "tacenta-group-commitments-v1": (
+        {"operation": str, "input_hex": str, "output_hex": str}, None),
+    "tacenta-inventory-statements-v1": (
+        {"issuer_key_id": int, "account_handle": str, "inventory_generation": int,
+         "active": list, "revocation_floor_generation": int, "revoked": list,
+         "unsigned_hex": str}, check_inventory_statement),
+    "tacenta-inventory-decode-refusals-v1": (
+        {"rule": str, "unsigned_hex": str}, check_inventory_refusal),
+    "tacenta-inventory-binding-commitments-v1": (
+        {"binding": dict, "commitment_hex": (str, type(None))}, check_inventory_commitment),
+    "tacenta-inventory-acceptance-v1": (
+        {"signed_hex": str, "expected_account_hex": str, "policy": dict,
+         "refusal": (str, type(None)), "hook_calls": list}, check_inventory_acceptance),
 }
 
 
 def check_group_file(doc, rel, problems):
-    """Validate the two structured group-vector envelopes explicitly."""
+    """Validate the structured group-vector envelopes explicitly."""
     schema = doc.get("schema") if isinstance(doc, dict) else None
-    fields = GROUP_SCHEMAS.get(schema)
-    if fields is None:
+    entry = GROUP_SCHEMAS.get(schema)
+    if entry is None:
         return None
+    fields, inner = entry
     if set(doc) != {"schema", "comment", "cases"} or not isinstance(doc.get("comment"), str):
         problems.append("%s: group file must contain only schema, comment and cases" % rel)
         return []
@@ -241,12 +365,17 @@ def check_group_file(doc, rel, problems):
         if not isinstance(case["id"], str) or not case["id"] or case["id"] in seen:
             problems.append("%s: id is empty or not unique" % where)
         seen.add(case.get("id"))
+        typed = True
         for name, kind in fields.items():
             if not isinstance(case[name], kind) or isinstance(case[name], bool) and kind is int:
                 problems.append("%s.%s: wrong type" % (where, name))
+                typed = False
         for name in ("input_hex", "output_hex", "unsigned_hex"):
-            if name in case and (len(case[name]) % 2 or not re.fullmatch(r"[0-9a-f]*", case[name])):
+            if name in case and isinstance(case[name], str) \
+                    and (len(case[name]) % 2 or not re.fullmatch(r"[0-9a-f]*", case[name])):
                 problems.append("%s.%s: not lower-case even-length hex" % (where, name))
+        if typed and inner is not None:
+            inner(case, where, problems)
     return cases
 
 
@@ -316,7 +445,32 @@ def main():
             else:
                 valid = v.get("result", "valid") == "valid"
                 answers = [k for k in ("output", "fields") if k in v]
-                if valid and len(answers) != 1:
+                stored = v.get("inputs", {}).get("bytes") \
+                    if isinstance(v.get("inputs"), dict) else None
+                legacy_input = (
+                    doc.get("algorithm") == "prekey-store-state"
+                    and isinstance(stored, str)
+                    and stored[:2] in {"01", "02", "03", "04"}
+                )
+                if valid and legacy_input:
+                    # An accepted v1-v4 store is written back as v5, and only
+                    # the vector pins the markers the migration writes: it
+                    # carries the decoded fields and the upgraded bytes, and
+                    # the upgrade keeps the header up to the one-time count.
+                    out = v.get("output")
+                    header = 2 + 2 * 132
+                    if sorted(answers) != ["fields", "output"]:
+                        problems.append("%s.vectors[%d] (%s): an accepted v1-v4 "
+                                        "prekey store carries both `fields` and "
+                                        "its v5 upgrade `output`" % (rel, i, vid))
+                    elif not (isinstance(out, str) and out[:2] == "05"
+                              and out[2:header] == stored[2:header]
+                              and len(out) > len(stored)):
+                        problems.append("%s.vectors[%d] (%s): the upgraded `output` "
+                                        "is a v5 store that keeps the input's "
+                                        "header and is longer than the input"
+                                        % (rel, i, vid))
+                elif valid and len(answers) != 1:
                     problems.append("%s.vectors[%d] (%s): a valid vector needs "
                                     "exactly one of `output` and `fields`"
                                     % (rel, i, vid))

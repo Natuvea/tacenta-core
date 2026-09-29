@@ -1,0 +1,11 @@
+# expect: has a job-level `if` -- required jobs must run unconditionally
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - run: make test

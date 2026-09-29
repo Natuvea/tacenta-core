@@ -1,0 +1,11 @@
+# expect: step unconditionally disabled
+name: step disabled
+on: push
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - if: false
+        run: cargo test

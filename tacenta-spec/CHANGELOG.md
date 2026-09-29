@@ -5,6 +5,50 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+- `identities-and-devices.md`, hosted device-inventory statements: state what a
+  verifier must check before it relies on a signed statement, as seven ordered
+  checks (account match, issuer binding, signature, freshness, duplicate active
+  `device_id`, identity keys, then its own binding and statement policy), and
+  what the format leaves unchecked: the chain of custody of a
+  `replacement_predecessor`, key uniqueness and reactivation, and equivocation.
+  A verifier must not refuse a statement solely because a replacement's marker
+  names no listed binding, which an honest issuer can produce once the
+  tombstone falls at or below the revocation floor. Check 6 requires each
+  identity key to be canonical and a point of the prime-order subgroup, which
+  refuses low-order, off-curve and mixed-torsion keys, so each key has one
+  spelling and a policy can compare identity keys as bytes. The section also
+  states the sort order of both lists (strictly ascending byte order of the
+  encodings), what an exact binding is, that a
+  predecessor tag other than 0 or 1 is refused, that a binding without a valid
+  capability word has no commitment, the order in which the binding and
+  statement policies run, that check 3 is the page's Verifying a signature and
+  that a signed statement is a preimage followed by exactly 64 bytes, and that
+  a verifier records a generation as seen only after acceptance, in one atomic
+  step that evaluates its freshness rule again. It restores, as the issuer's
+  duty, the earlier statement that keys are checked before signing. Check 5
+  replaces the earlier statement that the product must reject duplicate
+  `device_id` values. The encoding and the signature input are unchanged.
+
+- `protocol/session-persistence.md`, `protocol/session-establishment.md` and
+  `protocol/key-deletion.md`: state the rules of the v5 prekey store's
+  `legacy_blocked` markers, which `tacenta-core`, the model and the vectors
+  already followed and the pages did not say. Migration writes both live
+  last-resort KEM identifiers for any nonempty v1-v4 record and keeps the
+  record; the list is strictly ascending, holds at most two entries, and names
+  only `kem_id` or the identifier inside `previous_kem`; a v5 reader refuses a
+  list that is out of order or repeats an identifier (as malformed or as
+  non-canonical, at the reader's choice); a handshake naming a listed key is
+  refused (`LegacyLastResortRecord`) before decapsulation with the store
+  unchanged; and a rotation removes the marker of the key it wipes. The prekey
+  store's semantic rules are also corrected from "all four versions" to all
+  five. No wire format changes.
+
+- `protocol/session-establishment.md`: the repeated-initial rule names the key
+  its agreement class is taken under. It is the session's current
+  `ratchet_private`, not the responder's signed-prekey secret, which the
+  persisted session does not hold. The behaviour of `tacenta-core` is
+  unchanged; the wording is corrected.
+
 - `protocol/session-persistence.md`: align the repeated-initial semantic rule
   with `session-establishment.md`: the ephemeral is compared by its X25519
   agreement class and the identity by bytes. This removes the stale

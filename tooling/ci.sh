@@ -162,13 +162,19 @@ bash tooling/tests/run-check-signoff-cases.sh
 bash tooling/tests/run-build-evidence-pack-cases.sh
 bash tooling/tests/run-check-ledger-review-receipt-cases.sh
 
-# A second reader of the same vectors, written from tacenta-spec and the
-# vectors alone and never from tacenta-core or tacenta-model (ADR-0006). What
-# it cannot reproduce, or a refusal the specification states that it cannot
-# confirm, is a question about the specification, not about this runner.
-echo "== Independent reader: the specification and the vectors only =="
+# A second reader of the same vectors. At run time it reads the vectors and
+# imports nothing from tacenta-core or tacenta-model (ADR-0006). Its first
+# passes were written from tacenta-spec and the vectors alone; later
+# maintenance, including the real-primitive session handler, was done in this
+# repository with the implementation in view (its README, Provenance, says
+# which). What it cannot reproduce, or a refusal the specification states that
+# it cannot confirm, is a question about the specification, not about this
+# runner. The sweep corrupts every byte it says it checks and requires it to
+# notice.
+echo "== Independent reader: the vectors, and the specification's rules =="
 python3 tacenta-test-vectors/runners/independent/reader/run.py | tail -n 22
 python3 tacenta-test-vectors/runners/independent/reader/test_skip_allowlist.py
+python3 tacenta-test-vectors/runners/independent/reader/test_session_e2e_sweep.py
 python3 tacenta-test-vectors/runners/independent/session-operation-reader.py
 
 echo "== Lean: build the model =="

@@ -1,0 +1,10 @@
+# expect: hollow `run` step
+name: run exit
+on: push
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 0

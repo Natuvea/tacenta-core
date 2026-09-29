@@ -491,9 +491,13 @@ structure Identity where
 abbrev Bundle := Model.Messages.Bundle
 abbrev StoredPrekeys := Model.PersistedState.PrekeyStoreState.Store
 
+/-- The responder's prekey store. The `legacy_blocked` markers an import from
+    an older format writes are `state.legacyLastResortBlocked`, in the stored
+    state itself, so the list the fail-closed lookup reads is the list
+    `PrekeyStoreState.ofBytes` returns and the operations preserve
+    (Prekey store, Legacy markers). -/
 structure PrekeyStore where
   state : StoredPrekeys
-  legacyLastResortBlocked : List Nat
 
 structure ResponderStep where
   store : PrekeyStore
@@ -515,14 +519,14 @@ def responderSignedPrekeySecret (store : PrekeyStore) (id : Nat) : Option Key :=
 def responderKemPair (store : PrekeyStore) (id : Nat) :
     Except Refusal (Bytes × Bool) :=
   if id = store.state.kemId then
-    if store.legacyLastResortBlocked.contains id then
+    if store.state.legacyLastResortBlocked.contains id then
       .error .legacyLastResortRecord
     else .ok (store.state.kemPair, true)
   else
     match store.state.previousKem with
     | some (pair, previousId, _) =>
         if id = previousId then
-          if store.legacyLastResortBlocked.contains id then
+          if store.state.legacyLastResortBlocked.contains id then
             .error .legacyLastResortRecord
           else .ok (pair, true)
         else
@@ -1705,8 +1709,7 @@ def toyPrekeyStore : PrekeyStore :=
   { state :=
       { (default : StoredPrekeys) with
         oneTime := [(7, [0x71]), (9, [0x91])]
-        kemOneTime := [(8, [0x81], [0x82]), (10, [0xa1], [0xa2])] }
-    legacyLastResortBlocked := [] }
+        kemOneTime := [(8, [0x81], [0x82]), (10, [0xa1], [0xa2])] } }
 
 /-- A successful one-time establishment consumes exactly the two named entries
     and leaves the other entries and replay record untouched. -/
@@ -1818,8 +1821,7 @@ def toyResponderStore : PrekeyStore :=
         kemPair := [0x62]
         kemId := 2
         kemSig := List.replicate 64 0x52
-        nextId := 3 }
-    legacyLastResortBlocked := [] }
+        nextId := 3 } }
 
 def toyEstablishedSecret : Key :=
   Model.SessionEstablishment.sharedSecret

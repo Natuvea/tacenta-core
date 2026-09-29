@@ -253,10 +253,14 @@ decode, so a message whose `identity` or `ephemeral` is re-spelled is refused
 as a decode failure (message-format.md, Initial message). The session then
 accepts it only if it is a responder's session and both of these hold:
 
-- the message's `ephemeral` field is in the same X25519 agreement class, under
-  the responder's signed-prekey secret, as the `ephemeral` field carried by
-  the initial message that established the session
-  (`established_ephemeral`, session-persistence.md);
+- the message's `ephemeral` field is in the same X25519 agreement class as the
+  `ephemeral` field carried by the initial message that established the
+  session (`established_ephemeral`, session-persistence.md). The class is
+  taken under the session's current ratchet private key (`ratchet_private`,
+  session-persistence.md): X25519 of that key with each of the two ephemerals
+  must give an output that is contributory, and the two outputs must be equal.
+  The signed-prekey secret is not the key: the persisted session does not hold
+  it, and the prekey store drops it after the rotation that retires it;
 - the message's `identity` field equals, byte for byte, `EncodeEC` of the
   peer's identity key the session holds (`peer_identity_public`,
   session-persistence.md), which is `IKA` as the establishing message carried
@@ -422,6 +426,20 @@ X25519 agreement class.
   for byte (FIPS 203, Algorithm 18). Any other ciphertext yields the
   implicit-rejection secret, and so does not authenticate.
 - The identifiers are fixed-width integers, with one spelling each.
+
+### A replay record imported from an earlier format
+
+A store read from a v1-v4 format may hold a replay record whose entries are
+fingerprints of public bytes. They cannot be compared with a replay identity
+derived from `SK`, so the store cannot tell whether a handshake it is about to
+accept was seen before. It does not guess. The last-resort keys the record may
+cover are listed in the store's `legacy_blocked` (session-persistence.md,
+Legacy markers), and a handshake whose `kem_prekey_id` names a listed key is
+refused (`LegacyLastResortRecord`) once the identifier is resolved, before
+decapsulation, with the store unchanged. That is a condition the caller acts
+on: the key stays refused until a rotation wipes it, and `rotate_kem` opens a
+new key that is not listed (key-deletion.md). A handshake that names a
+one-time KEM prekey never consults the record and is not refused.
 
 ## Primitives, and what is left to them
 

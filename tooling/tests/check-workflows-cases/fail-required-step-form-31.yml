@@ -1,0 +1,20 @@
+# expect: sets `shell` to 'true {0}' in `defaults.run`
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: 'true {0}'
+    steps:
+      - id: j_run
+        run: make test
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: j
+          classification: required
+          command: c
+          required-outcomes: "j_run=${{ steps.j_run.outcome }}"

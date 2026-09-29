@@ -1,0 +1,10 @@
+name: wrap
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/assurance-receipt
+      with:
+        id: w
+        classification: required
+        command: c
+        required-outcomes: 'x=success'

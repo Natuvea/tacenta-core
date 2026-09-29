@@ -779,7 +779,19 @@ def prekey_store_semantic(p: PrekeyStore) -> Optional[str]:
         return "a key has more than MAX_LAST_RESORT_SEEN record entries"
     if len({fp for _, fp in p.seen}) != len(p.seen):
         return "a fingerprint appears twice"
-    # "identity_public is canonical" (pass 5), in all four versions
+    # session-persistence.md, Prekey store, Legacy markers, "The canonical
+    # list", and Semantic rules, the record-shape rule: "every `legacy_blocked`
+    # entry is `kem_id` or the identifier inside `previous_kem`, and none
+    # repeats", the list "in strictly ascending order". The strictly ascending
+    # order also rules out a repeat.
+    live_kem_ids = {p.kem_id}
+    if p.previous_kem is not None:
+        live_kem_ids.add(p.previous_kem[1])
+    if any(i not in live_kem_ids for i in p.legacy_blocked):
+        return "legacy_blocked names a KEM key that is neither current nor retired"
+    if any(a >= b for a, b in zip(p.legacy_blocked, p.legacy_blocked[1:])):
+        return "legacy_blocked is not strictly ascending"
+    # "identity_public is canonical" (pass 5), in all five versions
     if not is_canonical_curve_key(p.identity_public):
         return "identity_public is not the canonical encoding of a curve public key"
     return None
@@ -865,9 +877,13 @@ def prekey_store_from_bytes(buf: bytes) -> PrekeyStore:
                 seen.append((kem_id, r.take(32, "fingerprint")))   # read back tagged with the current key
     legacy_blocked: List[int] = []
     if version == 0x05:
-        blocked = r.count(4, "legacy_last_resort_blocked")
+        blocked = r.count(4, "legacy_blocked")
+        # "A list of more than two entries is refused as malformed before the
+        # entries are read" (Legacy markers, "What a v5 reader refuses").
+        if blocked > 2:
+            raise Malformed("prekey store: legacy_blocked has more than two entries")
         for _ in range(blocked):
-            legacy_blocked.append(r.u(4, "legacy blocked kem_id"))
+            legacy_blocked.append(r.u(4, "legacy_blocked kem_id"))
     previous_signed = previous_kem = None
     if version >= 0x03:
         if _presence(r, "previous_signed"):

@@ -6,8 +6,12 @@ specification, and the runner that checks them.
 Two kinds live here:
 
 - **Primitive vectors** (`vectors/primitives/`): RFC known-answer values for
-  HMAC-SHA256, HKDF-SHA256, X25519, and Ed25519, and one project-generated
-  file for XEdDSA, which has no published vectors. Checked by
+  HMAC-SHA256, HKDF-SHA256, X25519, and Ed25519; two project-authored groups
+  beside them (a known answer for the HMAC the last-resort replay identity is
+  built from, in `hmac-sha256.json`, and the six low-order X25519 inputs the
+  protocol refuses, in `x25519.json`); and one project-generated file for
+  XEdDSA, which has no published vectors. Each file's `source` says which of
+  its vectors are which. Checked by
   `runners/rust/tests/primitives.rs`; `conformance-manifest.md` says, row by
   row, what each file is checked against, since Ed25519 is a trusted-boundary
   crate rather than a tacenta-core API. SHA-256 itself has no file here: its
@@ -19,8 +23,9 @@ Two kinds live here:
   are checked against tacenta-core:
   - `vectors/ratchet/`: Double Ratchet scenarios, replayed by
     `runners/rust/tests/ratchet.rs`. Format: `schema/ratchet-vector.schema.json`.
-  - `vectors/session-establishment/`: PQXDH shared secrets and a deterministic
-    real-primitive handshake through the first encrypted message, checked by
+  - `vectors/session-establishment/`: PQXDH shared secrets and two deterministic
+    real-primitive handshakes through the first encrypted message and the
+    initiator's repeat of it, checked by
     `runners/rust/tests/session_establishment.rs`. Format:
     `schema/vector.schema.json`.
   - `vectors/post-quantum/`: the field, interpolation, sparse-ratchet, Braid
@@ -68,6 +73,13 @@ Two kinds live here:
       vector its `result`; an accepted vector's `output` is the re-encoding of
       what its input decodes to. Checked by
       `runners/rust/tests/malformed_input.rs`. Layout: Vector layouts, below.
+  - `vectors/groups/`: the two group fan-out commitments
+    (`group-commitments-v1.json`) and the hosted device-inventory profile of
+    identities-and-devices.md, in four files (`inventory-statements-v1.json`,
+    `inventory-decode-refusals-v1.json`, `inventory-binding-commitments-v1.json`
+    and `inventory-acceptance-v1.json`). The inventory files are not model
+    output: `generate-inventory-vectors.py` writes them, and the runner is
+    `tacenta-core/tests/group_commitments.rs`. Layout: Vector layouts, below.
 
 There is also a specification-defined transcript grammar for work that spans
 session establishment and prekey lifecycle: [Session and prekey operation
@@ -95,15 +107,58 @@ own, written down here. `schema/vector.schema.json` points here.
 
 ### The full session: `vectors/session-establishment/session-e2e.json`
 
-This fixed known answer drives real X25519 and ML-KEM-1024 through prekey
+Two fixed known answers drive real X25519 and ML-KEM-1024 through prekey
 creation, initiator establishment, the first encrypted send, responder
-establishment and authenticated recovery of the plaintext. It also reconstructs
-the same initial message from the public leaf components. The two paths must
-produce identical bytes before the runner compares every named intermediate and
+establishment and authenticated recovery of the plaintext, and then the
+initiator's repeat of its initial message. Each also reconstructs the same
+initial message from the public leaf components. The two paths must produce
+identical bytes before the runner compares every named intermediate and
 persisted result with the committed vector.
 
+- **`one-time-prekeys-first-message`**: the bundle names a one-time curve
+  prekey and a one-time KEM prekey. The responder is established from
+  `torsion_initial`, not from `initial_message`: the same message with its
+  ephemeral replaced by the byte-wise smallest of the seven other canonical
+  u-coordinates in the same X25519 agreement class, found by adding a multiple
+  of the order-eight torsion point whose Edwards y-coordinate is
+  `c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a`. So
+  `bob_session_after_receipt` holds that spelling as its
+  `established_ephemeral`, and `bob_session_after_repeat` is the state after
+  the initiator's second message, `repeat_initial`, arrives wrapped in the
+  canonical spelling and is accepted as a repeat of the same agreement.
+  `low_order_repeat` is `repeat_initial` with a 32-byte zero ephemeral (u = 0,
+  a point of order two) and is refused as `NotARepeatedInitial` with the
+  session unchanged.
+- **`last-resort-first-message`**: no one-time prekey of either kind, so the
+  handshake names the last-resort KEM key, which is the path the replay record
+  guards (session-establishment.md, Replay, and The replay identity). The
+  canonical `initial_message` establishes the responder, and
+  `bob_prekey_store_after_receipt` holds exactly one record entry, the KEM key's
+  identifier and `replay_identity`, which is HMAC-SHA256 under the 32-byte label
+  `tacenta last-resort handshake v2` over `sk`. A replay of `initial_message`,
+  and of `torsion_initial` (the same message with a torsion-spelled ephemeral),
+  is refused as a replay of the spent handshake, `ReplayedLastResort`, with the
+  store unchanged. `low_order_initial` (a zero ephemeral) is refused as a
+  non-contributory agreement. The initiator's second message arrives as
+  `repeat_initial`; `torsion_repeat` is the same message with a torsion-spelled
+  ephemeral and is accepted as a repeat, yielding `repeat_plaintext` and
+  `bob_session_after_repeat`. The established responder session refuses four
+  wrappers as `NotARepeatedInitial`, each leaving it unchanged:
+  `low_order_repeat`; `unrelated_repeat`, whose ephemeral is the public key of
+  the input `unrelated_ephemeral_secret` and is contributory but outside the
+  established agreement class; `changed_identity_repeat`, whose identity is the
+  public key of the input `other_identity_secret`, another valid key, because
+  the identity must be the initiator's byte for byte; and `low_order_repeat`
+  again against
+  `bob_session_low_order_established`, a session whose `established_ephemeral`
+  has been replaced by the zero key (it imports), where the two ephemerals are
+  byte-equal and both agreements are non-contributory. The message that
+  established the session, sent again, is recognised as a repeat and yields no
+  plaintext, because the ratchet has read it; the runner and the reader check
+  that too, without a field for it.
+
 The random draws are inputs rather than hidden runner state. Their call order
-and exact lengths are:
+and exact lengths in `one-time-prekeys-first-message` are:
 
 1. prekey creation: `bob_signed_prekey_secret` (32),
    `bob_signed_prekey_signature_nonce` (64),
@@ -113,16 +168,35 @@ and exact lengths are:
 2. initiator establishment: `alice_ephemeral_secret` (32),
    `alice_kem_encapsulation_m` (32), `alice_ratchet_secret` (32);
 3. initiator's first send: `alice_braid_keygen_d_z` (64);
-4. responder establishment: `bob_ratchet_secret` (32).
+4. responder establishment: `bob_ratchet_secret` (32);
+5. the responder's repeated receive: `bob_repeat_random` (32).
 
-The `fields` pin the encoded bundle, four X25519 agreements, ML-KEM ciphertext
-and shared secret, PQXDH secret and split halves, the two ratchet message keys
+`last-resort-first-message` draws the same way without the one-time entries:
+prekey creation takes `bob_signed_prekey_secret`,
+`bob_signed_prekey_signature_nonce`, `bob_last_resort_kem_d_z` and
+`bob_last_resort_kem_signature_nonce`, and steps 2 to 5 are unchanged. It also
+names `unrelated_ephemeral_secret`, which is not a draw. Every refused message
+in both vectors is refused before any random draw, and the runner requires that.
+`bob_repeat_random` is consumed and no output depends on it: the repeat takes
+no Diffie-Hellman step, so the fresh key the receive draws is never used. For
+the same reason the `z` half of each `d || z` draw, which only matters to
+ML-KEM's implicit rejection, is never observable in an output. The inputs
+`plaintext` and `repeat_plaintext` are the two messages the initiator sends.
+
+The `fields` pin the encoded bundle, the X25519 agreements (`dh1` to `dh4`, and
+`dh1` to `dh3` on the last-resort path), ML-KEM ciphertext and shared secret,
+PQXDH secret and split halves, the two ratchet message keys (`mk_ec`, `mk_pq`)
 and their combination, composite header, associated data, AEAD output, ratchet
-and initial messages, both resulting session states, the consumed prekey store,
-and responder plaintext. The Rust test includes a negative control that changes
-the committed associated-data answer and requires the runner to fail on that
-field. The expected bytes were produced by the project runner, so this is a
-byte-level regression and composition check rather than an external oracle.
+and initial messages, the messages named above, both resulting responder
+session states, the initiator's session after its first send, the responder's
+prekey store after the first message, and both plaintexts. The Rust tests
+change the first byte of every field of both vectors, and one byte of every
+input, and require the runner to fail each time (naming the field, for a
+field); the one input they name as unobservable is `bob_repeat_random`. The
+expected bytes were produced by the project runner, so this is a byte-level
+regression and composition check rather than an external oracle. What the
+independent reader derives from the same inputs, and what it takes from the
+vector as a boundary, is listed in its README.
 
 ### The decoders: `vectors/malformed-input/*-decode.json`
 
@@ -365,7 +439,26 @@ fixtures carry bytes `tacenta-core` produced under a fixed byte source, because
 the model has no signature operation and cannot create a store whose stored
 signatures verify. The `legacy-v1`, `legacy-v2` and `legacy-v3` accepted
 vectors re-spell the no-record, no-retired fixture in those older layouts; they
-read to the same field values and write back as current v4. The
+read to the same field values, write back as current v5 and carry those bytes
+in `output`, as every accepted v1-v4 vector does. The vectors ending in `-seen`
+add a replay record to an older layout and check the migration to
+`legacy_blocked` markers (session-persistence.md, Legacy markers): the current
+KEM key and, when the store has one, the retired key are both marked, in
+ascending order, whichever key the record's entries name and whether they are
+tagged (v4) or bare fingerprints (v2, v3). `legacy-v4-seen-retired-kem` has the
+entry under the current key, `legacy-v4-seen-tagged-retired-only` under the
+retired key. `legacy-blocked-v5` and `legacy-blocked-v5-both-keys` are v5 stores
+carrying one and two markers. The refusals are `legacy-blocked-unknown-key` (a
+marker naming neither KEM key), `legacy-blocked-unsorted` (both markers, in
+descending order), `legacy-blocked-repeated` (one identifier twice) and
+`legacy-blocked-three-entries`. The two that are out of order or repeat are
+refused by `tacenta-core` as non-canonical, where its re-encode check catches
+them, and by the model as malformed; the page lets a reader use either, and the
+vectors record `short-or-malformed`. No vector can pin the count check
+separately, since three entries cannot be strictly ascending among two live
+identifiers. The behaviour the markers cause, refusing a handshake that names a
+marked key, is not a stored-bytes property; the differential harness compares
+it. The
 `signed-prekey-signature-does-not-verify` refusal flips one byte of
 `signed_prekey_sig` in that same fixture after the model has accepted and
 re-encoded the mutated bytes, so the cryptographic runner reaches the stored
@@ -379,15 +472,17 @@ those fixtures, or truncations, additions and version relabellings.
 - A valid vector's `fields` are small, checkable values from the store:
   `identity_public`, `signed_prekey_secret`, `signed_prekey_id`,
   `signed_prekey_sig`, `kem_id`, `kem_sig`, `next_id`, `one_time_count`,
-  `kem_one_time_count`, `seen_count`, `previous_signed_present` and
+  `kem_one_time_count`, `seen_count`, `legacy_blocked_count`,
+  `previous_signed_present` and
   `previous_kem_present`.
 - The one-time lists and replay record are reported as counts rather than by
   repeating their stored contents. A present retired key is reported by its
   presence byte in `previous_*_present`; its full bytes are already in the
   input the runner read.
-- A runner must reproduce exact stored bytes for accepted v4 vectors. Accepted
-  legacy prekey-store vectors instead check the read fields and permit the
-  required v4 upgrade on write-back.
+- A runner must reproduce exact stored bytes for accepted v5 vectors. An
+  accepted v1-v4 vector carries, besides the fields (which describe the decoded
+  state, so `legacy_blocked_count` is the migrated count), the v5 bytes the
+  store is written back as in `output`, and a runner must reproduce them.
 - An invalid vector's `refusal` is `wrong-version`, `short-or-malformed`,
   `non-canonical` or `incoherent`. `incoherent` is the prekey store's
   semantic-signature refusal.
@@ -430,6 +525,75 @@ relabelling.
   unanswered initiator fixture. The `ratchet-private-does-not-match-dhs-pub`
   vector is appended by `augment-session-state.py` after Lean generation,
   because it needs X25519.
+
+### The hosted-inventory statements: `vectors/groups/inventory-*.json`
+
+The pages are identities-and-devices.md: Hosted device-inventory statements and
+Accepting a signed statement. The Lean model has no inventory statement, so no
+file comes from it. `generate-inventory-vectors.py` writes all four, from a
+Python implementation of the page's rules with its own curve arithmetic and
+XEdDSA and no dependency. It gives every case an intended outcome and stops if
+its own oracle disagrees, and
+
+    python3 tacenta-test-vectors/generate-inventory-vectors.py --check
+
+regenerates the files in memory and compares them with the committed ones. That
+is one implementation of the page. `tacenta-core` and the independent reader
+are checked against these bytes, and the reader is the second reading. Each
+file has a closed shape that `tooling/check-vectors.py` enforces, so a runner
+cannot silently ignore a field.
+
+- **`inventory-statements-v1.json`.** Each case gives a statement's fields and
+  the bytes they encode to, `unsigned_hex`. An encoder given the fields
+  produces the bytes, and a decoder given the bytes returns the fields. The
+  fields are `issuer_key_id`, `account_handle` (a JSON string, whose UTF-8 bytes
+  are the handle), `inventory_generation`, `active` (bindings, listed in encoded
+  order), `revocation_floor_generation` and `revoked` (each
+  `{"binding", "terminal_generation"}`, in encoded order). A binding is
+  `{"device_id", "identity_hex", "capabilities"}` and, when it names a
+  predecessor, `"replacement_predecessor_hex"`. Identity keys are opaque bytes
+  here, since the encoding does not read them; some cases use keys that check 6
+  refuses.
+- **`inventory-decode-refusals-v1.json`.** `unsigned_hex` is refused by the
+  unsigned decoder. Each case has one defect against a valid encoding, and
+  `rule` says which encoding rule it breaks, in the page's words. `rule` is a
+  description, not a closed vocabulary.
+- **`inventory-binding-commitments-v1.json`.** `binding` is as above and
+  `commitment_hex` is `binding_commitment` of it. It is `null` where the
+  binding's capability word breaks the encoding rule, so the binding has no
+  encoding and no commitment.
+- **`inventory-acceptance-v1.json`.** Each case runs `signed_hex`, a statement
+  followed by its 64-byte signature, through the seven checks, asking about the
+  account whose UTF-8 bytes are `expected_account_hex`, against a scripted
+  `policy`. `refusal` is `null` when the statement is accepted, and otherwise
+  the check that refused it: `decode` (an encoding rule, before check 1),
+  `account`, `issuer`, `signature`, `freshness`, `duplicate-device`,
+  `identity-key`, `binding-policy` or `statement-policy`. `hook_calls` is every
+  call the policy received, in order, up to the refusal. An accepted statement
+  is the decoded `signed_hex`.
+
+  The scripted policy answers as follows. An issuer resolves through the first
+  entry of `issuers` whose `issuer_key_id` equals the statement's and whose
+  `account_hex` is `null` or equals the account, to its
+  `verification_key_hex`; if none does, the issuer is unbound. A generation is
+  current for an account exactly when `fresh` lists that pair. A binding is
+  refused when `refuse_every_binding` is true, and also when its identity key is
+  `refuse_binding.identity_hex` and it is in the list `refuse_binding.status`
+  (`active` or `revoked`) names, however many entries share that key. The
+  statement is refused when `refuse_statement` is true.
+
+  A hook-call string is one of:
+
+  - `issuer:<issuer_key_id>:<account hex>`
+  - `freshness:<account hex>:<generation>`
+  - `binding:<A or R>:<device_id>:<identity hex>:<capabilities>:<predecessor hex, or - when none>`,
+    with `A` for an entry of `active` and `R` for one of `revoked`
+  - `statement`
+
+  Signers are fixed: the issuer secret for `acme/alice` is 32 bytes of `0x09`,
+  for `acme/bob` 32 bytes of `0x0a`, and every signature uses Z = 64 zero
+  bytes, so the file is reproducible. Device identity keys are the X25519 public
+  keys of 32-byte secrets that repeat one byte.
 
 ### The protobuf profile: `vectors/protobuf/`
 
@@ -648,7 +812,8 @@ once per file, writing each to a temporary path and moving it into place only
 when the generator succeeds. An empty diff means the committed vectors are
 current. The regeneration script does not overwrite several non-model inputs.
 The primitive vectors are
-standards' known answers, plus the XEdDSA file, which is project-generated
+standards' known answers, the project-authored HMAC and X25519 vectors named in
+those files' `source`, and the XEdDSA file, which is project-generated
 by tacenta-core (`primitives/xeddsa.rs`) rather than by the model: its first
 vector is the pin the crate's own test carries; the next two (the same key
 under a different nonce, and a different key over an empty message) are

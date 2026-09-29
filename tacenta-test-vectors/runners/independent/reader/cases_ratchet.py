@@ -299,3 +299,22 @@ def _():
     c.skipped[(0, 20000)] = keep9
     e = rejects(spqr.receive, c, 0, 6, exc=spqr.SkippedStoreFull)
     assert e.shortfall == 1
+
+
+@case("CR-21 (pass 12) the sparse store's total bound on a stored state that holds keys the next receive re-derives: the page now says the current implementation and model count the store before the purge, and that counting the resulting store is an open follow-up; the two counts give different verdicts on CR-18's own state, which the sparse reader accepts, and this reader keeps the resulting-store count CR-18 asserts (GAPS-12.md G12-05)",
+      f"{SP} The store also has a total bound: The current sparse implementation and model check the pre-purge store length; they do not yet implement resulting-store replacement semantics. The purge-before-check order, replacement semantics and refusal atomicity are the open `HL-R1-SPARSE-TRANSLATION` follow-up, not current sparse behaviour")
+def _():
+    from tacenta_reader import persistence
+    _, c = _pair()
+    c.skipped[(0, 3)] = b"\x33" * 32
+    c.skipped[(0, 4)] = b"\x33" * 32
+    for i in range(K.MAX_SKIPPED_STORE - 5):
+        c.skipped[(0, 10000 + i)] = b"\x99" * 32
+    c = accepts(persistence.spqr_from_bytes, persistence.spqr_to_bytes(c))
+    n = 6
+    to_store = n - 1 - c.chains[0][1].n
+    pre_purge = len(c.skipped) + to_store
+    resulting = len(c.skipped) + sum(1 for m in range(1, n) if (0, m) not in c.skipped)
+    assert pre_purge > K.MAX_SKIPPED_STORE >= resulting, (pre_purge, resulting)
+    c2, _ = accepts(spqr.receive, c, 0, n)
+    assert len(c2.skipped) == resulting

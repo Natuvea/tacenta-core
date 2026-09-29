@@ -1,6 +1,6 @@
 {
   "schema": "tacenta-inventory-statements-v1",
-  "comment": "Pins the canonical unsigned preimage only; signatures are randomized.",
+  "comment": "Canonical unsigned preimages of hosted device-inventory statements, each given as fields and as the bytes they encode to. A decoder returns the same fields from the bytes. Provenance: written by tacenta-test-vectors/generate-inventory-vectors.py. Signatures are not in this file (inventory-acceptance-v1.json has them). Identity keys are opaque here.",
   "cases": [
     {
       "id": "one-active-binding",
@@ -11,6 +11,266 @@
       "revocation_floor_generation": 0,
       "revoked": [],
       "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000010101010101010101010101010101010101010101010101010101010101010101000000000000000100000000000000000000000000"
+    },
+    {
+      "id": "empty-statement",
+      "issuer_key_id": 0,
+      "account_handle": "a",
+      "inventory_generation": 0,
+      "active": [],
+      "revocation_floor_generation": 0,
+      "revoked": [],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000000000000161000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "floor-equals-generation",
+      "issuer_key_id": 9,
+      "account_handle": "acme/alice",
+      "inventory_generation": 5,
+      "active": [],
+      "revocation_floor_generation": 5,
+      "revoked": [],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000090000000a61636d652f616c696365000000000000000500000000000000000000000500000000"
+    },
+    {
+      "id": "maximum-integers",
+      "issuer_key_id": 18446744073709551615,
+      "account_handle": "acme/alice",
+      "inventory_generation": 18446744073709551615,
+      "active": [{"device_id": 4294967295, "identity_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "capabilities": 1}],
+      "revocation_floor_generation": 18446744073709551614,
+      "revoked": [{"binding": {"device_id": 0, "identity_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "capabilities": 1}, "terminal_generation": 18446744073709551615}],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e74207631ffffffffffffffff0000000a61636d652f616c696365ffffffffffffffff00000001ffffffffaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa000000000000000100fffffffffffffffe0000000100000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb000000000000000100ffffffffffffffff"
+    },
+    {
+      "id": "two-active-ascending-device-id",
+      "issuer_key_id": 7,
+      "account_handle": "acme/alice",
+      "inventory_generation": 2,
+      "active": [{"device_id": 1, "identity_hex": "7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44", "capabilities": 1}, {"device_id": 2, "identity_hex": "0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20", "capabilities": 1}],
+      "revocation_floor_generation": 0,
+      "revoked": [],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000"
+    },
+    {
+      "id": "same-device-id-ascending-key",
+      "issuer_key_id": 7,
+      "account_handle": "acme/alice",
+      "inventory_generation": 2,
+      "active": [{"device_id": 1, "identity_hex": "1010101010101010101010101010101010101010101010101010101010101010", "capabilities": 1}, {"device_id": 1, "identity_hex": "2020202020202020202020202020202020202020202020202020202020202020", "capabilities": 1}],
+      "revocation_floor_generation": 0,
+      "revoked": [],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000011010101010101010101010101010101010101010101010101010101010101010000000000000000100000000012020202020202020202020202020202020202020202020202020202020202020000000000000000100000000000000000000000000"
+    },
+    {
+      "id": "key-ascending-across-first-byte",
+      "issuer_key_id": 7,
+      "account_handle": "acme/alice",
+      "inventory_generation": 2,
+      "active": [{"device_id": 1, "identity_hex": "01ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "capabilities": 1}, {"device_id": 1, "identity_hex": "0200000000000000000000000000000000000000000000000000000000000000", "capabilities": 1}],
+      "revocation_floor_generation": 0,
+      "revoked": [],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c6963650000000000000002000000020000000101ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000000100000000010200000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000"
+    },
+    {
+      "id": "no-predecessor-sorts-before-predecessor",
+      "issuer_key_id": 7,
+      "account_handle": "acme/alice",
+      "inventory_generation": 2,
+      "active": [{"device_id": 1, "identity_hex": "9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b", "capabilities": 1}, {"device_id": 1, "identity_hex": "9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b", "capabilities": 1, "replacement_predecessor_hex": "4444444444444444444444444444444444444444444444444444444444444444"}],
+      "revocation_floor_generation": 0,
+      "revoked": [],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000019a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b000000000000000100000000019a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b0000000000000001014444444444444444444444444444444444444444444444444444444444444444000000000000000000000000"
+    },
+    {
+      "id": "predecessors-ascending",
+      "issuer_key_id": 7,
+      "account_handle": "acme/alice",
+      "inventory_generation": 2,
+      "active": [{"device_id": 1, "identity_hex": "9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b", "capabilities": 1, "replacement_predecessor_hex": "1010101010101010101010101010101010101010101010101010101010101010"}, {"device_id": 1, "identity_hex": "9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b", "capabilities": 1, "replacement_predecessor_hex": "2020202020202020202020202020202020202020202020202020202020202020"}],
+      "revocation_floor_generation": 0,
+      "revoked": [],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000019a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b0000000000000001011010101010101010101010101010101010101010101010101010101010101010000000019a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b0000000000000001012020202020202020202020202020202020202020202020202020202020202020000000000000000000000000"
+    },
+    {
+      "id": "replacement-with-listed-tombstone",
+      "issuer_key_id": 7,
+      "account_handle": "acme/alice",
+      "inventory_generation": 5,
+      "active": [{"device_id": 1, "identity_hex": "3430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f", "capabilities": 1, "replacement_predecessor_hex": "504d13517f8ea36092f240238371972f1b9ca076507e2b214d9c4f8a20aec411"}],
+      "revocation_floor_generation": 2,
+      "revoked": [{"binding": {"device_id": 1, "identity_hex": "04bcd2e0d00f2cce5fe8f1c6c2fbec5c07fa56e3aa5c88a5689975d88b3fce05", "capabilities": 1}, "terminal_generation": 4}],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000500000001000000013430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f000000000000000101504d13517f8ea36092f240238371972f1b9ca076507e2b214d9c4f8a20aec4110000000000000002000000010000000104bcd2e0d00f2cce5fe8f1c6c2fbec5c07fa56e3aa5c88a5689975d88b3fce050000000000000001000000000000000004"
+    },
+    {
+      "id": "replacement-under-new-device-id",
+      "issuer_key_id": 7,
+      "account_handle": "acme/alice",
+      "inventory_generation": 5,
+      "active": [{"device_id": 2, "identity_hex": "3430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f", "capabilities": 1, "replacement_predecessor_hex": "504d13517f8ea36092f240238371972f1b9ca076507e2b214d9c4f8a20aec411"}],
+      "revocation_floor_generation": 2,
+      "revoked": [{"binding": {"device_id": 1, "identity_hex": "04bcd2e0d00f2cce5fe8f1c6c2fbec5c07fa56e3aa5c88a5689975d88b3fce05", "capabilities": 1}, "terminal_generation": 4}],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000500000001000000023430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f000000000000000101504d13517f8ea36092f240238371972f1b9ca076507e2b214d9c4f8a20aec4110000000000000002000000010000000104bcd2e0d00f2cce5fe8f1c6c2fbec5c07fa56e3aa5c88a5689975d88b3fce050000000000000001000000000000000004"
+    },
+    {
+      "id": "replacement-marker-outlives-compacted-tombstone",
+      "issuer_key_id": 7,
+      "account_handle": "acme/alice",
+      "inventory_generation": 5,
+      "active": [{"device_id": 1, "identity_hex": "3430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f", "capabilities": 1, "replacement_predecessor_hex": "504d13517f8ea36092f240238371972f1b9ca076507e2b214d9c4f8a20aec411"}],
+      "revocation_floor_generation": 2,
+      "revoked": [],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000500000001000000013430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f000000000000000101504d13517f8ea36092f240238371972f1b9ca076507e2b214d9c4f8a20aec411000000000000000200000000"
+    },
+    {
+      "id": "revoked-ascending-device-id",
+      "issuer_key_id": 7,
+      "account_handle": "acme/alice",
+      "inventory_generation": 5,
+      "active": [],
+      "revocation_floor_generation": 1,
+      "revoked": [{"binding": {"device_id": 1, "identity_hex": "920b867cb9471215b75421067517e5a9bd4677e1e1ce13a4c3b7d42d3386b864", "capabilities": 1}, "terminal_generation": 3}, {"binding": {"device_id": 2, "identity_hex": "c46a59ee2665151f8b187429ca63ec06dab9dad3750b38d70f7780e7b51f5e49", "capabilities": 1}, "terminal_generation": 2}],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000050000000000000000000000010000000200000001920b867cb9471215b75421067517e5a9bd4677e1e1ce13a4c3b7d42d3386b864000000000000000100000000000000000300000002c46a59ee2665151f8b187429ca63ec06dab9dad3750b38d70f7780e7b51f5e490000000000000001000000000000000002"
+    },
+    {
+      "id": "same-binding-revoked-twice-ascending-terminal",
+      "issuer_key_id": 7,
+      "account_handle": "acme/alice",
+      "inventory_generation": 5,
+      "active": [],
+      "revocation_floor_generation": 1,
+      "revoked": [{"binding": {"device_id": 1, "identity_hex": "920b867cb9471215b75421067517e5a9bd4677e1e1ce13a4c3b7d42d3386b864", "capabilities": 1}, "terminal_generation": 2}, {"binding": {"device_id": 1, "identity_hex": "920b867cb9471215b75421067517e5a9bd4677e1e1ce13a4c3b7d42d3386b864", "capabilities": 1}, "terminal_generation": 3}],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000050000000000000000000000010000000200000001920b867cb9471215b75421067517e5a9bd4677e1e1ce13a4c3b7d42d3386b864000000000000000100000000000000000200000001920b867cb9471215b75421067517e5a9bd4677e1e1ce13a4c3b7d42d3386b8640000000000000001000000000000000003"
+    },
+    {
+      "id": "revoked-binding-order-before-terminal-order",
+      "issuer_key_id": 7,
+      "account_handle": "acme/alice",
+      "inventory_generation": 5,
+      "active": [],
+      "revocation_floor_generation": 1,
+      "revoked": [{"binding": {"device_id": 1, "identity_hex": "920b867cb9471215b75421067517e5a9bd4677e1e1ce13a4c3b7d42d3386b864", "capabilities": 1}, "terminal_generation": 4}, {"binding": {"device_id": 2, "identity_hex": "920b867cb9471215b75421067517e5a9bd4677e1e1ce13a4c3b7d42d3386b864", "capabilities": 1}, "terminal_generation": 2}],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000050000000000000000000000010000000200000001920b867cb9471215b75421067517e5a9bd4677e1e1ce13a4c3b7d42d3386b864000000000000000100000000000000000400000002920b867cb9471215b75421067517e5a9bd4677e1e1ce13a4c3b7d42d3386b8640000000000000001000000000000000002"
+    },
+    {
+      "id": "terminal-just-above-floor-and-at-generation",
+      "issuer_key_id": 7,
+      "account_handle": "acme/alice",
+      "inventory_generation": 5,
+      "active": [],
+      "revocation_floor_generation": 2,
+      "revoked": [{"binding": {"device_id": 1, "identity_hex": "920b867cb9471215b75421067517e5a9bd4677e1e1ce13a4c3b7d42d3386b864", "capabilities": 1}, "terminal_generation": 3}, {"binding": {"device_id": 2, "identity_hex": "920b867cb9471215b75421067517e5a9bd4677e1e1ce13a4c3b7d42d3386b864", "capabilities": 1}, "terminal_generation": 5}],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000050000000000000000000000020000000200000001920b867cb9471215b75421067517e5a9bd4677e1e1ce13a4c3b7d42d3386b864000000000000000100000000000000000300000002920b867cb9471215b75421067517e5a9bd4677e1e1ce13a4c3b7d42d3386b8640000000000000001000000000000000005"
+    },
+    {
+      "id": "eight-active",
+      "issuer_key_id": 7,
+      "account_handle": "acme/alice",
+      "inventory_generation": 2,
+      "active": [{"device_id": 1, "identity_hex": "04f5f29162c31a8defa18e6e742224ee806fc1718a278be859ba5620402b8f3a", "capabilities": 1}, {"device_id": 2, "identity_hex": "59d9225473451efffe6b36dbcaefdbf7b1895de62084509a7f5b58bf01d06418", "capabilities": 1}, {"device_id": 3, "identity_hex": "7b0d47d93427f8311160781c7c733fd89f88970aef490d8aa0ee19a4cb8a1b14", "capabilities": 1}, {"device_id": 4, "identity_hex": "ffc951aa6f2fa03096d1d1b579735b2f6f84019fe2f617aa65ff3d68705f2527", "capabilities": 1}, {"device_id": 5, "identity_hex": "627967ac833d07ad274bdfb6fb7ba2a336780e721e82f1447e859bf90a69ad62", "capabilities": 1}, {"device_id": 6, "identity_hex": "e5cde2019dc0b3e464d3d8e12952426e0acca21beabd1e499fb0265bd1e9614d", "capabilities": 1}, {"device_id": 7, "identity_hex": "b7565b6daf0749c27dcbc6f842c32cf217371165bc2d2505146b30d8b3536434", "capabilities": 1}, {"device_id": 8, "identity_hex": "95f3c97784c7a161c9e9b1c334384f625f0b9f872424ecf49d20ca8fc674fe42", "capabilities": 1}],
+      "revocation_floor_generation": 0,
+      "revoked": [],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c6963650000000000000002000000080000000104f5f29162c31a8defa18e6e742224ee806fc1718a278be859ba5620402b8f3a0000000000000001000000000259d9225473451efffe6b36dbcaefdbf7b1895de62084509a7f5b58bf01d06418000000000000000100000000037b0d47d93427f8311160781c7c733fd89f88970aef490d8aa0ee19a4cb8a1b1400000000000000010000000004ffc951aa6f2fa03096d1d1b579735b2f6f84019fe2f617aa65ff3d68705f252700000000000000010000000005627967ac833d07ad274bdfb6fb7ba2a336780e721e82f1447e859bf90a69ad6200000000000000010000000006e5cde2019dc0b3e464d3d8e12952426e0acca21beabd1e499fb0265bd1e9614d00000000000000010000000007b7565b6daf0749c27dcbc6f842c32cf217371165bc2d2505146b30d8b35364340000000000000001000000000895f3c97784c7a161c9e9b1c334384f625f0b9f872424ecf49d20ca8fc674fe42000000000000000100000000000000000000000000"
+    },
+    {
+      "id": "eight-revoked",
+      "issuer_key_id": 7,
+      "account_handle": "acme/alice",
+      "inventory_generation": 5,
+      "active": [],
+      "revocation_floor_generation": 1,
+      "revoked": [{"binding": {"device_id": 1, "identity_hex": "7a1a4e709bf085ac494aba0469b9b1eda0ab1f78b16aabb79ffeda90623e8522", "capabilities": 1}, "terminal_generation": 3}, {"binding": {"device_id": 2, "identity_hex": "132c442be010fbd57e72603328aa76e71fccc1503aae219327d14d9c9993f472", "capabilities": 1}, "terminal_generation": 4}, {"binding": {"device_id": 3, "identity_hex": "cdefd8783a91b446640e2e1f95599db35e484a0071bd2182b3b60d0812c10c70", "capabilities": 1}, "terminal_generation": 5}, {"binding": {"device_id": 4, "identity_hex": "ff2ee45601ec1b67310c7790404585ae697331eee1c1f8cf2419731c1fff3e6b", "capabilities": 1}, "terminal_generation": 2}, {"binding": {"device_id": 5, "identity_hex": "3286894cd2845a6db6a28fbf0677605f80e5a62385bf4e10a790ae5fde36736b", "capabilities": 1}, "terminal_generation": 3}, {"binding": {"device_id": 6, "identity_hex": "a28a7c44ede257d664fbf156affa7da8abb3ae74b9fee8d7a2078543504e1a75", "capabilities": 1}, "terminal_generation": 4}, {"binding": {"device_id": 7, "identity_hex": "603fe5551330bf6d2c174a2736fa2996bf8311a259b38a9ed749425a83562909", "capabilities": 1}, "terminal_generation": 5}, {"binding": {"device_id": 8, "identity_hex": "9177b23278cbf0f3d17c36f2acc9b55e9c85f87b220a5386ec370d663e20e337", "capabilities": 1}, "terminal_generation": 2}],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000500000000000000000000000100000008000000017a1a4e709bf085ac494aba0469b9b1eda0ab1f78b16aabb79ffeda90623e8522000000000000000100000000000000000300000002132c442be010fbd57e72603328aa76e71fccc1503aae219327d14d9c9993f472000000000000000100000000000000000400000003cdefd8783a91b446640e2e1f95599db35e484a0071bd2182b3b60d0812c10c70000000000000000100000000000000000500000004ff2ee45601ec1b67310c7790404585ae697331eee1c1f8cf2419731c1fff3e6b0000000000000001000000000000000002000000053286894cd2845a6db6a28fbf0677605f80e5a62385bf4e10a790ae5fde36736b000000000000000100000000000000000300000006a28a7c44ede257d664fbf156affa7da8abb3ae74b9fee8d7a2078543504e1a75000000000000000100000000000000000400000007603fe5551330bf6d2c174a2736fa2996bf8311a259b38a9ed749425a835629090000000000000001000000000000000005000000089177b23278cbf0f3d17c36f2acc9b55e9c85f87b220a5386ec370d663e20e3370000000000000001000000000000000002"
+    },
+    {
+      "id": "eight-active-and-eight-revoked",
+      "issuer_key_id": 7,
+      "account_handle": "acme/alice",
+      "inventory_generation": 5,
+      "active": [{"device_id": 1, "identity_hex": "04f5f29162c31a8defa18e6e742224ee806fc1718a278be859ba5620402b8f3a", "capabilities": 1}, {"device_id": 2, "identity_hex": "59d9225473451efffe6b36dbcaefdbf7b1895de62084509a7f5b58bf01d06418", "capabilities": 1}, {"device_id": 3, "identity_hex": "7b0d47d93427f8311160781c7c733fd89f88970aef490d8aa0ee19a4cb8a1b14", "capabilities": 1}, {"device_id": 4, "identity_hex": "ffc951aa6f2fa03096d1d1b579735b2f6f84019fe2f617aa65ff3d68705f2527", "capabilities": 1}, {"device_id": 5, "identity_hex": "627967ac833d07ad274bdfb6fb7ba2a336780e721e82f1447e859bf90a69ad62", "capabilities": 1}, {"device_id": 6, "identity_hex": "e5cde2019dc0b3e464d3d8e12952426e0acca21beabd1e499fb0265bd1e9614d", "capabilities": 1}, {"device_id": 7, "identity_hex": "b7565b6daf0749c27dcbc6f842c32cf217371165bc2d2505146b30d8b3536434", "capabilities": 1}, {"device_id": 8, "identity_hex": "95f3c97784c7a161c9e9b1c334384f625f0b9f872424ecf49d20ca8fc674fe42", "capabilities": 1}],
+      "revocation_floor_generation": 1,
+      "revoked": [{"binding": {"device_id": 1, "identity_hex": "ad908a8a708aca07588cda7c4ed3e44d4966a80a9abb2f1e4bbac53c67414e34", "capabilities": 1}, "terminal_generation": 3}, {"binding": {"device_id": 2, "identity_hex": "f68b05ba03f7185e1ba88878682f8dd0b15158f6050889c9481d79c2d7d2fa07", "capabilities": 1}, "terminal_generation": 4}, {"binding": {"device_id": 3, "identity_hex": "261cd9cd2e935f9c2455876a80f02a4d6786b8ab877f07227737ca0b577bf161", "capabilities": 1}, "terminal_generation": 5}, {"binding": {"device_id": 4, "identity_hex": "94e9c71ccacddd2c6fbf529e263f0d39baf0fed469de0d227d24ad81a4394b70", "capabilities": 1}, "terminal_generation": 2}, {"binding": {"device_id": 5, "identity_hex": "38ab664bd86f77d7e66bdd9ae0792913a94fd8b33a1260027e4b46c1f4884c67", "capabilities": 1}, "terminal_generation": 3}, {"binding": {"device_id": 6, "identity_hex": "dccf9fc001b345c77474e76e1021bde04f7ea0ed8ee61f7f6f1a4e47a5af2f54", "capabilities": 1}, "terminal_generation": 4}, {"binding": {"device_id": 7, "identity_hex": "7d904be3bcab1a910c65ac4b0a2cdd16a846ad8a0ac72db31cc3e47671d30e02", "capabilities": 1}, "terminal_generation": 5}, {"binding": {"device_id": 8, "identity_hex": "4c851fc5046a9493c0698d9ab7da0376bbb9deb6dbfcedc4dc887b5ffa279a6b", "capabilities": 1}, "terminal_generation": 2}],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c6963650000000000000005000000080000000104f5f29162c31a8defa18e6e742224ee806fc1718a278be859ba5620402b8f3a0000000000000001000000000259d9225473451efffe6b36dbcaefdbf7b1895de62084509a7f5b58bf01d06418000000000000000100000000037b0d47d93427f8311160781c7c733fd89f88970aef490d8aa0ee19a4cb8a1b1400000000000000010000000004ffc951aa6f2fa03096d1d1b579735b2f6f84019fe2f617aa65ff3d68705f252700000000000000010000000005627967ac833d07ad274bdfb6fb7ba2a336780e721e82f1447e859bf90a69ad6200000000000000010000000006e5cde2019dc0b3e464d3d8e12952426e0acca21beabd1e499fb0265bd1e9614d00000000000000010000000007b7565b6daf0749c27dcbc6f842c32cf217371165bc2d2505146b30d8b35364340000000000000001000000000895f3c97784c7a161c9e9b1c334384f625f0b9f872424ecf49d20ca8fc674fe4200000000000000010000000000000000010000000800000001ad908a8a708aca07588cda7c4ed3e44d4966a80a9abb2f1e4bbac53c67414e34000000000000000100000000000000000300000002f68b05ba03f7185e1ba88878682f8dd0b15158f6050889c9481d79c2d7d2fa07000000000000000100000000000000000400000003261cd9cd2e935f9c2455876a80f02a4d6786b8ab877f07227737ca0b577bf16100000000000000010000000000000000050000000494e9c71ccacddd2c6fbf529e263f0d39baf0fed469de0d227d24ad81a4394b7000000000000000010000000000000000020000000538ab664bd86f77d7e66bdd9ae0792913a94fd8b33a1260027e4b46c1f4884c67000000000000000100000000000000000300000006dccf9fc001b345c77474e76e1021bde04f7ea0ed8ee61f7f6f1a4e47a5af2f540000000000000001000000000000000004000000077d904be3bcab1a910c65ac4b0a2cdd16a846ad8a0ac72db31cc3e47671d30e020000000000000001000000000000000005000000084c851fc5046a9493c0698d9ab7da0376bbb9deb6dbfcedc4dc887b5ffa279a6b0000000000000001000000000000000002"
+    },
+    {
+      "id": "account-256-ascii-bytes",
+      "issuer_key_id": 7,
+      "account_handle": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "inventory_generation": 2,
+      "active": [],
+      "revocation_floor_generation": 0,
+      "revoked": [],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000010061616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161000000000000000200000000000000000000000000000000"
+    },
+    {
+      "id": "account-256-bytes-multibyte",
+      "issuer_key_id": 7,
+      "account_handle": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9",
+      "inventory_generation": 2,
+      "active": [],
+      "revocation_floor_generation": 0,
+      "revoked": [],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e74207631000000000000000700000100c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9000000000000000200000000000000000000000000000000"
+    },
+    {
+      "id": "account-four-byte-scalar",
+      "issuer_key_id": 7,
+      "account_handle": "acme/\ud83d\ude00",
+      "inventory_generation": 2,
+      "active": [],
+      "revocation_floor_generation": 0,
+      "revoked": [],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000961636d652ff09f9880000000000000000200000000000000000000000000000000"
+    },
+    {
+      "id": "account-nfc-form",
+      "issuer_key_id": 7,
+      "account_handle": "caf\u00e9",
+      "inventory_generation": 2,
+      "active": [],
+      "revocation_floor_generation": 0,
+      "revoked": [],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e74207631000000000000000700000005636166c3a9000000000000000200000000000000000000000000000000"
+    },
+    {
+      "id": "account-nfd-form",
+      "issuer_key_id": 7,
+      "account_handle": "cafe\u0301",
+      "inventory_generation": 2,
+      "active": [],
+      "revocation_floor_generation": 0,
+      "revoked": [],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000663616665cc81000000000000000200000000000000000000000000000000"
+    },
+    {
+      "id": "account-with-nul-and-bom",
+      "issuer_key_id": 7,
+      "account_handle": "a\u0000b\ufeffc",
+      "inventory_generation": 2,
+      "active": [],
+      "revocation_floor_generation": 0,
+      "revoked": [],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e74207631000000000000000700000007610062efbbbf63000000000000000200000000000000000000000000000000"
+    },
+    {
+      "id": "account-maximum-scalar",
+      "issuer_key_id": 7,
+      "account_handle": "\udbff\udfff",
+      "inventory_generation": 2,
+      "active": [],
+      "revocation_floor_generation": 0,
+      "revoked": [],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e74207631000000000000000700000004f48fbfbf000000000000000200000000000000000000000000000000"
+    },
+    {
+      "id": "identity-key-bytes-are-opaque-to-the-encoding",
+      "issuer_key_id": 7,
+      "account_handle": "acme/alice",
+      "inventory_generation": 2,
+      "active": [{"device_id": 1, "identity_hex": "0000000000000000000000000000000000000000000000000000000000000000", "capabilities": 1}, {"device_id": 2, "identity_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "capabilities": 1}],
+      "revocation_floor_generation": 0,
+      "revoked": [{"binding": {"device_id": 1, "identity_hex": "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f", "capabilities": 1}, "terminal_generation": 1}],
+      "unsigned_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000020000000200000001000000000000000000000000000000000000000000000000000000000000000000000000000000010000000002ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000000000010000000000000000000000000100000001edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f0000000000000001000000000000000001"
     }
   ]
 }

@@ -27,6 +27,7 @@ source, fixed before the protocol is frozen.
 | `tacenta-core` | `LAST_RESORT_HANDSHAKE_LABEL` | `tacenta last-resort handshake v2` |
 | `tacenta-core` | `GROUP_ROSTER_COMMITMENT_LABEL` | `Tacenta:group:roster-commitment:v1\xff` |
 | `tacenta-core` | `GROUP_PAYLOAD_COMMITMENT_LABEL` | `Tacenta:group:payload-commitment:v1\xff` |
+| `tacenta-core` | `INVENTORY_DOMAIN` | `Tacenta Inventory Statement v1` |
 | `tacenta-core` | `INVENTORY_SIGNING_LABEL` | `Tacenta:inventory-statement:v1\xff` |
 | `tacenta-core` | `BINDING_COMMITMENT_LABEL` | `Tacenta:inventory-binding-commitment:v1\xff` |
 
@@ -36,8 +37,8 @@ the source and this table disagree, so a new label cannot be added without being
 registered here.
 
 The check matches any `const` or `static` byte string whose name ends in
-`INFO` or `LABEL`, `pub` or not, in every `.rs` file under `tacenta-core/src`
-and under each leaf crate's `src`. That is what brings in the sparse ratchet's
+`INFO`, `LABEL` or `DOMAIN`, `pub` or not, in every `.rs` file under
+`tacenta-core/src` and under each leaf crate's `src`. That is what brings in the sparse ratchet's
 two HMAC labels (`ROOT_LABEL`, `CHAIN_LABEL`: the domain-separation bytes its
 root-key and chain-key steps are keyed with) and the root crate's two
 (`APPLICATION_SIGNING_LABEL`, which prefixes a signing input, and
