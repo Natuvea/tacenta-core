@@ -35,6 +35,7 @@ def validate_skip_allowlist(observed, expected=None):
 import copy  # noqa: E402
 import re  # noqa: E402
 
+import session_e2e  # noqa: E402
 from tacenta_reader import aead, braid, curve25519, erasure, gf65536, persistence, pqxdh, protobuf, ratchet, spqr, triple, wire  # noqa: E402
 from tacenta_reader.kdf import hkdf_sha256, hmac_sha256  # noqa: E402
 
@@ -227,130 +228,15 @@ def h_initial_decode(v):
 
 
 def h_session_establishment_e2e(v):
-    """Check the public, independently reconstructable part of the session KAT.
+    """The real-primitive session vectors: everything the specification's rules
+    and this reader's primitives can derive from the vector's inputs is derived
+    and compared (session_e2e.py, which lists what is not)."""
+    try:
+        session_e2e.check(v)
+    except session_e2e.Mismatch as e:
+        raise Fail(str(e)) from e
 
-    The clean-room reader deliberately does not implement ML-KEM-1024.  The
-    vector therefore supplies the decapsulation result as an input boundary;
-    everything around that boundary is recomputed here: the bundle and
-    initial-message encodings, all four classical agreements, PQXDH and split
-    KDFs, the first ratchet message/AD/AEAD composition, and persistence
-    round-trips.  This is a partial check, not an independent claim about the
-    ML-KEM implementation itself.
-    """
-    i, f = v["inputs"], v["fields"]
-    bundle = wire.decode_bundle(bx(f["bundle"]))
-    check(f["bundle"], wire.encode_bundle(bundle), "bundle round-trip")
 
-    alice_ik = curve25519.x25519_public(bx(i["alice_identity_secret"]))
-    bob_ik = curve25519.x25519_public(bx(i["bob_identity_secret"]))
-    bob_spk = curve25519.x25519_public(bx(i["bob_signed_prekey_secret"]))
-    bob_otpk = curve25519.x25519_public(bx(i["bob_one_time_curve_secret"]))
-    alice_eph = curve25519.x25519_public(bx(i["alice_ephemeral_secret"]))
-    if bundle.identity_key != bob_ik or bundle.signed_prekey != bob_spk:
-        raise Fail("bundle public keys do not match the supplied responder secrets")
-    if bundle.one_time_prekey != bob_otpk:
-        raise Fail("bundle one-time prekey does not match the supplied secret")
-
-    dh1, dh2, dh3, dh4 = pqxdh.initiator_agreements(
-        bx(i["alice_identity_secret"]), bx(i["alice_ephemeral_secret"]),
-        bob_ik, bob_spk, bob_otpk)
-    for name, got in (("dh1", dh1), ("dh2", dh2), ("dh3", dh3), ("dh4", dh4)):
-        check(f[name], got, name)
-    pqxdh.check_kem_prekey(bundle.kem_prekey)
-    pqxdh.check_kem_ciphertext(bx(f["kem_ciphertext"]))
-    sk = pqxdh.shared_secret(dh1, dh2, dh3, dh4, bx(f["kem_shared_secret"]))
-    check(f["sk"], sk, "PQXDH shared secret")
-    split_ec, split_pq = triple.split_secret(sk)
-    check(f["split_ec"], split_ec, "classical split")
-    check(f["split_pq"], split_pq, "post-quantum split")
-
-    initial = wire.decode_initial(bx(f["initial_message"]))
-    check(f["initial_message"], wire.encode_initial(initial), "initial round-trip")
-    if initial.identity != wire.encode_ec(alice_ik) or initial.ephemeral != wire.encode_ec(alice_eph):
-        raise Fail("initial identity or ephemeral does not match the supplied secret")
-    if initial.kem_ciphertext != bx(f["kem_ciphertext"]):
-        raise Fail("initial message carries a different KEM ciphertext")
-    if (initial.signed_prekey_id, initial.one_time_prekey_id, initial.kem_prekey_id) != (
-            bundle.signed_prekey_id, bundle.one_time_prekey_id, bundle.kem_prekey_id):
-        raise Fail("initial message identifiers do not match the bundle")
-
-    header, ciphertext = wire.decode_ratchet_message(initial.ratchet_message)
-    check(f["ratchet_message"], wire.encode_ratchet_message(header, ciphertext), "ratchet round-trip")
-    composite = bx(f["composite_header"])
-    check(f["composite_header"], wire.encode_composite(header), "composite header")
-    ad = wire.concat_ad(pqxdh.associated_data(alice_ik, bob_ik), composite)
-    check(f["associated_data"], ad, "associated data")
-    check(f["mk"], triple.combine(bx(f["mk_ec"]), bx(f["mk_pq"])), "combined message key")
-    check(f["aead_output"], aead.seal(bx(f["mk"]), ad, bx(i["plaintext"])), "AEAD output")
-    if aead.open_(bx(f["mk"]), ad, bx(f["aead_output"])) != bx(f["responder_plaintext"]):
-        raise Fail("AEAD output does not recover the responder plaintext")
-    if ciphertext != bx(f["aead_output"]):
-        raise Fail("ratchet message ciphertext differs from the AEAD field")
-
-    for name, parser, encoder in (
-        ("alice_session_after_first_send", persistence.session_from_bytes, persistence.session_to_bytes),
-        ("bob_session_after_receipt", persistence.session_from_bytes, persistence.session_to_bytes),
-    ):
-        state = parser(bx(f[name]))
-        check(f[name], encoder(state), name + " round-trip")
-
-    # The repeated-initial extension is checked through the clean-room
-    # session boundary as well as by the Rust KAT.  The reader does not
-    # implement ML-KEM or the inner ratchet decrypt here, but it does decode
-    # the second initial, enforce the agreement-class and identity tests on
-    # the persisted responder session, and require the exact inner ratchet
-    # bytes to reach the ordinary receive boundary.  This prevents a vector
-    # from merely carrying an unchecked repeat field.
-    if "repeat_initial" in f:
-        repeat = wire.decode_initial(bx(f["repeat_initial"]))
-        responder = persistence.session_from_bytes(bx(f["bob_session_after_receipt"]))
-        inner = []
-
-        def receive_inner(raw):
-            inner.append(bytes(raw))
-            return raw
-
-        pqxdh.receive_repeated_initial(responder, bx(f["repeat_initial"]), receive_inner)
-        if inner != [repeat.ratchet_message]:
-            raise Fail("repeated initial did not route its ratchet message to receive")
-
-        if "torsion_initial" not in f or "low_order_repeat" not in f:
-            raise Fail("session-e2e vector lacks repeat edge controls")
-        original = wire.decode_initial(bx(f["initial_message"]))
-        torsion = wire.decode_initial(bx(f["torsion_initial"]))
-        if torsion.identity != original.identity:
-            raise Fail("torsion-equivalent establishment changed the identity")
-        if (torsion.kem_ciphertext, torsion.signed_prekey_id,
-                torsion.one_time_prekey_id, torsion.kem_prekey_id,
-                torsion.ratchet_message) != (
-                    original.kem_ciphertext, original.signed_prekey_id,
-                    original.one_time_prekey_id, original.kem_prekey_id,
-                    original.ratchet_message):
-            raise Fail("torsion-equivalent establishment changed a protected field")
-        try:
-            pqxdh.accept_repeated_initial(
-                not responder.is_initiator, responder.ratchet_private,
-                responder.established_ephemeral, responder.peer_identity_public,
-                original)
-        except pqxdh.NotARepeatedInitial as exc:
-            raise Fail("the original spelling was not in the established agreement class") from exc
-
-        low_order = wire.decode_initial(bx(f["low_order_repeat"]))
-        before = persistence.session_to_bytes(responder)
-        try:
-            pqxdh.accept_repeated_initial(
-                not responder.is_initiator, responder.ratchet_private,
-                responder.established_ephemeral, responder.peer_identity_public,
-                low_order)
-        except pqxdh.NotARepeatedInitial:
-            pass
-        else:
-            raise Fail("low-order repeated initial was accepted")
-        if persistence.session_to_bytes(responder) != before:
-            raise Fail("low-order repeated initial changed responder state")
-        repeated_state = persistence.session_from_bytes(bx(f["bob_session_after_repeat"]))
-        check(f["bob_session_after_repeat"], persistence.session_to_bytes(repeated_state),
-              "bob session after repeated initial round-trip")
 # --------------------------------------------------------------- ratchet
 
 def h_double_ratchet(v):
