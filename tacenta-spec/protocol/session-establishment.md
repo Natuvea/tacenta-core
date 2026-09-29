@@ -125,7 +125,8 @@ prekeys over the last-resort key.
 Alice verifies every signature in the bundle and aborts if any fails. This is not
 optional: without the prekey signature a malicious server could serve forged
 prekeys and later compromise `IKB` to recover the secret, which would defeat
-forward secrecy.
+forward secrecy. She verifies them only under an `IKB` that is an identity key,
+which she checks first (below).
 
 She also refuses a bundle before encapsulating when its identity key is not the
 one she set out to reach (when she names one), when its one-time curve prekey
@@ -137,6 +138,14 @@ key. The check is for a bundle that reaches her some other way, and it keeps
 every curve public key her session stores canonical (session-persistence.md,
 Session, Semantic rules). Both sides refuse a Diffie-Hellman output that is not
 contributory, which a low-order public key produces.
+
+A bundle whose canonical `IKB` is not an identity key (identities-and-devices.md,
+Identity keys) is refused as an invalid identity key. She makes that check after
+the presence, pinning and canonical checks above and before she verifies either
+signature, draws a random value or encapsulates, so nothing is spent on the
+bundle and nothing changes. The other keys of the bundle are not held to it:
+`SPKB` and a one-time curve prekey need the canonical encoding and a
+contributory result, and no more.
 
 She then generates `EKA`, encapsulates `(CT, SS) = PQKEM-ENC(PQPKB)`, and
 computes:
@@ -187,8 +196,10 @@ bit of the last byte and reduces modulo p = 2^255 - 19. So, read loosely, severa
 byte strings name the same key. `DecodeEC` refuses every one but the canonical
 encoding: a key whose top bit (bit 255) is set, and a key whose value is at least
 p. An honest key generator never produces either, so no honest key is refused.
-The requirement is message-format.md's single-encoding principle applied to curve
-keys. It matters wherever a value is identified by its bytes rather than by the
+An identity key is held to a stricter rule than this one
+(identities-and-devices.md, Identity keys), which no honest identity key fails
+either. The requirement is message-format.md's single-encoding principle
+applied to curve keys. It matters wherever a value is identified by its bytes rather than by the
 key they name: a second spelling of the same key would otherwise give the same
 value a second identity. The initial-message decoder applies the same rule to
 `identity` and `ephemeral` before anything reads them, and refuses a re-spelled
@@ -237,6 +248,14 @@ computations, and deletes the DH outputs and `SS`. He rebuilds `AD` and decrypts
 If decryption fails he aborts and deletes `SK`. On success he deletes `CT` and
 any one-time prekey private keys that were used.
 
+Bob refuses the message as an invalid identity key when `IKA` is not an identity
+key (identities-and-devices.md, Identity keys). He makes that check once he has
+found the signed prekey and the KEM prekey the message names, and before he
+looks up a one-time prekey, decapsulates, or uses any private key on the
+message, so an unknown one-time identifier or a ciphertext of the wrong length
+behind such an `IKA` is still refused for the identity. The refusal changes
+nothing.
+
 The prekey store is read-only until the ratchet message inside the initial
 message has authenticated. Every refusal before or during that authentication
 leaves the whole store exactly as it was. On success the only store change is
@@ -270,7 +289,10 @@ establishment builds and in every session a reader accepts
 (session-persistence.md, Session, Semantic rules). Canonical encodings are
 unique as bytes, but torsion-equivalent X25519 points can have distinct
 canonical encodings with the same agreement. The repeat check therefore uses
-the agreement class for `ephemeral` and byte equality for `identity`.
+the agreement class for `ephemeral` and byte equality for `identity`. Byte
+equality is enough for `identity`, because the session holds only an identity
+key, and an identity key has one canonical spelling (identities-and-devices.md,
+Identity keys).
 
 The other fields, `kem_ciphertext` and the three identifiers, are not
 compared: the session keeps none of them, and keeping them would change its

@@ -412,11 +412,14 @@ rather than here.
   spellings can carry the same agreement. If either agreement is
   non-contributory or otherwise unavailable, the comparison fails closed and
   the message is refused (`NotARepeatedInitial`).
-- **Every curve public key the session stores is canonical**:
-  `our_identity_public`, `peer_identity_public` and, when `pending_initial` is
-  present, its `ephemeral_public` are each the canonical encoding of a curve
-  public key (message-format.md, Curve public keys), as `established_ephemeral`'s
-  key is by the rule above. Each is used as its bytes: the associated data and
+- **Every curve public key the session stores is canonical, and the two
+  identity keys are identity keys**: `our_identity_public`, `peer_identity_public`
+  and, when `pending_initial` is present, its `ephemeral_public` are each the
+  canonical encoding of a curve public key (message-format.md, Curve public
+  keys), as `established_ephemeral`'s key is by the rule above; and
+  `our_identity_public` and `peer_identity_public` are each an identity key
+  (identities-and-devices.md, Identity keys), which is stricter than canonical.
+  Each is used as its bytes: the associated data and
   a repeat's `identity` are compared with `EncodeEC` of the two identities, the
   key the session reports as the peer's is `peer_identity_public`, and every
   repeat of the initial message carries `our_identity_public` and
@@ -434,8 +437,10 @@ refuses a state that holds one spelled any other way:
 
 - **Refused as inconsistent**, by the session's rules above:
   `our_identity_public`, `peer_identity_public` and `pending_initial`'s
-  `ephemeral_public`, by the rule on the curve public keys the session stores,
-  and `established_ephemeral`, by its shape rule.
+  `ephemeral_public`, by the rule on the curve public keys the session stores
+  (the two identity keys by its identity-key half, so a canonical identity key
+  that is not an identity key is refused here too), and `established_ephemeral`,
+  by its shape rule.
 - **Refused as malformed**, by a leaf format's or the prekey store's own
   rules: the classical ratchet state's `dhs_pub`, `dhr_pub` and each skipped
   entry's `dh` (Semantic rules of the leaf formats), and the prekey store's
@@ -450,8 +455,10 @@ a root key, chain keys and message keys, the other the ML-KEM Braid's KEM
 material and its authenticator's keys, so neither format has such a rule.
 
 A re-spelled stored key cannot come from a peer, whose keys pass a decoder,
-only from corrupted or edited storage. It is refused because a stored key is
-used as its bytes. Inside the ratchet state a second spelling gives one key a
+only from corrupted or edited storage. An identity key that is not one is the
+exception: it is canonical, so a decoder passes it, and a release that did not
+apply the identity-key rule stored the one a peer presented (the paragraph on
+older states, below). A stored key is refused because it is used as its bytes. Inside the ratchet state a second spelling gives one key a
 second identity: a header's `dh` is compared with `DHr` byte for byte, and a
 skipped key is found by its `dh` bytes (ratchet.md), so a message under the key
 would take a Diffie-Hellman step it should not, or miss the key stored for it.
@@ -468,6 +475,25 @@ from a private key is X25519's output, which RFC 7748, section 5, encodes as a
 value below p with bit 255 clear. The leaf crates' operations store the keys
 their caller hands them, and the session hands them keys of those two kinds
 only.
+
+**A session or store written before the identity-key rule existed may be refused
+by a reader that has it, and that is accepted rather than worked around.**
+Nothing in a layout changed, so no version is bumped: a reader with the rule and
+a reader without it disagree about the same bytes. An honest party's own
+operations never store a key the rule refuses (identities-and-devices.md,
+Identity keys), so the states affected are those that hold an identity key an
+earlier release admitted and this rule does not: a peer's identity key in a
+session, or the store's own in a store some other writer produced. The reader
+refuses such a state (a session as inconsistent, a store as malformed) and does
+not repair it, drop the key or substitute another. The refused bytes are not
+deleted by the reader, and its secrets are where they were. A caller that means
+to adopt a reader with the rule can find the states it will refuse beforehand
+by reading the identity keys of every stored state and applying the rule to
+each; `tacenta-core` provides this as `scan_stored_session_identities` and
+`scan_stored_prekey_identity`. A refused session is replaced by a new session
+with the same peer, established from a bundle whose identity key passes the
+rule (session-establishment.md, Sending the initial message); the peer's
+messages in flight on the refused session are not recoverable from it.
 
 The same predicate holds after every operation: `tacenta-core`'s tests
 drive an honest pair through some fifty Braid epochs, restarting one side
@@ -632,10 +658,14 @@ key first.
   writer never emits anything else. (The count is also refused before it
   sizes anything, as noted above; the rule here is over what was read, which
   is the only point at which the tags can be counted by.)
-- **`identity_public` is canonical**: the canonical encoding of a curve public
-  key (message-format.md, Curve public keys). Every bundle the store publishes
-  carries it, and a peer's bundle decoder refuses it in any other spelling
-  (Session, Semantic rules, Stored curve public keys).
+- **`identity_public` is an identity key**: the canonical encoding of a curve
+  public key (message-format.md, Curve public keys) that passes the identity-key
+  rule (identities-and-devices.md, Identity keys). Every bundle the store
+  publishes carries it, a peer's bundle decoder refuses it in any other
+  spelling, and an initiator refuses a bundle whose identity key is not an
+  identity key (Session, Semantic rules, Stored curve public keys). A store
+  that fails this rule is refused as malformed, before any signature is
+  checked.
 - **Every stored signature verifies under `identity_public`**: `signed_prekey_sig`
   over `EncodeEC` of the public half of `signed_prekey_secret`; `kem_sig` over
   `EncodeKEM` of `kem_pair`'s public half; each `kem_one_time` entry's `sig` over

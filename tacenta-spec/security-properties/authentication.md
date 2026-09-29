@@ -33,9 +33,10 @@ layer (ASM-19; limitations.md, LIM-05).
 An initiator accepts a prekey bundle only if two signatures verify under the
 bundle's identity key: the one on its signed curve prekey, and the one on its
 KEM prekey. Verification is as identities-and-devices.md, Verifying a
-signature, states. She checks both before any agreement or encapsulation, and
-refuses the bundle otherwise (session-establishment.md, Sending the initial
-message).
+signature, states, and it is under an identity key (identities-and-devices.md,
+Identity keys), which she checks first. She checks both before any agreement or
+encapsulation, and refuses the bundle otherwise (session-establishment.md,
+Sending the initial message).
 
 - **Protects:** AS-11, and through it AS-01 and AS-04.
 - **Holds against:** ADV-04, and ADV-01 replacing a bundle in transit.

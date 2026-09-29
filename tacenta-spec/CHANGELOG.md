@@ -5,6 +5,27 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+- Identity keys are held to one rule at every boundary that admits one.
+  `identities-and-devices.md` gains an Identity keys section: the rule of
+  Accepting a signed statement, check 6 (a canonical curve public key of the
+  prime-order subgroup), applies to the identity key of a prekey bundle, to the
+  `identity` of an initial message, to the two identity keys of a stored
+  session and the identity key of a stored prekey store, and to the key an
+  application signature is verified under. A key that fails it is refused as
+  an invalid identity key, a third outcome beside decode failure and
+  authentication failure (`error-handling.md`). The check comes before any
+  signature is verified, random value drawn, agreement computed, private key
+  used or state changed; `session-establishment.md` gives the order for the
+  bundle and for the initial message, and `message-format.md` says a decoder
+  does not apply the rule. A stored session that holds a key the rule refuses
+  is refused as inconsistent and a stored prekey store as malformed
+  (`session-persistence.md`), which is a change to what a reader accepts:
+  no state an honest party's operations produce holds such a key, the section
+  argues that an honest key is never refused, and the page says what a reader
+  does with an older state that holds one (refuses it, does not repair it) and
+  that `tacenta-core` provides a scan to run before adopting the rule. The
+  encodings, the signature input and the persisted layouts are unchanged.
+
 - `protocol/session-persistence.md`: align the repeated-initial semantic rule
   with `session-establishment.md`: the ephemeral is compared by its X25519
   agreement class and the identity by bytes. This removes the stale
