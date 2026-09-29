@@ -1,0 +1,1190 @@
+{
+  "schema": "tacenta-inventory-acceptance-v1",
+  "comment": "Signed statements run through the seven checks of identities-and-devices.md, Accepting a signed statement, against a scripted policy. `refusal` is null when the statement is accepted, else the check that refused it; `hook_calls` is every call the policy received, in order. Signers: 32 bytes of 0x09 for acme/alice and 0x0a for acme/bob, Z = 64 zero bytes. Provenance: tacenta-test-vectors/generate-inventory-vectors.py.",
+  "cases": [
+    {
+      "id": "accepted-two-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "binding:A:2:0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20:1:-", "statement"]
+    },
+    {
+      "id": "accepted-empty-inventory",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c6963650000000000000002000000000000000000000000000000008b73a4f21ea6309133aea34598257be2997eafaa6ddba137913bfe0cbeb67603bbed19df940f5b76f6e6583db16a8a8468d712d89aa86d14d389b179c0d5b601",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "statement"]
+    },
+    {
+      "id": "accepted-second-account",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000080000000861636d652f626f62000000000000000500000001000000039a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b0000000000000001000000000000000000000000005a768d6fd0ebd67b7dd9776a5c1ae7e5a657f9ed069a7f8ffc0c551db7d26c3a7b81d069d2d46c080447352c933fdcd0020c04772bbc1ee94438e39ebb236e03",
+      "expected_account_hex": "61636d652f626f62",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:8:61636d652f626f62", "freshness:61636d652f626f62:5", "binding:A:3:9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b:1:-", "statement"]
+    },
+    {
+      "id": "accepted-eight-active-and-eight-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c6963650000000000000002000000080000000104f5f29162c31a8defa18e6e742224ee806fc1718a278be859ba5620402b8f3a0000000000000001000000000259d9225473451efffe6b36dbcaefdbf7b1895de62084509a7f5b58bf01d06418000000000000000100000000037b0d47d93427f8311160781c7c733fd89f88970aef490d8aa0ee19a4cb8a1b1400000000000000010000000004ffc951aa6f2fa03096d1d1b579735b2f6f84019fe2f617aa65ff3d68705f252700000000000000010000000005627967ac833d07ad274bdfb6fb7ba2a336780e721e82f1447e859bf90a69ad6200000000000000010000000006e5cde2019dc0b3e464d3d8e12952426e0acca21beabd1e499fb0265bd1e9614d00000000000000010000000007b7565b6daf0749c27dcbc6f842c32cf217371165bc2d2505146b30d8b35364340000000000000001000000000895f3c97784c7a161c9e9b1c334384f625f0b9f872424ecf49d20ca8fc674fe4200000000000000010000000000000000000000000800000001ad908a8a708aca07588cda7c4ed3e44d4966a80a9abb2f1e4bbac53c67414e34000000000000000100000000000000000200000002f68b05ba03f7185e1ba88878682f8dd0b15158f6050889c9481d79c2d7d2fa07000000000000000100000000000000000100000003261cd9cd2e935f9c2455876a80f02a4d6786b8ab877f07227737ca0b577bf16100000000000000010000000000000000020000000494e9c71ccacddd2c6fbf529e263f0d39baf0fed469de0d227d24ad81a4394b7000000000000000010000000000000000010000000538ab664bd86f77d7e66bdd9ae0792913a94fd8b33a1260027e4b46c1f4884c67000000000000000100000000000000000200000006dccf9fc001b345c77474e76e1021bde04f7ea0ed8ee61f7f6f1a4e47a5af2f540000000000000001000000000000000001000000077d904be3bcab1a910c65ac4b0a2cdd16a846ad8a0ac72db31cc3e47671d30e020000000000000001000000000000000002000000084c851fc5046a9493c0698d9ab7da0376bbb9deb6dbfcedc4dc887b5ffa279a6b00000000000000010000000000000000016fc5a44509ac0a05964d8107db49250a6197e6e9662905ee1383ab4abdd6932994a52b829854c504dd44573ec6c1c9f4b2488ca432c34b73dbc4dcb1b8f6b90c",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:04f5f29162c31a8defa18e6e742224ee806fc1718a278be859ba5620402b8f3a:1:-", "binding:A:2:59d9225473451efffe6b36dbcaefdbf7b1895de62084509a7f5b58bf01d06418:1:-", "binding:A:3:7b0d47d93427f8311160781c7c733fd89f88970aef490d8aa0ee19a4cb8a1b14:1:-", "binding:A:4:ffc951aa6f2fa03096d1d1b579735b2f6f84019fe2f617aa65ff3d68705f2527:1:-", "binding:A:5:627967ac833d07ad274bdfb6fb7ba2a336780e721e82f1447e859bf90a69ad62:1:-", "binding:A:6:e5cde2019dc0b3e464d3d8e12952426e0acca21beabd1e499fb0265bd1e9614d:1:-", "binding:A:7:b7565b6daf0749c27dcbc6f842c32cf217371165bc2d2505146b30d8b3536434:1:-", "binding:A:8:95f3c97784c7a161c9e9b1c334384f625f0b9f872424ecf49d20ca8fc674fe42:1:-", "binding:R:1:ad908a8a708aca07588cda7c4ed3e44d4966a80a9abb2f1e4bbac53c67414e34:1:-", "binding:R:2:f68b05ba03f7185e1ba88878682f8dd0b15158f6050889c9481d79c2d7d2fa07:1:-", "binding:R:3:261cd9cd2e935f9c2455876a80f02a4d6786b8ab877f07227737ca0b577bf161:1:-", "binding:R:4:94e9c71ccacddd2c6fbf529e263f0d39baf0fed469de0d227d24ad81a4394b70:1:-", "binding:R:5:38ab664bd86f77d7e66bdd9ae0792913a94fd8b33a1260027e4b46c1f4884c67:1:-", "binding:R:6:dccf9fc001b345c77474e76e1021bde04f7ea0ed8ee61f7f6f1a4e47a5af2f54:1:-", "binding:R:7:7d904be3bcab1a910c65ac4b0a2cdd16a846ad8a0ac72db31cc3e47671d30e02:1:-", "binding:R:8:4c851fc5046a9493c0698d9ab7da0376bbb9deb6dbfcedc4dc887b5ffa279a6b:1:-", "statement"]
+    },
+    {
+      "id": "accepted-replacement-under-the-old-device-id",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000013430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f000000000000000101504d13517f8ea36092f240238371972f1b9ca076507e2b214d9c4f8a20aec4110000000000000000000000010000000104bcd2e0d00f2cce5fe8f1c6c2fbec5c07fa56e3aa5c88a5689975d88b3fce050000000000000001000000000000000001e6e0ad34660944fe086225c5f3924ec1a6b6dbdeffd86f55d9584ac4f37a71445e7512468e5675b9b093ebb0f5d72fdebf61abac9e6912e2b8613d264f932b07",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:3430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f:1:504d13517f8ea36092f240238371972f1b9ca076507e2b214d9c4f8a20aec411", "binding:R:1:04bcd2e0d00f2cce5fe8f1c6c2fbec5c07fa56e3aa5c88a5689975d88b3fce05:1:-", "statement"]
+    },
+    {
+      "id": "accepted-replacement-under-a-new-device-id",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000023430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f000000000000000101504d13517f8ea36092f240238371972f1b9ca076507e2b214d9c4f8a20aec4110000000000000000000000010000000104bcd2e0d00f2cce5fe8f1c6c2fbec5c07fa56e3aa5c88a5689975d88b3fce0500000000000000010000000000000000014657cbb2217e8e2b563603a109d5116d3bce0b08ea9d7361e95a260465f379322a795bfc5e6da4095d4626f2a22b4472205dc7bb4a3412241856b14e36dc3608",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:2:3430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f:1:504d13517f8ea36092f240238371972f1b9ca076507e2b214d9c4f8a20aec411", "binding:R:1:04bcd2e0d00f2cce5fe8f1c6c2fbec5c07fa56e3aa5c88a5689975d88b3fce05:1:-", "statement"]
+    },
+    {
+      "id": "accepted-marker-outlives-a-compacted-tombstone",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000500000001000000013430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f000000000000000101504d13517f8ea36092f240238371972f1b9ca076507e2b214d9c4f8a20aec411000000000000000200000000bad0539d2b95e8f9fc6c7f64c18a883e9000f8e53233b80d53ef241af4095ae88fd0d119509f764398746a822835cebccf0c2ec721dfbd17efbb53541055f305",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:5", "binding:A:1:3430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f:1:504d13517f8ea36092f240238371972f1b9ca076507e2b214d9c4f8a20aec411", "statement"]
+    },
+    {
+      "id": "accepted-marker-naming-nothing-listed",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000013430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f000000000000000101999999999999999999999999999999999999999999999999999999999999999900000000000000000000000016cc2d5ae79b8020b2fe1d9a84eeac46104296b65f869037f1ed8c6570d8f0350b72c52a3cfa90b5e68763e000c15ffb9ad0e7a188fcb685cb93323985657a06",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:3430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f:1:9999999999999999999999999999999999999999999999999999999999999999", "statement"]
+    },
+    {
+      "id": "accepted-marker-equal-to-a-still-active-commitment",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000101e2543cfd685ef82fccbd10a16301084836086a04bc25ec8dc2fbf014015a97ee000000000000000000000000e3bd621a6edac7bafd2f7e813d3c891a89c7c21dba8de726568477a5a11c545bd1ad82fd9452e4bdd5865d85c18acc08d2b72068de44660439c3d00b9e1a3909",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "binding:A:2:0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20:1:e2543cfd685ef82fccbd10a16301084836086a04bc25ec8dc2fbf014015a97ee", "statement"]
+    },
+    {
+      "id": "accepted-replacement-with-the-retired-bindings-own-device-id-and-key",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000013430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f00000000000000010127d689de2f0bc73cf9b424da459ac5e1d88c23fac612d7bb89e29b9e5dd3c001000000000000000000000001000000013430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f000000000000000101777777777777777777777777777777777777777777777777777777777777777700000000000000018dbdce643ca81705b9a8eb0b7ef2827dafb14d8254457dcae7bd913a7291619453caa8b2223269acee3afd424f3682e2a4934787c3041cad5105fb2a62308b0f",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:3430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f:1:27d689de2f0bc73cf9b424da459ac5e1d88c23fac612d7bb89e29b9e5dd3c001", "binding:R:1:3430e0014dd50b6127e4beb4eecc411591e061ef9792a317c36056191002b72f:1:7777777777777777777777777777777777777777777777777777777777777777", "statement"]
+    },
+    {
+      "id": "accepted-signature-with-the-sign-bit-left-set",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000018a2da0c75c0d21d5ea3421e7e48901ed6becffda7dfcaa601824eab9cc780ef34702ed0167de8e2c559fe83970118a2b8663ef3b723fd8d71a7d04797fcc581",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "binding:A:2:0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20:1:-", "statement"]
+    },
+    {
+      "id": "accepted-one-key-on-two-devices",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000027d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000000ede40fbf501d8dd62c600e0c09f167e77dd81b6c88921e677421f103251fc6c8e77e7e3ea8bc0857d5e564a2474dd4faf4c7e1b957a7055ea383ed6b083d990f",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "binding:A:2:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "statement"]
+    },
+    {
+      "id": "accepted-revoked-key-listed-again-as-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000027d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a440000000000000001000000000000000001d21a981ba4d7a61062420e9542f46f50baada856459ab19ad09e8a50cca1a8a89e0fee98e2fd3220a8a11a898c4a80e2d5c463862a8d70c9d41fcdeeae82b00d",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:2:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "binding:R:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "statement"]
+    },
+    {
+      "id": "accepted-same-device-id-active-and-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000010faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a4400000000000000010000000000000000013bf208300f78d1af4f2444d7313e35ca9c5334afb5314108cfc414f0081ef19427baad308ffc72825faa98f9ab045317818cf7fa20a426d170b50a082b114507",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20:1:-", "binding:R:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "statement"]
+    },
+    {
+      "id": "accepted-same-binding-revoked-twice",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000300000000000000000000000000000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a440000000000000001000000000000000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a4400000000000000010000000000000000024bae9d8fadddfddd3acceb4b5ff5a7c2b066f5ea8982487955f0d5bd3bb8e05c145a99aadc054325330825c9cfe779bcda5e58d7d17ff057664b3116a17b3201",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 3}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:3", "binding:R:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "binding:R:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "statement"]
+    },
+    {
+      "id": "accepted-multibyte-account-256-bytes",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e74207631000000000000000900000100c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000000391d271be8cb7c9dd8e0589db1153932bb7430c5fc5b881a1bf2eaa1bb38c85fd0d2cdd7ebbe4f4145a5acdda20de509651e2baf27ce8b4b8d85284412cc4502",
+      "expected_account_hex": "c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9",
+      "policy": {"issuers": [{"issuer_key_id": 9, "account_hex": null, "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:9:c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9", "freshness:c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9c3a9:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "statement"]
+    },
+    {
+      "id": "accepted-account-compared-as-bytes-nfc",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e74207631000000000000000900000005636166c3a9000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a440000000000000001000000000000000000000000001e4582c0b209f5cc340e44cba91be06376dbb49c7df2aea69b828bb8e7f4ebb088baf6d9c28b6c778dd062c859b7c0941444e9c6bc71de4556021d4b78a1e209",
+      "expected_account_hex": "636166c3a9",
+      "policy": {"issuers": [{"issuer_key_id": 9, "account_hex": null, "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "636166c3a9", "generation": 2}, {"account_hex": "63616665cc81", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:9:636166c3a9", "freshness:636166c3a9:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "statement"]
+    },
+    {
+      "id": "refused-account-nfd-asked-for-nfc-statement",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e74207631000000000000000900000005636166c3a9000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a440000000000000001000000000000000000000000001e4582c0b209f5cc340e44cba91be06376dbb49c7df2aea69b828bb8e7f4ebb088baf6d9c28b6c778dd062c859b7c0941444e9c6bc71de4556021d4b78a1e209",
+      "expected_account_hex": "63616665cc81",
+      "policy": {"issuers": [{"issuer_key_id": 9, "account_hex": null, "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "636166c3a9", "generation": 2}, {"account_hex": "63616665cc81", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "account",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-decode-signed-unsorted-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000000707c0afb76c6ce70f55672be28b5e1746a765e8d86030459ddcc1b191f6ab4aa9b14fef4fac6432a7c797863ea858d61c78b773ef1f8ea2e57513d3c33306d0a",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "decode",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-decode-signed-capabilities-two",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000200000000000000000000000000441c5687b1e0b57cd48388f61c05c517c2c05b5f9fcb3982c07d9cfaca654c43c2a098082bf9ab372fcd94c146f35574b1c387f341716216d3b2864d1121910b",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "decode",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-decode-signed-empty-account",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e74207631000000000000000700000000000000000000000200000000000000000000000000000000d16e5f76419afddc8a8e4d0942129d76fb67c8e2a3b8974dc283fb9a602f19fdfba41d7e70837635a81ecc3805c1707cd7242c5bfbc2e0727bb92ba1636cae04",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "decode",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-decode-signed-tag-2",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000161000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000102000000000000000000000000000000000000000000000000000000000000000000000000000000000000000086de9d586664e97813fa3941a59c9bdceacb8b28a9503f4c854f08fb7839c561516940b065a3d6081716741db06cae8b0cc7a782f5a544f619cfd184aef8de05",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "decode",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-decode-fewer-than-64-bytes",
+      "signed_hex": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "decode",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-decode-exactly-64-bytes",
+      "signed_hex": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "decode",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-decode-empty-input",
+      "signed_hex": "",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "decode",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-decode-truncated-before-the-signature",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "decode",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-decode-body-altered-domain",
+      "signed_hex": "556163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "decode",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-decode-two-signatures",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "decode",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-account-asked-for-another-account",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f626f62",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "account",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-account-asked-for-prefix-of-the-account",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "account",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-account-asked-for-suffix-of-the-account",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "2f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "account",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-account-asked-for-account-with-last-byte-dropped",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c6963",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "account",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-account-asked-for-account-with-trailing-space",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c69636520",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "account",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-account-asked-for-empty-account",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "account",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-account-asked-for-account-with-a-longer-tail",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c6963652f78",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "account",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-account-asked-for-account-in-another-case",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "41434d452f414c494345",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "account",
+      "hook_calls": []
+    },
+    {
+      "id": "accepted-shared-issuer-key-for-its-own-account",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000090000000861636d652f626f62000000000000000500000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a4400000000000000010000000000000000000000000020d2415bf933b1d0129ff57cfb64beaacb1c3f7a9b43180325a3a8d2d9ec6a07abaaaaf1c66ebda6ccb1e75429c62b47493fbe4912a21742b7c8369c77025e08",
+      "expected_account_hex": "61636d652f626f62",
+      "policy": {"issuers": [{"issuer_key_id": 9, "account_hex": null, "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f626f62", "generation": 5}, {"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:9:61636d652f626f62", "freshness:61636d652f626f62:5", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "statement"]
+    },
+    {
+      "id": "refused-account-under-a-shared-issuer-key",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000090000000861636d652f626f62000000000000000500000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a4400000000000000010000000000000000000000000020d2415bf933b1d0129ff57cfb64beaacb1c3f7a9b43180325a3a8d2d9ec6a07abaaaaf1c66ebda6ccb1e75429c62b47493fbe4912a21742b7c8369c77025e08",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 9, "account_hex": null, "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f626f62", "generation": 5}, {"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "account",
+      "hook_calls": []
+    },
+    {
+      "id": "refused-issuer-id-unknown",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000630000000a61636d652f616c696365000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000000efffdd585adc31e23412c8f164d09cd07ea8530daf51e7b7b32b659c06aa55d10c9a235a94dcdbb801263867e5b6c25caa301c3f7a898523fc34bb350543280e",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "issuer",
+      "hook_calls": ["issuer:99:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-issuer-bound-to-another-account",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000080000000a61636d652f616c696365000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a440000000000000001000000000000000000000000004adc636715326c34a9f423088383b93d442060240eabd7f0a1384530a9c1e1617b23e50a18df618466be93a98a6c05d23f7e76852096ef0ad022e27ae20e8606",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "issuer",
+      "hook_calls": ["issuer:8:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-issuer-id-zero-unbound",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000000000000a61636d652f616c696365000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000000efb818495d9b02cee636ad53dfd49ccb5224a8ce82722ddd3dccb6f0c208a7d337fa83a9d58b78ee19d2b7c96619278f133f071d82a5ae56e29acfb8adb53501",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "issuer",
+      "hook_calls": ["issuer:0:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-signature-first-bit-flipped",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000809ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-signature-s-bit-flipped",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eab7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-signature-sign-bit-flipped",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b82",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-signature-s-plus-q",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cee6e74fcacc15ded680193eaace51ce29f5aa640d5296fadf2bdca674455f1b12",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-signature-r-all-zero",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f200000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000f9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-signature-all-zero",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-signature-by-another-key",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f200000000000000001000000000000000000000000003d86773a5f706ee7efef0515e834881865e07db9d3839c0a098cc0e14a1c1111d17a92862aaa46562cedfe044df5d95c58ebb3071fa1d47b91fad8b189e59300",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-signature-body-changed-after-signing",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000300000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-signature-without-the-label",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000047bafe92fc35b6e5b81b2c3c6b6cb5890c96fb314b52885851b0a00a40d15dcac461659ed568259379fac5ea61e939b822834acf9795919ab55bb48cb2f2a202",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-signature-with-the-application-label",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000079ca2bfb0249f5166787a5600a50846ca5c814baeff4be7254ae8273b7d88f9b875c15d44be5e4f5b79c85a11db6437e6308e0e5006bf02d6dcdd462faa51705",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-signature-label-without-its-terminator",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f200000000000000001000000000000000000000000005314003de621e31eee475b5ffd0f63e79d132008c5bd1d8e29e4e1ce9064468b37b3bb76485a9c9e3b0e8fba6915699f8bd8f9c62c3127065813b3d4cce9c50d",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-signature-over-the-label-twice",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000ae75aa7dfbb11b9c72026d5097c0e1429dfd618b89260de7eb0ba0bc028d57ab7ba03cf32509768652f349cc900a20c58b68941750ed943a97d7e8ea73886703",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-signature-issuer-key-zero",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "0000000000000000000000000000000000000000000000000000000000000000"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-signature-issuer-key-p-minus-one",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-signature-issuer-key-not-canonical",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "refused-freshness-generation-ahead",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000300000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000000328a8460317d18cc9dd0f8ffa89cc3eada1c1432c268f1eda8f2c42c5f22e78581bd35b75ce1129f2175cfe3416509b5e1ea70bf346525f1a6e5fd178140400b",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "freshness",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:3"]
+    },
+    {
+      "id": "refused-freshness-generation-behind",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000100000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000000a6667aa9e246499e6b0eb50c006a78cc06819489c7084944bc268ff4e1570effd2f8ec97c26e6148318ab48bdb17505bf9e8013cb06457d78636da3ef7ad6e0e",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "freshness",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:1"]
+    },
+    {
+      "id": "refused-freshness-no-generation-for-the-account",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f626f62", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "freshness",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-duplicate-device-id",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000010faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000000fc60b8a9b06ff206cc5962f558d0e79759d0085509c5b8a6490ea3ea1369bc16e722ad24e812ab5b101fc1642440f3dfdc8ebf16c81c1ed329cda45524924c0c",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "duplicate-device",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-duplicate-device-id-outranks-a-bad-key",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000010000000000000000000000000000000000000000000000000000000000000000000000000000000100000000010faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f200000000000000001000000000000000000000000007eca3c4353618396df1df6dd2e3b90c3eac9e4cf3a0290f794f8a7a5594e4274282b54e9ac45d8a5fd2c3500df20c5f224ee2a9dbc2545c0818d37c073b1ef06",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "duplicate-device",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-low-order-zero-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c6963650000000000000002000000010000000100000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000001d599d1d820dab0281de63071a6d0dd83a33de692196cacfafc60424a1ad9fef733136555b0ec2feade3c7e6ca382bcdc8c1ab1d613754039ab118ab443a2c07",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-low-order-zero-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000100000001000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000015d13a04645995bd285f160dc56681213c98433905354779a6352c2e63a790850e1690d032bc9271861d3956464f6e936aa00773e8ba779c41318f8ace2d97404",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-low-order-one-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000010100000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000b7a06990ebaf2e85cbade93779531330b4c12522544a7d6fbb2a659f8f4963bdaa44943a6cd3ac8cc5cd05895581eb099c3d38f0b7fd656d8f9bb38c1969ae0b",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-low-order-one-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000001000000010100000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000172c13d922bb1a01fb678d1a5ad91682683ed8bfcb943f6c21bd6432d3681d84c73add8cbc4e422a7b5fb963aee4da2f3e48d66519212d4ed397364186ddd9b07",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-low-order-p-minus-one-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000020000000100000001ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00000000000000010000000000000000000000000073d958fd18dfa143f1e18dee5d6a78c58271f0676792ee9a547de759058a59e1484bc21bd5bc28e446319474a546b918d220437ab2a44b3c56267dada1f07a06",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-low-order-p-minus-one-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000100000001ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00000000000000010000000000000000012037c73d873e81e46d5c8143f5c40efba45200562f1c4ad0805040aec56d2fe21b5bac98ee5eba6590fd7e3e7e48518b59ddf999018a38e82cfc327f5a5cbb0d",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-low-order-order-eight-first-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000020000000100000001e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800000000000000000100000000000000000000000000cf13863b5c8befb7e88e14f814a42cdf2decb0c33ee04e9be030cca413f7c67c4a26f80f8149f51121351e47ea0fecdb68fe86096d3566c474181cf6af1d0903",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-low-order-order-eight-first-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000100000001e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800000000000000000100000000000000000145e612edb4cc1287f5789fa24f4e572b623831923ff9da0afe3e36e710bfcc5cdc98ad08bbf011076dc4771b25ff5349a2b15028fe5e1083fcbc9f5ebd1e330e",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-low-order-order-eight-second-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000015f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f11570000000000000001000000000000000000000000009dbcccb01d1a1bac28b78fcf97760a5423033464dee72fb614e28b3ff41195e05ce8aeaf2e240e616b48ade0ae543662921a85b952624580ac1b78dd0a64e80d",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-low-order-order-eight-second-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000001000000015f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f11570000000000000001000000000000000001df36ae2d0e8a83636bb9396e486f3296c751d4c508a659481e651d77d9757401d5f46464604e5269cc92a8a19835d9b608124dc1bf8b5f66f32a190c2e16f403",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-non-canonical-p-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000020000000100000001edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f0000000000000001000000000000000000000000002e96a82ba9a6f2ad1d91682b370fc78694a5783a86b7b12911397dd3ae421fbf55db062978a54243905f6596bbc676d117d5c17578030f2cc4077509fae3f605",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-non-canonical-p-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000100000001edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00000000000000010000000000000000015de55d111cd71d7117678f8c9562dd6f4ec038695e94a8946ad2ca14af10b21e381bdaebbea5ff73d3ff995743b9d36ec32e108e51414f9f29d82c49aa41f206",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-non-canonical-p-plus-one-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000020000000100000001eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f000000000000000100000000000000000000000000b384e3c523b11c121233002847bb9b3474a4709ecea2233dac8e809a9b73ecdc05f95ce3577cf98c6af16d7b32489387c2cc0206616eb7c3a36eb9cd3387600e",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-non-canonical-p-plus-one-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000100000001eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00000000000000010000000000000000019b835f69c744ba8e1c9ef6713435591f097b44be9b585317132397e6d7c35f942b6416edce6fc8821e57bdbee4f3917f7af9426eb6ad96198318879d41774c0d",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-non-canonical-p-plus-nine-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000020000000100000001f6ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f0000000000000001000000000000000000000000007a6ae8ee34455f961af4e6a9beb15147859782719fef938d1cfa352364998d309a3ccf87930f3caa68688b404a0807b2b27cb584a9a9956b22e7bbf197ba3e0c",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-non-canonical-p-plus-nine-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000100000001f6ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00000000000000010000000000000000019b1d6199991296e77401af81d68c611b34e6e4d0b276181ecb7c2d10f845bc71d0ff9320068eeb575291df59f7c59c6aa301c441f03ebd573632ed91b06dd405",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-non-canonical-all-ones-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000020000000100000001ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000000100000000000000000000000000c3e545e84e3f5e89053747b7b857ef4d30225a693fdfdc8d9c9d962b7693e18c9d4bd0e8f94e509cc14445322f7e9de1153b47cf04b34fe77ec1348e29d77b04",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-non-canonical-all-ones-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000100000001ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000000001000000000000000001e3d4d346153f8624000d273ec9a43f1a19dd61fdc814b4acf3323ea47d4094869860f6353838d029e51c711537cd9f9fd20e2e3b64b60bd02446b7ca74ec6308",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-non-canonical-nine-with-bit-255-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000020000000100000001090000000000000000000000000000000000000000000000000000000000008000000000000000010000000000000000000000000018d281fefe51eb7f40c90558d9dad6f8a65bef5a423ff0c4b55b8e9dde796bb479d21af65f517846c68072d8b26a771dbee0d1aa35430788f109d9f28914ac0c",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-non-canonical-nine-with-bit-255-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000100000001090000000000000000000000000000000000000000000000000000000000008000000000000000010000000000000000018a279ec5bdbdb20c620fc391a2f51f472c6e47a20c3774b7604880983e11478daa6004e0134d7d3987136a22f803ae91759f763ef034285637874024702c0e00",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-non-canonical-zero-with-bit-255-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c6963650000000000000002000000010000000100000000000000000000000000000000000000000000000000000000000000800000000000000001000000000000000000000000003a3ffa669cba056005d96a5ae3d6b5f77af2f92b246f15df37c961a6c3c67348fbebc10d05e4b38544131c94c6b5dd9109ebf92b3af108c3d79504944123f80f",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-non-canonical-zero-with-bit-255-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000100000001000000000000000000000000000000000000000000000000000000000000008000000000000000010000000000000000010df921a4653f56b76696f2783a8c1b2b289873c7342958542ded39f4a3ae262da331eae7d05aa2701f750997f27a1e8e3568a7497b8be9b8be1a08378128b708",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-non-canonical-honest-key-with-bit-255-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c6963650000000000000002000000010000000104f5f29162c31a8defa18e6e742224ee806fc1718a278be859ba5620402b8fba000000000000000100000000000000000000000000e526d9c0bb8a90257921d43265621529d17b83fd5d0c387292aedafaae14c6c384966c0b1339686033b69204cfa0ff669aeb7c605d0c07b4c6aeb7302edb2305",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-non-canonical-honest-key-with-bit-255-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f200000000000000001000000000000000000000000010000000104f5f29162c31a8defa18e6e742224ee806fc1718a278be859ba5620402b8fba0000000000000001000000000000000001a2d5480c7aee2d6cd6352e5260ba7b8d94481ebc618f1f87e6857903ac113bd3fa709f51194d0267c50164e2f077f1c49cf85b8bff609dd01a748dae3e170502",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-non-canonical-honest-key-plus-p-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000020000000100000001f1f4f29162c31a8defa18e6e742224ee806fc1718a278be859ba5620402b8fba0000000000000001000000000000000000000000009caf0939eeb363f2310a2bd400e49c4d48ce52cb0512e15300e51d07d7eb0b88326eca1523969ac4ecb61e87b1c1ff29737731b2978abd35842b0ce47bf8100c",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-non-canonical-honest-key-plus-p-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000100000001f1f4f29162c31a8defa18e6e742224ee806fc1718a278be859ba5620402b8fba0000000000000001000000000000000001c6bdf4187beed018d1ea57aea2cf48e1f8daa2446b1f2d656147187489777ba4b3cf2fbb709e2b3c539da0dfd29e3b608e9e95ffa0f8a2b98bdc0ae51434cd0b",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-off-curve-u-2-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000010200000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000975160baca7962bdfbff3e2a5c01d923a3bbb13c76a1b0aa10888a638435fc2712a2fc3c2bf92ab38ecd34e1043ded7548849ee79a4383593642922c55269f0e",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-off-curve-u-2-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f200000000000000001000000000000000000000000010000000102000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000001f6f8a2e9341a57bb52b193888ea85eafb9136e837040d7375dedaee6e07d9d1e798cb87db1afcaeb6ffd5d8d51d12273ffa24eb1eb882234fd4b3aa7de6b6701",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-off-curve-u-3-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c6963650000000000000002000000010000000103000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000009a2daa83a43c6dc77345e5da11635ed2b9f8822b8c431243041ab08fe2c9f78a6f09fe12cfd3783a0b8aa70aa85740bef4edb7989546630db6897f223f846c0e",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-off-curve-u-3-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000001000000010300000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000159883f9cedc50639810619fe421628c5032ceeabb2f7bbc209be64b15b6dfe0e19036ace3c3291757ca482a9dd02e749719f3d49f725a97de659ac04322f1504",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-off-curve-u-5-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000010500000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000ac0ad4fc8960b00bdf38a71be4c56fa9a9c08991e67989bc4d10e24a540757267eb72ba044e05b4b7f85b67fa8b3b1a0b35ca31412e36f62ede438732d52fc0d",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-off-curve-u-5-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f200000000000000001000000000000000000000000010000000105000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000001d3b6a2639a234b9198cf7e42cba01055aacb9fe13323af86a345152284e0a88b601653ff453f9f01d814a700fcb96e8dc92640038ae41f2fa0618e590a3f2c04",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "accepted-key-honest-spelling",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c6963650000000000000002000000010000000104f5f29162c31a8defa18e6e742224ee806fc1718a278be859ba5620402b8f3a0000000000000001000000000000000000000000009631f82ecb45e88342043ff20f0b0f9d1006ed7a5d3431371a0330121bd1b8b6c7fab7df5ba9b2249ef79731243e5bbdcba6af057866adb5e188b49b8c3f0e03",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:04f5f29162c31a8defa18e6e742224ee806fc1718a278be859ba5620402b8f3a:1:-", "statement"]
+    },
+    {
+      "id": "refused-key-mixed-torsion-1-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000020000000100000001669d22cfc53eec8403b2a8bdab1eca018777e50cfeb847d887d46c1843b9ce60000000000000000100000000000000000000000000216afe8a34fc4e97abd4dc19daa134f7e2bc3bae0b78807b4b05616a553d71e8cde2aaf595343e5e6b626d56010ebc659a3355efece83de80e36ab28cf36220c",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-mixed-torsion-1-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000100000001669d22cfc53eec8403b2a8bdab1eca018777e50cfeb847d887d46c1843b9ce60000000000000000100000000000000000102e610a522278f83928cd81e2414d4f5dae165da3b0448c658a4ec77e5a20e3f55ae9c398d28e1c2ed81f37c2c175925fb3da10a2b03f7b28df008587a780c0d",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-mixed-torsion-2-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000020000000100000001bff2ce2258edfcbcbb1d5ea2f15411a75fe92faaf1581bb85cc64e77031fbf6000000000000000010000000000000000000000000071f013e21b9584d073cf599073241f00955ff17e5e744e8363e365c2aae6f19a617b6542932087552e9e9e29d8e0fa6a602e08a58bd22740e002180b036ac00b",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-mixed-torsion-2-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000100000001bff2ce2258edfcbcbb1d5ea2f15411a75fe92faaf1581bb85cc64e77031fbf60000000000000000100000000000000000102150e12786154583a712fae623de47afffa24b3d0de8193e95c820af5f2c9bc8dda148533281cd21773f4d2d18c973375309b46a99b5a312040449d5d138501",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-mixed-torsion-3-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c6963650000000000000002000000010000000120a565eb470d9b98fbe7fec1f6d0d27d4305872e78f88175bab70f45d692ff7f000000000000000100000000000000000000000000f29187af5a91d6e0993a15039cfc18f2b364bdfd64804ec441d58ee3cf13fff5064c9499c696fbaa1e3fda6f6594ce6b3531b1d4068c700c76ceef2aded9ad07",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-mixed-torsion-3-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f200000000000000001000000000000000000000000010000000120a565eb470d9b98fbe7fec1f6d0d27d4305872e78f88175bab70f45d692ff7f00000000000000010000000000000000019688d8f431d854ded5d1cba27c04a483524c59a1d8a851ab45818b8a501d3416d51dada979169118e28043b9e6f34d013111aa9eb27038a207399dd6bf10c609",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-mixed-torsion-4-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000020000000100000001ce9ac9189e916516ae3d1f538bb1bf7d8aed408656e66a7c947690414a01ae53000000000000000100000000000000000000000000a0b930f5e549c8e7e75c94b6f012e7f64fc04a3ed7ac7c5bb29843b212fec45a0d670da60a30377d511c2b8391d66fb66652f7f30794f53d5d5c7f7e23fb2c03",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-mixed-torsion-4-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000100000001ce9ac9189e916516ae3d1f538bb1bf7d8aed408656e66a7c947690414a01ae5300000000000000010000000000000000017fb6dc804ea50e8a9ef76299aad88ac713016bcc8065613263cba770ba1281add4751cb379e28a229a58d536ba50abccc66c84033bdb28fb948cb965e765ac0a",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-mixed-torsion-5-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000014d244b04461503385bc1309e1fff2762bb482f59d9b0c8ad62c38983443fbb7d0000000000000001000000000000000000000000005efd446cfc3ca69e7d97441a1fef9d423a2a726060c44063fd3fc37f56e1b7e360d7be22f3e01fd6f679cbd5d223a7cf2b3b5f5856b9758c59432d4af09ff706",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-mixed-torsion-5-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000001000000014d244b04461503385bc1309e1fff2762bb482f59d9b0c8ad62c38983443fbb7d0000000000000001000000000000000001382f4b814df9103d1fb780c94868b34e41c80872d463c89fbf47648e901f008a8f09ca1683282bccd744bacfcb4b28060870aa4cc464a57d978b73db02b3e40c",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-mixed-torsion-6-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000020000000100000001881743c80bfffff5912509937f888ddc2b16e875d7a16165b7f51c70b107d31e0000000000000001000000000000000000000000006b508943655a54195c487f6330465d032259ad0c30fc52092f0b1feee9ec5f8b0d69e60f73d41a952d6ccbdf0ac832bf906cb362e275ae2794671d377e984608",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-mixed-torsion-6-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000000000000100000001881743c80bfffff5912509937f888ddc2b16e875d7a16165b7f51c70b107d31e000000000000000100000000000000000120da96c990e758c14f3a0c1806dcca4f317f5999f0709d84b23e74555a0d278a620d42ed102da5741f89ed2c0effa053e32d96453c07c224656b278f9ddc3e02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-mixed-torsion-7-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000019fa3c5c694578dcd4c5aac2929ad1668b9b620294e9143b2a84918a77d242a00000000000000000100000000000000000000000000c0431d9ad2e4e1815a8de9b5f62be72964d6b0099cf376705cc82481476cda84b51973aa184ce8ba72ad5d502d84acd7b7c585d06233832af77e50c3cae6d702",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-mixed-torsion-7-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000001000000019fa3c5c694578dcd4c5aac2929ad1668b9b620294e9143b2a84918a77d242a000000000000000001000000000000000001ffdd78e22d701061d72194546662b95bc42c43fd03bdf0fbede9244c20d9efac27721b81b2d73ba350f17ec989613724614ae79884334160a497eb86575f1200",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-mixed-torsion-of-a-second-key",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c69636500000000000000020000000100000001a28aa4a41024e90aaf3977236feecb8f1350e3c0ec60c41343d3ca20a672463c00000000000000010000000000000000000000000026391fb63aacd60037b56a44063c316888fe160ed38fd1c30e995e3f8aa5061c40d81402307fb734c2c839cb28c845fe972c6c6708687c476e36a5a7ed59b20b",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-unsound-revoked-key-with-a-sound-active-key",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000001000000014d244b04461503385bc1309e1fff2762bb482f59d9b0c8ad62c38983443fbb7d0000000000000001000000000000000001382f4b814df9103d1fb780c94868b34e41c80872d463c89fbf47648e901f008a8f09ca1683282bccd744bacfcb4b28060870aa4cc464a57d978b73db02b3e40c",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-check-6-covers-every-entry",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000004000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000039a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b00000000000000010000000004669d22cfc53eec8403b2a8bdab1eca018777e50cfeb847d887d46c1843b9ce6000000000000000010000000000000000000000000080d13593980230f9239a1c62bb0ec3efaccb7672b4272eddf27f7d8b62376644e8ac5696e8bd26d9fcede2dba74f498cc06883e94e94a7530a92342614772e06",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-binding-policy-active-entry",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": {"identity_hex": "0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20", "status": "active"}, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "binding-policy",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "binding:A:2:0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20:1:-"]
+    },
+    {
+      "id": "refused-binding-policy-revoked-entry",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000013f6be7a00ebd69d1f64455b5daee83202d5593107f0c5f1909183d0cad406d1744aa4c2fdce8b27c41f159e18108ba305ab2c6d59c2f349065ec141dee274d02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": {"identity_hex": "0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20", "status": "revoked"}, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "binding-policy",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "binding:R:2:0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20:1:-"]
+    },
+    {
+      "id": "accepted-binding-policy-status-differs-active",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000013f6be7a00ebd69d1f64455b5daee83202d5593107f0c5f1909183d0cad406d1744aa4c2fdce8b27c41f159e18108ba305ab2c6d59c2f349065ec141dee274d02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": {"identity_hex": "0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20", "status": "active"}, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "binding:R:2:0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20:1:-", "statement"]
+    },
+    {
+      "id": "accepted-binding-policy-status-differs-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": {"identity_hex": "0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20", "status": "revoked"}, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "binding:A:2:0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20:1:-", "statement"]
+    },
+    {
+      "id": "refused-binding-policy-stops-at-the-first-binding",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": true, "refuse_statement": false},
+      "refusal": "binding-policy",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-"]
+    },
+    {
+      "id": "refused-binding-policy-runs-active-before-revoked",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000001000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f2000000000000000010000000000000000013f6be7a00ebd69d1f64455b5daee83202d5593107f0c5f1909183d0cad406d1744aa4c2fdce8b27c41f159e18108ba305ab2c6d59c2f349065ec141dee274d02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": true, "refuse_statement": false},
+      "refusal": "binding-policy",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-"]
+    },
+    {
+      "id": "refused-binding-policy-runs-in-encoded-order",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000003000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000039a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b0000000000000001000000000000000000000000007bf41d832fdbcd847ecfc5bcc36fe0c31ca96ea0e2c071d19b6d435b7fda5b30753dc08b10478a97aa0c337fba8d5aaf27ceaa40d4198e1b44330d8cdda8a209",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": {"identity_hex": "9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b", "status": "active"}, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "binding-policy",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "binding:A:2:0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20:1:-", "binding:A:3:9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b:1:-"]
+    },
+    {
+      "id": "refused-statement-policy",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}, {"issuer_key_id": 8, "account_hex": "61636d652f626f62", "verification_key_hex": "f77ff4b10788bfdca62ca0bb160d427cf5762d85f2b5cad6807ec9c3febbde09"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}, {"account_hex": "61636d652f626f62", "generation": 5}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": true},
+      "refusal": "statement-policy",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "binding:A:2:0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20:1:-", "statement"]
+    },
+    {
+      "id": "refused-binding-policy-suppresses-the-statement-policy",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000020faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000000000000000000000819ec17ca12a2c8e6ee98128e8b14df80b0503ea9aa5e448adfaa216142dd5cef9135a6db2b2cb7eaa7c4607f057ef14f5aa640d5296fadf2bdca674455f1b02",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": {"identity_hex": "7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44", "status": "active"}, "refuse_every_binding": false, "refuse_statement": true},
+      "refusal": "binding-policy",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-"]
+    },
+    {
+      "id": "refused-key-check-runs-before-any-binding-policy",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a4400000000000000010000000002000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000059cea77be8caf46516a1ac686ae698912226b39f74c92e5c8bbbb804ae6b6e45faeb4ee3d58bbb60269d8ac35ef7b6a08aa4dce8081c0fc2b4d9182ab5510506",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": {"identity_hex": "7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44", "status": "active"}, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "refused-key-in-revoked-runs-before-any-binding-policy",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a440000000000000001000000000000000000000000010000000200000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000001b1799af48956126406f3981b671cdc7c76ee985dd8b5b997ab96928f1bb6e94b08f7c0c7b004a6254f010f5f9af87aa5c4645e551ad160356a3e3fc38bbb4a05",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": {"identity_hex": "7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44", "status": "active"}, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-000",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000000d694302e33ee5f54f3047f31b70b8f54a27b93434840c3f1ef15fe0f02dc0791b6bcf9b041de6d5ec47bfa05517990e5aa4dcf1c6f3705090033c5eabf730f03",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": null,
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "statement"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-001",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000000d694302e33ee5f54f3047f31b70b8f54a27b93434840c3f1ef15fe0f02dc0791b6bcf9b041de6d5ec47bfa05517990e5aa4dcf1c6f3705090033c5eabf730f03",
+      "expected_account_hex": "61636d652f626f62",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "account",
+      "hook_calls": []
+    },
+    {
+      "id": "first-failing-check-wins-mask-002",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000630000000a61636d652f616c696365000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000000efffdd585adc31e23412c8f164d09cd07ea8530daf51e7b7b32b659c06aa55d10c9a235a94dcdbb801263867e5b6c25caa301c3f7a898523fc34bb350543280e",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "issuer",
+      "hook_calls": ["issuer:99:61636d652f616c696365"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-004",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a440000000000000001000000000000000000000000006eab28ee8f19bd465c448834d205a809b5973234c8cc22fb1a5a1d11362b80c4496d5b4ad2b7b968f38ece5b8676cd08cc4cdc3f166dc7ec8f06ca169eed9506",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-008",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000300000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000000328a8460317d18cc9dd0f8ffa89cc3eada1c1432c268f1eda8f2c42c5f22e78581bd35b75ce1129f2175cfe3416509b5e1ea70bf346525f1a6e5fd178140400b",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "freshness",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:3"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-016",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000010faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000000fc60b8a9b06ff206cc5962f558d0e79759d0085509c5b8a6490ea3ea1369bc16e722ad24e812ab5b101fc1642440f3dfdc8ebf16c81c1ed329cda45524924c0c",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "duplicate-device",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-032",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000050000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000af22abca397aa94f1653cce1db2cafae0fad2c006a71b313bad384713d3d09433c0fb02c2be22fcf2d448ac9472252e0a2972721e9419b7755c043784279d201",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-064",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000049a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b000000000000000100000000000000000000000000a77954c7752538e9511d732efc5588bd9098c1f3da0bf6e347a734997e75169db710c08c7053a33a7593214d5372b1b5e539e44a27e76992dd73113f3c102e06",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": {"identity_hex": "9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b", "status": "active"}, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "binding-policy",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "binding:A:4:9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b:1:-"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-128",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000000d694302e33ee5f54f3047f31b70b8f54a27b93434840c3f1ef15fe0f02dc0791b6bcf9b041de6d5ec47bfa05517990e5aa4dcf1c6f3705090033c5eabf730f03",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": true},
+      "refusal": "statement-policy",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "statement"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-003",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000630000000a61636d652f616c696365000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000000efffdd585adc31e23412c8f164d09cd07ea8530daf51e7b7b32b659c06aa55d10c9a235a94dcdbb801263867e5b6c25caa301c3f7a898523fc34bb350543280e",
+      "expected_account_hex": "61636d652f626f62",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "account",
+      "hook_calls": []
+    },
+    {
+      "id": "first-failing-check-wins-mask-006",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000630000000a61636d652f616c696365000000000000000200000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000000677736761b9b20492dfc3e0c447aaa1cf486f420eab8a50009d67c7cf6028310ea14c5ad7b9a4539fcfbbfa3d47b76d20841955e90b0a04668ce2b40624af209",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "issuer",
+      "hook_calls": ["issuer:99:61636d652f616c696365"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-010",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000630000000a61636d652f616c696365000000000000000300000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000000000000000000000cb712cb9320e527d15f24ddf2218ebecf9e3192604fbc2a465ef5a4b3367dab6b1ccc798f41b560c7f9e943fb8da551705c73c0650966402b056e977be57c509",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "issuer",
+      "hook_calls": ["issuer:99:61636d652f616c696365"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-012",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000300000001000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a440000000000000001000000000000000000000000001e8e7698ace33d1b5314784dcbe667133f63465393d50d0c5624a8abdee6e998541eaf314f4fdda34a9d0c241a8ffd074071184d994aa0b32cd1546dc7b81403",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-020",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000010faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a440000000000000001000000000000000000000000005c24ffc72f393720cce6988b345cf1b280187536f0b8cb33d94ca377acce0684fbce604b3af67c350e85bfb15e55df64239dcc71d7b182bee0ee56acfc795f0d",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-024",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000300000002000000010faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a4400000000000000010000000000000000000000000062f1eeef2143f2c21df6e62d6ede09b058751d68ad690946a337cc3415e46cde836103c7cc29f4cba4690a5ec1cf33123777f3e68b0cbf80dc84ee73fd156b0d",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "freshness",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:3"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-040",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000300000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000050000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000c2c72a5a9accd4bacae92762e068b39f21493ca8e0c253edd4f73b4dda7dc13edc0c256ae36b3e46eb662d3f2d92f2a88cf7d6381cfacedf2c78353d454b4608",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "freshness",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:3"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-048",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000003000000010faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a440000000000000001000000000500000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000007fdc58ca693126d2bd0d3497320dc93b298312fd5448342747c97b4ff11dad9a2e1641db7e045b6f49e170504cb3c1a3776ac57c7a7c201b6792f56faadba603",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "duplicate-device",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-096",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000003000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000049a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b000000000000000100000000050000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000fce151bede3be1dd8c3be5655d18c815ea5822f9bee1acf659fff7d37c92129e8408b88f2b59b8dc79a1606d5a12420d20b39f9ecf088545ab4fa63e50dea802",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": {"identity_hex": "9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b", "status": "active"}, "refuse_every_binding": false, "refuse_statement": false},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-192",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000049a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b000000000000000100000000000000000000000000a77954c7752538e9511d732efc5588bd9098c1f3da0bf6e347a734997e75169db710c08c7053a33a7593214d5372b1b5e539e44a27e76992dd73113f3c102e06",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": {"identity_hex": "9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b", "status": "active"}, "refuse_every_binding": false, "refuse_statement": true},
+      "refusal": "binding-policy",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2", "binding:A:1:7d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44:1:-", "binding:A:4:9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b:1:-"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-160",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000002000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000050000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000af22abca397aa94f1653cce1db2cafae0fad2c006a71b313bad384713d3d09433c0fb02c2be22fcf2d448ac9472252e0a2972721e9419b7755c043784279d201",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": null, "refuse_every_binding": false, "refuse_statement": true},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-255",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000630000000a61636d652f616c696365000000000000000300000004000000010faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000049a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b0000000000000001000000000500000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000ca9013c040799bcb1136ba9db80edb7922a6d952d04e12393ef1d82d584ecba6f844d04c28fab4279eff974b25c43093f43171c48517c8f601eae261db9ad08",
+      "expected_account_hex": "61636d652f626f62",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": {"identity_hex": "9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b", "status": "active"}, "refuse_every_binding": false, "refuse_statement": true},
+      "refusal": "account",
+      "hook_calls": []
+    },
+    {
+      "id": "first-failing-check-wins-mask-254",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000630000000a61636d652f616c696365000000000000000300000004000000010faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000049a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b0000000000000001000000000500000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000ca9013c040799bcb1136ba9db80edb7922a6d952d04e12393ef1d82d584ecba6f844d04c28fab4279eff974b25c43093f43171c48517c8f601eae261db9ad08",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": {"identity_hex": "9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b", "status": "active"}, "refuse_every_binding": false, "refuse_statement": true},
+      "refusal": "issuer",
+      "hook_calls": ["issuer:99:61636d652f616c696365"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-252",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000300000004000000010faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000049a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b0000000000000001000000000500000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000003bec28c39168255a048a024fa051cd75c02422e1ee9f13eac09eb2ebb1925dbc64e7137d78a7d9df8eebfc9deefe30497150b47a159a23071c709401d3f8c70f",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": {"identity_hex": "9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b", "status": "active"}, "refuse_every_binding": false, "refuse_statement": true},
+      "refusal": "signature",
+      "hook_calls": ["issuer:7:61636d652f616c696365"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-248",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000300000004000000010faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000049a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b000000000000000100000000050000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000f7368022d8a01b7c099352486a11a5041eb1dfd065f3caa166a0c1158a201fb4179dbd08413609213b6832f0d85875c178fed95aef4e6dcfe700a8cc72266302",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": {"identity_hex": "9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b", "status": "active"}, "refuse_every_binding": false, "refuse_statement": true},
+      "refusal": "freshness",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:3"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-240",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000004000000010faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20000000000000000100000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000049a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b0000000000000001000000000500000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000005c0ac9698c904d2152bb4c7bc5ea3140d65573fd9b5910081cc088fd27ecc4702f85ef138aa6da9d022465617b615c23d5a07cc3bb3c50c05d3bfc7e239f6d0d",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": {"identity_hex": "9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b", "status": "active"}, "refuse_every_binding": false, "refuse_statement": true},
+      "refusal": "duplicate-device",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    },
+    {
+      "id": "first-failing-check-wins-mask-224",
+      "signed_hex": "546163656e746120496e76656e746f72792053746174656d656e7420763100000000000000070000000a61636d652f616c696365000000000000000200000003000000017d34a4815fa6b982535e60af3bd9b49556816080f1641ff81d2b7c8ae8268a44000000000000000100000000049a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b000000000000000100000000050000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000fce151bede3be1dd8c3be5655d18c815ea5822f9bee1acf659fff7d37c92129e8408b88f2b59b8dc79a1606d5a12420d20b39f9ecf088545ab4fa63e50dea802",
+      "expected_account_hex": "61636d652f616c696365",
+      "policy": {"issuers": [{"issuer_key_id": 7, "account_hex": "61636d652f616c696365", "verification_key_hex": "57db4b359f23ae5e146e4e2512056704722506348c150c14753d0c933d04d421"}], "fresh": [{"account_hex": "61636d652f616c696365", "generation": 2}], "refuse_binding": {"identity_hex": "9a4503a98ab10fe8d354c9c42cbd0c9d7944f52e7d14d8ea59775e7dc9e3bf4b", "status": "active"}, "refuse_every_binding": false, "refuse_statement": true},
+      "refusal": "identity-key",
+      "hook_calls": ["issuer:7:61636d652f616c696365", "freshness:61636d652f616c696365:2"]
+    }
+  ]
+}

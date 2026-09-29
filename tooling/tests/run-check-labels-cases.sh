@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Hold the label registry check to its two P9 negative controls.
+# Hold the label registry check to its three negative controls.
 #
 #   bash tooling/tests/run-check-labels-cases.sh
 #
@@ -27,7 +27,7 @@ collect_labels() {
     esac
     [ -d "$d" ] && dirs+=("$d")
   done
-  grep -rhoE '^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?(const|static)[[:space:]]+[A-Z_]*(INFO|LABEL):[[:space:]]*&('\''static[[:space:]]+)?\[u8\][[:space:]]*=[[:space:]]*b"[^"]*"' \
+  grep -rhoE '^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?(const|static)[[:space:]]+[A-Z_]*(INFO|LABEL|DOMAIN):[[:space:]]*&('\''static[[:space:]]+)?\[u8\][[:space:]]*=[[:space:]]*b"[^"]*"' \
     --include='*.rs' "${dirs[@]}" 2>/dev/null | sed 's/.*b"//; s/"$//'
 }
 
@@ -72,6 +72,14 @@ printf 'const P_NINE_UNREGISTERED_LABEL: &[u8] = b"P9 unregistered label";\n' \
   >> "$work/unregistered-label/tacenta-core/src/labels.rs"
 expect_fail unregistered-label 'REFUSING: tacenta-core/LABELS.md and the source disagree.'
 
+# A domain-separation string named `..._DOMAIN` is a label too: the checker
+# once looked only for `INFO` and `LABEL`, and the hosted-inventory preimage
+# prefix escaped the registry under that rule.
+make_case unregistered-domain
+printf 'const P_NINE_UNREGISTERED_DOMAIN: &[u8] = b"P9 unregistered domain";\n' \
+  >> "$work/unregistered-domain/tacenta-core/src/labels.rs"
+expect_fail unregistered-domain 'REFUSING: tacenta-core/LABELS.md and the source disagree.'
+
 make_case forbidden-prefix
 cat >> "$work/forbidden-prefix/tacenta-core/src/labels.rs" <<'EOF'
 const P_NINE_PREFIX_LABEL: &[u8] = b"P9 prefix";
@@ -83,4 +91,4 @@ cat >> "$work/forbidden-prefix/tacenta-core/LABELS.md" <<'EOF'
 EOF
 expect_fail forbidden-prefix 'REFUSING: a label is a strict prefix of another, and is not a pair'
 
-echo 'check-labels-cases: pass case and 2 refusal cases gave the expected result'
+echo 'check-labels-cases: pass case and 3 refusal cases gave the expected result'

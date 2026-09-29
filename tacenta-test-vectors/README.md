@@ -73,6 +73,13 @@ Two kinds live here:
       vector its `result`; an accepted vector's `output` is the re-encoding of
       what its input decodes to. Checked by
       `runners/rust/tests/malformed_input.rs`. Layout: Vector layouts, below.
+  - `vectors/groups/`: the two group fan-out commitments
+    (`group-commitments-v1.json`) and the hosted device-inventory profile of
+    identities-and-devices.md, in four files (`inventory-statements-v1.json`,
+    `inventory-decode-refusals-v1.json`, `inventory-binding-commitments-v1.json`
+    and `inventory-acceptance-v1.json`). The inventory files are not model
+    output: `generate-inventory-vectors.py` writes them, and the runner is
+    `tacenta-core/tests/group_commitments.rs`. Layout: Vector layouts, below.
 
 There is also a specification-defined transcript grammar for work that spans
 session establishment and prekey lifecycle: [Session and prekey operation
@@ -518,6 +525,75 @@ relabelling.
   unanswered initiator fixture. The `ratchet-private-does-not-match-dhs-pub`
   vector is appended by `augment-session-state.py` after Lean generation,
   because it needs X25519.
+
+### The hosted-inventory statements: `vectors/groups/inventory-*.json`
+
+The pages are identities-and-devices.md: Hosted device-inventory statements and
+Accepting a signed statement. The Lean model has no inventory statement, so no
+file comes from it. `generate-inventory-vectors.py` writes all four, from a
+Python implementation of the page's rules with its own curve arithmetic and
+XEdDSA and no dependency. It gives every case an intended outcome and stops if
+its own oracle disagrees, and
+
+    python3 tacenta-test-vectors/generate-inventory-vectors.py --check
+
+regenerates the files in memory and compares them with the committed ones. That
+is one implementation of the page. `tacenta-core` and the independent reader
+are checked against these bytes, and the reader is the second reading. Each
+file has a closed shape that `tooling/check-vectors.py` enforces, so a runner
+cannot silently ignore a field.
+
+- **`inventory-statements-v1.json`.** Each case gives a statement's fields and
+  the bytes they encode to, `unsigned_hex`. An encoder given the fields
+  produces the bytes, and a decoder given the bytes returns the fields. The
+  fields are `issuer_key_id`, `account_handle` (a JSON string, whose UTF-8 bytes
+  are the handle), `inventory_generation`, `active` (bindings, listed in encoded
+  order), `revocation_floor_generation` and `revoked` (each
+  `{"binding", "terminal_generation"}`, in encoded order). A binding is
+  `{"device_id", "identity_hex", "capabilities"}` and, when it names a
+  predecessor, `"replacement_predecessor_hex"`. Identity keys are opaque bytes
+  here, since the encoding does not read them; some cases use keys that check 6
+  refuses.
+- **`inventory-decode-refusals-v1.json`.** `unsigned_hex` is refused by the
+  unsigned decoder. Each case has one defect against a valid encoding, and
+  `rule` says which encoding rule it breaks, in the page's words. `rule` is a
+  description, not a closed vocabulary.
+- **`inventory-binding-commitments-v1.json`.** `binding` is as above and
+  `commitment_hex` is `binding_commitment` of it. It is `null` where the
+  binding's capability word breaks the encoding rule, so the binding has no
+  encoding and no commitment.
+- **`inventory-acceptance-v1.json`.** Each case runs `signed_hex`, a statement
+  followed by its 64-byte signature, through the seven checks, asking about the
+  account whose UTF-8 bytes are `expected_account_hex`, against a scripted
+  `policy`. `refusal` is `null` when the statement is accepted, and otherwise
+  the check that refused it: `decode` (an encoding rule, before check 1),
+  `account`, `issuer`, `signature`, `freshness`, `duplicate-device`,
+  `identity-key`, `binding-policy` or `statement-policy`. `hook_calls` is every
+  call the policy received, in order, up to the refusal. An accepted statement
+  is the decoded `signed_hex`.
+
+  The scripted policy answers as follows. An issuer resolves through the first
+  entry of `issuers` whose `issuer_key_id` equals the statement's and whose
+  `account_hex` is `null` or equals the account, to its
+  `verification_key_hex`; if none does, the issuer is unbound. A generation is
+  current for an account exactly when `fresh` lists that pair. A binding is
+  refused when `refuse_every_binding` is true, and also when its identity key is
+  `refuse_binding.identity_hex` and it is in the list `refuse_binding.status`
+  (`active` or `revoked`) names, however many entries share that key. The
+  statement is refused when `refuse_statement` is true.
+
+  A hook-call string is one of:
+
+  - `issuer:<issuer_key_id>:<account hex>`
+  - `freshness:<account hex>:<generation>`
+  - `binding:<A or R>:<device_id>:<identity hex>:<capabilities>:<predecessor hex, or - when none>`,
+    with `A` for an entry of `active` and `R` for one of `revoked`
+  - `statement`
+
+  Signers are fixed: the issuer secret for `acme/alice` is 32 bytes of `0x09`,
+  for `acme/bob` 32 bytes of `0x0a`, and every signature uses Z = 64 zero
+  bytes, so the file is reproducible. Device identity keys are the X25519 public
+  keys of 32-byte secrets that repeat one byte.
 
 ### The protobuf profile: `vectors/protobuf/`
 
