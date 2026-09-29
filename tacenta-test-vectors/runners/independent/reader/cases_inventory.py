@@ -343,8 +343,16 @@ class StoredFreshness(Rec):
         self._fresh = lambda a, g: self.rule(self.record.stored.get(a), g)
 
     def accepted(self, statement):
+        """Check 4's atomic step: evaluate the freshness rule again against the
+        value then stored and, if it accepts, record the generation (never
+        lowering the stored value); if it does not, report False, and the
+        statement is refused as check 4 refuses it."""
         super().accepted(statement)
-        self.record.compare_and_advance(bytes(statement.account_handle), statement.inventory_generation)
+        account, generation = bytes(statement.account_handle), statement.inventory_generation
+        if not self.rule(self.record.stored.get(account), generation):
+            return False
+        self.record.compare_and_advance(account, generation)
+        return True
 
 
 def newer(stored, g):
@@ -376,39 +384,55 @@ def _():
     refused(sign(stmt(active=[DB(1, k1, 1)], gen=9)), "freshness", StoredFreshness(record, newer))
 
 
-@case("IV-09 where statements are verified concurrently the record is advanced by one compare-and-advance and never decreases: two statements that both pass check 4 against the same stored value leave the larger generation stored in whichever order they finish, where a plain write of the later one would lower the record",
-      f"{AC}, check 4: Where statements can be verified concurrently, that step is one atomic compare-and-advance against the stored value, and a stored value never decreases. Otherwise two statements can both pass this check and the later write can lower the record")
+@case("IV-09 where statements are verified concurrently the generation is recorded by one atomic step that evaluates the freshness rule again against the value then stored, records the generation if the rule accepts, and otherwise refuses the statement as check 4 refuses it, and a stored value never decreases: two statements that both pass check 4 against the same stored value leave the larger generation stored in whichever order they finish; the one that finishes second with the smaller generation is refused as freshness; a plain write of the later one would lower the record",
+      f"{AC}, check 4: Where statements can be verified concurrently, that step is one atomic step that evaluates the freshness rule again against the value then stored and, if the rule accepts, records the generation; if it does not, the statement is refused as this check refuses it. A stored value never decreases. Otherwise two statements can both pass this check and the later write can lower the record")
 def _():
     k = honest_key()
 
-    class PlainWrite(GenerationRecord):
-        def compare_and_advance(self, account, generation):
-            self.stored[account] = generation
+    class PlainWrite(StoredFreshness):
+        """The hazard: a plain write of the later statement's generation."""
+
+        def accepted(self, statement):
+            Rec.accepted(self, statement)
+            self.record.stored[bytes(statement.account_handle)] = statement.inventory_generation
             return True
 
-    def race(record, first, second):
+    def race(record, first, second, policy_class=StoredFreshness):
         """`first` passes check 4, then `second` runs to completion, then
-        `first` finishes: both passed check 4 against the same stored value."""
+        `first` finishes: both passed check 4 against the same stored value.
+        Returns (what happened to first, what is stored)."""
         s_first, s_second = sign(stmt(active=[DB(1, k, 1)], gen=first)), sign(stmt(active=[DB(1, k, 1)], gen=second))
-        inner = StoredFreshness(record, newer)
+        inner = policy_class(record, newer)
+        ran = []
 
         def interleave(stored, g):
             ok = newer(stored, g)
-            accepts(INV.accept, s_second, ALICE, inner)
+            if not ran:                       # only between check 4 and the atomic step
+                ran.append(True)
+                accepts(INV.accept, s_second, ALICE, inner)
             return ok
 
-        accepts(INV.accept, s_first, ALICE, StoredFreshness(record, lambda st, g: interleave(st, g)))
-        return record.stored[ALICE]
+        try:
+            INV.accept(s_first, ALICE, policy_class(record, lambda st, g: interleave(st, g)))
+            outcome = "accepted"
+        except INV.InventoryRefusal as e:
+            outcome = e.check
+        return outcome, record.stored[ALICE]
 
-    for first, second in ((4, 6), (6, 4)):
-        record = GenerationRecord()
-        record.stored[ALICE] = 3
-        assert race(record, first, second) == max(first, second)
+    # first = 4 finishes after second = 6 has been recorded: its atomic step
+    # finds the record past it and refuses it as freshness; the record stays 6
+    record = GenerationRecord()
+    record.stored[ALICE] = 3
+    assert race(record, 4, 6) == ("freshness", 6)
+    # first = 6 finishes after second = 4: the rule accepts again and 6 is recorded
+    record = GenerationRecord()
+    record.stored[ALICE] = 3
+    assert race(record, 6, 4) == ("accepted", 6)
     # the interleaving does reach the hazard the page names: with a plain
     # write, the statement finishing last lowers the record
-    naive = PlainWrite()
+    naive = GenerationRecord()
     naive.stored[ALICE] = 3
-    assert race(naive, 4, 6) == 4
+    assert race(naive, 4, 6, PlainWrite) == ("accepted", 4)
 
 
 # ================================================================== check 6
@@ -679,3 +703,63 @@ def _():
     for name, s in statements.items():
         got = accepts(INV.accept, sign(s), ALICE, Rec())
         assert got == s, name
+
+
+def raw_unchecked(s):
+    """The preimage bytes of a statement that may break an encoding rule: the
+    rules are lifted for the one call, so the decoder can be offered bytes it
+    must refuse."""
+    saved = INV.check_encoding_rules
+    INV.check_encoding_rules = lambda _s: None
+    try:
+        return INV.encode_unsigned(s)
+    finally:
+        INV.check_encoding_rules = saved
+
+
+@case("IV-23 a rule that applies to every entry of a list applies past the first: a terminal generation at or below the floor, or above inventory_generation, is refused wherever its revocation sits among several; an exact binding in both lists is refused wherever it sits among the active entries and among the revoked ones; the defect is refused in built statements and in the bytes of one; the same statements with the defect removed are accepted",
+      f"{HD}: Each terminal generation is greater than `revocation_floor_generation` and no greater than `inventory_generation`, and an exact binding cannot occur in both `active` and `revoked`; The unsigned decoder refuses an input that breaks any rule above (added in pass 13: the manifest records that edits applying these rules to the first entry alone pass the vector files and, until then, this reader's cases)")
+def _():
+    keys = [honest_key() for _ in range(4)]
+    dev = [DB(i + 1, keys[i], 1) for i in range(4)]         # ascending by device_id
+    pool = canonical(dev)
+
+    def both(statement, ok):
+        raw = raw_unchecked(statement)
+        if ok:
+            accepts(INV.encode_unsigned, statement)
+            assert INV.decode_unsigned(raw) == statement
+        else:
+            rejects(INV.encode_unsigned, statement, exc=INV.DecodeFailure)
+            rejects(INV.decode_unsigned, raw, exc=INV.DecodeFailure)
+
+    # terminal generations: three revocations, the defective one in each place
+    revs = lambda ts: [RV(b, t) for b, t in zip(pool[:3], ts)]
+    for floor, gen in ((2, 9), (0, 9)):
+        good = [floor + 1, floor + 3, gen]
+        both(stmt(revoked=revs(good), gen=gen, floor=floor), True)
+        for place in range(3):
+            for bad in (floor, gen + 1):
+                ts = list(good)
+                ts[place] = bad
+                both(stmt(revoked=revs(ts), gen=gen, floor=floor), False)
+    # an exact binding in both lists: active entry i is also revoked, and revoked entry j is also active
+    for i in range(3):
+        active = pool[:3]
+        both(stmt(active=active, revoked=[RV(pool[3], 4)], gen=5, floor=1), True)
+        both(stmt(active=active, revoked=[RV(active[i], 4)], gen=5, floor=1), False)
+    for j in range(3):
+        revoked = [RV(b, 3 + n) for n, b in enumerate(pool[:3])]          # ascending, each with its own generation
+        both(stmt(active=[pool[3]], revoked=revoked, gen=9, floor=1), True)
+        both(stmt(active=[revoked[j].binding], revoked=revoked, gen=9, floor=1), False)
+
+
+@case("IV-24 check 5 is over `active` only: two different revoked bindings that share a device_id (different keys), and an active and a revoked binding that share one, are all accepted by checks 1 to 6; the page says of `revoked` only that it is sorted and bounded",
+      f"{AC}, check 5: No two entries of `active` share a `device_id`. An active and a revoked binding may share one (pass 13: the page says nothing of two revoked bindings; the manifest records that it does not state it)")
+def _():
+    k1, k2, k3 = honest_key(), honest_key(), honest_key()
+    revoked = sorted([RV(DB(4, k1, 1), 2), RV(DB(4, k2, 1), 3)], key=INV.encode_revocation)
+    s = stmt(active=[DB(4, k3, 1)], revoked=revoked, gen=5, floor=1)
+    got = accepts(INV.accept, sign(s), ALICE, Rec())
+    assert got == s
+    assert not INV.duplicate_active_device(s)

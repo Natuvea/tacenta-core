@@ -290,6 +290,49 @@ def _is_small_order(pt: Point) -> bool:
     return _is_identity(_mul(8, pt))
 
 
+def _in_prime_order_subgroup(pt: Point) -> bool:
+    """identities-and-devices.md, Verifying a signature, step 3: "`A` is a point
+    of the prime-order subgroup: `qA` is the identity." A point of small order
+    fails (`8A` is the identity, and `qA` is then `qA` mod 8 times A, which is
+    not the identity for any q not a multiple of the point's order), and so does
+    a point of mixed order."""
+    return _is_identity(_mul(Q, pt))
+
+
+def _edwards_from_u(u_bytes: bytes, sign: int) -> Optional[Point]:
+    """Steps 1 and 2 of Verifying a signature. 1. `u` is a canonical encoding:
+    bit 255 is clear and the value is below p. 2. `u` is not p - 1, and
+    `y = (u - 1) / (u + 1) mod p` is the y-coordinate of a point on
+    edwards25519; the point returned is the one whose x-coordinate has sign
+    `sign`. None if any of that fails (a point with x = 0 has no point of sign
+    1, and step 3 refuses it whatever the sign is)."""
+    if len(u_bytes) != 32:
+        return None
+    u = int.from_bytes(u_bytes, "little")
+    if u >= P:
+        return None
+    if (u + 1) % P == 0:
+        return None  # convert_mont divides by zero (GAPS.md G-28)
+    y = (u - 1) * _inv(u + 1) % P
+    return decompress((y | (sign << 255)).to_bytes(32, "little"))
+
+
+def is_identity_key(u_bytes: bytes) -> bool:
+    """The identity-key rule: identities-and-devices.md, Identity keys, and
+    Accepting a signed statement, check 6. "A canonical curve public key whose
+    u-coordinate belongs to a point of the prime-order subgroup of edwards25519"
+    (the subgroup B generates, of order q). Tested in three steps after the
+    canonical rule: u is not p - 1; y = (u - 1) / (u + 1) mod p is the
+    y-coordinate of a point P of edwards25519; qP is the identity. "The two
+    points with that y-coordinate give the same answer, so the sign of x does
+    not matter" (sign 0 is used). Also step 1 to 3 of Verifying a signature:
+    "A key that passes steps 1 to 3 is an identity key"."""
+    if not isinstance(u_bytes, (bytes, bytearray)) or len(u_bytes) != 32:
+        return False
+    A = _edwards_from_u(bytes(u_bytes), 0)
+    return A is not None and _in_prime_order_subgroup(A)
+
+
 def xeddsa_verify(u_bytes: bytes, msg: bytes, sig: bytes) -> Optional[bytes]:
     """Verify under a Montgomery public key; return the compressed Edwards key
     it verified under, or None.
@@ -299,7 +342,8 @@ def xeddsa_verify(u_bytes: bytes, msg: bytes, sig: bytes) -> Optional[bytes]:
     1. u canonical: bit 255 clear and below p (both are u >= p here);
     2. u != p - 1 and y = (u - 1)/(u + 1) is on the curve; A has sign b, the
        top bit of signature[63];
-    3. A not of small order (x = 0 is small order whatever b);
+    3. A is a point of the prime-order subgroup: qA is the identity (pass 13;
+       before it read "A not of small order (x = 0 is small order whatever b)");
     4. s, the last 32 bytes with bit 255 cleared, below q;
     5. encode(sB - hA) equals R byte for byte, h = SHA-512(R || enc(A) || M);
     6. R's point not of small order.
@@ -307,20 +351,14 @@ def xeddsa_verify(u_bytes: bytes, msg: bytes, sig: bytes) -> Optional[bytes]:
     """
     if len(u_bytes) != 32 or len(sig) != 64:
         return None
-    u = int.from_bytes(u_bytes, "little")
-    if u >= P:
-        return None
     sign = sig[63] >> 7
     s = int.from_bytes(sig[32:63] + bytes([sig[63] & 0x7F]), "little")
     if s >= Q:
         return None
-    if (u + 1) % P == 0:
-        return None  # convert_mont divides by zero (GAPS.md G-28)
-    y = (u - 1) * _inv(u + 1) % P
-    a_enc = (y | (sign << 255)).to_bytes(32, "little")
-    A = decompress(a_enc)
-    if A is None or _is_small_order(A):
+    A = _edwards_from_u(u_bytes, sign)
+    if A is None or not _in_prime_order_subgroup(A):
         return None
+    a_enc = compress(A)
     R_bytes = sig[:32]
     R = decompress(R_bytes)
     if R is None or _is_small_order(R):

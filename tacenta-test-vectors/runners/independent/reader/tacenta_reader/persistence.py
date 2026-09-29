@@ -29,6 +29,15 @@ each skipped dh are refused as malformed; the session's our_identity_public,
 peer_identity_public, pending_initial's ephemeral_public and
 established_ephemeral's key as inconsistent; the prekey store's
     identity_public as malformed, in all five versions.
+
+Pass 13, identity keys (session-persistence.md, Session, Semantic rules, and
+Prekey store, Semantic rules; identities-and-devices.md, Identity keys): the
+session's `our_identity_public` and `peer_identity_public` must be identity
+keys, "which is stricter than canonical", and are refused as inconsistent; the
+prekey store's `identity_public` must be one, and "a store that fails this rule
+is refused as malformed, before any signature is checked". `p - 1`, which pass 5
+and pass 7 accepted as canonical (and pass 7 refused later, as incoherent), is
+now refused by the identity-key rule first (GAPS-13.md G13-01).
 """
 
 import hashlib
@@ -37,7 +46,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 from . import constants as K
 from . import erasure, ratchet, spqr
-from .curve25519 import x25519_public, xeddsa_verify
+from .curve25519 import is_identity_key, x25519_public, xeddsa_verify
 from .wire import encode_ec, encode_kem, is_canonical_curve_key
 
 # Where a Braid key_pair holds the header and ek_vector its party sends
@@ -630,11 +639,19 @@ def session_semantic(s: SessionState) -> Optional[str]:
     # public key" (the shape rule, pass 5)
     if ee is not None and not is_canonical_curve_key(ee[1:]):
         return "established_ephemeral's key is not the canonical encoding of a curve public key"
-    # "Every curve public key the session stores is canonical" (pass 5)
-    if not is_canonical_curve_key(s.our_identity_public):
-        return "our_identity_public is not the canonical encoding of a curve public key"
-    if not is_canonical_curve_key(s.peer_identity_public):
-        return "peer_identity_public is not the canonical encoding of a curve public key"
+    # "Every curve public key the session stores is canonical, and the two
+    # identity keys are identity keys" (pass 5, pass 13): `our_identity_public`
+    # and `peer_identity_public` are each the canonical encoding of a curve
+    # public key "and ... each an identity key (identities-and-devices.md,
+    # Identity keys), which is stricter than canonical". Both are refused as
+    # inconsistent ("the two identity keys by its identity-key half, so a
+    # canonical identity key that is not an identity key is refused here too").
+    for name, key in (("our_identity_public", s.our_identity_public),
+                      ("peer_identity_public", s.peer_identity_public)):
+        if not is_canonical_curve_key(key):
+            return f"{name} is not the canonical encoding of a curve public key"
+        if not is_identity_key(key):
+            return f"{name} is not an identity key"
     if s.pending_initial is not None and not is_canonical_curve_key(s.pending_initial.ephemeral_public):
         return "pending_initial's ephemeral_public is not the canonical encoding of a curve public key"
     for problem in (triple_invariant(t), braid_invariant(b)):
@@ -791,9 +808,14 @@ def prekey_store_semantic(p: PrekeyStore) -> Optional[str]:
         return "legacy_blocked names a KEM key that is neither current nor retired"
     if any(a >= b for a, b in zip(p.legacy_blocked, p.legacy_blocked[1:])):
         return "legacy_blocked is not strictly ascending"
-    # "identity_public is canonical" (pass 5), in all five versions
+    # "`identity_public` is an identity key: the canonical encoding of a curve
+    # public key that passes the identity-key rule ... A store that fails this
+    # rule is refused as malformed, before any signature is checked." (pass 5
+    # for canonical; pass 13 for the identity-key rule), in all five versions.
     if not is_canonical_curve_key(p.identity_public):
         return "identity_public is not the canonical encoding of a curve public key"
+    if not is_identity_key(p.identity_public):
+        return "identity_public is not an identity key"
     return None
 
 
@@ -912,3 +934,44 @@ def prekey_store_from_bytes(buf: bytes) -> PrekeyStore:
     if problem:
         raise Incoherent(f"prekey store: {problem}")
     return store
+
+
+# ================================== scanning stored states for the identity rule
+
+def scan_stored_session_identities(buf: bytes) -> List[Tuple[str, bytes]]:
+    """session-persistence.md, "A session or store written before the
+    identity-key rule existed": "A caller that means to adopt a reader with the
+    rule can find the states it will refuse beforehand by reading the identity
+    keys of every stored state and applying the rule to each; `tacenta-core`
+    provides this as `scan_stored_session_identities` and
+    `scan_stored_prekey_identity`."
+
+    The page names the operation and gives no signature; this reader reads the
+    framing of one stored session down to its two identity keys (Session
+    layout: version, the two length-prefixed halves, `ratchet_private`, the
+    length-prefixed `identity_ad`, then `our_identity_public` and
+    `peer_identity_public`) and returns the (field, key) pairs the rule refuses,
+    without applying any other rule to the state. Raises Malformed when the
+    buffer cannot reach the keys. (GAPS-13.md G13-10.)"""
+    buf = bytes(buf)
+    _version(buf, {K.SESSION_VERSION}, "session")
+    r = _Reader(buf)
+    r.take(1, "version")
+    r.prefixed("triple_state")
+    r.prefixed("braid")
+    r.take(32, "ratchet_private")
+    r.prefixed("identity_ad")
+    keys = [("our_identity_public", r.take(32, "our_identity_public")),
+            ("peer_identity_public", r.take(32, "peer_identity_public"))]
+    return [(n, k) for n, k in keys if not (is_canonical_curve_key(k) and is_identity_key(k))]
+
+
+def scan_stored_prekey_identity(buf: bytes) -> List[Tuple[str, bytes]]:
+    """As above, for a stored prekey store: `identity_public` follows the
+    version byte."""
+    buf = bytes(buf)
+    _version(buf, K.PREKEY_STORE_VERSIONS_READ, "prekey store")
+    r = _Reader(buf)
+    r.take(1, "version")
+    key = r.take(32, "identity_public")
+    return [] if (is_canonical_curve_key(key) and is_identity_key(key)) else [("identity_public", key)]

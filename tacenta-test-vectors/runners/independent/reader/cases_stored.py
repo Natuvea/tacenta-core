@@ -138,15 +138,22 @@ def _initiator(**kw):
     return PSC.session_for(PSC.ALICE0, PSC.braid_state(1, epoch=1), **kw)
 
 
-@case("SK-04 the session's our_identity_public, peer_identity_public, pending_initial's ephemeral_public and established_ephemeral's key: every other spelling is refused as inconsistent (not malformed, not non-canonical), with identity_ad built from the same bytes so that no other rule refuses it; p - 1 is accepted in each; kem_ciphertext is not held to the rule; a responder whose established_ephemeral is re-spelled (pass 4's probe, GAPS-4.md G4-02) is now refused",
+@case("SK-04 the session's our_identity_public, peer_identity_public, pending_initial's ephemeral_public and established_ephemeral's key: every other spelling is refused as inconsistent (not malformed, not non-canonical), with identity_ad built from the same bytes so that no other rule refuses it; p - 1 is accepted in the two ephemeral fields and (pass 13) refused in the two identity fields, which are held to the identity-key rule; kem_ciphertext is not held to the rule; a responder whose established_ephemeral is re-spelled (pass 4's probe, GAPS-4.md G4-02) is now refused",
       f"{SP} Session, Semantic rules: Every curve public key the session stores is canonical ...; The optional fields have their shape: ... established_ephemeral is a value DecodeEC accepts: 33 bytes, the curve byte first, then the canonical encoding of a curve public key; {SCK}: Refused as inconsistent")
 def _():
     def ad(initiator, responder):
         return wire.encode_ec(initiator) + wire.encode_ec(responder)
 
     for key in (TOP,):
-        accepts(P.session_from_bytes, P.session_to_bytes(_initiator(our_identity_public=key, identity_ad=ad(key, PSC.IKB))))
-        accepts(P.session_from_bytes, P.session_to_bytes(_initiator(peer_identity_public=key, identity_ad=ad(PSC.IKA, key))))
+        # Pass 13: p - 1 is canonical and no longer accepted in the two identity
+        # fields, which are held to the identity-key rule (Session, Semantic
+        # rules: "which is stricter than canonical"); it is still accepted where
+        # only the canonical rule applies (pending_initial's ephemeral_public,
+        # established_ephemeral's key). Pass 5 accepted it in all four.
+        refused_as(P.session_from_bytes, P.session_to_bytes(_initiator(our_identity_public=key, identity_ad=ad(key, PSC.IKB))), INC,
+                   needle="identity key")
+        refused_as(P.session_from_bytes, P.session_to_bytes(_initiator(peer_identity_public=key, identity_ad=ad(PSC.IKA, key))), INC,
+                   needle="identity key")
         accepts(P.session_from_bytes, P.session_to_bytes(_initiator(pending_initial=P.PendingInitial(key, b"\xff" * 1568, 1, 2, 3))))
         accepts(P.session_from_bytes, P.session_to_bytes(_responder(established_ephemeral=b"\x05" + key)))
     for sp in CKC.spellings(PSC.IKA):
@@ -203,7 +210,7 @@ def _():
         PSC.store(identity_secret=hashlib.sha256(b"pass5 9").digest())))
 
 
-@case("SK-08 the prekey store's identity_public: every other spelling is refused as malformed in v1, v2, v3, v4 and v5 (in v5 after the re-encode check, which a re-spelled key passes); the canonical key of a real identity is accepted in all five; the secrets are not held to the rule. Pass 7: the sixth rule is checked after this one, so p - 1, which this rule accepts, is refused as incoherent instead, no identity having it as a public key (G7-05)",
+@case("SK-08 the prekey store's identity_public: every other spelling is refused as malformed in v1, v2, v3, v4 and v5 (in v5 after the re-encode check, which a re-spelled key passes); the canonical key of a real identity is accepted in all five; the secrets are not held to the rule. Pass 13: p - 1 is refused as malformed by the identity-key rule, before the signature rule (pass 7 had it incoherent, G7-05)",
       f"{SP} Prekey store, Semantic rules: identity_public is canonical ... they apply to all five versions; {SCK}: Refused as malformed, by ... the prekey store's own rules")
 def _():
     base = PSC.store(seen=[(4, PSC.rnd(32))], identity_secret=IKB_SECRET)
@@ -211,11 +218,13 @@ def _():
         def raw(p):
             return P.prekey_store_to_bytes(p) if version == 5 else PSC.legacy(p, version)
         accepts(P.prekey_store_from_bytes, raw(base))
-        # p - 1 keeps the fifth rule and breaks the sixth, which is checked
-        # after it: identities-and-devices.md, Verifying a signature, refuses
-        # u = p - 1, so no signature verifies under it.
+        # Pass 13: p - 1 is canonical but is not an identity key (check 6, step
+        # one), and "A store that fails this rule is refused as malformed, before
+        # any signature is checked". Pass 7 read it as keeping the fifth rule
+        # and breaking the sixth (incoherent); the identity-key rule now refuses
+        # it first (GAPS-13.md G13-08 on the sentence that still says otherwise).
         refused_as(P.prekey_store_from_bytes, raw(PSC.store(seen=[(4, PSC.rnd(32))], identity_public=TOP)),
-                   P.Incoherent, needle="verify")
+                   MAL, needle="identity key")
         for sp in CKC.spellings(PSC.IKB) + [PRIME.to_bytes(32, "little")]:
             refused_as(P.prekey_store_from_bytes, raw(PSC.store(seen=[(4, PSC.rnd(32))], identity_public=sp)), MAL)
     accepts(P.prekey_store_from_bytes,

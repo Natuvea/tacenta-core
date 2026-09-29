@@ -56,5 +56,14 @@ if not run.documented_tally_problems(README, GAPS, 4, 2, 10, 5, 15):
     raise RuntimeError("a stale file count must fail")
 if run.documented_tally_problems(None, None, 3, 2, 10, 5, 15):
     raise RuntimeError("an absent document is not a stale one")
+# An allowlisted skip is a vector check that is neither passed nor failed: the
+# tally counts it in the check column and in the SKIP column.
+README_SKIP = ("| Vector checks (3 files) | 11 | 10 | 0 | 1 |\n| Derived cases (2 modules) | 5 | 5 | 0 | 0 |\n"
+               "| **Total** | 16 | 15 | 0 | 1 |\n**15 PASS, 0 FAIL, 1 SKIP** (11 vector checks and 5 derived cases)")
+GAPS_SKIP = "**15 PASS, 0 FAIL, 1 SKIP**: 11 vector checks (lines that name a vector, in 3 vector files) and 5 derived cases"
+if run.documented_tally_problems(README_SKIP, GAPS_SKIP, 3, 2, 10, 5, 15, skipped=1):
+    raise RuntimeError("a tally that counts an allowlisted skip must pass")
+if not run.documented_tally_problems(README, GAPS, 3, 2, 10, 5, 15, skipped=1):
+    raise RuntimeError("a tally that leaves out an allowlisted skip must fail")
 
-print("reader skip allowlist controls: 3 real-gate cases and 5 tally cases gave the expected result")
+print("reader skip allowlist controls: 3 real-gate cases and 7 tally cases gave the expected result")

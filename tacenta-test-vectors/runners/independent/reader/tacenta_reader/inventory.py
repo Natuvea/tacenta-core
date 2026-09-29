@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from typing import Optional, Sequence
 
 from .curve25519 import P, Q, _inv, _is_identity, _mul, _recover_x, xeddsa_sign, xeddsa_verify
+from .curve25519 import is_identity_key as _is_identity_key
 
 # CONSTANTS.md, Derivation labels. The domain has no terminator (the page:
 # "the ASCII string `Tacenta Inventory Statement v1`"); the two labels end in
@@ -330,24 +331,12 @@ def binding_commitment(binding: DeviceBinding) -> bytes:
 def is_identity_key(u_bytes: bytes) -> bool:
     """Check 6: "a canonical curve public key (message-format.md, Curve public
     keys) whose u-coordinate belongs to a point of the prime-order subgroup of
-    edwards25519 ... A verifier tests that in three steps. `u` is not p - 1.
-    `y = (u - 1) / (u + 1) mod p` is the y-coordinate of a point `P` of
-    edwards25519 (Verifying a signature, step 2). And `qP` is the identity; the
-    two points with that y-coordinate give the same answer, so the sign of x
-    does not matter.\""""
-    if not isinstance(u_bytes, (bytes, bytearray)) or len(u_bytes) != 32:
-        return False
-    u = int.from_bytes(u_bytes, "little")
-    if u >= P:                      # canonical: the 256-bit value is below p
-        return False
-    if u == P - 1:                  # step one
-        return False
-    y = (u - 1) * _inv(u + 1) % P   # step two
-    x = _recover_x(y, 0)
-    if x is None:
-        return False
-    point = (x, y, 1, x * y % P)
-    return _is_identity(_mul(Q, point))   # step three
+    edwards25519 ... A verifier tests that in three steps." The rule is stated
+    once, here, and applied at every boundary that admits an identity key
+    (identities-and-devices.md, Identity keys: "This section ... does not state
+    the rule again"), so pass 13 moved the test to curve25519.is_identity_key
+    and this module uses it."""
+    return _is_identity_key(u_bytes)
 
 
 # ---------------------------------------------------------------- the checks
@@ -356,9 +345,16 @@ class Policy:
     """The verifier's own parts. The page names four: the caller-supplied
     issuer-key binding (check 2), the freshness rule (check 4), and the
     binding and statement policies (check 7). `accepted` is where a verifier
-    records a generation: "only after check 7 has accepted the statement".
-    What happens to a statement whose compare-and-advance then fails is not
-    stated (GAPS-12.md G12-04); here the statement stays accepted."""
+    records a generation: "only after check 7 has accepted the statement". Pass
+    13: where statements can be verified concurrently, "that step is one atomic
+    step that evaluates the freshness rule again against the value then stored
+    and, if the rule accepts, records the generation; if it does not, the
+    statement is refused as this check refuses it. A stored value never
+    decreases." So `accepted` returns False when its re-evaluation refuses the
+    generation, and the statement is then refused as check 4 (`freshness`); any
+    other return value (True, or None for a policy that keeps no record) means
+    the generation was recorded or nothing was to record. (GAPS-12.md G12-04,
+    closed by that sentence.)"""
 
     def issuer_key(self, issuer_key_id: int, account_handle: bytes) -> Optional[bytes]:
         raise NotImplementedError
@@ -430,7 +426,11 @@ def _checks(s: Statement, unsigned: bytes, signature: bytes, asked_account: byte
             raise StatementRefused("binding-policy", "the binding policy refuses a revoked entry")
     if not policy.accept_statement(s):
         raise StatementRefused("statement-policy", "the statement policy refuses the statement")
-    policy.accepted(s)
+    if policy.accepted(s) is False:
+        # check 4's atomic step: the freshness rule, evaluated again against the
+        # value then stored, refuses; "the statement is refused as this check
+        # refuses it"
+        raise StatementRefused("freshness", "the freshness rule, evaluated again when the generation is recorded, refuses it")
     return s
 
 
