@@ -866,8 +866,8 @@ for f in files:
         # the receipt is the list of what ran, so a command added to the job
         # without a line in the receipt, or a line for a command the job does
         # not have, is a difference. The two steps `ALLOWED_REQUIRED_STEP_IF`
-        # names are the one intentional omission from a pull-request receipt:
-        # each is guarded by its own condition and cannot run there.
+        # names are the only steps left out of a pull-request receipt on
+        # purpose: each is guarded by its own condition and cannot run there.
         for receipt_step, declared in required_receipts:
             receipt_if = normalized_expression(receipt_step.get("if"))
             receipt_event = None
