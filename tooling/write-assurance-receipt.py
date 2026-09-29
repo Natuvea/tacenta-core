@@ -1,14 +1,27 @@
 #!/usr/bin/env python3
-"""Write one successful CI check receipt for later assurance aggregation."""
+"""Write one successful CI check receipt for later assurance aggregation.
+
+The receipt records the outcome of each command step of the job as
+`step_outcomes`. It is written only when every one is `success` and, for a
+check the repository owns, only when the steps are exactly the ones the
+workflow runs for it (`assurance_validation.check_step_outcomes`); the
+collector, the manifest builder and the evidence pack check the same thing
+again when they read it.
+"""
 from __future__ import annotations
 
 import argparse
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+# The workflow runs this file with `python3 -I`, which leaves the script's own
+# directory off the import path, so the import below names it.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from assurance_validation import check_step_outcomes  # noqa: E402
 
 
 def git(*args: str) -> str:
@@ -51,6 +64,10 @@ def main() -> int:
         "environment": {"event": event, "python": os.environ.get("PYTHON_VERSION", "unknown")},
         "run": {"id": run_id, "attempt": attempt, "commit": git("rev-parse", "HEAD"), "tree": git("rev-parse", "HEAD^{tree}")},
     }
+    try:
+        check_step_outcomes(value)
+    except ValueError as exc:
+        raise SystemExit(f"assurance receipt: {exc}")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
     print(f"assurance receipt: wrote {args.output} for {args.id}")

@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""Build or verify an allowlisted, content-addressed candidate evidence pack."""
+"""Build or verify an allowlisted, content-addressed candidate evidence pack.
+
+`--verify` checks a pack against itself and against this checkout's lists: the
+files are the ones its manifest lists with the digests it gives, the sources
+and documents this checkout expects are all there, the manifest and the
+receipts name the same candidate and agree with each other, and the receipts
+record success for the command steps the workflow runs (from
+`tooling/required-steps.json`). It does not show that the candidate commit
+exists, that the packed sources are the candidate's files, or that the receipts
+were produced by a run of the workflow: a pack is internally consistent, not
+authentic. Verify a pack with the tooling of the commit that built it, since
+the expected lists come from the checkout that runs the verifier.
+"""
 from __future__ import annotations
 
 import argparse
@@ -31,6 +43,7 @@ EXTRA = [
     "tacenta-test-vectors/schema/session-operation-trace.schema.json",
     "tacenta-test-vectors/traces/session-operation-trace.json",
     "tacenta-test-vectors/runners/independent/P6-OPERATION-READER-EVIDENCE.md",
+    "tooling/required-steps.json",
 ]
 
 
@@ -127,19 +140,19 @@ def verify(root: Path) -> None:
             fail(f"pack contains a symlink: {path.relative_to(root)}")
         if path.is_file():
             actual.add(path.relative_to(root).as_posix())
-    expected = seen | {"PACK-MANIFEST.json"}
-    extras = sorted(actual - expected)
-    missing = sorted(expected - actual)
+    # A listed file that is absent fails its digest check above, so only
+    # files nobody listed remain to find.
+    extras = sorted(actual - seen - {"PACK-MANIFEST.json"})
     if extras:
         fail("pack contains unlisted files: " + ", ".join(extras))
-    if missing:
-        fail("pack is missing listed files: " + ", ".join(missing))
 
     # Structural containment is necessary but not sufficient.  A self-declared
     # one-file pack used to verify successfully, so publication could retain a
     # candidate identity without retaining the evidence that identity was
-    # meant to bind.  Re-apply the repository-owned inventory and receipt
-    # checks to the packed copies before accepting a standalone archive.
+    # meant to bind.  Re-apply this checkout's list of expected paths and its
+    # receipt checks to the packed copies before accepting a standalone
+    # archive.  That is a check of the pack against this checkout, not of the
+    # pack against the candidate commit.
     required_documents = {"assurance-manifest.json", "assurance-receipts.json"}
     missing_documents = sorted(required_documents - seen)
     if missing_documents:
@@ -188,7 +201,8 @@ def verify(root: Path) -> None:
         if not packed.is_file() or packed.stat().st_size != item["bytes"] \
                 or digest(packed) != item["sha256"]:
             fail(f"packed source evidence does not match its manifest entry: {relative}")
-    print(f"evidence pack: {root} verified ({len(pack['files'])} files, complete inventory)")
+    print(f"evidence pack: {root} verified ({len(pack['files'])} files; the expected paths are present, "
+          "the digests match and the receipts record success for every command step)")
 
 
 def main() -> int:
