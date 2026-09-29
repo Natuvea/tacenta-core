@@ -49,12 +49,12 @@ mistaken for a control.
 | Check | Protected property | Existing control/evidence | Candidate record still needed |
 | --- | --- | --- | --- |
 | `tooling/check-traceability.py` | Requirement, status, assumption and evidence-index references stay coherent. | `tooling/tests/run-check-traceability-cases.sh` runs a passing baseline and 22 focused refusals, including missing requirement metadata, status-table title/class drift, both assumption-inverse directions, unknown `LIM`/`ADV`/`AS`/`EX` references, and invariant-catalogue faults. | Capture its command, platform and successful diagnostic-free result at the candidate. |
-| `tooling/check-workflows.sh` | Workflows parse and retain repository security rules. | The 62 cases in `tooling/tests/check-workflows-cases` are the current negative corpus. | Capture its command, platform and successful diagnostic-free result at the candidate. |
+| `tooling/check-workflows.sh` | Workflows parse, retain repository security rules, and the required workflow equals its expected form in `tooling/required-steps.json`. | The case files in `tooling/tests/check-workflows-cases` (the runner prints their number) and the runner's changes to the repository's own `ci.yml` are the current negative corpus. The gate reads the tree it checks, so a change that edits the workflow, the expected form and the checker together is judged by its own edit. | Capture its command, platform and successful diagnostic-free result at the candidate. |
 | `tooling/check-precondition-shapes.py` | First-party Lean does not gain a listed vacuous numeric precondition shape. | The 71 case directories in `tooling/tests/check-precondition-shapes-cases` are the current negative corpus. | Capture its command, platform and successful diagnostic-free result at the candidate. |
 | `tooling/check-labels.sh` | Derivation labels remain registered and prefix-safe. | `tooling/tests/run-check-labels-cases.sh` runs a passing baseline, an unregistered-label refusal and a forbidden-prefix refusal through the production checker. | Capture its command, platform and successful diagnostic-free result at the candidate. |
 | `tooling/check-vectors.py` | Vector documents obey their schemas. | `tooling/tests/run-check-vectors-cases.sh` runs a valid baseline, an unexpected-field schema refusal, a duplicate-ID refusal and an unsupported-schema-keyword refusal against the production checker. | Capture its command, platform and successful diagnostic-free result at the candidate. |
 | Independent operation reader | The specification-only reader can interpret the committed P6 operation surface it declares. | Jie Sun's v4 record covers 27 traces/41 steps across all nine families. Its five controls reject a wrong durable effect, missing required inputs, an accepted duplicate and malformed-bundle pending state. | Retain the v4 clean-room record, reader/corpus hashes, command, platform and full output at the candidate; any changed operation corpus needs a new isolated run. |
-| Claims and attestation | Declared claims name live theorems and generated artifacts match their recorded source state. | `check-audit-negatives.sh` exercises the audit's accepted compiler-trust orphan and 11 refusal cases. `check-attest-negatives.sh` refuses a missing claimed theorem, missing verification manifest, stale source attestation and edited generated translation, matching each diagnostic. | Capture their command, platform and successful diagnostic-free result at the candidate. |
+| Claims and attestation | Declared claims name live theorems and generated artifacts match their recorded source state. | `check-audit-negatives.sh` exercises the audit's accepted compiler-trust orphan and 11 refusal cases. `check-attest-negatives.sh` accepts the unmodified tree, then refuses a missing claimed theorem, a missing verification manifest, a stale source attestation, an edited generated translation, and generated axioms that differ from the allowlist or from the audit's list, matching each diagnostic. | Capture their command, platform and successful diagnostic-free result at the candidate. |
 | Full CI | Required gates do not silently report success when inputs or tools are absent. | Local `tooling/ci.sh` and the GitHub workflow share the principal checks; workflow scripts state CI-only missing-tool failure behaviour. | Record exact local skips and the hosted job results; plant or identify a missing-prerequisite control for every required hosted-only dependency. |
 
 ## Human-review record
@@ -90,13 +90,19 @@ recursor, and declarations that are an axiom, opaque, `implemented_by`,
 `extern`, partial or unsafe.  Each refusal is matched to its individual audit
 reason, rather than merely to a nonzero exit.
 
-`bash tacenta-proofs/scripts/check-attest-negatives.sh` makes a separate
-detached worktree for each of four P9 mutations and runs the production
-attestation script.  It requires these exact fault classes: a ledger theorem
+`bash tacenta-proofs/scripts/check-attest-negatives.sh` makes a detached
+worktree, resets it between cases, and runs the production attestation script
+in it.  It first requires that the unmodified tree is accepted.  It then
+requires these fault classes, each with its own diagnostic: a ledger theorem
 not declared by Lean, a missing generated verification manifest, a stale
-source-commit attestation, and a generated translation whose bytes do not
-match the recorded provenance.  The runner matches the corresponding
-diagnostic, so a failure elsewhere cannot satisfy a case.
+source-commit attestation, a generated translation whose bytes or assembly
+provenance do not match the record, an axiom in a generated file that the
+allowlist does not list by qualified name and type, a malformed or incomplete
+allowlist, and an audit list that differs from the record or the allowlist.
+The runner matches the corresponding diagnostic, so a failure elsewhere cannot
+satisfy a case.  What none of this shows: that the allowlist was reviewed, that
+the type text is the type the elaborator gave the axiom, or that the toolchain
+was run.
 
 ## Finalization checklist
 

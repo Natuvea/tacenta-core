@@ -27,7 +27,11 @@
 # Every third-party action is pinned by commit digest, with the tag in a
 # trailing comment; `tooling/check-workflows.sh` enforces that, along with the
 # `permissions` block, `persist-credentials: false` on every checkout, and the
-# rule that nothing is piped from the network into a shell. The Lean toolchain
+# rule that nothing is piped from the network into a shell. It also holds this
+# file to the expected form in `tooling/required-steps.json`, so a change to a
+# command in a job here is a change to that file too. The checker and that file
+# come from the same tree as this one: see the header of the checker for what
+# that leaves open. The Lean toolchain
 # is installed from a fixed elan release whose archive digest is checked
 # before it runs (`tooling/install-elan.sh`); the pin is the release tag and
 # the sha256 together.
@@ -236,7 +240,8 @@ jobs:
   # Known advisories against tacenta-core's dependency graph. Fails on a
   # vulnerability; warnings (unmaintained, yanked) are printed and do not
   # fail, as in `tooling/ci.sh`. `cargo-audit` is built from crates.io with
-  # `--locked`, so what runs is the release named here and its own lockfile.
+  # `--locked`, which uses the lockfile that release ships with; the release
+  # itself is whatever crates.io serves as newest, and is not pinned here.
   audit:
     runs-on: ubuntu-latest
     steps:
@@ -451,8 +456,9 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       # `check-workflows.sh` parses the workflow files with PyYAML. The runner
       # image happens to carry it today; installing it names the dependency
-      # rather than relying on that, and the script fails on the runner
-      # (rather than skipping) if the import still does not resolve.
+      # rather than relying on that (the version is not pinned), and the script
+      # fails on the runner (rather than skipping) if the import still does not
+      # resolve.
       - name: PyYAML for the workflow check
         id: checks_01
         run: python3 -m pip install --user pyyaml
