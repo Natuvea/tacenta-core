@@ -428,6 +428,43 @@ none and the page fixes no emission order. The `maxFields` bound is never the
 limit reached for these two message types (Fields in a message), so no vector
 can reach it.
 
+## Hosted device-inventory statements
+
+- **Specification:** tacenta-spec/protocol/identities-and-devices.md, Hosted
+  device-inventory statements and Accepting a signed statement. The constants
+  are tier `ours` (CONSTANTS.md). Signing and verifying the issuer signature are
+  the page's Signing and Verifying a signature.
+- **Oracle:** none in the model. `generate-inventory-vectors.py` is a Python
+  implementation of the page (README, Vector layouts). Runner:
+  `tacenta-core/tests/group_commitments.rs`, against
+  `tacenta_core::groups::inventory`.
+
+Vectors: `vectors/groups/inventory-statements-v1.json`,
+`inventory-decode-refusals-v1.json`, `inventory-binding-commitments-v1.json`
+and `inventory-acceptance-v1.json`. Each file's shape is closed and enforced by
+`tooling/check-vectors.py`.
+
+### Covered
+
+| Component | Spec section | Covered by |
+|---|---|---|
+| Unsigned preimage: field order, widths, the tag byte, the bounds 256, 8 and 8 | The preimage and `DeviceBinding` | `inventory-statements-v1.json`: every case, both directions |
+| Sort order of both lists: ascending bytes, device id then key then capabilities then predecessor (absent first) then terminal generation | `DeviceBinding` and the ordering paragraph | `same-device-id-ascending-key`, `key-ascending-across-first-byte`, `no-predecessor-sorts-before-predecessor`, `predecessors-ascending`, `revoked-binding-order-before-terminal-order`, `same-binding-revoked-twice-ascending-terminal`; refused: the `active-*` and `revoked-*` descending and duplicate cases in `inventory-decode-refusals-v1.json` |
+| Every encoding rule, one defect at a time | The preimage, `DeviceBinding`, `Revocation` | `inventory-decode-refusals-v1.json` (account handle length and UTF-8, counts, tag, capability word, order, floor and terminal generation ranges, an exact binding in both lists, trailing and truncated input) |
+| `binding_commitment`, and no commitment for an invalid capability word | `binding_commitment` | `inventory-binding-commitments-v1.json` |
+| Checks 1 to 5 and the signature input (label, terminator, preimage) | Accepting a signed statement | `inventory-acceptance-v1.json`: the `refused-account-*`, `refused-issuer-*`, `refused-signature-*`, `refused-freshness-*` and `refused-duplicate-device-*` cases |
+| Check 6: canonical, low-order, off-curve and mixed-torsion identity keys, in `active` and in `revoked` | Accepting a signed statement, check 6 | the `refused-key-*` cases; `accepted-key-honest-spelling` |
+| Check 7: binding policy before statement policy, `active` before `revoked`, encoded order, all keys before any binding | Accepting a signed statement, check 7 | the `refused-binding-policy-*`, `refused-statement-policy` and `refused-key-*-before-any-binding-policy` cases, by their `hook_calls` |
+| The first failing check wins | Accepting a signed statement | the `first-failing-check-wins-mask-*` cases |
+| The properties the format leaves unchecked are accepted | The unchecked properties | the `accepted-*` cases (an orphan or still-active marker, one key on two devices, a relisted revoked key, one binding revoked twice) |
+
+### Not covered
+
+The issuer's duty to check before signing, and a verifier's recording of a
+generation after acceptance, are the implementation's own behaviour and have no
+vector. No vector pins the error variants of an implementation
+(error-handling.md).
+
 ## Session persistence
 
 - **Specification:** tacenta-spec/protocol/session-persistence.md. Entirely
