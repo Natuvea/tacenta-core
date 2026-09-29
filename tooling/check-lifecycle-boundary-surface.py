@@ -5,6 +5,13 @@ This is a deliberately small source-level check over the committed Aeneas
 translation.  It is not a substitute for rebuilding that translation.  Its
 job is to make a changed opaque-call surface visible: a new reachable boundary
 operation must be assigned to a reviewed contract before this check can pass.
+
+It pins the *set* of boundary operations reachable from the five roots, taken
+together. It does not say which functions call which operation, so it cannot
+notice a call site that stops using an operation another site still uses, and it
+does not enumerate the functions that admit an identity key. The tests in
+`tacenta-core/tests/identity_boundary.rs` and the mutation table recorded with
+the identity-key change are what hold each admission site.
 """
 
 from __future__ import annotations
@@ -48,8 +55,8 @@ FORBIDDEN_OPTION_OPERATIONS = {
 
 # The fourteen boundary operations reachable from the five Session proof
 # roots, grouped as tacenta-model/SESSION-L4-PRIMITIVE-BOUNDARY-DECISION.md
-# names them: DhCodecTotal (the six dh.* codec items), DhIdentityTotal
-# (is_prime_order_public), DhAgreeTotal (agree),
+# and its note of 2026-09-29 name them: DhCodecTotal (the six dh.* codec
+# items), DhIdentityTotal (is_prime_order_public), DhAgreeTotal (agree),
 # AeadSealTotal/AeadOpenTotal (aead.encrypt/decrypt), KemEncapsulateTotal,
 # KemDecapsulateTotal, KemCiphertextLenTotal, XeddsaVerifyTotal. Signing is
 # XeddsaSignTotal, reachable from publication rather than from a root, and
