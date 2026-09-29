@@ -14,8 +14,31 @@ fn primitive_vectors_pass() {
             .unwrap_or_else(|e| panic!("{}: {e}", file.algorithm));
     }
 
-    // hkdf (2) + hmac (2) + x25519 (2) + ed25519 (2) + xeddsa (3 signing + 17 verify-only).
-    assert!(total >= 28, "checked {total} primitive vectors");
+    // Exactly the vectors each file holds, so that a file that loses one fails
+    // here rather than passing on fewer: hkdf (2 RFC 5869), hmac (2 RFC 4231
+    // and the replay-identity construction's known answer), x25519 (2 RFC 7748
+    // and 6 low-order refusals), ed25519 (2 RFC 8032), xeddsa (3 signing and 17
+    // verify-only).
+    let expected = [
+        ("hkdf-sha256", 2),
+        ("hmac-sha256", 3),
+        ("x25519", 8),
+        ("ed25519", 2),
+        ("xeddsa", 20),
+    ];
+    for (algorithm, count) in expected {
+        let file = files
+            .iter()
+            .find(|f| f.algorithm == algorithm)
+            .unwrap_or_else(|| panic!("no {algorithm} primitive file"));
+        assert_eq!(
+            file.vectors.len(),
+            count,
+            "{algorithm}: vectors in the file"
+        );
+    }
+    assert_eq!(files.len(), expected.len(), "primitive files");
+    assert_eq!(total, 35, "checked {total} primitive vectors");
     eprintln!(
         "checked {total} primitive vectors across {} files",
         files.len()

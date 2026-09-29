@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "algorithm": "hmac-sha256",
-  "source": "RFC 4231, section 4; the final vector pins tacenta-core's v2 last-resort replay-identity construction",
+  "source": "RFC 4231, section 4, for the first two vectors; tacenta-last-resort-v2-sk-bound is project-authored: HMAC-SHA256 keyed with the 32-byte label of the last-resort replay identity (session-establishment.md, The replay identity) over a 32-byte value, a known answer for the primitive alone. The construction as tacenta-core ships it is exercised by session-establishment/session-e2e.json, vector last-resort-first-message, whose runner requires the recorded replay identity to be this function of the label and the agreed SK",
   "vectors": [
     {
       "id": "rfc4231-tc2",
@@ -23,7 +23,7 @@
     },
     {
       "id": "tacenta-last-resort-v2-sk-bound",
-      "comment": "The v2 replay identity is HMAC-SHA256 under the fixed label over the agreed 32-byte SK.",
+      "comment": "HMAC-SHA256 under the last-resort replay-identity label over the 32 bytes 00 to 1f: the primitive behind the v2 replay identity, which is this function of the label and SK",
       "inputs": {
         "key": "746163656e7461206c6173742d7265736f72742068616e647368616b65207632",
         "data": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
