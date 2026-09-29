@@ -39,7 +39,7 @@ directory since, were made inside the repository by people who could read
 not clean-room passes: none has an isolation record, and none claims one. The
 code they added is `session_e2e.py` (the derivation of the real-primitive
 session vectors), `test_session_e2e_sweep.py`, `tacenta_reader/curve25519.py`'s
-`montgomery_lift` and `torsion_related`, the last-resort replay code in
+`montgomery_lift`, `torsion_related` and `torsion_translates`, the last-resort replay code in
 `tacenta_reader/pqxdh.py`, and the prekey store's `legacy_blocked` rules in
 `tacenta_reader/persistence.py`. They follow the pages they cite
 (session-persistence.md, Legacy markers, and session-establishment.md, Receiving
