@@ -1,0 +1,6 @@
+name: probe
+runs:
+  using: composite
+  steps:
+    - run: make test
+      shell: bash

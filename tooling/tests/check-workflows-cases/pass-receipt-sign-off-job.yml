@@ -1,0 +1,17 @@
+name: t
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  sign-off:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - id: j_run
+        run: make test
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: sign-off
+          classification: conditional
+          command: c
+          required-outcomes: "j_run=${{ steps.j_run.outcome }}"

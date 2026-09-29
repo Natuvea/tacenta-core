@@ -1,0 +1,8 @@
+# expect: composite action has a step-level `continue-on-error`
+name: probe
+runs:
+  using: composite
+  steps:
+    - continue-on-error: true
+      run: make test
+      shell: bash

@@ -1,0 +1,20 @@
+# expect: required receipt omits command step 'translation_seed'
+name: t
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  translation:
+    runs-on: ubuntu-latest
+    steps:
+      - id: translation_seed
+        if: runner.environment == 'self-hosted'
+        run: bash tooling/seed-lake-packages.sh tacenta-proofs/translation
+      - id: translation_run
+        run: make test
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: translation
+          classification: required
+          command: c
+          required-outcomes: "translation_run=${{ steps.translation_run.outcome }}"

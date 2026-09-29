@@ -1,0 +1,5 @@
+# expect: is not a composite action
+name: probe
+runs:
+  using: node20
+  main: index.js

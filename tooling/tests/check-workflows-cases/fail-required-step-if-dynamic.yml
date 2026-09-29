@@ -1,0 +1,18 @@
+# expect: required command step 'audit_run' with an unapproved step-level `if`
+name: required-step-if
+on: push
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - id: audit_run
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: cargo audit
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: audit
+          classification: required
+          command: cargo-audit
+          required-outcomes: "audit_run=${{ steps.audit_run.outcome }}"

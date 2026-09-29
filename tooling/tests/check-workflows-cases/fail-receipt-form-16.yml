@@ -1,0 +1,17 @@
+# expect: required receipt omits command step 'j_run'
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - id: j_run
+        run: make test
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: j
+          classification: conditional
+          command: c
+          required-outcomes: "other=${{ steps.other.outcome }}"

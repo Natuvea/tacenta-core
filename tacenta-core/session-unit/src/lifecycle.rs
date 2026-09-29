@@ -3927,6 +3927,184 @@ mod tests {
         ));
     }
 
+    /// A refused send changes nothing about the session.  The agreement runs
+    /// first and hands the Triple Ratchet its epoch and output, and either
+    /// half of the Triple can still refuse; a message that was never emitted
+    /// must leave the agreement, both ratchets and every counter as they were.
+    ///
+    /// This drives a state the public API cannot produce: the agreement's
+    /// epoch is moved by one, so the classical half derives its key and the
+    /// post-quantum half then refuses the mismatched epoch.  It compares the
+    /// whole exported session and the public counters before and after, not
+    /// only the agreement, so committing any part of the candidate on the
+    /// error path fails it.  The next test does the same for a refusal that a
+    /// persisted session can reach.
+    #[test]
+    fn a_failed_triple_send_does_not_commit_the_agreement() {
+        use rand::SeedableRng;
+
+        let mut r = rand::rngs::StdRng::seed_from_u64(19);
+        let alice_id = Identity::generate(&mut r);
+        let bob_id = Identity::generate(&mut r);
+        let mut bob_prekeys = bob_id.create_prekeys(2, &mut r);
+        let bundle = bob_prekeys.publish();
+        let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+        let initial = alice.encrypt(b"hello", &mut r).unwrap();
+        let (_bob, _first) =
+            establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
+
+        // Braid's state encoding carries its epoch immediately after the
+        // version and state tag.  Advancing only that field keeps the Braid
+        // state valid but makes its reported send epoch disagree with the
+        // Triple state, so `send_candidate` rejects it.
+        let mut braid_bytes = alice.braid.to_bytes();
+        let mut altered = [0u8; 8];
+        altered.copy_from_slice(&braid_bytes[2..10]);
+        let next_epoch = u64::from_be_bytes(altered)
+            .checked_add(1)
+            .expect("fresh session epoch is not saturated")
+            .to_be_bytes();
+        braid_bytes[2..10].copy_from_slice(&next_epoch);
+        alice.braid = tacenta_braid::Braid::from_bytes(&braid_bytes)
+            .expect("the deliberately mismatched but canonical state decodes");
+
+        let session_before = alice.export();
+        let braid_before = alice.braid.to_bytes();
+        let public_before = alice.public_state();
+        assert!(matches!(
+            alice.encrypt(b"must not send", &mut r),
+            Err(Error::Triple(TripleError::PostQuantum(SpqrError::NoChain)))
+        ));
+        // `assert!` rather than `assert_eq!`: a failure must not print key
+        // material into a log.
+        assert!(
+            alice.braid.to_bytes() == braid_before,
+            "a failed Triple send must not commit the agreement state"
+        );
+        assert!(
+            alice.export() == session_before,
+            "a failed Triple send must leave the exported session unchanged"
+        );
+        let public_after = alice.public_state();
+        assert_eq!(public_after.sent, public_before.sent);
+        assert_eq!(public_after.received, public_before.received);
+        assert_eq!(
+            public_after.our_ratchet_public,
+            public_before.our_ratchet_public
+        );
+    }
+
+    /// The same rule for a refusal that a persisted session can reach.  A
+    /// stored session whose post-quantum sending chain has one message left
+    /// imports (its invariant holds), sends once, and is then refused by the
+    /// post-quantum half after the classical half has derived its key.  The
+    /// refused send must leave the exported session and the counters as they
+    /// were, and the send before it must be an ordinary one.
+    #[test]
+    fn a_send_refused_at_the_post_quantum_chain_ceiling_changes_nothing() {
+        use rand::SeedableRng;
+
+        let mut r = rand::rngs::StdRng::seed_from_u64(19);
+        let alice_id = Identity::generate(&mut r);
+        let bob_id = Identity::generate(&mut r);
+        let mut bob_prekeys = bob_id.create_prekeys(2, &mut r);
+        let bundle = bob_prekeys.publish();
+        let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+        let initial = alice.encrypt(b"hello", &mut r).unwrap();
+        let (_bob, _first) =
+            establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
+
+        // The session export is the version byte and the length-prefixed
+        // Triple state.  The Triple state is its version byte, then the
+        // length-prefixed classical state and the length-prefixed
+        // post-quantum state.  The post-quantum state is its version byte,
+        // the root key (32), the epoch (8), the direction (1) and the chain
+        // count (4), then one entry per chain: the epoch (8) and a sending
+        // and a receiving chain, each a present flag, a key (32) and a
+        // counter (8).
+        let be32 = |bytes: &[u8], at: usize| -> usize {
+            let mut word = [0u8; 4];
+            word.copy_from_slice(&bytes[at..at + 4]);
+            u32::from_be_bytes(word) as usize
+        };
+        let mut bytes = alice.export();
+        let triple_at = 1 + 4;
+        let classical_len = be32(&bytes, triple_at + 1);
+        let post_quantum_at = triple_at + 1 + 4 + classical_len + 4;
+        let chain_count_at = post_quantum_at + 1 + 32 + 8 + 1;
+        let mut entry_at = chain_count_at + 4;
+        let mut moved = 0;
+        for _ in 0..be32(&bytes, chain_count_at) {
+            let send_present_at = entry_at + 8;
+            if bytes[send_present_at] == 1 {
+                let counter_at = send_present_at + 1 + 32;
+                bytes[counter_at..counter_at + 8].copy_from_slice(&(u64::MAX - 1).to_be_bytes());
+                moved += 1;
+            }
+            entry_at += 8 + 41 + 41;
+        }
+        assert!(moved > 0, "the session has a post-quantum sending chain");
+
+        let mut session = Session::import(&bytes)
+            .expect("a session with one message left on its post-quantum chain imports");
+        assert!(session.invariant());
+        let sent_first = session.public_state().sent;
+        session
+            .encrypt(b"the last message that fits", &mut r)
+            .expect("the message before the ceiling is an ordinary send");
+        assert_eq!(
+            session.public_state().sent,
+            sent_first + 1,
+            "an ordinary send advances the counter exactly once"
+        );
+
+        let session_before = session.export();
+        let public_before = session.public_state();
+        assert!(matches!(
+            session.encrypt(b"refused", &mut r),
+            Err(Error::Triple(TripleError::PostQuantum(
+                SpqrError::ChainExhausted
+            )))
+        ));
+        assert!(
+            session.export() == session_before,
+            "a send refused at the chain ceiling must leave the exported session unchanged"
+        );
+        let public_after = session.public_state();
+        assert_eq!(public_after.sent, public_before.sent);
+        assert_eq!(public_after.received, public_before.received);
+    }
+
+    /// The ordinary path the two refusal tests above depart from: every
+    /// message that is sent advances the sending counter by exactly one, so a
+    /// send that advanced the ratchet a second time (consuming a key for a
+    /// message never emitted) fails here, and the peer reads each message.
+    #[test]
+    fn an_ordinary_send_advances_the_counter_exactly_once() {
+        use rand::SeedableRng;
+
+        let mut r = rand::rngs::StdRng::seed_from_u64(19);
+        let alice_id = Identity::generate(&mut r);
+        let bob_id = Identity::generate(&mut r);
+        let mut bob_prekeys = bob_id.create_prekeys(2, &mut r);
+        let bundle = bob_prekeys.publish();
+        let mut alice = establish_initiator(&alice_id, &bundle, &mut r).unwrap();
+        let initial = alice.encrypt(b"hello", &mut r).unwrap();
+        let (mut bob, _first) =
+            establish_responder(&bob_id, &mut bob_prekeys, &initial, &mut r).unwrap();
+
+        for round in 0u8..4 {
+            let before = alice.public_state().sent;
+            let message = alice.encrypt(&[round], &mut r).unwrap();
+            assert_eq!(
+                alice.public_state().sent,
+                before + 1,
+                "an ordinary send advances the counter exactly once"
+            );
+            assert_eq!(bob.decrypt(&message, &mut r).unwrap(), vec![round]);
+        }
+    }
+
     /// The identity and the prekey store erase themselves when dropped.
     ///
     /// Static, for the reason `tacenta-ratchet`'s own version of this test

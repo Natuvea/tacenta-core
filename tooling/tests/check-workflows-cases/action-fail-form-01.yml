@@ -1,0 +1,8 @@
+# expect: composite action has a step unconditionally disabled
+name: probe
+runs:
+  using: composite
+  steps:
+    - if: false
+      run: make test
+      shell: bash

@@ -1,0 +1,11 @@
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          set -eu
+          make test

@@ -1,0 +1,18 @@
+# expect: has required command step 'translation_other' with an unapproved step-level `if`
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  translation:
+    runs-on: ubuntu-latest
+    steps:
+      - id: translation_other
+        if: runner.environment == 'self-hosted'
+        run: bash tooling/seed-lake-packages.sh tacenta-proofs/translation
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: translation
+          classification: required
+          command: c
+          required-outcomes: "translation_other=${{ steps.translation_other.outcome }}"
