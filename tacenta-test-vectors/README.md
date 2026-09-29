@@ -140,6 +140,12 @@ byte-level regression and composition check rather than an external oracle.
 
 ### The decoders: `vectors/malformed-input/*-decode.json`
 
+An accepted vector in these files is a whole encoding a decoder returns; it is
+not thereby an identity key. The decoders read bytes and do not apply the
+identity-key rule (identities-and-devices.md, Identity keys); the bundle's and
+the initial message's keys are held to it after they decode, and
+`vectors/identity/` pins that.
+
 The page is message-format.md: Ratchet message, Initial message, Prekey
 bundle, Curve public keys and Rejection.
 

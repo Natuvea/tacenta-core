@@ -53,6 +53,11 @@ applies the rule to it before relying on the key for anything else:
 - a verifier of a signed inventory statement, to every `identity_public_key`
   in it (Accepting a signed statement, check 6).
 
+An identity key read from any other encoding, such as the identity key field of
+the protobuf profile's prekey envelope, is held to the same rule by the party
+that admits it. A decoder reads bytes and does not apply the rule
+(message-format.md, Curve public keys).
+
 Other curve keys are outside the rule. Ephemeral keys, prekeys and ratchet keys
 are held to the canonical encoding and to contributory agreement
 (message-format.md, Curve public keys; session-establishment.md), which is all
