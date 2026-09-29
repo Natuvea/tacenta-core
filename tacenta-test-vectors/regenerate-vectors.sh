@@ -5,14 +5,15 @@
 # commit the result; `tooling/ci.sh` and the public `proofs` CI job run this
 # and fail on a difference between the model and the committed files.
 #
-# Thirty files, all under vectors/: the Double Ratchet scenarios, the
+# Thirty-one files, all under vectors/: the Double Ratchet scenarios, the
 # PQXDH shared secrets, the message and initial-message encodings, the nine
 # post-quantum derivation files and the two erasure-code files beside them, the
 # erasure coders' two persisted formats and the six persisted states (the two
 # ratchets', the Triple Ratchet's, the Braid's, the prekey store's and the
 # session's),
-# the protobuf profile's two readers, the AEAD's two directions, and the three
-# decoder files under malformed-input/.
+# the protobuf profile's two readers, the AEAD's two directions, the three
+# decoder files under malformed-input/, and the identity-key table under
+# identity/.
 # The AEAD files take their AES-256 block values from NIST SP 800-38A, since
 # the model has no AES; their `source` field says so. The primitive vectors
 # under vectors/primitives/ are not regenerated: they are standards' known
@@ -79,3 +80,7 @@ done
 generate composite-decode "$here/vectors/malformed-input/composite-header-decode.json"
 generate bundle-decode    "$here/vectors/malformed-input/prekey-bundle-decode.json"
 generate initial-decode   "$here/vectors/malformed-input/initial-message-decode.json"
+
+# The identity-key rule (identities-and-devices.md, Accepting a signed
+# statement, check 6), one vector per key of a fixed table.
+generate identity-key     "$here/vectors/identity/identity-key.json"
