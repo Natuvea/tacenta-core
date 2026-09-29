@@ -33,6 +33,20 @@ It was written without network access. It consulted no existing implementation
 of these protocols: not tacenta-core, tacenta-model, tacenta-proofs, the Rust
 vector runner, libsignal or anything else.
 
+**That holds for passes 1 to 7 only.** Passes 8 to 11, and every change to this
+directory since, were made inside the repository by people who could read
+`tacenta-core`, the model, the proofs and the Rust runner. They are maintenance,
+not clean-room passes: none has an isolation record, and none claims one. The
+code they added is `session_e2e.py` (the derivation of the real-primitive
+session vectors), `test_session_e2e_sweep.py`, `tacenta_reader/curve25519.py`'s
+`montgomery_lift` and `torsion_related`, the last-resort replay code in
+`tacenta_reader/pqxdh.py`, and the prekey store's `legacy_blocked` rules in
+`tacenta_reader/persistence.py`. They follow the pages they cite
+(session-persistence.md, Legacy markers, and session-establishment.md, Receiving
+the initial message and The replay identity), but a reader that follows a page
+after its author has seen the implementation is not a test of whether the page
+alone is enough, and nothing here should be read as one.
+
 Where the spec does not state something, the code comment names the entry in
 `../GAPS.md` (first pass), `../GAPS-2.md` (second), `../GAPS-3.md` (third),
 `../GAPS-4.md` (fourth), `../GAPS-5.md` (fifth), `../GAPS-6.md` (sixth) or
@@ -616,14 +630,39 @@ fails nothing, as Rejection allows (GAPS-5.md G5-03).
 ## Not implemented
 
 - ML-KEM-1024 and its incremental split. The Braid runs over `kem_double.py`.
-- The end-to-end `Session` implementation: the handshake with a real KEM,
-  `pending_initial`
-  resend, `established_ephemeral`, and export/import over live states.
-- The real session known-answer vector is now **partially** handled: the reader
-  independently checks its encodings, all four classical agreements, the
-  PQXDH/split equations using the vector's KEM shared-secret boundary, the
-  associated-data and AEAD composition, and both persisted-state round trips.
-  It does not implement or independently validate ML-KEM-1024 decapsulation.
+- The end-to-end `Session` implementation as a live object: the handshake with
+  a real KEM, `pending_initial` resend, `established_ephemeral`, and
+  export/import over live states. The real-primitive session vectors are
+  handled by derivation instead (below).
+- The real-primitive session vectors (`session-e2e.json`) are **derived**, not
+  echoed: `session_e2e.py` computes from each vector's inputs both message keys,
+  the composite headers, the AEAD, the initial message and its repeat, the
+  bundle (with both signatures recomputed from their nonces), the responder's
+  agreements for every spelling of the ephemeral, Bob's sessions after the
+  first message and after the repeat byte for byte, Alice's session after her
+  first send, the responder's prekey store after the first message, the
+  last-resort replay identity and record, and each refusal, and compares each
+  with the vector. **What it does not derive**, so that "partially" has a
+  definition:
+  - ML-KEM-1024 in every form. The bundle's KEM prekey, the encapsulation's
+    ciphertext and shared secret are taken from the vector; the reader checks
+    their length, the FIPS 203 encapsulation-key modulus check and the
+    signatures over the keys. The inputs that feed them, `bob_last_resort_kem_d_z`,
+    `bob_one_time_kem_d_z` and `alice_kem_encapsulation_m`, are not read.
+  - The Braid's key generation: the header a first composite header carries a
+    codeword of (the 96-byte value, header and MAC, is checked against its MAC
+    under the authenticator derived from SK, not recomputed), Alice's stored
+    Braid `key_pair` (11,872 bytes whose layout the specification delegates),
+    and the input `alice_braid_keygen_d_z`.
+  - The KEM key pair inside the responder's stored prekey store, apart from the
+    FIPS 203 checks its reader makes and the signature over its public half:
+    the first 1,536 and the last 32 bytes of its decapsulation key are not
+    checked.
+  - `bob_repeat_random`, and the `z` half of each `d || z` input: consumed by
+    the implementation and unobservable in any output.
+  `test_session_e2e_sweep.py` holds this list to the code: it corrupts sampled
+  bytes of every input and field and requires the reader to notice all of them
+  except these.
 - Prekey store operations other than the two rotations `prekeys.py` adds:
   `create_prekeys`'s numbering, `replenish`, `publish` selection,
   `establish_responder`. The rotations were added in pass 7 because the store's
@@ -640,19 +679,20 @@ fails nothing, as Rejection allows (GAPS-5.md G5-03).
   accepts the content, and conforms (GAPS-7.md, G5-02 closed).
 
 The reasons are in `../GAPS-3.md` to `../GAPS-7.md` ("Not attempted"). The
-real-primitive `session-e2e.json` added after pass 9 now has a partial handler
-with the explicit ML-KEM boundary described above; it is no longer silently
-skipped. `../GAPS-10.md` remains the historical record of the earlier skip.
+real-primitive `session-e2e.json` added after pass 9 is handled by derivation up
+to the explicit ML-KEM and Braid-key-generation boundaries listed above.
+`../GAPS-10.md` remains the historical record of the earlier skip.
 
 ## Running
 
 ```
-python3 reader/run.py              # from the clean-room directory
-python3 work/faults7.py                # the pass-7 deliberate faults and control
-python3 work/check_new_vectors7.py     # pass 7: the 30 new vectors pass for the stated reasons
-python3 work/xref7.py                  # pass 7: threat-model numbering, and the two files' coverage statements
-# the pass-4 to pass-6 scripts were not in the tree this pass was read from
+python3 reader/run.py                        # from the clean-room directory
+python3 reader/test_skip_allowlist.py        # the skip gate fails when it should
+python3 reader/test_session_e2e_sweep.py     # corrupt the session vectors byte by byte
 ```
+
+The pass-4 to pass-7 fault scripts (`work/faults*.py` and the pass-7 checks) were
+scratch files of the clean-room directories and are not in the repository.
 
 The runner prints:
 
@@ -661,20 +701,28 @@ The runner prints:
 3. a per-file table with a vectors subtotal, a derived-cases subtotal and a total.
 
 The exit status is non-zero on any FAIL, or when the observed skips differ from
-the checked allowlist in `run.py`. A full run takes about five seconds.
+the checked allowlist in `run.py`. A full run takes about ten seconds on a
+laptop; the sweep takes about thirty.
 
-Current result:
+Current result. "Vector checks" are the lines that name a vector; "derived
+cases" are the `negative ::` lines, each a case the reader's authors derived
+from a sentence of the specification; the total is their sum, and the run's own
+`vectors subtotal`, `derived cases subtotal` and `TOTAL` lines print the same
+three numbers:
 
 | | Count | PASS | FAIL | SKIP |
 |---|---|---|---|---|
-| Vectors (37 files) | 431 | 431 | 0 | 0 |
-| Derived cases (12 modules) | 220 | 220 | 0 | 0 |
-| **Total** | 651 | 651 | 0 | 0 |
+| Vector checks (39 files) | 450 | 450 | 0 | 0 |
+| Derived cases (12 modules) | 221 | 221 | 0 | 0 |
+| **Total** | 671 | 671 | 0 | 0 |
+
+The run compares this table, the pass-11 record below and `../GAPS-11.md` with its own
+totals and fails when they differ, so a count here cannot go stale silently.
 
 ## In this repository
 
 Copied into `tacenta-test-vectors/runners/independent/` from the clean-room
-reader, with the pass-11 session-vector handler described below. In this README,
+reader, and changed in the repository since (Provenance, above). In this README,
 `../tacenta-spec` and `../tacenta-test-vectors` name the clean-room directory it
 was written in. In the repository they are the repository's own `tacenta-spec`
 and `tacenta-test-vectors`. Run it from the repository root with
@@ -685,7 +733,8 @@ python3 tacenta-test-vectors/runners/independent/reader/run.py
 
 `tooling/ci.sh` and the CI `vectors` job both run it.
 
-**Keeping it independent** (ADR-0006):
+**Keeping it independent** (ADR-0006). This is the rule for a clean-room pass;
+passes 8 to 11 did not follow it, and the record above says so:
 
 - A change to this reader is made from the specification and the vectors only,
   by someone who has not consulted `tacenta-core`, `tacenta-model`,
@@ -730,16 +779,14 @@ clean-room implementation or independent review.
 
 ### Pass 11 record
 
-The reader now handles `session-establishment/session-e2e.json` at its public
-component boundary. It recomputes the classical agreements, KDF and split,
-wire encodings, associated data, AEAD composition and persistence round trips.
-The KEM shared secret remains an explicit input because this reader does not
-implement ML-KEM-1024; no claim is made that it independently validates KEM
-decapsulation or the full Session implementation.
-
-The follow-up repeat-initial checks also decode the repeated initial, route its
-inner ratchet message through the persisted responder state, and refuse the
-low-order control without changing that state. The current run is **651 PASS,
-0 FAIL, 0 SKIP** (431 vector checks and 220 derived cases). This supersedes the
-earlier pass-10 skip tally; `GAPS-10.md` remains the historical record of that
-earlier run.
+Not a clean-room pass, and it has no isolation record (see Provenance). It
+replaced the reader's earlier partial handling of
+`session-establishment/session-e2e.json`, which took the message keys, the
+composite header and most of the persisted state from the vector and checked
+that the persisted sessions re-encoded, with a derivation of the whole vector
+from its inputs (`session_e2e.py`) for both of its vectors, and it taught the
+reader the `legacy_blocked` rules of `session-persistence.md`, Legacy markers.
+`../GAPS-11.md` records the run, what the reader derives, and what it does not.
+The current run is **671 PASS, 0 FAIL, 0 SKIP** (450 vector checks
+and 221 derived cases). This supersedes the earlier pass-10 skip tally;
+`GAPS-10.md` remains the historical record of that earlier run.

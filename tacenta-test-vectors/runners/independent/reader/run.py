@@ -1311,6 +1311,39 @@ def run_negative(totals):
                 counts["PASS"] += 1
 
 
+def documented_tally_problems(readme, gaps, files, modules, vectors, derived, total):
+    """The tally this run prints, as the README and GAPS-11.md say it. A count
+    copied into prose goes stale on the next vector, so the run checks it: each
+    sentence below must appear exactly as written. `None` for a document that
+    is not there (a clean-room directory has no GAPS-11.md)."""
+    problems = []
+    flat = lambda text: None if text is None else " ".join(text.split())  # noqa: E731
+    readme, gaps = flat(readme), flat(gaps)
+    if readme is not None:
+        for sentence in (
+                f"| Vector checks ({files} files) | {vectors} | {vectors} | 0 | 0 |",
+                f"| Derived cases ({modules} modules) | {derived} | {derived} | 0 | 0 |",
+                f"| **Total** | {total} | {total} | 0 | 0 |",
+                f"**{total} PASS, 0 FAIL, 0 SKIP** ({vectors} vector checks and {derived} derived cases)"):
+            if sentence not in readme:
+                problems.append("reader/README.md does not say: " + sentence)
+    if gaps is not None:
+        for sentence in (
+                f"**{total} PASS, 0 FAIL, 0 SKIP**: {vectors} vector checks",
+                f"in {files} vector files) and {derived} derived cases"):
+            if sentence not in gaps:
+                problems.append("GAPS-11.md does not say: " + sentence)
+    return problems
+
+
+def _read(path):
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
 def main():
     totals = OrderedDict()
     _OBSERVED_SKIPS.clear()
@@ -1334,7 +1367,17 @@ def main():
         print("FAIL  reader skip allowlist: unexpected skip(s): " + ", ".join(unexpected))
     if missing:
         print("FAIL  reader skip allowlist: expected skip(s) not observed: " + ", ".join(missing))
-    return 1 if grand["FAIL"] or unexpected or missing else 0
+    stale = []
+    if not (grand["FAIL"] or grand["SKIP"]) and sub["vectors"]["PASS"]:
+        files = sum(1 for rel in totals if not rel.endswith("(derived from spec text)"))
+        modules = len(totals) - files
+        stale = documented_tally_problems(
+            _read(os.path.join(HERE, "README.md")),
+            _read(os.path.join(HERE, "..", "GAPS-11.md")),
+            files, modules, sub["vectors"]["PASS"], sub["negative"]["PASS"], grand["PASS"])
+        for problem in stale:
+            print("FAIL  documented tally: " + problem)
+    return 1 if grand["FAIL"] or unexpected or missing or stale else 0
 
 
 if __name__ == "__main__":
