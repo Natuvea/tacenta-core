@@ -455,11 +455,19 @@ def apply(prod, mutant):
 
 
 def copy_tree(dst):
-    """A scratch copy of the crate and the vectors it reads; never the tree itself."""
+    """A scratch copy of the crate and the vectors it reads; never the tree itself.
+
+    Files are copied without their modification times. Cargo names its output
+    from the path relative to the workspace, and decides a build is current by
+    comparing source times with the build's own, so a copy that kept old times
+    could be judged current against the artifacts of an earlier run in a shared
+    target directory, mutant and all.
+    """
     skip = shutil.ignore_patterns("target", "fuzz", ".git", "__pycache__")
-    shutil.copytree(os.path.join(ROOT, "tacenta-core"), os.path.join(dst, "tacenta-core"), ignore=skip)
+    shutil.copytree(os.path.join(ROOT, "tacenta-core"), os.path.join(dst, "tacenta-core"),
+                    ignore=skip, copy_function=shutil.copyfile)
     vectors = os.path.join("tacenta-test-vectors", "vectors")
-    shutil.copytree(os.path.join(ROOT, vectors), os.path.join(dst, vectors))
+    shutil.copytree(os.path.join(ROOT, vectors), os.path.join(dst, vectors), copy_function=shutil.copyfile)
 
 
 def run_tests(crate, target_dir, args, timeout):
