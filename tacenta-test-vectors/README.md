@@ -44,6 +44,13 @@ Two kinds live here:
     signatures nor the curve; all from `Model.PersistedState`), whose refused
     vectors also name the refusal. Checked by `runners/rust/tests/persistence.rs`.
     Layout: Vector layouts, below.
+  - `vectors/identity/`: the identity-key rule (identities-and-devices.md,
+    Identity keys), as a predicate over a table of keys (`identity-key.json`,
+    generated from `Model.IdentityKey`) and at the two boundaries that read
+    an identity key off the wire, a prekey bundle (`bundle-admission.json`)
+    and an initial message (`initial-message-admission.json`). The two stored
+    formats' rows are in `vectors/persistence/`. Checked by
+    `runners/rust/tests/identity.rs`. Layout: Vector layouts, below.
   - `vectors/aead/`: the authenticated encryption, both directions, with its
     refusals, checked by `runners/rust/tests/aead.rs`. Generated like the
     others, but the model has no AES: the generator computes the padding, the
@@ -391,6 +398,12 @@ those fixtures, or truncations, additions and version relabellings.
 - An invalid vector's `refusal` is `wrong-version`, `short-or-malformed`,
   `non-canonical` or `incoherent`. `incoherent` is the prekey store's
   semantic-signature refusal.
+- The `identity-public-mixed-order`, `identity-public-low-order` and
+  `identity-public-no-curve-point` vectors replace `identity_public` by a
+  canonical key that is not an identity key (identities-and-devices.md,
+  Identity keys). They are refused as `short-or-malformed`, not `incoherent`,
+  although no stored signature verifies under the new key: the rule on the
+  identity key comes before the signature rule.
 
 ### The session's state: `vectors/persistence/session-state.json`
 
@@ -430,6 +443,49 @@ relabelling.
   unanswered initiator fixture. The `ratchet-private-does-not-match-dhs-pub`
   vector is appended by `augment-session-state.py` after Lean generation,
   because it needs X25519.
+- The `peer-identity-*` and `own-identity-*` vectors replace one identity key
+  by a canonical key that is not an identity key (identities-and-devices.md,
+  Identity keys) and rebuild `identity_ad` to match. They are refused as
+  `inconsistent`.
+
+### The identity keys: `vectors/identity/`
+
+The pages are identities-and-devices.md, Identity keys, and, for the two
+boundaries, session-establishment.md, Sending the initial message and Receiving
+the initial message. An invalid vector in these three files carries the
+`refusal` `invalid-identity-key`: the input decoded, and it names a key the
+rule refuses (error-handling.md).
+
+- **`identity-key.json`** is generated from `Model.IdentityKey`, the rule as the
+  page states it, and the generator fails unless the model's verdict agrees with
+  the class an independent program gave each key when the table was written.
+  The one input is `key`, 32 bytes. A valid vector (`output` is the single byte
+  `01`, because a valid vector carries an output) is a canonical key of the
+  prime-order subgroup: three keys from fixed secrets, the two public keys of
+  RFC 7748, section 6.1, and the base point. An invalid vector is the sum of a
+  subgroup point and a torsion point of order 8, 4 or 2, the five low-order
+  values, keys no point of the curve has, or a non-canonical spelling.
+- **`bundle-admission.json`** is computed by a stand-alone program from the
+  bundle and the two identity secrets of `session-e2e.json`, with the
+  program's own field and curve arithmetic and its own XEdDSA signer. The
+  program is not in this repository; the Rust runner and the independent reader
+  check the committed bytes with code that shares nothing with it. The inputs are `bundle`, a whole prekey bundle
+  (message-format.md, Prekey bundle), and `initiator_identity_secret`. The valid
+  vector's `output` is the identity key the bundle names. In the refused
+  `identity-mixed-order-*-signed-under-it` vectors both prekey signatures verify
+  under the key by steps 1 to 6 of identities-and-devices.md, Verifying a
+  signature, without the prime-order step, so the rule is the only thing that
+  refuses them, and it comes before the signatures are checked.
+- **`initial-message-admission.json`** is written by an ignored test in
+  tacenta-core (`tests/identity_vector_fixtures.rs`, Regenerating, below). The
+  inputs are `bob_identity_secret`, `prekey_store` (a stored prekey store,
+  `PrekeyStore::to_bytes`) and `initial_message`. The valid vector is a real
+  initial message and its `output` is the plaintext recovered. Each refused
+  vector is that message with its `identity` replaced, so the message does not
+  authenticate under the new key and the vector pins that the identity is refused
+  first; two of them add an unknown one-time identifier or a ciphertext of the
+  wrong length, to pin the order among the checks. A refusal leaves the prekey
+  store as it was.
 
 ### The protobuf profile: `vectors/protobuf/`
 
@@ -642,6 +698,15 @@ on the path and installs that toolchain on first use. Then:
     (cd tacenta-model && lake build)
     bash tacenta-test-vectors/regenerate-vectors.sh
     git diff --stat -- tacenta-test-vectors/vectors
+
+Two files under `vectors/identity/` are not model output.
+`bundle-admission.json` is computed by a stand-alone program that is not in this
+repository, and is not regenerated here.
+`initial-message-admission.json` is written by an ignored test in
+tacenta-core, from fixed secrets and a fixed byte stream:
+
+    IDENTITY_VECTORS_OUT=tacenta-test-vectors/vectors/identity/initial-message-admission.json \
+      cargo test -p tacenta-core --test identity_vector_fixtures -- --ignored
 
 `lake build` compiles the generator along with the model; the script runs it
 once per file, writing each to a temporary path and moving it into place only
