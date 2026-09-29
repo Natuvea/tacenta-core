@@ -3957,7 +3957,7 @@ mod tests {
         // version and state tag.  Advancing only that field keeps the Braid
         // state valid but makes its reported send epoch disagree with the
         // Triple state, so `send_candidate` rejects it.
-        let mut braid_bytes = alice.braid.to_bytes().to_vec();
+        let mut braid_bytes = alice.braid.to_bytes();
         let mut altered = [0u8; 8];
         altered.copy_from_slice(&braid_bytes[2..10]);
         let next_epoch = u64::from_be_bytes(altered)
@@ -4027,7 +4027,7 @@ mod tests {
             word.copy_from_slice(&bytes[at..at + 4]);
             u32::from_be_bytes(word) as usize
         };
-        let mut bytes = alice.export().to_vec();
+        let mut bytes = alice.export();
         let triple_at = 1 + 4;
         let classical_len = be32(&bytes, triple_at + 1);
         let post_quantum_at = triple_at + 1 + 4 + classical_len + 4;
