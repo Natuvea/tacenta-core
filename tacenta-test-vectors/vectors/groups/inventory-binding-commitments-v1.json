@@ -1,0 +1,56 @@
+{
+  "schema": "tacenta-inventory-binding-commitments-v1",
+  "comment": "binding_commitment of a device binding, or null where the binding has no encoding and so no commitment. Provenance: tacenta-test-vectors/generate-inventory-vectors.py.",
+  "cases": [
+    {
+      "id": "predecessor-present",
+      "binding": {"device_id": 7, "identity_hex": "0303030303030303030303030303030303030303030303030303030303030303", "capabilities": 1, "replacement_predecessor_hex": "0404040404040404040404040404040404040404040404040404040404040404"},
+      "commitment_hex": "00dc59260fb98deae19a0f07fb6ce9a9b6e0431ff963c8e4becd12f2052de981"
+    },
+    {
+      "id": "no-predecessor",
+      "binding": {"device_id": 7, "identity_hex": "0303030303030303030303030303030303030303030303030303030303030303", "capabilities": 1},
+      "commitment_hex": "dd4d3b62c360a4a39644277b78d1329f8186e26beffd47114138e21d7925e574"
+    },
+    {
+      "id": "device-id-differs",
+      "binding": {"device_id": 8, "identity_hex": "0303030303030303030303030303030303030303030303030303030303030303", "capabilities": 1, "replacement_predecessor_hex": "0404040404040404040404040404040404040404040404040404040404040404"},
+      "commitment_hex": "cda52ff084c47b7a972362685b2ce22b5abb875e46726c0dcb419febb057a2a3"
+    },
+    {
+      "id": "key-differs",
+      "binding": {"device_id": 7, "identity_hex": "0505050505050505050505050505050505050505050505050505050505050505", "capabilities": 1, "replacement_predecessor_hex": "0404040404040404040404040404040404040404040404040404040404040404"},
+      "commitment_hex": "a78798f14ea3ef1a8244f32d7a417637ea0b675a9e30a8bb421e2b654599e476"
+    },
+    {
+      "id": "predecessor-differs",
+      "binding": {"device_id": 7, "identity_hex": "0303030303030303030303030303030303030303030303030303030303030303", "capabilities": 1, "replacement_predecessor_hex": "0606060606060606060606060606060606060606060606060606060606060606"},
+      "commitment_hex": "ad2fa1faa06521c642c26897a8df6298ed51614a95bf1c2658ee7f08baf47592"
+    },
+    {
+      "id": "key-need-not-be-an-identity-key",
+      "binding": {"device_id": 7, "identity_hex": "0000000000000000000000000000000000000000000000000000000000000000", "capabilities": 1},
+      "commitment_hex": "5572c08c790724d664015d1e586d7a65084e4382fae04d0e117977b3380bc4da"
+    },
+    {
+      "id": "capabilities-zero-has-no-commitment",
+      "binding": {"device_id": 7, "identity_hex": "0303030303030303030303030303030303030303030303030303030303030303", "capabilities": 0},
+      "commitment_hex": null
+    },
+    {
+      "id": "capabilities-two-has-no-commitment",
+      "binding": {"device_id": 7, "identity_hex": "0303030303030303030303030303030303030303030303030303030303030303", "capabilities": 2},
+      "commitment_hex": null
+    },
+    {
+      "id": "capabilities-three-has-no-commitment",
+      "binding": {"device_id": 7, "identity_hex": "0303030303030303030303030303030303030303030303030303030303030303", "capabilities": 3},
+      "commitment_hex": null
+    },
+    {
+      "id": "capabilities-high-bit-has-no-commitment",
+      "binding": {"device_id": 7, "identity_hex": "0303030303030303030303030303030303030303030303030303030303030303", "capabilities": 9223372036854775808},
+      "commitment_hex": null
+    }
+  ]
+}

@@ -259,3 +259,39 @@ def _():
     rejects(pqxdh.receive_repeated_initial, initiator, wrap(m3), live, exc=pqxdh.NotARepeatedInitial)
     assert live.calls == calls
     assert accepts(pqxdh.receive_repeated_initial, s, wrap(m3), live) == b"third"
+
+
+@case("SE-08 (pass 12) a repeat's ephemeral is compared by its X25519 agreement class, which session-establishment.md now takes under the responder's signed-prekey secret and session-persistence.md under no named secret: for clamped secrets the class does not depend on which secret is used, so the verdict under the session's ratchet private key, which is what the session holds, is the verdict under the signed-prekey secret (GAPS-12.md G12-06)",
+      f"{SE} Receiving the initial message: the message's `ephemeral` field is in the same X25519 agreement class, under the responder's signed-prekey secret, as the `ephemeral` field carried by the initial message that established the session; session-persistence.md, Session, Semantic rules: A repeated initial message is matched against `established_ephemeral` by the responder's successful X25519 agreement class")
+def _():
+    from tacenta_reader.curve25519 import BASE, Q, _add, _inv, _is_identity, _mul, _recover_x
+    def u_of(pt):
+        zi = _inv(pt[2]); y = pt[1] * zi % P
+        return ((1 + y) * _inv(1 - y) % P).to_bytes(32, "little")
+    order8 = None
+    for seed in range(2, 200):
+        y = (seed - 1) * _inv(seed + 1) % P
+        x = _recover_x(y, 0)
+        if x is None:
+            continue
+        t = _mul(Q, (x, y, 1, x * y % P))
+        if not _is_identity(_mul(4, t)):
+            order8 = t
+            break
+    peer = curve25519.x25519_public(b"\x42" * 32)
+    for _ in range(6):
+        eph_pt = _mul(R.randrange(1, Q), BASE)
+        eph = u_of(eph_pt)
+        same_class = u_of(_add(eph_pt, order8))
+        other = curve25519.x25519_public(bytes(R.randrange(256) for _ in range(32)))
+        spk, ratchet_private = bytes(R.randrange(256) for _ in range(32)), bytes(R.randrange(256) for _ in range(32))
+        for incoming, want in ((eph, True), (same_class, True), (other, False)):
+            m = wire.InitialMessage(wire.encode_ec(peer), wire.encode_ec(incoming), b"", 1, 0, 2, b"")
+            verdicts = []
+            for secret in (spk, ratchet_private):
+                try:
+                    pqxdh.accept_repeated_initial(True, secret, wire.encode_ec(eph), peer, m)
+                    verdicts.append(True)
+                except pqxdh.NotARepeatedInitial:
+                    verdicts.append(False)
+            assert verdicts == [want, want], (want, verdicts)

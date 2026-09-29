@@ -165,7 +165,8 @@ otherwise. The order in which it checks them is not fixed (error-handling.md).
 
 No step multiplies by the cofactor. For a prekey signature `M` is the tagged
 key (session-establishment.md, Publishing keys); for an application signature
-it is the labelled input below.
+it is the labelled input below; for an inventory statement it is the labelled
+input under Hosted device-inventory statements.
 
 **Where this departs from revision 1's `xeddsa_verify`.** The accepted set
 differs in both directions, by design (ADR-0002):
@@ -220,6 +221,15 @@ has authority over an account. The caller supplies the issuer-key lookup and
 must enforce the product policy that associates an `issuer_key_id` with the
 verification key and account.
 
+In this section "must" and "must not" state a requirement on the party named,
+and "is refused" means the decoder or verifier stops and returns a refusal. A
+refusal by an encoding rule is a decode failure, and a refusal by check 3
+below is an authentication failure (error-handling.md). The other checks
+refuse a statement that decodes: checks 1 and 2 before its signature has been
+examined, checks 4 to 7 after it has verified. A statement that breaks an
+encoding rule is refused before check 1, whether it arrived as bytes or was
+built in memory.
+
 The unsigned preimage is the following concatenation, all integer fields in
 big-endian order:
 
@@ -240,8 +250,8 @@ revoked                       revoked_count × Revocation
 The account handle is non-empty and at most `MAX_ACCOUNT_BYTES` (256) bytes;
 invalid UTF-8 is refused. `active_count` is at most
 `MAX_ACTIVE_BINDINGS` (8), and `revoked_count` is at most
-`MAX_RECENT_REVOCATIONS` (8). The floor and every terminal generation are no
-greater than `inventory_generation`.
+`MAX_RECENT_REVOCATIONS` (8). The floor is no greater than
+`inventory_generation`.
 
 `DeviceBinding` is:
 
@@ -249,31 +259,50 @@ greater than `inventory_generation`.
 device_id                    u32
 identity_public_key          32 bytes
 capabilities                 u64
-replacement_predecessor_tag  0 or 1 byte
-replacement_predecessor      32 bytes when the tag is 1
+replacement_predecessor_tag  u8, 0 or 1; any other value is refused
+replacement_predecessor      32 bytes, present only when the tag is 1
 ```
 
-Version one defines only capability bit `GROUP_EPOCH_V1` (`1`); the capability
-word is non-zero and no other bit is accepted. Active bindings are strictly
-sorted by the complete tuple above. A replacement predecessor is the
-32-byte `binding_commitment` of the exact retired binding, not a device-id or
-identity-key alias. The inventory codec treats `identity_public_key` as an
-opaque 32-byte field; a product accepting it as an identity key must apply the
-canonical-key, contributory-agreement and signature rules above before signing
-or relying on a statement. The codec's canonical order does not by itself
-establish one-device-per-identity policy: the product must reject duplicate
-`device_id` values and define its identity/revocation policy explicitly.
+Version one defines only capability bit `GROUP_EPOCH_V1` (`1`): the capability
+word is non-zero and no other bit is set. Both lists are sorted in strictly
+ascending order of their encodings, compared as unsigned byte strings from the
+first byte, so each entry's encoding is greater than the one before it and no
+entry repeats. `active` orders the `DeviceBinding` encodings and `revoked`
+orders the `Revocation` encodings. The leading fields are fixed-width
+big-endian integers and byte strings, so this is ascending `device_id`, then
+ascending `identity_public_key`, then ascending `capabilities`, then a binding
+without a predecessor before one with (tag 0 before tag 1), then ascending
+`replacement_predecessor`; entries of `revoked` for one binding are then
+ordered by ascending `terminal_generation`. No `DeviceBinding` encoding is a
+prefix of another, so the comparison always ends on a differing byte.
 
-`Revocation` appends `terminal_generation` (u64) to a `DeviceBinding`.
-Revocations are strictly sorted by their complete encoded tuple, each terminal
-generation is greater than `revocation_floor_generation` and no greater than
-`inventory_generation`, and an exact binding cannot occur in both `active` and
-`revoked`. These are canonicality/refusal rules; they do not decide account
-ownership or freshness beyond the stated generation bounds.
+Two bindings are the same exact binding when all four of their fields are equal
+(`device_id`, `identity_public_key`, `capabilities`, and the predecessor tag
+and value), that is, when their encodings are equal. A `terminal_generation`
+belongs to a `Revocation`, not to its binding. A replacement predecessor is
+the 32-byte `binding_commitment` of the exact retired binding, not a device-id
+or identity-key alias. The encoding treats `identity_public_key` as an opaque
+32-byte field; the checks a verifier applies to it are under "Accepting a
+signed statement" below. Canonical order does not by itself establish
+one-device-per-identity policy. Apart from the checks listed there, identity
+and revocation policy is the verifier's.
 
-The unsigned decoder must consume exactly the bytes above, reconstruct the
-value, re-encode it, and refuse if the bytes differ. A signed statement is the
-unsigned preimage followed by a 64-byte XEdDSA signature over:
+`Revocation` appends `terminal_generation` (u64) to a `DeviceBinding`. Each
+terminal generation is greater than `revocation_floor_generation` and no
+greater than `inventory_generation`, and an exact binding cannot occur in both
+`active` and `revoked`. The same binding can occur in `revoked` more than once
+with different terminal generations, since the entries differ; the format does
+not refuse that (see the unchecked properties below). These are
+canonicality/refusal rules; they do not decide account ownership or freshness
+beyond the stated generation bounds.
+
+The unsigned decoder refuses an input that breaks any rule above. It must
+consume exactly the bytes above, so trailing bytes are refused, and it must
+refuse a value whose re-encoding differs from the input. A signed statement is
+the unsigned preimage followed by a 64-byte XEdDSA signature. The last 64 bytes
+are the signature and every byte before them is the unsigned preimage, which
+must decode exactly, so an input shorter than 64 bytes or one whose remaining
+bytes do not decode is a decode failure. The signature is over:
 
 ```text
 "Tacenta:inventory-statement:v1" || 0xFF || unsigned_preimage
@@ -281,7 +310,13 @@ unsigned preimage followed by a 64-byte XEdDSA signature over:
 
 The verifier resolves `issuer_key_id` through its caller-supplied issuer-key
 binding and then verifies that signature. The statement does not contain that
-binding and does not make the key lookup trustworthy by itself.
+binding and does not make the key lookup trustworthy by itself. A statement
+that decodes and whose signature verifies is not thereby accepted; see
+"Accepting a signed statement" below.
+
+An issuer must apply the encoding rules, check 5 and check 6 below to a
+statement before it signs it, and must not sign one that fails any of them:
+every verifier refuses such a statement.
 
 `binding_commitment(binding)` is the 32-byte SHA-256 digest of:
 
@@ -289,10 +324,106 @@ binding and does not make the key lookup trustworthy by itself.
 "Tacenta:inventory-binding-commitment:v1" || 0xFF || encode(binding)
 ```
 
-It commits to every binding field, including the predecessor. It is used only
-to name the exact binding a replacement retires. The inventory profile has no
-group cipher, sender-key ratchet, delivery guarantee, membership privacy
-claim, or end-to-end proof attached to it.
+where `encode(binding)` is the `DeviceBinding` encoding above. A binding whose
+capability word breaks the rule above has no encoding, so it has no commitment
+and the function refuses it. The commitment covers every binding field,
+including the predecessor. It is used only to name the exact binding a
+replacement retires. The inventory profile has no group cipher, sender-key
+ratchet, delivery guarantee, membership privacy claim, or end-to-end proof
+attached to it.
+
+### Accepting a signed statement
+
+Decoding establishes syntax and canonical form. Verifying the signature
+establishes that the issuer key the verifier resolved signed exactly these
+bytes. Neither establishes that the statement is one to act on. A verifier that
+relies on a statement applies these checks in this order and refuses on the
+first that fails:
+
+1. `account_handle` equals, byte for byte, the account the verifier asked
+   about. This comes before any lookup, so a valid statement for another
+   account, signed under an issuer key that serves several accounts, is
+   refused.
+2. The verifier's issuer-key binding resolves `(issuer_key_id, account_handle)`
+   to a verification key. An unbound issuer is refused.
+3. The signature verifies under that key. The 32 bytes the binding returns are
+   read as the key `u` of Verifying a signature, whatever they are, and the
+   message `M` is the input above, so a key that fails steps 1 to 6 there is a
+   signature that does not verify, not an unbound issuer.
+4. The verifier's freshness rule accepts `inventory_generation` for the
+   account. The format carries a generation and a floor but no freshness rule:
+   equality with a stored value, a window, or any other rule is the
+   verifier's. The format does not distinguish two different validly signed
+   statements at one generation. The rule runs before checks 5 to 7, which can
+   still refuse the statement, so it must have no effect of its own: a
+   verifier records a generation as seen, or advances a stored one, only
+   after check 7 has accepted the statement. Where statements can be verified
+   concurrently, that step is one atomic step that evaluates the freshness rule
+   again against the value then stored and, if the rule accepts, records the
+   generation; if it does not, the statement is refused as this check refuses
+   it. A stored value never decreases. Otherwise two statements can both pass
+   this check and the later write can lower the record.
+5. No two entries of `active` share a `device_id`. An active and a revoked
+   binding may share one: that is a device whose key was replaced under its old
+   id.
+6. Every `identity_public_key`, in `active` and in `revoked`, is an identity
+   key: a canonical curve public key (message-format.md, Curve public keys)
+   whose u-coordinate belongs to a point of the prime-order subgroup of
+   edwards25519, the subgroup that `B` generates, of order `q` (Signing). A
+   verifier tests that in three steps. `u` is not p − 1. `y = (u − 1) / (u + 1)
+   mod p` is the y-coordinate of a point `P` of edwards25519 (Verifying a
+   signature, step 2). And `qP` is the identity; the two points with that
+   y-coordinate give the same answer, so the sign of x does not matter.
+   Besides the non-canonical spellings (message-format.md), this refuses:
+   - the five low-order values: the u-coordinates 0, 1 and p − 1, and the two
+     of order eight,
+     `e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800` and
+     `5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f1157` (32
+     bytes each, little-endian). X25519 with any of them yields the all-zero
+     string for every private key;
+   - a u-coordinate that no point of the curve has, because it lies on the
+     quadratic twist (u = 2 is one);
+   - a u-coordinate of mixed torsion: the sum of a point of the subgroup and a
+     low-order point. It agrees exactly as the subgroup point it was built
+     from, so one key would have eight spellings, and a policy that
+     compares keys by bytes could be evaded by respelling a key.
+
+   A key an honest device publishes is the X25519 public key of a clamped
+   secret, which is `kB` (The identity key's secret), so it passes. Exactly one
+   spelling of a key passes, so check 7 can compare identity keys as bytes.
+7. The verifier's own policy accepts each binding and then the statement as a
+   whole. The verifier applies check 6 to every entry, those of `active` and
+   then those of `revoked`, each in encoded order, before it applies check 7
+   to any binding, so its binding and statement policies never run on a
+   statement that carries an unsound key. It then applies the binding policy to the entries of `active`
+   in encoded order and then to the entries of `revoked` in encoded order,
+   telling it the binding and which list it came from, and stops at the first
+   refusal. The statement policy runs only when every binding has been
+   accepted, and it is given the whole statement as verified.
+
+The format does not check the following, so a verifier that needs any of them
+checks it itself:
+
+- **Chain of custody for a replacement.** `replacement_predecessor` need not
+  name a binding in this statement's `revoked` list, and nothing checks that it
+  names a binding at all: a marker equal to the commitment of a binding that
+  is still in `active` is accepted. Revocations at or below
+  `revocation_floor_generation` are dropped from the statement, and the
+  replacement stays in `active` with its marker, so the marker can outlive the
+  tombstone it names. A replacement may also carry a new `device_id`. An
+  honest issuer can therefore produce a statement whose marker names no listed
+  tombstone. Checks 1 to 6 do not refuse it, and a verifier must not refuse it
+  solely because the marker names no listed binding. Checking custody needs the
+  verifier's own record of earlier statements.
+- **Uniqueness and reactivation.** The same identity key on more than one
+  binding, a revoked key listed again as active, a replacement identical to
+  what it replaces, and the same binding listed more than once in `revoked`
+  are all accepted by the format. Whether they are acceptable is the
+  verifier's policy, and it needs the whole statement to decide (check 7). A
+  binding leaves `revoked` once the floor reaches its terminal generation, so
+  a verifier that must refuse reactivation beyond that window needs its own
+  record of revoked keys.
+- **Freshness and equivocation**, as check 4 states.
 
 ## Sources
 

@@ -1178,9 +1178,11 @@ def h_inventory_statement(case):
     check(expected, encoded, "unsigned preimage")
 
 
+from tacenta_reader.inventory_vectors import SCHEMAS as INVENTORY_SCHEMAS  # noqa: E402  (pass 12)
+
 GROUP_SCHEMAS = {
     "tacenta-group-commitments-v1": h_group_commitment,
-    "tacenta-inventory-statements-v1": h_inventory_statement,
+    **INVENTORY_SCHEMAS,  # pass 12: all four inventory files; supersedes h_inventory_statement above
 }
 
 
@@ -1256,6 +1258,7 @@ CASE_MODULES = [
     "cases_curvekeys",    # message-format.md Curve public keys; the repeated initial message over a live session (pass 4)
     "cases_stored",       # stored curve keys, Rejection's short-and-unknown buffer, the Braid key pair, inductive ceilings (pass 5)
     "cases_signed",       # the prekey store's signature rule and its refusal kind, the rotations' obligation (pass 7)
+    "cases_inventory",    # hosted device-inventory statements and the seven checks (pass 12)
 ]
 
 

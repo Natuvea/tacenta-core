@@ -5,6 +5,30 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+- `identities-and-devices.md`, hosted device-inventory statements: state what a
+  verifier must check before it relies on a signed statement, as seven ordered
+  checks (account match, issuer binding, signature, freshness, duplicate active
+  `device_id`, identity keys, then its own binding and statement policy), and
+  what the format leaves unchecked: the chain of custody of a
+  `replacement_predecessor`, key uniqueness and reactivation, and equivocation.
+  A verifier must not refuse a statement solely because a replacement's marker
+  names no listed binding, which an honest issuer can produce once the
+  tombstone falls at or below the revocation floor. Check 6 requires each
+  identity key to be canonical and a point of the prime-order subgroup, which
+  refuses low-order, off-curve and mixed-torsion keys, so each key has one
+  spelling and a policy can compare identity keys as bytes. The section also
+  states the sort order of both lists (strictly ascending byte order of the
+  encodings), what an exact binding is, that a
+  predecessor tag other than 0 or 1 is refused, that a binding without a valid
+  capability word has no commitment, the order in which the binding and
+  statement policies run, that check 3 is the page's Verifying a signature and
+  that a signed statement is a preimage followed by exactly 64 bytes, and that
+  a verifier records a generation as seen only after acceptance, in one atomic
+  step that evaluates its freshness rule again. It restores, as the issuer's
+  duty, the earlier statement that keys are checked before signing. Check 5
+  replaces the earlier statement that the product must reject duplicate
+  `device_id` values. The encoding and the signature input are unchanged.
+
 - Identity keys are held to one rule at every boundary that admits one.
   `identities-and-devices.md` gains an Identity keys section: the rule of
   Accepting a signed statement, check 6 (a canonical curve public key of the
