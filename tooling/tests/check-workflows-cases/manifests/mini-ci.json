@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "_note": "The expected form of the required workflow and of the receipt action: every key of every job and step, except the step `name:` labels. tooling/check-workflows.sh fails when a file named here differs from it. Rewritten by `bash tooling/check-workflows.sh --write-required-steps`; the change to this file is the record of a change to a required command, and is meant to be read.",
+  "files": {
+    ".github/workflows/ci.yml": {
+      "name": "ci",
+      "on": {
+        "push": {
+          "branches": [
+            "main"
+          ]
+        },
+        "pull_request": null
+      },
+      "permissions": {
+        "contents": "read"
+      },
+      "env": {
+        "TOOL_VERSION": "1"
+      },
+      "jobs": {
+        "build": {
+          "runs-on": "ubuntu-latest",
+          "defaults": {
+            "run": {
+              "working-directory": "src"
+            }
+          },
+          "steps": [
+            {
+              "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "with": {
+                "persist-credentials": false,
+                "ref": "${{ github.event.pull_request.head.sha || github.sha }}"
+              }
+            },
+            {
+              "id": "build_fmt",
+              "run": "make fmt"
+            },
+            {
+              "id": "build_test",
+              "run": "make test",
+              "env": {
+                "CASES": 2048
+              }
+            },
+            {
+              "uses": "./.github/actions/assurance-receipt",
+              "with": {
+                "id": "build",
+                "classification": "required",
+                "command": "fmt-and-test",
+                "required-outcomes": "build_fmt=${{ steps.build_fmt.outcome }},build_test=${{ steps.build_test.outcome }}"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

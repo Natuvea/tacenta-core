@@ -63,12 +63,46 @@
 #    cannot have. Textual, as rules 4 and 6 are.
 # 8. No job is unconditionally disabled by a statically false `if` value. A
 #    required check that can be turned off in the workflow being reviewed can
-#    report green without running its command. Jobs that emit a `required`
-#    assurance receipt must therefore have no job-level `if` or
-#    `continue-on-error` at all; a dynamic expression is still a switch. The
-#    only job-level exceptions are the PR-only sign-off job and the collector's
-#    exact `always()` condition. `fromJSON('false')` and `fromJSON('true')` are
+#    report green without running its command. A job that uses the receipt
+#    action with a `required` or `conditional` classification may therefore
+#    have no job-level `if` or `continue-on-error` at all, with two named
+#    exceptions: the PR-only sign-off job and the collector's exact
+#    `always()` condition. `fromJSON('false')` and `fromJSON('true')` are
 #    constants too, even though they are expressions.
+# 9. A step is the receipt action when its `uses` resolves to
+#    `.github/actions/assurance-receipt` once the path is normalised, however
+#    it is spelled. Its `id`, `classification` and `command` are literals (no
+#    `${{ }}`), its `required-outcomes` names exactly the job's `run` steps,
+#    each bound to that step's own `steps.<id>.outcome`, and no other action
+#    calls it (a wrapper would hide the call from the job that makes it).
+#    In such a job a step may not run another local action, may not set a
+#    `shell` other than `bash`, and may carry an `if` only where the step's id,
+#    `if` and `run` text all match an entry in `ALLOWED_REQUIRED_STEP_IF`.
+#    `defaults.run.shell` is `bash` or absent, at the workflow and job level.
+#    Every workflow and action file is read with a loader that refuses a
+#    repeated mapping key, so this script and the runner read the same value.
+#    Local composite actions are found by following `uses: ./` from the
+#    workflows, not only by their location.
+# 10. The expected form of the required workflow is a file.
+#    `tooling/required-steps.json` holds `.github/workflows/ci.yml` and the
+#    receipt action as data: every key of every job and step except the
+#    `name:` labels. A workflow named there must equal it, so a change to a
+#    command, its shell, environment, working directory, `if`,
+#    `continue-on-error`, timeout, position, the job it belongs to, or the
+#    inputs to the receipt is a difference from that file, and is made by
+#    editing that file in the same change. `--write-required-steps` rewrites
+#    the file from the tree; the diff of the file is what a reader reviews.
+#
+# What this script does not do, said plainly. It runs from the tree it is
+# checking. A pull request runs its own copy of the workflow, of this script and
+# of the manifest above, so a change that edits all three is judged by its own
+# edit; nothing here routes such a change to a reviewer (there is no CODEOWNERS
+# file), and whether a review is required is a repository setting this script
+# cannot see. The checks that read shell text (rules 4 and 6, and the refusal
+# of a `run` that is only `true`, `:` or `exit 0`) are tripwires for a careless
+# edit, not a definition of every command that succeeds without doing its
+# work. For the files the manifest pins the command text is compared whole, so
+# those tripwires matter only for the workflows it does not name.
 #
 # The cases each rule is held to, passing and failing, are the files under
 # `tooling/tests/check-workflows-cases/`, which
@@ -101,19 +135,77 @@ fi
 # own repository takes its nested one with it, live:
 # `tacenta-proofs/.github/workflows/verify.yml` is one such, and is held to
 # the same pins as the root workflows.
-python3 - <<'PY'
+python3 - "$@" <<'PY'
 import re
-import sys, os, glob
+import sys, os, glob, json, posixpath
 import yaml
 
+# The receipt action, as a repository path. A step is that action when its
+# `uses` resolves to this once the path is normalised.
+RECEIPT_ACTION = ".github/actions/assurance-receipt"
+# The expected form of the required workflow and of the receipt action.
+REQUIRED_STEPS_FILE = "tooling/required-steps.json"
+REQUIRED_WORKFLOWS = [".github/workflows/ci.yml"]
+REQUIRED_ACTIONS = [RECEIPT_ACTION + "/action.yml"]
+
+WRITE_REQUIRED_STEPS = False
+for argument in sys.argv[1:]:
+    if argument == "--write-required-steps":
+        WRITE_REQUIRED_STEPS = True
+    else:
+        print("usage: check-workflows.sh [--write-required-steps]", file=sys.stderr)
+        sys.exit(2)
+
 bad = 0
+
+
+class StrictLoader(yaml.SafeLoader):
+    """`yaml.safe_load` that refuses a mapping with a repeated key, which
+    PyYAML would read as its last value and another reader might not."""
+
+
+def _mapping_without_repeats(loader, node, deep=False):
+    seen = set()
+    for key_node, _ in node.value:
+        if key_node.tag == "tag:yaml.org,2002:merge":
+            continue
+        key = loader.construct_object(key_node, deep=deep)
+        if key in seen:
+            raise yaml.constructor.ConstructorError(
+                None, None, "the key %r is repeated in one mapping" % (key,),
+                key_node.start_mark)
+        seen.add(key)
+    return yaml.SafeLoader.construct_mapping(loader, node, deep)
+
+
+StrictLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _mapping_without_repeats)
+
+
+def load_yaml(path):
+    with open(path) as handle:
+        return yaml.load(handle, Loader=StrictLoader)
+
+
+def excluded(f):
+    return "/.lake/" in f or "/target/" in f or "/node_modules/" in f
+
+
+# **Every workflow directory in the tree, not only the root.** GitHub runs
+# only the root `.github/workflows`, but a component that is lifted into its
+# own repository takes its nested one with it, live:
+# `tacenta-proofs/.github/workflows/verify.yml` is one such, and is held to
+# the same pins as the root workflows.
 files = sorted(
     f for f in glob.glob("**/.github/workflows/*.y*ml", recursive=True)
-    if "/.lake/" not in f and "/target/" not in f and "/node_modules/" not in f
+    if not excluded(f)
 )
+# Composite actions under a `.github/actions` directory; the ones a workflow
+# reaches by `uses: ./path` are added to this as they are found, so an action
+# outside that directory or inside a dot-directory is read too.
 action_files = sorted(
     f for f in glob.glob("**/.github/actions/**/action.y*ml", recursive=True)
-    if "/.lake/" not in f and "/target/" not in f and "/node_modules/" not in f
+    if not excluded(f)
 )
 if not files:
     print("check-workflows: no workflow files found", file=sys.stderr)
@@ -278,11 +370,15 @@ def is_truthy_continue_on_error(value):
     return constant_truth(value) is True
 
 def is_noop_run(value):
-    """Return True for a step whose entire script can only succeed.
+    """Return True for a step whose entire script can only succeed, in the
+    three spellings this looks for.
 
     A required workflow step containing only `true`, `:`, or `exit 0` is not
     evidence of the check it names.  `set -e`/`set -u` are shell options, not
-    work, so they are ignored when deciding whether the script is hollow.
+    work, so they are ignored when deciding whether the script is hollow. This
+    is a tripwire for a careless edit and nothing more: it does not decide what
+    a script does, and another spelling of a command that does nothing is not
+    refused here (a workflow the manifest pins is compared as text instead).
     """
     if not isinstance(value, str):
         return False
@@ -305,6 +401,18 @@ def normalized_expression(value):
     if not isinstance(value, str):
         return None
     return re.sub(r"\s+", "", value).lower()
+
+def uses_local_path(uses):
+    """The repository path a `./` reference names, normalised the way the
+    runner resolves it (`./a/./b/`, `./a/x/../b` and `./a/b` are one path),
+    else None. A path that leaves the repository is not one."""
+    if not isinstance(uses, str) or not uses.startswith("./"):
+        return None
+    path = posixpath.normpath(uses)
+    return None if path.startswith("..") else path
+
+def is_literal(value):
+    return isinstance(value, str) and "${{" not in value
 
 def required_outcome_ids(value, f, name):
     """Parse a receipt's declared command IDs and reject malformed sets."""
@@ -336,25 +444,204 @@ ALLOWED_JOB_IF = {
     "assurance-receipts": "always()",
 }
 
-# Required jobs may have a conditional setup/action step (for example a cache
-# restore), but a required command must not be conditionally skipped.  Keep the
-# tiny exception list repository-owned and name the step, so a new required
-# command cannot acquire a switch accidentally.  The checks job's push-only
-# DCO command is the sole conditional run step in the current workflow.
+# A job that uses the receipt action may have a conditional setup or action
+# step (a cache restore, say), but a command step may not be conditionally
+# skipped. This is the whole list of exceptions, keyed by job and step id and
+# holding the exact `if` and the exact command, so a different command under
+# the same id, or the same command under another id, is not excepted. A step
+# named here is left out of the pull-request receipt when its condition cannot
+# hold there.
 ALLOWED_REQUIRED_STEP_IF = {
-    "translation": {
-        "Clone the Lake dependencies from local mirrors (self-hosted only)":
-            "runner.environment=='self-hosted'",
-    },
-    "checks": {
-        "Commits introduced by a main push are signed off":
-            "github.event_name=='push'",
-    },
+    ("translation", "translation_seed"): (
+        "runner.environment=='self-hosted'",
+        "bash tooling/seed-lake-packages.sh tacenta-proofs/translation",
+    ),
+    ("checks", "checks_39"): (
+        "github.event_name=='push'",
+        'bash tooling/check-signoff.sh "$BASE_SHA"',
+    ),
 }
+
+def allowed_step_if(job_name, step):
+    """Whether this step's `if` is one of `ALLOWED_REQUIRED_STEP_IF`."""
+    entry = ALLOWED_REQUIRED_STEP_IF.get((job_name, step.get("id")))
+    return (entry is not None
+            and normalized_expression(step.get("if")) == entry[0]
+            and step.get("run") == entry[1])
+
+def receipt_steps(steps):
+    """The steps that call the receipt action, however the path is spelled."""
+    return [s for s in steps
+            if isinstance(s, dict) and uses_local_path(s.get("uses")) == RECEIPT_ACTION]
+
+# Rule 9 for a shell: `bash`, which the runner starts with its own options, or
+# nothing. A `shell:` naming a command template changes what runs the script.
+def check_shell(f, name, where, shell):
+    if shell is not None and shell != "bash":
+        complain("%s job '%s' sets `shell` to %r%s -- a required command runs "
+                 "under the runner's own bash" % (f, name, shell, where))
+
+def check_default_shell(f, name, defaults, where):
+    run = defaults.get("run") if isinstance(defaults, dict) else None
+    if isinstance(run, dict) and "shell" in run:
+        check_shell(f, name, where, run["shell"])
+
+# ---- the required workflow, as data -------------------------------------
+
+def plain(value):
+    """A parsed document as plain data. PyYAML reads the key `on` as the
+    boolean True, and a date as a date; neither is JSON."""
+    if isinstance(value, dict):
+        return {("on" if key is True else str(key)): plain(item)
+                for key, item in value.items()}
+    if isinstance(value, list):
+        return [plain(item) for item in value]
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    return str(value)
+
+def pinned_view(doc):
+    """The form the manifest holds: the whole document, less the `name:` label
+    of each step, which nothing reads."""
+    view = plain(doc)
+    def unlabel(steps):
+        if isinstance(steps, list):
+            for step in steps:
+                if isinstance(step, dict):
+                    step.pop("name", None)
+    jobs = view.get("jobs") if isinstance(view, dict) else None
+    if isinstance(jobs, dict):
+        for job in jobs.values():
+            if isinstance(job, dict):
+                unlabel(job.get("steps"))
+    runs = view.get("runs") if isinstance(view, dict) else None
+    if isinstance(runs, dict):
+        unlabel(runs.get("steps"))
+    return view
+
+MISSING = object()
+
+def show(value):
+    text = "(absent)" if value is MISSING else json.dumps(value, ensure_ascii=False)
+    return text if len(text) <= 120 else text[:117] + "..."
+
+def step_label(step):
+    if isinstance(step, dict):
+        return str(step.get("id") or step.get("uses") or "(unlabelled)")
+    return "(not a mapping)"
+
+def differences(expected, actual, where):
+    """(where, expected, actual) for each place two pinned views differ."""
+    if isinstance(expected, dict) and isinstance(actual, dict):
+        for key in expected:
+            here = where + "." + key if where else key
+            if key not in actual:
+                yield here, expected[key], MISSING
+            else:
+                yield from differences(expected[key], actual[key], here)
+        for key in actual:
+            if key not in expected:
+                yield (where + "." + key if where else key), MISSING, actual[key]
+    elif (isinstance(expected, list) and isinstance(actual, list)
+            and where.endswith(".steps")):
+        labels_expected = [step_label(s) for s in expected]
+        labels_actual = [step_label(s) for s in actual]
+        if labels_expected != labels_actual:
+            yield where, labels_expected, labels_actual
+        else:
+            for index, (label, e, a) in enumerate(zip(labels_expected, expected, actual)):
+                yield from differences(e, a, "%s[%d:%s]" % (where, index, label))
+    elif json.dumps(expected, sort_keys=True) != json.dumps(actual, sort_keys=True):
+        yield where, expected, actual
+
+def load_required_steps():
+    """The manifest as data, or None with the complaint already made."""
+    try:
+        with open(REQUIRED_STEPS_FILE) as handle:
+            def no_repeats(pairs):
+                seen = {}
+                for key, value in pairs:
+                    if key in seen:
+                        raise ValueError("the key %r is repeated" % key)
+                    seen[key] = value
+                return seen
+            data = json.load(handle, object_pairs_hook=no_repeats)
+    except (OSError, ValueError) as exc:
+        complain("%s cannot be read: %s" % (REQUIRED_STEPS_FILE, exc))
+        return None
+    if (not isinstance(data, dict) or data.get("schema_version") != 1
+            or not isinstance(data.get("files"), dict)):
+        complain("%s is not a schema 1 manifest with a `files` object"
+                 % REQUIRED_STEPS_FILE)
+        return None
+    return data
+
+def write_required_steps():
+    files_out = {}
+    for path in REQUIRED_WORKFLOWS + REQUIRED_ACTIONS:
+        if os.path.isfile(path):
+            files_out[path] = pinned_view(load_yaml(path))
+    document = {
+        "schema_version": 1,
+        "_note": (
+            "The expected form of the required workflow and of the receipt "
+            "action: every key of every job and step, except the step `name:` "
+            "labels. tooling/check-workflows.sh fails when a file named here "
+            "differs from it. Rewritten by `bash tooling/check-workflows.sh "
+            "--write-required-steps`; the change to this file is the record "
+            "of a change to a required command, and is meant to be read."
+        ),
+        "files": files_out,
+    }
+    with open(REQUIRED_STEPS_FILE, "w") as handle:
+        handle.write(json.dumps(document, indent=2, ensure_ascii=False) + "\n")
+    print("check-workflows: wrote %s for %d file(s)" % (REQUIRED_STEPS_FILE, len(files_out)))
+
+def check_required_steps():
+    present = [f for f in REQUIRED_WORKFLOWS + REQUIRED_ACTIONS if os.path.isfile(f)]
+    if not os.path.exists(REQUIRED_STEPS_FILE):
+        if present:
+            complain("%s is missing: %s must be described there (run "
+                     "`bash tooling/check-workflows.sh --write-required-steps` "
+                     "and review the result)" % (REQUIRED_STEPS_FILE, ", ".join(present)))
+        return
+    data = load_required_steps()
+    if data is None:
+        return
+    for path in present:
+        if path not in data["files"]:
+            complain("%s does not describe %s" % (REQUIRED_STEPS_FILE, path))
+    for path, expected in data["files"].items():
+        if not os.path.isfile(path):
+            complain("%s describes %s, which is not in the tree" % (REQUIRED_STEPS_FILE, path))
+            continue
+        try:
+            actual = pinned_view(load_yaml(path))
+        except yaml.YAMLError:
+            continue  # reported where the file is read
+        found = list(differences(expected, actual, ""))
+        for where, e, a in found[:12]:
+            complain("%s differs from %s at %s: expected %s, found %s"
+                     % (path, REQUIRED_STEPS_FILE, where, show(e), show(a)))
+        if len(found) > 12:
+            complain("%s differs from %s in %d more place(s)"
+                     % (path, REQUIRED_STEPS_FILE, len(found) - 12))
+        if found:
+            complain("if the change to %s is intended, run `bash tooling/"
+                     "check-workflows.sh --write-required-steps` and review the "
+                     "diff of %s in the same change" % (path, REQUIRED_STEPS_FILE))
+
+if WRITE_REQUIRED_STEPS:
+    write_required_steps()
+    sys.exit(0)
+
+# ---- the workflows ------------------------------------------------------
+
+local_actions = []   # every `uses: ./path` a workflow makes, to be followed
 
 for f in files:
     try:
-        doc = yaml.safe_load(open(f))
+        doc = load_yaml(f)
     except yaml.YAMLError as e:
         complain("%s does not parse as YAML" % f)
         print("  %s" % str(e).replace("\n", "\n  "), file=sys.stderr)
@@ -376,6 +663,8 @@ for f in files:
         complain("%s has no top-level `permissions:` block -- declare the "
                  "token scope the jobs hold (usually `contents: read`)" % f)
 
+    check_default_shell(f, "(workflow)", doc.get("defaults"), " in `defaults.run`")
+
     jobs = doc.get("jobs")
     if not isinstance(jobs, dict) or not jobs:
         complain("%s defines no jobs" % f)
@@ -388,18 +677,28 @@ for f in files:
         if "runs-on" not in job and "uses" not in job:
             complain("%s job '%s' has neither runs-on nor uses" % (f, name))
 
-        # Rule 8. A disabled job is indistinguishable from a passing required
-        # check to a caller that only sees the workflow's check name. The
-        # receipt declaration is repository-owned evidence of which jobs are
-        # required; removing it is caught by the receipt collector's missing
-        # required-ID check.
+        check_default_shell(f, name, job.get("defaults"), " in `defaults.run`")
+
+        steps = job.get("steps") or []
+
+        # Rules 8 and 9. A disabled job is indistinguishable from a passing
+        # required check to a caller that only sees the workflow's check name.
+        # A step that uses the receipt action, however its path is spelled,
+        # puts the job under these rules; the classification is a literal, so
+        # it cannot be decided at run time. Removing the receipt is caught by
+        # the collector's missing-receipt check.
         required_receipt = False
         required_receipts = []
-        for step in job.get("steps") or []:
-            if not isinstance(step, dict) or step.get("uses") != "./.github/actions/assurance-receipt":
-                continue
+        for step in receipt_steps(steps):
             inputs = step.get("with") or {}
-            if isinstance(inputs, dict) and inputs.get("classification") == "required":
+            if not isinstance(inputs, dict):
+                inputs = {}
+            for key in ("id", "classification", "command"):
+                if not is_literal(inputs.get(key)):
+                    complain("%s job '%s': the receipt action's `%s` input is "
+                             "not a literal string" % (f, name, key))
+            classification = inputs.get("classification")
+            if classification in ("required", "conditional"):
                 required_receipt = True
                 required_receipts.append((step, required_outcome_ids(
                     inputs.get("required-outcomes"), f, name)))
@@ -442,6 +741,8 @@ for f in files:
         # workflow's token.
         if isinstance(job.get("uses"), str):
             check_pin(f, name, "calls reusable workflow", job["uses"])
+            if uses_local_path(job["uses"]) is not None:
+                local_actions.append(job["uses"])
 
         # Rule 5. The job's own container, as a bare image string or a
         # mapping with `image:`, and each service container.
@@ -457,9 +758,16 @@ for f in files:
                 check_image(f, name, "service '%s' image" % svc, image)
 
         run_steps = {}
-        for step in job.get("steps") or []:
+        for step in steps:
             if not isinstance(step, dict):
                 continue
+
+            if isinstance(step.get("uses"), str) and uses_local_path(step["uses"]) is not None:
+                local_actions.append(step["uses"])
+                if required_receipt and uses_local_path(step["uses"]) != RECEIPT_ACTION:
+                    complain("%s job '%s' runs the local action '%s' -- its "
+                             "commands would not be listed in the receipt; put "
+                             "them in `run` steps of the job" % (f, name, step["uses"]))
 
             if required_receipt and "run" in step:
                 step_id = step.get("id")
@@ -476,22 +784,21 @@ for f in files:
             # forbidden job-level switch above.  Static false conditions and
             # static true `continue-on-error` values are never useful evidence;
             # a dynamic mask is also forbidden on a job that emits a required
-            # receipt.
+            # receipt, except the listed steps.
             if "if" in step and is_disabled_condition(step.get("if")):
                 complain("%s job '%s' has a step unconditionally disabled by "
                          "`if: false`" % (f, name))
             if required_receipt and "run" in step and "if" in step:
-                step_name = step.get("name", "")
-                expected_if = ALLOWED_REQUIRED_STEP_IF.get(name, {}).get(step_name)
-                actual_if = normalized_expression(step.get("if"))
-                if expected_if is None or actual_if != expected_if:
+                if not allowed_step_if(name, step):
                     complain("%s job '%s' has required command step '%s' with "
                              "an unapproved step-level `if` -- required "
-                             "commands must run" % (f, name, step_name or "(unnamed)"))
+                             "commands must run" % (f, name, step.get("id") or "(no id)"))
             if "continue-on-error" in step:
                 if required_receipt or is_truthy_continue_on_error(step.get("continue-on-error")):
                     complain("%s job '%s' has a step-level `continue-on-error` "
                              "that can mask a required command" % (f, name))
+            if required_receipt and "run" in step:
+                check_shell(f, name, " on a step", step.get("shell"))
             if "run" in step:
                 run_value = step.get("run")
                 if not isinstance(run_value, str):
@@ -525,12 +832,13 @@ for f in files:
             if isinstance(run, str):
                 check_run(f, name, run)
 
-        # A required receipt must account for every command step that can run
-        # for the event represented by that receipt. Otherwise a workflow can
-        # add an unlisted command which fails or is skipped while the receipt
-        # still reports only the listed commands as successful. The checks
-        # job's push-only DCO step is the one intentional omission on its PR
-        # receipt; it is guarded by the event condition itself.
+        # A receipt must account for every command step that can run for the
+        # event that receipt represents, and for nothing else. The rule is that
+        # the receipt is the list of what ran, so a command added to the job
+        # without a line in the receipt, or a line for a command the job does
+        # not have, is a difference. The two steps `ALLOWED_REQUIRED_STEP_IF`
+        # names are the one intentional omission from a pull-request receipt:
+        # each is guarded by its own condition and cannot run there.
         for receipt_step, declared in required_receipts:
             receipt_if = normalized_expression(receipt_step.get("if"))
             receipt_event = None
@@ -539,12 +847,11 @@ for f in files:
             elif receipt_if == "github.event_name=='push'":
                 receipt_event = "push"
             for step_id, command_step in run_steps.items():
-                step_if = normalized_expression(command_step.get("if"))
-                if (step_if == "github.event_name=='push'"
+                if ("if" in command_step and allowed_step_if(name, command_step)
                         and receipt_event == "pull_request"):
-                    continue
-                if (step_if == "runner.environment=='self-hosted'"
-                        and receipt_event == "pull_request"):
+                    if step_id in declared:
+                        complain("%s job '%s' pull-request receipt lists command "
+                                 "step '%s', which cannot run there" % (f, name, step_id))
                     continue
                 if step_id not in declared:
                     complain("%s job '%s' required receipt omits command step "
@@ -556,10 +863,32 @@ for f in files:
 
 # Composite actions execute with their caller's token and runner. They have no
 # workflow trigger or permissions block, but their `uses:` and `run:` steps
-# carry the same pinning and download-execution risks as workflow steps.
-for f in action_files:
+# carry the same pinning and download-execution risks as workflow steps. The
+# actions a workflow reaches with `uses: ./path` are read as well as the ones
+# under a `.github/actions` directory, and the ones they reach in turn.
+def local_action_file(uses):
+    path = uses_local_path(uses)
+    if path is None:
+        return None
+    for leaf in ("action.yml", "action.yaml"):
+        candidate = leaf if path == "." else path + "/" + leaf
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+known = set(action_files)
+for reference in local_actions:
+    found = local_action_file(reference)
+    if found is not None and found not in known:
+        known.add(found)
+        action_files.append(found)
+
+index = 0
+while index < len(action_files):
+    f = action_files[index]
+    index += 1
     try:
-        doc = yaml.safe_load(open(f))
+        doc = load_yaml(f)
     except yaml.YAMLError as e:
         complain("%s does not parse as YAML" % f)
         print("  %s" % str(e).replace("\n", "\n  "), file=sys.stderr)
@@ -593,6 +922,14 @@ for f in action_files:
         uses = step.get("uses")
         if isinstance(uses, str):
             check_pin(f, "composite action", "uses", uses)
+            if uses_local_path(uses) == RECEIPT_ACTION:
+                complain("%s composite action calls the receipt action -- "
+                         "only a workflow job step may, so that the job that "
+                         "makes the call is the job the checks above read" % f)
+            nested = local_action_file(uses)
+            if nested is not None and nested not in known:
+                known.add(nested)
+                action_files.append(nested)
             if uses.startswith("actions/checkout@"):
                 with_ = step.get("with") or {}
                 if not isinstance(with_, dict) \
@@ -602,6 +939,8 @@ for f in action_files:
         run = step.get("run")
         if isinstance(run, str):
             check_run(f, "composite action", run)
+
+check_required_steps()
 
 print("check-workflows: %d workflow file(s) and %d composite action file(s) parse" % (len(files), len(action_files)))
 sys.exit(bad)

@@ -1,0 +1,10 @@
+# expect: is not a composite action
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./tooling/act

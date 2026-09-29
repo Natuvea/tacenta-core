@@ -1,0 +1,35 @@
+# expect: is not a schema 1 manifest
+# manifest: schema-2.json
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+env:
+  TOOL_VERSION: "1"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - id: build_fmt
+        name: Format
+        run: make fmt
+      - id: build_test
+        run: make test
+        env:
+          CASES: 2048
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: build
+          classification: required
+          command: fmt-and-test
+          required-outcomes: "build_fmt=${{ steps.build_fmt.outcome }},build_test=${{ steps.build_test.outcome }}"

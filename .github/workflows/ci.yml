@@ -91,7 +91,8 @@ jobs:
       # public Session API. Keep it feature-gated so the review instrumentation
       # is never part of the normal library surface, but run it in CI so a
       # skipped feature cannot make the evidence vacuous.
-      - name: SPQR erasure regression through Session
+      - id: rust_spqr_erasure
+        name: SPQR erasure regression through Session
         run: cargo test --locked --features private-erasure-review --test spqr_erasure_public -- --test-threads=1
       # The two hand-written constant-time functions, read in the release
       # assembly for the runner's own x86_64 and for aarch64: any conditional
@@ -109,7 +110,7 @@ jobs:
           id: rust
           classification: required
           command: cargo-test-clippy-format-and-constant-time
-          required-outcomes: "rust_fmt=${{ steps.rust_fmt.outcome }},rust_clippy=${{ steps.rust_clippy.outcome }},rust_test=${{ steps.rust_test.outcome }},rust_target=${{ steps.rust_target.outcome }},rust_ct_asm=${{ steps.rust_ct_asm.outcome }}"
+          required-outcomes: "rust_fmt=${{ steps.rust_fmt.outcome }},rust_clippy=${{ steps.rust_clippy.outcome }},rust_test=${{ steps.rust_test.outcome }},rust_spqr_erasure=${{ steps.rust_spqr_erasure.outcome }},rust_target=${{ steps.rust_target.outcome }},rust_ct_asm=${{ steps.rust_ct_asm.outcome }}"
 
   # The minimum supported Rust version still compiles the workspace. A check,
   # not a test run: the tests run on stable above, and this exists so a use of

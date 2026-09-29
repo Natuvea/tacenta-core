@@ -1,0 +1,10 @@
+# expect: pin by 40-char commit digest
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/.hidden

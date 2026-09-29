@@ -15,8 +15,11 @@ runs:
   steps:
     - shell: bash
       env:
+        RECEIPT_ID: ${{ inputs.id }}
+        RECEIPT_CLASSIFICATION: ${{ inputs.classification }}
+        RECEIPT_COMMAND: ${{ inputs.command }}
         REQUIRED_OUTCOMES: ${{ inputs.required-outcomes }}
-      run: cd "$GITHUB_WORKSPACE" && python3 tooling/write-assurance-receipt.py --id '${{ inputs.id }}' --classification '${{ inputs.classification }}' --command '${{ inputs.command }}' --required-outcomes "$REQUIRED_OUTCOMES" --output '.assurance/${{ inputs.id }}.json'
+      run: cd "$GITHUB_WORKSPACE" && python3 -I tooling/write-assurance-receipt.py --id "$RECEIPT_ID" --classification "$RECEIPT_CLASSIFICATION" --command "$RECEIPT_COMMAND" --required-outcomes "$REQUIRED_OUTCOMES" --output ".assurance/${RECEIPT_ID}.json"
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: assurance-receipt-${{ inputs.id }}
