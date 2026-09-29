@@ -414,6 +414,28 @@ concrete/model eviction result, capped batch relation, preserved bounds, and
 exact success or repeated-full-store result through every generated loop
 iteration.
 
+## Checkpoint — 2026-09-29 (classical retry eviction)
+
+The translated classical `evict_oldest` call is now related to the executable
+model without a caller-supplied successor state or returned count. The body
+proof derives the generated scan's first-minimum choice and removal step; the
+outer theorem returns the exact state and count computed by
+`Model.Ratchet.evictOldest`.
+
+The lifecycle adapter combines that result with `RetryBatchAgrees`. It
+preserves `ReceiveHeadroom`, proves that the model's total skipped-key count
+does not increase, and proves a strict decrease when the generated call
+returns a nonzero eviction count. It retains the explicit selector premise
+`s.skipped.val.length ≤ UScalar.cMax UScalarTy.Usize`: the existing headroom
+record is stated against the host `Usize.max`, which does not imply this
+conservative translated-width bound on every host.
+
+Three proof-dependency controls replace the first-minimum tie break, weaken
+the selector-width premise to the host maximum, and bypass the capped batch
+relation. Lean must reject all three. This checkpoint does not provide the
+corresponding concrete sparse eviction theorem and does not prove the coupled
+retry loop.
+
 ## Checkpoint — 2026-09-29 (retry induction prerequisites)
 
 `fullStoreOfReal` is now proved injective. Separate adapters transport the
