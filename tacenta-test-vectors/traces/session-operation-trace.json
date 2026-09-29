@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "algorithm": "session-operation-trace",
-  "source": "tacenta-spec/protocol/session-establishment.md (Keys; Publishing keys; Sending the initial message; Receiving the initial message; Replay; The fingerprint); tacenta-spec/protocol/key-deletion.md (Establishing a session; Prekeys at rest; What this implementation does: one-time prekeys are replenished, a replayed last-resort handshake is refused, signed prekeys rotate); tacenta-spec/protocol/session-persistence.md (Session; Prekey store); tacenta-spec/protocol/error-handling.md (Conditions a caller must act on are named); independent clean-room author: Jie Sun, P6 round two; ratchet.md (Sending and receiving; Skipped keys, 'A message whose ratchet key equals DHr, whose number N is below Nr, and whose key is not stored is not accepted'); mlkem-braid.md (Failure; 'Session puts nothing from a failed Braid on the wire: it refuses encrypt and decrypt with AgreementFailed'); session-persistence.md (Session, Semantic rules, 'A failed Braid (tag 11) is exempt'); session-establishment.md (Sending the initial message: 'Alice verifies every signature in the bundle and aborts if any fails'; Notation: 'Both sides refuse a Diffie-Hellman output that is not contributory'; Byte-level conventions / KEM validation, 'She has then computed no agreement and sent nothing')",
+  "source": "tacenta-spec/protocol/session-establishment.md (Keys; Publishing keys; Sending the initial message; Receiving the initial message; Replay; The replay identity); tacenta-spec/protocol/key-deletion.md (Establishing a session; Prekeys at rest; What this implementation does: one-time prekeys are replenished, a replayed last-resort handshake is refused, signed prekeys rotate); tacenta-spec/protocol/session-persistence.md (Session; Prekey store); tacenta-spec/protocol/error-handling.md (Conditions a caller must act on are named); independent clean-room author: Jie Sun, P6 round two; ratchet.md (Sending and receiving; Skipped keys, 'A message whose ratchet key equals DHr, whose number N is below Nr, and whose key is not stored is not accepted'); mlkem-braid.md (Failure; 'Session puts nothing from a failed Braid on the wire: it refuses encrypt and decrypt with AgreementFailed'); session-persistence.md (Session, Semantic rules, 'A failed Braid (tag 11) is exempt'); session-establishment.md (Sending the initial message: 'Alice verifies every signature in the bundle and aborts if any fails'; Notation: 'Both sides refuse a Diffie-Hellman output that is not contributory'; Byte-level conventions / KEM validation, 'She has then computed no agreement and sent nothing')",
   "traces": [
     {
       "id": "prekey-store-lifecycle",
@@ -254,7 +254,7 @@
     },
     {
       "id": "establish-responder-last-resort",
-      "comment": "Family 2: responder establishment on the last-resort path -- no one-time curve prekey, the last-resort KEM prekey reused -- and the fingerprint is added only after the ciphertext authenticates (session-establishment.md, Replay, The fingerprint).",
+      "comment": "Family 2: responder establishment on the last-resort path -- no one-time curve prekey, the last-resort KEM prekey reused -- and the fingerprint is added only after the ciphertext authenticates (session-establishment.md, Replay, The replay identity).",
       "fixtures": {
         "bob-store": "Bob's prekey store, one-time curve and KEM pools exhausted, last-resort KEM prekey still live",
         "alice-initial-last-resort": "Alice's initial message naming no one-time curve prekey and Bob's last-resort KEM prekey, never seen before, whose ciphertext authenticates"
@@ -339,7 +339,7 @@
     },
     {
       "id": "last-resort-handshake-replay-refused",
-      "comment": "Family 4: a captured last-resort initial message, replayed against the fingerprint record, is refused (session-establishment.md, Replay, The fingerprint; key-deletion.md, 'A replayed last-resort handshake is refused').",
+      "comment": "Family 4: a captured last-resort initial message, replayed against the fingerprint record, is refused (session-establishment.md, Replay, The replay identity; key-deletion.md, 'A replayed last-resort handshake is refused').",
       "fixtures": {
         "bob-store-with-fingerprint": "Bob's store, whose last-resort replay record already holds the fingerprint of an earlier accepted handshake",
         "alice-last-resort-initial-replayed": "the identical bytes of that earlier accepted last-resort initial message"

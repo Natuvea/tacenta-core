@@ -59,20 +59,20 @@ theorem signed_lookup_unknown_after_retired (store : PrekeyStore)
     used. -/
 theorem kem_lookup_current_legacy_blocked (store : PrekeyStore) (id : Nat)
     (hId : id = store.state.kemId)
-    (hBlocked : store.legacyLastResortBlocked.contains id = true) :
+    (hBlocked : store.state.legacyLastResortBlocked.contains id = true) :
     responderKemPair store id = .error .legacyLastResortRecord := by
   subst id
-  have hb : store.state.kemId ∈ store.legacyLastResortBlocked := by
+  have hb : store.state.kemId ∈ store.state.legacyLastResortBlocked := by
     simpa using hBlocked
   simp [responderKemPair, hb]
 
 /-- The unblocked current KEM key is identified as a last-resort key. -/
 theorem kem_lookup_current (store : PrekeyStore) (id : Nat)
     (hId : id = store.state.kemId)
-    (hAllowed : store.legacyLastResortBlocked.contains id = false) :
+    (hAllowed : store.state.legacyLastResortBlocked.contains id = false) :
     responderKemPair store id = .ok (store.state.kemPair, true) := by
   subst id
-  have hb : store.state.kemId ∉ store.legacyLastResortBlocked := by
+  have hb : store.state.kemId ∉ store.state.legacyLastResortBlocked := by
     simpa using hAllowed
   simp [responderKemPair, hb]
 
@@ -82,10 +82,10 @@ theorem kem_lookup_retired (store : PrekeyStore) (id previousId : Nat)
     (hCurrent : id ≠ store.state.kemId)
     (hPrevious : store.state.previousKem = some (pair, previousId, signature))
     (hId : id = previousId)
-    (hAllowed : store.legacyLastResortBlocked.contains id = false) :
+    (hAllowed : store.state.legacyLastResortBlocked.contains id = false) :
     responderKemPair store id = .ok (pair, true) := by
   subst id
-  have hb : previousId ∉ store.legacyLastResortBlocked := by
+  have hb : previousId ∉ store.state.legacyLastResortBlocked := by
     simpa using hAllowed
   simp [responderKemPair, hCurrent, hPrevious, hb]
 
@@ -96,10 +96,10 @@ theorem kem_lookup_retired_legacy_blocked (store : PrekeyStore)
     (hCurrent : id ≠ store.state.kemId)
     (hPrevious : store.state.previousKem = some (pair, previousId, signature))
     (hId : id = previousId)
-    (hBlocked : store.legacyLastResortBlocked.contains id = true) :
+    (hBlocked : store.state.legacyLastResortBlocked.contains id = true) :
     responderKemPair store id = .error .legacyLastResortRecord := by
   subst id
-  have hb : previousId ∈ store.legacyLastResortBlocked := by
+  have hb : previousId ∈ store.state.legacyLastResortBlocked := by
     simpa using hBlocked
   simp [responderKemPair, hCurrent, hPrevious, hb]
 

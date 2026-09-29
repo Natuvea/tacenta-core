@@ -674,7 +674,7 @@ fn refusals_agree(bytes: &[u8], fixed_len: usize, model: &str, rust: &str) -> bo
 fn prekey_refusals_agree(bytes: &[u8], model: &str, rust: &str) -> bool {
     model == rust
         || (bytes.len() < PREKEY_STORE_FIXED_PREFIX
-            && !matches!(bytes.first(), Some(0x01..=0x04))
+            && !matches!(bytes.first(), Some(0x01..=0x05))
             && model == "wrong-version"
             && rust == "short-or-malformed")
 }
@@ -720,6 +720,12 @@ struct Observed {
     prekey_lifecycle_consume_one_time: usize,
     prekey_lifecycle_record_last_resort: usize,
     prekey_lifecycle_noop: usize,
+    // Stores imported from the older layouts with a replay record: the
+    // migration compared between the two readers, and the operations run from
+    // the store that import produced.
+    prekey_legacy_imports: usize,
+    prekey_legacy_operations: usize,
+    prekey_legacy_blocked_refusals: usize,
     prekey_model_control: usize,
     prekey_rotate_signed_one_time_control: usize,
     session_establishment_initiator: usize,
@@ -3371,6 +3377,350 @@ fn check_prekey_lifecycle(exe: &Path, seed: u64, seen: &mut Observed) {
     check_prekey_responder_effects(exe, &mut rng, seed, seen);
 }
 
+/// Offset of `seen_count` in the bytes of a store with no one-time-list
+/// surprises: after `next_id`, in every layout that has one
+/// (session-persistence.md, Prekey store).
+fn prekey_seen_offset(store: &[u8]) -> usize {
+    let u32_at = |p: usize| u32::from_be_bytes(store[p..p + 4].try_into().unwrap()) as usize;
+    let one_time = u32_at(133);
+    let mut pos = 137 + one_time * 36;
+    pos += 4 + u32_at(pos); // kem_pair
+    pos += 4 + 64; // kem_id, kem_sig
+    let kem_one_time = u32_at(pos);
+    pos += 4;
+    for _ in 0..kem_one_time {
+        pos += 4; // id
+        pos += 4 + u32_at(pos); // kem_pair
+        pos += 64; // sig
+    }
+    pos + 4 // next_id
+}
+
+/// A store with no replay record and no markers, in the v5 layout, laid out as
+/// an older version holding `entries`: v4 tags each entry with its key, v3 and
+/// v2 do not, v3 and v4 carry the retired prekeys, v2 ends after the record and
+/// v1 after `next_id`. A v2 store can hold nothing retired.
+fn legacy_layout(v5: &[u8], version: u8, entries: &[(u32, [u8; 32])]) -> Vec<u8> {
+    let at = prekey_seen_offset(v5);
+    assert_eq!(&v5[at..at + 8], &[0u8; 8], "a fresh store holds no record");
+    let mut out = vec![version];
+    out.extend_from_slice(&v5[1..at]);
+    if version >= 2 {
+        out.extend_from_slice(&(entries.len() as u32).to_be_bytes());
+        for (id, fingerprint) in entries {
+            if version >= 4 {
+                out.extend_from_slice(&id.to_be_bytes());
+            }
+            out.extend_from_slice(fingerprint);
+        }
+    }
+    if version >= 3 {
+        out.extend_from_slice(&v5[at + 8..]);
+    }
+    out
+}
+
+/// The same v5 bytes with the `legacy_blocked` list emptied: what a
+/// regression that dropped the markers would have written.
+fn without_markers(v5: &[u8]) -> Vec<u8> {
+    let u32_at = |p: usize| u32::from_be_bytes(v5[p..p + 4].try_into().unwrap()) as usize;
+    let seen_at = prekey_seen_offset(v5);
+    let blocked_at = seen_at + 4 + 36 * u32_at(seen_at);
+    let markers = u32_at(blocked_at);
+    let mut out = v5[..blocked_at].to_vec();
+    out.extend_from_slice(&0u32.to_be_bytes());
+    out.extend_from_slice(&v5[blocked_at + 4 + 4 * markers..]);
+    out
+}
+
+/// A store imported from an older layout carries `legacy_blocked` markers
+/// (session-persistence.md, Prekey store, Legacy markers). Two things are
+/// compared between the model and `tacenta-core` here, neither of which any
+/// generated ratchet sequence reaches:
+///
+/// - the migration itself: the same older-layout bytes, read by both, write
+///   the same v5 store, markers included, for every version, for a record
+///   tagged with the current key and with the retired one, and with and
+///   without a retired key;
+/// - the operations that follow, starting from a store the import produced:
+///   none of them may lose a marker, the KEM rotation may drop only the marker
+///   of the key it wipes, and a handshake naming a marked key is refused with
+///   the store unchanged. A marker dropped by any operation is the fail-open
+///   the relations exist to catch, and each relation is shown to reject it.
+fn check_prekey_legacy_markers(exe: &Path, seed: u64, seen: &mut Observed) {
+    use tacenta_core::sessions::{Identity, LifecycleError, PrekeyStore, establish_responder};
+
+    let mut rng = Rng::new(seed ^ 0x6c65_6761_6379_6d6b);
+    let identity = Identity::generate(&mut rng);
+    let wrong_identity = Identity::generate(&mut rng);
+    let initiator = Identity::generate(&mut rng);
+    let fingerprint = |byte: u8| [byte; 32];
+
+    // Migration: every older layout that can hold a record.
+    let plain = identity.create_prekeys(1, &mut rng).to_bytes().to_vec();
+    let mut rotated_store = identity.create_prekeys(1, &mut rng);
+    rotated_store.rotate_kem(&identity, &mut rng);
+    let rotated = rotated_store.to_bytes().to_vec();
+    let previous_kem_id = |bytes: &[u8]| {
+        // previous_kem is the last field: presence(1) len(4) pair id(4) sig(64).
+        let id_at = bytes.len() - 64 - 4;
+        u32::from_be_bytes(bytes[id_at..id_at + 4].try_into().unwrap())
+    };
+    let current_kem_id = |bytes: &[u8]| {
+        let mut pos = 137 + 36 * u32::from_be_bytes(bytes[133..137].try_into().unwrap()) as usize;
+        pos += 4 + u32::from_be_bytes(bytes[pos..pos + 4].try_into().unwrap()) as usize;
+        u32::from_be_bytes(bytes[pos..pos + 4].try_into().unwrap())
+    };
+    let mut requests = Vec::new();
+    let mut imports = Vec::new();
+    for (name, base, retired) in [("plain", &plain, false), ("rotated", &rotated, true)] {
+        let current = current_kem_id(base);
+        // How many markers the import writes: none for an empty record, and
+        // one per live last-resort key for any other, whichever key the
+        // record's entries name.
+        let marked = if retired { 2 } else { 1 };
+        let mut layouts: Vec<(String, Vec<u8>, u32)> = vec![
+            (format!("{name} v1"), legacy_layout(base, 1, &[]), 0),
+            (
+                format!("{name} v4, empty record"),
+                legacy_layout(base, 4, &[]),
+                0,
+            ),
+            (
+                format!("{name} v4, entry tagged with the current key"),
+                legacy_layout(base, 4, &[(current, fingerprint(1))]),
+                marked,
+            ),
+            (
+                format!("{name} v3, untagged entry"),
+                legacy_layout(base, 3, &[(0, fingerprint(2))]),
+                marked,
+            ),
+        ];
+        if retired {
+            let previous = previous_kem_id(base);
+            layouts.push((
+                format!("{name} v4, entry tagged with the retired key"),
+                legacy_layout(base, 4, &[(previous, fingerprint(3))]),
+                marked,
+            ));
+            layouts.push((
+                format!("{name} v4, entries under both keys"),
+                legacy_layout(
+                    base,
+                    4,
+                    &[(previous, fingerprint(4)), (current, fingerprint(5))],
+                ),
+                marked,
+            ));
+        } else {
+            layouts.push((
+                format!("{name} v2, untagged entry"),
+                legacy_layout(base, 2, &[(0, fingerprint(6))]),
+                marked,
+            ));
+        }
+        for (label, bytes, markers) in layouts {
+            requests.push(format!("read prekey {}", hex::encode(&bytes)));
+            imports.push((label, bytes, markers));
+        }
+    }
+    let answers = ask_model(exe, &requests);
+    let mut with_markers = 0;
+    for ((label, bytes, expected), answer) in imports.iter().zip(answers.iter()) {
+        let model = parse_read(answer.first().expect("a read line"))
+            .expect("a read line")
+            .unwrap_or_else(|| panic!("the model refuses the imported store {label}"));
+        let rust = PrekeyStore::from_bytes(bytes)
+            .unwrap_or_else(|e| panic!("tacenta-core refuses the imported store {label}: {e:?}"))
+            .to_bytes()
+            .to_vec();
+        assert_eq!(
+            hex::encode(&rust),
+            hex::encode(&model),
+            "\n\ntacenta-model and tacenta-core migrate an older store differently.\n\
+             seed: {seed} ({seed:#x})\n\
+             store: {label}\n\
+             request: read prekey {}\n\n",
+            hex::encode(bytes)
+        );
+        let seen_at = prekey_seen_offset(&rust);
+        let blocked_at = seen_at
+            + 4
+            + 36 * u32::from_be_bytes(rust[seen_at..seen_at + 4].try_into().unwrap()) as usize;
+        let markers = u32::from_be_bytes(rust[blocked_at..blocked_at + 4].try_into().unwrap());
+        assert_eq!(markers, *expected, "{label}: markers written");
+        with_markers += usize::from(markers > 0);
+        seen.prekey_legacy_imports += 1;
+    }
+    assert!(
+        with_markers >= 4,
+        "the migration cases must reach stores with markers"
+    );
+
+    // Operations from a store the import produced: a v4 store with a record
+    // for the current key.
+    let fresh = identity.create_prekeys(2, &mut rng);
+    let current = current_kem_id(&fresh.to_bytes());
+    let v4 = legacy_layout(&fresh.to_bytes(), 4, &[(current, fingerprint(9))]);
+    let mut store = PrekeyStore::from_bytes(&v4).expect("the v4 store imports");
+    let marked_bundle = store.publish_multi_use();
+    assert_eq!(marked_bundle.kem_prekey_id, current);
+
+    let op = |exe: &Path, name: &str, before: &[u8], after: &[u8]| {
+        expect_model_check(
+            exe,
+            format!(
+                "check prekey {name} {} {}",
+                hex::encode(before),
+                hex::encode(after)
+            ),
+            seed,
+        );
+    };
+    // The negative control: the same transition with the markers dropped from
+    // the result must be rejected, or the relation is not looking at them.
+    let dropped = |exe: &Path, name: &str, before: &[u8], after: &[u8], seen: &mut Observed| {
+        expect_model_mismatch(
+            exe,
+            format!(
+                "check prekey {name} {} {}",
+                hex::encode(before),
+                hex::encode(without_markers(after))
+            ),
+            seed,
+        );
+        seen.prekey_model_control += 1;
+    };
+
+    let before = prekey_bytes(&store);
+    let _ = store.publish();
+    let after = prekey_bytes(&store);
+    op(exe, "publish", &before, &after);
+
+    let before = prekey_bytes(&store);
+    store.replenish(&identity, 2, &mut rng);
+    let after = prekey_bytes(&store);
+    op(exe, "replenish 2", &before, &after);
+    dropped(exe, "replenish 2", &before, &after, seen);
+
+    let before = prekey_bytes(&store);
+    store.rotate_signed_prekey(&identity, &mut rng);
+    let after = prekey_bytes(&store);
+    op(exe, "rotate-signed", &before, &after);
+    dropped(exe, "rotate-signed", &before, &after, seen);
+
+    // A refused operation leaves the markers, and the model's no-op relation
+    // compares whole stores.
+    let before = prekey_bytes(&store);
+    store.rotate_kem(&wrong_identity, &mut rng);
+    let after = prekey_bytes(&store);
+    op(exe, "no-op", &before, &after);
+
+    // A handshake that names the marked last-resort key is refused, and the
+    // store is left as it was. The bundle is the one fetched before any
+    // rotation, so its KEM id is the marked key's.
+    let blocked_initial = initial_for_bundle(&initiator, &marked_bundle, &mut rng);
+    let before = prekey_bytes(&store);
+    assert!(
+        matches!(
+            establish_responder(&identity, &mut store, &blocked_initial, &mut rng),
+            Err(LifecycleError::LegacyLastResortRecord)
+        ),
+        "a handshake naming a marked last-resort key must be refused"
+    );
+    let after = prekey_bytes(&store);
+    assert_eq!(
+        before, after,
+        "a refused legacy handshake changed the store"
+    );
+    op(exe, "no-op", &before, &after);
+    seen.prekey_legacy_blocked_refusals += 1;
+
+    // A handshake on a one-time KEM prekey is not affected by the marker, and
+    // consuming its keys leaves the marker in place.
+    let one_time_bundle = store.publish();
+    assert_ne!(one_time_bundle.kem_prekey_id, current);
+    let initial = initial_for_bundle(&initiator, &one_time_bundle, &mut rng);
+    let before = prekey_bytes(&store);
+    establish_responder(&identity, &mut store, &initial, &mut rng)
+        .expect("a one-time handshake is not affected by a last-resort marker");
+    let after = prekey_bytes(&store);
+    op(
+        exe,
+        &format!(
+            "consume-one-time {} {}",
+            one_time_bundle.one_time_prekey_id, one_time_bundle.kem_prekey_id
+        ),
+        &before,
+        &after,
+    );
+    dropped(
+        exe,
+        &format!(
+            "consume-one-time {} {}",
+            one_time_bundle.one_time_prekey_id, one_time_bundle.kem_prekey_id
+        ),
+        &before,
+        &after,
+        seen,
+    );
+
+    // The first KEM rotation retires the marked key and opens an unmarked one:
+    // the marker stays with the key it names.
+    let before = prekey_bytes(&store);
+    store.rotate_kem(&identity, &mut rng);
+    let after = prekey_bytes(&store);
+    op(exe, "rotate-kem", &before, &after);
+    dropped(exe, "rotate-kem", &before, &after, seen);
+    seen.prekey_legacy_operations += 1;
+
+    // The new current key takes last-resort traffic again; the retired one,
+    // named by the bundle fetched before the rotation, is still refused.
+    let fresh_bundle = store.publish_multi_use();
+    assert_ne!(fresh_bundle.kem_prekey_id, current);
+    let initial = initial_for_bundle(&initiator, &fresh_bundle, &mut rng);
+    let before = prekey_bytes(&store);
+    establish_responder(&identity, &mut store, &initial, &mut rng)
+        .expect("the key a rotation opened is not marked");
+    let after = prekey_bytes(&store);
+    op(exe, "record-last-resort", &before, &after);
+    seen.prekey_lifecycle_record_last_resort += 1;
+    let before = prekey_bytes(&store);
+    assert!(
+        matches!(
+            establish_responder(&identity, &mut store, &blocked_initial, &mut rng),
+            Err(LifecycleError::LegacyLastResortRecord)
+        ),
+        "the retired key keeps its marker until it is wiped"
+    );
+    let after = prekey_bytes(&store);
+    assert_eq!(before, after);
+    seen.prekey_legacy_blocked_refusals += 1;
+
+    // The second rotation wipes the marked key, and its marker with it.
+    let before = prekey_bytes(&store);
+    store.rotate_kem(&identity, &mut rng);
+    let after = prekey_bytes(&store);
+    op(exe, "rotate-kem", &before, &after);
+    seen.prekey_legacy_operations += 1;
+    let before = prekey_bytes(&store);
+    assert!(
+        matches!(
+            establish_responder(&identity, &mut store, &blocked_initial, &mut rng),
+            Err(LifecycleError::UnknownPrekeyId)
+        ),
+        "a wiped key is unknown, not marked"
+    );
+    assert_eq!(before, prekey_bytes(&store));
+    // What the wipe removes is the wiped key's marker: a rotation that kept
+    // it would leave a marker naming a key the store no longer holds, which
+    // the model's reader refuses as a store, so the relation above could not
+    // even be asked about it. The direction the relation can and does reject is
+    // the other one, shown after the first rotation: a marker dropped from a
+    // key that is still live.
+}
+
 fn initial_for_bundle(
     initiator: &tacenta_core::sessions::Identity,
     bundle: &tacenta_core::sessions::PublishedBundle,
@@ -4536,6 +4886,7 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     check_imports(&exe, seed, &round, &answers, &mut seen);
     check_prekey_imports(&exe, seed, &mut seen);
     check_prekey_lifecycle(&exe, seed, &mut seen);
+    check_prekey_legacy_markers(&exe, seed, &mut seen);
     check_initial_session_establishment(&exe, seed, &mut seen);
     check_established_message_effects(&exe, seed, &mut seen);
     check_failed_agreement_effects(&exe, seed, &mut seen);
@@ -4688,6 +5039,21 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     assert!(
         seen.prekey_model_control > 0,
         "control A did not reject a deliberately wrong prekey transition"
+    );
+    eprintln!(
+        "differential: legacy markers: {} imports compared, {} operations from an imported \
+         store, {} marked-key handshakes refused",
+        seen.prekey_legacy_imports,
+        seen.prekey_legacy_operations,
+        seen.prekey_legacy_blocked_refusals,
+    );
+    assert!(
+        seen.prekey_legacy_imports >= 11,
+        "the migration of older stores was not compared"
+    );
+    assert!(
+        seen.prekey_legacy_operations >= 2 && seen.prekey_legacy_blocked_refusals >= 2,
+        "the operations from an imported store were not compared"
     );
     assert!(
         seen.prekey_rotate_signed_one_time_control > 0,

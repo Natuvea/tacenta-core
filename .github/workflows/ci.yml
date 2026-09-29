@@ -221,13 +221,18 @@ jobs:
         run: cargo test --locked --workspace
         env:
           TACENTA_DIFFTEST_REQUIRED: "1"
-      # The independent reader, written from tacenta-spec and the vectors alone
-      # (ADR-0006). Standard library only, so it needs no setup step.
+      # The independent reader (ADR-0006): it imports nothing from the
+      # implementation, and its README, Provenance, says which passes were
+      # written from the specification alone. Standard library only, so it
+      # needs no setup step. The sweep corrupts every byte the reader says it
+      # checks in the session vectors and requires it to notice.
       - id: vectors_reader
         run: python3 ../independent/reader/run.py | tail -n 22
         shell: bash
       - id: vectors_skip
         run: python3 ../independent/reader/test_skip_allowlist.py
+      - id: vectors_session_sweep
+        run: python3 ../independent/reader/test_session_e2e_sweep.py
       - id: vectors_session_reader
         run: cd ../../.. && python3 tacenta-test-vectors/runners/independent/session-operation-reader.py
       - uses: ./.github/actions/assurance-receipt
@@ -235,7 +240,7 @@ jobs:
           id: vectors
           classification: required
           command: conformance-and-independent-readers
-          required-outcomes: "vectors_fmt=${{ steps.vectors_fmt.outcome }},vectors_clippy=${{ steps.vectors_clippy.outcome }},vectors_elan=${{ steps.vectors_elan.outcome }},vectors_model=${{ steps.vectors_model.outcome }},vectors_test=${{ steps.vectors_test.outcome }},vectors_reader=${{ steps.vectors_reader.outcome }},vectors_skip=${{ steps.vectors_skip.outcome }},vectors_session_reader=${{ steps.vectors_session_reader.outcome }}"
+          required-outcomes: "vectors_fmt=${{ steps.vectors_fmt.outcome }},vectors_clippy=${{ steps.vectors_clippy.outcome }},vectors_elan=${{ steps.vectors_elan.outcome }},vectors_model=${{ steps.vectors_model.outcome }},vectors_test=${{ steps.vectors_test.outcome }},vectors_reader=${{ steps.vectors_reader.outcome }},vectors_skip=${{ steps.vectors_skip.outcome }},vectors_session_sweep=${{ steps.vectors_session_sweep.outcome }},vectors_session_reader=${{ steps.vectors_session_reader.outcome }}"
 
   # Known advisories against tacenta-core's dependency graph. Fails on a
   # vulnerability; warnings (unmaintained, yanked) are printed and do not

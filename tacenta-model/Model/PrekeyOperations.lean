@@ -24,8 +24,11 @@ def kemIds (next count : Nat) : List Nat :=
   List.range count |>.map (fun i => next + count + i)
 
 /-- All fields except the two one-time pools and `nextId` are unchanged by
-    successful replenishment. The generated secrets and signatures are opaque;
-    their lengths and global identifier invariants are checked by `invariant`. -/
+    successful replenishment, the `legacy_blocked` markers included: a
+    replenishment that dropped one would let a key the imported record cannot
+    vouch for accept last-resort traffic again. The generated secrets and
+    signatures are opaque; their lengths and global identifier invariants are
+    checked by `invariant`. -/
 def replenishOk (before after : Store) (count : Nat) : Bool :=
   let newCurve := after.oneTime.drop before.oneTime.length
   let newKem := after.kemOneTime.drop before.kemOneTime.length
@@ -39,6 +42,7 @@ def replenishOk (before after : Store) (count : Nat) : Bool :=
     && before.kemSig == after.kemSig
     && before.kemOneTime == after.kemOneTime.take before.kemOneTime.length
     && before.seen == after.seen
+    && before.legacyLastResortBlocked == after.legacyLastResortBlocked
     && before.previousSigned == after.previousSigned
     && before.previousKem == after.previousKem
     && after.nextId == before.nextId + 2 * count
@@ -68,6 +72,7 @@ def consumeOneTimeOk (before after : Store) (curveId kemId : Nat) : Bool :=
     && after.kemOneTime == before.kemOneTime.filter (fun e => !(e.1 == kemId))
     && before.nextId == after.nextId
     && before.seen == after.seen
+    && before.legacyLastResortBlocked == after.legacyLastResortBlocked
     && before.previousSigned == after.previousSigned
     && before.previousKem == after.previousKem
     && before.oneTime.any (fun e => e.1 == curveId)
@@ -90,6 +95,7 @@ def recordLastResortOk (before after : Store) : Bool :=
     && before.kemSig == after.kemSig
     && before.kemOneTime == after.kemOneTime
     && before.nextId == after.nextId
+    && before.legacyLastResortBlocked == after.legacyLastResortBlocked
     && before.previousSigned == after.previousSigned
     && before.previousKem == after.previousKem
     && after.seen.take before.seen.length == before.seen
@@ -110,6 +116,7 @@ def rotateSignedOk (before after : Store) : Bool :=
     && before.kemSig == after.kemSig
     && before.kemOneTime == after.kemOneTime
     && before.seen == after.seen
+    && before.legacyLastResortBlocked == after.legacyLastResortBlocked
     && before.previousKem == after.previousKem
     && after.signedPrekeyId == before.nextId
     && after.nextId == before.nextId + 1
@@ -125,9 +132,18 @@ def seenAfterKemRotation (before : Store) : List (Nat × Bytes) :=
   | none => before.seen
   | some p => before.seen.filter (fun e => !(e.1 == p.2.1))
 
+/-- The `legacy_blocked` markers kept by `rotate_kem`: the marker of the key
+    that was already previous is dropped with the key it names, and no marker is
+    added (session-persistence.md, Prekey store, Legacy markers). -/
+def legacyBlockedAfterKemRotation (before : Store) : List Nat :=
+  match before.previousKem with
+  | none => before.legacyLastResortBlocked
+  | some p => before.legacyLastResortBlocked.filter (fun i => !(i == p.2.1))
+
 /-- Successful last-resort KEM rotation: the current key becomes the retained
-    previous key, the older previous key's replay records are dropped, and a
-    fresh opaque KEM key/signature pair is installed under the old `nextId`. -/
+    previous key, the older previous key's replay records and marker are
+    dropped, and a fresh opaque KEM key/signature pair is installed under the
+    old `nextId`. -/
 def rotateKemOk (before after : Store) : Bool :=
   before.identityPublic == after.identityPublic
     && before.signedPrekeySecret == after.signedPrekeySecret
@@ -137,6 +153,7 @@ def rotateKemOk (before after : Store) : Bool :=
     && after.previousKem == some (before.kemPair, before.kemId, before.kemSig)
     && before.kemOneTime == after.kemOneTime
     && after.seen == seenAfterKemRotation before
+    && after.legacyLastResortBlocked == legacyBlockedAfterKemRotation before
     && before.previousSigned == after.previousSigned
     && after.kemId == before.nextId
     && after.nextId == before.nextId + 1

@@ -1026,6 +1026,7 @@ dependencies = [
 name = "tacenta-vectors-rust"
 version = "0.0.0"
 dependencies = [
+ "curve25519-dalek",
  "ed25519-dalek",
  "hex",
  "rand_core 0.6.4",

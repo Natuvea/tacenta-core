@@ -17,8 +17,9 @@
 # The AEAD files take their AES-256 block values from NIST SP 800-38A, since
 # the model has no AES; their `source` field says so. The primitive vectors
 # under vectors/primitives/ are not regenerated: they are standards' known
-# answers, plus one project-generated XEdDSA file, and none of them comes from
-# the model. Nor are the project-generated session-establishment known answer
+# answers, the project-authored vectors two of those files name in their
+# `source` (an HMAC known answer, and the X25519 low-order refusals), and one
+# project-generated XEdDSA file, and none of them comes from the model. Nor are the project-generated session-establishment known answer
 # or malformed-input/ratchet-reject.json, which are outside model regeneration.
 #
 # Needs the Lean toolchain the model pins (`tacenta-model/lean-toolchain`,

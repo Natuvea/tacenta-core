@@ -21,6 +21,7 @@ hex = "0.4"
 # a fixed byte source so the signature is a known answer. The same major
 # version tacenta-core names, so the trait is the same trait.
 rand_core = "0.6"
+curve25519-dalek = "4"
 # The Ed25519 implementation at tacenta-core's trusted boundary, which
 # `xeddsa::verify` calls. The core exposes no Ed25519 API of its own, so the
 # RFC 8032 vectors are checked against this crate directly; the lockfile pins

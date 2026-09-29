@@ -239,6 +239,10 @@
               "run": "python3 ../independent/reader/test_skip_allowlist.py"
             },
             {
+              "id": "vectors_session_sweep",
+              "run": "python3 ../independent/reader/test_session_e2e_sweep.py"
+            },
+            {
               "id": "vectors_session_reader",
               "run": "cd ../../.. && python3 tacenta-test-vectors/runners/independent/session-operation-reader.py"
             },
@@ -248,7 +252,7 @@
                 "id": "vectors",
                 "classification": "required",
                 "command": "conformance-and-independent-readers",
-                "required-outcomes": "vectors_fmt=${{ steps.vectors_fmt.outcome }},vectors_clippy=${{ steps.vectors_clippy.outcome }},vectors_elan=${{ steps.vectors_elan.outcome }},vectors_model=${{ steps.vectors_model.outcome }},vectors_test=${{ steps.vectors_test.outcome }},vectors_reader=${{ steps.vectors_reader.outcome }},vectors_skip=${{ steps.vectors_skip.outcome }},vectors_session_reader=${{ steps.vectors_session_reader.outcome }}"
+                "required-outcomes": "vectors_fmt=${{ steps.vectors_fmt.outcome }},vectors_clippy=${{ steps.vectors_clippy.outcome }},vectors_elan=${{ steps.vectors_elan.outcome }},vectors_model=${{ steps.vectors_model.outcome }},vectors_test=${{ steps.vectors_test.outcome }},vectors_reader=${{ steps.vectors_reader.outcome }},vectors_skip=${{ steps.vectors_skip.outcome }},vectors_session_sweep=${{ steps.vectors_session_sweep.outcome }},vectors_session_reader=${{ steps.vectors_session_reader.outcome }}"
               }
             }
           ]

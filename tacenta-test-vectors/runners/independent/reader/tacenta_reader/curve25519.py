@@ -158,6 +158,66 @@ def _sha512_int(data: bytes) -> int:
     return int.from_bytes(hashlib.sha512(data).digest(), "little")
 
 
+def montgomery_lift(u: bytes) -> Optional[Point]:
+    """An Edwards point whose Montgomery u-coordinate is `u` (the other lift is
+    its negative), or None: `u` is not below p, is -1, or lies on the twist.
+    y = (u - 1)/(u + 1), the map identities-and-devices.md, Verifying a
+    signature, uses to convert a Montgomery key."""
+    n = int.from_bytes(u, "little")
+    if len(u) != 32 or n >= P or (n + 1) % P == 0:
+        return None
+    return decompress(((n - 1) * _inv(n + 1) % P).to_bytes(32, "little"))
+
+
+def _order_eight_point() -> Point:
+    """A point of order 8. The curve's group has order 8 * l with l prime
+    (`Q`), so l times any curve point lies in the subgroup of order 8, and one
+    of them has order 8 (four times it is not the identity)."""
+    for y in range(3, 200):
+        r = decompress(y.to_bytes(32, "little"))
+        if r is None:
+            continue
+        t = _mul(Q, r)
+        if not _is_identity(_mul(4, t)):
+            return t
+    raise AssertionError("no point of order 8 found")
+
+
+def torsion_translates(u: bytes) -> list:
+    """The canonical u-coordinates, other than `u`, of the points that differ
+    from the curve point `u` names by a non-zero multiple of a point of order 8,
+    in byte order: the seven other spellings of one X25519 agreement class
+    (each gives the same output as `u` under every clamped scalar, since a
+    clamped scalar is a multiple of 8). Empty if `u` is on the twist."""
+    p = montgomery_lift(u)
+    if p is None:
+        return []
+    t8 = _order_eight_point()
+    out, multiple = [], t8
+    for _ in range(7):
+        q = _add(p, multiple)
+        zi = _inv(q[2])
+        y = q[1] * zi % P
+        out.append(((1 + y) * _inv(1 - y) % P).to_bytes(32, "little"))
+        multiple = _add(multiple, t8)
+    return sorted(set(out) - {bytes(u)})
+
+
+def torsion_related(u1: bytes, u2: bytes) -> bool:
+    """Whether two different u-coordinates name curve points that differ, up
+    to sign, by a point of order dividing 8: the case in which X25519's clamped
+    scalar multiplication gives both the same output, since a clamped scalar
+    is a multiple of 8. A point of the twist has no Edwards lift and is
+    never related."""
+    if bytes(u1) == bytes(u2):
+        return False
+    p1, p2 = montgomery_lift(u1), montgomery_lift(u2)
+    if p1 is None or p2 is None:
+        return False
+    return (_is_identity(_mul(8, _add(p1, _neg(p2))))
+            or _is_identity(_mul(8, _add(p1, p2))))
+
+
 def ed25519_public(secret: bytes) -> bytes:
     a, _ = _expand(secret)
     return compress(_mul(a, BASE))
