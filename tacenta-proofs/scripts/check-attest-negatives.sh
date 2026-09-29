@@ -17,6 +17,7 @@
 #                             to read the same way as the plain one
 #   audit comparison       -- `--compare-audit` against the environment's list
 #   allowlist writer       -- the only writer of the allowlist
+#   construct scanner      -- `check-lean-constructs.sh` reads the same spellings
 set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"
@@ -86,6 +87,44 @@ expect_pass() {
 gen="tacenta-proofs/translation/Translation"
 allowlist="tacenta-proofs/manifests/translation-axiom-allowlist.json"
 record="tacenta-proofs/manifests/translation-attestation.json"
+
+# Run another script of this directory in the worktree; the same shape as attest.
+run_script() {
+  (cd "$work" && bash "tacenta-proofs/scripts/$1" 2>&1)
+}
+
+expect_script_fail() {
+  local name="$1" expected="$2" script="$3" out rc
+  set +e
+  out="$(run_script "$script")"
+  rc=$?
+  set -e
+  cases=$((cases + 1))
+  if [ "$rc" -eq 0 ]; then
+    echo "WRONG  $name: expected refusal containing '$expected', was accepted" >&2
+    wrong=$((wrong + 1))
+    return 0
+  fi
+  if [[ "$out" != *"$expected"* ]]; then
+    echo "WRONG  $name: refused, but not for '$expected':" >&2
+    printf '%s\n' "$out" >&2
+    wrong=$((wrong + 1))
+  fi
+}
+
+expect_script_pass() {
+  local name="$1" script="$2" out rc
+  set +e
+  out="$(run_script "$script")"
+  rc=$?
+  set -e
+  cases=$((cases + 1))
+  if [ "$rc" -ne 0 ]; then
+    echo "WRONG  $name: expected acceptance, was refused:" >&2
+    printf '%s\n' "$out" >&2
+    wrong=$((wrong + 1))
+  fi
+}
 
 # Insert the text on stdin into a generated file just before the `end` that
 # closes its namespace, which is where the translator's own declarations sit.
@@ -570,6 +609,73 @@ if [ "$rc" -ne 0 ] || [[ "$out" != *"allowlist + TacentaRatchet.lean: tacenta_ra
   printf '%s\n' "$out" >&2
   wrong=$((wrong + 1))
 fi
+
+# ---------------------------------------------------------------------------
+# The construct scanner reads hand-written Lean the way the attestation scan
+# reads the generated files. Each plant goes at the end of a proof file.
+# ---------------------------------------------------------------------------
+
+proof="tacenta-proofs/Proofs/ErrorHandling.lean"
+
+make_case
+expect_script_pass "constructs-unmodified-tree" check-lean-constructs.sh
+
+make_case
+cat >> "$work/$proof" <<'EOF'
+
+def scanner_form_11_a : Char := '"'
+run_cmd pure ()
+def scanner_form_11_b : Char := '"'
+EOF
+expect_script_fail "scanner-form-11" "elab-time-command" check-lean-constructs.sh
+
+make_case
+cat >> "$work/$proof" <<'EOF'
+
+def scanner_form_12_a : String := r#"a"b"#
+run_cmd pure ()
+def scanner_form_12_b : String := r#"a"b"#
+EOF
+expect_script_fail "scanner-form-12" "elab-time-command" check-lean-constructs.sh
+
+make_case
+cat >> "$work/$proof" <<'EOF'
+
+def «/-» : Nat := 1
+run_cmd pure ()
+def «-/» : Nat := 2
+EOF
+expect_script_fail "scanner-form-13" "elab-time-command" check-lean-constructs.sh
+
+make_case
+cat >> "$work/$proof" <<'EOF'
+
+axiom«scanner_form_14» : False
+EOF
+expect_script_fail "scanner-form-14" ": axiom:" check-lean-constructs.sh
+
+make_case
+cat >> "$work/$proof" <<'EOF'
+
+def scanner_form_15_a : Char := '"'
+axiom scanner_form_15 : False
+def scanner_form_15_b : Char := '"'
+EOF
+expect_script_fail "scanner-form-15" ": axiom:" check-lean-constructs.sh
+
+make_case
+cat >> "$work/$proof" <<'EOF'
+
+-- run_cmd in_a_line_comment
+/- run_cmd in_a_block_comment -/
+def not_a_construct_a : String := "run_cmd in_a_string"
+def not_a_construct_b : Char := 'a'
+def «run_cmd in_a_name» : Nat := 1
+def not_a_construct_c : String := r#"run_cmd in a raw string"#
+def x' : Nat := 1
+def axiomatic : Nat := 1
+EOF
+expect_script_pass "constructs-text-that-is-not-a-construct" check-lean-constructs.sh
 
 if [ "$wrong" -ne 0 ]; then
   echo "check-attest-negatives: $wrong of $cases cases gave the wrong result" >&2
