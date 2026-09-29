@@ -48,8 +48,8 @@ applies the rule to it before relying on the key for anything else:
 - a reader of a stored session, to `our_identity_public` and
   `peer_identity_public`, and a reader of a stored prekey store, to
   `identity_public` (session-persistence.md, Stored curve public keys);
-- a verifier of an application signature, to the key the signature is checked
-  under (Application signatures, below);
+- a verifier of a signature, to the key the signature is checked under
+  (Verifying a signature, step 3; Application signatures, below);
 - a verifier of a signed inventory statement, to every `identity_public_key`
   in it (Accepting a signed statement, check 6).
 
@@ -149,8 +149,12 @@ otherwise. The order in which it checks them is not fixed (error-handling.md).
    edwards25519. Let `b` be bit 255 of the signature, the top bit of its last
    byte. `A` is the point with that y-coordinate whose x-coordinate has sign
    `b`.
-3. `A` is not of small order: `8A` is not the identity. A point with
-   x-coordinate 0 is of small order, so this step refuses it whatever `b` is.
+3. `A` is a point of the prime-order subgroup: `qA` is the identity. A point of
+   small order fails this (`8A` is the identity), a point with x-coordinate 0
+   among them whatever `b` is, and so does a point of mixed order, the sum of a
+   point of the subgroup and a point of small order. The sign `b` does not
+   change the answer. A key that passes steps 1 to 3 is an identity key
+   (Identity keys, above).
 4. `s`, the signature's last 32 bytes with bit 255 cleared, is below q.
 5. Let `R` be the signature's first 32 bytes, `enc(A)` the 32-byte encoding of
    `A` (with sign `b`), and `h = SHA-512(R || enc(A) || M) mod q`. The 32-byte
@@ -174,10 +178,11 @@ differs in both directions, by design (ADR-0002):
 - **It is narrower on `s`.** Revision 1 accepts any `s` below 2^253, which
   admits `s + q` as a second signature for most messages. Step 4 requires
   `s < q`.
-- **It is narrower on small-order points.** Revision 1 evaluates the equation
-  for whatever `A` and `R` decode to, and accepts where it holds. That admits
-  signatures nobody holding a key made, under keys such as u = 0. Steps 3 and
-  6 refuse them.
+- **It is narrower on the order of `A` and `R`.** Revision 1 evaluates the
+  equation for whatever `A` and `R` decode to, and accepts where it holds. That
+  admits signatures nobody holding a key made, under keys such as u = 0, and
+  signatures under a key of mixed order. Step 3 refuses every `A` outside the
+  prime-order subgroup, and step 6 refuses a small-order `R`.
 - **It agrees on the rest.** Both refuse u at or above p, both refuse a u with
   no point on the curve, and both compare `R` as bytes.
 

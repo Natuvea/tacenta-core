@@ -10,8 +10,10 @@ is SemVer against the specified protocol (not the implementation).
   Accepting a signed statement, check 6 (a canonical curve public key of the
   prime-order subgroup), applies to the identity key of a prekey bundle, to the
   `identity` of an initial message, to the two identity keys of a stored
-  session and the identity key of a stored prekey store, and to the key an
-  application signature is verified under. A key that fails it is refused as
+  session and the identity key of a stored prekey store, and to the key a
+  signature is verified under (Verifying a signature, step 3 now requires `A`
+  to be a point of the prime-order subgroup, in place of "not of small order").
+  A key that fails it is refused as
   an invalid identity key, a third outcome beside decode failure and
   authentication failure (`error-handling.md`). The check comes before any
   signature is verified, random value drawn, agreement computed, private key
