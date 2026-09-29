@@ -262,6 +262,27 @@ make_case
 edit_json "$record" 'data["schema_version"] = 3'
 expect_fail "record-schema-is-old" "translation-attestation.json has schema_version 3" --check-translation
 
+make_case
+printf '\n// zone edit\n' >> "$work/tacenta-core/ratchet/src/lib.rs"
+expect_fail "zone-source-edited" "translation is stale for tacenta-core/ratchet" --check-translation
+
+make_case
+printf '\n# workspace edit\n' >> "$work/tacenta-core/Cargo.toml"
+expect_fail "workspace-input-edited" "the workspace inputs" --check-translation
+
+make_case
+printf 'namespace tacenta_nothing\nend tacenta_nothing\n' > "$work/$gen/TacentaNothing.lean"
+expect_fail "generated-name-without-a-module" "is named like a generated file but scripts/run-aeneas.sh" --check-translation
+expect_fail "generated-name-refused-by-refresh" "refusing to record a file the translation script does not produce" --refresh-translation
+
+make_case
+edit_json "$record" 'del data["generated_files"]["'"$gen"'/TacentaWire.lean"]'
+expect_fail "record-lacks-a-file" "is a generated file with no record in translation-attestation.json" --check-translation
+
+make_case
+edit_json "$record" 'data["generated_files"]["'"$gen"'/TacentaNothing.lean"] = data["generated_files"]["'"$gen"'/TacentaWire.lean"]'
+expect_fail "record-has-a-file-not-in-the-tree" "is recorded in translation-attestation.json but is not in the tree" --check-translation
+
 # ---------------------------------------------------------------------------
 # The axiom allowlist: every declaration, by qualified name and type.
 # Each plant is tried through --refresh-translation, the one mode that
