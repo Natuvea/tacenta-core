@@ -5,6 +5,26 @@ is SemVer against the specified protocol (not the implementation).
 
 ## [Unreleased]
 
+- `protocol/session-persistence.md`, `protocol/session-establishment.md` and
+  `protocol/key-deletion.md`: state the rules of the v5 prekey store's
+  `legacy_blocked` markers, which `tacenta-core`, the model and the vectors
+  already followed and the pages did not say. Migration writes both live
+  last-resort KEM identifiers for any nonempty v1-v4 record and keeps the
+  record; the list is strictly ascending, holds at most two entries, and names
+  only `kem_id` or the identifier inside `previous_kem`; a v5 reader refuses a
+  list that is out of order or repeats an identifier (as malformed or as
+  non-canonical, at the reader's choice); a handshake naming a listed key is
+  refused (`LegacyLastResortRecord`) before decapsulation with the store
+  unchanged; and a rotation removes the marker of the key it wipes. The prekey
+  store's semantic rules are also corrected from "all four versions" to all
+  five. No wire format changes.
+
+- `protocol/session-establishment.md`: the repeated-initial rule names the key
+  its agreement class is taken under. It is the session's current
+  `ratchet_private`, not the responder's signed-prekey secret, which the
+  persisted session does not hold. The behaviour of `tacenta-core` is
+  unchanged; the wording is corrected.
+
 - `protocol/session-persistence.md`: align the repeated-initial semantic rule
   with `session-establishment.md`: the ephemeral is compared by its X25519
   agreement class and the identity by bytes. This removes the stale
