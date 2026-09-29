@@ -1776,8 +1776,8 @@ const PREKEY_STORE_VERSION_V2: u8 = 0x02;
 const PREKEY_STORE_VERSION_V1: u8 = 0x01;
 
 /// A `PrekeyStore::to_bytes`/`from_bytes` failure. As with `Session`'s own
-/// `SessionDecodeError`, the threat model is corruption and version skew,
-/// not a hostile peer.
+/// `SessionDecodeError`, the threat model is corruption and version skew;
+/// a store another writer produced can also hold a key the identity rule refuses.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[non_exhaustive]
 pub enum PrekeyStoreDecodeError {
@@ -3228,8 +3228,8 @@ impl Session {
 const SESSION_VERSION: u8 = 0x01;
 
 /// A `Session::export`/`import` failure. As in every format this composes,
-/// the threat model is corruption and version skew, not a hostile peer.
-/// Named apart from this module's own `DecodeError` (a wire-message decode
+/// the threat model is corruption and version skew; a peer can also present a
+/// key the identity rule refuses. Named apart from this module's own `DecodeError` (a wire-message decode
 /// failure) so the two are never confused for one another.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[non_exhaustive]
