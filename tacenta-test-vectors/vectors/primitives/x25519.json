@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "algorithm": "x25519",
-  "source": "RFC 7748, section 6.1",
+  "source": "RFC 7748, section 6.1, for the first two vectors; the vectors whose id ends in -refused are project-authored: each is a u-coordinate of low order (0, 1, the two of order eight, p - 1) or, for p, a non-canonical spelling of zero, whose X25519 output is the all-zero string under every clamped private key and which the protocol refuses as a non-contributory agreement (session-establishment.md, Notation)",
   "vectors": [
     {
       "id": "rfc7748-6.1-alice",
@@ -20,6 +20,60 @@
         "peer_public": "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a"
       },
       "output": "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742"
+    },
+    {
+      "id": "low-order-zero-refused",
+      "comment": "u = 0, a point of order two: the agreement is all zero and is refused before it can be used.",
+      "result": "invalid",
+      "inputs": {
+        "private": "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a",
+        "peer_public": "0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "id": "low-order-one-refused",
+      "comment": "u = 1, a point of order four: the agreement is all zero and is refused.",
+      "result": "invalid",
+      "inputs": {
+        "private": "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a",
+        "peer_public": "0100000000000000000000000000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "id": "low-order-order-eight-a-refused",
+      "comment": "u = 325606250916557431795983626356110631294008115727848805560023387167927233504, a point of order eight: the agreement is all zero and is refused.",
+      "result": "invalid",
+      "inputs": {
+        "private": "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a",
+        "peer_public": "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800"
+      }
+    },
+    {
+      "id": "low-order-order-eight-b-refused",
+      "comment": "u = 39382357235489614581723060781553021112529911719440698176882885853963445705823, the other point of order eight: the agreement is all zero and is refused.",
+      "result": "invalid",
+      "inputs": {
+        "private": "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a",
+        "peer_public": "5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f1157"
+      }
+    },
+    {
+      "id": "low-order-p-minus-one-refused",
+      "comment": "u = p - 1, a point of order four on the twist: the agreement is all zero and is refused.",
+      "result": "invalid",
+      "inputs": {
+        "private": "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a",
+        "peer_public": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"
+      }
+    },
+    {
+      "id": "low-order-p-refused",
+      "comment": "u = p, a non-canonical spelling of zero that RFC 7748 section 5 reduces before use: the agreement is all zero and is refused here at the primitive, and a decoder refuses the spelling before it gets this far (message-format.md, Curve public keys).",
+      "result": "invalid",
+      "inputs": {
+        "private": "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a",
+        "peer_public": "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"
+      }
     }
   ]
 }

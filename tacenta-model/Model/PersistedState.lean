@@ -26,9 +26,9 @@ the rules and fits its fields is read back from the bytes it is written as
 returns keeps the rules, fits its fields, **and is written as exactly the
 bytes it was read from** (`ofBytes_ok`), so the reader accepts one spelling of
 each state. The prekey store's `ofBytes_ok` drops that last conjunct because
-for it the conjunct is false: it reads four versions and writes one, so a v1,
-v2 or v3 store is written back as v4. Its canonicality half is therefore
-v4-shaped and is not yet proved; the theorem's own docstring says so.
+for it the conjunct is false: it reads five versions and writes one, so a v1
+to v4 store is written back as v5. Its canonicality half is therefore
+v5-shaped and is not yet proved; the theorem's own docstring says so.
 
 **Where the Braid's model stops, and why it conforms there.** The page
 requires of tags 1 to 4 that the `header` and `ek_vector` the stored
@@ -122,7 +122,14 @@ deriving instance DecidableEq for Model.SparseRatchet.State
     it accepts is written back as the bytes it was given. `SessionState`'s
     `ofBytes_ok` proves exactly that. `tacenta-core` keeps the check anyway, as
     defence in depth, and the vectors pin no case of it because no vector can
-    offer this reader one. -/
+    offer this reader one.
+
+    **One prekey-store case reaches `tacenta-core`'s check and this model as
+    two different refusals.** A v5 `legacy_blocked` list that is not strictly
+    ascending is refused by `tacenta-core` as non-canonical, where its re-encode
+    check catches it, and by this model as malformed, where the list's order is
+    a rule (`PrekeyStoreState.legacyBlockedOk`). The page lets a reader report
+    it either way, so the vectors record `short-or-malformed`. -/
 inductive Refusal where
   | wrongVersion
   | shortOrMalformed
@@ -1637,6 +1644,8 @@ structure Store where
   kemOneTime : List (Nat × Bytes × Bytes)
   nextId : Nat
   seen : List (Nat × Bytes)
+  /-- v5 markers for replay identities imported from the pre-v5 formats. -/
+  legacyLastResortBlocked : List Nat
   previousSigned : Option (Bytes × Nat × Bytes)
   previousKem : Option (Bytes × Nat × Bytes)
   deriving Repr, DecidableEq, Inhabited
@@ -1681,7 +1690,7 @@ def optKemBytes : Option (Bytes × Nat × Bytes) → Bytes
   | none => [0x00]
   | some (pair, id, sig) => [0x01] ++ TripleState.lenPrefixed pair ++ be 4 id ++ sig
 
-/-- The stored bytes. Always written at the current version: the three earlier
+/-- The stored bytes. Always written at the current version: the four earlier
     ones are read and never produced, so an older store upgrades by being read
     and written back. -/
 def toBytes (st : Store) : Bytes :=
@@ -1692,14 +1701,16 @@ def toBytes (st : Store) : Bytes :=
     ++ be 4 st.kemOneTime.length ++ (st.kemOneTime.map kemOneTimeBytes).flatten
     ++ be 4 st.nextId
     ++ be 4 st.seen.length ++ (st.seen.map seenBytes).flatten
-    ++ be 4 0
+    ++ be 4 st.legacyLastResortBlocked.length
+    ++ (st.legacyLastResortBlocked.map (be 4)).flatten
     ++ optSignedBytes st.previousSigned ++ optKemBytes st.previousKem
 
 /-! ### Semantic rules (Prekey store, Semantic rules)
 
-Five of the page's six, in four conjuncts: the first two share one. The sixth
-is the signature rule this model cannot
-state; the note at the head of this namespace says why. -/
+Five of the page's six, in four conjuncts: the first two share one. The record
+rule's marker clause, and the ascending order of the marker list, are a fifth
+conjunct (`legacyBlockedOk`). The sixth rule is the signature rule this model
+cannot state; the note at the head of this namespace says why. -/
 
 /-- Every identifier the store holds, of every kind, in one list: one counter
     numbers them all, so distinctness is across kinds and not within them. -/
@@ -1738,12 +1749,36 @@ def kemPairsSized (st : Store) : Bool :=
         | none => true
         | some p => decide (p.1.length = kemPairLen))
 
+/-- Strictly ascending: in order and without a repeat. -/
+def strictlyAscending : List Nat → Bool
+  | [] => true
+  | [_] => true
+  | a :: b :: rest => decide (a < b) && strictlyAscending (b :: rest)
+
+/-- The `legacy_blocked` list's rule (Prekey store, Legacy markers): every entry
+    names the current last-resort key or the one a rotation retired, the list is
+    strictly ascending -- so it repeats nothing -- and it holds at most two
+    entries. Ascending order is the writer's canonical form. `tacenta-core`
+    reaches the same refusal for a v5 list in any other order through its
+    re-encode check, as non-canonical; the page lets a reader report that as
+    malformed or as non-canonical, and this model, which has no third refusal
+    for the store, reports it as malformed. -/
+def legacyBlockedOk (st : Store) : Bool :=
+  let previousKemId : Option Nat := match st.previousKem with
+    | none => none
+    | some p => some p.2.1
+  st.legacyLastResortBlocked.all (fun id =>
+      id == st.kemId || previousKemId == some id)
+    && strictlyAscending st.legacyLastResortBlocked
+    && decide (st.legacyLastResortBlocked.length ≤ 2)
+
 def invariant (st : Store) : Bool :=
   kemPairsSized st
     && canonicalKey st.identityPublic
     && (ids st).all (fun i => !(i == absentId) && decide (i < st.nextId))
     && noShared (fun i => i) (ids st)
     && recordOk st
+    && legacyBlockedOk st
 
 /-! ### The reader -/
 
@@ -1779,14 +1814,155 @@ def readSeen (v : UInt8) (kemId : Nat) (bs : Bytes) : Step (List (Nat × Bytes))
         andThen (readEntries 32 (fun b => .ok b) n r) fun fps r' =>
         .ok (fps.map (fun fp => (kemId, fp)), r')
 
-/-- v5's fail-closed legacy replay markers. The model does not model the
-    cryptographic migration decision, so it consumes and discards the bounded
-    identifiers; current stores write an empty marker list. -/
-def readLegacyBlocked (v : UInt8) (bs : Bytes) : Step Unit :=
+def readLegacyBlockedEntry (b : Bytes) : Except Refusal Nat :=
+  if b.length = 4 then .ok (beValue b) else .error .shortOrMalformed
+
+/-- v5's fail-closed legacy replay markers. -/
+def readLegacyBlocked (v : UInt8) (bs : Bytes) : Step (List Nat) :=
   if v = version then
     andThen (readInt 4 bs) fun n r =>
-      andThen (readEntries 4 (fun b => readInt 4 b) n r) fun _ r' => .ok ((), r')
-  else .ok ((), bs)
+      andThen (readEntries 4 readLegacyBlockedEntry n r) fun ids r' => .ok (ids, r')
+  else .ok ([], bs)
+
+/-- The reader sorts migrated marker ids before removing duplicates.  Keep the
+    model's byte output canonical for the same reason; these ids are persisted
+    state, so insertion order is observable on the upgrade write, and a v5 list
+    in any order but this one is refused (`legacyBlockedOk`). -/
+def insertNat (x : Nat) : List Nat → List Nat
+  | [] => [x]
+  | y :: ys => if x ≤ y then x :: y :: ys else y :: insertNat x ys
+
+def sortNat : List Nat → List Nat
+  | [] => []
+  | x :: xs => insertNat x (sortNat xs)
+
+/-- Legacy v1--v4 replay records become fail-closed key markers on import
+    (Prekey store, Legacy markers): any retained replay record blocks the
+    current KEM id and the retired KEM id, if present, whichever key its entries
+    are tagged with. v5 carries the markers explicitly and therefore keeps the
+    decoded field.
+
+    **Proved:** the two membership theorems below (`migratedLegacyBlocked_current`
+    and `migratedLegacyBlocked_retired`). **Not proved:** that an empty record
+    marks nothing, that the list is ascending and repeats nothing (for a store
+    `ofBytes` returns, that is `legacyBlockedOk`, by `ofBytes_ok`), or that the
+    lifecycle model's lookup refuses a handshake naming a marked key beyond what
+    `Properties.Lifecycle.kem_lookup_current_legacy_blocked` and
+    `kem_lookup_retired_legacy_blocked` say. The rest is an executable
+    definition the vectors exercise. -/
+def migratedLegacyBlocked (v : UInt8) (seen : List (Nat × Bytes)) (kemId : Nat)
+    (previousKem : Option (Bytes × Nat × Bytes)) (blocked : List Nat) : List Nat :=
+  if v = version || seen.isEmpty then blocked
+  else
+    let previous := match previousKem with
+      | none => []
+      | some p => [p.2.1]
+    (sortNat (kemId :: previous)).eraseDups
+
+theorem mem_insertNat (x y : Nat) (l : List Nat) : y ∈ insertNat x l ↔ y = x ∨ y ∈ l := by
+  induction l with
+  | nil => simp [insertNat]
+  | cons a l ih =>
+    unfold insertNat
+    split
+    · simp
+    · simp [ih, or_left_comm]
+
+theorem mem_sortNat (y : Nat) (l : List Nat) : y ∈ sortNat l ↔ y ∈ l := by
+  induction l with
+  | nil => simp [sortNat]
+  | cons a l ih => simp [sortNat, mem_insertNat, ih]
+
+/-- **An older-version store with a replay record comes back with its current
+    KEM key marked**, whichever key the record's entries name and whatever the
+    stored markers were (Prekey store, Legacy markers, What migration writes).
+    This is membership only. That the list is ascending and repeats nothing is
+    not a property of this function but of what `ofBytes` returns, since
+    `ofBytes_ok` gives `legacyBlockedOk` for every store it accepts. -/
+theorem migratedLegacyBlocked_current (v : UInt8) (seen : List (Nat × Bytes)) (kemId : Nat)
+    (previousKem : Option (Bytes × Nat × Bytes)) (blocked : List Nat)
+    (hv : v ≠ version) (hseen : seen ≠ []) :
+    kemId ∈ migratedLegacyBlocked v seen kemId previousKem blocked := by
+  have hne : seen.isEmpty = false := by
+    cases seen with
+    | nil => exact absurd rfl hseen
+    | cons _ _ => rfl
+  unfold migratedLegacyBlocked
+  rw [if_neg (by simp [hv, hne])]
+  rw [List.mem_eraseDups, mem_sortNat]
+  simp
+
+/-- ... and, when the store has a retired KEM key, that key too. -/
+theorem migratedLegacyBlocked_retired (v : UInt8) (seen : List (Nat × Bytes)) (kemId : Nat)
+    (pair : Bytes) (previousId : Nat) (sig : Bytes) (blocked : List Nat)
+    (hv : v ≠ version) (hseen : seen ≠ []) :
+    previousId ∈ migratedLegacyBlocked v seen kemId (some (pair, previousId, sig)) blocked := by
+  have hne : seen.isEmpty = false := by
+    cases seen with
+    | nil => exact absurd rfl hseen
+    | cons _ _ => rfl
+  unfold migratedLegacyBlocked
+  rw [if_neg (by simp [hv, hne])]
+  rw [List.mem_eraseDups, mem_sortNat]
+  simp
+
+theorem readLegacyBlockedEntry_bytes (id : Nat) (h : id < 2 ^ 32) :
+    readLegacyBlockedEntry (be 4 id) = .ok id := by
+  simp [readLegacyBlockedEntry, be_length, beValue_be, h]
+
+theorem readLegacyBlocked_bytes (ids : List Nat) (rest : Bytes)
+    (hlen : ids.length < 2 ^ 32)
+    (hall : ∀ id ∈ ids, id < 2 ^ 32) :
+    readLegacyBlocked version
+        (be 4 ids.length ++ (ids.map (be 4)).flatten ++ rest) =
+      .ok (ids, rest) := by
+  unfold readLegacyBlocked
+  rw [if_pos rfl]
+  have hcount := readInt_be 4 ids.length
+    ((ids.map (be 4)).flatten ++ rest) (by simpa using hlen)
+  have hcount' : readInt 4
+      (be 4 ids.length ++ ((ids.map (be 4)).flatten ++ rest)) =
+      .ok (ids.length, (ids.map (be 4)).flatten ++ rest) := by
+    exact hcount
+  simp only [List.append_assoc, hcount', andThen_ok]
+  rw [readEntries_flatten 4 (be 4) readLegacyBlockedEntry ids rest
+    (fun id hid => by simp [be_length])
+    (fun id hid => readLegacyBlockedEntry_bytes id (hall id hid))]
+  rfl
+
+theorem readLegacyBlockedEntry_ok {b : Bytes} {id : Nat}
+    (h : readLegacyBlockedEntry b = .ok id) :
+    b = be 4 id ∧ id < 2 ^ 32 := by
+  unfold readLegacyBlockedEntry at h
+  split at h
+  · simp only [Except.ok.injEq] at h
+    subst h
+    rename_i hb
+    have hbytes := (be_beValue b).symm
+    rw [hb] at hbytes
+    have hlt := beValue_lt b
+    rw [hb] at hlt
+    exact ⟨hbytes, by simpa using hlt⟩
+  · cases h
+
+theorem readLegacyBlocked_ok {v : UInt8} {bs rest : Bytes}
+    {ids : List Nat} (h : readLegacyBlocked v bs = .ok (ids, rest)) :
+    ids.length < 2 ^ 32 ∧ ∀ id ∈ ids, id < 2 ^ 32 := by
+  unfold readLegacyBlocked at h
+  split at h
+  · obtain ⟨n, r, h1, hA⟩ := andThen_eq_ok h
+    obtain ⟨hn, -⟩ := readInt_ok h1
+    obtain ⟨ids', r', hread, hA'⟩ := andThen_eq_ok hA
+    obtain ⟨hlen, -, hall⟩ := readEntries_ok 4 (be 4) readLegacyBlockedEntry
+      (fun id => id < 2 ^ 32)
+      (fun b id hb hi => ⟨(readLegacyBlockedEntry_ok hi).1.symm, (readLegacyBlockedEntry_ok hi).2⟩)
+      n r ids' r' hread
+    simp only [Except.ok.injEq, Prod.mk.injEq] at hA'
+    obtain ⟨rfl, rfl⟩ := hA'
+    exact ⟨by omega, hall⟩
+  · simp only [Except.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    simp
 
 /-- The retired signed prekey. -/
 def readOptSigned (bs : Bytes) : Step (Option (Bytes × Nat × Bytes)) :=
@@ -1839,13 +2015,15 @@ def ofBytes : Bytes → Except Refusal Store
       andThen (readKemOneTimes kotCount r9) fun kemOneTime r10 =>
       andThen (readInt 4 r10) fun nextId r11 =>
       andThen (readSeen v kemId r11) fun seen r12 =>
-      andThen (readLegacyBlocked v r12) fun _ r13 =>
+      andThen (readLegacyBlocked v r12) fun blocked r13 =>
       andThen (readPrev v r13) fun prev r14 =>
         let st : Store :=
           { identityPublic := idPub, signedPrekeySecret := spSecret,
             signedPrekeyId := spId, signedPrekeySig := spSig, oneTime := oneTime,
             kemPair := kemPair, kemId := kemId, kemSig := kemSig,
             kemOneTime := kemOneTime, nextId := nextId, seen := seen,
+            legacyLastResortBlocked :=
+              migratedLegacyBlocked v seen kemId prev.2 blocked,
             previousSigned := prev.1, previousKem := prev.2 }
         -- Two refusals, nested rather than conjoined: bytes left after the
         -- last field, and a store that breaks a rule. The page names them
@@ -2107,16 +2285,18 @@ theorem readPrev_ok {v : UInt8} {bs rest : Bytes}
     Stated without the "and is written back as the same bytes" half that the
     four leaf formats carry, because for this format that half is false, and
     false for a reason worth naming: `toBytes` writes the current version only,
-    so a v1, v2 or v3 store read back and written out again comes out as v4.
+    so a v1 to v4 store read back and written out again comes out as v5.
     That is the format's upgrade path, not a defect, and `ofBytes_toBytes`
     below states the round trip in the direction that does hold: a store
     written by this model is read back as itself.
 
-    **Not yet proved:** that a v4 buffer the reader accepts is written back as
-    the same bytes. `tacenta-core` checks exactly that, and only at v4
+    **Not yet proved:** that a v5 buffer the reader accepts is written back as
+    the same bytes. `tacenta-core` checks exactly that, and only at v5
     (`from_bytes` re-encodes and compares before the semantic rules, for the
     current version alone), so the missing theorem is the canonicality half and
-    it is v4-shaped. Stated here as absent rather than implied by the two
+    it is v5-shaped. The one v5 canonicality case the model states as a rule
+    rather than leaving to the missing theorem is the order of the marker list
+    (`legacyBlockedOk`). Stated here as absent rather than implied by the two
     theorems that are present. -/
 theorem ofBytes_ok {bs : Bytes} {st : Store} (h : ofBytes bs = .ok st) :
     invariant st = true ∧ Fits st := by
@@ -2139,13 +2319,13 @@ theorem ofBytes_ok {bs : Bytes} {st : Store} (h : ofBytes bs = .ok st) :
       obtain ⟨kemOneTime, r10, h10, h⟩ := andThen_eq_ok h
       obtain ⟨nextId, r11, h11, h⟩ := andThen_eq_ok h
       obtain ⟨seen, r12, h12, h⟩ := andThen_eq_ok h
-      obtain ⟨_, r13, h13, h⟩ := andThen_eq_ok h
+      obtain ⟨blocked, r13, h13, h⟩ := andThen_eq_ok h
       obtain ⟨prev, r14, h14, h⟩ := andThen_eq_ok h
       split at h
       · split at h
         · rename_i hinv
-          simp only [Except.ok.injEq] at h
-          subst h
+          injection h with hst
+          subst st
           obtain ⟨hip, -⟩ := takeN_ok h0
           obtain ⟨hsps, -⟩ := takeN_ok h1
           obtain ⟨hspid, -⟩ := readInt_ok h2
@@ -2175,8 +2355,10 @@ theorem ofBytes_ok {bs : Bytes} {st : Store} (h : ofBytes bs = .ok st) :
 
 /-- **A store that keeps the rules, and whose values fit their fields, is read
     back from the bytes it is written as.** Stated for the version `toBytes`
-    writes; the three earlier ones are read and never produced. -/
-theorem ofBytes_toBytes (st : Store) (hinv : invariant st = true) (hfit : Fits st) :
+    writes; the four earlier ones are read and never produced. -/
+theorem ofBytes_toBytes (st : Store) (hinv : invariant st = true) (hfit : Fits st)
+    (hblockedlen : st.legacyLastResortBlocked.length < 2 ^ 32)
+    (hblocked : ∀ id ∈ st.legacyLastResortBlocked, id < 2 ^ 32) :
     ofBytes (toBytes st) = .ok st := by
   obtain ⟨hip, hsps, hspid, hspsig, hotlen, hot, hkp, hkid, hksig, hkotlen, hkot,
     hnext, hseenlen, hseen, hpsigned, hpkem⟩ := hfit
@@ -2195,10 +2377,21 @@ theorem ofBytes_toBytes (st : Store) (hinv : invariant st = true) (hfit : Fits s
   -- the retired KEM prekey, and the higher-order unification does not find that
   -- on its own.
   have hprev := readOptSigned_bytes st.previousSigned (optKemBytes st.previousKem) hpsigned
+  have hblocked_read := readLegacyBlocked_bytes st.legacyLastResortBlocked
+    (optSignedBytes st.previousSigned ++ optKemBytes st.previousKem)
+    hblockedlen hblocked
+  have hblocked_read' :
+      readLegacyBlocked 5
+          (be 4 st.legacyLastResortBlocked.length ++
+            ((st.legacyLastResortBlocked.map (be 4)).flatten ++
+              (optSignedBytes st.previousSigned ++ optKemBytes st.previousKem))) =
+        .ok (st.legacyLastResortBlocked,
+          optSignedBytes st.previousSigned ++ optKemBytes st.previousKem) := by
+    simpa [version] using hblocked_read
   have hcount := readInt_be 4 0
     (optSignedBytes st.previousSigned ++ optKemBytes st.previousKem) (by decide)
   set_option maxRecDepth 100000 in
-  simp +decide only [toBytes, ofBytes, version,
+  simp +decide only [toBytes, ofBytes, version, migratedLegacyBlocked,
     List.cons_append, List.nil_append, List.append_assoc,
     if_false, if_true,
     takeN_append' 32 st.identityPublic _ hip, andThen_ok,
@@ -2215,12 +2408,14 @@ theorem ofBytes_toBytes (st : Store) (hinv : invariant st = true) (hfit : Fits s
     readInt_be 4 st.kemOneTime.length _ hkotlen',
     readKemOneTimes_bytes st.kemOneTime _ hkot,
     readInt_be 4 st.nextId _ hnext',
-    readSeen, readLegacyBlocked, hcount, readEntries, readPrev,
+    readSeen, readPrev,
     readInt_be 4 st.seen.length _ hseenlen',
     readEntries_flatten 36 seenBytes readSeenV4 st.seen _
       (fun x hx => seenBytes_length x (hseen x hx).2)
       (fun x hx => readSeenV4_bytes x (hseen x hx).1),
     ]
+  rw [hblocked_read']
+  simp only [andThen_ok]
   rw [hprev]
   simp only [andThen_ok]
   rw [hlast]

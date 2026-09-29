@@ -241,6 +241,59 @@ fn persistence_vectors_pass() {
         );
     }
 
+    // The `legacy_blocked` markers (session-persistence.md, Prekey store,
+    // Legacy markers). `check_file` has read each of these through
+    // `PrekeyStore::from_bytes` and compared the upgrade; this holds the file
+    // to carrying them, so a regeneration that dropped one fails here rather
+    // than passing on fewer. Every accepted vector whose input is an older
+    // version carries the bytes it is written back as: only they pin the
+    // markers the migration writes.
+    let prekey = files
+        .iter()
+        .find(|f| f.algorithm == "prekey-store-state")
+        .expect("the prekey store's file is loaded");
+    let prekey_vector = |id: &str| {
+        prekey
+            .vectors
+            .iter()
+            .find(|v| v.id == id)
+            .unwrap_or_else(|| panic!("prekey-store-state: no vector {id}"))
+    };
+    for id in [
+        "legacy-blocked-v5",
+        "legacy-blocked-v5-both-keys",
+        "legacy-v4-seen",
+        "legacy-v4-seen-retired-kem",
+        "legacy-v4-seen-tagged-retired-only",
+        "legacy-v3-seen",
+        "legacy-v3-seen-retired-kem",
+        "legacy-v2-seen",
+        "legacy-v3",
+        "legacy-v2",
+        "legacy-v1",
+    ] {
+        let v = prekey_vector(id);
+        let stored = hex::decode(&v.inputs["bytes"]).expect("prekey-store-state: bytes are hex");
+        assert!(v.result == "valid", "prekey-store-state: {id} is accepted");
+        assert_eq!(
+            stored.first() != Some(&5),
+            !v.output.is_empty(),
+            "prekey-store-state: {id}: exactly the older-version stores carry an upgraded output"
+        );
+    }
+    for id in [
+        "legacy-blocked-unknown-key",
+        "legacy-blocked-unsorted",
+        "legacy-blocked-repeated",
+        "legacy-blocked-three-entries",
+    ] {
+        let v = prekey_vector(id);
+        assert!(
+            v.result == "invalid" && v.refusal.as_deref() == Some("short-or-malformed"),
+            "prekey-store-state: {id} is refused as short or malformed"
+        );
+    }
+
     eprintln!(
         "checked {total} persistence vectors in {} files",
         files.len()

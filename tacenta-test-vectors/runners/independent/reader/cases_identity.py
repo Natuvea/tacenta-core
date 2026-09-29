@@ -298,7 +298,7 @@ def _():
 
 
 # ------------------------------------------------ the last-resort replay record
-# session-establishment.md, Replay and The fingerprint; key-deletion.md;
+# session-establishment.md, Replay and The replay identity; key-deletion.md;
 # session-persistence.md, Prekey store. No vector pins a fingerprint.
 
 import hashlib as _hashlib  # noqa: E402
@@ -307,7 +307,7 @@ import hmac as _hmac_mod  # noqa: E402
 import cases_persistence as PSC  # noqa: E402
 from tacenta_reader import persistence  # noqa: E402
 
-FP = f"{SE} The fingerprint"
+FP = f"{SE} The replay identity"
 EKA = curve25519.x25519_public(b"\x44" * 32)
 
 

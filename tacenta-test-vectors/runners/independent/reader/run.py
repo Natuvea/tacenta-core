@@ -20,9 +20,7 @@ sys.path.insert(0, HERE)
 # A skip is evidence about this reader's documented scope, not a free pass.
 # Keep the exact vector label here so adding, removing or moving a skip makes
 # the reader fail until the disposition is reviewed.
-EXPECTED_SKIPS = {
-    "session-establishment/session-e2e.json :: one-time-prekeys-first-message",
-}
+EXPECTED_SKIPS = set()
 _OBSERVED_SKIPS = set()
 
 
@@ -37,6 +35,7 @@ def validate_skip_allowlist(observed, expected=None):
 import copy  # noqa: E402
 import re  # noqa: E402
 
+import session_e2e  # noqa: E402
 from tacenta_reader import aead, braid, curve25519, erasure, gf65536, persistence, pqxdh, protobuf, ratchet, spqr, triple, wire  # noqa: E402
 from tacenta_reader.kdf import hkdf_sha256, hmac_sha256  # noqa: E402
 
@@ -81,7 +80,15 @@ def h_hkdf(v):
 
 def h_x25519(v):
     i = v["inputs"]
-    check(v["output"], curve25519.x25519(bx(i["private"]), bx(i["peer_public"])))
+    try:
+        got = curve25519.x25519_contributory(bx(i["private"]), bx(i["peer_public"]))
+    except curve25519.NonContributory:
+        if _invalid(v):
+            return
+        raise Fail("X25519 agreement was non-contributory")
+    if _invalid(v):
+        raise Fail("accepted a low-order X25519 peer key")
+    check(v["output"], got)
 
 
 def h_ed25519(v):
@@ -218,6 +225,16 @@ def h_initial_decode(v):
         wire.decode_ec(m.identity)
         wire.decode_ec(m.ephemeral)
     _decoder_vector(v, wire.decode_initial, wire.encode_initial, decode_ec_accepts)
+
+
+def h_session_establishment_e2e(v):
+    """The real-primitive session vectors: everything the specification's rules
+    and this reader's primitives can derive from the vector's inputs is derived
+    and compared (session_e2e.py, which lists what is not)."""
+    try:
+        session_e2e.check(v)
+    except session_e2e.Mismatch as e:
+        raise Fail(str(e)) from e
 
 
 # --------------------------------------------------------------- ratchet
@@ -849,8 +866,15 @@ def _refusal_kind_full(e):
     return type(e).__name__
 
 
-def _full_state_vector(v, reader, writer, fields_of, allowed, must_write_back=lambda _data: True):
-    """As _stored_state_vector, with the two kinds only these formats give."""
+def _full_state_vector(v, reader, writer, fields_of, allowed, must_write_back=lambda _data: True,
+                       migrates=lambda _data: False):
+    """As _stored_state_vector, with the two kinds only these formats give.
+
+    An accepted vector whose input is an older version (`migrates`) must carry
+    the bytes the reader writes back for it in `output`: a store read in an old
+    layout is written in the current one, and the vector is what pins that
+    (tacenta-test-vectors/README.md, prekey-store-state.json). Every other
+    accepted vector must not carry an `output`."""
     i = v["inputs"]
     if set(i) != {"bytes"}:
         raise Fail(f"vector: a stored-bytes vector has inputs {sorted(i)}")
@@ -877,6 +901,12 @@ def _full_state_vector(v, reader, writer, fields_of, allowed, must_write_back=la
         raise Fail(f"fields differ: names only on one side {names}, values differ {wrong}")
     if must_write_back(data):
         check(i["bytes"], writer(s), "written back")
+    if migrates(data):
+        if "output" not in v:
+            raise Fail("vector: an accepted older-version store carries no upgraded output")
+        check(v["output"], writer(s), "upgraded to the current version")
+    elif "output" in v:
+        raise Fail("vector: only an older-version store carries an upgraded output")
 
 
 def _h4(n):
@@ -898,6 +928,7 @@ def _store_fields(p):
         "one_time_count": _h4(len(p.one_time)),
         "kem_one_time_count": _h4(len(p.kem_one_time)),
         "seen_count": _h4(len(p.seen)),
+        "legacy_blocked_count": _h4(len(p.legacy_blocked)),
         "previous_signed_present": "01" if p.previous_signed is not None else "00",
         "previous_kem_present": "01" if p.previous_kem is not None else "00",
     }
@@ -923,7 +954,8 @@ def _session_fields(s):
 def h_prekey_store_state(v):
     return _full_state_vector(v, persistence.prekey_store_from_bytes,
                               persistence.prekey_store_to_bytes, _store_fields, _STORE_REFUSALS,
-                              lambda data: data[0] == persistence.K.PREKEY_STORE_VERSION)
+                              lambda data: data[0] == persistence.K.PREKEY_STORE_VERSION,
+                              lambda data: data[0] != persistence.K.PREKEY_STORE_VERSION)
 
 
 def h_session_state(v):
@@ -1056,6 +1088,7 @@ HANDLERS = {
     "braid-state": h_braid_state,
     "prekey-store-state": h_prekey_store_state,
     "session-state": h_session_state,
+    "session-establishment-e2e": h_session_establishment_e2e,
 }
 
 
@@ -1281,6 +1314,39 @@ def run_negative(totals):
                 counts["PASS"] += 1
 
 
+def documented_tally_problems(readme, gaps, files, modules, vectors, derived, total):
+    """The tally this run prints, as the README and GAPS-11.md say it. A count
+    copied into prose goes stale on the next vector, so the run checks it: each
+    sentence below must appear exactly as written. `None` for a document that
+    is not there (a clean-room directory has no GAPS-11.md)."""
+    problems = []
+    flat = lambda text: None if text is None else " ".join(text.split())  # noqa: E731
+    readme, gaps = flat(readme), flat(gaps)
+    if readme is not None:
+        for sentence in (
+                f"| Vector checks ({files} files) | {vectors} | {vectors} | 0 | 0 |",
+                f"| Derived cases ({modules} modules) | {derived} | {derived} | 0 | 0 |",
+                f"| **Total** | {total} | {total} | 0 | 0 |",
+                f"**{total} PASS, 0 FAIL, 0 SKIP** ({vectors} vector checks and {derived} derived cases)"):
+            if sentence not in readme:
+                problems.append("reader/README.md does not say: " + sentence)
+    if gaps is not None:
+        for sentence in (
+                f"**{total} PASS, 0 FAIL, 0 SKIP**: {vectors} vector checks",
+                f"in {files} vector files) and {derived} derived cases"):
+            if sentence not in gaps:
+                problems.append("GAPS-11.md does not say: " + sentence)
+    return problems
+
+
+def _read(path):
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
 def main():
     totals = OrderedDict()
     _OBSERVED_SKIPS.clear()
@@ -1304,7 +1370,17 @@ def main():
         print("FAIL  reader skip allowlist: unexpected skip(s): " + ", ".join(unexpected))
     if missing:
         print("FAIL  reader skip allowlist: expected skip(s) not observed: " + ", ".join(missing))
-    return 1 if grand["FAIL"] or unexpected or missing else 0
+    stale = []
+    if not (grand["FAIL"] or grand["SKIP"]) and sub["vectors"]["PASS"]:
+        files = sum(1 for rel in totals if not rel.endswith("(derived from spec text)"))
+        modules = len(totals) - files
+        stale = documented_tally_problems(
+            _read(os.path.join(HERE, "README.md")),
+            _read(os.path.join(HERE, "..", "GAPS-11.md")),
+            files, modules, sub["vectors"]["PASS"], sub["negative"]["PASS"], grand["PASS"])
+        for problem in stale:
+            print("FAIL  documented tally: " + problem)
+    return 1 if grand["FAIL"] or unexpected or missing or stale else 0
 
 
 if __name__ == "__main__":

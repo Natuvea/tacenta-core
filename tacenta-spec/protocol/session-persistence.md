@@ -408,8 +408,10 @@ rather than here.
   keys). Neither is checked where it is used: `encode_initial`
   length-prefixes whatever it is given. A repeated initial message is matched
   against `established_ephemeral` by the responder's successful X25519
-  agreement class, not by raw public-key bytes: two canonical u-coordinate
-  spellings can carry the same agreement. If either agreement is
+  agreement class under the session's `ratchet_private`
+  (session-establishment.md, Receiving the initial message), not by raw
+  public-key bytes: two canonical u-coordinate spellings can carry the same
+  agreement. If either agreement is
   non-contributory or otherwise unavailable, the comparison fails closed and
   the message is refused (`NotARepeatedInitial`).
 - **Every curve public key the session stores is canonical**:
@@ -536,7 +538,8 @@ one budget for v2 and v3, whose untagged entries all read back under
 `kem_id` -- and the per-key bound itself is a rule over what was read, below.
 A nonempty v1-v4 record cannot be converted to a v5 `SK` identity, so its live
 key identifiers are written in `legacy_blocked` and last-resort traffic fails
-closed until rotation wipes those keys. The two `previous_*` fields are the signed prekey and the
+closed until rotation wipes those keys (Legacy markers, below). The two
+`previous_*` fields are the signed prekey and the
 last-resort KEM prekey the most recent rotation retired, each behind a
 presence byte and, like the session's `pending_initial`, followed by
 nothing at all when absent.
@@ -588,7 +591,50 @@ enumerate, at the cost of one encode, and it is what makes the "canonical"
 principle above a property of the decoder rather than a promise about the
 writer. It applies only to the version the writer emits. Older stores are read
 on the semantic rules alone and re-encode to v5 with any nonempty replay record
-represented as a fail-closed marker.
+represented as a fail-closed marker. The order of the `legacy_blocked` list is
+one of the things the backstop catches (Legacy markers, below).
+
+### Legacy markers
+
+`legacy_blocked` exists because a v1-v4 record cannot be carried into v5.
+Those records hold a fingerprint of public bytes, and a v5 replay identity is
+derived from the agreed `SK` (session-establishment.md, "The replay identity"),
+so an old entry cannot be compared with a new handshake and nothing in it says
+whether the handshake was seen before. Migration therefore keeps the entries
+and blocks the keys they may cover.
+
+- **What migration writes.** A v1-v4 store whose `seen` record is nonempty
+  reads back with `kem_id` and, when `previous_kem` is present, the identifier
+  inside it in `legacy_blocked`. Both are written whichever key the entries are
+  tagged with: v2 and v3 entries carry no tag and read back under `kem_id`, and
+  a v4 entry may name either key. A store whose `seen` record is empty, and
+  every v1 store, reads back with an empty `legacy_blocked`. The entries stay
+  in `seen` and count against their key's budget like any other.
+- **The canonical list.** `legacy_blocked` is in strictly ascending order,
+  holds at most two entries, and every entry is `kem_id` or the identifier
+  inside `previous_kem`. The writer writes no other list: migration sorts what
+  it collects, and `rotate_kem` removes an entry without reordering the rest.
+- **What a v5 reader refuses.** A list of more than two entries is refused as
+  malformed before the entries are read. So is a list that names an identifier
+  which is neither `kem_id` nor the identifier inside `previous_kem`. A list
+  that is not strictly ascending, whether out of order or naming an identifier
+  twice, is a second spelling of a list the writer would have sorted, and is
+  refused. A reader may report that last refusal as malformed or as
+  non-canonical, since the canonicality backstop above catches it, and both
+  conform (Rejection). A list that fails several of these is reported as
+  whichever the reader checks first (error-handling.md, What is left to an
+  implementation). The vectors record `short-or-malformed`.
+- **What a marker does.** A handshake on the last-resort path
+  (session-establishment.md) whose `kem_prekey_id` names a key listed in
+  `legacy_blocked` is refused (`LegacyLastResortRecord`) once the identifier is
+  resolved, before decapsulation and before the record is consulted, and the
+  store is left as it was. A handshake that names a one-time KEM prekey, or a
+  key that is not listed, is not affected.
+- **How a marker leaves.** `rotate_kem` removes the entry of the key it wipes,
+  the retired key that was already in the store, together with that key's
+  `seen` entries (key-deletion.md), and adds none. A marker on the current key
+  therefore survives one rotation, which retires that key and opens a new
+  current key that is not listed, and leaves with the next.
 
 ### Semantic rules
 
@@ -598,7 +644,7 @@ separately -- any store holding a signature that does not verify. The rules are
 the identifier namespace, the record's shape, the identity key's encoding and
 what the stored signatures authenticate, which
 `create_prekeys` establishes, every operation preserves, and no field-by-field
-read sees; they apply to all four
+read sees; they apply to all five
 versions, the untagged ones having had their entries tagged with the current
 key first.
 
@@ -631,7 +677,9 @@ key first.
   recorded; a rotation drops a key's entries when it wipes the key; so the
   writer never emits anything else. (The count is also refused before it
   sizes anything, as noted above; the rule here is over what was read, which
-  is the only point at which the tags can be counted by.)
+  is the only point at which the tags can be counted by.) The markers follow
+  the tag rule: every `legacy_blocked` entry is `kem_id` or the identifier
+  inside `previous_kem`, and none repeats (Legacy markers, above).
 - **`identity_public` is canonical**: the canonical encoding of a curve public
   key (message-format.md, Curve public keys). Every bundle the store publishes
   carries it, and a peer's bundle decoder refuses it in any other spelling

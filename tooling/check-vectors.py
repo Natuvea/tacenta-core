@@ -36,8 +36,12 @@ being silently ignored.
 
 Beyond the schema, five rules the schemas state in prose and this enforces:
 vector `id`s are unique within a file; in a known-answer file exactly one of
-`output` and `fields` is present when `result` is `valid`, and neither when it
-is `invalid`; a `refusal` is carried only by an invalid vector; in a scenario
+`output` and `fields` is present when `result` is `valid`, except for a
+prekey-store vector whose input is a v1-v4 store, which must carry both the
+decoded `fields` and the v5 upgrade `output` (the bytes the store is written
+back as, which begin with the input's own first 132 bytes after the version
+byte); neither is present when it is `invalid`;
+a `refusal` is carried only by an invalid vector; in a scenario
 file an ok step
 carries `mk` while a reject step carries neither `mk` nor `message_keys`
 (the runner would fail an ok step without `mk`, and a reject step's key is
@@ -441,7 +445,32 @@ def main():
             else:
                 valid = v.get("result", "valid") == "valid"
                 answers = [k for k in ("output", "fields") if k in v]
-                if valid and len(answers) != 1:
+                stored = v.get("inputs", {}).get("bytes") \
+                    if isinstance(v.get("inputs"), dict) else None
+                legacy_input = (
+                    doc.get("algorithm") == "prekey-store-state"
+                    and isinstance(stored, str)
+                    and stored[:2] in {"01", "02", "03", "04"}
+                )
+                if valid and legacy_input:
+                    # An accepted v1-v4 store is written back as v5, and only
+                    # the vector pins the markers the migration writes: it
+                    # carries the decoded fields and the upgraded bytes, and
+                    # the upgrade keeps the header up to the one-time count.
+                    out = v.get("output")
+                    header = 2 + 2 * 132
+                    if sorted(answers) != ["fields", "output"]:
+                        problems.append("%s.vectors[%d] (%s): an accepted v1-v4 "
+                                        "prekey store carries both `fields` and "
+                                        "its v5 upgrade `output`" % (rel, i, vid))
+                    elif not (isinstance(out, str) and out[:2] == "05"
+                              and out[2:header] == stored[2:header]
+                              and len(out) > len(stored)):
+                        problems.append("%s.vectors[%d] (%s): the upgraded `output` "
+                                        "is a v5 store that keeps the input's "
+                                        "header and is longer than the input"
+                                        % (rel, i, vid))
+                elif valid and len(answers) != 1:
                     problems.append("%s.vectors[%d] (%s): a valid vector needs "
                                     "exactly one of `output` and `fields`"
                                     % (rel, i, vid))

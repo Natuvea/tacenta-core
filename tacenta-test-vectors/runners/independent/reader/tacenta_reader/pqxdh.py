@@ -91,7 +91,7 @@ def check_kem_ciphertext(kem_ciphertext: bytes, ct_len: int = K.MLKEM1024_CT_LEN
 
 
 # ------------------------------------------ the last-resort replay record
-# session-establishment.md, Replay, and "The fingerprint"; key-deletion.md;
+# session-establishment.md, Replay, and "The replay identity"; key-deletion.md;
 # session-persistence.md, Prekey store (`seen`). Closes GAPS.md G-26.
 
 class ReplayedLastResort(Exception):
