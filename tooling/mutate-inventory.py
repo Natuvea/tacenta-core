@@ -207,6 +207,12 @@ m("A35", "accept", "accept_signed returns the decoded statement without acceptin
   "        let _ = (expected_account, signature, policy);\n        Ok(AcceptedInventory { statement })\n    }\n\n    fn split_signed")
 m("A36", "accept", "the encoding rules are not applied to a hand-built statement",
   B_ENCODING, "        let unsigned = self.encode_unsigned().unwrap_or_default();\n")
+m("A37", "accept", "the duplicate device check compares every active entry with the first only",
+  "        let mut seen_device_ids = Vec::with_capacity(self.active.len());\n        for binding in &self.active {\n            if seen_device_ids.contains(&binding.device_id) {\n                return Err(Error::DuplicateDevice);\n            }\n            seen_device_ids.push(binding.device_id);\n        }\n        Ok(())",
+  "        for (i, binding) in self.active.iter().enumerate() {\n            if i > 0 && self.active[0].device_id == binding.device_id {\n                return Err(Error::DuplicateDevice);\n            }\n        }\n        Ok(())")
+m("A38", "accept", "the duplicate device check looks at the first two active entries only",
+  "        let mut seen_device_ids = Vec::with_capacity(self.active.len());\n        for binding in &self.active {\n            if seen_device_ids.contains(&binding.device_id) {\n                return Err(Error::DuplicateDevice);\n            }\n            seen_device_ids.push(binding.device_id);\n        }\n        Ok(())",
+  "        for binding in self.active.iter().take(2) {\n            if self.active.iter().take(2).filter(|b| b.device_id == binding.device_id).count() > 1 {\n                return Err(Error::DuplicateDevice);\n            }\n        }\n        Ok(())")
 
 # ------------------------------------------------------------------ the order of the checks
 order("O01", "freshness before the signature",
@@ -302,6 +308,9 @@ eq("K11", "key", "the probe scalar is [255; 32]", "PrivateKey::from_bytes([7; 32
 eq("K12", "key", "the probe scalar is [0; 32]", "PrivateKey::from_bytes([7; 32])",
    "PrivateKey::from_bytes([0; 32])",
    "clamping sets bit 254, so the scalar is 2^254, a multiple of 8 in range, and detects the same class")
+m("K13", "key", "the key pass examines every active entry and the last revoked entry only",
+  "        for (binding, _) in self.bindings() {\n            validate_identity_key(&binding.identity_public_key)?;\n        }\n        Ok(())",
+  "        let n = self.active.len() + self.revoked.len();\n        for (i, (binding, _)) in self.bindings().enumerate() {\n            if i + 1 == n || i < self.active.len() {\n                validate_identity_key(&binding.identity_public_key)?;\n            }\n        }\n        Ok(())")
 
 # ------------------------------------------------------------------ the issuer's pre-sign check
 m("S01", "sign", "sign does not run the pre-sign check",
@@ -438,6 +447,33 @@ m("C41", "codec", "the commitment leaves out the predecessor",
 m("C42", "codec", "the account length prefix counts characters",
   "        out.extend_from_slice(&(account.len() as u32).to_be_bytes());",
   "        out.extend_from_slice(&(self.account_handle.chars().count() as u32).to_be_bytes());")
+m("C43", "codec", "each revoked entry is compared with the first entry only for order",
+  "            previous = Some(revoked);\n",
+  "            previous = previous.or(Some(revoked));\n")
+m("C44", "codec", "each active entry is compared with the first entry only for order",
+  "        previous = Some(binding);\n",
+  "        previous = previous.or(Some(binding));\n")
+m("C45", "codec", "the capability rule is applied to the first active binding only",
+  "    for binding in bindings {\n        binding_ok(binding)?;",
+  "    for (i, binding) in bindings.iter().enumerate() {\n        if i == 0 { binding_ok(binding)?; }")
+m("C46", "codec", "the capability rule is applied to the first revoked binding only",
+  "            binding_ok(&revoked.binding)?;\n",
+  "            if previous.is_none() { binding_ok(&revoked.binding)?; }\n")
+m("C47", "codec", "the terminal generation range is enforced for the first revoked entry only",
+  "            if revoked.terminal_generation <= self.revocation_floor_generation\n                || revoked.terminal_generation > self.inventory_generation\n            {",
+  "            if previous.is_none() && (revoked.terminal_generation <= self.revocation_floor_generation\n                || revoked.terminal_generation > self.inventory_generation)\n            {")
+m("C48", "codec", "a binding in both lists is detected against the first active entry only",
+  "            if self.active.binary_search(&revoked.binding).is_ok() {",
+  "            if self.active.first() == Some(&revoked.binding) {")
+m("C49", "codec", "a binding in both lists is detected for the first revoked entry only",
+  "            if self.active.binary_search(&revoked.binding).is_ok() {",
+  "            if previous.is_none() && self.active.binary_search(&revoked.binding).is_ok() {")
+m("C50", "codec", "the active order compares device ids as little-endian bytes",
+  "        if previous.is_some_and(|prior| prior >= binding) {\n            return Err(Error::NonCanonical);\n        }\n        previous = Some(binding);",
+  "        if previous.is_some_and(|prior: &DeviceBinding| (prior.device_id.swap_bytes(), &prior.identity_public_key, prior.capabilities, prior.replacement_predecessor) >= (binding.device_id.swap_bytes(), &binding.identity_public_key, binding.capabilities, binding.replacement_predecessor)) {\n            return Err(Error::NonCanonical);\n        }\n        previous = Some(binding);")
+m("C51", "codec", "the revoked order compares terminal generations as little-endian bytes",
+  "            if previous.is_some_and(|prior| prior >= revoked) {",
+  "            if previous.is_some_and(|prior: &Revocation| (&prior.binding, prior.terminal_generation.swap_bytes()) >= (&revoked.binding, revoked.terminal_generation.swap_bytes())) {")
 
 
 # ----------------------------------------------------------------------- driver
