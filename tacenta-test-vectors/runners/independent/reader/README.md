@@ -5,22 +5,22 @@ written to test whether the specification alone is enough to build from.
 Python 3, standard library only (`hashlib`, `hmac`, `json`, `copy`, `re`,
 `dataclasses`).
 
-**Specification revision.** Twelfth pass, against the tree as found:
+**Specification revision.** Thirteenth pass, against the tree as found:
 
-- `SOURCE-REVISION` `1cac363f11305d675844af590a0840774a87656f`;
+- `SOURCE-REVISION`, a local revision of this branch taken after the merge of the inventory work (#200) and before the merge of the conformance alignment (#202); it is not a commit of the repository;
 - `VERSION` `0.2.0`;
-- every change under `CHANGELOG.md` `[Unreleased]`, whose first entry begins
-  "`identities-and-devices.md`, hosted device-inventory statements: state what a
-  verifier must check before it relies on a signed statement, as seven ordered
-  checks".
+- every change under `CHANGELOG.md` `[Unreleased]`, the entry this pass is
+  about beginning "Identity keys are held to one rule at every boundary that
+  admits one."
 
-The seventh pass, the last full clean-room pass before this one, read
-`5ae44427d17d0e8bfa1d314780305690000ee770`; passes 8 to 10 were maintenance
-re-runs (`../GAPS-8.md` to `../GAPS-10.md`). The sixth pass read
-`c3a00471fbef23f514eca184aac56be7b76fbc8d`, the fifth
+The twelfth pass read `1cac363f11305d675844af590a0840774a87656f` (the hosted
+device-inventory statements). The seventh pass, the last full clean-room pass
+before that, read `5ae44427d17d0e8bfa1d314780305690000ee770`; passes 8 to 10
+were maintenance re-runs (`../GAPS-8.md` to `../GAPS-10.md`). The sixth pass
+read `c3a00471fbef23f514eca184aac56be7b76fbc8d`, the fifth
 `1dd174609bc5b008564bddef45bee43d71589761` and the fourth
-`24c602d375bbebe49c25d23c6a73d9ef8fe39df0` (`VERSION` `0.1.0`). This pass is
-numbered 12 because another branch may use 11.
+`24c602d375bbebe49c25d23c6a73d9ef8fe39df0` (`VERSION` `0.1.0`). Pass 11 was
+not used.
 
 ## Provenance
 
@@ -55,7 +55,8 @@ alone is enough, and nothing here should be read as one.
 Where the spec does not state something, the code comment names the entry in
 `../GAPS.md` (first pass), `../GAPS-2.md` (second), `../GAPS-3.md` (third),
 `../GAPS-4.md` (fourth), `../GAPS-5.md` (fifth), `../GAPS-6.md` (sixth),
-`../GAPS-7.md` (seventh) or `../GAPS-12.md` (twelfth).
+`../GAPS-7.md` (seventh), `../GAPS-12.md` (twelfth) or `../GAPS-13.md`
+(thirteenth).
 A hypothesis that matches a vector is still recorded as a gap.
 
 ## Isolation
@@ -269,6 +270,107 @@ was used.
   of further material, were available alongside the directory. None of it was
   opened, and nothing in it was used for any reading or decision here.
 
+### Isolation, pass 13
+
+- **Reads.** Inside the clean-room directory:
+  - `tacenta-spec/`: `protocol/identities-and-devices.md` in full;
+    `session-establishment.md` in full; `session-persistence.md` from the
+    Session section to the end; `error-handling.md` in full; `message-format.md`
+    from Initial message to the end; `security-properties/authentication.md`,
+    REQ-AUTH-01 and REQ-AUTH-11; `CHANGELOG.md` `[Unreleased]` (its first 140
+    lines); `VERSION`; and, to re-assess the open gaps, passages of
+    `key-deletion.md`, `sparse-pq-ratchet.md`, `threat-model/`,
+    `limitations.md` (LIM-21), `evidence-index-format.md` and the top-level keys
+    of `evidence-index.json`. No ADR was opened.
+  - `tacenta-test-vectors/`: `README.md` (the opening, the layouts for the
+    prekey store, the session, the identity keys and the inventory statements,
+    the AEAD, Checking the vectors, and the lines that mention identity keys or
+    rules 3 and 6), `conformance-manifest.md` (identity keys, the inventory
+    section, the prekey store's and the session's tables),
+    `schema/vector.schema.json`, the three files under `vectors/identity/` in
+    full, `vectors/primitives/xeddsa.json` in full, the ids and comments of
+    `persistence/session-state.json` and `prekey-store-state.json` with the
+    identity fields of their bytes, and the ids of the four inventory files.
+  - `reader/`; `../GAPS-8.md` to `../GAPS-10.md` and `../GAPS-12.md` in full;
+    `SOURCE-REVISION`. `GAPS.md` and `GAPS-2.md` to `GAPS-7.md` were not opened.
+- **Outside this directory.** Nothing outside it was read, listed or searched,
+  with two facts to record:
+  - the first command of the pass listed the clean-room directory (`ls -la`),
+    which prints the standard `.` and `..` entries; the `..` line showed that
+    entry's permissions, owner, size and date, and nothing inside it;
+  - the output of one early command, a print of this file, was too long to
+    display, and a copy was saved outside this directory. That copy was not
+    opened and nothing from it was used. Every later long output went to a file
+    under `../work/`.
+  - **Reads attempted outside this directory: none.**
+- **Names treated as text.** The pages, the vectors README and the manifest name
+  implementation files, tests, tooling and theorems (a runner test file, the
+  model's identity-key module, the vector checker, the two stored-identity scan
+  functions, `establish_responder`, `Session::peer_identity`, one named test, and
+  the evidence index's paths). None was looked for. No vector generator was
+  read.
+- **Writes.** Only inside the clean-room directory: this reader (the new
+  `tacenta_reader/admission.py` and `cases_idkeys.py`; changes to
+  `tacenta_reader/curve25519.py`, `wire.py`, `identity.py`, `persistence.py`,
+  `inventory.py`, `__init__.py`, `cases_stored.py`, `cases_inventory.py`,
+  `run.py` and this file); `../GAPS-13.md`; and `../work/` (`baseline.txt`, run
+  outputs, `check_new_vectors13.py` and its output, `faults13.py` with its
+  outputs, `final-run.txt`, and `reader-baseline/`, a copy of the reader as
+  found). The per-fault copies were made under `../work/faults13/`, each
+  reaching the vectors through a symbolic link inside this directory, and were
+  removed after each run. Python wrote its usual `__pycache__` directories
+  inside `reader/`.
+- **Not consulted.** No implementation, no git history, no vector generator, no
+  other scratch files, no web search, and no libsignal material. RFC 7748
+  (section 5, and section 6.1's public keys in the check script), RFC 8032
+  section 5.1, the XEdDSA document's revision 1 pseudocode (in the check
+  script), the Curve25519 Montgomery equation and Euler's criterion were used
+  from knowledge. Nothing was fetched.
+- **Unrelated notes, not used.** An index of notes from other work, and a list
+  of further material, were available alongside the directory. None of it was
+  opened, and nothing in it was used for any reading or decision here.
+
+## What changed in pass 13
+
+- **`tacenta_reader/curve25519.py`: Verifying a signature, step 3, and the
+  identity-key rule.** Step 3 is now "`A` is a point of the prime-order
+  subgroup: `qA` is the identity" in place of "not of small order". The rule
+  the text states once (Accepting a signed statement, check 6) is now
+  `is_identity_key`, used at every boundary; `inventory.py` no longer has its
+  own copy.
+- **`tacenta_reader/wire.py`, `identity.py`.** `InvalidIdentityKey`, the third
+  outcome. The initiator's bundle check applies the rule after the presence,
+  pinning and canonical checks and before either signature.
+  `verify_application` applies it first and says no. `admit_identity_key`
+  keeps a non-canonical key read from bytes a decode failure.
+- **`tacenta_reader/admission.py`, new.** The initiator's steps from a fetched
+  bundle to the four agreements (`initiator_prefix`) and the responder's steps
+  from an initial message to just before decapsulation (`responder_prefix`,
+  `responder_agreements`), in the orders the two pages give, with a recording
+  source of random bytes and counters for what a refusal must precede.
+  Encapsulation and decapsulation are not computed.
+- **`tacenta_reader/persistence.py`.** A stored session's two identity keys must
+  be identity keys (refused `inconsistent`); a stored prekey store's
+  `identity_public` must be one (refused `malformed`, before any signature is
+  checked). `scan_stored_session_identities` and `scan_stored_prekey_identity`.
+- **`tacenta_reader/inventory.py`.** The atomic step after check 7 refuses a
+  statement whose second evaluation of the freshness rule refuses, as check 4
+  refuses it (`../GAPS-12.md` G12-04, closed by the current text).
+- **`run.py`.** Handlers for `identity-key`, `bundle-admission` and
+  `initial-message-admission`; `cases_idkeys` in the case table; one new skip
+  label on the allowlist, `identity/initial-message-admission.json ::
+  honest-initial-message`, with its reason: the vector's `output` is a
+  plaintext, which needs ML-KEM-1024 decapsulation and the ratchet's receive.
+  Before it skips, the handler checks the store, the message, the identity, the
+  named prekeys, the ciphertext's length, the four agreements and the inner
+  ratchet message.
+- **Cases:** `cases_idkeys.py`, new (17 cases, IK-01 to IK-17). IV-09 rewritten
+  for the new check 4 sentence, IV-23 (a rule applies past the first entry of a
+  list) and IV-24 (two revoked bindings with one `device_id`) added to
+  `cases_inventory.py`. SK-04 and SK-08 in `cases_stored.py` changed: both had
+  read `p - 1` as an accepted stored identity key, which the new text refuses
+  (`../GAPS-13.md` G13-01).
+
 ## What changed in pass 12
 
 - **`tacenta_reader/inventory.py`, new: the hosted device-inventory
@@ -446,8 +548,8 @@ the 18 triple-ratchet-state vectors once the handler and the fix above were in.
 | Module | Spec source | Pinned by |
 |---|---|---|
 | `kdf.py`: HMAC-SHA256, HKDF-SHA256 | RFC 2104, RFC 5869 | `primitives/hmac-sha256.json`, `hkdf-sha256.json` |
-| `curve25519.py`: X25519, Ed25519, XEdDSA signing (with the clamp) and the six verifier rules | RFC 7748, RFC 8032, identities-and-devices.md Signing and Verifying a signature | `primitives/x25519.json`, `ed25519.json`, `xeddsa.json` (rule 3 not on its own: GAPS-3.md vector gaps) |
-| `wire.py`: composite header, ratchet message, `CONCAT`, initial message, prekey bundle, `EncodeEC`/`EncodeKEM`, **the canonical curve-key rule in all three decoders** and `DecodeEC`, every stated decoder refusal, the initiator's bundle refusals | message-format.md (Curve public keys), session-establishment.md | `post-quantum/composite.json`, `serialization/*.json`, `malformed-input/composite-header-decode.json`, `prekey-bundle-decode.json`, `initial-message-decode.json` (the curve-key refusals); other refusals by derived cases only |
+| `curve25519.py`: X25519, Ed25519, XEdDSA signing (with the clamp) and the six verifier steps, **step 3 now `qA` is the identity (pass 13)**, and `is_identity_key`, the identity-key rule | RFC 7748, RFC 8032, identities-and-devices.md Signing, Verifying a signature, Identity keys, Accepting a signed statement check 6 | `primitives/x25519.json`, `ed25519.json`, `xeddsa.json` (the three `reject-mixed-order-A` rows pin step 3); `identity/identity-key.json` |
+| `wire.py`: composite header, ratchet message, `CONCAT`, initial message, prekey bundle, `EncodeEC`/`EncodeKEM`, **the canonical curve-key rule in all three decoders** and `DecodeEC`, every stated decoder refusal, the initiator's bundle refusals, **and from pass 13 `InvalidIdentityKey` and the identity-key check between the canonical checks and the signatures** | message-format.md (Curve public keys), session-establishment.md | `post-quantum/composite.json`, `serialization/*.json`, `malformed-input/composite-header-decode.json`, `prekey-bundle-decode.json`, `initial-message-decode.json` (the curve-key refusals); other refusals by derived cases only |
 | `aes.py`, `aead.py`: AES-256, CBC, PKCS#7, the HMAC-SHA256 tag, the four receiver steps, one authentication failure | message-format.md Authenticated encryption | `aead/aead-encrypt.json`, `aead-decrypt.json` |
 | `ratchet.py`: the Double Ratchet: initialisation, derivations, expansion, DH triggers, `MAX_SKIP`, store bound, replacement, stale same-chain refusal, ceilings, expiry, eviction | ratchet.md, CONSTANTS.md, key-deletion.md | `ratchet/double-ratchet.json`, `malformed-input/ratchet-reject.json` |
 | `spqr.py`: the sparse ratchet: derivations, send counter, ceilings, refusals, total bound, eviction, retention, and **replacement order (fixed in pass 3, G2-01)** | sparse-pq-ratchet.md, session-persistence.md | `post-quantum/spqr.json` (chain step only) |
@@ -456,11 +558,12 @@ the 18 triple-ratchet-state vectors once the handler and the fix above were in.
 | `gf65536.py`, `erasure.py`: GF(2^16), chunking, codewords, first-copy-wins decoding, encoder exhaustion, **the zero-chunk and over-65,536-chunk encoders (pass 4)** | mlkem-braid.md The erasure code | `post-quantum/gf.json`, `inv.json`, `interp.json`, `erasure-encode.json`, `erasure-decode.json` |
 | `braid.py`: **the ML-KEM Braid**: `ToBytes`, `KDF_OK`, `KDF_AUTH`, the authenticator and both MACs, `ek_vector` validation, messages, the eleven live states and `Failed`, all thirteen transitions, send and receive epochs, what a receive ignores, every way into `Failed`, the epoch ceiling; conversion to the persisted layout; `BraidAgreement` for `triple.py` | mlkem-braid.md | `post-quantum/braid.json`, `auth.json`; the rest by derived cases |
 | `kem_double.py`: a **test double** for the incremental KEM interface, with the split's sizes, hash order and implicit rejection; its `key_pair` holds `ek_vector \|\| header \|\| z`. **Not ML-KEM**, and not the layout the page delegates: from pass 7 the persistence reader does not use it, the `key_pair` content clause being scoped to a reader that has the real one (GAPS-7.md, G5-02 closed) | mlkem-braid.md The KEM split | none |
-| `persistence.py`: readers and writers with every stated refusal and semantic rule: ratchet, sparse ratchet and triple states, erasure sub-formats, Braid (12 tags), session, prekey store (v5 written, v1-v4 read, `kem_pair` checks, **and from pass 7 the sixth rule, every stored signature verifying under `identity_public`, refused as `incoherent`**) | session-persistence.md, CONSTANTS.md | every file under `persistence/`: the two erasure coders, `ratchet-state.json`, `sparse-ratchet-state.json` (pass 5), `triple-ratchet-state.json`, `braid-state.json` (pass 6), **`prekey-store-state.json`, `session-state.json` (pass 7)**. Not pinned by any: `non-canonical` for either format, and the Braid's `key_pair` content clause, which no vector can pin (GAPS-7.md, section 3). The prekey-store signature rule is pinned by `prekey-store-state/signed-prekey-signature-does-not-verify`. |
+| `persistence.py`: readers and writers with every stated refusal and semantic rule: ratchet, sparse ratchet and triple states, erasure sub-formats, Braid (12 tags), session, prekey store (v5 written, v1-v4 read, `kem_pair` checks, **from pass 7 the sixth rule, every stored signature verifying under `identity_public`, refused as `incoherent`**, **and from pass 13 the identity-key rule on a session's two identity keys (`inconsistent`) and a store's `identity_public` (`malformed`, before any signature), with the two scans**) | session-persistence.md, CONSTANTS.md | every file under `persistence/`: the two erasure coders, `ratchet-state.json`, `sparse-ratchet-state.json` (pass 5), `triple-ratchet-state.json`, `braid-state.json` (pass 6), **`prekey-store-state.json`, `session-state.json` (pass 7)**. Not pinned by any: `non-canonical` for either format, and the Braid's `key_pair` content clause, which no vector can pin (GAPS-7.md, section 3). The prekey-store signature rule is pinned by `prekey-store-state/signed-prekey-signature-does-not-verify`. |
 | `protobuf.py`: the bounded protobuf profile, both message types | protobuf-profile.md, CONSTANTS.md | `protobuf/protobuf-ratchet-body.json`, `protobuf-prekey-envelope.json` |
 | `prekeys.py`: the two prekey-store rotations, each signing under `identity_public` and refusing any other identity, each stopping silently at `u32::MAX`, `rotate_kem` dropping the wiped key's record entries (pass 7) | key-deletion.md, session-persistence.md Prekey store Semantic rules | no vectors |
-| `identity.py`: the identity secret, application signatures | identities-and-devices.md | no vectors |
-| `inventory.py` (pass 12): the hosted device-inventory statement, its encoding rules for bytes and for built statements, `binding_commitment`, the signed form, check 6's identity-key test, the seven checks with a caller-supplied policy, the issuer's duty | identities-and-devices.md Hosted device-inventory statements, Accepting a signed statement; CONSTANTS.md | `groups/inventory-statements-v1.json`, `inventory-decode-refusals-v1.json`, `inventory-binding-commitments-v1.json`, `inventory-acceptance-v1.json`. Not pinned by any: the issuer's duty, recording a generation after check 7, a statement built in memory, the re-encode refusal (`../GAPS-12.md`, section 3) |
+| `identity.py`: the identity secret, application signatures (**the identity-key rule applied first, pass 13**), `admit_identity_key` | identities-and-devices.md | no vectors for application signatures |
+| `admission.py` (pass 13): the initiator's steps from a fetched bundle to the four agreements and the responder's from an initial message to just before decapsulation, in the pages' orders, with a recording source of random bytes and counters; no ML-KEM | session-establishment.md Sending the initial message, Receiving the initial message; identities-and-devices.md Identity keys | `identity/bundle-admission.json`, `identity/initial-message-admission.json` (the valid row is a skip, with its reason) |
+| `inventory.py` (pass 12): the hosted device-inventory statement, its encoding rules for bytes and for built statements, `binding_commitment`, the signed form, check 6's identity-key test, the seven checks with a caller-supplied policy (**the atomic step after check 7 refuses as `freshness` when its second evaluation refuses, pass 13**), the issuer's duty | identities-and-devices.md Hosted device-inventory statements, Accepting a signed statement; CONSTANTS.md | `groups/inventory-statements-v1.json`, `inventory-decode-refusals-v1.json`, `inventory-binding-commitments-v1.json`, `inventory-acceptance-v1.json`. Not pinned by any: the issuer's duty, recording a generation after check 7, a statement built in memory, the re-encode refusal (`../GAPS-12.md`, section 3) |
 | `inventory_vectors.py` (pass 12): the four inventory layouts and the scripted policy | tacenta-test-vectors/README.md, The hosted-inventory statements | the same four files |
 
 **The eight vector files new in pass 3 needed no module change.** Their 106
@@ -484,9 +587,10 @@ and each is a row in the runner's table.
 | `cases_identity.py` | 19 | application signatures, clamping on use, the repeated-initial comparisons (SE-01, both fields, rewritten in pass 4), non-contributory definition; `DecodeEC` and the initial decoder's refusal (SE-03), X25519's masking against the decoders' refusals (SE-04), the section 7.2 KEM prekey check (SE-05); XEdDSA signing and the six verifier rules (XS-01 to XS-04); the fingerprint and replay record (LR-01 to LR-07, LR-06 through the bytes) |
 | `cases_braid.py` | 18 | derivation bytes, authenticator and MACs, sizes and holdings, initialisation, the send table, epoch completion and roles, send and receive epochs, what a receive ignores, all thirteen transitions, MAC and validation failures, KEM failures and `Failed`, the epoch ceiling, encoder exhaustion, persistence of all twelve tags, the composite header, the Triple Ratchet over the Braid with `session-persistence.md`'s relations, `AgreementFailed` |
 | `cases_curvekeys.py` | 8 | a repeat's agreement class is the same under the signed-prekey secret and under the session's ratchet private key (SE-08, pass 12); pass 4. The canonical-key rule at p and every value up to 2^255 - 1 (CK-01); the composite header's `dh`, including a live session refusing at decode (CK-02); the bundle's three keys, refused though signed, with low-order canonical keys left to the contributory check (CK-03); the initial message's two keys, and `DecodeEC` accepting every key the decoder returns (CK-04); why a second spelling is a second identity (CK-05); a repeat must first decode (SE-06); the repeated initial message over a live Triple Ratchet half: ignored fields, yield once, already-read messages, refusals before decryption, the initiator's session (SE-07) |
-| `cases_stored.py` | 15 | pass 5. Stored curve public keys: the ratchet state's three positions, refused as malformed (SK-01), and why (SK-02); a triple state or session holding one, malformed before the session's rules (SK-03); the session's four keys, inconsistent (SK-04), so a genuine repeat always matches (SK-05); the sparse state and the Braid hold none (SK-06); no honest state refused (SK-07); the prekey store's identity in v1 to v4 (SK-08); the initiator's own bundle check (SK-09). The Rejection table's six persisted formats for the short-buffer/unknown-version overlap, plus the adjacent empty, recognised-version truncation and long enough unknown-version cases (RJ-01). The Braid key pair's load check (BK-01). Both ratchets inductive up to and at their ceilings (IN-01, IN-02). ASM-05's labels (TM-01, rewritten in pass 7) and REQ-AUTH-11 against the protocol pages (TM-02). BK-01 and SK-08 rewritten in pass 7 for the scoped `key_pair` clause and for `p - 1` as `identity_public` |
-| `cases_inventory.py` | 22 | pass 12. The hosted device-inventory statements: the preimage (IV-01), both sort orders, byte boundaries included (IV-02), exact bindings (IV-03), generation ranges (IV-04), the UTF-8 handle (IV-22), a statement built in memory (IV-05), the three refusal kinds (IV-06), the issuer's duty (IV-07), check 4 having no effect of its own and the compare-and-advance (IV-08, IV-09), check 6 from its definition, its five low-order values, the twist, mixed torsion and single spelling (IV-10 to IV-14), check 6 before any policy (IV-15), check 5 (IV-16), check 7 (IV-17), checks 1 and 2 (IV-18), the signature input and the page's verifier (IV-19), `binding_commitment` (IV-20), the unchecked properties (IV-21) |
+| `cases_stored.py` | 15 | pass 5 (SK-04 and SK-08 changed in pass 13: `p - 1` as a stored identity key). Stored curve public keys: the ratchet state's three positions, refused as malformed (SK-01), and why (SK-02); a triple state or session holding one, malformed before the session's rules (SK-03); the session's four keys, inconsistent (SK-04), so a genuine repeat always matches (SK-05); the sparse state and the Braid hold none (SK-06); no honest state refused (SK-07); the prekey store's identity in v1 to v4 (SK-08); the initiator's own bundle check (SK-09). The Rejection table's six persisted formats for the short-buffer/unknown-version overlap, plus the adjacent empty, recognised-version truncation and long enough unknown-version cases (RJ-01). The Braid key pair's load check (BK-01). Both ratchets inductive up to and at their ceilings (IN-01, IN-02). ASM-05's labels (TM-01, rewritten in pass 7) and REQ-AUTH-11 against the protocol pages (TM-02). BK-01 and SK-08 rewritten in pass 7 for the scoped `key_pair` clause and for `p - 1` as `identity_public` |
+| `cases_inventory.py` | 24 | pass 12 (IV-09 rewritten, IV-23 and IV-24 added in pass 13). A rule applies past the first entry of a list (IV-23); two revoked bindings with one `device_id` (IV-24). The hosted device-inventory statements: the preimage (IV-01), both sort orders, byte boundaries included (IV-02), exact bindings (IV-03), generation ranges (IV-04), the UTF-8 handle (IV-22), a statement built in memory (IV-05), the three refusal kinds (IV-06), the issuer's duty (IV-07), check 4 having no effect of its own and the compare-and-advance (IV-08, IV-09), check 6 from its definition, its five low-order values, the twist, mixed torsion and single spelling (IV-10 to IV-14), check 6 before any policy (IV-15), check 5 (IV-16), check 7 (IV-17), checks 1 and 2 (IV-18), the signature input and the page's verifier (IV-19), `binding_commitment` (IV-20), the unchecked properties (IV-21) |
 | `cases_signed.py` | 12 | pass 7. The prekey store's sixth semantic rule: every signed position (PK-01), what it does not bind (PK-02), `incoherent` as a kind of its own and the other five as malformed (PK-03), its place last of all in the order of checks (PK-04), the flipped byte at offset 69 and the two readers that disagree about it (PK-05), the rule across all five versions (PK-06). The obligation on the operations, and both rotations (PK-07), and forty rotations none of whose states is refused (PK-08). Rejection's paragraph on which format gives which refusal (RJ-02). The Principles' exception to the inductive invariant (IN-03). ADR-0006's point 7 against ASM-05 and AS-12 (TM-03). The epoch relation's boundary, all twelve tags under both readings (EP-01) |
+| `cases_idkeys.py` | 17 | pass 13. Why an honest key passes (IK-01); step 3 of Verifying a signature against a mixed-order key whose signature satisfies the equation (IK-02) and application signatures (IK-03); the initiator's order of checks and what a refusal spends (IK-04 to IK-06); the bundle's other keys (IK-07); the responder's order, the store left alone and the ephemeral (IK-08, IK-09); the stored session and prekey store (IK-10, IK-11); the scans (IK-12); a repeated initial message (IK-13); the three outcomes (IK-14); the decoders (IK-15); a refused state not repaired (IK-16); a mixed-order issuer key (IK-17) |
 
 ## Deliberate faults
 
@@ -841,9 +945,98 @@ first, which tried 66 and caught 58 (see below).
 - **C12-01 and C12-02**, the controls, fail nothing: check 6's own order and
   the way a signed input is split change no outcome.
 
+**Pass 13.** 53 faults and 4 controls (`../work/faults13.py`, run twice with the
+same result), each a textual change to a fresh copy of the reader, then the full
+runner. **52 were caught, 29 of them by a vector file.** The columns give the
+number of vector files and of derived cases that failed, and the first few
+named (the cases in the list are those the run reported; a `...` means more).
+
+| Fault | Vector files that failed | Derived cases that failed |
+|---|---|---|
+| F13-01 refuse an identity key whose u is odd (about half of honest keys) | 6: groups/inventory-acceptance-v1, identity/bundle-admission, identity/identity-key, identity/initial-message-admission, persistence/prekey-store-state, persistence/session-state | 41: ID-01, IK-01, IK-03, IK-04, IK-07, IK-11, ... |
+| F13-02 refuse an identity key whose u is at or above 2^254 | 4: groups/inventory-acceptance-v1, identity/identity-key, identity/initial-message-admission, persistence/prekey-store-state | 41: ID-01, IK-01, IK-04, IK-07, IK-08, IK-09, ... |
+| F13-03 test qA with the wrong multiplier (q + 8), so an honest key's point is refused | 7: groups/inventory-acceptance-v1, identity/bundle-admission, identity/identity-key, identity/initial-message-admission, persistence/prekey-store-state, persistence/session-state, primitives/xeddsa | 64: BK-01, CK-03, CK-05, EP-01, ID-01, ID-02, ... |
+| F13-04 the signature verifier refuses when the sign bit of the signature is set (a signer that does not normalise) | 2: groups/inventory-acceptance-v1, primitives/xeddsa | 2: IV-19, XS-02 |
+| F13-05 the rule reduces u instead of refusing a value at or above p (u + p accepted) | 3: groups/inventory-acceptance-v1, identity/identity-key, primitives/xeddsa | 3: IV-07, IV-14, XS-02 |
+| F13-06 the rule masks bit 255 before reading u (the bit-255 spelling accepted) | 3: groups/inventory-acceptance-v1, identity/identity-key, primitives/xeddsa | 3: IV-07, IV-14, XS-02 |
+| F13-07 the canonical test everywhere else (bundle, stored keys) accepts values from p to 2^255 - 1 | 1: persistence/ratchet-state | 4: CK-03, SK-01, SK-04, SK-08 |
+| F13-08 a key read from bytes that is not canonical is reported as an invalid identity key, not a decode failure | **none** | 1: IK-14 |
+| F13-09 the stored session's identity fields skip the canonical test (the identity rule alone remains) | **none** | 1: SK-04 |
+| F13-10 initiator: the bundle's identity key is not tested | 1: identity/bundle-admission | 2: IK-05, IK-06 |
+| F13-11 initiator: the bundle's identity key is tested only for small order | 1: identity/bundle-admission | 2: IK-05, IK-06 |
+| F13-12 responder: the initial message's identity is not tested | 1: identity/initial-message-admission | 1: IK-08 |
+| F13-13 stored session: our_identity_public is not tested | 1: persistence/session-state | 2: IK-10, SK-04 |
+| F13-14 stored session: peer_identity_public is not tested | 1: persistence/session-state | 3: IK-10, IK-16, SK-04 |
+| F13-15 stored prekey store: identity_public is not tested | 1: persistence/prekey-store-state | 2: IK-11, SK-08 |
+| F13-16 signature verifier: step 3 tests only for small order | 1: primitives/xeddsa | 2: IK-02, IK-17 |
+| F13-17 signature verifier: step 3 tests the subgroup only when the signature's sign bit is 0 | 1: primitives/xeddsa | 2: IK-02, IK-17 |
+| F13-18 signature verifier: step 3 not made at all (A only has to be on the curve) | 1: primitives/xeddsa | 3: IK-02, IK-17, XS-03 |
+| F13-19 application signatures: the identity-key rule is not applied first (the verifier's own step 3 remains) | **none** | **none** |
+| F13-20 application signatures: the rule and step 3 both dropped (signature verifier skips the subgroup step and the early rule is absent) | 1: primitives/xeddsa | 3: IK-02, IK-03, IK-17 |
+| F13-21 application signatures: a key that fails the rule raises instead of the verifier saying no | **none** | 1: IK-03 |
+| F13-22 hosted inventory statements: check 6 tests no key | 1: groups/inventory-acceptance-v1 | 8: IV-07, IV-08, IV-10, IV-11, IV-12, IV-13, ... |
+| F13-23 the rule admitted through a wrapper that does not test (admit_identity_key) | **none** | 1: IK-14 |
+| F13-24 initiator: the bundle's signed prekey is also held to the rule | **none** | 2: IK-07, SK-09 |
+| F13-25 initiator: the bundle's one-time curve prekey is also held to the rule | **none** | 2: IK-07, SK-09 |
+| F13-26 responder: the initial message's ephemeral is also held to the rule | **none** | 1: IK-09 |
+| F13-27 stored session: pending_initial's ephemeral is also held to the rule | **none** | 2: IK-10, SK-04 |
+| F13-28 initiator: the identity key is tested after both signatures are verified | 1: identity/bundle-admission | 2: IK-05, IK-06 |
+| F13-29 initiator: the identity key is tested before the presence, pinning and canonical checks | **none** | 3: CK-03, IK-06, SK-09 |
+| F13-30 initiator: the identity key is tested after the random values are drawn | 1: identity/bundle-admission | 2: IK-05, IK-06 |
+| F13-31 responder: the identity is tested after the one-time prekey is looked up | 1: identity/initial-message-admission | 1: IK-08 |
+| F13-32 responder: the identity is tested after the KEM ciphertext's length | 1: identity/initial-message-admission | 1: IK-08 |
+| F13-33 responder: the identity is tested before the signed prekey and the KEM prekey are found | **none** | 1: IK-08 |
+| F13-34 prekey store: the identity-key rule is applied after the signatures (so a bad identity is reported as incoherent when a signature also fails) | 1: persistence/prekey-store-state | 2: IK-11, SK-08 |
+| F13-35 responder: a refusal consumes the named one-time curve prekey before the identity is tested (the store is changed) | 1: identity/initial-message-admission | 2: IK-08, IK-09 |
+| F13-36 stored session: a key that fails the rule is refused as malformed, not inconsistent | 1: persistence/session-state | 2: IK-10, SK-04 |
+| F13-37 stored prekey store: a key that fails the rule is refused as incoherent, not malformed | 1: persistence/prekey-store-state | 2: IK-11, SK-08 |
+| F13-38 stored prekey store: the rule is applied to the current version only (older versions read without it) | **none** | 2: IK-11, SK-08 |
+| F13-39 the scan of stored sessions reports nothing | **none** | 1: IK-12 |
+| F13-40 the scan of a stored prekey store applies only the canonical test | **none** | 1: IK-12 |
+| F13-41 responder: a signed prekey a rotation retired is not found | **none** | 1: IK-08 |
+| F13-42 responder: the KEM ciphertext's length is not checked | **none** | 1: IK-08 |
+| F13-43 responder: an unknown one-time identifier is not refused | **none** | 1: IK-08 |
+| F13-44 initiator: a refusal by the identity rule follows a signature verification (verification counted first) | 1: identity/bundle-admission | 4: IK-04, IK-05, IK-06, IK-07 |
+| F13-45 repeated initial message: the identity compared by identity-key agreement rather than by bytes (any torsion spelling accepted) | **none** | 1: IK-13 |
+| F13-46 inventory: the terminal generation range is applied to the first revoked entry only | **none** | 1: IV-23 |
+| F13-47 inventory: the rule that an exact binding is in one list only is applied to the first active entry only | **none** | 1: IV-23 |
+| F13-48 inventory: the rule that an exact binding is in one list only is applied to the first revoked entry only | **none** | 1: IV-23 |
+| F13-51 inventory: the sort order of a list is checked between its first two entries only | **none** | 1: IV-02 |
+| F13-52 inventory: check 5 compares the first two active entries only | **none** | 1: IV-16 |
+| F13-53 inventory: check 6 tests the last revoked entry only | **none** | 1: IV-15 |
+| F13-49 the bundle decoder applies the identity-key rule to identity_key | 2: identity/bundle-admission, malformed-input/prekey-bundle-decode | 3: CK-03, IK-05, IK-15 |
+| F13-50 the initial-message decoder applies the identity-key rule to identity | 3: identity/initial-message-admission, malformed-input/initial-message-decode, serialization/initial-message | 9: CK-04, IK-08, IK-13, IK-15, IM-06, IM-07, ... |
+| C13-01 control: the responder looks for the KEM prekey before the signed prekey (the text fixes no order between the two) | **none** | **none** |
+| C13-02 control: the initiator validates the KEM prekey (FIPS 203 section 7.2) before every other check, the identity key included (the text fixes no order between the two) | **none** | **none** |
+| C13-03 control: the initiator checks the one-time key's presence before the pinned identity (the text fixes no order between pinning and presence) | **none** | **none** |
+| C13-04 control: a session reader checks peer_identity_public before our_identity_public (the text fixes no order inside the session's rules) | **none** | **none** |
+
+- **Not caught, one.** F13-19 (application signatures: the identity-key rule not
+  applied before the verifier) is equivalent while the verifier's own step 3
+  holds; F13-20 removes both and is caught.
+- **Caught only by a message.** F13-09 (the stored session's identity fields
+  skip the canonical test) does not change a verdict, since a non-canonical key
+  fails the identity rule too; SK-04 catches it because it checks the reason
+  still says "canonical".
+- **Caught by cases alone, 23:** F13-08, F13-09, F13-21, F13-23 to F13-27,
+  F13-29, F13-33, F13-38 to F13-43, F13-45 to F13-48, F13-51 to F13-53. These
+  are the rules `../GAPS-13.md`, section 3, lists as pinned by no vector.
+- **F13-46, F13-47 and F13-48 were missed on the run that first tried them**: no
+  case put the defective entry past the first entry of a list, which is what the
+  conformance manifest says of exactly these three edits. IV-23 was added and
+  catches all three.
+- **C13-01 to C13-04**, the controls, fail nothing: the text fixes no order
+  between the two prekey lookups, between the KEM key check and the other
+  bundle checks (`../GAPS-13.md` G13-04), between pinning and presence, or
+  between a session's two identity keys.
+
 ## Not implemented
 
 - ML-KEM-1024 and its incremental split. The Braid runs over `kem_double.py`.
+  The initiator stops at `PQKEM-ENC` and the responder just before `PQKEM-DEC`
+  (`admission.py`), so `identity/initial-message-admission.json`
+  `honest-initial-message` is a skip on the allowlist: its `output` is the
+  plaintext recovered.
 - The end-to-end `Session` implementation as a live object: the handshake with
   a real KEM, `pending_initial` resend, `established_ephemeral`, and
   export/import over live states. The real-primitive session vectors are
@@ -906,13 +1099,15 @@ to the explicit ML-KEM and Braid-key-generation boundaries listed above.
 python3 reader/run.py                        # from the clean-room directory
 python3 reader/test_skip_allowlist.py        # the skip gate fails when it should
 python3 reader/test_session_e2e_sweep.py     # corrupt the session vectors byte by byte
+python3 work/faults13.py               # the pass-13 deliberate faults and controls (about four minutes)
+python3 work/check_new_vectors13.py    # pass 13: the new vectors pass for the stated reasons
 python3 work/faults12.py               # the pass-12 deliberate faults and controls
 python3 work/check_new_vectors12.py    # pass 12: the 237 inventory vectors pass for the stated reasons
-# the pass-4 to pass-7 scripts were not in the tree pass 12 was read from
+# the pass-4 to pass-7 scripts were not in the tree pass 12 was read from; none of the work/ scripts is in the repository
 ```
 
-The pass-4 to pass-7 fault scripts (`work/faults*.py` and the pass-7 checks) were
-scratch files of the clean-room directories and are not in the repository.
+The fault scripts and vector checks of passes 4 to 7, 12 and 13 (`work/*.py`)
+were scratch files of the clean-room directories and are not in the repository.
 
 The runner prints:
 
@@ -924,17 +1119,23 @@ The exit status is non-zero on any FAIL, or when the observed skips differ from
 the checked allowlist in `run.py`. A full run takes about ten seconds on a
 laptop; the sweep takes about thirty.
 
-Current result. "Vector checks" are the lines that name a vector; "derived
-cases" are the `negative ::` lines, each a case the reader's authors derived
-from a sentence of the specification; the total is their sum, and the run's own
-`vectors subtotal`, `derived cases subtotal` and `TOTAL` lines print the same
-three numbers:
+Current result (pass 13). "Vector checks" are the lines that name a vector, and
+"derived cases" are the `negative ::` lines, each a case the reader's authors
+derived from a sentence of the specification; the total is their sum, and the
+run's own `vectors subtotal`, `derived cases subtotal` and `TOTAL` lines print
+the same three numbers. The one skip is on the allowlist in `run.py`, with its
+reason (Not implemented, above):
 
 | | Count | PASS | FAIL | SKIP |
 |---|---|---|---|---|
-| Vector checks (42 files) | 688 | 688 | 0 | 0 |
-| Derived cases (13 modules) | 245 | 245 | 0 | 0 |
-| **Total** | 933 | 933 | 0 | 0 |
+| Vector checks (45 files) | 760 | 759 | 0 | 1 |
+| Derived cases (14 modules) | 264 | 264 | 0 | 0 |
+| **Total** | 1024 | 1023 | 0 | 1 |
+
+At the baseline of pass 13 (before any change to the reader) the runner gave
+911 PASS, 12 FAIL and 61 SKIP: 667/12/61 for the vectors and 244/0/0 for the
+derived cases, from a base that did not yet have the real-primitive session
+vectors.
 
 The run compares this table, the pass-11 record below and `../GAPS-11.md` with its own
 totals and fails when they differ, so a count here cannot go stale silently.
@@ -974,6 +1175,7 @@ Each gap report re-assesses its predecessors against the revision it names:
 - `../GAPS-7.md`: the seventh pass.
 - `../GAPS-8.md` to `../GAPS-10.md`: maintenance records (below).
 - `../GAPS-12.md`: the twelfth pass, the hosted device-inventory statements.
+- `../GAPS-13.md`: the thirteenth pass, identity keys.
 
 A gap is closed by changing the specification. Its entry is marked closed when
 the reader is next updated from the new text.
@@ -1012,8 +1214,8 @@ reader the `legacy_blocked` rules of `session-persistence.md`, Legacy markers.
 `../GAPS-11.md` records the run, what the reader derives, and what it does not.
 At this pass the run was 671 PASS, 0 FAIL, 0 SKIP (450 vector checks and
 221 derived cases). With the four hosted-inventory files and the pass-12
-derived cases merged, the current run is **933 PASS, 0 FAIL, 0 SKIP** (688 vector checks
-and 245 derived cases). This supersedes the earlier pass-10 skip tally;
+derived cases merged, the current run is **1023 PASS, 0 FAIL, 1 SKIP** (760 vector checks
+and 264 derived cases). This supersedes the earlier pass-10 skip tally;
 `GAPS-10.md` remains the historical record of that earlier run.
 
 ### Pass 12
@@ -1023,3 +1225,12 @@ reader from the specification and the vectors alone to read the four
 `vectors/groups/inventory-*.json` files, re-assesses every gap left open, and
 records the deliberate-fault run. It is numbered 12 because another branch may
 use 11.
+
+### Pass 13
+
+`../GAPS-13.md` is a clean-room pass. It extends this reader from the
+specification and the vectors alone to read the three files under
+`vectors/identity/`, the new refused rows of the two persisted-state files and
+of `xeddsa.json`, and the identity-key rule at each boundary the text lists;
+re-assesses every gap left open; and records the deliberate-fault run. Pass 11
+was not used.

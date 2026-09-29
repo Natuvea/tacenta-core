@@ -375,8 +375,11 @@ skipped keys by a header's ratchet public key and takes a Diffie-Hellman step
 when that key differs from `DHr` (ratchet.md). A second spelling of one key
 would give it a second identity in each of them.
 
-The rule is on what the wire's decoders accept. The stored formats hold every
-curve public key they carry to the same rule, and session-persistence.md
+The rule is on what the wire's decoders accept. A decoder reads bytes and does
+not test which keys are identity keys: a bundle's `identity_key` and an initial
+message's `identity` are held to the identity-key rule after they decode, by the
+party that admits them (identities-and-devices.md, Identity keys). The stored
+formats hold every curve public key they carry to the same rule, and session-persistence.md
 (Session, Semantic rules) says which reader refuses each and as what.
 
 ## Key identifiers

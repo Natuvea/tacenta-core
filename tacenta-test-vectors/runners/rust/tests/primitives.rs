@@ -17,14 +17,14 @@ fn primitive_vectors_pass() {
     // Exactly the vectors each file holds, so that a file that loses one fails
     // here rather than passing on fewer: hkdf (2 RFC 5869), hmac (2 RFC 4231
     // and the replay-identity construction's known answer), x25519 (2 RFC 7748
-    // and 6 low-order refusals), ed25519 (2 RFC 8032), xeddsa (3 signing and 17
-    // verify-only).
+    // and 6 low-order refusals), ed25519 (2 RFC 8032), xeddsa (3 signing and 20
+    // verify-only, three of them under keys of mixed order).
     let expected = [
         ("hkdf-sha256", 2),
         ("hmac-sha256", 3),
         ("x25519", 8),
         ("ed25519", 2),
-        ("xeddsa", 20),
+        ("xeddsa", 23),
     ];
     for (algorithm, count) in expected {
         let file = files
@@ -38,7 +38,7 @@ fn primitive_vectors_pass() {
         );
     }
     assert_eq!(files.len(), expected.len(), "primitive files");
-    assert_eq!(total, 35, "checked {total} primitive vectors");
+    assert_eq!(total, 38, "checked {total} primitive vectors");
     eprintln!(
         "checked {total} primitive vectors across {} files",
         files.len()

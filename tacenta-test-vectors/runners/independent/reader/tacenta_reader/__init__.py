@@ -23,4 +23,6 @@ __all__ = [
     "prekeys",
     "protobuf",
     "identity",
+    "inventory",
+    "admission",
 ]

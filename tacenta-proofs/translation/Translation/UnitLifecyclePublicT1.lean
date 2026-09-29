@@ -26,6 +26,17 @@ theorem is_canonical_key_no_panic (hdh : DhCodecTotal)
     (Tacenta.SessionUnitSessionT1.is_canonical_x25519_spec a) (by simp)
 
 @[step]
+theorem is_valid_identity_key_no_panic (hdh : DhCodecTotal)
+    (hid : DhIdentityTotal)
+    (pk : tacenta_boundary.dh.PublicKeyBytes) :
+    is_valid_identity_key pk ⦃ fun _ => True ⦄ := by
+  unfold is_valid_identity_key
+  step with is_canonical_key_no_panic hdh pk
+  split
+  · step with Tacenta.UnitLifecycleT1.prime_order_public_no_panic hid pk
+  · simp
+
+@[step]
 theorem decode_ec_no_panic (hdh : DhCodecTotal) (bytes : Slice U8) :
     decode_ec bytes ⦃ fun _ => True ⦄ := by
   unfold decode_ec
@@ -82,29 +93,34 @@ theorem encode_kem_no_panic (pk : Slice U8)
   exact WP.spec_mono
     (Tacenta.SessionUnitSessionT1.encode_kem_spec pk hroom) (by simp)
 
-theorem verify_bundle_no_panic (hdh : DhCodecTotal) (hx : XeddsaVerifyTotal)
+theorem verify_bundle_no_panic (hdh : DhCodecTotal) (hid : DhIdentityTotal)
+    (hx : XeddsaVerifyTotal)
     (bundle : PreKeyBundle)
     (hkem : bundle.kem_prekey.val.length + 1 ≤ Usize.max) :
     verify_bundle bundle ⦃ fun _ => True ⦄ := by
   unfold verify_bundle
-  step with encode_ec_spec hdh bundle.signed_prekey
-  step with xeddsa_verify_no_panic hx bundle.identity_key v.deref
-    bundle.signed_prekey_signature
-  rcases r with _ | _
-  · step with encode_kem_no_panic bundle.kem_prekey.deref hkem
-    rename_i encodedKem
-    step with xeddsa_verify_no_panic hx bundle.identity_key encodedKem.deref
-      bundle.kem_prekey_signature
-    rcases r1 <;> simp
+  step with is_valid_identity_key_no_panic hdh hid bundle.identity_key
+  split
+  · step with encode_ec_spec hdh bundle.signed_prekey
+    step with xeddsa_verify_no_panic hx bundle.identity_key v.deref
+      bundle.signed_prekey_signature
+    rcases r with _ | _
+    · step with encode_kem_no_panic bundle.kem_prekey.deref hkem
+      rename_i encodedKem
+      step with xeddsa_verify_no_panic hx bundle.identity_key encodedKem.deref
+        bundle.kem_prekey_signature
+      rcases r1 <;> simp
+    · simp
   · simp
 
 theorem verify_bundle_with_one_time_no_panic
-    (hdh : DhCodecTotal) (hx : XeddsaVerifyTotal) (bundle : PreKeyBundle)
+    (hdh : DhCodecTotal) (hid : DhIdentityTotal) (hx : XeddsaVerifyTotal)
+    (bundle : PreKeyBundle)
     {oneTime : Option tacenta_boundary.dh.PublicKeyBytes}
     (hkem : bundle.kem_prekey.val.length + 1 ≤ Usize.max) :
     verify_bundle { bundle with one_time_prekey := oneTime }
       ⦃ fun _ => True ⦄ :=
-  verify_bundle_no_panic hdh hx _ hkem
+  verify_bundle_no_panic hdh hid hx _ hkem
 
 @[step]
 theorem contributory_no_panic (value : Option (Array U8 32#usize)) :
@@ -112,7 +128,8 @@ theorem contributory_no_panic (value : Option (Array U8 32#usize)) :
   rcases value with _ | _ <;> simp [contributory]
 
 theorem initiator_shared_secret_no_panic
-    (hdh : DhCodecTotal) (hagree : DhAgreeTotal) (hx : XeddsaVerifyTotal)
+    (hdh : DhCodecTotal) (hid : DhIdentityTotal) (hagree : DhAgreeTotal)
+    (hx : XeddsaVerifyTotal)
     (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
     (hkdf : Tacenta.SessionUnitSessionT1.HkdfTotal)
     [Tacenta.SessionUnitSessionT1.ZeroizingModel]
@@ -122,7 +139,7 @@ theorem initiator_shared_secret_no_panic
     initiator_shared_secret identityPrivate ephemeralPrivate bundle encapsulated
       ⦃ fun _ => True ⦄ := by
   unfold initiator_shared_secret
-  step with verify_bundle_no_panic hdh hx bundle hkem
+  step with verify_bundle_no_panic hdh hid hx bundle hkem
   rcases r with verified | verifyError
   · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec verified
     simp only [cf_post]
@@ -184,7 +201,8 @@ theorem initiator_shared_secret_no_panic
       core.convert.FromSame.from]
 
 theorem initiator_shared_secret_with_one_time_no_panic
-    (hdh : DhCodecTotal) (hagree : DhAgreeTotal) (hx : XeddsaVerifyTotal)
+    (hdh : DhCodecTotal) (hid : DhIdentityTotal) (hagree : DhAgreeTotal)
+    (hx : XeddsaVerifyTotal)
     (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
     (hkdf : Tacenta.SessionUnitSessionT1.HkdfTotal)
     [Tacenta.SessionUnitSessionT1.ZeroizingModel]
@@ -195,10 +213,10 @@ theorem initiator_shared_secret_with_one_time_no_panic
     initiator_shared_secret identityPrivate ephemeralPrivate
       { bundle with one_time_prekey := oneTime } encapsulated
       ⦃ fun _ => True ⦄ :=
-  initiator_shared_secret_no_panic hdh hagree hx hz hkdf _ _ _ _ hkem
+  initiator_shared_secret_no_panic hdh hid hagree hx hz hkdf _ _ _ _ hkem
 
 theorem responder_shared_secret_no_panic
-    (hagree : DhAgreeTotal)
+    (hdh : DhCodecTotal) (hid : DhIdentityTotal) (hagree : DhAgreeTotal)
     (hz : Tacenta.SessionUnitBraidT1.ZeroizingArrayRoundTrip)
     (hkdf : Tacenta.SessionUnitSessionT1.HkdfTotal)
     [Tacenta.SessionUnitSessionT1.ZeroizingModel]
@@ -209,62 +227,67 @@ theorem responder_shared_secret_no_panic
     responder_shared_secret identityPrivate signedPrekeyPrivate oneTimePrekeyPrivate
       initiatorIdentity initiatorEphemeral encapsulated ⦃ fun _ => True ⦄ := by
   unfold responder_shared_secret
-  step with private_key_agree_no_panic hagree signedPrekeyPrivate initiatorIdentity
-  step with contributory_no_panic o
-  rcases r with dh1Value | dh1Error
-  · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec dh1Value
-    simp only [cf_post]
-    step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz dh1Value
-    step with private_key_agree_no_panic hagree identityPrivate initiatorEphemeral
-    step with contributory_no_panic o1
-    rcases r1 with dh2Value | dh2Error
-    · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec dh2Value
-      simp only [cf1_post]
-      step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz dh2Value
-      step with private_key_agree_no_panic hagree signedPrekeyPrivate initiatorEphemeral
-      step with contributory_no_panic o2
-      rcases r2 with dh3Value | dh3Error
-      · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec dh3Value
-        simp only [cf2_post]
-        step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz dh3Value
-        rcases oneTimePrekeyPrivate with _ | opk
-        · have hss := Tacenta.SessionUnitSessionT1.shared_secret_no_panic hkdf
-            dh1Value dh2Value dh3Value encapsulated none
-          obtain ⟨shared, hshared⟩ :=
-            (Tacenta.SessionUnitT1.noPanic_iff _).mp hss
-          simp [dh1_post, dh2_post, dh3_post, hshared]
-        · step with private_key_agree_no_panic hagree opk initiatorEphemeral
-          rename_i o3
-          step with contributory_no_panic o3
-          rcases r3 with dh4Value | dh4Error
-          · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec dh4Value
-            simp only [cf3_post]
-            step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz dh4Value
-            have hss := Tacenta.SessionUnitSessionT1.shared_secret_no_panic hkdf
-              dh1Value dh2Value dh3Value encapsulated (some dh4Value)
+  step with is_valid_identity_key_no_panic hdh hid initiatorIdentity
+  split
+  · step with private_key_agree_no_panic hagree signedPrekeyPrivate initiatorIdentity
+    rename_i o
+    step with contributory_no_panic o
+    rcases r with dh1Value | dh1Error
+    · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec dh1Value
+      simp only [cf_post]
+      step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz dh1Value
+      step with private_key_agree_no_panic hagree identityPrivate initiatorEphemeral
+      step with contributory_no_panic o1
+      rcases r1 with dh2Value | dh2Error
+      · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec dh2Value
+        simp only [cf1_post]
+        step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz dh2Value
+        step with private_key_agree_no_panic hagree signedPrekeyPrivate initiatorEphemeral
+        step with contributory_no_panic o2
+        rcases r2 with dh3Value | dh3Error
+        · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec dh3Value
+          simp only [cf2_post]
+          step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz dh3Value
+          rcases oneTimePrekeyPrivate with _ | opk
+          · have hss := Tacenta.SessionUnitSessionT1.shared_secret_no_panic hkdf
+              dh1Value dh2Value dh3Value encapsulated none
             obtain ⟨shared, hshared⟩ :=
               (Tacenta.SessionUnitT1.noPanic_iff _).mp hss
-            simp [dh1_post, dh2_post, dh3_post, secret_post, hshared]
-          · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec dh4Error
-            simp only [cf3_post]
-            simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
-              core.convert.FromSame.from]
-      · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec dh3Error
-        simp only [cf2_post]
+            simp [dh1_post, dh2_post, dh3_post, hshared]
+          · step with private_key_agree_no_panic hagree opk initiatorEphemeral
+            rename_i o3
+            step with contributory_no_panic o3
+            rcases r3 with dh4Value | dh4Error
+            · step with core.result.Result.Insts.CoreOpsTry.branch_Ok.spec dh4Value
+              simp only [cf3_post]
+              step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hz dh4Value
+              have hss := Tacenta.SessionUnitSessionT1.shared_secret_no_panic hkdf
+                dh1Value dh2Value dh3Value encapsulated (some dh4Value)
+              obtain ⟨shared, hshared⟩ :=
+                (Tacenta.SessionUnitT1.noPanic_iff _).mp hss
+              simp [dh1_post, dh2_post, dh3_post, secret_post, hshared]
+            · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec dh4Error
+              simp only [cf3_post]
+              simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+                core.convert.FromSame.from]
+        · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec dh3Error
+          simp only [cf2_post]
+          simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
+            core.convert.FromSame.from]
+      · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec dh2Error
+        simp only [cf1_post]
         simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
           core.convert.FromSame.from]
-    · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec dh2Error
-      simp only [cf1_post]
+    · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec dh1Error
+      simp only [cf_post]
       simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
         core.convert.FromSame.from]
-  · step with core.result.Result.Insts.CoreOpsTry.branch_Err.spec dh1Error
-    simp only [cf_post]
-    simp [core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual,
-      core.convert.FromSame.from]
+  · simp
 
 structure EstablishInitiatorContracts {R : Type}
     (rngCore : rand_core_1.RngCore R) where
   dhCodec : DhCodecTotal
+  dhIdentity : DhIdentityTotal
   dhAgree : DhAgreeTotal
   kemEncapsulate : KemEncapsulateTotal
   xeddsaVerify : XeddsaVerifyTotal
@@ -292,7 +315,7 @@ theorem establish_initiator_for_no_panic {R : Type}
     lifecycle.establish_initiator_for rngCore cryptoRng ourIdentity theirBundle
       expectedIdentity rng ⦃ fun _ => True ⦄ := by
   rcases contracts with
-    ⟨hdh, hagree, hkem, hx, hrngTotal, hrng, hkdf, hzero, htripleZero, hkdfInit,
+    ⟨hdh, hid, hagree, hkem, hx, hrngTotal, hrng, hkdf, hzero, htripleZero, hkdfInit,
       hspqrZero, hbraidKdf, hzeroArray, hindex⟩
   let _ : Tacenta.SessionUnitSessionT1.ZeroizingModel := hzero
   unfold lifecycle.establish_initiator_for
@@ -307,7 +330,7 @@ theorem establish_initiator_for_no_panic {R : Type}
   all_goals (try split <;> try simp)
   all_goals (try (step with is_canonical_key_no_panic hdh))
   all_goals (try split <;> try simp)
-  all_goals (step with verify_bundle_with_one_time_no_panic hdh hx theirBundle.bundle headroom.kemPrekey)
+  all_goals (step with verify_bundle_with_one_time_no_panic hdh hid hx theirBundle.bundle headroom.kemPrekey)
   all_goals (rcases r with verified | verifyError)
   all_goals simp
   all_goals (step with random_secret_no_panic rngCore cryptoRng hrng)
@@ -319,7 +342,7 @@ theorem establish_initiator_for_no_panic {R : Type}
   all_goals (step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hzeroArray encapsulated)
   all_goals (step with identity_dh_key_no_panic hdh ourIdentity)
   all_goals (step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec ‹_›)
-  all_goals (step with initiator_shared_secret_with_one_time_no_panic hdh hagree hx hzeroArray hkdf pk ephemeral theirBundle.bundle a1 headroom.kemPrekey)
+  all_goals (step with initiator_shared_secret_with_one_time_no_panic hdh hid hagree hx hzeroArray hkdf pk ephemeral theirBundle.bundle a1 headroom.kemPrekey)
   all_goals (rcases r2 with secret | handshakeError)
   all_goals simp
   all_goals (step with Tacenta.SessionUnitBraidT1.zeroizing_new_spec hzeroArray secret)
@@ -950,15 +973,18 @@ theorem responder_one_time_key_no_panic
       step with private_key_from_bytes_no_panic hdh key
 
 theorem responder_curve_inputs_no_panic (hdh : DhCodecTotal)
+    (hid : DhIdentityTotal)
     (identity ephemeral : Slice U8) :
     lifecycle.responder_curve_inputs identity ephemeral ⦃ fun _ => True ⦄ := by
   unfold lifecycle.responder_curve_inputs
   step with decode_ec_no_panic hdh identity
   rcases o with _ | identityKey
   · simp
-  · step with decode_ec_no_panic hdh ephemeral
-    rename_i decodedEphemeral
-    rcases decodedEphemeral <;> simp
+  · step with is_valid_identity_key_no_panic hdh hid identityKey
+    split
+    · step with decode_ec_no_panic hdh ephemeral
+      rcases o1 with _ | ephemeralKey <;> simp
+    · simp
 
 
 @[step]
@@ -1285,6 +1311,7 @@ theorem decrypt_ratchet_no_panic {R : Type}
 structure EstablishResponderContracts {R : Type}
     (rngCore : rand_core_1.RngCore R) where
   decrypt : DecryptRatchetContracts rngCore
+  dhIdentity : DhIdentityTotal
   kemDecapsulate : KemDecapsulateTotal
   sessionHkdf : Tacenta.SessionUnitSessionT1.HkdfTotal
   sessionZeroizing : Tacenta.SessionUnitSessionT1.ZeroizingModel
@@ -1436,6 +1463,7 @@ theorem establish_responder_no_panic {R : Type}
         rcases kemValue with ⟨kemSlot, lastResort⟩
         simp only [copy_bool_eq]
         step with responder_curve_inputs_no_panic contracts.decrypt.dhCodec
+          contracts.dhIdentity
           decoded.identity.deref decoded.ephemeral.deref
         rename_i curveResult
         rcases curveResult with curveInputs | curveError
@@ -1465,10 +1493,14 @@ theorem establish_responder_no_panic {R : Type}
               all_goals step with identity_dh_key_no_panic contracts.decrypt.dhCodec ourIdentity
               all_goals step with Tacenta.SessionUnitBraidT1.zeroizing_deref_spec ss_post
               all_goals first
-                | step with responder_shared_secret_no_panic contracts.decrypt.dhAgree
+                | step with responder_shared_secret_no_panic contracts.decrypt.dhCodec
+                    contracts.dhIdentity
+                    contracts.decrypt.dhAgree
                     contracts.decrypt.braid.zeroizingArray contracts.sessionHkdf shared
                     signed_prekey none initiatorIdentity initiatorEphemeral x
-                | step with responder_shared_secret_no_panic contracts.decrypt.dhAgree
+                | step with responder_shared_secret_no_panic contracts.decrypt.dhCodec
+                    contracts.dhIdentity
+                    contracts.decrypt.dhAgree
                     contracts.decrypt.braid.zeroizingArray contracts.sessionHkdf shared
                     signed_prekey (some oneTimeKey) initiatorIdentity initiatorEphemeral x
               all_goals (rcases shared with secret | handshakeError)

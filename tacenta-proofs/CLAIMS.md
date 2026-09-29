@@ -13,7 +13,7 @@ this section says in one place what is not proved.
 - **`Session::encrypt` and `Session::decrypt` are not proved end to end.** They
   are the functions a product actually calls. On the eight-leaf session unit
   their orchestration now has panic-freedom theorems (T1, below), conditional
-  on twelve named boundary contracts and explicit headroom, and a set of
+  on thirteen named boundary contracts and explicit headroom, and a set of
   refinement branch lemmas that each take the leaf outcomes as hypotheses
   (`Translation/UnitLifecycleT3.lean`; not accepted as claims here and not
   composed with the leaf theorems). No theorem says what the two functions
@@ -2132,7 +2132,7 @@ Location: `Translation/UnitLifecyclePublicT1.lean`.
 The five operations a
 product calls, translated inside `tacenta-core/session-unit` where the
 ratchets, the Braid, the wire codecs and the PQXDH derivation are real
-bodies rather than axioms. Each theorem is conditional on the twelve boundary
+bodies rather than axioms. Each theorem is conditional on the thirteen boundary
 contracts (`LIMITATIONS.md`, "The Session unit's primitive contracts") and on
 an explicit headroom record; `invariant_gives_preconditions` derives the
 leaf preconditions from `Session::invariant`. Nothing here relates a result

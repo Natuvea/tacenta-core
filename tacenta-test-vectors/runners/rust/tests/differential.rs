@@ -749,6 +749,9 @@ struct Observed {
     session_reads_malformed: usize,
     session_reads_inconsistent: usize,
     session_reads_excluded: usize,
+    identity_keys: usize,
+    identity_keys_valid: usize,
+    identity_keys_invalid: usize,
     triple_steps: usize,
     triple_ceiling: usize,
     triple_reads: usize,
@@ -4626,6 +4629,91 @@ fn check_session_imports(exe: &Path, seed: u64, seen: &mut Observed) {
     }
 }
 
+/// The identity-key rule (identities-and-devices.md, Identity keys): the model's
+/// `Model.IdentityKey.valid`, written from the page, against the rule
+/// `tacenta-core` applies, over the vectors' table of keys, canonical keys of
+/// no particular class, keys from honest secrets, and 32-byte strings of no
+/// particular form. The corpus reaches both verdicts in numbers, so the
+/// comparison cannot pass on a model or a core that says one thing about every
+/// key.
+fn check_identity_keys(exe: &Path, seed: u64, seen: &mut Observed) {
+    use tacenta_core::primitives::dh::{PrivateKey, PublicKeyBytes};
+    use tacenta_core::sessions::is_valid_identity_key;
+
+    #[derive(Deserialize)]
+    struct KeyInputs {
+        key: String,
+    }
+    #[derive(Deserialize)]
+    struct KeyVector {
+        inputs: KeyInputs,
+    }
+    #[derive(Deserialize)]
+    struct KeyFile {
+        vectors: Vec<KeyVector>,
+    }
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../vectors/identity/identity-key.json");
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let table: KeyFile =
+        serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+
+    let mut keys: Vec<[u8; 32]> = table
+        .vectors
+        .iter()
+        .map(|v| hex::decode(&v.inputs.key).unwrap().try_into().unwrap())
+        .collect();
+    let mut rng = Rng::new(seed ^ 0x01de_2717);
+    for _ in 0..1000 {
+        keys.push(rng.canonical_key());
+    }
+    for _ in 0..300 {
+        let mut secret = [0u8; 32];
+        for b in secret.iter_mut() {
+            *b = rng.byte();
+        }
+        keys.push(*PrivateKey::from_bytes(secret).public_key().as_bytes());
+    }
+    for _ in 0..300 {
+        let mut key = [0u8; 32];
+        for b in key.iter_mut() {
+            *b = rng.byte();
+        }
+        keys.push(key);
+    }
+
+    let requests: Vec<String> = keys
+        .iter()
+        .map(|k| format!("identity-key {}", hex::encode(k)))
+        .collect();
+    let answers = ask_model(exe, &requests);
+    for (key, answer) in keys.iter().zip(answers.iter()) {
+        let model = match answer.first().map(String::as_str) {
+            Some("identity-key valid") => true,
+            Some("identity-key invalid") => false,
+            other => panic!("the model answered an identity-key request with {other:?}"),
+        };
+        let core = is_valid_identity_key(&PublicKeyBytes::from_bytes(*key));
+        assert_eq!(
+            model,
+            core,
+            "\n\ntacenta-model and tacenta-core disagree on an identity key.\n\
+             seed: {seed} ({seed:#x})\n\
+             the model says {}, the crate {}\n\
+             request: identity-key {}\n\n",
+            if model { "valid" } else { "invalid" },
+            if core { "valid" } else { "invalid" },
+            hex::encode(key)
+        );
+        seen.identity_keys += 1;
+        if model {
+            seen.identity_keys_valid += 1;
+        } else {
+            seen.identity_keys_invalid += 1;
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // The test
 // ---------------------------------------------------------------------------
@@ -4805,6 +4893,7 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     check_session_delivery_and_crypto_refusals(&exe, seed, &mut seen);
     check_responder_refusal_controls(&exe, seed, &mut seen);
     check_session_imports(&exe, seed, &mut seen);
+    check_identity_keys(&exe, seed, &mut seen);
     check_composed(&exe, seed, sequences, long, &mut seen);
 
     eprintln!(
@@ -5067,6 +5156,15 @@ fn the_model_and_the_core_agree_on_generated_sequences() {
     assert!(
         seen.session_reads_inconsistent > 0,
         "no session inconsistent refusal was compared"
+    );
+
+    eprintln!(
+        "differential: identity keys: {} checked ({} valid, {} invalid)",
+        seen.identity_keys, seen.identity_keys_valid, seen.identity_keys_invalid,
+    );
+    assert!(
+        seen.identity_keys_valid >= 300 && seen.identity_keys_invalid >= 600,
+        "the identity-key corpus did not reach both verdicts in numbers"
     );
     assert!(
         seen.session_reads_excluded > 0,

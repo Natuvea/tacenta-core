@@ -594,6 +594,10 @@
         "type": ": Array Std.U8 32#usize \u2192 Result tacenta_boundary.dh.PublicKeyBytes"
       },
       {
+        "name": "tacenta_lifecycle.tacenta_boundary.dh.is_prime_order_public",
+        "type": ": tacenta_boundary.dh.PublicKeyBytes \u2192 Result Bool"
+      },
+      {
         "name": "tacenta_lifecycle.tacenta_boundary.kem.KeyPair",
         "type": ": Type"
       },
@@ -1163,6 +1167,10 @@
       {
         "name": "tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes",
         "type": ": Array Std.U8 32#usize \u2192 Result tacenta_boundary.dh.PublicKeyBytes"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.dh.is_prime_order_public",
+        "type": ": tacenta_boundary.dh.PublicKeyBytes \u2192 Result Bool"
       },
       {
         "name": "tacenta_session_unit.tacenta_boundary.kem.KeyPair",

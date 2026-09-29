@@ -38,6 +38,16 @@ if python3 "$checker" --translation "$tmp/missing.lean" >"$tmp/out" 2>&1; then
 fi
 grep -q 'expected operation(s) no longer reachable: tacenta_boundary.kem.ciphertext_len' "$tmp/out"
 
+# The identity-key predicate is one of the pinned operations: losing it is a
+# surface change, and the contract that covers it is named in the refusal.
+sed 's/tacenta_boundary\.dh\.is_prime_order_public/tacenta_boundary.dh.is_prime_order_public_removed/g' \
+  "$source_file" >"$tmp/no-identity-predicate.lean"
+if python3 "$checker" --translation "$tmp/no-identity-predicate.lean" >"$tmp/out" 2>&1; then
+  echo "boundary-surface case: accepted a lifecycle without the identity-key predicate" >&2
+  exit 1
+fi
+grep -q 'expected operation(s) no longer reachable: tacenta_boundary.dh.is_prime_order_public' "$tmp/out"
+
 # Prose is not a call.  This guards the scanner itself against comment-shaped
 # false evidence.
 python3 - "$source_file" "$tmp/comment.lean" <<'PY'

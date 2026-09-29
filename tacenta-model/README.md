@@ -27,6 +27,13 @@ time, and the ratchet carries build-time self-consistency checks.
   scratch, no dependency.
 - `Model/State.lean`, `Model/Ratchet.lean`: the Double Ratchet state, key
   schedule, and send/receive procedures.
+- `Model/IdentityKey.lean`: the identity-key rule of
+  `../tacenta-spec/protocol/identities-and-devices.md`, "Accepting a signed
+  statement", check 6, as a function of 32 bytes: a canonical key, not `p - 1`,
+  with a point of edwards25519 that has order `q`. Written from the page and
+  RFC 8032, with Nat arithmetic modulo `p`; its verdicts are pinned by the
+  identity-key vectors, not proved, and the persisted-state readers use it for
+  the stored identity keys.
 - `docs/abstraction-boundary.md`: what the model computes versus what it holds at
   the trusted boundary, and why the split is sound.
 - `docs/mapping-to-spec.md`: each model definition mapped to its spec section.
@@ -49,12 +56,14 @@ protobuf profile. The vectors are generated from the two persistence modules,
 and apart from the vector generator, the differential harness and the axiom
 audit only `Model/PersistedState.lean` imports the erasure module.
 Two things the persisted-state model deliberately stops short of. The session's
-and the prekey store's formats are modelled for their structure and not for
-their cryptographic rules: the model has no signatures and does not compute the
-curve, so the prekey store's rule on what its stored signatures authenticate
-and the session's rule that `ratchet_private` matches the classical ratchet's
-`dhs_pub` are stated on their pages and held by `tacenta-core`'s tests, not
-here. And in the
+and the prekey store's formats are modelled for their structure and for the
+identity-key rule on their identity keys, and not for their other cryptographic
+rules: the model has no signatures and does not compute the X25519 or
+Ed25519 operations, so the prekey store's rule on what its stored signatures
+authenticate and the session's rule that `ratchet_private` matches the
+classical ratchet's `dhs_pub` are stated on their pages and held by
+`tacenta-core`'s tests, not here. (`Model/IdentityKey.lean` does compute the
+curve's group law, for the one question of which keys are of prime order.) And in the
 Braid's tags 1 to 4 the `key_pair`'s own `header` and `ek_vector` are checked
 for the field's length and nothing else: the page has a reader validate them,
 and where they sit inside the 11,872 bytes is a library layout ADR-0006, point

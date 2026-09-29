@@ -398,21 +398,21 @@ axiom tacenta_boundary.aead.decrypt
     Std.U8) tacenta_boundary.aead.DecryptError)
 
 /-- [tacenta_boundary::dh::PrivateKey]
-    Source: 'boundary/src/dh.rs', lines 10:0-10:21
+    Source: 'boundary/src/dh.rs', lines 11:0-11:21
     Name pattern: [tacenta_boundary::dh::PrivateKey]
     Visibility: public -/
 @[rust_type "tacenta_boundary::dh::PrivateKey"]
 axiom tacenta_boundary.dh.PrivateKey : Type
 
 /-- [tacenta_boundary::dh::PublicKeyBytes]
-    Source: 'boundary/src/dh.rs', lines 14:0-14:25
+    Source: 'boundary/src/dh.rs', lines 15:0-15:25
     Name pattern: [tacenta_boundary::dh::PublicKeyBytes]
     Visibility: public -/
 @[rust_type "tacenta_boundary::dh::PublicKeyBytes"]
 axiom tacenta_boundary.dh.PublicKeyBytes : Type
 
 /-- [tacenta_boundary::dh::{impl core::cmp::PartialEq<tacenta_boundary::dh::PublicKeyBytes> for tacenta_boundary::dh::PublicKeyBytes}::eq]:
-    Source: 'boundary/src/dh.rs', lines 13:22-13:31
+    Source: 'boundary/src/dh.rs', lines 14:22-14:31
     Name pattern: [tacenta_boundary::dh::{core::cmp::PartialEq<tacenta_boundary::dh::PublicKeyBytes, tacenta_boundary::dh::PublicKeyBytes>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -424,7 +424,7 @@ axiom
     Result Bool
 
 /-- Trait implementation: [tacenta_boundary::dh::{impl core::cmp::PartialEq<tacenta_boundary::dh::PublicKeyBytes> for tacenta_boundary::dh::PublicKeyBytes}]
-    Source: 'boundary/src/dh.rs', lines 13:22-13:31
+    Source: 'boundary/src/dh.rs', lines 14:22-14:31
     Name pattern: [core::cmp::PartialEq<tacenta_boundary::dh::PublicKeyBytes, tacenta_boundary::dh::PublicKeyBytes>] -/
 @[reducible, rust_trait_impl
   "core::cmp::PartialEq<tacenta_boundary::dh::PublicKeyBytes, tacenta_boundary::dh::PublicKeyBytes>"]
@@ -439,7 +439,7 @@ impl_def
 }
 
 /-- [tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::from_bytes]:
-    Source: 'boundary/src/dh.rs', lines 24:4-24:52
+    Source: 'boundary/src/dh.rs', lines 25:4-25:52
     Name pattern: [tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::from_bytes]
     Visibility: public -/
 @[rust_fun
@@ -448,7 +448,7 @@ axiom tacenta_boundary.dh.PrivateKey.from_bytes
   : Array Std.U8 32#usize → Result tacenta_boundary.dh.PrivateKey
 
 /-- [tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::public_key]:
-    Source: 'boundary/src/dh.rs', lines 29:4-29:46
+    Source: 'boundary/src/dh.rs', lines 30:4-30:46
     Name pattern: [tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::public_key]
     Visibility: public -/
 @[rust_fun
@@ -458,7 +458,7 @@ axiom tacenta_boundary.dh.PrivateKey.public_key
   tacenta_boundary.dh.PrivateKey → Result tacenta_boundary.dh.PublicKeyBytes
 
 /-- [tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::agree]:
-    Source: 'boundary/src/dh.rs', lines 52:4-52:66
+    Source: 'boundary/src/dh.rs', lines 53:4-53:66
     Name pattern: [tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::agree]
     Visibility: public -/
 @[rust_fun "tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::agree"]
@@ -475,7 +475,7 @@ axiom tacenta_boundary.dh.PrivateKey.agree
 axiom zeroize.Zeroizing (Z : Type) : Type
 
 /-- [tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::to_bytes]:
-    Source: 'boundary/src/dh.rs', lines 64:4-64:49
+    Source: 'boundary/src/dh.rs', lines 65:4-65:49
     Name pattern: [tacenta_boundary::dh::{tacenta_boundary::dh::PrivateKey}::to_bytes]
     Visibility: public -/
 @[rust_fun
@@ -486,7 +486,7 @@ axiom tacenta_boundary.dh.PrivateKey.to_bytes
     32#usize))
 
 /-- [tacenta_boundary::dh::{tacenta_boundary::dh::PublicKeyBytes}::from_bytes]:
-    Source: 'boundary/src/dh.rs', lines 70:4-70:56
+    Source: 'boundary/src/dh.rs', lines 71:4-71:56
     Name pattern: [tacenta_boundary::dh::{tacenta_boundary::dh::PublicKeyBytes}::from_bytes]
     Visibility: public -/
 @[rust_fun
@@ -495,13 +495,21 @@ axiom tacenta_boundary.dh.PublicKeyBytes.from_bytes
   : Array Std.U8 32#usize → Result tacenta_boundary.dh.PublicKeyBytes
 
 /-- [tacenta_boundary::dh::{tacenta_boundary::dh::PublicKeyBytes}::as_bytes]:
-    Source: 'boundary/src/dh.rs', lines 74:4-74:39
+    Source: 'boundary/src/dh.rs', lines 75:4-75:39
     Name pattern: [tacenta_boundary::dh::{tacenta_boundary::dh::PublicKeyBytes}::as_bytes]
     Visibility: public -/
 @[rust_fun
   "tacenta_boundary::dh::{tacenta_boundary::dh::PublicKeyBytes}::as_bytes"]
 axiom tacenta_boundary.dh.PublicKeyBytes.as_bytes
   : tacenta_boundary.dh.PublicKeyBytes → Result (Array Std.U8 32#usize)
+
+/-- [tacenta_boundary::dh::is_prime_order_public]:
+    Source: 'boundary/src/dh.rs', lines 93:0-93:58
+    Name pattern: [tacenta_boundary::dh::is_prime_order_public]
+    Visibility: public -/
+@[rust_fun "tacenta_boundary::dh::is_prime_order_public"]
+axiom tacenta_boundary.dh.is_prime_order_public
+  : tacenta_boundary.dh.PublicKeyBytes → Result Bool
 
 /-- [tacenta_boundary::kem::KemError]
     Source: 'boundary/src/kem.rs', lines 25:0-25:19
@@ -586,14 +594,14 @@ axiom tacenta_boundary.kem.decapsulate
     (Array Std.U8 32#usize) tacenta_boundary.kem.KemError)
 
 /-- [tacenta_boundary::xeddsa::VerifyError]
-    Source: 'boundary/src/xeddsa.rs', lines 45:0-45:22
+    Source: 'boundary/src/xeddsa.rs', lines 46:0-46:22
     Name pattern: [tacenta_boundary::xeddsa::VerifyError]
     Visibility: public -/
 @[reducible, rust_type "tacenta_boundary::xeddsa::VerifyError"]
 def tacenta_boundary.xeddsa.VerifyError := Unit
 
 /-- [tacenta_boundary::xeddsa::sign]:
-    Source: 'boundary/src/xeddsa.rs', lines 132:0-132:95
+    Source: 'boundary/src/xeddsa.rs', lines 133:0-133:95
     Name pattern: [tacenta_boundary::xeddsa::sign]
     Visibility: public -/
 @[rust_fun "tacenta_boundary::xeddsa::sign"]
@@ -604,7 +612,7 @@ axiom tacenta_boundary.xeddsa.sign
     64#usize) × R)
 
 /-- [tacenta_boundary::xeddsa::verify]:
-    Source: 'boundary/src/xeddsa.rs', lines 247:0-251:28
+    Source: 'boundary/src/xeddsa.rs', lines 253:0-257:28
     Name pattern: [tacenta_boundary::xeddsa::verify]
     Visibility: public -/
 @[rust_fun "tacenta_boundary::xeddsa::verify"]
@@ -1500,7 +1508,7 @@ axiom zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop
   {T : Type} (ZeroizeInst : zeroize.Zeroize T) : T → Result T
 
 /-- [tacenta_lifecycle::encode_ec]:
-    Source: 'lifecycle/src/lib.rs', lines 64:0-66:1
+    Source: 'lifecycle/src/lib.rs', lines 65:0-67:1
     Visibility: public -/
 def encode_ec
   (pk : tacenta_boundary.dh.PublicKeyBytes) :
@@ -1510,7 +1518,7 @@ def encode_ec
   tacenta_session.encode_ec a
 
 /-- [tacenta_lifecycle::decode_ec]:
-    Source: 'lifecycle/src/lib.rs', lines 71:0-76:1
+    Source: 'lifecycle/src/lib.rs', lines 72:0-77:1
     Visibility: public -/
 def decode_ec
   (bytes : Slice Std.U8) :
@@ -1524,20 +1532,30 @@ def decode_ec
     ok (some pkb)
 
 /-- [tacenta_lifecycle::is_canonical_key]:
-    Source: 'lifecycle/src/lib.rs', lines 82:0-84:1 -/
+    Source: 'lifecycle/src/lib.rs', lines 83:0-85:1 -/
 def is_canonical_key
   (pk : tacenta_boundary.dh.PublicKeyBytes) : Result Bool := do
   let a ← tacenta_boundary.dh.PublicKeyBytes.as_bytes pk
   tacenta_session.is_canonical_x25519 a
 
+/-- [tacenta_lifecycle::is_valid_identity_key]:
+    Source: 'lifecycle/src/lib.rs', lines 97:0-99:1
+    Visibility: public -/
+def is_valid_identity_key
+  (pk : tacenta_boundary.dh.PublicKeyBytes) : Result Bool := do
+  let b ← is_canonical_key pk
+  if b
+  then tacenta_boundary.dh.is_prime_order_public pk
+  else ok false
+
 /-- [tacenta_lifecycle::encode_kem]:
-    Source: 'lifecycle/src/lib.rs', lines 92:0-94:1
+    Source: 'lifecycle/src/lib.rs', lines 107:0-109:1
     Visibility: public -/
 def encode_kem (pk : Slice Std.U8) : Result (alloc.vec.Vec Std.U8) := do
   tacenta_session.encode_kem pk
 
 /-- [tacenta_lifecycle::decode_kem]:
-    Source: 'lifecycle/src/lib.rs', lines 98:0-107:1
+    Source: 'lifecycle/src/lib.rs', lines 113:0-122:1
     Visibility: public -/
 def decode_kem
   (bytes : Slice Std.U8) : Result (Option (alloc.vec.Vec Std.U8)) := do
@@ -1558,7 +1576,7 @@ def decode_kem
     else ok none
 
 /-- [tacenta_lifecycle::APPLICATION_SIGNING_LABEL]
-    Source: 'lifecycle/src/lib.rs', lines 149:0-149:81 -/
+    Source: 'lifecycle/src/lib.rs', lines 168:0-168:81 -/
 @[global_simps, irreducible]
 def APPLICATION_SIGNING_LABEL : Slice Std.U8 :=
   Array.to_slice
@@ -1570,7 +1588,7 @@ def APPLICATION_SIGNING_LABEL : Slice Std.U8 :=
       ])
 
 /-- [tacenta_lifecycle::application_signing_input]:
-    Source: 'lifecycle/src/lib.rs', lines 151:0-156:1 -/
+    Source: 'lifecycle/src/lib.rs', lines 170:0-175:1 -/
 def application_signing_input
   (message : Slice Std.U8) : Result (alloc.vec.Vec Std.U8) := do
   let i := Slice.len APPLICATION_SIGNING_LABEL
@@ -1583,7 +1601,7 @@ def application_signing_input
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 input1 message
 
 /-- [tacenta_lifecycle::verify_under_identity]:
-    Source: 'lifecycle/src/lib.rs', lines 116:0-122:1
+    Source: 'lifecycle/src/lib.rs', lines 135:0-141:1
     Visibility: public -/
 def verify_under_identity
   (identity : tacenta_boundary.dh.PublicKeyBytes) (message : Slice Std.U8)
@@ -1596,7 +1614,7 @@ def verify_under_identity
   core.result.Result.is_ok r
 
 /-- [tacenta_lifecycle::PreKeyBundle]
-    Source: 'lifecycle/src/lib.rs', lines 164:0-171:1
+    Source: 'lifecycle/src/lib.rs', lines 183:0-190:1
     Visibility: public -/
 structure PreKeyBundle where
   identity_key : tacenta_boundary.dh.PublicKeyBytes
@@ -1607,23 +1625,24 @@ structure PreKeyBundle where
   one_time_prekey : Option tacenta_boundary.dh.PublicKeyBytes
 
 /-- [tacenta_lifecycle::SessionError]
-    Source: 'lifecycle/src/lib.rs', lines 179:0-188:1
+    Source: 'lifecycle/src/lib.rs', lines 198:0-211:1
     Visibility: public -/
 @[discriminant isize]
 inductive SessionError where
 | BadSignedPrekeySignature : SessionError
 | BadKemPrekeySignature : SessionError
 | NonContributoryAgreement : SessionError
+| InvalidIdentityKey : SessionError
 
 /-- [tacenta_lifecycle::{impl core::clone::Clone for tacenta_lifecycle::SessionError}::clone]:
-    Source: 'lifecycle/src/lib.rs', lines 177:9-177:14
+    Source: 'lifecycle/src/lib.rs', lines 196:9-196:14
     Visibility: public -/
 def SessionError.Insts.CoreCloneClone.clone
   (self : SessionError) : Result SessionError := do
   ok self
 
 /-- [tacenta_lifecycle::{impl core::cmp::PartialEq<tacenta_lifecycle::SessionError> for tacenta_lifecycle::SessionError}::eq]:
-    Source: 'lifecycle/src/lib.rs', lines 177:22-177:31
+    Source: 'lifecycle/src/lib.rs', lines 196:22-196:31
     Visibility: public -/
 def SessionError.Insts.CoreCmpPartialEqSessionError.eq
   (self : SessionError) (other : SessionError) : Result Bool := do
@@ -1632,7 +1651,7 @@ def SessionError.Insts.CoreCmpPartialEqSessionError.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tacenta_lifecycle::{impl core::cmp::PartialEq<tacenta_lifecycle::SessionError> for tacenta_lifecycle::SessionError}]
-    Source: 'lifecycle/src/lib.rs', lines 177:22-177:31 -/
+    Source: 'lifecycle/src/lib.rs', lines 196:22-196:31 -/
 @[reducible]
 impl_def SessionError.Insts.CoreCmpPartialEqSessionError : core.cmp.PartialEq
   SessionError SessionError := {
@@ -1642,14 +1661,14 @@ impl_def SessionError.Insts.CoreCmpPartialEqSessionError : core.cmp.PartialEq
 }
 
 /-- [tacenta_lifecycle::{impl core::cmp::Eq for tacenta_lifecycle::SessionError}::assert_fields_are_eq]:
-    Source: 'lifecycle/src/lib.rs', lines 177:33-177:35
+    Source: 'lifecycle/src/lib.rs', lines 196:33-196:35
     Visibility: public -/
 def SessionError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : SessionError) : Result Unit := do
   ok ()
 
 /-- [tacenta_lifecycle::{impl core::fmt::Debug for tacenta_lifecycle::SessionError}::fmt]:
-    Source: 'lifecycle/src/lib.rs', lines 177:37-177:42
+    Source: 'lifecycle/src/lib.rs', lines 196:37-196:42
     Visibility: public -/
 def SessionError.Insts.CoreFmtDebug.fmt
   (self : SessionError) (f : core.fmt.Formatter) :
@@ -1662,41 +1681,47 @@ def SessionError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "BadKemPrekeySignature")
   | SessionError.NonContributoryAgreement =>
     core.fmt.Formatter.write_str f (toStr "NonContributoryAgreement")
+  | SessionError.InvalidIdentityKey =>
+    core.fmt.Formatter.write_str f (toStr "InvalidIdentityKey")
 
 /-- Trait implementation: [tacenta_lifecycle::{impl core::fmt::Debug for tacenta_lifecycle::SessionError}]
-    Source: 'lifecycle/src/lib.rs', lines 177:37-177:42 -/
+    Source: 'lifecycle/src/lib.rs', lines 196:37-196:42 -/
 @[reducible]
 def SessionError.Insts.CoreFmtDebug : core.fmt.Debug SessionError := {
   fmt := SessionError.Insts.CoreFmtDebug.fmt
 }
 
 /-- [tacenta_lifecycle::verify_bundle]:
-    Source: 'lifecycle/src/lib.rs', lines 195:0-211:1
+    Source: 'lifecycle/src/lib.rs', lines 220:0-239:1
     Visibility: public -/
 def verify_bundle
   (bundle : PreKeyBundle) : Result (core.result.Result Unit SessionError) := do
-  let v ← encode_ec bundle.signed_prekey
-  let s := alloc.vec.Vec.deref v
-  let r ←
-    tacenta_boundary.xeddsa.verify bundle.identity_key s
-      bundle.signed_prekey_signature
-  match r with
-  | core.result.Result.Ok _ =>
-    let s1 := alloc.vec.Vec.deref bundle.kem_prekey
-    let v1 ← encode_kem s1
-    let s2 := alloc.vec.Vec.deref v1
-    let r1 ←
-      tacenta_boundary.xeddsa.verify bundle.identity_key s2
-        bundle.kem_prekey_signature
-    match r1 with
-    | core.result.Result.Ok _ => ok (core.result.Result.Ok ())
+  let b ← is_valid_identity_key bundle.identity_key
+  if b
+  then
+    let v ← encode_ec bundle.signed_prekey
+    let s := alloc.vec.Vec.deref v
+    let r ←
+      tacenta_boundary.xeddsa.verify bundle.identity_key s
+        bundle.signed_prekey_signature
+    match r with
+    | core.result.Result.Ok _ =>
+      let s1 := alloc.vec.Vec.deref bundle.kem_prekey
+      let v1 ← encode_kem s1
+      let s2 := alloc.vec.Vec.deref v1
+      let r1 ←
+        tacenta_boundary.xeddsa.verify bundle.identity_key s2
+          bundle.kem_prekey_signature
+      match r1 with
+      | core.result.Result.Ok _ => ok (core.result.Result.Ok ())
+      | core.result.Result.Err _ =>
+        ok (core.result.Result.Err SessionError.BadKemPrekeySignature)
     | core.result.Result.Err _ =>
-      ok (core.result.Result.Err SessionError.BadKemPrekeySignature)
-  | core.result.Result.Err _ =>
-    ok (core.result.Result.Err SessionError.BadSignedPrekeySignature)
+      ok (core.result.Result.Err SessionError.BadSignedPrekeySignature)
+  else ok (core.result.Result.Err SessionError.InvalidIdentityKey)
 
 /-- [tacenta_lifecycle::contributory]:
-    Source: 'lifecycle/src/lib.rs', lines 213:0-218:1 -/
+    Source: 'lifecycle/src/lib.rs', lines 241:0-246:1 -/
 def contributory
   (value : Option (Array Std.U8 32#usize)) :
   Result (core.result.Result (Array Std.U8 32#usize) SessionError)
@@ -1706,7 +1731,7 @@ def contributory
   | some secret => ok (core.result.Result.Ok secret)
 
 /-- [tacenta_lifecycle::initiator_shared_secret]:
-    Source: 'lifecycle/src/lib.rs', lines 223:0-249:1
+    Source: 'lifecycle/src/lib.rs', lines 251:0-277:1
     Visibility: public -/
 def initiator_shared_secret
   (identity_private : tacenta_boundary.dh.PrivateKey)
@@ -1813,7 +1838,7 @@ def initiator_shared_secret
       (Array Std.U8 32#usize) (core.convert.FromSame SessionError) residual
 
 /-- [tacenta_lifecycle::responder_shared_secret]:
-    Source: 'lifecycle/src/lib.rs', lines 254:0-284:1
+    Source: 'lifecycle/src/lib.rs', lines 285:0-318:1
     Visibility: public -/
 def responder_shared_secret
   (identity_private : tacenta_boundary.dh.PrivateKey)
@@ -1824,61 +1849,41 @@ def responder_shared_secret
   (encapsulated : Array Std.U8 32#usize) :
   Result (core.result.Result (Array Std.U8 32#usize) SessionError)
   := do
-  let o ←
-    tacenta_boundary.dh.PrivateKey.agree signed_prekey_private
-      initiator_identity
-  let r ← contributory o
-  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-  match cf with
-  | core.ops.control_flow.ControlFlow.Continue val =>
-    let dh1 ←
-      zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
-        (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) val
-    let o1 ←
-      tacenta_boundary.dh.PrivateKey.agree identity_private initiator_ephemeral
-    let r1 ← contributory o1
-    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
-    match cf1 with
-    | core.ops.control_flow.ControlFlow.Continue val1 =>
-      let dh2 ←
+  let b ← is_valid_identity_key initiator_identity
+  if b
+  then
+    let o ←
+      tacenta_boundary.dh.PrivateKey.agree signed_prekey_private
+        initiator_identity
+    let r ← contributory o
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue val =>
+      let dh1 ←
         zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
-          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) val1
-      let o2 ←
-        tacenta_boundary.dh.PrivateKey.agree signed_prekey_private
+          (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) val
+      let o1 ←
+        tacenta_boundary.dh.PrivateKey.agree identity_private
           initiator_ephemeral
-      let r2 ← contributory o2
-      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
-      match cf2 with
-      | core.ops.control_flow.ControlFlow.Continue val2 =>
-        let dh3 ←
+      let r1 ← contributory o1
+      let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+      match cf1 with
+      | core.ops.control_flow.ControlFlow.Continue val1 =>
+        let dh2 ←
           zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
-            (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) val2
-        match one_time_prekey_private with
-        | none =>
-          let a ←
-            zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
-              (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
-              U8.Insts.ZeroizeDefaultIsZeroes)) dh1
-          let a1 ←
-            zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
-              (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
-              U8.Insts.ZeroizeDefaultIsZeroes)) dh2
-          let a2 ←
-            zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
-              (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
-              U8.Insts.ZeroizeDefaultIsZeroes)) dh3
-          let a3 ← tacenta_session.shared_secret a a1 a2 none encapsulated
-          ok (core.result.Result.Ok a3)
-        | some opk =>
-          let o3 ←
-            tacenta_boundary.dh.PrivateKey.agree opk initiator_ephemeral
-          let r3 ← contributory o3
-          let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
-          match cf3 with
-          | core.ops.control_flow.ControlFlow.Continue val3 =>
-            let secret ←
-              zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
-                (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) val3
+            (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) val1
+        let o2 ←
+          tacenta_boundary.dh.PrivateKey.agree signed_prekey_private
+            initiator_ephemeral
+        let r2 ← contributory o2
+        let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+        match cf2 with
+        | core.ops.control_flow.ControlFlow.Continue val2 =>
+          let dh3 ←
+            zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
+              (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) val2
+          match one_time_prekey_private with
+          | none =>
             let a ←
               zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
                 (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
@@ -1891,26 +1896,53 @@ def responder_shared_secret
               zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
                 (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
                 U8.Insts.ZeroizeDefaultIsZeroes)) dh3
-            let a3 ←
-              zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
-                (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
-                U8.Insts.ZeroizeDefaultIsZeroes)) secret
-            let a4 ←
-              tacenta_session.shared_secret a a1 a2 (some a3) encapsulated
-            ok (core.result.Result.Ok a4)
-          | core.ops.control_flow.ControlFlow.Break residual =>
-            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
-              (Array Std.U8 32#usize) (core.convert.FromSame SessionError)
-              residual
+            let a3 ← tacenta_session.shared_secret a a1 a2 none encapsulated
+            ok (core.result.Result.Ok a3)
+          | some opk =>
+            let o3 ←
+              tacenta_boundary.dh.PrivateKey.agree opk initiator_ephemeral
+            let r3 ← contributory o3
+            let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+            match cf3 with
+            | core.ops.control_flow.ControlFlow.Continue val3 =>
+              let secret ←
+                zeroize.Zeroizing.new (Array.Insts.ZeroizeZeroize 32#usize
+                  (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+                  val3
+              let a ←
+                zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                  (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+                  U8.Insts.ZeroizeDefaultIsZeroes)) dh1
+              let a1 ←
+                zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                  (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+                  U8.Insts.ZeroizeDefaultIsZeroes)) dh2
+              let a2 ←
+                zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                  (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+                  U8.Insts.ZeroizeDefaultIsZeroes)) dh3
+              let a3 ←
+                zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+                  (Array.Insts.ZeroizeZeroize 32#usize (zeroize.Zeroize.Blanket
+                  U8.Insts.ZeroizeDefaultIsZeroes)) secret
+              let a4 ←
+                tacenta_session.shared_secret a a1 a2 (some a3) encapsulated
+              ok (core.result.Result.Ok a4)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                (Array Std.U8 32#usize) (core.convert.FromSame SessionError)
+                residual
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+            (Array Std.U8 32#usize) (core.convert.FromSame SessionError)
+            residual
       | core.ops.control_flow.ControlFlow.Break residual =>
         core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
           (Array Std.U8 32#usize) (core.convert.FromSame SessionError) residual
     | core.ops.control_flow.ControlFlow.Break residual =>
       core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
         (Array Std.U8 32#usize) (core.convert.FromSame SessionError) residual
-  | core.ops.control_flow.ControlFlow.Break residual =>
-    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
-      (Array Std.U8 32#usize) (core.convert.FromSame SessionError) residual
+  else ok (core.result.Result.Err SessionError.InvalidIdentityKey)
 
 /-- [tacenta_lifecycle::lifecycle::Identity]
     Source: 'lifecycle/src/lifecycle.rs', lines 41:0-43:1
@@ -3971,7 +4003,7 @@ def lifecycle.PrekeyStore.take_one_time_kem
         })
 
 /-- [tacenta_lifecycle::lifecycle::push_len_prefixed]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3233:0-3236:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3309:0-3312:1 -/
 def lifecycle.push_len_prefixed
   (out : alloc.vec.Vec Std.U8) (bytes : Slice Std.U8) :
   Result (alloc.vec.Vec Std.U8)
@@ -3984,7 +4016,7 @@ def lifecycle.push_len_prefixed
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 bytes
 
 /-- [tacenta_lifecycle::lifecycle::PREKEY_STORE_VERSION]
-    Source: 'lifecycle/src/lifecycle.rs', lines 1750:0-1750:38 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1757:0-1757:38 -/
 @[global_simps, irreducible]
 def lifecycle.PREKEY_STORE_VERSION : Std.U8 := 5#u8
 
@@ -4425,7 +4457,7 @@ def lifecycle.PrekeyStore.to_bytes
     fail panic
 
 /-- [tacenta_lifecycle::lifecycle::take_len_prefixed]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3238:0-3255:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3314:0-3331:1 -/
 def lifecycle.take_len_prefixed
   (bytes : Slice Std.U8) (pos : Std.Usize) :
   Result (Option ((Slice Std.U8) × Std.Usize))
@@ -4469,7 +4501,7 @@ def lifecycle.take_len_prefixed
       ((Slice Std.U8) × Std.Usize) residual
 
 /-- [tacenta_lifecycle::lifecycle::read_prekey_u32]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1802:0-1809:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1809:0-1816:1 -/
 def lifecycle.read_prekey_u32
   (bytes : Slice Std.U8) (pos : Std.Usize) : Result (Option Std.U32) := do
   let i := Slice.len bytes
@@ -4488,7 +4520,7 @@ def lifecycle.read_prekey_u32
     ok (some i2)
 
 /-- [tacenta_lifecycle::lifecycle::PrekeyStoreDecodeError]
-    Source: 'lifecycle/src/lifecycle.rs', lines 1768:0-1800:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 1775:0-1807:1
     Visibility: public -/
 @[discriminant isize]
 inductive lifecycle.PrekeyStoreDecodeError where
@@ -4499,17 +4531,17 @@ inductive lifecycle.PrekeyStoreDecodeError where
 | Incoherent : lifecycle.PrekeyStoreDecodeError
 
 /-- [tacenta_lifecycle::lifecycle::PREKEY_STORE_VERSION_V3]
-    Source: 'lifecycle/src/lifecycle.rs', lines 1756:0-1756:41 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1763:0-1763:41 -/
 @[global_simps, irreducible]
 def lifecycle.PREKEY_STORE_VERSION_V3 : Std.U8 := 3#u8
 
 /-- [tacenta_lifecycle::lifecycle::PREKEY_STORE_VERSION_V4]
-    Source: 'lifecycle/src/lifecycle.rs', lines 1753:0-1753:41 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1760:0-1760:41 -/
 @[global_simps, irreducible]
 def lifecycle.PREKEY_STORE_VERSION_V4 : Std.U8 := 4#u8
 
 /-- [tacenta_lifecycle::lifecycle::decode_previous_prekeys]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2056:0-2121:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2063:0-2128:1 -/
 def lifecycle.decode_previous_prekeys
   (bytes : Slice Std.U8) (pos : Std.Usize) (version : Std.U8) :
   Result (core.result.Result ((Option ((Array Std.U8 32#usize) × Std.U32 ×
@@ -4993,7 +5025,7 @@ def lifecycle.decode_previous_prekeys
       else ok (core.result.Result.Ok (none, none, pos))
 
 /-- [tacenta_lifecycle::lifecycle::decode_untagged_seen]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1961:4-1967:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1968:4-1974:5 -/
 @[rust_loop_body]
 def lifecycle.decode_untagged_seen_loop.body
   (bytes : Slice Std.U8) (count : Std.U32) (kem_id : Std.U32) (pos : Std.Usize)
@@ -5019,7 +5051,7 @@ def lifecycle.decode_untagged_seen_loop.body
   else ok (done (pos, entries))
 
 /-- [tacenta_lifecycle::lifecycle::decode_untagged_seen]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1961:4-1967:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1968:4-1974:5 -/
 @[rust_loop]
 def lifecycle.decode_untagged_seen_loop
   (bytes : Slice Std.U8) (pos : Std.Usize) (count : Std.U32) (kem_id : Std.U32)
@@ -5033,7 +5065,7 @@ def lifecycle.decode_untagged_seen_loop
     (pos, entries, decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_untagged_seen]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1953:0-1969:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1960:0-1976:1 -/
 def lifecycle.decode_untagged_seen
   (bytes : Slice Std.U8) (pos : Std.Usize) (count : Std.U32) (kem_id : Std.U32)
   :
@@ -5048,7 +5080,7 @@ def lifecycle.decode_untagged_seen
   ok (core.result.Result.Ok (entries1, pos1))
 
 /-- [tacenta_lifecycle::lifecycle::decode_tagged_seen]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1939:4-1948:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1946:4-1955:5 -/
 @[rust_loop_body]
 def lifecycle.decode_tagged_seen_loop.body
   (bytes : Slice Std.U8) (count : Std.U32) (pos : Std.Usize)
@@ -5083,7 +5115,7 @@ def lifecycle.decode_tagged_seen_loop.body
   else ok (done (pos, entries))
 
 /-- [tacenta_lifecycle::lifecycle::decode_tagged_seen]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1939:4-1948:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1946:4-1955:5 -/
 @[rust_loop]
 def lifecycle.decode_tagged_seen_loop
   (bytes : Slice Std.U8) (pos : Std.Usize) (count : Std.U32)
@@ -5097,7 +5129,7 @@ def lifecycle.decode_tagged_seen_loop
     (pos, entries, decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_tagged_seen]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1932:0-1950:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1939:0-1957:1 -/
 def lifecycle.decode_tagged_seen
   (bytes : Slice Std.U8) (pos : Std.Usize) (count : Std.U32) :
   Result (core.result.Result ((alloc.vec.Vec (Std.U32 × (Array Std.U8
@@ -5111,12 +5143,12 @@ def lifecycle.decode_tagged_seen
   ok (core.result.Result.Ok (entries1, pos1))
 
 /-- [tacenta_lifecycle::lifecycle::PREKEY_STORE_VERSION_V1]
-    Source: 'lifecycle/src/lifecycle.rs', lines 1761:0-1761:41 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1768:0-1768:41 -/
 @[global_simps, irreducible]
 def lifecycle.PREKEY_STORE_VERSION_V1 : Std.U8 := 1#u8
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2042:8-2048:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2049:8-2055:9 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_replay_loop0.body
   (bytes : Slice Std.U8) (blocked_count : Std.U32) (pos : Std.Usize)
@@ -5143,7 +5175,7 @@ def lifecycle.decode_prekey_replay_loop0.body
   else ok (done (pos, legacy_last_resort_blocked))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2042:8-2048:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2049:8-2055:9 -/
 @[rust_loop]
 def lifecycle.decode_prekey_replay_loop0
   (bytes : Slice Std.U8) (pos : Std.Usize)
@@ -5158,7 +5190,7 @@ def lifecycle.decode_prekey_replay_loop0
     (pos, legacy_last_resort_blocked, blocked_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]: loop body 1:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2042:8-2048:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2049:8-2055:9 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_replay_loop1.body
   (bytes : Slice Std.U8) (blocked_count : Std.U32) (pos : Std.Usize)
@@ -5185,7 +5217,7 @@ def lifecycle.decode_prekey_replay_loop1.body
   else ok (done (pos, legacy_last_resort_blocked))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]: loop 1:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2042:8-2048:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2049:8-2055:9 -/
 @[rust_loop]
 def lifecycle.decode_prekey_replay_loop1
   (bytes : Slice Std.U8) (pos : Std.Usize)
@@ -5200,7 +5232,7 @@ def lifecycle.decode_prekey_replay_loop1
     (pos, legacy_last_resort_blocked, blocked_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]: loop body 2:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2042:8-2048:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2049:8-2055:9 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_replay_loop2.body
   (bytes : Slice Std.U8) (blocked_count : Std.U32) (pos : Std.Usize)
@@ -5227,7 +5259,7 @@ def lifecycle.decode_prekey_replay_loop2.body
   else ok (done (pos, legacy_last_resort_blocked))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]: loop 2:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2042:8-2048:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2049:8-2055:9 -/
 @[rust_loop]
 def lifecycle.decode_prekey_replay_loop2
   (bytes : Slice Std.U8) (pos : Std.Usize)
@@ -5242,7 +5274,7 @@ def lifecycle.decode_prekey_replay_loop2
     (pos, legacy_last_resort_blocked, blocked_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]: loop body 3:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2042:8-2048:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2049:8-2055:9 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_replay_loop3.body
   (bytes : Slice Std.U8) (blocked_count : Std.U32) (pos : Std.Usize)
@@ -5269,7 +5301,7 @@ def lifecycle.decode_prekey_replay_loop3.body
   else ok (done (pos, legacy_last_resort_blocked))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]: loop 3:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2042:8-2048:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2049:8-2055:9 -/
 @[rust_loop]
 def lifecycle.decode_prekey_replay_loop3
   (bytes : Slice Std.U8) (pos : Std.Usize)
@@ -5284,7 +5316,7 @@ def lifecycle.decode_prekey_replay_loop3
     (pos, legacy_last_resort_blocked, blocked_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_replay]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1972:0-2051:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1979:0-2058:1 -/
 def lifecycle.decode_prekey_replay
   (bytes : Slice Std.U8) (pos : Std.Usize) (version : Std.U8)
   (kem_id : Std.U32) :
@@ -5560,7 +5592,7 @@ def lifecycle.decode_prekey_replay
         32#usize)), alloc.vec.Vec.new Std.U32, pos))
 
 /-- [tacenta_lifecycle::lifecycle::decode_kem_one_time_entries]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2133:4-2181:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2140:4-2188:5 -/
 @[rust_loop_body]
 def lifecycle.decode_kem_one_time_entries_loop.body
   (bytes : Slice Std.U8) (count : Std.U32) (pos : Std.Usize)
@@ -5639,7 +5671,7 @@ def lifecycle.decode_kem_one_time_entries_loop.body
   else ok (done (pos, entries, failure))
 
 /-- [tacenta_lifecycle::lifecycle::decode_kem_one_time_entries]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2133:4-2181:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2140:4-2188:5 -/
 @[rust_loop]
 def lifecycle.decode_kem_one_time_entries_loop
   (bytes : Slice Std.U8) (pos : Std.Usize) (count : Std.U32)
@@ -5656,7 +5688,7 @@ def lifecycle.decode_kem_one_time_entries_loop
     (pos, entries, decoded, failure)
 
 /-- [tacenta_lifecycle::lifecycle::decode_kem_one_time_entries]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2124:0-2186:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2131:0-2193:1 -/
 def lifecycle.decode_kem_one_time_entries
   (bytes : Slice Std.U8) (pos : Std.Usize) (count : Std.U32)
   (capacity : Std.Usize) :
@@ -5675,7 +5707,7 @@ def lifecycle.decode_kem_one_time_entries
   | some error => ok (core.result.Result.Err error)
 
 /-- [tacenta_lifecycle::lifecycle::DecodedPrekeyHead]
-    Source: 'lifecycle/src/lifecycle.rs', lines 1811:0-1824:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1818:0-1831:1 -/
 structure lifecycle.DecodedPrekeyHead where
   version : Std.U8
   pos : Std.Usize
@@ -5693,12 +5725,12 @@ structure lifecycle.DecodedPrekeyHead where
   next_id : Std.U32
 
 /-- [tacenta_lifecycle::lifecycle::PREKEY_STORE_VERSION_V2]
-    Source: 'lifecycle/src/lifecycle.rs', lines 1759:0-1759:41 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1766:0-1766:41 -/
 @[global_simps, irreducible]
 def lifecycle.PREKEY_STORE_VERSION_V2 : Std.U8 := 2#u8
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1875:4-1884:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1882:4-1891:5 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_head_loop0.body
   (bytes : Slice Std.U8) (one_time_count : Std.U32) (pos : Std.Usize)
@@ -5740,7 +5772,7 @@ def lifecycle.decode_prekey_head_loop0.body
   else ok (done (pos, one_time))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1875:4-1884:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1882:4-1891:5 -/
 @[rust_loop]
 def lifecycle.decode_prekey_head_loop0
   (bytes : Slice Std.U8) (pos : Std.Usize) (one_time_count : Std.U32)
@@ -5756,7 +5788,7 @@ def lifecycle.decode_prekey_head_loop0
     (pos, one_time, one_time_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop body 1:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1875:4-1884:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1882:4-1891:5 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_head_loop1.body
   (bytes : Slice Std.U8) (one_time_count : Std.U32) (pos : Std.Usize)
@@ -5798,7 +5830,7 @@ def lifecycle.decode_prekey_head_loop1.body
   else ok (done (pos, one_time))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop 1:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1875:4-1884:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1882:4-1891:5 -/
 @[rust_loop]
 def lifecycle.decode_prekey_head_loop1
   (bytes : Slice Std.U8) (pos : Std.Usize) (one_time_count : Std.U32)
@@ -5814,7 +5846,7 @@ def lifecycle.decode_prekey_head_loop1
     (pos, one_time, one_time_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop body 2:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1875:4-1884:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1882:4-1891:5 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_head_loop2.body
   (bytes : Slice Std.U8) (one_time_count : Std.U32) (pos : Std.Usize)
@@ -5856,7 +5888,7 @@ def lifecycle.decode_prekey_head_loop2.body
   else ok (done (pos, one_time))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop 2:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1875:4-1884:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1882:4-1891:5 -/
 @[rust_loop]
 def lifecycle.decode_prekey_head_loop2
   (bytes : Slice Std.U8) (pos : Std.Usize) (one_time_count : Std.U32)
@@ -5872,7 +5904,7 @@ def lifecycle.decode_prekey_head_loop2
     (pos, one_time, one_time_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop body 3:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1875:4-1884:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1882:4-1891:5 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_head_loop3.body
   (bytes : Slice Std.U8) (one_time_count : Std.U32) (pos : Std.Usize)
@@ -5914,7 +5946,7 @@ def lifecycle.decode_prekey_head_loop3.body
   else ok (done (pos, one_time))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop 3:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1875:4-1884:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1882:4-1891:5 -/
 @[rust_loop]
 def lifecycle.decode_prekey_head_loop3
   (bytes : Slice Std.U8) (pos : Std.Usize) (one_time_count : Std.U32)
@@ -5930,7 +5962,7 @@ def lifecycle.decode_prekey_head_loop3
     (pos, one_time, one_time_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop body 4:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1875:4-1884:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1882:4-1891:5 -/
 @[rust_loop_body]
 def lifecycle.decode_prekey_head_loop4.body
   (bytes : Slice Std.U8) (one_time_count : Std.U32) (pos : Std.Usize)
@@ -5972,7 +6004,7 @@ def lifecycle.decode_prekey_head_loop4.body
   else ok (done (pos, one_time))
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]: loop 4:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1875:4-1884:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1882:4-1891:5 -/
 @[rust_loop]
 def lifecycle.decode_prekey_head_loop4
   (bytes : Slice Std.U8) (pos : Std.Usize) (one_time_count : Std.U32)
@@ -5988,7 +6020,7 @@ def lifecycle.decode_prekey_head_loop4
     (pos, one_time, one_time_decoded)
 
 /-- [tacenta_lifecycle::lifecycle::decode_prekey_head]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1826:0-1929:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1833:0-1936:1 -/
 def lifecycle.decode_prekey_head
   (bytes : Slice Std.U8) :
   Result (core.result.Result lifecycle.DecodedPrekeyHead
@@ -7015,7 +7047,7 @@ def lifecycle.decode_prekey_head
                           lifecycle.PrekeyStoreDecodeError.Malformed)
 
 /-- [tacenta_lifecycle::lifecycle::fingerprint_eq]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1717:4-1722:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1724:4-1729:5 -/
 @[rust_loop_body]
 def lifecycle.fingerprint_eq_loop.body
   (left : Array Std.U8 32#usize) (right : Array Std.U8 32#usize) (equal : Bool)
@@ -7034,7 +7066,7 @@ def lifecycle.fingerprint_eq_loop.body
   else ok (done equal)
 
 /-- [tacenta_lifecycle::lifecycle::fingerprint_eq]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1717:4-1722:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1724:4-1729:5 -/
 @[rust_loop]
 def lifecycle.fingerprint_eq_loop
   (left : Array Std.U8 32#usize) (right : Array Std.U8 32#usize) (equal : Bool)
@@ -7047,7 +7079,7 @@ def lifecycle.fingerprint_eq_loop
     (equal, index)
 
 /-- [tacenta_lifecycle::lifecycle::fingerprint_eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1714:0-1724:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1721:0-1731:1 -/
 @[reducible]
 def lifecycle.fingerprint_eq
   (left : Array Std.U8 32#usize) (right : Array Std.U8 32#usize) :
@@ -7056,7 +7088,7 @@ def lifecycle.fingerprint_eq
   lifecycle.fingerprint_eq_loop left right true 0#usize
 
 /-- [tacenta_lifecycle::lifecycle::fingerprint_prefix_contains]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1705:4-1710:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1712:4-1717:5 -/
 @[rust_loop_body]
 def lifecycle.fingerprint_prefix_contains_loop.body
   (entries : Slice (Array Std.U8 32#usize)) (needle : Array Std.U8 32#usize)
@@ -7076,7 +7108,7 @@ def lifecycle.fingerprint_prefix_contains_loop.body
   else ok (done found)
 
 /-- [tacenta_lifecycle::lifecycle::fingerprint_prefix_contains]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1705:4-1710:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1712:4-1717:5 -/
 @[rust_loop]
 def lifecycle.fingerprint_prefix_contains_loop
   (entries : Slice (Array Std.U8 32#usize)) (needle : Array Std.U8 32#usize)
@@ -7089,7 +7121,7 @@ def lifecycle.fingerprint_prefix_contains_loop
     (found, index)
 
 /-- [tacenta_lifecycle::lifecycle::fingerprint_prefix_contains]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1702:0-1712:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1709:0-1719:1 -/
 @[reducible]
 def lifecycle.fingerprint_prefix_contains
   (entries : Slice (Array Std.U8 32#usize)) (needle : Array Std.U8 32#usize) :
@@ -7098,7 +7130,7 @@ def lifecycle.fingerprint_prefix_contains
   lifecycle.fingerprint_prefix_contains_loop entries needle false 0#usize
 
 /-- [tacenta_lifecycle::lifecycle::u32_prefix_contains]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1693:4-1698:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1700:4-1705:5 -/
 @[rust_loop_body]
 def lifecycle.u32_prefix_contains_loop.body
   (values : Slice Std.U32) (end1 : Std.Usize) (needle : Std.U32) (found : Bool)
@@ -7116,7 +7148,7 @@ def lifecycle.u32_prefix_contains_loop.body
   else ok (done found)
 
 /-- [tacenta_lifecycle::lifecycle::u32_prefix_contains]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1693:4-1698:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1700:4-1705:5 -/
 @[rust_loop]
 def lifecycle.u32_prefix_contains_loop
   (values : Slice Std.U32) (end1 : Std.Usize) (needle : Std.U32) (found : Bool)
@@ -7129,7 +7161,7 @@ def lifecycle.u32_prefix_contains_loop
     (found, index)
 
 /-- [tacenta_lifecycle::lifecycle::u32_prefix_contains]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1690:0-1700:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1697:0-1707:1 -/
 @[reducible]
 def lifecycle.u32_prefix_contains
   (values : Slice Std.U32) (end1 : Std.Usize) (needle : Std.U32) :
@@ -7138,7 +7170,7 @@ def lifecycle.u32_prefix_contains
   lifecycle.u32_prefix_contains_loop values end1 needle false 0#usize
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1625:8-1627:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1632:8-1634:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.invariant_loop0.body
@@ -7156,7 +7188,7 @@ def lifecycle.PrekeyStore.invariant_loop0.body
     ok (cont (iter1, ids1))
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1625:8-1627:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1632:8-1634:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.invariant_loop0
@@ -7170,7 +7202,7 @@ def lifecycle.PrekeyStore.invariant_loop0
     (iter, ids)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop body 1:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1628:8-1630:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1635:8-1637:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.invariant_loop1.body
@@ -7189,7 +7221,7 @@ def lifecycle.PrekeyStore.invariant_loop1.body
     ok (cont (iter1, ids1))
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop 1:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1628:8-1630:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1635:8-1637:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.invariant_loop1
@@ -7203,7 +7235,7 @@ def lifecycle.PrekeyStore.invariant_loop1
     (iter, ids)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop body 2:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1634:8-1642:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1641:8-1649:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.invariant_loop2.body
@@ -7233,7 +7265,7 @@ def lifecycle.PrekeyStore.invariant_loop2.body
   else ok (done ids_valid)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop 2:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1634:8-1642:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1641:8-1649:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.invariant_loop2
@@ -7247,7 +7279,7 @@ def lifecycle.PrekeyStore.invariant_loop2
     (ids_valid, i1)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop body 3:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1652:8-1666:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1659:8-1673:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.invariant_loop3.body
@@ -7296,7 +7328,7 @@ def lifecycle.PrekeyStore.invariant_loop3.body
   else ok (done (current_seen, previous_seen, record_valid))
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop 3:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1652:8-1666:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1659:8-1673:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.invariant_loop3
@@ -7315,7 +7347,7 @@ def lifecycle.PrekeyStore.invariant_loop3
     (current_seen, previous_seen, record_valid, fingerprints, record_index)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop body 4:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1676:8-1685:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1683:8-1692:9
     Visibility: public -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.invariant_loop4.body
@@ -7351,7 +7383,7 @@ def lifecycle.PrekeyStore.invariant_loop4.body
   else ok (done blocked_valid)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]: loop 4:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1676:8-1685:9
+    Source: 'lifecycle/src/lifecycle.rs', lines 1683:8-1692:9
     Visibility: public -/
 @[rust_loop]
 def lifecycle.PrekeyStore.invariant_loop4
@@ -7366,11 +7398,11 @@ def lifecycle.PrekeyStore.invariant_loop4
     (blocked_valid, blocked_index)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::invariant]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1603:4-1687:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 1610:4-1694:5
     Visibility: public -/
 def lifecycle.PrekeyStore.invariant
   (self : lifecycle.PrekeyStore) : Result Bool := do
-  let b ← is_canonical_key self.identity_public
+  let b ← is_valid_identity_key self.identity_public
   if b
   then
     let previous_signed_id ←
@@ -7437,7 +7469,7 @@ def lifecycle.PrekeyStore.invariant
   else ok false
 
 /-- [tacenta_lifecycle::lifecycle::kem_prekey_signature_ok]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1735:0-1741:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1742:0-1748:1 -/
 def lifecycle.kem_prekey_signature_ok
   (identity_public : tacenta_boundary.dh.PublicKeyBytes)
   (pair : tacenta_boundary.kem.KeyPair) (signature : Array Std.U8 64#usize) :
@@ -7451,7 +7483,7 @@ def lifecycle.kem_prekey_signature_ok
   core.result.Result.is_ok r
 
 /-- [tacenta_lifecycle::lifecycle::signed_prekey_signature_ok]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1726:0-1733:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1733:0-1740:1 -/
 def lifecycle.signed_prekey_signature_ok
   (identity_public : tacenta_boundary.dh.PublicKeyBytes)
   (secret : Array Std.U8 32#usize) (signature : Array Std.U8 64#usize) :
@@ -7465,7 +7497,7 @@ def lifecycle.signed_prekey_signature_ok
   core.result.Result.is_ok r
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::signatures_verify]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1535:8-1539:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1541:8-1545:9 -/
 @[rust_loop_body]
 def lifecycle.PrekeyStore.signatures_verify_loop.body
   (pkb : tacenta_boundary.dh.PublicKeyBytes)
@@ -7485,7 +7517,7 @@ def lifecycle.PrekeyStore.signatures_verify_loop.body
     else ok (cont (iter1, false))
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::signatures_verify]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1535:8-1539:9 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1541:8-1545:9 -/
 @[rust_loop]
 def lifecycle.PrekeyStore.signatures_verify_loop
   (iter : core.slice.iter.Iter (Std.U32 × tacenta_boundary.kem.KeyPair ×
@@ -7499,7 +7531,7 @@ def lifecycle.PrekeyStore.signatures_verify_loop
     (iter, one_time_ok)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::signatures_verify]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1523:4-1554:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 1529:4-1560:5 -/
 def lifecycle.PrekeyStore.signatures_verify
   (self : lifecycle.PrekeyStore) : Result Bool := do
   let b ←
@@ -7554,7 +7586,7 @@ def lifecycle.PrekeyStore.signatures_verify
   else ok false
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PrekeyStore}::from_bytes]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1439:4-1499:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 1445:4-1505:5
     Visibility: public -/
 def lifecycle.PrekeyStore.from_bytes
   (bytes : Slice Std.U8) :
@@ -7784,7 +7816,7 @@ def lifecycle.PrekeyStore.from_bytes
       lifecycle.PrekeyStoreDecodeError) residual
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::clone::Clone for tacenta_lifecycle::lifecycle::PrekeyStoreDecodeError}::clone]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1766:9-1766:14
+    Source: 'lifecycle/src/lifecycle.rs', lines 1773:9-1773:14
     Visibility: public -/
 def lifecycle.PrekeyStoreDecodeError.Insts.CoreCloneClone.clone
   (self : lifecycle.PrekeyStoreDecodeError) :
@@ -7793,7 +7825,7 @@ def lifecycle.PrekeyStoreDecodeError.Insts.CoreCloneClone.clone
   ok self
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::PartialEq<tacenta_lifecycle::lifecycle::PrekeyStoreDecodeError> for tacenta_lifecycle::lifecycle::PrekeyStoreDecodeError}::eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1766:22-1766:31
+    Source: 'lifecycle/src/lifecycle.rs', lines 1773:22-1773:31
     Visibility: public -/
 def
   lifecycle.PrekeyStoreDecodeError.Insts.CoreCmpPartialEqPrekeyStoreDecodeError.eq
@@ -7806,14 +7838,14 @@ def
   ok (self1 = other1)
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::Eq for tacenta_lifecycle::lifecycle::PrekeyStoreDecodeError}::assert_fields_are_eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1766:33-1766:35
+    Source: 'lifecycle/src/lifecycle.rs', lines 1773:33-1773:35
     Visibility: public -/
 def lifecycle.PrekeyStoreDecodeError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : lifecycle.PrekeyStoreDecodeError) : Result Unit := do
   ok ()
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::fmt::Debug for tacenta_lifecycle::lifecycle::PrekeyStoreDecodeError}::fmt]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 1766:37-1766:42
+    Source: 'lifecycle/src/lifecycle.rs', lines 1773:37-1773:42
     Visibility: public -/
 def lifecycle.PrekeyStoreDecodeError.Insts.CoreFmtDebug.fmt
   (self : lifecycle.PrekeyStoreDecodeError) (f : core.fmt.Formatter) :
@@ -7832,7 +7864,7 @@ def lifecycle.PrekeyStoreDecodeError.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "Incoherent")
 
 /-- [tacenta_lifecycle::lifecycle::Error]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2195:0-2288:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 2202:0-2301:1
     Visibility: public -/
 @[discriminant isize]
 inductive lifecycle.Error where
@@ -7852,14 +7884,14 @@ inductive lifecycle.Error where
 | AgreementFailed : lifecycle.Error
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::clone::Clone for tacenta_lifecycle::lifecycle::Error}::clone]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2193:9-2193:14
+    Source: 'lifecycle/src/lifecycle.rs', lines 2200:9-2200:14
     Visibility: public -/
 def lifecycle.Error.Insts.CoreCloneClone.clone
   (self : lifecycle.Error) : Result lifecycle.Error := do
   ok self
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::PartialEq<tacenta_lifecycle::lifecycle::Error> for tacenta_lifecycle::lifecycle::Error}::eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2193:22-2193:31
+    Source: 'lifecycle/src/lifecycle.rs', lines 2200:22-2200:31
     Visibility: public -/
 def lifecycle.Error.Insts.CoreCmpPartialEqError.eq
   (self : lifecycle.Error) (other : lifecycle.Error) : Result Bool := do
@@ -7935,14 +7967,14 @@ def lifecycle.Error.Insts.CoreCmpPartialEqError.eq
   else ok false
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::Eq for tacenta_lifecycle::lifecycle::Error}::assert_fields_are_eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2193:33-2193:35
+    Source: 'lifecycle/src/lifecycle.rs', lines 2200:33-2200:35
     Visibility: public -/
 def lifecycle.Error.Insts.CoreCmpEq.assert_fields_are_eq
   (self : lifecycle.Error) : Result Unit := do
   ok ()
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::fmt::Debug for tacenta_lifecycle::lifecycle::Error}::fmt]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2193:37-2193:42
+    Source: 'lifecycle/src/lifecycle.rs', lines 2200:37-2200:42
     Visibility: public -/
 def lifecycle.Error.Insts.CoreFmtDebug.fmt
   (self : lifecycle.Error) (f : core.fmt.Formatter) :
@@ -7986,7 +8018,7 @@ def lifecycle.Error.Insts.CoreFmtDebug.fmt
     core.fmt.Formatter.write_str f (toStr "AgreementFailed")
 
 /-- [tacenta_lifecycle::lifecycle::PendingInitial]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2413:0-2419:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2426:0-2432:1 -/
 structure lifecycle.PendingInitial where
   ephemeral_public : tacenta_boundary.dh.PublicKeyBytes
   kem_ciphertext : alloc.vec.Vec Std.U8
@@ -7995,7 +8027,7 @@ structure lifecycle.PendingInitial where
   kem_prekey_id : Std.U32
 
 /-- [tacenta_lifecycle::lifecycle::Session]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2293:0-2311:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 2306:0-2324:1
     Visibility: public -/
 structure lifecycle.Session where
   triple : tacenta_triple.State
@@ -8008,7 +8040,7 @@ structure lifecycle.Session where
   established_ephemeral : Option (alloc.vec.Vec Std.U8)
 
 /-- [tacenta_lifecycle::lifecycle::PublicState]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2316:0-2321:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 2329:0-2334:1
     Visibility: public -/
 structure lifecycle.PublicState where
   peer_identity : tacenta_boundary.dh.PublicKeyBytes
@@ -8017,7 +8049,7 @@ structure lifecycle.PublicState where
   received : Std.U32
 
 /-- [tacenta_lifecycle::lifecycle::agreement_type_of]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2373:0-2382:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2386:0-2395:1 -/
 def lifecycle.agreement_type_of
   (t : tacenta_braid.MsgType) : Result tacenta_wire.AgreementType := do
   match t with
@@ -8029,7 +8061,7 @@ def lifecycle.agreement_type_of
   | tacenta_braid.MsgType.Ct2 => ok tacenta_wire.AgreementType.Ct2
 
 /-- [tacenta_lifecycle::lifecycle::composite_of]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2325:0-2342:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2338:0-2355:1 -/
 def lifecycle.composite_of
   (h : tacenta_triple.Header) (m : tacenta_braid.Msg) :
   Result tacenta_wire.Composite
@@ -8062,7 +8094,7 @@ def lifecycle.composite_of
       }
 
 /-- [tacenta_lifecycle::lifecycle::msg_type_of]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2384:0-2393:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2397:0-2406:1 -/
 def lifecycle.msg_type_of
   (t : tacenta_wire.AgreementType) : Result tacenta_braid.MsgType := do
   match t with
@@ -8074,7 +8106,7 @@ def lifecycle.msg_type_of
   | tacenta_wire.AgreementType.Ct2 => ok tacenta_braid.MsgType.Ct2
 
 /-- [tacenta_lifecycle::lifecycle::msg_of]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2346:0-2358:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2359:0-2371:1 -/
 def lifecycle.msg_of
   (c : tacenta_wire.Composite) : Result tacenta_braid.Msg := do
   let mt ← lifecycle.msg_type_of c.ag_type
@@ -8089,7 +8121,7 @@ def lifecycle.msg_of
       }
 
 /-- [tacenta_lifecycle::lifecycle::triple_header_of]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2361:0-2371:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2374:0-2384:1 -/
 def lifecycle.triple_header_of
   (c : tacenta_wire.Composite) : Result tacenta_triple.Header := do
   ok
@@ -8100,14 +8132,14 @@ def lifecycle.triple_header_of
     }
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::peer_identity]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2398:4-2400:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 2411:4-2413:5
     Visibility: public -/
 def lifecycle.Session.peer_identity
   (self : lifecycle.Session) : Result tacenta_boundary.dh.PublicKeyBytes := do
   ok self.peer_identity_public
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::public_state]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2403:4-2410:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 2416:4-2423:5
     Visibility: public -/
 def lifecycle.Session.public_state
   (self : lifecycle.Session) : Result lifecycle.PublicState := do
@@ -8123,7 +8155,7 @@ def lifecycle.Session.public_state
     }
 
 /-- [tacenta_lifecycle::lifecycle::identity_ad]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2422:0-2424:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2435:0-2437:1 -/
 def lifecycle.identity_ad
   (initiator : tacenta_boundary.dh.PublicKeyBytes)
   (responder : tacenta_boundary.dh.PublicKeyBytes) :
@@ -8136,7 +8168,7 @@ def lifecycle.identity_ad
   tacenta_session.associated_data s s1
 
 /-- [tacenta_lifecycle::lifecycle::establish_initiator_for]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2455:0-2555:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 2468:0-2572:1
     Visibility: public -/
 def lifecycle.establish_initiator_for
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -8291,7 +8323,7 @@ def lifecycle.establish_initiator_for
       else ok (core.result.Result.Err lifecycle.Error.BadEncoding, rng)
 
 /-- [tacenta_lifecycle::lifecycle::establish_initiator]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2435:0-2445:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 2448:0-2458:1
     Visibility: public -/
 def lifecycle.establish_initiator
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -8305,7 +8337,7 @@ def lifecycle.establish_initiator
     their_bundle.bundle.identity_key rng
 
 /-- [tacenta_lifecycle::lifecycle::responder_signed_prekey_secret]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2557:0-2569:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2574:0-2586:1 -/
 def lifecycle.responder_signed_prekey_secret
   (store : lifecycle.PrekeyStore) (id : Std.U32) :
   Result (core.result.Result (zeroize.Zeroizing (Array Std.U8 32#usize))
@@ -8332,7 +8364,7 @@ def lifecycle.responder_signed_prekey_secret
       else ok (core.result.Result.Err lifecycle.Error.UnknownPrekeyId)
 
 /-- [tacenta_lifecycle::lifecycle::KemKeySlot]
-    Source: 'lifecycle/src/lifecycle.rs', lines 2578:0-2582:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2595:0-2599:1 -/
 @[discriminant isize]
 inductive lifecycle.KemKeySlot where
 | Current : lifecycle.KemKeySlot
@@ -8340,7 +8372,7 @@ inductive lifecycle.KemKeySlot where
 | OneTime : Std.Usize → lifecycle.KemKeySlot
 
 /-- [tacenta_lifecycle::lifecycle::u32_index]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2633:4-2639:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2650:4-2656:5 -/
 @[rust_loop_body]
 def lifecycle.u32_index_loop.body
   (values : Slice Std.U32) (needle : Std.U32) (index : Std.Usize) :
@@ -8357,7 +8389,7 @@ def lifecycle.u32_index_loop.body
   else ok (done none)
 
 /-- [tacenta_lifecycle::lifecycle::u32_index]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2633:4-2639:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2650:4-2656:5 -/
 @[rust_loop]
 def lifecycle.u32_index_loop
   (values : Slice Std.U32) (needle : Std.U32) (index : Std.Usize) :
@@ -8368,14 +8400,14 @@ def lifecycle.u32_index_loop
     index
 
 /-- [tacenta_lifecycle::lifecycle::u32_index]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2630:0-2641:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2647:0-2658:1 -/
 @[reducible]
 def lifecycle.u32_index
   (values : Slice Std.U32) (needle : Std.U32) : Result (Option Std.Usize) := do
   lifecycle.u32_index_loop values needle 0#usize
 
 /-- [tacenta_lifecycle::lifecycle::responder_kem_slot]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2584:0-2609:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2601:0-2626:1 -/
 def lifecycle.responder_kem_slot
   (store : lifecycle.PrekeyStore) (id : Std.U32) :
   Result (core.result.Result (lifecycle.KemKeySlot × Bool) lifecycle.Error)
@@ -8417,7 +8449,7 @@ def lifecycle.responder_kem_slot
             false))
 
 /-- [tacenta_lifecycle::lifecycle::responder_decapsulate]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2611:0-2628:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2628:0-2645:1 -/
 def lifecycle.responder_decapsulate
   (store : lifecycle.PrekeyStore) (slot : lifecycle.KemKeySlot)
   (ciphertext : Slice Std.U8) :
@@ -8452,7 +8484,7 @@ def lifecycle.responder_decapsulate
       ok (core.result.Result.Err lifecycle.Error.Kem)
 
 /-- [tacenta_lifecycle::lifecycle::responder_curve_inputs]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2643:0-2656:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2660:0-2676:1 -/
 def lifecycle.responder_curve_inputs
   (identity : Slice Std.U8) (ephemeral : Slice Std.U8) :
   Result (core.result.Result (tacenta_boundary.dh.PublicKeyBytes ×
@@ -8462,13 +8494,19 @@ def lifecycle.responder_curve_inputs
   match o with
   | none => ok (core.result.Result.Err lifecycle.Error.BadEncoding)
   | some value =>
-    let o1 ← decode_ec ephemeral
-    match o1 with
-    | none => ok (core.result.Result.Err lifecycle.Error.BadEncoding)
-    | some value1 => ok (core.result.Result.Ok (value, value1))
+    let b ← is_valid_identity_key value
+    if b
+    then
+      let o1 ← decode_ec ephemeral
+      match o1 with
+      | none => ok (core.result.Result.Err lifecycle.Error.BadEncoding)
+      | some value1 => ok (core.result.Result.Ok (value, value1))
+    else
+      ok (core.result.Result.Err (lifecycle.Error.Handshake
+        SessionError.InvalidIdentityKey))
 
 /-- [tacenta_lifecycle::lifecycle::responder_one_time_key]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2658:0-2667:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2678:0-2687:1 -/
 def lifecycle.responder_one_time_key
   (store : lifecycle.PrekeyStore) (id : Std.U32) :
   Result (core.result.Result (Option tacenta_boundary.dh.PrivateKey)
@@ -8489,7 +8527,7 @@ def lifecycle.responder_one_time_key
       ok (core.result.Result.Ok (some pk))
 
 /-- [tacenta_lifecycle::lifecycle::responder_replay_fingerprint]: loop body 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2681:4-2686:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2701:4-2706:5 -/
 @[rust_loop_body]
 def lifecycle.responder_replay_fingerprint_loop.body
   (store : lifecycle.PrekeyStore) (fingerprint : Array Std.U8 32#usize)
@@ -8525,7 +8563,7 @@ def lifecycle.responder_replay_fingerprint_loop.body
       store.last_resort_seen, store.legacy_last_resort_blocked, replayed))
 
 /-- [tacenta_lifecycle::lifecycle::responder_replay_fingerprint]: loop 0:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2681:4-2686:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2701:4-2706:5 -/
 @[rust_loop]
 def lifecycle.responder_replay_fingerprint_loop
   (store : lifecycle.PrekeyStore) (fingerprint : Array Std.U8 32#usize)
@@ -8547,7 +8585,7 @@ def lifecycle.responder_replay_fingerprint_loop
     (replayed, index)
 
 /-- [tacenta_lifecycle::lifecycle::responder_replay_fingerprint]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2669:0-2694:1 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 2689:0-2714:1 -/
 def lifecycle.responder_replay_fingerprint
   (store : lifecycle.PrekeyStore) (kem_id : Std.U32)
   (sk : Array Std.U8 32#usize) (last_resort : Bool) :
@@ -8608,7 +8646,7 @@ def serialization.concat_ad
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s1
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::decrypt_ratchet]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2983:4-3191:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3005:4-3213:5 -/
 def lifecycle.Session.decrypt_ratchet
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
   (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R)
@@ -8754,7 +8792,7 @@ def lifecycle.Session.decrypt_ratchet
       ok (core.result.Result.Err (lifecycle.Error.Decode error), self, rng)
 
 /-- [tacenta_lifecycle::lifecycle::establish_responder]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2707:0-2844:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 2727:0-2864:1
     Visibility: public -/
 def lifecycle.establish_responder
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -8967,7 +9005,7 @@ def lifecycle.establish_responder
       rng)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::agreement_failed]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2850:4-2852:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 2870:4-2872:5
     Visibility: public -/
 def lifecycle.Session.agreement_failed
   (self : lifecycle.Session) : Result Bool := do
@@ -9019,7 +9057,7 @@ def serialization.encode_message
   alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out ciphertext
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::encrypt]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2863:4-2926:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 2883:4-2946:5
     Visibility: public -/
 def lifecycle.Session.encrypt
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -9137,7 +9175,7 @@ def serialization.message_type
         else ok none
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::decrypt]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 2948:4-2980:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 2970:4-3002:5
     Visibility: public -/
 def lifecycle.Session.decrypt
   {R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R)
@@ -9230,11 +9268,11 @@ def lifecycle.Session.decrypt
         ok (core.result.Result.Err (lifecycle.Error.Decode error), self, rng)
 
 /-- [tacenta_lifecycle::lifecycle::SESSION_VERSION]
-    Source: 'lifecycle/src/lifecycle.rs', lines 3198:0-3198:33 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3220:0-3220:33 -/
 @[global_simps, irreducible] def lifecycle.SESSION_VERSION : Std.U8 := 1#u8
 
 /-- [tacenta_lifecycle::lifecycle::SessionDecodeError]
-    Source: 'lifecycle/src/lifecycle.rs', lines 3206:0-3231:1
+    Source: 'lifecycle/src/lifecycle.rs', lines 3228:0-3260:1
     Visibility: public -/
 @[discriminant isize]
 inductive lifecycle.SessionDecodeError where
@@ -9245,7 +9283,7 @@ inductive lifecycle.SessionDecodeError where
 | Inconsistent : lifecycle.SessionDecodeError
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::clone::Clone for tacenta_lifecycle::lifecycle::SessionDecodeError}::clone]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3204:9-3204:14
+    Source: 'lifecycle/src/lifecycle.rs', lines 3226:9-3226:14
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreCloneClone.clone
   (self : lifecycle.SessionDecodeError) :
@@ -9254,7 +9292,7 @@ def lifecycle.SessionDecodeError.Insts.CoreCloneClone.clone
   ok self
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::PartialEq<tacenta_lifecycle::lifecycle::SessionDecodeError> for tacenta_lifecycle::lifecycle::SessionDecodeError}::eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3204:22-3204:31
+    Source: 'lifecycle/src/lifecycle.rs', lines 3226:22-3226:31
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreCmpPartialEqSessionDecodeError.eq
   (self : lifecycle.SessionDecodeError) (other : lifecycle.SessionDecodeError)
@@ -9266,14 +9304,14 @@ def lifecycle.SessionDecodeError.Insts.CoreCmpPartialEqSessionDecodeError.eq
   ok (self1 = other1)
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::cmp::Eq for tacenta_lifecycle::lifecycle::SessionDecodeError}::assert_fields_are_eq]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3204:33-3204:35
+    Source: 'lifecycle/src/lifecycle.rs', lines 3226:33-3226:35
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreCmpEq.assert_fields_are_eq
   (self : lifecycle.SessionDecodeError) : Result Unit := do
   ok ()
 
 /-- [tacenta_lifecycle::lifecycle::{impl core::fmt::Debug for tacenta_lifecycle::lifecycle::SessionDecodeError}::fmt]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3204:37-3204:42
+    Source: 'lifecycle/src/lifecycle.rs', lines 3226:37-3226:42
     Visibility: public -/
 def lifecycle.SessionDecodeError.Insts.CoreFmtDebug.fmt
   (self : lifecycle.SessionDecodeError) (f : core.fmt.Formatter) :
@@ -9291,29 +9329,56 @@ def lifecycle.SessionDecodeError.Insts.CoreFmtDebug.fmt
   | lifecycle.SessionDecodeError.Inconsistent =>
     core.fmt.Formatter.write_str f (toStr "Inconsistent")
 
-/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PendingInitial}::to_bytes]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3258:4-3266:5 -/
-def lifecycle.PendingInitial.to_bytes
-  (self : lifecycle.PendingInitial) : Result (alloc.vec.Vec Std.U8) := do
-  let a ← tacenta_boundary.dh.PublicKeyBytes.as_bytes self.ephemeral_public
-  let s ← lift (Array.to_slice a)
-  let out ←
-    alloc.vec.Vec.extend_from_slice core.clone.CloneU8 (alloc.vec.Vec.new
-      Std.U8) s
-  let s1 := alloc.vec.Vec.deref self.kem_ciphertext
-  let out1 ← lifecycle.push_len_prefixed out s1
-  let a1 ← lift (core.num.U32.to_be_bytes self.signed_prekey_id)
-  let s2 ← lift (Array.to_slice a1)
-  let out2 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 s2
-  let a2 ← lift (core.num.U32.to_be_bytes self.one_time_prekey_id)
-  let s3 ← lift (Array.to_slice a2)
-  let out3 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s3
-  let a3 ← lift (core.num.U32.to_be_bytes self.kem_prekey_id)
-  let s4 ← lift (Array.to_slice a3)
-  alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s4
+/-- [tacenta_lifecycle::lifecycle::StoredSessionIdentities]
+    Source: 'lifecycle/src/lifecycle.rs', lines 3264:0-3269:1
+    Visibility: public -/
+structure lifecycle.StoredSessionIdentities where
+  ours : Bool
+  peer : Bool
+
+/-- [tacenta_lifecycle::lifecycle::{impl core::clone::Clone for tacenta_lifecycle::lifecycle::StoredSessionIdentities}::clone]:
+    Source: 'lifecycle/src/lifecycle.rs', lines 3263:9-3263:14
+    Visibility: public -/
+def lifecycle.StoredSessionIdentities.Insts.CoreCloneClone.clone
+  (self : lifecycle.StoredSessionIdentities) :
+  Result lifecycle.StoredSessionIdentities
+  := do
+  ok self
+
+/-- [tacenta_lifecycle::lifecycle::{impl core::cmp::PartialEq<tacenta_lifecycle::lifecycle::StoredSessionIdentities> for tacenta_lifecycle::lifecycle::StoredSessionIdentities}::eq]:
+    Source: 'lifecycle/src/lifecycle.rs', lines 3263:22-3263:31
+    Visibility: public -/
+def
+  lifecycle.StoredSessionIdentities.Insts.CoreCmpPartialEqStoredSessionIdentities.eq
+  (self : lifecycle.StoredSessionIdentities)
+  (other : lifecycle.StoredSessionIdentities) :
+  Result Bool
+  := do
+  if self.ours = other.ours
+  then ok (self.peer = other.peer)
+  else ok false
+
+/-- [tacenta_lifecycle::lifecycle::{impl core::cmp::Eq for tacenta_lifecycle::lifecycle::StoredSessionIdentities}::assert_fields_are_eq]:
+    Source: 'lifecycle/src/lifecycle.rs', lines 3263:33-3263:35
+    Visibility: public -/
+def lifecycle.StoredSessionIdentities.Insts.CoreCmpEq.assert_fields_are_eq
+  (self : lifecycle.StoredSessionIdentities) : Result Unit := do
+  ok ()
+
+/-- [tacenta_lifecycle::lifecycle::{impl core::fmt::Debug for tacenta_lifecycle::lifecycle::StoredSessionIdentities}::fmt]:
+    Source: 'lifecycle/src/lifecycle.rs', lines 3263:37-3263:42
+    Visibility: public -/
+def lifecycle.StoredSessionIdentities.Insts.CoreFmtDebug.fmt
+  (self : lifecycle.StoredSessionIdentities) (f : core.fmt.Formatter) :
+  Result ((core.result.Result Unit core.fmt.Error) × core.fmt.Formatter)
+  := do
+  let dyn := Dyn.mk _ core.fmt.DebugBool self.ours
+  let dyn1 := Dyn.mk _ (core.fmt.DebugShared core.fmt.DebugBool) self.peer
+  core.fmt.Formatter.debug_struct_field2_finish f (toStr
+    "StoredSessionIdentities") (toStr "ours") dyn (toStr "peer") dyn1
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PendingInitial}::from_bytes]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3268:4-3292:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3344:4-3368:5 -/
 def lifecycle.PendingInitial.from_bytes
   (bytes : Slice Std.U8) : Result (Option lifecycle.PendingInitial) := do
   let i := Slice.len bytes
@@ -9382,114 +9447,8 @@ def lifecycle.PendingInitial.from_bytes
       core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionInfallible.from_residual
         lifecycle.PendingInitial residual
 
-/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3335:4-3393:5
-    Visibility: public -/
-def lifecycle.Session.export
-  (self : lifecycle.Session) :
-  Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))
-  := do
-  let triple ← tacenta_triple.State.to_bytes self.triple
-  let braid ← tacenta_braid.Braid.to_bytes self.braid
-  let ratchet_private ←
-    tacenta_boundary.dh.PrivateKey.to_bytes self.ratchet_private
-  let pending ←
-    match self.pending_initial with
-    | none => ok none
-    | some value =>
-      do
-      let v ← lifecycle.PendingInitial.to_bytes value
-      ok (some v)
-  let pending_len ←
-    match pending with
-    | none => ok 0#usize
-    | some value => let i := alloc.vec.Vec.len value
-                    4#usize + i
-  let (o, established_ephemeral_len) ←
-    match self.established_ephemeral with
-    | none => ok (none, 0#usize)
-    | some value =>
-      do
-      let i := alloc.vec.Vec.len value
-      let established_ephemeral_len1 ← 4#usize + i
-      ok (self.established_ephemeral, established_ephemeral_len1)
-  let v ←
-    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
-      (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
-      U8.Insts.ZeroizeDefaultIsZeroes)) triple
-  let i := alloc.vec.Vec.len v
-  let i1 ← 4#usize + i
-  let i2 ← 1#usize + i1
-  let v1 ←
-    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
-      (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
-      U8.Insts.ZeroizeDefaultIsZeroes)) braid
-  let i3 := alloc.vec.Vec.len v1
-  let i4 ← 4#usize + i3
-  let i5 ← i2 + i4
-  let a ←
-    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref (Array.Insts.ZeroizeZeroize
-      32#usize (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
-      ratchet_private
-  let s ← lift (Array.to_slice a)
-  let i6 := Slice.len s
-  let i7 ← i5 + i6
-  let i8 := alloc.vec.Vec.len self.identity_ad
-  let i9 ← 4#usize + i8
-  let i10 ← i7 + i9
-  let i11 ← i10 + 32#usize
-  let i12 ← i11 + 32#usize
-  let i13 ← i12 + 1#usize
-  let i14 ← i13 + pending_len
-  let i15 ← i14 + 1#usize
-  let capacity ← i15 + established_ephemeral_len
-  let out := alloc.vec.Vec.with_capacity Std.U8 capacity
-  let out1 ← alloc.vec.Vec.push out lifecycle.SESSION_VERSION
-  let s1 := alloc.vec.Vec.deref v
-  let out2 ← lifecycle.push_len_prefixed out1 s1
-  let s2 := alloc.vec.Vec.deref v1
-  let out3 ← lifecycle.push_len_prefixed out2 s2
-  let s3 ← lift (Array.to_slice a)
-  let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s3
-  let s4 := alloc.vec.Vec.deref self.identity_ad
-  let out5 ← lifecycle.push_len_prefixed out4 s4
-  let a1 ←
-    tacenta_boundary.dh.PublicKeyBytes.as_bytes self.our_identity_public
-  let s5 ← lift (Array.to_slice a1)
-  let out6 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out5 s5
-  let a2 ←
-    tacenta_boundary.dh.PublicKeyBytes.as_bytes self.peer_identity_public
-  let s6 ← lift (Array.to_slice a2)
-  let out7 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out6 s6
-  let out8 ←
-    match pending with
-    | none => alloc.vec.Vec.push out7 0#u8
-    | some p =>
-      do
-      let out9 ← alloc.vec.Vec.push out7 1#u8
-      let s7 := alloc.vec.Vec.deref p
-      lifecycle.push_len_prefixed out9 s7
-  let out9 ←
-    match o with
-    | none => alloc.vec.Vec.push out8 0#u8
-    | some e =>
-      do
-      let out10 ← alloc.vec.Vec.push out8 1#u8
-      let s7 := alloc.vec.Vec.deref e
-      lifecycle.push_len_prefixed out10 s7
-  let left_val := alloc.vec.Vec.len out9
-  if left_val = capacity
-  then
-    zeroize.Zeroizing.new (alloc.vec.Vec.Insts.ZeroizeZeroize
-      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) out9
-  else
-    let _ ←
-      core.fmt.Arguments.from_str (toStr
-        "the size arithmetic above drifted from the encoding")
-    fail panic
-
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::import_unchecked]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3628:4-3714:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3707:4-3793:5 -/
 def lifecycle.Session.import_unchecked
   (bytes : Slice Std.U8) :
   Result (core.result.Result lifecycle.Session lifecycle.SessionDecodeError)
@@ -9759,8 +9718,167 @@ def lifecycle.Session.import_unchecked
         | core.result.Result.Err _ =>
           ok (core.result.Result.Err lifecycle.SessionDecodeError.Malformed)
 
+/-- [tacenta_lifecycle::lifecycle::scan_stored_session_identities]:
+    Source: 'lifecycle/src/lifecycle.rs', lines 3281:0-3291:1
+    Visibility: public -/
+def lifecycle.scan_stored_session_identities
+  (bytes : Slice Std.U8) :
+  Result (core.result.Result lifecycle.StoredSessionIdentities
+    lifecycle.SessionDecodeError)
+  := do
+  let r ← lifecycle.Session.import_unchecked bytes
+  match r with
+  | core.result.Result.Ok session =>
+    let b ← is_valid_identity_key session.our_identity_public
+    let b1 ← is_valid_identity_key session.peer_identity_public
+    ok (core.result.Result.Ok { ours := b, peer := b1 })
+  | core.result.Result.Err error => ok (core.result.Result.Err error)
+
+/-- [tacenta_lifecycle::lifecycle::scan_stored_prekey_identity]:
+    Source: 'lifecycle/src/lifecycle.rs', lines 3300:0-3307:1
+    Visibility: public -/
+def lifecycle.scan_stored_prekey_identity
+  (bytes : Slice Std.U8) :
+  Result (core.result.Result Bool lifecycle.PrekeyStoreDecodeError)
+  := do
+  let r ← lifecycle.decode_prekey_head bytes
+  match r with
+  | core.result.Result.Ok head =>
+    let pkb ←
+      tacenta_boundary.dh.PublicKeyBytes.from_bytes head.identity_public
+    let b ← is_valid_identity_key pkb
+    ok (core.result.Result.Ok b)
+  | core.result.Result.Err error => ok (core.result.Result.Err error)
+
+/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::PendingInitial}::to_bytes]:
+    Source: 'lifecycle/src/lifecycle.rs', lines 3334:4-3342:5 -/
+def lifecycle.PendingInitial.to_bytes
+  (self : lifecycle.PendingInitial) : Result (alloc.vec.Vec Std.U8) := do
+  let a ← tacenta_boundary.dh.PublicKeyBytes.as_bytes self.ephemeral_public
+  let s ← lift (Array.to_slice a)
+  let out ←
+    alloc.vec.Vec.extend_from_slice core.clone.CloneU8 (alloc.vec.Vec.new
+      Std.U8) s
+  let s1 := alloc.vec.Vec.deref self.kem_ciphertext
+  let out1 ← lifecycle.push_len_prefixed out s1
+  let a1 ← lift (core.num.U32.to_be_bytes self.signed_prekey_id)
+  let s2 ← lift (Array.to_slice a1)
+  let out2 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out1 s2
+  let a2 ← lift (core.num.U32.to_be_bytes self.one_time_prekey_id)
+  let s3 ← lift (Array.to_slice a2)
+  let out3 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out2 s3
+  let a3 ← lift (core.num.U32.to_be_bytes self.kem_prekey_id)
+  let s4 ← lift (Array.to_slice a3)
+  alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s4
+
+/-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::export]:
+    Source: 'lifecycle/src/lifecycle.rs', lines 3411:4-3469:5
+    Visibility: public -/
+def lifecycle.Session.export
+  (self : lifecycle.Session) :
+  Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))
+  := do
+  let triple ← tacenta_triple.State.to_bytes self.triple
+  let braid ← tacenta_braid.Braid.to_bytes self.braid
+  let ratchet_private ←
+    tacenta_boundary.dh.PrivateKey.to_bytes self.ratchet_private
+  let pending ←
+    match self.pending_initial with
+    | none => ok none
+    | some value =>
+      do
+      let v ← lifecycle.PendingInitial.to_bytes value
+      ok (some v)
+  let pending_len ←
+    match pending with
+    | none => ok 0#usize
+    | some value => let i := alloc.vec.Vec.len value
+                    4#usize + i
+  let (o, established_ephemeral_len) ←
+    match self.established_ephemeral with
+    | none => ok (none, 0#usize)
+    | some value =>
+      do
+      let i := alloc.vec.Vec.len value
+      let established_ephemeral_len1 ← 4#usize + i
+      ok (self.established_ephemeral, established_ephemeral_len1)
+  let v ←
+    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
+      U8.Insts.ZeroizeDefaultIsZeroes)) triple
+  let i := alloc.vec.Vec.len v
+  let i1 ← 4#usize + i
+  let i2 ← 1#usize + i1
+  let v1 ←
+    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref
+      (alloc.vec.Vec.Insts.ZeroizeZeroize (zeroize.Zeroize.Blanket
+      U8.Insts.ZeroizeDefaultIsZeroes)) braid
+  let i3 := alloc.vec.Vec.len v1
+  let i4 ← 4#usize + i3
+  let i5 ← i2 + i4
+  let a ←
+    zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref (Array.Insts.ZeroizeZeroize
+      32#usize (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes))
+      ratchet_private
+  let s ← lift (Array.to_slice a)
+  let i6 := Slice.len s
+  let i7 ← i5 + i6
+  let i8 := alloc.vec.Vec.len self.identity_ad
+  let i9 ← 4#usize + i8
+  let i10 ← i7 + i9
+  let i11 ← i10 + 32#usize
+  let i12 ← i11 + 32#usize
+  let i13 ← i12 + 1#usize
+  let i14 ← i13 + pending_len
+  let i15 ← i14 + 1#usize
+  let capacity ← i15 + established_ephemeral_len
+  let out := alloc.vec.Vec.with_capacity Std.U8 capacity
+  let out1 ← alloc.vec.Vec.push out lifecycle.SESSION_VERSION
+  let s1 := alloc.vec.Vec.deref v
+  let out2 ← lifecycle.push_len_prefixed out1 s1
+  let s2 := alloc.vec.Vec.deref v1
+  let out3 ← lifecycle.push_len_prefixed out2 s2
+  let s3 ← lift (Array.to_slice a)
+  let out4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out3 s3
+  let s4 := alloc.vec.Vec.deref self.identity_ad
+  let out5 ← lifecycle.push_len_prefixed out4 s4
+  let a1 ←
+    tacenta_boundary.dh.PublicKeyBytes.as_bytes self.our_identity_public
+  let s5 ← lift (Array.to_slice a1)
+  let out6 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out5 s5
+  let a2 ←
+    tacenta_boundary.dh.PublicKeyBytes.as_bytes self.peer_identity_public
+  let s6 ← lift (Array.to_slice a2)
+  let out7 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out6 s6
+  let out8 ←
+    match pending with
+    | none => alloc.vec.Vec.push out7 0#u8
+    | some p =>
+      do
+      let out9 ← alloc.vec.Vec.push out7 1#u8
+      let s7 := alloc.vec.Vec.deref p
+      lifecycle.push_len_prefixed out9 s7
+  let out9 ←
+    match o with
+    | none => alloc.vec.Vec.push out8 0#u8
+    | some e =>
+      do
+      let out10 ← alloc.vec.Vec.push out8 1#u8
+      let s7 := alloc.vec.Vec.deref e
+      lifecycle.push_len_prefixed out10 s7
+  let left_val := alloc.vec.Vec.len out9
+  if left_val = capacity
+  then
+    zeroize.Zeroizing.new (alloc.vec.Vec.Insts.ZeroizeZeroize
+      (zeroize.Zeroize.Blanket U8.Insts.ZeroizeDefaultIsZeroes)) out9
+  else
+    let _ ←
+      core.fmt.Arguments.from_str (toStr
+        "the size arithmetic above drifted from the encoding")
+    fail panic
+
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::leaf_invariants]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3616:4-3618:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3695:4-3697:5 -/
 def lifecycle.Session.leaf_invariants
   (self : lifecycle.Session) : Result Bool := do
   let b ← tacenta_triple.State.invariant self.triple
@@ -9769,13 +9887,13 @@ def lifecycle.Session.leaf_invariants
   else ok false
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::is_responder]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3624:4-3626:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3703:4-3705:5 -/
 def lifecycle.Session.is_responder
   (self : lifecycle.Session) : Result Bool := do
   ok (core.option.Option.is_some self.established_ephemeral)
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::structural_invariant]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3462:4-3610:5 -/
+    Source: 'lifecycle/src/lifecycle.rs', lines 3538:4-3689:5 -/
 def lifecycle.Session.structural_invariant
   (self : lifecycle.Session) : Result Bool := do
   let pkb ← tacenta_boundary.dh.PrivateKey.public_key self.ratchet_private
@@ -9821,10 +9939,11 @@ def lifecycle.Session.structural_invariant
                 | none =>
                   match self.established_ephemeral with
                   | none =>
-                    let b7 ← is_canonical_key self.our_identity_public
+                    let b7 ← is_valid_identity_key self.our_identity_public
                     if b7
                     then
-                      let b8 ← is_canonical_key self.peer_identity_public
+                      let b8 ←
+                        is_valid_identity_key self.peer_identity_public
                       if b8
                       then ok true
                       else ok false
@@ -9836,10 +9955,11 @@ def lifecycle.Session.structural_invariant
                     if b7
                     then ok false
                     else
-                      let b8 ← is_canonical_key self.our_identity_public
+                      let b8 ← is_valid_identity_key self.our_identity_public
                       if b8
                       then
-                        let b9 ← is_canonical_key self.peer_identity_public
+                        let b9 ←
+                          is_valid_identity_key self.peer_identity_public
                         if b9
                         then ok true
                         else ok false
@@ -9852,10 +9972,11 @@ def lifecycle.Session.structural_invariant
                   else
                     match self.established_ephemeral with
                     | none =>
-                      let b7 ← is_canonical_key self.our_identity_public
+                      let b7 ← is_valid_identity_key self.our_identity_public
                       if b7
                       then
-                        let b8 ← is_canonical_key self.peer_identity_public
+                        let b8 ←
+                          is_valid_identity_key self.peer_identity_public
                         if b8
                         then
                           let b9 ← is_canonical_key p.ephemeral_public
@@ -9871,10 +9992,12 @@ def lifecycle.Session.structural_invariant
                       if b7
                       then ok false
                       else
-                        let b8 ← is_canonical_key self.our_identity_public
+                        let b8 ←
+                          is_valid_identity_key self.our_identity_public
                         if b8
                         then
-                          let b9 ← is_canonical_key self.peer_identity_public
+                          let b9 ←
+                            is_valid_identity_key self.peer_identity_public
                           if b9
                           then
                             let b10 ← is_canonical_key p.ephemeral_public
@@ -9888,10 +10011,10 @@ def lifecycle.Session.structural_invariant
               | none =>
                 match self.established_ephemeral with
                 | none =>
-                  let b6 ← is_canonical_key self.our_identity_public
+                  let b6 ← is_valid_identity_key self.our_identity_public
                   if b6
                   then
-                    let b7 ← is_canonical_key self.peer_identity_public
+                    let b7 ← is_valid_identity_key self.peer_identity_public
                     if b7
                     then ok true
                     else ok false
@@ -9903,10 +10026,11 @@ def lifecycle.Session.structural_invariant
                   if b6
                   then ok false
                   else
-                    let b7 ← is_canonical_key self.our_identity_public
+                    let b7 ← is_valid_identity_key self.our_identity_public
                     if b7
                     then
-                      let b8 ← is_canonical_key self.peer_identity_public
+                      let b8 ←
+                        is_valid_identity_key self.peer_identity_public
                       if b8
                       then ok true
                       else ok false
@@ -9919,10 +10043,11 @@ def lifecycle.Session.structural_invariant
                 else
                   match self.established_ephemeral with
                   | none =>
-                    let b6 ← is_canonical_key self.our_identity_public
+                    let b6 ← is_valid_identity_key self.our_identity_public
                     if b6
                     then
-                      let b7 ← is_canonical_key self.peer_identity_public
+                      let b7 ←
+                        is_valid_identity_key self.peer_identity_public
                       if b7
                       then
                         let b8 ← is_canonical_key p.ephemeral_public
@@ -9938,10 +10063,11 @@ def lifecycle.Session.structural_invariant
                     if b6
                     then ok false
                     else
-                      let b7 ← is_canonical_key self.our_identity_public
+                      let b7 ← is_valid_identity_key self.our_identity_public
                       if b7
                       then
-                        let b8 ← is_canonical_key self.peer_identity_public
+                        let b8 ←
+                          is_valid_identity_key self.peer_identity_public
                         if b8
                         then
                           let b9 ← is_canonical_key p.ephemeral_public
@@ -9972,10 +10098,11 @@ def lifecycle.Session.structural_invariant
                   | none =>
                     match self.established_ephemeral with
                     | none =>
-                      let b7 ← is_canonical_key self.our_identity_public
+                      let b7 ← is_valid_identity_key self.our_identity_public
                       if b7
                       then
-                        let b8 ← is_canonical_key self.peer_identity_public
+                        let b8 ←
+                          is_valid_identity_key self.peer_identity_public
                         if b8
                         then ok true
                         else ok false
@@ -9987,10 +10114,12 @@ def lifecycle.Session.structural_invariant
                       if b7
                       then ok false
                       else
-                        let b8 ← is_canonical_key self.our_identity_public
+                        let b8 ←
+                          is_valid_identity_key self.our_identity_public
                         if b8
                         then
-                          let b9 ← is_canonical_key self.peer_identity_public
+                          let b9 ←
+                            is_valid_identity_key self.peer_identity_public
                           if b9
                           then ok true
                           else ok false
@@ -10003,10 +10132,12 @@ def lifecycle.Session.structural_invariant
                     else
                       match self.established_ephemeral with
                       | none =>
-                        let b7 ← is_canonical_key self.our_identity_public
+                        let b7 ←
+                          is_valid_identity_key self.our_identity_public
                         if b7
                         then
-                          let b8 ← is_canonical_key self.peer_identity_public
+                          let b8 ←
+                            is_valid_identity_key self.peer_identity_public
                           if b8
                           then
                             let b9 ← is_canonical_key p.ephemeral_public
@@ -10022,11 +10153,12 @@ def lifecycle.Session.structural_invariant
                         if b7
                         then ok false
                         else
-                          let b8 ← is_canonical_key self.our_identity_public
+                          let b8 ←
+                            is_valid_identity_key self.our_identity_public
                           if b8
                           then
                             let b9 ←
-                              is_canonical_key self.peer_identity_public
+                              is_valid_identity_key self.peer_identity_public
                             if b9
                             then
                               let b10 ← is_canonical_key p.ephemeral_public
@@ -10040,10 +10172,11 @@ def lifecycle.Session.structural_invariant
                 | none =>
                   match self.established_ephemeral with
                   | none =>
-                    let b6 ← is_canonical_key self.our_identity_public
+                    let b6 ← is_valid_identity_key self.our_identity_public
                     if b6
                     then
-                      let b7 ← is_canonical_key self.peer_identity_public
+                      let b7 ←
+                        is_valid_identity_key self.peer_identity_public
                       if b7
                       then ok true
                       else ok false
@@ -10055,10 +10188,11 @@ def lifecycle.Session.structural_invariant
                     if b6
                     then ok false
                     else
-                      let b7 ← is_canonical_key self.our_identity_public
+                      let b7 ← is_valid_identity_key self.our_identity_public
                       if b7
                       then
-                        let b8 ← is_canonical_key self.peer_identity_public
+                        let b8 ←
+                          is_valid_identity_key self.peer_identity_public
                         if b8
                         then ok true
                         else ok false
@@ -10071,10 +10205,11 @@ def lifecycle.Session.structural_invariant
                   else
                     match self.established_ephemeral with
                     | none =>
-                      let b6 ← is_canonical_key self.our_identity_public
+                      let b6 ← is_valid_identity_key self.our_identity_public
                       if b6
                       then
-                        let b7 ← is_canonical_key self.peer_identity_public
+                        let b7 ←
+                          is_valid_identity_key self.peer_identity_public
                         if b7
                         then
                           let b8 ← is_canonical_key p.ephemeral_public
@@ -10090,10 +10225,12 @@ def lifecycle.Session.structural_invariant
                       if b6
                       then ok false
                       else
-                        let b7 ← is_canonical_key self.our_identity_public
+                        let b7 ←
+                          is_valid_identity_key self.our_identity_public
                         if b7
                         then
-                          let b8 ← is_canonical_key self.peer_identity_public
+                          let b8 ←
+                            is_valid_identity_key self.peer_identity_public
                           if b8
                           then
                             let b9 ← is_canonical_key p.ephemeral_public
@@ -10156,10 +10293,11 @@ def lifecycle.Session.structural_invariant
                   | none =>
                     match self.established_ephemeral with
                     | none =>
-                      let b7 ← is_canonical_key self.our_identity_public
+                      let b7 ← is_valid_identity_key self.our_identity_public
                       if b7
                       then
-                        let b8 ← is_canonical_key self.peer_identity_public
+                        let b8 ←
+                          is_valid_identity_key self.peer_identity_public
                         if b8
                         then ok true
                         else ok false
@@ -10171,10 +10309,12 @@ def lifecycle.Session.structural_invariant
                       if b7
                       then ok false
                       else
-                        let b8 ← is_canonical_key self.our_identity_public
+                        let b8 ←
+                          is_valid_identity_key self.our_identity_public
                         if b8
                         then
-                          let b9 ← is_canonical_key self.peer_identity_public
+                          let b9 ←
+                            is_valid_identity_key self.peer_identity_public
                           if b9
                           then ok true
                           else ok false
@@ -10187,10 +10327,12 @@ def lifecycle.Session.structural_invariant
                     else
                       match self.established_ephemeral with
                       | none =>
-                        let b7 ← is_canonical_key self.our_identity_public
+                        let b7 ←
+                          is_valid_identity_key self.our_identity_public
                         if b7
                         then
-                          let b8 ← is_canonical_key self.peer_identity_public
+                          let b8 ←
+                            is_valid_identity_key self.peer_identity_public
                           if b8
                           then
                             let b9 ← is_canonical_key p.ephemeral_public
@@ -10206,11 +10348,12 @@ def lifecycle.Session.structural_invariant
                         if b7
                         then ok false
                         else
-                          let b8 ← is_canonical_key self.our_identity_public
+                          let b8 ←
+                            is_valid_identity_key self.our_identity_public
                           if b8
                           then
                             let b9 ←
-                              is_canonical_key self.peer_identity_public
+                              is_valid_identity_key self.peer_identity_public
                             if b9
                             then
                               let b10 ← is_canonical_key p.ephemeral_public
@@ -10224,10 +10367,11 @@ def lifecycle.Session.structural_invariant
                 | none =>
                   match self.established_ephemeral with
                   | none =>
-                    let b6 ← is_canonical_key self.our_identity_public
+                    let b6 ← is_valid_identity_key self.our_identity_public
                     if b6
                     then
-                      let b7 ← is_canonical_key self.peer_identity_public
+                      let b7 ←
+                        is_valid_identity_key self.peer_identity_public
                       if b7
                       then ok true
                       else ok false
@@ -10239,10 +10383,11 @@ def lifecycle.Session.structural_invariant
                     if b6
                     then ok false
                     else
-                      let b7 ← is_canonical_key self.our_identity_public
+                      let b7 ← is_valid_identity_key self.our_identity_public
                       if b7
                       then
-                        let b8 ← is_canonical_key self.peer_identity_public
+                        let b8 ←
+                          is_valid_identity_key self.peer_identity_public
                         if b8
                         then ok true
                         else ok false
@@ -10255,10 +10400,11 @@ def lifecycle.Session.structural_invariant
                   else
                     match self.established_ephemeral with
                     | none =>
-                      let b6 ← is_canonical_key self.our_identity_public
+                      let b6 ← is_valid_identity_key self.our_identity_public
                       if b6
                       then
-                        let b7 ← is_canonical_key self.peer_identity_public
+                        let b7 ←
+                          is_valid_identity_key self.peer_identity_public
                         if b7
                         then
                           let b8 ← is_canonical_key p.ephemeral_public
@@ -10274,10 +10420,12 @@ def lifecycle.Session.structural_invariant
                       if b6
                       then ok false
                       else
-                        let b7 ← is_canonical_key self.our_identity_public
+                        let b7 ←
+                          is_valid_identity_key self.our_identity_public
                         if b7
                         then
-                          let b8 ← is_canonical_key self.peer_identity_public
+                          let b8 ←
+                            is_valid_identity_key self.peer_identity_public
                           if b8
                           then
                             let b9 ← is_canonical_key p.ephemeral_public
@@ -10309,10 +10457,12 @@ def lifecycle.Session.structural_invariant
                     | none =>
                       match self.established_ephemeral with
                       | none =>
-                        let b7 ← is_canonical_key self.our_identity_public
+                        let b7 ←
+                          is_valid_identity_key self.our_identity_public
                         if b7
                         then
-                          let b8 ← is_canonical_key self.peer_identity_public
+                          let b8 ←
+                            is_valid_identity_key self.peer_identity_public
                           if b8
                           then ok true
                           else ok false
@@ -10324,11 +10474,12 @@ def lifecycle.Session.structural_invariant
                         if b7
                         then ok false
                         else
-                          let b8 ← is_canonical_key self.our_identity_public
+                          let b8 ←
+                            is_valid_identity_key self.our_identity_public
                           if b8
                           then
                             let b9 ←
-                              is_canonical_key self.peer_identity_public
+                              is_valid_identity_key self.peer_identity_public
                             if b9
                             then ok true
                             else ok false
@@ -10341,11 +10492,12 @@ def lifecycle.Session.structural_invariant
                       else
                         match self.established_ephemeral with
                         | none =>
-                          let b7 ← is_canonical_key self.our_identity_public
+                          let b7 ←
+                            is_valid_identity_key self.our_identity_public
                           if b7
                           then
                             let b8 ←
-                              is_canonical_key self.peer_identity_public
+                              is_valid_identity_key self.peer_identity_public
                             if b8
                             then
                               let b9 ← is_canonical_key p.ephemeral_public
@@ -10362,11 +10514,11 @@ def lifecycle.Session.structural_invariant
                           then ok false
                           else
                             let b8 ←
-                              is_canonical_key self.our_identity_public
+                              is_valid_identity_key self.our_identity_public
                             if b8
                             then
                               let b9 ←
-                                is_canonical_key self.peer_identity_public
+                                is_valid_identity_key self.peer_identity_public
                               if b9
                               then
                                 let b10 ← is_canonical_key p.ephemeral_public
@@ -10380,10 +10532,11 @@ def lifecycle.Session.structural_invariant
                   | none =>
                     match self.established_ephemeral with
                     | none =>
-                      let b6 ← is_canonical_key self.our_identity_public
+                      let b6 ← is_valid_identity_key self.our_identity_public
                       if b6
                       then
-                        let b7 ← is_canonical_key self.peer_identity_public
+                        let b7 ←
+                          is_valid_identity_key self.peer_identity_public
                         if b7
                         then ok true
                         else ok false
@@ -10395,10 +10548,12 @@ def lifecycle.Session.structural_invariant
                       if b6
                       then ok false
                       else
-                        let b7 ← is_canonical_key self.our_identity_public
+                        let b7 ←
+                          is_valid_identity_key self.our_identity_public
                         if b7
                         then
-                          let b8 ← is_canonical_key self.peer_identity_public
+                          let b8 ←
+                            is_valid_identity_key self.peer_identity_public
                           if b8
                           then ok true
                           else ok false
@@ -10411,10 +10566,12 @@ def lifecycle.Session.structural_invariant
                     else
                       match self.established_ephemeral with
                       | none =>
-                        let b6 ← is_canonical_key self.our_identity_public
+                        let b6 ←
+                          is_valid_identity_key self.our_identity_public
                         if b6
                         then
-                          let b7 ← is_canonical_key self.peer_identity_public
+                          let b7 ←
+                            is_valid_identity_key self.peer_identity_public
                           if b7
                           then
                             let b8 ← is_canonical_key p.ephemeral_public
@@ -10430,11 +10587,12 @@ def lifecycle.Session.structural_invariant
                         if b6
                         then ok false
                         else
-                          let b7 ← is_canonical_key self.our_identity_public
+                          let b7 ←
+                            is_valid_identity_key self.our_identity_public
                           if b7
                           then
                             let b8 ←
-                              is_canonical_key self.peer_identity_public
+                              is_valid_identity_key self.peer_identity_public
                             if b8
                             then
                               let b9 ← is_canonical_key p.ephemeral_public
@@ -10446,7 +10604,7 @@ def lifecycle.Session.structural_invariant
       else ok false
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::invariant]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3455:4-3457:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 3531:4-3533:5
     Visibility: public -/
 def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
   let b ← lifecycle.Session.structural_invariant self
@@ -10455,7 +10613,7 @@ def lifecycle.Session.invariant (self : lifecycle.Session) : Result Bool := do
   else ok false
 
 /-- [tacenta_lifecycle::lifecycle::{tacenta_lifecycle::lifecycle::Session}::import]:
-    Source: 'lifecycle/src/lifecycle.rs', lines 3425:4-3434:5
+    Source: 'lifecycle/src/lifecycle.rs', lines 3501:4-3510:5
     Visibility: public -/
 def lifecycle.Session.import
   (bytes : Slice Std.U8) :

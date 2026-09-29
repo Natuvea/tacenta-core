@@ -60,6 +60,7 @@ write what this reads.
     check session no-op <before> <after>
     check session agreement-failed <before> <after>
     check braid header <before> <header-with-mac> <after>
+    identity-key <key>
 
 The Braid has no `fresh` form: its initialisation takes the preshared secret
 and its first send draws a KEM key pair.
@@ -97,7 +98,10 @@ then `end`, and runs no operations. A `read` answers `read ok <bytes>`, the
 accepted state written back, or `read refused <kind>`, with `<kind>` the
 refusal named as `session-persistence.md`, Rejection, names it. Every answer
 ends with `end`, whichever request it answers, so the caller reads one answer
-without knowing what it asked.
+without knowing what it asked. `read prekey` and `read session` hold their
+identity keys to the identity-key rule below: a store whose `identity_public`
+breaks it is refused as `short-or-malformed`, and a session whose
+`our_identity_public` or `peer_identity_public` breaks it as `inconsistent`.
 
 A `check prekey` request reads two concrete prekey-store byte strings and checks
 the structural operation relation the P6 operation model can state. A `check
@@ -106,6 +110,14 @@ role, identity binding and durable pending/established fields. Each answers
 `check ok` or `check mismatch`; malformed stores or sessions still stop as
 request errors, because the caller is checking operations that already produced
 persisted states.
+
+An `identity-key` request carries one 32-byte string as 64 lowercase hex digits
+and answers `identity-key valid` or `identity-key invalid` (then `end`), the
+verdict of `Model.IdentityKey.valid`, the identity-key rule of
+identities-and-devices.md, "Accepting a signed statement", check 6. It is
+answered for any 32 bytes, non-canonical spellings included, which are
+`invalid`. A string of another length is not a request the model can answer and
+stops the run like any other malformed request.
 
 A malformed request is an error and stops the run, rather than an answer that
 could be mistaken for the model's.
@@ -116,6 +128,7 @@ shipping Session to the operational Braid model requires the translated
 Session unit. `runSession` takes that already-related operational start state,
 so Phase 5 can add the Rust half without changing the action language.
 -/
+import Model.IdentityKey
 import Model.PersistedState
 import Model.PrekeyOperations
 import Model.SessionOperations
@@ -324,6 +337,7 @@ def lifecycleRefusalName : Model.Lifecycle.Refusal → String
   | .triple (.postQuantum reason) => "triple-post-quantum-" ++ sparseRefusalName reason
   | .handshake .badSignedPrekeySignature => "bad-signed-prekey-signature"
   | .handshake .badKemPrekeySignature => "bad-kem-prekey-signature"
+  | .handshake .invalidIdentityKey => "invalid-identity-key"
   | .handshake .nonContributoryAgreement => "non-contributory-agreement"
   | .kem => "kem"
   | .decode .unknownVersion => "decode-unknown-version"
@@ -840,6 +854,13 @@ def handle (line : String) : Except String (List String) :=
     checkSessionTransition op beforeHex afterHex
   | ["check", "braid", "header", beforeHex, headerHex, afterHex] =>
     checkBraidHeader beforeHex headerHex afterHex
+  | ["identity-key", keyHex] => do
+    let key ← hexArg "an identity key" keyHex
+    if key.length ≠ 32 then
+      .error "difftest: an identity key is 32 bytes"
+    else
+      .ok [if Model.IdentityKey.valid key then "identity-key valid" else "identity-key invalid",
+        "end"]
   | ["read", algorithm, bytesHex] => do
     let bs ← hexArg "the stored bytes" bytesHex
     match algorithm with

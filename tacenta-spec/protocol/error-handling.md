@@ -14,10 +14,20 @@ implementation.
   canonical encoding. Authentication refuses a well-formed message whose tag
   or signature does not verify. A peer learns neither which one happened nor
   why.
+- **An invalid identity key is a third outcome.** A well-formed input that
+  names an identity key the identity-key rule refuses is neither a decode
+  failure nor an authentication failure: it decoded, and no signature failed
+  (identities-and-devices.md, Identity keys). An implementation reports it as
+  its own refusal wherever it can, and where a boundary can only say yes or no,
+  such as a verifier of an application signature, it says no. A key that is not
+  canonical is refused as it always was: as a decode failure where a wire
+  encoding is read, and by the kind the stored state's page names for it.
 - **A stored state's refusal says which kind it is**, to the extent
   session-persistence.md's Rejection section names kinds: wrong version, short
-  or malformed, non-canonical, and, for a session, inconsistent. A storage layer
-  can act on those.
+  or malformed, non-canonical, and, for a session, inconsistent or, for a prekey
+  store, incoherent. A storage layer
+  can act on those. A stored key that is not an identity key is refused as
+  inconsistent in a session and as malformed in a prekey store.
 - **Conditions a caller must act on are named** by the page that defines them.
   The last-resort handshake pages name three: a replayed handshake, a replay
   record with no room for the key a handshake names, and a pre-v5 replay record

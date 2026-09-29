@@ -30,6 +30,7 @@ import Model.Braid
 import Model.TripleRatchet
 import Model.CompositeHeader
 import Model.Erasure
+import Model.IdentityKey
 import Model.PersistedState
 import Model.Protobuf
 
@@ -1927,6 +1928,26 @@ def prekeyBase (hex : String) : Except String Model.PersistedState.PrekeyStoreSt
   | .ok st => .ok st
   | .error _ => .error "genvectors: the model refuses a prekey-store fixture tacenta-core accepts"
 
+/-! #### Identity keys the identity-key rule refuses
+
+The refusal rows below replace an identity key by a canonical key that
+`Model.IdentityKey.valid` refuses, one row for each of three classes: a key on
+the curve that is not of prime order, a key of low order, and a key no point of
+the curve has. Each is a canonical spelling, so the canonical-encoding rule
+does not reach it; the identity-key rule alone refuses it. -/
+
+/-- A canonical key on the curve that is not of prime order: the sum of an
+    honest key's point (the X25519 public key of the secret `01` repeated) and a
+    point of order 8. -/
+def identityMixedOrder : List UInt8 :=
+  ofHex "037faa3bbfc676b26f87fb1449a152bcb3eb7cfeeedbaa3604deca93ac75304b"
+
+/-- The key with u = 0, a point of order 2. -/
+def identityLowOrder : List UInt8 := List.replicate 32 0
+
+/-- The key with u = 2, which no point of the curve has. -/
+def identityNoCurvePoint : List UInt8 := 2 :: List.replicate 31 0
+
 @[never_extract]
 def prekeyStoreStateFile (_ : Unit) : Except String String := do
   let base ← prekeyBase prekeyFixture_no_one_time
@@ -2027,6 +2048,18 @@ def prekeyStoreStateFile (_ : Unit) : Except String String := do
     prekeyStored "identity-public-not-canonical"
       "identity_public spelled above the curve order, which no operation produces and a peer's bundle decoder refuses"
       (mutate (fun s => { s with identityPublic := List.replicate 32 0xff }))
+      (some .shortOrMalformed),
+    prekeyStored "identity-public-mixed-order"
+      "identity_public replaced by a canonical key on the curve that is not of prime order (an honest key's point plus a point of order 8): the identity-key rule refuses it"
+      (mutate (fun s => { s with identityPublic := identityMixedOrder }))
+      (some .shortOrMalformed),
+    prekeyStored "identity-public-low-order"
+      "identity_public replaced by u = 0, a point of order 2: the identity-key rule refuses it"
+      (mutate (fun s => { s with identityPublic := identityLowOrder }))
+      (some .shortOrMalformed),
+    prekeyStored "identity-public-no-curve-point"
+      "identity_public replaced by u = 2, which no point of the curve has: the identity-key rule refuses it"
+      (mutate (fun s => { s with identityPublic := identityNoCurvePoint }))
       (some .shortOrMalformed),
     prekeyStored "identifier-zero"
       "the signed prekey numbered zero, the absent-identifier sentinel an initial message reads as none"
@@ -2182,12 +2215,30 @@ def sessionWithFailedBraid (s : Model.PersistedState.SessionState.Session)
       postQuantum := sessionSparseAtEpoch s.triple.postQuantum sparseEpoch },
     braid := { tag := Model.PersistedState.BraidState.failedTag, epoch := 0, auth := [], fields := [] } }
 
+/-- The session with its two identity keys replaced and `identity_ad` rebuilt
+    from them in the role's orientation, so the associated-data rule still
+    holds and a key the identity-key rule refuses is the only thing wrong. -/
+def sessionWithIdentities (s : Model.PersistedState.SessionState.Session)
+    (ours peer : List UInt8) : Model.PersistedState.SessionState.Session :=
+  let ad :=
+    if Model.PersistedState.SessionState.isInitiator s then
+      Model.PersistedState.SessionState.encodeEc ours
+        ++ Model.PersistedState.SessionState.encodeEc peer
+    else
+      Model.PersistedState.SessionState.encodeEc peer
+        ++ Model.PersistedState.SessionState.encodeEc ours
+  { s with ourIdentityPublic := ours, peerIdentityPublic := peer, identityAd := ad }
+
 @[never_extract]
 def sessionStateFile (_ : Unit) : Except String String := do
   -- The responder is the small fixture, so the refusals built from it cost a
   -- kilobyte each rather than twenty-five.
   let base ← sessionBase sessionFixture_session_responder
   let pendingBase ← sessionBase sessionFixture_session_pending
+  -- Rebuilding a fixture's associated data from its own keys must change
+  -- nothing, or the identity rows below would break a second rule.
+  if sessionWithIdentities base base.ourIdentityPublic base.peerIdentityPublic != base then
+    throw "genvectors: rebuilding a session fixture's identity_ad from its own keys changes it"
   let baseBytes := ofHex sessionFixture_session_responder
   let tripleLen := Model.PersistedState.beValue ((baseBytes.drop 1).take 4)
   let braidStart := 1 + 4 + tripleLen + 4
@@ -2275,6 +2326,30 @@ def sessionStateFile (_ : Unit) : Except String String := do
     sessionStored "peer-identity-not-canonical"
       "peer_identity_public spelled above the curve order: it is used as its bytes, in the associated data and in what the session reports as the peer's key"
       (mutate (fun s => { s with peerIdentityPublic := List.replicate 32 0xff }))
+      (some .inconsistent),
+    sessionStored "peer-identity-mixed-order"
+      "peer_identity_public replaced by a canonical key on the curve that is not of prime order (an honest key's point plus a point of order 8), identity_ad rebuilt to match: the identity-key rule refuses it"
+      (mutate (fun s => sessionWithIdentities s s.ourIdentityPublic identityMixedOrder))
+      (some .inconsistent),
+    sessionStored "peer-identity-low-order"
+      "peer_identity_public replaced by u = 0, a point of order 2, identity_ad rebuilt to match: the identity-key rule refuses it"
+      (mutate (fun s => sessionWithIdentities s s.ourIdentityPublic identityLowOrder))
+      (some .inconsistent),
+    sessionStored "peer-identity-no-curve-point"
+      "peer_identity_public replaced by u = 2, which no point of the curve has, identity_ad rebuilt to match: the identity-key rule refuses it"
+      (mutate (fun s => sessionWithIdentities s s.ourIdentityPublic identityNoCurvePoint))
+      (some .inconsistent),
+    sessionStored "own-identity-mixed-order"
+      "our_identity_public replaced by a canonical key on the curve that is not of prime order (an honest key's point plus a point of order 8), identity_ad rebuilt to match: the identity-key rule refuses it"
+      (mutate (fun s => sessionWithIdentities s identityMixedOrder s.peerIdentityPublic))
+      (some .inconsistent),
+    sessionStored "own-identity-low-order"
+      "our_identity_public replaced by u = 0, a point of order 2, identity_ad rebuilt to match: the identity-key rule refuses it"
+      (mutate (fun s => sessionWithIdentities s identityLowOrder s.peerIdentityPublic))
+      (some .inconsistent),
+    sessionStored "own-identity-no-curve-point"
+      "our_identity_public replaced by u = 2, which no point of the curve has, identity_ad rebuilt to match: the identity-key rule refuses it"
+      (mutate (fun s => sessionWithIdentities s identityNoCurvePoint s.peerIdentityPublic))
       (some .inconsistent),
     sessionStored "established-ephemeral-wrong-curve-byte"
       "established_ephemeral whose first byte is not the EncodeEC type byte, so DecodeEC does not accept it"
@@ -2770,6 +2845,147 @@ def aeadDecryptFile (_ : Unit) : String :=
       openVector "padding-bytes-disagree" "the last byte decrypts to 2 and the byte before it to 3" (ivDecryptingTo (List.replicate 14 0x41 ++ [0x03, 0x02]) 3) ad (tagged ad (ct 3)),
       openVector "last-byte-sixteen-rest-not" "F.2.5's four blocks: the last byte decrypts to 16 and the fifteen before it do not" nistIv ad (tagged ad (nistCbc.flatten)) ]
 
+/-! #### The identity-key rule
+
+`Model.IdentityKey.valid` on a fixed table of keys, one vector per row. The
+table's classes come from a separate program that shares no code with the
+model (Edwards extended coordinates and an x-only Montgomery ladder, agreeing
+with each other); they are embedded below as literals, and the generator writes
+nothing if the model's verdict differs from a row's class on any row. Only the
+class `prime` is an identity key. -/
+
+/-- One row of the table: a name, the 32 bytes as hex, the class the separate
+    program gives the key, and a note saying what the key is. -/
+structure IdentityKeyRow where
+  name : String
+  key : String
+  cls : String
+  note : String
+
+/-- The table. Classes: `prime` (an identity key), `mixed` (canonical, on the
+    curve, not of prime order), `small` (order 1, 2, 4 or 8), `twist` (no
+    point of the curve has this u), `pm1` (u = p - 1) and `noncanonical`. -/
+def identityKeyRows : List IdentityKeyRow := [
+    { name := "honest-h1", key := "a4e09292b651c278b9772c569f5fa9bb13d906b46ab68c9df9dc2b4409f8a209", cls := "prime",
+      note := "X25519 public key of the secret 0101010101010101010101010101010101010101010101010101010101010101" },
+    { name := "honest-h2", key := "ce8d3ad1ccb633ec7b70c17814a5c76ecd029685050d344745ba05870e587d59", cls := "prime",
+      note := "X25519 public key of the secret 0202020202020202020202020202020202020202020202020202020202020202" },
+    { name := "honest-h3", key := "5fef13fc76023a9ee6ded987b6aa93958cdc2097ef9fc845d5319c9ca100d35e", cls := "prime",
+      note := "X25519 public key of the secret a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5" },
+    { name := "rfc7748-alice", key := "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a", cls := "prime",
+      note := "RFC 7748 section 6.1, Alice's public key" },
+    { name := "rfc7748-bob", key := "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f", cls := "prime",
+      note := "RFC 7748 section 6.1, Bob's public key" },
+    { name := "base-point", key := "0900000000000000000000000000000000000000000000000000000000000000", cls := "prime",
+      note := "the X25519 base point, u = 9" },
+    { name := "h1-plus-torsion-1", key := "037faa3bbfc676b26f87fb1449a152bcb3eb7cfeeedbaa3604deca93ac75304b", cls := "mixed",
+      note := "the sum of honest-h1's point and a torsion point of order 8 (variant 1)" },
+    { name := "h1-plus-torsion-2", key := "6722174dbc997c555d35183ae1f5b54d718517e2012641580dc06bf48b5cc67b", cls := "mixed",
+      note := "the sum of honest-h1's point and a torsion point of order 4 (variant 2)" },
+    { name := "h1-plus-torsion-3", key := "e8d38dcb16f648d07445eec3ca82323dba82357310085fbf9bb0345ce823e87e", cls := "mixed",
+      note := "the sum of honest-h1's point and a torsion point of order 8 (variant 3)" },
+    { name := "h1-plus-torsion-4", key := "cc80c67924df11225baa5ff7838b65ef4747fc514b11a810fb951106ab3d620a", cls := "mixed",
+      note := "the sum of honest-h1's point and a torsion point of order 2 (variant 4)" },
+    { name := "h1-plus-torsion-5", key := "9111bc7d044c267035bca4a9de062fe4f353e2ee88a3ef9ea32429678b585b7d", cls := "mixed",
+      note := "the sum of honest-h1's point and a torsion point of order 8 (variant 5)" },
+    { name := "h1-plus-torsion-6", key := "a142bda181923458bf441949108fdcb0bc0765d479086b8f520a6592c8f92619", cls := "mixed",
+      note := "the sum of honest-h1's point and a torsion point of order 4 (variant 6)" },
+    { name := "h1-plus-torsion-7", key := "17f500d43bb2ac86183a9b80e83d701445cfbd68042222600acb81b7096d0974", cls := "mixed",
+      note := "the sum of honest-h1's point and a torsion point of order 8 (variant 7)" },
+    { name := "h3-plus-torsion-1", key := "bb1a166d952ff3ddaf21a8aece506e592b3b337738dd1dd17b38b71e10754101", cls := "mixed",
+      note := "the sum of honest-h3's point and a torsion point of order 8 (variant 1)" },
+    { name := "h3-plus-torsion-2", key := "26f0928b418ae501439b9685f125b7ac6aa6b3da65632b57643af67f2e19572d", cls := "mixed",
+      note := "the sum of honest-h3's point and a torsion point of order 4 (variant 2)" },
+    { name := "h3-plus-torsion-3", key := "f6a773dc913bc1f16e6f1e7111bf8567bff841c04817c1ae8adcaa5e3156096e", cls := "mixed",
+      note := "the sum of honest-h3's point and a torsion point of order 8 (variant 3)" },
+    { name := "h3-plus-torsion-4", key := "076fb60f40bd1b27c418d7dd94868dabd42f849d121f2e2d7c2f9cddad99b728", cls := "mixed",
+      note := "the sum of honest-h3's point and a torsion point of order 2 (variant 4)" },
+    { name := "h3-plus-torsion-5", key := "67dd9120e24772f893706db46d43e2708fea46212e6d924dc20882a91e6b355f", cls := "mixed",
+      note := "the sum of honest-h3's point and a torsion point of order 8 (variant 5)" },
+    { name := "h3-plus-torsion-6", key := "6c4bd83c899973c3fa16823e445842703042da3c2f5abad90355d8f581ab9f23", cls := "mixed",
+      note := "the sum of honest-h3's point and a torsion point of order 4 (variant 6)" },
+    { name := "h3-plus-torsion-7", key := "19840e3660bdc0267416296dd74d449c652813794b378e98ccc066202394cb37", cls := "mixed",
+      note := "the sum of honest-h3's point and a torsion point of order 8 (variant 7)" },
+    { name := "base9-plus-torsion-1", key := "c5e259858ab3095bc0569034a6f3a88fbde0536e336dad4a9519584e920c0c7c", cls := "mixed",
+      note := "the sum of 9*B and a torsion point of order 8 (variant 1)" },
+    { name := "base9-plus-torsion-2", key := "1fe6ceff8b05ff49494ba9ab1eb4ff98f3d60573ebd1927b9a7f68509f252e02", cls := "mixed",
+      note := "the sum of 9*B and a torsion point of order 4 (variant 2)" },
+    { name := "base9-plus-torsion-4", key := "6a6367e4f97c6024bced038937b5b12b2f26c2e9915fe3a7bcbea07354504770", cls := "mixed",
+      note := "the sum of 9*B and a torsion point of order 2 (variant 4)" },
+    { name := "u-0", key := "0000000000000000000000000000000000000000000000000000000000000000", cls := "small",
+      note := "u = 0, a point of order 2" },
+    { name := "u-1", key := "0100000000000000000000000000000000000000000000000000000000000000", cls := "small",
+      note := "u = 1, a point of order 4" },
+    { name := "u-p-minus-1", key := "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f", cls := "pm1",
+      note := "u = p - 1" },
+    { name := "u-order8-a", key := "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800", cls := "small",
+      note := "one of the two u-coordinates of order eight" },
+    { name := "u-order8-b", key := "5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f1157", cls := "small",
+      note := "one of the two u-coordinates of order eight" },
+    { name := "twist-u-2", key := "0200000000000000000000000000000000000000000000000000000000000000", cls := "twist",
+      note := "u = 2" },
+    { name := "twist-u-3", key := "0300000000000000000000000000000000000000000000000000000000000000", cls := "twist",
+      note := "u = 3" },
+    { name := "twist-u-5", key := "0500000000000000000000000000000000000000000000000000000000000000", cls := "twist",
+      note := "u = 5" },
+    { name := "twist-u-12", key := "0c00000000000000000000000000000000000000000000000000000000000000", cls := "twist",
+      note := "u = 12" },
+    { name := "noncanonical-9-plus-p", key := "f6ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f", cls := "noncanonical",
+      note := "u = 9 + p" },
+    { name := "noncanonical-9-bit255", key := "0900000000000000000000000000000000000000000000000000000000000080", cls := "noncanonical",
+      note := "u = 9 with bit 255 set" },
+    { name := "noncanonical-p", key := "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f", cls := "noncanonical",
+      note := "u = p" },
+    { name := "noncanonical-p-plus-1", key := "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f", cls := "noncanonical",
+      note := "u = p + 1" },
+    { name := "noncanonical-max", key := "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", cls := "noncanonical",
+      note := "all 256 bits set" },
+    { name := "noncanonical-honest-h1-bit255", key := "a4e09292b651c278b9772c569f5fa9bb13d906b46ab68c9df9dc2b4409f8a289", cls := "noncanonical",
+      note := "honest-h1 with bit 255 set" },
+    { name := "noncanonical-torsion-bit255", key := "037faa3bbfc676b26f87fb1449a152bcb3eb7cfeeedbaa3604deca93ac7530cb", cls := "noncanonical",
+      note := "a torsion translate with bit 255 set" }
+  ]
+
+/-- The clause a refused row's comment ends with, naming why the key is not an
+    identity key. -/
+def identityKeyClause : String → Option String
+  | "noncanonical" => some "not canonical"
+  | "small" => some "low order"
+  | "pm1" => some "no point of the curve has this u"
+  | "twist" => some "no point of the curve has this u"
+  | "mixed" => some "canonical, on the curve, not of prime order"
+  | _ => none
+
+/-- One vector: an accepted key's `output` is `01`; a refused key is
+    `invalid` with the refusal `invalid-identity-key`. Fails when the model's
+    verdict is not the table's. -/
+@[never_extract]
+def identityKeyVector (row : IdentityKeyRow) : Except String String := do
+  let key := ofHex row.key
+  if key.length != 32 then
+    throw ("genvectors: " ++ row.name ++ " is not 32 bytes")
+  let expected := row.cls == "prime"
+  if Model.IdentityKey.valid key != expected then
+    throw ("genvectors: Model.IdentityKey.valid disagrees with the table on " ++ row.name)
+  if expected then
+    pure (vectorHead row.name row.note ++ "\"result\": \"valid\", \"inputs\": " ++
+      jsonObject [("key", row.key)] ++ ", \"output\": \"01\" }")
+  else
+    match identityKeyClause row.cls with
+    | none => throw ("genvectors: " ++ row.name ++ " has a class the generator does not know")
+    | some clause =>
+      pure (vectorHead row.name (row.note ++ ": " ++ clause) ++
+        "\"result\": \"invalid\", \"refusal\": \"invalid-identity-key\", \"inputs\": " ++
+        jsonObject [("key", row.key)] ++ " }")
+
+@[never_extract]
+def identityKeyFile (_ : Unit) : Except String String := do
+  let vectors ← identityKeyRows.mapM identityKeyVector
+  pure (answerFile "identity-key"
+    ("generated by tacenta-model Vectors.lean (lake exe genvectors identity-key), from Model.IdentityKey.valid, the identity-key rule of identities-and-devices.md, Accepting a signed statement, check 6; the keys are a fixed table and each row's class was computed by a separate program that shares no code with the model, embedded here as a literal; an accepted key's output is 01, the verdict; the generator writes no vector on which the model's verdict differs from the table")
+    vectors)
+
+
 end Vectors
 
 def main (args : List String) : IO Unit :=
@@ -2823,6 +3039,8 @@ def main (args : List String) : IO Unit :=
     Vectors.printOrFail (Vectors.prekeyStoreStateFile ())
   else if args.contains "session-state" then
     Vectors.printOrFail (Vectors.sessionStateFile ())
+  else if args.contains "identity-key" then
+    Vectors.printOrFail (Vectors.identityKeyFile ())
   else if args.contains "protobuf-ratchet-body" then
     IO.println (Vectors.ratchetBodyFile ())
   else if args.contains "protobuf-prekey-envelope" then

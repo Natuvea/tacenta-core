@@ -79,7 +79,9 @@ with the pinned binaries reproduces it byte for byte), is the set of
 | no declaration: randomness enters as the `rand_core::RngCore` trait dictionary (`fill_bytes`), which the gate cannot see | `Random32Total`, stated over that trait use |
 
 Thirteen operations reach the five roots and map onto nine contracts;
-signing is the tenth. Four further boundary declarations,
+signing is the tenth. (Addendum, 2026-09-29: the identity-key rule adds a
+fourteenth operation, `dh.is_prime_order_public`, and a thirteenth contract,
+`DhIdentityTotal`; see the primitive-boundary decision's note of that date.) Four further boundary declarations,
 `kem.KeyPair.{generate, public_key, to_bytes, from_bytes}`, are reachable
 only from the `Identity` and `PrekeyStore` operations outside the five roots
 and are outside the ten contracts by the decision's scope; they are listed

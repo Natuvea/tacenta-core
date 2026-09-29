@@ -33,6 +33,17 @@ def DhCodecTotal : Prop :=
   (∀ a b, NoPanic
     (tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq a b))
 
+/- The identity boundary performs one additional checked operation beyond the
+   codec operations above.  Keep its totality as a separate contract so the
+   existing codec witnesses and projections remain stable. -/
+def DhIdentityTotal : Prop :=
+  ∀ k, NoPanic (tacenta_boundary.dh.is_prime_order_public k)
+
+@[step] theorem prime_order_public_no_panic (h : DhIdentityTotal)
+    (k : tacenta_boundary.dh.PublicKeyBytes) :
+    tacenta_boundary.dh.is_prime_order_public k ⦃ fun _ => True ⦄ :=
+  (Tacenta.SessionUnitT1.noPanic_iff _).2 (h k)
+
 def DhAgreeTotal : Prop :=
   ∀ k p, NoPanic (tacenta_boundary.dh.PrivateKey.agree k p)
 

@@ -424,6 +424,11 @@ fn check_vector(algorithm: &str, v: &Vector) -> Result<(), String> {
         // page says is the one case a storage layer could plausibly have
         // written itself, so the vectors pin which of the two is given.
         "session-state" => check_session_state(v),
+        // The identity-key rule (identities-and-devices.md, Identity keys) as a
+        // predicate, and at the two boundaries that read a key off the wire.
+        "identity-key" => check_identity_key(v),
+        "bundle-admission" => check_bundle_admission(v),
+        "initial-message-admission" => check_initial_message_admission(v),
         // The bounded protobuf profile's two readers (protobuf-profile.md).
         "protobuf-ratchet-body" => check_ratchet_body(v),
         "protobuf-prekey-envelope" => check_prekey_envelope(v),
@@ -1397,6 +1402,128 @@ fn session_fields_agree(v: &Vector, stored: &[u8]) -> Result<(), String> {
     )
 }
 
+/// The identity-key rule over one key: the verdict, and for a refused key the
+/// refusal the vector names.
+fn check_identity_key(v: &Vector) -> Result<(), String> {
+    use tacenta_core::primitives::dh;
+    use tacenta_core::sessions::is_valid_identity_key;
+    let key = dh::PublicKeyBytes::from_bytes(array32(&input(v, "key")?)?);
+    match (expects_success(v)?, is_valid_identity_key(&key)) {
+        (true, true) | (false, false) => {}
+        (true, false) => return Err("refused a key the vector admits".to_string()),
+        (false, true) => return Err("admitted a key the vector refuses".to_string()),
+    }
+    // The boundary primitive is the same rule.
+    if dh::is_prime_order_public(&key) != (v.result == "valid") {
+        return Err("dh::is_prime_order_public disagrees with the vector".to_string());
+    }
+    if v.result == "invalid" {
+        refusal_is(v, "invalid-identity-key")
+    } else {
+        Ok(())
+    }
+}
+
+/// A whole prekey bundle offered to the initiator: `verify_bundle` and
+/// `establish_initiator_for` (session-establishment.md, Sending the initial
+/// message). An admitted bundle establishes; a refused one is refused as an
+/// invalid identity key by both, and `establish_initiator_for` draws no
+/// randomness before it refuses.
+fn check_bundle_admission(v: &Vector) -> Result<(), String> {
+    use tacenta_core::primitives::dh;
+    use tacenta_core::serialization::decode_bundle;
+    use tacenta_core::sessions::{
+        Identity, LifecycleError, PreKeyBundle, PublishedBundle, SessionError,
+        establish_initiator_for, verify_bundle,
+    };
+    let wire = decode_bundle(&input(v, "bundle")?)
+        .map_err(|e| format!("the bundle does not decode: {e:?}"))?;
+    let published = PublishedBundle {
+        bundle: PreKeyBundle {
+            identity_key: dh::PublicKeyBytes::from_bytes(wire.identity_key),
+            signed_prekey: dh::PublicKeyBytes::from_bytes(wire.signed_prekey),
+            signed_prekey_signature: wire.signed_prekey_signature,
+            kem_prekey: wire.kem_prekey,
+            kem_prekey_signature: wire.kem_prekey_signature,
+            one_time_prekey: wire.one_time_prekey.map(dh::PublicKeyBytes::from_bytes),
+        },
+        signed_prekey_id: wire.signed_prekey_id,
+        one_time_prekey_id: wire.one_time_prekey_id,
+        kem_prekey_id: wire.kem_prekey_id,
+    };
+    let identity_key = published.bundle.identity_key;
+    let initiator = Identity::from_secret(array32(&input(v, "initiator_identity_secret")?)?);
+    let mut rng = FixedBytes::new(vec![0x5c; 64])?;
+    let verified = verify_bundle(&published.bundle);
+    let established = establish_initiator_for(&initiator, &published, &identity_key, &mut rng);
+    match expects_success(v)? {
+        true => {
+            verified.map_err(|e| format!("verify_bundle refused an admitted bundle: {e:?}"))?;
+            established.map(|_| ()).map_err(|e| {
+                format!("establish_initiator_for refused an admitted bundle: {e:?}")
+            })?;
+            eq(identity_key.as_bytes(), &bytes(&v.output)?)
+        }
+        false => {
+            if verified != Err(SessionError::InvalidIdentityKey) {
+                return Err(format!(
+                    "verify_bundle gave {verified:?}, not an invalid identity key"
+                ));
+            }
+            match established {
+                Err(LifecycleError::Handshake(SessionError::InvalidIdentityKey)) => {}
+                Err(other) => {
+                    return Err(format!(
+                        "establish_initiator_for gave {other:?}, not an invalid identity key"
+                    ));
+                }
+                Ok(_) => {
+                    return Err(
+                        "establish_initiator_for admitted a bundle the vector refuses".to_string(),
+                    );
+                }
+            }
+            if rng.drawn() != 0 {
+                return Err("a refused bundle drew randomness".to_string());
+            }
+            refusal_is(v, "invalid-identity-key")
+        }
+    }
+}
+
+/// A whole initial message offered to the responder that holds the prekey store
+/// (session-establishment.md, Receiving the initial message): the plaintext
+/// comes back for an admitted message, and a refused one is refused as an
+/// invalid identity key with the prekey store as it was.
+fn check_initial_message_admission(v: &Vector) -> Result<(), String> {
+    use tacenta_core::sessions::{
+        Identity, LifecycleError, PrekeyStore, SessionError, establish_responder,
+    };
+    let bob = Identity::from_secret(array32(&input(v, "bob_identity_secret")?)?);
+    let stored = input(v, "prekey_store")?;
+    let mut store = PrekeyStore::from_bytes(&stored)
+        .map_err(|e| format!("the prekey store does not read: {e:?}"))?;
+    if store.to_bytes().as_slice() != stored.as_slice() {
+        return Err("the prekey store does not write back to its bytes".to_string());
+    }
+    let mut rng = FixedBytes::new(vec![0x3a; 64])?;
+    let outcome = establish_responder(&bob, &mut store, &input(v, "initial_message")?, &mut rng);
+    match (expects_success(v)?, outcome) {
+        (true, Ok((_, plaintext))) => eq(&plaintext, &bytes(&v.output)?),
+        (true, Err(e)) => Err(format!("refused ({e:?}) a message the vector admits")),
+        (false, Ok(_)) => Err("admitted a message the vector refuses".to_string()),
+        (false, Err(LifecycleError::Handshake(SessionError::InvalidIdentityKey))) => {
+            if store.to_bytes().as_slice() != stored.as_slice() {
+                return Err("a refusal changed the prekey store".to_string());
+            }
+            refusal_is(v, "invalid-identity-key")
+        }
+        (false, Err(other)) => Err(format!(
+            "refused as {other:?}, not as an invalid identity key"
+        )),
+    }
+}
+
 /// The session's stored format: which byte strings its reader accepts, which it
 /// refuses and with which of the page's refusals, and that what it accepts it
 /// writes back unchanged.
@@ -1778,6 +1905,11 @@ impl FixedBytes {
             return Err("nonce must not be empty".to_string());
         }
         Ok(FixedBytes { bytes, at: 0 })
+    }
+
+    /// How many bytes have been drawn.
+    fn drawn(&self) -> usize {
+        self.at
     }
 }
 

@@ -20,6 +20,16 @@ separately and this model does not state at all. The session gives a third,
 `inconsistent`, for its semantic rules; `Refusal`'s own docstring says why,
 and why a fourth, `non-canonical`, is unreachable here.
 
+**The identity keys are held to the identity-key rule, not only to canonical
+encoding.** The prekey store's `identity_public` and the session's
+`our_identity_public` and `peer_identity_public` must each satisfy
+`Model.IdentityKey.valid`: a canonical curve public key whose u-coordinate
+belongs to the prime-order subgroup of edwards25519
+(identities-and-devices.md, "Accepting a signed statement", check 6). Every
+other curve public key a stored state holds is held to canonical encoding
+alone. The model therefore states the identity rule, computed by
+`Model.IdentityKey.valid`, and still does not state signatures.
+
 **What is proved, and for which formats.** Every format: a state that keeps
 the rules and fits its fields is read back from the bytes it is written as
 (`ofBytes_toBytes`). Every format but the prekey store: a state the reader
@@ -84,6 +94,7 @@ how the rest is laid out.
 -/
 import Model.Braid
 import Model.Erasure
+import Model.IdentityKey
 import Model.Messages
 import Model.Ratchet
 import Model.SparseRatchet
@@ -1611,7 +1622,9 @@ namespace PrekeyStoreState
 page's sixth semantic rule -- that every stored signature verifies under
 `identity_public` -- is absent here, deliberately. This model has no notion of
 a signature anywhere: no `sign`, no `verify`, no signature type, because it
-carries no elliptic-curve arithmetic. The rule is real and normative, and
+carries no signature scheme. (`Model.IdentityKey` computes the curve's group law
+for one question about a key, whether it is of prime order; nothing in the model
+signs or verifies with it.) The rule is real and normative, and
 `tacenta-core` enforces it; what pins it is the mutation tests in
 `sessions/lifecycle.rs`, one per signature class, not this model and not the
 vectors generated from it.
@@ -1628,7 +1641,12 @@ keeps the rule, and this file records that it cannot carry it.
 permissive than the specification. A store it accepts may still be refused by a
 conforming implementation, and the vectors generated from it carry signature
 bytes that do not verify. Acceptance vectors therefore take their signatures as
-recorded inputs rather than from this model. -/
+recorded inputs rather than from this model.
+
+**What the model does state about `identity_public`** is the identity-key rule
+(`Model.IdentityKey.valid`): a store whose `identity_public` is not an
+identity key is refused as malformed, as the store's other semantic rules
+are. -/
 
 /-- The signatures are carried as opaque 64-byte strings: stored, re-emitted,
     and said nothing about (see above). -/
@@ -1739,9 +1757,10 @@ def recordOk (st : Store) : Bool :=
         | some i => decide (seenFor st i ≤ maxLastResortSeen))
     && noShared Prod.snd st.seen
 
-/-- The rules, and all of them this model can state: `identity_public` is
-    canonical, every identifier is below `next_id` and none is the absent
-    sentinel, all identifiers are distinct, and the record keeps its shape. -/
+/-- The rules, and all of them this model can state: `identity_public` is an
+    identity key (`Model.IdentityKey.valid`), every identifier is below
+    `next_id` and none is the absent sentinel, all identifiers are distinct,
+    and the record keeps its shape. -/
 def kemPairsSized (st : Store) : Bool :=
   decide (st.kemPair.length = kemPairLen)
     && st.kemOneTime.all (fun e => decide (e.2.1.length = kemPairLen))
@@ -1774,7 +1793,7 @@ def legacyBlockedOk (st : Store) : Bool :=
 
 def invariant (st : Store) : Bool :=
   kemPairsSized st
-    && canonicalKey st.identityPublic
+    && Model.IdentityKey.valid st.identityPublic
     && (ids st).all (fun i => !(i == absentId) && decide (i < st.nextId))
     && noShared (fun i => i) (ids st)
     && recordOk st
@@ -2429,7 +2448,9 @@ namespace SessionState
 
 The sixth and last stored format, and the second whose page carries a rule this
 model cannot state. **`ratchet_private`'s public key equals the classical
-ratchet's `dhs_pub`** needs X25519, and this model does not compute the curve:
+ratchet's `dhs_pub`** needs X25519, and this model does not compute it (the
+group law in `Model.IdentityKey` serves only the identity-key rule, and there is
+no scalar multiplication of a secret):
 `Model.Ratchet` says so at its head, and the Diffie-Hellman outputs the model
 works from are taken as inputs, with the agreement itself checked by the X25519
 vectors. That boundary was drawn long before this format, so unlike the prekey
@@ -2559,9 +2580,13 @@ def optionalShapes (s : Session) : Bool :=
         decide (e.length = 33) && (e.head? == some Model.Messages.ecCurveByte)
           && canonicalKey (e.drop 1))
 
-/-- **Every curve public key the session stores is canonical.** -/
+/-- **Every curve public key the session stores is admissible.** The two
+    identity keys are identity keys (`Model.IdentityKey.valid`: canonical, and
+    in the prime-order subgroup), and the pending ephemeral key is canonical.
+    The name predates the stronger rule on the identity keys. -/
 def keysCanonical (s : Session) : Bool :=
-  canonicalKey s.ourIdentityPublic && canonicalKey s.peerIdentityPublic
+  Model.IdentityKey.valid s.ourIdentityPublic
+    && Model.IdentityKey.valid s.peerIdentityPublic
     && (match s.pendingInitial with
         | none => true
         | some p => canonicalKey p.ephemeralPublic)

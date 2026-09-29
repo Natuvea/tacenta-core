@@ -1921,17 +1921,18 @@ turns the gate red.
 This is a Phase 0 translatability result. No T1 or T3 theorem is stated about
 the standalone `TacentaLifecycle` constants (the theorems about the lifecycle
 live on the eight-leaf session unit, next section), and the leaf translation sees the ratchets, Braid,
-wire layer and primitive boundary as 118 opaque externals. The manifest lists
-all 118 and `AxiomAuditLifecycle.lean` checks the elaborated module against
-that exact set. Of the 118, 74 are first-party leaf operations the lifecycle
+wire layer and primitive boundary as 114 opaque externals. The manifest lists
+all 114 and `AxiomAuditLifecycle.lean` checks the elaborated module against
+that exact set. Of the 114, 54 are first-party leaf operations the lifecycle
 calls across a crate boundary (`tacenta_session`, `tacenta_wire`,
 `tacenta_triple::State`, `tacenta_braid::Braid`, `tacenta_ratchet`,
 `tacenta_spqr`, `tacenta_kdf`): each has a body and, for most, a theorem in
 its own translation, but on this island they are bare axioms with no
 precondition, exactly the standalone-Triple shape the three-leaf unit was
-built to remove. Twenty are `tacenta_boundary` declarations, the primitive
-boundary this carve-out created: three key types and seventeen operations
-over X25519, the AEAD, ML-KEM-1024 and XEdDSA, whose bodies are trusted and
+built to remove. Twenty-two are `tacenta_boundary` declarations, the primitive
+boundary this carve-out created: three key types and nineteen operations
+over X25519, the identity-key predicate, the AEAD, ML-KEM-1024 and XEdDSA,
+whose bodies are trusted and
 never translated ("Trusted, not verified" above now lists the crate). The
 rest are standard-library, `zeroize` and `rand_core` items. Randomness
 reaches the lifecycle as a `rand_core::RngCore` trait dictionary rather than
@@ -1940,7 +1941,7 @@ a boundary function, which is why no `random32` declaration exists and why
 `tacenta_boundary` names, cannot see that route.
 `tacenta-model/SESSION-L4-PHASE0-SPIKE-20260918.md` maps the reachable
 boundary declarations to the contracts the primitive-boundary decision
-names (ten in the record, twelve after its dated note). Later phases assemble the lifecycle with its eight code leaves
+names (ten in the record, twelve after its first dated note, thirteen after the second). Later phases assemble the lifecycle with its eight code leaves
 and prove orchestration against the lifecycle model; until then,
 `Session::encrypt`, `Session::decrypt`, establishment and persistence remain
 tested and translated, not proved end to end.
@@ -1950,17 +1951,19 @@ tested and translated, not proved end to end.
 The eight-leaf `TacentaSessionUnit` makes the ratchet, Braid, erasure, wire,
 session and lifecycle bodies concrete in one Lean namespace. The primitive
 implementations remain outside that unit. The first Session proof layer names
-twelve contracts, the cap the primitive-boundary decision set: nine over the
-primitive boundary, `DhCodecTotal`, `DhAgreeTotal`, `AeadOpenTotal`,
-`KemEncapsulateTotal`, `KemDecapsulateTotal`, `KemCiphertextLenTotal`,
-`XeddsaVerifyTotal`, `XeddsaSignTotal` and `Random32Total`; one over the
+thirteen contracts, the cap the primitive-boundary decision now sets: ten over the
+primitive boundary, `DhCodecTotal`, `DhIdentityTotal`, `DhAgreeTotal`,
+`AeadOpenTotal`, `KemEncapsulateTotal`, `KemDecapsulateTotal`,
+`KemCiphertextLenTotal`, `XeddsaVerifyTotal`, `XeddsaSignTotal` and
+`Random32Total`; one over the
 AEAD's output shape, `AeadSealBounded`, which says the call returns and that
 the ciphertext and authentication tag are at most forty-eight bytes longer than the plaintext (a length
 bound the framing headroom needs, so it is not a totality contract); and two
 over standard-library and `zeroize` operations Aeneas leaves opaque,
 `VecPopTotal` and `MessageKeyMaterialRoundTrip`. The decision record named ten
 and `AeadSealTotal`; the complete translation and its T1 layer showed the
-twelve, and the record carries a dated note.
+twelve, and the identity-key rule added `DhIdentityTotal` as the thirteenth;
+the record carries a dated note for each.
 
 Apart from `AeadSealBounded`, these contracts say that the outer Aeneas `Result` returns. They permit an
 AEAD, KEM or signature check to return its ordinary inner refusal, and permit
@@ -1978,10 +1981,29 @@ scoped to the concrete `RngCore` instance supplied to an operation: a contract
 over every possible trait record would be false because the trait permits a
 `fill_bytes` implementation that fails.
 
+`DhIdentityTotal` says that `is_prime_order_public` returns for every key, and
+nothing more. The function is in the trusted primitive crate
+(`tacenta_boundary`), so it is one of the opaque externals above, and Lean
+cannot tell it from the constant `true`: replacing its body changes no theorem.
+What it computes, the identity-key rule of identities-and-devices.md (Identity
+keys), is **tested and pinned, not proved**. `Model.IdentityKey.valid` states
+the rule from the page and is not itself proved to be the rule; the vectors
+`vectors/identity/identity-key.json`, generated from it and cross-checked
+against an independent program when they are written, pin 39 keys; the
+differential harness compares it with `is_valid_identity_key` over the same
+keys and over more than a thousand others in both verdicts; and `tacenta-core`'s
+tests drive every entry point that admits an identity key and assert the refusal
+kind. The refinement contract for the establishment operations binds the
+model's `identityValid` oracle to the translated `is_valid_identity_key`
+(`OracleOf.identityValid`, `UnitLifecycleT3.lean`); no theorem consumes that
+binding yet, because no T3 statement about establishment exists, so the
+binding is a statement of intent about the oracle and not an assurance.
+
 `UnitSatisfiabilitySession.lean` binds every contract shape to the generated
 constant with an `Iff.rfl`, exhibits a model for each shape, and combines all
-twelve witness names in one theorem (`all_twelve_contracts_satisfiable`). The negative control removes one witness and
-requires elaboration to fail. This establishes only that the assumptions are
+thirteen witness names in one theorem (`all_thirteen_contracts_satisfiable`). The negative control removes each of two
+witnesses in turn, the first one the theorem listed and the identity-key
+contract's, and requires elaboration to fail each time. This establishes only that the assumptions are
 consistent; it does not prove that the real primitive implementations satisfy
 their value-level specifications.
 

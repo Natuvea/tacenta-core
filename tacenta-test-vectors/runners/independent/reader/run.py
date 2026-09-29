@@ -20,7 +20,21 @@ sys.path.insert(0, HERE)
 # A skip is evidence about this reader's documented scope, not a free pass.
 # Keep the exact vector label here so adding, removing or moving a skip makes
 # the reader fail until the disposition is reviewed.
-EXPECTED_SKIPS = set()
+EXPECTED_SKIPS = {
+    # Pass 13. Reason: the vector's `output` is the plaintext the responder
+    # recovers, which needs ML-KEM-1024 decapsulation, the Triple Ratchet's
+    # receive and the AEAD; this reader implements none of the first two (the
+    # Braid runs over a KEM test double). What the reader does check first, and
+    # fails on if it disagrees: the prekey store reads (all its stored
+    # signatures verify), the message decodes, the store holds the signed prekey
+    # and the KEM prekey and the one-time prekey it names, the message's
+    # identity is an identity key, the KEM ciphertext has the KEM's length, the
+    # store is unchanged, the responder's identity secret is the store's
+    # identity, the four agreements are contributory, and the ratchet message
+    # inside decodes. Not checked: decapsulation, SK, the replay identity, the
+    # AEAD and the plaintext.
+    "identity/initial-message-admission.json :: honest-initial-message",
+}
 _OBSERVED_SKIPS = set()
 
 
@@ -36,7 +50,7 @@ import copy  # noqa: E402
 import re  # noqa: E402
 
 import session_e2e  # noqa: E402
-from tacenta_reader import aead, braid, curve25519, erasure, gf65536, persistence, pqxdh, protobuf, ratchet, spqr, triple, wire  # noqa: E402
+from tacenta_reader import admission, aead, braid, curve25519, erasure, gf65536, persistence, pqxdh, protobuf, ratchet, spqr, triple, wire  # noqa: E402
 from tacenta_reader.kdf import hkdf_sha256, hmac_sha256  # noqa: E402
 
 bx = bytes.fromhex
@@ -963,6 +977,116 @@ def h_session_state(v):
                               persistence.session_to_bytes, _session_fields, _SESSION_REFUSALS)
 
 
+
+# ------------------------------------------------- identity keys (pass 13)
+# identities-and-devices.md, Identity keys; session-establishment.md, Sending the
+# initial message and Receiving the initial message. The vectors README, "The
+# identity keys". An invalid vector in these three files carries the refusal
+# `invalid-identity-key`.
+
+def _identity_refusal(e):
+    """The kind a boundary's refusal has. A decode failure stays a decode
+    failure and a canonical key the rule refuses is the third outcome."""
+    if isinstance(e, wire.InvalidIdentityKey):
+        return "invalid-identity-key"
+    if isinstance(e, wire.DecodeError):
+        return "decode-failure"
+    if isinstance(e, wire.BundleRefused):
+        return "bundle-refused"
+    if isinstance(e, admission.UnknownPrekey):
+        return "unknown-prekey"
+    return type(e).__name__
+
+
+def h_identity_key(v):
+    """The rule over a table of keys. One input, `key`, 32 bytes. A valid
+    vector's `output` is the single byte `01`, the verdict."""
+    i = v["inputs"]
+    if set(i) != {"key"}:
+        raise Fail(f"vector: inputs {sorted(i)}")
+    key = bx(i["key"])
+    verdict = curve25519.is_identity_key(key)
+    if v["result"] == "valid":
+        if not verdict:
+            raise Fail("refused a key the vector says is an identity key")
+        check(v["output"], b"\x01", "verdict")
+        return
+    if v.get("refusal") != "invalid-identity-key":
+        raise Fail(f"vector: refusal {v.get('refusal')!r}")
+    if verdict:
+        raise Fail("admitted a key the vector says is refused")
+
+
+def h_bundle_admission(v):
+    """A whole prekey bundle and the initiator's identity secret. A valid
+    vector's output is the identity key the bundle names, which the initiator
+    admits; a refused one carries `invalid-identity-key`. On every refusal the
+    reader also checks the page's order: no signature verified, no random value
+    drawn, no agreement computed, no encapsulation made."""
+    i = v["inputs"]
+    if set(i) != {"bundle", "initiator_identity_secret"}:
+        raise Fail(f"vector: inputs {sorted(i)}")
+    rng, ctr = admission.Rng(), admission.Counters()
+    try:
+        got = admission.initiator_prefix(bx(i["bundle"]), bx(i["initiator_identity_secret"]), rng, ctr)
+    except (wire.DecodeError, wire.BundleRefused, wire.InvalidIdentityKey, curve25519.NonContributory,
+            admission.pqxdh.KemPrekeyRefused) as e:
+        kind = _identity_refusal(e)
+        if v["result"] == "valid":
+            raise Fail(f"refused ({kind}: {e}); the vector says the initiator admits it")
+        if kind != v.get("refusal"):
+            raise Fail(f"refused as {kind}, the vector names {v.get('refusal')}: {e}")
+        spent = (ctr.signatures_verified, len(rng.draws), ctr.agreements, ctr.encapsulations)
+        if any(spent):
+            raise Fail(f"work done before the refusal: signatures {spent[0]}, draws {spent[1]}, agreements {spent[2]}, encapsulations {spent[3]}")
+        return
+    if v["result"] != "valid":
+        raise Fail(f"admitted; expected {v.get('refusal')}")
+    check(v["output"], got.identity_key, "identity key admitted")
+    if ctr.signatures_verified != 2 or rng.draws != [32, 32]:
+        raise Fail(f"admitted with {ctr.signatures_verified} signatures verified and draws {rng.draws}")
+
+
+def h_initial_message_admission(v):
+    """The responder's side. Inputs: `bob_identity_secret`, `prekey_store` (a
+    stored prekey store) and `initial_message`. A refused vector leaves the
+    prekey store as it was; the valid vector's output is a plaintext this
+    reader cannot recover (a Skip after every check it can make)."""
+    i = v["inputs"]
+    if set(i) != {"bob_identity_secret", "prekey_store", "initial_message"}:
+        raise Fail(f"vector: inputs {sorted(i)}")
+    store_bytes = bx(i["prekey_store"])
+    store = persistence.prekey_store_from_bytes(store_bytes)
+    ctr = admission.Counters()
+    try:
+        got = admission.responder_prefix(store, bx(i["initial_message"]), ctr)
+    except (wire.DecodeError, wire.InvalidIdentityKey, admission.UnknownPrekey,
+            admission.pqxdh.KemCiphertextRefused) as e:
+        kind = _identity_refusal(e)
+        if v["result"] == "valid":
+            raise Fail(f"refused ({kind}: {e}); the vector says the message opens")
+        if kind != v.get("refusal"):
+            raise Fail(f"refused as {kind}, the vector names {v.get('refusal')}: {e}")
+        if persistence.prekey_store_to_bytes(store) != store_bytes:
+            raise Fail("the prekey store is not as it was offered")
+        if any((ctr.agreements, ctr.private_keys_used, ctr.stored_state_changes)):
+            raise Fail("a refusal after work on the message")
+        return
+    if v["result"] != "valid":
+        raise Fail(f"reached decapsulation; expected {v.get('refusal')}")
+    if persistence.prekey_store_to_bytes(store) != store_bytes:
+        raise Fail("the prekey store is not as it was offered")
+    if curve25519.x25519_public(bx(i["bob_identity_secret"])) != store.identity_public:
+        raise Fail("the responder's identity secret is not the store's identity")
+    dhs = admission.responder_agreements(store, bx(i["initial_message"]), bx(i["bob_identity_secret"]))
+    if any(len(d) != 32 or d == bytes(32) for d in dhs if d is not None):
+        raise Fail("a Diffie-Hellman output is not contributory")
+    wire.decode_ratchet_message(wire.decode_initial(bx(i["initial_message"])).ratchet_message)
+    raise Skip("output is the plaintext recovered; needs ML-KEM-1024 decapsulation and the ratchet's receive. "
+               "Checked: the store reads, the message decodes, its identity is an identity key, the prekeys it "
+               "names are held, its KEM ciphertext has the KEM's length, the four agreements are contributory, "
+               "the ratchet message inside decodes. Not checked: decapsulation, SK, the AEAD, the plaintext")
+
 # ------------------------------------------------------------ protobuf profile
 # protobuf-profile.md names fields in camelCase; the vectors' `fields` use the
 # same names in snake_case, which the page does not say (G3-03). The mapping
@@ -1089,6 +1213,9 @@ HANDLERS = {
     "prekey-store-state": h_prekey_store_state,
     "session-state": h_session_state,
     "session-establishment-e2e": h_session_establishment_e2e,
+    "identity-key": h_identity_key,
+    "bundle-admission": h_bundle_admission,
+    "initial-message-admission": h_initial_message_admission,
 }
 
 
@@ -1292,6 +1419,7 @@ CASE_MODULES = [
     "cases_stored",       # stored curve keys, Rejection's short-and-unknown buffer, the Braid key pair, inductive ceilings (pass 5)
     "cases_signed",       # the prekey store's signature rule and its refusal kind, the rotations' obligation (pass 7)
     "cases_inventory",    # hosted device-inventory statements and the seven checks (pass 12)
+    "cases_idkeys",       # identity keys at each boundary, step 3 of Verifying a signature (pass 13)
 ]
 
 
@@ -1314,25 +1442,28 @@ def run_negative(totals):
                 counts["PASS"] += 1
 
 
-def documented_tally_problems(readme, gaps, files, modules, vectors, derived, total):
+def documented_tally_problems(readme, gaps, files, modules, vectors, derived, total, skipped=0):
     """The tally this run prints, as the README and GAPS-11.md say it. A count
     copied into prose goes stale on the next vector, so the run checks it: each
-    sentence below must appear exactly as written. `None` for a document that
+    sentence below must appear exactly as written. `vectors`, `derived` and
+    `total` count passes; `skipped` counts the skips the allowlist accepts, each
+    a vector check that is neither passed nor failed. `None` for a document that
     is not there (a clean-room directory has no GAPS-11.md)."""
     problems = []
     flat = lambda text: None if text is None else " ".join(text.split())  # noqa: E731
     readme, gaps = flat(readme), flat(gaps)
+    checks = vectors + skipped
     if readme is not None:
         for sentence in (
-                f"| Vector checks ({files} files) | {vectors} | {vectors} | 0 | 0 |",
+                f"| Vector checks ({files} files) | {checks} | {vectors} | 0 | {skipped} |",
                 f"| Derived cases ({modules} modules) | {derived} | {derived} | 0 | 0 |",
-                f"| **Total** | {total} | {total} | 0 | 0 |",
-                f"**{total} PASS, 0 FAIL, 0 SKIP** ({vectors} vector checks and {derived} derived cases)"):
+                f"| **Total** | {total + skipped} | {total} | 0 | {skipped} |",
+                f"**{total} PASS, 0 FAIL, {skipped} SKIP** ({checks} vector checks and {derived} derived cases)"):
             if sentence not in readme:
                 problems.append("reader/README.md does not say: " + sentence)
     if gaps is not None:
         for sentence in (
-                f"**{total} PASS, 0 FAIL, 0 SKIP**: {vectors} vector checks",
+                f"**{total} PASS, 0 FAIL, {skipped} SKIP**: {checks} vector checks",
                 f"in {files} vector files) and {derived} derived cases"):
             if sentence not in gaps:
                 problems.append("GAPS-11.md does not say: " + sentence)
@@ -1371,13 +1502,14 @@ def main():
     if missing:
         print("FAIL  reader skip allowlist: expected skip(s) not observed: " + ", ".join(missing))
     stale = []
-    if not (grand["FAIL"] or grand["SKIP"]) and sub["vectors"]["PASS"]:
+    if not (grand["FAIL"] or unexpected or missing) and sub["vectors"]["PASS"]:
         files = sum(1 for rel in totals if not rel.endswith("(derived from spec text)"))
         modules = len(totals) - files
         stale = documented_tally_problems(
             _read(os.path.join(HERE, "README.md")),
             _read(os.path.join(HERE, "..", "GAPS-11.md")),
-            files, modules, sub["vectors"]["PASS"], sub["negative"]["PASS"], grand["PASS"])
+            files, modules, sub["vectors"]["PASS"], sub["negative"]["PASS"], grand["PASS"],
+            skipped=grand["SKIP"])
         for problem in stale:
             print("FAIL  documented tally: " + problem)
     return 1 if grand["FAIL"] or unexpected or missing or stale else 0

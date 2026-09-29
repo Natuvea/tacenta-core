@@ -29,6 +29,18 @@ class BundleRefused(Exception):
     """The initiator refuses a decoded bundle (session-establishment.md)."""
 
 
+class InvalidIdentityKey(Exception):
+    """A canonical curve public key that is not an identity key.
+
+    identities-and-devices.md, Identity keys, "A refusal": "A key that fails the
+    rule is refused, and the input that named it is refused with it. It is a
+    third outcome beside decode failure and authentication failure
+    (error-handling.md): the input decoded, and no signature failed, and the
+    key it names is not one this specification admits ... It is called *invalid
+    identity key* on the pages that name it." Not a DecodeError and not a
+    BundleRefused, so the kind stays observable."""
+
+
 # ----------------------------------------------------------------- helpers
 
 def _be(value: int, width: int, name: str) -> bytes:
@@ -433,8 +445,17 @@ def initiator_check_bundle(b: PrekeyBundle,
     identity key, signed prekey or one-time curve prekey is not the canonical
     encoding of a curve public key ... The check is for a bundle that reaches
     her some other way". The page names no refusal kind; this reader reports
-    BundleRefused, as for the other refusals in the same sentence. The order
-    against the signature checks is not fixed (error-handling.md).
+    BundleRefused, as for the other refusals in the same sentence.
+
+    Pass 13: "A bundle whose canonical `IKB` is not an identity key
+    (identities-and-devices.md, Identity keys) is refused as an invalid
+    identity key. She makes that check after the presence, pinning and
+    canonical checks above and before she verifies either signature, draws a
+    random value or encapsulates". So the order is: presence, pinning and
+    canonical (among which the page fixes none), then the identity-key rule
+    (InvalidIdentityKey), then the signatures. "The other keys of the bundle
+    are not held to it: SPKB and a one-time curve prekey need the canonical
+    encoding and a contributory result, and no more."
     """
     for what, key in (("identity key", b.identity_key), ("signed prekey", b.signed_prekey),
                       ("one-time curve prekey", b.one_time_prekey)):
@@ -446,6 +467,9 @@ def initiator_check_bundle(b: PrekeyBundle,
     has_id = b.one_time_prekey_id != K.ABSENT_ID
     if has_key != has_id:
         raise BundleRefused("one-time prekey and its identifier disagree about presence")
+    from .curve25519 import is_identity_key
+    if not is_identity_key(b.identity_key):
+        raise InvalidIdentityKey("the bundle's identity key is not an identity key")
     if verify is None:
         from .curve25519 import xeddsa_verify as verify  # noqa: N813
     if verify(b.identity_key, encode_ec(b.signed_prekey), b.signed_prekey_signature) is None:

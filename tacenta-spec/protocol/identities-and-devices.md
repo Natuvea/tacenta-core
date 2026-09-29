@@ -26,6 +26,73 @@ key is the X25519 public key of the clamped secret: 32 bytes, the little-endian
 u-coordinate (RFC 7748). A verifier converts that u-coordinate to the Edwards
 key it checks a signature under.
 
+## Identity keys
+
+An identity key is the published X25519 public key of an identity secret (The
+identity key's secret). The rule for what a party may admit as one is stated
+once, in check 6 of Accepting a signed statement, below: a canonical curve
+public key whose u-coordinate belongs to a point of the prime-order subgroup of
+edwards25519. This section says where the rule applies, what a refusal is, and
+why no honest key is refused. It does not state the rule again.
+
+**Where the rule applies.** A party that admits a long-lived identity key
+applies the rule to it before relying on the key for anything else:
+
+- an initiator, to the `identity_key` of a prekey bundle, before either
+  signature in the bundle is verified and before any random value is drawn,
+  agreement computed or encapsulation made (session-establishment.md, Sending
+  the initial message);
+- a responder, to the `identity` of an initial message, before any private key
+  is used on the message (session-establishment.md, Receiving the initial
+  message);
+- a reader of a stored session, to `our_identity_public` and
+  `peer_identity_public`, and a reader of a stored prekey store, to
+  `identity_public` (session-persistence.md, Stored curve public keys);
+- a verifier of a signature, to the key the signature is checked under
+  (Verifying a signature, step 3; Application signatures, below);
+- a verifier of a signed inventory statement, to every `identity_public_key`
+  in it (Accepting a signed statement, check 6).
+
+An identity key read from any other encoding, such as the identity key field of
+the protobuf profile's prekey envelope, is held to the same rule by the party
+that admits it. A decoder reads bytes and does not apply the rule
+(message-format.md, Curve public keys).
+
+Other curve keys are outside the rule. Ephemeral keys, prekeys and ratchet keys
+are held to the canonical encoding and to contributory agreement
+(message-format.md, Curve public keys; session-establishment.md), which is all
+an agreement input needs.
+
+**A refusal.** A key that fails the rule is refused, and the input that named it
+is refused with it. It is a third outcome beside decode failure and
+authentication failure (error-handling.md): the input decoded, and no
+signature failed, and the key it names is not one this specification admits.
+The canonical rule is applied first. A key that is not canonical is refused as it
+always was: as a decode failure where a wire encoding is read, and by the kind
+that session-persistence.md, Rejection, names for a stored state. The refusal comes
+before the work it protects: no random value is drawn, no agreement computed,
+no private key used and no stored state changed. It is called *invalid identity
+key* on the pages that name it.
+
+**Why an honest key passes.** A published identity key is the X25519 public key
+of a clamped secret, which is `kB` for the base point `B` and a scalar `k` (The
+identity key's secret). Clamping clears the low three bits and sets bit 254, so
+`k` is a multiple of 8 in [2^254, 2^255). The multiples of `q` in that interval
+are `4q`, `5q`, `6q` and `7q`, and `q` is 5 modulo 8, so they are congruent to 4,
+1, 6 and 3 modulo 8. None is a multiple of 8, so `q` does not divide `k`, `kB`
+is not the identity, and it is a point of the subgroup `B` generates. So an
+honest party's key is never refused, and no state an honest party's operations
+produce is refused for holding it.
+
+**A stored key the rule refuses.** A reader of stored state refuses a state
+that holds one, whatever wrote it, and does not repair the state or substitute a
+key (session-persistence.md, Stored curve public keys). Such a state can come
+from corruption, or from a release that admitted the key when it was first
+presented; an honest party's own operations do not produce one. What follows is
+the caller's: the bytes are refused, not deleted, and the way forward is a new
+session with that peer, established from a bundle whose identity key passes the
+rule.
+
 ## Signing
 
 `Sig(IK, M, Z)` (session-establishment.md, Notation) is XEdDSA as `xeddsa_sign`
@@ -88,8 +155,12 @@ otherwise. The order in which it checks them is not fixed (error-handling.md).
    edwards25519. Let `b` be bit 255 of the signature, the top bit of its last
    byte. `A` is the point with that y-coordinate whose x-coordinate has sign
    `b`.
-3. `A` is not of small order: `8A` is not the identity. A point with
-   x-coordinate 0 is of small order, so this step refuses it whatever `b` is.
+3. `A` is a point of the prime-order subgroup: `qA` is the identity. A point of
+   small order fails this (`8A` is the identity), a point with x-coordinate 0
+   among them whatever `b` is, and so does a point of mixed order, the sum of a
+   point of the subgroup and a point of small order. The sign `b` does not
+   change the answer. A key that passes steps 1 to 3 is an identity key
+   (Identity keys, above).
 4. `s`, the signature's last 32 bytes with bit 255 cleared, is below q.
 5. Let `R` be the signature's first 32 bytes, `enc(A)` the 32-byte encoding of
    `A` (with sign `b`), and `h = SHA-512(R || enc(A) || M) mod q`. The 32-byte
@@ -114,10 +185,11 @@ differs in both directions, by design (ADR-0002):
 - **It is narrower on `s`.** Revision 1 accepts any `s` below 2^253, which
   admits `s + q` as a second signature for most messages. Step 4 requires
   `s < q`.
-- **It is narrower on small-order points.** Revision 1 evaluates the equation
-  for whatever `A` and `R` decode to, and accepts where it holds. That admits
-  signatures nobody holding a key made, under keys such as u = 0. Steps 3 and
-  6 refuse them.
+- **It is narrower on the order of `A` and `R`.** Revision 1 evaluates the
+  equation for whatever `A` and `R` decode to, and accepts where it holds. That
+  admits signatures nobody holding a key made, under keys such as u = 0, and
+  signatures under a key of mixed order. Step 3 refuses every `A` outside the
+  prime-order subgroup, and step 6 refuses a small-order `R`.
 - **It agrees on the rest.** Both refuse u at or above p, both refuse a u with
   no point on the curve, and both compare `R` as bytes.
 
@@ -139,7 +211,8 @@ signature = Sig(IK, input, Z)
 
 The label is 32 ASCII bytes, and with its `0xFF` terminator 33 (CONSTANTS.md).
 A verifier rebuilds `input` from the message and verifies the signature under
-the published identity key.
+the published identity key. It first applies the identity-key rule to that key
+(Identity keys, above) and accepts no signature under a key that fails it.
 
 Prekey signatures carry no label (session-establishment.md, Publishing keys).
 The label is what keeps the two uses of the one key apart: a signature made
