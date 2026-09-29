@@ -177,6 +177,20 @@ def xeddsa_sign(secret, message, z=ZERO_Z):
     return big_r + s.to_bytes(32, "little")
 
 
+def xeddsa_sign_leaving_the_sign_bit(secret, message, z=ZERO_Z):
+    """A signer that does not normalise: it keeps `k` and sets bit 255 of the
+    signature to the sign of x, which Verifying a signature reads back as A's
+    sign (identities-and-devices.md, "It is wider on the sign bit")."""
+    k = clamp(secret) % Q
+    enc = encode_point(mul(k, BASE))
+    prefix = bytes([0xFE]) + b"\xff" * 31
+    r = int.from_bytes(sha512(prefix, k.to_bytes(32, "little"), message, z), "little") % Q
+    big_r = encode_point(mul(r, BASE))
+    h = int.from_bytes(sha512(big_r, enc, message), "little") % Q
+    s = (r + h * k) % Q | ((enc[31] >> 7) << 255)
+    return big_r + s.to_bytes(32, "little")
+
+
 def xeddsa_verify(u_bytes, message, sig):
     """identities-and-devices.md, Verifying a signature, steps 1 to 6."""
     if len(u_bytes) != 32 or len(sig) != 64:
@@ -790,6 +804,14 @@ def build():
         [b(1, 0x25, predecessor=bytes([0x99]) * 32)])), None)
     c.accepts("accepted-marker-equal-to-a-still-active-commitment", signed(alice(
         [a, b(2, 0x22, predecessor=a.commitment())])), None)
+    retired = Binding(1, dk(0x25), predecessor=bytes([0x77]) * 32)
+    c.accepts("accepted-replacement-with-the-retired-bindings-own-device-id-and-key", signed(alice(
+        [Binding(1, dk(0x25), predecessor=retired.commitment())], generation=2, floor=0,
+        revoked=[Revocation(retired, 1)])), None)
+    unnormalised = alice([a, b2]).sorted().encode()
+    assert xeddsa_sign_leaving_the_sign_bit(ALICE_SECRET, SIGNING_LABEL + unnormalised)[63] >> 7 == 1
+    c.accepts("accepted-signature-with-the-sign-bit-left-set",
+              unnormalised + xeddsa_sign_leaving_the_sign_bit(ALICE_SECRET, SIGNING_LABEL + unnormalised), None)
     c.accepts("accepted-one-key-on-two-devices", signed(alice(
         [Binding(1, dk(0x21)), Binding(2, dk(0x21))])), None)
     c.accepts("accepted-revoked-key-listed-again-as-active", signed(alice(

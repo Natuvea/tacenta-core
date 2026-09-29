@@ -460,10 +460,21 @@ and `inventory-acceptance-v1.json`. Each file's shape is closed and enforced by
 
 ### Not covered
 
-The issuer's duty to check before signing, and a verifier's recording of a
-generation after acceptance, are the implementation's own behaviour and have no
-vector. No vector pins the error variants of an implementation
-(error-handling.md).
+No vector pins these, because a file of bytes cannot reach them:
+
+- the issuer's duty to check before signing;
+- a verifier's recording of a generation after acceptance, and the atomic step
+  that evaluates its freshness rule again;
+- a statement built in memory that breaks an encoding rule (only bytes are in
+  the files);
+- the statement handed to the statement policy, which the hook string `statement`
+  does not carry (the accepted statement is checked against `signed_hex`);
+- the unsigned decoder's comparison of a re-encoding with its input, which no
+  input reaches when every rule before it has been applied;
+- the order inside check 6, since every unsound key gives one refusal and no
+  hook runs during it.
+
+No vector pins the error variants of an implementation (error-handling.md).
 
 ## Session persistence
 

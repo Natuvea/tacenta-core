@@ -488,11 +488,11 @@ cannot silently ignore a field.
   entry of `issuers` whose `issuer_key_id` equals the statement's and whose
   `account_hex` is `null` or equals the account, to its
   `verification_key_hex`; if none does, the issuer is unbound. A generation is
-  current for an account only if `fresh` lists that pair. A binding is refused
-  when `refuse_every_binding` is true, or when it is the entry of the same
-  identity as `refuse_binding.identity_hex` in the list `refuse_binding.status`
-  (`active` or `revoked`) names. The statement is refused when
-  `refuse_statement` is true.
+  current for an account exactly when `fresh` lists that pair. A binding is
+  refused when `refuse_every_binding` is true, and also when its identity key is
+  `refuse_binding.identity_hex` and it is in the list `refuse_binding.status`
+  (`active` or `revoked`) names, however many entries share that key. The
+  statement is refused when `refuse_statement` is true.
 
   A hook-call string is one of:
 
