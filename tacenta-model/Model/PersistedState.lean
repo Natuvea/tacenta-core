@@ -26,9 +26,9 @@ the rules and fits its fields is read back from the bytes it is written as
 returns keeps the rules, fits its fields, **and is written as exactly the
 bytes it was read from** (`ofBytes_ok`), so the reader accepts one spelling of
 each state. The prekey store's `ofBytes_ok` drops that last conjunct because
-for it the conjunct is false: it reads four versions and writes one, so a v1,
-v2 or v3 store is written back as v4. Its canonicality half is therefore
-v4-shaped and is not yet proved; the theorem's own docstring says so.
+for it the conjunct is false: it reads five versions and writes one, so a v1
+to v4 store is written back as v5. Its canonicality half is therefore
+v5-shaped and is not yet proved; the theorem's own docstring says so.
 
 **Where the Braid's model stops, and why it conforms there.** The page
 requires of tags 1 to 4 that the `header` and `ek_vector` the stored
@@ -122,7 +122,14 @@ deriving instance DecidableEq for Model.SparseRatchet.State
     it accepts is written back as the bytes it was given. `SessionState`'s
     `ofBytes_ok` proves exactly that. `tacenta-core` keeps the check anyway, as
     defence in depth, and the vectors pin no case of it because no vector can
-    offer this reader one. -/
+    offer this reader one.
+
+    **One prekey-store case reaches `tacenta-core`'s check and this model as
+    two different refusals.** A v5 `legacy_blocked` list that is not strictly
+    ascending is refused by `tacenta-core` as non-canonical, where its re-encode
+    check catches it, and by this model as malformed, where the list's order is
+    a rule (`PrekeyStoreState.legacyBlockedOk`). The page lets a reader report
+    it either way, so the vectors record `short-or-malformed`. -/
 inductive Refusal where
   | wrongVersion
   | shortOrMalformed
@@ -1683,7 +1690,7 @@ def optKemBytes : Option (Bytes × Nat × Bytes) → Bytes
   | none => [0x00]
   | some (pair, id, sig) => [0x01] ++ TripleState.lenPrefixed pair ++ be 4 id ++ sig
 
-/-- The stored bytes. Always written at the current version: the three earlier
+/-- The stored bytes. Always written at the current version: the four earlier
     ones are read and never produced, so an older store upgrades by being read
     and written back. -/
 def toBytes (st : Store) : Bytes :=
@@ -1700,9 +1707,10 @@ def toBytes (st : Store) : Bytes :=
 
 /-! ### Semantic rules (Prekey store, Semantic rules)
 
-Five of the page's six, in four conjuncts: the first two share one. The sixth
-is the signature rule this model cannot
-state; the note at the head of this namespace says why. -/
+Five of the page's six, in four conjuncts: the first two share one. The record
+rule's marker clause, and the ascending order of the marker list, are a fifth
+conjunct (`legacyBlockedOk`). The sixth rule is the signature rule this model
+cannot state; the note at the head of this namespace says why. -/
 
 /-- Every identifier the store holds, of every kind, in one list: one counter
     numbers them all, so distinctness is across kinds and not within them. -/
@@ -1741,13 +1749,27 @@ def kemPairsSized (st : Store) : Bool :=
         | none => true
         | some p => decide (p.1.length = kemPairLen))
 
+/-- Strictly ascending: in order and without a repeat. -/
+def strictlyAscending : List Nat → Bool
+  | [] => true
+  | [_] => true
+  | a :: b :: rest => decide (a < b) && strictlyAscending (b :: rest)
+
+/-- The `legacy_blocked` list's rule (Prekey store, Legacy markers): every entry
+    names the current last-resort key or the one a rotation retired, the list is
+    strictly ascending -- so it repeats nothing -- and it holds at most two
+    entries. Ascending order is the writer's canonical form. `tacenta-core`
+    reaches the same refusal for a v5 list in any other order through its
+    re-encode check, as non-canonical; the page lets a reader report that as
+    malformed or as non-canonical, and this model, which has no third refusal
+    for the store, reports it as malformed. -/
 def legacyBlockedOk (st : Store) : Bool :=
   let previousKemId : Option Nat := match st.previousKem with
     | none => none
     | some p => some p.2.1
   st.legacyLastResortBlocked.all (fun id =>
       id == st.kemId || previousKemId == some id)
-    && noShared (fun id => id) st.legacyLastResortBlocked
+    && strictlyAscending st.legacyLastResortBlocked
     && decide (st.legacyLastResortBlocked.length ≤ 2)
 
 def invariant (st : Store) : Bool :=
@@ -1802,9 +1824,10 @@ def readLegacyBlocked (v : UInt8) (bs : Bytes) : Step (List Nat) :=
       andThen (readEntries 4 readLegacyBlockedEntry n r) fun ids r' => .ok (ids, r')
   else .ok ([], bs)
 
-/-- The Rust reader sorts migrated marker ids before removing duplicates.  Keep
-    the model's byte output canonical for the same reason; these ids are
-    persisted state, so insertion order is observable on the upgrade write. -/
+/-- The reader sorts migrated marker ids before removing duplicates.  Keep the
+    model's byte output canonical for the same reason; these ids are persisted
+    state, so insertion order is observable on the upgrade write, and a v5 list
+    in any order but this one is refused (`legacyBlockedOk`). -/
 def insertNat (x : Nat) : List Nat → List Nat
   | [] => [x]
   | y :: ys => if x ≤ y then x :: y :: ys else y :: insertNat x ys
@@ -1813,10 +1836,11 @@ def sortNat : List Nat → List Nat
   | [] => []
   | x :: xs => insertNat x (sortNat xs)
 
-/-- Legacy v1--v4 replay records become fail-closed key markers on import.
-    This is the model counterpart of `tacenta-core`'s migration: any retained
-    replay record blocks the current KEM id and the retired KEM id, if present.
-    v5 carries the markers explicitly and therefore keeps the decoded field. -/
+/-- Legacy v1--v4 replay records become fail-closed key markers on import
+    (Prekey store, Legacy markers): any retained replay record blocks the
+    current KEM id and the retired KEM id, if present, whichever key its entries
+    are tagged with. v5 carries the markers explicitly and therefore keeps the
+    decoded field. -/
 def migratedLegacyBlocked (v : UInt8) (seen : List (Nat × Bytes)) (kemId : Nat)
     (previousKem : Option (Bytes × Nat × Bytes)) (blocked : List Nat) : List Nat :=
   if v = version || seen.isEmpty then blocked
@@ -2205,16 +2229,18 @@ theorem readPrev_ok {v : UInt8} {bs rest : Bytes}
     Stated without the "and is written back as the same bytes" half that the
     four leaf formats carry, because for this format that half is false, and
     false for a reason worth naming: `toBytes` writes the current version only,
-    so a v1, v2 or v3 store read back and written out again comes out as v4.
+    so a v1 to v4 store read back and written out again comes out as v5.
     That is the format's upgrade path, not a defect, and `ofBytes_toBytes`
     below states the round trip in the direction that does hold: a store
     written by this model is read back as itself.
 
-    **Not yet proved:** that a v4 buffer the reader accepts is written back as
-    the same bytes. `tacenta-core` checks exactly that, and only at v4
+    **Not yet proved:** that a v5 buffer the reader accepts is written back as
+    the same bytes. `tacenta-core` checks exactly that, and only at v5
     (`from_bytes` re-encodes and compares before the semantic rules, for the
     current version alone), so the missing theorem is the canonicality half and
-    it is v4-shaped. Stated here as absent rather than implied by the two
+    it is v5-shaped. The one v5 canonicality case the model states as a rule
+    rather than leaving to the missing theorem is the order of the marker list
+    (`legacyBlockedOk`). Stated here as absent rather than implied by the two
     theorems that are present. -/
 theorem ofBytes_ok {bs : Bytes} {st : Store} (h : ofBytes bs = .ok st) :
     invariant st = true ∧ Fits st := by
@@ -2273,7 +2299,7 @@ theorem ofBytes_ok {bs : Bytes} {st : Store} (h : ofBytes bs = .ok st) :
 
 /-- **A store that keeps the rules, and whose values fit their fields, is read
     back from the bytes it is written as.** Stated for the version `toBytes`
-    writes; the three earlier ones are read and never produced. -/
+    writes; the four earlier ones are read and never produced. -/
 theorem ofBytes_toBytes (st : Store) (hinv : invariant st = true) (hfit : Fits st)
     (hblockedlen : st.legacyLastResortBlocked.length < 2 ^ 32)
     (hblocked : ∀ id ∈ st.legacyLastResortBlocked, id < 2 ^ 32) :
