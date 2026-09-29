@@ -482,7 +482,31 @@ section scanner_form_08
 axiom scanner_form_08 : False
 end scanner_form_08
 EOF
-expect_fail "scanner-form-08" "added: tacenta_ratchet.scanner_form_08" --refresh-translation
+expect_fail "scanner-form-08" "added: tacenta_ratchet.scanner_form_08 : False;" --refresh-translation
+
+make_case
+insert_in TacentaRatchet.lean <<'EOF'
+axiom scanner_form_09_a : Nat
+  axiom scanner_form_09_b : False
+EOF
+expect_fail "scanner-form-09" "added: tacenta_ratchet.scanner_form_09_a : Nat; tacenta_ratchet.scanner_form_09_b : False;" --refresh-translation
+
+make_case
+insert_in TacentaRatchet.lean <<'EOF'
+def scanner_form_10_a : String := "a\"b"
+axiom scanner_form_10 : False
+def scanner_form_10_b : String := "a\"b"
+EOF
+expect_fail "scanner-form-10" "added: tacenta_ratchet.scanner_form_10 : False;" --refresh-translation
+
+make_case
+insert_in TacentaRatchet.lean <<'EOF'
+def scanner_form_16_f'' (c : Char) : Char := c
+def scanner_form_16_a := scanner_form_16_f'' '"'
+axiom scanner_form_16 : False
+def scanner_form_16_b := scanner_form_16_f'' '"'
+EOF
+expect_fail "scanner-form-16" "added: tacenta_ratchet.scanner_form_16 : False;" --refresh-translation
 
 # Text that is not a declaration must not be read as one: the accepted side of
 # the scanner. A keyword in a comment, a string, a character literal or a
@@ -494,8 +518,9 @@ insert_in TacentaRatchet.lean <<'EOF'
 /-- axiom in_a_doc_comment : False -/
 def not_a_declaration_a : String := "axiom in_a_string : False"
 def not_a_declaration_b : Char := 'a'
-def «axiom in_a_name» : Nat := 1
+def «has an axiom inside» : Nat := 1
 def axiomatic : Nat := 1
+/- outer /- inner -/ axiom in_a_nested_comment : False -/
 def not_a_declaration_c : Nat := 1
 EOF
 expect_pass "text-that-is-not-a-declaration" --refresh-translation
