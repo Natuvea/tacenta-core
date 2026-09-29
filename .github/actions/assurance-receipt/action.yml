@@ -7,11 +7,16 @@ inputs:
     required: true
   command:
     required: true
+  required-outcomes:
+    description: Comma-separated step_id=outcome assertions for required commands.
+    required: false
 runs:
   using: composite
   steps:
     - shell: bash
-      run: cd "$GITHUB_WORKSPACE" && python3 tooling/write-assurance-receipt.py --id '${{ inputs.id }}' --classification '${{ inputs.classification }}' --command '${{ inputs.command }}' --output '.assurance/${{ inputs.id }}.json'
+      env:
+        REQUIRED_OUTCOMES: ${{ inputs.required-outcomes }}
+      run: cd "$GITHUB_WORKSPACE" && python3 tooling/write-assurance-receipt.py --id '${{ inputs.id }}' --classification '${{ inputs.classification }}' --command '${{ inputs.command }}' --required-outcomes "$REQUIRED_OUTCOMES" --output '.assurance/${{ inputs.id }}.json'
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: assurance-receipt-${{ inputs.id }}

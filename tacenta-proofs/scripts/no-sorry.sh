@@ -96,6 +96,13 @@ report_time "Session contract satisfiability control" "$t"
 t=$SECONDS
 python3 scripts/check-initial-dispatch-negatives.py || fail=1
 report_time "initial dispatcher proof-dependency controls" "$t"
+# The composed Triple send theorem must consume the leaf theorem's complete
+# classical refusal result, including the finite-width counter edge.  A
+# disposable mutation restores the old NoSendingChain-only contract and must
+# fail at the exact use which handles the generated error.
+t=$SECONDS
+python3 scripts/check-send-refusal-negatives.py || fail=1
+report_time "send refusal proof-dependency control" "$t"
 # The generated files' axiom sets, as the environment has them. The axiom
 # audit that ran inside the build above walked the elaborated environment and
 # printed every axiom it found in a generated `Translation.Tacenta*` module as
