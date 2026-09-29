@@ -1289,7 +1289,9 @@ fn prekey_store_fields_agree(v: &Vector, stored: &[u8]) -> Result<(), String> {
     }
     eq(at(pos, 4)?, &required_field(v, "seen_count")?)?;
     let seen = u32::from_be_bytes(at(pos, 4)?.try_into().unwrap()) as usize;
-    pos += 4 + seen * 36;
+    // v4 and v5 entries carry the key they were made against (36 bytes); v2
+    // and v3 entries are bare fingerprints (32 bytes).
+    pos += 4 + seen * if version >= 4 { 36 } else { 32 };
     if version == 5 {
         eq(at(pos, 4)?, &required_field(v, "legacy_blocked_count")?)?;
         let blocked = u32::from_be_bytes(at(pos, 4)?.try_into().unwrap()) as usize;
@@ -1448,20 +1450,35 @@ fn check_prekey_store_state(v: &Vector) -> Result<(), String> {
         (true, Ok(s)) => {
             if stored.first() == Some(&5) {
                 eq(&s.to_bytes(), &stored)?;
-            } else if stored.first() == Some(&4) {
+                prekey_store_fields_agree(v, &stored)
+            } else {
+                // A v1-v4 store is written back as v5, and the vector records
+                // the upgrade for every one of them: the migration writes the
+                // `legacy_blocked` markers, and only these bytes pin them.
                 let expected = v.output.as_str();
                 if expected.is_empty() {
-                    return Err("accepted v4 store is missing its upgraded output".to_string());
+                    return Err("accepted legacy store is missing its upgraded output".to_string());
                 }
-                eq(&s.to_bytes(), &bytes(expected)?)?;
+                let upgraded = s.to_bytes();
+                eq(&upgraded, &bytes(expected)?)?;
+                // The named fields describe the decoded state: the layout of
+                // the input for what it carries, and the upgraded bytes for
+                // `legacy_blocked_count`, which no legacy layout has.
+                prekey_store_fields_agree(v, &stored)?;
+                prekey_store_fields_agree(v, &upgraded)
             }
-            prekey_store_fields_agree(v, &stored)
         }
         (true, Err(e)) => Err(format!("refused ({e:?}) stored bytes the vector accepts")),
         (false, Ok(_)) => Err("accepted stored bytes the vector refuses".to_string()),
         (false, Err(e)) => {
             let name = match e {
                 PrekeyStoreDecodeError::UnknownVersion => "wrong-version",
+                // `NonCanonical` is reached by `legacy-blocked-unsorted` and
+                // `legacy-blocked-repeated`: a v5 marker list out of order
+                // re-encodes sorted, so the canonicality backstop refuses it.
+                // The page lets a reader report that refusal as malformed or
+                // as non-canonical (session-persistence.md, Legacy markers),
+                // and the vectors record `short-or-malformed`.
                 PrekeyStoreDecodeError::TooShort
                 | PrekeyStoreDecodeError::Malformed
                 | PrekeyStoreDecodeError::NonCanonical => "short-or-malformed",

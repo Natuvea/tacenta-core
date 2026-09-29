@@ -82,4 +82,46 @@ path.write_text(json.dumps(data, indent=2) + "\n")
 PY
 expect_fail unsupported-schema-keyword "schema uses keyword(s) this validator does not implement: maxItems"
 
-echo 'check-vectors-cases: pass case and 3 refusal cases gave the expected result'
+# The prekey store's v1-v4 migration vectors carry the decoded fields and the
+# v5 upgrade. A legacy vector is accepted only with both, and only when the
+# upgrade is a longer v5 store that keeps the input's header; a current-version
+# vector carries exactly one answer.
+make_store_case() {
+  local name="$1" version="$2" fields="$3" output="$4"
+  make_case "$name"
+  mkdir -p "$work/$name/tacenta-test-vectors/vectors/persistence"
+  python3 - "$work/$name/tacenta-test-vectors/vectors/persistence/prekey-store-state.json" \
+    "$version" "$fields" "$output" <<'PY'
+import json, pathlib, sys
+path, version, fields, output = pathlib.Path(sys.argv[1]), *sys.argv[2:5]
+vector = {"id": "legacy", "comment": "case", "inputs": {"bytes": version + "aa" * 132 + "bb" * 4}}
+if fields == "yes":
+    vector["fields"] = {"next_id": "00000001"}
+if output == "good":
+    vector["output"] = "05" + "aa" * 132 + "bb" * 8
+elif output == "garbage":
+    vector["output"] = "05" + "00" * 136
+elif output == "same-length":
+    vector["output"] = "05" + "aa" * 132 + "bb" * 4
+path.write_text(json.dumps({
+    "schema_version": 1, "algorithm": "prekey-store-state", "source": "case",
+    "vectors": [vector]}, indent=2) + "\n")
+PY
+}
+
+make_store_case legacy-with-upgrade 04 yes good
+python3 "$work/legacy-with-upgrade/tooling/check-vectors.py"
+
+make_store_case legacy-without-upgrade 04 yes none
+expect_fail legacy-without-upgrade "an accepted v1-v4 prekey store carries both"
+
+make_store_case legacy-garbage-upgrade 03 yes garbage
+expect_fail legacy-garbage-upgrade "the upgraded \`output\` is a v5 store that keeps the input's header"
+
+make_store_case legacy-upgrade-not-longer 02 yes same-length
+expect_fail legacy-upgrade-not-longer "is longer than the input"
+
+make_store_case current-version-with-both 05 yes good
+expect_fail current-version-with-both "a valid vector needs exactly one of"
+
+echo 'check-vectors-cases: pass cases (plain, and a v1-v4 migration vector with its upgrade) and 7 refusal cases gave the expected result'

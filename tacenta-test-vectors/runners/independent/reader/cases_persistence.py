@@ -594,7 +594,7 @@ def legacy(p, version):
 
 
 @case("PS-18 prekey store v5 round trip, with retired prekeys and record entries under both live keys",
-      f"{SP} Prekey store: prekey_store = version(1) || ... || legacy_last_resort_blocked || previous_kem_present(1) || previous_kem; The writer always emits 0x05")
+      f"{SP} Prekey store: prekey_store = version(1) || ... || legacy_blocked_count(4) || legacy_blocked[legacy_blocked_count] || previous_signed_present(1) || ...; The writer always emits 0x05")
 def _():
     for p in (STORE, store(), store(seen=[], one_time=[], kem_one_time=[])):
         raw = P.prekey_store_to_bytes(p)
@@ -604,7 +604,7 @@ def _():
 
 
 @case("PS-19 prekey store v1, v2 and v3 are read: v1 with nothing remembered, v2 with nothing retired, untagged entries tagged with the current kem_id; each re-encodes as v5",
-      f"{SP} Prekey store: Four versions are read; one is written")
+      f"{SP} Prekey store: Five versions are read; one is written")
 def _():
     p = store(seen=[(4, rnd(32)), (4, rnd(32))])
     v1 = accepts(P.prekey_store_from_bytes, legacy(p, 1))
@@ -626,6 +626,30 @@ def _():
         accepts(P.prekey_store_from_bytes, P.prekey_store_to_bytes(old))
     rejects(P.prekey_store_from_bytes, legacy(p, 2) + b"\x00", exc=MAL)
     rejects(P.prekey_store_from_bytes, legacy(p, 1) + b"\x00", exc=MAL)
+
+
+@case("PS-19a legacy markers: a nonempty v1-v4 record marks both live KEM keys whichever key its entries name, ascending; a v5 list that is out of order, repeats, names a key that is not live or has more than two entries is refused as malformed",
+      f"{SP} Prekey store: Legacy markers (What migration writes; The canonical list; What a v5 reader refuses)")
+def _():
+    prev = STORE.previous_kem[1]
+    both = sorted({STORE.kem_id, prev})
+    # Entries tagged with the retired key only: both keys are still marked.
+    only_prev = replace(STORE, seen=[(prev, rnd(32))])
+    for version in (4,):
+        got = accepts(P.prekey_store_from_bytes, legacy(only_prev, version))
+        assert got.legacy_blocked == both and got.seen == only_prev.seen
+    # An empty record marks nothing, at every older version.
+    empty = replace(STORE, seen=[])
+    for version in (1, 2, 3, 4):
+        if version >= 3 or empty.previous_kem is None:
+            assert accepts(P.prekey_store_from_bytes, legacy(empty, version)).legacy_blocked == []
+    # A v5 list in the writer's form is read back as written, two entries included.
+    good = replace(STORE, legacy_blocked=both)
+    assert accepts(P.prekey_store_from_bytes, P.prekey_store_to_bytes(good)) == good
+    for markers in ([both[1], both[0]], [both[0], both[0]], [both[1], both[1]],
+                    [STORE.next_id + 5], [both[0], both[1], both[1]], [both[0], both[1], 99]):
+        bad = replace(STORE, legacy_blocked=markers)
+        rejects(P.prekey_store_from_bytes, P.prekey_store_to_bytes(bad), exc=MAL)
 
 
 @case("PS-20 prekey store framing: unknown version, truncation, trailing bytes, previous_* presence byte other than 0/1",

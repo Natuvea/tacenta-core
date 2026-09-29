@@ -1115,7 +1115,7 @@ def storedStateVector {σ : Type}
     `storedStateVector` does not check that, and for the four leaf formats it
     need not: each carries an `ofBytes_ok` whose third conjunct is exactly this
     property, proved. The prekey store has no such theorem -- its `ofBytes_ok`
-    drops the conjunct, because the format reads four versions and writes one --
+    drops the conjunct, because the format reads five versions and writes one --
     so for it the generator checks by evaluation what the others check by
     proof. The session is covered by both, and uses this for uniformity. -/
 def storedStateVectorWritten {σ : Type}
@@ -1830,6 +1830,20 @@ def prekeyFixtureV4Seen (hex : String) (seen : Nat) : String :=
   let blockedAt := 4957 + 36 * seen
   toHex (replaceAt (bs.take blockedAt ++ bs.drop (blockedAt + 4)) 0 0x04)
 
+/-- A v5 fixture with `seen` replay entries re-spelled in the v2 or v3 layout:
+    each entry loses its four-byte key tag and the marker count goes. v2 also
+    lacks the two retired-presence bytes, so it is only meaningful for a
+    fixture with nothing retired. The replay record starts at the same offset
+    in every fixture, since only the fields after it differ. -/
+def prekeyFixtureUntaggedSeen (hex : String) (version : UInt8) (seen : Nat) : String :=
+  let bs := ofHex hex
+  let start := 4957
+  let entries := (List.range seen).flatMap fun i => (bs.drop (start + 36 * i + 4)).take 32
+  let tail := bs.drop (start + 36 * seen + 4)
+  let tail := if version = Model.PersistedState.PrekeyStoreState.versionV2
+    then tail.take (tail.length - 2) else tail
+  toHex (replaceAt (bs.take start ++ entries ++ tail) 0 version)
+
 def prekeyFixture_no_one_time : String :=
   prekeyFixtureV5 "04132c442be010fbd57e72603328aa76e71fccc1503aae219327d14d9c9993f472be63d18c035eea04353a20a0aa859635ea0f2bb265a3e89509451b53b7c168b9000000019565bb39905cf99b938461619cda94cfdf7dfad4d290c583626d2cd0853140cbcb693cf07d8381ed5723b78ad1f350c5053ddb24595d1c5aac9bba5324938304000000000000128076584152ab318db5ca7c06914c0b0e11ba0f324377f4f299f7352aa6257ba306a43e412b932cbfd156493e8501cbd812f6a81776b40481e254b3f80c64f2c53b2108bbac35c15324ea1430f81c2f19c8c1fe140760b2336119bd09fc9e54b9abdbcb06b67a4df6d614ad1c9bb91322e0176e317380646b2500362f069a861944b817cb3a7826ac0a268910d74a121156a6a0787f2a282fe23aefbc7ea8d7a5405742c4b94645ca976fc0191301422e05c4f9b9ce30e2cf9afb059a190a956cb3fb932ec23052cec49a6c9b2968688d29daca041c87bf5c49cb58c76d754ee01052b5b85e4cf837664cb3ec80aa49939c26c57c7ef87e888018c92c50054267dbd346e6353ef91b80644209a866819f894e18d6b033b6605af11142373bcbc467dd67a3f17a7c944298009b1fa195c6753364f06c7de8d70f04d487c4e043c6d545025716734c5c65174a99231846302d3aec3df02075d0c0c6e233cb3a060f58909e280164fa585b7fea2abb592bbfd4285a2c2d5d1792a79518f2414c9fa461864a1aaff7a333b361e5b51f234aad16a919e0c05d1cd815ee015f850cc2b92309ca3a2aa3366780f653a50382b9e5bb16e15e24233ad33728203b42297a2208e0b6fd989fce94283a4319d74cc88810248350c96a7b823919c85f06cdf1892bcc4b4cdbc26d00e78aab3b3a19406b68b112e7d55fbe34a7dde23693267044d363d71ac767021e5d818af6d46cf34c153778c2b9292e084b2357152cf208914ac5c556152e8e1b0ea911b926345aa75a36af7b9581bb15eb071d2e045ef0126b59abc8eb8091a67c617c4a25c00a1268d9044498607fb9024d6411fef21580ebbed40189d7087b70e44102d138973a62758ab7b7b472fc8a639aaa172213b8be025fe3357a11a6a0d23ab6400327a3fc0fd9a3393fab734f1246a763a7b8f15eb5a5cb1548c83e9a310759443c10b04d4145738534d41975322b6ab7ac4f12b8c0e0154ade64542799c91c157a7cbc901dc877be04034a5407b2512cdbec1acd2b8e11b0b1e0c21cf724038fa505d3b115ff24790876286aa4107de768d3b11ae13071aeda718b877f78b76b9d3511b1c20219b23eff20853d55ce61856fc84c7b195cce06755c6be504546c8af078b829a3b68c55771e66109009506096a5f2c4c7c8f25f6d6c40bf3341e4a271c00b513db917678449fae298284a7818f912e281a0e6755170828b2eb36908d244998459c23440bf0418d51bac593113ce3cbe7494a501e20d9cea3f3b1c9646b57558e410ee08a3fbc8627db221e4b0b6830b6df91469a3526adc030c9df0b5e6e73c3ddc7dcf681817a1a8311a69fe7ca948c728e9f7ab814a745ba58fd06805171a4b0e3c564470b6478c5daf8a6a9cdba2ef5845ea5439b7912647630828042768726e0a389321eaaa7ef575066bc7423283c13402fee268293010265566e6a69d875badb666cb8fda37f19223a9d77fec0ca87300a719f696265537d5440cbfba3eca6cb91bcb28c044af2a5c73cd95907d59be1b566d44482d0ffb7c6293695ebb745bb63dcc1938e7e93af9fb277716c68a074123254c5bc40e59a22cf49a9cf9f6c3dda7069d0c26b3ab1ae96b1e3de403dc2506df287edbf58a0d7213ad4657309b0b86973e47a6cd60a441f473b9a7d8a68ea7b03ccb4b0748642d122e9a2786a7f732da71c7b3b7115eaa6854b409cfeb6ee7b045036b075729ad19b43f1b379dd37308d03bb2d5109509c306e4e1165390a0c965898e272c6941700bfab9d66420fb2c911450b60125a34c4002de2c40241a17bc173b77c81f7d6c8612207d0ec077feab35a3bb0059ccaf69612b5b3b5e77472fcfbb870e1ac4767c9309403e5b919d5564b803d4a84e46a4e79b5e4e7c557ec086669837383c7265dc1ae3b06928c8ac9e500d0a808c66670caf6a84618a5664cb6e818390c76ca0dbbb23f2c0312dc43a395c98b8e415e88a78a2b6b1ed32c4d3383841d995b8a20d592a3804528e242a1d84dc02a6ba5c4203a2ceba08f6592110eb0a1bcc7f39066e4dc3cce9a9017b8c376ac071eff8c46659ccc25cb4d8d811ed146f2de8a411db863c2891d46789b593c4ff47ae98051923c67aba39c81594b9e7b7ca92a4b7544b89bd821dd175c46796745211bf47b776956bb866416e1791584781cbba33331bb6b811bbb06dd43903d65606c8074447054464cfb6f70876246eae8a5447cc48187a1af6bba938bb54b7144b63aa59e8f941e2b373a9e205cfe589421bb98ab4b2afd38b3df901bf04cc58b3802970882b661169859a1135cd795b3445915ad336bfc1b80379d7bd877449c5c46bfb899d07f0be1eeac331d15f0c6a7e0d53125127878a701bec01c190a8a24f747334b5aff092061988a97fe05e9e54cdb93cbb83fc5feca0342118293e7a91fb5165b0079c4e774979411c5da1596614b1c1ab3fe49bbc1ebb27c12141593a9eca9b821f7508816079dac131e1b8239dda83b6f1b001e71bf92290080a77c44837cd3b3c21c8c1ddb18626a3a739b061e4c359bd6b72ccb80ca6346badea3e7c5137408372076593c0999002555a1bc748393b365d86250142719717cbfad33187a880aac13c23f4b44daa76cc731beac7c72ac4144efa0c2ffa64b22b23a13639d88ccbc8daa0546779fe58267eb4188bb33f7e8589d48218569811f9bcc9507bb1905055b2a166625485f59109add09304210b9b359b7929003906a2daf6c362064012611589954acd84689634944953517f0679f52ba30d978deb56cbcb691f16da1ffd6c3e542a1da31c1493ba6147f9c00e331229d3cc06a1077adc71818abaa1c78da4cb0d6f24160bc67dd3530e3de2a0adb27e5ec72304c774e8a99132b244f3b585c9027505729c22040ab42209b696998de3070be95c766624f0bcca1a1b95d4d114c0b0bbdad0010a50376315aa936acd5d938f49ca0edd754c7a262922b683c474059d32220fe3878ea3cd5052cf3f4a2925387e1d643484bb7b4e0b0955145342ac7bfcc48556601a48b73ccfd906c71b5bf1b1004a6c39d387a6f2b0c943060cb4d0cd46a913aee815365b3d954809175625af676257d6afee61b36a4839782457c1153fdf07b46dd1c522c561446c7071d07fb511498e755ef3d23990c726c24860caf521adf04a496240ee63319c3596b4f9257ddace19d0bfeb050f35727ce283c718b9664a377aaa247104fa67b8b521c16a2a92b8959ab211bada37582701cae882cef75047ab8bc9423cab7269a3a404c300a16360660c5a0aec45a59345391c1800e4c10a0b96c482373601ca3510cca0d5932945e997ad773e182ab652243b0e7438d9a7c82a0a86669b29e5b67df4a50adbb625741a3db44a516e82b0f4faa3019167fbe031771a9bbf38991510b594847be919c23e131331c75f69f950a8f12fe34a245ee7be0ffa7b0fe7076f33547fb94e9416a5e2d07882849bf3eabe806c8bf0687ad6a0722ba079d9d2b57e00bbaaeac7532a69ed8383471bb6b73a59b8364e385c22148c8b92c0335f14c6f185504e8246219aaaa9d8bf42d4a515ec024f09cd1117b3a0d96e8cd8ccf80b21da6229889b7e7b465c3e33ace29393fe9c6f7488cf58139168f50bf6dc7683f28b959b0c1c688865899e6a5409f8539e891888328602ee56a3baf68a19584c6a2437a8c3223bcbcd75a21943439879243663cb32cedb180a9235be2bb2f4f967f287757d442b62252556f6bf93208e5eca4f0b68c80478161cc05a5a866b243867cc0cca8eba883558cf4e39be430b687df078714b134b5c045058169bb2766b815bbe97040b043f4ae55fb97b6a1cc603c3a29258a9549bc447c627cff0a040d61a312f0493ea8663aab5b0ecb330ba07867ff1000cf1881627a87a8030485968e4d0096f0a243e2265458649ad64781daab9865aca9db8cf14d9375d2c05faf9427da35016ea6594cb2ad18069db9351e9113cc34213973886c2c5550c51ad18bc0cf5ba75fdd6815cf916391836afb74ccd423df47a15c9d239d36cb881eb6b1904bcabd147ab40604a6277905a9c11f7a5bef1b9dd34160503154f066bbb07466f2bb9ba935414e9cd40fb7f26570c599226b21b12dc786f359736257c38b8b102b92220cbc86c46660a81e780c9d48ca9c4bf3652c4f9c0092d3a6255c1ad17238e5eb1cd8b03bb8323a79d52791f7a070b96b06e9c6140991ccbd6b4c10b0b686b4765664520217298cc156ec99974732ffb07aa72f3acd3718cc0c293b84738d9c16331cbb97508c50eb43faf355c7f55bc92585368395f0e3160588a955ba77e44b431131d9edb13d385e02576f74891eaec6271a2087439584ef9d8f60403757c2dd061cbf5054922ea240803b79503f9bca2d83ca69a791ccf1ed6224256b3878c0c57024c4c317674abe8ce019c301a2a080e627048df0b6813de5a2641aa47b776956bb866416e1791584781cbba33331bb6b811bbb06dd43903d65606c8074447054464cfb6f70876246eae8a5447cc48187a1af6bba938bb54b7144b63aa59e8f941e2b373a9e205cfe589421bb98ab4b2afd38b3df901bf04cc58b3802970882b661169859a1135cd795b3445915ad336bfc1b80379d7bd877449c5c46bfb899d07f0be1eeac331d15f0c6a7e0d53125127878a701bec01c190a8a24f747334b5aff092061988a97fe05e9e54cdb93cbb83fc5feca0342118293e7a91fb5165b0079c4e774979411c5da1596614b1c1ab3fe49bbc1ebb27c12141593a9eca9b821f7508816079dac131e1b8239dda83b6f1b001e71bf92290080a77c44837cd3b3c21c8c1ddb18626a3a739b061e4c359bd6b72ccb80ca6346badea3e7c5137408372076593c0999002555a1bc748393b365d86250142719717cbfad33187a880aac13c23f4b44daa76cc731beac7c72ac4144efa0c2ffa64b22b23a13639d88ccbc8daa0546779fe58267eb4188bb33f7e8589d48218569811f9bcc9507bb1905055b2a166625485f59109add09304210b9b359b7929003906a2daf6c362064012611589954acd84689634944953517f0679f52ba30d978deb56cbcb691f16da1ffd6c3e542a1da31c1493ba6147f9c00e331229d3cc06a1077adc71818abaa1c78da4cb0d6f24160bc67dd3530e3de2a0adb27e5ec72304c774e8a99132b244f3b585c9027505729c22040ab42209b696998de3070be95c766624f0bcca1a1b95d4d114c0b0bbdad0010a50376315aa936acd5d938f49ca0edd754c7a262922b683c474059d32220fe3878ea3cd5052cf3f4a2925387e1d643484bb7b4e0b0955145342ac7bfcc48556601a48b73ccfd906c71b5bf1b1004a6c39d387a6f2b0c943060cb4d0cd46a913aee815365b3d954809175625af676257d6afee61b36a4839782457c1153fdf07b46dd1c522c561446c7071d07fb511498e755ef3d23990c726c24860caf521adf04a496240ee63319c3596b4f9257ddace19d0bfeb050f35727ce283c718b9664a377aaa247104fa67b8b521c16a2a92b8959ab211bada37582701cae882cef75047ab8bc9423cab7269a3a404c300a16360660c5a0aec45a59345391c1800e4c10a0b96c482373601ca3510cca0d5932945e997ad773e182ab652243b0e7438d9a7c82a0a86669b29e5b67df4a50adbb625741a3db44a516e82b0f4faa3019167fbe031771a9bbf38991510b594847be919c23e131331c75f69f950a8f12fe34a245ee7be0ffa7b0fe7076f33547fb94e9416a5e2d07882849bf3eabe806c8bf0687ad6a0722ba079d9d2b57e00bbaaeac7532a69ed8383471bb6b73a59b8364e385c22148c8b92c0335f14c6f185504e8246219aaaa9d8bf42d4a515ec024f09cd1117b3a0d96e8cd8ccf80b21da6229889b7e7b465c3e33ace29393fe9c6f7488cf58139168f50bf6dc7683f28b959b0c1c688865899e6a5409f8539e891888328602ee56a3baf68a19584c6a2437a8c3223bcbcd75a21943439879243663cb32cedb180a9235be2bb2f4f967f287757d442b62252556f6bf93208e5eca4f0b68c80478161cc05a5a866b243867cc0cca8eba883558cf4e39be430b687df078714b134b5c045058169bb2766b815bbe97040b043f4ae55fb97b6a1cc603c3a29258a9549bc447c627cff0a040d61a312f0493ea8663aab5b0ecb330ba07867ff1000cf1881627a87a8030485968e4d0096f0a243e2265458649ad64781daab9865aca9db8cf14d9375d2c05faf9427da35016ea6594cb2ad18069db9351e9113cc34213973886c2c5550c51ad18bc0cf5ba75fdd6815cf916391836afb74ccd423df47a15c9d239d36cb881eb6b1904bcabd147ab40604a6277905a9c11f7a5bef1b9dd34160503154f066bbb07466f2bb9ba935414e9cd40fb7f26570c599226b21b12dc786f359736257c38b8b102b92220cbc86c46660a81e780c9d48ca9c4bf3652c4f9c0092d3a6255c1ad17238e5eb1cd8b03bb8323a79d52791f7a070b96b06e9c6140991ccbd6b4c10b0b686b4765664520217298cc156ec99974732ffb07aa72f3acd3718cc0c293b84738d9c16331cbb97508c50eb43faf355c7f55bc92585368395f0e3160588a955ba77e44b431131d9edb13d385e02576f74891eaec6271a2087439584ef9d8f604037500000002d23623d701243a0b789c12730af4acefc5af3341f02540943d955b801e847ced5369e34f6cd4c173bd8581a22b72719d0b2f597fb5c0142954e2e8815ac080010000000000000003000000000000"
 
@@ -1929,6 +1943,27 @@ def prekeyStoreStateFile (_ : Unit) : Except String String := do
     { retiredBase with seen := [(retiredBase.kemId, List.replicate 32 0x02)] }
   let retiredSeenV4Bytes :=
     ofHex (prekeyFixtureV4Seen (toHex retiredSeenV5Bytes) 1)
+  -- The retired key's identifier, and the entry tagged with it: a record whose
+  -- only entry names the retired key still blocks both keys.
+  let retiredId := match retiredBase.previousKem with
+    | some p => p.2.1
+    | none => 0
+  let retiredTaggedV5Bytes := Model.PersistedState.PrekeyStoreState.toBytes
+    { retiredBase with seen := [(retiredId, List.replicate 32 0x03)] }
+  let retiredTaggedV4Bytes :=
+    ofHex (prekeyFixtureV4Seen (toHex retiredTaggedV5Bytes) 1)
+  let seenV3Bytes :=
+    ofHex (prekeyFixtureUntaggedSeen (toHex seenV5Bytes)
+      Model.PersistedState.PrekeyStoreState.versionV3 1)
+  let seenV2Bytes :=
+    ofHex (prekeyFixtureUntaggedSeen (toHex seenV5Bytes)
+      Model.PersistedState.PrekeyStoreState.versionV2 1)
+  let retiredSeenV3Bytes :=
+    ofHex (prekeyFixtureUntaggedSeen (toHex retiredSeenV5Bytes)
+      Model.PersistedState.PrekeyStoreState.versionV3 1)
+  let markers (ids : List Nat) : List UInt8 :=
+    Model.PersistedState.PrekeyStoreState.toBytes
+      { retiredBase with legacyLastResortBlocked := ids }
   let accepted ← [
     prekeyStored "current-version"
       "a store tacenta-core wrote: the current version, one KEM prekey, no one-time prekeys, nothing retired"
@@ -1936,20 +1971,35 @@ def prekeyStoreStateFile (_ : Unit) : Except String String := do
     prekeyStored "legacy-blocked-v5"
       "a v5 store carrying one explicit legacy last-resort marker"
       (mutate (fun s => { s with legacyLastResortBlocked := [s.kemId] })) none,
+    prekeyStored "legacy-blocked-v5-both-keys"
+      "a v5 store with a retired KEM carrying a marker for each KEM key, in the ascending order the writer uses"
+      (markers [retiredId, retiredBase.kemId]) none,
     prekeyStoredLegacyUpgraded "legacy-v4-seen"
       "a v4 store with one replay record: importing it creates the v5 marker for the current KEM key"
       seenV4Bytes,
     prekeyStoredLegacyUpgraded "legacy-v4-seen-retired-kem"
       "a v4 store with a replay record and a retired KEM: importing it creates sorted v5 markers for both KEM keys"
       retiredSeenV4Bytes,
-    prekeyStoredLegacy "legacy-v3"
-      "the same no-record, no-retired store in v3: the reader accepts the older layout and upgrades to v5 on write-back"
+    prekeyStoredLegacyUpgraded "legacy-v4-seen-tagged-retired-only"
+      "a v4 store whose only replay entry is tagged with the retired KEM key: importing it still marks both KEM keys, ascending, and keeps the entry"
+      retiredTaggedV4Bytes,
+    prekeyStoredLegacyUpgraded "legacy-v3-seen"
+      "a v3 store with one untagged replay entry, read back under the current KEM key: importing it creates the v5 marker for that key"
+      seenV3Bytes,
+    prekeyStoredLegacyUpgraded "legacy-v3-seen-retired-kem"
+      "a v3 store with one untagged replay entry and a retired KEM: importing it marks both KEM keys, ascending"
+      retiredSeenV3Bytes,
+    prekeyStoredLegacyUpgraded "legacy-v2-seen"
+      "a v2 store with one untagged replay entry: importing it creates the v5 marker for the current KEM key"
+      seenV2Bytes,
+    prekeyStoredLegacyUpgraded "legacy-v3"
+      "the same no-record, no-retired store in v3: the reader accepts the older layout and upgrades to v5 on write-back, with no marker"
       (prekeyLegacyBytes Model.PersistedState.PrekeyStoreState.versionV3 legacyBaseBytes),
-    prekeyStoredLegacy "legacy-v2"
-      "the same no-record, no-retired store in v2: the layout ends after an empty replay record, then the store upgrades to v5 on write-back"
+    prekeyStoredLegacyUpgraded "legacy-v2"
+      "the same no-record, no-retired store in v2: the layout ends after an empty replay record, then the store upgrades to v5 on write-back, with no marker"
       (prekeyLegacyBytes Model.PersistedState.PrekeyStoreState.versionV2 legacyBaseBytes),
-    prekeyStoredLegacy "legacy-v1"
-      "the same no-record, no-retired store in v1: the layout ends after next_id, then the store upgrades to v5 on write-back"
+    prekeyStoredLegacyUpgraded "legacy-v1"
+      "the same no-record, no-retired store in v1: the layout ends after next_id, then the store upgrades to v5 on write-back, with no marker"
       (prekeyLegacyBytes Model.PersistedState.PrekeyStoreState.versionV1 legacyBaseBytes),
     prekeyStored "one-time-kem-prekey"
       "a store with a one-time curve prekey and a one-time KEM prekey, so the one-time sub-formats carry data"
@@ -2004,6 +2054,18 @@ def prekeyStoreStateFile (_ : Unit) : Except String String := do
       "a v5 legacy marker for a key that is neither current nor retired"
       (mutate (fun s => { s with legacyLastResortBlocked := [s.nextId + 1] }))
       (some .shortOrMalformed),
+    prekeyStored "legacy-blocked-unsorted"
+      "both live KEM keys marked, in descending order: a second spelling of the sorted list the writer emits, which tacenta-core reports as non-canonical and the model as malformed"
+      (markers [retiredBase.kemId, retiredId])
+      (some .shortOrMalformed),
+    prekeyStored "legacy-blocked-repeated"
+      "the retired KEM key marked twice"
+      (markers [retiredId, retiredId])
+      (some .shortOrMalformed),
+    prekeyStored "legacy-blocked-three-entries"
+      "three marker entries where a store can hold at most two, however the entries are spelled"
+      (markers [retiredId, retiredBase.kemId, retiredBase.kemId])
+      (some .shortOrMalformed),
     prekeyStored "record-over-budget-for-one-key"
       "MAX_LAST_RESORT_SEEN + 1 entries under the live key: the bound is per key, and a file holding more is refused however plausible its count"
       (mutate (fun s => { s with
@@ -2027,7 +2089,7 @@ def prekeyStoreStateFile (_ : Unit) : Except String String := do
   pure ("{\n" ++
     "  \"schema_version\": 1,\n" ++
     "  \"algorithm\": \"prekey-store-state\",\n" ++
-    "  \"source\": \"generated by tacenta-model Vectors.lean (lake exe genvectors prekey-store-state), from Model.PersistedState.PrekeyStoreState; accepted cryptographic fixtures carry bytes tacenta-core produced under a fixed byte source, because the model has no signatures and cannot make a store whose signatures verify; legacy v1/v2/v3 accepted vectors are the no-record, no-retired fixture re-spelled in the older layouts and read as the same fields before upgrading to v5 on write-back; legacy-v4-seen carries a tagged replay record and checks migration to an explicit v5 legacy_blocked marker; every refusal that changes a field changes one, so the rule under test is the only thing wrong; the rest are truncations, additions and version relabellings; the stored-signature refusal is emitted only after the model accepts and re-encodes the mutated bytes, because signature verification is outside the model boundary\",\n" ++
+    "  \"source\": \"generated by tacenta-model Vectors.lean (lake exe genvectors prekey-store-state), from Model.PersistedState.PrekeyStoreState; accepted cryptographic fixtures carry bytes tacenta-core produced under a fixed byte source, because the model has no signatures and cannot make a store whose signatures verify; legacy v1/v2/v3 accepted vectors are the no-record, no-retired fixture re-spelled in the older layouts and read as the same fields before upgrading to v5 on write-back; every accepted legacy vector (v1 to v4) carries the v5 bytes it is written back as in `output`, and the ones with a replay record (legacy-v4-seen, legacy-v4-seen-retired-kem, legacy-v4-seen-tagged-retired-only, legacy-v3-seen, legacy-v3-seen-retired-kem, legacy-v2-seen) check that the migration writes a legacy_blocked marker for the current KEM key and, when there is one, the retired key, ascending, whichever key the entries name; legacy-blocked-v5 and legacy-blocked-v5-both-keys are v5 stores that carry markers, and legacy-blocked-unknown-key, -unsorted, -repeated and -three-entries are the marker lists a v5 reader refuses (short-or-malformed, which tacenta-core reports as non-canonical for the two that are out of order or repeat); every refusal that changes a field changes one, so the rule under test is the only thing wrong; the rest are truncations, additions and version relabellings; the stored-signature refusal is emitted only after the model accepts and re-encodes the mutated bytes, because signature verification is outside the model boundary\",\n" ++
     "  \"vectors\": [\n" ++
     String.intercalate ",\n" (accepted ++ refusals) ++
     "\n  ]\n}")

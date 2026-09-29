@@ -980,8 +980,15 @@ def _refusal_kind_full(e):
     return type(e).__name__
 
 
-def _full_state_vector(v, reader, writer, fields_of, allowed, must_write_back=lambda _data: True):
-    """As _stored_state_vector, with the two kinds only these formats give."""
+def _full_state_vector(v, reader, writer, fields_of, allowed, must_write_back=lambda _data: True,
+                       migrates=lambda _data: False):
+    """As _stored_state_vector, with the two kinds only these formats give.
+
+    An accepted vector whose input is an older version (`migrates`) must carry
+    the bytes the reader writes back for it in `output`: a store read in an old
+    layout is written in the current one, and the vector is what pins that
+    (tacenta-test-vectors/README.md, prekey-store-state.json). Every other
+    accepted vector must not carry an `output`."""
     i = v["inputs"]
     if set(i) != {"bytes"}:
         raise Fail(f"vector: a stored-bytes vector has inputs {sorted(i)}")
@@ -1008,6 +1015,12 @@ def _full_state_vector(v, reader, writer, fields_of, allowed, must_write_back=la
         raise Fail(f"fields differ: names only on one side {names}, values differ {wrong}")
     if must_write_back(data):
         check(i["bytes"], writer(s), "written back")
+    if migrates(data):
+        if "output" not in v:
+            raise Fail("vector: an accepted older-version store carries no upgraded output")
+        check(v["output"], writer(s), "upgraded to the current version")
+    elif "output" in v:
+        raise Fail("vector: only an older-version store carries an upgraded output")
 
 
 def _h4(n):
@@ -1055,7 +1068,8 @@ def _session_fields(s):
 def h_prekey_store_state(v):
     return _full_state_vector(v, persistence.prekey_store_from_bytes,
                               persistence.prekey_store_to_bytes, _store_fields, _STORE_REFUSALS,
-                              lambda data: data[0] == persistence.K.PREKEY_STORE_VERSION)
+                              lambda data: data[0] == persistence.K.PREKEY_STORE_VERSION,
+                              lambda data: data[0] != persistence.K.PREKEY_STORE_VERSION)
 
 
 def h_session_state(v):
