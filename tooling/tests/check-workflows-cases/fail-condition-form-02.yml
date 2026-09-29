@@ -1,0 +1,11 @@
+# expect: job 'j' enables job-level `continue-on-error`
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ true || github.run_id > 0 }}
+    steps:
+      - run: make test

@@ -1,0 +1,9 @@
+name: other
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make lint

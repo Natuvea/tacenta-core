@@ -1,0 +1,1471 @@
+{
+  "schema_version": 2,
+  "_note": "Every axiom the generated Translation/Tacenta*.lean files declare, one entry per declaration, by fully qualified name and type text. Written only by `attest.py --write-axiom-allowlist`, which prints what it added and removed; `attest.py --check` compares the generated files with it as a multiset, and neither --refresh-translation nor any other mode writes it. A change to this file is a change to the generated translation's trust boundary and is meant to be its own commit.",
+  "generated_files": {
+    "tacenta-proofs/translation/Translation/TacentaBraid.lean": [
+      {
+        "name": "tacenta_braid.Array.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} {N : Std.Usize} (ZeroizeInst : zeroize.Zeroize Z) : Array Z N \u2192 Result (Array Z N)"
+      },
+      {
+        "name": "tacenta_braid.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : alloc.vec.Vec Z \u2192 Result (alloc.vec.Vec Z)"
+      },
+      {
+        "name": "tacenta_braid.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 Slice T \u2192 Result (Option (Slice T))"
+      },
+      {
+        "name": "tacenta_braid.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 Slice T \u2192 Result ((Option (Slice T)) \u00d7 (Option (Slice T) \u2192 Slice T))"
+      },
+      {
+        "name": "tacenta_braid.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 ConstRawPtr (Slice T) \u2192 Result (ConstRawPtr (Slice T))"
+      },
+      {
+        "name": "tacenta_braid.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 MutRawPtr (Slice T) \u2192 Result (MutRawPtr (Slice T))"
+      },
+      {
+        "name": "tacenta_braid.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 Slice T \u2192 Result (Slice T)"
+      },
+      {
+        "name": "tacenta_braid.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 Slice T \u2192 Result ((Slice T) \u00d7 (Slice T \u2192 Slice T))"
+      },
+      {
+        "name": "tacenta_braid.core.option.Option.Insts.CoreCloneClone.clone",
+        "type": "{T : Type} (cloneCloneInst : core.clone.Clone T) : Option T \u2192 Result (Option T)"
+      },
+      {
+        "name": "tacenta_braid.core.option.Option.Insts.CoreCmpPartialEqOption.eq",
+        "type": "{T : Type} (cmpPartialEqInst : core.cmp.PartialEq T T) : Option T \u2192 Option T \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_braid.core.option.Option.Insts.CoreFmtDebug.fmt",
+        "type": "{T : Type} (fmtDebugInst : core.fmt.Debug T) : Option T \u2192 core.fmt.Formatter \u2192 Result ((core.result.Result Unit core.fmt.Error) \u00d7 core.fmt.Formatter)"
+      },
+      {
+        "name": "tacenta_braid.rand_core_1.error.Error",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.CHUNK_BYTES",
+        "type": ": Result Std.Usize"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Chunk.Insts.CoreCmpPartialEqChunk.eq",
+        "type": ": tacenta_erasure.Chunk \u2192 tacenta_erasure.Chunk \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Chunk.Insts.CoreFmtDebug.fmt",
+        "type": ": tacenta_erasure.Chunk \u2192 core.fmt.Formatter \u2192 Result ((core.result.Result Unit core.fmt.Error) \u00d7 core.fmt.Formatter)"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Decoder",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Decoder.Insts.CoreCloneClone.clone",
+        "type": ": tacenta_erasure.Decoder \u2192 Result tacenta_erasure.Decoder"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Decoder.add_chunk",
+        "type": ": tacenta_erasure.Decoder \u2192 tacenta_erasure.Chunk \u2192 Result (Bool \u00d7 tacenta_erasure.Decoder)"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Decoder.encoded_len",
+        "type": ": tacenta_erasure.Decoder \u2192 Result Std.Usize"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Decoder.from_bytes",
+        "type": ": Slice Std.U8 \u2192 Result (Option tacenta_erasure.Decoder)"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Decoder.invariant",
+        "type": ": tacenta_erasure.Decoder \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Decoder.message",
+        "type": ": tacenta_erasure.Decoder \u2192 Result (Option (alloc.vec.Vec Std.U8))"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Decoder.new",
+        "type": ": Std.Usize \u2192 Result tacenta_erasure.Decoder"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Decoder.size",
+        "type": ": tacenta_erasure.Decoder \u2192 Result Std.Usize"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Decoder.to_bytes",
+        "type": ": tacenta_erasure.Decoder \u2192 Result (alloc.vec.Vec Std.U8)"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Encoder",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Encoder.Insts.CoreCloneClone.clone",
+        "type": ": tacenta_erasure.Encoder \u2192 Result tacenta_erasure.Encoder"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Encoder.encoded_len",
+        "type": ": tacenta_erasure.Encoder \u2192 Result Std.Usize"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Encoder.from_bytes",
+        "type": ": Slice Std.U8 \u2192 Result (Option tacenta_erasure.Encoder)"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Encoder.invariant",
+        "type": ": tacenta_erasure.Encoder \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Encoder.needed",
+        "type": ": tacenta_erasure.Encoder \u2192 Result Std.Usize"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Encoder.new",
+        "type": ": Slice Std.U8 \u2192 Result tacenta_erasure.Encoder"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Encoder.next_chunk",
+        "type": ": tacenta_erasure.Encoder \u2192 Result ((Option tacenta_erasure.Chunk) \u00d7 tacenta_erasure.Encoder)"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.Encoder.to_bytes",
+        "type": ": tacenta_erasure.Encoder \u2192 Result (alloc.vec.Vec Std.U8)"
+      },
+      {
+        "name": "tacenta_braid.tacenta_erasure.chunk_count",
+        "type": ": Std.Usize \u2192 Result Std.Usize"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kdf.hkdf_sha256",
+        "type": "(N : Std.Usize) : Slice Std.U8 \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 N)"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kdf.hmac_sha256",
+        "type": ": Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 32#usize)"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.CT1_LEN",
+        "type": ": Result Std.Usize"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.CT2_LEN",
+        "type": ": Result Std.Usize"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.EK_VECTOR_LEN",
+        "type": ": Result Std.Usize"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.EncapsState",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone",
+        "type": ": tacenta_kem.EncapsState \u2192 Result tacenta_kem.EncapsState"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.EncapsState.from_bytes",
+        "type": ": Slice Std.U8 \u2192 Result (core.result.Result tacenta_kem.EncapsState tacenta_kem.KemError)"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.EncapsState.to_bytes",
+        "type": ": tacenta_kem.EncapsState \u2192 Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.HEADER_LEN",
+        "type": ": Result Std.Usize"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.IncrementalKeyPair",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone",
+        "type": ": tacenta_kem.IncrementalKeyPair \u2192 Result tacenta_kem.IncrementalKeyPair"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.IncrementalKeyPair.decapsulate",
+        "type": ": tacenta_kem.IncrementalKeyPair \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (core.result.Result (Array Std.U8 32#usize) tacenta_kem.KemError)"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.IncrementalKeyPair.ek_vector",
+        "type": ": tacenta_kem.IncrementalKeyPair \u2192 Result (alloc.vec.Vec Std.U8)"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.IncrementalKeyPair.from_bytes",
+        "type": ": Slice Std.U8 \u2192 Result (core.result.Result tacenta_kem.IncrementalKeyPair tacenta_kem.KemError)"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.IncrementalKeyPair.generate",
+        "type": "{R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R) (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) : R \u2192 Result ((core.result.Result tacenta_kem.IncrementalKeyPair tacenta_kem.KemError) \u00d7 R)"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.IncrementalKeyPair.header",
+        "type": ": tacenta_kem.IncrementalKeyPair \u2192 Result (alloc.vec.Vec Std.U8)"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.IncrementalKeyPair.to_bytes",
+        "type": ": tacenta_kem.IncrementalKeyPair \u2192 Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.encapsulate1",
+        "type": "{R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R) (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) : Slice Std.U8 \u2192 R \u2192 Result ((core.result.Result (tacenta_kem.EncapsState \u00d7 (alloc.vec.Vec Std.U8) \u00d7 (Array Std.U8 32#usize)) tacenta_kem.KemError) \u00d7 R)"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.encapsulate2",
+        "type": ": tacenta_kem.EncapsState \u2192 Slice Std.U8 \u2192 Result (core.result.Result (alloc.vec.Vec Std.U8) tacenta_kem.KemError)"
+      },
+      {
+        "name": "tacenta_braid.tacenta_kem.validate_ek",
+        "type": ": Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_braid.zeroize.Zeroize.Blanket.zeroize",
+        "type": "{Z : Type} (DefaultIsZeroesInst : zeroize.DefaultIsZeroes Z) : Z \u2192 Result Z"
+      },
+      {
+        "name": "tacenta_braid.zeroize.Zeroizing",
+        "type": "(Z : Type) : Type"
+      },
+      {
+        "name": "tacenta_braid.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : zeroize.Zeroizing Z \u2192 Result Z"
+      },
+      {
+        "name": "tacenta_braid.zeroize.Zeroizing.new",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : Z \u2192 Result (zeroize.Zeroizing Z)"
+      },
+      {
+        "name": "tacenta_braid.zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop",
+        "type": "{T : Type} (ZeroizeInst : zeroize.Zeroize T) : T \u2192 Result T"
+      }
+    ],
+    "tacenta-proofs/translation/Translation/TacentaBraidUnit.lean": [
+      {
+        "name": "tacenta_braid_unit.Array.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} {N : Std.Usize} (ZeroizeInst : zeroize.Zeroize Z) : Array Z N \u2192 Result (Array Z N)"
+      },
+      {
+        "name": "tacenta_braid_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : alloc.vec.Vec Z \u2192 Result (alloc.vec.Vec Z)"
+      },
+      {
+        "name": "tacenta_braid_unit.alloc.vec.Vec.truncate",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Std.Usize \u2192 Result (alloc.vec.Vec T)"
+      },
+      {
+        "name": "tacenta_braid_unit.core.num.Usize.div_ceil",
+        "type": ": Std.Usize \u2192 Std.Usize \u2192 Result Std.Usize"
+      },
+      {
+        "name": "tacenta_braid_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 Slice T \u2192 Result (Option (Slice T))"
+      },
+      {
+        "name": "tacenta_braid_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 Slice T \u2192 Result ((Option (Slice T)) \u00d7 (Option (Slice T) \u2192 Slice T))"
+      },
+      {
+        "name": "tacenta_braid_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 ConstRawPtr (Slice T) \u2192 Result (ConstRawPtr (Slice T))"
+      },
+      {
+        "name": "tacenta_braid_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 MutRawPtr (Slice T) \u2192 Result (MutRawPtr (Slice T))"
+      },
+      {
+        "name": "tacenta_braid_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 Slice T \u2192 Result (Slice T)"
+      },
+      {
+        "name": "tacenta_braid_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 Slice T \u2192 Result ((Slice T) \u00d7 (Slice T \u2192 Slice T))"
+      },
+      {
+        "name": "tacenta_braid_unit.core.option.Option.Insts.CoreCloneClone.clone",
+        "type": "{T : Type} (cloneCloneInst : core.clone.Clone T) : Option T \u2192 Result (Option T)"
+      },
+      {
+        "name": "tacenta_braid_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq",
+        "type": "{T : Type} (cmpPartialEqInst : core.cmp.PartialEq T T) : Option T \u2192 Option T \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_braid_unit.core.option.Option.Insts.CoreFmtDebug.fmt",
+        "type": "{T : Type} (fmtDebugInst : core.fmt.Debug T) : Option T \u2192 core.fmt.Formatter \u2192 Result ((core.result.Result Unit core.fmt.Error) \u00d7 core.fmt.Formatter)"
+      },
+      {
+        "name": "tacenta_braid_unit.rand_core_1.error.Error",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kdf.hkdf_sha256",
+        "type": "(N : Std.Usize) : Slice Std.U8 \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 N)"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kdf.hmac_sha256",
+        "type": ": Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 32#usize)"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.CT1_LEN",
+        "type": ": Result Std.Usize"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.CT2_LEN",
+        "type": ": Result Std.Usize"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.EK_VECTOR_LEN",
+        "type": ": Result Std.Usize"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.EncapsState",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone",
+        "type": ": tacenta_kem.EncapsState \u2192 Result tacenta_kem.EncapsState"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.EncapsState.from_bytes",
+        "type": ": Slice Std.U8 \u2192 Result (core.result.Result tacenta_kem.EncapsState tacenta_kem.KemError)"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.EncapsState.to_bytes",
+        "type": ": tacenta_kem.EncapsState \u2192 Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.HEADER_LEN",
+        "type": ": Result Std.Usize"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.IncrementalKeyPair",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone",
+        "type": ": tacenta_kem.IncrementalKeyPair \u2192 Result tacenta_kem.IncrementalKeyPair"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.IncrementalKeyPair.decapsulate",
+        "type": ": tacenta_kem.IncrementalKeyPair \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (core.result.Result (Array Std.U8 32#usize) tacenta_kem.KemError)"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.IncrementalKeyPair.ek_vector",
+        "type": ": tacenta_kem.IncrementalKeyPair \u2192 Result (alloc.vec.Vec Std.U8)"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.IncrementalKeyPair.from_bytes",
+        "type": ": Slice Std.U8 \u2192 Result (core.result.Result tacenta_kem.IncrementalKeyPair tacenta_kem.KemError)"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.IncrementalKeyPair.generate",
+        "type": "{R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R) (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) : R \u2192 Result ((core.result.Result tacenta_kem.IncrementalKeyPair tacenta_kem.KemError) \u00d7 R)"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.IncrementalKeyPair.header",
+        "type": ": tacenta_kem.IncrementalKeyPair \u2192 Result (alloc.vec.Vec Std.U8)"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.IncrementalKeyPair.to_bytes",
+        "type": ": tacenta_kem.IncrementalKeyPair \u2192 Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.encapsulate1",
+        "type": "{R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R) (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) : Slice Std.U8 \u2192 R \u2192 Result ((core.result.Result (tacenta_kem.EncapsState \u00d7 (alloc.vec.Vec Std.U8) \u00d7 (Array Std.U8 32#usize)) tacenta_kem.KemError) \u00d7 R)"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.encapsulate2",
+        "type": ": tacenta_kem.EncapsState \u2192 Slice Std.U8 \u2192 Result (core.result.Result (alloc.vec.Vec Std.U8) tacenta_kem.KemError)"
+      },
+      {
+        "name": "tacenta_braid_unit.tacenta_kem.validate_ek",
+        "type": ": Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_braid_unit.zeroize.Zeroize.Blanket.zeroize",
+        "type": "{Z : Type} (DefaultIsZeroesInst : zeroize.DefaultIsZeroes Z) : Z \u2192 Result Z"
+      },
+      {
+        "name": "tacenta_braid_unit.zeroize.Zeroizing",
+        "type": "(Z : Type) : Type"
+      },
+      {
+        "name": "tacenta_braid_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : zeroize.Zeroizing Z \u2192 Result Z"
+      },
+      {
+        "name": "tacenta_braid_unit.zeroize.Zeroizing.new",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : Z \u2192 Result (zeroize.Zeroizing Z)"
+      },
+      {
+        "name": "tacenta_braid_unit.zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop",
+        "type": "{T : Type} (ZeroizeInst : zeroize.Zeroize T) : T \u2192 Result T"
+      }
+    ],
+    "tacenta-proofs/translation/Translation/TacentaErasure.lean": [
+      {
+        "name": "tacenta_erasure.alloc.vec.Vec.truncate",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Std.Usize \u2192 Result (alloc.vec.Vec T)"
+      },
+      {
+        "name": "tacenta_erasure.core.num.Usize.div_ceil",
+        "type": ": Std.Usize \u2192 Std.Usize \u2192 Result Std.Usize"
+      }
+    ],
+    "tacenta-proofs/translation/Translation/TacentaLifecycle.lean": [
+      {
+        "name": "tacenta_lifecycle.Array.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} {N : Std.Usize} (ZeroizeInst : zeroize.Zeroize Z) : Array Z N \u2192 Result (Array Z N)"
+      },
+      {
+        "name": "tacenta_lifecycle.Pair.Insts.ZeroizeZeroize.zeroize",
+        "type": "{A : Type} {B : Type} (ZeroizeInst : zeroize.Zeroize A) (ZeroizeInst1 : zeroize.Zeroize B) : (A \u00d7 B) \u2192 Result (A \u00d7 B)"
+      },
+      {
+        "name": "tacenta_lifecycle.SharedAVec.Insts.CoreIterTraitsCollectIntoIteratorSharedATIter.into_iter",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Result (core.slice.iter.Iter T)"
+      },
+      {
+        "name": "tacenta_lifecycle.TupleABC.Insts.ZeroizeZeroize.zeroize",
+        "type": "{A : Type} {B : Type} {C : Type} (ZeroizeInst : zeroize.Zeroize A) (ZeroizeInst1 : zeroize.Zeroize B) (ZeroizeInst2 : zeroize.Zeroize C) : (A \u00d7 B \u00d7 C) \u2192 Result (A \u00d7 B \u00d7 C)"
+      },
+      {
+        "name": "tacenta_lifecycle.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : alloc.vec.Vec Z \u2192 Result (alloc.vec.Vec Z)"
+      },
+      {
+        "name": "tacenta_lifecycle.alloc.vec.Vec.as_slice",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Result (Slice T)"
+      },
+      {
+        "name": "tacenta_lifecycle.alloc.vec.Vec.capacity",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Result Std.Usize"
+      },
+      {
+        "name": "tacenta_lifecycle.alloc.vec.Vec.dedup",
+        "type": "{T : Type} (A : Type) (corecmpPartialEqInst : core.cmp.PartialEq T T) : alloc.vec.Vec T \u2192 Result (alloc.vec.Vec T)"
+      },
+      {
+        "name": "tacenta_lifecycle.alloc.vec.Vec.is_empty",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_lifecycle.alloc.vec.Vec.pop",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Result ((Option T) \u00d7 (alloc.vec.Vec T))"
+      },
+      {
+        "name": "tacenta_lifecycle.alloc.vec.Vec.reserve_exact",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Std.Usize \u2192 Result (alloc.vec.Vec T)"
+      },
+      {
+        "name": "tacenta_lifecycle.alloc.vec.Vec.retain",
+        "type": "{T : Type} (A : Type) {F : Type} (coreopsfunctionFnMutFTupleShared0TBoolInst : core.ops.function.FnMut F T Bool) : alloc.vec.Vec T \u2192 F \u2192 Result (alloc.vec.Vec T)"
+      },
+      {
+        "name": "tacenta_lifecycle.core.num.Usize.saturating_mul",
+        "type": ": Std.Usize \u2192 Std.Usize \u2192 Result Std.Usize"
+      },
+      {
+        "name": "tacenta_lifecycle.core.ops.range.Range.Insts.CoreCmpPartialEqRange.eq",
+        "type": "{Idx : Type} (cmpPartialEqInst : core.cmp.PartialEq Idx Idx) : core.ops.range.Range Idx \u2192 core.ops.range.Range Idx \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_lifecycle.core.ops.range.Range.Insts.CoreFmtDebug.fmt",
+        "type": "{Idx : Type} (fmtDebugInst : core.fmt.Debug Idx) : core.ops.range.Range Idx \u2192 core.fmt.Formatter \u2192 Result ((core.result.Result Unit core.fmt.Error) \u00d7 core.fmt.Formatter)"
+      },
+      {
+        "name": "tacenta_lifecycle.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 Slice T \u2192 Result (Option (Slice T))"
+      },
+      {
+        "name": "tacenta_lifecycle.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 Slice T \u2192 Result ((Option (Slice T)) \u00d7 (Option (Slice T) \u2192 Slice T))"
+      },
+      {
+        "name": "tacenta_lifecycle.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 ConstRawPtr (Slice T) \u2192 Result (ConstRawPtr (Slice T))"
+      },
+      {
+        "name": "tacenta_lifecycle.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 MutRawPtr (Slice T) \u2192 Result (MutRawPtr (Slice T))"
+      },
+      {
+        "name": "tacenta_lifecycle.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 Slice T \u2192 Result (Slice T)"
+      },
+      {
+        "name": "tacenta_lifecycle.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 Slice T \u2192 Result ((Slice T) \u00d7 (Slice T \u2192 Slice T))"
+      },
+      {
+        "name": "tacenta_lifecycle.core.option.Option.Insts.CoreCmpPartialEqOption.eq",
+        "type": "{T : Type} (cmpPartialEqInst : core.cmp.PartialEq T T) : Option T \u2192 Option T \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_lifecycle.core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionInfallible.from_residual",
+        "type": "(T : Type) : Option core.convert.Infallible \u2192 Result (Option T)"
+      },
+      {
+        "name": "tacenta_lifecycle.core.option.Option.Insts.CoreOpsTry_traitTry.branch",
+        "type": "{T : Type} : Option T \u2192 Result (core.ops.control_flow.ControlFlow (Option core.convert.Infallible) T)"
+      },
+      {
+        "name": "tacenta_lifecycle.core.option.Option.as_mut",
+        "type": "{T : Type} : Option T \u2192 Result ((Option T) \u00d7 (Option T \u2192 Option T))"
+      },
+      {
+        "name": "tacenta_lifecycle.core.option.Option.as_ref",
+        "type": "{T : Type} : Option T \u2192 Result (Option T)"
+      },
+      {
+        "name": "tacenta_lifecycle.core.option.Option.is_some_and",
+        "type": "{T : Type} {T1 : Type} (opsfunctionFnOnceT1TupleTBoolInst : core.ops.function.FnOnce T1 T Bool) : Option T \u2192 T1 \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_lifecycle.core.option.Option.replace",
+        "type": "{T : Type} : Option T \u2192 T \u2192 Result ((Option T) \u00d7 (Option T))"
+      },
+      {
+        "name": "tacenta_lifecycle.core.result.Result.unwrap_or",
+        "type": "{T : Type} {E : Type} : core.result.Result T E \u2192 T \u2192 Result T"
+      },
+      {
+        "name": "tacenta_lifecycle.core.slice.Slice.sort_unstable",
+        "type": "{T : Type} (cmpOrdInst : core.cmp.Ord T) : Slice T \u2192 Result (Slice T)"
+      },
+      {
+        "name": "tacenta_lifecycle.core.slice.Slice.split_first",
+        "type": "{T : Type} : Slice T \u2192 Result (Option (T \u00d7 (Slice T)))"
+      },
+      {
+        "name": "tacenta_lifecycle.rand_core_1.error.Error",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.aead.decrypt",
+        "type": ": Array Std.U8 32#usize \u2192 Array Std.U8 32#usize \u2192 Array Std.U8 16#usize \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (core.result.Result (alloc.vec.Vec Std.U8) tacenta_boundary.aead.DecryptError)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.aead.encrypt",
+        "type": ": Array Std.U8 32#usize \u2192 Array Std.U8 32#usize \u2192 Array Std.U8 16#usize \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (alloc.vec.Vec Std.U8)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.dh.PrivateKey",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.dh.PrivateKey.agree",
+        "type": ": tacenta_boundary.dh.PrivateKey \u2192 tacenta_boundary.dh.PublicKeyBytes \u2192 Result (Option (Array Std.U8 32#usize))"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.dh.PrivateKey.from_bytes",
+        "type": ": Array Std.U8 32#usize \u2192 Result tacenta_boundary.dh.PrivateKey"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.dh.PrivateKey.public_key",
+        "type": ": tacenta_boundary.dh.PrivateKey \u2192 Result tacenta_boundary.dh.PublicKeyBytes"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.dh.PrivateKey.to_bytes",
+        "type": ": tacenta_boundary.dh.PrivateKey \u2192 Result (zeroize.Zeroizing (Array Std.U8 32#usize))"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.dh.PublicKeyBytes",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq",
+        "type": ": tacenta_boundary.dh.PublicKeyBytes \u2192 tacenta_boundary.dh.PublicKeyBytes \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.dh.PublicKeyBytes.as_bytes",
+        "type": ": tacenta_boundary.dh.PublicKeyBytes \u2192 Result (Array Std.U8 32#usize)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.dh.PublicKeyBytes.from_bytes",
+        "type": ": Array Std.U8 32#usize \u2192 Result tacenta_boundary.dh.PublicKeyBytes"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.kem.KeyPair",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.kem.KeyPair.from_bytes",
+        "type": ": Slice Std.U8 \u2192 Result (core.result.Result tacenta_boundary.kem.KeyPair tacenta_boundary.kem.KemError)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.kem.KeyPair.generate",
+        "type": "{R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R) (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) : R \u2192 Result (tacenta_boundary.kem.KeyPair \u00d7 R)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.kem.KeyPair.public_key",
+        "type": ": tacenta_boundary.kem.KeyPair \u2192 Result (alloc.vec.Vec Std.U8)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.kem.KeyPair.to_bytes",
+        "type": ": tacenta_boundary.kem.KeyPair \u2192 Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.kem.ciphertext_len",
+        "type": ": Result Std.Usize"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.kem.decapsulate",
+        "type": ": tacenta_boundary.kem.KeyPair \u2192 Slice Std.U8 \u2192 Result (core.result.Result (Array Std.U8 32#usize) tacenta_boundary.kem.KemError)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.kem.encapsulate",
+        "type": "{R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R) (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) : Slice Std.U8 \u2192 R \u2192 Result ((core.result.Result ((alloc.vec.Vec Std.U8) \u00d7 (Array Std.U8 32#usize)) tacenta_boundary.kem.KemError) \u00d7 R)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.xeddsa.sign",
+        "type": "{R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R) (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) : Array Std.U8 32#usize \u2192 Slice Std.U8 \u2192 R \u2192 Result ((Array Std.U8 64#usize) \u00d7 R)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_boundary.xeddsa.verify",
+        "type": ": tacenta_boundary.dh.PublicKeyBytes \u2192 Slice Std.U8 \u2192 Array Std.U8 64#usize \u2192 Result (core.result.Result Unit tacenta_boundary.xeddsa.VerifyError)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_braid.Braid",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_braid.Braid.epoch",
+        "type": ": tacenta_braid.Braid \u2192 Result Std.U64"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_braid.Braid.failed",
+        "type": ": tacenta_braid.Braid \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_braid.Braid.from_bytes",
+        "type": ": Slice Std.U8 \u2192 Result (core.result.Result tacenta_braid.Braid tacenta_braid.BraidDecodeError)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_braid.Braid.initiator",
+        "type": ": Slice Std.U8 \u2192 Result tacenta_braid.Braid"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_braid.Braid.invariant",
+        "type": ": tacenta_braid.Braid \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_braid.Braid.is_initiator",
+        "type": ": tacenta_braid.Braid \u2192 Result (Option Bool)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_braid.Braid.receive",
+        "type": ": tacenta_braid.Braid \u2192 tacenta_braid.Msg \u2192 Result (Std.U64 \u00d7 (Option tacenta_braid.Output) \u00d7 tacenta_braid.Braid)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_braid.Braid.responder",
+        "type": ": Slice Std.U8 \u2192 Result tacenta_braid.Braid"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_braid.Braid.send",
+        "type": "{R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R) (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) : tacenta_braid.Braid \u2192 R \u2192 Result ((tacenta_braid.Msg \u00d7 Std.U64 \u00d7 (Option tacenta_braid.Output) \u00d7 tacenta_braid.Braid) \u00d7 R)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_braid.Braid.state_tag",
+        "type": ": tacenta_braid.Braid \u2192 Result Std.U8"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_braid.Braid.to_bytes",
+        "type": ": tacenta_braid.Braid \u2192 Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_kdf.hmac_sha256",
+        "type": ": Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 32#usize)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_ratchet.MAX_SKIPPED_STORE",
+        "type": ": Result Std.Usize"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_ratchet.message_keys",
+        "type": ": Array Std.U8 32#usize \u2192 tacenta_ratchet.LabelSet \u2192 Result ((Array Std.U8 32#usize) \u00d7 (Array Std.U8 32#usize) \u00d7 (Array Std.U8 16#usize))"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_session.ENCODE_KEM_ML_KEM_1024",
+        "type": ": Result Std.U8"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_session.associated_data",
+        "type": ": Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (alloc.vec.Vec Std.U8)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_session.decode_ec",
+        "type": ": Slice Std.U8 \u2192 Result (Option (Array Std.U8 32#usize))"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_session.encode_ec",
+        "type": ": Array Std.U8 32#usize \u2192 Result (alloc.vec.Vec Std.U8)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_session.encode_kem",
+        "type": ": Slice Std.U8 \u2192 Result (alloc.vec.Vec Std.U8)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_session.is_canonical_x25519",
+        "type": ": Array Std.U8 32#usize \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_session.shared_secret",
+        "type": ": Array Std.U8 32#usize \u2192 Array Std.U8 32#usize \u2192 Array Std.U8 32#usize \u2192 Option (Array Std.U8 32#usize) \u2192 Array Std.U8 32#usize \u2192 Result (Array Std.U8 32#usize)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_spqr.Direction.Insts.CoreCmpPartialEqDirection.eq",
+        "type": ": tacenta_spqr.Direction \u2192 tacenta_spqr.Direction \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_spqr.MAX_SKIPPED_STORE",
+        "type": ": Result Std.Usize"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_spqr.Output.new",
+        "type": ": Std.U64 \u2192 Array Std.U8 32#usize \u2192 Result tacenta_spqr.Output"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.Insts.CoreCloneClone.clone",
+        "type": ": tacenta_triple.State \u2192 Result tacenta_triple.State"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.classical_skipped_len",
+        "type": ": tacenta_triple.State \u2192 Result Std.Usize"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.direction",
+        "type": ": tacenta_triple.State \u2192 Result tacenta_spqr.Direction"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.epoch",
+        "type": ": tacenta_triple.State \u2192 Result Std.U64"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.evict_oldest_classical",
+        "type": ": tacenta_triple.State \u2192 Std.Usize \u2192 Result (Std.Usize \u00d7 tacenta_triple.State)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.evict_oldest_post_quantum",
+        "type": ": tacenta_triple.State \u2192 Std.Usize \u2192 Result (Std.Usize \u00d7 tacenta_triple.State)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.from_bytes",
+        "type": ": Slice Std.U8 \u2192 Result (core.result.Result tacenta_triple.State tacenta_triple.TripleDecodeError)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.init_receiver",
+        "type": ": Slice Std.U8 \u2192 Array Std.U8 32#usize \u2192 tacenta_ratchet.LabelSet \u2192 Result tacenta_triple.State"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.init_sender",
+        "type": ": Slice Std.U8 \u2192 Array Std.U8 32#usize \u2192 Array Std.U8 32#usize \u2192 Array Std.U8 32#usize \u2192 tacenta_ratchet.LabelSet \u2192 Result tacenta_triple.State"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.invariant",
+        "type": ": tacenta_triple.State \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.post_quantum_receive_count",
+        "type": ": tacenta_triple.State \u2192 Std.U64 \u2192 Result (Option Std.U64)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.post_quantum_skipped_len",
+        "type": ": tacenta_triple.State \u2192 Result Std.Usize"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.receive",
+        "type": ": tacenta_triple.State \u2192 tacenta_triple.Header \u2192 Array Std.U8 32#usize \u2192 Array Std.U8 32#usize \u2192 Array Std.U8 32#usize \u2192 Option tacenta_spqr.Output \u2192 Result (core.result.Result (tacenta_triple.State \u00d7 (Array Std.U8 32#usize)) tacenta_triple.TripleError)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.receive_count",
+        "type": ": tacenta_triple.State \u2192 Result Std.U32"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.send",
+        "type": ": tacenta_triple.State \u2192 Std.U64 \u2192 Option tacenta_spqr.Output \u2192 Result ((core.result.Result (tacenta_triple.Header \u00d7 (Array Std.U8 32#usize)) tacenta_triple.TripleError) \u00d7 tacenta_triple.State)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.send_count",
+        "type": ": tacenta_triple.State \u2192 Result Std.U32"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.sending_public",
+        "type": ": tacenta_triple.State \u2192 Result (Array Std.U8 32#usize)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.State.to_bytes",
+        "type": ": tacenta_triple.State \u2192 Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.TripleError.Insts.CoreCmpPartialEqTripleError.eq",
+        "type": ": tacenta_triple.TripleError \u2192 tacenta_triple.TripleError \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_triple.TripleError.Insts.CoreFmtDebug.fmt",
+        "type": ": tacenta_triple.TripleError \u2192 core.fmt.Formatter \u2192 Result ((core.result.Result Unit core.fmt.Error) \u00d7 core.fmt.Formatter)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_wire.DecodeError.Insts.CoreCmpPartialEqDecodeError.eq",
+        "type": ": tacenta_wire.DecodeError \u2192 tacenta_wire.DecodeError \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_wire.DecodeError.Insts.CoreFmtDebug.fmt",
+        "type": ": tacenta_wire.DecodeError \u2192 core.fmt.Formatter \u2192 Result ((core.result.Result Unit core.fmt.Error) \u00d7 core.fmt.Formatter)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_wire.TYPE_INITIAL",
+        "type": ": Result Std.U8"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_wire.TYPE_RATCHET",
+        "type": ": Result Std.U8"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_wire.VERSION",
+        "type": ": Result Std.U8"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_wire.decode_initial",
+        "type": ": Slice Std.U8 \u2192 Result (core.result.Result tacenta_wire.DecodedInitial tacenta_wire.DecodeError)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_wire.decode_message",
+        "type": ": Slice Std.U8 \u2192 Result (core.result.Result tacenta_wire.DecodedMessage tacenta_wire.DecodeError)"
+      },
+      {
+        "name": "tacenta_lifecycle.tacenta_wire.encode_composite",
+        "type": ": tacenta_wire.Composite \u2192 Result (alloc.vec.Vec Std.U8)"
+      },
+      {
+        "name": "tacenta_lifecycle.zeroize.Zeroize.Blanket.zeroize",
+        "type": "{Z : Type} (DefaultIsZeroesInst : zeroize.DefaultIsZeroes Z) : Z \u2192 Result Z"
+      },
+      {
+        "name": "tacenta_lifecycle.zeroize.Zeroizing",
+        "type": "(Z : Type) : Type"
+      },
+      {
+        "name": "tacenta_lifecycle.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : zeroize.Zeroizing Z \u2192 Result Z"
+      },
+      {
+        "name": "tacenta_lifecycle.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : zeroize.Zeroizing Z \u2192 Result (Z \u00d7 (Z \u2192 zeroize.Zeroizing Z))"
+      },
+      {
+        "name": "tacenta_lifecycle.zeroize.Zeroizing.new",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : Z \u2192 Result (zeroize.Zeroizing Z)"
+      },
+      {
+        "name": "tacenta_lifecycle.zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop",
+        "type": "{T : Type} (ZeroizeInst : zeroize.Zeroize T) : T \u2192 Result T"
+      }
+    ],
+    "tacenta-proofs/translation/Translation/TacentaProtobuf.lean": [],
+    "tacenta-proofs/translation/Translation/TacentaRatchet.lean": [
+      {
+        "name": "tacenta_ratchet.Array.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} {N : Std.Usize} (ZeroizeInst : zeroize.Zeroize Z) : Array Z N \u2192 Result (Array Z N)"
+      },
+      {
+        "name": "tacenta_ratchet.Pair.Insts.ZeroizeZeroize.zeroize",
+        "type": "{A : Type} {B : Type} (ZeroizeInst : zeroize.Zeroize A) (ZeroizeInst1 : zeroize.Zeroize B) : (A \u00d7 B) \u2192 Result (A \u00d7 B)"
+      },
+      {
+        "name": "tacenta_ratchet.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : alloc.vec.Vec Z \u2192 Result (alloc.vec.Vec Z)"
+      },
+      {
+        "name": "tacenta_ratchet.alloc.vec.Vec.pop",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Result ((Option T) \u00d7 (alloc.vec.Vec T))"
+      },
+      {
+        "name": "tacenta_ratchet.core.option.Option.Insts.CoreCloneClone.clone",
+        "type": "{T : Type} (cloneCloneInst : core.clone.Clone T) : Option T \u2192 Result (Option T)"
+      },
+      {
+        "name": "tacenta_ratchet.core.option.Option.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : Option Z \u2192 Result (Option Z)"
+      },
+      {
+        "name": "tacenta_ratchet.tacenta_kdf.hkdf_sha256",
+        "type": "(N : Std.Usize) : Slice Std.U8 \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 N)"
+      },
+      {
+        "name": "tacenta_ratchet.tacenta_kdf.hmac_sha256",
+        "type": ": Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 32#usize)"
+      },
+      {
+        "name": "tacenta_ratchet.zeroize.Zeroize.Blanket.zeroize",
+        "type": "{Z : Type} (DefaultIsZeroesInst : zeroize.DefaultIsZeroes Z) : Z \u2192 Result Z"
+      },
+      {
+        "name": "tacenta_ratchet.zeroize.Zeroizing",
+        "type": "(Z : Type) : Type"
+      },
+      {
+        "name": "tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : zeroize.Zeroizing Z \u2192 Result Z"
+      },
+      {
+        "name": "tacenta_ratchet.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : zeroize.Zeroizing Z \u2192 Result (Z \u00d7 (Z \u2192 zeroize.Zeroizing Z))"
+      },
+      {
+        "name": "tacenta_ratchet.zeroize.Zeroizing.new",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : Z \u2192 Result (zeroize.Zeroizing Z)"
+      },
+      {
+        "name": "tacenta_ratchet.zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop",
+        "type": "{T : Type} (ZeroizeInst : zeroize.Zeroize T) : T \u2192 Result T"
+      }
+    ],
+    "tacenta-proofs/translation/Translation/TacentaSession.lean": [
+      {
+        "name": "tacenta_session.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : alloc.vec.Vec Z \u2192 Result (alloc.vec.Vec Z)"
+      },
+      {
+        "name": "tacenta_session.tacenta_kdf.hkdf_sha256",
+        "type": "(N : Std.Usize) : Slice Std.U8 \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 N)"
+      },
+      {
+        "name": "tacenta_session.zeroize.Zeroize.Blanket.zeroize",
+        "type": "{Z : Type} (DefaultIsZeroesInst : zeroize.DefaultIsZeroes Z) : Z \u2192 Result Z"
+      },
+      {
+        "name": "tacenta_session.zeroize.Zeroizing",
+        "type": "(Z : Type) : Type"
+      },
+      {
+        "name": "tacenta_session.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : zeroize.Zeroizing Z \u2192 Result Z"
+      },
+      {
+        "name": "tacenta_session.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : zeroize.Zeroizing Z \u2192 Result (Z \u00d7 (Z \u2192 zeroize.Zeroizing Z))"
+      },
+      {
+        "name": "tacenta_session.zeroize.Zeroizing.new",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : Z \u2192 Result (zeroize.Zeroizing Z)"
+      }
+    ],
+    "tacenta-proofs/translation/Translation/TacentaSessionUnit.lean": [
+      {
+        "name": "tacenta_session_unit.Array.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} {N : Std.Usize} (ZeroizeInst : zeroize.Zeroize Z) : Array Z N \u2192 Result (Array Z N)"
+      },
+      {
+        "name": "tacenta_session_unit.Pair.Insts.ZeroizeZeroize.zeroize",
+        "type": "{A : Type} {B : Type} (ZeroizeInst : zeroize.Zeroize A) (ZeroizeInst1 : zeroize.Zeroize B) : (A \u00d7 B) \u2192 Result (A \u00d7 B)"
+      },
+      {
+        "name": "tacenta_session_unit.SharedAVec.Insts.CoreIterTraitsCollectIntoIteratorSharedATIter.into_iter",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Result (core.slice.iter.Iter T)"
+      },
+      {
+        "name": "tacenta_session_unit.TupleABC.Insts.ZeroizeZeroize.zeroize",
+        "type": "{A : Type} {B : Type} {C : Type} (ZeroizeInst : zeroize.Zeroize A) (ZeroizeInst1 : zeroize.Zeroize B) (ZeroizeInst2 : zeroize.Zeroize C) : (A \u00d7 B \u00d7 C) \u2192 Result (A \u00d7 B \u00d7 C)"
+      },
+      {
+        "name": "tacenta_session_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : alloc.vec.Vec Z \u2192 Result (alloc.vec.Vec Z)"
+      },
+      {
+        "name": "tacenta_session_unit.alloc.vec.Vec.as_slice",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Result (Slice T)"
+      },
+      {
+        "name": "tacenta_session_unit.alloc.vec.Vec.capacity",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Result Std.Usize"
+      },
+      {
+        "name": "tacenta_session_unit.alloc.vec.Vec.dedup",
+        "type": "{T : Type} (A : Type) (corecmpPartialEqInst : core.cmp.PartialEq T T) : alloc.vec.Vec T \u2192 Result (alloc.vec.Vec T)"
+      },
+      {
+        "name": "tacenta_session_unit.alloc.vec.Vec.is_empty",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_session_unit.alloc.vec.Vec.pop",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Result ((Option T) \u00d7 (alloc.vec.Vec T))"
+      },
+      {
+        "name": "tacenta_session_unit.alloc.vec.Vec.reserve_exact",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Std.Usize \u2192 Result (alloc.vec.Vec T)"
+      },
+      {
+        "name": "tacenta_session_unit.alloc.vec.Vec.retain",
+        "type": "{T : Type} (A : Type) {F : Type} (coreopsfunctionFnMutFTupleShared0TBoolInst : core.ops.function.FnMut F T Bool) : alloc.vec.Vec T \u2192 F \u2192 Result (alloc.vec.Vec T)"
+      },
+      {
+        "name": "tacenta_session_unit.alloc.vec.Vec.truncate",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Std.Usize \u2192 Result (alloc.vec.Vec T)"
+      },
+      {
+        "name": "tacenta_session_unit.core.mem.maybe_uninit.MaybeUninit",
+        "type": "(T : Type) : Type"
+      },
+      {
+        "name": "tacenta_session_unit.core.num.Usize.div_ceil",
+        "type": ": Std.Usize \u2192 Std.Usize \u2192 Result Std.Usize"
+      },
+      {
+        "name": "tacenta_session_unit.core.num.Usize.saturating_mul",
+        "type": ": Std.Usize \u2192 Std.Usize \u2192 Result Std.Usize"
+      },
+      {
+        "name": "tacenta_session_unit.core.ops.range.Range.Insts.CoreCmpPartialEqRange.eq",
+        "type": "{Idx : Type} (cmpPartialEqInst : core.cmp.PartialEq Idx Idx) : core.ops.range.Range Idx \u2192 core.ops.range.Range Idx \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_session_unit.core.ops.range.Range.Insts.CoreFmtDebug.fmt",
+        "type": "{Idx : Type} (fmtDebugInst : core.fmt.Debug Idx) : core.ops.range.Range Idx \u2192 core.fmt.Formatter \u2192 Result ((core.result.Result Unit core.fmt.Error) \u00d7 core.fmt.Formatter)"
+      },
+      {
+        "name": "tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 Slice T \u2192 Result (Option (Slice T))"
+      },
+      {
+        "name": "tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_mut",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 Slice T \u2192 Result ((Option (Slice T)) \u00d7 (Option (Slice T) \u2192 Slice T))"
+      },
+      {
+        "name": "tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 ConstRawPtr (Slice T) \u2192 Result (ConstRawPtr (Slice T))"
+      },
+      {
+        "name": "tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.get_unchecked_mut",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 MutRawPtr (Slice T) \u2192 Result (MutRawPtr (Slice T))"
+      },
+      {
+        "name": "tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 Slice T \u2192 Result (Slice T)"
+      },
+      {
+        "name": "tacenta_session_unit.core.ops.range.RangeFull.Insts.CoreSliceIndexSliceIndexSliceSlice.index_mut",
+        "type": "{T : Type} : core.ops.range.RangeFull \u2192 Slice T \u2192 Result ((Slice T) \u00d7 (Slice T \u2192 Slice T))"
+      },
+      {
+        "name": "tacenta_session_unit.core.option.Option.Insts.CoreCloneClone.clone",
+        "type": "{T : Type} (cloneCloneInst : core.clone.Clone T) : Option T \u2192 Result (Option T)"
+      },
+      {
+        "name": "tacenta_session_unit.core.option.Option.Insts.CoreCmpPartialEqOption.eq",
+        "type": "{T : Type} (cmpPartialEqInst : core.cmp.PartialEq T T) : Option T \u2192 Option T \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_session_unit.core.option.Option.Insts.CoreDefaultDefault.default",
+        "type": "(T : Type) : Result (Option T)"
+      },
+      {
+        "name": "tacenta_session_unit.core.option.Option.Insts.CoreFmtDebug.fmt",
+        "type": "{T : Type} (fmtDebugInst : core.fmt.Debug T) : Option T \u2192 core.fmt.Formatter \u2192 Result ((core.result.Result Unit core.fmt.Error) \u00d7 core.fmt.Formatter)"
+      },
+      {
+        "name": "tacenta_session_unit.core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionInfallible.from_residual",
+        "type": "(T : Type) : Option core.convert.Infallible \u2192 Result (Option T)"
+      },
+      {
+        "name": "tacenta_session_unit.core.option.Option.Insts.CoreOpsTry_traitTry.branch",
+        "type": "{T : Type} : Option T \u2192 Result (core.ops.control_flow.ControlFlow (Option core.convert.Infallible) T)"
+      },
+      {
+        "name": "tacenta_session_unit.core.option.Option.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : Option Z \u2192 Result (Option Z)"
+      },
+      {
+        "name": "tacenta_session_unit.core.option.Option.as_mut",
+        "type": "{T : Type} : Option T \u2192 Result ((Option T) \u00d7 (Option T \u2192 Option T))"
+      },
+      {
+        "name": "tacenta_session_unit.core.option.Option.as_ref",
+        "type": "{T : Type} : Option T \u2192 Result (Option T)"
+      },
+      {
+        "name": "tacenta_session_unit.core.option.Option.is_some_and",
+        "type": "{T : Type} {T1 : Type} (opsfunctionFnOnceT1TupleTBoolInst : core.ops.function.FnOnce T1 T Bool) : Option T \u2192 T1 \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_session_unit.core.option.Option.replace",
+        "type": "{T : Type} : Option T \u2192 T \u2192 Result ((Option T) \u00d7 (Option T))"
+      },
+      {
+        "name": "tacenta_session_unit.core.result.Result.unwrap_or",
+        "type": "{T : Type} {E : Type} : core.result.Result T E \u2192 T \u2192 Result T"
+      },
+      {
+        "name": "tacenta_session_unit.core.slice.Slice.sort_unstable",
+        "type": "{T : Type} (cmpOrdInst : core.cmp.Ord T) : Slice T \u2192 Result (Slice T)"
+      },
+      {
+        "name": "tacenta_session_unit.core.slice.Slice.split_first",
+        "type": "{T : Type} : Slice T \u2192 Result (Option (T \u00d7 (Slice T)))"
+      },
+      {
+        "name": "tacenta_session_unit.rand_core_1.error.Error",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.aead.decrypt",
+        "type": ": Array Std.U8 32#usize \u2192 Array Std.U8 32#usize \u2192 Array Std.U8 16#usize \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (core.result.Result (alloc.vec.Vec Std.U8) tacenta_boundary.aead.DecryptError)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.aead.encrypt",
+        "type": ": Array Std.U8 32#usize \u2192 Array Std.U8 32#usize \u2192 Array Std.U8 16#usize \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (alloc.vec.Vec Std.U8)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.dh.PrivateKey",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.dh.PrivateKey.agree",
+        "type": ": tacenta_boundary.dh.PrivateKey \u2192 tacenta_boundary.dh.PublicKeyBytes \u2192 Result (Option (Array Std.U8 32#usize))"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.dh.PrivateKey.from_bytes",
+        "type": ": Array Std.U8 32#usize \u2192 Result tacenta_boundary.dh.PrivateKey"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.dh.PrivateKey.public_key",
+        "type": ": tacenta_boundary.dh.PrivateKey \u2192 Result tacenta_boundary.dh.PublicKeyBytes"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.dh.PrivateKey.to_bytes",
+        "type": ": tacenta_boundary.dh.PrivateKey \u2192 Result (zeroize.Zeroizing (Array Std.U8 32#usize))"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.Insts.CoreCmpPartialEqPublicKeyBytes.eq",
+        "type": ": tacenta_boundary.dh.PublicKeyBytes \u2192 tacenta_boundary.dh.PublicKeyBytes \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.as_bytes",
+        "type": ": tacenta_boundary.dh.PublicKeyBytes \u2192 Result (Array Std.U8 32#usize)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.dh.PublicKeyBytes.from_bytes",
+        "type": ": Array Std.U8 32#usize \u2192 Result tacenta_boundary.dh.PublicKeyBytes"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.kem.KeyPair",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.kem.KeyPair.from_bytes",
+        "type": ": Slice Std.U8 \u2192 Result (core.result.Result tacenta_boundary.kem.KeyPair tacenta_boundary.kem.KemError)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.kem.KeyPair.generate",
+        "type": "{R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R) (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) : R \u2192 Result (tacenta_boundary.kem.KeyPair \u00d7 R)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.kem.KeyPair.public_key",
+        "type": ": tacenta_boundary.kem.KeyPair \u2192 Result (alloc.vec.Vec Std.U8)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.kem.KeyPair.to_bytes",
+        "type": ": tacenta_boundary.kem.KeyPair \u2192 Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.kem.ciphertext_len",
+        "type": ": Result Std.Usize"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.kem.decapsulate",
+        "type": ": tacenta_boundary.kem.KeyPair \u2192 Slice Std.U8 \u2192 Result (core.result.Result (Array Std.U8 32#usize) tacenta_boundary.kem.KemError)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.kem.encapsulate",
+        "type": "{R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R) (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) : Slice Std.U8 \u2192 R \u2192 Result ((core.result.Result ((alloc.vec.Vec Std.U8) \u00d7 (Array Std.U8 32#usize)) tacenta_boundary.kem.KemError) \u00d7 R)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.xeddsa.sign",
+        "type": "{R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R) (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) : Array Std.U8 32#usize \u2192 Slice Std.U8 \u2192 R \u2192 Result ((Array Std.U8 64#usize) \u00d7 R)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_boundary.xeddsa.verify",
+        "type": ": tacenta_boundary.dh.PublicKeyBytes \u2192 Slice Std.U8 \u2192 Array Std.U8 64#usize \u2192 Result (core.result.Result Unit tacenta_boundary.xeddsa.VerifyError)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kdf.hkdf_sha256",
+        "type": "(N : Std.Usize) : Slice Std.U8 \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 N)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kdf.hmac_sha256",
+        "type": ": Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 32#usize)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.CT1_LEN",
+        "type": ": Result Std.Usize"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.CT2_LEN",
+        "type": ": Result Std.Usize"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.EK_VECTOR_LEN",
+        "type": ": Result Std.Usize"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.EncapsState",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.EncapsState.Insts.CoreCloneClone.clone",
+        "type": ": tacenta_kem.EncapsState \u2192 Result tacenta_kem.EncapsState"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.EncapsState.from_bytes",
+        "type": ": Slice Std.U8 \u2192 Result (core.result.Result tacenta_kem.EncapsState tacenta_kem.KemError)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.EncapsState.to_bytes",
+        "type": ": tacenta_kem.EncapsState \u2192 Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.HEADER_LEN",
+        "type": ": Result Std.Usize"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.IncrementalKeyPair",
+        "type": ": Type"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.IncrementalKeyPair.Insts.CoreCloneClone.clone",
+        "type": ": tacenta_kem.IncrementalKeyPair \u2192 Result tacenta_kem.IncrementalKeyPair"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.IncrementalKeyPair.decapsulate",
+        "type": ": tacenta_kem.IncrementalKeyPair \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (core.result.Result (Array Std.U8 32#usize) tacenta_kem.KemError)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.IncrementalKeyPair.ek_vector",
+        "type": ": tacenta_kem.IncrementalKeyPair \u2192 Result (alloc.vec.Vec Std.U8)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.IncrementalKeyPair.from_bytes",
+        "type": ": Slice Std.U8 \u2192 Result (core.result.Result tacenta_kem.IncrementalKeyPair tacenta_kem.KemError)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.IncrementalKeyPair.generate",
+        "type": "{R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R) (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) : R \u2192 Result ((core.result.Result tacenta_kem.IncrementalKeyPair tacenta_kem.KemError) \u00d7 R)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.IncrementalKeyPair.header",
+        "type": ": tacenta_kem.IncrementalKeyPair \u2192 Result (alloc.vec.Vec Std.U8)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.IncrementalKeyPair.to_bytes",
+        "type": ": tacenta_kem.IncrementalKeyPair \u2192 Result (zeroize.Zeroizing (alloc.vec.Vec Std.U8))"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.encapsulate1",
+        "type": "{R : Type} (rand_core_1RngCoreInst : rand_core_1.RngCore R) (rand_core_1CryptoRngInst : rand_core_1.CryptoRng R) : Slice Std.U8 \u2192 R \u2192 Result ((core.result.Result (tacenta_kem.EncapsState \u00d7 (alloc.vec.Vec Std.U8) \u00d7 (Array Std.U8 32#usize)) tacenta_kem.KemError) \u00d7 R)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.encapsulate2",
+        "type": ": tacenta_kem.EncapsState \u2192 Slice Std.U8 \u2192 Result (core.result.Result (alloc.vec.Vec Std.U8) tacenta_kem.KemError)"
+      },
+      {
+        "name": "tacenta_session_unit.tacenta_kem.validate_ek",
+        "type": ": Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_session_unit.zeroize.Zeroize.Blanket.zeroize",
+        "type": "{Z : Type} (DefaultIsZeroesInst : zeroize.DefaultIsZeroes Z) : Z \u2192 Result Z"
+      },
+      {
+        "name": "tacenta_session_unit.zeroize.Zeroizing",
+        "type": "(Z : Type) : Type"
+      },
+      {
+        "name": "tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : zeroize.Zeroizing Z \u2192 Result Z"
+      },
+      {
+        "name": "tacenta_session_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : zeroize.Zeroizing Z \u2192 Result (Z \u00d7 (Z \u2192 zeroize.Zeroizing Z))"
+      },
+      {
+        "name": "tacenta_session_unit.zeroize.Zeroizing.new",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : Z \u2192 Result (zeroize.Zeroizing Z)"
+      },
+      {
+        "name": "tacenta_session_unit.zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop",
+        "type": "{T : Type} (ZeroizeInst : zeroize.Zeroize T) : T \u2192 Result T"
+      }
+    ],
+    "tacenta-proofs/translation/Translation/TacentaSpqr.lean": [
+      {
+        "name": "tacenta_spqr.Array.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} {N : Std.Usize} (ZeroizeInst : zeroize.Zeroize Z) : Array Z N \u2192 Result (Array Z N)"
+      },
+      {
+        "name": "tacenta_spqr.Pair.Insts.ZeroizeZeroize.zeroize",
+        "type": "{A : Type} {B : Type} (ZeroizeInst : zeroize.Zeroize A) (ZeroizeInst1 : zeroize.Zeroize B) : (A \u00d7 B) \u2192 Result (A \u00d7 B)"
+      },
+      {
+        "name": "tacenta_spqr.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : alloc.vec.Vec Z \u2192 Result (alloc.vec.Vec Z)"
+      },
+      {
+        "name": "tacenta_spqr.alloc.vec.Vec.capacity",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Result Std.Usize"
+      },
+      {
+        "name": "tacenta_spqr.alloc.vec.Vec.pop",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Result ((Option T) \u00d7 (alloc.vec.Vec T))"
+      },
+      {
+        "name": "tacenta_spqr.core.mem.maybe_uninit.MaybeUninit",
+        "type": "(T : Type) : Type"
+      },
+      {
+        "name": "tacenta_spqr.core.option.Option.Insts.CoreCloneClone.clone",
+        "type": "{T : Type} (cloneCloneInst : core.clone.Clone T) : Option T \u2192 Result (Option T)"
+      },
+      {
+        "name": "tacenta_spqr.core.option.Option.Insts.CoreDefaultDefault.default",
+        "type": "(T : Type) : Result (Option T)"
+      },
+      {
+        "name": "tacenta_spqr.core.option.Option.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : Option Z \u2192 Result (Option Z)"
+      },
+      {
+        "name": "tacenta_spqr.core.option.Option.as_mut",
+        "type": "{T : Type} : Option T \u2192 Result ((Option T) \u00d7 (Option T \u2192 Option T))"
+      },
+      {
+        "name": "tacenta_spqr.tacenta_kdf.hkdf_sha256",
+        "type": "(N : Std.Usize) : Slice Std.U8 \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 N)"
+      },
+      {
+        "name": "tacenta_spqr.zeroize.Zeroize.Blanket.zeroize",
+        "type": "{Z : Type} (DefaultIsZeroesInst : zeroize.DefaultIsZeroes Z) : Z \u2192 Result Z"
+      },
+      {
+        "name": "tacenta_spqr.zeroize.Zeroizing",
+        "type": "(Z : Type) : Type"
+      },
+      {
+        "name": "tacenta_spqr.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : zeroize.Zeroizing Z \u2192 Result Z"
+      },
+      {
+        "name": "tacenta_spqr.zeroize.Zeroizing.new",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : Z \u2192 Result (zeroize.Zeroizing Z)"
+      },
+      {
+        "name": "tacenta_spqr.zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop",
+        "type": "{T : Type} (ZeroizeInst : zeroize.Zeroize T) : T \u2192 Result T"
+      }
+    ],
+    "tacenta-proofs/translation/Translation/TacentaTripleUnit.lean": [
+      {
+        "name": "tacenta_triple_unit.Array.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} {N : Std.Usize} (ZeroizeInst : zeroize.Zeroize Z) : Array Z N \u2192 Result (Array Z N)"
+      },
+      {
+        "name": "tacenta_triple_unit.Pair.Insts.ZeroizeZeroize.zeroize",
+        "type": "{A : Type} {B : Type} (ZeroizeInst : zeroize.Zeroize A) (ZeroizeInst1 : zeroize.Zeroize B) : (A \u00d7 B) \u2192 Result (A \u00d7 B)"
+      },
+      {
+        "name": "tacenta_triple_unit.alloc.vec.Vec.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : alloc.vec.Vec Z \u2192 Result (alloc.vec.Vec Z)"
+      },
+      {
+        "name": "tacenta_triple_unit.alloc.vec.Vec.capacity",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Result Std.Usize"
+      },
+      {
+        "name": "tacenta_triple_unit.alloc.vec.Vec.pop",
+        "type": "{T : Type} (A : Type) : alloc.vec.Vec T \u2192 Result ((Option T) \u00d7 (alloc.vec.Vec T))"
+      },
+      {
+        "name": "tacenta_triple_unit.core.mem.maybe_uninit.MaybeUninit",
+        "type": "(T : Type) : Type"
+      },
+      {
+        "name": "tacenta_triple_unit.core.option.Option.Insts.CoreCloneClone.clone",
+        "type": "{T : Type} (cloneCloneInst : core.clone.Clone T) : Option T \u2192 Result (Option T)"
+      },
+      {
+        "name": "tacenta_triple_unit.core.option.Option.Insts.CoreDefaultDefault.default",
+        "type": "(T : Type) : Result (Option T)"
+      },
+      {
+        "name": "tacenta_triple_unit.core.option.Option.Insts.ZeroizeZeroize.zeroize",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : Option Z \u2192 Result (Option Z)"
+      },
+      {
+        "name": "tacenta_triple_unit.core.option.Option.as_mut",
+        "type": "{T : Type} : Option T \u2192 Result ((Option T) \u00d7 (Option T \u2192 Option T))"
+      },
+      {
+        "name": "tacenta_triple_unit.tacenta_kdf.hkdf_sha256",
+        "type": "(N : Std.Usize) : Slice Std.U8 \u2192 Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 N)"
+      },
+      {
+        "name": "tacenta_triple_unit.tacenta_kdf.hmac_sha256",
+        "type": ": Slice Std.U8 \u2192 Slice Std.U8 \u2192 Result (Array Std.U8 32#usize)"
+      },
+      {
+        "name": "tacenta_triple_unit.zeroize.Zeroize.Blanket.zeroize",
+        "type": "{Z : Type} (DefaultIsZeroesInst : zeroize.DefaultIsZeroes Z) : Z \u2192 Result Z"
+      },
+      {
+        "name": "tacenta_triple_unit.zeroize.Zeroizing",
+        "type": "(Z : Type) : Type"
+      },
+      {
+        "name": "tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDeref.deref",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : zeroize.Zeroizing Z \u2192 Result Z"
+      },
+      {
+        "name": "tacenta_triple_unit.zeroize.Zeroizing.Insts.CoreOpsDerefDerefMut.deref_mut",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : zeroize.Zeroizing Z \u2192 Result (Z \u00d7 (Z \u2192 zeroize.Zeroizing Z))"
+      },
+      {
+        "name": "tacenta_triple_unit.zeroize.Zeroizing.new",
+        "type": "{Z : Type} (ZeroizeInst : zeroize.Zeroize Z) : Z \u2192 Result (zeroize.Zeroizing Z)"
+      },
+      {
+        "name": "tacenta_triple_unit.zeroize.__internal.AssertZeroize.Blanket.zeroize_or_on_drop",
+        "type": "{T : Type} (ZeroizeInst : zeroize.Zeroize T) : T \u2192 Result T"
+      }
+    ],
+    "tacenta-proofs/translation/Translation/TacentaWire.lean": [
+      {
+        "name": "tacenta_wire.core.option.Option.Insts.CoreCloneClone.clone",
+        "type": "{T : Type} (cloneCloneInst : core.clone.Clone T) : Option T \u2192 Result (Option T)"
+      },
+      {
+        "name": "tacenta_wire.core.option.Option.Insts.CoreCmpPartialEqOption.eq",
+        "type": "{T : Type} (cmpPartialEqInst : core.cmp.PartialEq T T) : Option T \u2192 Option T \u2192 Result Bool"
+      },
+      {
+        "name": "tacenta_wire.core.option.Option.Insts.CoreFmtDebug.fmt",
+        "type": "{T : Type} (fmtDebugInst : core.fmt.Debug T) : Option T \u2192 core.fmt.Formatter \u2192 Result ((core.result.Result Unit core.fmt.Error) \u00d7 core.fmt.Formatter)"
+      }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - id: j_run
+        run: make test
+      - id: j_second
+        run: make lint
+      - uses: ./.github/actions/assurance-receipt
+        with:
+          id: j
+          classification: optional
+          command: c

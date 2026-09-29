@@ -1,0 +1,5 @@
+# expect: defines no composite-action steps
+name: probe
+runs:
+  using: composite
+  steps: []

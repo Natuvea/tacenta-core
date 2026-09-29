@@ -1,0 +1,7 @@
+# expect: job 'j' is not a mapping
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j: run

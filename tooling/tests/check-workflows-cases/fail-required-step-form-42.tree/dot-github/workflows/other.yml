@@ -1,0 +1,10 @@
+name: other
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  lint:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: make lint

@@ -1,0 +1,10 @@
+# expect: calls the receipt action
+name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/wrap
