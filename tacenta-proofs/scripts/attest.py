@@ -400,9 +400,6 @@ def axiom_declarations(path):
     return declarations
 
 
-# The `axiom` keyword as a token, wherever it sits: at the start of a line as
-# Aeneas writes it, behind an attribute or `private`, after `set_option ... in`
-# or `namespace X` on the same line, or after another command's last token.
 def generated_files():
     return sorted(GENERATED.glob("Tacenta*.lean"))
 
